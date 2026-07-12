@@ -24,7 +24,6 @@ import {
   useSettingsStore,
   type CopilotTaskId,
   type DateFormat,
-  type AiMode,
   type AgentAuth,
   type AgentEffort,
   type AgentToolSearch,
@@ -33,11 +32,10 @@ import {
   AGENT_TOOL_SEARCH_OPTIONS,
   type FocusLineMode,
   type LocaleCode,
-  type ModelTier,
   type ParagraphIndent,
   type ThemeMode,
 } from '../../store/settings-store';
-import { SHADOW_TIERS, SHADOW_BYOK_MODELS } from '../../lib/shadow/model-routing';
+import { SHADOW_BYOK_MODELS } from '../../lib/shadow/model-routing';
 import { useAuthStore } from '../../store/auth';
 import { useProjectStore } from '../../store/project-store';
 import { useAgentChatStore } from '../../store/agent-chat-store';
@@ -61,8 +59,9 @@ import {
   useShortcutsStore,
   type ShortcutActionId,
 } from '../../store/shortcuts-store';
-import { acceleratorFromEvent, formatAccelerator } from '../../lib/shortcuts';
+import { acceleratorFromEvent, formatAccelerator, matchesAccelerator } from '../../lib/shortcuts';
 import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
+import { exportAllProjectsAsRelationalMarkdown } from '../../services/export/relational-markdown.service';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -104,19 +103,69 @@ interface RailBaseDef {
 // Static rail definition. The subscription row's badge is filled in at
 // render time from the actual cached plan — see SetRail.
 const RAIL_BASE: RailBaseDef[] = [
-  { id: 'account', groupKey: 'settings.groups.account', glyph: '◌', labelKey: 'settings.rail.account' },
-  { id: 'subscription', groupKey: 'settings.groups.account', glyph: '¶', labelKey: 'settings.rail.subscription' },
+  {
+    id: 'account',
+    groupKey: 'settings.groups.account',
+    glyph: '◌',
+    labelKey: 'settings.rail.account',
+  },
+  {
+    id: 'subscription',
+    groupKey: 'settings.groups.account',
+    glyph: '¶',
+    labelKey: 'settings.rail.subscription',
+  },
   { id: 'trash', groupKey: 'settings.groups.account', glyph: '⌫', labelKey: 'settings.rail.trash' },
-  { id: 'appearance', groupKey: 'settings.groups.preferences', glyph: '☀', labelKey: 'settings.rail.appearance' },
-  { id: 'editor', groupKey: 'settings.groups.preferences', glyph: '§', labelKey: 'settings.rail.editor' },
-  { id: 'language', groupKey: 'settings.groups.preferences', glyph: '文', labelKey: 'settings.rail.language' },
-  { id: 'copilot', groupKey: 'settings.groups.intelligence', glyph: '⌁', labelKey: 'settings.rail.copilot' },
-  { id: 'shadow', groupKey: 'settings.groups.intelligence', glyph: '◐', labelKey: 'settings.rail.shadow' },
-  { id: 'agent', groupKey: 'settings.groups.intelligence', glyph: '✦', labelKey: 'settings.rail.agent' },
+  {
+    id: 'appearance',
+    groupKey: 'settings.groups.preferences',
+    glyph: '☀',
+    labelKey: 'settings.rail.appearance',
+  },
+  {
+    id: 'editor',
+    groupKey: 'settings.groups.preferences',
+    glyph: '§',
+    labelKey: 'settings.rail.editor',
+  },
+  {
+    id: 'language',
+    groupKey: 'settings.groups.preferences',
+    glyph: '文',
+    labelKey: 'settings.rail.language',
+  },
+  {
+    id: 'copilot',
+    groupKey: 'settings.groups.intelligence',
+    glyph: '⌁',
+    labelKey: 'settings.rail.copilot',
+  },
+  {
+    id: 'shadow',
+    groupKey: 'settings.groups.intelligence',
+    glyph: '◐',
+    labelKey: 'settings.rail.shadow',
+  },
+  {
+    id: 'agent',
+    groupKey: 'settings.groups.intelligence',
+    glyph: '✦',
+    labelKey: 'settings.rail.agent',
+  },
   { id: 'keys', groupKey: 'settings.groups.control', glyph: '⌨', labelKey: 'settings.rail.keys' },
   { id: 'sync', groupKey: 'settings.groups.control', glyph: '⇅', labelKey: 'settings.rail.sync' },
-  { id: 'privacy', groupKey: 'settings.groups.about', glyph: '⚷', labelKey: 'settings.rail.privacy' },
-  { id: 'about', groupKey: 'settings.groups.about', glyph: '渡', labelKey: 'settings.rail.about_app' },
+  {
+    id: 'privacy',
+    groupKey: 'settings.groups.about',
+    glyph: '⚷',
+    labelKey: 'settings.rail.privacy',
+  },
+  {
+    id: 'about',
+    groupKey: 'settings.groups.about',
+    glyph: '渡',
+    labelKey: 'settings.rail.about_app',
+  },
 ];
 
 const RAIL_IDS = new Set<RailId>([
@@ -159,6 +208,7 @@ function useRail(): RailDef[] {
 export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalProps) {
   const [active, setActive] = useState<RailId>('account');
   const [query, setQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const mainRef = useRef<HTMLDivElement | null>(null);
   const panelRefs = useRef<Partial<Record<RailId, HTMLElement>>>({});
   const RAIL = useRail();
@@ -166,10 +216,17 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
+      if (matchesAccelerator(e, 'Mod+F')) {
+        e.preventDefault();
+        e.stopPropagation();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
       if (e.key === 'Escape') onClose();
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
   }, [isOpen, onClose]);
 
   // Scroll-spy: highlight whichever panel's top edge is closest under the
@@ -232,7 +289,12 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
 
   return (
     <div className="set-overlay" role="dialog" aria-modal="true">
-      <SetHead query={query} setQuery={setQuery} onClose={onClose} />
+      <SetHead
+        query={query}
+        setQuery={setQuery}
+        searchInputRef={searchInputRef}
+        onClose={onClose}
+      />
       {/* Make the whole header draggable on macOS so traffic lights stay
           usable; controls inside set their own no-drag. */}
       <style>{`
@@ -247,9 +309,7 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
             registerRef={(el) => (panelRefs.current.subscription = el ?? undefined)}
           />
           <TrashRailPanel registerRef={(el) => (panelRefs.current.trash = el ?? undefined)} />
-          <AppearancePanel
-            registerRef={(el) => (panelRefs.current.appearance = el ?? undefined)}
-          />
+          <AppearancePanel registerRef={(el) => (panelRefs.current.appearance = el ?? undefined)} />
           <EditorPanel registerRef={(el) => (panelRefs.current.editor = el ?? undefined)} />
           <LanguagePanel registerRef={(el) => (panelRefs.current.language = el ?? undefined)} />
           <CopilotPanel registerRef={(el) => (panelRefs.current.copilot = el ?? undefined)} />
@@ -273,31 +333,41 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
 function SetHead({
   query,
   setQuery,
+  searchInputRef,
   onClose,
 }: {
   query: string;
   setQuery: (s: string) => void;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
   const isMac = navigator.userAgent.includes('Mac');
   return (
-    <div
-      className="set-head app-chrome app-island"
-      style={{ paddingLeft: isMac ? 86 : 18 }}
-    >
+    <div className="set-head app-chrome app-island" style={{ paddingLeft: isMac ? 86 : 18 }}>
       <div className="set-head__left">
         <div className="set-head__title">
-          {t('settings.title')} <em>{t('settings.title_en')} · {t('settings.esc_close')}</em>
+          {t('settings.title')}{' '}
+          <em>
+            {t('settings.title_en')} · {t('settings.esc_close')}
+          </em>
         </div>
       </div>
 
       <div className="set-head__search">
-        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}>
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
           <circle cx="7" cy="7" r="4.5" />
           <path d="M10.5 10.5 L14 14" />
         </svg>
         <input
+          ref={searchInputRef}
           placeholder={t('settings.search_placeholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -339,8 +409,12 @@ function SetRail({
       <div className="set-rail__who">
         <div className="set-rail__who-avatar">{initial}</div>
         <div className="set-rail__who-body">
-          <div className="set-rail__who-name">{user?.name ?? user?.email ?? t('settings.local_user')}</div>
-          <div className="set-rail__who-meta">{tier.toUpperCase()} · {t('settings.model_tier')}</div>
+          <div className="set-rail__who-name">
+            {user?.name ?? user?.email ?? t('settings.local_user')}
+          </div>
+          <div className="set-rail__who-meta">
+            {tier.toUpperCase()} · {t('settings.model_tier')}
+          </div>
         </div>
       </div>
 
@@ -350,9 +424,7 @@ function SetRail({
           {g.items.map((r) => (
             <button
               key={r.id}
-              className={
-                'set-rail__item' + (active === r.id ? ' set-rail__item--active' : '')
-              }
+              className={'set-rail__item' + (active === r.id ? ' set-rail__item--active' : '')}
               onClick={() => onSelect(r.id)}
             >
               <span className="set-rail__glyph">{r.glyph}</span>
@@ -360,8 +432,7 @@ function SetRail({
               {r.badge && (
                 <span
                   className={
-                    'set-rail__badge' +
-                    (r.badge.tone === 'warn' ? ' set-rail__badge--warn' : '')
+                    'set-rail__badge' + (r.badge.tone === 'warn' ? ' set-rail__badge--warn' : '')
                   }
                 >
                   {r.badge.text}
@@ -503,6 +574,8 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
   const [emailDraft, setEmailDraft] = useState<string | null>(null);
   const [savingName, setSavingName] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
 
   // Password change form — only mounted when user clicks "更改"
   const [pwOpen, setPwOpen] = useState(false);
@@ -525,20 +598,43 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
   const [deletionBusy, setDeletionBusy] = useState(false);
 
   // Sessions / devices
-  const [sessions, setSessions] = useState<
-    Awaited<ReturnType<typeof accountService.listSessions>> | null
-  >(null);
+  const [sessions, setSessions] = useState<Awaited<
+    ReturnType<typeof accountService.listSessions>
+  > | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [revokeError, setRevokeError] = useState<string | null>(null);
 
   useEffect(() => {
-    void accountService.getDeletionStatus().then(setDeletion).catch(() => undefined);
-    void accountService.listSessions().then(setSessions).catch(() => undefined);
+    void accountService
+      .getDeletionStatus()
+      .then(setDeletion)
+      .catch(() => undefined);
+    void accountService
+      .listSessions()
+      .then(setSessions)
+      .catch(() => undefined);
   }, []);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
+  };
+
+  const handleMarkdownExport = async () => {
+    setExportBusy(true);
+    setExportMessage(null);
+    try {
+      const result = await exportAllProjectsAsRelationalMarkdown();
+      setExportMessage(t('settings.account.export_done', { count: result.documentCount }));
+    } catch (error) {
+      setExportMessage(
+        t('settings.account.export_failed', {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    } finally {
+      setExportBusy(false);
+    }
   };
 
   const handleSaveName = async () => {
@@ -728,9 +824,12 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
             ) : (
               <div className="set-field">
                 <span className="set-field__value set-mono">{user?.email ?? '—'}</span>
-                {user?.email && (
-                  emailVerified ? (
-                    <span className="set-mono" style={{ fontSize: 11, color: 'hsl(var(--accent))' }}>
+                {user?.email &&
+                  (emailVerified ? (
+                    <span
+                      className="set-mono"
+                      style={{ fontSize: 11, color: 'hsl(var(--accent))' }}
+                    >
                       ✓ {t('settings.account.verified')}
                     </span>
                   ) : (
@@ -743,9 +842,11 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
                     >
                       {t('settings.account.verify')}
                     </button>
-                  )
-                )}
-                <button className="set-field__edit" onClick={() => setEmailDraft(user?.email ?? '')}>
+                  ))}
+                <button
+                  className="set-field__edit"
+                  onClick={() => setEmailDraft(user?.email ?? '')}
+                >
                   {t('settings.common.change')}
                 </button>
               </div>
@@ -768,8 +869,7 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
             {!verifySent ? (
               <>
                 <div style={{ fontSize: 12, color: 'hsl(var(--ink-3))' }}>
-                  {t('settings.account.send_verify_intro')}{' '}
-                  <code>{user?.email}</code>
+                  {t('settings.account.send_verify_intro')} <code>{user?.email}</code>
                 </div>
                 {verifyError && (
                   <div style={{ color: 'hsl(var(--accent))', fontSize: 12 }}>{verifyError}</div>
@@ -790,8 +890,7 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
             ) : (
               <>
                 <div style={{ fontSize: 12, color: 'hsl(var(--ink-3))' }}>
-                  {t('settings.account.verify_sent_prefix')}{' '}
-                  <code>{user?.email}</code>
+                  {t('settings.account.verify_sent_prefix')} <code>{user?.email}</code>
                   {t('settings.account.verify_sent_suffix')}
                 </div>
                 <input
@@ -818,7 +917,11 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
                   </button>
                   <button
                     className="set-btn"
-                    onClick={() => { setVerifyOpen(false); setVerifySent(false); setVerifyCode(''); }}
+                    onClick={() => {
+                      setVerifyOpen(false);
+                      setVerifySent(false);
+                      setVerifyCode('');
+                    }}
                   >
                     {t('settings.common.cancel')}
                   </button>
@@ -863,9 +966,7 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
               value={pwNew}
               onChange={(e) => setPwNew(e.target.value)}
             />
-            {pwError && (
-              <div style={{ color: 'hsl(var(--accent))', fontSize: 12 }}>{pwError}</div>
-            )}
+            {pwError && <div style={{ color: 'hsl(var(--accent))', fontSize: 12 }}>{pwError}</div>}
             <div style={{ display: 'flex', gap: 6 }}>
               <button
                 className="set-btn set-btn--primary"
@@ -880,7 +981,6 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
             </div>
           </div>
         )}
-
       </div>
 
       <div className="set-sec">
@@ -902,7 +1002,9 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
                 </div>
               </div>
               <div className={'set-device__chip' + (s.isCurrent ? '' : ' set-device__chip--idle')}>
-                {s.isCurrent ? t('settings.account.this_device') : t('settings.account.other_device')}
+                {s.isCurrent
+                  ? t('settings.account.this_device')
+                  : t('settings.account.other_device')}
               </div>
               <button
                 className="set-btn set-btn--ghost"
@@ -931,10 +1033,7 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
           label={t('settings.account.sign_out_label')}
           desc={t('settings.account.sign_out_desc')}
           control={
-            <button
-              className="set-btn set-btn--primary"
-              onClick={handleLogout}
-            >
+            <button className="set-btn set-btn--primary" onClick={handleLogout}>
               {t('settings.account.sign_out_button')}
             </button>
           }
@@ -946,23 +1045,22 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
         <Row
           label={t('settings.account.export_all')}
           desc={t('settings.account.export_all_desc')}
-          control={<button className="set-btn">{t('settings.account.export_all_btn')}</button>}
+          control={
+            <button className="set-btn" onClick={handleMarkdownExport} disabled={exportBusy}>
+              {exportBusy ? t('settings.account.exporting') : t('settings.account.export_all_btn')}
+            </button>
+          }
         />
+        {exportMessage && <div className="set-row__desc">{exportMessage}</div>}
         {deletion?.pending ? (
           <Row
             label={t('settings.account.delete_pending_title')}
             desc={t('settings.account.delete_pending_desc', {
               daysLeft: deletion.daysLeft ?? 30,
-              date: deletion.scheduledAt
-                ? new Date(deletion.scheduledAt).toLocaleDateString()
-                : '',
+              date: deletion.scheduledAt ? new Date(deletion.scheduledAt).toLocaleDateString() : '',
             })}
             control={
-              <button
-                className="set-btn"
-                onClick={handleCancelDeletion}
-                disabled={deletionBusy}
-              >
+              <button className="set-btn" onClick={handleCancelDeletion} disabled={deletionBusy}>
                 {t('settings.account.delete_cancel')}
               </button>
             }
@@ -1810,8 +1908,16 @@ function LanguagePanel({ registerRef }: { registerRef: RegisterRef }) {
   } = useSettingsStore();
 
   const manuscriptLocales: { code: LocaleCode; name: string; native: string }[] = [
-    { code: 'zh-CN', name: t('settings.language.locales.zhCN'), native: t('settings.language.locales.default') },
-    { code: 'zh-TW', name: t('settings.language.locales.zhTW'), native: t('settings.language.locales.traditional') },
+    {
+      code: 'zh-CN',
+      name: t('settings.language.locales.zhCN'),
+      native: t('settings.language.locales.default'),
+    },
+    {
+      code: 'zh-TW',
+      name: t('settings.language.locales.zhTW'),
+      native: t('settings.language.locales.traditional'),
+    },
     { code: 'en', name: 'English', native: 'English' },
     { code: 'ja', name: '日本語', native: '日本語' },
     { code: 'ko', name: '한국어', native: '한국어' },
@@ -1833,7 +1939,9 @@ function LanguagePanel({ registerRef }: { registerRef: RegisterRef }) {
           {UI_LOCALE_OPTIONS.map((l) => (
             <button
               key={l.code}
-              className={'set-locale' + (normalizedUiLocale === l.code ? ' set-locale--active' : '')}
+              className={
+                'set-locale' + (normalizedUiLocale === l.code ? ' set-locale--active' : '')
+              }
               onClick={() => setUiLocale(l.code)}
             >
               <span className="set-locale__code">{l.code}</span>
@@ -1888,7 +1996,6 @@ function LanguagePanel({ registerRef }: { registerRef: RegisterRef }) {
     </section>
   );
 }
-
 
 function GroupHead({ label, hint, desc }: { label: string; hint?: string; desc?: string }) {
   return (
@@ -2022,7 +2129,9 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
               className="set-mono"
               style={{ color: ok ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))' }}
             >
-              {ok ? t('settings.agentAuth.hostedAvailable') : t('settings.agentAuth.hostedUnavailable')}
+              {ok
+                ? t('settings.agentAuth.hostedAvailable')
+                : t('settings.agentAuth.hostedUnavailable')}
             </span>
           }
         />
@@ -2248,19 +2357,30 @@ function ProviderRow({
   };
 
   return (
-    <div className={'set-provider' + (connected ? ' set-provider--connected' : ' set-provider--disconnected')}>
+    <div
+      className={
+        'set-provider' + (connected ? ' set-provider--connected' : ' set-provider--disconnected')
+      }
+    >
       <div className="set-provider__head">
         <div className={`set-provider__logo ${logoClass}`}>{logoText}</div>
         <div className="set-provider__main">
           <div className="set-provider__name">
             <b>{name}</b>
             <em className={connected ? 'is-byok' : ''}>
-              {connected ? t('settings.byokProvider.ownKey') : t('settings.byokProvider.notConnected')}
+              {connected
+                ? t('settings.byokProvider.ownKey')
+                : t('settings.byokProvider.notConnected')}
             </em>
           </div>
           <div className="set-provider__desc">{desc}</div>
         </div>
-        <div className={'set-provider__status ' + (connected ? 'set-provider__status--live' : 'set-provider__status--off')}>
+        <div
+          className={
+            'set-provider__status ' +
+            (connected ? 'set-provider__status--live' : 'set-provider__status--off')
+          }
+        >
           <span className="set-provider__status-dot" />
           {connected ? 'CONNECTED' : 'OFFLINE'}
         </div>
@@ -2312,7 +2432,9 @@ function ProviderRow({
         ) : connected ? (
           <>
             <button className="set-btn" onClick={testConnection} disabled={testState === 'testing'}>
-              {testState === 'testing' ? t('settings.byokProvider.testing') : t('settings.common.test_connection')}
+              {testState === 'testing'
+                ? t('settings.byokProvider.testing')
+                : t('settings.common.test_connection')}
             </button>
             {testState === 'ok' && (
               <span className="set-mono" style={{ color: '#2e7d52' }}>
@@ -2364,20 +2486,6 @@ function ProviderRow({
   );
 }
 
-// Shadow model routing modes — like Copilot's, but Shadow has its own slice
-// (governs BOTH chapter-CI review and element-arc derive). BYOK is DeepSeek-only
-// for now (the substrate routes DeepSeek directly; Sonnet is hosted-only).
-// BYOK-only beta build: the hosted tier stays VISIBLE but disabled (greyed out)
-// in every AI routing selector below — the server carries no hosted key.
-// Selection is blocked; the settings store also coerces any persisted 'hosted'
-// to BYOK so it can never actually route.
-const HOSTED_TIER_DISABLED = isByokOnly();
-
-const SHADOW_AI_MODES: { value: AiMode; kicker: string }[] = [
-  { value: 'hosted', kicker: 'HOSTED' },
-  { value: 'byok', kicker: 'BYOK' },
-];
-
 // Shadow BYOK shares Copilot's DeepSeek keychain entry (byok.deepseek) — it has no
 // key entry of its own. This makes that borrow VISIBLE: shows connected/未连接 and
 // jumps to the Copilot panel (where the key is actually entered) so the user isn't
@@ -2415,10 +2523,6 @@ function ShadowDeepseekKeyStatus() {
 // concrete model (低 flash / 中 pro / 高 sonnet); BYOK = pin a DeepSeek model.
 function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
   const { t } = useTranslation();
-  const shadowAiMode = useSettingsStore((s) => s.shadowAiMode);
-  const setShadowAiMode = useSettingsStore((s) => s.setShadowAiMode);
-  const shadowTier = useSettingsStore((s) => s.shadowTier);
-  const setShadowTier = useSettingsStore((s) => s.setShadowTier);
   const shadowByokModel = useSettingsStore((s) => s.shadowByokModel);
   const setShadowByokModel = useSettingsStore((s) => s.setShadowByokModel);
 
@@ -2436,78 +2540,28 @@ function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
       />
 
       <div className="set-sec">
-        <SecHead title={t('settings.ai.routing')} hint="ROUTING" />
-        <div className="set-tiers">
-          {SHADOW_AI_MODES.map((m) => {
-            const disabled = HOSTED_TIER_DISABLED && m.value === 'hosted';
-            return (
-              <button
-                key={m.value}
-                className={
-                  'set-tier' +
-                  (shadowAiMode === m.value ? ' set-tier--active' : '') +
-                  (disabled ? ' set-tier--disabled' : '')
-                }
-                onClick={disabled ? undefined : () => setShadowAiMode(m.value)}
-                disabled={disabled}
-                title={disabled ? t('settings.ai.hostedByokOnlyTitle') : undefined}
-              >
-                <div className="set-tier__kicker">
-                  {m.kicker}
-                  {disabled ? t('settings.ai.disabledSuffix') : ''}
-                </div>
-                <div className="set-tier__name">{t(`settings.shadow.aiModes.${m.value}.name`)}</div>
-                <div className="set-tier__desc">{t(`settings.shadow.aiModes.${m.value}.desc`)}</div>
-              </button>
-            );
-          })}
-        </div>
+        <SecHead title={t('settings.ai.byokTitle')} hint="BYOK ONLY" />
+        <p className="set-row__desc">{t('settings.ai.preAlphaByokOnly')}</p>
+        <ShadowDeepseekKeyStatus />
+        <Row
+          label={t('settings.shadow.deepseekModel')}
+          desc={t('settings.shadow.deepseekModelDesc')}
+          control={
+            <select
+              className="set-input"
+              style={{ minWidth: 220 }}
+              value={shadowByokModel}
+              onChange={(e) => setShadowByokModel(e.target.value)}
+            >
+              {SHADOW_BYOK_MODELS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          }
+        />
       </div>
-
-      {shadowAiMode === 'hosted' ? (
-        <div className="set-sec">
-          <SecHead title={t('settings.ai.tierTitle')} hint="TIER" />
-          <div className="set-tiers">
-            {SHADOW_TIERS.map((tier) => (
-              <button
-                key={tier.value}
-                className={'set-tier' + (shadowTier === tier.value ? ' set-tier--active' : '')}
-                onClick={() => setShadowTier(tier.value)}
-              >
-                <div className="set-tier__kicker">{t(`settings.shadow.tiers.${tier.value}.kicker`)}</div>
-                <div className="set-tier__name">{t(`settings.shadow.tiers.${tier.value}.name`)}</div>
-                <div className="set-tier__desc">{t(`settings.shadow.tiers.${tier.value}.desc`)}</div>
-              </button>
-            ))}
-          </div>
-          <p className="set-row__desc" style={{ margin: '8px 0 0' }}>
-            {t('settings.shadow.hostedTierNote')}
-          </p>
-        </div>
-      ) : (
-        <div className="set-sec">
-          <SecHead title={t('settings.ai.byokTitle')} hint="DEEPSEEK" />
-          <ShadowDeepseekKeyStatus />
-          <Row
-            label={t('settings.shadow.deepseekModel')}
-            desc={t('settings.shadow.deepseekModelDesc')}
-            control={
-              <select
-                className="set-input"
-                style={{ minWidth: 220 }}
-                value={shadowByokModel}
-                onChange={(e) => setShadowByokModel(e.target.value)}
-              >
-                {SHADOW_BYOK_MODELS.map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            }
-          />
-        </div>
-      )}
 
       <ShadowUsageSection />
     </section>
@@ -2520,10 +2574,7 @@ const COPILOT_SECTION_SIZE_MIN = 3;
 const COPILOT_SECTION_SIZE_MAX = 30;
 
 function clampDebounceSec(sec: number): number {
-  return Math.min(
-    COPILOT_DEBOUNCE_MAX_SEC,
-    Math.max(COPILOT_DEBOUNCE_MIN_SEC, Math.round(sec)),
-  );
+  return Math.min(COPILOT_DEBOUNCE_MAX_SEC, Math.max(COPILOT_DEBOUNCE_MIN_SEC, Math.round(sec)));
 }
 
 /**
@@ -2531,7 +2582,15 @@ function clampDebounceSec(sec: number): number {
  * its enable toggle, and (if wired) a debounce slider. The slider value
  * defaults to the capability's `defaultDebounceMs` until the user overrides.
  */
-function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label: string; desc: string }) {
+function CopilotTaskRow({
+  taskId,
+  label,
+  desc,
+}: {
+  taskId: CopilotTaskId;
+  label: string;
+  desc: string;
+}) {
   const { t } = useTranslation();
   const cfg = useSettingsStore((s) => s.copilotTaskConfigs[taskId]);
   const setEnabled = useSettingsStore((s) => s.setCopilotTaskEnabled);
@@ -2551,31 +2610,53 @@ function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label:
         borderTop: '1px solid hsl(var(--rule) / 0.5)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <div
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+      >
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <strong style={{ fontSize: 14 }}>{label}</strong>
             {!wired && (
-              <span style={{ fontSize: 11, color: 'hsl(var(--ink-3))', padding: '1px 6px', borderRadius: 4, background: 'hsl(var(--rule) / 0.3)' }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: 'hsl(var(--ink-3))',
+                  padding: '1px 6px',
+                  borderRadius: 4,
+                  background: 'hsl(var(--rule) / 0.3)',
+                }}
+              >
                 {t('settings.copilot.notLive')}
               </span>
             )}
           </div>
           <div style={{ fontSize: 12, color: 'hsl(var(--ink-2))', marginTop: 4 }}>{desc}</div>
         </div>
-        <Toggle
-          on={enabled}
-          onChange={(on) => setEnabled(taskId, on)}
-        />
+        <Toggle on={enabled} onChange={(on) => setEnabled(taskId, on)} />
       </div>
 
       {wired && enabled && (
         <div style={{ marginTop: 12, paddingLeft: 4 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', fontSize: 12, color: 'hsl(var(--ink-3))', marginBottom: 4 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+              fontSize: 12,
+              color: 'hsl(var(--ink-3))',
+              marginBottom: 4,
+            }}
+          >
             <span>{t('settings.copilot.triggerRhythm')}</span>
             <span>
               {t('settings.copilot.afterStopPrefix')}
-              <span style={{ fontFamily: 'var(--font-mono)', margin: '0 4px', color: 'hsl(var(--ink-1))' }}>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  margin: '0 4px',
+                  color: 'hsl(var(--ink-1))',
+                }}
+              >
                 {effectiveSec}s
               </span>
               {t('settings.copilot.afterStopSuffix')}
@@ -2614,17 +2695,6 @@ function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label:
     </div>
   );
 }
-
-const COPILOT_TIERS: { value: ModelTier; kicker: string }[] = [
-  { value: 'lite', kicker: 'LITE' },
-  { value: 'standard', kicker: 'STANDARD' },
-  { value: 'pro', kicker: 'PRO' },
-];
-
-const COPILOT_AI_MODES: { value: AiMode; kicker: string }[] = [
-  { value: 'hosted', kicker: 'HOSTED' },
-  { value: 'byok', kicker: 'BYOK' },
-];
 
 // Known models per BYOK provider — drives the Copilot model dropdown so the user
 // picks instead of hand-typing a model id. Only ids the codebase already blesses
@@ -2730,9 +2800,7 @@ function CopilotByokModelPicker() {
   );
 }
 
-// Warns when BYOK is selected but the ACTIVE provider has no key — the request
-// would silently fall back to hosted (byok-headers.ts). Removes the "filled a key
-// but forgot 设为当前 / selected BYOK with no key" silent trap.
+// Warns when the active provider has no key. Pre-Alpha never falls back to hosted.
 function CopilotByokWarning() {
   const { t } = useTranslation();
   const provider = useSettingsStore((s) => s.copilotByokProvider);
@@ -2760,10 +2828,6 @@ function CopilotByokWarning() {
 
 function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
   const { t } = useTranslation();
-  const copilotTier = useSettingsStore((s) => s.copilotTier);
-  const setCopilotTier = useSettingsStore((s) => s.setCopilotTier);
-  const copilotAiMode = useSettingsStore((s) => s.copilotAiMode);
-  const setCopilotAiMode = useSettingsStore((s) => s.setCopilotAiMode);
   const autoTrigger = useSettingsStore((s) => s.copilotAutoTrigger);
   const setAutoTrigger = useSettingsStore((s) => s.setCopilotAutoTrigger);
   const copilotInDrift = useSettingsStore((s) => s.copilotInDrift);
@@ -2786,100 +2850,50 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
         }
       />
 
-      <div className="set-sec">
-        <SecHead title={t('settings.ai.routing')} hint="ROUTING" />
-        <div className="set-tiers">
-          {COPILOT_AI_MODES.map((m) => {
-            const disabled = HOSTED_TIER_DISABLED && m.value === 'hosted';
-            return (
-              <button
-                key={m.value}
-                className={
-                  'set-tier' +
-                  (copilotAiMode === m.value ? ' set-tier--active' : '') +
-                  (disabled ? ' set-tier--disabled' : '')
-                }
-                onClick={disabled ? undefined : () => setCopilotAiMode(m.value)}
-                disabled={disabled}
-                title={disabled ? t('settings.ai.hostedByokOnlyTitle') : undefined}
-              >
-                <div className="set-tier__kicker">
-                  {m.kicker}
-                  {disabled ? t('settings.ai.disabledSuffix') : ''}
-                </div>
-                <div className="set-tier__name">{t(`settings.copilot.aiModes.${m.value}.name`)}</div>
-                <div className="set-tier__desc">{t(`settings.copilot.aiModes.${m.value}.desc`)}</div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {copilotAiMode === 'hosted' ? (
+      <>
         <div className="set-sec">
-          <SecHead title={t('settings.ai.tierTitle')} hint="TIER" />
-          <div className="set-tiers">
-            {COPILOT_TIERS.map((tier) => (
-              <button
-                key={tier.value}
-                className={'set-tier' + (copilotTier === tier.value ? ' set-tier--active' : '')}
-                onClick={() => setCopilotTier(tier.value)}
-              >
-                <div className="set-tier__kicker">{tier.kicker}</div>
-                <div className="set-tier__name">{t(`settings.copilot.tiers.${tier.value}.name`)}</div>
-                <div className="set-tier__desc">{t(`settings.copilot.tiers.${tier.value}.desc`)}</div>
-              </button>
-            ))}
-          </div>
-          <p className="set-row__desc" style={{ margin: '8px 0 0' }}>
-            {t('settings.copilot.tierNote')}
-          </p>
+          <SecHead title={t('settings.ai.byokTitle')} hint="BYOK ONLY · 4 PROVIDERS" />
+          <p className="set-row__desc">{t('settings.ai.preAlphaByokOnly')}</p>
+          <CopilotByokWarning />
+          <ProviderRow
+            provider="deepseek"
+            logoClass="set-provider__logo--deepseek"
+            logoText="D"
+            name="DeepSeek"
+            desc={t('settings.copilot.providers.deepseek')}
+          />
+          <ProviderRow
+            provider="anthropic"
+            logoClass="set-provider__logo--anthropic"
+            logoText="A"
+            name="Anthropic"
+            desc={t('settings.copilot.providers.anthropic')}
+          />
+          <ProviderRow
+            provider="openai"
+            logoClass="set-provider__logo--openai"
+            logoText="O"
+            name="OpenAI"
+            desc={t('settings.copilot.providers.openai')}
+          />
+          <ProviderRow
+            provider="google"
+            logoClass="set-provider__logo--google"
+            logoText="G"
+            name="Google"
+            desc={t('settings.copilot.providers.google')}
+          />
         </div>
-      ) : (
-        <>
-          <div className="set-sec">
-            <SecHead title={t('settings.ai.byokTitle')} hint="4 PROVIDERS" />
-            <CopilotByokWarning />
-            <ProviderRow
-              provider="deepseek"
-              logoClass="set-provider__logo--deepseek"
-              logoText="D"
-              name="DeepSeek"
-              desc={t('settings.copilot.providers.deepseek')}
-            />
-            <ProviderRow
-              provider="anthropic"
-              logoClass="set-provider__logo--anthropic"
-              logoText="A"
-              name="Anthropic"
-              desc={t('settings.copilot.providers.anthropic')}
-            />
-            <ProviderRow
-              provider="openai"
-              logoClass="set-provider__logo--openai"
-              logoText="O"
-              name="OpenAI"
-              desc={t('settings.copilot.providers.openai')}
-            />
-            <ProviderRow
-              provider="google"
-              logoClass="set-provider__logo--google"
-              logoText="G"
-              name="Google"
-              desc={t('settings.copilot.providers.google')}
-            />
-          </div>
 
-          <div className="set-sec">
-            <SecHead title={t('settings.ai.modelTitle')} hint="MODEL" />
-            <Row
-              label={t('settings.copilot.byokModel')}
-              desc={t('settings.copilot.byokModelDesc')}
-              control={<CopilotByokModelPicker />}
-            />
-          </div>
-        </>
-      )}
+        <div className="set-sec">
+          <SecHead title={t('settings.ai.modelTitle')} hint="MODEL" />
+          <Row
+            label={t('settings.copilot.byokModel')}
+            desc={t('settings.copilot.byokModelDesc')}
+            control={<CopilotByokModelPicker />}
+          />
+        </div>
+      </>
 
       <div className="set-sec">
         <SecHead title={t('settings.copilot.switchesTitle')} hint="ENABLE" />
@@ -2908,7 +2922,15 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
             desc={t('settings.copilot.summaryThresholdDesc', { count: sectionSize })}
             stack
             control={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minWidth: 220 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  width: '100%',
+                  minWidth: 220,
+                }}
+              >
                 <input
                   type="range"
                   min={COPILOT_SECTION_SIZE_MIN}
@@ -3028,12 +3050,15 @@ function AgentMemorySection({ open }: { open: boolean }) {
   const add = () => {
     const body = draftBody.trim();
     if (!body || !projectId) return;
-    void createMemory(projectId, { kind: draftKind, body, source: 'author', status: 'active' }).then(
-      () => {
-        setDraftBody('');
-        reload();
-      },
-    );
+    void createMemory(projectId, {
+      kind: draftKind,
+      body,
+      source: 'author',
+      status: 'active',
+    }).then(() => {
+      setDraftBody('');
+      reload();
+    });
   };
 
   return (
@@ -3110,12 +3135,9 @@ function AgentMemorySection({ open }: { open: boolean }) {
                     padding: '2px 6px',
                     borderRadius: 4,
                     marginTop: 1,
-                    color:
-                      m.kind === 'veto' ? 'hsl(var(--accent))' : 'hsl(var(--ink-3))',
+                    color: m.kind === 'veto' ? 'hsl(var(--accent))' : 'hsl(var(--ink-3))',
                     background:
-                      m.kind === 'veto'
-                        ? 'hsl(var(--accent) / 0.1)'
-                        : 'hsl(var(--ink-1) / 0.07)',
+                      m.kind === 'veto' ? 'hsl(var(--accent) / 0.1)' : 'hsl(var(--ink-1) / 0.07)',
                   }}
                 >
                   {kindLabel(m.kind)}
@@ -3202,7 +3224,8 @@ function AgentUsageSection({ open }: { open: boolean }) {
   // The manageable history list is live conversations only (all of them, not
   // window-scoped — you manage every chat regardless of when it was last used).
   const live = rows.filter((r) => !r.deletedAt);
-  const scopeLabel = scope === 'month' ? t('settings.agentUsage.month') : t('settings.agentUsage.all');
+  const scopeLabel =
+    scope === 'month' ? t('settings.agentUsage.month') : t('settings.agentUsage.all');
 
   // Soft-delete through the chat store so the right-rail Companion (if bound to
   // this project) drops the conversation too — abort an in-flight turn, clear the
@@ -3301,8 +3324,14 @@ function AgentUsageSection({ open }: { open: boolean }) {
               fmtUsageTok(totals.input + totals.output),
               `↑${fmtUsageTok(totals.input)} ↓${fmtUsageTok(totals.output)}`,
             )}
-            {card(t('settings.agentUsage.costCard', { scope: scopeLabel }), fmtUsageUsd(totals.cost))}
-            {card(t('settings.agentUsage.conversationsTurns'), `${withUsage.length} / ${totals.turns}`)}
+            {card(
+              t('settings.agentUsage.costCard', { scope: scopeLabel }),
+              fmtUsageUsd(totals.cost),
+            )}
+            {card(
+              t('settings.agentUsage.conversationsTurns'),
+              `${withUsage.length} / ${totals.turns}`,
+            )}
           </div>
         </>
       )}
@@ -3451,10 +3480,9 @@ function AgentUsageSection({ open }: { open: boolean }) {
   );
 }
 
-const AGENT_AUTH_OPTIONS: { value: AgentAuth; kickerKey: string }[] = [
+const AGENT_AUTH_OPTIONS: { value: Exclude<AgentAuth, 'hosted'>; kickerKey: string }[] = [
   { value: 'oauth', kickerKey: 'settings.agent.auth.oauth.kicker' },
   { value: 'apikey', kickerKey: 'settings.agent.auth.apikey.kicker' },
-  { value: 'hosted', kickerKey: 'settings.agent.auth.hosted.kicker' },
 ];
 
 function AgentPanel({ open, registerRef }: { open: boolean; registerRef: RegisterRef }) {
@@ -3484,31 +3512,24 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
       />
 
       <div className="set-sec">
-        <SecHead title={t('settings.ai.routing')} hint="ROUTING" />
+        <SecHead title={t('settings.ai.routing')} hint="YOUR CREDENTIALS" />
+        <p className="set-row__desc">{t('settings.ai.preAlphaAgentCredentials')}</p>
         <div className="set-tiers">
-          {AGENT_AUTH_OPTIONS.map((m) => {
-            const disabled = HOSTED_TIER_DISABLED && m.value === 'hosted';
-            return (
+          {AGENT_AUTH_OPTIONS.map((option) => (
             <button
-              key={m.value}
-              className={
-                'set-tier' +
-                (agentAuth === m.value ? ' set-tier--active' : '') +
-                (disabled ? ' set-tier--disabled' : '')
-              }
-              onClick={disabled ? undefined : () => setAgentAuth(m.value)}
-              disabled={disabled}
-              title={disabled ? t('settings.agent.hostedDisabledTitle') : undefined}
+              key={option.value}
+              className={'set-tier' + (agentAuth === option.value ? ' set-tier--active' : '')}
+              onClick={() => setAgentAuth(option.value)}
             >
-              <div className="set-tier__kicker">
-                {t(m.kickerKey)}
-                {disabled ? t('settings.ai.disabledSuffix') : ''}
+              <div className="set-tier__kicker">{t(option.kickerKey)}</div>
+              <div className="set-tier__name">
+                {t(`settings.agent.auth.${option.value}.name`)}
               </div>
-              <div className="set-tier__name">{t(`settings.agent.auth.${m.value}.name`)}</div>
-              <div className="set-tier__desc">{t(`settings.agent.auth.${m.value}.desc`)}</div>
+              <div className="set-tier__desc">
+                {t(`settings.agent.auth.${option.value}.desc`)}
+              </div>
             </button>
-            );
-          })}
+          ))}
         </div>
       </div>
 
@@ -3652,12 +3673,16 @@ function KeysPanel({ registerRef }: { registerRef: RegisterRef }) {
           return (
             <div className="set-keys__row" key={action.id}>
               <div>
-                <div className="set-keys__label">{t(`settings.keys.actions.${action.id}.label`)}</div>
+                <div className="set-keys__label">
+                  {t(`settings.keys.actions.${action.id}.label`)}
+                </div>
                 <div className="set-row__desc" style={{ marginTop: 2 }}>
                   {t(`settings.keys.actions.${action.id}.desc`)}
                 </div>
               </div>
-              <span className="set-keys__cat">{isRecording ? t('settings.keys.recording') : ''}</span>
+              <span className="set-keys__cat">
+                {isRecording ? t('settings.keys.recording') : ''}
+              </span>
               <button
                 className="set-keys__combo"
                 onClick={() => {
@@ -3668,12 +3693,14 @@ function KeysPanel({ registerRef }: { registerRef: RegisterRef }) {
                 style={{ background: 'transparent', border: 0, padding: 0 }}
                 title={t('settings.keys.resetOneTitle')}
               >
-                {(isRecording ? t('settings.keys.pressNewCombo') : formatAccelerator(accel)).split('+').map((part, i, arr) => (
-                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                    <span className="kbd">{part}</span>
-                    {i < arr.length - 1 && <span className="kbd kbd--plus">+</span>}
-                  </span>
-                ))}
+                {(isRecording ? t('settings.keys.pressNewCombo') : formatAccelerator(accel))
+                  .split('+')
+                  .map((part, i, arr) => (
+                    <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                      <span className="kbd">{part}</span>
+                      {i < arr.length - 1 && <span className="kbd kbd--plus">+</span>}
+                    </span>
+                  ))}
               </button>
             </div>
           );
@@ -3683,7 +3710,11 @@ function KeysPanel({ registerRef }: { registerRef: RegisterRef }) {
       <Row
         label={t('settings.keys.resetAll')}
         desc={t('settings.keys.resetAllDesc')}
-        control={<button className="set-btn" onClick={resetAll}>{t('settings.keys.reset')}</button>}
+        control={
+          <button className="set-btn" onClick={resetAll}>
+            {t('settings.keys.reset')}
+          </button>
+        }
       />
     </section>
   );
@@ -3694,30 +3725,25 @@ function SyncSummaryRow() {
   // Live metrics from the sync observer. We don't import the full
   // SyncActivityPanel here — that keeps the overview row light.
   const metrics = useSyncObserver((s) => s.metrics);
-  const last = metrics.lastSuccessAt
-    ? new Date(metrics.lastSuccessAt).toLocaleTimeString()
-    : '—';
+  const last = metrics.lastSuccessAt ? new Date(metrics.lastSuccessAt).toLocaleTimeString() : '—';
   const successPct = Math.round(metrics.successRate * 100);
   return (
     <Row
       label={t('settings.sync.cloud')}
       desc={
         <>
-          {t('settings.sync.lastSuccess')} <span className="set-italic">{last}</span> · {t('settings.sync.successRate')}{' '}
-          <b>{successPct}%</b>
+          {t('settings.sync.lastSuccess')} <span className="set-italic">{last}</span> ·{' '}
+          {t('settings.sync.successRate')} <b>{successPct}%</b>
           {metrics.inflight > 0 ? t('settings.sync.inflight', { count: metrics.inflight }) : ''}
         </>
       }
       control={
-        <>
-          <span
-            className="set-mono"
-            style={{ color: metrics.failed > 0 ? 'hsl(var(--accent))' : 'hsl(var(--accent))' }}
-          >
-            {metrics.inflight > 0 ? t('settings.sync.syncing') : t('settings.sync.online')}
-          </span>
-          <button className="set-btn">{t('settings.sync.sync_now')}</button>
-        </>
+        <span
+          className="set-mono"
+          style={{ color: metrics.failed > 0 ? 'hsl(var(--accent))' : 'hsl(var(--accent))' }}
+        >
+          {metrics.inflight > 0 ? t('settings.sync.syncing') : t('settings.sync.online')}
+        </span>
       }
     />
   );
@@ -3725,14 +3751,7 @@ function SyncSummaryRow() {
 
 function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
   const { t } = useTranslation();
-  const {
-    wifiOnlySync,
-    setWifiOnlySync,
-    autoSnapshot,
-    setAutoSnapshot,
-    syncDebugToasts,
-    setSyncDebugToasts,
-  } = useSettingsStore();
+  const { autoSnapshot, setAutoSnapshot, syncDebugToasts, setSyncDebugToasts } = useSettingsStore();
   const [activityOpen, setActivityOpen] = useState(false);
 
   if (activityOpen) {
@@ -3765,7 +3784,7 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
       />
 
       <div className="set-sec">
-        <SecHead title={t('settings.sync.cloud_sync')} hint="E2E ENCRYPTED" />
+        <SecHead title={t('settings.sync.cloud_sync')} hint="CLOUD BACKUP" />
         <SyncSummaryRow />
         <Row
           label={t('settings.sync.activity')}
@@ -3775,11 +3794,6 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
               {t('settings.sync.activity_open')}
             </button>
           }
-        />
-        <Row
-          label={t('settings.sync.wifi_only')}
-          desc={t('settings.sync.wifi_only_desc')}
-          control={<Toggle on={wifiOnlySync} onChange={setWifiOnlySync} />}
         />
         <Row
           label={t('settings.sync.vault_path')}
@@ -3851,7 +3865,8 @@ function PrivacyPanel({ registerRef }: { registerRef: RegisterRef }) {
         {t('settings.privacy.noteA')}
         <br />
         <span className="set-mono" style={{ display: 'inline-block', marginTop: 6 }}>
-          {t('settings.privacy.noteBPrefix')} <b>{t('settings.privacy.noteBStrong')}</b> {t('settings.privacy.noteBSuffix')}
+          {t('settings.privacy.noteBPrefix')} <b>{t('settings.privacy.noteBStrong')}</b>{' '}
+          {t('settings.privacy.noteBSuffix')}
         </span>
       </div>
 
@@ -3889,7 +3904,11 @@ function AboutPanel({ registerRef }: { registerRef: RegisterRef }) {
   const { t } = useTranslation();
   return (
     <section className="set-panel" ref={registerRef} id="about">
-      <PanelHead kicker={t('settings.about.kicker')} title={t('settings.about.title')} sub={t('settings.about.sub')} />
+      <PanelHead
+        kicker={t('settings.about.kicker')}
+        title={t('settings.about.title')}
+        sub={t('settings.about.sub')}
+      />
 
       <div className="set-about">
         <div className="set-about__glyph">D</div>

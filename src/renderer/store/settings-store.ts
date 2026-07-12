@@ -139,8 +139,16 @@ function normalizeUiLocale(locale: LocaleCode): LocaleCode {
 export type CopilotTaskId = 'elementExtract' | 'elementPatch';
 
 export const COPILOT_TASKS: { id: CopilotTaskId; label: string; desc: string }[] = [
-  { id: 'elementExtract', label: 'Element extraction', desc: 'Extract people, places, and objects from the manuscript' },
-  { id: 'elementPatch', label: 'Element patch suggestions', desc: 'Detect state changes for existing people or places and draft patch proposals' },
+  {
+    id: 'elementExtract',
+    label: 'Element extraction',
+    desc: 'Extract people, places, and objects from the manuscript',
+  },
+  {
+    id: 'elementPatch',
+    label: 'Element patch suggestions',
+    desc: 'Detect state changes for existing people or places and draft patch proposals',
+  },
 ];
 
 /**
@@ -371,8 +379,6 @@ interface SettingsState {
   clearLastAgentConv: (projectId: string) => void;
 
   // 同步
-  wifiOnlySync: boolean;
-  setWifiOnlySync: (on: boolean) => void;
   autoSnapshot: boolean;
   setAutoSnapshot: (on: boolean) => void;
   syncDebugToasts: boolean;
@@ -519,8 +525,7 @@ export const useSettingsStore = create<SettingsState>()(
       copilotSummarySectionSize: 8,
       setCopilotSummarySectionSize: (n) => set({ copilotSummarySectionSize: n }),
       copilotInlineEditAllowNewContent: false,
-      setCopilotInlineEditAllowNewContent: (on) =>
-        set({ copilotInlineEditAllowNewContent: on }),
+      setCopilotInlineEditAllowNewContent: (on) => set({ copilotInlineEditAllowNewContent: on }),
       copilotOutputLangByProject: {},
       setCopilotOutputLang: (projectId, lang) =>
         set((state) => ({
@@ -544,8 +549,6 @@ export const useSettingsStore = create<SettingsState>()(
           return { lastAgentConvByProject: next };
         }),
 
-      wifiOnlySync: true,
-      setWifiOnlySync: (on) => set({ wifiOnlySync: on }),
       autoSnapshot: true,
       setAutoSnapshot: (on) => set({ autoSnapshot: on }),
       syncDebugToasts: false,
@@ -643,11 +646,7 @@ export const useSettingsStore = create<SettingsState>()(
               configs[id] = { ...configs[id], debounceMs: oldGlobalDebounce };
             }
           }
-          const {
-            copilotTasks: _omitTasks,
-            copilotDebounceMs: _omitDebounce,
-            ...rest
-          } = next;
+          const { copilotTasks: _omitTasks, copilotDebounceMs: _omitDebounce, ...rest } = next;
           void _omitTasks;
           void _omitDebounce;
           next = { ...rest, copilotTaskConfigs: configs };
@@ -658,12 +657,18 @@ export const useSettingsStore = create<SettingsState>()(
           // it with Drifting's broader entity union). Move the config under
           // the new key, then drop the old one if both somehow co-exist
           // (new key wins — it's what current code reads).
-          const configs = { ...(next.copilotTaskConfigs ?? {}) } as Record<string, CopilotTaskConfig>;
+          const configs = { ...(next.copilotTaskConfigs ?? {}) } as Record<
+            string,
+            CopilotTaskConfig
+          >;
           if (configs.entityExtract && !configs.elementExtract) {
             configs.elementExtract = configs.entityExtract;
           }
           delete configs.entityExtract;
-          next = { ...next, copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig> };
+          next = {
+            ...next,
+            copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig>,
+          };
         }
         if (version < 8) {
           // New task ids ship over time. Backfill any current
@@ -747,11 +752,17 @@ export const useSettingsStore = create<SettingsState>()(
           // persisted config (and any other key no longer in COPILOT_TASKS) so
           // the saved shape matches CopilotTaskId again.
           const known = new Set(COPILOT_TASKS.map((t) => t.id));
-          const configs = { ...(next.copilotTaskConfigs ?? {}) } as Record<string, CopilotTaskConfig>;
+          const configs = { ...(next.copilotTaskConfigs ?? {}) } as Record<
+            string,
+            CopilotTaskConfig
+          >;
           for (const id of Object.keys(configs)) {
             if (!known.has(id as CopilotTaskId)) delete configs[id];
           }
-          next = { ...next, copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig> };
+          next = {
+            ...next,
+            copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig>,
+          };
         }
         return next;
       },

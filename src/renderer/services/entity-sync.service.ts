@@ -2149,7 +2149,16 @@ export async function forceFlush(): Promise<void> {
     clearTimeout(flushTimer);
     flushTimer = null;
   }
+  // A scheduled/background flush may already own the singleton queue. Wait for
+  // it, then run once more so mutations enqueued during that cycle are included
+  // in the force-flush contract used by quit and account-wide export.
+  while (flushInProgress) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 25));
+  }
   await flushPushQueue();
+  while (flushInProgress) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 25));
+  }
 }
 
 /**

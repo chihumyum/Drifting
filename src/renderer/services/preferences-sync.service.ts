@@ -77,7 +77,6 @@ type SyncableSlice = {
   copilotSummarySectionSize: unknown;
   copilotOutputLangByProject: unknown;
   // sync / privacy
-  wifiOnlySync: unknown;
   autoSnapshot: unknown;
   improveModelsWithManuscripts: unknown;
   sendUsageStats: unknown;
@@ -119,7 +118,6 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'copilotGenerateSummaries',
   'copilotSummarySectionSize',
   'copilotOutputLangByProject',
-  'wifiOnlySync',
   'autoSnapshot',
   'improveModelsWithManuscripts',
   'sendUsageStats',
@@ -171,10 +169,9 @@ async function flush(): Promise<void> {
   const patches = snapshotPatches(keys);
   if (patches.length === 0) return;
   try {
-    const { data } = await apiClient.post<{ entries: PreferenceEntry[] }>(
-      '/api/preferences',
-      { patches },
-    );
+    const { data } = await apiClient.post<{ entries: PreferenceEntry[] }>('/api/preferences', {
+      patches,
+    });
     const latest = data.entries.reduce(
       (acc, e) => (e.updatedAt > acc ? e.updatedAt : acc),
       readCursor() ?? '',
@@ -301,7 +298,6 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
       store.setCopilotOutputLangByProject(
         v && typeof v === 'object' ? (v as Record<string, never>) : {},
       ),
-    wifiOnlySync: (v) => store.setWifiOnlySync(!!v),
     autoSnapshot: (v) => store.setAutoSnapshot(!!v),
     improveModelsWithManuscripts: (v) => store.setImproveModelsWithManuscripts(!!v),
     sendUsageStats: (v) => store.setSendUsageStats(!!v),
@@ -331,7 +327,10 @@ function subscribeStore(): void {
     for (const key of SYNC_KEYS) {
       // Identity compare is fine for primitives and intentional state
       // replacement (Zustand replaces references on `set`).
-      if ((next as unknown as Record<string, unknown>)[key] !== (prev as unknown as Record<string, unknown>)[key]) {
+      if (
+        (next as unknown as Record<string, unknown>)[key] !==
+        (prev as unknown as Record<string, unknown>)[key]
+      ) {
         pendingKeys.add(key);
       }
     }
@@ -350,9 +349,7 @@ export async function startPreferencesSync(): Promise<void> {
 
   try {
     const since = readCursor();
-    const url = since
-      ? `/api/preferences?since=${encodeURIComponent(since)}`
-      : '/api/preferences';
+    const url = since ? `/api/preferences?since=${encodeURIComponent(since)}` : '/api/preferences';
     const { data } = await apiClient.get<{ entries: PreferenceEntry[] }>(url);
     applyServerEntries(data.entries);
     const latest = data.entries.reduce(
