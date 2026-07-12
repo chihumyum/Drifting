@@ -1309,8 +1309,17 @@
       "titleRest": "账号",
       "sub": "填邮箱 — 我们寄一封带验证码的信去。",
       "sent": "已寄出。请去 {{email}} 查收。",
-      "submit": "寄出",
-      "submitShort": "发送验证码"
+      "codeSub": "验证码已寄到 {{email}}。输入验证码并设置新密码。",
+      "done": "密码已重置。现在可以返回登录。",
+      "newPassword": "新密码 · NEW PASSWORD",
+      "confirmPassword": "确认新密码 · CONFIRM",
+      "passwordMismatch": "两次输入的密码不一致。",
+      "resetFailed": "密码重置失败，请检查验证码后重试。",
+      "submit": "继续",
+      "submitShort": "发送验证码",
+      "resetSubmit": "重置密码",
+      "working": "处理中…",
+      "resend": "重新发送验证码"
     },
     "otp": {
       "kicker": "OTP · 邮箱验证码登录",

@@ -1309,8 +1309,17 @@
       "titleRest": " account",
       "sub": "Enter your email and we will send a verification code.",
       "sent": "Sent. Check {{email}}.",
-      "submit": "Send",
-      "submitShort": "SEND CODE"
+      "codeSub": "A code was sent to {{email}}. Enter it and choose a new password.",
+      "done": "Your password has been reset. You can return to sign in.",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm new password",
+      "passwordMismatch": "The passwords do not match.",
+      "resetFailed": "Password reset failed. Check the code and try again.",
+      "submit": "Continue",
+      "submitShort": "SEND CODE",
+      "resetSubmit": "RESET PASSWORD",
+      "working": "WORKING…",
+      "resend": "Resend code"
     },
     "otp": {
       "kicker": "OTP · EMAIL CODE SIGN IN",

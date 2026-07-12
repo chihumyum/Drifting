@@ -198,9 +198,8 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
         setMode('verifyAfterSignup');
       }
     } catch (err) {
-      const fallback = mode === 'signin'
-        ? t('auth.errors.signInCheck')
-        : t('auth.errors.signUpRetry');
+      const fallback =
+        mode === 'signin' ? t('auth.errors.signInCheck') : t('auth.errors.signUpRetry');
       setError(err instanceof Error ? err.message : fallback);
     } finally {
       setIsSubmitting(false);
@@ -226,12 +225,12 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
             <span>{t('auth.hero.kickerB')}</span>
           </div>
           <h1 className="si-quote__title">
-            {t('auth.hero.titleA')}<em>{t('auth.hero.titleEmA')}</em>。<br />
-            {t('auth.hero.titleB')}<em>{t('auth.hero.titleEmB')}</em>。
+            {t('auth.hero.titleA')}
+            <em>{t('auth.hero.titleEmA')}</em>。<br />
+            {t('auth.hero.titleB')}
+            <em>{t('auth.hero.titleEmB')}</em>。
           </h1>
-          <p className="si-quote__body">
-            {t('auth.hero.body')}
-          </p>
+          <p className="si-quote__body">{t('auth.hero.body')}</p>
 
           <div className="si-feats">
             <div className="si-feat">
@@ -254,7 +253,9 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
               <span className="si-feat__mark">¶</span>
               <div className="si-feat__body">
                 <span className="si-feat__title">
-                  {t('auth.hero.featureStorylineTitleA')} · <em>{t('auth.hero.featureStorylineEm')}</em>{t('auth.hero.featureStorylineTitleB')}
+                  {t('auth.hero.featureStorylineTitleA')} ·{' '}
+                  <em>{t('auth.hero.featureStorylineEm')}</em>
+                  {t('auth.hero.featureStorylineTitleB')}
                 </span>
                 <span className="si-feat__sub">{t('auth.hero.featureStorylineSub')}</span>
               </div>
@@ -323,14 +324,13 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                 </Fragment>
               ) : (
                 <Fragment>
-                  <em>{t('auth.signup.titleEm')}</em>{t('auth.signup.titleRest')}
+                  <em>{t('auth.signup.titleEm')}</em>
+                  {t('auth.signup.titleRest')}
                 </Fragment>
               )}
             </h2>
             <p className="si-form__sub">
-              {mode === 'signin'
-                ? t('auth.signin.sub')
-                : t('auth.signup.sub')}
+              {mode === 'signin' ? t('auth.signin.sub') : t('auth.signup.sub')}
             </p>
 
             {error && <div className="si-error">{error}</div>}
@@ -367,14 +367,14 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
             <div className="si-field">
               <span className="si-field__k">
                 {t('auth.fields.password')}
-                {mode === 'signin' && (
-                  <a onClick={() => switchMode('otp')}>{t('auth.useOtp')} →</a>
-                )}
+                {mode === 'signin' && <a onClick={() => switchMode('otp')}>{t('auth.useOtp')} →</a>}
               </span>
               <input
                 className="si-field__input"
                 type="password"
-                placeholder={mode === 'signup' ? t('auth.fields.passwordSignupPlaceholder') : '••••••••'}
+                placeholder={
+                  mode === 'signup' ? t('auth.fields.passwordSignupPlaceholder') : '••••••••'
+                }
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isSubmitting}
@@ -400,10 +400,12 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                     ? t('auth.signingIn')
                     : t('auth.creating')
                   : mode === 'signin'
-                  ? t('auth.signIn')
-                  : t('auth.createAccount')}
+                    ? t('auth.signIn')
+                    : t('auth.createAccount')}
               </span>
-              <span>{mode === 'signin' ? t('auth.signInShort') : t('auth.createAccountShort')}</span>
+              <span>
+                {mode === 'signin' ? t('auth.signInShort') : t('auth.createAccountShort')}
+              </span>
               <span className="si-submit__arrow">→</span>
             </button>
 
@@ -412,32 +414,34 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                 <div className="si-or">{t('auth.social.or')}</div>
 
                 <div className="si-social">
-              {SOCIAL_PROVIDERS.map((p) => {
-                const enabled = !!p.oauth;
-                const loading = p.oauth && oauthLoading === p.oauth;
-                return (
-                  <button
-                    key={p.key}
-                    type="button"
-                    className="si-soc-btn"
-                    onClick={enabled ? () => handleOAuth(p.oauth as SupportedOAuthProvider) : undefined}
-                    disabled={!enabled || isSubmitting || oauthLoading !== null}
-                    title={enabled ? undefined : t('auth.social.comingSoon')}
-                  >
-                    <span className={`si-soc-btn__icon ${p.iconClass}`}>{p.icon}</span>
-                    <span className="si-soc-btn__label">
-                      {loading
-                        ? t('auth.social.waiting')
-                        : mode === 'signin'
-                        ? t(p.signInLabelKey)
-                        : t(p.signUpLabelKey)}
-                    </span>
-                    <span className="si-soc-btn__sub">
-                      {enabled ? p.sub : t('auth.social.comingSoon')}
-                    </span>
-                  </button>
-                );
-              })}
+                  {SOCIAL_PROVIDERS.map((p) => {
+                    const enabled = !!p.oauth;
+                    const loading = p.oauth && oauthLoading === p.oauth;
+                    return (
+                      <button
+                        key={p.key}
+                        type="button"
+                        className="si-soc-btn"
+                        onClick={
+                          enabled ? () => handleOAuth(p.oauth as SupportedOAuthProvider) : undefined
+                        }
+                        disabled={!enabled || isSubmitting || oauthLoading !== null}
+                        title={enabled ? undefined : t('auth.social.comingSoon')}
+                      >
+                        <span className={`si-soc-btn__icon ${p.iconClass}`}>{p.icon}</span>
+                        <span className="si-soc-btn__label">
+                          {loading
+                            ? t('auth.social.waiting')
+                            : mode === 'signin'
+                              ? t(p.signInLabelKey)
+                              : t(p.signUpLabelKey)}
+                        </span>
+                        <span className="si-soc-btn__sub">
+                          {enabled ? p.sub : t('auth.social.comingSoon')}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -459,7 +463,8 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
             <div className="si-legal">
               {mode === 'signup' && (
                 <Fragment>
-                  {t('auth.legal.agree')} <a>{t('auth.legal.terms')}</a> {t('auth.legal.and')} <a>{t('auth.legal.privacy')}</a>。<br />
+                  {t('auth.legal.agree')} <a>{t('auth.legal.terms')}</a> {t('auth.legal.and')}{' '}
+                  <a>{t('auth.legal.privacy')}</a>。<br />
                 </Fragment>
               )}
               {t('auth.legal.footer')}
@@ -475,16 +480,53 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
 
 const ForgotForm = ({ onCancel }: { onCancel: () => void }) => {
   const { t } = useTranslation();
-  const [sent, setSent] = useState(false);
+  const [phase, setPhase] = useState<'email' | 'reset' | 'done'>('email');
   const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const sendCode = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await authClient.emailOtp.requestPasswordReset({ email });
+      if (result.error) throw new Error(result.error.message || t('auth.errors.sendCodeFailed'));
+      setPhase('reset');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('auth.errors.sendCodeFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (phase === 'email') {
+      await sendCode();
+      return;
+    }
+    if (phase !== 'reset') return;
+    if (password !== confirmPassword) {
+      setError(t('auth.forgot.passwordMismatch'));
+      return;
+    }
+    setBusy(true);
+    setError(null);
     try {
-      await authClient.emailOtp.sendVerificationOtp({ email, type: 'forget-password' });
-      setSent(true);
-    } catch {
-      setSent(true);
+      const result = await authClient.emailOtp.resetPassword({
+        email,
+        otp: otp.trim(),
+        password,
+      });
+      if (result.error) throw new Error(result.error.message || t('auth.forgot.resetFailed'));
+      setPhase('done');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('auth.forgot.resetFailed'));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -495,30 +537,100 @@ const ForgotForm = ({ onCancel }: { onCancel: () => void }) => {
         <span>{t('auth.forgot.kicker')}</span>
       </div>
       <h2 className="si-form__title">
-        <em>{t('auth.forgot.titleEm')}</em>{t('auth.forgot.titleRest')}
+        <em>{t('auth.forgot.titleEm')}</em>
+        {t('auth.forgot.titleRest')}
       </h2>
-      <p className="si-form__sub">{t('auth.forgot.sub')}</p>
+      <p className="si-form__sub">
+        {phase === 'email'
+          ? t('auth.forgot.sub')
+          : phase === 'reset'
+            ? t('auth.forgot.codeSub', { email })
+            : t('auth.forgot.done')}
+      </p>
 
-      <div className="si-field">
-        <span className="si-field__k">{t('auth.fields.email')}</span>
-        <input
-          className="si-field__input"
-          type="email"
-          placeholder={t('auth.fields.emailPlaceholder')}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoFocus
-          required
-        />
-      </div>
+      {phase === 'email' && (
+        <div className="si-field">
+          <span className="si-field__k">{t('auth.fields.email')}</span>
+          <input
+            className="si-field__input"
+            type="email"
+            placeholder={t('auth.fields.emailPlaceholder')}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoFocus
+            required
+          />
+        </div>
+      )}
 
-      {sent ? (
-        <div className="si-sent">{t('auth.forgot.sent', { email: email || t('auth.fields.emailShort') })}</div>
-      ) : (
-        <button type="submit" className="si-submit">
+      {phase === 'reset' && (
+        <>
+          <div className="si-field">
+            <span className="si-field__k">{t('auth.fields.code')}</span>
+            <input
+              className="si-field__input"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder={t('auth.fields.codePlaceholder')}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              autoFocus
+              required
+            />
+          </div>
+          <div className="si-field">
+            <span className="si-field__k">{t('auth.forgot.newPassword')}</span>
+            <input
+              className="si-field__input"
+              type="password"
+              minLength={10}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <div className="si-field">
+            <span className="si-field__k">{t('auth.forgot.confirmPassword')}</span>
+            <input
+              className="si-field__input"
+              type="password"
+              minLength={10}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+            />
+          </div>
+        </>
+      )}
+
+      {error && <div className="si-error">{error}</div>}
+
+      {phase !== 'done' && (
+        <button
+          type="submit"
+          className="si-submit"
+          disabled={busy || (phase === 'reset' && (otp.length !== 6 || password.length < 10))}
+        >
           <span className="si-submit__cn">{t('auth.forgot.submit')}</span>
-          <span>{t('auth.forgot.submitShort')}</span>
+          <span>
+            {busy
+              ? t('auth.forgot.working')
+              : phase === 'email'
+                ? t('auth.forgot.submitShort')
+                : t('auth.forgot.resetSubmit')}
+          </span>
           <span className="si-submit__arrow">→</span>
+        </button>
+      )}
+
+      {phase === 'reset' && (
+        <button
+          type="button"
+          className="si-link-btn"
+          onClick={() => void sendCode()}
+          disabled={busy}
+        >
+          {t('auth.forgot.resend')}
         </button>
       )}
 
@@ -582,12 +694,11 @@ const OtpForm = ({
         <span>{t('auth.otp.kicker')}</span>
       </div>
       <h2 className="si-form__title">
-        <em>{t('auth.otp.titleEm')}</em>{t('auth.otp.titleRest')}
+        <em>{t('auth.otp.titleEm')}</em>
+        {t('auth.otp.titleRest')}
       </h2>
       <p className="si-form__sub">
-        {stage === 'enter-email'
-          ? t('auth.otp.emailSub')
-          : t('auth.otp.codeSub', { email })}
+        {stage === 'enter-email' ? t('auth.otp.emailSub') : t('auth.otp.codeSub', { email })}
       </p>
 
       {error && <div className="si-error">{error}</div>}
@@ -626,7 +737,11 @@ const OtpForm = ({
 
       <button type="submit" className="si-submit" disabled={busy}>
         <span className="si-submit__cn">
-          {busy ? t('common.processing') : stage === 'enter-email' ? t('auth.sendCode') : t('auth.signIn')}
+          {busy
+            ? t('common.processing')
+            : stage === 'enter-email'
+              ? t('auth.sendCode')
+              : t('auth.signIn')}
         </span>
         <span>{stage === 'enter-email' ? t('auth.sendCodeShort') : t('auth.signInShort')}</span>
         <span className="si-submit__arrow">→</span>
@@ -719,12 +834,11 @@ const VerifyAfterSignupForm = ({
         <span>{t('auth.verify.kicker')}</span>
       </div>
       <h2 className="si-form__title">
-        <em>{t('auth.verify.titleEm')}</em>{t('auth.verify.titleRest')}
+        <em>{t('auth.verify.titleEm')}</em>
+        {t('auth.verify.titleRest')}
       </h2>
       <p className="si-form__sub">
-        {sentOnce
-          ? t('auth.verify.sent', { email })
-          : t('auth.verify.sending', { email })}
+        {sentOnce ? t('auth.verify.sent', { email }) : t('auth.verify.sending', { email })}
       </p>
 
       {error && <div className="si-error">{error}</div>}
@@ -746,7 +860,9 @@ const VerifyAfterSignupForm = ({
       </div>
 
       <button type="submit" className="si-submit" disabled={busy || otp.length !== 6}>
-        <span className="si-submit__cn">{busy ? t('auth.verify.verifying') : t('auth.verify.submit')}</span>
+        <span className="si-submit__cn">
+          {busy ? t('auth.verify.verifying') : t('auth.verify.submit')}
+        </span>
         <span>{t('auth.verify.submitShort')}</span>
         <span className="si-submit__arrow">→</span>
       </button>
