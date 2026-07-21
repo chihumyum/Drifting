@@ -141,8 +141,17 @@ export function ChapterEditor({
     legacyContent: content,
   });
 
-  // TODO: remove later — exposes ydoc to DevTools for manual inspection.
-  useEffect(() => { (window as any).__ydoc = ydoc; }, [ydoc]);
+  // Development-only escape hatch for CRDT inspection. Never retain a live
+  // manuscript document on the production window object, and clean up the
+  // reference when this editor unmounts or switches documents.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
+    const devWindow = window as Window & { __ydoc?: typeof ydoc };
+    devWindow.__ydoc = ydoc;
+    return () => {
+      if (devWindow.__ydoc === ydoc) delete devWindow.__ydoc;
+    };
+  }, [ydoc]);
 
   // Persist chapter content. pmJson + outline come pre-derived from
   // useEntityEditor; chapter only adds wordCount, which is its only
@@ -173,7 +182,9 @@ export function ChapterEditor({
     onAddCommentRequest,
     onAddPatchRequest: handleAddPatchRequest,
     enableInlineCopilot: true,
-    editable: !readOnly,
+    // Never allow a fallback non-Yjs editor while the shared document is
+    // loading or has failed replay: those edits would have no durable owner.
+    editable: Boolean(ydoc) && !readOnly,
   });
 
   // Forward the live outline up to NodeEditorView so it can render the TOC.

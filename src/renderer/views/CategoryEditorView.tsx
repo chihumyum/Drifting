@@ -223,6 +223,7 @@ export function CategoryEditorView({
     selectionKey: curCategory
       ? editorTabSelectionKey(projectId, { entityType: 'category', id: curCategory.id })
       : null,
+    editable: Boolean(ydoc),
   });
 
   // TOC framework anchors in document order: 概述 → 札记 (with its body headings

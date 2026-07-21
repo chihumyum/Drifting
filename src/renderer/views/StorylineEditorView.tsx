@@ -239,6 +239,7 @@ export function StorylineEditorView({
     selectionKey: currentStoryline
       ? editorTabSelectionKey(projectId, { entityType: 'storyline', id: currentStoryline.id })
       : null,
+    editable: Boolean(ydoc),
   });
 
   // TOC framework anchors in document order: 概述 → 札记 (with its body

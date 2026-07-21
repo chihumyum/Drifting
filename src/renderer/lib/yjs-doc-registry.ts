@@ -11,18 +11,35 @@
  */
 import type * as Y from 'yjs';
 
-const liveDocs = new Map<string, Y.Doc>();
+interface LiveDocEntry {
+  doc: Y.Doc;
+  references: number;
+}
+
+const liveDocs = new Map<string, LiveDocEntry>();
 
 /** Register an editor's live Y.Doc. Returns an unregister fn for cleanup. */
 export function registerLiveYDoc(docId: string, doc: Y.Doc): () => void {
-  liveDocs.set(docId, doc);
+  const existing = liveDocs.get(docId);
+  if (existing && existing.doc !== doc) {
+    throw new Error(`A different live Y.Doc is already registered for ${docId}`);
+  }
+  const entry = existing ?? { doc, references: 0 };
+  entry.references += 1;
+  liveDocs.set(docId, entry);
+
+  let released = false;
   return () => {
-    // Only delete if it's still us — a remount may have replaced the entry.
-    if (liveDocs.get(docId) === doc) liveDocs.delete(docId);
+    if (released) return;
+    released = true;
+    const current = liveDocs.get(docId);
+    if (!current || current.doc !== doc) return;
+    current.references -= 1;
+    if (current.references <= 0) liveDocs.delete(docId);
   };
 }
 
 /** The live Y.Doc for this docId, or undefined if no editor is currently open. */
 export function getLiveYDoc(docId: string): Y.Doc | undefined {
-  return liveDocs.get(docId);
+  return liveDocs.get(docId)?.doc;
 }

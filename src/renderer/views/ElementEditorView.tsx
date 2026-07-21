@@ -245,6 +245,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
       projectId && curElement
         ? editorTabSelectionKey(projectId, { entityType: 'element', id: curElement.id })
         : null,
+    editable: Boolean(ydoc),
   });
 
   // Outline = framework anchors for every section of the element editor, in

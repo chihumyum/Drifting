@@ -49,6 +49,8 @@ export interface UseEntityYjsDocResult {
    */
   ydoc: Y.Doc | undefined;
   ydocReady: boolean;
+  /** Initial SQLite/Yjs replay failure. A failed document is never editable. */
+  ydocError: Error | null;
 }
 
 export function useEntityYjsDoc<K extends DocKind>({
@@ -105,16 +107,18 @@ export function useEntityYjsDoc<K extends DocKind>({
         apply((targetDoc) => {
           Y.applyUpdate(targetDoc, update);
         });
-      } catch {
-        // Best-effort. If the content can't be parsed (e.g., it's already an
-        // XML string from the pre-fix bug, or just empty), leave ydoc empty
-        // and let the editor start blank.
+      } catch (error) {
+        // Non-empty legacy prose is user data. Treat a parse/schema conversion
+        // failure as a load error instead of silently replacing it with an
+        // empty Y.Doc and then persisting that blank state as authoritative.
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to decode legacy prose for ${kind}:${entityId}: ${detail}`);
       }
     },
-    [legacyContent],
+    [entityId, kind, legacyContent],
   );
 
-  const { ydoc, isReady } = useYjsSync({
+  const { ydoc, isReady, error } = useYjsSync({
     docId: makeDocId(kind, entityId),
     userId: userId ?? '',
     projectId,
@@ -128,5 +132,6 @@ export function useEntityYjsDoc<K extends DocKind>({
   return {
     ydoc: userId && isReady ? ydoc : undefined,
     ydocReady: isReady,
+    ydocError: error,
   };
 }

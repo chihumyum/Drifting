@@ -58,7 +58,13 @@ export function useYjsSync({
   seedFromLegacy,
 }: UseYjsSyncOptions): UseYjsSyncResult {
   const yjsResult = useYjsDoc({ docId, userId, seedFromLegacy });
-  const { ydoc, isReady, flushPendingWrites, flushLocalState } = yjsResult;
+  const {
+    ydoc,
+    isReady,
+    error,
+    flushPendingWrites,
+    flushForLifecycle,
+  } = yjsResult;
 
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(isSyncEnabled() ? 'idle' : 'disabled');
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
@@ -66,11 +72,15 @@ export function useYjsSync({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const materializeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onMaterializeRef = useRef(onMaterialize);
-  onMaterializeRef.current = onMaterialize;
+  useEffect(() => {
+    onMaterializeRef.current = onMaterialize;
+  }, [onMaterialize]);
   const syncPromiseRef = useRef<Promise<void> | null>(null);
 
   const doSync = useCallback(async () => {
     if (!isSyncEnabled()) return;
+    if (error) throw error;
+    if (!isReady) return;
     if (syncPromiseRef.current) return syncPromiseRef.current;
 
     const operation = (async () => {
@@ -90,7 +100,7 @@ export function useYjsSync({
     } finally {
       if (syncPromiseRef.current === operation) syncPromiseRef.current = null;
     }
-  }, [docId, flushPendingWrites, projectId, ydoc]);
+  }, [docId, error, flushPendingWrites, isReady, projectId, ydoc]);
 
   const doBackgroundSync = useCallback(() => {
     void doSync().catch(() => {
@@ -112,10 +122,18 @@ export function useYjsSync({
     await doSync();
   }, [doSync]);
 
+  const forceSyncRef = useRef(forceSync);
   useEffect(() => {
-    if (!isReady) return;
-    return registerSyncDocument(docId, flushLocalState, forceSync);
-  }, [docId, flushLocalState, forceSync, isReady]);
+    forceSyncRef.current = forceSync;
+  }, [forceSync]);
+  const runLatestForceSync = useCallback(() => forceSyncRef.current(), []);
+
+  useEffect(() => {
+    // Register while loading as well as while ready. Database-switch teardown
+    // must wait for an in-flight SQLite replay/seed before opening another
+    // user's database, even though the editor is not yet interactive.
+    return registerSyncDocument(docId, flushForLifecycle, runLatestForceSync);
+  }, [docId, flushForLifecycle, runLatestForceSync]);
 
   // Initial sync + periodic timer
   useEffect(() => {
