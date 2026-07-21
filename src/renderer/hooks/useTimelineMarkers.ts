@@ -13,13 +13,14 @@ import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 
 import type { TimelineMarker } from '../domain/timeline-marker';
+import {
+  buildTimelineConversion,
+  convertOrderToTime,
+  convertTimeToOrder,
+} from '../domain/timeline-conversion';
 import { useDataStore } from '../store/data-store';
 import { createTimelineMarkerRepository } from '../sqlite-repo/timeline-marker-repo';
-import {
-  syncTimelineMarkerCreate,
-  syncTimelineMarkerDelete,
-  syncTimelineMarkerUpdate,
-} from '../usecase/sync-helpers';
+import { withAtomicSyncTransaction } from '../usecase/sync-helpers';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('useTimelineMarkers');
@@ -59,36 +60,46 @@ function readLegacyMarkers(projectId: string): LegacyStoredPayload['markers'] {
 export async function loadTimelineMarkers(projectId: string): Promise<void> {
   const repo = createTimelineMarkerRepository(projectId);
   let markers = await repo.findAll();
+  let canRemoveLegacyKey = markers.length > 0;
 
   if (markers.length === 0) {
     const legacy = readLegacyMarkers(projectId);
     if (legacy.length > 0) {
-      for (const m of legacy) {
-        const row: TimelineMarker = {
-          id: m.id,
-          projectId,
-          narrativeOrder: m.narrativeOrder,
-          label: m.label,
-          driftNodeId: null,
-          createdAt: m.createdAt,
-          updatedAt: m.createdAt,
-        };
-        try {
-          await repo.create(row);
-          syncTimelineMarkerCreate(row.id, projectId, markerPayload(row));
-        } catch (error) {
-          log.warn('legacy marker import failed for', m.id, error);
-        }
+      const rows: TimelineMarker[] = legacy.map((m) => ({
+        id: m.id,
+        projectId,
+        narrativeOrder: m.narrativeOrder,
+        label: m.label,
+        driftNodeId: null,
+        createdAt: m.createdAt,
+        updatedAt: m.createdAt,
+      }));
+      try {
+        await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+          const repoTx = createTimelineMarkerRepository(projectId, tx);
+          for (const row of rows) {
+            await repoTx.create(row);
+            await sync('timelineMarker', 'create', row.id, projectId, markerPayload(row));
+          }
+        });
+        canRemoveLegacyKey = true;
+      } catch (error) {
+        log.warn('legacy marker import failed:', error);
       }
       markers = await repo.findAll();
+    } else {
+      canRemoveLegacyKey = true;
     }
   }
   // Remove the legacy key even when the table already had rows — the table
-  // is authoritative from now on either way.
-  try {
-    localStorage.removeItem(`${LEGACY_STORAGE_PREFIX}:${projectId}`);
-  } catch {
-    /* ignore */
+  // is authoritative from now on either way. If an import failed, preserve
+  // the only durable copy so the next launch can retry it.
+  if (canRemoveLegacyKey) {
+    try {
+      localStorage.removeItem(`${LEGACY_STORAGE_PREFIX}:${projectId}`);
+    } catch {
+      /* ignore */
+    }
   }
 
   useDataStore.getState().setTimelineMarkers(markers);
@@ -116,9 +127,22 @@ export async function unbindMarkersForDrift(
   driftNodeId: string,
   fallbackLabel: string,
 ): Promise<void> {
-  const repo = createTimelineMarkerRepository(projectId);
   const now = new Date().toISOString();
-  const updated = await repo.unbindForDrift(driftNodeId, fallbackLabel.trim() || 'Marker', now);
+  const updated = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+    const rows = await createTimelineMarkerRepository(projectId, tx).unbindForDrift(
+      driftNodeId,
+      fallbackLabel.trim() || 'Marker',
+      now,
+    );
+    for (const marker of rows) {
+      await sync('timelineMarker', 'update', marker.id, projectId, {
+        driftNodeId: null,
+        label: marker.label,
+        updatedAt: now,
+      });
+    }
+    return rows;
+  });
   const store = useDataStore.getState();
   for (const marker of updated) {
     store.updateTimelineMarker(marker.id, {
@@ -126,22 +150,7 @@ export async function unbindMarkersForDrift(
       label: marker.label,
       updatedAt: now,
     });
-    syncTimelineMarkerUpdate(marker.id, projectId, {
-      driftNodeId: null,
-      label: marker.label,
-      updatedAt: now,
-    });
   }
-}
-
-function parseNumeric(label: string): number | null {
-  // Extract the first signed-decimal token from a label so "1938 春"
-  // still yields 1938 for interpolation. Returns null when nothing
-  // numeric is present.
-  const m = /-?\d+(?:\.\d+)?/.exec(label);
-  if (!m) return null;
-  const n = Number.parseFloat(m[0]);
-  return Number.isFinite(n) ? n : null;
 }
 
 export interface TimelineMarkersApi {
@@ -169,11 +178,6 @@ export interface TimelineMarkersApi {
 
 export function useTimelineMarkers(projectId: string | null | undefined): TimelineMarkersApi {
   const markers = useDataStore((s) => s.timelineMarkers);
-  const repo = useMemo(
-    () => (projectId ? createTimelineMarkerRepository(projectId) : null),
-    [projectId],
-  );
-
   const boundDriftIds = useMemo(() => {
     const ids = new Set<string>();
     for (const m of markers) if (m.driftNodeId) ids.add(m.driftNodeId);
@@ -182,7 +186,7 @@ export function useTimelineMarkers(projectId: string | null | undefined): Timeli
 
   const addMarker = useCallback<TimelineMarkersApi['addMarker']>(
     (narrativeOrder, label, options) => {
-      if (!projectId || !repo) return null;
+      if (!projectId) return null;
       const trimmed = label.trim();
       // A bound marker is captioned by its drift; only label-less UNBOUND
       // markers are rejected (nothing to render).
@@ -198,74 +202,79 @@ export function useTimelineMarkers(projectId: string | null | undefined): Timeli
         updatedAt: now,
       };
       useDataStore.getState().addTimelineMarker(marker);
-      void repo
-        .create(marker)
-        .then(() => syncTimelineMarkerCreate(marker.id, projectId, markerPayload(marker)))
-        .catch((error) => {
-          log.error('marker create failed:', error);
+      void withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        await createTimelineMarkerRepository(projectId, tx).create(marker);
+        await sync('timelineMarker', 'create', marker.id, projectId, markerPayload(marker));
+      }).catch((error) => {
+        log.error('marker create failed:', error);
+        const current = useDataStore.getState().timelineMarkers.find((row) => row.id === marker.id);
+        if (current?.updatedAt === marker.updatedAt) {
           useDataStore.getState().removeTimelineMarker(marker.id);
-        });
+        }
+      });
       return marker;
     },
-    [projectId, repo],
+    [projectId],
   );
 
   const updateMarker = useCallback<TimelineMarkersApi['updateMarker']>(
     (id, patch) => {
-      if (!projectId || !repo) return;
+      if (!projectId) return;
+      const previous = useDataStore.getState().timelineMarkers.find((marker) => marker.id === id);
+      if (!previous) return;
       const updatedAt = new Date().toISOString();
       useDataStore.getState().updateTimelineMarker(id, { ...patch, updatedAt });
-      void repo
-        .update(id, { ...patch, updatedAt })
-        .then(() => syncTimelineMarkerUpdate(id, projectId, { ...patch, updatedAt }))
-        .catch((error) => log.error('marker update failed:', error));
+      void withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        const persisted = await createTimelineMarkerRepository(projectId, tx).update(id, {
+          ...patch,
+          updatedAt,
+        });
+        if (!persisted) throw new Error(`Timeline marker ${id} not found`);
+        await sync('timelineMarker', 'update', id, projectId, { ...patch, updatedAt });
+      }).catch((error) => {
+        log.error('marker update failed:', error);
+        const current = useDataStore.getState().timelineMarkers.find((marker) => marker.id === id);
+        if (current?.updatedAt === updatedAt) {
+          useDataStore.getState().updateTimelineMarker(id, previous);
+        }
+      });
     },
-    [projectId, repo],
+    [projectId],
   );
 
   const deleteMarker = useCallback<TimelineMarkersApi['deleteMarker']>(
     (id) => {
-      if (!projectId || !repo) return;
+      if (!projectId) return;
+      const previous = useDataStore.getState().timelineMarkers.find((marker) => marker.id === id);
+      if (!previous) return;
       useDataStore.getState().removeTimelineMarker(id);
-      void repo
-        .delete(id)
-        .then(() => syncTimelineMarkerDelete(id, projectId))
-        .catch((error) => log.error('marker delete failed:', error));
+      void withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        await createTimelineMarkerRepository(projectId, tx).delete(id);
+        await sync('timelineMarker', 'delete', id, projectId);
+      }).catch((error) => {
+        log.error('marker delete failed:', error);
+        const current = useDataStore.getState().timelineMarkers.some((marker) => marker.id === id);
+        if (!current) useDataStore.getState().addTimelineMarker(previous);
+      });
     },
-    [projectId, repo],
+    [projectId],
   );
 
   // Pre-compute the two reference points used for linear conversion. Pick
   // the two numeric markers with the largest order-gap so the slope is most
   // stable when the user has a long span. Null when we can't form a pair.
-  const conversion = useMemo(() => {
-    const numeric = markers
-      .map((m) => ({ order: m.narrativeOrder, time: parseNumeric(m.label) }))
-      .filter((m): m is { order: number; time: number } => m.time !== null)
-      .sort((a, b) => a.order - b.order);
-    if (numeric.length < 2) return null;
-    const a = numeric[0];
-    const b = numeric[numeric.length - 1];
-    if (a.order === b.order) return null;
-    return { a, b };
-  }, [markers]);
+  const conversion = useMemo(() => buildTimelineConversion(markers), [markers]);
 
   const orderToTime = useCallback<TimelineMarkersApi['orderToTime']>(
     (order) => {
-      if (!conversion) return null;
-      const { a, b } = conversion;
-      const slope = (b.time - a.time) / (b.order - a.order);
-      return a.time + (order - a.order) * slope;
+      return convertOrderToTime(conversion, order);
     },
     [conversion],
   );
 
   const timeToOrder = useCallback<TimelineMarkersApi['timeToOrder']>(
     (time) => {
-      if (!conversion) return null;
-      const { a, b } = conversion;
-      const slope = (b.order - a.order) / (b.time - a.time);
-      return a.order + (time - a.time) * slope;
+      return convertTimeToOrder(conversion, time);
     },
     [conversion],
   );
