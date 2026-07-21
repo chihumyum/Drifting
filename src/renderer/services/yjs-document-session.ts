@@ -45,6 +45,15 @@ export interface YjsDocumentSessionDependencies {
   queueMicrotask: (callback: () => void) => void;
 }
 
+/**
+ * Keep the browser's Window receiver when this scheduler is stored on the
+ * dependency object. WebKit brand-checks Window.queueMicrotask, so passing the
+ * native function through directly and invoking it as an object method throws.
+ */
+export function scheduleMicrotask(callback: () => void): void {
+  globalThis.queueMicrotask(callback);
+}
+
 const defaultDependencies: YjsDocumentSessionDependencies = {
   initDatabase,
   createRepository: createYjsRepository,
@@ -53,7 +62,7 @@ const defaultDependencies: YjsDocumentSessionDependencies = {
   pullUpdates,
   compactUpdatesAfterSnapshot,
   captureSnapshotHistory: maybeCaptureSnapshotHistory,
-  queueMicrotask,
+  queueMicrotask: scheduleMicrotask,
 };
 
 function normalizeError(error: unknown): Error {

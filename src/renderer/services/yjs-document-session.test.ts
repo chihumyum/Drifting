@@ -3,6 +3,7 @@ import * as Y from 'yjs';
 
 import type { YjsRepository, YjsUpdateRow } from '../sqlite-repo/yjs-repo';
 import {
+  scheduleMicrotask,
   YjsDocumentSessionRegistry,
   type YjsDocumentSessionDependencies,
 } from './yjs-document-session';
@@ -52,6 +53,34 @@ async function settleFinalClose(session: {
 }
 
 describe('YjsDocumentSessionRegistry', () => {
+  it('preserves the Window receiver for WebKit queueMicrotask', async () => {
+    const nativeQueueMicrotask = globalThis.queueMicrotask;
+    const callback = vi.fn();
+    let usedWindowReceiver = false;
+
+    vi.stubGlobal('queueMicrotask', function strictWindowQueueMicrotask(
+      this: typeof globalThis,
+      queuedCallback: () => void,
+    ) {
+      usedWindowReceiver = this === globalThis;
+      if (!usedWindowReceiver) {
+        throw new TypeError('Can only call Window.queueMicrotask on instances of Window');
+      }
+      nativeQueueMicrotask(queuedCallback);
+    });
+
+    try {
+      const dependencies = { queueMicrotask: scheduleMicrotask };
+      dependencies.queueMicrotask(callback);
+      await new Promise<void>((resolve) => nativeQueueMicrotask(resolve));
+
+      expect(usedWindowReceiver).toBe(true);
+      expect(callback).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it.each([
     ['first mount closes first', 0, 1],
     ['second mount closes first', 1, 0],
