@@ -17,7 +17,7 @@ import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import { events } from '../lib/events';
 import { withAtomicSyncTransaction } from './sync-helpers';
-import { canUseFeature } from '../lib/feature-access';
+import { canUseFeature, ensureFeatureAccess } from '../lib/feature-access';
 import {
   deleteEntityRelationsInTransaction,
   withoutRelationsForEntity,
@@ -348,6 +348,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
   const removeElement = useCallback(
     async (id: string) => {
       await ensureDb();
+      await ensureFeatureAccess(userId, { forceRefresh: true });
       const elements = getElements();
       const existing = elements.find((e) => e.id === id);
       if (!existing) throw new Error(`Element with id ${id} not found`);
@@ -403,7 +404,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       });
       return result;
     },
-    [getElements, setElements, ensureDb, activeProjectId, hardDeleteElement],
+    [getElements, setElements, ensureDb, userId, activeProjectId, hardDeleteElement],
   );
 
   const restoreElement = useCallback(

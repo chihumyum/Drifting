@@ -8,7 +8,7 @@ import { useUiStore } from '../store/ui-store';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import { withAtomicSyncTransaction } from './sync-helpers';
-import { canUseFeature } from '../lib/feature-access';
+import { canUseFeature, ensureFeatureAccess } from '../lib/feature-access';
 import loglevel from 'loglevel';
 import {
   deleteEntityRelationsInTransaction,
@@ -213,6 +213,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
   const deleteCategory = useCallback(
     async (categoryId: string): Promise<void> => {
       await ensureDb();
+      await ensureFeatureAccess(userId, { forceRefresh: true });
       let prevCategories = getCategoriesState().slice();
       let existing = prevCategories.find((cat) => cat.id === categoryId);
       if (!existing) {
@@ -294,7 +295,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
           }),
       });
     },
-    [ensureDb, getCategoriesState, removeCategoryState, repo, setCategoriesState, activeProjectId],
+    [ensureDb, userId, getCategoriesState, removeCategoryState, repo, setCategoriesState, activeProjectId],
   );
 
   const restoreCategory = useCallback(

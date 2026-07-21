@@ -11,7 +11,7 @@ import { v7 as uuidv7 } from 'uuid';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import { withAtomicSyncTransaction } from './sync-helpers';
-import { canUseFeature } from '../lib/feature-access';
+import { canUseFeature, ensureFeatureAccess } from '../lib/feature-access';
 import { eq } from 'drizzle-orm';
 import {
   deleteEntityRelationsInTransaction,
@@ -397,6 +397,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
   const deleteStoryline = useCallback(
     async (id: string): Promise<void> => {
       await ensureDb();
+      await ensureFeatureAccess(userId, { forceRefresh: true });
       const prevStorylines = getStorylinesState().slice();
       if (!prevStorylines.some((sl) => sl.id === id)) return;
 
@@ -512,6 +513,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     [
       removeStorylineState,
       ensureDb,
+      userId,
       getStorylinesState,
       setStorylinesState,
       activeProjectId,

@@ -227,8 +227,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // trash gate, the rail badge, the user menu label. Refires on userId
   // change so plan resets when switching accounts.
   useEffect(() => {
-    if (!isAuthenticated || !userId) return;
-    void import('./lib/feature-access').then((m) => m.refreshFeatureAccess());
+    void import('./lib/feature-access').then((m) => {
+      if (!isAuthenticated || !userId) {
+        m.resetFeatureAccess();
+        return;
+      }
+      void m.refreshFeatureAccess(userId);
+    });
   }, [isAuthenticated, userId]);
 
   if (isChecking) {

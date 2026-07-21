@@ -13,7 +13,7 @@ import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
 import { withOptimisticUpdate } from './optimistic';
 import { withAtomicSyncTransaction } from './sync-helpers';
-import { canUseFeature } from '../lib/feature-access';
+import { canUseFeature, ensureFeatureAccess } from '../lib/feature-access';
 import {
   deleteEntityRelationsInTransaction,
   withoutRelationsForEntity,
@@ -440,6 +440,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
   const deleteNode = useCallback(
     async (id: string) => {
       await ensureDb();
+      await ensureFeatureAccess(userId, { forceRefresh: true });
       const prevNodes = getNodesState().slice();
       const existing = prevNodes.find((node) => node.id === id);
       if (!existing) throw new Error(`Book node ${id} not found`);
@@ -528,7 +529,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
           }),
       });
     },
-    [ensureDb, getNodesState, setNodesState, activeProjectId],
+    [ensureDb, userId, getNodesState, setNodesState, activeProjectId],
   );
 
   const restoreNode = useCallback(

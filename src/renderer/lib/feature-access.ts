@@ -1,10 +1,9 @@
 /**
  * Feature access — single source of truth for paywall checks.
  *
- * The current plan is cached at module scope and hydrated lazily on first
- * read (or up-front by the app shell calling `refreshFeatureAccess()`).
- * Anything that needs to gate behavior synchronously (e.g. "should this
- * delete go to trash or hard-delete?") reads through `canUseFeature()`.
+ * The current entitlement is cached per authenticated user and hydrated
+ * up-front by the app shell. Synchronous reads are suitable for presentation;
+ * destructive decisions must call `ensureFeatureAccess()` first.
  *
  * The cache is advisory UI state only. The server independently verifies both
  * the paid plan and its billing status before accepting cloud snapshot/trash
@@ -13,26 +12,55 @@
  */
 import { create } from 'zustand';
 import { subscriptionService, type SubscriptionStatus } from '../services/subscription.service';
+import { useAuthStore } from '../store/auth';
+import { isAuthRequired } from './config';
 
 export type Plan = 'free' | 'pro' | 'studio';
 
 export type PaidFeature = 'trash' | 'snapshot';
 
 const PAID_PLANS = new Set<Plan>(['pro', 'studio']);
+const ENTITLED_STATUSES = new Set(['active', 'trialing', 'past_due']);
 
 interface FeatureAccessState {
   plan: Plan;
   status: SubscriptionStatus | null;
-  setStatus: (status: SubscriptionStatus | null) => void;
+  subjectId: string | null;
+  hydrated: boolean;
+  setStatus: (subjectId: string, status: SubscriptionStatus | null) => void;
+  prepareSubject: (subjectId: string) => void;
+  reset: () => void;
 }
 
 export const useFeatureAccessStore = create<FeatureAccessState>((set) => ({
   plan: 'free',
   status: null,
-  setStatus: (status) =>
+  subjectId: null,
+  hydrated: false,
+  setStatus: (subjectId, status) =>
     set({
+      subjectId,
       status,
       plan: normalizePlan(status?.plan),
+      hydrated: true,
+    }),
+  prepareSubject: (subjectId) =>
+    set((state) =>
+      state.subjectId === subjectId
+        ? state
+        : {
+            subjectId,
+            status: null,
+            plan: 'free',
+            hydrated: false,
+          },
+    ),
+  reset: () =>
+    set({
+      subjectId: null,
+      status: null,
+      plan: 'free',
+      hydrated: false,
     }),
 }));
 
@@ -50,34 +78,101 @@ export function currentPlan(): Plan {
 }
 
 export function canUseFeature(_feature: PaidFeature): boolean {
-  return PAID_PLANS.has(currentPlan());
+  const { hydrated, plan, status } = useFeatureAccessStore.getState();
+  return hydrated && PAID_PLANS.has(plan) && ENTITLED_STATUSES.has(status?.status ?? '');
 }
 
 /** React hook variant — re-renders when the cached plan changes. */
 export function useCanUseFeature(_feature: PaidFeature): boolean {
   const plan = useFeatureAccessStore((s) => s.plan);
-  return PAID_PLANS.has(plan);
+  const status = useFeatureAccessStore((s) => s.status?.status ?? null);
+  const hydrated = useFeatureAccessStore((s) => s.hydrated);
+  return hydrated && PAID_PLANS.has(plan) && ENTITLED_STATUSES.has(status ?? '');
 }
 
-let refreshInFlight: Promise<void> | null = null;
+const refreshInFlight = new Map<string, Promise<void>>();
+
+function assertActiveSubject(subjectId: string): void {
+  const auth = useAuthStore.getState();
+  if (!auth.isAuthenticated || auth.user?.id !== subjectId) {
+    throw new Error('FEATURE_ACCESS_ACCOUNT_CHANGED');
+  }
+}
+
+function loadFeatureAccess(subjectId: string): Promise<void> {
+  const existing = refreshInFlight.get(subjectId);
+  if (existing) return existing;
+
+  const operation = (async () => {
+    assertActiveSubject(subjectId);
+    useFeatureAccessStore.getState().prepareSubject(subjectId);
+
+    if (!isAuthRequired()) {
+      useFeatureAccessStore.getState().setStatus(subjectId, null);
+      return;
+    }
+
+    const status = await subscriptionService.getStatus();
+    assertActiveSubject(subjectId);
+    if (useFeatureAccessStore.getState().subjectId === subjectId) {
+      useFeatureAccessStore.getState().setStatus(subjectId, status);
+    }
+  })();
+
+  refreshInFlight.set(subjectId, operation);
+  void operation
+    .finally(() => {
+      if (refreshInFlight.get(subjectId) === operation) {
+        refreshInFlight.delete(subjectId);
+      }
+    })
+    .catch(() => {
+      // The original promise carries the rejection to its caller. This branch
+      // only handles the promise returned by finally(), avoiding an unhandled
+      // rejection when a background refresh fails.
+    });
+  return operation;
+}
 
 /**
  * Hydrate the cached subscription status from the server. Safe to call from
  * app boot and after any subscription change (e.g. checkout completion).
  */
-export async function refreshFeatureAccess(): Promise<void> {
-  if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = (async () => {
-    try {
-      const status = await subscriptionService.getStatus();
-      useFeatureAccessStore.getState().setStatus(status);
-    } catch {
-      // Network/transient failures leave the cached plan as-is. Subsequent
-      // calls will retry. Don't reset to 'free' — that would aggressively
-      // pull the rug from under paid users on a flaky connection.
-    } finally {
-      refreshInFlight = null;
+export async function refreshFeatureAccess(subjectId: string): Promise<void> {
+  try {
+    await loadFeatureAccess(subjectId);
+  } catch {
+    // Background hydration is best-effort. A destructive caller uses
+    // ensureFeatureAccess(), which surfaces failure instead of guessing Free.
+  }
+}
+
+export function resetFeatureAccess(): void {
+  useFeatureAccessStore.getState().reset();
+}
+
+/**
+ * Establish a current, account-scoped entitlement before choosing between a
+ * recoverable paid action and an irreversible free-tier action.
+ */
+export async function ensureFeatureAccess(
+  subjectId: string,
+  options: { forceRefresh?: boolean } = {},
+): Promise<void> {
+  assertActiveSubject(subjectId);
+  const state = useFeatureAccessStore.getState();
+  if (!options.forceRefresh && state.subjectId === subjectId && state.hydrated) return;
+
+  try {
+    await loadFeatureAccess(subjectId);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'FEATURE_ACCESS_ACCOUNT_CHANGED') {
+      throw error;
     }
-  })();
-  return refreshInFlight;
+    const wrapped = new Error('无法确认当前订阅状态，请检查网络后重试。') as Error & {
+      cause?: unknown;
+    };
+    wrapped.cause = error;
+    throw wrapped;
+  }
 }

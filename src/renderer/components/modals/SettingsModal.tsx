@@ -1159,6 +1159,7 @@ const PLAN_PRICE: Record<string, string> = {
 
 function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
   const { t } = useTranslation();
+  const userId = useAuthStore((state) => state.user?.id);
   const [view, setView] = useState<SubView>('overview');
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1173,13 +1174,13 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
       // Keep the global feature-access cache in lockstep so the trash gate
       // (and rail badge) react immediately to a plan change made from this
       // panel.
-      await refreshFeatureAccess();
+      if (userId) await refreshFeatureAccess(userId);
     } catch {
       setStatus(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   // DEV plan switch — bypasses Stripe. Removes when payment ships.
   const switchPlan = useCallback(
