@@ -6,6 +6,7 @@ import type {
   AssetCacheUploadResult,
   AssetCacheWriteResult,
   AssetVariant,
+  DeleteImportResult,
   FilePickerKind,
   ImageVariantResult,
   InspectImageResult,
@@ -70,6 +71,7 @@ export interface MaterialPlatformApi {
   openLocal(filePath: string): Promise<OpenResult>;
   openExternal(url: string): Promise<OpenResult>;
   pickFile(kind?: FilePickerKind): Promise<PickFileResult>;
+  deleteImport(filePath: string): Promise<DeleteImportResult>;
   thumbnail(filePath: string, size?: number): Promise<ThumbnailResult>;
   readBytes(
     filePath: string,

@@ -396,6 +396,7 @@ export const tauriPlatform: PlatformApi = {
       }
     },
     pickFile: (kind = 'any') => invokeContract('material_pick_file', { kind }),
+    deleteImport: (filePath) => invokeContract('material_delete_import', { filePath }),
     async thumbnail(filePath, size = 96) {
       const native = await invokeContract('material_thumbnail', { filePath, size });
       if (native.ok) return native;

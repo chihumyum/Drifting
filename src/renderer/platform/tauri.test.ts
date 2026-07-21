@@ -374,4 +374,15 @@ describe('tauri material import contract', () => {
     });
     expect(tauriMocks.invoke).toHaveBeenCalledWith('material_pick_file', { kind: 'pdf' });
   });
+
+  it('routes app-owned import cleanup through the confined native command', async () => {
+    tauriMocks.invoke.mockResolvedValue({ ok: true });
+
+    await expect(
+      tauriPlatform.material.deleteImport('/app/data/imports/picked.pdf'),
+    ).resolves.toEqual({ ok: true });
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('material_delete_import', {
+      filePath: '/app/data/imports/picked.pdf',
+    });
+  });
 });

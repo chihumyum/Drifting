@@ -94,6 +94,8 @@ export type PickFileResult =
       maxSizeBytes: null;
     };
 
+export type DeleteImportResult = { ok: true } | { ok: false; error: string };
+
 export type ThumbnailResult = { ok: true; dataUrl: string } | { ok: false; error: string };
 
 export type NativeBytes = ArrayBuffer | Uint8Array | number[];
@@ -183,6 +185,7 @@ export interface TauriCommandContract {
   keychain_delete: { args: { key: string }; result: boolean };
   material_open_local: { args: { filePath: string }; result: OpenResult };
   material_pick_file: { args: { kind: FilePickerKind }; result: PickFileResult };
+  material_delete_import: { args: { filePath: string }; result: DeleteImportResult };
   material_thumbnail: {
     args: { filePath: string; size: number };
     result: ThumbnailResult;

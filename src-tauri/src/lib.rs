@@ -123,6 +123,7 @@ pub fn run() {
             secure_storage::keychain_delete,
             native_capabilities::material_open_local,
             native_capabilities::material_pick_file,
+            native_capabilities::material_delete_import,
             native_capabilities::material_thumbnail,
             native_capabilities::material_read_bytes,
             native_capabilities::material_inspect_image,

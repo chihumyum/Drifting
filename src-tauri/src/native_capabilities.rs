@@ -434,6 +434,51 @@ fn validate_app_owned_material_file(app: &AppHandle, file_path: &str) -> Result<
     validate_app_owned_file_from_roots(Path::new(file_path), &roots)
 }
 
+fn delete_import_file_from_root(imports_root: &Path, file_path: &Path) -> Result<(), String> {
+    if !file_path.is_absolute() {
+        return Err("import path must be absolute".into());
+    }
+    let root_metadata = fs::symlink_metadata(imports_root)
+        .map_err(|_| "imports directory is unavailable".to_string())?;
+    if !root_metadata.is_dir() || root_metadata.file_type().is_symlink() {
+        return Err("imports directory is invalid".into());
+    }
+    let canonical_root = fs::canonicalize(imports_root)
+        .map_err(|_| "imports directory is unavailable".to_string())?;
+
+    // Picker imports are always direct children. Requiring exactly one normal
+    // component keeps an absent-path retry idempotent without canonicalizing a
+    // caller-controlled `..` path into another app-owned directory.
+    let relative = file_path
+        .strip_prefix(imports_root)
+        .map_err(|_| "import path is outside Drifting imports".to_string())?;
+    let mut components = relative.components();
+    if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
+        return Err("import path is outside Drifting imports".into());
+    }
+
+    match fs::symlink_metadata(file_path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            Err("refusing to delete a symlinked import".into())
+        }
+        Ok(metadata) if !metadata.is_file() => Err("import path is not a file".into()),
+        Ok(_) => {
+            let canonical_file = fs::canonicalize(file_path)
+                .map_err(|_| "import path is unavailable".to_string())?;
+            if canonical_file.parent() != Some(canonical_root.as_path()) {
+                return Err("import path is outside Drifting imports".into());
+            }
+            match fs::remove_file(file_path) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+                Err(_) => Err("could not delete imported file".into()),
+            }
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err("import path is unavailable".into()),
+    }
+}
+
 fn unique_token() -> String {
     let elapsed = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1642,6 +1687,23 @@ pub async fn material_pick_file(
 }
 
 #[tauri::command]
+pub async fn material_delete_import(app: AppHandle, file_path: String) -> OpenResult {
+    let imports = match app_local_dir(&app, "imports") {
+        Ok(path) => path,
+        Err(error) => return OpenResult::Failure(FailureResult::new(error)),
+    };
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        delete_import_file_from_root(&imports, Path::new(&file_path))
+    })
+    .await;
+    match result {
+        Ok(Ok(())) => OpenResult::Success(OpenSuccess { ok: true }),
+        Ok(Err(error)) => OpenResult::Failure(FailureResult::new(error)),
+        Err(_) => OpenResult::Failure(FailureResult::new("import cleanup worker failed")),
+    }
+}
+
+#[tauri::command]
 pub async fn material_thumbnail(app: AppHandle, file_path: String, size: f64) -> ThumbnailResult {
     let path = match validate_app_owned_material_file(&app, &file_path) {
         Ok(path) => path,
@@ -2331,6 +2393,32 @@ mod tests {
         fs::remove_dir_all(directory).unwrap();
     }
 
+    #[test]
+    fn import_cleanup_is_idempotent_and_confined_to_direct_import_files() {
+        let directory = test_directory("import-cleanup");
+        let imports = directory.join("imports");
+        let cache = directory.join("asset-cache");
+        fs::create_dir_all(&imports).unwrap();
+        fs::create_dir_all(&cache).unwrap();
+
+        let imported_file = imports.join("picked.pdf");
+        let cached_file = cache.join("source.pdf");
+        let nested_directory = imports.join("nested");
+        fs::write(&imported_file, b"pdf").unwrap();
+        fs::write(&cached_file, b"cache").unwrap();
+        fs::create_dir_all(&nested_directory).unwrap();
+
+        delete_import_file_from_root(&imports, &imported_file).unwrap();
+        assert!(!imported_file.exists());
+        delete_import_file_from_root(&imports, &imported_file).unwrap();
+        assert!(delete_import_file_from_root(&imports, &cached_file).is_err());
+        assert!(cached_file.exists());
+        assert!(delete_import_file_from_root(&imports, &nested_directory).is_err());
+        assert!(delete_import_file_from_root(&imports, Path::new("relative.pdf")).is_err());
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
     #[cfg(unix)]
     #[test]
     fn app_owned_file_validation_rejects_symlink_escapes_and_symlinked_roots() {
@@ -2358,6 +2446,35 @@ mod tests {
             &[symlinked_root]
         )
         .is_err());
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn import_cleanup_rejects_symlink_files_and_symlinked_roots() {
+        use std::os::unix::fs::symlink;
+
+        let directory = test_directory("import-cleanup-symlink");
+        let imports = directory.join("imports");
+        let outside = directory.join("outside");
+        fs::create_dir_all(&imports).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        let outside_file = outside.join("keep.txt");
+        fs::write(&outside_file, b"keep").unwrap();
+        let linked_file = imports.join("linked.txt");
+        symlink(&outside_file, &linked_file).unwrap();
+
+        assert!(delete_import_file_from_root(&imports, &linked_file).is_err());
+        assert!(outside_file.exists());
+        assert!(linked_file.exists());
+
+        let symlinked_root = directory.join("symlinked-imports");
+        symlink(&imports, &symlinked_root).unwrap();
+        assert!(
+            delete_import_file_from_root(&symlinked_root, &symlinked_root.join("linked.txt"))
+                .is_err()
+        );
 
         fs::remove_dir_all(directory).unwrap();
     }
