@@ -80,6 +80,7 @@ describe('auth store persistence', () => {
     mocks.stopPreferencesSync.mockImplementation(() => mocks.order.push('preferences:stop'));
     mocks.signOut.mockImplementation(async () => {
       mocks.order.push('signOut');
+      return { data: { success: true }, error: null };
     });
     mocks.clearSessionToken.mockImplementation(() => mocks.order.push('token:clear'));
     mocks.invalidateSessionToken.mockImplementation(() => mocks.order.push('token:invalidate'));
@@ -211,6 +212,48 @@ describe('auth store persistence', () => {
       'database:reset',
       'database:init',
     ]);
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it('keeps the credential and authenticated state when server revocation fails', async () => {
+    vi.stubGlobal('localStorage', createMemoryStorage());
+    mocks.signOut
+      .mockImplementationOnce(async () => {
+        mocks.order.push('signOut');
+        return { data: null, error: { message: 'server unavailable' } };
+      })
+      .mockImplementation(async () => {
+        mocks.order.push('signOut');
+        return { data: { success: true }, error: null };
+      });
+    const { useAuthStore } = await import('./auth');
+    const outgoingUser = {
+      id: 'outgoing-user',
+      email: 'writer@example.com',
+      name: 'Writer',
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    useAuthStore.setState({
+      isAuthenticated: true,
+      session: {} as never,
+      user: outgoingUser,
+    });
+
+    await expect(useAuthStore.getState().logout()).rejects.toThrow('server unavailable');
+
+    expect(mocks.clearSessionToken).not.toHaveBeenCalled();
+    expect(mocks.quiesce).not.toHaveBeenCalled();
+    expect(mocks.resetDatabase).not.toHaveBeenCalled();
+    expect(useAuthStore.getState()).toMatchObject({
+      isAuthenticated: true,
+      user: outgoingUser,
+    });
+
+    mocks.order.length = 0;
+    await expect(useAuthStore.getState().logout()).resolves.toBeUndefined();
+    expect(mocks.order).toContain('token:clear');
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 

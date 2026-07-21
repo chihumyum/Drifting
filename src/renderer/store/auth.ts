@@ -263,10 +263,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     await flushLocalApplicationPersistence();
     await flushRemoteApplicationPersistence();
 
-    try {
-      await authClient.signOut();
-    } catch (error) {
-      log.error('[Auth] Logout API call failed:', error);
+    // Do not discard the only credential until the server confirms revocation.
+    // Otherwise a transient network failure leaves a still-valid remote
+    // session that the user can no longer see or retry from this device.
+    const signOutResult = await authClient.signOut();
+    if (signOutResult.error) {
+      throw new Error(signOutResult.error.message ?? 'Logout failed');
     }
     // Drop the bearer token so the next session starts clean.
     clearSessionToken();
