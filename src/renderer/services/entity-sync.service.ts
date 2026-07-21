@@ -62,6 +62,10 @@ import {
   runGuardedProjectHydration,
 } from './local-mutation-generation';
 import loglevel from 'loglevel';
+import {
+  overlayLibraryItemDeviceFields,
+  stripLibraryItemDeviceFields,
+} from './library-item-sync-boundary';
 
 const log = loglevel.getLogger('EntitySyncService');
 log.setLevel(loglevel.levels.WARN);
@@ -704,12 +708,16 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
     // ---- Library Item (formerly material; now also hosts free-form text notes) ----
     case 'libraryItem':
       if (mutationType === 'create') {
-        return { method: 'POST', endpoint: `/api/projects/${projectId}/library`, data: payload };
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/library`,
+          data: stripLibraryItemDeviceFields(payload),
+        };
       } else if (mutationType === 'update') {
         return {
           method: 'PATCH',
           endpoint: `/api/projects/${projectId}/library/${entityId}`,
-          data: payload,
+          data: stripLibraryItemDeviceFields(payload),
         };
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/library/${entityId}` };
@@ -1557,6 +1565,7 @@ export async function hydrateProjectGraph(
   const projectId = stringValue(graph.project, 'id');
   if (!projectId) throw new Error('Cannot hydrate project graph without project.id');
   const db = getDb();
+  let deviceSafeGraph = graph;
 
   return runGuardedProjectHydration<DbTransaction>({
     projectId,
@@ -1606,6 +1615,22 @@ export async function hydrateProjectGraph(
     const localBlockSections = allLocalBlockSections.filter((row) =>
       unfinishedSectionIds.has(row.id),
     );
+
+    // Unlike server-canonical content, localPath is an overlay owned by this
+    // device. Capture it before the destructive hydrate so a remote response
+    // cannot replace it with another machine's absolute path. Cross-device
+    // rows absent from this local snapshot are normalized to null.
+    const localLibraryItemDeviceFields = await tx
+      .select({ id: LibraryItemTable.id, localPath: LibraryItemTable.localPath })
+      .from(LibraryItemTable)
+      .where(eq(LibraryItemTable.projectId, projectId));
+    deviceSafeGraph = {
+      ...graph,
+      libraryItems: overlayLibraryItemDeviceFields(
+        graph.libraryItems,
+        localLibraryItemDeviceFields,
+      ),
+    };
 
     const oldNodes = await tx
       .select({ id: BookNodeTable.id })
@@ -2017,7 +2042,7 @@ export async function hydrateProjectGraph(
       }
     }
 
-    const libraryItems = normalizeRows(graph.libraryItems, (row) => ({
+    const libraryItems = normalizeRows(deviceSafeGraph.libraryItems, (row) => ({
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'projectId'),
       title: stringValue(row, 'title'),
@@ -2165,7 +2190,7 @@ export async function hydrateProjectGraph(
       await insertRowsBatched(tx, TimelineMarkerTable, timelineMarkers);
     }
     },
-    apply: () => applyGraphToStores(graph),
+    apply: () => applyGraphToStores(deviceSafeGraph),
   });
 }
 
@@ -2255,7 +2280,14 @@ export async function pullAndHydrateProjectGraph(
       resourceCount,
       durationMs: nowMs() - startedAt,
     });
-    return response.data;
+    // hydrateProjectGraph applied the device-local overlay to SQLite/store.
+    // Do the same for the raw pull result so callers cannot accidentally
+    // consume a localPath supplied by the server.
+    const localLibraryItems = useDataStore.getState().libraryItems;
+    return {
+      ...response.data,
+      libraryItems: overlayLibraryItemDeviceFields(response.data.libraryItems, localLibraryItems),
+    };
   } catch (error) {
     setStatus('error', 'hydrate failed');
     emitSyncOperation({

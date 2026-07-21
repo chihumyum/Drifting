@@ -10,6 +10,7 @@ import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import { platform } from '../platform';
 import { withAtomicSyncTransaction } from './sync-helpers';
+import { libraryItemServerPayload } from '../services/library-item-sync-boundary';
 
 export interface CreateLibraryItemInput {
   title?: string;
@@ -40,24 +41,6 @@ function shouldUploadLibraryMaterial(input: CreateLibraryItemInput): boolean {
     !!input.localPath &&
     (input.kind === 'image' || input.kind === 'pdf')
   );
-}
-
-function libraryItemSyncPayload(item: LibraryItem): Record<string, unknown> {
-  return {
-    id: item.id,
-    title: item.title,
-    kind: item.kind,
-    source: item.source,
-    uri: item.uri,
-    localPath: item.localPath,
-    assetId: item.assetId,
-    mime: item.mime,
-    sizeBytes: item.sizeBytes,
-    bodyJson: item.bodyJson,
-    notesJson: item.notesJson,
-    thumbnailUri: item.thumbnailUri,
-    orderKey: item.orderKey,
-  };
 }
 
 function uploadErrorMessage(error: unknown): string {
@@ -293,7 +276,13 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
             },
           );
           if (!result) return null;
-          await sync('libraryItem', 'create', result.id, projectId, libraryItemSyncPayload(result));
+          await sync(
+            'libraryItem',
+            'create',
+            result.id,
+            projectId,
+            libraryItemServerPayload(result),
+          );
           for (const relation of relations) {
             await sync('entityRelation', 'create', relation.id, projectId, {
               id: relation.id,
@@ -398,7 +387,7 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
                 'create',
                 persisted.id,
                 projectId,
-                libraryItemSyncPayload(persisted),
+                libraryItemServerPayload(persisted),
               );
             }
             return persisted;
@@ -452,7 +441,7 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
                 'update',
                 id,
                 projectId,
-                libraryItemSyncPayload(persisted),
+                libraryItemServerPayload(persisted),
               );
             }
             return persisted;
