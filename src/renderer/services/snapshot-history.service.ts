@@ -199,16 +199,37 @@ function pushToCloud(row: {
 // and serializing them keeps the dedup read-modify-write race-free.
 let captureChain: Promise<void> = Promise.resolve();
 
+function enqueueSnapshotCapture(
+  docId: string,
+  stateBlob: Uint8Array,
+  reason: CaptureReason = 'periodic',
+): Promise<void> {
+  // Copy now — the caller's buffer may be reused after this returns.
+  const blob = new Uint8Array(stateBlob);
+  const operation = captureChain.then(() => captureOnce(docId, blob, reason));
+  // Keep the shared tail healthy for later captures, while returning the raw
+  // operation so safety-critical callers can await and observe a failure.
+  captureChain = operation.catch((err) =>
+    log.warn(`snapshot capture failed for ${docId}`, err),
+  );
+  return operation;
+}
+
 export function maybeCaptureSnapshotHistory(
   docId: string,
   stateBlob: Uint8Array,
   reason: CaptureReason = 'periodic',
 ): void {
-  // Copy now — the caller's buffer may be reused after this returns.
-  const blob = new Uint8Array(stateBlob);
-  captureChain = captureChain
-    .then(() => captureOnce(docId, blob, reason))
-    .catch((err) => log.warn(`snapshot capture failed for ${docId}`, err));
+  void enqueueSnapshotCapture(docId, stateBlob, reason).catch(() => undefined);
+}
+
+/** Await a capture when the row is a required rollback point, such as restore. */
+export function captureSnapshotHistory(
+  docId: string,
+  stateBlob: Uint8Array,
+  reason: CaptureReason = 'periodic',
+): Promise<void> {
+  return enqueueSnapshotCapture(docId, stateBlob, reason);
 }
 
 /** Drain queued local history rows before checkpointing or switching databases. */

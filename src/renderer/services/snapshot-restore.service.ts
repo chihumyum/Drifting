@@ -33,7 +33,11 @@ import { useAgentActivityStore } from '../store/agent-activity-store';
 import { countWordsInPmJson } from '../lib/word-count';
 import type { WritingStatus } from '../domain/book-node';
 import { compactUpdatesAfterSnapshot } from './yjs-sync.service';
-import { maybeCaptureSnapshotHistory, type SnapshotMeta } from './snapshot-history.service';
+import {
+  captureSnapshotHistory,
+  maybeCaptureSnapshotHistory,
+  type SnapshotMeta,
+} from './snapshot-history.service';
 
 const log = loglevel.getLogger('snapshot-restore');
 log.setLevel(loglevel.levels.WARN);
@@ -108,7 +112,7 @@ async function applyProseState(docId: string, stateBlob: Uint8Array): Promise<st
 async function captureCurrentState(docId: string): Promise<void> {
   const live = getLiveYDoc(docId);
   if (live) {
-    maybeCaptureSnapshotHistory(docId, Y.encodeStateAsUpdate(live), 'restore');
+    await captureSnapshotHistory(docId, Y.encodeStateAsUpdate(live), 'restore');
     return;
   }
   const yrepo = createYjsRepository();
@@ -118,7 +122,7 @@ async function captureCurrentState(docId: string): Promise<void> {
     const snap = await yrepo.getSnapshot(docId);
     if (snap) Y.applyUpdate(doc, snap.stateBlob, 'load');
     for (const u of await yrepo.listUpdates(docId)) Y.applyUpdate(doc, u.updateBlob, 'load');
-    maybeCaptureSnapshotHistory(docId, Y.encodeStateAsUpdate(doc), 'restore');
+    await captureSnapshotHistory(docId, Y.encodeStateAsUpdate(doc), 'restore');
   } finally {
     doc.destroy();
   }
