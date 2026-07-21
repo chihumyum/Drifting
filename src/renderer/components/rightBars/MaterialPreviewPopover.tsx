@@ -17,9 +17,9 @@ interface Props {
  * Mounts a read-only TipTap instance with the StarterKit so paragraphs /
  * headings / lists / blockquotes render uniformly.
  *
- * Image / PDF items open in the OS default app via `electronAPI.material.
- * openLocal` and never reach this popover. URL items open in the system
- * browser via `openExternal`. Both code paths live in the panel itself.
+ * Image / PDF items open in the OS default app via
+ * `platform.material.openLocal` and never reach this popover. URL items open
+ * in the system browser via `openExternal`. Both code paths live in the panel.
  */
 export function MaterialPreviewPopover({ item, onClose }: Props) {
   const { t } = useTranslation();

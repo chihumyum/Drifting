@@ -164,7 +164,7 @@ export const ElementCategoryTable = sqliteTable(
 
 // Project Asset
 // Cloud-backed binary assets owned by a project. R2 is the canonical source;
-// Electron keeps per-device local cache files derived from these object keys.
+// Native clients keep per-device local cache files derived from these object keys.
 export const ProjectAssetTable = sqliteTable(
   'project_asset',
   {
@@ -213,24 +213,26 @@ export const ProjectAssetTable = sqliteTable(
 // nodeContentTemplateJson: TipTap doc JSON seeded into NodeContent.contentJson
 // when a new node is created under this storyline. '{}' means "no template"
 // and the new node starts with an empty doc. Edits affect future nodes only.
-export const StorylineTable = sqliteTable('storylines', {
-  id: text('id').primaryKey(),
-  projectId: text('project_id')
-    .notNull()
-    .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  color: text('color').notNull(),
-  summary: text('summary').notNull().default(''),
-  orderKey: integer('order_key').notNull(),
-  contentJson: text('content_json').notNull().default('{}'),
-  kvJson: text('kv_json').notNull().default('[]'),
-  nodeContentTemplateJson: text('node_content_template_json').notNull().default('{}'),
-  deletedAt: text('deleted_at'),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
-}, (t) => [
-  index('idx_storyline_deleted_at').on(t.deletedAt),
-]);
+export const StorylineTable = sqliteTable(
+  'storylines',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    color: text('color').notNull(),
+    summary: text('summary').notNull().default(''),
+    orderKey: integer('order_key').notNull(),
+    contentJson: text('content_json').notNull().default('{}'),
+    kvJson: text('kv_json').notNull().default('[]'),
+    nodeContentTemplateJson: text('node_content_template_json').notNull().default('{}'),
+    deletedAt: text('deleted_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [index('idx_storyline_deleted_at').on(t.deletedAt)],
+);
 
 // Story Nodes
 // Domain: BookNode
@@ -353,43 +355,47 @@ export const NodeContentTable = sqliteTable(
 // are rendered together inside the category. Null = "ungrouped" bucket, which
 // SuperElementView renders last. Rename by SQL update; delete by setting to
 // null. If we ever need ordering or colors, promote to ElementGroupTable.
-export const BookElementTable = sqliteTable('element', {
-  id: text('id').primaryKey(),
-  projectId: text('project_id')
-    .notNull()
-    .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-  // Nullable since the trash refactor (migration 0028): when a category is
-  // soft-deleted or hard-deleted, its elements detach to NULL ("未分类")
-  // instead of cascading. Restoring the category does NOT re-link them.
-  categoryId: text('category_id').references(() => ElementCategoryTable.id, {
-    onDelete: 'set null',
-  }),
-  name: text('name').notNull(),
-  summary: text('summary').notNull().default(''),
-  contentJson: text('content_json').notNull().default('{}'),
-  // Element's own KV facts. Seeded at creation from the parent category's
-  // elementTemplateKvJson; once seeded, the element owns its copy. JSON
-  // array, same shape as Project.kvJson — see domain/kv.ts.
-  kvJson: text('kv_json').notNull().default('[]'),
-  // Alternate names this entity is referred to by ("Lady Mira", "M.",
-  // "the heir"). Stored as JSON-encoded string[]. Drives auto-linking and
-  // copilot context: aliases participate in mention detection, dedup, and
-  // patch attribution the same way `name` does. Uniqueness across name +
-  // aliases is enforced in the app layer (useBookElement), not by SQL —
-  // see migration 0030.
-  aliasesJson: text('aliases_json').notNull().default('[]'),
-  groupName: text('group_name'),
-  portraitAssetId: text('portrait_asset_id').references(() => ProjectAssetTable.id, {
-    onDelete: 'set null',
-  }),
-  deletedAt: text('deleted_at'),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
-}, (t) => [
-  index('idx_element_deleted_at').on(t.deletedAt),
-  index('idx_element_category').on(t.categoryId),
-  index('idx_element_portrait_asset').on(t.portraitAssetId),
-]);
+export const BookElementTable = sqliteTable(
+  'element',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    // Nullable since the trash refactor (migration 0028): when a category is
+    // soft-deleted or hard-deleted, its elements detach to NULL ("未分类")
+    // instead of cascading. Restoring the category does NOT re-link them.
+    categoryId: text('category_id').references(() => ElementCategoryTable.id, {
+      onDelete: 'set null',
+    }),
+    name: text('name').notNull(),
+    summary: text('summary').notNull().default(''),
+    contentJson: text('content_json').notNull().default('{}'),
+    // Element's own KV facts. Seeded at creation from the parent category's
+    // elementTemplateKvJson; once seeded, the element owns its copy. JSON
+    // array, same shape as Project.kvJson — see domain/kv.ts.
+    kvJson: text('kv_json').notNull().default('[]'),
+    // Alternate names this entity is referred to by ("Lady Mira", "M.",
+    // "the heir"). Stored as JSON-encoded string[]. Drives auto-linking and
+    // copilot context: aliases participate in mention detection, dedup, and
+    // patch attribution the same way `name` does. Uniqueness across name +
+    // aliases is enforced in the app layer (useBookElement), not by SQL —
+    // see migration 0030.
+    aliasesJson: text('aliases_json').notNull().default('[]'),
+    groupName: text('group_name'),
+    portraitAssetId: text('portrait_asset_id').references(() => ProjectAssetTable.id, {
+      onDelete: 'set null',
+    }),
+    deletedAt: text('deleted_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_element_deleted_at').on(t.deletedAt),
+    index('idx_element_category').on(t.categoryId),
+    index('idx_element_portrait_asset').on(t.portraitAssetId),
+  ],
+);
 
 // Node <-> Storyline (Many-to-Many)
 // Node <-> Storyline (Many-to-Many)

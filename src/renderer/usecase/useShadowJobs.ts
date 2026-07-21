@@ -10,14 +10,20 @@ import {
   isShadowCancelled,
   clearShadowCancelled,
 } from '../lib/shadow/job-recorder';
+import {
+  configureShadowRuntime,
+  createRendererShadowDeps,
+  subscribeShadowJobEvents,
+} from '../lib/shadow/runtime';
+import { getActiveAgentToolContext, runAgentTool } from '../lib/agent/tool-handlers';
 
 /**
  * Owns the persisted shadow_job lifecycle on the renderer side. It:
  *   - loads a project's recent jobs into the data-store on open (loadInitial), and
- *   - subscribes to the main-process `shadow:job` IPC to begin / finish the
- *     persisted record AND emit the global `ai-task` notification for Shadow.
+ *   - configures the in-renderer review runtime and subscribes to its lifecycle
+ *     events to begin / finish the persisted row and emit `ai-task` notifications.
  *
- * The per-step evidence trail is appended from the shadow bridge handlers via the
+ * The per-step evidence trail is appended from the Shadow handlers via the
  * job-recorder directly (they run in this same renderer process).
  */
 export function useShadowJobs({ projectId }: { projectId: string }) {
@@ -62,7 +68,10 @@ export function useShadowJobs({ projectId }: { projectId: string }) {
       if (node?.writingStatus === 'waiting_review') {
         void enqueueShadowReview(j.chapterId, projectId);
       } else {
-        const trace = [...j.trace, { at, phase: 'decide' as const, label: '已不在审阅队列，自动结束' }];
+        const trace = [
+          ...j.trace,
+          { at, phase: 'decide' as const, label: '已不在审阅队列，自动结束' },
+        ];
         void repo.update(j.id, { status: 'stopped', finishedAt: at, trace });
         useDataStore
           .getState()
@@ -72,10 +81,24 @@ export function useShadowJobs({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   useEffect(() => {
-    const off = window.electronAPI?.shadow?.onJob?.((ev) => {
+    configureShadowRuntime(
+      createRendererShadowDeps(async (name, args) => {
+        const ctx = getActiveAgentToolContext();
+        if (!ctx) throw new Error('Shadow runtime is not mounted in an active project');
+        const requestedProjectId = args.projectId;
+        if (typeof requestedProjectId === 'string' && requestedProjectId !== ctx.projectId) {
+          throw new Error(
+            `Shadow project changed during review (${requestedProjectId} -> ${ctx.projectId})`,
+          );
+        }
+        return runAgentTool(name, args, ctx);
+      }),
+    );
+
+    return subscribeShadowJobEvents((ev) => {
       const title =
         useDataStore.getState().bookNodes.find((n) => n.id === ev.chapterId)?.title || '章节';
-      // A stopped review's trailing completed/failed IPC is suppressed (the job
+      // A stopped review's trailing completed/failed event is suppressed (the job
       // is already finalized as 'stopped'); clear the flag once it arrives.
       if (ev.state !== 'started' && isShadowCancelled(ev.chapterId)) {
         clearShadowCancelled(ev.chapterId);
@@ -128,7 +151,6 @@ export function useShadowJobs({ projectId }: { projectId: string }) {
         at: Date.now(),
       });
     });
-    return () => off?.();
   }, []);
 
   // Memoize so the returned object is identity-stable across renders. App.tsx

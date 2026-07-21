@@ -1,12 +1,14 @@
 /**
- * BYOK keychain — thin renderer-side facade over the main-process
- * `@napi-rs/keyring` handlers in `keyring-ipc.ts`. The renderer never
+ * BYOK keychain — thin renderer-side facade over Tauri secure-storage
+ * commands. The renderer never
  * sees the raw secret in memory longer than necessary, and nothing ever
  * lands in localStorage or the Zustand persist payload.
  *
  * Key naming: `byok.<provider>` is the canonical id. Add a provider by
  * extending the union; old ids stay valid (keychain entries are by string).
  */
+
+import { platform } from '../platform';
 
 export type BYOKProvider = 'anthropic' | 'openai' | 'google' | 'deepseek';
 
@@ -16,40 +18,32 @@ function keyOf(provider: BYOKProvider): string {
 
 export const byokKeychain = {
   async get(provider: BYOKProvider): Promise<string | null> {
-    if (!window.electronAPI?.keychain) return null;
-    return window.electronAPI.keychain.get(keyOf(provider));
+    return platform.keychain.get(keyOf(provider));
   },
   async set(provider: BYOKProvider, value: string): Promise<boolean> {
-    if (!window.electronAPI?.keychain) return false;
-    return window.electronAPI.keychain.set(keyOf(provider), value);
+    return platform.keychain.set(keyOf(provider), value);
   },
   async clear(provider: BYOKProvider): Promise<boolean> {
-    if (!window.electronAPI?.keychain) return false;
-    return window.electronAPI.keychain.delete(keyOf(provider));
+    return platform.keychain.delete(keyOf(provider));
   },
 };
 
 /**
- * The General Agent (Claude Agent SDK) Anthropic API key — pay-as-you-go,
- * separate from copilot's per-provider `byok.<provider>` keys. The SDK reads
- * it as ANTHROPIC_API_KEY (resolved in the main process; see
- * `main/agent/runtime.ts`). Kept under its own id so it never collides with
- * copilot's anthropic BYOK key.
+ * Reserved Anthropic API key for a future General Agent transport. It remains
+ * separate from Copilot's per-provider `byok.<provider>` keys and is not read by
+ * the current unsupported transport.
  */
 export const AGENT_API_KEY_ID = 'byok.agent.anthropic';
 
 export const agentApiKeychain = {
   async get(): Promise<string | null> {
-    if (!window.electronAPI?.keychain) return null;
-    return window.electronAPI.keychain.get(AGENT_API_KEY_ID);
+    return platform.keychain.get(AGENT_API_KEY_ID);
   },
   async set(value: string): Promise<boolean> {
-    if (!window.electronAPI?.keychain) return false;
-    return window.electronAPI.keychain.set(AGENT_API_KEY_ID, value);
+    return platform.keychain.set(AGENT_API_KEY_ID, value);
   },
   async clear(): Promise<boolean> {
-    if (!window.electronAPI?.keychain) return false;
-    return window.electronAPI.keychain.delete(AGENT_API_KEY_ID);
+    return platform.keychain.delete(AGENT_API_KEY_ID);
   },
 };
 

@@ -2,11 +2,10 @@
  * Writing-language resolution for the BYOK Claude agent (client side).
  *
  * The Gemini/Copilot path resolves this on the server (private service
- * modules/ai/output-language.ts) from synced preferences. The agent runs in the
- * Electron main process and talks directly to Anthropic, so it can't use that —
- * this mirror resolves the same effective language from the local settings store
- * (global manuscriptLocale + per-project override) so the agent writes prose and
- * replies in the manuscript's language instead of defaulting to its own.
+ * modules/ai/output-language.ts) from synced preferences. Renderer-local Shadow,
+ * goal, and Agent flows cannot use that helper, so this mirror resolves the same
+ * effective language from local settings (global manuscriptLocale plus a
+ * per-project override).
  */
 import { useSettingsStore } from '../../store/settings-store';
 

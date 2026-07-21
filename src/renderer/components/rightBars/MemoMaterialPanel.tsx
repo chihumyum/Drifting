@@ -4,7 +4,7 @@ import { Link2, Link2Off, Loader2, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 // Use the "legacy" build: pdf.js v5's modern bundle calls
 // `Map.prototype.getOrInsertComputed`, a TC39 Stage 2.7 proposal not yet in
-// Electron 40's V8. The legacy build ships the polyfill.
+// some embedded WebView engines. The legacy build ships the polyfill.
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
@@ -23,6 +23,7 @@ import { EntityRelationPicker, type RelationTarget } from './EntityRelationPicke
 import { CollapsibleFooter } from '../ui/CollapsibleFooter';
 import { assetCacheService } from '../../services/asset-cache.service';
 import type { AssetVariant } from '../../services/project-asset.service';
+import { platform } from '../../platform';
 import '../../../styles/bottom-timeline.css';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -54,9 +55,9 @@ function libraryItemSubtitle(m: LibraryItem): string {
 }
 
 function localLibraryItemUrl(m: LibraryItem): string | null {
-  if (m.localPath) return `file://${m.localPath}`;
-  if (m.uri.startsWith('file://')) return m.uri;
-  return null;
+  const filePath =
+    m.localPath ?? (m.uri.startsWith('file://') ? m.uri.slice('file://'.length) : null);
+  return filePath ? platform.material.toLocalResourceUrl(filePath) : null;
 }
 
 function libraryItemImageSrc(m: LibraryItem): string | null {
@@ -242,7 +243,7 @@ export function LibraryPanel({ focused }: Props) {
     // text snippets are edited inline on the card — no popover / OS hand-off.
     if (m.kind === 'text') return;
     if (m.kind === 'url') {
-      await window.electronAPI.material.openExternal(m.uri);
+      await platform.material.openExternal(m.uri);
       return;
     }
     // image / pdf — local file goes through the OS default app.
@@ -259,7 +260,7 @@ export function LibraryPanel({ focused }: Props) {
       }
     }
     if (!path) return;
-    const res = await window.electronAPI.material.openLocal(path);
+    const res = await platform.material.openLocal(path);
     if (!res.ok) {
       alert(t('memoMaterial.error.openFile', { error: res.error }));
     }
@@ -350,7 +351,9 @@ export function LibraryPanel({ focused }: Props) {
           onCreate={async (input, relations) => {
             const mat = await libraryItemUsecases.createLibraryItem(input);
             await Promise.all(
-              relations.map((t) => relationUsecases.addRelation('library_item', mat.id, t.kind, t.id)),
+              relations.map((t) =>
+                relationUsecases.addRelation('library_item', mat.id, t.kind, t.id),
+              ),
             );
             setComposeOpen(false);
           }}
@@ -362,7 +365,9 @@ export function LibraryPanel({ focused }: Props) {
           key={previewLibraryItem.id}
           material={previewLibraryItem}
           onClose={() => setPreviewLibraryItemId(null)}
-          onUpdate={(updates) => libraryItemUsecases.updateLibraryItem(previewLibraryItem.id, updates)}
+          onUpdate={(updates) =>
+            libraryItemUsecases.updateLibraryItem(previewLibraryItem.id, updates)
+          }
         />
       )}
 
@@ -380,7 +385,6 @@ export function LibraryPanel({ focused }: Props) {
           }
         />
       )}
-
     </div>
   );
 }
@@ -560,11 +564,7 @@ function FilterPill({
         borderRadius: 12,
         border: `1px solid ${active ? 'hsl(var(--ink-1))' : 'hsl(var(--rule))'}`,
         background: active ? 'hsl(var(--ink-1) / 0.06)' : 'transparent',
-        color: disabled
-          ? 'hsl(var(--ink-5))'
-          : active
-            ? 'hsl(var(--ink-1))'
-            : 'hsl(var(--ink-3))',
+        color: disabled ? 'hsl(var(--ink-5))' : active ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
       }}
@@ -992,7 +992,7 @@ export function LibraryItemCard({
     if (material.thumbnailUri) return;
     if (!material.localPath) return;
     let cancelled = false;
-    void window.electronAPI.material.thumbnail(material.localPath, 192).then((res) => {
+    void platform.material.thumbnail(material.localPath, 192).then((res) => {
       if (cancelled || !res.ok) return;
       onUpdate({ thumbnailUri: res.dataUrl });
     });
@@ -1051,7 +1051,11 @@ export function LibraryItemCard({
           {canExpandImage && (
             <button
               onClick={() => setImageExpanded((v) => !v)}
-              title={imageExpanded ? t('memoMaterial.card.collapseImage') : t('memoMaterial.card.expandImage')}
+              title={
+                imageExpanded
+                  ? t('memoMaterial.card.collapseImage')
+                  : t('memoMaterial.card.expandImage')
+              }
               aria-hidden={!hover}
               tabIndex={hover ? 0 : -1}
               style={{
@@ -1074,7 +1078,11 @@ export function LibraryItemCard({
           {isTextSnippet && (
             <button
               onClick={() => setTextExpanded((v) => !v)}
-              title={textExpanded ? t('memoMaterial.card.collapseSnippet') : t('memoMaterial.card.expandSnippet')}
+              title={
+                textExpanded
+                  ? t('memoMaterial.card.collapseSnippet')
+                  : t('memoMaterial.card.expandSnippet')
+              }
               aria-hidden={!hover}
               tabIndex={hover ? 0 : -1}
               style={{
@@ -1191,9 +1199,7 @@ export function LibraryItemCard({
                   style={{
                     fontFamily: 'var(--font-mono)',
                     fontSize: 10,
-                    color: uploadFailed
-                      ? 'hsl(var(--danger, var(--accent)))'
-                      : 'hsl(var(--ink-4))',
+                    color: uploadFailed ? 'hsl(var(--danger, var(--accent)))' : 'hsl(var(--ink-4))',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -1261,8 +1267,8 @@ export function LibraryItemCard({
                   minHeight: 18,
                 }}
               >
-                  {material.title || (
-                    <span style={{ color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
+                {material.title || (
+                  <span style={{ color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
                     {subtitle || t('common.untitled')}
                   </span>
                 )}
@@ -1401,9 +1407,9 @@ function LibraryItemThumbnail({
     if (material.source === 'r2' && (material.kind === 'image' || material.kind === 'pdf')) {
       src = r2Thumbnail.fileUrl;
     } else if (material.kind === 'image') {
-      // webSecurity is disabled in dev, so file:// loads inline. In production
-      // the same window config currently applies; if we ever re-enable
-      // webSecurity we'll need to register a custom protocol.
+      // Tauri exposes app-owned imports through its scoped asset protocol.
+      // Arbitrary legacy paths intentionally fail closed and can still be
+      // opened through the native command or re-imported into app storage.
       src = libraryItemImageSrc(material);
     } else if (material.kind === 'pdf' && material.thumbnailUri) {
       src = material.thumbnailUri;
@@ -1412,7 +1418,10 @@ function LibraryItemThumbnail({
     }
   }
   if (!src) {
-    if (material.kind === 'text' || (material.kind === 'pdf' && !material.localPath && material.source !== 'r2')) {
+    if (
+      material.kind === 'text' ||
+      (material.kind === 'pdf' && !material.localPath && material.source !== 'r2')
+    ) {
       return null;
     }
     return (
@@ -1432,10 +1441,18 @@ function LibraryItemThumbnail({
           color: 'hsl(var(--ink-4))',
           cursor: uploadBusy ? 'default' : 'pointer',
         }}
-        title={material.kind === 'pdf' ? t('memoMaterial.preview.generating') : t('memoMaterial.preview.open')}
+        title={
+          material.kind === 'pdf'
+            ? t('memoMaterial.preview.generating')
+            : t('memoMaterial.preview.open')
+        }
       >
         {uploadBusy ? (
-          <Loader2 size={15} style={{ animation: 'drift-spin 900ms linear infinite' }} aria-hidden />
+          <Loader2
+            size={15}
+            style={{ animation: 'drift-spin 900ms linear infinite' }}
+            aria-hidden
+          />
         ) : material.kind === 'pdf' ? (
           '...'
         ) : (
@@ -1485,7 +1502,11 @@ function LibraryItemThumbnail({
             color: 'hsl(var(--ink-3))',
           }}
         >
-          <Loader2 size={15} style={{ animation: 'drift-spin 900ms linear infinite' }} aria-hidden />
+          <Loader2
+            size={15}
+            style={{ animation: 'drift-spin 900ms linear infinite' }}
+            aria-hidden
+          />
         </span>
       )}
     </button>
@@ -1741,7 +1762,9 @@ export function LibraryItemFullscreenPreview({
     material.source === 'r2' && isPdfPreview,
   );
   const imageSrc =
-    material.source === 'r2' && isImagePreview ? r2ImageSource.fileUrl : libraryItemImageSrc(material);
+    material.source === 'r2' && isImagePreview
+      ? r2ImageSource.fileUrl
+      : libraryItemImageSrc(material);
   const pdfSrc =
     material.source === 'r2' && isPdfPreview ? r2PdfSource.fileUrl : libraryItemPdfSrc(material);
 
@@ -1885,7 +1908,7 @@ export function LibraryItemFullscreenPreview({
       const pdfPath =
         material.source === 'r2'
           ? r2PdfSource.filePath
-          : material.localPath ?? (pdfSrc ? pdfSrc.replace(/^file:\/\//, '') : null);
+          : (material.localPath ?? (pdfSrc ? pdfSrc.replace(/^file:\/\//, '') : null));
       if (!pdfPath) return <FullscreenEmpty message={t('memoMaterial.preview.noPdf')} />;
       return <PdfCanvasPreview filePath={pdfPath} viewport={viewport} />;
     }
@@ -1944,9 +1967,7 @@ export function LibraryItemFullscreenPreview({
           background: isZoomablePreview ? 'transparent' : 'hsl(var(--paper))',
           border: isImagePreview || isPdfPreview ? 'none' : '1px solid hsl(var(--rule-strong))',
           boxShadow:
-            isImagePreview || isPdfPreview
-              ? 'none'
-              : '0 24px 54px hsl(var(--ink-1) / 0.34)',
+            isImagePreview || isPdfPreview ? 'none' : '0 24px 54px hsl(var(--ink-1) / 0.34)',
           display: 'grid',
           placeItems: 'center',
           cursor: isZoomablePreview && viewport.scale > 1 ? 'grab' : undefined,
@@ -1987,7 +2008,7 @@ function PdfCanvasPreview({
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Load via IPC rather than handing pdf.js a `file://` URL — Chromium blocks
+  // Load via the native platform command rather than handing pdf.js a `file://` URL — WebViews block
   // `fetch('file://…')` from non-file origins (the Vite dev server) regardless
   // of `webSecurity`, so pdf.js's internal fetch silently fails.
   useEffect(() => {
@@ -1995,7 +2016,7 @@ function PdfCanvasPreview({
     let loadedDocument: PDFDocumentProxy | null = null;
     let loadingTask: ReturnType<typeof pdfjsLib.getDocument> | null = null;
 
-    void window.electronAPI.material
+    void platform.material
       .readBytes(filePath)
       .then((res) => {
         if (cancelled) return;
@@ -2458,7 +2479,7 @@ export function ComposeLibraryItemDialog({
     }
     const timer = setTimeout(async () => {
       setResolving(true);
-      const res = await window.electronAPI.material.resolveUrlMeta(trimmed);
+      const res = await platform.material.resolveUrlMeta(trimmed);
       if (cancelled) return;
       setResolving(false);
       if (!res.ok) {
@@ -2480,13 +2501,32 @@ export function ComposeLibraryItemDialog({
   }, [url, kind]);
 
   const pickFile = async (pickerKind: 'image' | 'pdf' | 'any') => {
-    const res = await window.electronAPI.material.pickFile(pickerKind);
-    if (!res.ok) return;
-    setLocalPath(res.filePath);
-    setSizeBytes(res.sizeBytes);
-    if (!title) {
-      const name = res.filePath.split(/[\\/]/).pop() ?? '';
-      setTitle(name);
+    try {
+      const res = await platform.material.pickFile(pickerKind);
+      if (!res.ok) {
+        if (!res.canceled) {
+          const message =
+            res.code === 'MATERIAL_FILE_TOO_LARGE'
+              ? t('memoMaterial.error.fileTooLarge', {
+                  maxSizeMiB: Math.floor(res.maxSizeBytes / (1024 * 1024)),
+                })
+              : t('memoMaterial.error.pickFailed', { error: res.error });
+          alert(message);
+        }
+        return;
+      }
+      setLocalPath(res.filePath);
+      setSizeBytes(res.sizeBytes);
+      if (!title) {
+        const name = res.filePath.split(/[\\/]/).pop() ?? '';
+        setTitle(name);
+      }
+    } catch (error) {
+      alert(
+        t('memoMaterial.error.pickFailed', {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
     }
   };
 
@@ -2508,7 +2548,7 @@ export function ComposeLibraryItemDialog({
         // the title / thumbnail are present at create time.
         let meta = urlMeta;
         if (!meta && /^https?:\/\//i.test(trimmedUrl)) {
-          const res = await window.electronAPI.material.resolveUrlMeta(trimmedUrl);
+          const res = await platform.material.resolveUrlMeta(trimmedUrl);
           if (res.ok) meta = { title: res.title, ogImage: res.ogImage, favicon: res.favicon };
         }
         await onCreate(
@@ -2626,7 +2666,9 @@ export function ComposeLibraryItemDialog({
                     marginBottom: 2,
                   }}
                 >
-                  {resolving ? t('memoMaterial.dialog.resolvingUrl') : t('memoMaterial.dialog.urlInfo')}
+                  {resolving
+                    ? t('memoMaterial.dialog.resolvingUrl')
+                    : t('memoMaterial.dialog.urlInfo')}
                 </div>
                 <div
                   style={{

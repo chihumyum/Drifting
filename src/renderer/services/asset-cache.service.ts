@@ -1,4 +1,5 @@
 import type { ProjectAsset } from '../domain/project-asset';
+import { platform } from '../platform';
 import { projectAssetService, type AssetVariant } from './project-asset.service';
 
 type CachedFile = {
@@ -26,7 +27,7 @@ function normalizeMime(mime: string | null | undefined): string | null {
 
 export function extForMime(mime: string | null | undefined, fallback = 'bin'): string {
   const normalized = normalizeMime(mime);
-  return normalized ? EXT_BY_MIME[normalized] ?? fallback : fallback;
+  return normalized ? (EXT_BY_MIME[normalized] ?? fallback) : fallback;
 }
 
 export function projectAssetVariantMime(asset: ProjectAsset, variant: AssetVariant): string | null {
@@ -38,12 +39,6 @@ export function projectAssetVariantMime(asset: ProjectAsset, variant: AssetVaria
 export function projectAssetVariantExt(asset: ProjectAsset, variant: AssetVariant): string {
   const mime = projectAssetVariantMime(asset, variant);
   return extForMime(mime, variant === 'source' ? 'bin' : 'jpg');
-}
-
-function ensureAssetCacheApi() {
-  const api = window.electronAPI?.assetCache;
-  if (!api) throw new Error('asset cache bridge is unavailable');
-  return api;
 }
 
 function assertOk<T extends { ok: true } | { ok: false; error: string }>(
@@ -60,7 +55,7 @@ export const assetCacheService = {
     variant: AssetVariant,
     ext: string,
   ): Promise<CachedFile | null> {
-    const res = assertOk(await ensureAssetCacheApi().getPath(projectId, assetId, variant, ext));
+    const res = assertOk(await platform.assetCache.getPath(projectId, assetId, variant, ext));
     if (!res.exists || res.sizeBytes == null || res.sizeBytes <= 0) return null;
     return { filePath: res.filePath, fileUrl: res.fileUrl, sizeBytes: res.sizeBytes };
   },
@@ -73,7 +68,7 @@ export const assetCacheService = {
     bytes: ArrayBuffer | Uint8Array,
   ): Promise<CachedFile> {
     const res = assertOk(
-      await ensureAssetCacheApi().writeBytes(projectId, assetId, variant, ext, bytes),
+      await platform.assetCache.writeBytes(projectId, assetId, variant, ext, bytes),
     );
     return { filePath: res.filePath, fileUrl: res.fileUrl, sizeBytes: res.sizeBytes };
   },
@@ -86,7 +81,7 @@ export const assetCacheService = {
     sourcePath: string,
   ): Promise<CachedFile> {
     const res = assertOk(
-      await ensureAssetCacheApi().copyFile(projectId, assetId, variant, ext, sourcePath),
+      await platform.assetCache.copyFile(projectId, assetId, variant, ext, sourcePath),
     );
     return { filePath: res.filePath, fileUrl: res.fileUrl, sizeBytes: res.sizeBytes };
   },
@@ -100,7 +95,7 @@ export const assetCacheService = {
     contentType: string;
   }): Promise<number> {
     const res = assertOk(
-      await ensureAssetCacheApi().uploadFile(
+      await platform.assetCache.uploadFile(
         input.url,
         input.projectId,
         input.assetId,
@@ -123,12 +118,12 @@ export const assetCacheService = {
 
     const signedUrl = await projectAssetService.getAssetUrl(projectId, asset.id, variant);
     const res = assertOk(
-      await ensureAssetCacheApi().download(signedUrl, projectId, asset.id, variant, ext),
+      await platform.assetCache.download(signedUrl, projectId, asset.id, variant, ext),
     );
     return { filePath: res.filePath, fileUrl: res.fileUrl, sizeBytes: res.sizeBytes };
   },
 
   async deleteAsset(projectId: string, assetId: string): Promise<void> {
-    assertOk(await ensureAssetCacheApi().deleteAsset(projectId, assetId));
+    assertOk(await platform.assetCache.deleteAsset(projectId, assetId));
   },
 };

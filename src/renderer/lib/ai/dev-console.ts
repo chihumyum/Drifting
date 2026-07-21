@@ -41,6 +41,7 @@ import {
   type AIRequestLogEntry,
 } from './log/request-log';
 import { filenameForEntry, formatEntryAsMarkdown } from './log/markdown-format';
+import { platform } from '../../platform';
 
 export interface DriftingAIDevConsole {
   setKey(apiKey: string): Promise<boolean>;
@@ -163,14 +164,10 @@ export function installAIDevConsole(): void {
         }
       },
       openDir: async () => {
-        const api = window.electronAPI?.aiLog;
-        if (!api) throw new Error('aiLog IPC not available (non-Electron env?)');
-        return api.openDir();
+        return platform.aiLog.openDir();
       },
       dir: async () => {
-        const api = window.electronAPI?.aiLog;
-        if (!api) throw new Error('aiLog IPC not available (non-Electron env?)');
-        const path = await api.getDir();
+        const path = await platform.aiLog.getDir();
         console.info(`[ai-log] ${path}`);
         return path;
       },
@@ -194,8 +191,8 @@ export function installAIDevConsole(): void {
         // If a specific capability id was passed, run only that one. Otherwise
         // dispatch to every editor-block-debounced capability and merge.
         const caps = capabilityId
-          ? [getCopilotCapability(capabilityId)].filter(
-              (c): c is NonNullable<typeof c> => Boolean(c),
+          ? [getCopilotCapability(capabilityId)].filter((c): c is NonNullable<typeof c> =>
+              Boolean(c),
             )
           : capabilitiesForTrigger('editor-block-debounced');
         if (caps.length === 0) {

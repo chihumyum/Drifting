@@ -10,14 +10,15 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Ban, Bell, CheckCircle2, Loader2, Sparkles, Trash2, X } from 'lucide-react';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-import {
-  useNotificationStore,
-  type AppNotification,
-} from '../../store/notification-store';
+import { useNotificationStore, type AppNotification } from '../../store/notification-store';
 
 const FLASH_MS = 1800; // how long the result icon shows in the circle after the pill collapses
 
-type FlashResult = { state: 'completed' | 'failed' | 'stopped'; outcome: string | undefined; id: number } | null;
+type FlashResult = {
+  state: 'completed' | 'failed' | 'stopped';
+  outcome: string | undefined;
+  id: number;
+} | null;
 
 interface Anchor {
   top: number;
@@ -34,7 +35,11 @@ function useNow(active: boolean): number {
   return now;
 }
 
-function relTime(ms: number, now: number, t: (key: string, options?: Record<string, unknown>) => string): string {
+function relTime(
+  ms: number,
+  now: number,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
   const d = Math.max(0, now - ms);
   if (d < 60_000) return t('notifications.time.justNow');
   if (d < 3_600_000) return t('notifications.time.minutesAgo', { count: Math.floor(d / 60_000) });
@@ -48,7 +53,13 @@ function sourceLabel(n: AppNotification): string {
 
 function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
   if (n.state === 'running') {
-    return <Loader2 size={size} strokeWidth={2} style={{ animation: 'drift-spin 0.9s linear infinite' }} />;
+    return (
+      <Loader2
+        size={size}
+        strokeWidth={2}
+        style={{ animation: 'drift-spin 0.9s linear infinite' }}
+      />
+    );
   }
   if (n.state === 'stopped') return <Ban size={size} strokeWidth={2} />;
   if (n.state === 'failed') return <AlertTriangle size={size} strokeWidth={2} />;
@@ -104,7 +115,11 @@ export function NotificationPill() {
     const head = itemsRef.current[0];
     if (!head) return;
     if (head.state !== 'running') {
-      setFlashResult({ state: head.state as 'completed' | 'failed' | 'stopped', outcome: head.outcome, id: Date.now() });
+      setFlashResult({
+        state: head.state as 'completed' | 'failed' | 'stopped',
+        outcome: head.outcome,
+        id: Date.now(),
+      });
     } else {
       setFlashResult(null);
     }
@@ -159,15 +174,16 @@ export function NotificationPill() {
   let iconColor: string;
   if (runningItem) {
     iconColor = 'hsl(var(--ink-2))';
-    iconEl = runningItem.source === 'copilot' ? (
-      <span key="copilot-run" className="notif-blink-icon">
-        <Sparkles size={14} strokeWidth={1.8} />
-      </span>
-    ) : (
-      <span key="shadow-run" className="notif-blink-icon notif-blink-icon--text">
-        ◐
-      </span>
-    );
+    iconEl =
+      runningItem.source === 'copilot' ? (
+        <span key="copilot-run" className="notif-blink-icon">
+          <Sparkles size={14} strokeWidth={1.8} />
+        </span>
+      ) : (
+        <span key="shadow-run" className="notif-blink-icon notif-blink-icon--text">
+          ◐
+        </span>
+      );
   } else if (flashResult) {
     iconColor = flashToneColor(flashResult);
     iconEl = (
@@ -181,10 +197,7 @@ export function NotificationPill() {
   }
 
   return (
-    <div
-      ref={wrapRef}
-      style={{ position: 'relative', display: 'flex', alignItems: 'center', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-    >
+    <div ref={wrapRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
       <button
         ref={btnRef}
         type="button"
@@ -205,8 +218,12 @@ export function NotificationPill() {
           flexShrink: 0,
           padding: 0,
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = 'hsl(var(--paper-deep))'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
+        }}
       >
         {iconEl}
       </button>
@@ -272,7 +289,9 @@ function NotificationCenter({
           borderBottom: '1px solid hsl(var(--rule))',
         }}
       >
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'hsl(var(--ink-1))' }}>{t('notifications.title')}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'hsl(var(--ink-1))' }}>
+          {t('notifications.title')}
+        </span>
         {items.length > 0 && (
           <button
             type="button"
@@ -341,14 +360,25 @@ function NotificationCenter({
                       fontFamily: 'var(--font-mono)',
                     }}
                   >
-                    {n.source === 'copilot' ? <Sparkles size={9} /> : <span style={{ fontStyle: 'italic' }}>◐</span>}
+                    {n.source === 'copilot' ? (
+                      <Sparkles size={9} />
+                    ) : (
+                      <span style={{ fontStyle: 'italic' }}>◐</span>
+                    )}
                     {sourceLabel(n)}
                   </span>
                   <span style={{ marginLeft: 'auto', fontSize: 10, color: 'hsl(var(--ink-4))' }}>
                     {relTime(n.updatedAt, now, t)}
                   </span>
                 </div>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: 'hsl(var(--ink-1))', marginTop: 2 }}>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: 'hsl(var(--ink-1))',
+                    marginTop: 2,
+                  }}
+                >
                   {n.title}
                 </div>
                 {(n.detail || n.error) && (

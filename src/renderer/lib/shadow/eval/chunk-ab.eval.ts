@@ -15,7 +15,7 @@
  */
 import { vi, describe, test } from 'vitest';
 
-// Same Electron-cut as corpus.eval: the judge takes its client as an argument.
+// Same default-client cut as corpus.eval: the judge receives its client directly.
 vi.mock('../../ai/client/build-default-client', () => ({
   buildDefaultLLMClient: async () => {
     throw new Error('buildDefaultLLMClient must not be called in eval (pass a client)');
@@ -71,41 +71,41 @@ function line(label: string, report: RunReport): string {
 }
 
 describe('chunking A/B — whole chapter vs windowed', () => {
-  test(
-    `${SUITE}: 整章 vs 切窗 ${SIZE}/重叠${OVERLAP}`,
-    async () => {
-      if (!realJudgeClient()) {
-        console.warn('\n[chunk-ab] 跳过：未提供 DeepSeek key。\n');
-        return;
-      }
+  test(`${SUITE}: 整章 vs 切窗 ${SIZE}/重叠${OVERLAP}`, async () => {
+    if (!realJudgeClient()) {
+      console.warn('\n[chunk-ab] 跳过：未提供 DeepSeek key。\n');
+      return;
+    }
 
-      console.log(`\n[chunk-ab] === 整章基线 ===`);
-      const whole = await runSuite(SUITE, { artifact: false });
-      console.log(`\n[chunk-ab] === 切窗 ${SIZE}/重叠${OVERLAP} ===`);
-      const chunked = await runSuite(SUITE, { artifact: false, chunk: { size: SIZE, overlap: OVERLAP } });
+    console.log(`\n[chunk-ab] === 整章基线 ===`);
+    const whole = await runSuite(SUITE, { artifact: false });
+    console.log(`\n[chunk-ab] === 切窗 ${SIZE}/重叠${OVERLAP} ===`);
+    const chunked = await runSuite(SUITE, {
+      artifact: false,
+      chunk: { size: SIZE, overlap: OVERLAP },
+    });
 
-      const A = sideOf(whole);
-      const B = sideOf(chunked);
-      const recovered = [...A.missed].filter((k) => B.caught.has(k)); // 整章漏 → 切窗抓回
-      const regressed = [...A.caught].filter((k) => B.missed.has(k)); // 整章抓 → 切窗漏掉
-      const newFP = [...B.fp].filter((k) => !A.fp.has(k)); // 切窗新增误报（精度代价）
-      const fixedFP = [...A.fp].filter((k) => !B.fp.has(k));
+    const A = sideOf(whole);
+    const B = sideOf(chunked);
+    const recovered = [...A.missed].filter((k) => B.caught.has(k)); // 整章漏 → 切窗抓回
+    const regressed = [...A.caught].filter((k) => B.missed.has(k)); // 整章抓 → 切窗漏掉
+    const newFP = [...B.fp].filter((k) => !A.fp.has(k)); // 切窗新增误报（精度代价）
+    const fixedFP = [...A.fp].filter((k) => !B.fp.has(k));
 
-      const list = (xs: string[]): string => (xs.length ? xs.map((k) => `      · ${k}`).join('\n') : '      （无）');
+    const list = (xs: string[]): string =>
+      xs.length ? xs.map((k) => `      · ${k}`).join('\n') : '      （无）';
 
-      console.log(
-        '\n──────── Chunking A/B ────────\n' +
-          line('整章', whole) +
-          '\n' +
-          line('切窗', chunked) +
-          '\n  ─────\n' +
-          `  抓回(整章漏→切窗抓) ${recovered.length}:\n${list(recovered)}\n` +
-          `  退步(整章抓→切窗漏) ${regressed.length}:\n${list(regressed)}\n` +
-          `  新增误报(精度代价) ${newFP.length}:\n${list(newFP)}\n` +
-          `  修掉误报 ${fixedFP.length}:\n${list(fixedFP)}\n` +
-          '─────────────────────────────\n',
-      );
-    },
-    1_800_000,
-  );
+    console.log(
+      '\n──────── Chunking A/B ────────\n' +
+        line('整章', whole) +
+        '\n' +
+        line('切窗', chunked) +
+        '\n  ─────\n' +
+        `  抓回(整章漏→切窗抓) ${recovered.length}:\n${list(recovered)}\n` +
+        `  退步(整章抓→切窗漏) ${regressed.length}:\n${list(regressed)}\n` +
+        `  新增误报(精度代价) ${newFP.length}:\n${list(newFP)}\n` +
+        `  修掉误报 ${fixedFP.length}:\n${list(fixedFP)}\n` +
+        '─────────────────────────────\n',
+    );
+  }, 1_800_000);
 });

@@ -25,12 +25,7 @@ import { useBookNode } from '../../usecase/useBookNode';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useBookContent } from '../../usecase/useBookContent';
 import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
-import {
-  inferFormat,
-  parseFile,
-  type ImportTarget,
-  type ParsedDoc,
-} from '../../services/import';
+import { inferFormat, parseFile, type ImportTarget, type ParsedDoc } from '../../services/import';
 
 interface ImportDialogProps {
   open: boolean;
@@ -140,8 +135,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
   const onPickFiles = () => fileInputRef.current?.click();
   const onPickFolder = () => folderInputRef.current?.click();
 
-  const removeItem = (id: string) =>
-    setItems((prev) => prev.filter((it) => it.id !== id));
+  const removeItem = (id: string) => setItems((prev) => prev.filter((it) => it.id !== id));
 
   // ─── Commit ───────────────────────────────────────────────────────
 
@@ -265,20 +259,27 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
           </h2>
           <button
             onClick={onClose}
-            style={{ background: 'transparent', border: 0, cursor: 'pointer', color: 'hsl(var(--ink-3))' }}
+            style={{
+              background: 'transparent',
+              border: 0,
+              cursor: 'pointer',
+              color: 'hsl(var(--ink-3))',
+            }}
           >
             <X size={18} />
           </button>
         </div>
 
         <p style={{ fontSize: 13, color: 'hsl(var(--ink-3))', marginTop: 8, marginBottom: 18 }}>
-          {t('importDialog.descriptionA')} <code>.md</code> / <code>.docx</code> / <code>.txt</code>。
-          {t('importDialog.descriptionB')}
+          {t('importDialog.descriptionA')} <code>.md</code> / <code>.docx</code> / <code>.txt</code>
+          。{t('importDialog.descriptionB')}
         </p>
 
         {/* Target type */}
         <section style={{ marginBottom: 16 }}>
-          <div className="set-sec__title" style={{ marginBottom: 10 }}>{t('importDialog.targetTitle')}</div>
+          <div className="set-sec__title" style={{ marginBottom: 10 }}>
+            {t('importDialog.targetTitle')}
+          </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {(['chapter', 'element', 'inspiration'] as const).map((targetKind) => (
               <button
@@ -287,7 +288,9 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
                 className={'set-tier' + (target === targetKind ? ' set-tier--active' : '')}
                 style={{ flex: 1, textAlign: 'left' }}
               >
-                <div className="set-tier__name">{t(`importDialog.targets.${targetKind}.label`)}</div>
+                <div className="set-tier__name">
+                  {t(`importDialog.targets.${targetKind}.label`)}
+                </div>
                 <div className="set-tier__desc">{t(`importDialog.targets.${targetKind}.desc`)}</div>
               </button>
             ))}
@@ -297,7 +300,9 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
         {/* Target-specific config */}
         {target === 'chapter' && (
           <section style={{ marginBottom: 16 }}>
-            <div className="set-sec__title" style={{ marginBottom: 6 }}>{t('importDialog.storylineTitle')}</div>
+            <div className="set-sec__title" style={{ marginBottom: 6 }}>
+              {t('importDialog.storylineTitle')}
+            </div>
             {storylines.length === 0 ? (
               <div style={{ fontSize: 12, color: 'hsl(var(--accent))' }}>
                 {t('importDialog.noStorylines')}
@@ -321,7 +326,9 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
 
         {target === 'element' && (
           <section style={{ marginBottom: 16 }}>
-            <div className="set-sec__title" style={{ marginBottom: 6 }}>{t('importDialog.categoryTitle')}</div>
+            <div className="set-sec__title" style={{ marginBottom: 6 }}>
+              {t('importDialog.categoryTitle')}
+            </div>
             {categories.length === 0 ? (
               <div style={{ fontSize: 12, color: 'hsl(var(--accent))' }}>
                 {t('importDialog.noCategories')}
@@ -345,7 +352,9 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
 
         {/* File picker */}
         <section style={{ marginBottom: 16 }}>
-          <div className="set-sec__title" style={{ marginBottom: 10 }}>{t('importDialog.filesTitle')}</div>
+          <div className="set-sec__title" style={{ marginBottom: 10 }}>
+            {t('importDialog.filesTitle')}
+          </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="set-btn" onClick={onPickFiles}>
               <FileText size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFiles')}
@@ -375,7 +384,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
           <input
             ref={folderInputRef}
             type="file"
-            // @ts-expect-error — non-standard but supported in Electron/Chromium
+            // @ts-expect-error — non-standard but supported by the embedded webview
             webkitdirectory=""
             directory=""
             multiple
@@ -494,7 +503,8 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
             {summary.failed > 0 && (
               <>
                 {' · '}
-                {t('importDialog.summary.failed')} <b style={{ color: 'hsl(var(--accent))' }}>{summary.failed}</b>
+                {t('importDialog.summary.failed')}{' '}
+                <b style={{ color: 'hsl(var(--accent))' }}>{summary.failed}</b>
               </>
             )}
           </div>
@@ -511,7 +521,9 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
           >
             {running
               ? t('importDialog.importing')
-              : t('importDialog.start', { count: items.filter((it) => it.status === 'ready').length })}
+              : t('importDialog.start', {
+                  count: items.filter((it) => it.status === 'ready').length,
+                })}
           </button>
         </div>
       </div>

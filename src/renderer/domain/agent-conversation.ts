@@ -46,7 +46,7 @@ export type AgentChatMessage =
       at?: string;
       // Turn timing (SDK duration_ms / duration_api_ms). Optional: absent on
       // rows persisted before timing was added. The gap durationMs − durationApiMs
-      // is local overhead (IPC bridge + tool execution) vs time in the model API.
+      // is local overhead (transport + tool execution) vs time in the model API.
       durationMs?: number;
       durationApiMs?: number;
     }

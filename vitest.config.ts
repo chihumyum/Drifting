@@ -1,17 +1,16 @@
 import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
-// Headless test/eval runner. The app builds via electron-forge + plugin-vite;
-// this config exists purely so Vitest can run renderer-side logic (shadow judge
-// eval, pure-function tests) in a node context with the same `@` alias and Vite's
-// `import.meta.env`. No DOM is needed — the judge takes its world as arguments.
+// Headless unit-test runner for renderer-side logic. Production builds use
+// Tauri + Vite; this config keeps the same `@` alias and `import.meta.env` in a
+// node context. Long-running Shadow evals are invoked explicitly by eval scripts.
 export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.eval.ts', 'src/**/*.test.ts'],
+    include: ['src/**/*.test.ts'],
     // Real LLM round-trips (thinking on) are slow; give each case room.
     testTimeout: 180_000,
     hookTimeout: 60_000,

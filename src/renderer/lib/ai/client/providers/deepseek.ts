@@ -92,7 +92,7 @@ export class DeepSeekProvider implements LLMProvider {
     this.client = new OpenAI({
       apiKey: config.apiKey,
       baseURL: config.baseURL ?? DEFAULT_BASE_URL,
-      // Electron renderer is a browser-like environment; OpenAI SDK refuses
+      // The Tauri renderer is a browser-like environment; OpenAI SDK refuses
       // browser execution by default to discourage key exposure. We're safe:
       // BYOK keys live in the OS keychain (or env at dev time), not in the
       // bundle. This opt-in just acknowledges the SDK's warning.
@@ -202,7 +202,10 @@ export class DeepSeekProvider implements LLMProvider {
 
     try {
       const response = await this.client.chat.completions.create(
-        { ...baseBody, ...deepseekExtensions } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
+        {
+          ...baseBody,
+          ...deepseekExtensions,
+        } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
         { signal: signal ?? undefined },
       );
 
@@ -239,8 +242,7 @@ export class DeepSeekProvider implements LLMProvider {
       }
       const toolCall = toolCalls[0];
 
-      const text =
-        !toolCall && typeof message?.content === 'string' ? message.content : undefined;
+      const text = !toolCall && typeof message?.content === 'string' ? message.content : undefined;
 
       return {
         text,

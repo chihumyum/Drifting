@@ -108,6 +108,8 @@ const statusListeners: Set<SyncStatusListener> = new Set();
 let flushInProgress = false;
 let pendingCountCache = 0;
 let onlineFlushRegistered = false;
+const pendingMutationPersistence = new Set<Promise<void>>();
+let pendingMutationPersistenceErrors: unknown[] = [];
 
 const FLUSH_DELAY_MS = 800;
 const PULL_INTERVAL_MS = 30_000;
@@ -256,13 +258,38 @@ export function enqueueSyncMutation(mutation: SyncMutation): void {
   if (!shouldPersistOutbox()) return;
   registerOnlineFlush();
 
-  void persistSyncMutation(mutation)
+  const persistence = persistSyncMutation(mutation)
     .then(() => {
       scheduleFlush();
     })
     .catch((error) => {
+      pendingMutationPersistenceErrors.push(error);
       log.error('[sync] failed to persist mutation:', error);
+    })
+    .finally(() => {
+      pendingMutationPersistence.delete(persistence);
     });
+  pendingMutationPersistence.add(persistence);
+  void persistence;
+}
+
+/**
+ * Wait until every fire-and-forget entity mutation has reached the durable
+ * SQLite outbox. This is the local half of lifecycle flushing; unlike
+ * forceFlush it never waits on the network.
+ */
+export async function flushPendingEntityPersistence(): Promise<void> {
+  while (pendingMutationPersistence.size > 0) {
+    await Promise.allSettled([...pendingMutationPersistence]);
+  }
+  if (pendingMutationPersistenceErrors.length > 0) {
+    const failures = pendingMutationPersistenceErrors;
+    pendingMutationPersistenceErrors = [];
+    throw new AggregateError(
+      failures,
+      `${failures.length} entity mutation(s) failed to persist locally`,
+    );
+  }
 }
 
 function scheduleFlush() {
@@ -2145,6 +2172,7 @@ export function stopPeriodicPull(): void {
  * Force flush any pending mutations.
  */
 export async function forceFlush(): Promise<void> {
+  await flushPendingEntityPersistence();
   if (flushTimer) {
     clearTimeout(flushTimer);
     flushTimer = null;

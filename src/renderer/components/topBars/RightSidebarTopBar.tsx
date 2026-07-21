@@ -4,18 +4,15 @@ import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { UserAvatar, UserMenu } from './UserMenu';
 import { NotificationPill } from '../notifications/NotificationPill';
+import { getPlatformRuntime } from '../../platform/runtime';
 
 export function RightSidebarTopBar() {
-  const isMac = navigator.userAgent.includes('Mac');
+  const { desktopWindowControls } = getPlatformRuntime();
   const isRightSidebarOpen = useUiStore((state) => state.sidebars.right.isOpen);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
   const user = useAuthStore((s) => s.user);
   const avatarRef = useRef<HTMLButtonElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-
-  if (!isMac) {
-    return null;
-  }
 
   const iconSize = 16;
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'L';
@@ -23,6 +20,7 @@ export function RightSidebarTopBar() {
 
   return (
     <div
+      data-tauri-drag-region={desktopWindowControls ? 'deep' : undefined}
       style={
         {
           height: 42,
@@ -33,7 +31,6 @@ export function RightSidebarTopBar() {
           gap: 6,
           borderBottom: '1px solid hsl(var(--rule))',
           width: '100%',
-          WebkitAppRegion: 'drag',
         } as React.CSSProperties
       }
     >
@@ -54,7 +51,6 @@ export function RightSidebarTopBar() {
             color: 'hsl(var(--ink-3))',
             cursor: 'pointer',
             transition: 'background 0.15s ease, color 0.15s ease',
-            WebkitAppRegion: 'no-drag',
             padding: 0,
             flexShrink: 0,
           } as React.CSSProperties

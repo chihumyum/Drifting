@@ -54,10 +54,9 @@ const TAB_FLOOR_WIDTH = 56;
 const TAB_MIN_WIDTH = 120;
 // Max: per-tab cap so a runaway title doesn't dominate the bar in Phase A.
 const TAB_MAX_WIDTH = 320;
-// 0 (not just small): any positive gap between tabs is a window-drag region
-// (MainTopBar's center is WebkitAppRegion:'drag', and tabs opt out individually
-// via 'no-drag'). A 2px gap was enough for the cursor to land in the seam,
-// drag the window, and swallow horizontal scroll wheel events.
+// 0 (not just small): any positive gap between tabs is a window-drag region.
+// Tauri excludes each role="tab" descendant from native dragging, while a 2px
+// empty seam could still start a window drag and swallow horizontal scrolling.
 const TAB_GAP = 0;
 const CONTAINER_PADDING_X = 20;
 // A split slot carries two sub-labels and reads as ~1.6 leaf tabs wide.
@@ -77,7 +76,7 @@ const labelMeasureEl: HTMLSpanElement | null = (() => {
     'top:-9999px',
     'left:-9999px',
     'white-space:nowrap',
-    "font-family:var(--font-sans), -apple-system, BlinkMacSystemFont, sans-serif",
+    'font-family:var(--font-sans), -apple-system, BlinkMacSystemFont, sans-serif',
     'font-size:12.5px',
     'font-weight:400',
     'letter-spacing:-0.005em',
@@ -234,16 +233,21 @@ export function TopTimeline() {
           const n = bookNodes.find((b) => b.id === leaf.id);
           if (!n) return t('topTimeline.untitled.chapter');
           if (n.title) return n.title;
-          return isChapter(n)
-            ? t('topTimeline.untitled.chapter')
-            : t('topTimeline.untitled.drift');
+          return isChapter(n) ? t('topTimeline.untitled.chapter') : t('topTimeline.untitled.drift');
         }
         case 'storyline':
-          return storylines.find((s) => s.id === leaf.id)?.name || t('topTimeline.untitled.storyline');
+          return (
+            storylines.find((s) => s.id === leaf.id)?.name || t('topTimeline.untitled.storyline')
+          );
         case 'element':
-          return bookElements.find((e) => e.id === leaf.id)?.name || t('topTimeline.untitled.element');
+          return (
+            bookElements.find((e) => e.id === leaf.id)?.name || t('topTimeline.untitled.element')
+          );
         case 'category':
-          return bookElementCategories.find((c) => c.id === leaf.id)?.name || t('topTimeline.untitled.category');
+          return (
+            bookElementCategories.find((c) => c.id === leaf.id)?.name ||
+            t('topTimeline.untitled.category')
+          );
         case 'dashboard':
           return t('topTimeline.singletons.dashboard');
         case 'all-chapters':
@@ -323,9 +327,7 @@ export function TopTimeline() {
 
     // Phase A — or initial render before ResizeObserver fires.
     if (containerWidth === 0 || idealTotal <= availableW) {
-      return ideals.map((w, i) =>
-        Math.max(TAB_FLOOR_WIDTH * weights[i], Math.floor(w)),
-      );
+      return ideals.map((w, i) => Math.max(TAB_FLOOR_WIDTH * weights[i], Math.floor(w)));
     }
 
     // Phase B/C — proportional shrink, expanding the virtual canvas in 2×
@@ -339,9 +341,7 @@ export function TopTimeline() {
       virtual *= 2;
     }
     const scale = Math.min(1, virtual / idealTotal);
-    return ideals.map((w, i) =>
-      Math.max(TAB_FLOOR_WIDTH * weights[i], Math.floor(w * scale)),
-    );
+    return ideals.map((w, i) => Math.max(TAB_FLOOR_WIDTH * weights[i], Math.floor(w * scale)));
   }, [openTabs, lookups, containerWidth]);
 
   // Modern skin only: a single sliding-pill drop indicator that lives in
@@ -426,9 +426,7 @@ export function TopTimeline() {
     (tab: AnyTab) => {
       if (!projectId) return;
       const closeRef =
-        tab.kind === 'split'
-          ? { splitId: tab.id }
-          : { entityType: tab.entityType, id: tab.id };
+        tab.kind === 'split' ? { splitId: tab.id } : { entityType: tab.entityType, id: tab.id };
       const { nextActive, wasActive } = closeTab(projectId, closeRef);
       // Three cases:
       //   1. nextActive → closed the active tab AND a sibling took over.
@@ -532,14 +530,12 @@ export function TopTimeline() {
         items.push(
           {
             label: t('topTimeline.menu.openRight'),
-            onClick: () =>
-              splitActiveWith(projectId, { fromKey: tabKeyStr }, 'right'),
+            onClick: () => splitActiveWith(projectId, { fromKey: tabKeyStr }, 'right'),
             disabled: !allowSplitOpen,
           },
           {
             label: t('topTimeline.menu.openLeft'),
-            onClick: () =>
-              splitActiveWith(projectId, { fromKey: tabKeyStr }, 'left'),
+            onClick: () => splitActiveWith(projectId, { fromKey: tabKeyStr }, 'left'),
             disabled: !allowSplitOpen,
           },
         );
@@ -656,8 +652,7 @@ export function TopTimeline() {
           // jumps by ~2px as the cursor crosses the seam (each tab paints
           // its own edge inside its own box). Last tab keeps `after` so
           // the user can drop past the end.
-          const targetIndex =
-            isRightHalf && index + 1 < openTabs.length ? index + 1 : index;
+          const targetIndex = isRightHalf && index + 1 < openTabs.length ? index + 1 : index;
           const side: 'before' | 'after' =
             isRightHalf && targetIndex === index ? 'after' : 'before';
           setDropTarget((prev) =>
@@ -709,9 +704,7 @@ export function TopTimeline() {
               onSelect={() => handleSelectTab(tab)}
               onPromote={() => handlePromote(tab)}
               onClose={() => handleCloseTab(tab)}
-              onContextMenu={(x, y) =>
-                setContextMenu({ x, y, items: buildMenuItems(tab, index) })
-              }
+              onContextMenu={(x, y) => setContextMenu({ x, y, items: buildMenuItems(tab, index) })}
             />
           );
         }
@@ -947,7 +940,6 @@ function LeafTabSlot({
           position: 'relative',
           overflow: 'hidden',
           whiteSpace: 'nowrap',
-          WebkitAppRegion: 'no-drag',
           height: '100%',
           userSelect: 'none',
         } as React.CSSProperties
@@ -1117,7 +1109,6 @@ function SplitTabSlot({
         position: 'relative',
         overflow: 'hidden',
         height: '100%',
-        WebkitAppRegion: 'no-drag',
         userSelect: 'none',
       }}
     >

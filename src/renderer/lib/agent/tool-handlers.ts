@@ -39,7 +39,11 @@ import {
   registerShadowAborter,
 } from '../shadow/job-recorder';
 import { computeChangedDeps, snapshotConsulted } from '../shadow/dep-snapshot';
-import type { ShadowConsultedKind, ShadowConsultedRef, ShadowToolCall } from '../../domain/shadow-job';
+import type {
+  ShadowConsultedKind,
+  ShadowConsultedRef,
+  ShadowToolCall,
+} from '../../domain/shadow-job';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import {
   createElementPatchRepository,
@@ -47,10 +51,7 @@ import {
   type UpdatePatchInput,
   type PatchWithSourceTitle,
 } from '../../sqlite-repo/element-patch-repo';
-import {
-  syncElementPatchCreate,
-  syncElementPatchUpdate,
-} from '../../usecase/sync-helpers';
+import { syncElementPatchCreate, syncElementPatchUpdate } from '../../usecase/sync-helpers';
 import { isChapter, type BookNode } from '../../domain/book-node';
 import { parseKv, stringifyKv, type KvEntry } from '../../domain/kv';
 import {
@@ -61,6 +62,7 @@ import {
   getSelectedTextFromAnchor,
 } from '../../domain/comment';
 import type { CreateCommentInput } from '../../usecase/useComment';
+import type { ShadowReviewCommentInput } from '../../usecase/useShadowReview';
 import type { CommentKind } from '../../domain/comment';
 import {
   createMemory,
@@ -154,9 +156,7 @@ function recordFieldChanges(
   changes: AgentBlockChange[],
 ): void {
   if (changes.length === 0) return;
-  useAgentEditStore
-    .getState()
-    .record(entityType, id, changes, effectiveAgentEditMode());
+  useAgentEditStore.getState().record(entityType, id, changes, effectiveAgentEditMode());
 }
 
 /** Patch ids this element has SOFT-deleted (agent ran delete_element_patch, but
@@ -230,6 +230,11 @@ export interface AgentWriteApi {
   convertToTodo: (id: string) => Promise<unknown>;
   revertToNote: (id: string) => Promise<unknown>;
   setCommentKind: (id: string, kind: CommentKind) => Promise<unknown>;
+  commitShadowReview: (
+    chapterId: string,
+    status: 'draft' | 'finished',
+    comments: ShadowReviewCommentInput[],
+  ) => Promise<unknown>;
 }
 
 export interface AgentToolContext {
@@ -371,12 +376,19 @@ function resolveByKind(ctx: AgentToolContext, kind: string, ref: string): string
  * internal *Id fields, so we resolve the external name and write the internal id
  * (legacy *Id args are also accepted, for robustness).
  */
-function resolveArgsRefs(ctx: AgentToolContext, args: Record<string, unknown>): Record<string, unknown> {
+function resolveArgsRefs(
+  ctx: AgentToolContext,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
   const out = { ...args };
   // `node` is the neutral name for chapter|drift (they share one namespace);
   // `chapter` is the chapter-only spelling — both resolve to nodeId. `legacy`
   // marks the pre-rename *Id spellings we still accept for robustness.
-  const map: Array<{ ext: string; internal: string; kind: 'node' | 'element' | 'storyline' | 'category' }> = [
+  const map: Array<{
+    ext: string;
+    internal: string;
+    kind: 'node' | 'element' | 'storyline' | 'category';
+  }> = [
     { ext: 'node', internal: 'nodeId', kind: 'node' },
     { ext: 'chapter', internal: 'nodeId', kind: 'node' },
     { ext: 'sourceChapter', internal: 'sourceNodeId', kind: 'node' },
@@ -414,10 +426,19 @@ function resolveProseTarget(
 ): { entityType: ProseEntityType; id: string } {
   const rawKind = typeof args.kind === 'string' ? args.kind : 'node';
   const entityType = normalizeEntityKind(rawKind);
-  if (!entityType) throw new Error(`unknown kind "${rawKind}" (use node | element | storyline | category)`);
+  if (!entityType)
+    throw new Error(`unknown kind "${rawKind}" (use node | element | storyline | category)`);
   const ref = firstRef(args, [
-    'entity', 'node', 'chapter', 'element', 'storyline', 'category',
-    'nodeId', 'elementId', 'storylineId', 'categoryId',
+    'entity',
+    'node',
+    'chapter',
+    'element',
+    'storyline',
+    'category',
+    'nodeId',
+    'elementId',
+    'storylineId',
+    'categoryId',
   ]);
   if (!ref) throw new Error('missing entity reference (name or id)');
   return { entityType, id: resolveRef(ctx, entityType, ref) };
@@ -486,7 +507,9 @@ async function readChapter(ctx: AgentToolContext, nodeId: string, includeProse =
       .map((r) => `${r.kind || 'related'} → ${entityLabel(s, r.toKind, r.toId)} (${r.toKind})`),
     ...rels
       .filter((r) => r.toKind === 'node' && r.toId === nodeId)
-      .map((r) => `${entityLabel(s, r.fromKind, r.fromId)} (${r.fromKind}) → ${r.kind || 'related'}`),
+      .map(
+        (r) => `${entityLabel(s, r.fromKind, r.fromId)} (${r.fromKind}) → ${r.kind || 'related'}`,
+      ),
   ];
   const relationsLine = relParts.length ? `relations: ${relParts.join(', ')}` : null;
   const head = [header, summaryLine, appearsLine, storylineLine, relationsLine]
@@ -619,9 +642,7 @@ function listMaterials(ctx: AgentToolContext) {
 function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>) {
   const ref = String(args.material ?? '').trim();
   if (!ref) throw new Error('missing `material` (the material TITLE)');
-  const items = useDataStore
-    .getState()
-    .libraryItems.filter((m) => m.projectId === ctx.projectId);
+  const items = useDataStore.getState().libraryItems.filter((m) => m.projectId === ctx.projectId);
   const lower = ref.toLowerCase();
   const matches = items.filter((m) => (m.title || '').toLowerCase() === lower);
   if (matches.length > 1) {
@@ -744,7 +765,11 @@ function mentionSnippet(blockText: string, spansJson: string): string {
   } catch {
     /* no spans — fall back to the head of the block */
   }
-  if (to === from) return blockText.slice(0, MENTION_SNIPPET_PAD * 2).replace(/\s+/g, ' ').trim();
+  if (to === from)
+    return blockText
+      .slice(0, MENTION_SNIPPET_PAD * 2)
+      .replace(/\s+/g, ' ')
+      .trim();
   const start = Math.max(0, from - MENTION_SNIPPET_PAD);
   const end = Math.min(blockText.length, to + MENTION_SNIPPET_PAD);
   const lead = start > 0 ? '…' : '';
@@ -760,7 +785,9 @@ function mentionSnippet(blockText: string, spansJson: string): string {
 async function whereDoesEntityAppear(ctx: AgentToolContext, args: Record<string, unknown>) {
   const kind = String(args.kind ?? '');
   if (!isStructuralEntityKind(kind)) {
-    throw new Error(`kind must be structural (node/element/storyline/category/patch), got "${kind}"`);
+    throw new Error(
+      `kind must be structural (node/element/storyline/category/patch), got "${kind}"`,
+    );
   }
   const ref = String(args.name ?? args.id ?? '');
   if (!ref) throw new Error('where_does_entity_appear requires name');
@@ -781,7 +808,13 @@ async function whereDoesEntityAppear(ctx: AgentToolContext, args: Record<string,
     const key = `${b.fromKind}:${b.fromId}`;
     const cur =
       bySource.get(key) ??
-      ({ fromKind: b.fromKind, from: b.fromTitle, fromId: b.fromId, rows: [], mentionCount: 0 } as SourceAgg);
+      ({
+        fromKind: b.fromKind,
+        from: b.fromTitle,
+        fromId: b.fromId,
+        rows: [],
+        mentionCount: 0,
+      } as SourceAgg);
     cur.rows.push({ blockId: b.fromBlockId, spansJson: b.fromSpansJson });
     cur.mentionCount += spanCount(b.fromSpansJson);
     bySource.set(key, cur);
@@ -840,10 +873,20 @@ function getEntityRelations(ctx: AgentToolContext, args: Record<string, unknown>
   // update_relation_kind (relations have no name). Endpoints are by name.
   const outgoing = rels
     .filter((r) => r.fromKind === kind && r.fromId === id)
-    .map((r) => ({ relationId: r.id, relation: r.kind, toKind: r.toKind, to: entityLabel(s, r.toKind, r.toId) }));
+    .map((r) => ({
+      relationId: r.id,
+      relation: r.kind,
+      toKind: r.toKind,
+      to: entityLabel(s, r.toKind, r.toId),
+    }));
   const incoming = rels
     .filter((r) => r.toKind === kind && r.toId === id)
-    .map((r) => ({ relationId: r.id, relation: r.kind, fromKind: r.fromKind, from: entityLabel(s, r.fromKind, r.fromId) }));
+    .map((r) => ({
+      relationId: r.id,
+      relation: r.kind,
+      fromKind: r.fromKind,
+      from: entityLabel(s, r.fromKind, r.fromId),
+    }));
   return { entity: { kind, name: entityLabel(s, kind, id) }, outgoing, incoming };
 }
 
@@ -888,7 +931,9 @@ async function proseJsonForSearch(
 }
 
 async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const q = String(args.query ?? '').trim().toLowerCase();
+  const q = String(args.query ?? '')
+    .trim()
+    .toLowerCase();
   const limit = Math.min(Math.max(Number(args.limit) || 30, 1), 100);
   // title is the project-unique name — the agent passes it straight back as the
   // nodeId/elementId arg, so no long id is emitted here.
@@ -919,7 +964,12 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
       const b = blocks[i];
       const idx = b.text.toLowerCase().indexOf(q);
       if (idx !== -1) {
-        matches.push({ kind: n.kind, title: n.title, block: i + 1, snippet: snippetAround(b.text, idx, q.length) });
+        matches.push({
+          kind: n.kind,
+          title: n.title,
+          block: i + 1,
+          snippet: snippetAround(b.text, idx, q.length),
+        });
         if (matches.length >= limit) return { matches, truncated: true };
         break; // one hit per chapter is enough for discovery — agent can read_node for the rest
       }
@@ -954,7 +1004,7 @@ function listComments(ctx: AgentToolContext, args: Record<string, unknown>) {
   // Canonicalize the scope kind (chapter/drift → node) and resolve a NAME → id,
   // so scoping behaves like the other tools.
   const rawKind = String(args.kind ?? '').trim();
-  const scopeKind = rawKind ? normalizeEntityKind(rawKind) ?? rawKind : '';
+  const scopeKind = rawKind ? (normalizeEntityKind(rawKind) ?? rawKind) : '';
   const rawId = String(args.entity ?? args.id ?? '').trim();
   const scopeId = rawId && rawKind ? resolveByKind(ctx, rawKind, rawId) : rawId;
   const onlyTodos = args.onlyTodos === true || args.onlyTodos === 'true';
@@ -1164,11 +1214,11 @@ function withProseLock<T>(lockKey: string, fn: () => Promise<T>): Promise<T> {
 }
 
 /** Normalize one block edit's target ({block} number or {blockId} uuid) + text. */
-function parseBlockEdit(edit: {
-  block?: unknown;
-  blockId?: unknown;
-  text?: unknown;
-}): { target: { block?: number; blockId?: string }; text: string; label: string | number } {
+function parseBlockEdit(edit: { block?: unknown; blockId?: unknown; text?: unknown }): {
+  target: { block?: number; blockId?: string };
+  text: string;
+  label: string | number;
+} {
   const text = String(edit.text ?? '');
   const hasBlockNum = edit.block !== undefined && edit.block !== null && edit.block !== '';
   if (hasBlockNum) {
@@ -1331,7 +1381,9 @@ async function removeBlocksTool(ctx: AgentToolContext, args: Record<string, unkn
     // batch of numbers all map against the same pre-edit doc.
     const blockIds = [...idArgs, ...(await blockNumbersToIds(entityType, id, numArgs))];
     if (blockIds.length === 0) {
-      throw new Error('remove_blocks requires blockIds (uuids) or blockNumbers (read_node numbers)');
+      throw new Error(
+        'remove_blocks requires blockIds (uuids) or blockNumbers (read_node numbers)',
+      );
     }
     await writeEntityProse(
       ctx,
@@ -1356,7 +1408,8 @@ async function replaceBlockRangeTool(ctx: AgentToolContext, args: Record<string,
     let fromBlockId = String(args.fromBlockId ?? '');
     let toBlockId = String(args.toBlockId ?? '');
     const nums: number[] = [];
-    if (!fromBlockId && args.fromBlock != null && args.fromBlock !== '') nums.push(Number(args.fromBlock));
+    if (!fromBlockId && args.fromBlock != null && args.fromBlock !== '')
+      nums.push(Number(args.fromBlock));
     if (!toBlockId && args.toBlock != null && args.toBlock !== '') nums.push(Number(args.toBlock));
     if (nums.length) {
       const ids = await blockNumbersToIds(entityType, id, nums);
@@ -1437,7 +1490,11 @@ async function linkChapterToStoryline(ctx: AgentToolContext, args: Record<string
   assertChapter(nodeId);
   await ctx.write.addNodeToStoryline(nodeId, storylineId);
   const s = useDataStore.getState();
-  return { ok: true, chapter: entityLabel(s, 'node', nodeId), storyline: entityLabel(s, 'storyline', storylineId) };
+  return {
+    ok: true,
+    chapter: entityLabel(s, 'node', nodeId),
+    storyline: entityLabel(s, 'storyline', storylineId),
+  };
 }
 
 async function unlinkChapterFromStoryline(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -1447,7 +1504,11 @@ async function unlinkChapterFromStoryline(ctx: AgentToolContext, args: Record<st
   assertChapter(nodeId);
   await ctx.write.removeNodeFromStoryline(nodeId, storylineId);
   const s = useDataStore.getState();
-  return { ok: true, chapter: entityLabel(s, 'node', nodeId), storyline: entityLabel(s, 'storyline', storylineId) };
+  return {
+    ok: true,
+    chapter: entityLabel(s, 'node', nodeId),
+    storyline: entityLabel(s, 'storyline', storylineId),
+  };
 }
 
 async function setPrimaryStoryline(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -1481,7 +1542,9 @@ async function addRelation(ctx: AgentToolContext, args: Record<string, unknown>)
   const resolvedFrom = resolveByKind(ctx, fromKind, fromRef);
   const resolvedTo = resolveByKind(ctx, toKind, toRef);
   const kind = typeof args.kind === 'string' ? args.kind : undefined;
-  const relation = await ctx.write.addRelation(fromKind, resolvedFrom, toKind, resolvedTo, { kind });
+  const relation = await ctx.write.addRelation(fromKind, resolvedFrom, toKind, resolvedTo, {
+    kind,
+  });
   const s = useDataStore.getState();
   // relationId is the handle for remove_relation / update_relation_kind.
   return {
@@ -1495,7 +1558,8 @@ async function addRelation(ctx: AgentToolContext, args: Record<string, unknown>)
 
 async function removeRelation(ctx: AgentToolContext, args: Record<string, unknown>) {
   const relationId = String(args.relationId ?? '');
-  if (!relationId) throw new Error('remove_relation requires relationId (from get_entity_relations)');
+  if (!relationId)
+    throw new Error('remove_relation requires relationId (from get_entity_relations)');
   if (!(await requestAgentConfirm('Agent 想删除一条实体关系。允许吗？'))) {
     return { ok: false, declined: true };
   }
@@ -1576,7 +1640,8 @@ async function updateCategoryTemplate(ctx: AgentToolContext, args: Record<string
   const id = String(args.categoryId ?? '');
   if (!id) throw new Error('update_category requires categoryId');
   const facts = toKvEntries(args.templateFacts);
-  if (facts.length === 0) throw new Error('update_category requires a non-empty templateFacts array');
+  if (facts.length === 0)
+    throw new Error('update_category requires a non-empty templateFacts array');
   const cat = useDataStore.getState().bookElementCategories.find((c) => c.id === id);
   if (!cat || cat.projectId !== ctx.projectId) throw new Error(`No category found with id "${id}"`);
   const elementTemplateKvJson = mergeKv(cat.elementTemplateKvJson, facts);
@@ -1817,7 +1882,8 @@ async function createComment(ctx: AgentToolContext, args: Record<string, unknown
     const rawKind = args.targetKind.trim();
     // normalizeEntityKind maps chapter/drift→node; unknown kinds (e.g. 'patch')
     // pass through unchanged, matching CommentTargetKind.
-    input.targetKind = (normalizeEntityKind(rawKind) ?? rawKind) as CreateCommentInput['targetKind'];
+    input.targetKind = (normalizeEntityKind(rawKind) ??
+      rawKind) as CreateCommentInput['targetKind'];
     if (targetRef) input.targetId = resolveByKind(ctx, rawKind, targetRef);
   } else if (targetRef) {
     // No kind to resolve against — store the ref verbatim.
@@ -1891,9 +1957,7 @@ async function rememberTool(ctx: AgentToolContext, args: Record<string, unknown>
   }
 
   const supersedesId =
-    typeof args.supersedes === 'string' && args.supersedes.trim()
-      ? args.supersedes.trim()
-      : null;
+    typeof args.supersedes === 'string' && args.supersedes.trim() ? args.supersedes.trim() : null;
 
   // Write straight to 'active' — no confirm; the author manages/deletes memories
   // in settings or the composer 记忆 menu.
@@ -1942,9 +2006,9 @@ async function forgetTool(ctx: AgentToolContext, args: Record<string, unknown>) 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shadow review bridge handlers. The main-process LangGraph engine calls these
-// over the agent bridge (callRenderer) to read the locked chapter + rules, judge
-// semantic assertions, write shadow comments, and push the chapter's status.
+// Shadow review handlers. The in-renderer runtime calls these to read the locked
+// chapter + rules, judge semantic assertions, write shadow comments, and push the
+// chapter's status.
 // They reuse this file's private helpers (the renderer owns the DB + Yjs prose).
 
 // Chapter-scoped tool-result cache. Across a single review the per-rule FC loops
@@ -1963,7 +2027,7 @@ function shadowCacheKey(name: string, args: Record<string, unknown>): string {
 // Per-review record of the canon entities the judge ACTUALLY consulted (resolved
 // from its read-tool calls). The precise `(chapter)→entities` dependency edges —
 // compiler `-MMD` to the inline-mention `grep #include`. Reset per review at the
-// snapshot, harvested + persisted at shadow_set_status. Captured for OBSERVATION
+// snapshot, harvested + persisted at shadow_commit_review. Captured for OBSERVATION
 // only right now (staleness still derives from mentions — no behavior change).
 const shadowConsultedByChapter = new Map<string, Map<string, ShadowConsultedRef>>();
 
@@ -2048,7 +2112,8 @@ async function shadowEffectivePatchesText(
 ): Promise<ToolRunOutcome> {
   const ref = String(args.element ?? args.elementId ?? args.node ?? '').trim();
   const elementId = resolveRef(ctx, 'element', ref);
-  if (!elementId) return { content: `（eval：无设定「${ref}」）`, status: 'denied', note: '未知设定' };
+  if (!elementId)
+    return { content: `（eval：无设定「${ref}」）`, status: 'denied', note: '未知设定' };
 
   // This chapter's timeline position. A node resolves to its narrativeOrder when the
   // author set one (story-time, handles flashbacks), else bookOrder (reading order).
@@ -2279,7 +2344,8 @@ function buildShadowEvidenceProvider(ctx: AgentToolContext, chapterId: string): 
           if (r.aliases?.length) lines.push(`别名：${r.aliases.join('、')}`);
           for (const f of r.facts ?? []) lines.push(`- ${f.key}：${f.value}`);
           if (r.body) lines.push(`正文：${truncate(r.body, 1500)}`);
-          if (r.patchCount) lines.push(`（有 ${r.patchCount} 条状态演变，可用 element_evolution 索取）`);
+          if (r.patchCount)
+            lines.push(`（有 ${r.patchCount} 条状态演变，可用 element_evolution 索取）`);
           return lines.join('\n') || '（无内容）';
         }
         const r = (await getElementPatches(ctx, el.id)) as {
@@ -2295,8 +2361,9 @@ function buildShadowEvidenceProvider(ctx: AgentToolContext, chapterId: string): 
       }
 
       if (req.kind === 'drift' || req.kind === 'chapter') {
-        const node = findNodeByTitle(req.name, req.kind === 'drift' ? 'drift' : 'chapter')
-          ?? findNodeByTitle(req.name);
+        const node =
+          findNodeByTitle(req.name, req.kind === 'drift' ? 'drift' : 'chapter') ??
+          findNodeByTitle(req.name);
         if (!node) return null;
         const blocks = await shadowChapterBlocks(node.id);
         const text = blocks.map((b) => b.text).join('\n');
@@ -2408,7 +2475,7 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
   const chapterId = String(args.chapterId ?? '');
   throwIfShadowCancelled(chapterId);
   // Signal for the in-flight judge fetch — Stop aborts it so the LLM round-trip is
-  // cancelled immediately (frees the main worker's serial queue), not at next entry.
+  // cancelled immediately (frees the renderer serial queue), not at next entry.
   const abortSignal = registerShadowAborter(chapterId);
   const s = useDataStore.getState();
   const node = s.bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
@@ -2486,14 +2553,25 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
     ensureShadowModelRoutable(judgeModel);
   } catch {
     judgeModel = SHADOW_TIER_MODEL.standard;
-    void traceShadow(chapterId, ctx.projectId, 'check', '高档 Sonnet 需托管，本次回退 DeepSeek-Pro');
+    void traceShadow(
+      chapterId,
+      ctx.projectId,
+      'check',
+      '高档 Sonnet 需托管，本次回退 DeepSeek-Pro',
+    );
   }
 
   const client = await buildShadowClient({ logTag: 'shadow:review' });
   if (client.supportsTools) {
-    void traceShadow(chapterId, ctx.projectId, 'check', `检查 ${assertions.length} 项约束（${judgeModel}）`, {
-      items: assertions,
-    });
+    void traceShadow(
+      chapterId,
+      ctx.projectId,
+      'check',
+      `检查 ${assertions.length} 项约束（${judgeModel}）`,
+      {
+        items: assertions,
+      },
+    );
     return evaluateSemanticAssertionsFC(
       assertions,
       blocks,
@@ -2559,7 +2637,8 @@ async function buildPreloadedElementCanon(
   if (el.aliases.length) lines.push(`别名：${el.aliases.join('、')}`);
   if (el.summary?.trim()) lines.push(`简介：${el.summary.trim()}`);
   const facts = parseKv(el.kvJson).filter((kv) => kv.key.trim() || kv.value.trim());
-  if (facts.length) lines.push(`字段：\n${facts.map((kv) => `  - ${kv.key}：${kv.value}`).join('\n')}`);
+  if (facts.length)
+    lines.push(`字段：\n${facts.map((kv) => `  - ${kv.key}：${kv.value}`).join('\n')}`);
   const body = docToPlainText(await getElementContentJson(elementId)).trim();
   if (body) lines.push(`正文设定：\n${body}`);
   // Timeline-filtered patches (later-chapter evolutions are withheld, same as the tool).
@@ -2628,7 +2707,15 @@ export async function runEvolveCriticBatch(
   const out: SemanticViolation[][] = [];
   for (const assertion of assertions) {
     out.push(
-      await evaluateSemanticAssertionAgentic(assertion, blocks, ctx.projectId, context, provider, signal, onTrace),
+      await evaluateSemanticAssertionAgentic(
+        assertion,
+        blocks,
+        ctx.projectId,
+        context,
+        provider,
+        signal,
+        onTrace,
+      ),
     );
   }
   return out;
@@ -2685,7 +2772,9 @@ export async function runShadowEditBatch(
   signal?: AbortSignal,
   onTrace?: (step: AgenticTraceStep) => void,
 ): Promise<{ ok: boolean; editedBlockIds: string[]; error?: string }> {
-  const node = useDataStore.getState().bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
+  const node = useDataStore
+    .getState()
+    .bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
   if (!node) throw new Error(`runShadowEditBatch: no chapter "${chapterId}"`);
   const blocks = await shadowChapterBlocks(chapterId);
   if (blocks.length === 0) return { ok: true, editedBlockIds: [] };
@@ -2736,7 +2825,11 @@ export async function runShadowEditBatch(
     const calls: AIToolCall[] = resp.toolCalls ?? (resp.toolCall ? [resp.toolCall] : []);
     if (calls.length === 0) {
       // Model answered in prose without editing → stop.
-      if (resp.text?.trim()) onTrace?.({ label: '改稿器以文字收尾（未再调工具）', detail: resp.text.trim().slice(0, 200) });
+      if (resp.text?.trim())
+        onTrace?.({
+          label: '改稿器以文字收尾（未再调工具）',
+          detail: resp.text.trim().slice(0, 200),
+        });
       break;
     }
     messages.push({ role: 'model', content: resp.text ?? '', toolCalls: calls });
@@ -2752,7 +2845,9 @@ export async function runShadowEditBatch(
       }
       toolCalls += 1;
       const args =
-        call.arguments && typeof call.arguments === 'object' ? (call.arguments as Record<string, unknown>) : {};
+        call.arguments && typeof call.arguments === 'object'
+          ? (call.arguments as Record<string, unknown>)
+          : {};
       // Trace summary: which blocks, and a peek at the replacement text.
       const argsLabel =
         call.name === 'edit_block'
@@ -2763,7 +2858,11 @@ export async function runShadowEditBatch(
       try {
         let res: unknown;
         if (call.name === 'edit_block') {
-          res = await runAgentTool('edit_block', { node: chapterId, block: args.block, text: args.text }, ctx);
+          res = await runAgentTool(
+            'edit_block',
+            { node: chapterId, block: args.block, text: args.text },
+            ctx,
+          );
         } else if (call.name === 'edit_blocks') {
           res = await runAgentTool('edit_blocks', { node: chapterId, edits: args.edits }, ctx);
         } else {
@@ -2788,7 +2887,10 @@ export async function runShadowEditBatch(
     }
     if (traceCalls.length) {
       const bad = traceCalls.filter((c) => c.status !== 'ok').length;
-      onTrace?.({ label: bad ? `改稿 · 第 ${round + 1} 轮（${bad} 失败）` : `改稿 · 第 ${round + 1} 轮`, calls: traceCalls });
+      onTrace?.({
+        label: bad ? `改稿 · 第 ${round + 1} 轮（${bad} 失败）` : `改稿 · 第 ${round + 1} 轮`,
+        calls: traceCalls,
+      });
     }
     if (finished || toolCalls >= maxToolCalls) break;
     await yieldToMain();
@@ -2796,88 +2898,78 @@ export async function runShadowEditBatch(
   return { ok: true, editedBlockIds: [...new Set(editedBlockIds)] };
 }
 
-async function shadowClearComments(ctx: AgentToolContext, args: Record<string, unknown>) {
+async function shadowCommitReview(ctx: AgentToolContext, args: Record<string, unknown>) {
   const chapterId = String(args.chapterId ?? '');
-  const stale = useDataStore
-    .getState()
-    .comments.filter(
-      (c) =>
-        c.projectId === ctx.projectId &&
-        c.source === 'shadow' &&
-        c.targetKind === 'node' &&
-        c.targetId === chapterId,
-    );
-  for (const c of stale) await ctx.write.deleteComment(c.id);
-  return { ok: true, cleared: stale.length };
-}
+  const status = args.status === 'finished' ? 'finished' : args.status === 'draft' ? 'draft' : null;
+  if (!chapterId || !status || !Array.isArray(args.findings)) {
+    throw new Error('shadow_commit_review: requires chapterId, findings, and finished|draft');
+  }
+  throwIfShadowCancelled(chapterId);
 
-async function shadowWriteComment(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const chapterId = String(args.chapterId ?? '');
-  const finding = (args.finding ?? {}) as {
+  const findings = args.findings as Array<{
     message?: string;
     reason?: string;
     blockId?: string | null;
     blockIds?: string[];
     ruleId?: string;
     itemId?: string;
-  };
-  const message = String(finding.message ?? '').trim();
-  if (!chapterId || !message) return { ok: false };
-  throwIfShadowCancelled(chapterId);
-  const reason = String(finding.reason ?? '').trim();
-  const body = reason ? `${message}\n${reason}` : message;
-  // The full consecutive block range goes in metadataJson.blockIds; targetBlockId
-  // stays the first block (card position). CommentRail reads blockIds for the
-  // anchor-mark + hover highlight, so one comment spans the whole range.
-  const blockIds = Array.isArray(finding.blockIds)
-    ? finding.blockIds.filter((b): b is string => typeof b === 'string' && b.length > 0)
-    : [];
-  // Snapshot the violating blocks' live text so the shadow comment, like manual
-  // ones, can show "原文" on demand and detect when the prose later diverges.
-  // Shadow findings are block-level, so no precise textAnchor — whole blocks.
-  const snapBlockIds = blockIds.length
-    ? blockIds
-    : typeof finding.blockId === 'string' && finding.blockId
-      ? [finding.blockId]
-      : [];
+  }>;
   const chapterBlocks = await shadowChapterBlocks(chapterId);
-  const textById = new Map(
-    chapterBlocks.filter((b) => b.id).map((b) => [b.id as string, b.text]),
-  );
-  const blockSnapshots = snapBlockIds.map((id) => ({
-    blockId: id,
-    blockText: textById.get(id) ?? '',
-  }));
-  const input: CreateCommentInput = {
-    kind: 'note',
-    bodyJson: createPlainCommentDoc(body),
-    targetKind: 'node',
-    targetId: chapterId,
-    targetBlockIds: blockIds,
-    anchorJson: JSON.stringify({ createdAt: new Date().toISOString(), blockSnapshots }),
-    authorKind: 'ai',
-    authorName: 'Shadow',
-    source: 'shadow',
-    metadataJson: JSON.stringify({ ruleId: finding.ruleId ?? '', itemId: finding.itemId ?? '' }),
-  };
-  if (typeof finding.blockId === 'string' && finding.blockId) {
-    input.targetBlockId = finding.blockId;
-  }
-  const created = await ctx.write.createComment(input);
-  void traceShadow(chapterId, ctx.projectId, 'emit', '写入批注', {
-    detail: message,
-    items: reason ? [reason] : undefined,
+  const textById = new Map(chapterBlocks.filter((b) => b.id).map((b) => [b.id as string, b.text]));
+  const createdAt = new Date().toISOString();
+  const inputs: ShadowReviewCommentInput[] = findings.flatMap((finding) => {
+    const message = String(finding.message ?? '').trim();
+    if (!message) return [];
+    const reason = String(finding.reason ?? '').trim();
+    const blockIds = Array.isArray(finding.blockIds)
+      ? finding.blockIds.filter(
+          (blockId): blockId is string => typeof blockId === 'string' && blockId.length > 0,
+        )
+      : [];
+    const snapBlockIds = blockIds.length
+      ? blockIds
+      : typeof finding.blockId === 'string' && finding.blockId
+        ? [finding.blockId]
+        : [];
+    const blockSnapshots = snapBlockIds.map((blockId) => ({
+      blockId,
+      blockText: textById.get(blockId) ?? '',
+    }));
+    return [
+      {
+        bodyJson: createPlainCommentDoc(reason ? `${message}\n${reason}` : message),
+        targetBlockId:
+          typeof finding.blockId === 'string' && finding.blockId ? finding.blockId : null,
+        targetBlockIds: blockIds,
+        anchorJson: JSON.stringify({ createdAt, blockSnapshots }),
+        metadataJson: JSON.stringify({
+          ruleId: finding.ruleId ?? '',
+          itemId: finding.itemId ?? '',
+        }),
+      },
+    ];
   });
-  return { ok: true, commentId: (created as { id?: string })?.id };
-}
 
-async function shadowSetStatus(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const chapterId = String(args.chapterId ?? '');
-  const status =
-    args.status === 'finished' ? 'finished' : args.status === 'draft' ? 'draft' : null;
-  if (!chapterId || !status) throw new Error('shadow_set_status: requires chapterId + finished|draft');
-  void traceShadow(chapterId, ctx.projectId, 'decide', status === 'finished' ? '结论：已完成' : '结论：退回草稿');
-  await ctx.write.updateNode(chapterId, { writingStatus: status });
+  // Honour a cancellation that arrived while the live prose snapshot was read.
+  // After this check the usecase is one SQLite transaction and must finish.
+  throwIfShadowCancelled(chapterId);
+  const result = await ctx.write.commitShadowReview(chapterId, status, inputs);
+
+  for (const finding of findings) {
+    const message = String(finding.message ?? '').trim();
+    if (!message) continue;
+    const reason = String(finding.reason ?? '').trim();
+    void traceShadow(chapterId, ctx.projectId, 'emit', '写入批注', {
+      detail: message,
+      items: reason ? [reason] : undefined,
+    });
+  }
+  void traceShadow(
+    chapterId,
+    ctx.projectId,
+    'decide',
+    status === 'finished' ? '结论：已完成' : '结论：退回草稿',
+  );
   // Persist the entities this review consulted (precise dep edges) AND a value snapshot
   // of them — the baseline a later re-review diffs current canon against to build the
   // changed-dep hint. Done before freeing the per-review caches.
@@ -2885,7 +2977,7 @@ async function shadowSetStatus(ctx: AgentToolContext, args: Record<string, unkno
   void setShadowConsulted(chapterId, ctx.projectId, consulted, snapshotConsulted(consulted));
   shadowToolCache.delete(chapterId); // review done — free its evidence cache
   endProseReadCache(); // free the per-review prose-hydration cache
-  return { ok: true, chapterId, status };
+  return { ok: true, chapterId, status, result };
 }
 
 /** Dispatch a tool call to its handler. Throws on unknown/missing. */
@@ -3014,19 +3106,15 @@ export async function runAgentTool(
     // destructive
     case 'delete_element':
       return deleteElement(ctx, args);
-    // shadow review (main-process LangGraph engine ↔ bridge)
+    // shadow review (in-renderer runtime)
     case 'shadow_read_chapter_snapshot':
       return shadowReadChapterSnapshot(ctx, args);
     case 'shadow_read_rules':
       return shadowReadRules(ctx, args);
     case 'shadow_eval_semantic_batch':
       return shadowEvalSemanticBatch(ctx, args);
-    case 'shadow_clear_comments':
-      return shadowClearComments(ctx, args);
-    case 'shadow_write_comment':
-      return shadowWriteComment(ctx, args);
-    case 'shadow_set_status':
-      return shadowSetStatus(ctx, args);
+    case 'shadow_commit_review':
+      return shadowCommitReview(ctx, args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

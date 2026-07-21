@@ -1,12 +1,7 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getPlatformRuntime } from '../platform/runtime';
 import '../../styles/super-view-header.css';
-
-const IS_MAC = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
-// macOS `titleBarStyle: hiddenInset` reserves the top-left corner for the
-// traffic-light dots; pad the bar in so its leftmost control clears them.
-// Mirrors the inset values previously baked into each super view.
-const TRAFFIC_LIGHT_INSET = IS_MAC ? 86 : 18;
 
 export interface SuperViewHeaderProps {
   /** Serif title text shown after the back button. */
@@ -34,9 +29,14 @@ export function SuperViewHeader({
   rightSlot,
 }: SuperViewHeaderProps) {
   const { t } = useTranslation();
+  const runtime = getPlatformRuntime();
   const resolvedBackLabel = backLabel ?? t('navigation.back');
   return (
-    <div className="super-view-head" style={{ paddingLeft: TRAFFIC_LIGHT_INSET }}>
+    <div
+      className="super-view-head"
+      data-tauri-drag-region={runtime.desktopWindowControls ? 'deep' : undefined}
+      style={{ paddingLeft: runtime.isMacDesktop ? 86 : 18 }}
+    >
       <div className="super-view-head__left">
         {onBack && (
           <button

@@ -302,10 +302,7 @@ function ChapterBand({
   const { t } = useTranslation();
   const placedNodes = useMemo(() => nodes.filter(isChapter), [nodes]);
 
-  const storylineById = useMemo(
-    () => new Map(storylines.map((s) => [s.id, s])),
-    [storylines],
-  );
+  const storylineById = useMemo(() => new Map(storylines.map((s) => [s.id, s])), [storylines]);
   const rowIndexByStoryline = useMemo(() => {
     const m = new Map<string, number>();
     storylines.forEach((s, i) => m.set(s.id, i));
@@ -373,7 +370,13 @@ function ChapterBand({
       }
     }
     return out;
-  }, [storylines, sortedByStoryline, rowIndexByStoryline, slotIndexByNodeId, primaryStorylineByNode]);
+  }, [
+    storylines,
+    sortedByStoryline,
+    rowIndexByStoryline,
+    slotIndexByNodeId,
+    primaryStorylineByNode,
+  ]);
 
   // Band fits exactly N slots wide. Caller passes bandWidthCells purely for
   // the empty/legend states; the actual pixel width is derived from the
@@ -434,7 +437,8 @@ function ChapterBand({
             width: bandPxWidth,
             height: CELL_H,
             borderTop: idx === 0 ? 'none' : '1px dotted hsl(var(--rule) / 0.4)',
-            borderBottom: idx === storylines.length - 1 ? 'none' : '1px dotted hsl(var(--rule) / 0.4)',
+            borderBottom:
+              idx === storylines.length - 1 ? 'none' : '1px dotted hsl(var(--rule) / 0.4)',
           }}
         >
           <div
@@ -474,7 +478,13 @@ function ChapterBand({
 
       {/* Cross-storyline transit dashed lines. */}
       <svg
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+        }}
       >
         {transits.map((t) => (
           <line
@@ -960,9 +970,9 @@ export function SuperElementView() {
   // commit handlers (confirmPendingLink / deleteSelectedEdge) and derived
   // edge data come later, after layout is computed.
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [linkSource, setLinkSource] = useState<
-    { kind: 'element' | 'node'; id: string } | null
-  >(null);
+  const [linkSource, setLinkSource] = useState<{ kind: 'element' | 'node'; id: string } | null>(
+    null,
+  );
   // Element / category card right-click menu — reuses EntityCellContextMenu
   // so the same per-entity options surface in left panel, editor top bar,
   // and here. SuperElementView-specific actions (start edge from this
@@ -987,24 +997,18 @@ export function SuperElementView() {
   // Drift card right-click — same EntityCellContextMenu surface as the
   // 浮缀 left panel, with `startEdgeFrom` appended so users can wire a
   // drift card into an element / node from the bottom drawer.
-  const [driftContextMenu, setDriftContextMenu] = useState<
-    | {
-        x: number;
-        y: number;
-        nodeId: string;
-        nodeTitle?: string;
-        nodeSummary?: string;
-        writingStatus: BookNode['writingStatus'];
-      }
-    | null
-  >(null);
-  const [pendingLink, setPendingLink] = useState<
-    | {
-        source: { kind: 'element' | 'node'; id: string };
-        target: { kind: 'element' | 'node'; id: string };
-      }
-    | null
-  >(null);
+  const [driftContextMenu, setDriftContextMenu] = useState<{
+    x: number;
+    y: number;
+    nodeId: string;
+    nodeTitle?: string;
+    nodeSummary?: string;
+    writingStatus: BookNode['writingStatus'];
+  } | null>(null);
+  const [pendingLink, setPendingLink] = useState<{
+    source: { kind: 'element' | 'node'; id: string };
+    target: { kind: 'element' | 'node'; id: string };
+  } | null>(null);
   const [pendingLinkKind, setPendingLinkKind] = useState('');
   const [pendingLinkSuggestOpen, setPendingLinkSuggestOpen] = useState(false);
   // Sticky band toggle. ON = band detaches from world transform so it can
@@ -1234,13 +1238,7 @@ export function SuperElementView() {
       m.set(n.id, { x, y });
     });
     return m;
-  }, [
-    sortedPlacedNodesAll,
-    storylines,
-    bandWorldLeft,
-    bandTopWorldY,
-    primaryStorylineByNode,
-  ]);
+  }, [sortedPlacedNodesAll, storylines, bandWorldLeft, bandTopWorldY, primaryStorylineByNode]);
 
   // Drift no longer has a bookOrder — sort by recency (matches DriftPanel).
   // Drifts BOUND to a timeline marker OR an act are excluded: they've
@@ -1278,10 +1276,7 @@ export function SuperElementView() {
   // FULL drift set on purpose (not the panel-filtered list above): the edge
   // filters below must keep treating a marker-bound drift as a drift, or its
   // refs would leak into the world-edge layer with no position to anchor to.
-  const driftIds = useMemo(
-    () => new Set(bookNodes.filter(isDrift).map((n) => n.id)),
-    [bookNodes],
-  );
+  const driftIds = useMemo(() => new Set(bookNodes.filter(isDrift).map((n) => n.id)), [bookNodes]);
 
   type WorldEdge = {
     id: string;
@@ -1320,14 +1315,14 @@ export function SuperElementView() {
           : null;
       if (!fromPt || !toPt) continue;
       const fromName = fromIsEl
-        ? bookElements.find((e) => e.id === ref.fromId)?.name ?? '?'
+        ? (bookElements.find((e) => e.id === ref.fromId)?.name ?? '?')
         : fromIsNode
-          ? bookNodes.find((n) => n.id === ref.fromId)?.title ?? '?'
+          ? (bookNodes.find((n) => n.id === ref.fromId)?.title ?? '?')
           : '?';
       const toName = toIsEl
-        ? bookElements.find((e) => e.id === ref.toId)?.name ?? '?'
+        ? (bookElements.find((e) => e.id === ref.toId)?.name ?? '?')
         : toIsNode
-          ? bookNodes.find((n) => n.id === ref.toId)?.title ?? '?'
+          ? (bookNodes.find((n) => n.id === ref.toId)?.title ?? '?')
           : '?';
       out.push({
         id: ref.id,
@@ -1433,14 +1428,12 @@ export function SuperElementView() {
     const key = viewportStorageKey(projectId);
     if (!key) return;
     if (restoredForKey === key) return;
-    let next:
-      | {
-          pan: { x: number; y: number };
-          zoom: number;
-          bandSticky?: boolean;
-          edgesViewportOnly?: boolean;
-        }
-      | null = null;
+    let next: {
+      pan: { x: number; y: number };
+      zoom: number;
+      bandSticky?: boolean;
+      edgesViewportOnly?: boolean;
+    } | null = null;
     try {
       const raw = localStorage.getItem(key);
       if (raw) {
@@ -1485,10 +1478,7 @@ export function SuperElementView() {
     if (!key) return;
     if (restoredForKey !== key) return;
     try {
-      localStorage.setItem(
-        key,
-        JSON.stringify({ pan, zoom, bandSticky, edgesViewportOnly }),
-      );
+      localStorage.setItem(key, JSON.stringify({ pan, zoom, bandSticky, edgesViewportOnly }));
     } catch {
       /* quota or privacy mode — ignore */
     }
@@ -1812,12 +1802,7 @@ export function SuperElementView() {
   // All shift-click pairing + popover-opening flows through here so element
   // and node cards share the same state machine.
   const handleEntityClick = useCallback(
-    (
-      kind: 'element' | 'node',
-      id: string,
-      rect: DOMRect,
-      opts: { shiftKey: boolean },
-    ) => {
+    (kind: 'element' | 'node', id: string, rect: DOMRect, opts: { shiftKey: boolean }) => {
       if (opts.shiftKey) {
         setLinkSource((prev) => {
           if (prev && prev.kind === kind && prev.id === id) return null; // toggle off
@@ -2091,13 +2076,9 @@ export function SuperElementView() {
       //   edges land z*bandTopWorldY pixels below the pill — visible as
       //   edges terminating near the pill's bottom edge instead of its centre.
       const fromX = pX + z * fromCenter.x;
-      const fromY = fromIsEl
-        ? pY + z * fromCenter.y
-        : bandY + z * (fromCenter.y - bandTopWorldY);
+      const fromY = fromIsEl ? pY + z * fromCenter.y : bandY + z * (fromCenter.y - bandTopWorldY);
       const toX = pX + z * toCenter.x;
-      const toY = toIsEl
-        ? pY + z * toCenter.y
-        : bandY + z * (toCenter.y - bandTopWorldY);
+      const toY = toIsEl ? pY + z * toCenter.y : bandY + z * (toCenter.y - bandTopWorldY);
       // Drop edges whose element endpoint is off-screen. Nodes (sticky band)
       // always count as visible. This keeps the canvas clean when the user
       // pans to a single category — we don't want lines flying off to
@@ -2105,14 +2086,14 @@ export function SuperElementView() {
       if (fromIsEl && !elementVisible(fromX, fromY)) continue;
       if (toIsEl && !elementVisible(toX, toY)) continue;
       const fromName = fromIsEl
-        ? bookElements.find((e) => e.id === ref.fromId)?.name ?? '?'
+        ? (bookElements.find((e) => e.id === ref.fromId)?.name ?? '?')
         : fromIsNode
-          ? bookNodes.find((n) => n.id === ref.fromId)?.title ?? '?'
+          ? (bookNodes.find((n) => n.id === ref.fromId)?.title ?? '?')
           : '?';
       const toName = toIsEl
-        ? bookElements.find((e) => e.id === ref.toId)?.name ?? '?'
+        ? (bookElements.find((e) => e.id === ref.toId)?.name ?? '?')
         : toIsNode
-          ? bookNodes.find((n) => n.id === ref.toId)?.title ?? '?'
+          ? (bookNodes.find((n) => n.id === ref.toId)?.title ?? '?')
           : '?';
       out.push({
         id: ref.id,
@@ -2245,9 +2226,7 @@ export function SuperElementView() {
               className={`super-element-toggle${edgesViewportOnly ? ' is-on' : ''}`}
               onClick={() => setEdgesViewportOnly((v) => !v)}
               title={
-                edgesViewportOnly
-                  ? t('superElement.focusOffTitle')
-                  : t('superElement.focusOnTitle')
+                edgesViewportOnly ? t('superElement.focusOffTitle') : t('superElement.focusOnTitle')
               }
               aria-pressed={edgesViewportOnly}
             >
@@ -2259,9 +2238,7 @@ export function SuperElementView() {
               className={`super-element-toggle${bandSticky ? ' is-on' : ''}`}
               onClick={() => setBandSticky((v) => !v)}
               title={
-                bandSticky
-                  ? t('superElement.stickyOffTitle')
-                  : t('superElement.stickyOnTitle')
+                bandSticky ? t('superElement.stickyOffTitle') : t('superElement.stickyOnTitle')
               }
               aria-pressed={bandSticky}
             >
@@ -2282,18 +2259,9 @@ export function SuperElementView() {
 
       {/* The button visual styles for the header toggles live here so
           :hover / .is-on can be expressed in real CSS. The .super-view-head
-          rules in the shared stylesheet already mark every button inside
-          as no-drag; the remaining selectors below are for cards / edges /
-          drift overlays elsewhere in this view. */}
+          rules in the shared stylesheet keep the header controls interactive;
+          the remaining selectors below style cards / edges / drift overlays. */}
       <style>{`
-        .super-element-overlay [data-super-card],
-        .super-element-overlay [data-super-edge],
-        .super-element-overlay [data-super-edge-delete],
-        .super-element-overlay [data-super-modal],
-        .super-element-overlay [data-super-drift],
-        .super-element-overlay input,
-        .super-element-overlay textarea { -webkit-app-region: no-drag; }
-
         .super-element-overlay .super-element-reset,
         .super-element-overlay .super-element-toggle {
           border: 1px solid hsl(var(--rule));
@@ -2396,9 +2364,7 @@ export function SuperElementView() {
                 key={model.categoryId}
                 model={model}
                 placement={placement}
-                linkSourceElementId={
-                  linkSource?.kind === 'element' ? linkSource.id : null
-                }
+                linkSourceElementId={linkSource?.kind === 'element' ? linkSource.id : null}
                 focusedElementId={focusedElementId}
                 connectedElementIds={focusConnected?.elementIds ?? null}
                 elementCardRefs={elementCardRefs}
@@ -2445,89 +2411,94 @@ export function SuperElementView() {
               filters edges by viewport visibility, which also needs the
               committed pan/zoom for the math. */}
           {!bandSticky && !edgesViewportOnly && (
-          <svg
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              width: 1,
-              height: 1,
-              overflow: 'visible',
-              pointerEvents: 'none',
-            }}
-          >
-            {worldEdges.map((edge) => {
-              // Click-focus: edges touching the popover's element render at
-              // selected strength so the lit neighborhood includes its links.
-              const selected =
-                selectedEdgeId === edge.id || !!focusConnected?.edgeIds.has(edge.id);
-              const d = edgePath(edge.x1, edge.y1, edge.x2, edge.y2);
-              const kindLabel = edge.kind ?? t('storyGraph.edge.uncategorized');
-              return (
-                <g key={edge.id} data-super-edge>
-                  {/* Invisible wide stroke for hit-testing — same trick as
+            <svg
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: 1,
+                height: 1,
+                overflow: 'visible',
+                pointerEvents: 'none',
+              }}
+            >
+              {worldEdges.map((edge) => {
+                // Click-focus: edges touching the popover's element render at
+                // selected strength so the lit neighborhood includes its links.
+                const selected =
+                  selectedEdgeId === edge.id || !!focusConnected?.edgeIds.has(edge.id);
+                const d = edgePath(edge.x1, edge.y1, edge.x2, edge.y2);
+                const kindLabel = edge.kind ?? t('storyGraph.edge.uncategorized');
+                return (
+                  <g key={edge.id} data-super-edge>
+                    {/* Invisible wide stroke for hit-testing — same trick as
                       StoryGraphView. The visible path below sits on top and is
                       pointer-events:none so it doesn't intercept clicks. */}
-                  <path
-                    d={d}
-                    stroke="transparent"
-                    strokeWidth={EDGE_HIT_WIDTH}
-                    fill="none"
-                    style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedEdgeId(edge.id);
-                    }}
-                  >
-                    <title>{`${edge.fromName} → ${edge.toName}  ·  ${kindLabel}`}</title>
-                  </path>
-                  <path
-                    d={d}
-                    stroke={edge.color}
-                    strokeWidth={selected ? EDGE_SELECTED_WIDTH : EDGE_DEFAULT_WIDTH}
-                    fill="none"
-                    opacity={selected ? 1 : 0.78}
-                    style={{ pointerEvents: 'none' }}
-                  />
-                </g>
-              );
-            })}
-
-            {/* × delete badge at the selected edge's midpoint. Bigger
-                hit-target than the stroke itself so users can click it
-                without precise aim. */}
-            {selectedEdgeId &&
-              (() => {
-                const edge = worldEdges.find((e) => e.id === selectedEdgeId);
-                if (!edge) return null;
-                const mx = (edge.x1 + edge.x2) / 2;
-                const my = (edge.y1 + edge.y2) / 2;
-                return (
-                  <g
-                    data-super-edge-delete
-                    transform={`translate(${mx}, ${my})`}
-                    style={{ pointerEvents: 'auto', cursor: 'pointer' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void deleteSelectedEdge();
-                    }}
-                  >
-                    <circle r={9} fill="hsl(var(--paper))" stroke="hsl(var(--ink-1))" strokeWidth={1} />
-                    <text
-                      x={0}
-                      y={1}
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      fontSize={11}
-                      fontFamily="var(--font-mono)"
-                      fill="hsl(var(--ink-1))"
+                    <path
+                      d={d}
+                      stroke="transparent"
+                      strokeWidth={EDGE_HIT_WIDTH}
+                      fill="none"
+                      style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEdgeId(edge.id);
+                      }}
                     >
-                      ×
-                    </text>
+                      <title>{`${edge.fromName} → ${edge.toName}  ·  ${kindLabel}`}</title>
+                    </path>
+                    <path
+                      d={d}
+                      stroke={edge.color}
+                      strokeWidth={selected ? EDGE_SELECTED_WIDTH : EDGE_DEFAULT_WIDTH}
+                      fill="none"
+                      opacity={selected ? 1 : 0.78}
+                      style={{ pointerEvents: 'none' }}
+                    />
                   </g>
                 );
-              })()}
-          </svg>
+              })}
+
+              {/* × delete badge at the selected edge's midpoint. Bigger
+                hit-target than the stroke itself so users can click it
+                without precise aim. */}
+              {selectedEdgeId &&
+                (() => {
+                  const edge = worldEdges.find((e) => e.id === selectedEdgeId);
+                  if (!edge) return null;
+                  const mx = (edge.x1 + edge.x2) / 2;
+                  const my = (edge.y1 + edge.y2) / 2;
+                  return (
+                    <g
+                      data-super-edge-delete
+                      transform={`translate(${mx}, ${my})`}
+                      style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void deleteSelectedEdge();
+                      }}
+                    >
+                      <circle
+                        r={9}
+                        fill="hsl(var(--paper))"
+                        stroke="hsl(var(--ink-1))"
+                        strokeWidth={1}
+                      />
+                      <text
+                        x={0}
+                        y={1}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize={11}
+                        fontFamily="var(--font-mono)"
+                        fill="hsl(var(--ink-1))"
+                      >
+                        ×
+                      </text>
+                    </g>
+                  );
+                })()}
+            </svg>
           )}
         </div>
 
@@ -2563,8 +2534,7 @@ export function SuperElementView() {
             <style>{`svg.super-viewport-edges[data-panning='1'] { visibility: hidden; }`}</style>
             {viewportEdgeGeom.map((edge) => {
               // Same click-focus boost as the world-space layer above.
-              const selected =
-                selectedEdgeId === edge.id || !!focusConnected?.edgeIds.has(edge.id);
+              const selected = selectedEdgeId === edge.id || !!focusConnected?.edgeIds.has(edge.id);
               const d = edgePath(edge.x1, edge.y1, edge.x2, edge.y2);
               const kindLabel = edge.kind ?? t('storyGraph.edge.uncategorized');
               return (
@@ -2609,7 +2579,12 @@ export function SuperElementView() {
                       void deleteSelectedEdge();
                     }}
                   >
-                    <circle r={9} fill="hsl(var(--paper))" stroke="hsl(var(--ink-1))" strokeWidth={1} />
+                    <circle
+                      r={9}
+                      fill="hsl(var(--paper))"
+                      stroke="hsl(var(--ink-1))"
+                      strokeWidth={1}
+                    />
                     <text
                       x={0}
                       y={1}
@@ -2685,304 +2660,307 @@ export function SuperElementView() {
 
       {/* Element popover — two-tier editor mirroring StoryGraphView's
           NodeCardPopover. Positioned fixed so pan/zoom don't drag it. */}
-      {activePopover && projectId && (() => {
-        const element = bookElements.find((el) => el.id === activePopover.elementId);
-        if (!element) return null;
-        const category = bookElementCategories.find((c) => c.id === element.categoryId);
-        const accent = category?.color ?? 'hsl(var(--ink-4))';
-        return (
-          <ElementCardPopover
-            element={element}
-            projectId={projectId}
-            userId={userId}
-            accentColor={accent}
-            anchorRect={activePopover.anchor}
-            onClose={() => setActivePopover(null)}
-            onOpenInEditor={(id) => {
-              setActivePopover(null);
-              openEntity({ entityType: 'element', id });
-              close();
-            }}
-          />
-        );
-      })()}
+      {activePopover &&
+        projectId &&
+        (() => {
+          const element = bookElements.find((el) => el.id === activePopover.elementId);
+          if (!element) return null;
+          const category = bookElementCategories.find((c) => c.id === element.categoryId);
+          const accent = category?.color ?? 'hsl(var(--ink-4))';
+          return (
+            <ElementCardPopover
+              element={element}
+              projectId={projectId}
+              userId={userId}
+              accentColor={accent}
+              anchorRect={activePopover.anchor}
+              onClose={() => setActivePopover(null)}
+              onOpenInEditor={(id) => {
+                setActivePopover(null);
+                openEntity({ entityType: 'element', id });
+                close();
+              }}
+            />
+          );
+        })()}
 
       {/* Pending link modal — confirms creation of a entity relation
           for a shift-click pairing. Captures an optional user-defined kind
           (free-form string, with suggestions sourced from existing kinds in
           the project so terminology drifts less). */}
-      {pendingLink && (() => {
-        const { source, target } = pendingLink;
-        const sourceName =
-          source.kind === 'element'
-            ? bookElements.find((e) => e.id === source.id)?.name ?? '?'
-            : bookNodes.find((n) => n.id === source.id)?.title ?? '?';
-        const targetName =
-          target.kind === 'element'
-            ? bookElements.find((e) => e.id === target.id)?.name ?? '?'
-            : bookNodes.find((n) => n.id === target.id)?.title ?? '?';
-        const kindLabel = (k: 'element' | 'node') =>
-          k === 'element' ? t('superElement.kind.element') : t('superElement.kind.chapter');
-        // Distinct existing kinds (named only — never the uncategorised
-        // sentinel) for the input's suggestion dropdown.
-        const existingKinds = availableKinds.filter((k) => k !== UNCATEGORIZED_KIND);
-        const filter = pendingLinkKind.trim().toLowerCase();
-        const matches = filter
-          ? existingKinds.filter((k) => k.toLowerCase().includes(filter))
-          : existingKinds;
-        return (
-          <>
-            <div
-              data-super-modal
-              style={{
-                position: 'fixed',
-                inset: 0,
-                background: 'hsl(var(--ink-1) / 0.18)',
-                backdropFilter: 'blur(2px)',
-                zIndex: 310,
-              }}
-              onClick={() => setPendingLink(null)}
-            />
-            <div
-              data-super-modal
-              role="dialog"
-              aria-label={t('storyGraph.edge.newTitle')}
-              style={{
-                position: 'fixed',
-                left: '50%',
-                top: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: 440,
-                background: 'hsl(var(--paper))',
-                border: '1px solid hsl(var(--rule))',
-                borderRadius: 4,
-                boxShadow: '0 8px 28px hsl(var(--ink-1) / 0.18)',
-                zIndex: 311,
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
+      {pendingLink &&
+        (() => {
+          const { source, target } = pendingLink;
+          const sourceName =
+            source.kind === 'element'
+              ? (bookElements.find((e) => e.id === source.id)?.name ?? '?')
+              : (bookNodes.find((n) => n.id === source.id)?.title ?? '?');
+          const targetName =
+            target.kind === 'element'
+              ? (bookElements.find((e) => e.id === target.id)?.name ?? '?')
+              : (bookNodes.find((n) => n.id === target.id)?.title ?? '?');
+          const kindLabel = (k: 'element' | 'node') =>
+            k === 'element' ? t('superElement.kind.element') : t('superElement.kind.chapter');
+          // Distinct existing kinds (named only — never the uncategorised
+          // sentinel) for the input's suggestion dropdown.
+          const existingKinds = availableKinds.filter((k) => k !== UNCATEGORIZED_KIND);
+          const filter = pendingLinkKind.trim().toLowerCase();
+          const matches = filter
+            ? existingKinds.filter((k) => k.toLowerCase().includes(filter))
+            : existingKinds;
+          return (
+            <>
               <div
+                data-super-modal
                 style={{
-                  padding: '14px 18px 8px',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.12em',
-                  color: 'hsl(var(--ink-3))',
-                  borderBottom: '1px solid hsl(var(--rule))',
+                  position: 'fixed',
+                  inset: 0,
+                  background: 'hsl(var(--ink-1) / 0.18)',
+                  backdropFilter: 'blur(2px)',
+                  zIndex: 310,
                 }}
-              >
-                {t('superElement.manualRelationTitle')}
-              </div>
+                onClick={() => setPendingLink(null)}
+              />
               <div
+                data-super-modal
+                role="dialog"
+                aria-label={t('storyGraph.edge.newTitle')}
                 style={{
-                  padding: '14px 18px',
+                  position: 'fixed',
+                  left: '50%',
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: 440,
+                  background: 'hsl(var(--paper))',
+                  border: '1px solid hsl(var(--rule))',
+                  borderRadius: 4,
+                  boxShadow: '0 8px 28px hsl(var(--ink-1) / 0.18)',
+                  zIndex: 311,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 8,
-                  fontFamily: 'var(--font-serif)',
-                  fontSize: 13,
-                  color: 'hsl(var(--ink-1))',
-                  lineHeight: 1.5,
                 }}
               >
-                <div>
-                  <span style={{ color: 'hsl(var(--ink-4))', marginRight: 6 }}>
-                    [{kindLabel(source.kind)}]
-                  </span>
-                  <strong style={{ fontWeight: 500 }}>{sourceName}</strong>
+                <div
+                  style={{
+                    padding: '14px 18px 8px',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.12em',
+                    color: 'hsl(var(--ink-3))',
+                    borderBottom: '1px solid hsl(var(--rule))',
+                  }}
+                >
+                  {t('superElement.manualRelationTitle')}
                 </div>
                 <div
                   style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 10,
-                    color: 'hsl(var(--ink-4))',
-                    letterSpacing: '0.1em',
+                    padding: '14px 18px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    fontFamily: 'var(--font-serif)',
+                    fontSize: 13,
+                    color: 'hsl(var(--ink-1))',
+                    lineHeight: 1.5,
                   }}
                 >
-                  {t('superElement.relationVerb')}
+                  <div>
+                    <span style={{ color: 'hsl(var(--ink-4))', marginRight: 6 }}>
+                      [{kindLabel(source.kind)}]
+                    </span>
+                    <strong style={{ fontWeight: 500 }}>{sourceName}</strong>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 10,
+                      color: 'hsl(var(--ink-4))',
+                      letterSpacing: '0.1em',
+                    }}
+                  >
+                    {t('superElement.relationVerb')}
+                  </div>
+                  <div>
+                    <span style={{ color: 'hsl(var(--ink-4))', marginRight: 6 }}>
+                      [{kindLabel(target.kind)}]
+                    </span>
+                    <strong style={{ fontWeight: 500 }}>{targetName}</strong>
+                  </div>
                 </div>
-                <div>
-                  <span style={{ color: 'hsl(var(--ink-4))', marginRight: 6 }}>
-                    [{kindLabel(target.kind)}]
-                  </span>
-                  <strong style={{ fontWeight: 500 }}>{targetName}</strong>
-                </div>
-              </div>
 
-              {/* Kind input + suggestions. Same shape as StoryGraphView's
+                {/* Kind input + suggestions. Same shape as StoryGraphView's
                   new-edge dialog: focus shows suggestions; mousedown on a
                   suggestion fills the input without losing focus. */}
-              <div style={{ padding: '0 18px 14px' }}>
-                <div
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 9.5,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.12em',
-                    color: 'hsl(var(--ink-4))',
-                    marginBottom: 4,
-                  }}
-                >
-                  {t('storyGraph.edge.kindLabel')}
-                </div>
-                <div
-                  style={{ position: 'relative' }}
-                  onFocus={() => setPendingLinkSuggestOpen(true)}
-                  onBlur={(e) => {
-                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-                      setPendingLinkSuggestOpen(false);
-                    }
-                  }}
-                >
-                  <input
-                    autoFocus
-                    type="text"
-                    value={pendingLinkKind}
-                    placeholder={t('storyGraph.edge.kindPlaceholder')}
-                    onChange={(e) => setPendingLinkKind(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        void confirmPendingLink();
-                        return;
-                      }
-                      if (e.key === 'Escape') {
-                        // First ESC blurs the input; central ESC handler
-                        // (window-bubble) gets a second press to close.
-                        e.preventDefault();
-                        e.stopPropagation();
-                        (e.currentTarget as HTMLInputElement).blur();
-                      }
-                    }}
+                <div style={{ padding: '0 18px 14px' }}>
+                  <div
                     style={{
-                      width: '100%',
-                      border: '1px solid hsl(var(--rule))',
-                      borderRadius: 3,
-                      padding: '6px 10px',
-                      fontFamily: 'var(--font-serif)',
-                      fontSize: 13,
-                      color: 'hsl(var(--ink-1))',
-                      background: 'hsl(var(--paper))',
-                      outline: 'none',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 9.5,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.12em',
+                      color: 'hsl(var(--ink-4))',
+                      marginBottom: 4,
                     }}
-                  />
-                  {pendingLinkSuggestOpen && matches.length > 0 && (
-                    <div
-                      role="listbox"
+                  >
+                    {t('storyGraph.edge.kindLabel')}
+                  </div>
+                  <div
+                    style={{ position: 'relative' }}
+                    onFocus={() => setPendingLinkSuggestOpen(true)}
+                    onBlur={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                        setPendingLinkSuggestOpen(false);
+                      }
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      type="text"
+                      value={pendingLinkKind}
+                      placeholder={t('storyGraph.edge.kindPlaceholder')}
+                      onChange={(e) => setPendingLinkKind(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void confirmPendingLink();
+                          return;
+                        }
+                        if (e.key === 'Escape') {
+                          // First ESC blurs the input; central ESC handler
+                          // (window-bubble) gets a second press to close.
+                          e.preventDefault();
+                          e.stopPropagation();
+                          (e.currentTarget as HTMLInputElement).blur();
+                        }
+                      }}
                       style={{
-                        position: 'absolute',
-                        left: 0,
-                        right: 0,
-                        top: 'calc(100% + 4px)',
-                        background: 'hsl(var(--paper))',
+                        width: '100%',
                         border: '1px solid hsl(var(--rule))',
                         borderRadius: 3,
-                        maxHeight: 160,
-                        overflowY: 'auto',
-                        boxShadow: '0 4px 14px hsl(var(--ink-1) / 0.1)',
-                        zIndex: 312,
+                        padding: '6px 10px',
+                        fontFamily: 'var(--font-serif)',
+                        fontSize: 13,
+                        color: 'hsl(var(--ink-1))',
+                        background: 'hsl(var(--paper))',
+                        outline: 'none',
                       }}
-                    >
-                      {matches.map((k) => (
-                        <button
-                          key={k}
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setPendingLinkKind(k);
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            width: '100%',
-                            background: 'transparent',
-                            border: 'none',
-                            padding: '6px 10px',
-                            cursor: 'pointer',
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: 10,
-                            color: 'hsl(var(--ink-2))',
-                            letterSpacing: '0.08em',
-                            textAlign: 'left',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'transparent';
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: 1.5,
-                              background: colorForKind(k),
+                    />
+                    {pendingLinkSuggestOpen && matches.length > 0 && (
+                      <div
+                        role="listbox"
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          top: 'calc(100% + 4px)',
+                          background: 'hsl(var(--paper))',
+                          border: '1px solid hsl(var(--rule))',
+                          borderRadius: 3,
+                          maxHeight: 160,
+                          overflowY: 'auto',
+                          boxShadow: '0 4px 14px hsl(var(--ink-1) / 0.1)',
+                          zIndex: 312,
+                        }}
+                      >
+                        {matches.map((k) => (
+                          <button
+                            key={k}
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setPendingLinkKind(k);
                             }}
-                          />
-                          {k}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              width: '100%',
+                              background: 'transparent',
+                              border: 'none',
+                              padding: '6px 10px',
+                              cursor: 'pointer',
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 10,
+                              color: 'hsl(var(--ink-2))',
+                              letterSpacing: '0.08em',
+                              textAlign: 'left',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'transparent';
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: 1.5,
+                                background: colorForKind(k),
+                              }}
+                            />
+                            {k}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    padding: '10px 18px 14px',
+                    justifyContent: 'flex-end',
+                    borderTop: '1px solid hsl(var(--rule))',
+                    background: 'hsl(var(--paper-deep) / 0.5)',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setPendingLink(null)}
+                    style={{
+                      border: '1px solid hsl(var(--rule))',
+                      background: 'transparent',
+                      color: 'hsl(var(--ink-2))',
+                      padding: '4px 14px',
+                      borderRadius: 3,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 10,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.12em',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void confirmPendingLink();
+                    }}
+                    style={{
+                      border: '1px solid hsl(var(--ink-1))',
+                      background: 'hsl(var(--ink-1))',
+                      color: 'hsl(var(--paper))',
+                      padding: '4px 14px',
+                      borderRadius: 3,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 10,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.12em',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {t('storyGraph.edge.create')}
+                  </button>
                 </div>
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  padding: '10px 18px 14px',
-                  justifyContent: 'flex-end',
-                  borderTop: '1px solid hsl(var(--rule))',
-                  background: 'hsl(var(--paper-deep) / 0.5)',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setPendingLink(null)}
-                  style={{
-                    border: '1px solid hsl(var(--rule))',
-                    background: 'transparent',
-                    color: 'hsl(var(--ink-2))',
-                    padding: '4px 14px',
-                    borderRadius: 3,
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 10,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.12em',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void confirmPendingLink();
-                  }}
-                  style={{
-                    border: '1px solid hsl(var(--ink-1))',
-                    background: 'hsl(var(--ink-1))',
-                    color: 'hsl(var(--paper))',
-                    padding: '4px 14px',
-                    borderRadius: 3,
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 10,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.12em',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {t('storyGraph.edge.create')}
-                </button>
-              </div>
-            </div>
-          </>
-        );
-      })()}
+            </>
+          );
+        })()}
 
       {/* Drift bottom-affordance — shared DriftPanel shell. Cards are
           rendered inline below so the click / shift-click / popover wiring
@@ -3032,13 +3010,9 @@ export function SuperElementView() {
                     : node.title || t('common.untitled')
                 }
               >
-                <div className="drift-card__num">
-                  §{String(node.bookOrder).padStart(2, '0')}
-                </div>
+                <div className="drift-card__num">§{String(node.bookOrder).padStart(2, '0')}</div>
                 <div className="drift-card__title">{node.title || t('common.untitled')}</div>
-                {node.summary && (
-                  <div className="drift-card__summary">{node.summary}</div>
-                )}
+                {node.summary && <div className="drift-card__summary">{node.summary}</div>}
               </div>
             );
           })}
@@ -3064,16 +3038,8 @@ export function SuperElementView() {
             const kindLabel = edge.kind ?? t('storyGraph.edge.uncategorized');
             return (
               <g key={edge.id} className={`drift-edge${selected ? ' is-selected' : ''}`}>
-                <path
-                  d={d}
-                  className="drift-edge__halo"
-                  stroke={edge.color}
-                />
-                <path
-                  d={d}
-                  className="drift-edge__line"
-                  stroke={edge.color}
-                />
+                <path d={d} className="drift-edge__halo" stroke={edge.color} />
+                <path d={d} className="drift-edge__line" stroke={edge.color} />
                 <path
                   d={d}
                   className="drift-edge__hit"
@@ -3107,7 +3073,12 @@ export function SuperElementView() {
                     void deleteSelectedEdge();
                   }}
                 >
-                  <circle r={10} fill="hsl(var(--paper))" stroke="hsl(var(--ink-1))" strokeWidth={1} />
+                  <circle
+                    r={10}
+                    fill="hsl(var(--paper))"
+                    stroke="hsl(var(--ink-1))"
+                    strokeWidth={1}
+                  />
                   <text
                     x={0}
                     y={1}
@@ -3128,70 +3099,77 @@ export function SuperElementView() {
       {/* Drift node popover — clicking a drift card opens the two-tier
           NodeCardPopover (same component StoryGraphView uses), so drift nodes
           get the same name + summary + body editor flow as chapter nodes. */}
-      {activeDriftPopover && projectId && (() => {
-        const node = bookNodes.find((n) => n.id === activeDriftPopover.nodeId);
-        if (!node) return null;
-        return (
-          <NodeCardPopover
-            node={node}
-            projectId={projectId}
-            userId={userId}
-            anchorRect={activeDriftPopover.anchor}
-            onClose={() => setActiveDriftPopover(null)}
-            onOpenInEditor={(id) => {
-              setActiveDriftPopover(null);
-              openEntity({ entityType: 'node', id });
-              close();
-            }}
-          />
-        );
-      })()}
+      {activeDriftPopover &&
+        projectId &&
+        (() => {
+          const node = bookNodes.find((n) => n.id === activeDriftPopover.nodeId);
+          if (!node) return null;
+          return (
+            <NodeCardPopover
+              node={node}
+              projectId={projectId}
+              userId={userId}
+              anchorRect={activeDriftPopover.anchor}
+              onClose={() => setActiveDriftPopover(null)}
+              onOpenInEditor={(id) => {
+                setActiveDriftPopover(null);
+                openEntity({ entityType: 'node', id });
+                close();
+              }}
+            />
+          );
+        })()}
 
-      {contextMenu?.kind === 'element' && (() => {
-        const el = bookElements.find((e) => e.id === contextMenu.elementId);
-        const category =
-          el?.categoryId != null
-            ? bookElementCategories.find((c) => c.id === el.categoryId) ?? null
-            : null;
-        const tags: Array<{ id: string; name: string; color?: string | null }> = [];
-        if (category) {
-          tags.push({
-            id: `cat-${category.id}`,
-            name: category.name || t('superElement.unnamedCategory'),
-            color: category.color,
-          });
-        } else if (el && el.categoryId == null) {
-          tags.push({ id: 'cat-none', name: t('superElement.uncategorized'), color: 'hsl(var(--ink-4))' });
-        }
-        const groupName = el?.groupName?.trim();
-        if (groupName) {
-          tags.push({ id: `grp-${groupName}`, name: groupName, color: 'hsl(var(--ink-4))' });
-        }
-        return (
-          <EntityCellContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            editorType="element"
-            header={{
-              title: contextMenu.elementName,
-              subtitle: el?.summary ?? undefined,
-              tags,
-            }}
-            extraGroups={[
-              [{ action: 'startEdgeFrom', label: t('superElement.startEdgeFromElement') }],
-            ]}
-            onAction={(action) => {
-              const eid = contextMenu.elementId;
-              if (action === 'startEdgeFrom') {
-                setLinkSource({ kind: 'element', id: eid });
-                return;
-              }
-              void dispatchEntityAction({ entityType: 'element', id: eid, action });
-            }}
-            onClose={() => setContextMenu(null)}
-          />
-        );
-      })()}
+      {contextMenu?.kind === 'element' &&
+        (() => {
+          const el = bookElements.find((e) => e.id === contextMenu.elementId);
+          const category =
+            el?.categoryId != null
+              ? (bookElementCategories.find((c) => c.id === el.categoryId) ?? null)
+              : null;
+          const tags: Array<{ id: string; name: string; color?: string | null }> = [];
+          if (category) {
+            tags.push({
+              id: `cat-${category.id}`,
+              name: category.name || t('superElement.unnamedCategory'),
+              color: category.color,
+            });
+          } else if (el && el.categoryId == null) {
+            tags.push({
+              id: 'cat-none',
+              name: t('superElement.uncategorized'),
+              color: 'hsl(var(--ink-4))',
+            });
+          }
+          const groupName = el?.groupName?.trim();
+          if (groupName) {
+            tags.push({ id: `grp-${groupName}`, name: groupName, color: 'hsl(var(--ink-4))' });
+          }
+          return (
+            <EntityCellContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              editorType="element"
+              header={{
+                title: contextMenu.elementName,
+                subtitle: el?.summary ?? undefined,
+                tags,
+              }}
+              extraGroups={[
+                [{ action: 'startEdgeFrom', label: t('superElement.startEdgeFromElement') }],
+              ]}
+              onAction={(action) => {
+                const eid = contextMenu.elementId;
+                if (action === 'startEdgeFrom') {
+                  setLinkSource({ kind: 'element', id: eid });
+                  return;
+                }
+                void dispatchEntityAction({ entityType: 'element', id: eid, action });
+              }}
+              onClose={() => setContextMenu(null)}
+            />
+          );
+        })()}
       {contextMenu?.kind === 'category' && (
         <EntityCellContextMenu
           x={contextMenu.x}
@@ -3218,9 +3196,7 @@ export function SuperElementView() {
             title: driftContextMenu.nodeTitle,
             subtitle: driftContextMenu.nodeSummary,
           }}
-          extraGroups={[
-            [{ action: 'startEdgeFrom', label: t('superElement.startEdgeFromDrift') }],
-          ]}
+          extraGroups={[[{ action: 'startEdgeFrom', label: t('superElement.startEdgeFromDrift') }]]}
           onAction={(action) => {
             const nid = driftContextMenu.nodeId;
             if (action === 'startEdgeFrom') {

@@ -47,10 +47,7 @@ type GraphEdge = {
   kind: string | null;
 };
 
-function toGraphEdges(
-  refs: EntityRelationLink[],
-  nodeIds: Set<string>,
-): GraphEdge[] {
+function toGraphEdges(refs: EntityRelationLink[], nodeIds: Set<string>): GraphEdge[] {
   const out: GraphEdge[] = [];
   for (const ref of refs) {
     if (ref.fromKind !== 'node' || ref.toKind !== 'node') continue;
@@ -192,11 +189,8 @@ export function StoryGraphView() {
   // keep their call shape. `addRelation` returns the new EntityRelationLink;
   // `removeRelation` takes an id; both are already optimistic-update aware.
   const createEdge = useCallback(
-    (
-      sourceNodeId: string,
-      targetNodeId: string,
-      kind: string | null,
-    ) => addRelation('node', sourceNodeId, 'node', targetNodeId, { kind }),
+    (sourceNodeId: string, targetNodeId: string, kind: string | null) =>
+      addRelation('node', sourceNodeId, 'node', targetNodeId, { kind }),
     [addRelation],
   );
   const deleteEdge = useCallback((id: string) => removeRelation(id), [removeRelation]);
@@ -240,17 +234,14 @@ export function StoryGraphView() {
   // Drift card right-click — mirrors SuperElementView's drift cmenu: same
   // unified EntityCellContextMenu, with `startEdgeFrom` appended so users
   // can wire a drift into a chapter from the bottom drawer.
-  const [driftContextMenu, setDriftContextMenu] = useState<
-    | {
-        x: number;
-        y: number;
-        nodeId: string;
-        nodeTitle?: string;
-        nodeSummary?: string;
-        writingStatus: BookNode['writingStatus'];
-      }
-    | null
-  >(null);
+  const [driftContextMenu, setDriftContextMenu] = useState<{
+    x: number;
+    y: number;
+    nodeId: string;
+    nodeTitle?: string;
+    nodeSummary?: string;
+    writingStatus: BookNode['writingStatus'];
+  } | null>(null);
   const [newEdgePair, setNewEdgePair] = useState<{ source: string; target: string } | null>(null);
   const [newEdgeKind, setNewEdgeKind] = useState('');
   // Suggestions popover for the new-edge dialog's kind input. Default
@@ -349,8 +340,7 @@ export function StoryGraphView() {
   const isNodeEdgeSelected = useCallback(
     (nodeId: string) =>
       !!selectedEdgeEndpoints &&
-      (selectedEdgeEndpoints.source === nodeId ||
-        selectedEdgeEndpoints.target === nodeId),
+      (selectedEdgeEndpoints.source === nodeId || selectedEdgeEndpoints.target === nodeId),
     [selectedEdgeEndpoints],
   );
 
@@ -455,8 +445,7 @@ export function StoryGraphView() {
       if (opened.length === 0) return;
       // Most-recent-first; the top of the stack closes.
       opened.sort(
-        ([a], [b]) =>
-          (overlayOpenTimes.current[b] ?? 0) - (overlayOpenTimes.current[a] ?? 0),
+        ([a], [b]) => (overlayOpenTimes.current[b] ?? 0) - (overlayOpenTimes.current[a] ?? 0),
       );
       opened[0][2]();
     };
@@ -474,9 +463,7 @@ export function StoryGraphView() {
   const nodeStorylines = useCallback(
     (nodeId: string): Storyline[] => {
       const ids = nodeStorylineMapping[nodeId] || [];
-      return ids
-        .map((id) => storylineById.get(id))
-        .filter((sl): sl is Storyline => Boolean(sl));
+      return ids.map((id) => storylineById.get(id)).filter((sl): sl is Storyline => Boolean(sl));
     },
     [nodeStorylineMapping, storylineById],
   );
@@ -633,7 +620,8 @@ export function StoryGraphView() {
     GRAPH_CONFIG.LABEL_PAD;
 
   const orderToX = useCallback(
-    (order: number) => GRAPH_CONFIG.CANVAS_PADDING_X + (order - orderSpan.min) * GRAPH_CONFIG.GRID_UNIT,
+    (order: number) =>
+      GRAPH_CONFIG.CANVAS_PADDING_X + (order - orderSpan.min) * GRAPH_CONFIG.GRID_UNIT,
     [orderSpan.min],
   );
 
@@ -647,7 +635,7 @@ export function StoryGraphView() {
         const ord = orderOf(node);
         if (ord === null) return null;
         const mainId = primaryStorylineId(node);
-        const sl = mainId ? storylineById.get(mainId) ?? null : null;
+        const sl = mainId ? (storylineById.get(mainId) ?? null) : null;
         return {
           ...node,
           storyline: sl,
@@ -658,7 +646,15 @@ export function StoryGraphView() {
         } as PositionedNode;
       })
       .filter((n): n is PositionedNode => Boolean(n));
-  }, [placedNodes, primaryStorylineId, laneRowForNode, orderOf, storylineById, nodeStorylines, orderToX]);
+  }, [
+    placedNodes,
+    primaryStorylineId,
+    laneRowForNode,
+    orderOf,
+    storylineById,
+    nodeStorylines,
+    orderToX,
+  ]);
 
   // ---- Cross-storyline trails ----
   // Same semantic as BottomTimeline: a node on its main storyline appears
@@ -743,8 +739,7 @@ export function StoryGraphView() {
     type KindInfo = { storyline: boolean; drift: boolean };
     const info = new Map<string | null, KindInfo>();
     for (const e of nodeEdges) {
-      const isDriftEdge =
-        driftIds.has(e.sourceNodeId) || driftIds.has(e.targetNodeId);
+      const isDriftEdge = driftIds.has(e.sourceNodeId) || driftIds.has(e.targetNodeId);
       const cur = info.get(e.kind) ?? { storyline: false, drift: false };
       if (isDriftEdge) cur.drift = true;
       else cur.storyline = true;
@@ -844,9 +839,7 @@ export function StoryGraphView() {
   // semantics with BottomTimeline's handleSpread.
   const handleSpread = useCallback(async () => {
     if (placedNodes.length < 2) return;
-    const sorted = placedNodes
-      .slice()
-      .sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0));
+    const sorted = placedNodes.slice().sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0));
     const SPACING = CHAPTER_ORDER_STRIDE;
     const startOrder = Math.min(orderOf(sorted[0]) ?? 1, 1);
     // Full old→new maps (not just the changed subset): the act-boundary
@@ -999,10 +992,8 @@ export function StoryGraphView() {
       if (index === draggedDrift.index) return '';
       const from = draggedDrift.index;
       const to = driftDropIndex;
-      if (from < to && index > from && index < to)
-        return `translateX(-${DRIFT_SLOT_WIDTH}px)`;
-      if (from > to && index >= to && index < from)
-        return `translateX(${DRIFT_SLOT_WIDTH}px)`;
+      if (from < to && index > from && index < to) return `translateX(-${DRIFT_SLOT_WIDTH}px)`;
+      if (from > to && index >= to && index < from) return `translateX(${DRIFT_SLOT_WIDTH}px)`;
       return '';
     },
     [draggedDrift, driftDropIndex],
@@ -1053,11 +1044,9 @@ export function StoryGraphView() {
         const filterKey = edge.kind ?? UNCATEGORIZED_KIND;
         if (hiddenKinds.has(filterKey)) continue;
         const srcEl =
-          driftCardRefs.current.get(edge.sourceNodeId) ??
-          tileRefs.current.get(edge.sourceNodeId);
+          driftCardRefs.current.get(edge.sourceNodeId) ?? tileRefs.current.get(edge.sourceNodeId);
         const tgtEl =
-          driftCardRefs.current.get(edge.targetNodeId) ??
-          tileRefs.current.get(edge.targetNodeId);
+          driftCardRefs.current.get(edge.targetNodeId) ?? tileRefs.current.get(edge.targetNodeId);
         if (!srcEl || !tgtEl) continue;
         const r1 = srcEl.getBoundingClientRect();
         const r2 = tgtEl.getBoundingClientRect();
@@ -1073,10 +1062,7 @@ export function StoryGraphView() {
         const k = edge.kind ?? UNCATEGORIZED_META_KEY;
         const override = edgeKindMeta.meta[k]?.color;
         const storylineColor =
-          override ||
-          srcPos?.storyline?.color ||
-          tgtPos?.storyline?.color ||
-          'hsl(var(--accent))';
+          override || srcPos?.storyline?.color || tgtPos?.storyline?.color || 'hsl(var(--accent))';
         out.push({
           id: edge.id,
           kind: edge.kind,
@@ -1198,8 +1184,7 @@ export function StoryGraphView() {
     // tile rather than its left edge: the drag ghost is centered on the
     // cursor, so centering the drop keeps ghost + indicator + final
     // tile visually aligned.
-    const cursorTrackX =
-      cursorContentX - GRAPH_CONFIG.RAIL_WIDTH - GRAPH_CONFIG.CANVAS_PADDING_X;
+    const cursorTrackX = cursorContentX - GRAPH_CONFIG.RAIL_WIDTH - GRAPH_CONFIG.CANVAS_PADDING_X;
     const tileWidth = GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT;
     const tileLeftTrackX = cursorTrackX - tileWidth / 2;
     const order = Math.max(
@@ -1257,9 +1242,7 @@ export function StoryGraphView() {
         const existingMemberIds = nodeStorylines(draggedNode.id).map((sl) => sl.id);
         const nextMemberIds = existingMemberIds.includes(targetRow)
           ? existingMemberIds.filter((id) => id !== currentMain)
-          : existingMemberIds
-              .filter((id) => id !== currentMain)
-              .concat(targetRow);
+          : existingMemberIds.filter((id) => id !== currentMain).concat(targetRow);
         await setNodeStorylines(draggedNode.id, nextMemberIds, {
           primaryStorylineId: targetRow,
         });
@@ -1403,6 +1386,7 @@ export function StoryGraphView() {
             {isNarrative && (
               <div
                 className="graph-head__unplaced super-view-head__no-drag"
+                data-tauri-drag-region="false"
                 ref={unplacedPopoverRef}
               >
                 <button
@@ -1420,6 +1404,7 @@ export function StoryGraphView() {
                 {drawerOpen && (
                   <div
                     className="graph-head__unplaced-popover super-view-head__no-drag"
+                    data-tauri-drag-region="false"
                     role="menu"
                   >
                     {unplacedNodes.length === 0 ? (
@@ -1472,10 +1457,7 @@ export function StoryGraphView() {
           <>
             {nodeEdges.length === 0 && (
               <div className="graph-head__filters">
-                <div
-                  className="graph-head__filter is-hint"
-                  title={t('storyGraph.edge.hintTitle')}
-                >
+                <div className="graph-head__filter is-hint" title={t('storyGraph.edge.hintTitle')}>
                   {t('storyGraph.edge.hint')}
                 </div>
               </div>
@@ -1490,7 +1472,10 @@ export function StoryGraphView() {
                 {regularKinds.map((kind) => renderKindChip(kind))}
               </div>
             )}
-            <div className="graph-head__edge-mgr-wrap super-view-head__no-drag">
+            <div
+              className="graph-head__edge-mgr-wrap super-view-head__no-drag"
+              data-tauri-drag-region="false"
+            >
               <button
                 ref={edgeMgrBtnRef}
                 type="button"
@@ -1605,10 +1590,7 @@ export function StoryGraphView() {
               Rail cell is sticky-left + sticky-top (the corner); the
               track cell carries the draggable pin heads/labels. */}
           {isNarrative && (
-            <div
-              className="graph-axis-row"
-              style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}
-            >
+            <div className="graph-axis-row" style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}>
               <div
                 className="graph-axis-rail-cell"
                 style={{ width: GRAPH_CONFIG.RAIL_WIDTH }}
@@ -1687,9 +1669,7 @@ export function StoryGraphView() {
               >
                 {markers
                   .filter(
-                    (m) =>
-                      m.narrativeOrder >= orderSpan.min &&
-                      m.narrativeOrder <= orderSpan.max,
+                    (m) => m.narrativeOrder >= orderSpan.min && m.narrativeOrder <= orderSpan.max,
                   )
                   .map((m) => (
                     <GraphTimelinePin
@@ -1763,8 +1743,7 @@ export function StoryGraphView() {
                   style={{
                     left: GRAPH_CONFIG.RAIL_WIDTH + x,
                     height:
-                      GRAPH_CONFIG.AXIS_HEIGHT +
-                      lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT,
+                      GRAPH_CONFIG.AXIS_HEIGHT + lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT,
                   }}
                   aria-hidden
                 />
@@ -1814,11 +1793,8 @@ export function StoryGraphView() {
                 : lane.id === UNAFFILIATED_LANE_ID
                   ? unaffiliatedChapters
                   : (sortedNodesByStoryline.get(lane.id) ?? []);
-            const tilesInLane = positionedNodes.filter(
-              (n) => n.rowIndex === rowIdx,
-            );
-            const dimmed =
-              !!draggedNode && draggedFromDrawer && !canDropOnStoryline(lane.id);
+            const tilesInLane = positionedNodes.filter((n) => n.rowIndex === rowIdx);
+            const dimmed = !!draggedNode && draggedFromDrawer && !canDropOnStoryline(lane.id);
             return (
               <div
                 key={lane.id}
@@ -1851,20 +1827,14 @@ export function StoryGraphView() {
                   }}
                 >
                   <div className="graph-rail__name">
-                    <span
-                      className="graph-rail__name-dot"
-                      style={{ background: lane.color }}
-                    />
+                    <span className="graph-rail__name-dot" style={{ background: lane.color }} />
                     <span>{lane.name}</span>
                   </div>
                   <div className="graph-rail__meta">
                     {t('storyGraph.lane.chapterCount', { count: laneNodes.length })}
                   </div>
                 </div>
-                <div
-                  className="graph-track-cell"
-                  style={{ width: canvasContentWidth }}
-                >
+                <div className="graph-track-cell" style={{ width: canvasContentWidth }}>
                   {tilesInLane.map((node) => {
                     const status = node.writingStatus;
                     const isDiscarded = status === 'discarded';
@@ -1951,7 +1921,9 @@ export function StoryGraphView() {
                         })}
                       >
                         <div className="graph-tile__stripe" />
-                        <div className="graph-tile__num">§ {String(node.bookOrder).padStart(2, '0')}</div>
+                        <div className="graph-tile__num">
+                          § {String(node.bookOrder).padStart(2, '0')}
+                        </div>
                         <div className="graph-tile__title">
                           {node.title || t('common.untitled')}
                         </div>
@@ -2005,10 +1977,7 @@ export function StoryGraphView() {
                 const d = `M ${x1} ${yy1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${yy2}`;
                 const selected = isEdgeSelected(edge.id);
                 return (
-                  <g
-                    key={edge.id}
-                    className={`graph-edge-grp${selected ? ' is-selected' : ''}`}
-                  >
+                  <g key={edge.id} className={`graph-edge-grp${selected ? ' is-selected' : ''}`}>
                     <path
                       d={d}
                       stroke="transparent"
@@ -2070,21 +2039,26 @@ export function StoryGraphView() {
           {/* Drop indicator while dragging — `indicatorX` is already the
               cursor's full scroll-content x (includes the rail), so it
               positions directly without an extra offset. */}
-          {dragOver && draggedNode && dragOver.storylineId && (() => {
-            const rowIdx = storylineRowIndex.get(dragOver.storylineId) ?? 0;
-            const rowStoryline = storylineById.get(dragOver.storylineId);
-            return (
-              <div
-                className="graph-drop-indicator"
-                style={{
-                  left: dragOver.indicatorX,
-                  top: (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : actRailHeight) + rowIdx * GRAPH_CONFIG.TRACK_HEIGHT,
-                  height: GRAPH_CONFIG.TRACK_HEIGHT,
-                  background: rowStoryline?.color || 'hsl(var(--accent))',
-                }}
-              />
-            );
-          })()}
+          {dragOver &&
+            draggedNode &&
+            dragOver.storylineId &&
+            (() => {
+              const rowIdx = storylineRowIndex.get(dragOver.storylineId) ?? 0;
+              const rowStoryline = storylineById.get(dragOver.storylineId);
+              return (
+                <div
+                  className="graph-drop-indicator"
+                  style={{
+                    left: dragOver.indicatorX,
+                    top:
+                      (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : actRailHeight) +
+                      rowIdx * GRAPH_CONFIG.TRACK_HEIGHT,
+                    height: GRAPH_CONFIG.TRACK_HEIGHT,
+                    background: rowStoryline?.color || 'hsl(var(--accent))',
+                  }}
+                />
+              );
+            })()}
         </div>
       </div>
 
@@ -2240,13 +2214,9 @@ export function StoryGraphView() {
                   count: node.wordCount ?? 0,
                 })}
               >
-                <div className="drift-card__num">
-                  §{String(node.bookOrder).padStart(2, '0')}
-                </div>
+                <div className="drift-card__num">§{String(node.bookOrder).padStart(2, '0')}</div>
                 <div className="drift-card__title">{node.title || t('common.untitled')}</div>
-                {node.summary && (
-                  <div className="drift-card__summary">{node.summary}</div>
-                )}
+                {node.summary && <div className="drift-card__summary">{node.summary}</div>}
               </div>
             );
           })
@@ -2276,10 +2246,7 @@ export function StoryGraphView() {
             const d = `M ${g.x1} ${g.y1} C ${g.x1} ${midY}, ${g.x2} ${midY}, ${g.x2} ${g.y2}`;
             const selected = isEdgeSelected(g.id);
             return (
-              <g
-                key={g.id}
-                className={`graph-drift-edge${selected ? ' is-selected' : ''}`}
-              >
+              <g key={g.id} className={`graph-drift-edge${selected ? ' is-selected' : ''}`}>
                 <path
                   className="graph-drift-edge__hit"
                   d={d}
@@ -2294,11 +2261,7 @@ export function StoryGraphView() {
                   <title>{g.kind ?? t('storyGraph.edge.uncategorized')}</title>
                 </path>
                 <path className="graph-drift-edge__halo" d={d} stroke={g.color} />
-                <path
-                  className="graph-drift-edge__line"
-                  d={d}
-                  stroke={g.color}
-                />
+                <path className="graph-drift-edge__line" d={d} stroke={g.color} />
               </g>
             );
           })}
@@ -2334,14 +2297,15 @@ export function StoryGraphView() {
           );
         })()}
 
-
       {/* Status banner when a relation-source tile has been picked. */}
       {linkSource && !newEdgePair && (
         <div className="graph-linkbar">
           <span>{t('storyGraph.edge.linkSourcePrefix')}</span>
           <strong>{nodeById.get(linkSource)?.title || t('common.untitled')}</strong>
           <span>{t('storyGraph.edge.linkSourceSuffix')}</span>
-          <button onClick={() => setLinkSource(null)} title={t('common.cancel')}>×</button>
+          <button onClick={() => setLinkSource(null)} title={t('common.cancel')}>
+            ×
+          </button>
         </div>
       )}
 
@@ -2398,11 +2362,7 @@ export function StoryGraphView() {
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     const trimmed = newEdgeKind.trim();
-                    void createEdge(
-                      newEdgePair.source,
-                      newEdgePair.target,
-                      trimmed || null,
-                    );
+                    void createEdge(newEdgePair.source, newEdgePair.target, trimmed || null);
                     setNewEdgePair(null);
                   }
                 }}
@@ -2411,39 +2371,40 @@ export function StoryGraphView() {
                   so picking a kind here looks like the management menu.
                   Only opens when the input has focus; filtered against
                   the current input. */}
-              {newEdgeSuggestOpen && (() => {
-                const allKinds = [...regularKinds, ...driftOnlyKinds].filter(
-                  (k) => k !== UNCATEGORIZED_KIND,
-                );
-                const filter = newEdgeKind.trim().toLowerCase();
-                const matches = filter
-                  ? allKinds.filter((k) => k.toLowerCase().includes(filter))
-                  : allKinds;
-                if (matches.length === 0) return null;
-                return (
-                  <div className="graph-newedge__suggestions" role="listbox">
-                    {matches.map((k) => (
-                      <button
-                        key={k}
-                        type="button"
-                        className="graph-newedge__suggestion"
-                        onMouseDown={(e) => {
-                          // mousedown (not click) so the input doesn't
-                          // lose focus before we read the value.
-                          e.preventDefault();
-                          setNewEdgeKind(k);
-                        }}
-                      >
-                        <span
-                          className="graph-newedge__suggestion-dot"
-                          style={{ background: resolveKindColor(k) }}
-                        />
-                        <span>{k}</span>
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
+              {newEdgeSuggestOpen &&
+                (() => {
+                  const allKinds = [...regularKinds, ...driftOnlyKinds].filter(
+                    (k) => k !== UNCATEGORIZED_KIND,
+                  );
+                  const filter = newEdgeKind.trim().toLowerCase();
+                  const matches = filter
+                    ? allKinds.filter((k) => k.toLowerCase().includes(filter))
+                    : allKinds;
+                  if (matches.length === 0) return null;
+                  return (
+                    <div className="graph-newedge__suggestions" role="listbox">
+                      {matches.map((k) => (
+                        <button
+                          key={k}
+                          type="button"
+                          className="graph-newedge__suggestion"
+                          onMouseDown={(e) => {
+                            // mousedown (not click) so the input doesn't
+                            // lose focus before we read the value.
+                            e.preventDefault();
+                            setNewEdgeKind(k);
+                          }}
+                        >
+                          <span
+                            className="graph-newedge__suggestion-dot"
+                            style={{ background: resolveKindColor(k) }}
+                          />
+                          <span>{k}</span>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
             </div>
             <div className="graph-newedge__actions">
               <button onClick={() => setNewEdgePair(null)}>{t('common.cancel')}</button>
@@ -2451,11 +2412,7 @@ export function StoryGraphView() {
                 className="is-primary"
                 onClick={() => {
                   const trimmed = newEdgeKind.trim();
-                  void createEdge(
-                    newEdgePair.source,
-                    newEdgePair.target,
-                    trimmed || null,
-                  );
+                  void createEdge(newEdgePair.source, newEdgePair.target, trimmed || null);
                   setNewEdgePair(null);
                 }}
               >
@@ -2466,100 +2423,103 @@ export function StoryGraphView() {
         </div>
       )}
 
-      {contextMenu && contextMenu.kind === 'node' && (() => {
-        const node = bookNodes.find((n) => n.id === contextMenu.nodeId);
-        if (!node) return null;
-        const edgeCount = nodeEdges.filter(
-          (e) => e.sourceNodeId === contextMenu.nodeId || e.targetNodeId === contextMenu.nodeId,
-        ).length;
-        const hasAnyStoryline = (contextMenu.nodeStorylines?.length ?? 0) > 0;
-        return (
-          <EntityCellContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            editorType="node"
-            nodeStatusKind={isChapter(node) ? 'chapter' : 'drift'}
-            nodeWritingStatus={node.writingStatus}
-            header={{
-              title: contextMenu.nodeTitle ?? undefined,
-              subtitle: contextMenu.nodeSummary ?? undefined,
-              tags: contextMenu.nodeStorylines?.map((sl) => ({
-                id: sl.id,
-                name: sl.name,
-                color: sl.color,
-              })),
-            }}
-            extraGroups={[
-              [
-                ...(hasAnyStoryline
-                  ? [
-                      {
-                        action: 'moveToUnaffiliated',
-                        label: t('bottomTimeline.menu.moveToUnaffiliated'),
-                      },
-                    ]
-                  : []),
-                ...(isNarrative && contextMenu.hasNarrativeOrder
-                  ? [
-                      {
-                        action: 'detachFromNarrative',
-                        label: t('bottomTimeline.menu.detachFromNarrative'),
-                      },
-                    ]
-                  : []),
-              ],
-              [
-                { action: 'startEdgeFrom', label: t('storyGraph.menu.startEdgeFromNode') },
-                {
-                  action: 'deleteAllEdges',
-                  label: t('storyGraph.menu.deleteAllEdges', { count: edgeCount }),
-                  danger: true,
-                  disabled: edgeCount === 0,
-                },
-              ],
-            ]}
-            onAction={async (action) => {
-              const nid = contextMenu.nodeId;
-              try {
-                switch (action) {
-                  case 'moveToUnaffiliated':
-                    await updateNode(nid, { mainStorylineId: null });
-                    await setNodeStorylines(nid, []);
-                    return;
-                  case 'detachFromNarrative':
-                    await updateNode(nid, { narrativeOrder: null });
-                    return;
-                  case 'startEdgeFrom':
-                    setLinkSource(nid);
-                    return;
-                  case 'deleteAllEdges': {
-                    const related = nodeEdges.filter(
-                      (e) => e.sourceNodeId === nid || e.targetNodeId === nid,
-                    );
-                    for (const e of related) {
-                      await deleteEdge(e.id);
+      {contextMenu &&
+        contextMenu.kind === 'node' &&
+        (() => {
+          const node = bookNodes.find((n) => n.id === contextMenu.nodeId);
+          if (!node) return null;
+          const edgeCount = nodeEdges.filter(
+            (e) => e.sourceNodeId === contextMenu.nodeId || e.targetNodeId === contextMenu.nodeId,
+          ).length;
+          const hasAnyStoryline = (contextMenu.nodeStorylines?.length ?? 0) > 0;
+          return (
+            <EntityCellContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              editorType="node"
+              nodeStatusKind={isChapter(node) ? 'chapter' : 'drift'}
+              nodeWritingStatus={node.writingStatus}
+              header={{
+                title: contextMenu.nodeTitle ?? undefined,
+                subtitle: contextMenu.nodeSummary ?? undefined,
+                tags: contextMenu.nodeStorylines?.map((sl) => ({
+                  id: sl.id,
+                  name: sl.name,
+                  color: sl.color,
+                })),
+              }}
+              extraGroups={[
+                [
+                  ...(hasAnyStoryline
+                    ? [
+                        {
+                          action: 'moveToUnaffiliated',
+                          label: t('bottomTimeline.menu.moveToUnaffiliated'),
+                        },
+                      ]
+                    : []),
+                  ...(isNarrative && contextMenu.hasNarrativeOrder
+                    ? [
+                        {
+                          action: 'detachFromNarrative',
+                          label: t('bottomTimeline.menu.detachFromNarrative'),
+                        },
+                      ]
+                    : []),
+                ],
+                [
+                  { action: 'startEdgeFrom', label: t('storyGraph.menu.startEdgeFromNode') },
+                  {
+                    action: 'deleteAllEdges',
+                    label: t('storyGraph.menu.deleteAllEdges', { count: edgeCount }),
+                    danger: true,
+                    disabled: edgeCount === 0,
+                  },
+                ],
+              ]}
+              onAction={async (action) => {
+                const nid = contextMenu.nodeId;
+                try {
+                  switch (action) {
+                    case 'moveToUnaffiliated':
+                      await updateNode(nid, { mainStorylineId: null });
+                      await setNodeStorylines(nid, []);
+                      return;
+                    case 'detachFromNarrative':
+                      await updateNode(nid, { narrativeOrder: null });
+                      return;
+                    case 'startEdgeFrom':
+                      setLinkSource(nid);
+                      return;
+                    case 'deleteAllEdges': {
+                      const related = nodeEdges.filter(
+                        (e) => e.sourceNodeId === nid || e.targetNodeId === nid,
+                      );
+                      for (const e of related) {
+                        await deleteEdge(e.id);
+                      }
+                      return;
                     }
-                    return;
+                    default:
+                      // Shared per-entity actions (status / edit storylines /
+                      // delete) flow through the canonical dispatcher.
+                      void dispatchEntityAction({
+                        entityType: 'node',
+                        id: nid,
+                        action,
+                      });
                   }
-                  default:
-                    // Shared per-entity actions (status / edit storylines /
-                    // delete) flow through the canonical dispatcher.
-                    void dispatchEntityAction({
-                      entityType: 'node',
-                      id: nid,
-                      action,
-                    });
+                } catch (err) {
+                  log.error('Graph context menu action failed', err);
                 }
-              } catch (err) {
-                log.error('Graph context menu action failed', err);
-              }
-            }}
-            onClose={() => setContextMenu(null)}
-          />
-        );
-      })()}
+              }}
+              onClose={() => setContextMenu(null)}
+            />
+          );
+        })()}
 
-      {contextMenu && contextMenu.kind === 'storyline' &&
+      {contextMenu &&
+        contextMenu.kind === 'storyline' &&
         contextMenu.storylineId !== DEFAULT_LANE_ID &&
         contextMenu.storylineId !== UNAFFILIATED_LANE_ID && (
           <EntityCellContextMenu
@@ -2605,24 +2565,27 @@ export function StoryGraphView() {
 
       {/* Node card popover — opened by tile click. Renders fixed-position
           over the graph; the inner upgrade state expands to a modal. */}
-      {popover && projectId && user?.id && (() => {
-        const node = bookNodes.find((n) => n.id === popover.nodeId);
-        if (!node) return null;
-        return (
-          <NodeCardPopover
-            node={node}
-            projectId={projectId}
-            userId={user.id}
-            anchorRect={popover.anchor}
-            onClose={() => setPopover(null)}
-            onOpenInEditor={(id) => {
-              setPopover(null);
-              openEntity({ entityType: 'node', id }, { preview: false });
-              close();
-            }}
-          />
-        );
-      })()}
+      {popover &&
+        projectId &&
+        user?.id &&
+        (() => {
+          const node = bookNodes.find((n) => n.id === popover.nodeId);
+          if (!node) return null;
+          return (
+            <NodeCardPopover
+              node={node}
+              projectId={projectId}
+              userId={user.id}
+              anchorRect={popover.anchor}
+              onClose={() => setPopover(null)}
+              onOpenInEditor={(id) => {
+                setPopover(null);
+                openEntity({ entityType: 'node', id }, { preview: false });
+                close();
+              }}
+            />
+          );
+        })()}
     </div>
   );
 }

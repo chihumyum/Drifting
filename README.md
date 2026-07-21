@@ -1,111 +1,108 @@
-# Drifting - Electron Desktop App
+# Drifting Core
 
-A creative writing and storytelling tool built with Electron, React, and TypeScript.
+The Tauri 2 client for Drifting, a local-first creative writing and story-planning application.
 
-## Overview
+## Stack
 
-Drifting is a desktop application designed for writers and storytellers to organize their creative projects. It provides tools for managing:
+- Tauri 2 and Rust for macOS, Windows, Linux, iOS, and Android
+- React 19, TypeScript, and Vite
+- SQLite through a dedicated Rust worker and Drizzle `sqlite-proxy`
+- Yjs and Tiptap for live prose editing
+- Zustand and TanStack Query for client state
 
-- **Nodes**: Chapters and scenes organized hierarchically
-- **Elements**: Characters, locations, items with custom categories
-- **Threads**: Story threads that connect different parts of your narrative
-- **Timeline**: Visual timeline of your story structure
-- **Rich Text Editor**: Powered by Tiptap for a smooth writing experience
-
-## Tech Stack
-
-- **Electron**: Cross-platform desktop framework
-- **React 19**: UI framework
-- **TypeScript**: Type safety
-- **Vite**: Build tool and dev server
-- **Electron Forge**: Packaging and distribution
-- **Better-SQLite3**: Local database for storing project data
-- **Tailwind CSS**: Styling
-- **Zustand**: State management
-- **React Query**: Data fetching and caching
-- **Tiptap**: Rich text editor
+The Rust SQLite boundary preserves BLOBs and signed 64-bit integers, embeds all Drizzle migrations,
+and owns transaction isolation, WAL checkpointing, and database switching. Renderer code talks only
+to typed Tauri platform contracts.
 
 ## Development
 
-### Prerequisites
+Prerequisites:
 
-- Node.js 18+
-- pnpm (recommended) or npm
-
-### Installation
+- Node.js 22.13 or newer and `pnpm`
+- Rust 1.88 or newer, plus the platform prerequisites from the Tauri 2 documentation
+- Xcode for iOS, or Android Studio/SDK for Android
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Start development server
-pnpm start
+pnpm --dir client dev
 ```
 
-### Build
+Development uses `.local-data/databases` through `DRIFTING_DB_DIR`. Production uses
+the Tauri application-local data directory.
+
+Useful commands:
 
 ```bash
-# Package the app for current platform
-pnpm package
-
-# Create distributable packages
-pnpm make
+pnpm --dir client typecheck
+pnpm --dir client test
+pnpm --dir client tauri:build
+pnpm --dir client tauri:ios:init
+pnpm --dir client tauri:ios:build
+pnpm --dir client tauri:android:init
+pnpm --dir client tauri:android:build
 ```
 
-## Project Structure
+`tauri:build` injects the public production API origin explicitly. Renderer builds do not load
+ignored `.env*` files and fail if a `VITE_*API_KEY`, `VITE_*SECRET`, or `VITE_*TOKEN` variable would
+be embedded. BYOK credentials belong in the native credential store, never in a distributable
+bundle. The current pre-alpha artifacts set `VITE_CLOSED_BETA=false` so invited testers can create
+accounts; change that explicit build flag when registration should be closed again.
 
-```
-core/
-├── src/
-│   ├── main/              # Electron main process
-│   │   ├── main.ts        # Main entry point
-│   │   ├── preload.ts     # Preload script (IPC bridge)
-│   │   └── database.ts    # Database IPC handlers
-│   └── renderer/          # React application (renderer process)
-│       ├── main.tsx       # React entry point
-│       ├── App.tsx        # Main App component
-│       ├── components/    # React components
-│       ├── views/         # Page views
-│       ├── lib/           # Utilities and helpers
-│       ├── store/         # Zustand stores
-│       ├── hooks/         # Custom React hooks
-│       ├── domain/        # Domain models
-│       ├── repositories/  # Data access layer
-│       ├── services/      # Business logic
-│       ├── schema/        # Database schema
-│       └── styles/        # Global styles
-├── forge.config.ts        # Electron Forge configuration
-├── vite.*.config.ts       # Vite configurations
-├── tailwind.config.js     # Tailwind CSS configuration
-└── package.json
+The deterministic local demo seeder remains available without Electron or a
+native Node addon:
 
+```bash
+pnpm --dir client demo:seed
+pnpm --dir client demo:purge-local
 ```
 
-## Database
+## Layout
 
-The app uses SQLite with Better-SQLite3 for data persistence. Database files are stored in the user's application data directory:
+```text
 
-- macOS: `~/Library/Application Support/Drifting/databases/`
-- Windows: `%APPDATA%/Drifting/databases/`
-- Linux: `~/.config/Drifting/databases/`
+├── src-tauri/          Rust host, SQLite gateway, native capabilities, mobile projects
+├── src/renderer/       React application and platform contracts
+├── drizzle/            Embedded, ordered SQLite migrations
+├── scripts/            Development and asset-generation utilities
+└── vite.renderer.config.ts
+```
 
-Each user and project combination gets its own database file: `{userId}_{projectId}.db`
+## Data migration
 
-## Features
+On the first desktop Tauri launch, Drifting looks for the former desktop client's `Drifting`
+application-data directory. SQLite files are copied with the SQLite online-backup API so WAL data
+is included; copied databases must pass `integrity_check` before activation. The asset cache is
+copied atomically, the source remains untouched, and a migration marker makes retries idempotent.
+If the Tauri database directory already contains a valid database with the same filename, migration
+preserves that Tauri file and does not merge or overwrite it with the Electron database. The legacy
+source remains untouched, but users of an earlier internal Tauri build should back up and resolve
+the two copies before first launch if the Tauri copy is not the one they intend to keep using.
 
-- **Offline-first**: All data stored locally in SQLite
-- **Cross-platform**: Windows, macOS, Linux
-- **User authentication**: Local and server sync support
-- **Rich text editing**: Markdown support, formatting, links
-- **Element management**: Organize characters, locations, items
-- **Thread tracking**: Track story threads across nodes
-- **Timeline view**: Visual representation of story structure
-- **Export**: Export projects to various formats
+The production database directories are normally:
+
+- macOS: `~/Library/Application Support/cc.drifting.client/databases/`
+- Windows: `%LOCALAPPDATA%\cc.drifting.client\databases\`
+- Linux: `${XDG_DATA_HOME:-~/.local/share}/cc.drifting.client/databases/`
+- iOS/Android: the application container
+
+## Material file limit
+
+Image and PDF imports currently have a 64 MiB hard limit on every target. The native picker checks
+the selected file's metadata before creating an app-owned copy when the platform exposes a reliable
+size, and the copy itself remains bounded for Android content providers whose size is unknown.
+This matches the bounded in-memory inspection/thumbnail pipeline, so an accepted file can complete
+material creation. Future large-file support should stream the source upload and allow thumbnail
+degradation; it must not raise the mobile whole-file memory limit.
+
+## Current boundary
+
+The Anthropic General Agent is intentionally unavailable in this Tauri migration. Its previous
+runtime required a desktop Node/Claude CLI process. The renderer now exposes a replaceable
+transport for a future desktop sidecar or authenticated remote desktop runner; Copilot and Shadow
+remain client-side and preserve the live-Yjs write path.
+
+See [`src-tauri/UNSUPPORTED.md`](src-tauri/UNSUPPORTED.md) for the explicit platform limitations.
 
 ## License
 
 MIT
-
-## Author
-
-chihumyum (108172547+chihumyum@users.noreply.github.com)

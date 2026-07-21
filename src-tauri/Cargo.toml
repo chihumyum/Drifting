@@ -1,0 +1,44 @@
+[package]
+name = "drifting"
+version = "0.1.0"
+description = "Drifting creative writing client"
+authors = ["chihumyum <108172547+chihumyum@users.noreply.github.com>"]
+edition = "2021"
+rust-version = "1.88"
+
+[lib]
+name = "drifting_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+base64 = "0.22"
+include_dir = "0.7.4"
+image = { version = "=0.25.4", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff", "webp"] }
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "rustls-tls", "stream"] }
+rusqlite = { version = "0.32.1", features = ["backup", "bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10.8"
+tauri = { version = "2.11.5", features = ["protocol-asset"] }
+tauri-plugin-deep-link = "2.4.9"
+tauri-plugin-dialog = "2.7"
+tauri-plugin-fs = "2.5"
+tauri-plugin-opener = "2.5.4"
+tokio = { version = "1", features = ["fs", "io-util"] }
+tokio-util = { version = "0.7", features = ["io"] }
+
+[target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "windows", target_os = "linux"))'.dependencies]
+keyring = { version = "3.6", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "crypto-rust"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSButton", "NSView", "NSWindow"] }
+
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = { version = "2.4.3", features = ["deep-link"] }
+
+[dev-dependencies]
+tempfile = "3.14.0"

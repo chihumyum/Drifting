@@ -1,9 +1,9 @@
 /* ============================================================
    Shared top header for fullscreen "super views" (StoryGraphView,
    SuperElementView, SuperMemoMaterialView). 44px bar with title +
-   back + left/right slots; left padding clears the macOS traffic
-   lights when present. Children inside the bar inherit no-drag so
-   buttons/inputs stay clickable through the OS drag region.
+   back + left/right slots; left padding clears the macOS native
+   controls when present. Tauri's drag-region script automatically
+   excludes interactive descendants.
    ============================================================ */
 
 /* Base positioning for the two super-view overlays that previously set
@@ -126,20 +126,6 @@ html[data-skin='modern'] .super-view-body {
   flex-shrink: 0;
   gap: 16px;
   font-family: var(--font-sans);
-  -webkit-app-region: drag;
-}
-
-/* All interactive elements inside the bar default to no-drag so the
-   macOS hiddenInset titleBarStyle doesn't swallow clicks. Wrappers
-   that need to stay no-drag (popovers, dropdowns) can opt in via
-   the .super-view-head__no-drag helper below. */
-.super-view-head button,
-.super-view-head input,
-.super-view-head textarea,
-.super-view-head select,
-.super-view-head a,
-.super-view-head__no-drag {
-  -webkit-app-region: no-drag;
 }
 
 .super-view-head__left {
@@ -147,7 +133,6 @@ html[data-skin='modern'] .super-view-body {
   align-items: center;
   gap: 14px;
   min-width: 0;
-  -webkit-app-region: drag;
 }
 
 .super-view-head__right {
@@ -155,7 +140,6 @@ html[data-skin='modern'] .super-view-body {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-  -webkit-app-region: drag;
 }
 
 .super-view-head__back {
@@ -203,4 +187,13 @@ html[data-skin='modern'] .super-view-body {
   letter-spacing: 0.14em;
   color: hsl(var(--ink-4));
   margin-left: 10px;
+}
+
+html[data-platform-target='mobile'] .graph-overlay,
+html[data-platform-target='mobile'] .super-element-overlay,
+html[data-platform-target='mobile'] .super-mm-overlay {
+  top: var(--safe-area-top);
+  right: var(--safe-area-right);
+  bottom: max(var(--super-view-bottom-inset), var(--safe-area-bottom));
+  left: var(--safe-area-left);
 }

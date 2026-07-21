@@ -8,6 +8,7 @@ import { projectAssetService } from '../services/project-asset.service';
 import { assetCacheService, extForMime } from '../services/asset-cache.service';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
+import { platform } from '../platform';
 import {
   syncLibraryItemCreate,
   syncLibraryItemUpdate,
@@ -125,8 +126,7 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
       const relations = useDataStore
         .getState()
         .entityRelations.filter(
-          (relation) =>
-            relation.fromKind === 'library_item' && relation.fromId === libraryItemId,
+          (relation) => relation.fromKind === 'library_item' && relation.fromId === libraryItemId,
         );
       relations.forEach((relation) => {
         syncEntityRelationCreate(relation.id, projectId, {
@@ -155,9 +155,9 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
 
         if (input.kind === 'image') {
           const [inspection, display, thumbnail] = await Promise.all([
-            window.electronAPI.material.inspectImage(localPath),
-            window.electronAPI.material.createImageVariant(localPath, 1600, 82),
-            window.electronAPI.material.createImageVariant(localPath, 512, 72),
+            platform.material.inspectImage(localPath),
+            platform.material.createImageVariant(localPath, 1600, 82),
+            platform.material.createImageVariant(localPath, 512, 72),
           ]);
           if (!inspection.ok) throw new Error(inspection.error);
           if (!display.ok) throw new Error(display.error);
@@ -181,7 +181,13 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
           const sourceExt = extForMime(inspection.mime, 'png');
           await Promise.all([
             assetCacheService.copyFile(projectId, upload.asset.id, 'source', sourceExt, localPath),
-            assetCacheService.writeBytes(projectId, upload.asset.id, 'display', 'jpg', display.bytes),
+            assetCacheService.writeBytes(
+              projectId,
+              upload.asset.id,
+              'display',
+              'jpg',
+              display.bytes,
+            ),
             assetCacheService.writeBytes(
               projectId,
               upload.asset.id,
@@ -228,16 +234,12 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
           const sourceMime = 'application/pdf';
           let sourceSizeBytes = input.sizeBytes ?? null;
           if (sourceSizeBytes == null) {
-            const sourceBytes = await window.electronAPI.material.readBytes(localPath);
+            const sourceBytes = await platform.material.readBytes(localPath);
             if (!sourceBytes.ok) throw new Error(sourceBytes.error);
             sourceSizeBytes = sourceBytes.bytes.byteLength;
           }
 
-          const thumbnail = await window.electronAPI.material.createThumbnailVariant(
-            localPath,
-            512,
-            72,
-          );
+          const thumbnail = await platform.material.createThumbnailVariant(localPath, 512, 72);
           if (!thumbnail.ok) throw new Error(thumbnail.error);
 
           const upload = await projectAssetService.createLibraryMaterialUpload(projectId, {
@@ -449,8 +451,7 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
         },
         sync: uploadState
           ? undefined
-          : (persisted) =>
-              syncLibraryItemUpdate(id, projectId, libraryItemSyncPayload(persisted)),
+          : (persisted) => syncLibraryItemUpdate(id, projectId, libraryItemSyncPayload(persisted)),
       });
     },
     [repo, getItems, setItems, ensureDb, projectId],

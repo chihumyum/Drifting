@@ -5,8 +5,8 @@
  *
  * Flow:
  *   1. Settings page calls `getStatus()` → renders the cached plan card.
- *   2. Click "升级" → `createCheckoutSession(plan)` → open URL in system
- *      browser via Electron `shell.openExternal`.
+ *   2. Click "升级" → `createCheckoutSession(plan)` → open URL in the system
+ *      browser through the native platform adapter.
  *   3. Stripe redirects user back; the webhook updates the cache.
  *   4. Settings page polls `getStatus()` on focus to pick up the change.
  *
@@ -14,6 +14,7 @@
  * and disable the upgrade buttons.
  */
 import { apiClient } from '../lib/axios-config';
+import { platform } from '../platform';
 
 export interface SubscriptionStatus {
   status: string | null; // 'active' | 'past_due' | 'canceled' | 'trialing' | null
@@ -45,14 +46,20 @@ export const subscriptionService = {
       plan,
       returnUrl: 'drifting://settings/subscription',
     });
-    if (data.url) window.open(data.url, '_blank');
+    if (data.url) {
+      const result = await platform.material.openExternal(data.url);
+      if (!result.ok) throw new Error(result.error);
+    }
   },
 
   async openCustomerPortal(): Promise<void> {
     const { data } = await apiClient.post<{ url: string }>('/api/subscription/portal', {
       returnUrl: 'drifting://settings/subscription',
     });
-    if (data.url) window.open(data.url, '_blank');
+    if (data.url) {
+      const result = await platform.material.openExternal(data.url);
+      if (!result.ok) throw new Error(result.error);
+    }
   },
 
   async listInvoices(): Promise<{ invoices: Invoice[]; stripeConfigured: boolean }> {

@@ -43,17 +43,13 @@ import {
   type ToolEntityRef,
 } from '../../lib/agent/tool-entity-ref';
 import { events } from '../../lib/events';
+import type { GeneralAgentAuthStatus } from '../../lib/agent/protocol';
+import { generalAgentTransport } from '../../lib/agent/transport';
 import type {
   AgentChatMessage as ChatMsg,
   AgentConversationSummary,
 } from '../../domain/agent-conversation';
 import '../../../styles/agent-panel.css';
-
-interface AuthStatus {
-  byokConnected: boolean;
-  apiKeyConnected: boolean;
-  hostedAvailable: boolean;
-}
 
 function relTime(iso: string): string {
   try {
@@ -170,7 +166,8 @@ function ComposerConfig() {
   const modelShort = t(`settings.agent.modelOptions.${agentModel}.short`, {
     defaultValue: modelOption?.short ?? agentModel,
   });
-  const effortShort = AGENT_EFFORT_OPTIONS.find((e) => e.value === agentEffort)?.short ?? agentEffort;
+  const effortShort =
+    AGENT_EFFORT_OPTIONS.find((e) => e.value === agentEffort)?.short ?? agentEffort;
   const effortIdx = AGENT_EFFORT_OPTIONS.findIndex((e) => e.value === agentEffort);
 
   const close = () => {
@@ -224,7 +221,9 @@ function ComposerConfig() {
                     type="button"
                     aria-pressed={agentThinking === 'adaptive'}
                     className={'agt-tog' + (agentThinking === 'adaptive' ? ' agt-tog--on' : '')}
-                    onClick={() => setAgentThinking(agentThinking === 'adaptive' ? 'off' : 'adaptive')}
+                    onClick={() =>
+                      setAgentThinking(agentThinking === 'adaptive' ? 'off' : 'adaptive')
+                    }
                   />
                 </div>
                 {agentThinking === 'adaptive' && (
@@ -251,7 +250,9 @@ function ComposerConfig() {
                     type="button"
                     aria-pressed={agentEditMode === 'approve'}
                     className={'agt-tog' + (agentEditMode === 'approve' ? ' agt-tog--on' : '')}
-                    onClick={() => setAgentEditMode(agentEditMode === 'approve' ? 'auto' : 'approve')}
+                    onClick={() =>
+                      setAgentEditMode(agentEditMode === 'approve' ? 'auto' : 'approve')
+                    }
                   />
                 </div>
                 <div className="agt-menu__divider" />
@@ -279,13 +280,17 @@ function ComposerConfig() {
                 {AGENT_MODEL_OPTIONS.map((m) => (
                   <div
                     key={m.value}
-                    className={'agt-menu__opt' + (m.value === agentModel ? ' agt-menu__opt--active' : '')}
+                    className={
+                      'agt-menu__opt' + (m.value === agentModel ? ' agt-menu__opt--active' : '')
+                    }
                     onClick={() => {
                       setAgentModel(m.value);
                       setView('main');
                     }}
                   >
-                    <span>{t(`settings.agent.modelOptions.${m.value}.label`, { defaultValue: m.label })}</span>
+                    <span>
+                      {t(`settings.agent.modelOptions.${m.value}.label`, { defaultValue: m.label })}
+                    </span>
                     {m.value === agentModel && <span className="agt-menu__check">●</span>}
                   </div>
                 ))}
@@ -396,7 +401,7 @@ function fmtMs(ms: number): string {
  * is slow" from "the local tool bridge is slow":
  *   ⏱ total = SDK duration_ms (wall-clock for the whole turn)
  *   api      = SDK duration_api_ms (time in model API calls)
- *   总 − api = local overhead (IPC bridge + Yjs hydration + tool work)
+ *   总 − api = local overhead (transport + Yjs hydration + tool work)
  * and the cache-hit indicator (⚡ = cache_read_input_tokens): a large ⚡ with a
  * small cache-write means the tools+system prefix is being reused, so per-turn
  * cost is dominated by output/thinking, not input re-processing.
@@ -563,7 +568,9 @@ function TodoList({ items }: { items: Extract<ChatMsg, { kind: 'todos' }>['items
         const label = t.status === 'in_progress' && t.activeForm ? t.activeForm : t.content;
         return (
           <div key={i} style={todoItem}>
-            <span style={{ width: 14, flexShrink: 0, opacity: t.status === 'completed' ? 0.5 : 0.85 }}>
+            <span
+              style={{ width: 14, flexShrink: 0, opacity: t.status === 'completed' ? 0.5 : 0.85 }}
+            >
               {icon}
             </span>
             <span
@@ -584,7 +591,7 @@ function TodoList({ items }: { items: Extract<ChatMsg, { kind: 'todos' }>['items
 
 export function CompanionPanel({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
-  const api = window.electronAPI?.agent;
+  const api = generalAgentTransport;
   const agentAuth = useSettingsStore((s) => s.agentAuth);
 
   // Chat state + actions live in the module store so they persist across the
@@ -607,7 +614,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const renameConversation = useAgentChatStore((s) => s.renameConversation);
   const bindProject = useAgentChatStore((s) => s.bindProject);
 
-  const [status, setStatus] = useState<AuthStatus | null>(null);
+  const [status, setStatus] = useState<GeneralAgentAuthStatus | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   // Turn-checkpoint list (回退到某轮之前) + its two-step confirm / busy state.
   const [showSnapshots, setShowSnapshots] = useState(false);
@@ -646,10 +653,16 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const stickRef = useRef(true);
 
   const refreshStatus = useCallback(() => {
-    if (!api) return;
+    if (!api.capability.available) return;
     void api
       .authStatus()
-      .then(setStatus)
+      .then((result) => {
+        setStatus(
+          result.ok
+            ? result.value
+            : { byokConnected: false, apiKeyConnected: false, hostedAvailable: false },
+        );
+      })
       .catch(() =>
         setStatus({ byokConnected: false, apiKeyConnected: false, hostedAvailable: false }),
       );
@@ -771,12 +784,12 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   // The active conversation's summary (gives the current session's title). Null
   // until the first turn persists a row — a fresh chat has no name to rename.
   const activeConv = convList.find((c) => c.id === activeConvId) ?? null;
-  const sessionName = activeConv ? activeConv.title || t('common.untitled') : t('agentPanel.newConversation');
+  const sessionName = activeConv
+    ? activeConv.title || t('common.untitled')
+    : t('agentPanel.newConversation');
   // Title of the conversation whose turn is running in the background (if any),
   // for the "switch to the running conversation" banner.
-  const runningConv = otherRunning
-    ? convList.find((c) => c.id === runningConvId) ?? null
-    : null;
+  const runningConv = otherRunning ? (convList.find((c) => c.id === runningConvId) ?? null) : null;
   const editingHeader = editingHeaderId !== null && editingHeaderId === activeConvId;
 
   // Show a "思考中…" placeholder whenever the agent is running but nothing is
@@ -810,7 +823,10 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
 
   // Entities the agent created/edited this turn → clickable "本轮改动" links.
   const { openEntity } = useProjectNavigation();
-  const turnRefs = useMemo(() => (running ? [] : collectTurnEntityRefs(messages)), [messages, running]);
+  const turnRefs = useMemo(
+    () => (running ? [] : collectTurnEntityRefs(messages)),
+    [messages, running],
+  );
   const openRef = useCallback(
     (ref: ToolEntityRef) => {
       openEntity({ entityType: ref.entityType, id: ref.id });
@@ -880,8 +896,14 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
     [itemDraft, renameConversation],
   );
 
-  if (!api) {
-    return <div style={hintBox}>{t('agentPanel.unavailable')}</div>;
+  if (!api.capability.available) {
+    return (
+      <div style={hintBox} role="status">
+        <div style={hintTitle}>{t('agentPanel.unavailableTitle')}</div>
+        <div style={hintText}>{t('agentPanel.unavailableReason')}</div>
+        <div style={hintText}>{t('agentPanel.unavailableFuture')}</div>
+      </div>
+    );
   }
   if (status === null) {
     return <div style={hintBox}>{t('agentPanel.checking')}</div>;
@@ -979,7 +1001,12 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
             ☰ {t('agentPanel.toolbar.history')}
             {convList.length ? ` · ${convList.length}` : ''}
           </button>
-          <button type="button" style={ghostBtn} onClick={handleNew} title={t('agentPanel.toolbar.newTitle')}>
+          <button
+            type="button"
+            style={ghostBtn}
+            onClick={handleNew}
+            title={t('agentPanel.toolbar.newTitle')}
+          >
             ＋ {t('agentPanel.newConversation')}
           </button>
         </div>
@@ -1029,7 +1056,9 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                         }
                         onClick={() => void handleRevert(cp.turnId)}
                       >
-                        {reverting ? t('agentPanel.snapshots.reverting') : t('agentPanel.snapshots.confirmRevert')}
+                        {reverting
+                          ? t('agentPanel.snapshots.reverting')
+                          : t('agentPanel.snapshots.confirmRevert')}
                       </button>
                       <button
                         type="button"
@@ -1124,9 +1153,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
       <div style={logWrap}>
         <div ref={logRef} style={logStyle} onScroll={onScroll}>
           {messages.length === 0 ? (
-            <div style={{ opacity: 0.5 }}>
-              {t('agentPanel.empty.start')}
-            </div>
+            <div style={{ opacity: 0.5 }}>{t('agentPanel.empty.start')}</div>
           ) : (
             messages.map((m, i) => <MessageView key={i} msg={m} />)
           )}
@@ -1141,7 +1168,12 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           )}
         </div>
         {!atBottom && (
-          <button type="button" style={jumpBtn} onClick={jumpToBottom} title={t('agentPanel.jumpLatest')}>
+          <button
+            type="button"
+            style={jumpBtn}
+            onClick={jumpToBottom}
+            title={t('agentPanel.jumpLatest')}
+          >
             ↓
           </button>
         )}

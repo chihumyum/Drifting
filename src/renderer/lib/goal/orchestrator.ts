@@ -44,9 +44,8 @@ export interface EvolveOpts {
   signal?: AbortSignal;
   /** Max chapters critiqued concurrently (read-only, always safe). Default 5. */
   critiqueConcurrency?: number;
-  /** Max chapters EDITED concurrently. The Agent-SDK editor shares ONE main-process
-   *  agent → must stay 1 (serial); the Shadow-FC editor is independent per chapter →
-   *  can fan out. evolveElement sets this from the engine. Default 1 (safe). */
+  /** Max chapters edited concurrently. Shadow-FC is independent per chapter and
+   *  can fan out; unknown future transports should stay serial. Default 1. */
   editConcurrency?: number;
   /** Semantic gate (§3): injected change-classifier. When it returns 'essence'
    *  (a fundamental nature/feel rewrite — the critic's blind spot) the run is
@@ -160,7 +159,12 @@ export async function runEvolve(
       // Don't auto-edit (critic under-detects essence → false done), and don't hand
       // a misleadingly-short contradiction list. LOCATE instead: every scene the
       // element appears in, as an honest manual reconception worklist (no critic).
-      const worklist = await scopeAppearances(projectId, change.elementId, effectiveFromOrder, includeDrafts);
+      const worklist = await scopeAppearances(
+        projectId,
+        change.elementId,
+        effectiveFromOrder,
+        includeDrafts,
+      );
       log(`essence → 不自动改；出场 ${worklist.length} 章，作为逐场重构清单交作者`);
       return {
         scoped: worklist.map(({ chapterId, title, order }) => ({ chapterId, title, order })),
@@ -189,8 +193,15 @@ export async function runEvolve(
     }
   }
 
-  const scoped = await scopeChapters(projectId, effective.elementId, effectiveFromOrder, includeDrafts);
-  log(`scope：${scoped.length} 章提到《${effective.elementName}》且在生效区间内${includeDrafts ? '（含草稿）' : '（仅已完成章）'}`);
+  const scoped = await scopeChapters(
+    projectId,
+    effective.elementId,
+    effectiveFromOrder,
+    includeDrafts,
+  );
+  log(
+    `scope：${scoped.length} 章提到《${effective.elementName}》且在生效区间内${includeDrafts ? '（含草稿）' : '（仅已完成章）'}`,
+  );
   if (scoped.length === 0) {
     return {
       scoped,
@@ -216,9 +227,21 @@ export async function runEvolve(
   // failure: skip silently (the loop ends with stopReason 'aborted' afterwards).
   // Tag a leaf's trail step with where in the loop it happened, for the UI trace.
   const traceFor =
-    (round: number, phase: EvolveTraceStep['phase'], ch: ScopedChapter, actor: EvolveTraceStep['actor']) =>
+    (
+      round: number,
+      phase: EvolveTraceStep['phase'],
+      ch: ScopedChapter,
+      actor: EvolveTraceStep['actor'],
+    ) =>
     (step: EvolveTraceStep['step']) =>
-      opts.onTrace?.({ round, phase, chapterId: ch.chapterId, chapterTitle: ch.title, actor, step });
+      opts.onTrace?.({
+        round,
+        phase,
+        chapterId: ch.chapterId,
+        chapterTitle: ch.title,
+        actor,
+        step,
+      });
 
   const safeCritique = async (
     ch: ScopedChapter,
@@ -227,7 +250,13 @@ export async function runEvolve(
   ): Promise<ContradictionSpot[]> => {
     if (aborted()) return [];
     try {
-      return await leaves.critique(ch.chapterId, ch.title, effective, signal, traceFor(round, phase, ch, 'critic'));
+      return await leaves.critique(
+        ch.chapterId,
+        ch.title,
+        effective,
+        signal,
+        traceFor(round, phase, ch, 'critic'),
+      );
     } catch (e) {
       if (aborted()) return [];
       const msg = e instanceof Error ? e.message : String(e);
@@ -279,7 +308,9 @@ export async function runEvolve(
   initialSpots = [...open];
   const initialKeys = new Set(open.map(spotKey));
   if (aborted()) return abortedResult(open, initialKeys, 0, []);
-  log(`初始矛盾集：${open.length} 处，跨 ${groupByChapter(open).size} 章${errors.length ? `（${errors.length} 章探测失败）` : ''}`);
+  log(
+    `初始矛盾集：${open.length} 处，跨 ${groupByChapter(open).size} 章${errors.length ? `（${errors.length} 章探测失败）` : ''}`,
+  );
 
   if (opts.dryRun) {
     return {
@@ -304,7 +335,9 @@ export async function runEvolve(
   const chaptersHit = groupByChapter(open).size;
   const threshold = opts.confirmThreshold ?? 10;
   if (!opts.force && chaptersHit >= threshold) {
-    log(`blast radius ${chaptersHit} 章命中冲突 ≥ 阈值 ${threshold} → 暂停，待确认（force:true 续跑）`);
+    log(
+      `blast radius ${chaptersHit} 章命中冲突 ≥ 阈值 ${threshold} → 暂停，待确认（force:true 续跑）`,
+    );
     return {
       scoped,
       rounds: 0,
@@ -333,8 +366,8 @@ export async function runEvolve(
     // PIPELINE — per chapter: edit → immediately verify, NO barrier in between. A
     // chapter's verify (critique lane) overlaps the next chapter's edit (edit lane),
     // so the adversarial check follows each edit as soon as it lands instead of
-    // waiting for the whole round's edits. Edit lane: 1 = serial, required for the
-    // Agent-SDK engine which shares one main-process agent; >1 for Shadow-FC.
+    // waiting for the whole round's edits. Edit lane is >1 for Shadow-FC and should
+    // remain 1 for transports that do not explicitly support parallel turns.
     // Verify runs even when the edit failed — its spots still stand and must stay
     // in the open set (safeCritique only returns [] for abort/critic-failure, both
     // of which are recorded elsewhere).
@@ -346,7 +379,14 @@ export async function runEvolve(
           if (aborted()) return;
           let res: EditTurnResult;
           try {
-            res = await leaves.edit(chapterId, ch.title, effective, spots, signal, traceFor(rounds, 'edit', ch, 'editor'));
+            res = await leaves.edit(
+              chapterId,
+              ch.title,
+              effective,
+              spots,
+              signal,
+              traceFor(rounds, 'edit', ch, 'editor'),
+            );
           } catch (e) {
             if (aborted()) return;
             const msg = e instanceof Error ? e.message : String(e);
@@ -354,7 +394,9 @@ export async function runEvolve(
             errors.push({ chapterId, phase: 'edit', error: msg });
           }
           edits.push(res);
-          log(`  edit《${ch.title}》：${res.ok ? `改了 ${res.editedBlockIds.length} 块` : `失败 ${res.error ?? ''}`}`);
+          log(
+            `  edit《${ch.title}》：${res.ok ? `改了 ${res.editedBlockIds.length} 块` : `失败 ${res.error ?? ''}`}`,
+          );
         });
         const verified = await critiqueLimit(() => safeCritique(ch, 'verify', rounds));
         if (!aborted()) log(`  verify《${ch.title}》：剩 ${verified.length} 处`);

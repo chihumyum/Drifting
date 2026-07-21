@@ -24,31 +24,30 @@ export async function evolveElement(
   // The Shadow-FC editor runs runAgentTool('edit_block', …) in-renderer → it needs the
   // REAL `write` usecases (else writeEntityProse throws "updateContentByNodeId of
   // undefined" and every edit fails). Borrow them from the mounted bridge; keep this
-  // run's projectId. The critic ignores `write` (read-only), and the Agent-SDK editor
-  // writes through the IPC bridge's own ctx, so both tolerate a missing bridge.
+  // run's projectId. The critic ignores `write` (read-only); a future external Agent
+  // transport would own its own project-scoped write routing.
   const ctx = { projectId, write: getActiveAgentToolContext()?.write } as AgentToolContext;
   const leaves: EvolveLeaves = {
-    critique: (chapterId, title, ch, signal, onTrace) => critiqueChapter(ctx, chapterId, title, ch, signal, onTrace),
+    critique: (chapterId, title, ch, signal, onTrace) =>
+      critiqueChapter(ctx, chapterId, title, ch, signal, onTrace),
     edit: shadowFc
-      ? (chapterId, title, ch, spots, signal, onTrace) => runShadowEditTurn(ctx, chapterId, title, ch, spots, signal, onTrace)
-      : (chapterId, title, ch, spots, signal, onTrace) => runScopedAgentTurn(chapterId, title, ch, spots, signal, onTrace),
+      ? (chapterId, title, ch, spots, signal, onTrace) =>
+          runShadowEditTurn(ctx, chapterId, title, ch, spots, signal, onTrace)
+      : (chapterId, title, ch, spots, signal, onTrace) =>
+          runScopedAgentTurn(chapterId, title, ch, spots, signal, onTrace),
   };
   const { effectiveFromOrder = Number.NEGATIVE_INFINITY, includeDrafts = false, ...rest } = opts;
   // Evolve is a Shadow-module op → its edits record with shadowEditMode (default
   // 'approve'), NOT the general agent's agentEditMode. Scoped to this run.
   setAgentEditModeOverride(settings.shadowEditMode);
   try {
-    return await runEvolve(
-      { projectId, change, effectiveFromOrder, includeDrafts },
-      leaves,
-      {
-        classify: () => classifyChange(projectId, change),
-        // Shadow-FC edits are independent per chapter → fan out; the Agent-SDK editor
-        // shares ONE main-process agent → must stay serial (1).
-        editConcurrency: shadowFc ? 3 : 1,
-        ...rest,
-      },
-    );
+    return await runEvolve({ projectId, change, effectiveFromOrder, includeDrafts }, leaves, {
+      classify: () => classifyChange(projectId, change),
+      // Shadow-FC edits are independent per chapter and can fan out. The reserved
+      // Agent transport path stays serial until its execution model is defined.
+      editConcurrency: shadowFc ? 3 : 1,
+      ...rest,
+    });
   } finally {
     setAgentEditModeOverride(null);
   }

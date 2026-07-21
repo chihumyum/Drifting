@@ -6,24 +6,14 @@ import { useAuthStore } from '../store/auth';
 import { SyncStatusHUD } from '../components/sync/SyncStatusHUD';
 import { UserAvatar, UserMenu } from '../components/topBars/UserMenu';
 import { parseKv } from '../domain/kv';
+import { getPlatformRuntime } from '../platform/runtime';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
 
-// macOS hiddenInset titleBarStyle reserves the top-left corner for the
-// traffic-light dots; this view doesn't render an AppTopbar, so we paint
-// our own invisible drag strip across the top edge of the page. Height
-// covers the system title-bar inset plus a little slack so users can grab
-// anywhere up there to move the window. The page content starts at y=48
-// (.pp__inner top padding), so nothing interactive sits underneath.
-const WINDOW_DRAG_STRIP_STYLE: React.CSSProperties = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  height: 36,
-  zIndex: 200,
-  WebkitAppRegion: 'drag',
-};
+function WindowDragStrip() {
+  if (!getPlatformRuntime().desktopWindowControls) return null;
+  return <div className="pp__window-drag-strip" data-tauri-drag-region aria-hidden />;
+}
 
 const log = loglevel.getLogger('ProjectPickerView');
 log.setLevel(loglevel.levels.DEBUG);
@@ -65,7 +55,7 @@ function formatRelative(iso: string, locale: string): string {
   if (Number.isNaN(then)) return '—';
   const diff = Math.max(0, Date.now() - then);
   const min = 60_000;
-  const hr  = 60 * min;
+  const hr = 60 * min;
   const day = 24 * hr;
   const zh = isZh(locale);
   if (diff < min) return zh ? '刚刚' : 'just now';
@@ -104,7 +94,7 @@ function statusFor(iso: string): Status {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return 'draft';
   const days = (Date.now() - then) / (24 * 3600 * 1000);
-  if (days <= 7)  return 'writing';
+  if (days <= 7) return 'writing';
   if (days <= 30) return 'draft';
   return 'paused';
 }
@@ -136,12 +126,9 @@ export function ProjectPickerView() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const {
-    loadProjectSummaries,
-    createProject,
-    updateProject,
-    deleteProject,
-  } = useProject({ userId: user?.id ?? '' });
+  const { loadProjectSummaries, createProject, updateProject, deleteProject } = useProject({
+    userId: user?.id ?? '',
+  });
   const avatarRef = useRef<HTMLButtonElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -172,75 +159,91 @@ export function ProjectPickerView() {
         if (active) setLoading(false);
       }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [user?.id, fetchProjects]);
 
   const decorated = useMemo(
-    () => projects.map((p) => {
-      const meta = displayMetaFor(p.kvJson);
-      const status = statusFor(p.updatedAt);
-      return {
-        project: p,
-        meta,
-        status,
-        colorToken: hashToColor(p.id),
-        glyph: glyphFor(p.name),
-        lastEditedRel: formatRelative(p.updatedAt, i18n.language),
-        createdRel: formatCreated(p.createdAt),
-      };
-    }),
+    () =>
+      projects.map((p) => {
+        const meta = displayMetaFor(p.kvJson);
+        const status = statusFor(p.updatedAt);
+        return {
+          project: p,
+          meta,
+          status,
+          colorToken: hashToColor(p.id),
+          glyph: glyphFor(p.name),
+          lastEditedRel: formatRelative(p.updatedAt, i18n.language),
+          createdRel: formatCreated(p.createdAt),
+        };
+      }),
     [projects, i18n.language],
   );
 
-  const filtered = decorated.filter(({ status }) =>
-    filter === 'all' ||
-    (filter === 'active' && (status === 'writing' || status === 'draft')) ||
-    (filter === 'paused' && status === 'paused')
+  const filtered = decorated.filter(
+    ({ status }) =>
+      filter === 'all' ||
+      (filter === 'active' && (status === 'writing' || status === 'draft')) ||
+      (filter === 'paused' && status === 'paused'),
   );
 
-  const counts = useMemo(() => ({
-    all:     decorated.length,
-    active:  decorated.filter((d) => d.status === 'writing' || d.status === 'draft').length,
-    paused:  decorated.filter((d) => d.status === 'paused').length,
-  }), [decorated]);
+  const counts = useMemo(
+    () => ({
+      all: decorated.length,
+      active: decorated.filter((d) => d.status === 'writing' || d.status === 'draft').length,
+      paused: decorated.filter((d) => d.status === 'paused').length,
+    }),
+    [decorated],
+  );
 
-  const handleOpen = useCallback((id: string) => {
-    navigate(`/project/${id}`);
-  }, [navigate]);
+  const handleOpen = useCallback(
+    (id: string) => {
+      navigate(`/project/${id}`);
+    },
+    [navigate],
+  );
 
-  const handleCreate = useCallback(async (form: ProjectFormState) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const name = form.name.trim() || t('projectPicker.untitledProject');
-      const project = await createProject({ projectName: name });
-      const summary = form.summary.trim();
-      if (summary) {
-        await updateProject(project.id, { name, summary });
+  const handleCreate = useCallback(
+    async (form: ProjectFormState) => {
+      if (busy) return;
+      setBusy(true);
+      try {
+        const name = form.name.trim() || t('projectPicker.untitledProject');
+        const project = await createProject({ projectName: name });
+        const summary = form.summary.trim();
+        if (summary) {
+          await updateProject(project.id, { name, summary });
+        }
+        setCreateOpen(false);
+        navigate(`/project/${project.id}`);
+      } catch (e) {
+        log.error('Failed to create project:', e);
+      } finally {
+        setBusy(false);
       }
-      setCreateOpen(false);
-      navigate(`/project/${project.id}`);
-    } catch (e) {
-      log.error('Failed to create project:', e);
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, createProject, updateProject, navigate, t]);
+    },
+    [busy, createProject, updateProject, navigate, t],
+  );
 
-  const handleEdit = useCallback(async (form: ProjectFormState) => {
-    if (!editing || busy) return;
-    setBusy(true);
-    try {
-      const name = form.name.trim() || editing.name;
-      await updateProject(editing.id, { name, summary: form.summary.trim() });
-      await fetchProjects();
-      setEditing(null);
-    } catch (e) {
-      log.error('Failed to update project:', e);
-    } finally {
-      setBusy(false);
-    }
-  }, [editing, busy, updateProject, fetchProjects]);
+  const handleEdit = useCallback(
+    async (form: ProjectFormState) => {
+      if (!editing || busy) return;
+      setBusy(true);
+      try {
+        const name = form.name.trim() || editing.name;
+        await updateProject(editing.id, { name, summary: form.summary.trim() });
+        await fetchProjects();
+        setEditing(null);
+      } catch (e) {
+        log.error('Failed to update project:', e);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [editing, busy, updateProject, fetchProjects],
+  );
 
   const handleDelete = useCallback(async () => {
     if (!confirmDelete || busy) return;
@@ -261,7 +264,7 @@ export function ProjectPickerView() {
   if (loading) {
     return (
       <div className="pp">
-        <div style={WINDOW_DRAG_STRIP_STYLE} aria-hidden />
+        <WindowDragStrip />
         <div className="pp__inner">
           <div className="pp-empty">{t('projectPicker.loading')}</div>
         </div>
@@ -274,9 +277,8 @@ export function ProjectPickerView() {
 
   return (
     <div className="pp">
-      <div style={WINDOW_DRAG_STRIP_STYLE} aria-hidden />
+      <WindowDragStrip />
       <div className="pp__inner">
-
         {/* ─── Header ─── */}
         <header className="pp-head">
           <div>
@@ -286,7 +288,9 @@ export function ProjectPickerView() {
               <span className="pp-head__kicker-sep">·</span>
               <span>{t('projectPicker.header.studio')}</span>
             </div>
-            <h1 className="pp-head__title"><em>{t('projectPicker.header.titleEm')}</em> {t('projectPicker.header.title')}</h1>
+            <h1 className="pp-head__title">
+              <em>{t('projectPicker.header.titleEm')}</em> {t('projectPicker.header.title')}
+            </h1>
             <p className="pp-head__sub">{t('projectPicker.header.subtitle')}</p>
           </div>
           <aside className="pp-head__aside">
@@ -315,21 +319,23 @@ export function ProjectPickerView() {
           </aside>
         </header>
 
-
         {/* ─── Toolbar ─── */}
         <div className="pp-toolbar">
           <div className="pp-toolbar__chips">
-            {([
-              ['all',    t('projectPicker.filters.all'),   counts.all],
-              ['active', t('projectPicker.filters.active'), counts.active],
-              ['paused', t('projectPicker.filters.paused'), counts.paused],
-            ] as Array<[Filter, string, number]>).map(([k, label, n]) => (
+            {(
+              [
+                ['all', t('projectPicker.filters.all'), counts.all],
+                ['active', t('projectPicker.filters.active'), counts.active],
+                ['paused', t('projectPicker.filters.paused'), counts.paused],
+              ] as Array<[Filter, string, number]>
+            ).map(([k, label, n]) => (
               <div
                 key={k}
                 className={`pp-toolbar__chip ${filter === k ? 'pp-toolbar__chip--active' : ''}`}
                 onClick={() => setFilter(k)}
               >
-                <span>{label}</span><em>· {n}</em>
+                <span>{label}</span>
+                <em>· {n}</em>
               </div>
             ))}
           </div>
@@ -338,11 +344,15 @@ export function ProjectPickerView() {
               <button
                 className={`pp-toolbar__view-btn ${view === 'grid' ? 'pp-toolbar__view-btn--active' : ''}`}
                 onClick={() => setView('grid')}
-              >⊞ {t('projectPicker.view.card')}</button>
+              >
+                ⊞ {t('projectPicker.view.card')}
+              </button>
               <button
                 className={`pp-toolbar__view-btn ${view === 'list' ? 'pp-toolbar__view-btn--active' : ''}`}
                 onClick={() => setView('list')}
-              >☰ {t('projectPicker.view.list')}</button>
+              >
+                ☰ {t('projectPicker.view.list')}
+              </button>
             </div>
             <button
               className="pp-toolbar__btn pp-toolbar__btn--accent"
@@ -362,14 +372,15 @@ export function ProjectPickerView() {
               <span className="pp-section__title-en">{t('projectPicker.allProjectsEn')}</span>
             </div>
             <span className="pp-section__count">
-              {t('projectPicker.projectCount', { filtered: filtered.length, total: decorated.length })}
+              {t('projectPicker.projectCount', {
+                filtered: filtered.length,
+                total: decorated.length,
+              })}
             </span>
           </div>
 
           {decorated.length === 0 ? (
-            <div className="pp-empty">
-              {t('projectPicker.empty')}
-            </div>
+            <div className="pp-empty">{t('projectPicker.empty')}</div>
           ) : view === 'grid' ? (
             <div className="pp-grid">
               {filtered.map((row) => (
@@ -386,7 +397,9 @@ export function ProjectPickerView() {
                   <div>
                     <div className="pp-card--new__glyph">＋</div>
                     <div className="pp-card--new__label">
-                      {t('projectPicker.newBookLine1')}<br/>{t('projectPicker.newBookLine2')}
+                      {t('projectPicker.newBookLine1')}
+                      <br />
+                      {t('projectPicker.newBookLine2')}
                     </div>
                   </div>
                 </div>
@@ -413,12 +426,11 @@ export function ProjectPickerView() {
                 style={{ borderStyle: 'dashed', cursor: 'pointer', color: 'hsl(var(--ink-4))' }}
                 onClick={() => setCreateOpen(true)}
               >
-                <span className="pp-list__glyph" style={{ color: 'hsl(var(--ink-4))' }}>＋</span>
+                <span className="pp-list__glyph" style={{ color: 'hsl(var(--ink-4))' }}>
+                  ＋
+                </span>
                 <div className="pp-list__title">
-                  <span
-                    className="pp-list__title-main"
-                    style={{ color: 'hsl(var(--ink-4))' }}
-                  >
+                  <span className="pp-list__title-main" style={{ color: 'hsl(var(--ink-4))' }}>
                     {t('projectPicker.newBookInline')}
                   </span>
                 </div>
@@ -488,9 +500,10 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
   const { t } = useTranslation();
   const { project, meta, status, colorToken, glyph, lastEditedRel } = row;
   const stats = project.stats;
-  const sourceLabel = project.source === 'server'
-    ? t('projectPicker.source.cloud')
-    : t('projectPicker.source.localDraft');
+  const sourceLabel =
+    project.source === 'server'
+      ? t('projectPicker.source.cloud')
+      : t('projectPicker.source.localDraft');
   const spineLine = meta.genre || sourceLabel;
 
   return (
@@ -500,8 +513,12 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
       onClick={onOpen}
     >
       <div className="pp-card__menu" onClick={(e) => e.stopPropagation()}>
-        <span className="pp-card__menu-btn" onClick={onEdit} title={t('common.edit')}>✎</span>
-        <span className="pp-card__menu-btn" onClick={onDelete} title={t('common.delete')}>×</span>
+        <span className="pp-card__menu-btn" onClick={onEdit} title={t('common.edit')}>
+          ✎
+        </span>
+        <span className="pp-card__menu-btn" onClick={onDelete} title={t('common.delete')}>
+          ×
+        </span>
       </div>
       <div className="pp-card__spine">
         <div className="pp-card__spine-top">
@@ -510,29 +527,45 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
         </div>
         <div>
           <h2 className="pp-card__spine-title">{project.name}</h2>
-          {meta.subtitle && (
-            <div className="pp-card__spine-sub">— {meta.subtitle}</div>
-          )}
+          {meta.subtitle && <div className="pp-card__spine-sub">— {meta.subtitle}</div>}
           <div className="pp-card__spine-foot" style={{ marginTop: 14 }}>
-            <span><b>{formatWordsK(stats.words)}</b> {t('common.words')}</span>
-            <span>{stats.nodes} {t('common.chapters')}</span>
+            <span>
+              <b>{formatWordsK(stats.words)}</b> {t('common.words')}
+            </span>
+            <span>
+              {stats.nodes} {t('common.chapters')}
+            </span>
           </div>
         </div>
       </div>
       <div className="pp-card__body">
         <div className="pp-card__title">
-          <em>《</em>{project.name}<em>》</em>
+          <em>《</em>
+          {project.name}
+          <em>》</em>
           {meta.subtitle ? ` · ${meta.subtitle}` : ''}
         </div>
         <div className="pp-card__meta">
-          <span><b>{stats.storylines}</b>{t('common.storylinesUnit')}</span>
-          <span><b>{stats.elements}</b>{t('common.elementsUnit')}</span>
-          <span><b>{stats.categories}</b>{t('common.categoriesUnit')}</span>
+          <span>
+            <b>{stats.storylines}</b>
+            {t('common.storylinesUnit')}
+          </span>
+          <span>
+            <b>{stats.elements}</b>
+            {t('common.elementsUnit')}
+          </span>
+          <span>
+            <b>{stats.categories}</b>
+            {t('common.categoriesUnit')}
+          </span>
         </div>
         <div className="pp-card__progress">
           <div
             className="pp-card__progress-fill"
-            style={{ width: `${Math.min(100, stats.nodes > 0 ? 100 : 0)}%`, opacity: stats.words > 0 ? 1 : 0.25 }}
+            style={{
+              width: `${Math.min(100, stats.nodes > 0 ? 100 : 0)}%`,
+              opacity: stats.words > 0 ? 1 : 0.25,
+            }}
           />
         </div>
         <div className={`pp-card__status pp-card__status--${status}`}>
@@ -547,8 +580,9 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
   const { t } = useTranslation();
   const { project, meta, status, colorToken, glyph, lastEditedRel } = row;
   const stats = project.stats;
-  const subline = meta.genre
-    || (project.source === 'server'
+  const subline =
+    meta.genre ||
+    (project.source === 'server'
       ? t('projectPicker.source.cloud')
       : t('projectPicker.source.localDraft'));
 
@@ -561,22 +595,24 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
       <span className="pp-list__glyph">{glyph}</span>
       <div className="pp-list__title">
         <span className="pp-list__title-main">
-          <em>《</em>{project.name}<em>》</em>
+          <em>《</em>
+          {project.name}
+          <em>》</em>
         </span>
         <span className="pp-list__title-sub">{subline}</span>
       </div>
-      <div className="pp-list__sub">
-        {project.summary || meta.subtitle || '—'}
-      </div>
+      <div className="pp-list__sub">{project.summary || meta.subtitle || '—'}</div>
       <div className="pp-list__cell">
         <span className="pp-list__cell-v">
-          {(stats.words / 1000).toFixed(1)}<em>k</em>
+          {(stats.words / 1000).toFixed(1)}
+          <em>k</em>
         </span>
         <span className="pp-list__cell-k">{t('common.words')}</span>
       </div>
       <div className="pp-list__cell">
         <span className="pp-list__cell-v">
-          {stats.nodes}<em>{t('common.chapters')}</em>
+          {stats.nodes}
+          <em>{t('common.chapters')}</em>
         </span>
         <span className="pp-list__cell-k">{t('projectPicker.nodesLabel')}</span>
       </div>
@@ -590,16 +626,12 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
         <span className="pp-list__cell-k">{t(`projectPicker.status.${status}`)}</span>
       </div>
       <div className="pp-list__menu" onClick={(e) => e.stopPropagation()}>
-        <span
-          className="pp-list__menu-btn"
-          onClick={onEdit}
-          title={t('common.edit')}
-        >✎</span>
-        <span
-          className="pp-list__menu-btn"
-          onClick={onDelete}
-          title={t('common.delete')}
-        >×</span>
+        <span className="pp-list__menu-btn" onClick={onEdit} title={t('common.edit')}>
+          ✎
+        </span>
+        <span className="pp-list__menu-btn" onClick={onDelete} title={t('common.delete')}>
+          ×
+        </span>
       </div>
     </div>
   );
@@ -671,11 +703,12 @@ interface ProjectFormModalProps {
 function ProjectFormModal({ mode, project, busy, onSubmit, onClose }: ProjectFormModalProps) {
   const { t } = useTranslation();
   const [form, setForm] = useState<ProjectFormState>({
-    name:    project?.name ?? '',
+    name: project?.name ?? '',
     summary: project?.summary ?? '',
   });
 
-  const set = <K extends keyof ProjectFormState>(key: K) =>
+  const set =
+    <K extends keyof ProjectFormState>(key: K) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
@@ -690,24 +723,31 @@ function ProjectFormModal({ mode, project, busy, onSubmit, onClose }: ProjectFor
 
   const isEdit = mode === 'edit';
   const submitLabel = isEdit
-    ? (busy ? t('common.saving') : t('common.save'))
-    : (busy ? t('common.creating') : t('projectPicker.form.createSubmit'));
+    ? busy
+      ? t('common.saving')
+      : t('common.save')
+    : busy
+      ? t('common.creating')
+      : t('projectPicker.form.createSubmit');
 
   return (
     <div className="pp-modal-backdrop" onClick={onClose}>
-      <div
-        className="pp-modal"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: 540 }}
-      >
+      <div className="pp-modal" onClick={(e) => e.stopPropagation()} style={{ width: 540 }}>
         <div className="pp-modal__head">
           <div className="pp-modal__kicker">
             {isEdit ? t('projectPicker.form.editKicker') : t('projectPicker.form.createKicker')}
           </div>
           <h2 className="pp-modal__title">
-            {isEdit
-              ? <>{t('projectPicker.form.editTitle')} <em>《{project?.name}》</em></>
-              : <>{t('projectPicker.form.createTitle')} <em>{t('projectPicker.form.createTitleEm')}</em></>}
+            {isEdit ? (
+              <>
+                {t('projectPicker.form.editTitle')} <em>《{project?.name}》</em>
+              </>
+            ) : (
+              <>
+                {t('projectPicker.form.createTitle')}{' '}
+                <em>{t('projectPicker.form.createTitleEm')}</em>
+              </>
+            )}
           </h2>
         </div>
         <div className="pp-modal__body">

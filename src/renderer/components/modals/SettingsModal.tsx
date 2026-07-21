@@ -62,6 +62,9 @@ import {
 import { acceleratorFromEvent, formatAccelerator, matchesAccelerator } from '../../lib/shortcuts';
 import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
 import { exportAllProjectsAsRelationalMarkdown } from '../../services/export/relational-markdown.service';
+import { generalAgentTransport } from '../../lib/agent/transport';
+import { platform } from '../../platform';
+import { getPlatformRuntime } from '../../platform/runtime';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -295,12 +298,6 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
         searchInputRef={searchInputRef}
         onClose={onClose}
       />
-      {/* Make the whole header draggable on macOS so traffic lights stay
-          usable; controls inside set their own no-drag. */}
-      <style>{`
-        .set-head { -webkit-app-region: drag; }
-        .set-head__search, .set-head__close, .set-head__back { -webkit-app-region: no-drag; }
-      `}</style>
       <div className="set-body">
         <SetRail items={filtered} active={active} onSelect={onRail} />
         <main className="set-main app-chrome app-island" ref={mainRef}>
@@ -342,9 +339,13 @@ function SetHead({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const isMac = navigator.userAgent.includes('Mac');
+  const runtime = getPlatformRuntime();
   return (
-    <div className="set-head app-chrome app-island" style={{ paddingLeft: isMac ? 86 : 18 }}>
+    <div
+      className="set-head app-chrome app-island"
+      data-tauri-drag-region={runtime.desktopWindowControls ? 'deep' : undefined}
+      style={{ paddingLeft: runtime.isMacDesktop ? 86 : 18 }}
+    >
       <div className="set-head__left">
         <div className="set-head__title">
           {t('settings.title')}{' '}
@@ -1322,7 +1323,9 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
                   inv.pdfUrl ? (
                     <button
                       className="set-btn"
-                      onClick={() => window.open(inv.pdfUrl ?? '', '_blank')}
+                      onClick={() => {
+                        if (inv.pdfUrl) void platform.material.openExternal(inv.pdfUrl);
+                      }}
                     >
                       {t('settings.subscription.download_pdf')}
                     </button>
@@ -2026,7 +2029,7 @@ function GroupHead({ label, hint, desc }: { label: string; hint?: string; desc?:
 /** Connect / status for the Agent's credentials (Claude OAuth or hosted). */
 function AgentAuthRow({ auth }: { auth: AgentAuth }) {
   const { t } = useTranslation();
-  const api = window.electronAPI?.agent;
+  const api = generalAgentTransport;
   const [status, setStatus] = useState<{
     byokConnected: boolean;
     apiKeyConnected: boolean;
@@ -2042,10 +2045,16 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
   const [keyDraft, setKeyDraft] = useState('');
 
   const refresh = useCallback(() => {
-    if (!api) return;
+    if (!api.capability.available) return;
     void api
       .authStatus()
-      .then(setStatus)
+      .then((result) => {
+        setStatus(
+          result.ok
+            ? result.value
+            : { byokConnected: false, apiKeyConnected: false, hostedAvailable: false },
+        );
+      })
       .catch(() =>
         setStatus({ byokConnected: false, apiKeyConnected: false, hostedAvailable: false }),
       );
@@ -2063,11 +2072,23 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
     };
   }, []);
 
-  if (!api) return null;
+  if (!api.capability.available) {
+    return (
+      <div className="set-sec">
+        <SecHead title={t('settings.agent.unavailableTitle')} hint="TAURI · UNSUPPORTED" />
+        <p className="set-row__desc">{t('settings.agent.unavailableReason')}</p>
+        <p className="set-row__desc">{t('settings.agent.unavailableFuture')}</p>
+      </div>
+    );
+  }
 
   const connect = async () => {
     setErr(null);
-    await api.authPrepare();
+    const result = await api.authPrepare();
+    if (!result.ok) {
+      setErr(result.error);
+      return;
+    }
     setAwaitingCode(true);
   };
   const submit = async () => {
@@ -2086,7 +2107,11 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
     }
   };
   const disconnect = async () => {
-    await api.authLogout();
+    const result = await api.authLogout();
+    if (!result.ok) {
+      setErr(result.error);
+      return;
+    }
     refresh();
     events.emit('agent:auth-changed');
   };
@@ -3498,6 +3523,24 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
   const agentToolSearch = useSettingsStore((s) => s.agentToolSearch);
   const setAgentToolSearch = useSettingsStore((s) => s.setAgentToolSearch);
 
+  if (!generalAgentTransport.capability.available) {
+    return (
+      <section className="set-panel" ref={registerRef} id="agent">
+        <PanelHead
+          kicker={t('settings.agent.kicker')}
+          title={t('settings.agent.unavailableTitle')}
+          sub={t('settings.agent.unavailableReason')}
+        />
+        <div className="set-sec">
+          <SecHead title={t('settings.agent.unavailableStatus')} hint="TAURI · UNSUPPORTED" />
+          <p className="set-row__desc">{t('settings.agent.unavailableFuture')}</p>
+        </div>
+        <AgentMemorySection open={open} />
+        <AgentUsageSection open={open} />
+      </section>
+    );
+  }
+
   return (
     <section className="set-panel" ref={registerRef} id="agent">
       <PanelHead
@@ -3522,12 +3565,8 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
               onClick={() => setAgentAuth(option.value)}
             >
               <div className="set-tier__kicker">{t(option.kickerKey)}</div>
-              <div className="set-tier__name">
-                {t(`settings.agent.auth.${option.value}.name`)}
-              </div>
-              <div className="set-tier__desc">
-                {t(`settings.agent.auth.${option.value}.desc`)}
-              </div>
+              <div className="set-tier__name">{t(`settings.agent.auth.${option.value}.name`)}</div>
+              <div className="set-tier__desc">{t(`settings.agent.auth.${option.value}.desc`)}</div>
             </button>
           ))}
         </div>
@@ -3939,7 +3978,7 @@ function AboutPanel({ registerRef }: { registerRef: RegisterRef }) {
         />
         <Row
           label={<span className="set-italic">{t('settings.about.openSource')}</span>}
-          desc="Tiptap · Yjs · Drizzle · React · Electron Forge"
+          desc="Tiptap · Yjs · Drizzle · React · Tauri 2"
           control={<button className="set-btn">{t('settings.about.viewList')}</button>}
         />
       </div>

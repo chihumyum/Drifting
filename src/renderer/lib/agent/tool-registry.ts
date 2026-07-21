@@ -6,12 +6,10 @@
  * Schema params + an access tag, so a caller can hand the model a scoped tool set.
  *
  * Only READ tools are listed here — Shadow is advise-not-block and must never get
- * write/canon-mutating tools. (The general co-writing agent keeps its own full
- * tool registration in main/agent/tools.ts for now; unifying the two onto this
- * registry is a deferred, behavior-preserving refactor.)
+ * write/canon-mutating tools. A future General Agent transport can add a separate
+ * write-capable view without weakening this allowlist.
  *
- * Schemas mirror the agent tools in main/agent/tools.ts — entities are addressed
- * BY NAME (project-unique), so the args are names, not ids.
+ * Entities are addressed BY NAME (project-unique), so args are names, not ids.
  */
 import type { AITool } from '../ai/types';
 
@@ -29,7 +27,7 @@ export const AGENT_READ_TOOLS: RegisteredTool[] = [
   {
     name: 'get_project_brief',
     description:
-      "本书设定纲要:项目名、简介、作者的 key/value 事实(目标/风格/前提/参考)与结构计数。先调它定位全局。",
+      '本书设定纲要:项目名、简介、作者的 key/value 事实(目标/风格/前提/参考)与结构计数。先调它定位全局。',
     parametersSchema: noArgs,
     access: 'read',
   },

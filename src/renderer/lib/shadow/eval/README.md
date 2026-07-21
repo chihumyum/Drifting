@@ -2,9 +2,8 @@
 
 Headless eval for the shadow review engine. It **clones a golden project in
 memory**, applies fault / dependency mutations to the clone, runs the **real**
-evaluator chain (`src/main/shadow/evaluators.ts` → `evaluateRules`, incl. the FC
-judge), and **captures `Finding[]` directly — bypassing the DB, the LangGraph
-wrapper, and the IPC bridge**. No app, no Electron.
+evaluator chain (`review-evaluator.ts` → `evaluateRules`, incl. the FC judge),
+and **captures `Finding[]` directly — bypassing the DB and application shell**.
 
 ## Cases are DATA (the corpus) — the current path
 
@@ -50,7 +49,7 @@ tokens / USD cost (`pricing.ts`) / latency p50·p95 / failure rate; `onUsage` at
 tokens **per case**. Golden `contentHash` is over the RESOLVED project (incl. vault prose).
 
 **Scaling the corpus (AI, not by hand).** `generate.ts` has an LLM propose fault
-cases *as data* (validated against the operator registry + drift guard + a no-throw
+cases _as data_ (validated against the operator registry + drift guard + a no-throw
 `apply`); `certify.ts` has an INDEPENDENT model confirm each is unambiguous
 (`clear-violation`/`ambiguous`/`not-a-violation`) before it's `enabled` — breaking the
 write-and-judge circularity. See `pnpm eval:gen`.
@@ -158,11 +157,11 @@ fault is unambiguous) before they're frozen into the labeled set. Pure FP
 measurement needs no AI faults at all — run the judge on the certified-clean
 golden; any flag is a false positive.
 
-## Why headless (no Electron)
+## Why headless
 
-`shadow-rules`' import graph's only Electron coupling is the LLM-client factory's
-subtree (BYOK keychain + capture interceptor). The eval `vi.mock`s that one module
-— the FC path takes its `client` as an argument — and builds a client directly:
+`shadow-rules` normally reaches the application credential and capture stack
+through the default LLM-client factory. The eval `vi.mock`s that one module — the
+FC path takes its `client` as an argument — and builds a client directly:
 `new LLMClient(new DeepSeekProvider({ apiKey }))`. `evaluators.ts` is
 framework-agnostic (pure types), so it imports and runs in node as-is.
 

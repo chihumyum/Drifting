@@ -1,19 +1,19 @@
 /**
- * Shadow job recorder (renderer-side). A shadow review runs in the main-process
- * LangGraph engine, but every data op bridges back to renderer handlers — so the
- * renderer is where the trail is actually observable. This module owns the
+ * Shadow job recorder. The review pipeline and its data/Yjs/LLM handlers now run
+ * together in the renderer, while this module owns the durable lifecycle row and
+ * the live observability trail. It owns the
  * persisted `shadow_job` row for each in-flight review and accumulates its trace:
  *
- *   beginShadowJob(chapterId, projectId)   — created on the worker's `started` IPC
- *   traceShadow(chapterId, projectId, …)   — appended from the shadow bridge
+ *   beginShadowJob(chapterId, projectId)   — created on the runtime's started event
+ *   traceShadow(chapterId, projectId, …)   — appended from the Shadow handlers
  *                                            handlers (gather/resolve/check/emit/
  *                                            decide) as the review proceeds
- *   finishShadowJob(chapterId, …)          — finalized on `completed`/`failed`
+ *   finishShadowJob(chapterId, …)          — finalized on completed/failed events
  *
  * The in-memory job is the source of truth (updated synchronously, mirrored into
  * the data-store so the panel live-updates); DB writes are fire-and-forget and
  * converge (finish writes the full trace). Lazy-create makes ordering between the
- * `started` IPC and the first bridge call irrelevant.
+ * the started event and the first handler call irrelevant.
  */
 import { createShadowJobRepository } from '../../sqlite-repo/shadow-job-repo';
 import { events } from '../events';
@@ -27,15 +27,15 @@ import type {
   ShadowTracePhase,
   ShadowTraceStep,
 } from '../../domain/shadow-job';
+import { cancelShadowJob as cancelRuntimeJob, enqueueShadowJob } from './runtime';
 
 const repo = createShadowJobRepository();
 const activeByChapter = new Map<string, ShadowJob>();
 const creating = new Map<string, Promise<ShadowJob>>();
 
-// Chapters the user asked to stop. The shadow bridge handlers check this at entry
-// and throw, so the in-flight run (whose slow work — the LLM judge — happens in
-// THIS renderer) unwinds; the trailing worker IPC is then suppressed (see
-// useShadowJobs). Auto-clears so a cancelled chapter can be reviewed again later.
+// Chapters the user asked to stop. The Shadow handlers check this at entry and
+// throw so the in-flight renderer run unwinds. Auto-clears so a cancelled chapter
+// can be reviewed again later.
 const cancelled = new Map<string, number>(); // chapterId → clear-timer id
 
 export function isShadowCancelled(chapterId: string): boolean {
@@ -51,10 +51,13 @@ export function clearShadowCancelled(chapterId: string): void {
 function markShadowCancelled(chapterId: string): void {
   clearShadowCancelled(chapterId);
   // Safety auto-clear: the run will have unwound long before this fires.
-  cancelled.set(chapterId, window.setTimeout(() => cancelled.delete(chapterId), 30_000));
+  cancelled.set(
+    chapterId,
+    window.setTimeout(() => cancelled.delete(chapterId), 30_000),
+  );
 }
 
-/** Thrown by shadow bridge handlers when the user has stopped this review. */
+/** Thrown by Shadow handlers when the user has stopped this review. */
 export class ShadowCancelledError extends Error {
   constructor(chapterId: string) {
     super(`shadow review cancelled: ${chapterId}`);
@@ -68,11 +71,8 @@ export function throwIfShadowCancelled(chapterId: string): void {
 
 // In-flight AbortControllers keyed by chapterId. The heavy LLM judge runs in THIS
 // renderer (shadow_eval_semantic_batch), so the cancelled flag alone only takes
-// effect at the NEXT bridge-handler entry — a long in-flight LLM round-trip keeps
-// the main worker's serial queue blocked ("排队"). Aborting the controller cancels
-// the fetch immediately → the bridge handler rejects → main's graph.invoke rejects
-// → its drain() frees `running` and the next job starts. This is what makes Stop
-// both immediate AND non-blocking.
+// effect at the NEXT handler entry. Aborting this controller cancels the fetch
+// immediately; cancelling the runtime controller below also stops between stages.
 const aborters = new Map<string, AbortController>();
 
 /** Signal for this chapter's in-flight judge. The eval handler threads it into
@@ -153,7 +153,7 @@ async function ensureActive(chapterId: string, projectId: string): Promise<Shado
   if (inflight) return inflight;
   // ADOPT the persisted queue row (created at enqueue) instead of minting a new
   // one — the durable queue's source of truth. Synchronous set wins any race
-  // between the worker's `started` IPC and the first bridge call's traceShadow.
+  // between the runtime's started event and the first handler trace.
   const existing = findResumableRow(chapterId, projectId);
   if (existing) {
     const at = new Date().toISOString();
@@ -181,7 +181,7 @@ export async function beginShadowJob(chapterId: string, projectId: string): Prom
 }
 
 /**
- * Durable enqueue: persist a 'queued' row BEFORE asking the main worker to run,
+ * Durable enqueue: persist a 'queued' row BEFORE asking the renderer runtime to run,
  * so the request survives a restart (loadInitial resumes it). Reuses the
  * chapter's existing non-terminal row to coalesce duplicate requests. This is the
  * single entry point every trigger (完成 / 复审 / 批量) should go through.
@@ -193,11 +193,13 @@ export async function enqueueShadowReview(chapterId: string, projectId: string):
   // ("no chapter <id>"). Nodes are always loaded by the time any trigger fires.
   const node = useDataStore.getState().bookNodes.find((n) => n.id === chapterId);
   if (!node || node.projectId !== projectId) {
-    console.warn(`[shadow] enqueue skipped — "${chapterId}" is not a chapter in project "${projectId}"`);
+    console.warn(
+      `[shadow] enqueue skipped — "${chapterId}" is not a chapter in project "${projectId}"`,
+    );
     return;
   }
   // Already running in THIS session → the in-flight review will produce a result;
-  // a second enqueue would double-queue it in the main worker. No-op.
+  // a second enqueue would double-queue it in the renderer runtime. No-op.
   if (activeByChapter.has(chapterId)) return;
   clearShadowCancelled(chapterId); // a fresh request overrides a prior stop
   aborters.delete(chapterId); // drop any aborted controller from a prior stop
@@ -206,21 +208,22 @@ export async function enqueueShadowReview(chapterId: string, projectId: string):
   let job: ShadowJob;
   if (existing) {
     // Reuse the chapter's existing non-terminal row (coalesce) — flip it to queued.
-    // The worker re-emits started → ensureActive adopts it back to running.
+    // The runtime emits started → ensureActive adopts it back to running.
     job = { ...existing, status: 'queued', error: null, finishedAt: null, updatedAt: at };
   } else {
-    job = await repo.create({ projectId, chapterId, chapterTitle: titleOf(chapterId), startedAt: at });
+    job = await repo.create({
+      projectId,
+      chapterId,
+      chapterTitle: titleOf(chapterId),
+      startedAt: at,
+    });
     job = { ...job, status: 'queued' };
   }
   pushStore(job);
-  void repo
-    .update(job.id, { status: 'queued', error: null, finishedAt: null })
-    .catch(() => {});
-  try {
-    window.electronAPI?.shadow?.enqueue({ projectId, chapterId });
-  } catch {
-    /* main may not be ready — the queued row persists and loadInitial resumes it */
-  }
+  void repo.update(job.id, { status: 'queued', error: null, finishedAt: null }).catch(() => {});
+  // The runtime accepts work before its dependencies are configured; it stays in
+  // memory and the persisted row remains the restart-safe source of truth.
+  enqueueShadowJob({ projectId, chapterId });
 }
 
 export interface TraceOpts {
@@ -260,7 +263,7 @@ export async function traceShadow(
 }
 
 /** Record the canon entities this review actually consulted (the precise
- *  dependency edges). Called once near the end of a review (shadow_set_status).
+ *  dependency edges). Called once near the end of a review (shadow_commit_review).
  *  Best-effort telemetry — never throws into the review. */
 export async function setShadowConsulted(
   chapterId: string,
@@ -325,18 +328,16 @@ export async function finishShadowJob(
   }
 }
 
-/** User pressed Stop: mark the chapter cancelled (so the in-flight judge unwinds)
- *  and finalize the job row as 'stopped'. Also asks main to drop a still-queued
- *  job. The trailing worker IPC is suppressed by the cancelled flag. */
-export async function stopShadowJob(chapterId: string, projectId: string): Promise<void> {
+/** User pressed Stop: mark the chapter cancelled (so the in-flight judge unwinds),
+ *  drop it from the renderer queue, and finalize its durable row as stopped. */
+export async function stopShadowJob(chapterId: string, projectId: string): Promise<boolean> {
+  // The runtime owns the exact commit boundary. If the atomic mutation has
+  // already begun, do not mark or persist a contradictory stopped state; the
+  // normal completed/failed lifecycle event will settle the job instead.
+  if (!cancelRuntimeJob(chapterId)) return false;
   markShadowCancelled(chapterId);
   abortShadowJob(chapterId); // cancel the in-flight LLM fetch NOW, not at next handler entry
-  try {
-    window.electronAPI?.shadow?.cancel?.({ chapterId });
-  } catch {
-    /* main may not expose cancel — the renderer flag still unwinds the run */
-  }
-  // Terminal notification: the trailing worker IPC is suppressed for a stopped
+  // Terminal notification: the trailing runtime event is suppressed for a stopped
   // review, so the running `ai-task` row would otherwise hang. Emit `stopped`
   // here so the pill/center settle to "已终止".
   events.emit('ai-task', {
@@ -363,7 +364,7 @@ export async function stopShadowJob(chapterId: string, projectId: string): Promi
           j.projectId === projectId &&
           (j.status === 'running' || j.status === 'queued'),
       );
-  if (!job) return;
+  if (!job) return true;
   cancelTraceFlush(job.id); // a stale pending flush would overwrite the 已终止 trace
   const at = new Date().toISOString();
   const stopped: ShadowJob = {
@@ -381,4 +382,5 @@ export async function stopShadowJob(chapterId: string, projectId: string): Promi
   } catch {
     /* swallow — the in-memory/store copy is already correct */
   }
+  return true;
 }

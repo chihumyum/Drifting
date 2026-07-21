@@ -10,7 +10,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { RuleSpec } from '@/main/shadow/types';
+import type { RuleSpec } from '../../review-types';
 import type { ProjectRule } from '../../../../domain/project-rule';
 import type { BookElement } from '../../../../domain/book-element';
 import type { BookNode } from '../../../../domain/book-node';

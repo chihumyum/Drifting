@@ -1,5 +1,5 @@
 /**
- * Headless review: run the REAL evaluator chain (src/main/shadow/evaluators.ts)
+ * Headless review: run the same platform-neutral evaluator as the app runtime
  * over an in-memory project, capturing Finding[] — the same findings that would
  * become comments — WITHOUT any DB write, graph wrapper, or IPC bridge. This is
  * the "横切 shadow 链路拿结果、绕过写库" interception point.
@@ -8,8 +8,8 @@
  * inline with no LLM (so the mechanical path is eval-able with NO key); semantic
  * items go through the real FC judge with real consultation via the model runTool.
  */
-import { evaluateRules } from '@/main/shadow/evaluators';
-import type { Finding, ReviewContext, SemanticViolation } from '@/main/shadow/types';
+import { evaluateRules } from '../review-evaluator';
+import type { Finding, ReviewContext, SemanticViolation } from '../review-types';
 import { evaluateSemanticAssertionsFC, type AgenticTraceStep } from '../../ai/shadow-rules';
 import type { AIUsage } from '../../ai/types';
 import { AGENT_READ_TOOLS, toAITools } from '../../agent/tool-registry';
@@ -23,11 +23,7 @@ import {
   type EvalChapter,
   type EvalProject,
 } from './model';
-import {
-  keywordProseSearcher,
-  semanticProseSearcher,
-  type SemanticPickLog,
-} from './prose-search';
+import { keywordProseSearcher, semanticProseSearcher, type SemanticPickLog } from './prose-search';
 
 const READ_TOOLS = toAITools(AGENT_READ_TOOLS);
 

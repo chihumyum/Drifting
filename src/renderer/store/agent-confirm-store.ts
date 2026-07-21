@@ -3,13 +3,13 @@
  * comment / patch / relation).
  *
  * Replaces `window.confirm`, which (a) froze the whole renderer event loop and
- * (b) raced the 30s IPC bridge timeout — if the user sat on the prompt, the
- * bridge timed out and told the agent the tool FAILED, yet the delete still ran
+ * (b) raced the transport request timeout — if the user sat on the prompt, the
+ * caller timed out and told the agent the tool FAILED, yet the delete still ran
  * (delete succeeds while the agent believes it failed).
  *
  * This renders an in-app dialog instead and AUTO-DECLINES after a timeout well
- * under the bridge's, so the tool always returns a clean confirmed/declined
- * result before the bridge gives up — and the destructive action only runs on an
+ * under the transport deadline, so the tool returns a clean confirmed/declined
+ * result before its caller gives up — and the destructive action only runs on an
  * explicit "allow".
  */
 import { create } from 'zustand';

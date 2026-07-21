@@ -15,7 +15,7 @@
  * Knobs (env): EVAL_CONCURRENCY (default 6) · EVAL_CALL_TIMEOUT_MS (default 480000,
  * 0 = off).
  */
-import type { Finding } from '@/main/shadow/types';
+import type { Finding } from '../review-types';
 import type { LLMClient } from '../../ai/client/llm-client';
 import type { AgenticTraceStep } from '../../ai/shadow-rules';
 import type { AIUsage } from '../../ai/types';
@@ -212,7 +212,15 @@ export async function runEval(
         const ruleIds = [
           ...new Set(m.expect.filter((e) => e.chapterId === chId).map((e) => e.ruleId)),
         ];
-        tasks.push({ mutationId: m.id, iter, chapterId: chId, project: copy, chapter: ch, ruleIds, depHints });
+        tasks.push({
+          mutationId: m.id,
+          iter,
+          chapterId: chId,
+          project: copy,
+          chapter: ch,
+          ruleIds,
+          depHints,
+        });
       }
     }
   }
@@ -325,8 +333,7 @@ export async function runEval(
   return { tally, rows, repeat, tokensByCase, findings: allFindings };
 }
 
-const glyph = (o: Outcome) =>
-  o === 'TP' || o === 'TN' ? '✓' : o === 'FP' ? '✗误报' : '✗漏报';
+const glyph = (o: Outcome) => (o === 'TP' || o === 'TN' ? '✓' : o === 'FP' ? '✗误报' : '✗漏报');
 
 export function formatReport(r: EvalResult): string {
   const { TP, FP, FN, TN } = r.tally;
@@ -345,7 +352,9 @@ export function formatReport(r: EvalResult): string {
   const reasonsFor = (mutation: string, chapterId: string, ruleId: string): string[] =>
     r.findings
       .filter((f) => f.mutation === mutation && f.chapterId === chapterId && f.ruleId === ruleId)
-      .map((f) => `${f.reason || f.message}${f.blockIds.length ? ` @${f.blockIds.join(',')}` : ''}`);
+      .map(
+        (f) => `${f.reason || f.message}${f.blockIds.length ? ` @${f.blockIds.join(',')}` : ''}`,
+      );
   const wrong = r.rows.filter((row) => row.outcome === 'FP' || row.outcome === 'FN');
   const triage = wrong.length
     ? '\n  ─── 待分诊（FP/FN）───\n' +
@@ -354,8 +363,9 @@ export function formatReport(r: EvalResult): string {
           const tag = row.outcome === 'FP' ? '✗误报' : '✗漏报';
           const why =
             row.outcome === 'FP'
-              ? reasonsFor(row.mutation, row.chapterId, row.ruleId).map((s) => `\n        → ${s}`).join('') ||
-                '\n        →（无 reason 记录）'
+              ? reasonsFor(row.mutation, row.chapterId, row.ruleId)
+                  .map((s) => `\n        → ${s}`)
+                  .join('') || '\n        →（无 reason 记录）'
               : '\n        →（判官未触发该约束）';
           return `  ${tag} ${row.mutation} ${row.chapterId}/${row.ruleId}${why}`;
         })

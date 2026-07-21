@@ -15,7 +15,11 @@ import { useProjectAsset } from '../usecase/useProjectAsset';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
-import { EditorOutlinePanel, nestHeadings, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
+import {
+  EditorOutlinePanel,
+  nestHeadings,
+  type OutlineEntry,
+} from '../components/editor/EditorOutlinePanel';
 import { KvEditor } from '../components/editor/KvEditor';
 import { FieldReview, FieldReviewStrip } from '../components/editor/FieldReview';
 import { useFieldReview } from '../hooks/useFieldReview';
@@ -42,13 +46,12 @@ import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import { projectAssetService } from '../services/project-asset.service';
 import { assetCacheService, extForMime } from '../services/asset-cache.service';
 import type { LibraryItem } from '../domain/library-item';
+import { platform } from '../platform';
 
 const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
 
-export function ElementEditorView({
-  elementIdOverride,
-}: { elementIdOverride?: string } = {}) {
+export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: string } = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { leaveDeletedEntity } = useProjectNavigation();
@@ -81,7 +84,7 @@ export function ElementEditorView({
   });
   const { updateElement } = elementUsecases;
 
-  const curElement = elementId ? bookElements.find((e) => e.id === elementId) ?? null : null;
+  const curElement = elementId ? (bookElements.find((e) => e.id === elementId) ?? null) : null;
   const portraitAssetId = curElement?.portraitAssetId ?? null;
   const portraitAsset = useMemo(() => {
     if (!portraitAssetId) return null;
@@ -106,8 +109,9 @@ export function ElementEditorView({
     assetId: string | null;
     message: string;
   } | null>(null);
-  const portraitUrl =
-    readyPortraitAssetId ? (portraitUrlByAssetId[readyPortraitAssetId] ?? null) : null;
+  const portraitUrl = readyPortraitAssetId
+    ? (portraitUrlByAssetId[readyPortraitAssetId] ?? null)
+    : null;
   const portraitHasImageSlot = !!readyPortraitAssetId;
   const portraitSurfaceLabel = portraitUrl
     ? t('elementEditor.portrait.view')
@@ -250,9 +254,20 @@ export function ElementEditorView({
   // always runs (Rules of Hooks).
   const frameworkItems: OutlineEntry[] = [
     { id: 'el-overview', level: 2, kind: 'section', text: t('elementEditor.sections.overview') },
-    { id: 'el-bio', level: 2, kind: 'section', text: t('elementEditor.sections.bio'), children: nestHeadings(outline) },
+    {
+      id: 'el-bio',
+      level: 2,
+      kind: 'section',
+      text: t('elementEditor.sections.bio'),
+      children: nestHeadings(outline),
+    },
     { id: 'el-kv', level: 2, kind: 'section', text: t('elementEditor.sections.facts') },
-    { id: 'el-relations', level: 2, kind: 'section', text: t('referencesPanel.sections.relations') },
+    {
+      id: 'el-relations',
+      level: 2,
+      kind: 'section',
+      text: t('referencesPanel.sections.relations'),
+    },
     { id: 'el-patches', level: 2, kind: 'section', text: t('elementEditor.sections.patches') },
     { id: 'el-arc', level: 2, kind: 'section', text: t('elementEditor.sections.arc') },
     { id: 'el-evolve', level: 2, kind: 'section', text: t('evolveSection.kicker') },
@@ -465,14 +480,14 @@ export function ElementEditorView({
     let uploadedAssetId: string | null = null;
 
     try {
-      const picked = await window.electronAPI.material.pickFile('image');
+      const picked = await platform.material.pickFile('image');
       if (!picked.ok) return;
 
       setPortraitBusy(true);
       const [inspection, display, thumbnail] = await Promise.all([
-        window.electronAPI.material.inspectImage(picked.filePath),
-        window.electronAPI.material.createImageVariant(picked.filePath, 1600, 82),
-        window.electronAPI.material.createImageVariant(picked.filePath, 512, 72),
+        platform.material.inspectImage(picked.filePath),
+        platform.material.createImageVariant(picked.filePath, 1600, 82),
+        platform.material.createImageVariant(picked.filePath, 512, 72),
       ]);
       if (!inspection.ok) throw new Error(inspection.error);
       if (!display.ok) throw new Error(display.error);
@@ -575,14 +590,7 @@ export function ElementEditorView({
     } finally {
       setPortraitBusy(false);
     }
-  }, [
-    projectId,
-    elementId,
-    portraitAssetId,
-    projectAssetUsecases,
-    updateElement,
-    t,
-  ]);
+  }, [projectId, elementId, portraitAssetId, projectAssetUsecases, updateElement, t]);
 
   const handleRemovePortrait = useCallback(async () => {
     if (!projectId || !elementId || !portraitAssetId) return;
@@ -681,13 +689,7 @@ export function ElementEditorView({
     if (!pendingEntityAction) return;
     const queued = consumeEntityAction('element', elementId);
     if (queued) queueMicrotask(() => void handleContextAction(queued));
-  }, [
-    elementId,
-    curElement,
-    pendingEntityAction,
-    consumeEntityAction,
-    handleContextAction,
-  ]);
+  }, [elementId, curElement, pendingEntityAction, consumeEntityAction, handleContextAction]);
 
   if (!elementId || !curElement) {
     return (
@@ -765,24 +767,24 @@ export function ElementEditorView({
           </EditorCrumb>
         )}
         <EditorCrumb
-          dropdown={
-            siblingElements.map((el) => {
-              const isActive = el.id === curElement.id;
-              return (
-                <div
-                  key={el.id}
-                  className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
-                  onClick={() => {
-                    if (!isActive) navigate(`/project/${projectId}/element/${el.id}`);
-                  }}
-                >
-                  <span>{el.name || t('elementEditor.untitled')}</span>
-                </div>
-              );
-            })
-          }
+          dropdown={siblingElements.map((el) => {
+            const isActive = el.id === curElement.id;
+            return (
+              <div
+                key={el.id}
+                className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
+                onClick={() => {
+                  if (!isActive) navigate(`/project/${projectId}/element/${el.id}`);
+                }}
+              >
+                <span>{el.name || t('elementEditor.untitled')}</span>
+              </div>
+            );
+          })}
         >
-          <span className="editor-crumb-title">{curElement.name || t('elementEditor.untitled')}</span>
+          <span className="editor-crumb-title">
+            {curElement.name || t('elementEditor.untitled')}
+          </span>
         </EditorCrumb>
       </EditorTopBar>
 
@@ -799,306 +801,314 @@ export function ElementEditorView({
           }}
           emptyHint={t('nodeEditor.outline.empty')}
         />
-        <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
+        <div
+          className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`}
+          ref={setScrollEl}
+        >
           <div className="editor__spread">
-          <article className="page">
-            <div className="page__folio" aria-hidden="true">
-              <span className="page__folio-line">{t('elementEditor.folio')}</span>
-              {currentCategory && (
-                <span className="page__folio-line page__folio-line--accent">
-                  {currentCategory.name}
-                  {curElement.groupName ? ` - ${curElement.groupName}` : ''}
-                </span>
-              )}
-            </div>
+            <article className="page">
+              <div className="page__folio" aria-hidden="true">
+                <span className="page__folio-line">{t('elementEditor.folio')}</span>
+                {currentCategory && (
+                  <span className="page__folio-line page__folio-line--accent">
+                    {currentCategory.name}
+                    {curElement.groupName ? ` - ${curElement.groupName}` : ''}
+                  </span>
+                )}
+              </div>
 
-            <section id="el-overview">
-              <div className="elem-hero">
-                <div className="elem-portrait-wrap">
-                  <div
-                    className={`elem-portrait${portraitHasImageSlot ? ' elem-portrait--image' : ''}${portraitBusy ? ' elem-portrait--busy' : ''}`}
-                    style={portraitHasImageSlot ? undefined : { background: `${categoryColor}` }}
-                    role="button"
-                    tabIndex={portraitBusy ? -1 : 0}
-                    title={portraitSurfaceLabel}
-                    aria-label={portraitSurfaceLabel}
-                    onClick={(event) => {
-                      if (portraitUrl) event.currentTarget.blur();
-                      handlePortraitSurfaceClick();
-                    }}
-                    onKeyDown={handlePortraitSurfaceKeyDown}
-                  >
-                    {portraitUrl ? (
-                      <img className="elem-portrait__img" src={portraitUrl} alt="" />
-                    ) : !portraitHasImageSlot ? (
-                      <span className="elem-portrait__hint">
-                        {currentCategory
-                          ? t('elementEditor.sketchWithCategory', { category: currentCategory.name })
-                          : t('elementEditor.sketch')}
-                      </span>
-                    ) : null}
-                    <div className="elem-portrait__actions">
-                      <button
-                        type="button"
-                        className="elem-portrait__action"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleUploadPortrait();
-                        }}
-                        disabled={portraitBusy}
-                        title={t(
-                          portraitAsset
-                            ? 'elementEditor.portrait.replace'
-                            : 'elementEditor.portrait.upload',
-                        )}
-                      >
-                        {portraitBusy ? (
-                          <Loader2 className="elem-portrait__icon elem-portrait__icon--spin" aria-hidden />
-                        ) : (
-                          <ImagePlus className="elem-portrait__icon" aria-hidden />
-                        )}
-                        <span>
-                          {portraitBusy
-                            ? t('elementEditor.portrait.uploading')
-                            : portraitAsset
-                              ? t('elementEditor.portrait.replace')
-                              : t('elementEditor.portrait.upload')}
+              <section id="el-overview">
+                <div className="elem-hero">
+                  <div className="elem-portrait-wrap">
+                    <div
+                      className={`elem-portrait${portraitHasImageSlot ? ' elem-portrait--image' : ''}${portraitBusy ? ' elem-portrait--busy' : ''}`}
+                      style={portraitHasImageSlot ? undefined : { background: `${categoryColor}` }}
+                      role="button"
+                      tabIndex={portraitBusy ? -1 : 0}
+                      title={portraitSurfaceLabel}
+                      aria-label={portraitSurfaceLabel}
+                      onClick={(event) => {
+                        if (portraitUrl) event.currentTarget.blur();
+                        handlePortraitSurfaceClick();
+                      }}
+                      onKeyDown={handlePortraitSurfaceKeyDown}
+                    >
+                      {portraitUrl ? (
+                        <img className="elem-portrait__img" src={portraitUrl} alt="" />
+                      ) : !portraitHasImageSlot ? (
+                        <span className="elem-portrait__hint">
+                          {currentCategory
+                            ? t('elementEditor.sketchWithCategory', {
+                                category: currentCategory.name,
+                              })
+                            : t('elementEditor.sketch')}
                         </span>
-                      </button>
-                      {portraitAsset && (
+                      ) : null}
+                      <div className="elem-portrait__actions">
                         <button
                           type="button"
-                          className="elem-portrait__action elem-portrait__action--icon"
+                          className="elem-portrait__action"
                           onClick={(event) => {
                             event.stopPropagation();
-                            void handleRemovePortrait();
+                            void handleUploadPortrait();
                           }}
                           disabled={portraitBusy}
-                          title={t('elementEditor.portrait.remove')}
+                          title={t(
+                            portraitAsset
+                              ? 'elementEditor.portrait.replace'
+                              : 'elementEditor.portrait.upload',
+                          )}
                         >
-                          <Trash2 className="elem-portrait__icon" aria-hidden />
+                          {portraitBusy ? (
+                            <Loader2
+                              className="elem-portrait__icon elem-portrait__icon--spin"
+                              aria-hidden
+                            />
+                          ) : (
+                            <ImagePlus className="elem-portrait__icon" aria-hidden />
+                          )}
+                          <span>
+                            {portraitBusy
+                              ? t('elementEditor.portrait.uploading')
+                              : portraitAsset
+                                ? t('elementEditor.portrait.replace')
+                                : t('elementEditor.portrait.upload')}
+                          </span>
                         </button>
-                      )}
+                        {portraitAsset && (
+                          <button
+                            type="button"
+                            className="elem-portrait__action elem-portrait__action--icon"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleRemovePortrait();
+                            }}
+                            disabled={portraitBusy}
+                            title={t('elementEditor.portrait.remove')}
+                          >
+                            <Trash2 className="elem-portrait__icon" aria-hidden />
+                          </button>
+                        )}
+                      </div>
                     </div>
+                    {portraitError && (
+                      <div className="elem-portrait__error" role="alert">
+                        {portraitError}
+                      </div>
+                    )}
                   </div>
-                  {portraitError && (
-                    <div className="elem-portrait__error" role="alert">
-                      {portraitError}
-                    </div>
-                  )}
-                </div>
-                <div className="elem-hero__main">
-                  <input
-                    type="text"
-                    className="elem-hero__name"
-                    value={nameValue}
-                    onChange={(e) => setNameValue(e.target.value)}
-                    onBlur={() => void commitName()}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        e.currentTarget.blur();
-                      }
-                      if (e.key === 'Escape') {
-                        setNameValue(curElement.name || '');
-                        e.currentTarget.blur();
-                      }
-                    }}
-                    placeholder={t('elementEditor.untitled')}
-                  />
-
-                  {/* Aliases chip-list. Inline-styled for now; promote to
-                      a proper class in styles/index.css once the visual
-                      treatment stabilizes. The styling is intentionally
-                      muted — aliases are metadata, not titles. */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: 6,
-                      marginTop: 4,
-                      marginBottom: 8,
-                      alignItems: 'center',
-                    }}
-                  >
-                    {curElement.aliases.map((alias, idx) => (
-                      <span
-                        key={`${alias}-${idx}`}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '2px 8px',
-                          borderRadius: 999,
-                          background: 'hsl(var(--surface-elev, var(--surface)))',
-                          border: '1px solid hsl(var(--rule))',
-                          fontFamily: 'var(--font-serif)',
-                          fontStyle: 'italic',
-                          fontSize: 12,
-                          color: 'hsl(var(--ink-2))',
-                        }}
-                      >
-                        {alias}
-                        <button
-                          type="button"
-                          onClick={() => void removeAlias(idx)}
-                          title={t('elementEditor.alias.remove')}
-                          style={{
-                            background: 'transparent',
-                            border: 0,
-                            padding: 0,
-                            color: 'hsl(var(--ink-4))',
-                            cursor: 'pointer',
-                            fontSize: 13,
-                            lineHeight: 1,
-                          }}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
+                  <div className="elem-hero__main">
                     <input
                       type="text"
-                      value={aliasDraft}
-                      onChange={(e) => setAliasDraft(e.target.value)}
-                      onBlur={() => void addAlias()}
+                      className="elem-hero__name"
+                      value={nameValue}
+                      onChange={(e) => setNameValue(e.target.value)}
+                      onBlur={() => void commitName()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          void addAlias();
+                          e.currentTarget.blur();
                         }
                         if (e.key === 'Escape') {
-                          setAliasDraft('');
+                          setNameValue(curElement.name || '');
                           e.currentTarget.blur();
                         }
                       }}
-                      placeholder={
-                        curElement.aliases.length === 0
-                          ? t('elementEditor.alias.addFirst')
-                          : t('elementEditor.alias.add')
-                      }
+                      placeholder={t('elementEditor.untitled')}
+                    />
+
+                    {/* Aliases chip-list. Inline-styled for now; promote to
+                      a proper class in styles/index.css once the visual
+                      treatment stabilizes. The styling is intentionally
+                      muted — aliases are metadata, not titles. */}
+                    <div
                       style={{
-                        background: 'transparent',
-                        border: 0,
-                        outline: 0,
-                        padding: '2px 4px',
-                        fontFamily: 'var(--font-serif)',
-                        fontStyle: 'italic',
-                        fontSize: 12,
-                        color: 'hsl(var(--ink-3))',
-                        minWidth: 80,
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 6,
+                        marginTop: 4,
+                        marginBottom: 8,
+                        alignItems: 'center',
                       }}
-                    />
-                  </div>
-
-                  {summaryReviewChange ? (
-                    <FieldReview
-                      change={summaryReviewChange}
-                      onAccept={() => {
-                        fieldReview.accept(summaryReviewChange);
-                        setSummaryValue(summaryReviewChange.newText);
-                      }}
-                      onReject={() => {
-                        fieldReview.reject(summaryReviewChange);
-                        setSummaryValue(summaryReviewChange.oldText);
-                      }}
-                    />
-                  ) : (
-                    <textarea
-                      ref={summaryRef}
-                      className="elem-hero__summary"
-                      value={summaryValue}
-                      onChange={(e) => setSummaryValue(e.target.value)}
-                      onBlur={() => void commitSummary()}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setSummaryValue(curElement.summary || '');
-                          e.currentTarget.blur();
+                    >
+                      {curElement.aliases.map((alias, idx) => (
+                        <span
+                          key={`${alias}-${idx}`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            background: 'hsl(var(--surface-elev, var(--surface)))',
+                            border: '1px solid hsl(var(--rule))',
+                            fontFamily: 'var(--font-serif)',
+                            fontStyle: 'italic',
+                            fontSize: 12,
+                            color: 'hsl(var(--ink-2))',
+                          }}
+                        >
+                          {alias}
+                          <button
+                            type="button"
+                            onClick={() => void removeAlias(idx)}
+                            title={t('elementEditor.alias.remove')}
+                            style={{
+                              background: 'transparent',
+                              border: 0,
+                              padding: 0,
+                              color: 'hsl(var(--ink-4))',
+                              cursor: 'pointer',
+                              fontSize: 13,
+                              lineHeight: 1,
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        type="text"
+                        value={aliasDraft}
+                        onChange={(e) => setAliasDraft(e.target.value)}
+                        onBlur={() => void addAlias()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            void addAlias();
+                          }
+                          if (e.key === 'Escape') {
+                            setAliasDraft('');
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        placeholder={
+                          curElement.aliases.length === 0
+                            ? t('elementEditor.alias.addFirst')
+                            : t('elementEditor.alias.add')
                         }
-                      }}
-                      placeholder={t('elementEditor.summaryPlaceholder')}
-                      rows={1}
-                    />
-                  )}
+                        style={{
+                          background: 'transparent',
+                          border: 0,
+                          outline: 0,
+                          padding: '2px 4px',
+                          fontFamily: 'var(--font-serif)',
+                          fontStyle: 'italic',
+                          fontSize: 12,
+                          color: 'hsl(var(--ink-3))',
+                          minWidth: 80,
+                        }}
+                      />
+                    </div>
 
-                  {/* DEFERRED: KV facts list (alias / 类目 / 生年 / 首次出场 …)
+                    {summaryReviewChange ? (
+                      <FieldReview
+                        change={summaryReviewChange}
+                        onAccept={() => {
+                          fieldReview.accept(summaryReviewChange);
+                          setSummaryValue(summaryReviewChange.newText);
+                        }}
+                        onReject={() => {
+                          fieldReview.reject(summaryReviewChange);
+                          setSummaryValue(summaryReviewChange.oldText);
+                        }}
+                      />
+                    ) : (
+                      <textarea
+                        ref={summaryRef}
+                        className="elem-hero__summary"
+                        value={summaryValue}
+                        onChange={(e) => setSummaryValue(e.target.value)}
+                        onBlur={() => void commitSummary()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            setSummaryValue(curElement.summary || '');
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        placeholder={t('elementEditor.summaryPlaceholder')}
+                        rows={1}
+                      />
+                    )}
+
+                    {/* DEFERRED: KV facts list (alias / 类目 / 生年 / 首次出场 …)
                       Needs schema migration to add typed fields per category, plus
                       a category-level field definition surface (see CategoryEditor
                       § 字段定义 in design). Once implemented, render here. */}
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
 
-            {/* 记·传 — the element's free-form biography (TipTap body). Sits
+              {/* 记·传 — the element's free-form biography (TipTap body). Sits
                 directly under the hero so the prose leads; structured 字段
                 follow. Its H1/H2/H3 headings nest under this anchor in the TOC. */}
-            <h2 id="el-bio" className="page__scene">
-              <span className="page__scene-title">{t('elementEditor.sections.bioTitle')}</span>
-            </h2>
-            <div className="elem-body">
-              <EditorContent editor={editor} />
-            </div>
+              <h2 id="el-bio" className="page__scene">
+                <span className="page__scene-title">{t('elementEditor.sections.bioTitle')}</span>
+              </h2>
+              <div className="elem-body">
+                <EditorContent editor={editor} />
+              </div>
 
-            {/* 字段 — element's own KV facts. Seeded at creation from the
+              {/* 字段 — element's own KV facts. Seeded at creation from the
                 category's elementTemplateKvJson; owned thereafter. */}
-            <h2 id="el-kv" className="page__scene">
-              <span className="page__scene-title">{t('elementEditor.sections.facts')}</span>
-              <span className="page__scene-meta">{t('elementEditor.meta.facts')}</span>
-            </h2>
-            <div className="elem-body">
-              <FieldReviewStrip
-                changes={fieldReview.kvChanges}
-                onAccept={fieldReview.accept}
-                onReject={fieldReview.reject}
-              />
-              <KvEditor
-                key={`el-kv-${curElement.id}`}
-                valueJson={curElement.kvJson}
-                onPersist={commitKv}
-                suppressKeys={new Set(fieldReview.kvChanges.map((c) => c.field?.key ?? ''))}
-                emptyHint={t('elementEditor.empty.noFacts')}
-              />
-            </div>
-
-            {/* Manual relations stay in the body (they're authored here, with
-                the link picker); 被引用/引用其他 are read-only projections and
-                live in the right sidebar's stats panel instead. */}
-            {elementId && projectId && (
-              <div id="el-relations" style={{ scrollMarginTop: 24 }}>
-                <ReferencesPanel
-                  entityKind="element"
-                  entityId={elementId}
-                  projectId={projectId}
-                  sections={['relations']}
+              <h2 id="el-kv" className="page__scene">
+                <span className="page__scene-title">{t('elementEditor.sections.facts')}</span>
+                <span className="page__scene-meta">{t('elementEditor.meta.facts')}</span>
+              </h2>
+              <div className="elem-body">
+                <FieldReviewStrip
+                  changes={fieldReview.kvChanges}
+                  onAccept={fieldReview.accept}
+                  onReject={fieldReview.reject}
+                />
+                <KvEditor
+                  key={`el-kv-${curElement.id}`}
+                  valueJson={curElement.kvJson}
+                  onPersist={commitKv}
+                  suppressKeys={new Set(fieldReview.kvChanges.map((c) => c.field?.key ?? ''))}
+                  emptyHint={t('elementEditor.empty.noFacts')}
                 />
               </div>
+
+              {/* Manual relations stay in the body (they're authored here, with
+                the link picker); 被引用/引用其他 are read-only projections and
+                live in the right sidebar's stats panel instead. */}
+              {elementId && projectId && (
+                <div id="el-relations" style={{ scrollMarginTop: 24 }}>
+                  <ReferencesPanel
+                    entityKind="element"
+                    entityId={elementId}
+                    projectId={projectId}
+                    sections={['relations']}
+                  />
+                </div>
+              )}
+              {elementId && projectId && (
+                <div id="el-patches" style={{ scrollMarginTop: 24 }}>
+                  <PatchesSection elementId={elementId} projectId={projectId} />
+                </div>
+              )}
+              {elementId && projectId && (
+                <div id="el-arc" style={{ scrollMarginTop: 24 }}>
+                  <ArcSection elementId={elementId} projectId={projectId} />
+                </div>
+              )}
+              {elementId && projectId && (
+                <div id="el-evolve" style={{ scrollMarginTop: 24 }}>
+                  <EvolveSection elementId={elementId} projectId={projectId} />
+                </div>
+              )}
+            </article>
+            {marginNotes && (
+              <CommentRail
+                projectId={projectId ?? curElement.projectId}
+                targetKind="element"
+                targetId={elementId}
+                scrollEl={scrollEl}
+                pendingRequest={pendingComment}
+                onPendingRequestChange={setPendingComment}
+              />
             )}
-            {elementId && projectId && (
-              <div id="el-patches" style={{ scrollMarginTop: 24 }}>
-                <PatchesSection elementId={elementId} projectId={projectId} />
-              </div>
-            )}
-            {elementId && projectId && (
-              <div id="el-arc" style={{ scrollMarginTop: 24 }}>
-                <ArcSection elementId={elementId} projectId={projectId} />
-              </div>
-            )}
-            {elementId && projectId && (
-              <div id="el-evolve" style={{ scrollMarginTop: 24 }}>
-                <EvolveSection elementId={elementId} projectId={projectId} />
-              </div>
-            )}
-          </article>
-          {marginNotes && (
-            <CommentRail
-              projectId={projectId ?? curElement.projectId}
-              targetKind="element"
-              targetId={elementId}
-              scrollEl={scrollEl}
-              pendingRequest={pendingComment}
-              onPendingRequestChange={setPendingComment}
-            />
-          )}
           </div>
         </div>
         <EditorReviewLayer
@@ -1167,7 +1177,9 @@ export function ElementEditorView({
               }}
             >
               {bookElementCategories.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
               ))}
               <option value="__new__">{t('elementEditor.category.newOption')}</option>
             </select>
@@ -1252,7 +1264,8 @@ export function ElementEditorView({
                   width: '100%',
                   textAlign: 'left',
                   padding: '8px 12px',
-                  background: curElement.groupName == null ? 'hsl(var(--accent) / 0.12)' : 'transparent',
+                  background:
+                    curElement.groupName == null ? 'hsl(var(--accent) / 0.12)' : 'transparent',
                   border: 'none',
                   borderBottom: '1px solid hsl(var(--rule))',
                   cursor: 'pointer',
@@ -1340,7 +1353,11 @@ export function ElementEditorView({
             justifyContent: 'center',
             zIndex: 1001,
           }}
-          onClick={() => { setShowNewCategoryModal(false); setNewCategoryName(''); setEditingCategory(false); }}
+          onClick={() => {
+            setShowNewCategoryModal(false);
+            setNewCategoryName('');
+            setEditingCategory(false);
+          }}
         >
           <div
             style={{
@@ -1383,7 +1400,11 @@ export function ElementEditorView({
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
                 type="button"
-                onClick={() => { setShowNewCategoryModal(false); setNewCategoryName(''); setEditingCategory(false); }}
+                onClick={() => {
+                  setShowNewCategoryModal(false);
+                  setNewCategoryName('');
+                  setEditingCategory(false);
+                }}
                 className="mgr-toolbar__btn"
               >
                 {t('common.cancel')}

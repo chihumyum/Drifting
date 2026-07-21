@@ -1,8 +1,8 @@
 /**
  * CaptureInterceptor — records every AI request/response into the in-memory
  * ring buffer (request-log.ts) and, optionally, persists each entry as a
- * Markdown file under `<repo>/ai-log/` (or `userData/ai-log/` in packaged
- * builds; see main/ai-log-ipc.ts) via the main-process IPC bridge.
+ * Markdown file under the native app-data `ai-log/` directory via the Tauri
+ * platform bridge.
  *
  * The file write is best-effort: failures get logged to console but never
  * surface to feature code. This interceptor is observer-class (after /
@@ -23,13 +23,14 @@ import {
   type AIRequestLogEntry,
 } from '../log/request-log';
 import { filenameForEntry, formatEntryAsMarkdown } from '../log/markdown-format';
+import { platform } from '../../../platform';
 
 const log = loglevel.getLogger('ai-log');
 
 export interface CaptureInterceptorOptions {
   /**
    * When true, every recorded entry is also written to disk as Markdown
-   * via window.electronAPI.aiLog. Default = same as enabled (i.e. file
+   * via the Tauri AI-log command. Default = same as enabled (i.e. file
    * writes are on whenever capture is on).
    */
   writeFiles?: boolean;
@@ -86,19 +87,10 @@ export class CaptureInterceptor implements RequestInterceptor {
 
   private async maybeWriteFile(entry: AIRequestLogEntry): Promise<void> {
     if (!this.writeFiles) return;
-    const aiLog = (globalThis as { electronAPI?: { aiLog?: { write: (...args: unknown[]) => unknown } } })
-      .electronAPI?.aiLog;
-    if (!aiLog) return; // not in Electron (test env / SSR)
     try {
       const filename = filenameForEntry(entry);
       const content = formatEntryAsMarkdown(entry);
-      const result = (await (aiLog.write as (
-        f: string,
-        c: string,
-      ) => Promise<{ ok: true; filePath: string } | { ok: false; error: string }>)(
-        filename,
-        content,
-      ));
+      const result = await platform.aiLog.write(filename, content);
       if (!result.ok) {
         log.warn('[ai-log] file write failed:', result.error);
       }

@@ -44,13 +44,12 @@ import { startPreferencesSync } from './services/preferences-sync.service';
 import { startSyncObserver } from './services/sync-observer.service';
 import { matchesAccelerator } from './lib/shortcuts';
 import { getActiveEditor, saveActiveEditor, subscribeActiveEditor } from './lib/active-editor';
-import { forceFlush as forceFlushEntitySync } from './services/entity-sync.service';
 import { forceSyncAllDocuments } from './services/yjs-sync.service';
-import { flushPreferencesSync } from './services/preferences-sync.service';
 import type { Editor } from '@tiptap/core';
 import { useProjectNavigation } from './hooks/useProjectNavigation';
 import { useNotificationFeed } from './hooks/useNotificationFeed';
 import { useShadowJobs } from './usecase/useShadowJobs';
+import { useShadowReview } from './usecase/useShadowReview';
 import { useAuthStore } from './store/auth';
 import { useDataStore } from './store/data-store';
 import { useWritingStatsStore } from './store/writing-stats-store';
@@ -72,6 +71,9 @@ import { EditorShell } from './views/EditorShell';
 import { isAuthRequired } from './lib/config';
 import { pullAndHydrateProjectGraph } from './services/entity-sync.service';
 import { rebuildProjectInlineReferenceIndex } from './services/reference-index.service';
+import { platform } from './platform';
+import { getPlatformRuntime } from './platform/runtime';
+import { flushApplicationPersistenceForLifecycle } from './lib/persistence-lifecycle';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('App');
@@ -224,9 +226,10 @@ function Layout() {
   const contentUsecases = useBookContent({ userId: userId, projectId: projectId });
   const projectUsecases = useProject({ userId: userId });
   const shadowJobUsecases = useShadowJobs({ projectId: projectId });
+  const shadowReviewUsecases = useShadowReview({ projectId: projectId, userId: userId });
 
-  // Bridge the main-process agent's tool calls to renderer-side handlers
-  // (reads/writes go through the same store + usecases as manual edits).
+  // Publish renderer-side tool handlers for Shadow and future Agent transports;
+  // reads/writes go through the same store + usecases as manual edits.
   useAgentToolBridge(projectId, {
     updateElement: elementUsecases.updateElement,
     createElement: elementUsecases.createElement,
@@ -253,6 +256,7 @@ function Layout() {
     convertToTodo: commentUsecases.convertToTodo,
     revertToNote: commentUsecases.revertToNote,
     setCommentKind: commentUsecases.setCommentKind,
+    commitShadowReview: shadowReviewUsecases.commitShadowReview,
   });
 
   // Reset ready state when project or user changes — syncing to an external
@@ -419,6 +423,7 @@ function Layout() {
   }, [
     projectId,
     userId,
+    projectUsecases,
     nodeUsecases,
     storylineUsecases,
     elementUsecases,
@@ -670,54 +675,6 @@ function Layout() {
     });
   }, []);
 
-  // Cmd+Q safety net. Main pings before terminating; we synchronously push the
-  // active editor's latest state (writes the SQLite row immediately) then
-  // await the sync-queue / preferences flushes. `confirmFlushBeforeQuit`
-  // releases main as soon as we're done, but main also has its own 2s timer
-  // so a hung flush can't block the quit indefinitely.
-  // Also listen on `beforeunload` so a window reload / close path still
-  // flushes the active editor (best-effort — `beforeunload` is sync).
-  useEffect(() => {
-    const flush = async () => {
-      try {
-        await saveActiveEditor();
-      } catch (error) {
-        log.warn('[App] saveActiveEditor during flush failed:', error);
-      }
-      await Promise.allSettled([
-        forceFlushEntitySync(),
-        forceSyncAllDocuments(),
-        flushPreferencesSync(),
-      ]);
-    };
-
-    const unsubscribe = window.electronAPI?.onFlushBeforeQuit?.(() => {
-      void flush().finally(() => {
-        try {
-          window.electronAPI?.confirmFlushBeforeQuit?.();
-        } catch (error) {
-          log.warn('[App] confirmFlushBeforeQuit failed:', error);
-        }
-      });
-    });
-
-    const onBeforeUnload = () => {
-      // Synchronous best-effort path — pushes active editor state through
-      // the persistence pipeline before the window actually tears down.
-      try {
-        void saveActiveEditor();
-      } catch {
-        /* ignore */
-      }
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-
-    return () => {
-      unsubscribe?.();
-      window.removeEventListener('beforeunload', onBeforeUnload);
-    };
-  }, []);
-
   if (!dbReady) {
     return (
       <div
@@ -904,14 +861,17 @@ function AppearanceEffects() {
     return undefined;
   }, [themeMode, setUiTheme]);
 
-  // Also flips the macOS traffic-light dots to track the topbar position:
-  // modern's 6px app-root padding pushes the 42-tall topbar down so dots
-  // center at y=20; classic is flush so dots center at y=14.
+  // Keep the native macOS controls aligned with the selected shell skin.
+  // Tauri mobile and decorated non-macOS windows never receive this command.
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute('data-skin', appearanceSkin);
+    const runtime = getPlatformRuntime();
+    if (!runtime.isMacDesktop || !runtime.desktopWindowControls) return;
     const y = appearanceSkin === 'modern' ? 20 : 14;
-    void window.electronAPI?.window?.setTrafficLightPosition?.({ x: 18, y });
+    void platform.window
+      .setTrafficLightPosition({ x: 18, y })
+      .catch((error) => log.warn('[App] native window-control positioning is unavailable:', error));
   }, [appearanceSkin]);
 
   return null;
@@ -927,105 +887,144 @@ function LocaleEffects() {
   return null;
 }
 
+// Native lifecycle handling belongs to the app shell, not the project layout:
+// login and bookshelf routes can own an open database/session too. Suspended
+// events request the same local durability barrier but never carry a shutdown
+// confirmation ID, so they cannot accidentally confirm a concurrent close.
+function PersistenceLifecycleEffects() {
+  useEffect(() => {
+    const unsubscribe = platform.lifecycle.onFlushBeforeQuit((request) => {
+      void flushApplicationPersistenceForLifecycle()
+        .then(() => {
+          if (!request.confirmationRequired || request.requestId == null) return;
+          void platform.lifecycle
+            .confirmFlushBeforeQuit(request.requestId)
+            .catch((error) => log.warn('[App] confirmFlushBeforeQuit failed:', error));
+        })
+        .catch((error) => {
+          // Do not acknowledge a failed shutdown barrier. Native code retains a
+          // bounded fallback deadline, while this makes the durability failure
+          // visible instead of reporting a successful flush.
+          log.warn('[App] lifecycle persistence flush failed:', error);
+        });
+    });
+
+    const onBeforeUnload = () => {
+      // Browser/WebView unload itself is synchronous. Begin the active-editor
+      // save as a last best-effort fallback; native close uses the awaited path.
+      void saveActiveEditor().catch(() => undefined);
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, []);
+
+  return null;
+}
+
 export default function App() {
   return (
     <>
       <LocaleEffects />
       <AppearanceEffects />
+      <PersistenceLifecycleEffects />
       <PreAlphaOnboardingDialog />
       <Routes>
-      {/* 公开路由 */}
-      <Route
-        path="/login"
-        element={
-          <PublicRoute>
-            <LoginPage />
-          </PublicRoute>
-        }
-      />
-      <Route
-        path="/register"
-        element={
-          <PublicRoute>
-            <RegisterPage />
-          </PublicRoute>
-        }
-      />
+        {/* 公开路由 */}
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <LoginPage />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicRoute>
+              <RegisterPage />
+            </PublicRoute>
+          }
+        />
 
-      {/* 受保护的路由 */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <ProjectPickerView />
-          </ProtectedRoute>
-        }
-      />
+        {/* 受保护的路由 */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <ProjectPickerView />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* Project-scoped routes */}
-      <Route
-        path="/project/:projectId"
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      >
-        {/* Bare project URL renders the editor surface with no auto-route.
+        {/* Project-scoped routes */}
+        <Route
+          path="/project/:projectId"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          {/* Bare project URL renders the editor surface with no auto-route.
             When no tabs are open the empty state shows; when tabs exist,
             useSyncSplitFocusedUrl drives focus from the active tab. */}
-        <Route index element={null} />
-        <Route
-          path="home"
-          element={
-            <EditorShell view="project-dashboard">
-              <ProjectDashboard />
-            </EditorShell>
-          }
-        />
-        <Route path="editor" element={<Navigate to=".." replace />} />
-        <Route
-          path="editor/all"
-          element={
-            <EditorShell view="all-chapters-editor">
-              <AllChaptersEditorView />
-            </EditorShell>
-          }
-        />
-        <Route
-          path="editor/:nodeId"
-          element={
-            <EditorShell view="node-editor">
-              <NodeEditorView />
-            </EditorShell>
-          }
-        />
-        <Route
-          path="editor/storyline/:storylineId"
-          element={
-            <EditorShell view="storyline-editor">
-              <StorylineEditorView />
-            </EditorShell>
-          }
-        />
-        <Route
-          path="element/:elementId"
-          element={
-            <EditorShell view="element-editor">
-              <ElementEditorView />
-            </EditorShell>
-          }
-        />
-        <Route
-          path="category/:categoryId"
-          element={
-            <EditorShell view="category-editor">
-              <CategoryEditorView />
-            </EditorShell>
-          }
-        />
-      </Route>
-    </Routes>
+          <Route index element={null} />
+          <Route
+            path="home"
+            element={
+              <EditorShell view="project-dashboard">
+                <ProjectDashboard />
+              </EditorShell>
+            }
+          />
+          <Route path="editor" element={<Navigate to=".." replace />} />
+          <Route
+            path="editor/all"
+            element={
+              <EditorShell view="all-chapters-editor">
+                <AllChaptersEditorView />
+              </EditorShell>
+            }
+          />
+          <Route
+            path="editor/:nodeId"
+            element={
+              <EditorShell view="node-editor">
+                <NodeEditorView />
+              </EditorShell>
+            }
+          />
+          <Route
+            path="editor/storyline/:storylineId"
+            element={
+              <EditorShell view="storyline-editor">
+                <StorylineEditorView />
+              </EditorShell>
+            }
+          />
+          <Route
+            path="element/:elementId"
+            element={
+              <EditorShell view="element-editor">
+                <ElementEditorView />
+              </EditorShell>
+            }
+          />
+          <Route
+            path="category/:categoryId"
+            element={
+              <EditorShell view="category-editor">
+                <CategoryEditorView />
+              </EditorShell>
+            }
+          />
+        </Route>
+      </Routes>
     </>
   );
 }

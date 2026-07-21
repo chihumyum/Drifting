@@ -5,8 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Buffer } from 'buffer';
 
 // Design-system fonts, bundled locally via @fontsource-variable so packaged
-// builds (loaded from the `drifting-app://` scheme, where the Google Fonts CDN
-// never resolves) render identical weights to dev — and work fully offline.
+// builds render identical weights to dev without depending on an external font
+// origin — and work fully offline inside the native webview.
 // These replace the old `<link>` to fonts.googleapis.com in index.html. The CDN
 // served these as variable fonts, so the variable packages are the faithful
 // local equivalent: a managed @font-face with an explicit wght axis renders
@@ -27,6 +27,8 @@ import { installAIDevConsole } from './lib/ai';
 import { registerCopilotCapability } from './lib/copilot/capability';
 import { elementCandidateCapability } from './lib/copilot/capabilities/element-candidate';
 import { elementPatchCapability } from './lib/copilot/capabilities/element-patch';
+import { hydrateSessionToken } from './lib/session-token';
+import { hydratePlatformRuntime } from './platform/runtime';
 import App from './App';
 
 // Register Copilot capabilities once at app boot. Order doesn't matter —
@@ -49,17 +51,22 @@ const queryClient = new QueryClient({
   },
 });
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <HashRouter>
-        <App />
-      </HashRouter>
-    </QueryClientProvider>
-  </StrictMode>,
-);
+async function bootstrap() {
+  await Promise.all([hydrateSessionToken(), hydratePlatformRuntime()]);
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <HashRouter>
+          <App />
+        </HashRouter>
+      </QueryClientProvider>
+    </StrictMode>,
+  );
+}
 
-// Fallback for Electron dev: if React Fast Refresh misses a boundary,
+void bootstrap();
+
+// Fallback for Tauri dev: if React Fast Refresh misses a boundary,
 // force a full-page reload so edits are still reflected immediately.
 if (import.meta.hot) {
   import.meta.hot.on('vite:beforeUpdate', (payload) => {

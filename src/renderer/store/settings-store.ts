@@ -91,10 +91,9 @@ export const AGENT_TOOL_SEARCH_OPTIONS: { value: AgentToolSearch; label: string 
  */
 export type AgentEditMode = 'auto' | 'approve';
 
-// Which engine drives /goal evolve's prose edits. 'agent-sdk' reuses the Claude
-// Agent SDK (best prose, but bound to the general agent's Anthropic auth);
-// 'shadow-fc' is a self-built FC editor on the Shadow provider (BYOK-consistent,
-// no Anthropic dependency — quality bounded by the chosen Shadow model).
+// Which engine drives /goal evolve's prose edits. 'agent-sdk' is retained only
+// as a persisted-value/future-transport compatibility token; this Tauri build
+// coerces it to the renderer-native, BYOK-compatible 'shadow-fc' engine.
 export type EvolveEditorEngine = 'agent-sdk' | 'shadow-fc';
 
 /**
@@ -484,10 +483,10 @@ export const useSettingsStore = create<SettingsState>()(
       agentEditMode: 'auto',
       setAgentEditMode: (m) => set({ agentEditMode: m }),
       // Default 'approve': a batch cross-chapter evolve on a fallible critic warrants
-      // explicit per-block review. Default engine = the Claude Agent SDK (best prose).
+      // explicit per-block review. Shadow-FC works on every supported Tauri target.
       shadowEditMode: 'approve',
       setShadowEditMode: (m) => set({ shadowEditMode: m }),
-      evolveEditorEngine: 'agent-sdk',
+      evolveEditorEngine: 'shadow-fc',
       setEvolveEditorEngine: (e) => set({ evolveEditorEngine: e }),
       copilotTier: 'standard',
       setCopilotTier: (t) => set({ copilotTier: t }),
@@ -564,7 +563,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 12,
+      version: 13,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           manuscriptSans?: boolean;
@@ -764,6 +763,12 @@ export const useSettingsStore = create<SettingsState>()(
             copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig>,
           };
         }
+        if (version < 13) {
+          // The desktop-only General Agent runtime was removed during the Tauri
+          // migration. Keep evolve functional by moving every persisted engine
+          // choice to the renderer-native Shadow function-calling editor.
+          next.evolveEditorEngine = 'shadow-fc';
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -777,6 +782,11 @@ export const useSettingsStore = create<SettingsState>()(
           if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';
           if (merged.shadowAiMode === 'hosted') merged.shadowAiMode = 'byok';
           if (merged.agentAuth === 'hosted') merged.agentAuth = 'oauth';
+        }
+        // `merge` runs on every hydration, including stores already marked v13
+        // or hand-edited values that bypassed the one-time migration.
+        if (merged.evolveEditorEngine === 'agent-sdk') {
+          merged.evolveEditorEngine = 'shadow-fc';
         }
         return merged;
       },

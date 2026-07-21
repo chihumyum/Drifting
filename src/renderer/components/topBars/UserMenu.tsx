@@ -305,25 +305,25 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
 
         {scope === 'project' && (
           <MenuGroup>
-              <>
-                <MenuItem
-                  icon={<Upload size={13} />}
-                  label={t('userMenu.import')}
-                  meta="MD · DOCX · TXT"
-                  onClick={() => {
-                    events.emit('import:open');
-                    onClose();
-                  }}
-                />
-                <MenuItem
-                  icon={<BookOpenText size={13} />}
-                  label={t('userMenu.bookshelf')}
-                  onClick={() => {
-                    navigate('/');
-                    onClose();
-                  }}
-                />
-              </>
+            <>
+              <MenuItem
+                icon={<Upload size={13} />}
+                label={t('userMenu.import')}
+                meta="MD · DOCX · TXT"
+                onClick={() => {
+                  events.emit('import:open');
+                  onClose();
+                }}
+              />
+              <MenuItem
+                icon={<BookOpenText size={13} />}
+                label={t('userMenu.bookshelf')}
+                onClick={() => {
+                  navigate('/');
+                  onClose();
+                }}
+              />
+            </>
           </MenuGroup>
         )}
 
@@ -384,7 +384,6 @@ export function UserAvatar({
           border: 'none',
           padding: 0,
           flexShrink: 0,
-          WebkitAppRegion: 'no-drag',
           transition: 'transform 0.15s ease',
         } as React.CSSProperties
       }
@@ -456,7 +455,15 @@ function MenuItem({ icon, label, meta, tail, onClick }: MenuItemProps) {
       >
         {icon}
       </span>
-      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span
+        style={{
+          flex: 1,
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
         {label}
       </span>
       {tail

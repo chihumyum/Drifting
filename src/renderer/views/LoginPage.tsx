@@ -5,6 +5,8 @@ import { Moon, Sun } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { useSettingsStore } from '../store/settings-store';
 import { authClient } from '../lib/auth-client';
+import { setSessionToken } from '../lib/session-token';
+import { platform } from '../platform';
 import { UI_LOCALE_OPTIONS } from '../lib/i18n';
 import type { SupportedOAuthProvider } from '../lib/oauth-providers';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
@@ -132,20 +134,19 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
   };
 
   useEffect(() => {
-    const cleanup = window.electronAPI.auth.onOAuthCallback(
-      async ({ token, error: callbackError }) => {
-        setOauthLoading(null);
-        if (callbackError || !token) {
-          setError(t('auth.errors.oauthFailed'));
-          return;
-        }
-        try {
-          await checkSession();
-        } catch {
-          setError(t('auth.errors.sessionFailed'));
-        }
-      },
-    );
+    const cleanup = platform.auth.onOAuthCallback(async ({ token, error: callbackError }) => {
+      setOauthLoading(null);
+      if (callbackError || !token) {
+        setError(t('auth.errors.oauthFailed'));
+        return;
+      }
+      try {
+        setSessionToken(token);
+        await checkSession();
+      } catch {
+        setError(t('auth.errors.sessionFailed'));
+      }
+    });
     return cleanup;
   }, [checkSession, t]);
 
@@ -153,7 +154,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
     setError(null);
     setOauthLoading(provider);
     try {
-      await window.electronAPI.auth.openOAuthBrowser(provider);
+      await platform.auth.openOAuthBrowser(provider);
     } catch {
       setError(t('auth.errors.browserFailed'));
       setOauthLoading(null);

@@ -47,10 +47,13 @@ try {
   const h = +(out.match(/pixelHeight: (\d+)/)?.[1] ?? 0);
   if (w !== h) console.warn(`⚠ Master is ${w}×${h} — not square. Icon may look stretched.`);
   if (w < 1024) console.warn(`⚠ Master is ${w}px — under 1024 means a blurry Retina @2x slot.`);
-} catch { /* sips missing — handled below when we actually use it */ }
+} catch {
+  /* sips missing — handled below when we actually use it */
+}
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'drifting-icons-'));
-const resizeFrom = (src, size, dest) => sh('sips', ['-z', String(size), String(size), src, '--out', dest]);
+const resizeFrom = (src, size, dest) =>
+  sh('sips', ['-z', String(size), String(size), src, '--out', dest]);
 const resize = (size, dest) => resizeFrom(master, size, dest);
 
 try {
@@ -70,13 +73,19 @@ try {
     const body = path.join(tmp, 'mac-body.png');
     macMaster = path.join(tmp, 'mac-master.png');
     resize(MAC_BODY, body);
-    shapeMacIcon({ bodyPngPath: body, outPngPath: macMaster, canvas: MAC_CANVAS, bodySize: MAC_BODY, radius: MAC_RADIUS, round: !preShaped });
+    shapeMacIcon({
+      bodyPngPath: body,
+      outPngPath: macMaster,
+      canvas: MAC_CANVAS,
+      bodySize: MAC_BODY,
+      radius: MAC_RADIUS,
+      round: !preShaped,
+    });
     macNote = preShaped ? ' (pre-shaped art, padded)' : ' (padded + rounded, approx)';
   }
 
-  // Persist the macOS-styled PNG. Packaged builds get their icon from the
-  // .icns, but `electron-forge start` sets the Dock icon at runtime via
-  // app.dock.setIcon() and needs a PNG with the same padding/rounding.
+  // Persist the macOS-styled PNG alongside the bundle icons so future shell or
+  // store tooling can reuse the same padding/rounding without reshaping it.
   copyFileSync(macMaster, path.join(assets, 'icon-mac.png'));
   console.log(`✓ src/assets/icon-mac.png${macNote}`);
 
@@ -84,11 +93,16 @@ try {
   const iconset = path.join(tmp, 'icon.iconset');
   mkdirSync(iconset);
   const icnsSlots = [
-    [16, '16x16'], [32, '16x16@2x'],
-    [32, '32x32'], [64, '32x32@2x'],
-    [128, '128x128'], [256, '128x128@2x'],
-    [256, '256x256'], [512, '256x256@2x'],
-    [512, '512x512'], [1024, '512x512@2x'],
+    [16, '16x16'],
+    [32, '16x16@2x'],
+    [32, '32x32'],
+    [64, '32x32@2x'],
+    [128, '128x128'],
+    [256, '128x128@2x'],
+    [256, '256x256'],
+    [512, '256x256@2x'],
+    [512, '512x512'],
+    [1024, '512x512@2x'],
   ];
   for (const [size, label] of icnsSlots) {
     resizeFrom(macMaster, size, path.join(iconset, `icon_${label}.png`));

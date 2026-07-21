@@ -51,7 +51,13 @@ export interface CreatePatchInput {
 export type UpdatePatchInput = Partial<
   Pick<
     ElementPatch,
-    'sourceNodeId' | 'sourceBlockId' | 'textAnchorJson' | 'invalidatedAt' | 'title' | 'contentJson' | 'orderKey'
+    | 'sourceNodeId'
+    | 'sourceBlockId'
+    | 'textAnchorJson'
+    | 'invalidatedAt'
+    | 'title'
+    | 'contentJson'
+    | 'orderKey'
   >
 >;
 
@@ -109,10 +115,7 @@ export function createElementPatchRepository(): ElementPatchRepository {
     return toDomain(row as typeof ElementPatchTable.$inferSelect);
   };
 
-  const update = async (
-    id: string,
-    updates: UpdatePatchInput,
-  ): Promise<ElementPatch | null> => {
+  const update = async (id: string, updates: UpdatePatchInput): Promise<ElementPatch | null> => {
     const db = getDb();
     const now = new Date().toISOString();
     const setValues: Record<string, unknown> = { updatedAt: now };
@@ -148,11 +151,9 @@ export function createElementPatchRepository(): ElementPatchRepository {
 
   const listByElement = async (elementId: string): Promise<PatchWithSourceTitle[]> => {
     // NOTE: do NOT JOIN book_node here to grab its title. element_patch.title and
-    // book_node.title are BOTH named "title", and better-sqlite3 collapses two
-    // same-named result columns into one — silently dropping the patch's own
-    // title and shifting every field after it (the patch then showed the chapter
-    // number as its title, and the book_order as the chapter title). Resolve the
-    // source-node title + order in a SEPARATE query instead.
+    // book_node.title are BOTH named "title". A wildcard JOIN produces duplicate
+    // column names that cannot be represented safely by every SQLite transport,
+    // silently dropping or shifting values. Resolve source title/order separately.
     const rows = await getDb()
       .select()
       .from(ElementPatchTable)
@@ -172,27 +173,33 @@ export function createElementPatchRepository(): ElementPatchRepository {
       : [];
     const nodeById = new Map(nodes.map((n) => [n.id, n]));
     const orderOf = (nodeId: string | null): number =>
-      nodeId ? (nodeById.get(nodeId)?.bookOrder ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+      nodeId
+        ? (nodeById.get(nodeId)?.bookOrder ?? Number.POSITIVE_INFINITY)
+        : Number.POSITIVE_INFINITY;
 
-    return rows
-      .map((row) => ({
-        ...toDomain(row),
-        sourceNodeTitle: row.sourceNodeId ? (nodeById.get(row.sourceNodeId)?.title ?? null) : null,
-        sourceNarrativeOrder: row.sourceNodeId
-          ? (nodeById.get(row.sourceNodeId)?.narrativeOrder ?? null)
-          : null,
-        sourceBookOrder: row.sourceNodeId
-          ? (nodeById.get(row.sourceNodeId)?.bookOrder ?? null)
-          : null,
-      }))
-      // Mirror the old ORDER BY: bookOrder, then orderKey, then createdAt;
-      // floating patches (no source node) sort to the end.
-      .sort(
-        (a, b) =>
-          orderOf(a.sourceNodeId) - orderOf(b.sourceNodeId) ||
-          a.orderKey - b.orderKey ||
-          a.createdAt.localeCompare(b.createdAt),
-      );
+    return (
+      rows
+        .map((row) => ({
+          ...toDomain(row),
+          sourceNodeTitle: row.sourceNodeId
+            ? (nodeById.get(row.sourceNodeId)?.title ?? null)
+            : null,
+          sourceNarrativeOrder: row.sourceNodeId
+            ? (nodeById.get(row.sourceNodeId)?.narrativeOrder ?? null)
+            : null,
+          sourceBookOrder: row.sourceNodeId
+            ? (nodeById.get(row.sourceNodeId)?.bookOrder ?? null)
+            : null,
+        }))
+        // Mirror the old ORDER BY: bookOrder, then orderKey, then createdAt;
+        // floating patches (no source node) sort to the end.
+        .sort(
+          (a, b) =>
+            orderOf(a.sourceNodeId) - orderOf(b.sourceNodeId) ||
+            a.orderKey - b.orderKey ||
+            a.createdAt.localeCompare(b.createdAt),
+        )
+    );
   };
 
   const listBySourceNode = async (sourceNodeId: string): Promise<ElementPatch[]> => {

@@ -4,9 +4,9 @@
     "intro": "这是给少量内测用户使用的早期版本。核心写作、云同步与关系数据已经可用，但接口、数据格式和体验仍可能变化。",
     "trial": "当前账户是 30 天试用账户；到期后服务器会清理账户及云端数据。",
     "sync": "稿件会以可读形式存储在 Drifting 服务器，目前不提供端到端加密。",
-    "byok": "不提供 hosted AI 服务；Copilot 和 Shadow 使用你自己的 API Key，General Agent 也可使用你的 Claude Code 账号登录。",
+    "byok": "不提供 hosted AI 服务；Copilot 和 Shadow 使用你自己的 API Key。Tauri 迁移期间 General Agent 暂不可用。",
     "backup": "请定期用“导出关系型 Markdown”保存一份可阅读的副本。",
-    "settingsHint": "进入一本书后，可在“设置 → Copilot / Shadow / Agent”中连接自己的模型凭据。API Key 只持久化在本机 Keychain；General Agent 也支持 Claude Code OAuth。",
+    "settingsHint": "进入一本书后，可在“设置 → Copilot / Shadow”中连接自己的模型凭据。API Key 只持久化在本机 Keychain；General Agent 的远程/sidecar 方案仍在规划中。",
     "continue": "了解，继续使用"
   },
   "settings": {
@@ -615,7 +615,11 @@
     "agent": {
       "kicker": "GENERAL AGENT · 对话",
       "title": "右栏那位能动手的 Agent。",
-      "sub": "对话式、能读写整本稿子的 Agent（Claude Agent SDK）。Pre-Alpha 支持你的 Claude Code 账号 OAuth 或 Anthropic API Key，不提供 Drifting 托管模式。",
+      "sub": "对话式、能读写整本稿子的 Agent。目前在 Tauri 客户端中暂停。",
+      "unavailableTitle": "General Agent 暂不支持 Tauri",
+      "unavailableStatus": "当前实现已明确停用",
+      "unavailableReason": "现有 Anthropic General Agent 依赖桌面 Node/Claude CLI SDK，无法直接运行在 Tauri 的 WebView 与移动端沙箱中。",
+      "unavailableFuture": "后续可接入桌面 sidecar 或带身份验证的远程 agent 服务；聊天 UI 与本地 Yjs 工具运行上下文已保留为可替换 transport。",
       "credentialPrivacy": "凭据仅存于本机，不上传服务器。",
       "hostedDisabledTitle": "托管暂不可用 · 测试版用你自己的 Claude 账号或 Key",
       "auth": {
@@ -998,6 +1002,9 @@
   "agentPanel": {
     "newConversation": "新对话",
     "unavailable": "Agent 不可用。",
+    "unavailableTitle": "General Agent 暂不支持 Tauri",
+    "unavailableReason": "当前 Anthropic 实现依赖桌面 Node/Claude CLI SDK，不能在 Tauri WebView 或移动端沙箱中直接运行。",
+    "unavailableFuture": "本地 Shadow 与 Yjs 工具上下文不受影响。未来可通过桌面 sidecar 或远程 agent transport 恢复此入口。",
     "checking": "检查中…",
     "common": {
       "none": "无"
@@ -1114,7 +1121,9 @@
   "memoMaterial": {
     "error": {
       "openFile": "无法打开文件：{{error}}",
-      "createFailed": "素材创建失败：{{error}}"
+      "createFailed": "素材创建失败：{{error}}",
+      "pickFailed": "无法导入文件：{{error}}",
+      "fileTooLarge": "该文件超过 {{maxSizeMiB}} MiB 素材上限。大文件流式上传尚未支持。"
     },
     "upload": {
       "uploading": "上传中...",

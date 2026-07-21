@@ -30,9 +30,8 @@ out
 *.sln
 *.sw?
 
-# Electron
+# Generated JavaScript artifacts
 *.js.map
-.webpack
 
 # Environment variables
 .env

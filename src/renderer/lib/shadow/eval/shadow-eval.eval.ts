@@ -15,8 +15,8 @@
  */
 import { vi, describe, test, expect } from 'vitest';
 
-// Cut the only Electron-coupled subtree (BYOK keychain + capture interceptor);
-// the judge takes its client as an argument, so the factory is never needed.
+// Cut the application credential/capture subtree; the judge takes its client as
+// an argument, so the default factory is never needed.
 vi.mock('../../ai/client/build-default-client', () => ({
   buildDefaultLLMClient: async () => {
     throw new Error('buildDefaultLLMClient must not be called in eval (pass a client)');
@@ -51,23 +51,19 @@ describe('shadow eval — project clone + mutate + real evaluator chain', () => 
 
   // Key-gated: the full corpus through the real judge (semantic + dependency
   // changes). Prints precision/recall; does NOT hard-gate on probabilistic verdicts.
-  test(
-    'full corpus (real judge) — precision / recall',
-    async () => {
-      const client = realJudgeClient();
-      if (!client) {
-        console.warn(
-          '\n[eval] 跳过语义/依赖用例：未提供 DeepSeek key。\n' +
-            '  VITE_DEEPSEEK_AI_API_KEY=sk-... pnpm eval:shadow\n',
-        );
-        return;
-      }
-      const result = await runEval(goldenSample(), sampleMutations(), client, REPEAT);
-      console.log(formatReport(result));
-      // To gate once a baseline is trusted, e.g.: expect(result.tally.FP).toBeLessThanOrEqual(1);
-    },
-    600_000,
-  );
+  test('full corpus (real judge) — precision / recall', async () => {
+    const client = realJudgeClient();
+    if (!client) {
+      console.warn(
+        '\n[eval] 跳过语义/依赖用例：未提供 DeepSeek key。\n' +
+          '  VITE_DEEPSEEK_AI_API_KEY=sk-... pnpm eval:shadow\n',
+      );
+      return;
+    }
+    const result = await runEval(goldenSample(), sampleMutations(), client, REPEAT);
+    console.log(formatReport(result));
+    // To gate once a baseline is trusted, e.g.: expect(result.tally.FP).toBeLessThanOrEqual(1);
+  }, 600_000);
 
   // Structural (no key): verify the real manuscript parses into the model.
   test('《雾港纪事》golden loads from the vault', () => {
@@ -90,18 +86,14 @@ describe('shadow eval — project clone + mutate + real evaluator chain', () => 
   // change over the actual manuscript. Default = 5 targeted injections (fast, run
   // concurrently); add EVAL_FP_SWEEP=1 for the heavy clean-prose false-positive
   // sweep over all 4 chapters.
-  test(
-    '《雾港纪事》— POV / 角色一致性 / 依赖改动 (real judge)',
-    async () => {
-      const client = realJudgeClient();
-      const golden = tryLoadFogHarbor();
-      if (!client || !golden) {
-        console.warn('\n[eval] 跳过《雾港纪事》语义评测：需要 DeepSeek key + vault。\n');
-        return;
-      }
-      const result = await runEval(golden, fog-harborMutations(), client, REPEAT);
-      console.log(formatReport(result));
-    },
-    1_800_000,
-  );
+  test('《雾港纪事》— POV / 角色一致性 / 依赖改动 (real judge)', async () => {
+    const client = realJudgeClient();
+    const golden = tryLoadFogHarbor();
+    if (!client || !golden) {
+      console.warn('\n[eval] 跳过《雾港纪事》语义评测：需要 DeepSeek key + vault。\n');
+      return;
+    }
+    const result = await runEval(golden, fog-harborMutations(), client, REPEAT);
+    console.log(formatReport(result));
+  }, 1_800_000);
 });

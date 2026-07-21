@@ -40,6 +40,8 @@ export interface UseYjsDocResult {
   hasLocalState: boolean;
   /** Wait until every queued local update has reached SQLite. */
   flushPendingWrites: () => Promise<void>;
+  /** Persist a full snapshot/compaction point, then drain the SQLite queue. */
+  flushLocalState: () => Promise<void>;
 }
 
 export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): UseYjsDocResult {
@@ -54,8 +56,26 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
   const [hasLocalState, setHasLocalState] = useState(false);
   const localUpdatesSinceSnapshotRef = useRef(0);
   const writeQueueRef = useRef(Promise.resolve());
+  const writeErrorsRef = useRef<unknown[]>([]);
   const flushPendingWrites = useCallback(async () => {
-    await writeQueueRef.current;
+    let observed: Promise<void>;
+    do {
+      observed = writeQueueRef.current;
+      await observed;
+    } while (observed !== writeQueueRef.current);
+
+    if (writeErrorsRef.current.length > 0) {
+      const failures = writeErrorsRef.current;
+      writeErrorsRef.current = [];
+      throw new AggregateError(
+        failures,
+        `${failures.length} Yjs SQLite write(s) failed to persist`,
+      );
+    }
+  }, []);
+  const flushLocalStateRef = useRef<() => Promise<void>>(flushPendingWrites);
+  const flushLocalState = useCallback(async () => {
+    await flushLocalStateRef.current();
   }, []);
   // Hold a stable ref so the load effect doesn't re-fire when callers pass
   // an inline arrow function.
@@ -170,6 +190,7 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
 
     const enqueueWrite = (task: () => Promise<void>) => {
       writeQueueRef.current = writeQueueRef.current.then(task).catch((error) => {
+        writeErrorsRef.current.push(error);
         log.error(`[useYjsDoc] write failed for ${docId}:`, error);
       });
     };
@@ -192,6 +213,14 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
       await compactUpdatesAfterSnapshot(docId, coveredId, repo);
     };
 
+    flushLocalStateRef.current = async () => {
+      // Capture synchronously so the snapshot exactly reflects the live Y.Doc
+      // at the lifecycle barrier, then serialize it behind every update row.
+      const fullState = Y.encodeStateAsUpdate(ydoc);
+      enqueueWrite(() => persistSnapshotAndCompact(fullState));
+      await flushPendingWrites();
+    };
+
     const handleUpdate = (update: Uint8Array, origin: unknown) => {
       // 'load' is the replay-from-sqlite path; skip entirely so we don't
       // re-persist what we just loaded.
@@ -202,7 +231,7 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
       // updates already exist on the server side or are bootstrapping —
       // they must NOT be appended (push would echo them back) but they DO
       // need to participate in snapshotting so the in-memory ydoc state
-      // survives an Electron restart. Without this, the cursor.lastServerSeq
+      // survives an application restart. Without this, the cursor.lastServerSeq
       // advances past these updates, but the local replay path has nothing
       // to play back, and the next pull is a no-op → ydoc starts empty.
       const isLocalEdit = origin !== 'remote' && origin !== 'seed' && origin !== 'restore';
@@ -230,8 +259,9 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
       // right after this. The compaction itself happens inside the write queue.
       const fullState = Y.encodeStateAsUpdate(ydoc);
       enqueueWrite(() => persistSnapshotAndCompact(fullState, 'close'));
+      flushLocalStateRef.current = flushPendingWrites;
     };
-  }, [docId, isReady, repo, ydoc]);
+  }, [docId, flushPendingWrites, isReady, repo, ydoc]);
 
   // Publish this live Y.Doc so out-of-React callers (the agent's prose tools)
   // can apply edits to the exact doc an open editor is bound to. Gate on isReady
@@ -253,5 +283,6 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
     isReady,
     hasLocalState,
     flushPendingWrites,
+    flushLocalState,
   };
 }

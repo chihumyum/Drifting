@@ -108,7 +108,10 @@ function entityMeta(
     case 'storyline': {
       const sl = s.storylines.find((x) => x.id === entityId);
       return sl
-        ? { projectId: sl.projectId, meta: { name: sl.name, summary: sl.summary, kvJson: sl.kvJson } }
+        ? {
+            projectId: sl.projectId,
+            meta: { name: sl.name, summary: sl.summary, kvJson: sl.kvJson },
+          }
         : null;
     }
     case 'category': {
@@ -159,8 +162,7 @@ export function computeThinningVictims(
     const t = Date.parse(row.createdAt);
     if (Number.isNaN(t)) continue;
     const age = nowMs - t;
-    const bucket =
-      age < DAY_MS ? `h:${Math.floor(t / HOUR_MS)}` : `d:${Math.floor(t / DAY_MS)}`;
+    const bucket = age < DAY_MS ? `h:${Math.floor(t / HOUR_MS)}` : `d:${Math.floor(t / DAY_MS)}`;
     if (seen.has(bucket)) victims.push(row.id);
     else seen.add(bucket);
   }
@@ -188,7 +190,9 @@ function pushToCloud(row: {
       contentJson: row.contentJson,
       metaJson: row.metaJson,
     })
-    .catch((err) => log.warn(`snapshot cloud push failed for ${row.entityKind}:${row.entityId}`, err));
+    .catch((err) =>
+      log.warn(`snapshot cloud push failed for ${row.entityKind}:${row.entityId}`, err),
+    );
 }
 
 // One in-flight capture chain per process — captures are rare (15-min gated)
@@ -207,7 +211,16 @@ export function maybeCaptureSnapshotHistory(
     .catch((err) => log.warn(`snapshot capture failed for ${docId}`, err));
 }
 
-async function captureOnce(docId: string, stateBlob: Uint8Array, reason: CaptureReason): Promise<void> {
+/** Drain queued local history rows before checkpointing or switching databases. */
+export async function flushSnapshotHistoryPersistence(): Promise<void> {
+  await captureChain;
+}
+
+async function captureOnce(
+  docId: string,
+  stateBlob: Uint8Array,
+  reason: CaptureReason,
+): Promise<void> {
   const parsed = parseDocId(docId);
   const entityKind = docKindToEntityKind(parsed);
   if (!parsed || !entityKind) return;

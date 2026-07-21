@@ -1,11 +1,10 @@
 /**
  * BYOK credentials — thin wrapper over the existing byok-keychain facade.
  *
- * The actual secret lives in the OS keychain via the main-process
- * `@napi-rs/keyring` bindings (see ../../byok-keychain.ts and
- * src/main/keyring-ipc.ts). This class adds nothing on top of that flow
- * except the CredentialsProvider contract — its job is to be swappable with
- * the future HostedCredentialsProvider without touching call sites.
+ * The actual secret lives in the OS keychain through the typed Tauri platform
+ * adapter (see ../../byok-keychain.ts). This class adds only the
+ * CredentialsProvider contract so it can later be swapped with a hosted
+ * provider without touching call sites.
  */
 import { byokKeychain, type BYOKProvider } from '../../byok-keychain';
 import { AIError } from '../types';

@@ -28,22 +28,151 @@ const PUSH_BATCH_SIZE = 50;
 const PULL_PAGE_SIZE = 1000;
 const MAX_PULL_PAGES = 10_000;
 
-const activeSyncDocuments = new Map<string, () => Promise<void>>();
+interface ActiveSyncDocument {
+  flushLocal: () => Promise<void>;
+  syncNow: () => Promise<void>;
+}
 
-/** Register an open document for the app-wide Cmd+S flush. */
-export function registerSyncDocument(docId: string, syncNow: () => Promise<void>): () => void {
-  activeSyncDocuments.set(docId, syncNow);
+const activeSyncDocuments = new Map<string, Set<ActiveSyncDocument>>();
+const teardownWaiters = new Set<() => void>();
+let teardownErrors: unknown[] = [];
+
+function activeDocumentEntries(): Array<[string, ActiveSyncDocument]> {
+  return [...activeSyncDocuments.entries()].flatMap(([docId, entries]) =>
+    [...entries].map((entry) => [docId, entry] as [string, ActiveSyncDocument]),
+  );
+}
+
+function activeDocumentCount(): number {
+  let count = 0;
+  for (const entries of activeSyncDocuments.values()) count += entries.size;
+  return count;
+}
+
+function notifyYjsDocumentsClosed(): void {
+  if (activeSyncDocuments.size > 0) return;
+  for (const resolve of teardownWaiters) resolve();
+  teardownWaiters.clear();
+}
+
+function assertSuccessfulYjsTeardown(): void {
+  if (teardownErrors.length === 0) return;
+  const failures = teardownErrors;
+  teardownErrors = [];
+  throw new AggregateError(failures, `${failures.length} Yjs document(s) failed final teardown`);
+}
+
+/**
+ * Register an open document for app-wide persistence.
+ *
+ * Registration is deliberately independent of server-sync configuration:
+ * local-only documents still have an asynchronous SQLite write queue that
+ * Cmd+S, suspend, logout and native shutdown must drain. On React teardown we
+ * keep the entry alive until useYjsDoc's close snapshot (queued by its earlier
+ * effect cleanup) has reached SQLite, so an account switch cannot close the
+ * old database underneath that write.
+ */
+export function registerSyncDocument(
+  docId: string,
+  flushLocal: () => Promise<void>,
+  syncNow: () => Promise<void>,
+): () => void {
+  const entry: ActiveSyncDocument = { flushLocal, syncNow };
+  let entries = activeSyncDocuments.get(docId);
+  if (!entries) {
+    entries = new Set();
+    activeSyncDocuments.set(docId, entries);
+  }
+  entries.add(entry);
+
   return () => {
-    if (activeSyncDocuments.get(docId) === syncNow) activeSyncDocuments.delete(docId);
+    if (!activeSyncDocuments.get(docId)?.has(entry)) return;
+    // React invokes sibling effect cleanups in the same commit. Defer one
+    // microtask so useYjsDoc can synchronously capture its final Y.Doc state
+    // and append the close snapshot task before we read the queue tail.
+    queueMicrotask(() => {
+      void entry
+        .flushLocal()
+        .catch((error) => {
+          teardownErrors.push(error);
+          log.error(`[yjs lifecycle] final local flush failed for ${docId}:`, error);
+        })
+        .finally(() => {
+          const currentEntries = activeSyncDocuments.get(docId);
+          currentEntries?.delete(entry);
+          if (currentEntries?.size === 0) activeSyncDocuments.delete(docId);
+          notifyYjsDocumentsClosed();
+        });
+    });
   };
 }
 
-/** Push and pull every open Yjs document before Cmd+S/quit completes. */
+/** Wait until every currently mounted Yjs document has completed unmount persistence. */
+export function waitForYjsDocumentTeardown(timeoutMs = 5_000): Promise<void> {
+  if (activeSyncDocuments.size === 0) {
+    return Promise.resolve().then(assertSuccessfulYjsTeardown);
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      teardownWaiters.delete(finish);
+      resolve();
+    };
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      teardownWaiters.delete(finish);
+      reject(
+        new Error(`Timed out waiting for ${activeDocumentCount()} Yjs document(s) to close safely`),
+      );
+    }, timeoutMs);
+    teardownWaiters.add(finish);
+    // Close may have completed between the initial size check and registration.
+    if (activeSyncDocuments.size === 0) finish();
+  }).then(assertSuccessfulYjsTeardown);
+}
+
+/** Drain every open document's local SQLite write queue. */
+export async function flushAllOpenYjsDocuments(): Promise<void> {
+  const results = await Promise.allSettled(
+    activeDocumentEntries().map(([, { flushLocal }]) => flushLocal()),
+  );
+  const failures = results.filter((result) => result.status === 'rejected');
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures.map((failure) => (failure as PromiseRejectedResult).reason),
+      `${failures.length} Yjs document(s) failed to persist locally`,
+    );
+  }
+}
+
+/**
+ * Persist every open Yjs document, then (only when enabled) push/pull server
+ * state. Local durability is always completed before any remote sync begins.
+ */
 export async function forceSyncAllDocuments(): Promise<void> {
+  const activeEntries = activeDocumentEntries();
+  await flushAllOpenYjsDocuments();
   if (!isSyncEnabled()) return;
-  const activeIds = new Set(activeSyncDocuments.keys());
+
+  const activeIds = new Set(activeEntries.map(([docId]) => docId));
+  const entriesByDoc = new Map<string, ActiveSyncDocument[]>();
+  for (const [docId, entry] of activeEntries) {
+    const entries = entriesByDoc.get(docId) ?? [];
+    entries.push(entry);
+    entriesByDoc.set(docId, entries);
+  }
   const activeResults = await Promise.allSettled(
-    [...activeSyncDocuments.values()].map((syncNow) => syncNow()),
+    [...entriesByDoc.values()].map(async (entries) => {
+      // Duplicate mounts of the same logical doc share one SQLite cursor.
+      // Sync them serially so push/pull cursor updates cannot race, while each
+      // live Y.Doc still receives the remote state.
+      for (const { syncNow } of entries) await syncNow();
+    }),
   );
   const repo = createYjsRepository();
   const closedDocIds = (await repo.listDocIds()).filter((docId) => !activeIds.has(docId));

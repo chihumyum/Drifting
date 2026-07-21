@@ -43,8 +43,7 @@ export function stringifyKv(list: KvList): string {
 
 // Default KV seeded into a freshly-created Project. The user can add to /
 // remove from this list freely after creation. These project-level facts double
-// as the writing agent's governing metadata (it reads them as style/voice/length
-// constraints — see buildAgentMeta in main/agent), so the writing-preference
+// as writing-agent governing metadata (style/voice/length constraints), so the
 // keys (文风 / 写作人称 / 章节目标字数) are seeded here as ready-to-fill prompts.
 export function defaultProjectKvList(): KvList {
   return [

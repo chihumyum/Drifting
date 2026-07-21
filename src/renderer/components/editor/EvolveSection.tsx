@@ -2,13 +2,23 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2, Wand2, AlertTriangle, ArrowRight, Square } from 'lucide-react';
 import { useDataStore } from '../../store/data-store';
-import { useSettingsStore, type EvolveEditorEngine, type AgentEditMode } from '../../store/settings-store';
+import { useSettingsStore, type AgentEditMode } from '../../store/settings-store';
 import { useEvolveStore, EMPTY_EVOLVE } from '../../store/evolve-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-import { detectElementDeltas, buildElementChange, landDelta, type FieldDelta } from '../../lib/goal/element-change';
+import {
+  detectElementDeltas,
+  buildElementChange,
+  landDelta,
+  type FieldDelta,
+} from '../../lib/goal/element-change';
 import type { BookElement } from '../../domain/book-element';
 import type { AgentBlockChange } from '../../lib/agent/block-diff';
-import type { ContradictionSpot, EvolveResult, EvolveStopReason, EvolveTraceStep } from '../../lib/goal/types';
+import type {
+  ContradictionSpot,
+  EvolveResult,
+  EvolveStopReason,
+  EvolveTraceStep,
+} from '../../lib/goal/types';
 
 const WARN = 'hsl(28 80% 52%)';
 const OK = 'hsl(var(--accent))';
@@ -30,10 +40,10 @@ const STOP_LABEL_KEY: Record<EvolveStopReason, string> = {
 // + the spots needing manual work. canon→patch capture lives elsewhere (DESIGN.md §5).
 export function EvolveSection({ elementId, projectId }: { elementId: string; projectId: string }) {
   const { t } = useTranslation();
-  const el = useDataStore((s) => s.bookElements.find((e) => e.id === elementId && e.projectId === projectId));
+  const el = useDataStore((s) =>
+    s.bookElements.find((e) => e.id === elementId && e.projectId === projectId),
+  );
   const { navigateToNode } = useProjectNavigation();
-  const editorEngine = useSettingsStore((s) => s.evolveEditorEngine);
-  const setEditorEngine = useSettingsStore((s) => s.setEvolveEditorEngine);
   const shadowEditMode = useSettingsStore((s) => s.shadowEditMode);
   const setShadowEditMode = useSettingsStore((s) => s.setShadowEditMode);
 
@@ -51,7 +61,8 @@ export function EvolveSection({ elementId, projectId }: { elementId: string; pro
 
   // Run state is keyed by elementId in the store, so each element shows its OWN
   // evolve and the run survives navigating away and back.
-  const { running, phase, result, trace } = useEvolveStore((s) => s.byElement[elementId]) ?? EMPTY_EVOLVE;
+  const { running, phase, result, trace } =
+    useEvolveStore((s) => s.byElement[elementId]) ?? EMPTY_EVOLVE;
   const startRun = useEvolveStore((s) => s.run);
   const stopRun = useEvolveStore((s) => s.stop);
 
@@ -103,7 +114,14 @@ export function EvolveSection({ elementId, projectId }: { elementId: string; pro
     <section style={{ marginTop: 20, borderTop: '1px solid hsl(var(--rule))', paddingTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <Wand2 size={14} style={{ color: 'hsl(var(--ink-3))' }} />
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em', color: 'hsl(var(--ink-3))' }}>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            letterSpacing: '0.06em',
+            color: 'hsl(var(--ink-3))',
+          }}
+        >
           {t('evolveSection.kicker')}
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
@@ -136,16 +154,6 @@ export function EvolveSection({ elementId, projectId }: { elementId: string; pro
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 8, flexWrap: 'wrap' }}>
         <Seg
-          label={t('evolveSection.controls.engine')}
-          value={editorEngine}
-          options={[
-            ['agent-sdk', 'Agent SDK'],
-            ['shadow-fc', 'Shadow-FC'],
-          ]}
-          onChange={(v) => setEditorEngine(v as EvolveEditorEngine)}
-          disabled={running}
-        />
-        <Seg
           label={t('evolveSection.controls.approval')}
           value={shadowEditMode}
           options={[
@@ -176,26 +184,59 @@ export function EvolveSection({ elementId, projectId }: { elementId: string; pro
       </div>
 
       {deltas.length === 0 && (
-        <div style={{ fontSize: 12.5, fontStyle: 'italic', color: 'hsl(var(--ink-4))', padding: '4px 0' }}>
+        <div
+          style={{
+            fontSize: 12.5,
+            fontStyle: 'italic',
+            color: 'hsl(var(--ink-4))',
+            padding: '4px 0',
+          }}
+        >
           {t('evolveSection.emptyHint')}
         </div>
       )}
 
-      {deltas.length > 0 && <ChangedFields deltas={deltas} onDismiss={dismiss} disabled={running} />}
+      {deltas.length > 0 && (
+        <ChangedFields deltas={deltas} onDismiss={dismiss} disabled={running} />
+      )}
 
       {running && (
-        <div style={{ fontSize: 12, fontStyle: 'italic', color: 'hsl(var(--ink-4))', padding: '6px 0', whiteSpace: 'pre-wrap' }}>
+        <div
+          style={{
+            fontSize: 12,
+            fontStyle: 'italic',
+            color: 'hsl(var(--ink-4))',
+            padding: '6px 0',
+            whiteSpace: 'pre-wrap',
+          }}
+        >
           {phase || t('evolveSection.status.preparing')}
         </div>
       )}
       {!running && phase && !result && (
-        <div style={{ fontSize: 12, color: 'hsl(0 60% 52%)', padding: '6px 0', whiteSpace: 'pre-wrap' }}>{phase}</div>
+        <div
+          style={{
+            fontSize: 12,
+            color: 'hsl(0 60% 52%)',
+            padding: '6px 0',
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {phase}
+        </div>
       )}
 
       {/* Live + post-hoc inspection: every critic round and editor tool call. */}
       <TraceView trace={trace} running={running} />
 
-      {result && <EvolveResultView result={result} onJump={navigateToNode} onForce={() => run({ force: true })} running={running} />}
+      {result && (
+        <EvolveResultView
+          result={result}
+          onJump={navigateToNode}
+          onForce={() => run({ force: true })}
+          running={running}
+        />
+      )}
     </section>
   );
 }
@@ -217,7 +258,14 @@ function TraceView({ trace, running }: { trace: EvolveTraceStep[]; running: bool
   // by re-renders (React re-asserts a controlled `open` prop on every commit).
   return (
     <details key={running ? 'live' : 'done'} open={running || undefined} style={{ marginTop: 6 }}>
-      <summary style={{ cursor: 'pointer', fontSize: 11.5, fontFamily: 'var(--font-mono)', color: 'hsl(var(--ink-4))' }}>
+      <summary
+        style={{
+          cursor: 'pointer',
+          fontSize: 11.5,
+          fontFamily: 'var(--font-mono)',
+          color: 'hsl(var(--ink-4))',
+        }}
+      >
         {t('evolveSection.trace.summary', { count: trace.length })}
       </summary>
       <div
@@ -240,7 +288,11 @@ function TraceView({ trace, running }: { trace: EvolveTraceStep[]; running: bool
               <span style={{ color: 'hsl(var(--ink-4))' }}>
                 r{step.round}·{t(PHASE_LABEL_KEY[step.phase])}《{step.chapterTitle}》
               </span>{' '}
-              <span style={{ color: step.actor === 'critic' ? 'hsl(265 45% 55%)' : 'hsl(var(--accent))' }}>
+              <span
+                style={{
+                  color: step.actor === 'critic' ? 'hsl(265 45% 55%)' : 'hsl(var(--accent))',
+                }}
+              >
                 {step.actor === 'critic'
                   ? t('evolveSection.trace.actor.critic')
                   : t('evolveSection.trace.actor.editor')}
@@ -296,8 +348,17 @@ function Seg({
 }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'hsl(var(--ink-4))' }}>{label}</span>
-      <span style={{ display: 'inline-flex', border: '1px solid hsl(var(--rule))', borderRadius: 5, overflow: 'hidden' }}>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'hsl(var(--ink-4))' }}>
+        {label}
+      </span>
+      <span
+        style={{
+          display: 'inline-flex',
+          border: '1px solid hsl(var(--rule))',
+          borderRadius: 5,
+          overflow: 'hidden',
+        }}
+      >
         {options.map(([v, l]) => (
           <button
             key={v}
@@ -337,13 +398,32 @@ function ChangedFields({
         {t('evolveSection.changed.summary', { count: deltas.length })}
         <span style={{ color: 'hsl(var(--ink-1))' }}>{deltas.map((d) => d.label).join('、')}</span>
       </summary>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '6px 0 0', paddingLeft: 4 }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          margin: '6px 0 0',
+          paddingLeft: 4,
+        }}
+      >
         {deltas.map((d) => (
-          <div key={`${d.kind}:${d.label}`} style={{ fontSize: 11.5, lineHeight: 1.45, display: 'flex', gap: 6 }}>
+          <div
+            key={`${d.kind}:${d.label}`}
+            style={{ fontSize: 11.5, lineHeight: 1.45, display: 'flex', gap: 6 }}
+          >
             <div style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'hsl(var(--ink-4))' }}>{d.label}</span>
-              <div style={{ color: 'hsl(var(--ink-4))', textDecoration: 'line-through' }}>{d.oldText || t('evolveSection.changed.empty')}</div>
-              <div style={{ color: 'hsl(var(--ink-1))' }}>{d.newText || t('evolveSection.changed.empty')}</div>
+              <span
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'hsl(var(--ink-4))' }}
+              >
+                {d.label}
+              </span>
+              <div style={{ color: 'hsl(var(--ink-4))', textDecoration: 'line-through' }}>
+                {d.oldText || t('evolveSection.changed.empty')}
+              </div>
+              <div style={{ color: 'hsl(var(--ink-1))' }}>
+                {d.newText || t('evolveSection.changed.empty')}
+              </div>
             </div>
             <button
               type="button"
@@ -386,7 +466,12 @@ function EvolveResultView({
   const { t } = useTranslation();
   const { stopReason, worklist, residual, resolvedCount, rounds, errors, note } = result;
   const staged = Object.values(result.pendingByChapter).reduce((n, cs) => n + cs.length, 0);
-  const accent = stopReason === 'converged' ? OK : stopReason === 'out-of-scope' || stopReason === 'needs-confirmation' ? WARN : 'hsl(var(--ink-3))';
+  const accent =
+    stopReason === 'converged'
+      ? OK
+      : stopReason === 'out-of-scope' || stopReason === 'needs-confirmation'
+        ? WARN
+        : 'hsl(var(--ink-3))';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
@@ -422,7 +507,9 @@ function EvolveResultView({
       </div>
 
       {note && (
-        <div style={{ fontSize: 12, color: 'hsl(var(--ink-2))', lineHeight: 1.5, padding: '0 2px' }}>
+        <div
+          style={{ fontSize: 12, color: 'hsl(var(--ink-2))', lineHeight: 1.5, padding: '0 2px' }}
+        >
           <AlertTriangle size={11} style={{ color: WARN, verticalAlign: '-1px', marginRight: 4 }} />
           {note}
         </div>
@@ -454,7 +541,12 @@ function EvolveResultView({
       {worklist && worklist.length > 0 && (
         <ListBlock title={t('evolveSection.result.worklistTitle', { count: worklist.length })}>
           {worklist.map((w) => (
-            <Row key={w.chapterId} onJump={() => onJump(w.chapterId)} title={w.title} order={w.order}>
+            <Row
+              key={w.chapterId}
+              onJump={() => onJump(w.chapterId)}
+              title={w.title}
+              order={w.order}
+            >
               <span style={{ color: 'hsl(var(--ink-4))' }}>
                 {w.blockIds.length
                   ? t('evolveSection.result.appearanceCount', { count: w.blockIds.length })
@@ -469,7 +561,12 @@ function EvolveResultView({
       {residual.length > 0 && (
         <ListBlock title={t('evolveSection.result.residualTitle', { count: residual.length })}>
           {residual.map((s, i) => (
-            <Row key={`${s.chapterId}-${i}`} onJump={() => onJump(s.chapterId)} title={s.chapterTitle} order={undefined}>
+            <Row
+              key={`${s.chapterId}-${i}`}
+              onJump={() => onJump(s.chapterId)}
+              title={s.chapterTitle}
+              order={undefined}
+            >
               <span style={{ color: 'hsl(var(--ink-3))' }}>{s.reason}</span>
             </Row>
           ))}
@@ -492,15 +589,29 @@ function EvolveResultView({
  *  改了什么地方" record, so the author can read the whole pass without hopping chapters.
  *  Merges the round-0 discovery list (initialSpots) with the staged edits
  *  (pendingByChapter, before→after), keyed + ordered by chapter. */
-function ActivityLog({ result, onJump }: { result: EvolveResult; onJump: (chapterId: string) => void }) {
+function ActivityLog({
+  result,
+  onJump,
+}: {
+  result: EvolveResult;
+  onJump: (chapterId: string) => void;
+}) {
   const { t } = useTranslation();
   const orderOf = new Map(result.scoped.map((c) => [c.chapterId, c.order] as const));
   const titleOf = new Map(result.scoped.map((c) => [c.chapterId, c.title] as const));
-  const rows = new Map<string, { title: string; order: number; found: ContradictionSpot[]; edits: AgentBlockChange[] }>();
+  const rows = new Map<
+    string,
+    { title: string; order: number; found: ContradictionSpot[]; edits: AgentBlockChange[] }
+  >();
   const ensure = (chapterId: string, title: string) => {
     let e = rows.get(chapterId);
     if (!e) {
-      e = { title, order: orderOf.get(chapterId) ?? Number.POSITIVE_INFINITY, found: [], edits: [] };
+      e = {
+        title,
+        order: orderOf.get(chapterId) ?? Number.POSITIVE_INFINITY,
+        found: [],
+        edits: [],
+      };
       rows.set(chapterId, e);
     }
     return e;
@@ -515,8 +626,20 @@ function ActivityLog({ result, onJump }: { result: EvolveResult; onJump: (chapte
   return (
     <ListBlock title={t('evolveSection.activity.title', { count: ordered.length })}>
       {ordered.map(([chapterId, e]) => (
-        <details key={chapterId} style={{ borderLeft: '2px solid hsl(var(--rule))', paddingLeft: 10 }}>
-          <summary style={{ cursor: 'pointer', fontSize: 12, lineHeight: 1.5, display: 'flex', gap: 8, alignItems: 'baseline' }}>
+        <details
+          key={chapterId}
+          style={{ borderLeft: '2px solid hsl(var(--rule))', paddingLeft: 10 }}
+        >
+          <summary
+            style={{
+              cursor: 'pointer',
+              fontSize: 12,
+              lineHeight: 1.5,
+              display: 'flex',
+              gap: 8,
+              alignItems: 'baseline',
+            }}
+          >
             <button
               type="button"
               onClick={(ev) => {
@@ -524,7 +647,16 @@ function ActivityLog({ result, onJump }: { result: EvolveResult; onJump: (chapte
                 onJump(chapterId);
               }}
               title={t('evolveSection.common.jumpToChapter')}
-              style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'hsl(var(--accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10.5,
+                color: 'hsl(var(--accent))',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                whiteSpace: 'nowrap',
+              }}
             >
               {e.title}
               {Number.isFinite(e.order) ? ` n${e.order}` : ''}
@@ -536,22 +668,41 @@ function ActivityLog({ result, onJump }: { result: EvolveResult; onJump: (chapte
               })}
             </span>
           </summary>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, margin: '5px 0 8px', paddingLeft: 2 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 5,
+              margin: '5px 0 8px',
+              paddingLeft: 2,
+            }}
+          >
             {e.found.map((s, i) => (
-              <div key={`f${i}`} style={{ fontSize: 11.5, lineHeight: 1.45, color: 'hsl(var(--ink-2))' }}>
-                <span style={{ color: WARN, marginRight: 5 }}>{t('evolveSection.activity.found')}</span>
+              <div
+                key={`f${i}`}
+                style={{ fontSize: 11.5, lineHeight: 1.45, color: 'hsl(var(--ink-2))' }}
+              >
+                <span style={{ color: WARN, marginRight: 5 }}>
+                  {t('evolveSection.activity.found')}
+                </span>
                 {s.reason}
               </div>
             ))}
             {e.edits.map((c, i) => (
               <div key={`e${i}`} style={{ fontSize: 11.5, lineHeight: 1.45 }}>
-                <span style={{ color: OK, marginRight: 5 }}>{t('evolveSection.activity.edit')}</span>
+                <span style={{ color: OK, marginRight: 5 }}>
+                  {t('evolveSection.activity.edit')}
+                </span>
                 {c.oldText && (
-                  <span style={{ color: 'hsl(var(--ink-4))', textDecoration: 'line-through' }}>{c.oldText}</span>
+                  <span style={{ color: 'hsl(var(--ink-4))', textDecoration: 'line-through' }}>
+                    {c.oldText}
+                  </span>
                 )}
                 {c.oldText && c.newText && <span style={{ color: 'hsl(var(--ink-4))' }}> → </span>}
                 {c.newText && <span style={{ color: 'hsl(var(--ink-1))' }}>{c.newText}</span>}
-                {!c.newText && <span style={{ color: 'hsl(var(--ink-4))' }}>{t('common.deleted_paren')}</span>}
+                {!c.newText && (
+                  <span style={{ color: 'hsl(var(--ink-4))' }}>{t('common.deleted_paren')}</span>
+                )}
               </div>
             ))}
           </div>
@@ -564,7 +715,16 @@ function ActivityLog({ result, onJump }: { result: EvolveResult; onJump: (chapte
 function ListBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.05em', color: 'hsl(var(--ink-4))' }}>{title}</span>
+      <span
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          letterSpacing: '0.05em',
+          color: 'hsl(var(--ink-4))',
+        }}
+      >
+        {title}
+      </span>
       {children}
     </div>
   );
@@ -583,12 +743,35 @@ function Row({
 }) {
   const { t } = useTranslation();
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 12, lineHeight: 1.45, padding: '2px 0', borderLeft: '2px solid hsl(var(--rule))', paddingLeft: 10 }}>
+    <div
+      style={{
+        display: 'flex',
+        gap: 8,
+        alignItems: 'baseline',
+        fontSize: 12,
+        lineHeight: 1.45,
+        padding: '2px 0',
+        borderLeft: '2px solid hsl(var(--rule))',
+        paddingLeft: 10,
+      }}
+    >
       <button
         type="button"
         onClick={onJump}
         title={t('evolveSection.common.jumpToChapter')}
-        style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'hsl(var(--accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 2 }}
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          color: 'hsl(var(--accent))',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          whiteSpace: 'nowrap',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 2,
+        }}
       >
         {title}
         {order !== undefined && Number.isFinite(order) ? ` n${order}` : ''}

@@ -5,7 +5,8 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'sqlite',
   dbCredentials: {
-    // dev db path
-    url: '/Users/example/Library/Application Support/Drifting/databases/JqhsLzV8eBuD7G2atU8nzrAkHQD3gtTP_drifting.db',
+    // Schema generation normally does not open a database. Set DRIFTING_DB_PATH
+    // explicitly for an intentional drizzle-kit inspection/push operation.
+    url: process.env.DRIFTING_DB_PATH ?? '.local-data/databases/drifting-library.db',
   },
 });

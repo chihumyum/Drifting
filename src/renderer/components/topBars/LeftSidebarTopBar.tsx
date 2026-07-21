@@ -2,16 +2,13 @@ import { Search, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { events } from '../../lib/events.ts';
 import { useUiStore } from '../../store/ui-store';
+import { getPlatformRuntime } from '../../platform/runtime';
 
 export function LeftSidebarTopBar() {
   const { t } = useTranslation();
-  const isMac = navigator.userAgent.includes('Mac');
+  const runtime = getPlatformRuntime();
   const isLeftSidebarOpen = useUiStore((state) => state.sidebars.left.isOpen);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
-
-  if (!isMac) {
-    return null;
-  }
 
   const handleOpenSearch = () => events.emit('search:open');
   const handleToggleLeftSidebar = () => toggleSidebar('left');
@@ -20,22 +17,23 @@ export function LeftSidebarTopBar() {
 
   return (
     <div
+      data-tauri-drag-region={runtime.desktopWindowControls ? 'deep' : undefined}
       style={
         {
           height: 42,
           display: 'flex',
           alignItems: 'center',
-          paddingLeft: 78, // 红绿灯 (traffic lights) 让位
+          paddingLeft: runtime.isMacDesktop ? 78 : 8,
           paddingRight: 8,
           flexShrink: 0,
           borderBottom: '1px solid hsl(var(--rule))',
-          WebkitAppRegion: 'drag',
           width: '100%',
           gap: 2,
         } as React.CSSProperties
       }
     >
-      {/* 红绿灯和按钮之间的空白区域 — 展开时预留给未来的全局状态展示（灵动岛式自适应信息）；收起时按钮直接贴红绿灯 */}
+      {/* macOS native controls and product actions share this section; on
+          other targets the actions start at the ordinary content inset. */}
       <GhostIconBtn
         onClick={handleOpenSearch}
         title={t('leftSidebar.top.search')}
@@ -82,7 +80,6 @@ function GhostIconBtn({ onClick, title, icon, marginLeft }: GhostIconBtnProps) {
           color: 'hsl(var(--ink-3))',
           cursor: 'pointer',
           transition: 'background 0.15s ease, color 0.15s ease',
-          WebkitAppRegion: 'no-drag',
           padding: 0,
           marginLeft,
         } as React.CSSProperties

@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile-main",
+  "description": "Minimal permissions for the Drifting iOS and Android webview.",
+  "windows": ["main"],
+  "platforms": ["iOS", "android"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}

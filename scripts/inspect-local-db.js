@@ -11,7 +11,31 @@ function resolvePath(input) {
   return path.resolve(process.cwd(), input);
 }
 
-function userDataDbDir() {
+function tauriDataDbDir() {
+  if (process.platform === 'darwin') {
+    return path.join(
+      os.homedir(),
+      'Library',
+      'Application Support',
+      'cc.drifting.client',
+      'databases',
+    );
+  }
+  if (process.platform === 'win32') {
+    return path.join(
+      process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
+      'cc.drifting.client',
+      'databases',
+    );
+  }
+  return path.join(
+    process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'),
+    'cc.drifting.client',
+    'databases',
+  );
+}
+
+function legacyDataDbDir() {
   if (process.platform === 'darwin') {
     return path.join(os.homedir(), 'Library', 'Application Support', 'Drifting', 'databases');
   }
@@ -132,7 +156,8 @@ function main() {
     process.argv.includes('--all') ||
     process.argv.includes('--user-data')
   ) {
-    addDir(dirs, 'Electron userData', userDataDbDir());
+    addDir(dirs, 'Tauri app data', tauriDataDbDir());
+    addDir(dirs, 'Legacy desktop data', legacyDataDbDir());
   }
 
   for (const { label, dir } of dirs) {

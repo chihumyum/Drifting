@@ -7,11 +7,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { RuleSpec } from '@/main/shadow/types';
+import type { RuleSpec } from '../../review-types';
 import type { EvalProject } from '../model';
 import { zGolden, type GoldenFile } from './schema';
 
-const FOG_HARBOR_DIR = process.env.FOG_HARBOR_DIR || '/Users/example/我的ObsidianVault/雾港纪事/book-1';
+const FOG_HARBOR_DIR =
+  process.env.FOG_HARBOR_DIR || '/Users/example/我的ObsidianVault/雾港纪事/book-1';
 const CORPUS_DIR = fileURLToPath(new URL('../corpus', import.meta.url));
 
 // Resolve a chapter's bodySource.dir to an absolute path. Supports:
@@ -39,7 +40,11 @@ function resolveBookDir(dir: string | undefined): string {
 
 // One markdown chapter → numbered blocks; a `#### 第N幕` header becomes a marker
 // block so the judge sees act boundaries (per-act POV matters for head-hop).
-function parseVaultMd(file: string, dir: string, chapterId: string): { id: string; text: string }[] {
+function parseVaultMd(
+  file: string,
+  dir: string,
+  chapterId: string,
+): { id: string; text: string }[] {
   const md = readFileSync(join(dir, file), 'utf8');
   return md
     .split('\n')
@@ -70,7 +75,13 @@ export function goldenToProject(g: GoldenFile): EvalProject {
       if (!blocks && c.bodySource) {
         blocks = parseVaultMd(c.bodySource.file, resolveBookDir(c.bodySource.dir), c.id);
       }
-      return { id: c.id, title: c.title, summary: c.summary, appears: c.appears, blocks: blocks ?? [] };
+      return {
+        id: c.id,
+        title: c.title,
+        summary: c.summary,
+        appears: c.appears,
+        blocks: blocks ?? [],
+      };
     }),
   };
 }

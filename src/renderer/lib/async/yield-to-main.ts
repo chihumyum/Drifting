@@ -8,7 +8,7 @@
  * yields naturally, but a long CPU burst does not — so we sprinkle `yieldToMain()`
  * through the hot paths to keep the UI responsive during a review.
  *
- * Prefers `scheduler.yield()` (recent Chromium/Electron — prioritized continuation,
+ * Prefers `scheduler.yield()` (recent embedded webviews — prioritized continuation,
  * no clamp). Falls back to a shared MessageChannel macrotask, which (unlike
  * setTimeout(0)) is not subject to the 4ms nested-timeout clamp.
  */

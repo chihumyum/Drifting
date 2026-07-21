@@ -3,6 +3,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 
 const PROJECT_ID = 'demo-gray-tide-chronicle-v1';
 const PROJECT_NAME = '灰潮纪：盐冠与黑岭';
@@ -100,11 +101,116 @@ function ensureDir(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
+function runImmediateTransaction(db, operation) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = operation();
+    db.exec('COMMIT');
+    return result;
+  } catch (error) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // Preserve the operation error. A failed rollback cannot make a failed
+      // migration/seed look successful.
+    }
+    throw error;
+  }
+}
+
+function createNodeSqliteAdapter(database) {
+  return {
+    exec(sql) {
+      return database.exec(sql);
+    },
+    prepare(sql) {
+      const statement = database.prepare(sql);
+      const namedKeys = new Set(
+        Array.from(sql.matchAll(/[@:$]([A-Za-z_][A-Za-z0-9_]*)/g), (match) => match[1]),
+      );
+      const bind = (parameters) => {
+        if (
+          parameters.length !== 1 ||
+          !parameters[0] ||
+          typeof parameters[0] !== 'object' ||
+          Array.isArray(parameters[0]) ||
+          ArrayBuffer.isView(parameters[0])
+        ) {
+          return parameters;
+        }
+        const input = parameters[0];
+        const filtered = {};
+        for (const key of namedKeys) {
+          if (Object.prototype.hasOwnProperty.call(input, key)) filtered[key] = input[key];
+        }
+        return [filtered];
+      };
+      // Demo row objects intentionally carry derived fields that are not used by
+      // every INSERT. better-sqlite3 ignored those keys; filter them explicitly
+      // so this adapter also works on the earliest supported node:sqlite API.
+      return {
+        run(...parameters) {
+          return statement.run(...bind(parameters));
+        },
+        get(...parameters) {
+          return statement.get(...bind(parameters));
+        },
+        all(...parameters) {
+          return statement.all(...bind(parameters));
+        },
+      };
+    },
+    close() {
+      return database.close();
+    },
+  };
+}
+
+/** Apply the same Drizzle journal consumed by the Rust database gateway. */
 function runMigrations(db) {
-  const { drizzle } = require('drizzle-orm/better-sqlite3');
-  const { migrate } = require('drizzle-orm/better-sqlite3/migrator');
   const migrationsFolder = path.resolve(__dirname, '../drizzle');
-  migrate(drizzle(db), { migrationsFolder });
+  const journal = JSON.parse(
+    fs.readFileSync(path.join(migrationsFolder, 'meta', '_journal.json'), 'utf8'),
+  );
+  let previousWhen = -1;
+  for (const [index, entry] of journal.entries.entries()) {
+    if (entry.idx !== index) throw new Error(`Migration journal index mismatch at ${index}`);
+    if (!/^[A-Za-z0-9_-]+$/.test(entry.tag)) {
+      throw new Error(`Invalid migration tag: ${entry.tag}`);
+    }
+    if (!Number.isSafeInteger(entry.when) || entry.when <= previousWhen) {
+      throw new Error(`Migration timestamps are not strictly increasing at ${entry.tag}`);
+    }
+    previousWhen = entry.when;
+  }
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    runImmediateTransaction(db, () => {
+      db.exec(
+        'CREATE TABLE IF NOT EXISTS __drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric)',
+      );
+      const last = db
+        .prepare('SELECT created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1')
+        .get();
+      const lastWhen = last ? Number(last.created_at) : null;
+      const record = db.prepare(
+        'INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)',
+      );
+      for (const entry of journal.entries) {
+        if (lastWhen !== null && lastWhen >= entry.when) continue;
+        const sqlPath = path.join(migrationsFolder, `${entry.tag}.sql`);
+        const bytes = fs.readFileSync(sqlPath);
+        const sql = bytes.toString('utf8');
+        for (const statement of sql.split('--> statement-breakpoint')) {
+          if (statement.trim()) db.exec(statement);
+        }
+        record.run(crypto.createHash('sha256').update(bytes).digest('hex'), entry.when);
+      }
+    });
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
 }
 
 function id(prefix, value) {
@@ -332,28 +438,124 @@ const CATEGORY_DEFS = [
 ];
 
 const MAIN_ROLES = [
-  ['阿蕾莎·维岚', '盐冠旁支的长女，被流放到北岭作人质。', '盐冠王室', '夺回被篡改的继承誓书', '害怕自己也会把人当筹码'],
-  ['宁铎·黑松', '黑松关少主，山道守军事实统帅。', '黑松家', '守住三峰道，同时摆脱盐冠债务', '会把沉默误当忠诚'],
-  ['莫尔文·烛档', '鸦钟修院的抄经士，负责修补旧王朝档案。', '鸦钟修院', '证明圣契不是神谕而是账本', '相信文字胜过活人'],
-  ['塞弥娅·潮眼', '雾纹海走私船长，能读懂潮汐暗号。', '白鹿商社', '把弟弟从盐狱赎出', '从不相信无代价的善意'],
-  ['伊德里斯·灰冠', '摄政王，曾是先王最亲近的财政官。', '灰冠摄政府', '用铁税统一诸港', '惧怕旧誓书重现'],
-  ['芙兰嘉·红砧', '红砧军团统帅，因火刑案背负恶名。', '红砧军团', '让军团拥有合法封地', '习惯先烧掉证据'],
-  ['赛温·白鹿', '白鹿商社继承人，表面圆滑，暗中资助山民。', '白鹿商社', '把贸易从贵族手里夺回来', '总把亲密关系也做成契约'],
+  [
+    '阿蕾莎·维岚',
+    '盐冠旁支的长女，被流放到北岭作人质。',
+    '盐冠王室',
+    '夺回被篡改的继承誓书',
+    '害怕自己也会把人当筹码',
+  ],
+  [
+    '宁铎·黑松',
+    '黑松关少主，山道守军事实统帅。',
+    '黑松家',
+    '守住三峰道，同时摆脱盐冠债务',
+    '会把沉默误当忠诚',
+  ],
+  [
+    '莫尔文·烛档',
+    '鸦钟修院的抄经士，负责修补旧王朝档案。',
+    '鸦钟修院',
+    '证明圣契不是神谕而是账本',
+    '相信文字胜过活人',
+  ],
+  [
+    '塞弥娅·潮眼',
+    '雾纹海走私船长，能读懂潮汐暗号。',
+    '白鹿商社',
+    '把弟弟从盐狱赎出',
+    '从不相信无代价的善意',
+  ],
+  [
+    '伊德里斯·灰冠',
+    '摄政王，曾是先王最亲近的财政官。',
+    '灰冠摄政府',
+    '用铁税统一诸港',
+    '惧怕旧誓书重现',
+  ],
+  [
+    '芙兰嘉·红砧',
+    '红砧军团统帅，因火刑案背负恶名。',
+    '红砧军团',
+    '让军团拥有合法封地',
+    '习惯先烧掉证据',
+  ],
+  [
+    '赛温·白鹿',
+    '白鹿商社继承人，表面圆滑，暗中资助山民。',
+    '白鹿商社',
+    '把贸易从贵族手里夺回来',
+    '总把亲密关系也做成契约',
+  ],
   ['赫兰·鸦母', '鸦钟修院院长，保存三朝忏悔录。', '鸦钟修院', '维持修院中立', '知道太多却不敢说全'],
   ['塔温·井盐', '盐井工会的盲眼会计。', '盐井工会', '让盐工获得迁徙权', '用假账保护真账'],
-  ['萝缇·石花', '北岭向导，熟悉冻土道路和路祭。', '山民盟约', '寻找失踪的母亲', '看似玩世不恭，实则记仇极久'],
+  [
+    '萝缇·石花',
+    '北岭向导，熟悉冻土道路和路祭。',
+    '山民盟约',
+    '寻找失踪的母亲',
+    '看似玩世不恭，实则记仇极久',
+  ],
   ['卡斯帕·雾弓', '边境猎手，宁铎的旧友。', '黑松家', '查清黑松关内奸', '不愿承认自己想离开边境'],
-  ['尤娜·银线', '宫廷织图师，能把密信织进旗纹。', '盐冠王室', '保存维岚血脉的证据', '把真相拆得太细，连自己也迷路'],
-  ['巴彦·冻钟', '东岭牧首，掌管冬封仪式。', '山民盟约', '阻止外来军队穿越圣路', '宁愿牺牲少数人守古法'],
-  ['莱萨·赤誓', '红砧军团副官，曾经是盐狱囚犯。', '红砧军团', '杀死出卖自己的审判官', '害怕被赦免后无处可去'],
+  [
+    '尤娜·银线',
+    '宫廷织图师，能把密信织进旗纹。',
+    '盐冠王室',
+    '保存维岚血脉的证据',
+    '把真相拆得太细，连自己也迷路',
+  ],
+  [
+    '巴彦·冻钟',
+    '东岭牧首，掌管冬封仪式。',
+    '山民盟约',
+    '阻止外来军队穿越圣路',
+    '宁愿牺牲少数人守古法',
+  ],
+  [
+    '莱萨·赤誓',
+    '红砧军团副官，曾经是盐狱囚犯。',
+    '红砧军团',
+    '杀死出卖自己的审判官',
+    '害怕被赦免后无处可去',
+  ],
   ['欧岑·断潮', '退位的海军提督，被软禁在阴盐城。', '旧海军', '找回断潮冠', '把失败归咎于天象'],
   ['蜜拉·纸鸢', '街头信使，能穿过内城水闸。', '无', '攒钱买一条合法姓氏', '把每个人的秘密都当故事'],
-  ['斐烈·三钉', '铁税巡官，忠于数字胜过君主。', '灰冠摄政府', '查出盐税漏斗', '不理解怜悯的账面价值'],
-  ['阿洛·灰灯', '游方修灯人，传说见过无面圣徒。', '无面教团', '找到灰灯真正的燃料', '说谎时反而最温柔'],
-  ['缇安娜·雪契', '被送入修院的贵族遗孤，莫尔文的学生。', '鸦钟修院', '弄清父亲为何被除名', '把知识当作复仇'],
-  ['多伦·黑麦', '山道粮商，给三方军队同时供粮。', '河税同盟', '让战争永远差一口气结束', '贪财但讨厌浪费生命'],
+  [
+    '斐烈·三钉',
+    '铁税巡官，忠于数字胜过君主。',
+    '灰冠摄政府',
+    '查出盐税漏斗',
+    '不理解怜悯的账面价值',
+  ],
+  [
+    '阿洛·灰灯',
+    '游方修灯人，传说见过无面圣徒。',
+    '无面教团',
+    '找到灰灯真正的燃料',
+    '说谎时反而最温柔',
+  ],
+  [
+    '缇安娜·雪契',
+    '被送入修院的贵族遗孤，莫尔文的学生。',
+    '鸦钟修院',
+    '弄清父亲为何被除名',
+    '把知识当作复仇',
+  ],
+  [
+    '多伦·黑麦',
+    '山道粮商，给三方军队同时供粮。',
+    '河税同盟',
+    '让战争永远差一口气结束',
+    '贪财但讨厌浪费生命',
+  ],
   ['苏赫·蓝盐', '盐井童工出身的工头。', '盐井工会', '拆掉井下债契', '不信任何贵族的承诺'],
-  ['纳嘉·霜皮', '北岭草药师，掌握灰潮病的旧方。', '山民盟约', '隐瞒灰潮病源', '救人时也在筛选幸存者'],
+  [
+    '纳嘉·霜皮',
+    '北岭草药师，掌握灰潮病的旧方。',
+    '山民盟约',
+    '隐瞒灰潮病源',
+    '救人时也在筛选幸存者',
+  ],
   ['维克托·铜祷', '圣契审判官，追捕伪经。', '鸦钟修院', '证明灰潮是神罚', '最怕神并不存在'],
   ['兰瑟·盐鸥', '先王私生子传闻的核心人物。', '旧海军', '摆脱所有血统叙事', '越否认越像王子'],
 ];
@@ -553,7 +755,18 @@ function buildElements(projectId) {
     );
   }
 
-  const minorSurnames = ['维岚', '黑松', '白鹿', '红砧', '灰冠', '银线', '冻钟', '雾弓', '石花', '蓝盐'];
+  const minorSurnames = [
+    '维岚',
+    '黑松',
+    '白鹿',
+    '红砧',
+    '灰冠',
+    '银线',
+    '冻钟',
+    '雾弓',
+    '石花',
+    '蓝盐',
+  ];
   const minorNames = [
     '艾南',
     '贝洛',
@@ -589,7 +802,10 @@ function buildElements(projectId) {
       kv([
         ['阵营', faction],
         ['公开身份', ['税吏', '哨兵', '药师', '船副', '抄写员', '驿长'][minorIndex % 6]],
-        ['秘密', ['欠下灯债', '藏有伪姓', '见过灰潮', '替人改过账', '知道一条旧路'][minorIndex % 5]],
+        [
+          '秘密',
+          ['欠下灯债', '藏有伪姓', '见过灰潮', '替人改过账', '知道一条旧路'][minorIndex % 5],
+        ],
         ['用途', '压力测试用群像节点：可被章节、元素 patch 与关系图引用。'],
       ]),
       { groupName: faction },
@@ -664,7 +880,10 @@ function buildElements(projectId) {
       `${name}既是信仰，也是被不同势力挪用的政治语言。`,
       kv([
         ['信众', FACTION_NAMES[(index + 3) % FACTION_NAMES.length]],
-        ['禁忌', ['不可直呼真名', '不可在盐井点灯', '不可跨过第三场雪', '不可让钟响四次'][index % 4]],
+        [
+          '禁忌',
+          ['不可直呼真名', '不可在盐井点灯', '不可跨过第三场雪', '不可让钟响四次'][index % 4],
+        ],
         ['历史依据', ['旧王坟场铭文', '鸦钟残页', '山民口传', '海图边注'][index % 4]],
         ['误读', '传说中的神迹往往是财政、疫病或道路工程的残影。'],
       ]),
@@ -778,14 +997,25 @@ function buildChapters(projectId, storylines, elements, mentionTargets, count, t
     const arc = Math.floor((order - 1) / 18) + 1;
     const slot = Math.floor((order - 1) / 3);
     const povName = STORYLINES[(order - 1) % STORYLINES.length].pov[slot % 5];
-    const placeName = STORYLINES[(order - 1) % STORYLINES.length].places[slot % STORYLINES[(order - 1) % STORYLINES.length].places.length];
+    const placeName =
+      STORYLINES[(order - 1) % STORYLINES.length].places[
+        slot % STORYLINES[(order - 1) % STORYLINES.length].places.length
+      ];
     const companionName = pickCompanion(order, povName);
     const objectName = OBJECT_NAMES[(order + slot) % OBJECT_NAMES.length];
     const customName = CUSTOM_NAMES[(order + arc) % CUSTOM_NAMES.length];
     const factionName = FACTION_NAMES[(order + slot * 2) % FACTION_NAMES.length];
     const mythName = MYTH_NAMES[(order * 2 + arc) % MYTH_NAMES.length];
     const title = chapterTitle(order, storyline.name, povName, objectName, customName);
-    const summary = chapterSummary(order, arc, povName, placeName, objectName, customName, factionName);
+    const summary = chapterSummary(
+      order,
+      arc,
+      povName,
+      placeName,
+      objectName,
+      customName,
+      factionName,
+    );
     const paragraphTexts = generateChapterParagraphs({
       order,
       arc,
@@ -801,7 +1031,11 @@ function buildChapters(projectId, storylines, elements, mentionTargets, count, t
       mythName,
       targetChars,
     });
-    const doc = plainDoc(paragraphTexts, `demo-ch${String(order).padStart(2, '0')}`, mentionTargets);
+    const doc = plainDoc(
+      paragraphTexts,
+      `demo-ch${String(order).padStart(2, '0')}`,
+      mentionTargets,
+    );
     chapters.push({
       id: id('node', `chapter-${String(order).padStart(2, '0')}`),
       projectId,
@@ -818,8 +1052,16 @@ function buildChapters(projectId, storylines, elements, mentionTargets, count, t
       secondaryStorylineId: order % 6 === 0 ? storylines[(order + 1) % storylines.length].id : null,
       contentJson: doc.contentJson,
       outlineJson: json([
-        { id: `${order}-a`, title: '进入场景', summary: `${povName}抵达${placeName}，发现${customName}被重新解释。` },
-        { id: `${order}-b`, title: '证据翻转', summary: `${objectName}把${factionName}牵入本章冲突。` },
+        {
+          id: `${order}-a`,
+          title: '进入场景',
+          summary: `${povName}抵达${placeName}，发现${customName}被重新解释。`,
+        },
+        {
+          id: `${order}-b`,
+          title: '证据翻转',
+          summary: `${objectName}把${factionName}牵入本章冲突。`,
+        },
         { id: `${order}-c`, title: '尾声钩子', summary: `${mythName}的传闻留下跨线伏笔。` },
       ]),
       blocks: doc.blocks,
@@ -850,7 +1092,9 @@ function generateChapterParagraphs(spec) {
   const state = {
     debt: ['盐债', '路债', '灯债', '血债', '钟债'][spec.order % 5],
     weather: ['冻雾', '斜雪', '盐雨', '灰潮后的湿风', '贴地的山岚'][spec.order % 5],
-    evidence: ['刮除的印痕', '重复的账目', '错位的见证人', '被盐水泡皱的签名', '多出来的一行译注'][spec.slot % 5],
+    evidence: ['刮除的印痕', '重复的账目', '错位的见证人', '被盐水泡皱的签名', '多出来的一行译注'][
+      spec.slot % 5
+    ],
     pressure: ['粮队滞留', '军令提前', '继承宴延期', '修院封门', '船会抬价'][spec.order % 5],
   };
   const base = [
@@ -1010,14 +1254,30 @@ function buildDemo(options) {
     createdAt: CREATED_AT,
     updatedAt: CREATED_AT,
   };
-  return { project, elements, storylines, nodes: [outline, ...chapters], chapters, patches, relations };
+  return {
+    project,
+    elements,
+    storylines,
+    nodes: [outline, ...chapters],
+    chapters,
+    patches,
+    relations,
+  };
 }
 
 function purgeProject(db, projectId) {
-  const nodeIds = rows(db, 'SELECT id FROM book_node WHERE project_id = ?', [projectId]).map((r) => r.id);
-  const elementIds = rows(db, 'SELECT id FROM element WHERE project_id = ?', [projectId]).map((r) => r.id);
-  const storylineIds = rows(db, 'SELECT id FROM storylines WHERE project_id = ?', [projectId]).map((r) => r.id);
-  const categoryIds = rows(db, 'SELECT id FROM element_category WHERE project_id = ?', [projectId]).map((r) => r.id);
+  const nodeIds = rows(db, 'SELECT id FROM book_node WHERE project_id = ?', [projectId]).map(
+    (r) => r.id,
+  );
+  const elementIds = rows(db, 'SELECT id FROM element WHERE project_id = ?', [projectId]).map(
+    (r) => r.id,
+  );
+  const storylineIds = rows(db, 'SELECT id FROM storylines WHERE project_id = ?', [projectId]).map(
+    (r) => r.id,
+  );
+  const categoryIds = rows(db, 'SELECT id FROM element_category WHERE project_id = ?', [
+    projectId,
+  ]).map((r) => r.id);
   const docIds = [
     ...nodeIds.map((x) => `node-content:${x}`),
     ...elementIds.map((x) => `element:${x}`),
@@ -1073,7 +1333,10 @@ function tableExists(db, table) {
 
 function columnExists(db, table, column) {
   try {
-    return db.prepare(`PRAGMA table_info(${table})`).all().some((row) => row.name === column);
+    return db
+      .prepare(`PRAGMA table_info(${table})`)
+      .all()
+      .some((row) => row.name === column);
   } catch {
     return false;
   }
@@ -1086,7 +1349,7 @@ function deleteWhereIn(db, table, column, values) {
 }
 
 function insertDemo(db, demo) {
-  const tx = db.transaction(() => {
+  runImmediateTransaction(db, () => {
     purgeProject(db, demo.project.id);
 
     db.prepare(
@@ -1172,7 +1435,6 @@ function insertDemo(db, demo) {
     );
     for (const mention of mentionRows) insertMention.run(mention);
   });
-  tx();
 }
 
 function collectMentionRows(demo) {
@@ -1182,7 +1444,13 @@ function collectMentionRows(demo) {
   }
   for (const element of demo.elements.all) {
     out.push(
-      ...groupedMentionRows(demo.project.id, 'element', element.id, element.bodyMentions || [], CREATED_AT),
+      ...groupedMentionRows(
+        demo.project.id,
+        'element',
+        element.id,
+        element.bodyMentions || [],
+        CREATED_AT,
+      ),
     );
   }
   for (const storyline of demo.storylines) {
@@ -1203,7 +1471,8 @@ function collectMentionRows(demo) {
 }
 
 function printStats(db, projectId) {
-  const q = (table) => db.prepare(`SELECT count(*) as n FROM ${table} WHERE project_id = ?`).get(projectId).n;
+  const q = (table) =>
+    db.prepare(`SELECT count(*) as n FROM ${table} WHERE project_id = ?`).get(projectId).n;
   const nodeCount = q('book_node');
   const chapterCount = db
     .prepare("SELECT count(*) as n FROM book_node WHERE project_id = ? AND kind = 'chapter'")
@@ -1212,7 +1481,7 @@ function printStats(db, projectId) {
     .prepare("SELECT count(*) as n FROM book_node WHERE project_id = ? AND kind = 'drift'")
     .get(projectId).n;
   const wordCount = db
-    .prepare("SELECT coalesce(sum(word_count), 0) as n FROM book_node WHERE project_id = ?")
+    .prepare('SELECT coalesce(sum(word_count), 0) as n FROM book_node WHERE project_id = ?')
     .get(projectId).n;
   console.log(`Seeded ${PROJECT_NAME}`);
   console.log(`  project_id     ${projectId}`);
@@ -1229,11 +1498,16 @@ function printStats(db, projectId) {
 function main() {
   const options = parseArgs(process.argv);
   ensureDir(options.db);
-  const Database = require('better-sqlite3');
-  const db = new Database(options.db);
+  let DatabaseSync;
   try {
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
+    ({ DatabaseSync } = require('node:sqlite'));
+  } catch {
+    throw new Error('The demo SQLite seeder requires Node.js 22.13 or newer.');
+  }
+  const db = createNodeSqliteAdapter(new DatabaseSync(options.db));
+  try {
+    db.exec('PRAGMA journal_mode = WAL');
+    db.exec('PRAGMA foreign_keys = ON');
     if (options.migrate) runMigrations(db);
     if (options.purgeOnly) {
       purgeProject(db, options.projectId);

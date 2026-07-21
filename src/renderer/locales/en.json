@@ -4,9 +4,9 @@
     "intro": "This is an early build for a small group of testers. Core writing, cloud sync, and relational data work, but APIs, data formats, and UX may still change.",
     "trial": "This is a 30-day trial account; the server deletes the account and cloud data after expiry.",
     "sync": "Manuscripts are stored in readable form on Drifting's server; end-to-end encryption is not provided.",
-    "byok": "There is no hosted AI service. Copilot and Shadow use your own API key; General Agent can also use your Claude Code account login.",
+    "byok": "There is no hosted AI service. Copilot and Shadow use your own API key. General Agent is temporarily unavailable during the Tauri migration.",
     "backup": "Regularly use Relational Markdown Export to keep a readable copy.",
-    "settingsHint": "After opening a book, connect your model credentials in Settings → Copilot / Shadow / Agent. API keys persist only in the local Keychain; General Agent also supports Claude Code OAuth.",
+    "settingsHint": "After opening a book, connect your model credentials in Settings → Copilot / Shadow. API keys persist only in the local Keychain; a remote/sidecar path for General Agent is still planned.",
     "continue": "I understand — continue"
   },
   "settings": {
@@ -615,7 +615,11 @@
     "agent": {
       "kicker": "GENERAL AGENT",
       "title": "The agent in the right rail that can act.",
-      "sub": "A conversational agent that can read and write the whole manuscript through Claude Agent SDK. Pre-Alpha supports your Claude Code OAuth account or Anthropic API key, with no Drifting-hosted mode.",
+      "sub": "A conversational agent that can read and write the whole manuscript. It is currently paused in the Tauri client.",
+      "unavailableTitle": "General Agent is not supported in Tauri yet",
+      "unavailableStatus": "Current implementation explicitly disabled",
+      "unavailableReason": "The current Anthropic General Agent depends on the desktop Node/Claude CLI SDK and cannot run directly inside a Tauri WebView or mobile sandbox.",
+      "unavailableFuture": "A desktop sidecar or authenticated remote-agent service can be added later; the chat UI and local Yjs tool runtime already have a replaceable transport boundary.",
       "credentialPrivacy": "Credentials stay local and are not uploaded.",
       "hostedDisabledTitle": "Hosted is unavailable · beta uses your own Claude account or key",
       "auth": {
@@ -998,6 +1002,9 @@
   "agentPanel": {
     "newConversation": "New chat",
     "unavailable": "Agent is unavailable.",
+    "unavailableTitle": "General Agent is not supported in Tauri yet",
+    "unavailableReason": "The current Anthropic implementation requires the desktop Node/Claude CLI SDK, which cannot run directly in a Tauri WebView or mobile sandbox.",
+    "unavailableFuture": "Local Shadow and the Yjs tool context are unaffected. A desktop sidecar or remote-agent transport can restore this entry later.",
     "checking": "Checking…",
     "common": {
       "none": "None"
@@ -1114,7 +1121,9 @@
   "memoMaterial": {
     "error": {
       "openFile": "Could not open file: {{error}}",
-      "createFailed": "Could not create material: {{error}}"
+      "createFailed": "Could not create material: {{error}}",
+      "pickFailed": "Could not import file: {{error}}",
+      "fileTooLarge": "This file is larger than the {{maxSizeMiB}} MiB material limit. Large-file streaming is not supported yet."
     },
     "upload": {
       "uploading": "Uploading...",

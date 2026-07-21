@@ -2,8 +2,12 @@
 // mean Cmd on macOS / Ctrl elsewhere, plus optional `Shift`, `Alt`, `Ctrl`
 // modifiers. Examples: "Mod+W", "Mod+Shift+F", "Alt+ArrowLeft".
 
-export const IS_MAC =
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+import { getPlatformRuntime } from '../platform/runtime';
+
+function usesAppleShortcuts(): boolean {
+  const platform = getPlatformRuntime().nativePlatform;
+  return platform === 'macos' || platform === 'ios';
+}
 
 export interface ParsedAccelerator {
   mod: boolean;
@@ -42,9 +46,10 @@ export function parseAccelerator(accelerator: string): ParsedAccelerator | null 
 export function matchesAccelerator(event: KeyboardEvent, accelerator: string): boolean {
   const parsed = parseAccelerator(accelerator);
   if (!parsed) return false;
+  const isApple = usesAppleShortcuts();
 
-  const wantMeta = IS_MAC ? parsed.mod : false;
-  const wantCtrl = IS_MAC ? parsed.ctrl : parsed.mod || parsed.ctrl;
+  const wantMeta = isApple ? parsed.mod : false;
+  const wantCtrl = isApple ? parsed.ctrl : parsed.mod || parsed.ctrl;
 
   if (event.metaKey !== wantMeta) return false;
   if (event.ctrlKey !== wantCtrl) return false;
@@ -70,15 +75,16 @@ const KEY_GLYPHS: Record<string, string> = {
 export function formatAccelerator(accelerator: string): string {
   const parsed = parseAccelerator(accelerator);
   if (!parsed) return accelerator;
+  const isApple = usesAppleShortcuts();
   const parts: string[] = [];
-  if (parsed.mod) parts.push(IS_MAC ? '⌘' : 'Ctrl');
+  if (parsed.mod) parts.push(isApple ? '⌘' : 'Ctrl');
   if (parsed.ctrl && !parsed.mod) parts.push('Ctrl');
-  if (parsed.alt) parts.push(IS_MAC ? '⌥' : 'Alt');
-  if (parsed.shift) parts.push(IS_MAC ? '⇧' : 'Shift');
+  if (parsed.alt) parts.push(isApple ? '⌥' : 'Alt');
+  if (parsed.shift) parts.push(isApple ? '⇧' : 'Shift');
   const keyDisplay =
     KEY_GLYPHS[parsed.key] ?? (parsed.key.length === 1 ? parsed.key.toUpperCase() : parsed.key);
   parts.push(keyDisplay);
-  return parts.join(IS_MAC ? '' : '+');
+  return parts.join(isApple ? '' : '+');
 }
 
 // Reverse: build an accelerator string from a live keyboard event. Used by the
@@ -88,9 +94,10 @@ export function acceleratorFromEvent(event: KeyboardEvent): string | null {
   if (!key || key === 'Meta' || key === 'Control' || key === 'Shift' || key === 'Alt') {
     return null;
   }
+  const isApple = usesAppleShortcuts();
   const parts: string[] = [];
-  if (IS_MAC ? event.metaKey : event.ctrlKey) parts.push('Mod');
-  if (IS_MAC && event.ctrlKey) parts.push('Ctrl');
+  if (isApple ? event.metaKey : event.ctrlKey) parts.push('Mod');
+  if (isApple && event.ctrlKey) parts.push('Ctrl');
   if (event.altKey) parts.push('Alt');
   if (event.shiftKey) parts.push('Shift');
   const normalized = key.length === 1 ? key.toUpperCase() : key;

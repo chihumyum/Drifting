@@ -35,7 +35,8 @@ import type {
   AgentChatMessage as ChatMsg,
   AgentConversationSummary,
 } from '../domain/agent-conversation';
-import type { AgentEvent, AgentEventEnvelope } from '../../main/agent';
+import type { AgentEvent, AgentEventEnvelope } from '../lib/agent/protocol';
+import { generalAgentTransport } from '../lib/agent/transport';
 
 const repo = createAgentConversationRepository();
 
@@ -175,7 +176,8 @@ function buildRevertNote(reverts: RevertRecord[]): string {
       // Patch review: rejecting a CREATE deletes it; a DELETE keeps it; an
       // UPDATE restores the pre-edit title/body.
       if (f.kind === 'patch') {
-        if (rv.op === 'deleted') return `- 你删除的${name}的补丁「${f.label}」已被用户保留（未删除）。`;
+        if (rv.op === 'deleted')
+          return `- 你删除的${name}的补丁「${f.label}」已被用户保留（未删除）。`;
         if (rv.op === 'changed')
           return `- 你对${name}的补丁「${f.label}」的修改已被用户撤销，已还原为改动前的内容。`;
         return `- 你为${name}创建的补丁「${f.label}」已被用户删除。`;
@@ -196,7 +198,8 @@ function buildRevertNote(reverts: RevertRecord[]): string {
       return `- 你对${name}的${fieldLabel}的修改已被用户拒绝，已恢复为：「${clamp(rv.restoredText)}」。`;
     }
     if (rv.op === 'new') return `- 你在${name}中新增的一个段落已被用户撤销（删除）。`;
-    if (rv.op === 'deleted') return `- 你在${name}中删除的段落已被用户恢复为原文：「${clamp(rv.restoredText)}」。`;
+    if (rv.op === 'deleted')
+      return `- 你在${name}中删除的段落已被用户恢复为原文：「${clamp(rv.restoredText)}」。`;
     return `- 你在${name}中的一处改写已被用户拒绝，已恢复为原文：「${clamp(rv.restoredText)}」。`;
   });
   return `【系统提示】自你上一轮之后，用户拒绝并还原了以下改动。请以还原后的文本为当前内容，未经用户明确要求不要重新应用这些改动：\n${lines.join('\n')}`;
@@ -253,7 +256,7 @@ interface AgentChatState {
 
 /** The displayed conversation's transcript (stable empty ref when none). */
 export const selectMessages = (s: AgentChatState): ChatMsg[] =>
-  s.activeConvId ? s.runs[s.activeConvId]?.messages ?? EMPTY_MESSAGES : EMPTY_MESSAGES;
+  s.activeConvId ? (s.runs[s.activeConvId]?.messages ?? EMPTY_MESSAGES) : EMPTY_MESSAGES;
 /** Is the displayed conversation the one with the in-flight turn? */
 export const selectRunning = (s: AgentChatState): boolean =>
   s.runningConvId !== null && s.runningConvId === s.activeConvId;
@@ -301,7 +304,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     // project change. The tagged `done` it triggers persists its partial
     // transcript and clears the running pointers.
     if (get().runningConvId) {
-      void window.electronAPI?.agent?.abort();
+      void generalAgentTransport.abort();
     }
     // `runs` (keyed by convId) is intentionally preserved across the switch so an
     // already-finished conversation re-opens instantly without a DB round-trip.
@@ -335,11 +338,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
 
   send: async () => {
     ensureSubscription();
-    const api = window.electronAPI?.agent;
     const s = get();
     // One turn at a time (main runs a single query): refuse if one is in flight,
     // even if it's a background turn in another conversation.
-    if (!api || !s.prompt.trim() || !s.boundProjectId || s.runningConvId) return;
+    if (!s.prompt.trim() || !s.boundProjectId || s.runningConvId) return;
     const projectId = s.boundProjectId;
     const text = s.prompt.trim();
     // Drain edits the user rejected since the last turn and prepend them as a
@@ -420,7 +422,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     // the system prompt so past preferences/vetoes/directives keep steering.
     const memories = await loadActiveMemoryHints(projectId).catch(() => []);
 
-    const r = await api.start({
+    const r = await generalAgentTransport.start({
       prompt: promptToSend,
       mode: auth,
       model: settings.agentModel,
@@ -444,7 +446,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         const runs = cur
           ? {
               ...st.runs,
-              [cid]: { ...cur, messages: [...cur.messages, { kind: 'error' as const, text: r.error }] },
+              [cid]: {
+                ...cur,
+                messages: [...cur.messages, { kind: 'error' as const, text: r.error }],
+              },
             }
           : st.runs;
         const clearing = st.runningTurnId === turnId;
@@ -457,11 +462,11 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   },
 
   abort: () => {
-    void window.electronAPI?.agent?.abort();
+    void generalAgentTransport.abort();
   },
 
   newConversation: () => {
-    void window.electronAPI?.agent?.resetSession();
+    void generalAgentTransport.resetSession();
     const pid = get().boundProjectId;
     if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
     // Switch the view to a fresh, empty chat. A background turn (if any) keeps
@@ -495,7 +500,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     // Abort + clear the in-flight turn if it belongs to the conversation we're
     // deleting (main runs a single query, so abort targets exactly this turn).
     if (get().runningConvId === id) {
-      void window.electronAPI?.agent?.abort();
+      void generalAgentTransport.abort();
       const tid = get().runningTurnId;
       if (tid) turnConv.delete(tid);
       set({ runningTurnId: null, runningConvId: null });
@@ -525,7 +530,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     // Abort + clear the in-flight turn (main runs a single query, so abort
     // targets exactly it) — its conversation is about to be deleted too.
     if (get().runningConvId) {
-      void window.electronAPI?.agent?.abort();
+      void generalAgentTransport.abort();
       const tid = get().runningTurnId;
       if (tid) turnConv.delete(tid);
       set({ runningTurnId: null, runningConvId: null });
@@ -595,7 +600,9 @@ function handleEvent(env: AgentEventEnvelope): void {
   // one) — this is what lets a background turn keep streaming after navigation.
   useAgentChatStore.setState((s) => {
     const run = s.runs[convId];
-    return run ? { runs: { ...s.runs, [convId]: { ...run, messages: applyEvent(run.messages, ev) } } } : s;
+    return run
+      ? { runs: { ...s.runs, [convId]: { ...run, messages: applyEvent(run.messages, ev) } } }
+      : s;
   });
 
   // Mirror tool activity to the perception store (left-panel pulses + dots) only
@@ -626,8 +633,7 @@ let subscribed = false;
  *  streaming survives the panel unmounting). Idempotent. */
 function ensureSubscription(): void {
   if (subscribed) return;
-  const api = window.electronAPI?.agent;
-  if (!api) return;
+  const subscription = generalAgentTransport.subscribeEvents(handleEvent);
+  if (!subscription.ok) return;
   subscribed = true;
-  api.onEvent(handleEvent);
 }

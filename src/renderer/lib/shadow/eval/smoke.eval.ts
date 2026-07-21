@@ -1,9 +1,8 @@
 /**
  * Import-graph smoke for the headless shadow-judge eval. Proves the FC judge
- * loads + runs under Vitest (node env) with NO Electron and NO real LLM:
- *  - vi.mock cuts `build-default-client` (the only Electron-coupled subtree:
- *    BYOK keychain + capture interceptor) — the FC path takes its client as an
- *    arg, so the factory is never needed here.
+ * loads + runs under Vitest (node env) with no application shell or real LLM:
+ *  - vi.mock cuts `build-default-client` (credentials + capture) because the FC
+ *    path takes its client as an arg, so the factory is never needed here.
  *  - a MOCK LLMClient returns a canned `submit_verdicts` tool call, so the whole
  *    judge loop + verdict coercion runs deterministically, no key, no tokens.
  * If this passes, the real-corpus eval just swaps in a real DeepSeek client.
@@ -28,7 +27,9 @@ import type { AICompletionResponse } from '../../ai/types';
 function mockClient(violatedConstraints: number[]): LLMClient {
   const verdicts = violatedConstraints.map((constraint) => ({
     constraint,
-    violations: [{ violated: true, blockStart: 1, blockEnd: 1, reason: 'mock 违反', confidence: 0.9 }],
+    violations: [
+      { violated: true, blockStart: 1, blockEnd: 1, reason: 'mock 违反', confidence: 0.9 },
+    ],
   }));
   const complete = async (): Promise<AICompletionResponse> => ({
     text: '',

@@ -8,8 +8,8 @@
  */
 import { vi, describe, test, expect } from 'vitest';
 
-// Cut the only Electron-coupled subtree (BYOK keychain + capture interceptor); the
-// judge takes its client as an argument, so the factory is never needed.
+// Cut the application credential/capture subtree; the judge takes its client as
+// an argument, so the default factory is never needed.
 vi.mock('../../ai/client/build-default-client', () => ({
   buildDefaultLLMClient: async () => {
     throw new Error('buildDefaultLLMClient must not be called in eval (pass a client)');

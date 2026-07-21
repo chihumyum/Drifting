@@ -2,41 +2,62 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
-const reactPath = path.resolve(__dirname, 'node_modules/react');
-const reactDomPath = path.resolve(__dirname, 'node_modules/react-dom');
+const EMBEDDED_SECRET_PATTERN = /^VITE_.*(?:API_KEY|SECRET|TOKEN)$/;
 
 // https://vitejs.dev/config
-export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    dedupe: ['react', 'react-dom'],
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      react: reactPath,
-      'react-dom': reactDomPath,
+export default defineConfig(({ command }) => {
+  const isBuild = command === 'build';
+
+  if (isBuild) {
+    if (!process.env.VITE_API_BASE_URL) {
+      throw new Error(
+        'VITE_API_BASE_URL must be provided explicitly for a renderer build; use pnpm tauri:build.',
+      );
+    }
+
+    const embeddedSecrets = Object.entries(process.env)
+      .filter(([key, value]) => EMBEDDED_SECRET_PATTERN.test(key) && Boolean(value))
+      .map(([key]) => key);
+    if (embeddedSecrets.length > 0) {
+      throw new Error(
+        `Refusing to embed secret Vite variables in the renderer build: ${embeddedSecrets.join(', ')}`,
+      );
+    }
+  }
+
+  return {
+    // Release builds accept only explicit process variables. This prevents ignored
+    // developer .env files (including BYOK keys) from leaking into a bundle.
+    envDir: isBuild ? false : undefined,
+    plugins: [react()],
+    resolve: {
+      dedupe: ['react', 'react-dom'],
+      alias: {
+        '@': path.resolve(__dirname, './src'),
+      },
     },
-  },
-  server: {
-    // Avoid clashing with private service (http://localhost:3000)
-    port: 5173,
-    strictPort: true,
-    hmr: true,
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          tiptap: [
-            '@tiptap/core',
-            '@tiptap/react',
-            '@tiptap/starter-kit',
-            '@tiptap/extension-link',
-            '@tiptap/extension-text-align',
-            '@tiptap/extension-underline',
-          ],
+    server: {
+      // Avoid clashing with private service (http://localhost:3000)
+      port: 5173,
+      strictPort: true,
+      hmr: true,
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            tiptap: [
+              '@tiptap/core',
+              '@tiptap/react',
+              '@tiptap/starter-kit',
+              '@tiptap/extension-link',
+              '@tiptap/extension-text-align',
+              '@tiptap/extension-underline',
+            ],
+          },
         },
       },
     },
-  },
+  };
 });

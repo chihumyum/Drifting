@@ -2,14 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>Drifting</title>
 
     <!-- Drifting design-system fonts are now bundled locally via
          @fontsource-variable and imported in src/renderer/main.tsx (Newsreader,
          Inter Tight, JetBrains Mono, Noto Serif SC). This replaces the former
-         Google Fonts CDN <link>, which the packaged `drifting-app://` scheme
-         couldn't load — packaged builds now match dev and work offline. -->
+         Google Fonts CDN <link>; packaged native builds now match dev and
+         work offline. -->
   </head>
   <body>
     <div id="root"></div>

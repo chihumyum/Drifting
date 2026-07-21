@@ -58,7 +58,7 @@ export function useYjsSync({
   seedFromLegacy,
 }: UseYjsSyncOptions): UseYjsSyncResult {
   const yjsResult = useYjsDoc({ docId, userId, seedFromLegacy });
-  const { ydoc, isReady, flushPendingWrites } = yjsResult;
+  const { ydoc, isReady, flushPendingWrites, flushLocalState } = yjsResult;
 
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(isSyncEnabled() ? 'idle' : 'disabled');
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
@@ -113,9 +113,9 @@ export function useYjsSync({
   }, [doSync]);
 
   useEffect(() => {
-    if (!isReady || !isSyncEnabled()) return;
-    return registerSyncDocument(docId, forceSync);
-  }, [docId, forceSync, isReady]);
+    if (!isReady) return;
+    return registerSyncDocument(docId, flushLocalState, forceSync);
+  }, [docId, flushLocalState, forceSync, isReady]);
 
   // Initial sync + periodic timer
   useEffect(() => {

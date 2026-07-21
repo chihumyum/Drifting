@@ -42,9 +42,7 @@ export function useEntityCellAction() {
   const { projectId, openEntity } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id);
   const { bookNodes, bookElements, bookElementCategories } = useDataStore();
-  const setChapterStorylineEditorNodeId = useUiStore(
-    (s) => s.setChapterStorylineEditorNodeId,
-  );
+  const setChapterStorylineEditorNodeId = useUiStore((s) => s.setChapterStorylineEditorNodeId);
   const enqueueEntityAction = useUiStore((s) => s.enqueueEntityAction);
 
   const { updateNode, deleteNode } = useBookNode({
@@ -124,8 +122,8 @@ export function useEntityCellAction() {
             return;
           }
           if (action === 'groupPicker') {
-            // Group modal lives in ElementEditorView (Electron has no
-            // window.prompt). Queue + open the element tab so the view
+            // Group modal lives in ElementEditorView; the native client does
+            // not use window.prompt. Queue + open the element tab so the view
             // pops the same modal it would on its own three-dot menu.
             enqueueEntityAction(entityType, id, action);
             openEntity({ entityType: 'element', id }, { preview: false });

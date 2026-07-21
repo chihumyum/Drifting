@@ -11,7 +11,7 @@
  * production. That makes the eval exercise the real consultation path (and a
  * dependency change is only caught if the judge actually reads the entity).
  */
-import type { ReviewContext, RuleSpec } from '@/main/shadow/types';
+import type { ReviewContext, RuleSpec } from '../review-types';
 import type { ToolRunOutcome } from '../../ai/shadow-rules';
 import type { SemanticEvalContext } from '../../ai/shadow-rules';
 
@@ -54,7 +54,7 @@ function deriveAppears(chapter: EvalChapter, elements: EvalElement[]): string[] 
     .map((e) => e.name);
 }
 
-/** Build the main-side ReviewContext the real evaluators consume. */
+/** Build the platform-neutral ReviewContext the real evaluator consumes. */
 export function toReviewContext(project: EvalProject, chapter: EvalChapter): ReviewContext {
   return {
     projectId: project.projectId,
@@ -121,7 +121,13 @@ export function makeModelRunTool(project: EvalProject, searchProse?: ProseSearch
 
   return async (name: string, args: Record<string, unknown>): Promise<ToolRunOutcome> => {
     const ref = String(
-      args.element ?? args.node ?? args.chapter ?? args.entity ?? args.elementId ?? args.nodeId ?? '',
+      args.element ??
+        args.node ??
+        args.chapter ??
+        args.entity ??
+        args.elementId ??
+        args.nodeId ??
+        '',
     ).trim();
     switch (name) {
       case 'read_element':
@@ -153,7 +159,8 @@ export function makeModelRunTool(project: EvalProject, searchProse?: ProseSearch
         const query = String(args.query ?? args.q ?? '').trim();
         const limit = Math.min(Math.max(Number(args.limit) || 30, 1), 100);
         const matches = await searchProse(query, limit);
-        if (!matches.length) return { content: `（search_prose「${query}」：无匹配）`, status: 'ok' };
+        if (!matches.length)
+          return { content: `（search_prose「${query}」：无匹配）`, status: 'ok' };
         return {
           content: matches
             .map((m) => `[${m.kind}] ${m.title}${m.block ? ` 第${m.block}段` : ''}：${m.snippet}`)

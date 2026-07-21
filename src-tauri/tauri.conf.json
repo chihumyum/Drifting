@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Drifting",
+  "version": "0.1.0",
+  "identifier": "cc.drifting.client",
+  "build": {
+    "beforeDevCommand": "pnpm exec vite --config vite.renderer.config.ts",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "pnpm exec vite build --config vite.renderer.config.ts",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Drifting",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1000,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 18,
+          "y": 20
+        },
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://localhost:3000 ws://localhost:3000 ws://localhost:5173 https://api.drifting.cc wss://api.drifting.cc https://api.deepseek.com https://generativelanguage.googleapis.com; img-src 'self' asset: http://asset.localhost blob: data: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPLOCALDATA/asset-cache/**", "$APPLOCALDATA/imports/**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["../src/assets/icon.png", "../src/assets/icon.ico", "../src/assets/icon.icns"]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["drifting"]
+      },
+      "mobile": [
+        {
+          "scheme": ["drifting"],
+          "appLink": false
+        }
+      ]
+    }
+  }
+}
