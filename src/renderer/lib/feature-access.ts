@@ -6,10 +6,10 @@
  * Anything that needs to gate behavior synchronously (e.g. "should this
  * delete go to trash or hard-delete?") reads through `canUseFeature()`.
  *
- * The cache is *advisory*: gates may grant a feature for an instant before
- * the real plan arrives. That's intentional — every paid surface also has a
- * server-side enforcement path (the snapshot upload rejects unpaid users,
- * the free-tier-cleanup job purges trash created by downgraded users).
+ * The cache is advisory UI state only. The server independently verifies both
+ * the paid plan and its billing status before accepting cloud snapshot/trash
+ * operations. Destructive client decisions must also await plan hydration so
+ * a paid user is never hard-deleted merely because startup is still loading.
  */
 import { create } from 'zustand';
 import { subscriptionService, type SubscriptionStatus } from '../services/subscription.service';
