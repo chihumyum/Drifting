@@ -10,7 +10,7 @@
 //! - `base64 = "0.22"`
 //! - `regex = "1"`
 //! - `reqwest = { version = "0.12", default-features = false, features =
-//!   ["charset", "http2", "rustls-tls"] }`
+//!   ["charset", "http2", "rustls-tls", "stream"] }`
 //!
 //! `tauri_plugin_dialog::init()` and `tauri_plugin_fs::init()` must be registered before
 //! `material_pick_file` is invoked. Secure storage lives in `secure_storage.rs`; keeping it
@@ -23,12 +23,14 @@
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, Read, Write};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
+use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_LENGTH, CONTENT_TYPE};
 use reqwest::redirect::Policy;
 use reqwest::{Client, ClientBuilder, Url};
@@ -61,8 +63,14 @@ const MAX_REDIRECTS: usize = 5;
 const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const URL_METADATA_TOTAL_TIMEOUT: Duration = Duration::from_secs(8);
 const ASSET_TRANSFER_READ_TIMEOUT: Duration = Duration::from_secs(30);
+const ASSET_TRANSFER_TOTAL_TIMEOUT: Duration = Duration::from_secs(20 * 60);
 const MAX_CACHE_SEGMENT_LEN: usize = 128;
 const MAX_EXTENSION_LEN: usize = 16;
+const NAT64_DISCOVERY_HOST: &str = "ipv4only.arpa";
+const NAT64_DISCOVERY_IPV4: [Ipv4Addr; 2] =
+    [Ipv4Addr::new(192, 0, 0, 170), Ipv4Addr::new(192, 0, 0, 171)];
+const NAT64_WELL_KNOWN_PREFIX: Ipv6Addr = Ipv6Addr::new(0x0064, 0xff9b, 0, 0, 0, 0, 0, 0);
+const RFC6052_PREFIX_LENGTHS: [u8; 6] = [32, 40, 48, 56, 64, 96];
 
 static UNIQUE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -386,6 +394,44 @@ fn app_local_dir(app: &AppHandle, child: &str) -> Result<PathBuf, String> {
         .app_local_data_dir()
         .map_err(|_| "application data directory is unavailable".to_string())?;
     Ok(root.join(child))
+}
+
+fn validate_app_owned_file_from_roots(
+    file_path: &Path,
+    allowed_roots: &[PathBuf],
+) -> Result<PathBuf, String> {
+    if !file_path.is_absolute() {
+        return Err("local material path must be absolute".into());
+    }
+    let canonical_file = fs::canonicalize(file_path)
+        .map_err(|_| "local material path is unavailable".to_string())?;
+    if !fs::metadata(&canonical_file).is_ok_and(|metadata| metadata.is_file()) {
+        return Err("local material path is not a file".into());
+    }
+
+    for root in allowed_roots {
+        match fs::symlink_metadata(root) {
+            Ok(metadata) if metadata.file_type().is_symlink() => continue,
+            Ok(metadata) if !metadata.is_dir() => continue,
+            Ok(_) => {}
+            Err(_) => continue,
+        }
+        let Ok(canonical_root) = fs::canonicalize(root) else {
+            continue;
+        };
+        if canonical_file.starts_with(canonical_root) {
+            return Ok(canonical_file);
+        }
+    }
+    Err("local material path is outside Drifting storage".into())
+}
+
+fn validate_app_owned_material_file(app: &AppHandle, file_path: &str) -> Result<PathBuf, String> {
+    let roots = [
+        app_local_dir(app, "imports")?,
+        app_local_dir(app, "asset-cache")?,
+    ];
+    validate_app_owned_file_from_roots(Path::new(file_path), &roots)
 }
 
 fn unique_token() -> String {
@@ -894,11 +940,281 @@ fn bounded_u32(value: f64, minimum: u32, maximum: u32, fallback: u32) -> u32 {
     value.clamp(minimum as f64, maximum as f64) as u32
 }
 
-fn parse_http_url(value: &str) -> Result<Url, String> {
-    if value.is_empty() || value.len() > URL_LIMIT {
-        return Err("invalid URL".into());
+fn is_public_ipv4(address: Ipv4Addr) -> bool {
+    let [first, second, third, _] = address.octets();
+
+    // Only globally routable unicast addresses are useful for renderer-triggered HTTP. Keep the
+    // deny list explicit because std's `is_global` API is not stable. This includes the IANA
+    // special-purpose ranges that can otherwise reach this device, its LAN, or non-routed
+    // infrastructure.
+    !matches!(
+        (first, second, third),
+        (0, _, _)
+            | (10, _, _)
+            | (100, 64..=127, _)
+            | (127, _, _)
+            | (169, 254, _)
+            | (172, 16..=31, _)
+            | (192, 0, 0)
+            | (192, 0, 2)
+            | (192, 88, 99)
+            | (192, 168, _)
+            | (198, 18..=19, _)
+            | (198, 51, 100)
+            | (203, 0, 113)
+            | (224..=255, _, _)
+    )
+}
+
+fn is_public_ipv6(address: Ipv6Addr) -> bool {
+    if let Some(mapped) = address.to_ipv4_mapped() {
+        return is_public_ipv4(mapped);
     }
-    let parsed = Url::parse(value).map_err(|_| "invalid URL".to_string())?;
+
+    let segments = address.segments();
+
+    let is_unspecified_or_ipv4_compatible = segments[..6] == [0, 0, 0, 0, 0, 0];
+    let is_discard_only = segments[..4] == [0x0100, 0, 0, 0];
+    let is_local_nat64 = segments[0] == 0x0064 && segments[1] == 0xff9b && segments[2] == 0x0001;
+    let is_ietf_special = segments[0] == 0x2001 && segments[1] <= 0x01ff;
+    let is_documentation = (segments[0] == 0x2001 && segments[1] == 0x0db8)
+        || (segments[0] == 0x3fff && segments[1] & 0xf000 == 0);
+    let is_six_to_four = segments[0] == 0x2002;
+    let is_unique_local = segments[0] & 0xfe00 == 0xfc00;
+    let is_link_or_site_local = segments[0] & 0xffc0 == 0xfe80 || segments[0] & 0xffc0 == 0xfec0;
+    let is_multicast = segments[0] & 0xff00 == 0xff00;
+    let is_global_unicast = segments[0] & 0xe000 == 0x2000;
+
+    is_global_unicast
+        && !is_unspecified_or_ipv4_compatible
+        && !is_discard_only
+        && !is_local_nat64
+        && !is_ietf_special
+        && !is_documentation
+        && !is_six_to_four
+        && !is_unique_local
+        && !is_link_or_site_local
+        && !is_multicast
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Nat64Prefix {
+    network: u128,
+    length: u8,
+}
+
+impl Nat64Prefix {
+    fn from_address(address: Ipv6Addr, length: u8) -> Option<Self> {
+        if !RFC6052_PREFIX_LENGTHS.contains(&length) {
+            return None;
+        }
+        // RFC 6052 reserves bits 64..71 as the zero-valued "u" octet. For /96 that octet is
+        // part of the prefix itself, so reject a prefix that could not be standards-compliant.
+        if length == 96 && address.octets()[8] != 0 {
+            return None;
+        }
+        let mask = u128::MAX << (128 - length);
+        let network = u128::from(address) & mask;
+        let network_address = Ipv6Addr::from(network);
+        let is_well_known = length == 96 && network_address == NAT64_WELL_KNOWN_PREFIX;
+        if !is_well_known && !is_public_ipv6(network_address) {
+            return None;
+        }
+        Some(Self { network, length })
+    }
+
+    fn well_known() -> Self {
+        Self::from_address(NAT64_WELL_KNOWN_PREFIX, 96).expect("valid RFC 6052 prefix")
+    }
+
+    fn matches(self, address: Ipv6Addr) -> bool {
+        let mask = u128::MAX << (128 - self.length);
+        u128::from(address) & mask == self.network
+    }
+
+    fn extract_ipv4(self, address: Ipv6Addr) -> Option<Ipv4Addr> {
+        if !self.matches(address) {
+            return None;
+        }
+        extract_rfc6052_ipv4(address, self.length)
+    }
+}
+
+fn extract_rfc6052_ipv4(address: Ipv6Addr, prefix_length: u8) -> Option<Ipv4Addr> {
+    if !RFC6052_PREFIX_LENGTHS.contains(&prefix_length) {
+        return None;
+    }
+
+    let bytes = address.octets();
+    if prefix_length == 96 {
+        // RFC 6052 also requires the u octet to be zero for a /96 NSP.
+        return (bytes[8] == 0).then(|| Ipv4Addr::new(bytes[12], bytes[13], bytes[14], bytes[15]));
+    }
+    if bytes[8] != 0 {
+        return None;
+    }
+
+    let prefix_bytes = usize::from(prefix_length / 8);
+    let before_u = 8 - prefix_bytes;
+    let after_u = 4 - before_u;
+    let mut embedded = [0_u8; 4];
+    embedded[..before_u].copy_from_slice(&bytes[prefix_bytes..8]);
+    embedded[before_u..].copy_from_slice(&bytes[9..9 + after_u]);
+    Some(Ipv4Addr::from(embedded))
+}
+
+fn derive_nat64_prefixes(
+    addresses: impl IntoIterator<Item = SocketAddr>,
+) -> io::Result<Vec<Nat64Prefix>> {
+    let mut saw_address = false;
+    let mut prefixes = Vec::new();
+    for address in addresses {
+        saw_address = true;
+        match address.ip() {
+            IpAddr::V4(address) if NAT64_DISCOVERY_IPV4.contains(&address) => {}
+            IpAddr::V4(_) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "NAT64 discovery returned an unexpected IPv4 address",
+                ));
+            }
+            IpAddr::V6(address) => {
+                let candidates = RFC6052_PREFIX_LENGTHS
+                    .into_iter()
+                    .filter_map(|length| {
+                        NAT64_DISCOVERY_IPV4
+                            .contains(&extract_rfc6052_ipv4(address, length)?)
+                            .then(|| Nat64Prefix::from_address(address, length))
+                            .flatten()
+                    })
+                    .collect::<Vec<_>>();
+                // RFC 7050 requires the WKA to occur at exactly one RFC 6052 location. An
+                // ambiguous or malformed answer is attacker-controlled input, so fail closed.
+                if candidates.len() != 1 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "NAT64 discovery returned an ambiguous IPv6 address",
+                    ));
+                }
+                let prefix = candidates[0];
+                if !prefixes.contains(&prefix) {
+                    prefixes.push(prefix);
+                }
+            }
+        }
+    }
+    if !saw_address {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "NAT64 discovery returned no addresses",
+        ));
+    }
+    Ok(prefixes)
+}
+
+fn translated_ipv4(address: Ipv6Addr, prefixes: &[Nat64Prefix]) -> Option<Ipv4Addr> {
+    std::iter::once(Nat64Prefix::well_known())
+        .chain(prefixes.iter().copied())
+        .find_map(|prefix| prefix.extract_ipv4(address))
+}
+
+fn validate_public_socket_addresses(
+    addresses: impl IntoIterator<Item = SocketAddr>,
+    discovered_nat64_prefixes: &[Nat64Prefix],
+) -> io::Result<Vec<SocketAddr>> {
+    let mut public_ipv4 = Vec::new();
+    let mut translated_ipv6 = Vec::new();
+    let mut native_ipv6 = Vec::new();
+    for address in addresses {
+        // Reject the whole DNS answer rather than silently dropping a private member. A mixed
+        // answer is commonly used for DNS rebinding and should never be allowed to fall through
+        // to connector retry order.
+        match address.ip() {
+            IpAddr::V4(ip) if !is_public_ipv4(ip) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "refusing to connect to a non-public address",
+                ));
+            }
+            IpAddr::V4(_) => {
+                if !public_ipv4.contains(&address) {
+                    public_ipv4.push(address);
+                }
+            }
+            IpAddr::V6(ip) => {
+                if let Some(embedded) = translated_ipv4(ip, discovered_nat64_prefixes) {
+                    if !is_public_ipv4(embedded) {
+                        return Err(io::Error::new(
+                            io::ErrorKind::PermissionDenied,
+                            "refusing to connect to a translated non-public address",
+                        ));
+                    }
+                    if !translated_ipv6.contains(&address) {
+                        translated_ipv6.push(address);
+                    }
+                } else if !is_public_ipv6(ip) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "refusing to connect to a non-public address",
+                    ));
+                } else if !native_ipv6.contains(&address) {
+                    native_ipv6.push(address);
+                }
+            }
+        }
+    }
+
+    // An arbitrary GUA cannot reveal whether it is native IPv6 or an RFC 6052 NSP. If RFC 7050
+    // discovery found no active Pref64, prefer a validated IPv4 socket (which 464XLAT exposes to
+    // applications) and discard unclassifiable IPv6. This preserves ordinary dual-stack and
+    // mobile IPv4 reachability without letting an attacker encode a private IPv4 destination in
+    // an undisclosed NSP. A genuinely IPv6-only origin is therefore fail-closed on such a network.
+    let mut public = public_ipv4;
+    public.extend(translated_ipv6);
+    if !discovered_nat64_prefixes.is_empty() {
+        public.extend(native_ipv6);
+    } else if public.is_empty() && !native_ipv6.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "native IPv6 cannot be distinguished from an undisclosed NAT64 prefix",
+        ));
+    }
+    if public.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "host did not resolve to a public address",
+        ));
+    }
+    Ok(public)
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct PublicDnsResolver;
+
+impl Resolve for PublicDnsResolver {
+    fn resolve(&self, name: Name) -> Resolving {
+        let hostname = name.as_str().to_owned();
+        Box::pin(async move {
+            let resolved = tokio::net::lookup_host((hostname.as_str(), 0))
+                .await
+                .map_err(|error| -> Box<dyn std::error::Error + Send + Sync> { Box::new(error) })?
+                .collect::<Vec<_>>();
+            let discovered_nat64_prefixes = if resolved.iter().any(|address| address.is_ipv6()) {
+                match tokio::net::lookup_host((NAT64_DISCOVERY_HOST, 0)).await {
+                    Ok(addresses) => derive_nat64_prefixes(addresses).unwrap_or_default(),
+                    Err(_) => Vec::new(),
+                }
+            } else {
+                Vec::new()
+            };
+            let addresses = validate_public_socket_addresses(resolved, &discovered_nat64_prefixes)
+                .map_err(|error| -> Box<dyn std::error::Error + Send + Sync> { Box::new(error) })?;
+            Ok(Box::new(addresses.into_iter()) as Addrs)
+        })
+    }
+}
+
+fn validate_http_url_target(parsed: &Url) -> Result<(), String> {
     if !matches!(parsed.scheme(), "http" | "https")
         || parsed.host_str().is_none()
         || !parsed.username().is_empty()
@@ -906,25 +1222,80 @@ fn parse_http_url(value: &str) -> Result<Url, String> {
     {
         return Err("only credential-free http(s) URLs are allowed".into());
     }
+
+    let host = parsed
+        .host_str()
+        .expect("host presence checked above")
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    if host == "localhost" || host.ends_with(".localhost") {
+        return Err("URL host must resolve to a public address".into());
+    }
+
+    // `url` canonicalizes alternate IPv4 spellings before exposing host_str. IPv6 literals are
+    // bracketed in a URL, so strip the brackets before parsing the address.
+    let literal = host.trim_start_matches('[').trim_end_matches(']');
+    if let Ok(address) = literal.parse::<IpAddr>() {
+        let safe = match address {
+            IpAddr::V4(address) => is_public_ipv4(address),
+            IpAddr::V6(address) => address
+                .to_ipv4_mapped()
+                .map(is_public_ipv4)
+                .or_else(|| {
+                    Nat64Prefix::well_known()
+                        .extract_ipv4(address)
+                        .map(is_public_ipv4)
+                })
+                .unwrap_or(false),
+        };
+        if !safe {
+            // A GUA literal may actually be an arbitrary network-specific RFC 6052 prefix. There
+            // is no hostname resolution in which to discover Pref64, so native IPv6 literals are
+            // deliberately unsupported. Ordinary public IPv6 hostnames still use the resolver.
+            return Err("IP literal is not a verifiably public destination".into());
+        }
+    }
+    Ok(())
+}
+
+fn redirect_chain_exceeds_limit(previous_len: usize) -> bool {
+    // reqwest includes the initial request in Attempt::previous. Policy::limited applies the same
+    // `> max` comparison, so len == MAX_REDIRECTS still represents the MAX_REDIRECTS-th hop.
+    previous_len > MAX_REDIRECTS
+}
+
+fn parse_http_url(value: &str) -> Result<Url, String> {
+    if value.is_empty() || value.len() > URL_LIMIT {
+        return Err("invalid URL".into());
+    }
+    let parsed = Url::parse(value).map_err(|_| "invalid URL".to_string())?;
+    validate_http_url_target(&parsed)?;
     Ok(parsed)
 }
 
 fn http_client_builder() -> ClientBuilder {
     Client::builder()
         .connect_timeout(HTTP_CONNECT_TIMEOUT)
+        // Environment proxies bypass the client's resolver and could resolve a hostile hostname
+        // to a private destination on our behalf. Direct connections keep address validation and
+        // the actual socket target in the same reqwest connector.
+        .no_proxy()
+        .dns_resolver(Arc::new(PublicDnsResolver))
+        .referer(false)
         .redirect(Policy::custom(|attempt| {
-            if attempt.previous().len() >= MAX_REDIRECTS {
+            let is_https_downgrade = attempt.previous().last().is_some_and(|previous| {
+                previous.scheme() == "https" && attempt.url().scheme() == "http"
+            });
+            if redirect_chain_exceeds_limit(attempt.previous().len()) {
                 attempt.error("too many redirects")
+            } else if is_https_downgrade {
+                attempt.error("refusing to downgrade an HTTPS redirect")
             } else {
                 let url = attempt.url();
-                if matches!(url.scheme(), "http" | "https")
-                    && url.host_str().is_some()
-                    && url.username().is_empty()
-                    && url.password().is_none()
-                {
+                if validate_http_url_target(url).is_ok() {
                     attempt.follow()
                 } else {
-                    attempt.error("redirected to an unsupported URL")
+                    attempt.error("redirected to an unsupported or non-public URL")
                 }
             }
         }))
@@ -943,9 +1314,11 @@ fn url_metadata_http_client() -> Result<Client, String> {
 
 fn asset_transfer_http_client() -> Result<Client, String> {
     // Large assets may legitimately take minutes on mobile networks. A per-read timeout catches
-    // stalled connections without imposing the metadata fetcher's short end-to-end deadline.
+    // stalled connections, while the total deadline bounds an otherwise continuously-progressing
+    // transfer so server-side deletion grace periods can be finite and deterministic.
     http_client_builder()
         .read_timeout(ASSET_TRANSFER_READ_TIMEOUT)
+        .timeout(ASSET_TRANSFER_TOTAL_TIMEOUT)
         .build()
         .map_err(|_| "could not initialize HTTP client".to_string())
 }
@@ -1269,21 +1642,21 @@ pub async fn material_pick_file(
 }
 
 #[tauri::command]
-pub async fn material_thumbnail(file_path: String, size: f64) -> ThumbnailResult {
+pub async fn material_thumbnail(app: AppHandle, file_path: String, size: f64) -> ThumbnailResult {
+    let path = match validate_app_owned_material_file(&app, &file_path) {
+        Ok(path) => path,
+        Err(error) => return ThumbnailResult::Failure(FailureResult::new(error)),
+    };
     let result = tauri::async_runtime::spawn_blocking(move || {
         let bounded_size = bounded_u32(size, 1, 2048, 96);
-        if is_pdf_file(Path::new(&file_path)) {
+        if is_pdf_file(&path) {
             return Err(
                 "PDF thumbnail generation is not available in this native module; use the renderer pdf.js fallback"
                     .to_string(),
             );
         }
-        image_pipeline::thumbnail_data_url(
-            Path::new(&file_path),
-            MATERIAL_FILE_LIMIT,
-            bounded_size,
-        )
-        .map_err(|error| error.to_string())
+        image_pipeline::thumbnail_data_url(&path, MATERIAL_FILE_LIMIT, bounded_size)
+            .map_err(|error| error.to_string())
     })
     .await;
 
@@ -1295,9 +1668,12 @@ pub async fn material_thumbnail(file_path: String, size: f64) -> ThumbnailResult
 }
 
 #[tauri::command]
-pub async fn material_read_bytes(file_path: String) -> ReadBytesResult {
-    let result =
-        tauri::async_runtime::spawn_blocking(move || read_file_capped(Path::new(&file_path))).await;
+pub async fn material_read_bytes(app: AppHandle, file_path: String) -> ReadBytesResult {
+    let path = match validate_app_owned_material_file(&app, &file_path) {
+        Ok(path) => path,
+        Err(error) => return ReadBytesResult::Failure(FailureResult::new(error)),
+    };
+    let result = tauri::async_runtime::spawn_blocking(move || read_file_capped(&path)).await;
     match result {
         Ok(Ok(bytes)) => ReadBytesResult::Success(ReadBytesSuccess { ok: true, bytes }),
         Ok(Err(error)) if error.kind() == io::ErrorKind::InvalidData => {
@@ -1309,9 +1685,13 @@ pub async fn material_read_bytes(file_path: String) -> ReadBytesResult {
 }
 
 #[tauri::command]
-pub async fn material_inspect_image(file_path: String) -> InspectImageResult {
+pub async fn material_inspect_image(app: AppHandle, file_path: String) -> InspectImageResult {
+    let path = match validate_app_owned_material_file(&app, &file_path) {
+        Ok(path) => path,
+        Err(error) => return InspectImageResult::Failure(FailureResult::new(error)),
+    };
     let result = tauri::async_runtime::spawn_blocking(move || {
-        image_pipeline::inspect(Path::new(&file_path), MATERIAL_FILE_LIMIT)
+        image_pipeline::inspect(&path, MATERIAL_FILE_LIMIT)
     })
     .await;
 
@@ -1337,16 +1717,26 @@ pub async fn material_prepare_image(
     thumbnail_max_long_edge: f64,
     thumbnail_quality: f64,
 ) -> PrepareImageResult {
+    let path = match validate_app_owned_material_file(&app, &file_path) {
+        Ok(path) => path,
+        Err(error) => {
+            return PrepareImageResult::Failure(PrepareImageFailure {
+                ok: false,
+                code: image_pipeline::IMAGE_INVALID_CODE,
+                codec: None,
+                error,
+            })
+        }
+    };
     let display_max_long_edge = bounded_u32(display_max_long_edge, 1, 4096, 1600);
     let display_quality = bounded_u32(display_quality, 1, 100, 82) as u8;
     let thumbnail_max_long_edge = bounded_u32(thumbnail_max_long_edge, 1, 2048, 512);
     let thumbnail_quality = bounded_u32(thumbnail_quality, 1, 100, 72) as u8;
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let path = Path::new(&file_path);
-        if let Some(codec) = image_pipeline::detect_system_codec(path)? {
+        if let Some(codec) = image_pipeline::detect_system_codec(&path)? {
             #[cfg(any(target_os = "macos", target_os = "ios"))]
             return crate::apple_image_codec::prepare(
-                path,
+                &path,
                 codec,
                 MATERIAL_FILE_LIMIT,
                 display_max_long_edge,
@@ -1357,7 +1747,7 @@ pub async fn material_prepare_image(
             #[cfg(target_os = "android")]
             return crate::android_image_codec::prepare(
                 &app,
-                path,
+                &path,
                 codec,
                 MATERIAL_FILE_LIMIT,
                 display_max_long_edge,
@@ -1370,7 +1760,7 @@ pub async fn material_prepare_image(
         }
         let _ = &app;
         image_pipeline::prepare(
-            path,
+            &path,
             MATERIAL_FILE_LIMIT,
             display_max_long_edge,
             display_quality,
@@ -1399,13 +1789,18 @@ pub async fn material_prepare_image(
 
 #[tauri::command]
 pub async fn material_create_image_variant(
+    app: AppHandle,
     file_path: String,
     max_long_edge: f64,
     quality: f64,
 ) -> ImageVariantResult {
+    let path = match validate_app_owned_material_file(&app, &file_path) {
+        Ok(path) => path,
+        Err(error) => return ImageVariantResult::Failure(FailureResult::new(error)),
+    };
     let result = tauri::async_runtime::spawn_blocking(move || {
         image_pipeline::create_variant(
-            Path::new(&file_path),
+            &path,
             MATERIAL_FILE_LIMIT,
             bounded_u32(max_long_edge, 1, 4096, 1600),
             bounded_u32(quality, 1, 100, 82) as u8,
@@ -1421,13 +1816,18 @@ pub async fn material_create_image_variant(
 
 #[tauri::command]
 pub async fn material_create_thumbnail_variant(
+    app: AppHandle,
     file_path: String,
     size: f64,
     quality: f64,
 ) -> ImageVariantResult {
+    let path = match validate_app_owned_material_file(&app, &file_path) {
+        Ok(path) => path,
+        Err(error) => return ImageVariantResult::Failure(FailureResult::new(error)),
+    };
     let result = tauri::async_runtime::spawn_blocking(move || {
         image_pipeline::create_variant(
-            Path::new(&file_path),
+            &path,
             MATERIAL_FILE_LIMIT,
             bounded_u32(size, 1, 2048, 512),
             bounded_u32(quality, 1, 100, 72) as u8,
@@ -1586,7 +1986,10 @@ pub async fn asset_cache_copy_file(
         Ok(path) => path,
         Err(error) => return AssetCacheWriteResult::Failure(FailureResult::new(error)),
     };
-    let source = PathBuf::from(source_path);
+    let source = match validate_app_owned_material_file(&app, &source_path) {
+        Ok(source) => source,
+        Err(error) => return AssetCacheWriteResult::Failure(FailureResult::new(error)),
+    };
     let copy = tauri::async_runtime::spawn_blocking({
         let path = path.clone();
         move || atomic_copy_capped(&source, &path, ASSET_TRANSFER_LIMIT)
@@ -1830,6 +2233,26 @@ mod tests {
         ))
     }
 
+    fn synthesize_rfc6052(
+        prefix_address: Ipv6Addr,
+        prefix_length: u8,
+        embedded: Ipv4Addr,
+    ) -> Ipv6Addr {
+        let prefix = Nat64Prefix::from_address(prefix_address, prefix_length).unwrap();
+        let mut bytes = Ipv6Addr::from(prefix.network).octets();
+        let embedded = embedded.octets();
+        if prefix_length == 96 {
+            bytes[12..16].copy_from_slice(&embedded);
+        } else {
+            let prefix_bytes = usize::from(prefix_length / 8);
+            let before_u = 8 - prefix_bytes;
+            bytes[prefix_bytes..8].copy_from_slice(&embedded[..before_u]);
+            bytes[8] = 0;
+            bytes[9..9 + 4 - before_u].copy_from_slice(&embedded[before_u..]);
+        }
+        Ipv6Addr::from(bytes)
+    }
+
     #[test]
     fn cache_segments_and_extensions_cannot_escape_the_cache_root() {
         assert_eq!(
@@ -1874,6 +2297,69 @@ mod tests {
             root.join("project-a").join("asset-a").join("display.png")
         );
         assert_ne!(source, display);
+    }
+
+    #[test]
+    fn app_owned_file_validation_accepts_only_files_below_allowed_roots() {
+        let directory = test_directory("app-owned-files");
+        let imports = directory.join("imports");
+        let cache = directory.join("asset-cache");
+        let outside = directory.join("outside");
+        fs::create_dir_all(&imports).unwrap();
+        fs::create_dir_all(&cache).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        let imported_file = imports.join("chapter.pdf");
+        let cached_file = cache.join("project").join("asset").join("source.png");
+        let outside_file = outside.join("secret.txt");
+        fs::write(&imported_file, b"pdf").unwrap();
+        fs::create_dir_all(cached_file.parent().unwrap()).unwrap();
+        fs::write(&cached_file, b"png").unwrap();
+        fs::write(&outside_file, b"secret").unwrap();
+
+        let roots = [imports.clone(), cache.clone()];
+        assert_eq!(
+            validate_app_owned_file_from_roots(&imported_file, &roots).unwrap(),
+            fs::canonicalize(&imported_file).unwrap()
+        );
+        assert_eq!(
+            validate_app_owned_file_from_roots(&cached_file, &roots).unwrap(),
+            fs::canonicalize(&cached_file).unwrap()
+        );
+        assert!(validate_app_owned_file_from_roots(&outside_file, &roots).is_err());
+        assert!(validate_app_owned_file_from_roots(Path::new("relative.txt"), &roots).is_err());
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn app_owned_file_validation_rejects_symlink_escapes_and_symlinked_roots() {
+        use std::os::unix::fs::symlink;
+
+        let directory = test_directory("app-owned-symlink");
+        let imports = directory.join("imports");
+        let outside = directory.join("outside");
+        fs::create_dir_all(&imports).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        let outside_file = outside.join("secret.txt");
+        fs::write(&outside_file, b"secret").unwrap();
+        let escaped_file = imports.join("escaped.txt");
+        symlink(&outside_file, &escaped_file).unwrap();
+
+        assert!(
+            validate_app_owned_file_from_roots(&escaped_file, std::slice::from_ref(&imports))
+                .is_err()
+        );
+
+        let symlinked_root = directory.join("symlinked-root");
+        symlink(&outside, &symlinked_root).unwrap();
+        assert!(validate_app_owned_file_from_roots(
+            &symlinked_root.join("secret.txt"),
+            &[symlinked_root]
+        )
+        .is_err());
+
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[cfg(unix)]
@@ -1954,6 +2440,149 @@ mod tests {
         assert!(parse_http_url("http://example.com").is_ok());
         assert!(parse_http_url("file:///tmp/secret").is_err());
         assert!(parse_http_url("https://user:password@example.com").is_err());
+        assert!(parse_http_url("http://localhost/admin").is_err());
+        assert!(parse_http_url("http://127.0.0.1/admin").is_err());
+        assert!(parse_http_url("http://2130706433/admin").is_err());
+        assert!(parse_http_url("http://0x7f000001/admin").is_err());
+        assert!(parse_http_url("http://[::1]/admin").is_err());
+        assert!(parse_http_url("http://169.254.169.254/latest/meta-data").is_err());
+        assert!(parse_http_url("https://10.0.0.1").is_err());
+        assert!(parse_http_url("https://[fc00::1]").is_err());
+        assert!(parse_http_url("https://8.8.8.8").is_ok());
+        assert!(parse_http_url("https://[2606:4700:4700::1111]").is_err());
+        assert!(parse_http_url("https://[64:ff9b::808:808]").is_ok());
+    }
+
+    #[test]
+    fn public_address_filter_rejects_every_non_public_class_and_mixed_dns_answers() {
+        let private_ipv4 = [
+            "0.0.0.0:80",
+            "10.0.0.1:80",
+            "100.64.0.1:80",
+            "127.0.0.1:80",
+            "169.254.169.254:80",
+            "172.16.0.1:80",
+            "192.168.0.1:80",
+            "198.18.0.1:80",
+            "224.0.0.1:80",
+        ]
+        .map(|value| value.parse::<SocketAddr>().unwrap());
+        for address in private_ipv4 {
+            let IpAddr::V4(ip) = address.ip() else {
+                unreachable!();
+            };
+            assert!(!is_public_ipv4(ip), "{address} must be rejected");
+        }
+
+        let private_ipv6 = [
+            "[::]:80",
+            "[::1]:80",
+            "[::ffff:127.0.0.1]:80",
+            "[fc00::1]:80",
+            "[fe80::1]:80",
+            "[ff02::1]:80",
+            "[2001:db8::1]:80",
+        ]
+        .map(|value| value.parse::<SocketAddr>().unwrap());
+        for address in private_ipv6 {
+            let IpAddr::V6(ip) = address.ip() else {
+                unreachable!();
+            };
+            assert!(!is_public_ipv6(ip), "{address} must be rejected");
+        }
+
+        let ipv4_public = "8.8.8.8:443".parse::<SocketAddr>().unwrap();
+        let ipv6_public = "[2606:4700:4700::1111]:443".parse::<SocketAddr>().unwrap();
+        let nat64_public = "[64:ff9b::808:808]:443".parse::<SocketAddr>().unwrap();
+        let nat64_private = "[64:ff9b::7f00:1]:443".parse::<SocketAddr>().unwrap();
+        assert!(validate_public_socket_addresses([nat64_private], &[]).is_err());
+        assert_eq!(
+            validate_public_socket_addresses([ipv4_public, ipv6_public], &[]).unwrap(),
+            vec![ipv4_public]
+        );
+        assert_eq!(
+            validate_public_socket_addresses([nat64_public], &[]).unwrap(),
+            vec![nat64_public]
+        );
+        assert!(validate_public_socket_addresses([ipv6_public], &[]).is_err());
+        assert!(validate_public_socket_addresses(
+            [ipv4_public, "127.0.0.1:443".parse().unwrap(),],
+            &[],
+        )
+        .is_err());
+        assert!(validate_public_socket_addresses([], &[]).is_err());
+    }
+
+    #[test]
+    fn rfc6052_network_prefixes_are_discovered_and_private_embeddings_are_rejected() {
+        let prefix_base = "2606:4700:1234:5678::".parse::<Ipv6Addr>().unwrap();
+        for prefix_length in RFC6052_PREFIX_LENGTHS {
+            let discovery = synthesize_rfc6052(prefix_base, prefix_length, NAT64_DISCOVERY_IPV4[0]);
+            let prefixes =
+                derive_nat64_prefixes([SocketAddr::new(IpAddr::V6(discovery), 0)]).unwrap();
+            assert_eq!(prefixes.len(), 1);
+            assert_eq!(prefixes[0].length, prefix_length);
+
+            let translated_public =
+                synthesize_rfc6052(prefix_base, prefix_length, Ipv4Addr::new(8, 8, 8, 8));
+            let translated_private = synthesize_rfc6052(
+                prefix_base,
+                prefix_length,
+                Ipv4Addr::new(169, 254, 169, 254),
+            );
+            assert!(validate_public_socket_addresses(
+                [SocketAddr::new(IpAddr::V6(translated_public), 443)],
+                &prefixes,
+            )
+            .is_ok());
+            assert!(validate_public_socket_addresses(
+                [SocketAddr::new(IpAddr::V6(translated_private), 80)],
+                &prefixes,
+            )
+            .is_err());
+        }
+
+        let discovered = derive_nat64_prefixes([SocketAddr::new(
+            IpAddr::V6(synthesize_rfc6052(prefix_base, 96, NAT64_DISCOVERY_IPV4[1])),
+            0,
+        )])
+        .unwrap();
+        let native_public = "[2607:f8b0:4005:805::200e]:443"
+            .parse::<SocketAddr>()
+            .unwrap();
+        assert_eq!(
+            validate_public_socket_addresses([native_public], &discovered).unwrap(),
+            vec![native_public]
+        );
+
+        // A /96 NSP owns bits 64..95, but RFC 6052 still requires bits 64..71 to be zero. The
+        // fifth hextet may therefore be non-zero as long as its high octet remains zero.
+        let nonzero_fifth_hextet = "2606:4700:1234:5678:00ab:cdef::"
+            .parse::<Ipv6Addr>()
+            .unwrap();
+        let discovery = synthesize_rfc6052(nonzero_fifth_hextet, 96, NAT64_DISCOVERY_IPV4[0]);
+        let prefixes = derive_nat64_prefixes([SocketAddr::new(IpAddr::V6(discovery), 0)]).unwrap();
+        assert_eq!(prefixes[0].length, 96);
+        let translated_private =
+            synthesize_rfc6052(nonzero_fifth_hextet, 96, Ipv4Addr::new(10, 0, 0, 1));
+        assert!(validate_public_socket_addresses(
+            [SocketAddr::new(IpAddr::V6(translated_private), 443)],
+            &prefixes,
+        )
+        .is_err());
+        assert!(Nat64Prefix::from_address(
+            "2606:4700:1234:5678:ab00:cdef::"
+                .parse::<Ipv6Addr>()
+                .unwrap(),
+            96,
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn redirect_limit_matches_reqwest_previous_url_semantics() {
+        assert!(!redirect_chain_exceeds_limit(MAX_REDIRECTS));
+        assert!(redirect_chain_exceeds_limit(MAX_REDIRECTS + 1));
     }
 
     #[test]
@@ -1961,6 +2590,7 @@ mod tests {
         assert_eq!(HTTP_CONNECT_TIMEOUT, Duration::from_secs(5));
         assert_eq!(URL_METADATA_TOTAL_TIMEOUT, Duration::from_secs(8));
         assert_eq!(ASSET_TRANSFER_READ_TIMEOUT, Duration::from_secs(30));
+        assert_eq!(ASSET_TRANSFER_TOTAL_TIMEOUT, Duration::from_secs(1_200));
         assert!(url_metadata_http_client().is_ok());
         assert!(asset_transfer_http_client().is_ok());
     }
