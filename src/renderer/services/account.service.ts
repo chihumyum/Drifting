@@ -32,8 +32,13 @@ export const accountService = {
     if (result.error) throw new Error(result.error.message ?? 'Update name failed');
   },
 
-  async changeEmail(newEmail: string): Promise<void> {
-    const result = await authClient.changeEmail({ newEmail });
+  async requestEmailChange(newEmail: string): Promise<void> {
+    const result = await authClient.emailOtp.requestEmailChange({ newEmail });
+    if (result.error) throw new Error(result.error.message ?? 'Request email change failed');
+  },
+
+  async confirmEmailChange(newEmail: string, otp: string): Promise<void> {
+    const result = await authClient.emailOtp.changeEmail({ newEmail, otp });
     if (result.error) throw new Error(result.error.message ?? 'Change email failed');
   },
 

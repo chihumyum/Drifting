@@ -90,6 +90,8 @@
       "verify_sent_prefix": "Sent to",
       "verify_sent_suffix": ". Enter the 6-digit code within 10 minutes.",
       "otp_placeholder": "6 digits",
+      "send_change_code": "Send verification code",
+      "confirm_email_change": "Confirm change",
       "confirm": "Confirm",
       "resend": "Resend",
       "password": "Password",

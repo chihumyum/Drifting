@@ -575,6 +575,9 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
   const [emailDraft, setEmailDraft] = useState<string | null>(null);
   const [savingName, setSavingName] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
+  const [emailChangeSent, setEmailChangeSent] = useState(false);
+  const [emailChangeCode, setEmailChangeCode] = useState('');
+  const [emailChangeError, setEmailChangeError] = useState<string | null>(null);
   const [exportBusy, setExportBusy] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
 
@@ -653,15 +656,32 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
 
   const handleSaveEmail = async () => {
     if (emailDraft === null) return;
+    const nextEmail = emailDraft.trim().toLowerCase();
     setSavingEmail(true);
+    setEmailChangeError(null);
     try {
-      await accountService.changeEmail(emailDraft.trim());
+      if (!emailChangeSent) {
+        await accountService.requestEmailChange(nextEmail);
+        setEmailChangeSent(true);
+        return;
+      }
+      await accountService.confirmEmailChange(nextEmail, emailChangeCode);
+      await checkSession();
       setEmailDraft(null);
+      setEmailChangeSent(false);
+      setEmailChangeCode('');
     } catch (err) {
-      console.error(err);
+      setEmailChangeError(err instanceof Error ? err.message : String(err));
     } finally {
       setSavingEmail(false);
     }
+  };
+
+  const cancelEmailChange = () => {
+    setEmailDraft(null);
+    setEmailChangeSent(false);
+    setEmailChangeCode('');
+    setEmailChangeError(null);
   };
 
   const handleChangePassword = async () => {
@@ -808,19 +828,50 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
                   className="set-input set-input--mono"
                   type="email"
                   value={emailDraft}
-                  onChange={(e) => setEmailDraft(e.target.value)}
+                  onChange={(e) => {
+                    setEmailDraft(e.target.value);
+                    setEmailChangeSent(false);
+                    setEmailChangeCode('');
+                    setEmailChangeError(null);
+                  }}
+                  disabled={savingEmail}
                   autoFocus
                 />
+                {emailChangeSent && (
+                  <input
+                    className="set-input set-input--mono"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder={t('settings.account.otp_placeholder')}
+                    value={emailChangeCode}
+                    onChange={(e) =>
+                      setEmailChangeCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                    }
+                    disabled={savingEmail}
+                    autoFocus
+                  />
+                )}
                 <button
                   className="set-btn set-btn--primary"
                   onClick={handleSaveEmail}
-                  disabled={savingEmail}
+                  disabled={
+                    savingEmail ||
+                    emailDraft.trim().toLowerCase() === user?.email.toLowerCase() ||
+                    (emailChangeSent && emailChangeCode.length !== 6)
+                  }
                 >
-                  {t('settings.common.save')}
+                  {emailChangeSent
+                    ? t('settings.account.confirm_email_change')
+                    : t('settings.account.send_change_code')}
                 </button>
-                <button className="set-btn" onClick={() => setEmailDraft(null)}>
+                <button className="set-btn" onClick={cancelEmailChange} disabled={savingEmail}>
                   {t('settings.common.cancel')}
                 </button>
+                {emailChangeError && (
+                  <span style={{ color: 'hsl(var(--accent))', fontSize: 12 }}>
+                    {emailChangeError}
+                  </span>
+                )}
               </>
             ) : (
               <div className="set-field">
@@ -846,7 +897,12 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
                   ))}
                 <button
                   className="set-field__edit"
-                  onClick={() => setEmailDraft(user?.email ?? '')}
+                  onClick={() => {
+                    setEmailDraft(user?.email ?? '');
+                    setEmailChangeSent(false);
+                    setEmailChangeCode('');
+                    setEmailChangeError(null);
+                  }}
                 >
                   {t('settings.common.change')}
                 </button>

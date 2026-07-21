@@ -90,6 +90,8 @@
       "verify_sent_prefix": "已寄到",
       "verify_sent_suffix": "，10 分钟内输入 6 位验证码。",
       "otp_placeholder": "6 位数字",
+      "send_change_code": "发送验证码",
+      "confirm_email_change": "确认更换",
       "confirm": "确认",
       "resend": "重发",
       "password": "密码",
