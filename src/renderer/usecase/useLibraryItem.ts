@@ -154,14 +154,9 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
         let sizeBytes: number | null;
 
         if (input.kind === 'image') {
-          const [inspection, display, thumbnail] = await Promise.all([
-            platform.material.inspectImage(localPath),
-            platform.material.createImageVariant(localPath, 1600, 82),
-            platform.material.createImageVariant(localPath, 512, 72),
-          ]);
-          if (!inspection.ok) throw new Error(inspection.error);
-          if (!display.ok) throw new Error(display.error);
-          if (!thumbnail.ok) throw new Error(thumbnail.error);
+          const prepared = await platform.material.prepareImage(localPath);
+          if (!prepared.ok) throw new Error(prepared.error);
+          const { source: inspection, display, thumbnail } = prepared;
 
           const upload = await projectAssetService.createLibraryMaterialUpload(projectId, {
             libraryItemId: initialItem.id,

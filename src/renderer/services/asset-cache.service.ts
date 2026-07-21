@@ -17,6 +17,7 @@ const EXT_BY_MIME: Record<string, string> = {
   'image/gif': 'gif',
   'image/heic': 'heic',
   'image/heif': 'heif',
+  'image/avif': 'avif',
 };
 
 function normalizeMime(mime: string | null | undefined): string | null {
