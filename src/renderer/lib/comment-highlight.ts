@@ -12,6 +12,7 @@
 import {
   commentBlockIds,
   commentColorKey,
+  getBlockSnapshotsFromAnchor,
   getTextAnchorFromAnchor,
   type Comment,
   type CommentTextAnchor,
@@ -67,10 +68,39 @@ function domPointAtOffset(el: HTMLElement, offset: number): { node: Node; offset
   return { node: el, offset: 0 };
 }
 
-function rangeForNeedle(el: HTMLElement, needle: string): Range | null {
+export function findNearestTextOffset(
+  haystack: string,
+  needle: string,
+  expectedOffset: number,
+): number | null {
+  if (!needle) return null;
+  const expected = Number.isFinite(expectedOffset) ? Math.max(0, expectedOffset) : 0;
+  let best: number | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  let cursor = 0;
+  while (cursor <= haystack.length - needle.length) {
+    const index = haystack.indexOf(needle, cursor);
+    if (index < 0) break;
+    const distance = Math.abs(index - expected);
+    if (distance < bestDistance) {
+      best = index;
+      bestDistance = distance;
+    }
+    cursor = index + Math.max(1, needle.length);
+  }
+  return best;
+}
+
+export function anchorTextMatches(actual: string, expected: string): boolean {
+  const normalize = (value: string) => value.replace(/\s+/g, ' ').trim();
+  const normalizedExpected = normalize(expected);
+  return normalizedExpected.length > 0 && normalize(actual) === normalizedExpected;
+}
+
+function rangeForNeedle(el: HTMLElement, needle: string, expectedOffset: number): Range | null {
   const text = el.textContent ?? '';
-  const i = text.indexOf(needle);
-  if (i < 0) return null;
+  const i = findNearestTextOffset(text, needle, expectedOffset);
+  if (i === null) return null;
   const start = domPointAtOffset(el, i);
   const end = domPointAtOffset(el, i + needle.length);
   const range = document.createRange();
@@ -83,7 +113,11 @@ function rangeForNeedle(el: HTMLElement, needle: string): Range | null {
   return range.collapsed ? null : range;
 }
 
-function rangeForTextAnchor(scrollEl: HTMLElement, t: CommentTextAnchor): Range | null {
+function rangeForTextAnchor(
+  scrollEl: HTMLElement,
+  t: CommentTextAnchor,
+  snapshots: { blockId: string | null; blockText: string }[],
+): Range | null {
   const startEl = blockEl(scrollEl, t.startBlockId);
   const endEl = blockEl(scrollEl, t.endBlockId);
   if (!startEl || !endEl) return null;
@@ -94,12 +128,48 @@ function rangeForTextAnchor(scrollEl: HTMLElement, t: CommentTextAnchor): Range 
     range.setStart(start.node, start.offset);
     range.setEnd(end.node, end.offset);
   } catch {
-    return rangeForNeedle(startEl, t.text);
+    return t.startBlockId === t.endBlockId
+      ? rangeForNeedle(startEl, t.text, t.startOffset)
+      : null;
   }
-  // Stale offsets (block edited) collapse or mis-cover — fall back to searching
-  // the exact text within its start block so the phrase still lights up.
-  if (range.collapsed) return rangeForNeedle(startEl, t.text);
-  return range;
+  // A non-collapsed Range is not enough: edits before the anchor can leave the
+  // old offsets pointing at unrelated prose. Never paint it unless the live
+  // text still matches the captured selection.
+  if (!range.collapsed && anchorTextMatches(range.toString(), t.text)) return range;
+
+  if (t.startBlockId === t.endBlockId) {
+    return rangeForNeedle(startEl, t.text, t.startOffset);
+  }
+
+  // For a cross-block selection, use the original block snapshots to recover
+  // its first and last fragments. This handles text inserted before either
+  // endpoint while keeping duplicate phrases tied to the nearest old offset.
+  const startSnapshot = snapshots.find((snapshot) => snapshot.blockId === t.startBlockId);
+  const endSnapshot = snapshots.find((snapshot) => snapshot.blockId === t.endBlockId);
+  if (!startSnapshot || !endSnapshot) return null;
+  const startNeedle = startSnapshot.blockText.slice(t.startOffset);
+  const endNeedle = endSnapshot.blockText.slice(0, t.endOffset);
+  if (!startNeedle || !endNeedle) return null;
+  const relocatedStart = findNearestTextOffset(
+    startEl.textContent ?? '',
+    startNeedle,
+    t.startOffset,
+  );
+  const relocatedEnd = findNearestTextOffset(endEl.textContent ?? '', endNeedle, 0);
+  if (relocatedStart === null || relocatedEnd === null) return null;
+
+  const nextStart = domPointAtOffset(startEl, relocatedStart);
+  const nextEnd = domPointAtOffset(endEl, relocatedEnd + endNeedle.length);
+  const relocated = document.createRange();
+  try {
+    relocated.setStart(nextStart.node, nextStart.offset);
+    relocated.setEnd(nextEnd.node, nextEnd.offset);
+  } catch {
+    return null;
+  }
+  return !relocated.collapsed && anchorTextMatches(relocated.toString(), t.text)
+    ? relocated
+    : null;
 }
 
 function rangeForWholeBlock(el: HTMLElement): Range {
@@ -123,7 +193,11 @@ export function highlightComment(scrollEl: HTMLElement, comment: Comment): () =>
   const ranges: Range[] = [];
   const textAnchor = getTextAnchorFromAnchor(comment.anchorJson);
   if (textAnchor) {
-    const r = rangeForTextAnchor(scrollEl, textAnchor);
+    const r = rangeForTextAnchor(
+      scrollEl,
+      textAnchor,
+      getBlockSnapshotsFromAnchor(comment.anchorJson),
+    );
     if (r) ranges.push(r);
   }
   if (ranges.length === 0) {
