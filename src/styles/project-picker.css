@@ -189,6 +189,9 @@
   border-radius: 14px;
   background: hsl(var(--page));
   cursor: pointer;
+  border: 0;
+  background: transparent;
+  font: inherit;
   white-space: nowrap;
   transition:
     color 0.12s,
@@ -339,6 +342,11 @@
 }
 .pp-card:hover {
   transform: translateY(-2px);
+}
+.pp-card:focus-visible,
+.pp-list__row:focus-visible {
+  outline: 2px solid hsl(var(--accent) / 0.6);
+  outline-offset: 3px;
 }
 .pp-card:hover .pp-card__spine {
   box-shadow:
@@ -553,7 +561,8 @@
   transition: opacity 0.15s;
   z-index: 4;
 }
-.pp-card:hover .pp-card__menu {
+.pp-card:hover .pp-card__menu,
+.pp-card:focus-within .pp-card__menu {
   opacity: 1;
 }
 .pp-card__menu-btn {
@@ -743,7 +752,8 @@
   opacity: 0;
   transition: opacity 0.12s;
 }
-.pp-list__row:hover .pp-list__menu {
+.pp-list__row:hover .pp-list__menu,
+.pp-list__row:focus-within .pp-list__menu {
   opacity: 1;
 }
 .pp-list__menu-btn {

@@ -21,6 +21,7 @@ import {
   deleteElementPatchWithSync,
   updateElementPatchWithSync,
 } from '../../usecase/synced-entity-commands';
+import { AnchoredPopover } from '../ui/AnchoredPopover';
 
 const log = loglevel.getLogger('PatchEditorCard');
 log.setLevel(loglevel.levels.ERROR);
@@ -205,7 +206,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   // Changing the chapter resets sourceBlockId to null — block ids are
   // chapter-scoped, keeping the old id under a new chapter would dangle.
   const [anchorEditing, setAnchorEditing] = useState(false);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const anchorButtonRef = useRef<HTMLButtonElement | null>(null);
   const bookNodes = useDataStore((s) => s.bookNodes);
   const chapterOptions = useMemo(
     () =>
@@ -215,26 +216,6 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
         .sort((a, b) => (a.bookOrder ?? 0) - (b.bookOrder ?? 0)),
     [bookNodes, projectId],
   );
-
-  // Dismiss the popover on outside click or Escape. Mousedown (not click)
-  // catches dismissal before the click reaches anything underneath, so a
-  // click on a different patch's anchor edit opens that one cleanly.
-  useEffect(() => {
-    if (!anchorEditing) return;
-    const onDocMouseDown = (e: MouseEvent) => {
-      const pop = popoverRef.current;
-      if (pop && !pop.contains(e.target as Node)) setAnchorEditing(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setAnchorEditing(false);
-    };
-    document.addEventListener('mousedown', onDocMouseDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocMouseDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [anchorEditing]);
 
   const handleChangeAnchor = useCallback(
     async (nextNodeId: string | null) => {
@@ -496,19 +477,29 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
             {anchorLabel}
           </span>
         )}
-        <div className="patch-card__anchor-edit-slot" ref={popoverRef}>
+        <div className="patch-card__anchor-edit-slot">
           <button
+            ref={anchorButtonRef}
             type="button"
             onClick={() => setAnchorEditing((v) => !v)}
             className="patch-card__anchor-edit"
             title={t('patchEditorCard.anchor.changeChapter')}
             aria-label={t('patchEditorCard.anchor.editSourceChapter')}
             aria-expanded={anchorEditing}
+            aria-haspopup="listbox"
           >
             ✎
           </button>
-          {anchorEditing && (
-            <div className="patch-card__anchor-pop" role="listbox">
+          <AnchoredPopover
+            anchorRef={anchorButtonRef}
+            open={anchorEditing}
+            onClose={() => setAnchorEditing(false)}
+            placement="bottom-end"
+            maxHeight={320}
+            className="patch-card__anchor-pop"
+            role="listbox"
+            ariaLabel={t('patchEditorCard.anchor.assignTo')}
+          >
               <div className="patch-card__anchor-pop-kicker">{t('patchEditorCard.anchor.assignTo')}</div>
               <div className="patch-card__anchor-pop-list">
                 {chapterOptions.length === 0 && (
@@ -568,8 +559,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
                   {t('patchEditorCard.anchor.noChapter')}
                 </span>
               </button>
-            </div>
-          )}
+          </AnchoredPopover>
         </div>
         <button
           type="button"

@@ -24,6 +24,7 @@ import { GraphTimelinePin } from '../components/graph/GraphTimelinePin';
 import { TimelineRailMenu } from '../components/graph/TimelineRailMenu';
 import { DriftPanel, useDriftPanelAnim } from '../components/DriftPanel';
 import { SuperViewHeader } from '../components/SuperViewHeader';
+import { AnchoredPopover } from '../components/ui/AnchoredPopover';
 import loglevel from 'loglevel';
 import '../../styles/graph-view.css';
 
@@ -287,15 +288,7 @@ export function StoryGraphView() {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   // "未放置" (unplaced chapters) popover anchored to the head button.
   // Narrative-mode only — the concept doesn't apply in book view.
-  const unplacedPopoverRef = useRef<HTMLDivElement>(null);
   const unplacedBtnRef = useRef<HTMLButtonElement>(null);
-  // Blur the trigger buttons after the popover/dropdown closes, so
-  // they don't keep a :focus-visible outline after an ESC dismiss
-  // (browsers flip into keyboard-nav mode once you press ESC and
-  // re-evaluate focus-visible against the click-focused button).
-  useEffect(() => {
-    if (!drawerOpen) unplacedBtnRef.current?.blur();
-  }, [drawerOpen]);
 
   // Dismiss the edge selection on ESC or on any click that doesn't
   // land on an edge / × badge. Edge onClick handlers stopPropagation;
@@ -343,21 +336,6 @@ export function StoryGraphView() {
       (selectedEdgeEndpoints.source === nodeId || selectedEdgeEndpoints.target === nodeId),
     [selectedEdgeEndpoints],
   );
-
-  // Outside-click dismissal for the unplaced popover. ESC handling is
-  // delegated to the central ESC router above so multiple overlays
-  // pop off the stack in LIFO order.
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (unplacedPopoverRef.current?.contains(e.target as Node)) return;
-      setDrawerOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown, true);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true);
-    };
-  }, [drawerOpen]);
 
   const isNarrative = viewMode === 'narrative';
   const orderField: 'bookOrder' | 'narrativeOrder' = isNarrative ? 'narrativeOrder' : 'bookOrder';
@@ -1387,7 +1365,6 @@ export function StoryGraphView() {
               <div
                 className="graph-head__unplaced super-view-head__no-drag"
                 data-tauri-drag-region="false"
-                ref={unplacedPopoverRef}
               >
                 <button
                   ref={unplacedBtnRef}
@@ -1401,12 +1378,18 @@ export function StoryGraphView() {
                   <span>{t('bottomTimeline.unplaced.label')}</span>
                   <span className="graph-head__unplaced-count">{unplacedNodes.length}</span>
                 </button>
-                {drawerOpen && (
-                  <div
-                    className="graph-head__unplaced-popover super-view-head__no-drag"
-                    data-tauri-drag-region="false"
-                    role="menu"
-                  >
+                <AnchoredPopover
+                  anchorRef={unplacedBtnRef}
+                  open={drawerOpen}
+                  onClose={() => setDrawerOpen(false)}
+                  placement="bottom-start"
+                  className="graph-head__unplaced-popover super-view-head__no-drag"
+                  role="dialog"
+                  ariaLabel={t('bottomTimeline.unplaced.title')}
+                  autoFocus={false}
+                  dismissOnEscape={false}
+                  maxHeight={260}
+                >
                     {unplacedNodes.length === 0 ? (
                       <div className="graph-head__unplaced-empty">
                         {t('bottomTimeline.unplaced.empty')}
@@ -1437,8 +1420,7 @@ export function StoryGraphView() {
                         );
                       })
                     )}
-                  </div>
-                )}
+                </AnchoredPopover>
               </div>
             )}
           </>

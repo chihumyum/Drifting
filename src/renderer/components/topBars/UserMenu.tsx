@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useState } from 'react';
 import {
   Sun,
   Moon,
@@ -21,6 +20,7 @@ import { events } from '../../lib/events';
 import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
 import { useFeatureAccessStore } from '../../lib/feature-access';
 import loglevel from 'loglevel';
+import { AnchoredPopover } from '../ui/AnchoredPopover';
 
 const log = loglevel.getLogger('UserMenu');
 
@@ -52,8 +52,6 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   const uiLocale = useSettingsStore((s) => s.uiLocale);
   const setUiLocale = useSettingsStore((s) => s.setUiLocale);
   const navigate = useNavigate();
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
@@ -69,52 +67,20 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
     }
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-    const rect = trigger.getBoundingClientRect();
-    setPosition({
-      top: rect.bottom + 6,
-      right: Math.max(8, window.innerWidth - rect.right),
-    });
-  }, [open, triggerRef]);
-
-  useEffect(() => {
-    if (!open) triggerRef.current?.blur();
-  }, [open, triggerRef]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      triggerRef.current?.blur();
-      onClose();
-    };
-    document.addEventListener('keydown', handleEscape, true);
-    return () => document.removeEventListener('keydown', handleEscape, true);
-  }, [open, onClose, triggerRef]);
-
-  if (!open || !position) return null;
-
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || t('common.local');
   const initial = displayName.charAt(0).toUpperCase();
   const normalizedUiLocale = uiLocale.startsWith('zh') ? 'zh-CN' : 'en';
 
-  return createPortal(
-    <>
-      <div
-        onClick={onClose}
-        style={{ position: 'fixed', inset: 0, zIndex: 290 } as React.CSSProperties}
-      />
-      <div
-        ref={menuRef}
+  return (
+      <AnchoredPopover
+        anchorRef={triggerRef}
+        open={open}
+        onClose={onClose}
+        placement="bottom-end"
+        role="dialog"
+        ariaLabel={t('userMenu.accountMenu')}
+        maxHeight={560}
         style={{
-          position: 'fixed',
-          top: position.top,
-          right: position.right,
           width: 248,
           background: 'hsl(var(--surface))',
           border: '1px solid hsl(var(--rule))',
@@ -341,9 +307,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
             />
           </MenuGroup>
         )}
-      </div>
-    </>,
-    document.body,
+      </AnchoredPopover>
   );
 }
 
@@ -354,6 +318,7 @@ export function UserAvatar({
   onClick,
   forwardRef,
   title,
+  expanded,
 }: {
   initial: string;
   size?: number;
@@ -361,12 +326,16 @@ export function UserAvatar({
   onClick?: () => void;
   forwardRef?: React.Ref<HTMLButtonElement>;
   title?: string;
+  expanded?: boolean;
 }) {
   return (
     <button
       ref={forwardRef}
+      type="button"
       onClick={onClick}
       title={title}
+      aria-expanded={expanded}
+      aria-haspopup={onClick ? 'dialog' : undefined}
       style={
         {
           width: size,
@@ -421,29 +390,8 @@ interface MenuItemProps {
 }
 
 function MenuItem({ icon, label, meta, tail, onClick }: MenuItemProps) {
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '7px 10px',
-        fontSize: 12.5,
-        color: 'hsl(var(--ink-2))',
-        cursor: onClick ? 'pointer' : 'default',
-        borderRadius: 3,
-        transition: 'background 0.12s ease, color 0.12s ease',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-        e.currentTarget.style.color = 'hsl(var(--ink-1))';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = 'hsl(var(--ink-2))';
-      }}
-    >
+  const content = (
+    <>
       <span
         style={{
           width: 18,
@@ -480,6 +428,46 @@ function MenuItem({ icon, label, meta, tail, onClick }: MenuItemProps) {
               {meta}
             </span>
           )}
+    </>
+  );
+  const style: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+    padding: '7px 10px',
+    border: 0,
+    background: 'transparent',
+    font: 'inherit',
+    fontSize: 12.5,
+    textAlign: 'left',
+    color: 'hsl(var(--ink-2))',
+    cursor: onClick ? 'pointer' : 'default',
+    borderRadius: 3,
+    transition: 'background 0.12s ease, color 0.12s ease',
+  };
+  const handleEnter = (event: React.MouseEvent<HTMLElement>) => {
+    event.currentTarget.style.background = 'hsl(var(--paper-deep))';
+    event.currentTarget.style.color = 'hsl(var(--ink-1))';
+  };
+  const handleLeave = (event: React.MouseEvent<HTMLElement>) => {
+    event.currentTarget.style.background = 'transparent';
+    event.currentTarget.style.color = 'hsl(var(--ink-2))';
+  };
+
+  return onClick ? (
+    <button
+      type="button"
+      onClick={onClick}
+      style={style}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+    >
+      {content}
+    </button>
+  ) : (
+    <div style={style} onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+      {content}
     </div>
   );
 }
@@ -496,9 +484,11 @@ function ThemeSwitchBtn({
   title?: string;
 }) {
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
       title={title}
+      aria-pressed={active}
       style={{
         fontFamily: 'var(--font-mono)',
         fontSize: 10,
@@ -509,9 +499,10 @@ function ThemeSwitchBtn({
         background: active ? 'hsl(var(--surface))' : 'transparent',
         boxShadow: active ? '0 1px 2px hsl(var(--ink-1) / 0.06)' : 'none',
         cursor: 'pointer',
+        border: 0,
       }}
     >
       {children}
-    </div>
+    </button>
   );
 }

@@ -28,6 +28,7 @@ import {
 import type { TimelineNode } from './types';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
+import { AnchoredPopover } from '../ui/AnchoredPopover';
 import loglevel from 'loglevel';
 import '../../../styles/bottom-timeline.css';
 const log = loglevel.getLogger('BottomTimeline');
@@ -382,12 +383,6 @@ export function BottomTimeline() {
   // during the drag (only the top edge moves), so capturing once is enough.
   const resizeBottomYRef = useRef(0);
   const [unplacedPopoverOpen, setUnplacedPopoverOpen] = useState(false);
-  // Anchor coords for the unplaced popover. We render the popover with
-  // position: fixed so it escapes the modern-skin `.app-island { overflow:
-  // hidden }` that otherwise clips it against the editor island above.
-  const [unplacedAnchor, setUnplacedAnchor] = useState<{ left: number; bottom: number } | null>(
-    null,
-  );
   // Unaffiliated lane (chapters with no primary storyline) visibility is
   // persisted in ui-store so the toggle decision sticks across sessions —
   // users who keep the lane open shouldn't have to re-toggle it every time
@@ -610,47 +605,7 @@ export function BottomTimeline() {
   // Outside-click / Esc dismissal is handled inside EntityCellContextMenu
   // itself, so no separate effect is needed for the timeline cmenu state.
 
-  // Close the unplaced popover on outside click or ESC.
-  const unplacedPopoverRef = useRef<HTMLDivElement>(null);
   const unplacedBtnRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!unplacedPopoverOpen) unplacedBtnRef.current?.blur();
-  }, [unplacedPopoverOpen]);
-  // Sync the fixed-position anchor to the button's viewport rect whenever the
-  // popover is open. Recompute on resize so the popover follows the button if
-  // the user reshapes the window while it's open.
-  useEffect(() => {
-    if (!unplacedPopoverOpen) return;
-    const compute = () => {
-      const rect = unplacedBtnRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setUnplacedAnchor({ left: rect.left, bottom: window.innerHeight - rect.top + 4 });
-    };
-    compute();
-    window.addEventListener('resize', compute);
-    return () => window.removeEventListener('resize', compute);
-  }, [unplacedPopoverOpen]);
-  useEffect(() => {
-    if (!unplacedPopoverOpen) return;
-    const handlePointerDown = (e: PointerEvent) => {
-      const t = e.target as Node | null;
-      if (t && unplacedPopoverRef.current?.contains(t)) return;
-      setUnplacedPopoverOpen(false);
-    };
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.preventDefault();
-      e.stopPropagation();
-      unplacedBtnRef.current?.blur();
-      setUnplacedPopoverOpen(false);
-    };
-    document.addEventListener('pointerdown', handlePointerDown, true);
-    document.addEventListener('keydown', handleEscape, true);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown, true);
-      document.removeEventListener('keydown', handleEscape, true);
-    };
-  }, [unplacedPopoverOpen]);
 
   const handleNodeDragStart = (e: React.DragEvent, node: TimelineNode, storylineId: string) => {
     clearHoverPreview();
@@ -1530,27 +1485,30 @@ export function BottomTimeline() {
             </button>
           )}
           {isNarrative && (
-            <div className="btl__unplaced" ref={unplacedPopoverRef}>
+            <div className="btl__unplaced">
               <button
                 ref={unplacedBtnRef}
                 type="button"
                 className={`btl__unplaced-btn${unplacedPopoverOpen ? ' is-open' : ''}`}
                 onClick={() => setUnplacedPopoverOpen((v) => !v)}
                 title={t('bottomTimeline.unplaced.title')}
+                aria-haspopup="menu"
+                aria-expanded={unplacedPopoverOpen}
               >
                 <span>{t('bottomTimeline.unplaced.label')}</span>
                 <span className="btl__unplaced-count">{unplacedNodes.length}</span>
                 <span className="btl__unplaced-arrow">▾</span>
               </button>
-              {unplacedPopoverOpen && unplacedAnchor && (
-                <div
-                  className="btl__unplaced-popover"
-                  style={{
-                    position: 'fixed',
-                    left: unplacedAnchor.left,
-                    bottom: unplacedAnchor.bottom,
-                  }}
-                >
+              <AnchoredPopover
+                anchorRef={unplacedBtnRef}
+                open={unplacedPopoverOpen}
+                onClose={() => setUnplacedPopoverOpen(false)}
+                placement="top-start"
+                className="btl__unplaced-popover"
+                role="menu"
+                ariaLabel={t('bottomTimeline.unplaced.title')}
+                maxHeight={320}
+              >
                   {unplacedNodes.length === 0 ? (
                     <div className="btl__unplaced-empty">{t('bottomTimeline.unplaced.empty')}</div>
                   ) : (
@@ -1563,10 +1521,17 @@ export function BottomTimeline() {
                           <div
                             key={node.id}
                             className="btl__unplaced-chip"
+                            role="menuitem"
+                            tabIndex={0}
                             draggable
                             onDragStart={(e) => handleDrawerDragStart(e, node)}
                             onDragEnd={handleDragEnd}
                             onClick={() => setNodeSelection(node.id, 'ui')}
+                            onKeyDown={(event) => {
+                              if (event.key !== 'Enter' && event.key !== ' ') return;
+                              event.preventDefault();
+                              setNodeSelection(node.id, 'ui');
+                            }}
                             style={{ ['--clip-color' as string]: color } as React.CSSProperties}
                             title={node.title || t('common.untitled')}
                           >
@@ -1582,8 +1547,7 @@ export function BottomTimeline() {
                       })}
                     </div>
                   )}
-                </div>
-              )}
+              </AnchoredPopover>
             </div>
           )}
         </div>

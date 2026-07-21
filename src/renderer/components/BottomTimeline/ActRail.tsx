@@ -102,6 +102,8 @@ export function ActRail({
   const [dragGhostX, setDragGhostX] = useState<number | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuReturnFocusRef = useRef<HTMLElement | null>(null);
 
   const segments = useMemo(() => deriveActSegments(acts, chapters), [acts, chapters]);
   const sorted = useMemo(() => sortActs(acts), [acts]);
@@ -110,6 +112,22 @@ export function ActRail({
   useEffect(() => {
     if (editingId) editInputRef.current?.select();
   }, [editingId]);
+
+  useEffect(() => {
+    if (!menu) return undefined;
+    const menuElement = menuRef.current;
+    const returnFocus = menuReturnFocusRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      menuElement?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (returnFocus && document.activeElement instanceof Node && menuElement?.contains(document.activeElement)) {
+        returnFocus.focus({ preventScroll: true });
+      }
+      menuReturnFocusRef.current = null;
+    };
+  }, [menu]);
 
   // Outside-click / Esc dismissal for the band menu.
   useEffect(() => {
@@ -150,6 +168,7 @@ export function ActRail({
     e.stopPropagation();
     const rect = trackRef.current?.getBoundingClientRect();
     const px = rect ? e.clientX - rect.left : 0;
+    menuReturnFocusRef.current = null;
     setMenu({
       kind: 'rail',
       x: e.clientX + 2,
@@ -278,6 +297,45 @@ export function ActRail({
 
   const actIndexOf = (id: string) => sorted.findIndex((a) => a.id === id);
 
+  const openActMenuFromKeyboard = (
+    element: HTMLElement,
+    actId: string,
+    segmentLeft: number,
+  ) => {
+    const rect = element.getBoundingClientRect();
+    menuReturnFocusRef.current = element;
+    setMenu({
+      kind: 'act',
+      actId,
+      x: rect.left + Math.min(rect.width, 24),
+      y: rect.bottom + 4,
+      orderAtCursor: Math.round(xToOrder(segmentLeft)),
+    });
+  };
+
+  const moveBoundaryFromKeyboard = (segIndex: number, direction: -1 | 1) => {
+    const act = segments[segIndex]?.act;
+    if (!act || segIndex === 0 || act.startOrder == null) return;
+    const currentOrder = act.startOrder;
+    const prevBound = segments[segIndex - 1].act.startOrder ?? Number.NEGATIVE_INFINITY;
+    const nextBound =
+      segIndex + 1 < segments.length
+        ? (segments[segIndex + 1].act.startOrder ?? Number.POSITIVE_INFINITY)
+        : Number.POSITIVE_INFINITY;
+    const candidates = snapOrders
+      .filter((order) => order > prevBound && order < nextBound)
+      .sort((a, b) => a - b);
+    const currentIndex = candidates.indexOf(currentOrder);
+    const baseIndex = currentIndex >= 0
+      ? currentIndex
+      : candidates.findIndex((order) => order > currentOrder);
+    const nextIndex = direction < 0
+      ? Math.max(0, (baseIndex < 0 ? candidates.length : baseIndex) - 1)
+      : Math.min(candidates.length - 1, Math.max(-1, baseIndex) + 1);
+    const next = candidates[nextIndex];
+    if (next !== undefined && next !== currentOrder) onMoveBoundary(act.id, next);
+  };
+
   return (
     <div className={`actrail${className ? ` ${className}` : ''}`} style={{ height }}>
       {railHead}
@@ -338,6 +396,9 @@ export function ActRail({
                 <span
                   className={`actrail__label${draggable ? ' is-draggable' : ''}`}
                   title={chipTitle}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={chipTitle}
                   onPointerDown={draggable ? (e) => startBoundaryDrag(e, i) : undefined}
                   onDoubleClick={(e) => {
                     // Rename triggers on the CHIP only (the band is inert).
@@ -351,6 +412,7 @@ export function ActRail({
                     e.stopPropagation();
                     const rect = trackRef.current?.getBoundingClientRect();
                     const px = rect ? e.clientX - rect.left : 0;
+                    menuReturnFocusRef.current = null;
                     setMenu({
                       kind: 'act',
                       actId: seg.act.id,
@@ -358,6 +420,16 @@ export function ActRail({
                       y: e.clientY - 2,
                       orderAtCursor: Math.round(xToOrder(px)),
                     });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setEditingId(seg.act.id);
+                    } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+                      e.preventDefault();
+                      openActMenuFromKeyboard(e.currentTarget, seg.act.id, left);
+                    }
                   }}
                 >
                   {seg.act.driftNodeId && onOpenDrift && (
@@ -400,6 +472,24 @@ export function ActRail({
               style={{ left: orderToX(seg.act.startOrder) }}
               onPointerDown={(e) => startBoundaryDrag(e, i)}
               title={t('bottomTimeline.act.dragBoundary')}
+              role="slider"
+              tabIndex={0}
+              aria-label={t('bottomTimeline.act.dragBoundary')}
+              aria-orientation="horizontal"
+              aria-valuenow={seg.act.startOrder}
+              aria-valuemin={
+                segments[i - 1].act.startOrder ??
+                (snapOrders.length > 0 ? Math.min(...snapOrders) : seg.act.startOrder)
+              }
+              aria-valuemax={
+                segments[i + 1]?.act.startOrder ??
+                (snapOrders.length > 0 ? Math.max(...snapOrders) : seg.act.startOrder)
+              }
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                e.preventDefault();
+                moveBoundaryFromKeyboard(i, e.key === 'ArrowLeft' ? -1 : 1);
+              }}
             />
           );
         })}
@@ -416,12 +506,19 @@ export function ActRail({
             if (menu.kind === 'rail') {
               return (
                 <div
+                  ref={menuRef}
                   className="actrail__menu"
-                  style={{ position: 'fixed', left: menu.x, top: menu.y }}
+                  style={{
+                    position: 'fixed',
+                    left: Math.min(menu.x, Math.max(8, window.innerWidth - 176)),
+                    top: Math.min(menu.y, Math.max(8, window.innerHeight - 52)),
+                  }}
+                  role="menu"
                   onContextMenu={(e) => e.preventDefault()}
                 >
                   <button
                     type="button"
+                    role="menuitem"
                     onClick={() => {
                       setMenu(null);
                       onSplitAt(menu.orderAtCursor);
@@ -436,12 +533,19 @@ export function ActRail({
             const isBound = Boolean(menuAct?.driftNodeId);
             return (
               <div
+                ref={menuRef}
                 className="actrail__menu"
-                style={{ position: 'fixed', left: menu.x, top: menu.y }}
+                style={{
+                  position: 'fixed',
+                  left: Math.min(menu.x, Math.max(8, window.innerWidth - 176)),
+                  top: Math.min(menu.y, Math.max(8, window.innerHeight - 220)),
+                }}
+                role="menu"
                 onContextMenu={(e) => e.preventDefault()}
               >
                 <button
                   type="button"
+                  role="menuitem"
                   onClick={() => {
                     setMenu(null);
                     setEditingId(menu.actId);
@@ -451,6 +555,7 @@ export function ActRail({
                 </button>
                 <button
                   type="button"
+                  role="menuitem"
                   onClick={() => {
                     setMenu(null);
                     onSplitAt(menu.orderAtCursor);
@@ -465,6 +570,7 @@ export function ActRail({
                     {onOpenDrift && (
                       <button
                         type="button"
+                        role="menuitem"
                         onClick={() => {
                           setMenu(null);
                           if (menuAct?.driftNodeId)
@@ -482,6 +588,7 @@ export function ActRail({
                     {onUnbindDrift && (
                       <button
                         type="button"
+                        role="menuitem"
                         onClick={() => {
                           setMenu(null);
                           onUnbindDrift(menu.actId);
@@ -495,6 +602,7 @@ export function ActRail({
                   onRequestBind && (
                     <button
                       type="button"
+                      role="menuitem"
                       onClick={() => {
                         setMenu(null);
                         onRequestBind(menu.actId);
@@ -506,6 +614,7 @@ export function ActRail({
                 )}
                 <button
                   type="button"
+                  role="menuitem"
                   className="is-danger"
                   onClick={() => {
                     setMenu(null);

@@ -194,11 +194,7 @@
   color: hsl(var(--ink-4));
 }
 .btl__unplaced-popover {
-  /* Anchored via inline `position: fixed` + computed left/bottom from JS.
-     Fixed positioning is required so the popover escapes the modern-skin
-     `.app-island { overflow: hidden }` clip that would otherwise cut it off
-     against the editor island above. Z-index matches `.btl-cmenu` so it sits
-     above any other floating overlay in the editor surface. */
+  /* Portaled + fixed by AnchoredPopover so app-island overflow cannot clip it. */
   z-index: 1000;
   min-width: 240px;
   max-width: 360px;
@@ -233,6 +229,10 @@
   cursor: grab;
   user-select: none;
   transition: border-color 0.12s, background 0.12s;
+}
+.btl__unplaced-chip:focus-visible {
+  outline: 2px solid hsl(var(--accent) / 0.6);
+  outline-offset: -2px;
 }
 .btl__unplaced-chip:active {
   cursor: grabbing;

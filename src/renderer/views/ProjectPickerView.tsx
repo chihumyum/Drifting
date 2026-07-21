@@ -26,6 +26,15 @@ type View = 'grid' | 'list';
 type Filter = 'all' | 'active' | 'paused';
 type Status = 'writing' | 'draft' | 'paused';
 
+function activateOnEnterOrSpace(
+  event: React.KeyboardEvent<HTMLElement>,
+  action: () => void,
+) {
+  if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+  event.preventDefault();
+  action();
+}
+
 const STORY_TOKENS = [
   '--story-1',
   '--story-2',
@@ -316,6 +325,7 @@ export function ProjectPickerView() {
                 fontSize={16}
                 title={t('userMenu.accountMenu')}
                 onClick={() => setMenuOpen((v) => !v)}
+                expanded={menuOpen}
               />
             </div>
             <UserMenu
@@ -337,25 +347,29 @@ export function ProjectPickerView() {
                 ['paused', t('projectPicker.filters.paused'), counts.paused],
               ] as Array<[Filter, string, number]>
             ).map(([k, label, n]) => (
-              <div
+              <button
+                type="button"
                 key={k}
                 className={`pp-toolbar__chip ${filter === k ? 'pp-toolbar__chip--active' : ''}`}
                 onClick={() => setFilter(k)}
+                aria-pressed={filter === k}
               >
                 <span>{label}</span>
                 <em>· {n}</em>
-              </div>
+              </button>
             ))}
           </div>
           <div className="pp-toolbar__actions">
             <div className="pp-toolbar__view">
               <button
+                type="button"
                 className={`pp-toolbar__view-btn ${view === 'grid' ? 'pp-toolbar__view-btn--active' : ''}`}
                 onClick={() => setView('grid')}
               >
                 ⊞ {t('projectPicker.view.card')}
               </button>
               <button
+                type="button"
                 className={`pp-toolbar__view-btn ${view === 'list' ? 'pp-toolbar__view-btn--active' : ''}`}
                 onClick={() => setView('list')}
               >
@@ -363,6 +377,7 @@ export function ProjectPickerView() {
               </button>
             </div>
             <button
+              type="button"
               className="pp-toolbar__btn pp-toolbar__btn--accent"
               onClick={() => setCreateOpen(true)}
             >
@@ -400,7 +415,15 @@ export function ProjectPickerView() {
                   onDelete={() => setConfirmDelete(row.project)}
                 />
               ))}
-              <div className="pp-card pp-card--new" onClick={() => setCreateOpen(true)}>
+              <div
+                className="pp-card pp-card--new"
+                onClick={() => setCreateOpen(true)}
+                onKeyDown={(event) =>
+                  activateOnEnterOrSpace(event, () => setCreateOpen(true))
+                }
+                role="button"
+                tabIndex={0}
+              >
                 <div className="pp-card__spine">
                   <div>
                     <div className="pp-card--new__glyph">＋</div>
@@ -433,6 +456,11 @@ export function ProjectPickerView() {
                 className="pp-list__row"
                 style={{ borderStyle: 'dashed', cursor: 'pointer', color: 'hsl(var(--ink-4))' }}
                 onClick={() => setCreateOpen(true)}
+                onKeyDown={(event) =>
+                  activateOnEnterOrSpace(event, () => setCreateOpen(true))
+                }
+                role="button"
+                tabIndex={0}
               >
                 <span className="pp-list__glyph" style={{ color: 'hsl(var(--ink-4))' }}>
                   ＋
@@ -520,14 +548,18 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
       className="pp-card"
       style={{ ['--pp-c' as string]: `var(${colorToken})` }}
       onClick={onOpen}
+      onKeyDown={(event) => activateOnEnterOrSpace(event, onOpen)}
+      role="button"
+      tabIndex={0}
+      aria-label={project.name}
     >
       <div className="pp-card__menu" onClick={(e) => e.stopPropagation()}>
-        <span className="pp-card__menu-btn" onClick={onEdit} title={t('common.edit')}>
+        <button type="button" className="pp-card__menu-btn" onClick={onEdit} title={t('common.edit')}>
           ✎
-        </span>
-        <span className="pp-card__menu-btn" onClick={onDelete} title={t('common.delete')}>
+        </button>
+        <button type="button" className="pp-card__menu-btn" onClick={onDelete} title={t('common.delete')}>
           ×
-        </span>
+        </button>
       </div>
       <div className="pp-card__spine">
         <div className="pp-card__spine-top">
@@ -602,6 +634,10 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
       className="pp-list__row"
       style={{ ['--pp-c' as string]: `var(${colorToken})` }}
       onClick={onOpen}
+      onKeyDown={(event) => activateOnEnterOrSpace(event, onOpen)}
+      role="button"
+      tabIndex={0}
+      aria-label={project.name}
     >
       <span className="pp-list__glyph">{glyph}</span>
       <div className="pp-list__title">
@@ -637,12 +673,12 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
         <span className="pp-list__cell-k">{t(`projectPicker.status.${status}`)}</span>
       </div>
       <div className="pp-list__menu" onClick={(e) => e.stopPropagation()}>
-        <span className="pp-list__menu-btn" onClick={onEdit} title={t('common.edit')}>
+        <button type="button" className="pp-list__menu-btn" onClick={onEdit} title={t('common.edit')}>
           ✎
-        </span>
-        <span className="pp-list__menu-btn" onClick={onDelete} title={t('common.delete')}>
+        </button>
+        <button type="button" className="pp-list__menu-btn" onClick={onDelete} title={t('common.delete')}>
           ×
-        </span>
+        </button>
       </div>
     </div>
   );
@@ -670,7 +706,13 @@ function DeleteModal({ project, busy, onConfirm, onClose }: DeleteModalProps) {
   const stats = project.stats;
   return (
     <div className="pp-modal-backdrop" onClick={onClose}>
-      <div className="pp-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="pp-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('projectPicker.delete.titlePrefix')}
+      >
         <div className="pp-modal__head">
           <div className="pp-modal__kicker">{t('projectPicker.delete.kicker')}</div>
           <h2 className="pp-modal__title">
@@ -687,10 +729,11 @@ function DeleteModal({ project, busy, onConfirm, onClose }: DeleteModalProps) {
           </p>
         </div>
         <div className="pp-modal__foot">
-          <button className="pp-modal__btn" onClick={onClose} disabled={busy}>
+          <button type="button" className="pp-modal__btn" onClick={onClose} disabled={busy} autoFocus>
             {t('common.cancel')}
           </button>
           <button
+            type="button"
             className="pp-modal__btn pp-modal__btn--danger"
             onClick={onConfirm}
             disabled={busy}
@@ -743,7 +786,16 @@ function ProjectFormModal({ mode, project, busy, onSubmit, onClose }: ProjectFor
 
   return (
     <div className="pp-modal-backdrop" onClick={onClose}>
-      <div className="pp-modal" onClick={(e) => e.stopPropagation()} style={{ width: 540 }}>
+      <div
+        className="pp-modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: 540 }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={
+          isEdit ? t('projectPicker.form.editKicker') : t('projectPicker.form.createKicker')
+        }
+      >
         <div className="pp-modal__head">
           <div className="pp-modal__kicker">
             {isEdit ? t('projectPicker.form.editKicker') : t('projectPicker.form.createKicker')}
@@ -783,10 +835,11 @@ function ProjectFormModal({ mode, project, busy, onSubmit, onClose }: ProjectFor
           </div>
         </div>
         <div className="pp-modal__foot">
-          <button className="pp-modal__btn" onClick={onClose} disabled={busy}>
+          <button type="button" className="pp-modal__btn" onClick={onClose} disabled={busy}>
             {t('common.cancel')}
           </button>
           <button
+            type="button"
             className="pp-modal__btn pp-modal__btn--primary"
             onClick={() => onSubmit(form)}
             disabled={busy}

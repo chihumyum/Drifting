@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { useDataStore } from '../../store/data-store';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useAuthStore } from '../../store/auth';
@@ -129,7 +130,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
 
   if (!request) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-start justify-center pt-28 bg-black/40"
       onMouseDown={onClose}
@@ -137,6 +138,9 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
       <div
         className="flex w-[460px] max-h-[72vh] flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-xl"
         onMouseDown={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('patchCreateModal.title')}
       >
         {/* Header */}
         <div className="flex items-start justify-between border-b border-border px-4 py-3">
@@ -278,6 +282,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

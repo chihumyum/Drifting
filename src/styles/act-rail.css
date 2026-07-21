@@ -254,3 +254,9 @@
 .actrail__menu button.is-danger:hover {
   background: hsl(var(--accent) / 0.08);
 }
+
+.actrail__label:focus-visible,
+.actrail__divider:focus-visible {
+  outline: 2px solid hsl(var(--accent) / 0.65);
+  outline-offset: 2px;
+}

@@ -77,6 +77,7 @@ export function RightSidebarTopBar() {
         fontSize={13}
         title={displayName}
         onClick={() => setMenuOpen((v) => !v)}
+        expanded={menuOpen}
       />
       <UserMenu triggerRef={avatarRef} open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>

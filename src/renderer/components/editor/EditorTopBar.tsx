@@ -2,9 +2,11 @@ import { Check, LayoutGrid, Link2, ListTree, MessageSquare, MoreVertical } from 
 import {
   Children,
   Fragment,
+  type KeyboardEvent,
+  type ReactElement,
   ReactNode,
+  cloneElement,
   isValidElement,
-  useEffect,
   useRef,
   useState,
 } from 'react';
@@ -15,6 +17,7 @@ import {
   type WritingStatus,
 } from '../../domain/book-node';
 import { useUiStore } from '../../store/ui-store';
+import { AnchoredPopover } from '../ui/AnchoredPopover';
 
 export type EditorType = 'node' | 'element' | 'category' | 'storyline';
 
@@ -232,38 +235,13 @@ interface EditorCrumbProps {
 
 export function EditorCrumb({ children, dotColor, dropdown, onClick }: EditorCrumbProps) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLSpanElement>(null);
+  const rootRef = useRef<HTMLElement>(null);
   // Only crumbs that actually do something on click get the pointer cursor +
   // hover affordance. A plain label crumb (project name, view title) is inert,
   // so it must read as inert rather than dangling a dead hover/click.
   const interactive = Boolean(onClick || dropdown);
   const className = `${dotColor ? 'editor-crumb editor-crumb-storyline' : 'editor-crumb'}${interactive ? ' editor-crumb--interactive' : ''}`;
   const style = dotColor ? ({ ['--crumb-color' as string]: dotColor } as React.CSSProperties) : undefined;
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      const active = document.activeElement;
-      if (active instanceof HTMLElement && rootRef.current?.contains(active)) {
-        active.blur();
-      }
-      setOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape, true);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape, true);
-    };
-  }, [open]);
 
   const handleClick = () => {
     if (dropdown) {
@@ -273,22 +251,74 @@ export function EditorCrumb({ children, dotColor, dropdown, onClick }: EditorCru
     }
   };
 
-  return (
-    <span
-      ref={rootRef}
-      className={className}
-      style={style}
-      onClick={interactive ? handleClick : undefined}
-    >
+  const content = (
+    <>
       {dotColor && <span className="editor-crumb-dot" />}
       {children}
-      {open && dropdown && (
-        <div className="crumb-dropdown" onClick={() => setOpen(false)}>
-          {dropdown}
-        </div>
-      )}
-    </span>
+    </>
   );
+
+  return (
+    <>
+      {interactive ? (
+        <button
+          ref={rootRef as React.RefObject<HTMLButtonElement>}
+          type="button"
+          className={className}
+          style={style}
+          onClick={handleClick}
+          aria-expanded={dropdown ? open : undefined}
+          aria-haspopup={dropdown ? 'menu' : undefined}
+        >
+          {content}
+        </button>
+      ) : (
+        <span ref={rootRef} className={className} style={style}>
+          {content}
+        </span>
+      )}
+      {dropdown && (
+        <AnchoredPopover
+          anchorRef={rootRef}
+          open={open}
+          onClose={() => setOpen(false)}
+          placement="bottom-start"
+          maxHeight={320}
+          className="crumb-dropdown"
+          role="menu"
+        >
+          <div onClick={() => setOpen(false)}>{makeCrumbItemsKeyboardAccessible(dropdown)}</div>
+        </AnchoredPopover>
+      )}
+    </>
+  );
+}
+
+function makeCrumbItemsKeyboardAccessible(node: ReactNode): ReactNode {
+  return Children.map(node, (child) => {
+    if (!isValidElement(child)) return child;
+    const element = child as ReactElement<{
+      children?: ReactNode;
+      className?: string;
+      onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
+    }>;
+    if (element.type === Fragment) {
+      return cloneElement(element, {
+        children: makeCrumbItemsKeyboardAccessible(element.props.children),
+      });
+    }
+    if (!element.props.className?.split(/\s+/).includes('crumb-dropdown__item')) return child;
+    return cloneElement(element, {
+      role: 'menuitem',
+      tabIndex: 0,
+      onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+        element.props.onKeyDown?.(event);
+        if (event.defaultPrevented || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        event.currentTarget.click();
+      },
+    } as Partial<typeof element.props> & { role: string; tabIndex: number });
+  });
 }
 
 interface EditorBarMenuProps {
@@ -309,34 +339,7 @@ function EditorBarMenu({
   translate,
 }: EditorBarMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!isOpen) buttonRef.current?.blur();
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      buttonRef.current?.blur();
-      setIsOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape, true);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape, true);
-    };
-  }, [isOpen]);
 
   const items = getMenuItems(editorType, nodeStatusKind, translate);
   const showStatus =
@@ -353,19 +356,28 @@ function EditorBarMenu({
   if (items.length === 0 && !showStatus && !menuHeader) return null;
 
   return (
-    <div ref={menuRef} style={{ position: 'relative' }}>
+    <div style={{ position: 'relative' }}>
       <button
         ref={buttonRef}
         type="button"
         className="editor-bar__icon"
         title={translate?.('editorTopBar.actions.more') ?? 'More actions'}
+        aria-label={translate?.('editorTopBar.actions.more') ?? 'More actions'}
         onClick={() => setIsOpen((prev) => !prev)}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
       >
         <MoreVertical size={14} />
       </button>
 
-      {isOpen && (
-        <div className="editor-bar__menu">
+      <AnchoredPopover
+        anchorRef={buttonRef}
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        placement="bottom-end"
+        className="editor-bar__menu"
+        role="menu"
+      >
           {menuHeader && (
             <>
               <div className="editor-bar__menu-header">{menuHeader}</div>
@@ -383,6 +395,8 @@ function EditorBarMenu({
                   <button
                     key={status}
                     type="button"
+                    role="menuitemradio"
+                    aria-checked={active}
                     className={`editor-bar__menu-item editor-bar__menu-item--status${active ? ' editor-bar__menu-item--active' : ''}`}
                     onClick={() => {
                       if (!active) onAction(`${SET_STATUS_ACTION_PREFIX}${status}`);
@@ -401,6 +415,7 @@ function EditorBarMenu({
             <button
               key={item.action}
               type="button"
+              role="menuitem"
               className={`editor-bar__menu-item${item.danger ? ' editor-bar__menu-item--danger' : ''}`}
               onClick={() => {
                 onAction(item.action);
@@ -410,8 +425,7 @@ function EditorBarMenu({
               {item.label}
             </button>
           ))}
-        </div>
-      )}
+      </AnchoredPopover>
     </div>
   );
 }

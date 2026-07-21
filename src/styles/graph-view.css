@@ -417,9 +417,6 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   color: hsl(var(--paper));
 }
 .graph-head__unplaced-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
   z-index: 270;
   min-width: 260px;
   max-width: 360px;

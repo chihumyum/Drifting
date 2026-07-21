@@ -137,6 +137,14 @@ export function EditorOutlinePanel({
     (id: string) => () => onItemClick?.(id),
     [onItemClick],
   );
+  const handleActivateKey = useCallback(
+    (id: string) => (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      onItemClick?.(id);
+    },
+    [onItemClick],
+  );
 
   // Expansion is owned here: a sparse override map (id → forced open/closed)
   // layered over per-kind defaults. The defaults are STATIC — they do not react
@@ -194,7 +202,15 @@ export function EditorOutlinePanel({
     // L1 · act — a centred divider flanked by hairlines, never a list row.
     if (item.kind === 'act') {
       return (
-        <div key={item.id} className="toc-act" onClick={handleClick(item.id)} role="button">
+        <div
+          key={item.id}
+          className="toc-act"
+          onClick={handleClick(item.id)}
+          onKeyDown={handleActivateKey(item.id)}
+          role="button"
+          tabIndex={0}
+          aria-current={item.id === activeId ? 'location' : undefined}
+        >
           <span className="toc-act__label">{item.text}</span>
         </div>
       );
@@ -219,7 +235,27 @@ export function EditorOutlinePanel({
 
     return (
       <div key={item.id} className={`toc-block toc-block--${tier}`}>
-        <div className={`toc-row${activeClass}${open ? ' is-open' : ''}`} onClick={handleClick(item.id)}>
+        <div
+          className={`toc-row${activeClass}${open ? ' is-open' : ''}`}
+          onClick={handleClick(item.id)}
+          onKeyDown={(event) => {
+            if (hasChildren && event.key === 'ArrowRight' && !open) {
+              event.preventDefault();
+              toggleOpen(item.id, true);
+              return;
+            }
+            if (hasChildren && event.key === 'ArrowLeft' && open) {
+              event.preventDefault();
+              toggleOpen(item.id, false);
+              return;
+            }
+            handleActivateKey(item.id)(event);
+          }}
+          role="button"
+          tabIndex={0}
+          aria-expanded={hasChildren ? open : undefined}
+          aria-current={item.id === activeId ? 'location' : undefined}
+        >
           <span
             className={`toc-row__caret${hasChildren ? '' : ' is-leaf'}`}
             onClick={
@@ -287,8 +323,6 @@ export function EditorOutlinePanel({
     <nav className="editor__toc-rail" ref={attachRoot} aria-label={t('editorOutline.aria')}>
       <div
         className={`editor__toc-overlay${coversManuscript ? ' editor__toc-overlay--over-manuscript' : ''}`}
-        role="dialog"
-        aria-label={t('editorOutline.aria')}
       >
         {body}
       </div>

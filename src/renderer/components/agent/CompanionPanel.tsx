@@ -49,6 +49,7 @@ import type {
   AgentChatMessage as ChatMsg,
   AgentConversationSummary,
 } from '../../domain/agent-conversation';
+import { AnchoredPopover } from '../ui/AnchoredPopover';
 import '../../../styles/agent-panel.css';
 
 function relTime(iso: string): string {
@@ -161,6 +162,7 @@ function ComposerConfig() {
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'main' | 'model' | 'memory'>('main');
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const modelOption = AGENT_MODEL_OPTIONS.find((m) => m.value === agentModel);
   const modelShort = t(`settings.agent.modelOptions.${agentModel}.short`, {
@@ -178,11 +180,14 @@ function ComposerConfig() {
   return (
     <div className="agt-pop">
       <button
+        ref={triggerRef}
         type="button"
         className={'agt-cfg' + (open ? ' agt-cfg--open' : '')}
         onClick={() => setOpen((o) => !o)}
         title={t('agentPanel.config.title')}
         aria-label={t('agentPanel.config.aria')}
+        aria-expanded={open}
+        aria-haspopup="dialog"
       >
         <svg
           width="16"
@@ -199,20 +204,30 @@ function ComposerConfig() {
           <circle cx="15" cy="16" r="2.3" fill="currentColor" stroke="none" />
         </svg>
       </button>
-      {open && (
-        <>
-          <div className="agt-pop__backdrop" onClick={close} />
-          <div className="agt-menu">
+      <AnchoredPopover
+        anchorRef={triggerRef}
+        open={open}
+        onClose={close}
+        placement="top-start"
+        maxHeight={360}
+        className="agt-menu"
+        role="dialog"
+        ariaLabel={t('agentPanel.config.aria')}
+      >
             {view === 'main' ? (
               <>
                 <div className="agt-menu__sec">{t('agentPanel.config.model')}</div>
-                <div className="agt-menu__row agt-menu__row--btn" onClick={() => setView('model')}>
+                <button
+                  type="button"
+                  className="agt-menu__row agt-menu__row--btn"
+                  onClick={() => setView('model')}
+                >
                   <span>{t('agentPanel.config.switchModel')}</span>
                   <span className="agt-menu__val">
                     {modelShort}
                     <span className="agt-menu__caret">›</span>
                   </span>
-                </div>
+                </button>
                 <div className="agt-menu__divider" />
                 <div className="agt-menu__sec">{t('agentPanel.config.reasoning')}</div>
                 <div className="agt-menu__row">
@@ -257,7 +272,8 @@ function ComposerConfig() {
                 </div>
                 <div className="agt-menu__divider" />
                 <div className="agt-menu__sec">{t('agentPanel.config.memory')}</div>
-                <div
+                <button
+                  type="button"
                   className="agt-menu__row agt-menu__row--btn"
                   title={t('agentPanel.config.memoryTitle')}
                   onClick={() => {
@@ -270,15 +286,16 @@ function ComposerConfig() {
                     {visibleMemories.length || t('agentPanel.common.none')}
                     <span className="agt-menu__caret">›</span>
                   </span>
-                </div>
+                </button>
               </>
             ) : view === 'model' ? (
               <>
-                <div className="agt-menu__back" onClick={() => setView('main')}>
+                <button type="button" className="agt-menu__back" onClick={() => setView('main')}>
                   ‹ {t('agentPanel.config.model')}
-                </div>
+                </button>
                 {AGENT_MODEL_OPTIONS.map((m) => (
-                  <div
+                  <button
+                    type="button"
                     key={m.value}
                     className={
                       'agt-menu__opt' + (m.value === agentModel ? ' agt-menu__opt--active' : '')
@@ -292,14 +309,14 @@ function ComposerConfig() {
                       {t(`settings.agent.modelOptions.${m.value}.label`, { defaultValue: m.label })}
                     </span>
                     {m.value === agentModel && <span className="agt-menu__check">●</span>}
-                  </div>
+                  </button>
                 ))}
               </>
             ) : (
               <>
-                <div className="agt-menu__back" onClick={() => setView('main')}>
+                <button type="button" className="agt-menu__back" onClick={() => setView('main')}>
                   ‹ {t('agentPanel.config.memory')}
-                </div>
+                </button>
                 {visibleMemories.length === 0 ? (
                   <div className="agt-menu__row agt-menu__row--empty">
                     <span style={{ opacity: 0.6 }}>{t('agentPanel.config.noMemory')}</span>
@@ -346,9 +363,7 @@ function ComposerConfig() {
                 )}
               </>
             )}
-          </div>
-        </>
-      )}
+      </AnchoredPopover>
     </div>
   );
 }
@@ -627,12 +642,8 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
     [allCheckpoints, projectId],
   );
   const [atBottom, setAtBottom] = useState(true);
-  // History / snapshots dropdowns: refs for outside-click dismissal. The toggle
-  // buttons (toolbarRight) are excluded — they own their open/close, and closing
-  // on their pointerdown would make the click reopen what it just closed.
-  const historyPanelRef = useRef<HTMLDivElement>(null);
-  const snapshotsPanelRef = useRef<HTMLDivElement>(null);
-  const toolbarRightRef = useRef<HTMLDivElement>(null);
+  const historyTriggerRef = useRef<HTMLButtonElement>(null);
+  const snapshotsTriggerRef = useRef<HTMLButtonElement>(null);
   // Inline rename: the header edits the active conversation; a history row edits
   // whichever entry is `editingItemId`.
   const [editingHeaderId, setEditingHeaderId] = useState<string | null>(null);
@@ -683,46 +694,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   useEffect(() => {
     bindProject(projectId);
   }, [projectId, bindProject]);
-
-  // Dismiss the history / snapshots dropdowns on outside pointerdown or Escape.
-  // Capture phase so we beat React's synthetic delegation for clicks that land
-  // outside this component (same pattern as EntityCellContextMenu).
-  useEffect(() => {
-    if (!showHistory && !showSnapshots) return undefined;
-    const closeBoth = () => {
-      setShowHistory(false);
-      setShowSnapshots(false);
-      setConfirmTurnId(null);
-    };
-    const onPointerDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (historyPanelRef.current?.contains(t)) return;
-      if (snapshotsPanelRef.current?.contains(t)) return;
-      if (toolbarRightRef.current?.contains(t)) return;
-      closeBoth();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      // A rename input inside the dropdown handles Escape itself (cancels the
-      // edit) — don't yank the whole panel out from under it.
-      const t = e.target as HTMLElement;
-      if (
-        (historyPanelRef.current?.contains(t) || snapshotsPanelRef.current?.contains(t)) &&
-        (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')
-      ) {
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      closeBoth();
-    };
-    document.addEventListener('pointerdown', onPointerDown, true);
-    document.addEventListener('keydown', onKey, true);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      document.removeEventListener('keydown', onKey, true);
-    };
-  }, [showHistory, showSnapshots]);
 
   // Auto-follow the stream only while pinned to the bottom.
   useEffect(() => {
@@ -974,9 +945,10 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
             {sessionName}
           </button>
         )}
-        <div style={toolbarRight} ref={toolbarRightRef}>
+        <div style={toolbarRight}>
           {checkpoints.length > 0 && (
             <button
+              ref={snapshotsTriggerRef}
               type="button"
               style={ghostBtn}
               onClick={() => {
@@ -985,11 +957,14 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                 setConfirmTurnId(null);
               }}
               title={t('agentPanel.toolbar.snapshotsTitle')}
+              aria-expanded={showSnapshots}
+              aria-haspopup="dialog"
             >
               ↺ {t('agentPanel.toolbar.snapshots', { count: checkpoints.length })}
             </button>
           )}
           <button
+            ref={historyTriggerRef}
             type="button"
             style={ghostBtn}
             onClick={() => {
@@ -997,6 +972,8 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
               setShowSnapshots(false);
             }}
             title={t('agentPanel.toolbar.historyTitle')}
+            aria-expanded={showHistory}
+            aria-haspopup="dialog"
           >
             ☰ {t('agentPanel.toolbar.history')}
             {convList.length ? ` · ${convList.length}` : ''}
@@ -1012,8 +989,21 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {showSnapshots && (
-        <div style={historyPanel} ref={snapshotsPanelRef}>
+      <AnchoredPopover
+        anchorRef={snapshotsTriggerRef}
+        open={showSnapshots}
+        onClose={() => {
+          setShowSnapshots(false);
+          setConfirmTurnId(null);
+        }}
+        placement="bottom-end"
+        role="dialog"
+        ariaLabel={t('agentPanel.toolbar.snapshotsTitle')}
+        maxHeight={280}
+        style={historyPanel}
+        autoFocus={false}
+        restoreFocus={false}
+      >
           {revertNote && (
             <div style={{ padding: '8px 12px', fontSize: 11.5, color: 'hsl(var(--ink-2))' }}>
               {revertNote}
@@ -1088,11 +1078,20 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
               );
             })
           )}
-        </div>
-      )}
+      </AnchoredPopover>
 
-      {showHistory && (
-        <div style={historyPanel} ref={historyPanelRef}>
+      <AnchoredPopover
+        anchorRef={historyTriggerRef}
+        open={showHistory}
+        onClose={() => setShowHistory(false)}
+        placement="bottom-end"
+        role="dialog"
+        ariaLabel={t('agentPanel.toolbar.historyTitle')}
+        maxHeight={280}
+        style={historyPanel}
+        autoFocus={false}
+        restoreFocus={false}
+      >
           {convList.length === 0 ? (
             <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>
               {t('agentPanel.history.empty')}
@@ -1123,10 +1122,15 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                 <div
                   key={c.id}
                   style={{ ...historyItem, ...(c.id === activeConvId ? historyItemActive : null) }}
-                  onClick={() => handleLoad(c.id)}
                 >
-                  <span style={historyTitle}>{c.title || t('agentPanel.history.untitled')}</span>
-                  <span style={historyTime}>{relTime(c.updatedAt)}</span>
+                  <button
+                    type="button"
+                    style={historyLoadButton}
+                    onClick={() => handleLoad(c.id)}
+                  >
+                    <span style={historyTitle}>{c.title || t('agentPanel.history.untitled')}</span>
+                    <span style={historyTime}>{relTime(c.updatedAt)}</span>
+                  </button>
                   <button
                     type="button"
                     style={historyAct}
@@ -1147,8 +1151,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
               ),
             )
           )}
-        </div>
-      )}
+      </AnchoredPopover>
 
       <div style={logWrap}>
         <div ref={logRef} style={logStyle} onScroll={onScroll}>
@@ -1308,10 +1311,7 @@ const nameInput: React.CSSProperties = {
 };
 
 const historyPanel: React.CSSProperties = {
-  position: 'absolute',
-  top: 40,
-  left: 8,
-  right: 8,
+  width: 'min(360px, calc(100vw - 16px))',
   maxHeight: 280,
   overflowY: 'auto',
   background: 'hsl(var(--paper))',
@@ -1342,6 +1342,21 @@ const historyTitle: React.CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+};
+
+const historyLoadButton: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  flex: 1,
+  minWidth: 0,
+  border: 0,
+  padding: 0,
+  background: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  textAlign: 'left',
+  cursor: 'pointer',
 };
 
 const historyTime: React.CSSProperties = {

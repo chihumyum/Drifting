@@ -428,6 +428,7 @@ export function LeftSidebarSubHeader() {
           title={t('leftSidebar.actions.sort')}
           onClick={() => setSortMenuOpen((v) => !v)}
           buttonRef={sortBtnRef}
+          expanded={sortMenuOpen}
         >
           <ArrowDownUp size={11} strokeWidth={1.6} />
         </SubIconBtn>
@@ -523,6 +524,7 @@ function SubIconBtn({
   accent,
   disabled,
   buttonRef,
+  expanded,
 }: {
   title: string;
   onClick?: () => void;
@@ -530,11 +532,16 @@ function SubIconBtn({
   accent?: boolean;
   disabled?: boolean;
   buttonRef?: React.Ref<HTMLButtonElement>;
+  expanded?: boolean;
 }) {
   return (
     <button
       ref={buttonRef}
+      type="button"
       title={title}
+      aria-label={title}
+      aria-expanded={expanded}
+      aria-haspopup={expanded === undefined ? undefined : 'menu'}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       style={{

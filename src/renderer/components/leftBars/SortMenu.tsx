@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { Fragment } from 'react';
 import { Check } from 'lucide-react';
+import { AnchoredPopover } from '../ui/AnchoredPopover';
 
 export interface SortMenuOption<T extends string> {
   value: T;
@@ -49,7 +49,7 @@ interface SortMenuProps<T extends string> {
 
 // Small radio-style popover anchored under a trigger button. Used by the
 // left sidebar sub-header to switch each panel's sort mode. Mirrors UserMenu's
-// portal / scrim / Escape pattern so dismissal behaviour matches.
+// shared portal / viewport-clamp / Escape pattern so dismissal matches.
 export function SortMenu<T extends string>({
   triggerRef,
   open,
@@ -60,46 +60,17 @@ export function SortMenu<T extends string>({
   title,
   groups,
 }: SortMenuProps<T>) {
-  const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-    const rect = trigger.getBoundingClientRect();
-    setPosition({
-      top: rect.bottom + 6,
-      right: Math.max(8, window.innerWidth - rect.right),
-    });
-  }, [open, triggerRef]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
-    };
-    document.addEventListener('keydown', handleEscape, true);
-    return () => document.removeEventListener('keydown', handleEscape, true);
-  }, [open, onClose]);
-
-  if (!open || !position) return null;
-
   const extraGroups = (groups ?? []).filter((g) => g.options.length > 0);
 
-  return createPortal(
-    <>
-      <div
-        onClick={onClose}
-        style={{ position: 'fixed', inset: 0, zIndex: 290 } as React.CSSProperties}
-      />
-      <div
+  return (
+      <AnchoredPopover
+        anchorRef={triggerRef}
+        open={open}
+        onClose={onClose}
+        placement="bottom-end"
+        role="menu"
+        maxHeight={480}
         style={{
-          position: 'fixed',
-          top: position.top,
-          right: position.right,
           minWidth: 180,
           background: 'hsl(var(--surface))',
           border: '1px solid hsl(var(--rule))',
@@ -154,9 +125,7 @@ export function SortMenu<T extends string>({
             </div>
           </Fragment>
         ))}
-      </div>
-    </>,
-    document.body,
+      </AnchoredPopover>
   );
 }
 
@@ -188,7 +157,10 @@ function SortMenuRow({
   onSelect: () => void;
 }) {
   return (
-    <div
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={active}
       onClick={onSelect}
       style={{
         display: 'flex',
@@ -200,6 +172,11 @@ function SortMenuRow({
         cursor: 'pointer',
         borderRadius: 3,
         transition: 'background 0.12s ease, color 0.12s ease',
+        width: '100%',
+        border: 0,
+        background: 'transparent',
+        font: 'inherit',
+        textAlign: 'left',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = 'hsl(var(--paper-deep))';
@@ -234,6 +211,6 @@ function SortMenuRow({
       >
         {label}
       </span>
-    </div>
+    </button>
   );
 }
