@@ -107,6 +107,21 @@ export function clearSessionToken(): void {
   );
 }
 
+/**
+ * Revoke a token that the server has already rejected.
+ *
+ * Unlike an explicit user logout, a 401 must stop every subsequent request
+ * from reusing the bearer immediately. Secure deletion remains queued and
+ * observable through flushSessionTokenStorage, but a keychain failure cannot
+ * make an already-invalid credential live again in memory.
+ */
+export function invalidateSessionToken(): void {
+  tokenRevision += 1;
+  tokenInMemory = null;
+  removeLegacyToken();
+  queuePersistence(() => platform.keychain.delete(KEY), 'delete');
+}
+
 /** Included in the native close-flush handshake. */
 export async function flushSessionTokenStorage(): Promise<void> {
   await pendingPersistence;

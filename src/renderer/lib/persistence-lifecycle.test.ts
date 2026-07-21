@@ -35,6 +35,7 @@ vi.mock('../services/snapshot-history.service', () => ({
 
 import {
   flushApplicationPersistenceForLifecycle,
+  quiesceApplicationAfterCredentialLoss,
   quiesceApplicationForDatabaseSwitch,
 } from './persistence-lifecycle';
 
@@ -123,5 +124,43 @@ describe('application persistence lifecycle', () => {
       'checkpoint',
       'session',
     ]);
+  });
+
+  it('tears down after credential loss even when the first local flush fails', async () => {
+    mocks.saveActiveEditor
+      .mockImplementationOnce(async () => {
+        mocks.order.push('editor');
+        throw new Error('editor save failed');
+      })
+      .mockImplementation(async () => {
+        mocks.order.push('editor');
+      });
+    mocks.waitForYjsTeardown.mockImplementation(async () => {
+      mocks.order.push('teardown');
+    });
+
+    await expect(
+      quiesceApplicationAfterCredentialLoss(() => mocks.order.push('unmount')),
+    ).rejects.toThrow('1 credential-loss persistence step(s) failed');
+
+    expect(mocks.order).toEqual([
+      'editor',
+      'yjs',
+      'snapshot-history',
+      'entity-outbox',
+      'checkpoint',
+      'session',
+      'unmount',
+      'teardown',
+      'editor',
+      'yjs',
+      'snapshot-history',
+      'entity-outbox',
+      'checkpoint',
+      'session',
+    ]);
+    expect(mocks.forceEntitySync).not.toHaveBeenCalled();
+    expect(mocks.forceYjsSync).not.toHaveBeenCalled();
+    expect(mocks.flushPreferences).not.toHaveBeenCalled();
   });
 });

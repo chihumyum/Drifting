@@ -1,7 +1,11 @@
 import { create } from 'zustand';
 import { authClient } from '../lib/auth-client';
 import type { Session } from '../lib/auth-client';
-import { clearSessionToken, flushSessionTokenStorage } from '../lib/session-token';
+import {
+  clearSessionToken,
+  flushSessionTokenStorage,
+  invalidateSessionToken,
+} from '../lib/session-token';
 import { isAuthRequired } from '../lib/config';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 import { initDatabase, resetDatabase } from '../lib/db';
@@ -59,11 +63,14 @@ interface AuthState {
   // password-only path above.
   adoptSession: () => Promise<void>;
   logout: () => Promise<void>;
+  expireSession: () => Promise<void>;
   checkSession: () => Promise<void>;
   initAuth: () => Promise<void>;
 }
 
 type CoreAuthState = Pick<AuthState, 'isAuthenticated' | 'session' | 'user'>;
+
+let sessionExpirationInFlight: Promise<void> | null = null;
 
 // Older builds persisted Better Auth's full session object here. That object
 // includes `session.token`, so retaining it would bypass the native credential
@@ -283,6 +290,51 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     log.info('[Auth] Anonymous database');
 
     log.info('[Auth] Logout successful');
+  },
+
+  // Handle a server-rejected credential without recursively calling the
+  // authenticated logout endpoint from inside the 401 interceptor.
+  expireSession: () => {
+    if (sessionExpirationInFlight) return sessionExpirationInFlight;
+
+    const operation = (async () => {
+      if (!isAuthRequired()) return;
+
+      invalidateSessionToken();
+      if (!get().isAuthenticated) {
+        // Bootstrap can discover an expired keychain token before protected
+        // views ever mount. Delete it durably without tearing down the already
+        // anonymous database.
+        await flushSessionTokenStorage();
+        return;
+      }
+
+      const { quiesceApplicationAfterCredentialLoss } =
+        await import('../lib/persistence-lifecycle');
+
+      try {
+        await quiesceApplicationAfterCredentialLoss(() => {
+          set({ isAuthenticated: false, session: null, user: null });
+        });
+      } catch (error) {
+        // Teardown has already happened. Keep moving to the anonymous DB so an
+        // invalid bearer can never leave protected views mounted indefinitely.
+        log.error('[Auth] Local persistence during session expiry failed:', error);
+        set({ isAuthenticated: false, session: null, user: null });
+      }
+
+      const { stopPreferencesSync } = await import('../services/preferences-sync.service');
+      stopPreferencesSync();
+      await resetDatabase();
+      await initDatabase(getDbFileName());
+      events.emit('db:ready');
+    })();
+
+    const inFlight = operation.finally(() => {
+      if (sessionExpirationInFlight === inFlight) sessionExpirationInFlight = null;
+    });
+    sessionExpirationInFlight = inFlight;
+    return inFlight;
   },
 
   // 检查 session 状态

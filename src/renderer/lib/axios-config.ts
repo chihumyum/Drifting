@@ -59,10 +59,9 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     if (error.response?.status === 401) {
       try {
-        const { isAuthenticated, logout } = useAuthStore.getState();
-        if (isAuthenticated) {
-          await logout();
-          window.location.href = '/login';
+        const { expireSession } = useAuthStore.getState();
+        if (getSessionToken()) {
+          await expireSession();
         }
       } catch {
         // noop

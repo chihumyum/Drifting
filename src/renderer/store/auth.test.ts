@@ -4,18 +4,21 @@ const mocks = vi.hoisted(() => ({
   order: [] as string[],
   signOut: vi.fn(),
   clearSessionToken: vi.fn(),
+  invalidateSessionToken: vi.fn(),
   flushSessionTokenStorage: vi.fn(),
   initDatabase: vi.fn(),
   resetDatabase: vi.fn(),
   flushLocal: vi.fn(),
   flushRemote: vi.fn(),
   quiesce: vi.fn(),
+  quiesceAfterCredentialLoss: vi.fn(),
   stopPreferencesSync: vi.fn(),
 }));
 
 vi.mock('../lib/auth-client', () => ({ authClient: { signOut: mocks.signOut } }));
 vi.mock('../lib/session-token', () => ({
   clearSessionToken: mocks.clearSessionToken,
+  invalidateSessionToken: mocks.invalidateSessionToken,
   flushSessionTokenStorage: mocks.flushSessionTokenStorage,
 }));
 vi.mock('../lib/config', () => ({ isAuthRequired: () => true }));
@@ -34,6 +37,7 @@ vi.mock('../lib/persistence-lifecycle', () => ({
   flushLocalApplicationPersistence: mocks.flushLocal,
   flushRemoteApplicationPersistence: mocks.flushRemote,
   quiesceApplicationForDatabaseSwitch: mocks.quiesce,
+  quiesceApplicationAfterCredentialLoss: mocks.quiesceAfterCredentialLoss,
 }));
 vi.mock('../services/preferences-sync.service', () => ({
   stopPreferencesSync: mocks.stopPreferencesSync,
@@ -78,6 +82,7 @@ describe('auth store persistence', () => {
       mocks.order.push('signOut');
     });
     mocks.clearSessionToken.mockImplementation(() => mocks.order.push('token:clear'));
+    mocks.invalidateSessionToken.mockImplementation(() => mocks.order.push('token:invalidate'));
     mocks.flushSessionTokenStorage.mockImplementation(async () => {
       mocks.order.push('token:flush');
     });
@@ -207,5 +212,70 @@ describe('auth store persistence', () => {
       'database:init',
     ]);
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it('coalesces concurrent 401 expiry without remote calls and always leaves protected state', async () => {
+    vi.stubGlobal('localStorage', createMemoryStorage());
+    let releaseTeardown!: () => void;
+    mocks.quiesceAfterCredentialLoss.mockImplementation(async (unmount: () => void) => {
+      mocks.order.push('credential-quiesce:start');
+      unmount();
+      await new Promise<void>((resolve) => {
+        releaseTeardown = resolve;
+      });
+      mocks.order.push('credential-quiesce:done');
+    });
+
+    const { useAuthStore } = await import('./auth');
+    useAuthStore.setState({
+      isAuthenticated: true,
+      session: {} as never,
+      user: {
+        id: 'expired-user',
+        email: 'writer@example.com',
+        name: 'Writer',
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    const first = useAuthStore.getState().expireSession();
+    const second = useAuthStore.getState().expireSession();
+    expect(second).toBe(first);
+    await vi.waitFor(() => expect(mocks.quiesceAfterCredentialLoss).toHaveBeenCalledOnce());
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+
+    releaseTeardown();
+    await Promise.all([first, second]);
+
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.flushRemote).not.toHaveBeenCalled();
+    expect(mocks.invalidateSessionToken).toHaveBeenCalledOnce();
+    expect(mocks.order).toEqual([
+      'token:invalidate',
+      'credential-quiesce:start',
+      'credential-quiesce:done',
+      'preferences:stop',
+      'database:reset',
+      'database:init',
+    ]);
+    expect(useAuthStore.getState()).toMatchObject({
+      isAuthenticated: false,
+      session: null,
+      user: null,
+    });
+  });
+
+  it('durably removes an expired bootstrap token without resetting the anonymous database', async () => {
+    vi.stubGlobal('localStorage', createMemoryStorage());
+    const { useAuthStore } = await import('./auth');
+
+    await useAuthStore.getState().expireSession();
+
+    expect(mocks.order).toEqual(['token:invalidate', 'token:flush']);
+    expect(mocks.quiesceAfterCredentialLoss).not.toHaveBeenCalled();
+    expect(mocks.resetDatabase).not.toHaveBeenCalled();
+    expect(mocks.initDatabase).not.toHaveBeenCalled();
   });
 });

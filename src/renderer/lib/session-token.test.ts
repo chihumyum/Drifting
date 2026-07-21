@@ -72,4 +72,25 @@ describe('session token durability', () => {
     expect(mocks.delete).toHaveBeenCalledTimes(2);
     expect(getSessionToken()).toBeNull();
   });
+
+  it('invalidates a rejected bearer in memory even when secure deletion fails', async () => {
+    mocks.set.mockResolvedValue(true);
+    mocks.delete.mockRejectedValueOnce(new Error('keychain unavailable'));
+    const {
+      flushSessionTokenStorage,
+      getSessionToken,
+      invalidateSessionToken,
+      setSessionToken,
+    } = await import('./session-token');
+
+    setSessionToken('rejected-token');
+    await flushSessionTokenStorage();
+
+    invalidateSessionToken();
+    expect(getSessionToken()).toBeNull();
+    await expect(flushSessionTokenStorage()).rejects.toThrow(
+      '1 session-token persistence step(s) failed',
+    );
+    expect(getSessionToken()).toBeNull();
+  });
 });

@@ -103,3 +103,42 @@ export async function quiesceApplicationForDatabaseSwitch(
   await waitForYjsDocumentTeardown();
   await flushLocalApplicationPersistence();
 }
+
+/**
+ * Credential loss is different from a voluntary account switch: remote work
+ * cannot be attempted after the bearer has been rejected, and local flush
+ * failures must not keep protected views mounted forever. The caller still
+ * receives an AggregateError after teardown so it can report the durability
+ * problem while continuing the database reset.
+ */
+export async function quiesceApplicationAfterCredentialLoss(
+  unmountActiveViews: () => void,
+): Promise<void> {
+  const failures: unknown[] = [];
+  try {
+    await flushLocalApplicationPersistence();
+  } catch (error) {
+    failures.push(error);
+  }
+
+  unmountActiveViews();
+
+  try {
+    await waitForYjsDocumentTeardown();
+  } catch (error) {
+    failures.push(error);
+  }
+
+  try {
+    await flushLocalApplicationPersistence();
+  } catch (error) {
+    failures.push(error);
+  }
+
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures,
+      `${failures.length} credential-loss persistence step(s) failed`,
+    );
+  }
+}
