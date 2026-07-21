@@ -201,6 +201,49 @@ export const ProjectAssetTable = sqliteTable(
   ],
 );
 
+// Durable native asset uploads. This table is intentionally device-local and
+// never enters entity sync. It stores only app-owned file/cache coordinates and
+// workflow metadata; short-lived presigned URLs and credentials are never
+// persisted. The polymorphic owner is checked by the upload coordinator.
+export const AssetUploadJobTable = sqliteTable(
+  'asset_upload_job',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    ownerKind: text('owner_kind').notNull(),
+    ownerId: text('owner_id').notNull(),
+    kind: text('kind').notNull(),
+    role: text('role').notNull(),
+    stage: text('stage').notNull().default('queued'),
+    sourcePath: text('source_path').notNull(),
+    sourceMime: text('source_mime'),
+    sourceSizeBytes: integer('source_size_bytes'),
+    displayMime: text('display_mime'),
+    displaySizeBytes: integer('display_size_bytes'),
+    thumbnailMime: text('thumbnail_mime'),
+    thumbnailSizeBytes: integer('thumbnail_size_bytes'),
+    width: integer('width'),
+    height: integer('height'),
+    assetId: text('asset_id'),
+    previousAssetId: text('previous_asset_id'),
+    deletePreviousAssetOnCancel: integer('delete_previous_asset_on_cancel', {
+      mode: 'boolean',
+    })
+      .notNull()
+      .default(false),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    lastError: text('last_error'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('idx_asset_upload_job_owner').on(t.projectId, t.ownerKind, t.ownerId),
+    index('idx_asset_upload_job_project_stage').on(t.projectId, t.stage),
+  ],
+);
+
 // Storylines
 // project(1) <-> storyline(N)
 // storyline(N) <-> node(N)

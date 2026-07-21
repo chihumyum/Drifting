@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import { and, eq } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
 import { useDataStore } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
@@ -12,6 +13,7 @@ import {
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
 import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
 import { createShadowJobRepository } from '../sqlite-repo/shadow-job-repo';
+import { createProjectAssetSqliteRepository } from '../sqlite-repo/project-asset-repo';
 import { unlinkEntityFromChapterProse } from '../lib/agent/chapter-prose';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
@@ -22,6 +24,13 @@ import {
   deleteEntityRelationsInTransaction,
   withoutRelationsForEntity,
 } from './entity-relation-cleanup';
+import {
+  cancelAssetUploadForOwner,
+  startAssetUploadJob,
+} from '../services/durable-asset-upload.service';
+import { BookElementTable } from '../schema/drizzle';
+import { projectAssetService } from '../services/project-asset.service';
+import { assetCacheService } from '../services/asset-cache.service';
 
 export interface CreateBookElementInput {
   categoryId: string;
@@ -304,6 +313,19 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       }
 
       const result = await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+        const [elementSnapshot] = await tx
+          .select({ portraitAssetId: BookElementTable.portraitAssetId })
+          .from(BookElementTable)
+          .where(
+            and(
+              eq(BookElementTable.id, id),
+              eq(BookElementTable.projectId, activeProjectId),
+            ),
+          )
+          .limit(1);
+        const canceledJob = await cancelAssetUploadForOwner(activeProjectId, 'element', id, tx, {
+          deletePreviousAsset: true,
+        });
         const relationIds = await deleteEntityRelationsInTransaction(
           tx,
           sync,
@@ -316,8 +338,34 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         await txMentionRepo.deleteAllForTarget('element', id);
         await txMentionRepo.deleteAllForSource('element', id);
         await sync('element', 'delete', id, activeProjectId);
-        return { deleted, relationIds };
+        return {
+          deleted,
+          relationIds,
+          canceledJob,
+          portraitAssetId: elementSnapshot?.portraitAssetId ?? null,
+        };
       });
+
+      if (result.canceledJob) startAssetUploadJob(result.canceledJob);
+      const coveredAssetIds = new Set(
+        result.canceledJob
+          ? [result.canceledJob.assetId ?? result.canceledJob.id, result.canceledJob.previousAssetId]
+              .filter((assetId): assetId is string => Boolean(assetId))
+          : [],
+      );
+      if (result.portraitAssetId && !coveredAssetIds.has(result.portraitAssetId)) {
+        const portraitAssetId = result.portraitAssetId;
+        const cleanupResults = await Promise.allSettled([
+          projectAssetService.deleteAsset(activeProjectId, portraitAssetId),
+          createProjectAssetSqliteRepository(activeProjectId).delete(portraitAssetId),
+          assetCacheService.deleteAsset(activeProjectId, portraitAssetId),
+        ]);
+        const failed = cleanupResults.find((entry) => entry.status === 'rejected');
+        if (failed?.status === 'rejected') {
+          console.warn('Failed to fully clean hard-deleted element portrait:', failed.reason);
+        }
+        useDataStore.getState().removeProjectAsset(portraitAssetId);
+      }
 
       if (result.relationIds.length > 0) {
         const doomedSet = new Set(result.relationIds);
@@ -377,8 +425,14 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             useDataStore.getState().setEntityRelations(relations);
             useDataStore.getState().unmarkTrashed('element', id);
           },
-          effect: () =>
-            withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+          effect: async () => {
+            const persisted = await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+              const canceledJob = await cancelAssetUploadForOwner(
+                activeProjectId,
+                'element',
+                id,
+                tx,
+              );
               await deleteEntityRelationsInTransaction(
                 tx,
                 sync,
@@ -391,8 +445,11 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
                 tx,
               ).softDelete(id);
               await sync('element', 'softDelete', id, activeProjectId);
-              return result;
-            }),
+              return { result, canceledJob };
+            });
+            if (persisted.canceledJob) startAssetUploadJob(persisted.canceledJob);
+            return persisted.result;
+          },
         });
       }
 

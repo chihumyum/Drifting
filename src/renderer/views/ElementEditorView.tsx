@@ -44,9 +44,14 @@ import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import { projectAssetService } from '../services/project-asset.service';
-import { assetCacheService, extForMime } from '../services/asset-cache.service';
+import { assetCacheService } from '../services/asset-cache.service';
 import type { LibraryItem } from '../domain/library-item';
 import { platform } from '../platform';
+import {
+  cancelAssetUploadForOwner,
+  queueElementPortraitUpload,
+  retryAssetUploadForOwner,
+} from '../services/durable-asset-upload.service';
 
 const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -69,6 +74,9 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   const comments = useDataStore((s) => s.comments);
   const entityRelations = useDataStore((s) => s.entityRelations);
   const projectAssets = useDataStore((s) => s.projectAssets);
+  const portraitUploadState = useDataStore((s) =>
+    elementId ? (s.elementPortraitUploadStates[elementId] ?? null) : null,
+  );
 
   const elementUsecases = useBookElement({
     projectId: projectId ?? '',
@@ -102,7 +110,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
   const [portraitUrlByAssetId, setPortraitUrlByAssetId] = useState<Record<string, string>>({});
-  const [portraitBusy, setPortraitBusy] = useState(false);
+  const [portraitPickerBusy, setPortraitPickerBusy] = useState(false);
   const [portraitPreviewOpen, setPortraitPreviewOpen] = useState(false);
   const [portraitErrorState, setPortraitErrorState] = useState<{
     elementId: string | null;
@@ -113,16 +121,19 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
     ? (portraitUrlByAssetId[readyPortraitAssetId] ?? null)
     : null;
   const portraitHasImageSlot = !!readyPortraitAssetId;
+  const portraitBusy = portraitPickerBusy || portraitUploadState?.state === 'uploading';
   const portraitSurfaceLabel = portraitUrl
     ? t('elementEditor.portrait.view')
     : portraitHasImageSlot
       ? t('elementEditor.portrait.loading')
       : t('elementEditor.portrait.upload');
   const portraitError =
-    portraitErrorState?.elementId === (elementId ?? null) &&
-    portraitErrorState.assetId === portraitAssetId
-      ? portraitErrorState.message
-      : null;
+    portraitUploadState?.state === 'failed'
+      ? `${t('elementEditor.portrait.uploadFailed')} ${portraitUploadState.error}`
+      : portraitErrorState?.elementId === (elementId ?? null) &&
+          portraitErrorState.assetId === portraitAssetId
+        ? portraitErrorState.message
+        : null;
   const portraitPreviewMaterial = useMemo<LibraryItem | null>(() => {
     if (!projectId || !curElement || !portraitAsset || !portraitUrl) return null;
     const hasSource = Boolean(portraitAsset.sourceObjectKey);
@@ -478,92 +489,22 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   const handleUploadPortrait = useCallback(async () => {
     if (!projectId || !elementId) return;
     setPortraitErrorState(null);
-    let uploadedAssetId: string | null = null;
+    let pickedImportPath: string | null = null;
+    let ownershipTransferred = false;
 
     try {
+      setPortraitPickerBusy(true);
       const picked = await platform.material.pickFile('image');
       if (!picked.ok) return;
-
-      setPortraitBusy(true);
-      const prepared = await platform.material.prepareImage(picked.filePath);
-      if (!prepared.ok) throw new Error(prepared.error);
-      const { source: inspection, display, thumbnail } = prepared;
-
-      const upload = await projectAssetService.createElementPortraitUpload(projectId, {
+      pickedImportPath = picked.filePath;
+      await queueElementPortraitUpload({
+        projectId,
         elementId,
-        sourceMime: inspection.mime,
-        sourceSizeBytes: inspection.sizeBytes,
-        displayMime: display.mime,
-        displaySizeBytes: display.sizeBytes,
-        thumbnailMime: thumbnail.mime,
-        thumbnailSizeBytes: thumbnail.sizeBytes,
-        width: inspection.width,
-        height: inspection.height,
+        sourcePath: picked.filePath,
+        sourceSizeBytes: picked.sizeBytes,
+        previousAssetId: portraitAssetId,
       });
-      uploadedAssetId = upload.asset.id;
-      await projectAssetUsecases.upsertLocalAsset(upload.asset);
-
-      const sourceExt = extForMime(inspection.mime, 'png');
-      const [, displayCache] = await Promise.all([
-        assetCacheService.copyFile(
-          projectId,
-          upload.asset.id,
-          'source',
-          sourceExt,
-          picked.filePath,
-        ),
-        assetCacheService.writeBytes(projectId, upload.asset.id, 'display', 'jpg', display.bytes),
-        assetCacheService.writeBytes(
-          projectId,
-          upload.asset.id,
-          'thumbnail',
-          'jpg',
-          thumbnail.bytes,
-        ),
-      ]);
-
-      await Promise.all([
-        assetCacheService.uploadFile({
-          url: upload.uploads.source.url,
-          projectId,
-          assetId: upload.asset.id,
-          variant: 'source',
-          ext: sourceExt,
-          contentType: upload.uploads.source.contentType,
-        }),
-        assetCacheService.uploadFile({
-          url: upload.uploads.display.url,
-          projectId,
-          assetId: upload.asset.id,
-          variant: 'display',
-          ext: 'jpg',
-          contentType: upload.uploads.display.contentType,
-        }),
-        assetCacheService.uploadFile({
-          url: upload.uploads.thumbnail.url,
-          projectId,
-          assetId: upload.asset.id,
-          variant: 'thumbnail',
-          ext: 'jpg',
-          contentType: upload.uploads.thumbnail.contentType,
-        }),
-      ]);
-
-      const readyAsset = await projectAssetService.completeUpload(projectId, upload.asset.id);
-      await projectAssetUsecases.upsertLocalAsset(readyAsset);
-      const previousAssetId = portraitAssetId;
-      await updateElement(elementId, { portraitAssetId: readyAsset.id });
-
-      setPortraitUrlByAssetId((prev) => ({ ...prev, [readyAsset.id]: displayCache.fileUrl }));
-      if (previousAssetId && previousAssetId !== readyAsset.id) {
-        void projectAssetService
-          .deleteAsset(projectId, previousAssetId)
-          .then(async () => {
-            await projectAssetUsecases.removeLocalAsset(previousAssetId);
-            await assetCacheService.deleteAsset(projectId, previousAssetId);
-          })
-          .catch((error) => log.warn('Failed to delete replaced portrait asset:', error));
-      }
+      ownershipTransferred = true;
     } catch (error) {
       log.error('Failed to upload element portrait:', error);
       setPortraitErrorState({
@@ -571,22 +512,35 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
         assetId: portraitAssetId,
         message: t('elementEditor.portrait.uploadFailed'),
       });
-      const cleanupAssetId = uploadedAssetId;
-      if (cleanupAssetId) {
-        void projectAssetService
-          .deleteAsset(projectId, cleanupAssetId)
-          .then(async () => {
-            await projectAssetUsecases.removeLocalAsset(cleanupAssetId);
-            await assetCacheService.deleteAsset(projectId, cleanupAssetId);
-          })
-          .catch((cleanupError) =>
-            log.warn('Failed to clean up incomplete portrait upload:', cleanupError),
-          );
-      }
     } finally {
-      setPortraitBusy(false);
+      if (pickedImportPath && !ownershipTransferred) {
+        const deleted = await platform.material.deleteImport(pickedImportPath).catch((error) => {
+          log.error('Failed to clean unowned portrait import:', error);
+          return null;
+        });
+        if (deleted && !deleted.ok) {
+          log.error('Failed to clean unowned portrait import:', deleted.error);
+        }
+      }
+      setPortraitPickerBusy(false);
     }
-  }, [projectId, elementId, portraitAssetId, projectAssetUsecases, updateElement, t]);
+  }, [projectId, elementId, portraitAssetId, t]);
+
+  const handleRetryPortraitUpload = useCallback(async () => {
+    if (!projectId || !elementId) return;
+    setPortraitErrorState(null);
+
+    try {
+      await retryAssetUploadForOwner(projectId, 'element', elementId);
+    } catch (error) {
+      log.error('Failed to retry element portrait upload:', error);
+      setPortraitErrorState({
+        elementId,
+        assetId: portraitAssetId,
+        message: t('elementEditor.portrait.uploadFailed'),
+      });
+    }
+  }, [projectId, elementId, portraitAssetId, t]);
 
   const handleRemovePortrait = useCallback(async () => {
     if (!projectId || !elementId || !portraitAssetId) return;
@@ -600,6 +554,9 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
     });
 
     try {
+      await cancelAssetUploadForOwner(projectId, 'element', elementId, undefined, {
+        deletePreviousAsset: true,
+      });
       await updateElement(elementId, { portraitAssetId: null });
       void Promise.allSettled([
         projectAssetService.deleteAsset(projectId, assetId),
@@ -889,7 +846,16 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                     </div>
                     {portraitError && (
                       <div className="elem-portrait__error" role="alert">
-                        {portraitError}
+                        <span>{portraitError}</span>
+                        {portraitUploadState?.state === 'failed' && (
+                          <button
+                            type="button"
+                            className="elem-portrait__retry"
+                            onClick={() => void handleRetryPortraitUpload()}
+                          >
+                            {t('common.retry')}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

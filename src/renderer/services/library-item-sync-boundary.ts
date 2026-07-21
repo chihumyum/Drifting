@@ -35,6 +35,21 @@ export function libraryItemServerPayload(item: LibraryItem): Record<string, unkn
 }
 
 /**
+ * Server-visible owner row required before a library asset can be allocated.
+ * Device paths (including a file:// URI/thumbnail) remain local until the R2
+ * asset is complete; the final library update replaces this placeholder.
+ */
+export function libraryItemUploadPlaceholderPayload(item: LibraryItem): Record<string, unknown> {
+  return {
+    ...libraryItemServerPayload(item),
+    source: 'local',
+    uri: '',
+    assetId: null,
+    thumbnailUri: null,
+  };
+}
+
+/**
  * Overlay the only persisted device-local library field on a remote graph.
  *
  * Existing rows keep the path already known by this device. Rows first seen

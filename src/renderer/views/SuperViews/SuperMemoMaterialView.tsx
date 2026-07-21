@@ -358,12 +358,20 @@ export function SuperMemoMaterialView() {
           onCancel={() => setComposeOpen(null)}
           onCreate={async (input, relations) => {
             const mat = await libraryItemUsecases.createLibraryItem(input);
-            await Promise.all(
+            const relationResults = await Promise.allSettled(
               relations.map((t) =>
                 relationUsecases.addRelation('library_item', mat.id, t.kind, t.id),
               ),
             );
-            setComposeOpen(null);
+            const failedRelations = relationResults.filter(
+              (result) => result.status === 'rejected',
+            );
+            if (failedRelations.length > 0) {
+              console.warn(
+                '[material] material created, but some relations failed:',
+                failedRelations,
+              );
+            }
           }}
         />
       )}
@@ -1047,6 +1055,7 @@ function KindGroup({
             onOpenInApp={() => openLibraryItemInApp(mat)}
             onUpdate={(updates) => libraryItemUsecases.updateLibraryItem(mat.id, updates)}
             onDelete={() => libraryItemUsecases.removeLibraryItem(mat.id)}
+            onRetryUpload={() => libraryItemUsecases.retryLibraryItemUpload(mat.id)}
             onAddRelation={(t) =>
               relationUsecases.addRelation('library_item', mat.id, t.kind, t.id)
             }
@@ -1256,6 +1265,7 @@ function BottomDrawer({
                   onOpenInApp={() => openLibraryItemInApp(mat)}
                   onUpdate={(updates) => libraryItemUsecases.updateLibraryItem(mat.id, updates)}
                   onDelete={() => libraryItemUsecases.removeLibraryItem(mat.id)}
+                  onRetryUpload={() => libraryItemUsecases.retryLibraryItemUpload(mat.id)}
                   onAddRelation={(t) =>
                     relationUsecases.addRelation('library_item', mat.id, t.kind, t.id)
                   }

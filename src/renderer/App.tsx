@@ -72,6 +72,7 @@ import { EditorShell } from './views/EditorShell';
 import { isAuthRequired } from './lib/config';
 import { pullAndHydrateProjectGraph } from './services/entity-sync.service';
 import { rebuildProjectInlineReferenceIndex } from './services/reference-index.service';
+import { resumeProjectAssetUploads } from './services/durable-asset-upload.service';
 import { platform } from './platform';
 import { getPlatformRuntime } from './platform/runtime';
 import { flushApplicationPersistenceForLifecycle } from './lib/persistence-lifecycle';
@@ -406,6 +407,16 @@ function Layout() {
     startSyncObserver();
   }, []);
 
+  useEffect(() => {
+    const resumeUploads = () => {
+      void resumeProjectAssetUploads(projectId).catch((error) => {
+        log.warn('[App] Durable asset upload resume failed:', error);
+      });
+    };
+    window.addEventListener('online', resumeUploads);
+    return () => window.removeEventListener('online', resumeUploads);
+  }, [projectId]);
+
   // Auto-hide editor scrollbar: show only while actively scrolling, fade
   // back out after idle. Listens at document capture (scroll doesn't bubble)
   // and tags any `.editor-scroll` element with `.is-scrolling` plus a small
@@ -483,9 +494,16 @@ function Layout() {
         events.emit('db:ready');
         log.info('[App] Database ready for project:', projectId);
         setBootState({ key: bootKey, status: 'ready' });
-        void pullAndHydrateProjectGraph(projectId).catch((error) => {
-          log.warn('[App] Project graph hydrate failed:', error);
-        });
+        void pullAndHydrateProjectGraph(projectId)
+          .catch((error) => {
+            log.warn('[App] Project graph hydrate failed:', error);
+          })
+          .finally(() => {
+            if (!active) return;
+            void resumeProjectAssetUploads(projectId).catch((error) => {
+              log.warn('[App] Durable asset upload resume failed:', error);
+            });
+          });
         // Settings cross-device sync. Independent of project state, but we
         // wait until auth+db are ready so we know cookies are set and the
         // store has had a chance to hydrate from localStorage.

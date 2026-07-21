@@ -24,6 +24,7 @@ import {
   StorylineTable,
 } from '../schema/drizzle';
 import LogLevel from 'loglevel';
+import { cancelAssetUploadsForProjectDeletion } from '../services/durable-asset-upload.service';
 const log = LogLevel.getLogger('UseProject');
 log.setLevel(LogLevel.levels.WARN);
 
@@ -446,6 +447,7 @@ export function useProject({ userId }: UseProjectContext) {
   const deleteProject = useCallback(
     async (id: string): Promise<boolean> => {
       await ensureDb();
+      await cancelAssetUploadsForProjectDeletion(id);
       return withAtomicSyncTransaction(id, async (tx, sync) => {
         const ok = await createProjectRepository(userId, tx).delete(id);
         if (ok) await sync('project', 'delete', id, id);

@@ -327,6 +327,7 @@ export function LibraryPanel({ focused }: Props) {
             onOpenInApp={() => openLibraryItemInApp(mat)}
             onUpdate={(updates) => libraryItemUsecases.updateLibraryItem(mat.id, updates)}
             onDelete={() => libraryItemUsecases.removeLibraryItem(mat.id)}
+            onRetryUpload={() => libraryItemUsecases.retryLibraryItemUpload(mat.id)}
             onAddRelation={(t) =>
               relationUsecases.addRelation('library_item', mat.id, t.kind, t.id)
             }
@@ -350,12 +351,20 @@ export function LibraryPanel({ focused }: Props) {
           onCancel={() => setComposeOpen(false)}
           onCreate={async (input, relations) => {
             const mat = await libraryItemUsecases.createLibraryItem(input);
-            await Promise.all(
+            const relationResults = await Promise.allSettled(
               relations.map((t) =>
                 relationUsecases.addRelation('library_item', mat.id, t.kind, t.id),
               ),
             );
-            setComposeOpen(false);
+            const failedRelations = relationResults.filter(
+              (result) => result.status === 'rejected',
+            );
+            if (failedRelations.length > 0) {
+              console.warn(
+                '[material] material created, but some relations failed:',
+                failedRelations,
+              );
+            }
           }}
         />
       )}
@@ -917,6 +926,7 @@ export function LibraryItemCard({
   onOpenInApp,
   onUpdate,
   onDelete,
+  onRetryUpload,
   onAddRelation,
   onRemoveRelation,
   defaultExpanded = false,
@@ -932,6 +942,7 @@ export function LibraryItemCard({
   onOpenInApp: () => void;
   onUpdate: (updates: Partial<LibraryItem>) => void;
   onDelete: () => void;
+  onRetryUpload: () => void;
   onAddRelation: (t: RelationTarget) => void;
   onRemoveRelation: (t: RelationTarget) => void;
   /** Pre-expand image / text bodies on mount. Used by the global super view
@@ -1200,16 +1211,39 @@ export function LibraryItemCard({
                     fontFamily: 'var(--font-mono)',
                     fontSize: 10,
                     color: uploadFailed ? 'hsl(var(--danger, var(--accent)))' : 'hsl(var(--ink-4))',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    minWidth: 0,
                   }}
                 >
-                  {uploadBusy
-                    ? t('memoMaterial.upload.uploading')
-                    : uploadFailed
-                      ? t('memoMaterial.upload.failed')
-                      : subtitle}
+                  <span
+                    style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  >
+                    {uploadBusy
+                      ? t('memoMaterial.upload.uploading')
+                      : uploadFailed
+                        ? t('memoMaterial.upload.failed')
+                        : subtitle}
+                  </span>
+                  {uploadFailed && (
+                    <button
+                      type="button"
+                      onClick={onRetryUpload}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        padding: 0,
+                        color: 'inherit',
+                        font: 'inherit',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {t('common.retry')}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -2444,6 +2478,10 @@ export function ComposeLibraryItemDialog({
   const [resolving, setResolving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const titleAutoFilled = useRef(false);
+  const ownedImportPathRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  const submitInFlightRef = useRef(false);
+  const pickerInFlightRef = useRef(false);
   const [relations, setRelations] = useState<RelationTarget[]>(() =>
     // Pre-fill the new comment / library item with the currently-focused entity, but
     // only when it's a valid relation target (structural). If the user is
@@ -2457,6 +2495,35 @@ export function ComposeLibraryItemDialog({
     () => new Set(relations.map((r) => `${r.kind}:${r.id}`)),
     [relations],
   );
+
+  const deleteOwnedImport = useCallback(async () => {
+    const filePath = ownedImportPathRef.current;
+    if (!filePath) return;
+    const deleted = await platform.material.deleteImport(filePath);
+    if (!deleted.ok) throw new Error(deleted.error);
+    if (ownedImportPathRef.current === filePath) ownedImportPathRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (submitInFlightRef.current) return;
+      const filePath = ownedImportPathRef.current;
+      ownedImportPathRef.current = null;
+      if (!filePath) return;
+      void platform.material
+        .deleteImport(filePath)
+        .then((deleted) => {
+          if (!deleted.ok) {
+            console.warn('[material] failed to clean abandoned picker import:', deleted.error);
+          }
+        })
+        .catch((error) => {
+          console.warn('[material] failed to clean abandoned picker import:', error);
+        });
+    };
+  }, []);
 
   // Debounce-resolve the URL meta as the user pastes / types. Pre-fills the
   // title if the user hasn't typed one (or only kept the value we auto-filled),
@@ -2501,6 +2568,9 @@ export function ComposeLibraryItemDialog({
   }, [url, kind]);
 
   const pickFile = async (pickerKind: 'image' | 'pdf' | 'any') => {
+    if (submitting || pickerInFlightRef.current) return;
+    pickerInFlightRef.current = true;
+    let unownedPickedPath: string | null = null;
     try {
       const res = await platform.material.pickFile(pickerKind);
       if (!res.ok) {
@@ -2515,12 +2585,61 @@ export function ComposeLibraryItemDialog({
         }
         return;
       }
+      unownedPickedPath = res.filePath;
+      if (!mountedRef.current) return;
+      const previousPath = ownedImportPathRef.current;
+      if (previousPath && previousPath !== res.filePath) {
+        const deleted = await platform.material.deleteImport(previousPath);
+        if (!deleted.ok) throw new Error(deleted.error);
+        if (!mountedRef.current) return;
+      }
+      ownedImportPathRef.current = res.filePath;
+      unownedPickedPath = null;
       setLocalPath(res.filePath);
       setSizeBytes(res.sizeBytes);
       if (!title) {
         const name = res.filePath.split(/[\\/]/).pop() ?? '';
         setTitle(name);
       }
+    } catch (error) {
+      alert(
+        t('memoMaterial.error.pickFailed', {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    } finally {
+      if (unownedPickedPath) {
+        const discarded = await platform.material.deleteImport(unownedPickedPath).catch(() => null);
+        if (discarded && !discarded.ok) {
+          console.warn('[material] failed to discard replacement picker import:', discarded.error);
+        }
+      }
+      pickerInFlightRef.current = false;
+    }
+  };
+
+  const selectKind = async (nextKind: LibraryItemKind) => {
+    if (nextKind === kind || submitting || pickerInFlightRef.current) return;
+    try {
+      await deleteOwnedImport();
+      if (!mountedRef.current) return;
+      setLocalPath(null);
+      setSizeBytes(null);
+      setKind(nextKind);
+    } catch (error) {
+      alert(
+        t('memoMaterial.error.pickFailed', {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
+  };
+
+  const cancel = async () => {
+    if (submitting || pickerInFlightRef.current) return;
+    try {
+      await deleteOwnedImport();
+      if (mountedRef.current) onCancel();
     } catch (error) {
       alert(
         t('memoMaterial.error.pickFailed', {
@@ -2540,9 +2659,11 @@ export function ComposeLibraryItemDialog({
 
   const submit = async () => {
     if (!canSubmit || submitting) return;
+    submitInFlightRef.current = true;
     setSubmitting(true);
     try {
       if (kind === 'url') {
+        await deleteOwnedImport();
         const trimmedUrl = url.trim();
         // If the debounce hasn't fired yet, resolve once more synchronously so
         // the title / thumbnail are present at create time.
@@ -2561,6 +2682,7 @@ export function ComposeLibraryItemDialog({
           },
           relations,
         );
+        onCancel();
         return;
       }
       if (kind === 'image' || kind === 'pdf') {
@@ -2576,10 +2698,13 @@ export function ComposeLibraryItemDialog({
           },
           relations,
         );
+        if (ownedImportPathRef.current === localPath) ownedImportPathRef.current = null;
+        onCancel();
         return;
       }
       // text snippet — title + plain-text body. Body is editable inline on the
       // card after create; this is just the initial seed.
+      await deleteOwnedImport();
       await onCreate(
         {
           title: title.trim() || t('common.untitled'),
@@ -2590,6 +2715,7 @@ export function ComposeLibraryItemDialog({
         },
         relations,
       );
+      onCancel();
     } catch (error) {
       console.warn('[material] create failed:', error);
       alert(
@@ -2598,15 +2724,33 @@ export function ComposeLibraryItemDialog({
         }),
       );
     } finally {
-      setSubmitting(false);
+      submitInFlightRef.current = false;
+      if (mountedRef.current) {
+        setSubmitting(false);
+      } else {
+        const abandonedPath = ownedImportPathRef.current;
+        ownedImportPathRef.current = null;
+        if (abandonedPath) {
+          void platform.material
+            .deleteImport(abandonedPath)
+            .then((deleted) => {
+              if (!deleted.ok) {
+                console.warn('[material] failed to clean abandoned picker import:', deleted.error);
+              }
+            })
+            .catch((error) => {
+              console.warn('[material] failed to clean abandoned picker import:', error);
+            });
+        }
+      }
     }
   };
 
   return (
-    <DialogShell title={t('memoMaterial.dialog.newMaterial')} onCancel={onCancel}>
+    <DialogShell title={t('memoMaterial.dialog.newMaterial')} onCancel={() => void cancel()}>
       <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
         {(['url', 'image', 'pdf', 'text'] as LibraryItemKind[]).map((k) => (
-          <FilterPill key={k} active={kind === k} onClick={() => setKind(k)}>
+          <FilterPill key={k} active={kind === k} onClick={() => void selectKind(k)}>
             {t(`memoMaterial.kind.${k}`, { defaultValue: k })}
           </FilterPill>
         ))}
@@ -2693,6 +2837,7 @@ export function ComposeLibraryItemDialog({
         <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
             onClick={() => pickFile(kind === 'image' ? 'image' : 'pdf')}
+            disabled={submitting}
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
@@ -2754,7 +2899,7 @@ export function ComposeLibraryItemDialog({
       </div>
 
       <DialogActions
-        onCancel={onCancel}
+        onCancel={() => void cancel()}
         onConfirm={() => void submit()}
         confirmDisabled={!canSubmit || submitting}
       />

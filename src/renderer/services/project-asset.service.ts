@@ -4,6 +4,7 @@ import type { ProjectAsset } from '../domain/project-asset';
 export type AssetVariant = 'source' | 'display' | 'thumbnail';
 
 export interface ElementPortraitUploadInput {
+  uploadId: string;
   elementId: string;
   sourceMime: string;
   sourceSizeBytes: number;
@@ -15,16 +16,26 @@ export interface ElementPortraitUploadInput {
   height: number | null;
 }
 
-export interface ElementPortraitUploadResponse {
-  asset: ProjectAsset;
-  uploads: {
-    source: { url: string; contentType: string; objectKey: string };
-    display: { url: string; contentType: string; objectKey: string };
-    thumbnail: { url: string; contentType: string; objectKey: string };
-  };
-}
+type ElementPortraitUploads = {
+  source: { url: string; contentType: string; objectKey: string };
+  display: { url: string; contentType: string; objectKey: string };
+  thumbnail: { url: string; contentType: string; objectKey: string };
+};
+
+export type ElementPortraitUploadResponse =
+  | {
+      asset: ProjectAsset;
+      uploadState: 'pending';
+      uploads: ElementPortraitUploads;
+    }
+  | {
+      asset: ProjectAsset;
+      uploadState: 'ready';
+      uploads: null;
+    };
 
 export interface LibraryMaterialUploadInput {
+  uploadId: string;
   libraryItemId: string;
   kind: 'image' | 'pdf';
   sourceMime: string;
@@ -38,14 +49,23 @@ export interface LibraryMaterialUploadInput {
   height?: number | null;
 }
 
-export interface LibraryMaterialUploadResponse {
-  asset: ProjectAsset;
-  uploads: {
-    source: { url: string; contentType: string; objectKey: string };
-    display: { url: string; contentType: string; objectKey: string } | null;
-    thumbnail: { url: string; contentType: string; objectKey: string };
-  };
-}
+type LibraryMaterialUploads = {
+  source: { url: string; contentType: string; objectKey: string };
+  display: { url: string; contentType: string; objectKey: string } | null;
+  thumbnail: { url: string; contentType: string; objectKey: string };
+};
+
+export type LibraryMaterialUploadResponse =
+  | {
+      asset: ProjectAsset;
+      uploadState: 'pending';
+      uploads: LibraryMaterialUploads;
+    }
+  | {
+      asset: ProjectAsset;
+      uploadState: 'ready';
+      uploads: null;
+    };
 
 function dateText(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
@@ -105,9 +125,20 @@ export const projectAssetService = {
   ): Promise<ElementPortraitUploadResponse> {
     const { data } = await apiClient.post<{
       asset: Record<string, unknown>;
-      uploads: ElementPortraitUploadResponse['uploads'];
+      uploadState: 'pending' | 'ready';
+      uploads: ElementPortraitUploads | null;
     }>(`/api/projects/${projectId}/assets/element-portrait-upload`, input);
-    return { asset: normalizeProjectAsset(data.asset), uploads: data.uploads };
+    const asset = normalizeProjectAsset(data.asset);
+    if (data.uploadState === 'ready') {
+      if (data.uploads !== null || asset.status !== 'ready') {
+        throw new Error('Ready portrait upload response is inconsistent');
+      }
+      return { asset, uploadState: 'ready', uploads: null };
+    }
+    if (data.uploadState !== 'pending' || !data.uploads || asset.status !== 'pending') {
+      throw new Error('Pending portrait upload response is inconsistent');
+    }
+    return { asset, uploadState: 'pending', uploads: data.uploads };
   },
 
   async createLibraryMaterialUpload(
@@ -116,9 +147,20 @@ export const projectAssetService = {
   ): Promise<LibraryMaterialUploadResponse> {
     const { data } = await apiClient.post<{
       asset: Record<string, unknown>;
-      uploads: LibraryMaterialUploadResponse['uploads'];
+      uploadState: 'pending' | 'ready';
+      uploads: LibraryMaterialUploads | null;
     }>(`/api/projects/${projectId}/assets/library-material-upload`, input);
-    return { asset: normalizeProjectAsset(data.asset), uploads: data.uploads };
+    const asset = normalizeProjectAsset(data.asset);
+    if (data.uploadState === 'ready') {
+      if (data.uploads !== null || asset.status !== 'ready') {
+        throw new Error('Ready material upload response is inconsistent');
+      }
+      return { asset, uploadState: 'ready', uploads: null };
+    }
+    if (data.uploadState !== 'pending' || !data.uploads || asset.status !== 'pending') {
+      throw new Error('Pending material upload response is inconsistent');
+    }
+    return { asset, uploadState: 'pending', uploads: data.uploads };
   },
 
   async uploadToSignedUrl(url: string, bytes: ArrayBuffer | Uint8Array, contentType: string) {

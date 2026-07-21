@@ -414,6 +414,13 @@
       "when": 1784300000000,
       "tag": "0058_generalize_project_asset_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "6",
+      "when": 1784400000000,
+      "tag": "0059_durable_asset_upload_job",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@ import type { BookNode } from '../domain/book-node';
 import { normalizeBookNode } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { ProjectAsset } from '../domain/project-asset';
+import type { AssetUploadUiState } from '../domain/asset-upload-job';
 import type { LibraryItem } from '../domain/library-item';
 import type { Comment, CommentAction } from '../domain/comment';
 import type { ShadowJob } from '../domain/shadow-job';
@@ -33,9 +34,7 @@ export interface EntityRelationLink {
 // happen to share a uuid don't collide.
 export const trashedKey = (kind: EntityKind, id: string): string => `${kind}:${id}`;
 
-export type LibraryItemUploadState =
-  | { state: 'uploading' }
-  | { state: 'failed'; error: string };
+export type LibraryItemUploadState = AssetUploadUiState;
 
 interface DataState {
   storylines: Storyline[];
@@ -101,12 +100,19 @@ interface DataState {
 
   libraryItems: LibraryItem[];
   libraryItemUploadStates: Record<string, LibraryItemUploadState>;
+  elementPortraitUploadStates: Record<string, AssetUploadUiState>;
   setLibraryItems: (items: LibraryItem[]) => void;
   addLibraryItem: (item: LibraryItem) => void;
   updateLibraryItem: (id: string, updates: Partial<LibraryItem>) => void;
   removeLibraryItem: (id: string) => void;
   setLibraryItemUploadState: (id: string, state: LibraryItemUploadState) => void;
   clearLibraryItemUploadState: (id: string) => void;
+  setElementPortraitUploadState: (id: string, state: AssetUploadUiState) => void;
+  clearElementPortraitUploadState: (id: string) => void;
+  replaceAssetUploadStates: (
+    library: Record<string, LibraryItemUploadState>,
+    portraits: Record<string, AssetUploadUiState>,
+  ) => void;
 
   comments: Comment[];
   setComments: (comments: Comment[]) => void;
@@ -359,6 +365,7 @@ export const useDataStore = create<DataState>((set) => ({
 
   libraryItems: [],
   libraryItemUploadStates: {},
+  elementPortraitUploadStates: {},
   setLibraryItems: (libraryItems) => set({ libraryItems }),
   addLibraryItem: (item) => set((state) => ({ libraryItems: [item, ...state.libraryItems] })),
   updateLibraryItem: (id, updates) =>
@@ -385,6 +392,22 @@ export const useDataStore = create<DataState>((set) => ({
       delete nextUploadStates[id];
       return { libraryItemUploadStates: nextUploadStates };
     }),
+  setElementPortraitUploadState: (id, uploadState) =>
+    set((state) => ({
+      elementPortraitUploadStates: {
+        ...state.elementPortraitUploadStates,
+        [id]: uploadState,
+      },
+    })),
+  clearElementPortraitUploadState: (id) =>
+    set((state) => {
+      if (!state.elementPortraitUploadStates[id]) return {};
+      const nextUploadStates = { ...state.elementPortraitUploadStates };
+      delete nextUploadStates[id];
+      return { elementPortraitUploadStates: nextUploadStates };
+    }),
+  replaceAssetUploadStates: (libraryItemUploadStates, elementPortraitUploadStates) =>
+    set({ libraryItemUploadStates, elementPortraitUploadStates }),
 
   comments: [],
   setComments: (comments) => set({ comments }),

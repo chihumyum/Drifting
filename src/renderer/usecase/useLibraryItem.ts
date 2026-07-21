@@ -5,12 +5,22 @@ import type { LibraryItem, LibraryItemKind, LibraryItemSource } from '../domain/
 import { createLibraryItemSqliteRepository } from '../sqlite-repo/library-item-repo';
 import { createProjectAssetSqliteRepository } from '../sqlite-repo/project-asset-repo';
 import { projectAssetService } from '../services/project-asset.service';
-import { assetCacheService, extForMime } from '../services/asset-cache.service';
+import { assetCacheService } from '../services/asset-cache.service';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
-import { platform } from '../platform';
 import { withAtomicSyncTransaction } from './sync-helpers';
-import { libraryItemServerPayload } from '../services/library-item-sync-boundary';
+import {
+  libraryItemServerPayload,
+  libraryItemUploadPlaceholderPayload,
+} from '../services/library-item-sync-boundary';
+import {
+  cancelAssetUploadForOwner,
+  hydrateAssetUploadStates,
+  insertAssetUploadJobInTransaction,
+  makeLibraryMaterialUploadJob,
+  retryAssetUploadForOwner,
+  startAssetUploadJob,
+} from '../services/durable-asset-upload.service';
 
 export interface CreateLibraryItemInput {
   title?: string;
@@ -43,10 +53,6 @@ function shouldUploadLibraryMaterial(input: CreateLibraryItemInput): boolean {
   );
 }
 
-function uploadErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
   if (!projectId) throw new Error('useLibraryItem requires a projectId');
   if (!userId) throw new Error('useLibraryItem requires a userId');
@@ -63,16 +69,6 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
     [],
   );
 
-  const upsertLocalAsset = useCallback(
-    async (asset: Awaited<ReturnType<typeof projectAssetService.completeUpload>>) => {
-      await ensureDb();
-      const persisted = await assetRepo.upsert(asset);
-      useDataStore.getState().upsertProjectAsset(persisted);
-      return persisted;
-    },
-    [assetRepo, ensureDb],
-  );
-
   const removeLocalAsset = useCallback(
     async (assetId: string) => {
       await ensureDb();
@@ -84,260 +80,9 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
 
   const loadInitial = useCallback(async () => {
     await ensureDb();
-    const items = await repo.findAll();
+    const [items] = await Promise.all([repo.findAll(), hydrateAssetUploadStates(projectId)]);
     setItems(items);
-  }, [repo, setItems, ensureDb]);
-
-  const cleanupUploadedAsset = useCallback(
-    (assetId: string) => {
-      void Promise.allSettled([
-        projectAssetService.deleteAsset(projectId, assetId),
-        removeLocalAsset(assetId),
-        assetCacheService.deleteAsset(projectId, assetId),
-      ]);
-    },
-    [projectId, removeLocalAsset],
-  );
-
-  const uploadLibraryMaterialAsset = useCallback(
-    async (initialItem: LibraryItem, input: CreateLibraryItemInput) => {
-      if (!input.localPath || (input.kind !== 'image' && input.kind !== 'pdf')) return;
-
-      const localPath = input.localPath;
-      let createdAssetId: string | null = null;
-      try {
-        let readyAsset: Awaited<ReturnType<typeof projectAssetService.completeUpload>>;
-        let mime: string;
-        let sizeBytes: number | null;
-
-        if (input.kind === 'image') {
-          const prepared = await platform.material.prepareImage(localPath);
-          if (!prepared.ok) throw new Error(prepared.error);
-          const { source: inspection, display, thumbnail } = prepared;
-
-          const upload = await projectAssetService.createLibraryMaterialUpload(projectId, {
-            libraryItemId: initialItem.id,
-            kind: 'image',
-            sourceMime: inspection.mime,
-            sourceSizeBytes: inspection.sizeBytes,
-            displayMime: display.mime,
-            displaySizeBytes: display.sizeBytes,
-            thumbnailMime: thumbnail.mime,
-            thumbnailSizeBytes: thumbnail.sizeBytes,
-            width: inspection.width,
-            height: inspection.height,
-          });
-          createdAssetId = upload.asset.id;
-          await upsertLocalAsset(upload.asset);
-
-          const sourceExt = extForMime(inspection.mime, 'png');
-          await Promise.all([
-            assetCacheService.copyFile(projectId, upload.asset.id, 'source', sourceExt, localPath),
-            assetCacheService.writeBytes(
-              projectId,
-              upload.asset.id,
-              'display',
-              'jpg',
-              display.bytes,
-            ),
-            assetCacheService.writeBytes(
-              projectId,
-              upload.asset.id,
-              'thumbnail',
-              'jpg',
-              thumbnail.bytes,
-            ),
-          ]);
-
-          await Promise.all([
-            assetCacheService.uploadFile({
-              url: upload.uploads.source.url,
-              projectId,
-              assetId: upload.asset.id,
-              variant: 'source',
-              ext: sourceExt,
-              contentType: upload.uploads.source.contentType,
-            }),
-            upload.uploads.display
-              ? assetCacheService.uploadFile({
-                  url: upload.uploads.display.url,
-                  projectId,
-                  assetId: upload.asset.id,
-                  variant: 'display',
-                  ext: 'jpg',
-                  contentType: upload.uploads.display.contentType,
-                })
-              : Promise.resolve(0),
-            assetCacheService.uploadFile({
-              url: upload.uploads.thumbnail.url,
-              projectId,
-              assetId: upload.asset.id,
-              variant: 'thumbnail',
-              ext: 'jpg',
-              contentType: upload.uploads.thumbnail.contentType,
-            }),
-          ]);
-
-          readyAsset = await projectAssetService.completeUpload(projectId, upload.asset.id);
-          await upsertLocalAsset(readyAsset);
-          mime = inspection.mime;
-          sizeBytes = inspection.sizeBytes;
-        } else {
-          const sourceMime = 'application/pdf';
-          let sourceSizeBytes = input.sizeBytes ?? null;
-          if (sourceSizeBytes == null) {
-            const sourceBytes = await platform.material.readBytes(localPath);
-            if (!sourceBytes.ok) throw new Error(sourceBytes.error);
-            sourceSizeBytes = sourceBytes.bytes.byteLength;
-          }
-
-          const thumbnail = await platform.material.createThumbnailVariant(localPath, 512, 72);
-          if (!thumbnail.ok) throw new Error(thumbnail.error);
-
-          const upload = await projectAssetService.createLibraryMaterialUpload(projectId, {
-            libraryItemId: initialItem.id,
-            kind: 'pdf',
-            sourceMime,
-            sourceSizeBytes,
-            displayMime: null,
-            displaySizeBytes: null,
-            thumbnailMime: thumbnail.mime,
-            thumbnailSizeBytes: thumbnail.sizeBytes,
-            width: null,
-            height: null,
-          });
-          createdAssetId = upload.asset.id;
-          await upsertLocalAsset(upload.asset);
-
-          await Promise.all([
-            assetCacheService.copyFile(projectId, upload.asset.id, 'source', 'pdf', localPath),
-            assetCacheService.writeBytes(
-              projectId,
-              upload.asset.id,
-              'thumbnail',
-              'jpg',
-              thumbnail.bytes,
-            ),
-          ]);
-
-          await Promise.all([
-            assetCacheService.uploadFile({
-              url: upload.uploads.source.url,
-              projectId,
-              assetId: upload.asset.id,
-              variant: 'source',
-              ext: 'pdf',
-              contentType: upload.uploads.source.contentType,
-            }),
-            assetCacheService.uploadFile({
-              url: upload.uploads.thumbnail.url,
-              projectId,
-              assetId: upload.asset.id,
-              variant: 'thumbnail',
-              ext: 'jpg',
-              contentType: upload.uploads.thumbnail.contentType,
-            }),
-          ]);
-
-          readyAsset = await projectAssetService.completeUpload(projectId, upload.asset.id);
-          await upsertLocalAsset(readyAsset);
-          mime = sourceMime;
-          sizeBytes = sourceSizeBytes;
-        }
-
-        const currentItem =
-          getItems().find((item) => item.id === initialItem.id) ??
-          (await repo.findById(initialItem.id));
-        if (!currentItem) {
-          cleanupUploadedAsset(readyAsset.id);
-          useDataStore.getState().clearLibraryItemUploadState(initialItem.id);
-          return;
-        }
-
-        const updatedAt = new Date().toISOString();
-        const relations = useDataStore
-          .getState()
-          .entityRelations.filter(
-            (relation) =>
-              relation.fromKind === 'library_item' && relation.fromId === initialItem.id,
-          );
-        const persisted = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
-          const result = await createLibraryItemSqliteRepository(projectId, tx).update(
-            initialItem.id,
-            {
-              source: 'r2',
-              uri: `asset://${readyAsset.id}`,
-              localPath: null,
-              assetId: readyAsset.id,
-              mime,
-              sizeBytes,
-              thumbnailUri: null,
-              updatedAt,
-            },
-          );
-          if (!result) return null;
-          await sync(
-            'libraryItem',
-            'create',
-            result.id,
-            projectId,
-            libraryItemServerPayload(result),
-          );
-          for (const relation of relations) {
-            await sync('entityRelation', 'create', relation.id, projectId, {
-              id: relation.id,
-              fromKind: relation.fromKind,
-              fromId: relation.fromId,
-              toKind: relation.toKind,
-              toId: relation.toId,
-              kind: relation.kind,
-            });
-          }
-          return result;
-        });
-        if (!persisted) {
-          cleanupUploadedAsset(readyAsset.id);
-          useDataStore.getState().clearLibraryItemUploadState(initialItem.id);
-          return;
-        }
-
-        const latest = getItems();
-        if (!latest.some((item) => item.id === initialItem.id)) {
-          await withAtomicSyncTransaction(projectId, async (tx, sync) => {
-            await createLibraryItemSqliteRepository(projectId, tx).delete(initialItem.id);
-            await sync('libraryItem', 'delete', initialItem.id, projectId);
-          }).catch(() => undefined);
-          cleanupUploadedAsset(readyAsset.id);
-          useDataStore.getState().clearLibraryItemUploadState(initialItem.id);
-          return;
-        }
-
-        setItems(latest.map((item) => (item.id === initialItem.id ? persisted : item)));
-        useDataStore.getState().clearLibraryItemUploadState(initialItem.id);
-      } catch (error) {
-        if (createdAssetId) {
-          cleanupUploadedAsset(createdAssetId);
-        }
-        if (getItems().some((item) => item.id === initialItem.id)) {
-          useDataStore.getState().setLibraryItemUploadState(initialItem.id, {
-            state: 'failed',
-            error: uploadErrorMessage(error),
-          });
-        } else {
-          useDataStore.getState().clearLibraryItemUploadState(initialItem.id);
-        }
-        console.warn('[material] async upload failed:', error);
-      }
-    },
-    [
-      repo,
-      getItems,
-      setItems,
-      projectId,
-      upsertLocalAsset,
-      cleanupUploadedAsset,
-    ],
-  );
+  }, [repo, setItems, ensureDb, projectId]);
 
   const createLibraryItem = useCallback(
     async (input: CreateLibraryItemInput) => {
@@ -365,7 +110,7 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
         updatedAt: now,
       };
 
-      return withOptimisticUpdate({
+      const result = await withOptimisticUpdate({
         apply: () => {
           setItems([newItem, ...prev]);
           if (uploadToR2) {
@@ -380,28 +125,42 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
         },
         effect: () =>
           withAtomicSyncTransaction(projectId, async (tx, sync) => {
-            const persisted = await createLibraryItemSqliteRepository(projectId, tx).create(newItem);
-            if (!uploadToR2) {
-              await sync(
-                'libraryItem',
-                'create',
-                persisted.id,
-                projectId,
-                libraryItemServerPayload(persisted),
-              );
-            }
-            return persisted;
+            const persisted = await createLibraryItemSqliteRepository(projectId, tx).create(
+              newItem,
+            );
+            const job =
+              uploadToR2 && input.localPath && (input.kind === 'image' || input.kind === 'pdf')
+                ? await insertAssetUploadJobInTransaction(
+                    tx,
+                    makeLibraryMaterialUploadJob({
+                      projectId,
+                      libraryItemId: persisted.id,
+                      kind: input.kind,
+                      sourcePath: input.localPath,
+                      sourceSizeBytes: input.sizeBytes,
+                    }),
+                  )
+                : null;
+            await sync(
+              'libraryItem',
+              'create',
+              persisted.id,
+              projectId,
+              job
+                ? libraryItemUploadPlaceholderPayload(persisted)
+                : libraryItemServerPayload(persisted),
+            );
+            return { item: persisted, job };
           }),
-        onSuccess: (persisted) => {
+        onSuccess: ({ item: persisted, job }) => {
           const current = getItems();
           setItems(current.map((m) => (m.id === persisted.id ? persisted : m)));
-          if (uploadToR2) {
-            void uploadLibraryMaterialAsset(persisted, input);
-          }
+          if (job) startAssetUploadJob(job);
         },
       });
+      return result.item;
     },
-    [getItems, setItems, ensureDb, projectId, uploadLibraryMaterialAsset],
+    [getItems, setItems, ensureDb, projectId],
   );
 
   const updateLibraryItem = useCallback(
@@ -465,7 +224,6 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
 
       const filtered = items.filter((m) => m.id !== id);
       const previousUploadState = useDataStore.getState().libraryItemUploadStates[id] ?? null;
-      const shouldSyncDelete = !previousUploadState;
       const result = await withOptimisticUpdate({
         apply: () => {
           setItems(filtered);
@@ -481,24 +239,49 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
         },
         effect: () =>
           withAtomicSyncTransaction(projectId, async (tx, sync) => {
-            const result = await createLibraryItemSqliteRepository(projectId, tx).delete(id);
-            if (shouldSyncDelete) await sync('libraryItem', 'delete', id, projectId);
-            return result;
+            const canceledJob = await cancelAssetUploadForOwner(
+              projectId,
+              'library_item',
+              id,
+              tx,
+              { deletePreviousAsset: true },
+            );
+            const deleted = await createLibraryItemSqliteRepository(projectId, tx).delete(id);
+            // DELETE is idempotent server-side. Keep it even when the placeholder
+            // create may still be in flight: a lost create response could mean
+            // the row already exists remotely.
+            await sync('libraryItem', 'delete', id, projectId);
+            return { deleted, canceledJob };
           }),
       });
+      if (result.canceledJob) startAssetUploadJob(result.canceledJob);
       if (existing.source === 'r2' && existing.assetId) {
         const assetId = existing.assetId;
         void projectAssetService.deleteAsset(projectId, assetId).catch(() => undefined);
         void assetCacheService.deleteAsset(projectId, assetId).catch(() => undefined);
         void removeLocalAsset(assetId).catch(() => undefined);
       }
-      return result;
+      return result.deleted;
     },
     [getItems, setItems, ensureDb, projectId, removeLocalAsset],
   );
 
+  const retryLibraryItemUpload = useCallback(
+    async (id: string) => {
+      await ensureDb();
+      await retryAssetUploadForOwner(projectId, 'library_item', id);
+    },
+    [ensureDb, projectId],
+  );
+
   return useMemo(
-    () => ({ loadInitial, createLibraryItem, updateLibraryItem, removeLibraryItem }),
-    [loadInitial, createLibraryItem, updateLibraryItem, removeLibraryItem],
+    () => ({
+      loadInitial,
+      createLibraryItem,
+      updateLibraryItem,
+      removeLibraryItem,
+      retryLibraryItemUpload,
+    }),
+    [loadInitial, createLibraryItem, updateLibraryItem, removeLibraryItem, retryLibraryItemUpload],
   );
 }
