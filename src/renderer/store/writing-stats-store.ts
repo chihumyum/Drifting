@@ -40,7 +40,7 @@ interface WritingStatsState {
   getPlan: (projectId: string) => WritingPlan;
 }
 
-const DEFAULT_PROJECT_TARGET = 120000;
+export const DEFAULT_PROJECT_TARGET = 120000;
 const DEFAULT_DAILY_GOAL = 1500;
 
 export function todayKey(d: Date = new Date()): ISODate {

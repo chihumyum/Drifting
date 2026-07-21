@@ -13,6 +13,8 @@ import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats
 import { KvEditor } from '../components/editor/KvEditor';
 import { ShadowRulesSection } from '../components/dashboard/ShadowRulesSection';
 import { isChapter, deriveStatus, type BookNode } from '../domain/book-node';
+import { getPlatformRuntime } from '../platform/runtime';
+import { useSyncObserver } from '../services/sync-observer.service';
 import loglevel from 'loglevel';
 import '../../styles/dashboard.css';
 
@@ -104,6 +106,8 @@ export function ProjectDashboard() {
   } = useDataStore();
   const recentItems = useRecentEntitiesStore((s) => s.items);
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
+  const syncMetrics = useSyncObserver((s) => s.metrics);
+  const appVersion = getPlatformRuntime().appInfo?.version ?? '0.1.0';
 
   // Writing plan + per-day stats are stored alongside settings (localStorage)
   // so they survive app restarts but don't require a SQLite migration.
@@ -186,6 +190,20 @@ export function ProjectDashboard() {
   const dailyGoal = projectPlan.dailyWordGoal || 0;
   const todayGoalPct = dailyGoal > 0 ? Math.min(100, (writingStats.todayWords / dailyGoal) * 100) : 0;
   const projectGoalPct = targetWc > 0 ? Math.min(100, (totalWc / targetWc) * 100) : 0;
+  const syncFooter =
+    syncMetrics.inflight > 0
+      ? t('dashboard.footer.syncing')
+      : syncMetrics.lastFailureAt !== null &&
+          (syncMetrics.lastSuccessAt === null || syncMetrics.lastFailureAt > syncMetrics.lastSuccessAt)
+        ? t('dashboard.footer.syncNeedsAttention')
+        : syncMetrics.lastSuccessAt !== null
+          ? t('dashboard.footer.syncedAt', {
+              time: new Date(syncMetrics.lastSuccessAt).toLocaleTimeString(i18n.language, {
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+            })
+          : t('dashboard.footer.localReady');
 
   // ─── Continue card — most recent node ──────────────────
   const continueNode = useMemo(() => {
@@ -985,10 +1003,9 @@ export function ProjectDashboard() {
 
         {/* ════════ FOOTER ════════ */}
         <footer className="dash-foot">
-          <span>Drifting · v3.2 · draft</span>
+          <span>Drifting · v{appVersion} · pre-alpha</span>
           <span className="dash-foot__ornament">⁂</span>
-          {/* TODO: surface real backup status from the sync subsystem. */}
-          <span>{t('dashboard.footer.backup')}</span>
+          <span>{syncFooter}</span>
         </footer>
       </div>
     </div>

@@ -368,41 +368,6 @@
   cursor: not-allowed;
 }
 
-.si-remember {
-  display: flex; align-items: center; gap: 10px;
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 13px;
-  color: hsl(var(--ink-3));
-  cursor: pointer;
-  user-select: none;
-  margin: 2px 0;
-  white-space: nowrap;
-}
-.si-remember__box {
-  width: 16px; height: 16px;
-  border: 1.5px solid hsl(var(--ink-4));
-  border-radius: 2px;
-  background: hsl(var(--page));
-  position: relative;
-  flex-shrink: 0;
-  transition: border-color 0.12s, background 0.12s;
-}
-.si-remember--on .si-remember__box {
-  border-color: hsl(var(--accent));
-  background: hsl(var(--accent));
-}
-.si-remember--on .si-remember__box::after {
-  content: '✓';
-  position: absolute;
-  inset: 0;
-  display: grid; place-items: center;
-  color: hsl(var(--paper));
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-}
-
 .si-submit {
   margin-top: 8px;
   padding: 14px 18px;

@@ -126,7 +126,16 @@ export function RightSidebarPanels() {
       };
     }
     return { kind: 'none', id: null, title: '—', kicker: '—' };
-  }, [activeTabKey, openTabs, bookNodes, bookElements, storylines, bookElementCategories, t]);
+  }, [
+    activeTabKey,
+    openTabs,
+    bookNodes,
+    bookElements,
+    storylines,
+    bookElementCategories,
+    primaryStorylineByNode,
+    t,
+  ]);
 
   const focusedForPanel: FocusedEntity = useMemo(() => {
     if (!target.kind || target.kind === 'none' || !target.id) {
@@ -1038,8 +1047,6 @@ function ChapterStats({
   const storyline = primaryStorylineId
     ? storylines.find((s) => s.id === primaryStorylineId)
     : undefined;
-  const targetWc = 3000; // placeholder until per-chapter goals exist
-  const wcPct = Math.min(100, (node.wordCount / targetWc) * 100);
   const { stats, elements } = useChapterStatsData(node.id, node.updatedAt);
   const dialoguePct = stats ? Math.round(stats.dialogueRatio * 100) : 0;
   const { openEntity } = useProjectNavigation();
@@ -1088,11 +1095,9 @@ function ChapterStats({
 
       <StatsSection title={t('rightSidebar.stats.wordRhythm')} topBorder>
         <StatsRow
-          k={t('rightSidebar.stats.writtenTarget')}
-          v={`${node.wordCount.toLocaleString()} / ${targetWc.toLocaleString()}`}
-        >
-          <ProgressBar pct={wcPct} />
-        </StatsRow>
+          k={t('rightSidebar.stats.chapterWordCount')}
+          v={node.wordCount.toLocaleString()}
+        />
         <StatsRow
           k={t('rightSidebar.stats.paragraphSentence')}
           v={

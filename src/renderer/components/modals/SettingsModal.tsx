@@ -3766,22 +3766,35 @@ function SyncSummaryRow() {
   const metrics = useSyncObserver((s) => s.metrics);
   const last = metrics.lastSuccessAt ? new Date(metrics.lastSuccessAt).toLocaleTimeString() : '—';
   const successPct = Math.round(metrics.successRate * 100);
+  const latestAttemptFailed =
+    metrics.lastFailureAt !== null &&
+    (metrics.lastSuccessAt === null || metrics.lastFailureAt > metrics.lastSuccessAt);
+  const status =
+    metrics.inflight > 0
+      ? t('settings.sync.syncing')
+      : latestAttemptFailed
+        ? t('settings.sync.needs_attention')
+        : t('settings.sync.idle');
   return (
     <Row
       label={t('settings.sync.cloud')}
       desc={
-        <>
-          {t('settings.sync.lastSuccess')} <span className="set-italic">{last}</span> ·{' '}
-          {t('settings.sync.successRate')} <b>{successPct}%</b>
-          {metrics.inflight > 0 ? t('settings.sync.inflight', { count: metrics.inflight }) : ''}
-        </>
+        metrics.total === 0 ? (
+          t('settings.sync.no_activity')
+        ) : (
+          <>
+            {t('settings.sync.lastSuccess')} <span className="set-italic">{last}</span> ·{' '}
+            {t('settings.sync.successRate')} <b>{successPct}%</b>
+            {metrics.inflight > 0 ? t('settings.sync.inflight', { count: metrics.inflight }) : ''}
+          </>
+        )
       }
       control={
         <span
           className="set-mono"
-          style={{ color: metrics.failed > 0 ? 'hsl(var(--accent))' : 'hsl(var(--accent))' }}
+          style={{ color: latestAttemptFailed ? 'hsl(var(--destructive))' : 'hsl(var(--ink-3))' }}
         >
-          {metrics.inflight > 0 ? t('settings.sync.syncing') : t('settings.sync.online')}
+          {status}
         </span>
       }
     />
@@ -3790,7 +3803,7 @@ function SyncSummaryRow() {
 
 function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
   const { t } = useTranslation();
-  const { autoSnapshot, setAutoSnapshot, syncDebugToasts, setSyncDebugToasts } = useSettingsStore();
+  const { syncDebugToasts, setSyncDebugToasts } = useSettingsStore();
   const [activityOpen, setActivityOpen] = useState(false);
 
   if (activityOpen) {
@@ -3836,8 +3849,16 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
         />
         <Row
           label={t('settings.sync.vault_path')}
-          desc={<span className="set-mono">~/Library/Drifting/vault</span>}
-          control={<button className="set-btn">{t('settings.sync.show_in_finder')}</button>}
+          desc={t('settings.sync.local_data_managed')}
+          control={
+            <button
+              className="set-btn"
+              disabled
+              title={t('settings.common.not_available_yet')}
+            >
+              {t('settings.sync.show_in_finder')}
+            </button>
+          }
         />
         <Row
           label={t('settings.sync.debug_toast')}
@@ -3851,12 +3872,24 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
         <Row
           label={t('settings.sync.auto_snapshot')}
           desc={<>{t('settings.sync.auto_snapshot_desc')}</>}
-          control={<Toggle on={autoSnapshot} onChange={setAutoSnapshot} />}
+          control={
+            <span title={t('settings.common.not_available_yet')}>
+              <Toggle on={false} onChange={() => undefined} disabled />
+            </span>
+          }
         />
         <Row
           label={t('settings.sync.milestones')}
           desc={t('settings.sync.milestones_desc')}
-          control={<button className="set-btn">{t('settings.sync.view_milestones')}</button>}
+          control={
+            <button
+              className="set-btn"
+              disabled
+              title={t('settings.common.not_available_yet')}
+            >
+              {t('settings.sync.view_milestones')}
+            </button>
+          }
         />
       </div>
 
@@ -3883,14 +3916,6 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
 
 function PrivacyPanel({ registerRef }: { registerRef: RegisterRef }) {
   const { t } = useTranslation();
-  const {
-    improveModelsWithManuscripts,
-    setImproveModelsWithManuscripts,
-    sendUsageStats,
-    setSendUsageStats,
-    sendCrashLogs,
-    setSendCrashLogs,
-  } = useSettingsStore();
 
   return (
     <section className="set-panel" ref={registerRef} id="privacy">
@@ -3915,25 +3940,39 @@ function PrivacyPanel({ registerRef }: { registerRef: RegisterRef }) {
           label={t('settings.privacy.improveModels')}
           desc={t('settings.privacy.improveModelsDesc')}
           control={
-            <Toggle on={improveModelsWithManuscripts} onChange={setImproveModelsWithManuscripts} />
+            <span title={t('settings.common.not_available_yet')}>
+              <Toggle on={false} onChange={() => undefined} disabled />
+            </span>
           }
         />
         <Row
           label={t('settings.privacy.usageStats')}
           desc={t('settings.privacy.usageStatsDesc')}
-          control={<Toggle on={sendUsageStats} onChange={setSendUsageStats} />}
+          control={
+            <span title={t('settings.common.not_available_yet')}>
+              <Toggle on={false} onChange={() => undefined} disabled />
+            </span>
+          }
         />
         <Row
           label={t('settings.privacy.crashLogs')}
           desc={t('settings.privacy.crashLogsDesc')}
-          control={<Toggle on={sendCrashLogs} onChange={setSendCrashLogs} />}
+          control={
+            <span title={t('settings.common.not_available_yet')}>
+              <Toggle on={false} onChange={() => undefined} disabled />
+            </span>
+          }
         />
       </div>
 
       <Row
         label={t('settings.privacy.fullPolicy')}
         desc={<span className="set-mono">{t('settings.privacy.lastUpdated')}</span>}
-        control={<button className="set-btn">{t('settings.common.open_in_browser')}</button>}
+        control={
+          <button className="set-btn" disabled title={t('settings.common.not_available_yet')}>
+            {t('settings.common.open_in_browser')}
+          </button>
+        }
       />
     </section>
   );
@@ -3941,6 +3980,7 @@ function PrivacyPanel({ registerRef }: { registerRef: RegisterRef }) {
 
 function AboutPanel({ registerRef }: { registerRef: RegisterRef }) {
   const { t } = useTranslation();
+  const appVersion = getPlatformRuntime().appInfo?.version ?? '0.1.0';
   return (
     <section className="set-panel" ref={registerRef} id="about">
       <PanelHead
@@ -3957,17 +3997,19 @@ function AboutPanel({ registerRef }: { registerRef: RegisterRef }) {
           </div>
           <div className="set-about__meta">
             <span>
-              {t('settings.about.version')} <b>0.1.0</b>
+              {t('settings.about.version')} <b>{appVersion}</b>
             </span>
             <span>
-              {t('settings.about.channel')} <b>{t('settings.about.channelDev')}</b>
+              {t('settings.about.channel')} <b>{t('settings.about.channelPreAlpha')}</b>
             </span>
             <span>
               {t('settings.about.engine')} <b>Tiptap + SQLite</b>
             </span>
           </div>
         </div>
-        <button className="set-btn">{t('settings.about.checkUpdates')}</button>
+        <button className="set-btn" disabled title={t('settings.common.not_available_yet')}>
+          {t('settings.about.checkUpdates')}
+        </button>
       </div>
 
       <div className="set-sec" style={{ marginTop: 24 }}>
@@ -3979,7 +4021,11 @@ function AboutPanel({ registerRef }: { registerRef: RegisterRef }) {
         <Row
           label={<span className="set-italic">{t('settings.about.openSource')}</span>}
           desc="Tiptap · Yjs · Drizzle · React · Tauri 2"
-          control={<button className="set-btn">{t('settings.about.viewList')}</button>}
+          control={
+            <button className="set-btn" disabled title={t('settings.common.not_available_yet')}>
+              {t('settings.about.viewList')}
+            </button>
+          }
         />
       </div>
 
@@ -3988,12 +4034,30 @@ function AboutPanel({ registerRef }: { registerRef: RegisterRef }) {
         <Row
           label={t('settings.about.emailTeam')}
           desc={<span className="set-mono">hi@drifting.app</span>}
-          control={<button className="set-btn">{t('settings.about.writeEmail')}</button>}
+          control={
+            <button
+              className="set-btn"
+              onClick={() => void platform.material.openExternal('mailto:hi@drifting.app')}
+            >
+              {t('settings.about.writeEmail')}
+            </button>
+          }
         />
         <Row
           label={t('settings.about.submitFeedback')}
           desc={t('settings.about.submitFeedbackDesc')}
-          control={<button className="set-btn">{t('settings.about.feedback')}</button>}
+          control={
+            <button
+              className="set-btn"
+              onClick={() =>
+                void platform.material.openExternal(
+                  'mailto:hi@drifting.app?subject=Drifting%20Pre-Alpha%20Feedback',
+                )
+              }
+            >
+              {t('settings.about.feedback')}
+            </button>
+          }
         />
       </div>
 

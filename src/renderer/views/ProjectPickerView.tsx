@@ -7,6 +7,10 @@ import { SyncStatusHUD } from '../components/sync/SyncStatusHUD';
 import { UserAvatar, UserMenu } from '../components/topBars/UserMenu';
 import { parseKv } from '../domain/kv';
 import { getPlatformRuntime } from '../platform/runtime';
+import {
+  DEFAULT_PROJECT_TARGET,
+  useWritingStatsStore,
+} from '../store/writing-stats-store';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
 
@@ -126,6 +130,7 @@ export function ProjectPickerView() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const writingPlans = useWritingStatsStore((s) => s.plans);
   const { loadProjectSummaries, createProject, updateProject, deleteProject } = useProject({
     userId: user?.id ?? '',
   });
@@ -169,6 +174,7 @@ export function ProjectPickerView() {
       projects.map((p) => {
         const meta = displayMetaFor(p.kvJson);
         const status = statusFor(p.updatedAt);
+        const wordTarget = writingPlans[p.id]?.projectWordTarget ?? DEFAULT_PROJECT_TARGET;
         return {
           project: p,
           meta,
@@ -177,9 +183,11 @@ export function ProjectPickerView() {
           glyph: glyphFor(p.name),
           lastEditedRel: formatRelative(p.updatedAt, i18n.language),
           createdRel: formatCreated(p.createdAt),
+          wordProgress:
+            wordTarget > 0 ? Math.min(100, Math.max(0, (p.stats.words / wordTarget) * 100)) : null,
         };
       }),
-    [projects, i18n.language],
+    [projects, i18n.language, writingPlans],
   );
 
   const filtered = decorated.filter(
@@ -487,6 +495,7 @@ interface DecoratedRow {
   glyph: string;
   lastEditedRel: string;
   createdRel: string;
+  wordProgress: number | null;
 }
 
 interface CardProps {
@@ -498,7 +507,7 @@ interface CardProps {
 
 function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
   const { t } = useTranslation();
-  const { project, meta, status, colorToken, glyph, lastEditedRel } = row;
+  const { project, meta, status, colorToken, glyph, lastEditedRel, wordProgress } = row;
   const stats = project.stats;
   const sourceLabel =
     project.source === 'server'
@@ -559,15 +568,17 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
             {t('common.categoriesUnit')}
           </span>
         </div>
-        <div className="pp-card__progress">
+        {wordProgress !== null && (
           <div
-            className="pp-card__progress-fill"
-            style={{
-              width: `${Math.min(100, stats.nodes > 0 ? 100 : 0)}%`,
-              opacity: stats.words > 0 ? 1 : 0.25,
-            }}
-          />
-        </div>
+            className="pp-card__progress"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(wordProgress)}
+          >
+            <div className="pp-card__progress-fill" style={{ width: `${wordProgress}%` }} />
+          </div>
+        )}
         <div className={`pp-card__status pp-card__status--${status}`}>
           {t(`projectPicker.status.${status}`)} · {lastEditedRel}
         </div>

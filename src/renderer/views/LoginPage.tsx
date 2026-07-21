@@ -7,6 +7,7 @@ import { useSettingsStore } from '../store/settings-store';
 import { authClient } from '../lib/auth-client';
 import { setSessionToken } from '../lib/session-token';
 import { platform } from '../platform';
+import { getPlatformRuntime } from '../platform/runtime';
 import { UI_LOCALE_OPTIONS } from '../lib/i18n';
 import type { SupportedOAuthProvider } from '../lib/oauth-providers';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
@@ -112,7 +113,6 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<SupportedOAuthProvider | null>(null);
@@ -272,7 +272,11 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
         </div>
 
         <div className="si-foot">
-          <span>{t('auth.hero.brandVersion')}</span>
+          <span>
+            {t('auth.hero.brandVersion', {
+              version: getPlatformRuntime().appInfo?.version ?? '0.1.0',
+            })}
+          </span>
           <span className="si-foot__orn">⁂</span>
           <span>{t('auth.hero.footer')}</span>
         </div>
@@ -383,16 +387,6 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                 minLength={mode === 'signup' ? 10 : undefined}
               />
             </div>
-
-            {mode === 'signin' && (
-              <div
-                className={`si-remember ${remember ? 'si-remember--on' : ''}`}
-                onClick={() => setRemember((v) => !v)}
-              >
-                <span className="si-remember__box"></span>
-                <span>{t('auth.remember')}</span>
-              </div>
-            )}
 
             <button type="submit" className="si-submit" disabled={isSubmitting}>
               <span className="si-submit__cn">
