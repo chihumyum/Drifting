@@ -25,6 +25,19 @@ export interface CoalescingOptions {
    * already-enqueued child mutations before their eventual DELETE.
    */
   cancelCreateDelete?: boolean;
+  /**
+   * A previous network attempt may have committed even when its response was
+   * lost. Rewriting that row would change the idempotency payload and can turn
+   * an equivalent CREATE retry into a real 409 conflict.
+   */
+  existingMayHaveReachedServer?: boolean;
+}
+
+export function isCreatePayloadConflict(
+  mutationType: CoalescingMutationType,
+  httpStatus: number | undefined,
+): boolean {
+  return mutationType === 'create' && httpStatus === 409;
 }
 
 /**
@@ -38,6 +51,7 @@ export function coalescePendingMutation(
   options: CoalescingOptions = {},
 ): CoalescingDecision {
   if (!existing) return { kind: 'append' };
+  if (options.existingMayHaveReachedServer) return { kind: 'append' };
 
   if (incoming.mutationType === 'update') {
     if (existing.mutationType === 'create' || existing.mutationType === 'update') {

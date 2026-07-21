@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { coalescePendingMutation } from './entity-sync-coalescing';
+import {
+  coalescePendingMutation,
+  isCreatePayloadConflict,
+} from './entity-sync-coalescing';
 
 describe('coalescePendingMutation', () => {
   it('merges partial update payloads instead of dropping earlier fields', () => {
@@ -26,6 +29,16 @@ describe('coalescePendingMutation', () => {
       mutationType: 'create',
       payload: { id: 'node-1', title: 'B' },
     });
+  });
+
+  it('does not rewrite a create that may already have committed remotely', () => {
+    expect(
+      coalescePendingMutation(
+        { mutationType: 'create', payload: { id: 'node-1', title: 'A' } },
+        { mutationType: 'update', payload: { title: 'B' } },
+        { existingMayHaveReachedServer: true },
+      ),
+    ).toEqual({ kind: 'append' });
   });
 
   it('cancels a create followed by a hard delete', () => {
@@ -69,5 +82,14 @@ describe('coalescePendingMutation', () => {
         { mutationType: 'update', payload: { title: 'after restore only' } },
       ),
     ).toEqual({ kind: 'append' });
+  });
+});
+
+describe('isCreatePayloadConflict', () => {
+  it('treats only a CREATE 409 as a terminal same-id payload conflict', () => {
+    expect(isCreatePayloadConflict('create', 409)).toBe(true);
+    expect(isCreatePayloadConflict('update', 409)).toBe(false);
+    expect(isCreatePayloadConflict('create', 500)).toBe(false);
+    expect(isCreatePayloadConflict('create', undefined)).toBe(false);
   });
 });

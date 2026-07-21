@@ -14,7 +14,7 @@
  *   from the server and reconcile with local state (server wins on conflict).
  */
 
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { apiClient } from '../lib/axios-config';
 import { APP_CONFIG, isSyncEnabled } from '../lib/config';
 import { getDb, type DbExecutor, type DbTransaction } from '../lib/db';
@@ -52,7 +52,10 @@ import type { BlockSectionSource } from '../domain/block-section';
 import { createElementPatchRepository } from '../sqlite-repo/element-patch-repo';
 import { createBlockSectionRepository } from '../sqlite-repo/block-section-repo';
 import { rebuildProjectInlineReferenceIndex } from './reference-index.service';
-import { coalescePendingMutation } from './entity-sync-coalescing';
+import {
+  coalescePendingMutation,
+  isCreatePayloadConflict,
+} from './entity-sync-coalescing';
 import { flushPendingAtomicSyncTransactions } from './atomic-sync-transaction-tracker';
 import {
   localMutationGeneration,
@@ -211,9 +214,16 @@ function mutationFromRow(row: LocalSyncMutationRow): SyncMutation {
 async function refreshPendingCount(): Promise<void> {
   const rows = await getDb()
     .select({ id: LocalSyncMutationTable.id })
+    .from(LocalSyncMutationTable);
+  pendingCountCache = rows.length;
+}
+
+async function countRetryablePendingMutations(): Promise<number> {
+  const rows = await getDb()
+    .select({ id: LocalSyncMutationTable.id })
     .from(LocalSyncMutationTable)
     .where(eq(LocalSyncMutationTable.status, 'pending'));
-  pendingCountCache = rows.length;
+  return rows.length;
 }
 
 function registerOnlineFlush(): void {
@@ -222,10 +232,6 @@ function registerOnlineFlush(): void {
   window.addEventListener('online', () => {
     scheduleFlush();
   });
-}
-
-function sameOptionalId(a: string | null, b?: string): boolean {
-  return (a ?? undefined) === (b ?? undefined);
 }
 
 const CREATE_DELETE_CANCELLATION_SAFE_TYPES: ReadonlySet<EntityType> = new Set([
@@ -319,20 +325,31 @@ async function writeSyncMutation(executor: DbExecutor, mutation: SyncMutation): 
     .from(LocalSyncMutationTable)
     .where(
       and(
-        eq(LocalSyncMutationTable.status, 'pending'),
+        inArray(LocalSyncMutationTable.status, ['pending', 'conflict']),
         eq(LocalSyncMutationTable.entityType, mutation.entityType),
         eq(LocalSyncMutationTable.entityId, mutation.entityId),
         eq(LocalSyncMutationTable.projectId, mutation.projectId),
+        mutation.parentId === undefined
+          ? isNull(LocalSyncMutationTable.parentId)
+          : eq(LocalSyncMutationTable.parentId, mutation.parentId),
       ),
     )
-    .orderBy(desc(LocalSyncMutationTable.id))
-    .limit(20);
+    .orderBy(desc(LocalSyncMutationTable.id));
+
+  // A same-id CREATE 409 means the remote row belongs to a different payload.
+  // Keep that conflict explicit: applying later local PATCHes could overwrite
+  // the remote entity that exposed the collision.
+  if (candidates.some((candidate) => candidate.status === 'conflict')) {
+    throw new Error(
+      `Sync conflict for ${mutation.entityType}/${mutation.entityId}; resolve the existing create conflict before editing this entity`,
+    );
+  }
 
   // Only the newest adjacent operation may be rewritten. Folding into an
   // older row across a delete/restore boundary changes observable ordering.
-  const newest = candidates[0];
-  const existing =
-    newest && sameOptionalId(newest.parentId, mutation.parentId) ? newest : undefined;
+  // Retried rows are also immutable: their request may already have committed
+  // remotely even though the client never received the response.
+  const existing = candidates[0];
   const decision = coalescePendingMutation(
     existing
       ? {
@@ -343,6 +360,7 @@ async function writeSyncMutation(executor: DbExecutor, mutation: SyncMutation): 
     { mutationType: mutation.mutationType, payload: mutation.payload },
     {
       cancelCreateDelete: CREATE_DELETE_CANCELLATION_SAFE_TYPES.has(mutation.entityType),
+      existingMayHaveReachedServer: Boolean(existing && existing.retryCount > 0),
     },
   );
 
@@ -385,6 +403,36 @@ async function writeSyncMutation(executor: DbExecutor, mutation: SyncMutation): 
   });
 }
 
+async function markLogicalCreateConflict(
+  executor: DbExecutor,
+  row: LocalSyncMutationRow,
+  error: unknown,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const message = `CREATE_PAYLOAD_CONFLICT: ${getErrorMessage(error)}`;
+  const logicalEntity = and(
+    eq(LocalSyncMutationTable.entityType, row.entityType),
+    eq(LocalSyncMutationTable.entityId, row.entityId),
+    eq(LocalSyncMutationTable.projectId, row.projectId),
+    row.parentId === null
+      ? isNull(LocalSyncMutationTable.parentId)
+      : eq(LocalSyncMutationTable.parentId, row.parentId),
+    inArray(LocalSyncMutationTable.status, ['pending', 'in_flight']),
+  );
+
+  // Quarantine the CREATE and every already-queued later operation for the
+  // same logical entity. In particular, do not turn the following UPDATE into
+  // an automatic PATCH against a remote row whose payload did not match.
+  await executor
+    .update(LocalSyncMutationTable)
+    .set({ status: 'conflict', lastError: message, updatedAt: now })
+    .where(logicalEntity);
+  await executor
+    .update(LocalSyncMutationTable)
+    .set({ retryCount: row.retryCount + 1, updatedAt: now })
+    .where(eq(LocalSyncMutationTable.id, row.id));
+}
+
 async function flushPushQueue(): Promise<void> {
   if (!isSyncEnabled() || flushInProgress) return;
   flushInProgress = true;
@@ -393,7 +441,14 @@ async function flushPushQueue(): Promise<void> {
     const db = getDb();
     await db
       .update(LocalSyncMutationTable)
-      .set({ status: 'pending', updatedAt: new Date().toISOString() })
+      .set({
+        status: 'pending',
+        // A previous process died after marking these rows in-flight. The
+        // request may have committed remotely, so recovered rows must never be
+        // treated like pristine, rewriteable mutations.
+        retryCount: sql`${LocalSyncMutationTable.retryCount} + 1`,
+        updatedAt: new Date().toISOString(),
+      })
       .where(eq(LocalSyncMutationTable.status, 'in_flight'));
 
     while (isSyncEnabled()) {
@@ -420,6 +475,12 @@ async function flushPushQueue(): Promise<void> {
           await db.delete(LocalSyncMutationTable).where(eq(LocalSyncMutationTable.id, row.id));
         } catch (err) {
           log.error(`[sync] push failed for ${mutation.entityType}/${mutation.entityId}:`, err);
+          if (isCreatePayloadConflict(mutation.mutationType, getRemoteStatus(err))) {
+            await markLogicalCreateConflict(db, row, err);
+            // Reload the batch. Rows quarantined above are still present in the
+            // in-memory batch and must never fall through to PATCH.
+            break;
+          }
           await db
             .update(LocalSyncMutationTable)
             .set({
@@ -438,9 +499,18 @@ async function flushPushQueue(): Promise<void> {
     }
 
     await refreshPendingCount();
+    const retryablePendingCount = await countRetryablePendingMutations();
     if (pendingCountCache > 0) {
-      setStatus('error', `${pendingCountCache} pending`);
-      scheduleFlush();
+      const conflictCount = pendingCountCache - retryablePendingCount;
+      setStatus(
+        'error',
+        conflictCount > 0
+          ? `${conflictCount} conflict, ${retryablePendingCount} pending`
+          : `${retryablePendingCount} pending`,
+      );
+      // Conflicts require user-visible resolution; repeatedly waking the queue
+      // cannot make progress. Unrelated retryable rows continue normally.
+      if (retryablePendingCount > 0) scheduleFlush();
     } else {
       setStatus('idle');
     }
@@ -851,9 +921,12 @@ async function pushSingleMutation(m: SyncMutation): Promise<void> {
   }
 }
 
+function getRemoteStatus(error: unknown): number | undefined {
+  return (error as { response?: { status?: number } } | null | undefined)?.response?.status;
+}
+
 function isMissingRemoteError(error: unknown): boolean {
-  const status = (error as { response?: { status?: number } } | null | undefined)?.response?.status;
-  return status === 404;
+  return getRemoteStatus(error) === 404;
 }
 
 /**
