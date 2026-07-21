@@ -1774,8 +1774,8 @@ export function LibraryItemFullscreenPreview({
   const [previewDragging, setPreviewDragging] = useState(false);
   const previewSurfaceRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef(viewport);
-  const panFrameRef = useRef<number | null>(null);
-  const queuedPanRef = useRef<{ panX: number; panY: number } | null>(null);
+  const viewportFrameRef = useRef<number | null>(null);
+  const queuedViewportRef = useRef<LibraryItemPreviewViewport | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -1823,32 +1823,34 @@ export function LibraryItemFullscreenPreview({
     return () => window.removeEventListener('keydown', onKey, true);
   }, [close]);
 
-  useEffect(() => {
-    viewportRef.current = viewport;
-  }, [viewport]);
-
-  const applyQueuedPan = useCallback(() => {
-    panFrameRef.current = null;
-    const queued = queuedPanRef.current;
-    queuedPanRef.current = null;
+  const applyQueuedViewport = useCallback(() => {
+    viewportFrameRef.current = null;
+    const queued = queuedViewportRef.current;
+    queuedViewportRef.current = null;
     if (!queued) return;
-    setViewport((prev) => ({ ...prev, ...queued }));
+    setViewport(queued);
   }, []);
 
-  const queuePan = useCallback(
-    (panX: number, panY: number) => {
-      queuedPanRef.current = { panX, panY };
-      if (panFrameRef.current !== null) return;
-      panFrameRef.current = requestAnimationFrame(applyQueuedPan);
+  const queueViewportUpdate = useCallback(
+    (update: (current: LibraryItemPreviewViewport) => LibraryItemPreviewViewport) => {
+      // The ref is the authoritative in-progress gesture state. React may batch
+      // several trackpad wheel events before rendering, so deriving the next
+      // delta from rendered state makes zoom and pan appear to jump backwards.
+      const next = update(viewportRef.current);
+      if (next === viewportRef.current) return;
+      viewportRef.current = next;
+      queuedViewportRef.current = next;
+      if (viewportFrameRef.current !== null) return;
+      viewportFrameRef.current = requestAnimationFrame(applyQueuedViewport);
     },
-    [applyQueuedPan],
+    [applyQueuedViewport],
   );
 
   useEffect(
     () => () => {
-      if (panFrameRef.current !== null) cancelAnimationFrame(panFrameRef.current);
-      panFrameRef.current = null;
-      queuedPanRef.current = null;
+      if (viewportFrameRef.current !== null) cancelAnimationFrame(viewportFrameRef.current);
+      viewportFrameRef.current = null;
+      queuedViewportRef.current = null;
     },
     [],
   );
@@ -1865,7 +1867,7 @@ export function LibraryItemFullscreenPreview({
         const rect = node.getBoundingClientRect();
         const anchorFromCenterX = event.clientX - rect.left - rect.width / 2;
         const anchorFromCenterY = event.clientY - rect.top - rect.height / 2;
-        setViewport((prev) => {
+        queueViewportUpdate((prev) => {
           const scale = clampLibraryItemPreviewScale(prev.scale * zoomFactor);
           return zoomLibraryItemPreviewAt(prev, scale, anchorFromCenterX, anchorFromCenterY);
         });
@@ -1875,7 +1877,7 @@ export function LibraryItemFullscreenPreview({
       if (viewportRef.current.scale <= 1) return;
       event.preventDefault();
       event.stopPropagation();
-      setViewport((prev) => ({
+      queueViewportUpdate((prev) => ({
         ...prev,
         panX: prev.panX - event.deltaX,
         panY: prev.panY - event.deltaY,
@@ -1884,7 +1886,7 @@ export function LibraryItemFullscreenPreview({
 
     node.addEventListener('wheel', handleWheel, { passive: false });
     return () => node.removeEventListener('wheel', handleWheel);
-  }, [isZoomablePreview]);
+  }, [isZoomablePreview, queueViewportUpdate]);
 
   if (material.kind === 'url') return null;
 
@@ -1892,14 +1894,15 @@ export function LibraryItemFullscreenPreview({
     if (!isZoomablePreview) return;
     pointerStartRef.current = { x: event.clientX, y: event.clientY };
     suppressSurfaceClickRef.current = false;
-    if (viewport.scale <= 1) return;
+    const currentViewport = viewportRef.current;
+    if (currentViewport.scale <= 1) return;
     event.preventDefault();
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      panX: viewport.panX,
-      panY: viewport.panY,
+      panX: currentViewport.panX,
+      panY: currentViewport.panY,
     };
     setPreviewDragging(true);
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -1913,10 +1916,11 @@ export function LibraryItemFullscreenPreview({
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     event.preventDefault();
-    queuePan(
-      drag.panX + event.clientX - drag.startX,
-      drag.panY + event.clientY - drag.startY,
-    );
+    queueViewportUpdate((current) => ({
+      ...current,
+      panX: drag.panX + event.clientX - drag.startX,
+      panY: drag.panY + event.clientY - drag.startY,
+    }));
   };
 
   const handlePreviewPointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -1924,8 +1928,8 @@ export function LibraryItemFullscreenPreview({
     const drag = dragRef.current;
     if (drag?.pointerId === event.pointerId) {
       dragRef.current = null;
-      if (panFrameRef.current !== null) cancelAnimationFrame(panFrameRef.current);
-      applyQueuedPan();
+      if (viewportFrameRef.current !== null) cancelAnimationFrame(viewportFrameRef.current);
+      applyQueuedViewport();
       setPreviewDragging(false);
     }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -1962,7 +1966,10 @@ export function LibraryItemFullscreenPreview({
             display: 'block',
             transform: `translate3d(${viewport.panX}px, ${viewport.panY}px, 0) scale(${viewport.scale})`,
             transformOrigin: 'center center',
-            transition: previewDragging ? 'none' : 'transform 80ms ease-out',
+            // Trackpad pinch/pan arrives as a dense wheel stream. A transition
+            // here restarts on every delta and makes the image trail the
+            // gesture, which reads as shaking in WKWebView.
+            transition: 'none',
             willChange: 'transform',
             backfaceVisibility: 'hidden',
             userSelect: 'none',
@@ -1979,11 +1986,7 @@ export function LibraryItemFullscreenPreview({
           : (material.localPath ?? (pdfSrc ? pdfSrc.replace(/^file:\/\//, '') : null));
       if (!pdfPath) return <FullscreenEmpty message={t('memoMaterial.preview.noPdf')} />;
       return (
-        <PdfCanvasPreview
-          filePath={pdfPath}
-          viewport={viewport}
-          dragging={previewDragging}
-        />
+        <PdfCanvasPreview filePath={pdfPath} viewport={viewport} />
       );
     }
 
@@ -2064,11 +2067,9 @@ export function LibraryItemFullscreenPreview({
 function PdfCanvasPreview({
   filePath,
   viewport,
-  dragging,
 }: {
   filePath: string;
   viewport: LibraryItemPreviewViewport;
-  dragging: boolean;
 }) {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -2230,7 +2231,7 @@ function PdfCanvasPreview({
             background: 'hsl(var(--paper))',
             transform: `translate3d(${viewport.panX}px, ${viewport.panY}px, 0) scale(${viewport.scale})`,
             transformOrigin: 'center center',
-            transition: dragging ? 'none' : 'transform 80ms ease-out',
+            transition: 'none',
             willChange: 'transform',
             backfaceVisibility: 'hidden',
             userSelect: 'none',
