@@ -69,6 +69,51 @@ function normalizePlan(raw?: string | null): Plan {
   return 'free';
 }
 
+function statusHasPaidEntitlement(status: SubscriptionStatus | null): boolean {
+  return PAID_PLANS.has(normalizePlan(status?.plan)) && ENTITLED_STATUSES.has(status?.status ?? '');
+}
+
+let paidTrashRearmInFlight: { subjectId: string; operation: Promise<void> } | null = null;
+
+async function rearmPaidTrashOperations(subjectId: string): Promise<void> {
+  assertActiveSubject(subjectId);
+  const state = useFeatureAccessStore.getState();
+  if (
+    !isAuthRequired() ||
+    state.subjectId !== subjectId ||
+    !state.hydrated ||
+    !statusHasPaidEntitlement(state.status)
+  ) {
+    return;
+  }
+
+  const existing = paidTrashRearmInFlight;
+  if (existing?.subjectId === subjectId) return existing.operation;
+  if (existing) {
+    try {
+      await existing.operation;
+    } catch {
+      // The old subject's caller owns its failure. Serialize account-scoped DB
+      // recovery, then re-check that this subject is still active below.
+    }
+  }
+
+  const operation = (async () => {
+    // Keep the dependency one-way at module initialization: entity sync
+    // already sits beneath usecases that import this feature gate.
+    const { rearmTrashEntitlementConflicts } = await import('../services/entity-sync.service');
+    assertActiveSubject(subjectId);
+    await rearmTrashEntitlementConflicts();
+    assertActiveSubject(subjectId);
+  })();
+  paidTrashRearmInFlight = { subjectId, operation };
+  try {
+    await operation;
+  } finally {
+    if (paidTrashRearmInFlight?.operation === operation) paidTrashRearmInFlight = null;
+  }
+}
+
 /**
  * Sync read of the cached plan. Returns 'free' until `refreshFeatureAccess`
  * has resolved at least once.
@@ -78,16 +123,15 @@ export function currentPlan(): Plan {
 }
 
 export function canUseFeature(_feature: PaidFeature): boolean {
-  const { hydrated, plan, status } = useFeatureAccessStore.getState();
-  return hydrated && PAID_PLANS.has(plan) && ENTITLED_STATUSES.has(status?.status ?? '');
+  const { hydrated, status } = useFeatureAccessStore.getState();
+  return hydrated && statusHasPaidEntitlement(status);
 }
 
 /** React hook variant — re-renders when the cached plan changes. */
 export function useCanUseFeature(_feature: PaidFeature): boolean {
-  const plan = useFeatureAccessStore((s) => s.plan);
-  const status = useFeatureAccessStore((s) => s.status?.status ?? null);
+  const status = useFeatureAccessStore((s) => s.status);
   const hydrated = useFeatureAccessStore((s) => s.hydrated);
-  return hydrated && PAID_PLANS.has(plan) && ENTITLED_STATUSES.has(status ?? '');
+  return hydrated && statusHasPaidEntitlement(status);
 }
 
 const refreshInFlight = new Map<string, Promise<void>>();
@@ -144,6 +188,17 @@ export async function refreshFeatureAccess(subjectId: string): Promise<void> {
   } catch {
     // Background hydration is best-effort. A destructive caller uses
     // ensureFeatureAccess(), which surfaces failure instead of guessing Free.
+    return;
+  }
+
+  try {
+    // UI hydration must not depend on SQLite being ready. App boot invokes
+    // this above the project-scoped database owner, so recovery is best-effort
+    // here and is enforced again by every destructive caller below.
+    await rearmPaidTrashOperations(subjectId);
+  } catch {
+    // Keep the freshly confirmed entitlement visible. A delete/restore path
+    // will await the same recovery and fail closed if it still cannot run.
   }
 }
 
@@ -161,15 +216,31 @@ export async function ensureFeatureAccess(
 ): Promise<void> {
   assertActiveSubject(subjectId);
   const state = useFeatureAccessStore.getState();
-  if (!options.forceRefresh && state.subjectId === subjectId && state.hydrated) return;
+  if (options.forceRefresh || state.subjectId !== subjectId || !state.hydrated) {
+    try {
+      await loadFeatureAccess(subjectId);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'FEATURE_ACCESS_ACCOUNT_CHANGED') {
+        throw error;
+      }
+      const wrapped = new Error('无法确认当前订阅状态，请检查网络后重试。') as Error & {
+        cause?: unknown;
+      };
+      wrapped.cause = error;
+      throw wrapped;
+    }
+  }
 
   try {
-    await loadFeatureAccess(subjectId);
+    // Do not rely on loadFeatureAccess's in-flight deduplication for this.
+    // A background caller may own that promise and intentionally treats DB
+    // recovery as best-effort; destructive decisions must await it explicitly.
+    await rearmPaidTrashOperations(subjectId);
   } catch (error) {
     if (error instanceof Error && error.message === 'FEATURE_ACCESS_ACCOUNT_CHANGED') {
       throw error;
     }
-    const wrapped = new Error('无法确认当前订阅状态，请检查网络后重试。') as Error & {
+    const wrapped = new Error('无法恢复待同步的回收站操作，请稍后重试。') as Error & {
       cause?: unknown;
     };
     wrapped.cause = error;

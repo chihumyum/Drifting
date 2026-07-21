@@ -56,6 +56,12 @@ import {
   coalescePendingMutation,
   isCreatePayloadConflict,
 } from './entity-sync-coalescing';
+import {
+  isRearmableTrashEntitlementConflict,
+  isTrashEntitlementRejection,
+  trashEntitlementBlockedMessage,
+  trashEntitlementConflictMessage,
+} from './entity-sync-entitlement';
 import { flushPendingAtomicSyncTransactions } from './atomic-sync-transaction-tracker';
 import {
   localMutationGeneration,
@@ -121,6 +127,7 @@ const statusListeners: Set<SyncStatusListener> = new Set();
 let flushInProgress = false;
 let pendingCountCache = 0;
 let onlineFlushRegistered = false;
+let entitlementRearmPromise: Promise<number> | null = null;
 
 const FLUSH_DELAY_MS = 800;
 const PULL_INTERVAL_MS = 30_000;
@@ -437,7 +444,99 @@ async function markLogicalCreateConflict(
     .where(eq(LocalSyncMutationTable.id, row.id));
 }
 
+async function markLogicalTrashEntitlementConflict(
+  executor: DbExecutor,
+  row: LocalSyncMutationRow,
+  error: unknown,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const logicalEntity = and(
+    eq(LocalSyncMutationTable.entityType, row.entityType),
+    eq(LocalSyncMutationTable.entityId, row.entityId),
+    eq(LocalSyncMutationTable.projectId, row.projectId),
+    row.parentId === null
+      ? isNull(LocalSyncMutationTable.parentId)
+      : eq(LocalSyncMutationTable.parentId, row.parentId),
+    inArray(LocalSyncMutationTable.status, ['pending', 'in_flight']),
+  );
+
+  // Quarantine the rejected transition and operations already queued behind
+  // it for this entity. Sending later rows would reorder durable local intent.
+  await executor
+    .update(LocalSyncMutationTable)
+    .set({
+      status: 'conflict',
+      lastError: trashEntitlementBlockedMessage(row.id),
+      updatedAt: now,
+    })
+    .where(logicalEntity);
+  await executor
+    .update(LocalSyncMutationTable)
+    .set({
+      retryCount: row.retryCount + 1,
+      lastError: trashEntitlementConflictMessage(getErrorMessage(error)),
+      updatedAt: now,
+    })
+    .where(eq(LocalSyncMutationTable.id, row.id));
+}
+
+/** Resume only paid-trash conflicts after a fresh server entitlement check. */
+export async function rearmTrashEntitlementConflicts(): Promise<number> {
+  if (!shouldPersistOutbox()) return 0;
+  if (entitlementRearmPromise) return entitlementRearmPromise;
+
+  const operation = (async () => {
+    // A flush that received the decisive 402 owns the row until it has
+    // finished quarantining that row and its causal followers.
+    while (flushInProgress) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 25));
+    }
+
+    const db = getDb();
+    const conflicts = await db
+      .select({
+        id: LocalSyncMutationTable.id,
+        status: LocalSyncMutationTable.status,
+        lastError: LocalSyncMutationTable.lastError,
+      })
+      .from(LocalSyncMutationTable)
+      .where(eq(LocalSyncMutationTable.status, 'conflict'));
+    const ids = conflicts.filter(isRearmableTrashEntitlementConflict).map((row) => row.id);
+    if (ids.length === 0) return 0;
+
+    await db
+      .update(LocalSyncMutationTable)
+      .set({ status: 'pending', lastError: null, updatedAt: new Date().toISOString() })
+      .where(inArray(LocalSyncMutationTable.id, ids));
+    await refreshPendingCount();
+    return ids.length;
+  })();
+
+  // A flush starting after this assignment waits for the selective update,
+  // closing the opposite side of the 402-vs-rearm race.
+  entitlementRearmPromise = operation;
+  try {
+    const count = await operation;
+    if (count > 0) {
+      registerOnlineFlush();
+      scheduleFlush();
+    }
+    return count;
+  } finally {
+    if (entitlementRearmPromise === operation) entitlementRearmPromise = null;
+  }
+}
+
 async function flushPushQueue(): Promise<void> {
+  if (entitlementRearmPromise) {
+    try {
+      await entitlementRearmPromise;
+    } catch {
+      // The entitlement caller reports recovery failure. Avoid racing a
+      // partially completed selective update.
+      return;
+    }
+  }
   if (!isSyncEnabled() || flushInProgress) return;
   flushInProgress = true;
 
@@ -483,6 +582,12 @@ async function flushPushQueue(): Promise<void> {
             await markLogicalCreateConflict(db, row, err);
             // Reload the batch. Rows quarantined above are still present in the
             // in-memory batch and must never fall through to PATCH.
+            break;
+          }
+          if (isTrashEntitlementRejection(mutation.mutationType, getRemoteStatus(err))) {
+            await markLogicalTrashEntitlementConflict(db, row, err);
+            // Reload so the causal followers quarantined above cannot fall
+            // through from this in-memory batch.
             break;
           }
           await db
