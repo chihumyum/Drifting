@@ -20,6 +20,11 @@ import { TimelineRailMenu } from '../graph/TimelineRailMenu';
 import { ActRail } from './ActRail';
 import { useBookAct } from '../../usecase/useBookAct';
 import { events } from '../../lib/events';
+import {
+  clampDimension,
+  parsePersistedDimension,
+  verticalDockBounds,
+} from '../../lib/layout-geometry';
 import type { TimelineNode } from './types';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
@@ -43,6 +48,7 @@ log.setLevel(loglevel.levels.WARN);
 type TimelineView = 'book' | 'narrative';
 const TIMELINE_VIEW_STORAGE_KEY = 'timeline-view';
 const TIMELINE_HEIGHT_STORAGE_KEY = 'timeline-total-height';
+const MIN_EDITOR_HEIGHT = 240;
 
 const TIMELINE_CONFIG = {
   GRID_UNIT: 20,
@@ -390,8 +396,12 @@ export function BottomTimeline() {
   const setUnaffiliatedVisible = useUiStore((s) => s.setBottomTimelineUnaffiliatedVisible);
   const [customHeight, setCustomHeight] = useState<number | null>(() => {
     if (typeof localStorage === 'undefined') return null;
-    const v = localStorage.getItem(TIMELINE_HEIGHT_STORAGE_KEY);
-    return v ? parseInt(v, 10) : null;
+    const persisted = parsePersistedDimension(localStorage.getItem(TIMELINE_HEIGHT_STORAGE_KEY));
+    if (persisted === null) return null;
+    return clampDimension(
+      persisted,
+      verticalDockBounds(window.innerHeight, TIMELINE_CONFIG.MIN_HEIGHT, MIN_EDITOR_HEIGHT),
+    );
   });
 
   const isNarrative = viewMode === 'narrative';
@@ -418,6 +428,35 @@ export function BottomTimeline() {
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const timelineHeightBounds = useCallback(() => {
+    const appMid = timelineRef.current?.closest('.app-mid');
+    const containerHeight = appMid?.getBoundingClientRect().height ?? window.innerHeight;
+    return verticalDockBounds(containerHeight, TIMELINE_CONFIG.MIN_HEIGHT, MIN_EDITOR_HEIGHT);
+  }, []);
+
+  // A height restored on a large monitor must not remain authoritative after
+  // the native window moves to a smaller display. ResizeObserver also covers
+  // shell changes caused by chrome/timeline layout without a window resize.
+  useEffect(() => {
+    const normalize = () => {
+      const base = customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT;
+      const next = clampDimension(base, timelineHeightBounds());
+      if (next === base) return;
+      setCustomHeight(next);
+      localStorage.setItem(TIMELINE_HEIGHT_STORAGE_KEY, next.toString());
+    };
+    const frame = window.requestAnimationFrame(normalize);
+    const appMid = timelineRef.current?.closest('.app-mid');
+    const observer =
+      appMid && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(normalize) : null;
+    if (appMid && observer) observer.observe(appMid);
+    window.addEventListener('resize', normalize);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener('resize', normalize);
+    };
+  }, [customHeight, timelineHeightBounds]);
   const { expandedScale, touchHandlers } = useTimelineExpandedScale({
     isExpanded: true,
     scrollContainerRef,
@@ -451,9 +490,13 @@ export function BottomTimeline() {
       // height = (bottom edge) − (new top edge), where the new top edge is
       // `e.clientY − grabOffset` so the originally-grabbed pixel stays under
       // the cursor.
-      const next = Math.max(
-        Math.max(minHeight, TIMELINE_CONFIG.MIN_HEIGHT),
+      const bounds = timelineHeightBounds();
+      const next = clampDimension(
         resizeBottomYRef.current - e.clientY + resizeGrabOffsetRef.current,
+        {
+          min: Math.min(bounds.max, Math.max(minHeight, bounds.min)),
+          max: bounds.max,
+        },
       );
       lastValue = next;
       setCustomHeight(next);
@@ -472,7 +515,7 @@ export function BottomTimeline() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizingHeight, storylines.length]);
+  }, [isResizingHeight, storylines.length, timelineHeightBounds]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -540,7 +583,14 @@ export function BottomTimeline() {
   );
 
   const getTimelineHeight = () =>
-    Math.max(TIMELINE_CONFIG.MIN_HEIGHT, customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT);
+    clampDimension(
+      customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT,
+      verticalDockBounds(
+        typeof window === 'undefined' ? 700 : window.innerHeight,
+        TIMELINE_CONFIG.MIN_HEIGHT,
+        MIN_EDITOR_HEIGHT,
+      ),
+    );
 
   const dispatchEntityAction = useEntityCellAction();
   const { handleContextMenuAction } = useBottomTimelineContextMenuActions({
@@ -549,7 +599,9 @@ export function BottomTimeline() {
     scrollContainerRef,
     createNode,
     setNodeStorylines,
-    updateNode,
+    updateNode: async (id, updates) => {
+      await updateNode(id, updates);
+    },
     navigateToNode,
     onCloseMenu: clearContextMenu,
     onError: (message, error) => log.error(message, error),
@@ -568,10 +620,7 @@ export function BottomTimeline() {
   // popover is open. Recompute on resize so the popover follows the button if
   // the user reshapes the window while it's open.
   useEffect(() => {
-    if (!unplacedPopoverOpen) {
-      setUnplacedAnchor(null);
-      return;
-    }
+    if (!unplacedPopoverOpen) return;
     const compute = () => {
       const rect = unplacedBtnRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -1454,7 +1503,7 @@ export function BottomTimeline() {
                 const delta = rowHeight > 0 ? (next ? rowHeight : -rowHeight) : 0;
                 if (delta !== 0) {
                   const base = customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT;
-                  const adjusted = Math.max(TIMELINE_CONFIG.MIN_HEIGHT, base + delta);
+                  const adjusted = clampDimension(base + delta, timelineHeightBounds());
                   setCustomHeight(adjusted);
                   if (typeof localStorage !== 'undefined') {
                     localStorage.setItem(TIMELINE_HEIGHT_STORAGE_KEY, adjusted.toString());

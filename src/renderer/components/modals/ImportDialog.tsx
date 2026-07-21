@@ -68,6 +68,10 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
   const [running, setRunning] = useState(false);
   const [summary, setSummary] = useState<{ ok: number; failed: number } | null>(null);
 
+  const requestClose = useCallback(() => {
+    if (!running) onClose();
+  }, [onClose, running]);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -91,6 +95,15 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
       setSummary(null);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open || running) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') requestClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, requestClose, running]);
 
   const addFiles = useCallback(async (files: FileList | File[]) => {
     const arr = Array.from(files).filter((f) => {
@@ -228,7 +241,8 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
         placeItems: 'center',
         zIndex: 10000,
       }}
-      onClick={onClose}
+      onClick={requestClose}
+      aria-busy={running}
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -258,7 +272,10 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
             {t('importDialog.title')}
           </h2>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={requestClose}
+            disabled={running}
+            title={running ? t('importDialog.closeBlocked') : t('settings.close')}
             style={{
               background: 'transparent',
               border: 0,
@@ -284,7 +301,9 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
             {(['chapter', 'element', 'inspiration'] as const).map((targetKind) => (
               <button
                 key={targetKind}
+                type="button"
                 onClick={() => setTarget(targetKind)}
+                disabled={running}
                 className={'set-tier' + (target === targetKind ? ' set-tier--active' : '')}
                 style={{ flex: 1, textAlign: 'left' }}
               >
@@ -312,6 +331,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
                 className="set-input"
                 style={{ minWidth: '100%' }}
                 value={storylineId ?? ''}
+                disabled={running}
                 onChange={(e) => setStorylineId(e.target.value)}
               >
                 {storylines.map((s) => (
@@ -338,6 +358,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
                 className="set-input"
                 style={{ minWidth: '100%' }}
                 value={categoryId ?? ''}
+                disabled={running}
                 onChange={(e) => setCategoryId(e.target.value)}
               >
                 {categories.map((c) => (
@@ -356,15 +377,20 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
             {t('importDialog.filesTitle')}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button className="set-btn" onClick={onPickFiles}>
+            <button type="button" className="set-btn" onClick={onPickFiles} disabled={running}>
               <FileText size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFiles')}
             </button>
-            <button className="set-btn" onClick={onPickFolder}>
+            <button type="button" className="set-btn" onClick={onPickFolder} disabled={running}>
               <Folder size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFolder')}
             </button>
             <span style={{ flex: 1 }} />
             {items.length > 0 && (
-              <button className="set-btn set-btn--ghost" onClick={() => setItems([])}>
+              <button
+                type="button"
+                className="set-btn set-btn--ghost"
+                onClick={() => setItems([])}
+                disabled={running}
+              >
                 {t('importDialog.clear')}
               </button>
             )}
@@ -471,7 +497,9 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
                     {t(`importDialog.status.${it.status}`)}
                   </span>
                   <button
+                    type="button"
                     onClick={() => removeItem(it.id)}
+                    disabled={running}
                     style={{
                       background: 'transparent',
                       border: 0,
@@ -511,7 +539,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
         )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 'auto' }}>
-          <button className="set-btn" onClick={onClose}>
+          <button type="button" className="set-btn" onClick={requestClose} disabled={running}>
             {t('settings.close')}
           </button>
           <button

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useUiStore } from '../../store/ui-store';
 import { serializePlotGrid, type PlotGrid } from '../../domain/plot-grid';
+import { clampDimension, verticalDockBounds } from '../../lib/layout-geometry';
 import { PlotGridEditor } from './PlotGrid';
 import '../../../styles/plot-planner.css';
 
@@ -52,6 +53,38 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
 
   useEffect(() => flush, [flush]);
 
+  const boundsForCurrentShell = useCallback(() => {
+    const dock = dockRef.current;
+    const shell = dockRef.current?.closest('.editor-shell');
+    const availableHeight =
+      dock && shell
+        ? shell.getBoundingClientRect().bottom - dock.getBoundingClientRect().top
+        : window.innerHeight;
+    return verticalDockBounds(availableHeight, MIN_DOCK_HEIGHT, MIN_PROSE_HEIGHT);
+  }, []);
+
+  // Persisted dock heights are only preferences, never layout authority.
+  // Re-clamp them after hydration and whenever the editor shell changes size
+  // (window resize, bottom timeline toggle, split changes, etc.).
+  useEffect(() => {
+    const normalize = () => {
+      if (storedHeight === null) return;
+      const next = clampDimension(storedHeight, boundsForCurrentShell());
+      if (next !== storedHeight) setStoredHeight(next);
+    };
+    const frame = window.requestAnimationFrame(normalize);
+    const shell = dockRef.current?.closest('.editor-shell');
+    const observer =
+      shell && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(normalize) : null;
+    if (shell && observer) observer.observe(shell);
+    window.addEventListener('resize', normalize);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener('resize', normalize);
+    };
+  }, [boundsForCurrentShell, setStoredHeight, storedHeight]);
+
   const handleChange = useCallback(
     (grid: PlotGrid) => {
       pendingRef.current = serializePlotGrid(grid);
@@ -79,11 +112,12 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
       if (!dock) return;
       const dockTop = dock.getBoundingClientRect().top;
       const shell = dock.closest('.editor-shell');
-      const shellBottom = shell ? shell.getBoundingClientRect().bottom : window.innerHeight;
-      const maxH = Math.max(MIN_DOCK_HEIGHT, shellBottom - dockTop - MIN_PROSE_HEIGHT);
-      const next = Math.min(
-        maxH,
-        Math.max(MIN_DOCK_HEIGHT, e.clientY - grabOffsetRef.current - dockTop),
+      const availableHeight = shell
+        ? shell.getBoundingClientRect().bottom - dockTop
+        : window.innerHeight - dockTop;
+      const next = clampDimension(
+        e.clientY - grabOffsetRef.current - dockTop,
+        verticalDockBounds(availableHeight, MIN_DOCK_HEIGHT, MIN_PROSE_HEIGHT),
       );
       last = next;
       setDragHeight(next);
@@ -103,10 +137,19 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
     };
   }, [isResizing, setStoredHeight]);
 
-  const height = dragHeight ?? storedHeight ?? DEFAULT_HEIGHT;
+  const fallbackContainerHeight =
+    typeof window === 'undefined' ? 700 : Math.max(0, window.innerHeight - 100);
+  const height = clampDimension(
+    dragHeight ?? storedHeight ?? DEFAULT_HEIGHT,
+    verticalDockBounds(fallbackContainerHeight, MIN_DOCK_HEIGHT, MIN_PROSE_HEIGHT),
+  );
 
   return (
-    <div className="plot-planner" ref={dockRef} style={{ height }}>
+    <div
+      className="plot-planner"
+      ref={dockRef}
+      style={{ height, maxHeight: `calc(100% - ${MIN_PROSE_HEIGHT}px)` }}
+    >
       <div className="plot-planner__body">
         <PlotGridEditor initialJson={initialJson} onChange={handleChange} />
       </div>

@@ -1,5 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useUiStore, SidebarType } from '../store/ui-store';
+import { clampSidebarWidth } from '../lib/layout-geometry';
 
 // Modern's open/close slide. Must match the `width` transition duration in
 // index.css `.sidebar-shell` so children stay mounted long enough for the
@@ -17,14 +18,51 @@ interface SidebarProps {
 
 export function Sidebar({ sidebarType, topBar, children, collapsedContent }: SidebarProps) {
   const sidebarState = useUiStore((state) => state.sidebars[sidebarType]);
+  const oppositeType: SidebarType = sidebarType === 'left' ? 'right' : 'left';
+  const oppositeSidebarState = useUiStore((state) => state.sidebars[oppositeType]);
   // Fallback if state is missing (should not happen with correct store setup)
   const isExpanded = sidebarState?.isOpen ?? true;
-  const expandedWidth = sidebarState?.width ?? 280;
+  const persistedWidth = sidebarState?.width ?? 280;
+  const oppositeOpenWidth = oppositeSidebarState?.isOpen ? oppositeSidebarState.width : 0;
+  const expandedWidth = clampSidebarWidth(
+    persistedWidth,
+    sidebarType,
+    typeof window === 'undefined' ? 1440 : window.innerWidth,
+    oppositeOpenWidth,
+  );
 
   // Resize Logic
   const setSidebarWidth = useUiStore((state) => state.setSidebarWidth);
   const setResizingSidebar = useUiStore((state) => state.setResizingSidebar);
   const [isResizing, setIsResizing] = useState(false);
+
+  // Zustand restores sidebar widths from localStorage. Normalize that state
+  // immediately and whenever the native window is resized so an old wide
+  // layout cannot squeeze the editor out of view on a smaller display.
+  useEffect(() => {
+    const normalize = () => {
+      const current = useUiStore.getState();
+      const own = current.sidebars[sidebarType];
+      const opposite = current.sidebars[oppositeType];
+      const next = clampSidebarWidth(
+        own.width,
+        sidebarType,
+        window.innerWidth,
+        opposite.isOpen ? opposite.width : 0,
+      );
+      if (next !== own.width) setSidebarWidth(sidebarType, next);
+    };
+    normalize();
+    window.addEventListener('resize', normalize);
+    return () => window.removeEventListener('resize', normalize);
+  }, [
+    oppositeSidebarState?.isOpen,
+    oppositeSidebarState?.width,
+    oppositeType,
+    persistedWidth,
+    setSidebarWidth,
+    sidebarType,
+  ]);
 
   // Keep children mounted for the duration of the collapse animation so the
   // panel actually appears to slide out — without this they'd unmount the
@@ -33,6 +71,9 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
   const [mountChildren, setMountChildren] = useState(isExpanded);
   useEffect(() => {
     if (isExpanded) {
+      // Exit-presence state is intentionally synchronized with the CSS
+      // transition: reopening must cancel the delayed unmount immediately.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMountChildren(true);
       return undefined;
     }
@@ -44,16 +85,15 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
     if (!isResizing) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      let newWidth = sidebarType === 'left' ? e.clientX : window.innerWidth - e.clientX;
-      // 左栏对齐 collapsed 状态下 LeftSidebarTopBar 分隔线位置（AppTopbar 中 LEFT_COLLAPSED_WIDTH = 140）；
-      // 右栏不允许低于 200，保证五个 tab 始终能横排显示。
-      const minWidth = sidebarType === 'right' ? 200 : 140;
-      // Right sidebar gets a wider cap so it can reach the ~768px split
-      // threshold (two columns) on roomy screens; left stays at 30%.
-      const maxWidth = window.innerWidth * (sidebarType === 'right' ? 0.6 : 0.3);
-
-      if (newWidth < minWidth) newWidth = minWidth;
-      if (newWidth > maxWidth) newWidth = maxWidth;
+      const requestedWidth = sidebarType === 'left' ? e.clientX : window.innerWidth - e.clientX;
+      const current = useUiStore.getState();
+      const opposite = current.sidebars[oppositeType];
+      const newWidth = clampSidebarWidth(
+        requestedWidth,
+        sidebarType,
+        window.innerWidth,
+        opposite.isOpen ? opposite.width : 0,
+      );
 
       setSidebarWidth(sidebarType, newWidth);
     };
@@ -73,7 +113,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
       document.removeEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'default';
     };
-  }, [isResizing, setSidebarWidth, setResizingSidebar, sidebarType]);
+  }, [isResizing, oppositeType, setSidebarWidth, setResizingSidebar, sidebarType]);
 
   // Two-layer geometry so modern's open/close slide reads as a real slide:
   //   - outer (`.sidebar-shell`) is the layout-sized box; its `width`
