@@ -267,9 +267,15 @@ pub fn lifecycle_complete_flush(
 
     match action {
         ShutdownAction::CloseWindow => {
-            coordinator.permit_next_close();
-            coordinator.permit_next_exit();
-            window.close().map_err(|error| error.to_string())?;
+            #[cfg(target_os = "macos")]
+            window.hide().map_err(|error| error.to_string())?;
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                coordinator.permit_next_close();
+                coordinator.permit_next_exit();
+                window.close().map_err(|error| error.to_string())?;
+            }
         }
         ShutdownAction::ExitApp => app.exit(0),
     }

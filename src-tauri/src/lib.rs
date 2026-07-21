@@ -56,10 +56,20 @@ fn finish_shutdown(
 ) {
     match coordinator.complete(request_id) {
         Some(ShutdownAction::CloseWindow) => {
-            coordinator.permit_next_close();
-            coordinator.permit_next_exit();
             if let Some(window) = window {
-                let _ = window.close();
+                // macOS applications conventionally remain alive after the
+                // last window closes. Hiding keeps the flushed WebView state
+                // available so a Dock reopen can restore it without creating
+                // a second renderer/database session.
+                #[cfg(target_os = "macos")]
+                let _ = window.hide();
+
+                #[cfg(not(target_os = "macos"))]
+                {
+                    coordinator.permit_next_close();
+                    coordinator.permit_next_exit();
+                    let _ = window.close();
+                }
             }
         }
         Some(ShutdownAction::ExitApp) => app.exit(0),
@@ -249,6 +259,18 @@ pub fn run() {
                     confirmation_required: false,
                 },
             );
+        }
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen {
+            has_visible_windows,
+            ..
+        } => {
+            if !has_visible_windows {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
         }
         RunEvent::ExitRequested { code, api, .. } if code.is_none() => {
             let coordinator = app_handle.state::<Arc<CloseCoordinator>>().inner().clone();

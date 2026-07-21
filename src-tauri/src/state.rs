@@ -100,6 +100,7 @@ impl CloseCoordinator {
         }
     }
 
+    #[cfg(not(target_os = "macos"))]
     pub fn permit_next_close(&self) {
         self.allow_next_close.store(true, Ordering::Release);
     }
@@ -109,6 +110,7 @@ impl CloseCoordinator {
         self.allow_next_close.swap(false, Ordering::AcqRel)
     }
 
+    #[cfg(not(target_os = "macos"))]
     pub fn permit_next_exit(&self) {
         self.allow_next_exit.store(true, Ordering::Release);
     }
