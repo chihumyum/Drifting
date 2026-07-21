@@ -1771,8 +1771,11 @@ export function LibraryItemFullscreenPreview({
   const { t } = useTranslation();
   const [textDraft, setTextDraft] = useState(() => material.bodyJson ?? '');
   const [viewport, setViewport] = useState({ scale: 1, panX: 0, panY: 0 });
+  const [previewDragging, setPreviewDragging] = useState(false);
   const previewSurfaceRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef(viewport);
+  const panFrameRef = useRef<number | null>(null);
+  const queuedPanRef = useRef<{ panX: number; panY: number } | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -1824,6 +1827,32 @@ export function LibraryItemFullscreenPreview({
     viewportRef.current = viewport;
   }, [viewport]);
 
+  const applyQueuedPan = useCallback(() => {
+    panFrameRef.current = null;
+    const queued = queuedPanRef.current;
+    queuedPanRef.current = null;
+    if (!queued) return;
+    setViewport((prev) => ({ ...prev, ...queued }));
+  }, []);
+
+  const queuePan = useCallback(
+    (panX: number, panY: number) => {
+      queuedPanRef.current = { panX, panY };
+      if (panFrameRef.current !== null) return;
+      panFrameRef.current = requestAnimationFrame(applyQueuedPan);
+    },
+    [applyQueuedPan],
+  );
+
+  useEffect(
+    () => () => {
+      if (panFrameRef.current !== null) cancelAnimationFrame(panFrameRef.current);
+      panFrameRef.current = null;
+      queuedPanRef.current = null;
+    },
+    [],
+  );
+
   useEffect(() => {
     const node = previewSurfaceRef.current;
     if (!node || !isZoomablePreview) return;
@@ -1872,6 +1901,7 @@ export function LibraryItemFullscreenPreview({
       panX: viewport.panX,
       panY: viewport.panY,
     };
+    setPreviewDragging(true);
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
@@ -1883,11 +1913,10 @@ export function LibraryItemFullscreenPreview({
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     event.preventDefault();
-    setViewport((prev) => ({
-      ...prev,
-      panX: drag.panX + event.clientX - drag.startX,
-      panY: drag.panY + event.clientY - drag.startY,
-    }));
+    queuePan(
+      drag.panX + event.clientX - drag.startX,
+      drag.panY + event.clientY - drag.startY,
+    );
   };
 
   const handlePreviewPointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -1895,6 +1924,9 @@ export function LibraryItemFullscreenPreview({
     const drag = dragRef.current;
     if (drag?.pointerId === event.pointerId) {
       dragRef.current = null;
+      if (panFrameRef.current !== null) cancelAnimationFrame(panFrameRef.current);
+      applyQueuedPan();
+      setPreviewDragging(false);
     }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -1928,9 +1960,11 @@ export function LibraryItemFullscreenPreview({
             minHeight: 0,
             objectFit: 'contain',
             display: 'block',
-            transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.scale})`,
+            transform: `translate3d(${viewport.panX}px, ${viewport.panY}px, 0) scale(${viewport.scale})`,
             transformOrigin: 'center center',
-            transition: 'transform 80ms ease-out',
+            transition: previewDragging ? 'none' : 'transform 80ms ease-out',
+            willChange: 'transform',
+            backfaceVisibility: 'hidden',
             userSelect: 'none',
             WebkitUserSelect: 'none',
           }}
@@ -1944,7 +1978,13 @@ export function LibraryItemFullscreenPreview({
           ? r2PdfSource.filePath
           : (material.localPath ?? (pdfSrc ? pdfSrc.replace(/^file:\/\//, '') : null));
       if (!pdfPath) return <FullscreenEmpty message={t('memoMaterial.preview.noPdf')} />;
-      return <PdfCanvasPreview filePath={pdfPath} viewport={viewport} />;
+      return (
+        <PdfCanvasPreview
+          filePath={pdfPath}
+          viewport={viewport}
+          dragging={previewDragging}
+        />
+      );
     }
 
     return (
@@ -1980,7 +2020,7 @@ export function LibraryItemFullscreenPreview({
         zIndex: 10000,
         padding: isZoomablePreview ? 0 : '28px 32px',
         background: 'hsl(var(--ink-1) / 0.58)',
-        backdropFilter: 'blur(2px)',
+        backdropFilter: isZoomablePreview ? 'none' : 'blur(2px)',
         display: 'flex',
         alignItems: 'stretch',
         justifyContent: 'center',
@@ -2004,7 +2044,12 @@ export function LibraryItemFullscreenPreview({
             isImagePreview || isPdfPreview ? 'none' : '0 24px 54px hsl(var(--ink-1) / 0.34)',
           display: 'grid',
           placeItems: 'center',
-          cursor: isZoomablePreview && viewport.scale > 1 ? 'grab' : undefined,
+          cursor:
+            isZoomablePreview && viewport.scale > 1
+              ? previewDragging
+                ? 'grabbing'
+                : 'grab'
+              : undefined,
           touchAction: isZoomablePreview ? 'none' : 'auto',
           overscrollBehavior: isZoomablePreview ? 'none' : undefined,
         }}
@@ -2019,9 +2064,11 @@ export function LibraryItemFullscreenPreview({
 function PdfCanvasPreview({
   filePath,
   viewport,
+  dragging,
 }: {
   filePath: string;
   viewport: LibraryItemPreviewViewport;
+  dragging: boolean;
 }) {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -2181,9 +2228,11 @@ function PdfCanvasPreview({
           style={{
             display: 'block',
             background: 'hsl(var(--paper))',
-            transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.scale})`,
+            transform: `translate3d(${viewport.panX}px, ${viewport.panY}px, 0) scale(${viewport.scale})`,
             transformOrigin: 'center center',
-            transition: 'transform 80ms ease-out',
+            transition: dragging ? 'none' : 'transform 80ms ease-out',
+            willChange: 'transform',
+            backfaceVisibility: 'hidden',
             userSelect: 'none',
             WebkitUserSelect: 'none',
           }}
