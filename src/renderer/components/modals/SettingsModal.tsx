@@ -718,11 +718,11 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
     }
   };
 
-  const handleRevokeSession = async (id: string, token: string) => {
+  const handleRevokeSession = async (id: string) => {
     setRevokingId(id);
     setRevokeError(null);
     try {
-      await accountService.revokeSession(token);
+      await accountService.revokeSession(id);
       const next = await accountService.listSessions();
       setSessions(next);
     } catch (err) {
@@ -1009,7 +1009,7 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
               </div>
               <button
                 className="set-btn set-btn--ghost"
-                onClick={() => (s.isCurrent ? handleLogout() : handleRevokeSession(s.id, s.token))}
+                onClick={() => (s.isCurrent ? handleLogout() : handleRevokeSession(s.id))}
                 disabled={revokingId === s.id}
               >
                 {s.isCurrent

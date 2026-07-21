@@ -16,6 +16,14 @@ export interface DeletionStatus {
   daysLeft?: number;
 }
 
+export interface AccountSessionSummary {
+  id: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+  isCurrent: boolean;
+}
+
 export const accountService = {
   // ----- name / email / password -----
 
@@ -40,35 +48,13 @@ export const accountService = {
 
   // ----- session list -----
 
-  async listSessions(): Promise<
-    {
-      id: string;
-      token: string;
-      userAgent: string | null;
-      ipAddress: string | null;
-      createdAt: string;
-      isCurrent: boolean;
-    }[]
-  > {
-    const result = await authClient.listSessions();
-    if (result.error) throw new Error(result.error.message ?? 'List sessions failed');
-    const currentToken =
-      (await authClient.getSession()).data?.session?.token ?? null;
-    return (result.data ?? []).map((s) => ({
-      id: s.id,
-      // better-auth identifies sessions by `token`, not the DB `id` — revokeSession
-      // needs this. Surfacing it here (the row keys/UI still use `id`).
-      token: s.token,
-      userAgent: s.userAgent ?? null,
-      ipAddress: s.ipAddress ?? null,
-      createdAt: typeof s.createdAt === 'string' ? s.createdAt : s.createdAt.toISOString(),
-      isCurrent: s.token === currentToken,
-    }));
+  async listSessions(): Promise<AccountSessionSummary[]> {
+    const { data } = await apiClient.get<AccountSessionSummary[]>('/api/account/sessions');
+    return data;
   },
 
-  async revokeSession(sessionToken: string): Promise<void> {
-    const result = await authClient.revokeSession({ token: sessionToken });
-    if (result.error) throw new Error(result.error.message ?? 'Revoke session failed');
+  async revokeSession(sessionId: string): Promise<void> {
+    await apiClient.delete(`/api/account/sessions/${encodeURIComponent(sessionId)}`);
   },
 
   // ----- deletion grace period -----
