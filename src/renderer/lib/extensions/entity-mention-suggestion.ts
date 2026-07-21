@@ -59,18 +59,18 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
   },
 
   addProseMirrorPlugins() {
-    const extension = this;
+    const { editor: extensionEditor, options } = this;
     return [
       Suggestion<MentionPickerItem>({
-        editor: this.editor,
-        pluginKey: this.options.pluginKey ?? EntityMentionPluginKey,
+        editor: extensionEditor,
+        pluginKey: options.pluginKey ?? EntityMentionPluginKey,
         char: '@',
         startOfLine: false,
         allowSpaces: false,
         decorationTag: 'span',
         decorationClass: 'entity-mention-suggestion',
         items: ({ query }) => {
-          const entities = extension.options.getEntities();
+          const entities = options.getEntities();
           const q = query.trim().toLowerCase();
           // Expand each entity into one row per surface form (name + each
           // alias). Filtering then runs against the surface form itself, so
@@ -104,19 +104,16 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
           const matchesExistingElement = entities.some(
             (e) =>
               e.kind === 'element' &&
-              (e.name.toLowerCase() === q ||
-                (e.aliases ?? []).some((a) => a.toLowerCase() === q)),
+              (e.name.toLowerCase() === q || (e.aliases ?? []).some((a) => a.toLowerCase() === q)),
           );
-          if (q && extension.options.onCreateElement && !matchesExistingElement) {
+          if (q && options.onCreateElement && !matchesExistingElement) {
             items.push({ variant: 'create-element', name: query.trim() });
           }
           return items;
         },
         command: async ({ editor, range, props }) => {
           const item = props as MentionPickerItem;
-          let resolved:
-            | { kind: EntityKind; id: string; name: string }
-            | null = null;
+          let resolved: { kind: EntityKind; id: string; name: string } | null = null;
 
           if (item.variant === 'entity') {
             // Use the picked surface form (alias or canonical name) as the
@@ -127,8 +124,8 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
               id: item.entity.id,
               name: item.displayText,
             };
-          } else if (item.variant === 'create-element' && extension.options.onCreateElement) {
-            const created = await extension.options.onCreateElement(item.name);
+          } else if (item.variant === 'create-element' && options.onCreateElement) {
+            const created = await options.onCreateElement(item.name);
             if (created) {
               resolved = { kind: 'element', id: created.id, name: created.name };
             }
@@ -238,8 +235,7 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
               btn.style.color = idx === selected ? '#fefdfb' : '#5a4a3a';
               btn.style.cursor = 'pointer';
               btn.style.fontSize = '13px';
-              btn.style.fontFamily =
-                'Georgia, "Times New Roman", "Songti SC", SimSun, serif';
+              btn.style.fontFamily = 'Georgia, "Times New Roman", "Songti SC", SimSun, serif';
               btn.style.transition = 'all 0.15s ease';
 
               const { tag, text } = labelFor(item);

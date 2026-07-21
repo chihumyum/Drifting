@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { Editor } from '@tiptap/core';
 import {
   setActiveEditor,
@@ -19,7 +19,9 @@ export function useRegisterActiveEditor(
   save?: () => void | Promise<void>,
 ): void {
   const saveRef = useRef(save);
-  saveRef.current = save;
+  useLayoutEffect(() => {
+    saveRef.current = save;
+  }, [save]);
 
   useEffect(() => {
     if (!editor) return;

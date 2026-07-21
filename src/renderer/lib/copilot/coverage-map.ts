@@ -32,8 +32,7 @@ import { isBlockType } from '../extensions/block-id';
 import type { BlockSnippet, PriorSectionSnippet } from '../ai/context/types';
 import { computeBlockHash } from './block-signature';
 import { useDataStore } from '../../store/data-store';
-import { createBlockSectionRepository } from '../../sqlite-repo/block-section-repo';
-import { syncBlockSectionDelete } from '../../usecase/sync-helpers';
+import { deleteBlockSectionsWithSync } from '../../usecase/synced-entity-commands';
 
 const log = loglevel.getLogger('copilot:coverage');
 
@@ -143,14 +142,19 @@ export async function computeCoverageMap(
   //    block the rest.
   if (toEvict.length > 0) {
     log.info(`[copilot:coverage] evicting ${toEvict.length} fully-stale section(s)`);
-    const repo = createBlockSectionRepository();
+    const byProject = new Map<string, typeof toEvict>();
     for (const target of toEvict) {
+      byProject.set(target.projectId, [...(byProject.get(target.projectId) ?? []), target]);
+    }
+    for (const [projectId, targets] of byProject) {
       try {
-        await repo.delete(target.id);
-        useDataStore.getState().removeBlockSection(target.id);
-        syncBlockSectionDelete(target.id, target.projectId);
+        await deleteBlockSectionsWithSync(
+          projectId,
+          targets.map((target) => target.id),
+        );
+        for (const target of targets) useDataStore.getState().removeBlockSection(target.id);
       } catch (err) {
-        log.info(`[copilot:coverage] evict ${target.id.slice(0, 8)} failed`, err);
+        log.info(`[copilot:coverage] evict ${targets.length} section(s) failed`, err);
       }
     }
   }

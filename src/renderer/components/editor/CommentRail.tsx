@@ -1,6 +1,27 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Eye, EyeOff, ListTodo, MessageSquare, MessageSquarePlus, Minimize2, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
+import {
+  Check,
+  Eye,
+  EyeOff,
+  ListTodo,
+  MessageSquare,
+  MessageSquarePlus,
+  Minimize2,
+  RotateCcw,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 import type { EditorCommentRequest } from '../../hooks/useEntityEditor';
 import {
   commentBelongsToEntity,
@@ -172,8 +193,14 @@ function SnapshotModal({ snapshots, liveBlockIds, onClose }: SnapshotModalProps)
                 key={snap.blockId ?? `snap-${i}`}
                 className={`snapshot-modal__block${gone ? ' snapshot-modal__block--gone' : ''}`}
               >
-                {gone && <span className="snapshot-modal__flag">{t('commentRail.snapshot.changed')}</span>}
-                {snap.blockText || <span className="snapshot-modal__empty">{t('commentRail.snapshot.emptyBlock')}</span>}
+                {gone && (
+                  <span className="snapshot-modal__flag">{t('commentRail.snapshot.changed')}</span>
+                )}
+                {snap.blockText || (
+                  <span className="snapshot-modal__empty">
+                    {t('commentRail.snapshot.emptyBlock')}
+                  </span>
+                )}
               </p>
             );
           })}
@@ -218,6 +245,10 @@ export function CommentRail({
   // as a small chip at the same y position. Click to expand. Default is
   // expanded (card). Session-local; not persisted.
   const [chipIds, setChipIds] = useState<Set<string>>(new Set());
+  // Which comment card is hovered -> the effect below highlights its anchored
+  // block(s). Declare it before the chip callbacks that consume its setter so
+  // the callbacks remain compatible with React Compiler's closure analysis.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const collapseToChip = useCallback((id: string) => {
     setChipIds((prev) => {
       if (prev.has(id)) return prev;
@@ -287,10 +318,8 @@ export function CommentRail({
   // bottom-right ball (when empty) or the "+" beside the collapse button.
   const [entityComposerOpen, setEntityComposerOpen] = useState(false);
   const [entityDraft, setEntityDraft] = useState('');
-  // Which comment card is hovered → the effect below highlights its anchored
-  // block(s). State-driven (+ cleanup) so the highlight never sticks: the old
+  // State-driven hover cleanup means the highlight never sticks: the old
   // inline classList toggling left marks behind on card unmount / delete / create.
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
   // Bumped after each (debounced) prose edit to this entity so the manual cards
   // re-evaluate snapshotsDiverged — the "view original" button must appear once
   // an anchored block is edited/deleted. The value is unused; the re-render is
@@ -583,9 +612,7 @@ export function CommentRail({
       if (activeIds.size === 0) return;
       // Oldest active first — visibleComments is asc by createdAt, so a Tab
       // burst accepts suggestions in arrival order.
-      const target = visibleComments.find(
-        (c) => c.source === 'copilot' && activeIds.has(c.id),
-      );
+      const target = visibleComments.find((c) => c.source === 'copilot' && activeIds.has(c.id));
       if (!target) return;
 
       e.preventDefault();
@@ -714,9 +741,10 @@ export function CommentRail({
 
     const body = extractTextFromCommentBody(comment.bodyJson);
     const title = isCopilot
-      ? summary?.title ?? (meta
-        ? t('commentRail.card.copilotSuggestionWithKind', { kind: meta.kind })
-        : t('commentRail.card.copilotSuggestion'))
+      ? (summary?.title ??
+        (meta
+          ? t('commentRail.card.copilotSuggestionWithKind', { kind: meta.kind })
+          : t('commentRail.card.copilotSuggestion')))
       : body || t('commentRail.card.emptyComment');
 
     const isActive = activeIds.has(comment.id);
@@ -743,7 +771,9 @@ export function CommentRail({
         <div className="mnote__head">
           <span className="mnote__head-l">
             <span className="mnote__head-glyph">{colorIcon(colorKey)}</span>
-            <span>{isCopilot && capability ? capability.displayName : t(COLOR_LABEL_KEY[colorKey])}</span>
+            <span>
+              {isCopilot && capability ? capability.displayName : t(COLOR_LABEL_KEY[colorKey])}
+            </span>
           </span>
           <span className="mnote__head-r">
             <span className="mnote__head-conf">
@@ -763,7 +793,9 @@ export function CommentRail({
           </span>
         </div>
         <div className="mnote__title">{title}</div>
-        {isCopilot && summary?.subtitle && <div className="mnote__subtitle">{summary.subtitle}</div>}
+        {isCopilot && summary?.subtitle && (
+          <div className="mnote__subtitle">{summary.subtitle}</div>
+        )}
         {/* Suggestion body preview — element candidate's initial summary / the patch
             body. This is the model's DESCRIPTION, distinct from the anchored prose
             (which stays hover-only). */}
@@ -821,7 +853,9 @@ export function CommentRail({
               type="button"
               className="mnote__btn"
               disabled={busy}
-              onClick={() => void runAction(comment.id, () => commentUsecases.reopenComment(comment.id))}
+              onClick={() =>
+                void runAction(comment.id, () => commentUsecases.reopenComment(comment.id))
+              }
             >
               <RotateCcw size={12} />
               <span>{t('commentRail.actions.reopen')}</span>
@@ -852,7 +886,9 @@ export function CommentRail({
               className="mnote__btn mnote__btn--ghost"
               disabled={busy}
               title={t('commentRail.actions.revertToNoteTitle')}
-              onClick={() => void runAction(comment.id, () => commentUsecases.revertToNote(comment.id))}
+              onClick={() =>
+                void runAction(comment.id, () => commentUsecases.revertToNote(comment.id))
+              }
             >
               <ListTodo size={12} />
               <span>{t('commentRail.actions.toNote')}</span>
@@ -862,7 +898,9 @@ export function CommentRail({
               type="button"
               className="mnote__btn"
               disabled={busy}
-              onClick={() => void runAction(comment.id, () => commentUsecases.convertToTodo(comment.id))}
+              onClick={() =>
+                void runAction(comment.id, () => commentUsecases.convertToTodo(comment.id))
+              }
             >
               <ListTodo size={12} />
               <span>{t('commentRail.actions.toTodo')}</span>
@@ -907,7 +945,9 @@ export function CommentRail({
             type="button"
             className="mnote__btn"
             disabled={busy}
-            onClick={() => void runAction(comment.id, () => commentUsecases.deleteComment(comment.id))}
+            onClick={() =>
+              void runAction(comment.id, () => commentUsecases.deleteComment(comment.id))
+            }
           >
             <Trash2 size={12} />
             <span>{t('common.delete')}</span>
@@ -985,11 +1025,7 @@ export function CommentRail({
           rows={4}
         />
         <div className="mnote__actions">
-          <button
-            type="button"
-            className="mnote__btn"
-            onClick={() => onPendingRequestChange(null)}
-          >
+          <button type="button" className="mnote__btn" onClick={() => onPendingRequestChange(null)}>
             {t('common.cancel')}
           </button>
           <button
@@ -1144,7 +1180,7 @@ export function CommentRail({
 
   const snapshotComment =
     snapshotForId !== null
-      ? [...visibleComments, ...looseComments].find((c) => c.id === snapshotForId) ?? null
+      ? ([...visibleComments, ...looseComments].find((c) => c.id === snapshotForId) ?? null)
       : null;
   const snapshotPayload = snapshotComment
     ? getBlockSnapshotsFromAnchor(snapshotComment.anchorJson)
@@ -1164,11 +1200,7 @@ export function CommentRail({
 
   return (
     <>
-      <aside
-        ref={marginRef}
-        className="editor__margin"
-        aria-label={t('commentRail.aria.margin')}
-      >
+      <aside ref={marginRef} className="editor__margin" aria-label={t('commentRail.aria.margin')}>
         {visibleComments
           .filter((comment) => !isStackOrphan(comment))
           .map((comment) => (

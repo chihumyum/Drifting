@@ -451,7 +451,7 @@ export function StoryGraphView() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [closeDriftPanelRef]);
 
   // Outside-click / Esc dismissal is handled inside EntityCellContextMenu
   // itself, so no separate effect is needed for the graph cmenu state.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -9,11 +9,7 @@ export type SidebarType = 'left' | 'right';
 // useMemo'd sort step. Direction is baked into each mode (createdAt /
 // updatedAt → desc; title / alphabet → asc; bookOrder / narrativeOrder → asc).
 export type DriftSortMode = 'createdAt' | 'updatedAt' | 'title';
-export type ChapterGlobalSortMode =
-  | 'bookOrder'
-  | 'narrativeOrder'
-  | 'createdAt'
-  | 'updatedAt';
+export type ChapterGlobalSortMode = 'bookOrder' | 'narrativeOrder' | 'createdAt' | 'updatedAt';
 export type ChapterStorylineInnerSortMode = 'bookOrder' | 'narrativeOrder';
 export type ElementSortMode = 'alphabet' | 'createdAt';
 
@@ -235,14 +231,8 @@ interface UiState {
   // conversions) by opening the entity tab AND queueing the action here. The
   // target editor view consumes the queued action on mount / when the matching
   // entity becomes active.
-  pendingEntityAction:
-    | { entityType: TabEntityType; id: string; action: string }
-    | null;
-  enqueueEntityAction: (
-    entityType: TabEntityType,
-    id: string,
-    action: string,
-  ) => void;
+  pendingEntityAction: { entityType: TabEntityType; id: string; action: string } | null;
+  enqueueEntityAction: (entityType: TabEntityType, id: string, action: string) => void;
   // Pull-and-clear if the queued action matches (entityType, id); otherwise
   // returns null and leaves the queue alone.
   consumeEntityAction: (entityType: TabEntityType, id: string) => string | null;
@@ -556,8 +546,7 @@ export const useUiStore = create<UiState>()(
 
       outlineCollapsed: false,
       setOutlineCollapsed: (collapsed) => set({ outlineCollapsed: collapsed }),
-      toggleOutlineCollapsed: () =>
-        set((state) => ({ outlineCollapsed: !state.outlineCollapsed })),
+      toggleOutlineCollapsed: () => set((state) => ({ outlineCollapsed: !state.outlineCollapsed })),
 
       bottomTimelineHidden: false,
       setBottomTimelineHidden: (hidden) => set({ bottomTimelineHidden: hidden }),
@@ -575,8 +564,7 @@ export const useUiStore = create<UiState>()(
 
       plotPlannerOpen: false,
       setPlotPlannerOpen: (open) => set({ plotPlannerOpen: open }),
-      togglePlotPlannerOpen: () =>
-        set((state) => ({ plotPlannerOpen: !state.plotPlannerOpen })),
+      togglePlotPlannerOpen: () => set((state) => ({ plotPlannerOpen: !state.plotPlannerOpen })),
       plotPlannerHeight: null,
       setPlotPlannerHeight: (height) => set({ plotPlannerHeight: height }),
 
@@ -586,8 +574,7 @@ export const useUiStore = create<UiState>()(
       activeLeftPanel: 'elements',
       setActiveLeftPanel: (panel) => set({ activeLeftPanel: panel }),
       chapterStorylineEditorNodeId: null,
-      setChapterStorylineEditorNodeId: (nodeId) =>
-        set({ chapterStorylineEditorNodeId: nodeId }),
+      setChapterStorylineEditorNodeId: (nodeId) => set({ chapterStorylineEditorNodeId: nodeId }),
       pendingEntityAction: null,
       enqueueEntityAction: (entityType, id, action) =>
         set({ pendingEntityAction: { entityType, id, action } }),
@@ -607,8 +594,7 @@ export const useUiStore = create<UiState>()(
       chapterGlobalSortMode: 'bookOrder',
       setChapterGlobalSortMode: (mode) => set({ chapterGlobalSortMode: mode }),
       chapterStorylineInnerSortMode: 'bookOrder',
-      setChapterStorylineInnerSortMode: (mode) =>
-        set({ chapterStorylineInnerSortMode: mode }),
+      setChapterStorylineInnerSortMode: (mode) => set({ chapterStorylineInnerSortMode: mode }),
       elementSortMode: 'alphabet',
       setElementSortMode: (mode) => set({ elementSortMode: mode }),
 
@@ -617,8 +603,7 @@ export const useUiStore = create<UiState>()(
       driftCellMeta: 'date',
       setDriftCellMeta: (mode) => set({ driftCellMeta: mode }),
       chapterStorylinePrimaryOnly: false,
-      setChapterStorylinePrimaryOnly: (only) =>
-        set({ chapterStorylinePrimaryOnly: only }),
+      setChapterStorylinePrimaryOnly: (only) => set({ chapterStorylinePrimaryOnly: only }),
       rightPanelGroup: 'content',
       setRightPanelGroup: (group) => set({ rightPanelGroup: group }),
       // Selecting a tab also marks its group current — so in flat mode (all
@@ -643,7 +628,8 @@ export const useUiStore = create<UiState>()(
           }
           return {
             shadowMode: false,
-            activeAgentPanel: state.activeAgentPanel === 'shadow' ? 'companion' : state.activeAgentPanel,
+            activeAgentPanel:
+              state.activeAgentPanel === 'shadow' ? 'companion' : state.activeAgentPanel,
           };
         }),
       toggleShadowMode: () =>
@@ -654,7 +640,8 @@ export const useUiStore = create<UiState>()(
           }
           return {
             shadowMode: false,
-            activeAgentPanel: state.activeAgentPanel === 'shadow' ? 'companion' : state.activeAgentPanel,
+            activeAgentPanel:
+              state.activeAgentPanel === 'shadow' ? 'companion' : state.activeAgentPanel,
           };
         }),
 
@@ -771,9 +758,7 @@ export const useUiStore = create<UiState>()(
           } else if (preview) {
             // Replace existing preview LEAF in place, or append new preview.
             // Splits never have isPreview, so they're naturally skipped.
-            const previewIdx = project.openTabs.findIndex(
-              (t) => t.kind === 'leaf' && t.isPreview,
-            );
+            const previewIdx = project.openTabs.findIndex((t) => t.kind === 'leaf' && t.isPreview);
             if (previewIdx >= 0) {
               nextOpenTabs = project.openTabs.slice();
               nextOpenTabs[previewIdx] = newLeaf;
@@ -818,8 +803,7 @@ export const useUiStore = create<UiState>()(
         set((state) => {
           const project = state.tabsByProject[projectId];
           if (!project) return {};
-          const key =
-            'splitId' in ref ? `split:${ref.splitId}` : `${ref.entityType}:${ref.id}`;
+          const key = 'splitId' in ref ? `split:${ref.splitId}` : `${ref.entityType}:${ref.id}`;
           const idx = project.openTabs.findIndex((t) => tabKey(t) === key);
           if (idx < 0) return {};
           const nextOpenTabs = project.openTabs.slice();
@@ -832,7 +816,9 @@ export const useUiStore = create<UiState>()(
               nextActiveTabKey = null;
             } else {
               const successor =
-                idx < nextOpenTabs.length ? nextOpenTabs[idx] : nextOpenTabs[nextOpenTabs.length - 1];
+                idx < nextOpenTabs.length
+                  ? nextOpenTabs[idx]
+                  : nextOpenTabs[nextOpenTabs.length - 1];
               nextActiveTabKey = tabKey(successor);
               nextActive = focusedLeafOf(successor);
             }
@@ -938,9 +924,7 @@ export const useUiStore = create<UiState>()(
             if (dupIdx >= 0) workingTabs.splice(dupIdx, 1);
           }
 
-          const activeIdx = workingTabs.findIndex(
-            (t) => tabKey(t) === project.activeTabKey,
-          );
+          const activeIdx = workingTabs.findIndex((t) => tabKey(t) === project.activeTabKey);
           if (activeIdx < 0) {
             // Active tab got removed by the dup-strip above (source was the
             // active leaf). Just open the source as a new leaf.
@@ -1059,13 +1043,14 @@ export const useUiStore = create<UiState>()(
         set((state) => {
           const project = state.tabsByProject[projectId];
           if (!project) return {};
-          const idx = project.openTabs.findIndex(
-            (t) => t.kind === 'split' && t.id === splitId,
-          );
+          const idx = project.openTabs.findIndex((t) => t.kind === 'split' && t.id === splitId);
           if (idx < 0) return {};
           const split = project.openTabs[idx] as SplitTab;
           const extracted: LeafTab = { ...split[side], isPreview: false };
-          const survivor: LeafTab = { ...split[side === 'left' ? 'right' : 'left'], isPreview: false };
+          const survivor: LeafTab = {
+            ...split[side === 'left' ? 'right' : 'left'],
+            isPreview: false,
+          };
           const nextOpenTabs = project.openTabs.slice();
           nextOpenTabs.splice(idx, 1, survivor, extracted);
           const wasActive = project.activeTabKey === tabKey(split);
@@ -1086,9 +1071,7 @@ export const useUiStore = create<UiState>()(
         set((state) => {
           const project = state.tabsByProject[projectId];
           if (!project) return {};
-          const idx = project.openTabs.findIndex(
-            (t) => t.kind === 'split' && t.id === splitId,
-          );
+          const idx = project.openTabs.findIndex((t) => t.kind === 'split' && t.id === splitId);
           if (idx < 0) return {};
           const split = project.openTabs[idx] as SplitTab;
           const survivor: LeafTab = {
@@ -1115,9 +1098,7 @@ export const useUiStore = create<UiState>()(
         set((state) => {
           const project = state.tabsByProject[projectId];
           if (!project) return {};
-          const idx = project.openTabs.findIndex(
-            (t) => t.kind === 'split' && t.id === splitId,
-          );
+          const idx = project.openTabs.findIndex((t) => t.kind === 'split' && t.id === splitId);
           if (idx < 0) return {};
           const split = project.openTabs[idx] as SplitTab;
           const left: LeafTab = { ...split.left, isPreview: false };
@@ -1227,9 +1208,7 @@ export const useUiStore = create<UiState>()(
           });
 
           let nextActiveTabKey: string | null = project.activeTabKey;
-          const activeIdx = project.openTabs.findIndex(
-            (t) => tabKey(t) === project.activeTabKey,
-          );
+          const activeIdx = project.openTabs.findIndex((t) => tabKey(t) === project.activeTabKey);
           const activeStillThere =
             activeIdx >= 0 && replacements[activeIdx] === project.openTabs[activeIdx];
           if (!activeStillThere && project.activeTabKey != null) {
@@ -1409,7 +1388,9 @@ export const useUiStore = create<UiState>()(
 );
 
 export function useProjectTabs(projectId: string | undefined | null): ProjectTabsState {
-  return useUiStore((s) => (projectId ? s.tabsByProject[projectId] : undefined) ?? EMPTY_PROJECT_TABS);
+  return useUiStore(
+    (s) => (projectId ? s.tabsByProject[projectId] : undefined) ?? EMPTY_PROJECT_TABS,
+  );
 }
 
 export function usePromoteCurrentTab(projectId: string | undefined | null): () => void {
@@ -1428,7 +1409,8 @@ export function useCanPromoteOnEdit(
   resetKey: string | null | undefined,
   graceMs = 3000,
 ): () => boolean {
-  const openedAtRef = useRef<number>(Date.now());
+  const [initialOpenedAt] = useState(() => Date.now());
+  const openedAtRef = useRef<number>(initialOpenedAt);
   useEffect(() => {
     openedAtRef.current = Date.now();
   }, [resetKey]);

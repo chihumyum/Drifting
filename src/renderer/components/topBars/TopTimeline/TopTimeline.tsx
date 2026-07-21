@@ -180,6 +180,7 @@ export function TopTimeline() {
   const [dropTarget, setDropTarget] = useState<{
     index: number;
     side: 'before' | 'after';
+    indicatorX: number;
   } | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -224,7 +225,7 @@ export function TopTimeline() {
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [containerRef]);
 
   const lookups = useMemo(() => {
     const labelOfLeaf = (leaf: LeafTab): string => {
@@ -351,33 +352,13 @@ export function TopTimeline() {
   // The classic skin keeps its per-tab hard line (rendered inside each
   // slot) — modern hides those via CSS.
   //
-  // Why DOM measurement inside useMemo: by the time `dropTarget` flips from
-  // null → set, the tab DOM is already committed (drag was already in
-  // progress, layout is stable), and offsetLeft/offsetWidth are cheap
-  // synchronous reads. Re-runs are gated on `tabWidths` so a resize-driven
-  // re-layout re-measures the indicator's anchor too.
-  const dropIndicatorStyle = useMemo<React.CSSProperties>(() => {
-    const hidden: React.CSSProperties = { opacity: 0 };
-    if (!dropTarget || dragFromIndex === null) return hidden;
-    if (computeReorderTarget(dragFromIndex, dropTarget) === null) return hidden;
-    const container = containerRef.current;
-    if (!container) return hidden;
-    const targetTab = openTabs[dropTarget.index];
-    if (!targetTab) return hidden;
-    const tabEl = container.querySelector(
-      `[data-tab-key="${CSS.escape(tabKey(targetTab))}"]`,
-    ) as HTMLElement | null;
-    if (!tabEl) return hidden;
-    const PILL_WIDTH = 3;
-    const x =
-      dropTarget.side === 'before'
-        ? tabEl.offsetLeft - PILL_WIDTH / 2
-        : tabEl.offsetLeft + tabEl.offsetWidth - PILL_WIDTH / 2;
-    return {
-      transform: `translateX(${x}px)`,
-      opacity: 1,
-    };
-  }, [dropTarget, dragFromIndex, openTabs, tabWidths, computeReorderTarget]);
+  // DOM geometry is captured by the drag event that creates the target. This
+  // keeps ref reads in an event handler (where React permits them) instead of
+  // reading the container ref during render.
+  const dropIndicatorStyle: React.CSSProperties =
+    dropTarget && dragFromIndex !== null && computeReorderTarget(dragFromIndex, dropTarget) !== null
+      ? { transform: `translateX(${dropTarget.indicatorX}px)`, opacity: 1 }
+      : { opacity: 0 };
 
   // When the active tab changes (or the layout shifts enough to push it out of
   // view), scroll the bar so the active tab is fully visible. Without this,
@@ -397,7 +378,7 @@ export function TopTimeline() {
     } else if (eRect.right > cRect.right) {
       container.scrollBy({ left: eRect.right - cRect.right + 8, behavior: 'smooth' });
     }
-  }, [activeTabKey, tabWidths, containerWidth]);
+  }, [activeTabKey, tabWidths, containerWidth, containerRef]);
 
   // Click a top-level tab. Tab activation always bypasses openEntity:
   //   - splits would otherwise have their focused side replaced (openEntity
@@ -655,10 +636,25 @@ export function TopTimeline() {
           const targetIndex = isRightHalf && index + 1 < openTabs.length ? index + 1 : index;
           const side: 'before' | 'after' =
             isRightHalf && targetIndex === index ? 'after' : 'before';
+          const targetTab = openTabs[targetIndex];
+          const targetElement = targetTab
+            ? containerRef.current?.querySelector<HTMLElement>(
+                `[data-tab-key="${CSS.escape(tabKey(targetTab))}"]`,
+              )
+            : null;
+          if (!targetElement) return;
+          const PILL_WIDTH = 3;
+          const indicatorX =
+            side === 'before'
+              ? targetElement.offsetLeft - PILL_WIDTH / 2
+              : targetElement.offsetLeft + targetElement.offsetWidth - PILL_WIDTH / 2;
           setDropTarget((prev) =>
-            prev && prev.index === targetIndex && prev.side === side
+            prev &&
+            prev.index === targetIndex &&
+            prev.side === side &&
+            prev.indicatorX === indicatorX
               ? prev
-              : { index: targetIndex, side },
+              : { index: targetIndex, side, indicatorX },
           );
         };
         const onDropSlot = (event: React.DragEvent<HTMLDivElement>) => {

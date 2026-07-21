@@ -19,10 +19,8 @@ import { blockSectionSummaryPrompt } from '../ai/prompts/templates/block-section
 import { isBlockType } from '../extensions/block-id';
 import { computeBlockHashes } from './block-signature';
 import type { CopilotRuntime } from './capability';
-import { createBlockSectionRepository } from '../../sqlite-repo/block-section-repo';
-import { encodeBlockHashes, encodeBlockIds } from '../../domain/block-section';
 import { useDataStore } from '../../store/data-store';
-import { syncBlockSectionCreate } from '../../usecase/sync-helpers';
+import { createBlockSectionWithSync } from '../../usecase/synced-entity-commands';
 
 const log = loglevel.getLogger('copilot:block-section-summary');
 
@@ -79,8 +77,7 @@ export async function produceBlockSectionSummary(
     return;
   }
 
-  const repo = createBlockSectionRepository();
-  const created = await repo.create({
+  const created = await createBlockSectionWithSync({
     projectId: input.projectId,
     chapterId: input.chapterId,
     blockIds: orderedBlockIds,
@@ -91,16 +88,6 @@ export async function produceBlockSectionSummary(
 
   // Mirror into the data-store so the next coverage-map pass sees this row.
   useDataStore.getState().addBlockSection(created);
-
-  // Push to server — recovery on 404 lives in entity-sync.service.
-  syncBlockSectionCreate(created.id, created.projectId, {
-    id: created.id,
-    chapterId: created.chapterId,
-    blockIdsJson: encodeBlockIds(created.blockIds),
-    blockHashesJson: encodeBlockHashes(created.blockHashes),
-    summary: created.summary,
-    source: created.source,
-  });
 
   log.info(
     `[copilot:summary] wrote block_section ${created.id.slice(0, 8)} (${orderedBlockIds.length} blocks)`,

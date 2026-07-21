@@ -103,8 +103,6 @@ export function NotificationPill() {
   // When a task reaches a terminal state, flash its result icon for FLASH_MS.
   const lastHeadRef = useRef(0);
   const [flashResult, setFlashResult] = useState<FlashResult>(null);
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
   const flashClearRef = useRef<number>(0);
 
   useEffect(() => {
@@ -112,7 +110,7 @@ export function NotificationPill() {
     const isNew = headUpdatedAt > lastHeadRef.current;
     lastHeadRef.current = headUpdatedAt;
     if (!isNew) return;
-    const head = itemsRef.current[0];
+    const head = items[0];
     if (!head) return;
     if (head.state !== 'running') {
       setFlashResult({
@@ -123,7 +121,7 @@ export function NotificationPill() {
     } else {
       setFlashResult(null);
     }
-  }, [headUpdatedAt]);
+  }, [headUpdatedAt, items]);
 
   useEffect(() => {
     if (flashResult === null) return;

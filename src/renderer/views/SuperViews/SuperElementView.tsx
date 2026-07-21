@@ -1077,6 +1077,7 @@ export function SuperElementView() {
     linkSource,
     driftPanelMounted,
     driftPanelClosing,
+    closeDriftPanelRef,
   ]);
 
   // Dismiss the edge selection on any click that doesn't land on an edge

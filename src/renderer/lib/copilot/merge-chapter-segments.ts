@@ -20,10 +20,9 @@ import { runStructured } from '../ai/remote/run-structured';
 import { segmentMergePrompt } from '../ai/prompts/templates/segment-merge';
 import { isBlockType } from '../extensions/block-id';
 import { computeBlockHashes } from './block-signature';
-import { createBlockSectionRepository } from '../../sqlite-repo/block-section-repo';
-import { encodeBlockHashes, encodeBlockIds, type BlockSection } from '../../domain/block-section';
+import type { BlockSection } from '../../domain/block-section';
 import { useDataStore } from '../../store/data-store';
-import { syncBlockSectionCreate, syncBlockSectionDelete } from '../../usecase/sync-helpers';
+import { replaceBlockSectionsWithSync } from '../../usecase/synced-entity-commands';
 
 const log = loglevel.getLogger('copilot:segment-merge');
 
@@ -77,8 +76,6 @@ export async function mergeChapterSegments(params: {
     }
   }
 
-  const repo = createBlockSectionRepository();
-
   for (const group of groups) {
     if (signal?.aborted) return;
     if (group.length < 2) continue; // already adequately sized — leave as-is
@@ -110,27 +107,17 @@ export async function mergeChapterSegments(params: {
     const blockHashes = computeBlockHashes(finalIds, (id) => texts.get(id) ?? '');
 
     try {
-      const created = await repo.create({
+      const created = await replaceBlockSectionsWithSync({
         projectId,
         chapterId,
         blockIds: finalIds,
         blockHashes,
         summary: merged,
         source: 'reverse-outline',
-      });
+      }, group.map((old) => old.id));
       useDataStore.getState().addBlockSection(created);
-      syncBlockSectionCreate(created.id, projectId, {
-        id: created.id,
-        chapterId,
-        blockIdsJson: encodeBlockIds(created.blockIds),
-        blockHashesJson: encodeBlockHashes(created.blockHashes),
-        summary: created.summary,
-        source: created.source,
-      });
       for (const old of group) {
-        await repo.delete(old.id);
         useDataStore.getState().removeBlockSection(old.id);
-        syncBlockSectionDelete(old.id, projectId);
       }
       log.info(`[segment-merge] merged ${group.length} sections → 1 (${finalIds.length} blocks)`);
     } catch (err) {

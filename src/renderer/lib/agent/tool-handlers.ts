@@ -51,7 +51,10 @@ import {
   type UpdatePatchInput,
   type PatchWithSourceTitle,
 } from '../../sqlite-repo/element-patch-repo';
-import { syncElementPatchCreate, syncElementPatchUpdate } from '../../usecase/sync-helpers';
+import {
+  createElementPatchWithSync,
+  updateElementPatchWithSync,
+} from '../../usecase/synced-entity-commands';
 import { isChapter, type BookNode } from '../../domain/book-node';
 import { parseKv, stringifyKv, type KvEntry } from '../../domain/kv';
 import {
@@ -1737,33 +1740,6 @@ async function setSummary(ctx: AgentToolContext, args: Record<string, unknown>) 
 
 // ---- Element patches (direct repo + sync, mirroring the app's UI path) ------
 
-/** Sync payload shape shared by patch create/update (mirrors PatchesSection). */
-function patchSyncPayload(p: {
-  id: string;
-  elementId: string;
-  sourceNodeId: string | null;
-  sourceBlockId: string | null;
-  sourceBlockText: string | null;
-  textAnchorJson: string | null;
-  invalidatedAt: string | null;
-  title: string | null;
-  contentJson: string;
-  orderKey: number;
-}): Record<string, unknown> {
-  return {
-    id: p.id,
-    elementId: p.elementId,
-    sourceNodeId: p.sourceNodeId,
-    sourceBlockId: p.sourceBlockId,
-    sourceBlockText: p.sourceBlockText,
-    textAnchorJson: p.textAnchorJson,
-    invalidatedAt: p.invalidatedAt,
-    title: p.title,
-    contentJson: p.contentJson,
-    orderKey: p.orderKey,
-  };
-}
-
 async function createElementPatch(ctx: AgentToolContext, args: Record<string, unknown>) {
   const elementId = String(args.elementId ?? '');
   if (!elementId) throw new Error('create_element_patch requires elementId');
@@ -1774,8 +1750,7 @@ async function createElementPatch(ctx: AgentToolContext, args: Record<string, un
   }
   // sourceChapter (a node NAME) was resolved to sourceNodeId by resolveArgsRefs.
   if (typeof args.sourceNodeId === 'string') input.sourceNodeId = args.sourceNodeId;
-  const created = await createElementPatchRepository().create(input);
-  syncElementPatchCreate(created.id, ctx.projectId, patchSyncPayload(created));
+  const created = await createElementPatchWithSync(input);
   // Surface the new patch for card-level review (keep / discard) — soft-approval,
   // same as the other non-prose edits. Marks `patch:<id>` pending on the element.
   recordFieldChanges('element', elementId, [patchFieldChange(created.id, created.title)]);
@@ -1799,9 +1774,8 @@ async function updateElementPatch(ctx: AgentToolContext, args: Record<string, un
   const updates: UpdatePatchInput = {};
   if (typeof args.title === 'string') updates.title = args.title;
   if (typeof args.body === 'string') updates.contentJson = createPlainCommentDoc(args.body);
-  const updated = await createElementPatchRepository().update(patchId, updates);
+  const updated = await updateElementPatchWithSync(ctx.projectId, patchId, updates);
   if (!updated) throw new Error(`No patch found with id "${patchId}"`);
-  syncElementPatchUpdate(updated.id, ctx.projectId, patchSyncPayload(updated));
   // Surface the edit for review — op 'changed', stashing the pre-edit title +
   // body in oldText so ✗ can restore them; the card renders a title/body diff.
   if (updates.title !== undefined || updates.contentJson !== undefined) {

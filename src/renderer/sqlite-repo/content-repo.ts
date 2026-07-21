@@ -94,14 +94,14 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
     const result = await dbProvider()
       .delete(NodeContentTable)
       .where(eq(NodeContentTable.nodeId, id));
-    return (result as any).rowsAffected > 0;
+    return (result as { rowsAffected: number }).rowsAffected > 0;
   };
 
   const deleteByNodeId = async (nodeId: string): Promise<boolean> => {
     const result = await dbProvider()
       .delete(NodeContentTable)
       .where(eq(NodeContentTable.nodeId, nodeId));
-    return (result as any).rowsAffected > 0;
+    return (result as { rowsAffected: number }).rowsAffected > 0;
   };
 
   return {

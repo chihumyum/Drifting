@@ -19,12 +19,12 @@
 // (F900–FAFF) and Plane-2 extensions are deliberately omitted; they're rare
 // enough in modern Chinese prose that adding them would broaden the regex
 // without changing typical counts.
-const CJK_IDEOGRAPH = /[㐀-䶿一-鿿]/g;
+const CJK_IDEOGRAPH = /[\u3400-\u4DBF\u4E00-\u9FFF]/gu;
 
 // Everything we want to *erase* before splitting Latin words: ideographs
 // themselves, plus CJK Symbols & Punctuation (U+3000–303F) and Halfwidth /
 // Fullwidth Forms (U+FF00–FFEF, where 。 ， 「 」 etc. live).
-const CJK_STRIPPABLE = /[　-〿㐀-䶿一-鿿＀-￯]/g;
+const CJK_STRIPPABLE = /[\u3000-\u303F\u3400-\u4DBF\u4E00-\u9FFF\uFF00-\uFFEF]/gu;
 
 export function countWords(text: string): number {
   const trimmed = text.trim();

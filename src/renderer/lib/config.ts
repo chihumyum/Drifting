@@ -73,7 +73,7 @@ export function isByokOnly(): boolean {
 /**
  * Log debug message if debug mode is enabled
  */
-export function debugLog(message: string, ...args: any[]): void {
+export function debugLog(message: string, ...args: unknown[]): void {
   if (APP_CONFIG.ENABLE_DEBUG_LOGS) {
     log.debug(`[DEBUG] ${message}`, ...args);
   }

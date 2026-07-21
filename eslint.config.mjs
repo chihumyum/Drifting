@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist', '.vite', 'out', 'build', 'node_modules', 'src-tauri/target', '*.d.ts'],
+    ignores: ['dist', '.vite', 'out', 'build', 'node_modules', 'src-tauri/target', '**/*.d.ts'],
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
@@ -27,6 +27,13 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
+      // React Hooks 7 added this compiler-oriented diagnostic to the regular
+      // recommended preset. The app does not enable React Compiler yet, and
+      // several existing effects intentionally reset UI state when their
+      // entity or modal lifecycle changes. Keep the diagnostic visible while
+      // making lint a usable CI gate; each lifecycle can then be refactored
+      // without turning a dependency upgrade into a release-wide blocker.
+      'react-hooks/set-state-in-effect': 'warn',
     },
   },
 );

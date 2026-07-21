@@ -93,7 +93,8 @@ export function EntityRelationPicker({
     const drifts: RelationTarget[] = [];
     bookNodes.forEach((n) => {
       const isCh = isChapter(n);
-      const label = n.title || (isCh ? t('relationPicker.untitledChapter') : t('relationPicker.untitledDrift'));
+      const label =
+        n.title || (isCh ? t('relationPicker.untitledChapter') : t('relationPicker.untitledDrift'));
       if (!matches(label)) return;
       const primaryId = primaryStorylineByNode[n.id] ?? null;
       const sl = primaryId ? storylines.find((s) => s.id === primaryId) : undefined;
@@ -106,19 +107,37 @@ export function EntityRelationPicker({
       .filter((e) => matches(e.name || ''))
       .map((e) => {
         const cat = bookElementCategories.find((c) => c.id === e.categoryId);
-        return { kind: 'element', id: e.id, label: e.name || t('relationPicker.untitledElement'), color: cat?.color };
+        return {
+          kind: 'element',
+          id: e.id,
+          label: e.name || t('relationPicker.untitledElement'),
+          color: cat?.color,
+        };
       });
 
     const sls: RelationTarget[] = storylines
       .filter((s) => matches(s.name || ''))
-      .map((s) => ({ kind: 'storyline', id: s.id, label: s.name || t('relationPicker.untitledStoryline'), color: s.color }));
+      .map((s) => ({
+        kind: 'storyline',
+        id: s.id,
+        label: s.name || t('relationPicker.untitledStoryline'),
+        color: s.color,
+      }));
 
     const cats: RelationTarget[] = bookElementCategories
       .filter((c) => matches(c.name || ''))
       .map((c) => ({ kind: 'category', id: c.id, label: c.name || c.id, color: c.color }));
 
     return { chapters, drifts, elements, storylines: sls, categories: cats };
-  }, [bookNodes, bookElements, storylines, bookElementCategories, query, t]);
+  }, [
+    bookNodes,
+    bookElements,
+    storylines,
+    bookElementCategories,
+    primaryStorylineByNode,
+    query,
+    t,
+  ]);
 
   const toggle = (t: RelationTarget) => {
     const key = `${t.kind}:${t.id}`;
@@ -138,12 +157,14 @@ export function EntityRelationPicker({
         case 'node': {
           const n = bookNodes.find((x) => x.id === id);
           const isCh = n ? isChapter(n) : false;
-          const primaryId = n ? primaryStorylineByNode[n.id] ?? null : null;
+          const primaryId = n ? (primaryStorylineByNode[n.id] ?? null) : null;
           const sl = primaryId ? storylines.find((s) => s.id === primaryId) : undefined;
           out.push({
             kind,
             id,
-            label: n?.title || (isCh ? t('relationPicker.untitledChapter') : t('relationPicker.untitledDrift')),
+            label:
+              n?.title ||
+              (isCh ? t('relationPicker.untitledChapter') : t('relationPicker.untitledDrift')),
             color: sl?.color,
           });
           break;
@@ -169,7 +190,15 @@ export function EntityRelationPicker({
       }
     });
     return out;
-  }, [selected, bookNodes, bookElements, storylines, bookElementCategories, t]);
+  }, [
+    selected,
+    bookNodes,
+    bookElements,
+    storylines,
+    bookElementCategories,
+    primaryStorylineByNode,
+    t,
+  ]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -239,11 +268,36 @@ export function EntityRelationPicker({
               outline: 'none',
             }}
           />
-          <Group label={t('relationPicker.groups.chapters')} items={groups.chapters} selected={selected} onToggle={toggle} />
-          <Group label={t('relationPicker.groups.drifts')} items={groups.drifts} selected={selected} onToggle={toggle} />
-          <Group label={t('relationPicker.groups.elements')} items={groups.elements} selected={selected} onToggle={toggle} />
-          <Group label={t('relationPicker.groups.storylines')} items={groups.storylines} selected={selected} onToggle={toggle} />
-          <Group label={t('relationPicker.groups.categories')} items={groups.categories} selected={selected} onToggle={toggle} />
+          <Group
+            label={t('relationPicker.groups.chapters')}
+            items={groups.chapters}
+            selected={selected}
+            onToggle={toggle}
+          />
+          <Group
+            label={t('relationPicker.groups.drifts')}
+            items={groups.drifts}
+            selected={selected}
+            onToggle={toggle}
+          />
+          <Group
+            label={t('relationPicker.groups.elements')}
+            items={groups.elements}
+            selected={selected}
+            onToggle={toggle}
+          />
+          <Group
+            label={t('relationPicker.groups.storylines')}
+            items={groups.storylines}
+            selected={selected}
+            onToggle={toggle}
+          />
+          <Group
+            label={t('relationPicker.groups.categories')}
+            items={groups.categories}
+            selected={selected}
+            onToggle={toggle}
+          />
         </div>
       )}
     </div>

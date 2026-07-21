@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { Check, X } from 'lucide-react';
 import loglevel from 'loglevel';
 import {
-  createElementPatchRepository,
   type PatchWithSourceTitle,
 } from '../../sqlite-repo/element-patch-repo';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
@@ -19,9 +18,9 @@ import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { docToPlainText } from '../../lib/agent/serialize';
 import { FieldDiff } from './FieldReview';
 import {
-  syncElementPatchDelete,
-  syncElementPatchUpdate,
-} from '../../usecase/sync-helpers';
+  deleteElementPatchWithSync,
+  updateElementPatchWithSync,
+} from '../../usecase/synced-entity-commands';
 
 const log = loglevel.getLogger('PatchEditorCard');
 log.setLevel(loglevel.levels.ERROR);
@@ -57,7 +56,6 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   // Default expanded so the patch body (the actual content) is the visual
   // anchor. Toggle remains for users who want to collapse long bodies.
   const [collapsed, setCollapsed] = useState(false);
-  const patchRepoRef = useRef(createElementPatchRepository());
   const mentionRepoRef = useRef(createInlineMentionRepository());
 
   // Persist patch content on every editor update. Reference projection is
@@ -66,10 +64,8 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const handlePersist = useCallback(
     (editor: Editor) => {
       const contentJson = JSON.stringify(editor.getJSON());
-      void patchRepoRef.current
-        .update(patch.id, { contentJson })
+      void updateElementPatchWithSync(projectId, patch.id, { contentJson })
         .then(() => {
-          syncElementPatchUpdate(patch.id, projectId, { contentJson });
           onChange?.();
         })
         .catch((error) => log.error('Failed to save patch content:', error));
@@ -98,8 +94,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     if ((patch.title ?? '') === titleValue) return;
     try {
       const nextTitle = titleValue || null;
-      await patchRepoRef.current.update(patch.id, { title: nextTitle });
-      syncElementPatchUpdate(patch.id, projectId, { title: nextTitle });
+      await updateElementPatchWithSync(projectId, patch.id, { title: nextTitle });
       onChange?.();
     } catch (error) {
       log.error('Failed to save patch title:', error);
@@ -108,8 +103,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
 
   const handleDelete = useCallback(async () => {
     try {
-      await patchRepoRef.current.delete(patch.id);
-      syncElementPatchDelete(patch.id, projectId);
+      await deleteElementPatchWithSync(projectId, patch.id);
       // Also clear any inline mentions emitted from this patch.
       await mentionRepoRef.current.deleteAllForSource('patch', patch.id);
       onDelete?.();
@@ -166,11 +160,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
       void (async () => {
         try {
           const old = JSON.parse(c.oldText) as { title: string | null; contentJson: string };
-          await patchRepoRef.current.update(patch.id, {
-            title: old.title,
-            contentJson: old.contentJson,
-          });
-          syncElementPatchUpdate(patch.id, projectId, {
+          await updateElementPatchWithSync(projectId, patch.id, {
             title: old.title,
             contentJson: old.contentJson,
           });
@@ -251,11 +241,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
       setAnchorEditing(false);
       if (nextNodeId === patch.sourceNodeId) return;
       try {
-        await patchRepoRef.current.update(patch.id, {
-          sourceNodeId: nextNodeId,
-          sourceBlockId: null,
-        });
-        syncElementPatchUpdate(patch.id, projectId, {
+        await updateElementPatchWithSync(projectId, patch.id, {
           sourceNodeId: nextNodeId,
           sourceBlockId: null,
         });

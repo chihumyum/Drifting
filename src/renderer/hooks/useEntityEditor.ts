@@ -110,7 +110,12 @@ function parseContentJson(content: string | null): JSONContent {
   if (!content) return DEFAULT_DOC;
   try {
     const parsed = JSON.parse(content);
-    if (parsed && typeof parsed === 'object' && parsed.type === 'doc' && Array.isArray(parsed.content)) {
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      parsed.type === 'doc' &&
+      Array.isArray(parsed.content)
+    ) {
       return parsed as JSONContent;
     }
   } catch (error) {
@@ -128,7 +133,13 @@ function useLatestRef<T>(value: T) {
 }
 
 function isCommentTargetKind(kind: EntityKind): kind is CommentTargetKind {
-  return kind === 'node' || kind === 'element' || kind === 'storyline' || kind === 'category' || kind === 'patch';
+  return (
+    kind === 'node' ||
+    kind === 'element' ||
+    kind === 'storyline' ||
+    kind === 'category' ||
+    kind === 'patch'
+  );
 }
 
 function removeCommentContextMenu(): void {
@@ -360,9 +371,7 @@ function buildInlineCopilotCtx(
       return true;
     });
   }
-  const selText = selection.empty
-    ? ''
-    : doc.textBetween(selection.from, selection.to, '\n').trim();
+  const selText = selection.empty ? '' : doc.textBetween(selection.from, selection.to, '\n').trim();
   const mode: 'selection' | 'block' = selText.length > 0 ? 'selection' : 'block';
 
   // Enclosing block of the caret / selection start.
@@ -1094,7 +1103,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
                 const startOffset =
                   blockSelectionFrom >= 0
                     ? blockSelectionFrom
-                    : Math.max(0, Math.min(firstSpan.text.length, selection.from - firstSpan.docStart));
+                    : Math.max(
+                        0,
+                        Math.min(firstSpan.text.length, selection.from - firstSpan.docStart),
+                      );
                 const endOffset =
                   spanBlocks.length === 1 && blockSelectionTo >= 0
                     ? blockSelectionTo
@@ -1326,7 +1338,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     };
     events.on('element:element-created', onElementCreated);
     return () => events.off('element:element-created', onElementCreated);
-  }, [editor]);
+  }, [editor, sourceRef]);
 
   // Load content into the editor whenever the (editor instance, sourceId)
   // pair changes. Don't depend on `content` — that would re-load on every

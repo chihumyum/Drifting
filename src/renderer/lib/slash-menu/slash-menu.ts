@@ -1,11 +1,12 @@
 import { Extension } from '@tiptap/core';
+import type { PluginKey } from '@tiptap/pm/state';
 import type { SuggestionOptions } from '@tiptap/suggestion';
 import Suggestion from '@tiptap/suggestion';
 
-export type SlashMenuItem = any;
+export type SlashMenuItem = unknown;
 
 export interface SlashMenuOptions<I = SlashMenuItem> {
-  pluginKey?: any;
+  pluginKey?: PluginKey;
   char: string;
   allowSpaces: boolean;
   allowToIncludeChar: boolean;

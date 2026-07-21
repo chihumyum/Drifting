@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import type { Editor } from '@tiptap/core';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { FindResultsList, type FindResultRow } from './FindResultsList';
@@ -44,7 +45,7 @@ interface HighlightSpec {
 
 const findHighlightKey = new PluginKey<DecorationSet>('editor-find-highlight');
 
-function buildDecorations(doc: any, spec: HighlightSpec): DecorationSet {
+function buildDecorations(doc: ProseMirrorNode, spec: HighlightSpec): DecorationSet {
   if (spec.matches.length === 0) return DecorationSet.empty;
   const decos = spec.matches.map((m, i) =>
     Decoration.inline(m.from, m.to, {
@@ -157,9 +158,7 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
       try {
         const at = editor.view.domAtPos(from);
         const el =
-          at.node.nodeType === Node.ELEMENT_NODE
-            ? (at.node as HTMLElement)
-            : at.node.parentElement;
+          at.node.nodeType === Node.ELEMENT_NODE ? (at.node as HTMLElement) : at.node.parentElement;
         el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       } catch {
         // domAtPos can throw if the doc was mutated between query and jump.
@@ -174,10 +173,7 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
       const wrapped = ((index % matches.length) + matches.length) % matches.length;
       const match = matches[wrapped];
       setCurrentIndex(wrapped);
-      editor
-        .chain()
-        .setTextSelection({ from: match.from, to: match.to })
-        .run();
+      editor.chain().setTextSelection({ from: match.from, to: match.to }).run();
       scrollMatchIntoView(match.from);
     },
     [editor, matches, scrollMatchIntoView],
@@ -196,10 +192,7 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
     const target = next === -1 ? 0 : next;
     setCurrentIndex(target);
     const m = matches[target];
-    editor
-      .chain()
-      .setTextSelection({ from: m.from, to: m.to })
-      .run();
+    editor.chain().setTextSelection({ from: m.from, to: m.to }).run();
     scrollMatchIntoView(m.from);
     // Intentionally not depending on editor.state.selection — we only want to
     // re-jump when the query/matches change.

@@ -5,8 +5,7 @@ import { X } from 'lucide-react';
 import { useDataStore } from '../../store/data-store';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useAuthStore } from '../../store/auth';
-import { createElementPatchRepository } from '../../sqlite-repo/element-patch-repo';
-import { syncElementPatchCreate } from '../../usecase/sync-helpers';
+import { createElementPatchWithSync } from '../../usecase/synced-entity-commands';
 import { createPlainCommentDoc } from '../../domain/comment';
 import { eventBus } from '../../lib/events';
 import type { PatchCreateRequest } from './patch-create-request';
@@ -108,8 +107,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
     if (!request || !elementId || busy) return;
     setBusy(true);
     try {
-      const repo = createElementPatchRepository();
-      const created = await repo.create({
+      const created = await createElementPatchWithSync({
         projectId,
         elementId,
         sourceNodeId: request.sourceNodeId,
@@ -118,18 +116,6 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
         textAnchorJson: request.textAnchorJson,
         title: title.trim() || null,
         contentJson: body.trim() ? createPlainCommentDoc(body) : '{}',
-      });
-      syncElementPatchCreate(created.id, projectId, {
-        id: created.id,
-        elementId: created.elementId,
-        sourceNodeId: created.sourceNodeId,
-        sourceBlockId: created.sourceBlockId,
-        sourceBlockText: created.sourceBlockText,
-        textAnchorJson: created.textAnchorJson,
-        invalidatedAt: created.invalidatedAt,
-        title: created.title,
-        contentJson: created.contentJson,
-        orderKey: created.orderKey,
       });
       // Refresh any open element editor's patch list.
       eventBus.emit('element:patches-changed', { elementId });
