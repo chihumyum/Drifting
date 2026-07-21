@@ -8,19 +8,15 @@ import { useUiStore } from '../store/ui-store';
 import { useProjectStore } from '../store/project-store';
 import { randomColor } from '../utils';
 import { v7 as uuidv7 } from 'uuid';
-import { initDatabase, getDb } from '../lib/db';
+import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
-import {
-  syncStorylineCreate,
-  syncStorylineUpdate,
-  syncStorylineDelete,
-  syncStorylineSoftDelete,
-  syncStorylineRestore,
-  syncNodeStorylineLinkCreate,
-  syncNodeStorylineLinkDelete,
-  syncNodeStorylinesSet,
-} from './sync-helpers';
+import { withAtomicSyncTransaction } from './sync-helpers';
 import { canUseFeature } from '../lib/feature-access';
+import { eq } from 'drizzle-orm';
+import {
+  deleteEntityRelationsInTransaction,
+  withoutRelationsForEntity,
+} from './entity-relation-cleanup';
 
 import LogLevel from 'loglevel';
 const log = LogLevel.getLogger('useStoryline');
@@ -201,18 +197,38 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
         apply: () => addStorylineState(newStoryline),
         rollback: () => setStorylinesState(prevStorylines),
         effect: async () => {
-          await repo.createStoryline(newStoryline);
-          if (orphanChapterIds.length > 0) {
-            // Insert one link row per chapter with isPrimary=true. The link
-            // repo's per-call setPrimaryStoryline demotes any existing primary
-            // — there are none here (project was in 0-storyline mode), so the
-            // demote step is a cheap no-op.
-            const linkRepoTx = createNodeStorylineLinkRepository(activeProjectId);
+          return withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+            const storyline = await createStorylineRepository(
+              activeProjectId,
+              tx,
+            ).createStoryline(newStoryline);
+            const linkRepoTx = createNodeStorylineLinkRepository(activeProjectId, tx);
             for (const nodeId of orphanChapterIds) {
               await linkRepoTx.setPrimaryStoryline(nodeId, newStoryline.id);
             }
-          }
-          return newStoryline;
+
+            await sync('storyline', 'create', storyline.id, activeProjectId, {
+              id: storyline.id,
+              name: storyline.name,
+              color: storyline.color,
+              summary: storyline.summary,
+              orderKey: storyline.orderKey,
+              contentJson: storyline.contentJson,
+              kvJson: storyline.kvJson,
+              nodeContentTemplateJson: storyline.nodeContentTemplateJson,
+            });
+            for (const nodeId of orphanChapterIds) {
+              await sync(
+                'nodeStorylineLink',
+                'create',
+                nodeId,
+                activeProjectId,
+                { isPrimary: true },
+                storyline.id,
+              );
+            }
+            return storyline;
+          });
         },
         onSuccess: (storyline) => {
           console.log('Storyline created successfully:', storyline);
@@ -228,23 +244,6 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
             const nextForward = { ...store.storylineNodeMapping };
             nextForward[storyline.id] = orphanChapterIds.slice();
             store.setStorylineNodeMapping(nextForward);
-          }
-        },
-        sync: (storyline) => {
-          syncStorylineCreate(storyline.id, activeProjectId, {
-            id: storyline.id,
-            name: storyline.name,
-            color: storyline.color,
-            summary: storyline.summary,
-            orderKey: storyline.orderKey,
-            contentJson: storyline.contentJson,
-            kvJson: storyline.kvJson,
-            nodeContentTemplateJson: storyline.nodeContentTemplateJson,
-          });
-          for (const nodeId of orphanChapterIds) {
-            syncNodeStorylineLinkCreate(nodeId, storyline.id, activeProjectId, {
-              isPrimary: true,
-            });
           }
         },
       });
@@ -303,30 +302,35 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
         apply: () => updateStorylineState(input.id, updated),
         rollback: () => setStorylinesState(prevStorylines),
         effect: () =>
-          repo.updateStoryline(input.id, {
-            name: updated.name,
-            color: updated.color,
-            summary: updated.summary,
-            orderKey: updated.orderKey,
-            contentJson: updated.contentJson,
-            kvJson: updated.kvJson,
-            nodeContentTemplateJson: updated.nodeContentTemplateJson,
-            updatedAt: updated.updatedAt,
-            projectId: activeProjectId,
+          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+            const storyline = await createStorylineRepository(
+              activeProjectId,
+              tx,
+            ).updateStoryline(input.id, {
+              name: updated.name,
+              color: updated.color,
+              summary: updated.summary,
+              orderKey: updated.orderKey,
+              contentJson: updated.contentJson,
+              kvJson: updated.kvJson,
+              nodeContentTemplateJson: updated.nodeContentTemplateJson,
+              updatedAt: updated.updatedAt,
+              projectId: activeProjectId,
+            });
+            await sync('storyline', 'update', storyline.id, activeProjectId, {
+              name: storyline.name,
+              color: storyline.color,
+              summary: storyline.summary,
+              orderKey: storyline.orderKey,
+              contentJson: storyline.contentJson,
+              kvJson: storyline.kvJson,
+              nodeContentTemplateJson: storyline.nodeContentTemplateJson,
+            });
+            return storyline;
           }),
         onSuccess: (storyline) => {
           updateStorylineState(storyline.id, storyline);
         },
-        sync: (storyline) =>
-          syncStorylineUpdate(storyline.id, activeProjectId, {
-            name: storyline.name,
-            color: storyline.color,
-            summary: storyline.summary,
-            orderKey: storyline.orderKey,
-            contentJson: storyline.contentJson,
-            kvJson: storyline.kvJson,
-            nodeContentTemplateJson: storyline.nodeContentTemplateJson,
-          }),
       });
     },
     [repo, updateStorylineState, activeProjectId, ensureDb, getStorylinesState, setStorylinesState],
@@ -346,8 +350,10 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     async (id: string): Promise<void> => {
       await ensureDb();
       const repo = createStorylineRepository(activeProjectId);
-      await repo.restoreStoryline(id);
-      syncStorylineRestore(id, activeProjectId);
+      await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+        await createStorylineRepository(activeProjectId, tx).restoreStoryline(id);
+        await sync('storyline', 'restore', id, activeProjectId);
+      });
       const fresh = await repo.getStorylinesByProject();
       setStorylinesState(fresh);
     },
@@ -361,9 +367,23 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
   const purgeStoryline = useCallback(
     async (id: string): Promise<void> => {
       await ensureDb();
-      const repo = createStorylineRepository(activeProjectId);
-      await repo.deleteStoryline(id);
-      syncStorylineDelete(id, activeProjectId);
+      await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+        await deleteEntityRelationsInTransaction(
+          tx,
+          sync,
+          activeProjectId,
+          'storyline',
+          id,
+        );
+        await createStorylineRepository(activeProjectId, tx).deleteStoryline(id);
+        await sync('storyline', 'delete', id, activeProjectId);
+      });
+      const relations = useDataStore.getState().entityRelations;
+      useDataStore
+        .getState()
+        .setEntityRelations(
+          withoutRelationsForEntity(relations, activeProjectId, 'storyline', id),
+        );
     },
     [activeProjectId, ensureDb],
   );
@@ -382,14 +402,21 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
 
       const prevPrimaryStorylineByNode = useDataStore.getState().primaryStorylineByNode;
       const prevForwardMapping = getStorylineNodeMappingState();
-      const reverseMapping = cloneStorylineNodeMapping(prevForwardMapping);
-      const prevNodeStorylineMapping = { ...useDataStore.getState().nodeStorylineMapping };
-
+      const previousRelations = useDataStore.getState().entityRelations;
+      const remainingRelations = withoutRelationsForEntity(
+        previousRelations,
+        activeProjectId,
+        'storyline',
+        id,
+      );
       // Nodes whose primary is this storyline — they go to 未归属 AND lose any
       // non-primary links too.
       const nodesGoingUnaffiliated = Object.entries(prevPrimaryStorylineByNode)
         .filter(([, slId]) => slId === id)
         .map(([nid]) => nid);
+      const nodesLosingSecondaryMembership = (prevForwardMapping[id] ?? []).filter(
+        (nodeId) => !nodesGoingUnaffiliated.includes(nodeId),
+      );
 
       // Drop any tabs pointing at this storyline first — by the time apply()
       // mutates the entity store the tab lookup would already render
@@ -415,6 +442,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
             }
           }
           store.setStorylineNodeMapping(nextForward);
+          store.setEntityRelations(remainingRelations);
           removeStorylineState(id);
         },
         rollback: () => {
@@ -422,44 +450,62 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
           setStorylinesState(prevStorylines);
           store.setStorylineNodeMapping(prevForwardMapping);
           store.setPrimaryStorylineByNode(prevPrimaryStorylineByNode);
+          store.setEntityRelations(previousRelations);
           // setStorylineNodeMapping rebuilds the reverse map internally, so
           // restoring just the forward map (above) is enough.
-          void prevNodeStorylineMapping;
-          void reverseMapping;
         },
         effect: async () => {
-          // Pro/Studio: soft-delete only. The storyline disappears from list
-          // queries but the row + its link rows linger (no FK cascade fires
-          // because nothing is hard-deleted). We still wipe link rows for
-          // chapters that go 未归属 — that's the "restore doesn't restore
-          // relations" rule from the spec.
+          // Pro/Studio: soft-delete the storyline row, but permanently remove
+          // both curated entity relations and storyline memberships. Restore
+          // intentionally brings back only the entity itself.
           //
           // Free: full hard delete inside a transaction so FK cascade runs.
-          await getDb().transaction(async (tx) => {
+          await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+            await deleteEntityRelationsInTransaction(
+              tx,
+              sync,
+              activeProjectId,
+              'storyline',
+              id,
+            );
+            const { NodeStorylineLinkTable } = await import('../schema/drizzle');
             if (nodesGoingUnaffiliated.length > 0) {
-              const { NodeStorylineLinkTable } = await import('../schema/drizzle');
               const { inArray } = await import('drizzle-orm');
               await tx
                 .delete(NodeStorylineLinkTable)
                 .where(inArray(NodeStorylineLinkTable.nodeId, nodesGoingUnaffiliated));
+              for (const nid of nodesGoingUnaffiliated) {
+                await sync('nodeStorylineLink', 'update', nid, activeProjectId, {
+                  storylineIds: [],
+                  primaryStorylineId: null,
+                });
+              }
+            }
+            // Soft-deleting a storyline does not trigger an FK cascade. Remove
+            // every remaining secondary membership explicitly so a reload
+            // cannot resurrect links that the optimistic store already hid.
+            await tx
+              .delete(NodeStorylineLinkTable)
+              .where(eq(NodeStorylineLinkTable.storylineId, id));
+            for (const nodeId of nodesLosingSecondaryMembership) {
+              await sync(
+                'nodeStorylineLink',
+                'delete',
+                nodeId,
+                activeProjectId,
+                undefined,
+                id,
+              );
             }
             const storylineRepoTx = createStorylineRepository(activeProjectId, tx);
             if (canUseFeature('trash')) {
               await storylineRepoTx.softDeleteStoryline(id);
+              await sync('storyline', 'softDelete', id, activeProjectId);
             } else {
               await storylineRepoTx.deleteStoryline(id);
+              await sync('storyline', 'delete', id, activeProjectId);
             }
           });
-        },
-        sync: () => {
-          for (const nid of nodesGoingUnaffiliated) {
-            syncNodeStorylinesSet(nid, activeProjectId, [], { primaryStorylineId: null });
-          }
-          if (canUseFeature('trash')) {
-            syncStorylineSoftDelete(id, activeProjectId);
-          } else {
-            syncStorylineDelete(id, activeProjectId);
-          }
         },
       });
     },
@@ -469,7 +515,6 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       getStorylinesState,
       setStorylinesState,
       activeProjectId,
-      cloneStorylineNodeMapping,
       getStorylineNodeMappingState,
     ],
   );
@@ -494,15 +539,25 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
           setStorylineNodeMappingState(prevMapping);
           if (makePrimary) useDataStore.getState().setNodePrimaryStoryline(nodeId, prevPrimary);
         },
-        effect: () => linkRepo.addNodeToStoryline(nodeId, storylineId, { isPrimary: makePrimary }),
-        sync: () =>
-          syncNodeStorylineLinkCreate(nodeId, storylineId, activeProjectId, {
-            isPrimary: makePrimary,
+        effect: () =>
+          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+            const result = await createNodeStorylineLinkRepository(
+              activeProjectId,
+              tx,
+            ).addNodeToStoryline(nodeId, storylineId, { isPrimary: makePrimary });
+            await sync(
+              'nodeStorylineLink',
+              'create',
+              nodeId,
+              activeProjectId,
+              { isPrimary: makePrimary },
+              storylineId,
+            );
+            return result;
           }),
       });
     },
     [
-      linkRepo,
       addNodeToStorylineMappingState,
       ensureDb,
       cloneStorylineNodeMapping,
@@ -526,12 +581,25 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       return withOptimisticUpdate({
         apply: () => removeNodeFromStorylineMappingState(storylineId, nodeId),
         rollback: () => setStorylineNodeMappingState(prevMapping),
-        effect: () => linkRepo.removeNodeFromStoryline(nodeId, storylineId),
-        sync: () => syncNodeStorylineLinkDelete(nodeId, storylineId, activeProjectId),
+        effect: () =>
+          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+            const result = await createNodeStorylineLinkRepository(
+              activeProjectId,
+              tx,
+            ).removeNodeFromStoryline(nodeId, storylineId);
+            await sync(
+              'nodeStorylineLink',
+              'delete',
+              nodeId,
+              activeProjectId,
+              undefined,
+              storylineId,
+            );
+            return result;
+          }),
       });
     },
     [
-      linkRepo,
       removeNodeFromStorylineMappingState,
       ensureDb,
       cloneStorylineNodeMapping,
@@ -611,13 +679,21 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
           if (primaryChanged)
             useDataStore.getState().setNodePrimaryStoryline(nodeId, currentPrimary);
         },
-        effect: () => linkRepo.setNodeStorylines(nodeId, effectiveIds, { primaryStorylineId }),
-        sync: () =>
-          syncNodeStorylinesSet(nodeId, activeProjectId, effectiveIds, { primaryStorylineId }),
+        effect: () =>
+          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+            const result = await createNodeStorylineLinkRepository(
+              activeProjectId,
+              tx,
+            ).setNodeStorylines(nodeId, effectiveIds, { primaryStorylineId });
+            await sync('nodeStorylineLink', 'update', nodeId, activeProjectId, {
+              storylineIds: effectiveIds,
+              primaryStorylineId,
+            });
+            return result;
+          }),
       });
     },
     [
-      linkRepo,
       setNodeStorylinesMappingState,
       ensureDb,
       cloneStorylineNodeMapping,

@@ -4,7 +4,8 @@ import type { Editor } from '@tiptap/core';
 import { useTranslation } from 'react-i18next';
 import type { BookElement } from '../../domain/book-element';
 import { useBookElement } from '../../usecase/useBookElement';
-import { useEntityEditor } from '../../hooks/useEntityEditor';
+import { useEntityEditor, type EditorPersistDerived } from '../../hooks/useEntityEditor';
+import { useEntityYjsDoc } from '../../hooks/useEntityYjsDoc';
 import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
 import loglevel from 'loglevel';
 
@@ -15,7 +16,7 @@ log.setLevel(loglevel.levels.WARN);
 //   · default mode — small anchored card with name + summary quick-edit;
 //     two CTAs ("展开编辑" upgrades, "在编辑器中打开" navigates).
 //   · upgrade mode — centered modal with name + summary + TipTap editor
-//     bound through useEntityEditor so element.contentJson stays in sync.
+//     bound to the same process-wide Y.Doc as the full element editor.
 // Closes on ESC and outside click. ESC handler ignores keypresses while
 // a form field / contenteditable inside the popover holds focus so the
 // inner element can use ESC to revert its own draft.
@@ -30,6 +31,97 @@ export interface AnchorRect {
   top: number;
   width: number;
   height: number;
+}
+
+interface ElementPopoverBodyEditorProps {
+  element: BookElement;
+  projectId: string;
+  onPersist: (contentJson: string) => void;
+}
+
+/**
+ * Mount the rich-text hooks only while the expanded body is visible. The
+ * process-level Yjs session registry makes this reuse the full editor's live
+ * Y.Doc when it is already open; otherwise it performs the same guarded load.
+ * A failed replay intentionally falls back to a read-only legacy projection,
+ * so corrupt/partial state can never be overwritten from this transient UI.
+ */
+function ElementPopoverBodyEditor({
+  element,
+  projectId,
+  onPersist,
+}: ElementPopoverBodyEditorProps) {
+  const { t } = useTranslation();
+  const { ydoc, ydocReady, ydocError } = useEntityYjsDoc({
+    kind: 'element',
+    entityId: element.id,
+    projectId,
+    legacyContent: element.contentJson ?? null,
+  });
+
+  const handlePersist = useCallback(
+    (_editor: Editor, { pmJson }: EditorPersistDerived) => onPersist(pmJson),
+    [onPersist],
+  );
+
+  const { editor } = useEntityEditor({
+    sourceKind: 'element',
+    sourceId: element.id,
+    projectId,
+    content: element.contentJson ?? null,
+    ydoc,
+    onPersist: handlePersist,
+    editable: Boolean(ydoc) && !ydocError,
+    autoFocus: false,
+    placeholder: t('elementEditor.bodyPlaceholder'),
+    minHeight: '320px',
+  });
+
+  if (ydocError) {
+    return (
+      <>
+        <div
+          role="alert"
+          style={{
+            margin: '0 0 12px',
+            padding: '9px 10px',
+            border: '1px solid hsl(var(--destructive) / 0.3)',
+            borderRadius: 4,
+            background: 'hsl(var(--destructive) / 0.08)',
+            color: 'hsl(var(--destructive))',
+            fontFamily: 'var(--font-serif)',
+            fontSize: 12,
+            lineHeight: 1.5,
+          }}
+        >
+          {t('elementCardPopover.bodyLoadError')}
+        </div>
+        {editor && (
+          <div aria-readonly="true">
+            <EditorContent editor={editor} />
+          </div>
+        )}
+      </>
+    );
+  }
+
+  if (!ydocReady || !ydoc || !editor) {
+    return (
+      <div
+        role="status"
+        style={{
+          fontFamily: 'var(--font-serif)',
+          fontStyle: 'italic',
+          color: 'hsl(var(--ink-3))',
+          padding: 16,
+        }}
+      >
+        {t('nodeCardPopover.loading')}
+      </div>
+    );
+  }
+
+  return <EditorContent editor={editor} />;
 }
 
 interface ElementCardPopoverProps {
@@ -145,15 +237,12 @@ export function ElementCardPopover({
     }
   }, [summaryDraft, element.id, element.summary, updateElement]);
 
-  // --- TipTap editor (upgrade mode only) ---
-  // Mounted unconditionally so its hooks run on every render — guarded by
-  // mode-check inside the persist callback. Lighter than NodeCardPopover's
-  // lazy-load pattern because elements keep their contentJson alongside
-  // the row (no separate content table to fetch).
+  // The actual editor lives in a child mounted only in upgrade mode. Its Yjs
+  // hook resolves to the process-wide shared document instead of treating the
+  // potentially-stale contentJson projection as an independent write source.
   const handlePersist = useCallback(
-    (ed: Editor) => {
+    (next: string) => {
       if (activeElementIdRef.current !== element.id) return;
-      const next = JSON.stringify(ed.getJSON());
       if (next === element.contentJson) return;
       void updateElement(element.id, { contentJson: next }).catch((err) => {
         log.error('Failed to persist element content', err);
@@ -161,17 +250,6 @@ export function ElementCardPopover({
     },
     [element.id, element.contentJson, updateElement],
   );
-
-  const { editor } = useEntityEditor({
-    sourceKind: 'element',
-    sourceId: mode === 'upgrade' ? element.id : '',
-    projectId,
-    content: element.contentJson ?? null,
-    onPersist: handlePersist,
-    autoFocus: false,
-    placeholder: t('elementEditor.bodyPlaceholder'),
-    minHeight: '320px',
-  });
 
   // --- Positioning ---
   const popoverStyle: React.CSSProperties = (() => {
@@ -422,20 +500,12 @@ export function ElementCardPopover({
                 padding: '12px 16px',
               }}
             >
-              {editor ? (
-                <EditorContent editor={editor} />
-              ) : (
-                <div
-                  style={{
-                    fontFamily: 'var(--font-serif)',
-                    fontStyle: 'italic',
-                    color: 'hsl(var(--ink-3))',
-                    padding: 16,
-                  }}
-                >
-                  {t('nodeCardPopover.loading')}
-                </div>
-              )}
+              <ElementPopoverBodyEditor
+                key={element.id}
+                element={element}
+                projectId={projectId}
+                onPersist={handlePersist}
+              />
             </div>
             <div
               style={{

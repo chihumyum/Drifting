@@ -8,8 +8,8 @@
  * them into the local SQLite database.
  *
  * Strategy:
- * - Push: After each local write, enqueue an entity mutation.
- *   A debounced flush sends batched mutations to the server.
+ * - Push: Each local write persists its mutation in the same SQLite
+ *   transaction. A debounced flush sends committed mutations to the server.
  * - Pull: On project load and periodically, fetch all entities
  *   from the server and reconcile with local state (server wins on conflict).
  */
@@ -17,7 +17,7 @@
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { apiClient } from '../lib/axios-config';
 import { APP_CONFIG, isSyncEnabled } from '../lib/config';
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor, type DbTransaction } from '../lib/db';
 import { getDeviceId } from '../lib/device-id';
 import { events, type SyncOperationEvent } from '../lib/events';
 import {
@@ -52,6 +52,12 @@ import type { BlockSectionSource } from '../domain/block-section';
 import { createElementPatchRepository } from '../sqlite-repo/element-patch-repo';
 import { createBlockSectionRepository } from '../sqlite-repo/block-section-repo';
 import { rebuildProjectInlineReferenceIndex } from './reference-index.service';
+import { coalescePendingMutation } from './entity-sync-coalescing';
+import { flushPendingAtomicSyncTransactions } from './atomic-sync-transaction-tracker';
+import {
+  localMutationGeneration,
+  runGuardedProjectHydration,
+} from './local-mutation-generation';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('EntitySyncService');
@@ -108,8 +114,6 @@ const statusListeners: Set<SyncStatusListener> = new Set();
 let flushInProgress = false;
 let pendingCountCache = 0;
 let onlineFlushRegistered = false;
-const pendingMutationPersistence = new Set<Promise<void>>();
-let pendingMutationPersistenceErrors: unknown[] = [];
 
 const FLUSH_DELAY_MS = 800;
 const PULL_INTERVAL_MS = 30_000;
@@ -224,6 +228,16 @@ function sameOptionalId(a: string | null, b?: string): boolean {
   return (a ?? undefined) === (b ?? undefined);
 }
 
+const CREATE_DELETE_CANCELLATION_SAFE_TYPES: ReadonlySet<EntityType> = new Set([
+  'blockSection',
+  'nodeStorylineLink',
+  'entityRelation',
+  'commentAction',
+  'agentMemory',
+  'bookAct',
+  'timelineMarker',
+]);
+
 // ==================== Status ====================
 
 function setStatus(s: SyncStatus, detail?: string) {
@@ -251,45 +265,43 @@ export function onSyncStatusChange(listener: SyncStatusListener): () => void {
 // ==================== Push ====================
 
 /**
- * Enqueue a local mutation for background push to server.
- * Call this from usecase hooks after writing to local SQLite.
+ * Persist a mutation using the caller's SQLite executor.
+ *
+ * Passing the transaction used for the domain write is the only crash-safe
+ * way to guarantee that the local entity and its outbox entry become durable
+ * together. This deliberately does not schedule a network flush: callers must
+ * invoke `notifySyncMutationCommitted` only after their outer transaction has
+ * committed successfully.
+ *
+ * Returns false when entity sync is disabled and no outbox row was written.
  */
-export function enqueueSyncMutation(mutation: SyncMutation): void {
+export async function persistSyncMutationInTransaction(
+  executor: DbTransaction,
+  mutation: SyncMutation,
+): Promise<boolean> {
+  if (!shouldPersistOutbox()) return false;
+
+  await writeSyncMutation(executor, mutation);
+  return true;
+}
+
+/** Notify the sync runtime after a caller-owned entity/outbox transaction commits. */
+export function notifySyncMutationCommitted(): void {
   if (!shouldPersistOutbox()) return;
   registerOnlineFlush();
-
-  const persistence = persistSyncMutation(mutation)
-    .then(() => {
-      scheduleFlush();
-    })
-    .catch((error) => {
-      pendingMutationPersistenceErrors.push(error);
-      log.error('[sync] failed to persist mutation:', error);
-    })
-    .finally(() => {
-      pendingMutationPersistence.delete(persistence);
-    });
-  pendingMutationPersistence.add(persistence);
-  void persistence;
+  scheduleFlush();
+  void refreshPendingCount().catch((error) => {
+    log.warn('[sync] failed to refresh pending count after atomic commit:', error);
+  });
 }
 
 /**
- * Wait until every fire-and-forget entity mutation has reached the durable
- * SQLite outbox. This is the local half of lifecycle flushing; unlike
- * forceFlush it never waits on the network.
+ * Wait until every started domain-write + outbox transaction has settled.
+ * Pull and lifecycle paths need this barrier so they cannot observe an entity
+ * write before its transaction-bound outbox row becomes visible.
  */
-export async function flushPendingEntityPersistence(): Promise<void> {
-  while (pendingMutationPersistence.size > 0) {
-    await Promise.allSettled([...pendingMutationPersistence]);
-  }
-  if (pendingMutationPersistenceErrors.length > 0) {
-    const failures = pendingMutationPersistenceErrors;
-    pendingMutationPersistenceErrors = [];
-    throw new AggregateError(
-      failures,
-      `${failures.length} entity mutation(s) failed to persist locally`,
-    );
-  }
+export function flushPendingEntityPersistence(): Promise<void> {
+  return flushPendingAtomicSyncTransactions();
 }
 
 function scheduleFlush() {
@@ -300,11 +312,9 @@ function scheduleFlush() {
   }, FLUSH_DELAY_MS);
 }
 
-async function persistSyncMutation(mutation: SyncMutation): Promise<void> {
-  const db = getDb();
+async function writeSyncMutation(executor: DbExecutor, mutation: SyncMutation): Promise<void> {
   const now = new Date().toISOString();
-
-  const candidates = await db
+  const candidates = await executor
     .select()
     .from(LocalSyncMutationTable)
     .where(
@@ -312,43 +322,67 @@ async function persistSyncMutation(mutation: SyncMutation): Promise<void> {
         eq(LocalSyncMutationTable.status, 'pending'),
         eq(LocalSyncMutationTable.entityType, mutation.entityType),
         eq(LocalSyncMutationTable.entityId, mutation.entityId),
-        eq(LocalSyncMutationTable.mutationType, mutation.mutationType),
+        eq(LocalSyncMutationTable.projectId, mutation.projectId),
       ),
     )
     .orderBy(desc(LocalSyncMutationTable.id))
     .limit(20);
 
-  const existing = candidates.find((row) => sameOptionalId(row.parentId, mutation.parentId));
-  if (existing) {
-    await db
+  // Only the newest adjacent operation may be rewritten. Folding into an
+  // older row across a delete/restore boundary changes observable ordering.
+  const newest = candidates[0];
+  const existing =
+    newest && sameOptionalId(newest.parentId, mutation.parentId) ? newest : undefined;
+  const decision = coalescePendingMutation(
+    existing
+      ? {
+          mutationType: existing.mutationType as MutationType,
+          payload: deserializePayload(existing.payloadJson),
+        }
+      : undefined,
+    { mutationType: mutation.mutationType, payload: mutation.payload },
+    {
+      cancelCreateDelete: CREATE_DELETE_CANCELLATION_SAFE_TYPES.has(mutation.entityType),
+    },
+  );
+
+  if (existing && decision.kind === 'cancel') {
+    await executor
+      .delete(LocalSyncMutationTable)
+      .where(eq(LocalSyncMutationTable.id, existing.id));
+    return;
+  }
+
+  if (existing && decision.kind === 'replace') {
+    await executor
       .update(LocalSyncMutationTable)
       .set({
+        mutationType: decision.mutationType,
         projectId: mutation.projectId,
         parentId: mutation.parentId ?? null,
-        payloadJson: serializePayload(mutation.payload),
+        payloadJson: serializePayload(decision.payload),
         mutationTs: mutation.timestamp,
         lastError: null,
         updatedAt: now,
       })
       .where(eq(LocalSyncMutationTable.id, existing.id));
-  } else {
-    await db.insert(LocalSyncMutationTable).values({
-      entityType: mutation.entityType,
-      mutationType: mutation.mutationType,
-      entityId: mutation.entityId,
-      projectId: mutation.projectId,
-      parentId: mutation.parentId ?? null,
-      payloadJson: serializePayload(mutation.payload),
-      mutationTs: mutation.timestamp,
-      status: 'pending',
-      retryCount: 0,
-      lastError: null,
-      createdAt: now,
-      updatedAt: now,
-    });
+    return;
   }
 
-  await refreshPendingCount();
+  await executor.insert(LocalSyncMutationTable).values({
+    entityType: mutation.entityType,
+    mutationType: mutation.mutationType,
+    entityId: mutation.entityId,
+    projectId: mutation.projectId,
+    parentId: mutation.parentId ?? null,
+    payloadJson: serializePayload(mutation.payload),
+    mutationTs: mutation.timestamp,
+    status: 'pending',
+    retryCount: 0,
+    lastError: null,
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
 async function flushPushQueue(): Promise<void> {
@@ -499,6 +533,7 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
         return {
           method: 'POST',
           endpoint: `/api/projects/${projectId}/storylines/${parentId}/nodes/${entityId}`,
+          data: payload,
         };
       } else if (mutationType === 'delete') {
         return {
@@ -777,7 +812,19 @@ async function pushSingleMutation(m: SyncMutation): Promise<void> {
       durationMs: nowMs() - startedAt,
     });
   } catch (error) {
-    // Self-heal "orphan local row" case: a PATCH/DELETE on a row the server
+    // DELETE is naturally idempotent once the request has passed the
+    // project-scoped route guard. A lost success response followed by a retry
+    // must not leave the head outbox row blocking every later mutation.
+    if (isMissingRemoteError(error) && m.mutationType === 'delete') {
+      emitSyncOperation({
+        ...eventBase,
+        state: 'succeeded',
+        durationMs: nowMs() - startedAt,
+      });
+      return;
+    }
+
+    // Self-heal "orphan local row" case: a PATCH on a row the server
     // doesn't know about (404) usually means the matching CREATE never
     // shipped — typically a row created before the entity got its single-
     // row sync helpers wired up. Look up the local row and POST it; the
@@ -1430,43 +1477,62 @@ async function countPendingMutations(projectId?: string): Promise<number> {
   return rows.length;
 }
 
-export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<void> {
+export async function hydrateProjectGraph(
+  graph: ProjectGraphPayload,
+  expectedGeneration?: number,
+): Promise<boolean> {
   const projectId = stringValue(graph.project, 'id');
   if (!projectId) throw new Error('Cannot hydrate project graph without project.id');
-
   const db = getDb();
 
-  await db.transaction(async (tx) => {
-    // Stash all local entity_relation rows so we can re-insert any that the
-    // server-side payload missed. Inline mentions aren't preserved — they're
-    // a pure projection of doc content and will be rebuilt after hydrate.
-    const localEntityRelations = await tx
+  return runGuardedProjectHydration<DbTransaction>({
+    projectId,
+    expectedGeneration,
+    transaction: (work) => db.transaction(work),
+    hydrate: async (tx) => {
+    // Successful mutations are deleted from the outbox. Only rows still
+    // referenced by unfinished mutations may survive a server-canonical
+    // hydrate; preserving every local row resurrects remote deletions.
+    const unfinishedMutations = await tx
+      .select({
+        entityType: LocalSyncMutationTable.entityType,
+        entityId: LocalSyncMutationTable.entityId,
+      })
+      .from(LocalSyncMutationTable)
+      .where(eq(LocalSyncMutationTable.projectId, projectId));
+    const unfinishedIds = (entityType: EntityType) =>
+      new Set(
+        unfinishedMutations
+          .filter((mutation) => mutation.entityType === entityType)
+          .map((mutation) => mutation.entityId),
+      );
+    const unfinishedRelationIds = unfinishedIds('entityRelation');
+    const unfinishedPatchIds = unfinishedIds('elementPatch');
+    const unfinishedSectionIds = unfinishedIds('blockSection');
+
+    // Inline mentions aren't preserved — they're a pure projection of doc
+    // content and will be rebuilt after hydrate.
+    const allLocalEntityRelations = await tx
       .select()
       .from(EntityRelationTable)
       .where(eq(EntityRelationTable.projectId, projectId));
+    const localEntityRelations = allLocalEntityRelations.filter((row) =>
+      unfinishedRelationIds.has(row.id),
+    );
 
-    // Same treatment for element_patch rows. Patches don't have a single-row
-    // sync helper yet (see usecase/sync-helpers.ts — no syncElementPatch*),
-    // so any patch created locally exists ONLY on this device. Without this
-    // snapshot, the BookElement wipe below would cascade-delete every
-    // local-only patch and the post-wipe entityPatches insert (sourced from
-    // the server graph) would not bring them back — they'd vanish silently.
-    // We restore them after the canonical insert, gated on elementId still
-    // existing (so the FK is valid).
-    const localPatches = await tx
+    const allLocalPatches = await tx
       .select()
       .from(ElementPatchTable)
       .where(eq(ElementPatchTable.projectId, projectId));
+    const localPatches = allLocalPatches.filter((row) => unfinishedPatchIds.has(row.id));
 
-    // BlockSection follows the same preserve-on-hydrate pattern as
-    // ElementPatch. Server is rolling out the table progressively, and
-    // signature-invalidation logic lives on the client — losing a local row
-    // costs a re-summarize call but the section itself shouldn't disappear
-    // just because the server hasn't shipped this entity yet.
-    const localBlockSections = await tx
+    const allLocalBlockSections = await tx
       .select()
       .from(BlockSectionTable)
       .where(eq(BlockSectionTable.projectId, projectId));
+    const localBlockSections = allLocalBlockSections.filter((row) =>
+      unfinishedSectionIds.has(row.id),
+    );
 
     const oldNodes = await tx
       .select({ id: BookNodeTable.id })
@@ -1829,12 +1895,12 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       await insertRowsBatched(tx, ElementPatchTable, entityPatches);
     }
 
-    // Restore local-only patches that the server didn't send back. Gated on
-    // (a) the patch's elementId still existing post-hydrate (FK validity)
+    // Restore only patches protected by an unfinished durable mutation, gated
+    // on (a) the patch's elementId still existing post-hydrate (FK validity)
     // and (b) the patch id not already inserted from the server payload
     // (server is canonical when there's a collision). Same defensive pattern
-    // as localEntityRelations above. Goes away once patches get a real sync
-    // helper — see TODO in elementPatchCapability.accept().
+    // as localEntityRelations above. Once patches get a complete sync helper,
+    // the server can simply win and a remote deletion remains deleted.
     if (localPatches.length > 0) {
       const survivingElementIds = new Set(elements.map((e) => e.id));
       const serverPatchIds = new Set(entityPatches.map((p) => p.id));
@@ -2025,15 +2091,20 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     if (timelineMarkers.length > 0) {
       await insertRowsBatched(tx, TimelineMarkerTable, timelineMarkers);
     }
+    },
+    apply: () => applyGraphToStores(graph),
   });
-
-  applyGraphToStores(graph);
 }
 
 export async function pullAndHydrateProjectGraph(
   projectId: string,
 ): Promise<ProjectGraphPayload | null> {
   if (!isSyncEnabled()) return null;
+
+  // Capture before the first await. Every local write that starts while this
+  // pull is draining the outbox, checking it, or fetching the graph must make
+  // the eventual response ineligible for destructive hydration.
+  const pullGeneration = localMutationGeneration.current(projectId);
 
   // Try to drain the outbox first. If anything is still queued after the
   // flush attempt, hydrate would destructively overwrite that work, so we
@@ -2070,7 +2141,12 @@ export async function pullAndHydrateProjectGraph(
 
   try {
     const response = await apiClient.get<ProjectGraphPayload>(`/api/projects/${projectId}/graph`);
-    await hydrateProjectGraph(response.data);
+    const hydrated = await hydrateProjectGraph(response.data, pullGeneration);
+    if (!hydrated) {
+      log.info(`[sync] skipped stale graph response for ${projectId}: local mutation raced pull`);
+      setStatus('idle');
+      return null;
+    }
     await rebuildProjectInlineReferenceIndex(projectId).catch((error) => {
       log.warn('[sync] reference index rebuild after hydrate failed:', error);
     });

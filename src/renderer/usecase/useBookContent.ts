@@ -3,7 +3,7 @@ import { useCallback, useRef, useMemo } from 'react';
 import { createBookContentRepository } from '../sqlite-repo/content-repo';
 import type { NodeContent } from '../domain/node-content';
 import { initDatabase } from '../lib/db';
-import { syncNodeContentUpdate } from './sync-helpers';
+import { withAtomicSyncTransaction } from './sync-helpers';
 
 export interface UseBookContentContext {
   userId: string;
@@ -39,72 +39,75 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
   const updateContentByNodeId = useCallback(
     async (nodeId: string, updates: Partial<NodeContent>) => {
       await ensureDb();
-      const cont = await contentRepo.findByNodeId(nodeId);
-      if (!cont) {
-        throw new Error(`Content with nodeId: ${nodeId} not found`);
-      }
-      const now = new Date().toISOString();
-      const updatedData = {
-        ...cont,
-        ...updates,
-        updatedAt: now,
-      };
+      // Write and sync only the columns the caller owns. Reconstructing a full
+      // stale row here lets the editor's content debounce overwrite a newer
+      // plot-grid write (and vice versa).
+      const syncPatch: Record<string, unknown> = {};
+      if (updates.contentJson !== undefined) syncPatch.contentJson = updates.contentJson;
+      if (updates.outlineJson !== undefined) syncPatch.outlineJson = updates.outlineJson;
+      if (updates.plotGridJson !== undefined) syncPatch.plotGridJson = updates.plotGridJson;
 
-      const result = await contentRepo.update(cont.nodeId, updatedData);
-      syncNodeContentUpdate(nodeId, projectId, {
-        contentJson: updatedData.contentJson,
-        outlineJson: updatedData.outlineJson,
-        plotGridJson: updatedData.plotGridJson,
+      return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        const repo = createBookContentRepository(tx);
+        const cont = await repo.findByNodeId(nodeId);
+        if (!cont) {
+          throw new Error(`Content with nodeId: ${nodeId} not found`);
+        }
+        const result = await repo.update(cont.nodeId, {
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        });
+        await sync('nodeContent', 'update', nodeId, projectId, syncPatch);
+        return result;
       });
-      return result;
     },
-    [contentRepo, ensureDb, projectId],
+    [ensureDb, projectId],
   );
 
   const updateContentById = useCallback(
     async (id: string, updates: Partial<NodeContent>) => {
       await ensureDb();
-      const cont = await contentRepo.findById(id);
-      if (!cont) {
-        throw new Error(`Content with id: ${id} not found`);
-      }
-      const now = new Date().toISOString();
-      const updatedData = {
-        ...cont,
-        ...updates,
-        updatedAt: now,
-      };
+      const syncPatch: Record<string, unknown> = {};
+      if (updates.contentJson !== undefined) syncPatch.contentJson = updates.contentJson;
+      if (updates.outlineJson !== undefined) syncPatch.outlineJson = updates.outlineJson;
+      if (updates.plotGridJson !== undefined) syncPatch.plotGridJson = updates.plotGridJson;
 
-      const result = await contentRepo.update(cont.nodeId, updatedData);
-      syncNodeContentUpdate(cont.nodeId, projectId, {
-        contentJson: updatedData.contentJson,
-        outlineJson: updatedData.outlineJson,
-        plotGridJson: updatedData.plotGridJson,
+      return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        const repo = createBookContentRepository(tx);
+        const cont = await repo.findById(id);
+        if (!cont) {
+          throw new Error(`Content with id: ${id} not found`);
+        }
+        const result = await repo.update(cont.nodeId, {
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        });
+        await sync('nodeContent', 'update', cont.nodeId, projectId, syncPatch);
+        return result;
       });
-      return result;
     },
-    [contentRepo, ensureDb, projectId],
+    [ensureDb, projectId],
   );
 
   const createContent = useCallback(
     async (nodeId: string, content: Partial<NodeContent>) => {
       await ensureDb();
-      const created = await contentRepo.create({
-        nodeId,
-        contentJson: content.contentJson,
-        outlineJson: content.outlineJson,
-        plotGridJson: content.plotGridJson,
+      return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        const created = await createBookContentRepository(tx).create({
+          nodeId,
+          contentJson: content.contentJson,
+          outlineJson: content.outlineJson,
+          plotGridJson: content.plotGridJson,
+        });
+        await sync('nodeContent', 'update', nodeId, projectId, {
+          contentJson: created.contentJson,
+          outlineJson: created.outlineJson,
+          plotGridJson: created.plotGridJson,
+        });
+        return created;
       });
-
-      syncNodeContentUpdate(nodeId, projectId, {
-        contentJson: created.contentJson,
-        outlineJson: created.outlineJson,
-        plotGridJson: created.plotGridJson,
-      });
-
-      return created;
     },
-    [contentRepo, ensureDb, projectId],
+    [ensureDb, projectId],
   );
 
   const getOutlineByNodeId = useCallback(
@@ -122,13 +125,17 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
   const updatePlotGridByNodeId = useCallback(
     async (nodeId: string, plotGridJson: string) => {
       await ensureDb();
-      const existing = await contentRepo.findByNodeId(nodeId);
-      if (existing) {
-        return updateContentByNodeId(nodeId, { plotGridJson });
-      }
-      return createContent(nodeId, { plotGridJson });
+      return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        const repo = createBookContentRepository(tx);
+        const existing = await repo.findByNodeId(nodeId);
+        const result = existing
+          ? await repo.update(nodeId, { plotGridJson })
+          : await repo.create({ nodeId, plotGridJson });
+        await sync('nodeContent', 'update', nodeId, projectId, { plotGridJson });
+        return result;
+      });
     },
-    [contentRepo, ensureDb, updateContentByNodeId, createContent],
+    [ensureDb, projectId],
   );
 
   return useMemo(

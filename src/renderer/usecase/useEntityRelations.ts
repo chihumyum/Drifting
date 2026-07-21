@@ -4,11 +4,9 @@ import { useDataStore, type EntityRelationLink } from '../store/data-store';
 import { createEntityRelationRepository } from '../sqlite-repo/entity-relation-repo';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
-import {
-  syncEntityRelationCreate,
-  syncEntityRelationDelete,
-  syncEntityRelationUpdate,
-} from './sync-helpers';
+import { withAtomicSyncTransaction } from './sync-helpers';
+import { EntityRelationTable } from '../schema/drizzle';
+import { eq } from 'drizzle-orm';
 import {
   isStructuralEntityKind,
   type EntityRefSourceKind,
@@ -31,7 +29,6 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
   if (!projectId) throw new Error('useEntityRelations requires a projectId');
   if (!userId) throw new Error('useEntityRelations requires a userId');
 
-  const repo = useMemo(() => createEntityRelationRepository(), []);
   const ensureDb = useCallback(async () => {
     await initDatabase(userId);
   }, [userId]);
@@ -110,22 +107,21 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
         // Insert directly so the optimistic row id matches the persisted id
         // (otherwise rollback / sync would diverge).
         effect: async () => {
-          const { getDb } = await import('../lib/db');
-          const { EntityRelationTable } = await import('../schema/drizzle');
-          await getDb().insert(EntityRelationTable).values(newRow);
-          return newRow;
-        },
-        sync: deferSyncForPendingLibraryItem
-          ? undefined
-          : () =>
-              syncEntityRelationCreate(newRow.id, projectId, {
+          return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            await tx.insert(EntityRelationTable).values(newRow);
+            if (!deferSyncForPendingLibraryItem) {
+              await sync('entityRelation', 'create', newRow.id, projectId, {
                 id: newRow.id,
                 fromKind: newRow.fromKind,
                 fromId: newRow.fromId,
                 toKind: newRow.toKind,
                 toId: newRow.toId,
                 kind: newRow.kind,
-              }),
+              });
+            }
+            return newRow;
+          });
+        },
       });
     },
     [ensureDb, projectId],
@@ -143,13 +139,15 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
         apply: () => useDataStore.getState().setEntityRelations(filtered),
         rollback: () => useDataStore.getState().setEntityRelations(prev),
         effect: async () => {
-          await repo.removeRelation(id);
-          return true;
+          return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            await createEntityRelationRepository(tx).removeRelation(id);
+            await sync('entityRelation', 'delete', id, projectId);
+            return true;
+          });
         },
-        sync: () => syncEntityRelationDelete(id, projectId),
       });
     },
-    [repo, ensureDb, projectId],
+    [ensureDb, projectId],
   );
 
   // Update the free-form relation category. Used by EdgeKindManager's rename
@@ -170,19 +168,15 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
         apply: () => useDataStore.getState().setEntityRelations(next),
         rollback: () => useDataStore.getState().setEntityRelations(prev),
         effect: async () => {
-          const { getDb } = await import('../lib/db');
-          const { EntityRelationTable } = await import('../schema/drizzle');
-          const { eq } = await import('drizzle-orm');
-          await getDb()
-            .update(EntityRelationTable)
-            .set({ kind: trimmed, updatedAt: now })
-            .where(eq(EntityRelationTable.id, id));
-          return true;
+          return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            await tx
+              .update(EntityRelationTable)
+              .set({ kind: trimmed, updatedAt: now })
+              .where(eq(EntityRelationTable.id, id));
+            await sync('entityRelation', 'update', id, projectId, { kind: trimmed });
+            return true;
+          });
         },
-        sync: () =>
-          syncEntityRelationUpdate(id, projectId, {
-            kind: trimmed,
-          }),
       });
     },
     [ensureDb, projectId],

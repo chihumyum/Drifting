@@ -10,22 +10,18 @@ import {
   type BookElement,
 } from '../domain/book-element';
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
-import { createEntityRelationRepository } from '../sqlite-repo/entity-relation-repo';
 import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
 import { createShadowJobRepository } from '../sqlite-repo/shadow-job-repo';
 import { unlinkEntityFromChapterProse } from '../lib/agent/chapter-prose';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import { events } from '../lib/events';
-import {
-  syncElementCreate,
-  syncElementUpdate,
-  syncElementDelete,
-  syncElementSoftDelete,
-  syncElementRestore,
-  syncEntityRelationDelete,
-} from './sync-helpers';
+import { withAtomicSyncTransaction } from './sync-helpers';
 import { canUseFeature } from '../lib/feature-access';
+import {
+  deleteEntityRelationsInTransaction,
+  withoutRelationsForEntity,
+} from './entity-relation-cleanup';
 
 export interface CreateBookElementInput {
   categoryId: string;
@@ -69,7 +65,6 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
     () => createBookElementSqliteRepository(activeProjectId),
     [activeProjectId],
   );
-  const relationRepo = useMemo(() => createEntityRelationRepository(), []);
   const mentionRepo = useMemo(() => createInlineMentionRepository(), []);
   const shadowJobRepo = useMemo(() => createShadowJobRepository(), []);
   const ensureDb = useCallback(async () => {
@@ -158,24 +153,30 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       const created = await withOptimisticUpdate({
         apply: () => setElements([newElement, ...prev]),
         rollback: () => setElements(prev),
-        effect: () => elementRepo.create(newElement),
+        effect: () =>
+          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+            const persisted = await createBookElementSqliteRepository(
+              activeProjectId,
+              tx,
+            ).create(newElement);
+            await sync('element', 'create', persisted.id, activeProjectId, {
+              id: persisted.id,
+              categoryId: persisted.categoryId,
+              name: persisted.name,
+              summary: persisted.summary,
+              contentJson: persisted.contentJson,
+              kvJson: persisted.kvJson,
+              aliasesJson: encodeAliases(persisted.aliases),
+              groupName: persisted.groupName,
+              portraitAssetId: persisted.portraitAssetId,
+            });
+            return persisted;
+          }),
         onSuccess: (persisted) => {
           const current = getElements();
           const updated = current.map((el) => (el.id === persisted.id ? persisted : el));
           setElements(updated);
         },
-        sync: (persisted) =>
-          syncElementCreate(persisted.id, activeProjectId, {
-            id: persisted.id,
-            categoryId: persisted.categoryId,
-            name: persisted.name,
-            summary: persisted.summary,
-            contentJson: persisted.contentJson,
-            kvJson: persisted.kvJson,
-            aliasesJson: encodeAliases(persisted.aliases),
-            groupName: persisted.groupName,
-            portraitAssetId: persisted.portraitAssetId,
-          }),
       });
       // Let every open editor retroactively link prose that already mentioned
       // this element before it existed. Auto-detect only fires on freshly-typed
@@ -185,7 +186,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       events.emit('element:element-created', { element: created });
       return created;
     },
-    [elementRepo, getElements, setElements, ensureDb, activeProjectId],
+    [getElements, setElements, ensureDb, activeProjectId],
   );
 
   const updateElement = useCallback(
@@ -238,85 +239,60 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         apply: () => setElements(elements.map((el) => (el.id === id ? updatedElement : el))),
         rollback: () => setElements(elements),
         effect: async () => {
-          const persisted = await elementRepo.update(id, {
-            categoryId: updatedElement.categoryId,
-            name: updatedElement.name,
-            summary: updatedElement.summary,
-            contentJson: updatedElement.contentJson,
-            kvJson: updatedElement.kvJson,
-            aliases: updatedElement.aliases,
-            groupName: updatedElement.groupName,
-            portraitAssetId: updatedElement.portraitAssetId,
-            updatedAt: updatedElement.updatedAt,
+          return withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+            const persisted = await createBookElementSqliteRepository(
+              activeProjectId,
+              tx,
+            ).update(id, {
+              categoryId: updatedElement.categoryId,
+              name: updatedElement.name,
+              summary: updatedElement.summary,
+              contentJson: updatedElement.contentJson,
+              kvJson: updatedElement.kvJson,
+              aliases: updatedElement.aliases,
+              groupName: updatedElement.groupName,
+              portraitAssetId: updatedElement.portraitAssetId,
+              updatedAt: updatedElement.updatedAt,
+            });
+            if (!persisted) {
+              throw new Error(`Element with id ${id} not found`);
+            }
+            await sync('element', 'update', id, activeProjectId, {
+              categoryId: persisted.categoryId,
+              name: persisted.name,
+              summary: persisted.summary,
+              contentJson: persisted.contentJson,
+              kvJson: persisted.kvJson,
+              aliasesJson: encodeAliases(persisted.aliases),
+              groupName: persisted.groupName,
+              portraitAssetId: persisted.portraitAssetId,
+            });
+            return persisted;
           });
-          if (!persisted) {
-            throw new Error(`Element with id ${id} not found`);
-          }
-          return persisted;
         },
         onSuccess: (persisted) => {
           const current = getElements();
           setElements(current.map((el) => (el.id === id ? persisted : el)));
         },
-        sync: (persisted) =>
-          syncElementUpdate(id, activeProjectId, {
-            categoryId: persisted.categoryId,
-            name: persisted.name,
-            summary: persisted.summary,
-            contentJson: persisted.contentJson,
-            kvJson: persisted.kvJson,
-            aliasesJson: encodeAliases(persisted.aliases),
-            groupName: persisted.groupName,
-            portraitAssetId: persisted.portraitAssetId,
-          }),
       });
     },
-    [elementRepo, getElements, setElements, ensureDb, activeProjectId],
+    [getElements, setElements, ensureDb, activeProjectId],
   );
 
-  // Drop every relation that pointed at (or out of) a now hard-deleted element.
-  // entity_relation / inline_mention carry polymorphic (kind, id) endpoints
-  // with no element FK, so a hard delete leaves them orphaned unless we sweep
-  // them here. Only call on a TRUE delete — soft-delete keeps these around so a
-  // restore brings the links back.
-  //   • entity_relation: curated, per-row synced → delete each + enqueue sync,
-  //     and prune the in-memory store so graph / references update immediately.
-  //   • inline_mention: a derived projection (no per-row sync); just clear both
-  //     directions locally. The server reconciles on the next graph pull.
-  const cleanupElementRelations = useCallback(
-    async (id: string) => {
-      const relations = useDataStore.getState().entityRelations;
-      const doomedIds = relations
-        .filter(
-          (r) =>
-            (r.fromKind === 'element' && r.fromId === id) ||
-            (r.toKind === 'element' && r.toId === id),
-        )
-        .map((r) => r.id);
-      if (doomedIds.length > 0) {
-        const doomedSet = new Set(doomedIds);
-        useDataStore.getState().setEntityRelations(relations.filter((r) => !doomedSet.has(r.id)));
-        for (const relationId of doomedIds) {
-          await relationRepo.removeRelation(relationId);
-          syncEntityRelationDelete(relationId, activeProjectId);
-        }
-      }
-      await mentionRepo.deleteAllForTarget('element', id);
-      await mentionRepo.deleteAllForSource('element', id);
-    },
-    [relationRepo, mentionRepo, activeProjectId],
-  );
-
-  // Full association teardown for a PERMANENT delete (hard delete / purge — NOT
-  // soft delete, which stays recoverable). Beyond cleanupElementRelations:
+  // Full association teardown for a PERMANENT delete (hard delete / purge).
+  // Curated relations are already removed when an element enters trash; this
+  // repeats the sweep defensively and also removes derived mention rows. The
+  // element row, any remaining relations, mentions, and outbox mutations
+  // commit together.
+  // Afterwards:
   //   • 解链保留文字 — strip the dangling entityLink marks from each chapter's prose
   //     so the link doesn't re-project into inline_mention on the next save
   //     (reference-projection reads ALL marks regardless of target liveness).
   //   • scrub shadow dep refs — a deleted dep would otherwise read as "changed"
   //     forever, keeping chapters perpetually stale (and auto-re-reviewing).
-  const purgeElementAssociations = useCallback(
+  const hardDeleteElement = useCallback(
     async (id: string) => {
-      // Capture the chapters that mention this element BEFORE cleanup deletes rows.
+      // Capture prose backlinks before the transaction deletes their projection.
       let chapterIds: string[] = [];
       try {
         const backlinks = await mentionRepo.listBacklinksToTarget('element', id);
@@ -327,11 +303,31 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         /* best-effort — fall through with whatever we have */
       }
 
-      await cleanupElementRelations(id);
+      const result = await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+        const relationIds = await deleteEntityRelationsInTransaction(
+          tx,
+          sync,
+          activeProjectId,
+          'element',
+          id,
+        );
+        const deleted = await createBookElementSqliteRepository(activeProjectId, tx).delete(id);
+        const txMentionRepo = createInlineMentionRepository(tx);
+        await txMentionRepo.deleteAllForTarget('element', id);
+        await txMentionRepo.deleteAllForSource('element', id);
+        await sync('element', 'delete', id, activeProjectId);
+        return { deleted, relationIds };
+      });
+
+      if (result.relationIds.length > 0) {
+        const doomedSet = new Set(result.relationIds);
+        const relations = useDataStore.getState().entityRelations;
+        useDataStore.getState().setEntityRelations(relations.filter((r) => !doomedSet.has(r.id)));
+      }
 
       for (const cid of chapterIds) {
         try {
-          await unlinkEntityFromChapterProse(cid, id);
+          await unlinkEntityFromChapterProse(activeProjectId, cid, id);
         } catch {
           /* best-effort per chapter — a single failure must not abort the delete */
         }
@@ -343,8 +339,10 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       } catch {
         /* best-effort telemetry cleanup */
       }
+
+      return result.deleted;
     },
-    [mentionRepo, cleanupElementRelations, shadowJobRepo, activeProjectId],
+    [mentionRepo, shadowJobRepo, activeProjectId],
   );
 
   const removeElement = useCallback(
@@ -355,6 +353,13 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       if (!existing) throw new Error(`Element with id ${id} not found`);
 
       const filtered = elements.filter((e) => e.id !== id);
+      const relations = useDataStore.getState().entityRelations;
+      const remainingRelations = withoutRelationsForEntity(
+        relations,
+        activeProjectId,
+        'element',
+        id,
+      );
       useUiStore.getState().closeTabsForEntity(activeProjectId, { entityType: 'element', id });
 
       if (canUseFeature('trash')) {
@@ -363,35 +368,51 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
           // this element — soft-deleted is recoverable, unlike a hard delete.
           apply: () => {
             setElements(filtered);
+            useDataStore.getState().setEntityRelations(remainingRelations);
             useDataStore.getState().markTrashed('element', id);
           },
           rollback: () => {
             setElements(elements);
+            useDataStore.getState().setEntityRelations(relations);
             useDataStore.getState().unmarkTrashed('element', id);
           },
-          effect: () => elementRepo.softDelete(id),
-          sync: () => syncElementSoftDelete(id, activeProjectId),
+          effect: () =>
+            withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+              await deleteEntityRelationsInTransaction(
+                tx,
+                sync,
+                activeProjectId,
+                'element',
+                id,
+              );
+              const result = await createBookElementSqliteRepository(
+                activeProjectId,
+                tx,
+              ).softDelete(id);
+              await sync('element', 'softDelete', id, activeProjectId);
+              return result;
+            }),
         });
       }
 
-      // Free tier: hard delete — also sweep the now-orphaned relations.
+      // Free tier: hard delete and association sweep share one transaction.
       const result = await withOptimisticUpdate({
         apply: () => setElements(filtered),
         rollback: () => setElements(elements),
-        effect: () => elementRepo.delete(id),
-        sync: () => syncElementDelete(id, activeProjectId),
+        effect: () => hardDeleteElement(id),
       });
-      await purgeElementAssociations(id);
       return result;
     },
-    [elementRepo, getElements, setElements, ensureDb, activeProjectId, purgeElementAssociations],
+    [getElements, setElements, ensureDb, activeProjectId, hardDeleteElement],
   );
 
   const restoreElement = useCallback(
     async (id: string) => {
       await ensureDb();
-      await elementRepo.restore(id);
-      syncElementRestore(id, activeProjectId);
+      await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+        await createBookElementSqliteRepository(activeProjectId, tx).restore(id);
+        await sync('element', 'restore', id, activeProjectId);
+      });
       useDataStore.getState().unmarkTrashed('element', id);
       const fresh = await elementRepo.findAll();
       setElements(fresh);
@@ -406,13 +427,11 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
   const purgeElement = useCallback(
     async (id: string) => {
       await ensureDb();
-      await elementRepo.delete(id);
-      syncElementDelete(id, activeProjectId);
+      await hardDeleteElement(id);
       // No longer trashed — it's gone for good. Mentions flip dim → stripped.
       useDataStore.getState().unmarkTrashed('element', id);
-      await purgeElementAssociations(id);
     },
-    [elementRepo, ensureDb, activeProjectId, purgeElementAssociations],
+    [ensureDb, hardDeleteElement],
   );
 
   const listTrashedElements = useCallback(async () => {

@@ -33,8 +33,9 @@ export interface UseYjsSyncOptions {
    * mutation log path). Server never reconstructs Y.Doc — this keeps the
    * PG `contentJson` column eventually consistent with the CRDT state.
    *
-   * The callback receives the latest TipTap-shaped JSON. Implementations
-   * are responsible for calling the right `syncXxxUpdate(...)` helper.
+   * The callback receives the latest TipTap-shaped JSON. Implementations must
+   * persist it through the entity's transaction-backed usecase so the local
+   * projection and durable outbox row commit together.
    * Omit to skip the double-write (e.g. for read-only docs).
    */
   onMaterialize?: (contentJson: string) => void;

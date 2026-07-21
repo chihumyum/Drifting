@@ -1,6 +1,6 @@
 import { v7 as uuidv7 } from 'uuid';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import {
   BookElementTable,
   BookNodeTable,
@@ -96,7 +96,8 @@ function toRecord(
   };
 }
 
-export function createEntityRelationRepository(): EntityRelationRepository {
+export function createEntityRelationRepository(dbOverride?: DbExecutor): EntityRelationRepository {
+  const dbProvider = () => dbOverride ?? getDb();
   const addRelation = async (
     projectId: string,
     fromKind: EntityRefSourceKind,
@@ -111,7 +112,7 @@ export function createEntityRelationRepository(): EntityRelationRepository {
           `(memo / material can only appear as fromKind).`,
       );
     }
-    const db = getDb();
+    const db = dbProvider();
     const now = new Date().toISOString();
     const row = {
       id: uuidv7(),
@@ -129,14 +130,14 @@ export function createEntityRelationRepository(): EntityRelationRepository {
   };
 
   const removeRelation = async (id: string): Promise<void> => {
-    await getDb().delete(EntityRelationTable).where(eq(EntityRelationTable.id, id));
+    await dbProvider().delete(EntityRelationTable).where(eq(EntityRelationTable.id, id));
   };
 
   const listRelationsFromSource = async (
     fromKind: EntityKind,
     fromId: string,
   ): Promise<EntityRelationRecord[]> => {
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select()
       .from(EntityRelationTable)
       .where(
@@ -156,7 +157,7 @@ export function createEntityRelationRepository(): EntityRelationRepository {
     toKind: StructuralEntityKind,
     toId: string,
   ): Promise<EntityRelationBacklink[]> => {
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select({
         id: EntityRelationTable.id,
         fromKind: EntityRelationTable.fromKind,
@@ -224,7 +225,7 @@ export function createEntityRelationRepository(): EntityRelationRepository {
     toKind: StructuralEntityKind,
     toId: string,
   ): Promise<number> => {
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select({
         count: sql<number>`count(distinct ${EntityRelationTable.fromKind} || ':' || ${EntityRelationTable.fromId})`,
       })
@@ -242,7 +243,7 @@ export function createEntityRelationRepository(): EntityRelationRepository {
     toKind: StructuralEntityKind,
     toId: string,
   ): Promise<void> => {
-    await getDb()
+    await dbProvider()
       .delete(EntityRelationTable)
       .where(
         and(
@@ -256,7 +257,7 @@ export function createEntityRelationRepository(): EntityRelationRepository {
     fromKind: EntityKind,
     fromId: string,
   ): Promise<void> => {
-    await getDb()
+    await dbProvider()
       .delete(EntityRelationTable)
       .where(
         and(

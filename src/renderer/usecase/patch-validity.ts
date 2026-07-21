@@ -19,7 +19,7 @@
 import loglevel from 'loglevel';
 import { createElementPatchRepository } from '../sqlite-repo/element-patch-repo';
 import { docToPlainText } from '../lib/agent/serialize';
-import { syncElementPatchUpdate } from './sync-helpers';
+import { updateElementPatchesWithSync } from './synced-entity-commands';
 import { eventBus } from '../lib/events';
 
 const log = loglevel.getLogger('patch-validity');
@@ -63,16 +63,17 @@ export async function recheckChapterPatchValidity(
     const haystack = norm(docToPlainText(contentJson));
     const touchedElements = new Set<string>();
 
+    const transitions: Array<{ id: string; updates: { invalidatedAt: string | null } }> = [];
     for (const p of anchored) {
       const present = haystack.includes(norm(anchorText(p.textAnchorJson)));
       const currentlyInvalid = !!p.invalidatedAt;
       if (present === !currentlyInvalid) continue; // no transition
 
       const nextInvalidatedAt = present ? null : new Date().toISOString();
-      await repo.update(p.id, { invalidatedAt: nextInvalidatedAt });
-      syncElementPatchUpdate(p.id, projectId, { invalidatedAt: nextInvalidatedAt });
+      transitions.push({ id: p.id, updates: { invalidatedAt: nextInvalidatedAt } });
       touchedElements.add(p.elementId);
     }
+    await updateElementPatchesWithSync(projectId, transitions);
 
     // Nudge any open element editor (PatchesSection has no store subscription)
     // so the invalid badge appears/clears without a manual refresh.

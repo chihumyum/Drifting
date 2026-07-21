@@ -21,12 +21,7 @@ import { useDataStore } from '../store/data-store';
 import { createDriftGroupRepository } from '../sqlite-repo/drift-group-repo';
 import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
 import { canMoveGroupUnder, isDescendantGroup, type DriftGroup } from '../domain/drift-group';
-import {
-  syncDriftGroupCreate,
-  syncDriftGroupDelete,
-  syncDriftGroupUpdate,
-  syncNodeUpdate,
-} from './sync-helpers';
+import { withAtomicSyncTransaction } from './sync-helpers';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('useDriftGroup');
@@ -58,9 +53,6 @@ export interface UpdateDriftGroupInput {
 }
 
 export function useDriftGroup({ projectId }: UseDriftGroupContext) {
-  const groupRepo = useMemo(() => createDriftGroupRepository(projectId), [projectId]);
-  const nodeRepo = useMemo(() => createBookNodeSqliteRepository(projectId), [projectId]);
-
   const createGroup = useCallback(
     async (input: CreateDriftGroupInput = {}): Promise<DriftGroup | null> => {
       if (!projectId) return null;
@@ -75,32 +67,42 @@ export function useDriftGroup({ projectId }: UseDriftGroupContext) {
         createdAt: now,
         updatedAt: now,
       };
-      await groupRepo.create(group);
-      useDataStore.getState().addDriftGroup(group);
-      syncDriftGroupCreate(group.id, projectId, {
-        id: group.id,
-        name: group.name,
-        parentGroupId: group.parentGroupId,
-        color: group.color,
-        sortOrder: group.sortOrder,
-        createdAt: group.createdAt,
-        updatedAt: group.updatedAt,
+      await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        await createDriftGroupRepository(projectId, tx).create(group);
+        await sync('driftGroup', 'create', group.id, projectId, {
+          id: group.id,
+          name: group.name,
+          parentGroupId: group.parentGroupId,
+          color: group.color,
+          sortOrder: group.sortOrder,
+          createdAt: group.createdAt,
+          updatedAt: group.updatedAt,
+        });
       });
+      useDataStore.getState().addDriftGroup(group);
       return group;
     },
-    [projectId, groupRepo],
+    [projectId],
   );
 
   const updateGroup = useCallback(
     async (id: string, input: UpdateDriftGroupInput): Promise<DriftGroup | null> => {
       const updatedAt = new Date().toISOString();
-      const updated = await groupRepo.update(id, { ...input, updatedAt });
+      const updated = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        const result = await createDriftGroupRepository(projectId, tx).update(id, {
+          ...input,
+          updatedAt,
+        });
+        if (result) {
+          await sync('driftGroup', 'update', id, projectId, { ...input, updatedAt });
+        }
+        return result;
+      });
       if (!updated) return null;
       useDataStore.getState().updateDriftGroup(id, updated);
-      syncDriftGroupUpdate(id, projectId, { ...input, updatedAt });
       return updated;
     },
-    [projectId, groupRepo],
+    [projectId],
   );
 
   const renameGroup = useCallback(
@@ -139,28 +141,50 @@ export function useDriftGroup({ projectId }: UseDriftGroupContext) {
       const newParent = target.parentGroupId; // children rise to here
       const now = new Date().toISOString();
 
-      // 1. Reparent direct child groups.
       const childGroups = store.driftGroups.filter((g) => g.parentGroupId === id);
-      for (const cg of childGroups) {
-        await groupRepo.update(cg.id, { parentGroupId: newParent, updatedAt: now });
-        useDataStore.getState().updateDriftGroup(cg.id, { parentGroupId: newParent, updatedAt: now });
-        syncDriftGroupUpdate(cg.id, projectId, { parentGroupId: newParent, updatedAt: now });
-      }
-
-      // 2. Reparent member drifts (book_node.drift_group_id === id).
       const memberDrifts = store.bookNodes.filter((n) => n.driftGroupId === id);
-      for (const n of memberDrifts) {
-        await nodeRepo.update(n.id, { driftGroupId: newParent, updatedAt: now });
-        useDataStore.getState().updateBookNode(n.id, { driftGroupId: newParent, updatedAt: now });
-        syncNodeUpdate(n.id, projectId, { driftGroupId: newParent, updatedAt: now });
-      }
+      await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        const groupRepoTx = createDriftGroupRepository(projectId, tx);
+        const nodeRepoTx = createBookNodeSqliteRepository(projectId, tx);
 
-      // 3. Remove the group row.
-      await groupRepo.delete(id);
+        // 1. Reparent direct child groups.
+        for (const cg of childGroups) {
+          await groupRepoTx.update(cg.id, { parentGroupId: newParent, updatedAt: now });
+          await sync('driftGroup', 'update', cg.id, projectId, {
+            parentGroupId: newParent,
+            updatedAt: now,
+          });
+        }
+
+        // 2. Reparent member drifts (book_node.drift_group_id === id).
+        for (const n of memberDrifts) {
+          await nodeRepoTx.update(n.id, { driftGroupId: newParent, updatedAt: now });
+          await sync('node', 'update', n.id, projectId, {
+            driftGroupId: newParent,
+            updatedAt: now,
+          });
+        }
+
+        // 3. Remove the group row.
+        await groupRepoTx.delete(id);
+        await sync('driftGroup', 'delete', id, projectId);
+      });
+
+      for (const cg of childGroups) {
+        useDataStore.getState().updateDriftGroup(cg.id, {
+          parentGroupId: newParent,
+          updatedAt: now,
+        });
+      }
+      for (const n of memberDrifts) {
+        useDataStore.getState().updateBookNode(n.id, {
+          driftGroupId: newParent,
+          updatedAt: now,
+        });
+      }
       useDataStore.getState().removeDriftGroup(id);
-      syncDriftGroupDelete(id, projectId);
     },
-    [projectId, groupRepo, nodeRepo],
+    [projectId],
   );
 
   // Move a drift into a group (or out to root with groupId = null). Drift-only;
@@ -171,11 +195,19 @@ export function useDriftGroup({ projectId }: UseDriftGroupContext) {
       if (!node || node.kind !== 'drift') return;
       if ((node.driftGroupId ?? null) === groupId) return; // no-op
       const updatedAt = new Date().toISOString();
-      await nodeRepo.update(driftId, { driftGroupId: groupId, updatedAt });
+      await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        await createBookNodeSqliteRepository(projectId, tx).update(driftId, {
+          driftGroupId: groupId,
+          updatedAt,
+        });
+        await sync('node', 'update', driftId, projectId, {
+          driftGroupId: groupId,
+          updatedAt,
+        });
+      });
       useDataStore.getState().updateBookNode(driftId, { driftGroupId: groupId, updatedAt });
-      syncNodeUpdate(driftId, projectId, { driftGroupId: groupId, updatedAt });
     },
-    [projectId, nodeRepo],
+    [projectId],
   );
 
   return useMemo(

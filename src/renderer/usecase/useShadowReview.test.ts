@@ -10,9 +10,8 @@ const mocks = vi.hoisted(() => ({
   createNodeRepository: vi.fn(),
   getState: vi.fn(),
   setState: vi.fn(),
-  syncCommentCreate: vi.fn(),
-  syncCommentDelete: vi.fn(),
-  syncNodeUpdate: vi.fn(),
+  withAtomicSyncTransaction: vi.fn(),
+  sync: vi.fn(),
 }));
 
 vi.mock('../lib/db', () => ({
@@ -36,9 +35,7 @@ vi.mock('../store/data-store', () => ({
 }));
 
 vi.mock('./sync-helpers', () => ({
-  syncCommentCreate: mocks.syncCommentCreate,
-  syncCommentDelete: mocks.syncCommentDelete,
-  syncNodeUpdate: mocks.syncNodeUpdate,
+  withAtomicSyncTransaction: mocks.withAtomicSyncTransaction,
 }));
 
 const projectId = 'project-1';
@@ -122,6 +119,10 @@ describe('commitShadowReview', () => {
     });
     mocks.createCommentRepository.mockReturnValue(commentRepo);
     mocks.createNodeRepository.mockReturnValue(nodeRepo);
+    mocks.withAtomicSyncTransaction.mockImplementation(
+      async (_projectId: string, work: (tx: object, sync: typeof mocks.sync) => Promise<unknown>) =>
+        mocks.getDb().transaction((tx: object) => work(tx, mocks.sync)),
+    );
   });
 
   it('publishes store state and enqueues sync only after the SQLite commit succeeds', async () => {
@@ -139,9 +140,9 @@ describe('commitShadowReview', () => {
       events.push('store');
       Object.assign(state, updater(state));
     });
-    mocks.syncCommentDelete.mockImplementation(() => events.push('sync:delete'));
-    mocks.syncCommentCreate.mockImplementation(() => events.push('sync:create'));
-    mocks.syncNodeUpdate.mockImplementation(() => events.push('sync:node'));
+    mocks.sync.mockImplementation(async (entityType: string, mutationType: string) => {
+      events.push(`sync:${entityType}:${mutationType}`);
+    });
 
     const result = await commitShadowReview({
       projectId,
@@ -161,12 +162,13 @@ describe('commitShadowReview', () => {
 
     expect(events).toEqual([
       'transaction:start',
+      'sync:comment:delete',
+      'sync:comment:create',
+      'sync:node:update',
       'transaction:commit',
       'store',
-      'sync:delete',
-      'sync:create',
-      'sync:node',
     ]);
+    expect(mocks.withAtomicSyncTransaction).toHaveBeenCalledWith(projectId, expect.any(Function));
     expect(mocks.createCommentRepository).toHaveBeenCalledWith(projectId, tx);
     expect(mocks.createNodeRepository).toHaveBeenCalledWith(projectId, tx);
     expect(commentRepo.delete).toHaveBeenCalledWith('shadow-old');
@@ -202,9 +204,6 @@ describe('commitShadowReview', () => {
     expect(commentRepo.delete).toHaveBeenCalledWith('shadow-old');
     expect(nodeRepo.update).toHaveBeenCalled();
     expect(mocks.setState).not.toHaveBeenCalled();
-    expect(mocks.syncCommentDelete).not.toHaveBeenCalled();
-    expect(mocks.syncCommentCreate).not.toHaveBeenCalled();
-    expect(mocks.syncNodeUpdate).not.toHaveBeenCalled();
     expect(state).toEqual(originalState);
   });
 });

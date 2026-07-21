@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
-import { initDatabase, getDb } from '../lib/db';
+import { initDatabase } from '../lib/db';
 import { createPlainCommentDoc } from '../domain/comment';
 import type {
   Comment,
@@ -22,12 +22,7 @@ import {
 } from '../sqlite-repo/comment-repo';
 import { useDataStore } from '../store/data-store';
 import { withOptimisticUpdate } from './optimistic';
-import {
-  syncCommentActionCreate,
-  syncCommentCreate,
-  syncCommentDelete,
-  syncCommentUpdate,
-} from './sync-helpers';
+import { withAtomicSyncTransaction } from './sync-helpers';
 
 export interface UseCommentContext {
   projectId: string;
@@ -161,12 +156,15 @@ export function useComment({ projectId, userId }: UseCommentContext) {
       return withOptimisticUpdate({
         apply: () => useDataStore.getState().setComments([...prev, comment]),
         rollback: () => useDataStore.getState().setComments(prev),
-        effect: () => commentRepo.create(comment),
-        sync: (persisted) =>
-          syncCommentCreate(persisted.id, projectId, commentSyncPayload(persisted)),
+        effect: () =>
+          withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const persisted = await createCommentRepository(projectId, tx).create(comment);
+            await sync('comment', 'create', persisted.id, projectId, commentSyncPayload(persisted));
+            return persisted;
+          }),
       });
     },
-    [ensureDb, projectId, userId, commentRepo],
+    [ensureDb, projectId, userId],
   );
 
   const resolveComment = useCallback(
@@ -191,22 +189,23 @@ export function useComment({ projectId, userId }: UseCommentContext) {
             .setComments(comments.map((comment) => (comment.id === id ? updated : comment))),
         rollback: () => useDataStore.getState().setComments(comments),
         effect: async () => {
-          const persisted = await commentRepo.update(id, {
-            status: updated.status,
-            resolvedAt: updated.resolvedAt,
-            updatedAt: updated.updatedAt,
+          return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const persisted = await createCommentRepository(projectId, tx).update(id, {
+              status: updated.status,
+              resolvedAt: updated.resolvedAt,
+              updatedAt: updated.updatedAt,
+            });
+            if (!persisted) throw new Error(`Comment with id ${id} not found`);
+            await sync('comment', 'update', persisted.id, projectId, {
+              status: persisted.status,
+              resolvedAt: persisted.resolvedAt,
+            });
+            return persisted;
           });
-          if (!persisted) throw new Error(`Comment with id ${id} not found`);
-          return persisted;
         },
-        sync: (persisted) =>
-          syncCommentUpdate(persisted.id, projectId, {
-            status: persisted.status,
-            resolvedAt: persisted.resolvedAt,
-          }),
       });
     },
-    [ensureDb, projectId, commentRepo],
+    [ensureDb, projectId],
   );
 
   const reopenComment = useCallback(
@@ -231,22 +230,23 @@ export function useComment({ projectId, userId }: UseCommentContext) {
             .setComments(comments.map((comment) => (comment.id === id ? updated : comment))),
         rollback: () => useDataStore.getState().setComments(comments),
         effect: async () => {
-          const persisted = await commentRepo.update(id, {
-            status: updated.status,
-            resolvedAt: updated.resolvedAt,
-            updatedAt: updated.updatedAt,
+          return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const persisted = await createCommentRepository(projectId, tx).update(id, {
+              status: updated.status,
+              resolvedAt: updated.resolvedAt,
+              updatedAt: updated.updatedAt,
+            });
+            if (!persisted) throw new Error(`Comment with id ${id} not found`);
+            await sync('comment', 'update', persisted.id, projectId, {
+              status: persisted.status,
+              resolvedAt: persisted.resolvedAt,
+            });
+            return persisted;
           });
-          if (!persisted) throw new Error(`Comment with id ${id} not found`);
-          return persisted;
         },
-        sync: (persisted) =>
-          syncCommentUpdate(persisted.id, projectId, {
-            status: persisted.status,
-            resolvedAt: persisted.resolvedAt,
-          }),
       });
     },
-    [ensureDb, projectId, commentRepo],
+    [ensureDb, projectId],
   );
 
   const deleteComment = useCallback(
@@ -264,11 +264,15 @@ export function useComment({ projectId, userId }: UseCommentContext) {
           useDataStore.getState().setComments(comments);
           useDataStore.getState().setCommentActions(actions);
         },
-        effect: () => commentRepo.delete(id),
-        sync: () => syncCommentDelete(id, projectId),
+        effect: () =>
+          withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const result = await createCommentRepository(projectId, tx).delete(id);
+            await sync('comment', 'delete', id, projectId);
+            return result;
+          }),
       });
     },
-    [ensureDb, projectId, commentRepo],
+    [ensureDb, projectId],
   );
 
   // Promote a note-style comment to a TODO. In the consolidated model this is
@@ -294,18 +298,19 @@ export function useComment({ projectId, userId }: UseCommentContext) {
             .setComments(comments.map((c) => (c.id === id ? updated : c))),
         rollback: () => useDataStore.getState().setComments(comments),
         effect: async () => {
-          const persisted = await commentRepo.update(id, {
-            kind: updated.kind,
-            updatedAt: updated.updatedAt,
+          return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const persisted = await createCommentRepository(projectId, tx).update(id, {
+              kind: updated.kind,
+              updatedAt: updated.updatedAt,
+            });
+            if (!persisted) throw new Error(`Comment with id ${id} not found`);
+            await sync('comment', 'update', persisted.id, projectId, { kind: persisted.kind });
+            return persisted;
           });
-          if (!persisted) throw new Error(`Comment with id ${id} not found`);
-          return persisted;
         },
-        sync: (persisted) =>
-          syncCommentUpdate(persisted.id, projectId, { kind: persisted.kind }),
       });
     },
-    [ensureDb, projectId, commentRepo],
+    [ensureDb, projectId],
   );
 
   // Inverse of convertToTodo: flip kind back to 'note' in place. Used by the
@@ -330,18 +335,19 @@ export function useComment({ projectId, userId }: UseCommentContext) {
             .setComments(comments.map((c) => (c.id === id ? updated : c))),
         rollback: () => useDataStore.getState().setComments(comments),
         effect: async () => {
-          const persisted = await commentRepo.update(id, {
-            kind: updated.kind,
-            updatedAt: updated.updatedAt,
+          return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const persisted = await createCommentRepository(projectId, tx).update(id, {
+              kind: updated.kind,
+              updatedAt: updated.updatedAt,
+            });
+            if (!persisted) throw new Error(`Comment with id ${id} not found`);
+            await sync('comment', 'update', persisted.id, projectId, { kind: persisted.kind });
+            return persisted;
           });
-          if (!persisted) throw new Error(`Comment with id ${id} not found`);
-          return persisted;
         },
-        sync: (persisted) =>
-          syncCommentUpdate(persisted.id, projectId, { kind: persisted.kind }),
       });
     },
-    [ensureDb, projectId, commentRepo],
+    [ensureDb, projectId],
   );
 
   // Generalized in-place kind flip (note | todo | exception). convertToTodo /
@@ -367,18 +373,19 @@ export function useComment({ projectId, userId }: UseCommentContext) {
             .setComments(comments.map((c) => (c.id === id ? updated : c))),
         rollback: () => useDataStore.getState().setComments(comments),
         effect: async () => {
-          const persisted = await commentRepo.update(id, {
-            kind: updated.kind,
-            updatedAt: updated.updatedAt,
+          return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const persisted = await createCommentRepository(projectId, tx).update(id, {
+              kind: updated.kind,
+              updatedAt: updated.updatedAt,
+            });
+            if (!persisted) throw new Error(`Comment with id ${id} not found`);
+            await sync('comment', 'update', persisted.id, projectId, { kind: persisted.kind });
+            return persisted;
           });
-          if (!persisted) throw new Error(`Comment with id ${id} not found`);
-          return persisted;
         },
-        sync: (persisted) =>
-          syncCommentUpdate(persisted.id, projectId, { kind: persisted.kind }),
       });
     },
-    [ensureDb, projectId, commentRepo],
+    [ensureDb, projectId],
   );
 
   const createCopilotSuggestion = useCallback(
@@ -411,12 +418,15 @@ export function useComment({ projectId, userId }: UseCommentContext) {
       return withOptimisticUpdate({
         apply: () => useDataStore.getState().setComments([...prev, comment]),
         rollback: () => useDataStore.getState().setComments(prev),
-        effect: () => commentRepo.create(comment),
-        sync: (persisted) =>
-          syncCommentCreate(persisted.id, projectId, commentSyncPayload(persisted)),
+        effect: () =>
+          withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const persisted = await createCommentRepository(projectId, tx).create(comment);
+            await sync('comment', 'create', persisted.id, projectId, commentSyncPayload(persisted));
+            return persisted;
+          }),
       });
     },
-    [ensureDb, projectId, commentRepo],
+    [ensureDb, projectId],
   );
 
   // Shared backbone for accept/reject: append an action row, mark the
@@ -476,7 +486,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
           commentsBefore.map((c) => (c.id === commentId ? updatedComment : c)),
         );
 
-        await getDb().transaction(async (tx) => {
+        await withAtomicSyncTransaction(projectId, async (tx, sync) => {
           const txCommentRepo = createCommentRepository(projectId, tx);
           const txActionRepo = createCommentActionRepository(projectId, tx);
           await txCommentRepo.update(commentId, {
@@ -485,13 +495,12 @@ export function useComment({ projectId, userId }: UseCommentContext) {
             updatedAt: updatedComment.updatedAt,
           });
           await txActionRepo.create(action);
+          await sync('comment', 'update', commentId, projectId, {
+            status: updatedComment.status,
+            resolvedAt: updatedComment.resolvedAt,
+          });
+          await sync('commentAction', 'create', action.id, projectId, actionSyncPayload(action));
         });
-
-        syncCommentUpdate(commentId, projectId, {
-          status: updatedComment.status,
-          resolvedAt: updatedComment.resolvedAt,
-        });
-        syncCommentActionCreate(action.id, projectId, actionSyncPayload(action));
 
         return action;
       } catch (error) {

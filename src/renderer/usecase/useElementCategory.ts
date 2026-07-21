@@ -7,15 +7,13 @@ import { useDataStore } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
-import {
-  syncCategoryCreate,
-  syncCategoryUpdate,
-  syncCategoryDelete,
-  syncCategorySoftDelete,
-  syncCategoryRestore,
-} from './sync-helpers';
+import { withAtomicSyncTransaction } from './sync-helpers';
 import { canUseFeature } from '../lib/feature-access';
 import loglevel from 'loglevel';
+import {
+  deleteEntityRelationsInTransaction,
+  withoutRelationsForEntity,
+} from './entity-relation-cleanup';
 
 const log = loglevel.getLogger('useElementCategory');
 log.setLevel(loglevel.levels.WARN);
@@ -98,26 +96,31 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
       return withOptimisticUpdate({
         apply: () => addCategoryState(newCategory),
         rollback: () => setCategoriesState(prevCategories),
-        effect: () => repo.create(newCategory),
+        effect: () =>
+          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+            const created = await createElementCategoryRepository(activeProjectId, tx).create(
+              newCategory,
+            );
+            await sync('elementCategory', 'create', created.id, activeProjectId, {
+              id: created.id,
+              name: created.name,
+              contentJson: created.contentJson,
+              elementTemplateJson: created.elementTemplateJson,
+              elementTemplateKvJson: created.elementTemplateKvJson,
+              color: created.color,
+              layoutMode: created.layoutMode,
+              gridX: created.gridX,
+              gridY: created.gridY,
+            });
+            return created;
+          }),
         onSuccess: (created) => {
           const current = getCategoriesState();
           setCategoriesState(current.map((cat) => (cat.id === created.id ? created : cat)));
         },
-        sync: (created) =>
-          syncCategoryCreate(created.id, activeProjectId, {
-            id: created.id,
-            name: created.name,
-            contentJson: created.contentJson,
-            elementTemplateJson: created.elementTemplateJson,
-            elementTemplateKvJson: created.elementTemplateKvJson,
-            color: created.color,
-            layoutMode: created.layoutMode,
-            gridX: created.gridX,
-            gridY: created.gridY,
-          }),
       });
     },
-    [activeProjectId, addCategoryState, ensureDb, getCategoriesState, repo, setCategoriesState],
+    [activeProjectId, addCategoryState, ensureDb, getCategoriesState, setCategoriesState],
   );
 
   const loadCategories = useCallback(
@@ -170,36 +173,38 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         apply: () => updateCategoryState(categoryId, updated),
         rollback: () => setCategoriesState(prevCategories),
         effect: async () => {
-          const persisted = await repo.update(categoryId, {
-            name: updated.name,
-            contentJson: updated.contentJson,
-            elementTemplateJson: updated.elementTemplateJson,
-            elementTemplateKvJson: updated.elementTemplateKvJson,
-            color: updated.color,
-            layoutMode: updated.layoutMode,
-            gridX: updated.gridX,
-            gridY: updated.gridY,
-            updatedAt: updated.updatedAt,
+          return withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+            const persisted = await createElementCategoryRepository(activeProjectId, tx).update(
+              categoryId,
+              {
+                name: updated.name,
+                contentJson: updated.contentJson,
+                elementTemplateJson: updated.elementTemplateJson,
+                elementTemplateKvJson: updated.elementTemplateKvJson,
+                color: updated.color,
+                layoutMode: updated.layoutMode,
+                gridX: updated.gridX,
+                gridY: updated.gridY,
+                updatedAt: updated.updatedAt,
+              },
+            );
+            if (!persisted) throw new Error(`Category ${categoryId} not found`);
+            await sync('elementCategory', 'update', categoryId, activeProjectId, {
+              name: persisted.name,
+              contentJson: persisted.contentJson,
+              elementTemplateJson: persisted.elementTemplateJson,
+              elementTemplateKvJson: persisted.elementTemplateKvJson,
+              color: persisted.color,
+              layoutMode: persisted.layoutMode,
+              gridX: persisted.gridX,
+              gridY: persisted.gridY,
+            });
+            return persisted;
           });
-          if (!persisted) {
-            throw new Error(`Category ${categoryId} not found`);
-          }
-          return persisted;
         },
         onSuccess: (persisted) => {
           updateCategoryState(categoryId, persisted);
         },
-        sync: (persisted) =>
-          syncCategoryUpdate(categoryId, activeProjectId, {
-            name: persisted.name,
-            contentJson: persisted.contentJson,
-            elementTemplateJson: persisted.elementTemplateJson,
-            elementTemplateKvJson: persisted.elementTemplateKvJson,
-            color: persisted.color,
-            layoutMode: persisted.layoutMode,
-            gridX: persisted.gridX,
-            gridY: persisted.gridY,
-          }),
       });
     },
     [ensureDb, getCategoriesState, repo, setCategoriesState, updateCategoryState, activeProjectId],
@@ -226,6 +231,13 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
       // alongside the SQLite update AND roll it back if the repo call fails.
       const dataStore = useDataStore.getState();
       const prevElements = dataStore.bookElements.slice();
+      const previousRelations = dataStore.entityRelations;
+      const remainingRelations = withoutRelationsForEntity(
+        previousRelations,
+        activeProjectId,
+        'category',
+        categoryId,
+      );
       const detachedElements = prevElements.map((el) =>
         el.categoryId === categoryId ? { ...el, categoryId: null } : el,
       );
@@ -235,13 +247,25 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
           apply: () => {
             removeCategoryState(categoryId);
             dataStore.setBookElements(detachedElements);
+            dataStore.setEntityRelations(remainingRelations);
           },
           rollback: () => {
             setCategoriesState(prevCategories);
             dataStore.setBookElements(prevElements);
+            dataStore.setEntityRelations(previousRelations);
           },
-          effect: () => repo.softDelete(categoryId),
-          sync: () => syncCategorySoftDelete(categoryId, activeProjectId),
+          effect: () =>
+            withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+              await deleteEntityRelationsInTransaction(
+                tx,
+                sync,
+                activeProjectId,
+                'category',
+                categoryId,
+              );
+              await createElementCategoryRepository(activeProjectId, tx).softDelete(categoryId);
+              await sync('elementCategory', 'softDelete', categoryId, activeProjectId);
+            }),
         });
       }
 
@@ -249,13 +273,25 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         apply: () => {
           removeCategoryState(categoryId);
           dataStore.setBookElements(detachedElements);
+          dataStore.setEntityRelations(remainingRelations);
         },
         rollback: () => {
           setCategoriesState(prevCategories);
           dataStore.setBookElements(prevElements);
+          dataStore.setEntityRelations(previousRelations);
         },
-        effect: () => repo.delete(categoryId),
-        sync: () => syncCategoryDelete(categoryId, activeProjectId),
+        effect: () =>
+          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+            await deleteEntityRelationsInTransaction(
+              tx,
+              sync,
+              activeProjectId,
+              'category',
+              categoryId,
+            );
+            await createElementCategoryRepository(activeProjectId, tx).delete(categoryId);
+            await sync('elementCategory', 'delete', categoryId, activeProjectId);
+          }),
       });
     },
     [ensureDb, getCategoriesState, removeCategoryState, repo, setCategoriesState, activeProjectId],
@@ -264,8 +300,10 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
   const restoreCategory = useCallback(
     async (categoryId: string): Promise<void> => {
       await ensureDb();
-      await repo.restore(categoryId);
-      syncCategoryRestore(categoryId, activeProjectId);
+      await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+        await createElementCategoryRepository(activeProjectId, tx).restore(categoryId);
+        await sync('elementCategory', 'restore', categoryId, activeProjectId);
+      });
       const fresh = await repo.findAll();
       setCategoriesState(fresh);
     },
@@ -279,10 +317,25 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
   const purgeCategory = useCallback(
     async (categoryId: string): Promise<void> => {
       await ensureDb();
-      await repo.delete(categoryId);
-      syncCategoryDelete(categoryId, activeProjectId);
+      await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+        await deleteEntityRelationsInTransaction(
+          tx,
+          sync,
+          activeProjectId,
+          'category',
+          categoryId,
+        );
+        await createElementCategoryRepository(activeProjectId, tx).delete(categoryId);
+        await sync('elementCategory', 'delete', categoryId, activeProjectId);
+      });
+      const relations = useDataStore.getState().entityRelations;
+      useDataStore
+        .getState()
+        .setEntityRelations(
+          withoutRelationsForEntity(relations, activeProjectId, 'category', categoryId),
+        );
     },
-    [ensureDb, repo, activeProjectId],
+    [ensureDb, activeProjectId],
   );
 
   const listTrashedCategories = useCallback(async () => {

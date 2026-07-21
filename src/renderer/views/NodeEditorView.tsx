@@ -49,6 +49,8 @@ import { countWordsInPmJson } from '../lib/word-count';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import type { EditorCommentRequest } from '../hooks/useEntityEditor';
 import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
+import { getLiveYDoc } from '../lib/yjs-doc-registry';
+import { makeDocId } from '../lib/yjs-doc-id';
 
 const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 function toRoman(n: number): string {
@@ -625,6 +627,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
           .filter(isChapter)
           .reduce((max, n) => Math.max(max, n.bookOrder), 0);
         await updateNode(nodeId, {
+          kind: 'chapter',
           mainStorylineId: conversionPickedId,
           writingStatus: 'draft',
           bookOrder: maxChapterOrder + CHAPTER_ORDER_STRIDE,
@@ -646,7 +649,13 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
         // The drift's content may not have been hydrated into bookContent
         // yet (e.g. user opened the menu before the content loader ran),
         // so pull from the repo as the source of truth.
-        const driftContent = await getContentByNodeId(nodeId);
+        const liveDriftDoc = getLiveYDoc(makeDocId('node-content', nodeId));
+        const liveContentJson = liveDriftDoc
+          ? JSON.stringify(
+              (await import('y-prosemirror')).yDocToProsemirrorJSON(liveDriftDoc, 'default'),
+            )
+          : null;
+        const driftContent = liveContentJson ? null : await getContentByNodeId(nodeId);
         // Lift the drift's title onto the new element so the rename the user
         // gave the drift carries over. createElement handles the empty-string
         // fallback itself — don't pre-fill 'Untitled' here, that would mask a
@@ -658,7 +667,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
         if (!created) throw new Error('createElement returned no row');
         await updateElement(created.id, {
           summary: curNode.summary,
-          contentJson: driftContent?.contentJson ?? '{}',
+          contentJson: liveContentJson ?? driftContent?.contentJson ?? '{}',
         });
         await deleteNode(nodeId);
         setConversionTarget(null);

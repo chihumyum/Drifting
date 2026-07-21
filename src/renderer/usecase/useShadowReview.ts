@@ -2,11 +2,11 @@ import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import type { Comment } from '../domain/comment';
 import type { ChapterWritingStatus } from '../domain/book-node';
-import { initDatabase, getDb } from '../lib/db';
+import { initDatabase } from '../lib/db';
 import { createCommentRepository } from '../sqlite-repo/comment-repo';
 import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
 import { useDataStore } from '../store/data-store';
-import { syncCommentCreate, syncCommentDelete, syncNodeUpdate } from './sync-helpers';
+import { withAtomicSyncTransaction } from './sync-helpers';
 
 export interface ShadowReviewCommentInput {
   bodyJson: string;
@@ -58,9 +58,9 @@ function commentSyncPayload(comment: Comment): Record<string, unknown> {
  * the complete new review visible, never an in-between state.
  *
  * This is exported separately from the hook so the failure boundary can be
- * tested without mounting React. Store publication and sync enqueueing are
- * deliberately below the awaited transaction: a rollback or commit failure
- * cannot leak a partially applied review outside SQLite.
+ * tested without mounting React. The replacement, decision, and durable sync
+ * outbox rows share one transaction; store publication happens only after it
+ * commits.
  */
 export async function commitShadowReview({
   projectId,
@@ -104,7 +104,7 @@ export async function commitShadowReview({
     updatedAt: now,
   }));
 
-  const replaced = await getDb().transaction(async (tx) => {
+  const replaced = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
     const commentRepo = createCommentRepository(projectId, tx);
     const nodeRepo = createBookNodeSqliteRepository(projectId, tx);
     const stale = (await commentRepo.findAll()).filter(
@@ -114,8 +114,14 @@ export async function commitShadowReview({
         comment.targetId === chapterId,
     );
 
-    for (const comment of stale) await commentRepo.delete(comment.id);
-    for (const comment of comments) await commentRepo.create(comment);
+    for (const comment of stale) {
+      await commentRepo.delete(comment.id);
+      await sync('comment', 'delete', comment.id, projectId);
+    }
+    for (const comment of comments) {
+      await commentRepo.create(comment);
+      await sync('comment', 'create', comment.id, projectId, commentSyncPayload(comment));
+    }
 
     const updated = await nodeRepo.update(chapterId, {
       writingStatus: status,
@@ -124,6 +130,7 @@ export async function commitShadowReview({
     if (!updated || updated.projectId !== projectId || updated.kind !== 'chapter') {
       throw new Error(`Shadow review chapter ${chapterId} disappeared`);
     }
+    await sync('node', 'update', chapterId, projectId, { writingStatus: status });
     return stale;
   });
 
@@ -156,15 +163,6 @@ export async function commitShadowReview({
       ),
     };
   });
-
-  // The sync outbox mirrors the already-committed local transaction. These
-  // calls are intentionally after commit, so a rolled-back review never
-  // leaks partial remote mutations.
-  for (const comment of replaced) syncCommentDelete(comment.id, projectId);
-  for (const comment of comments) {
-    syncCommentCreate(comment.id, projectId, commentSyncPayload(comment));
-  }
-  syncNodeUpdate(chapterId, projectId, { writingStatus: status });
 
   return {
     comments,

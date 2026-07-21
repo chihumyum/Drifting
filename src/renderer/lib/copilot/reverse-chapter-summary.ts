@@ -13,7 +13,7 @@ import { chapterSummaryPrompt } from '../ai/prompts/templates/chapter-summary';
 import { buildAdaptiveChapterContext } from './adaptive-chapter-context';
 import { useDataStore } from '../../store/data-store';
 import { createBookNodeSqliteRepository } from '../../sqlite-repo/node-repo';
-import { syncNodeUpdate } from '../../usecase/sync-helpers';
+import { withAtomicSyncTransaction } from '../../usecase/sync-helpers';
 
 const log = loglevel.getLogger('copilot:reverse-summary');
 
@@ -67,11 +67,16 @@ export async function generateChapterSummary(params: {
   if (!summary) return { status: 'failed' };
 
   try {
-    const repo = createBookNodeSqliteRepository(projectId);
     const now = new Date().toISOString();
-    await repo.update(chapterId, { summary, updatedAt: now });
+    await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+      const updated = await createBookNodeSqliteRepository(projectId, tx).update(chapterId, {
+        summary,
+        updatedAt: now,
+      });
+      if (!updated) throw new Error(`Chapter ${chapterId} no longer exists`);
+      await sync('node', 'update', chapterId, projectId, { summary });
+    });
     useDataStore.getState().updateBookNode(chapterId, { summary, updatedAt: now });
-    syncNodeUpdate(chapterId, projectId, { summary });
   } catch (err) {
     log.warn('[reverse-summary] persist failed', err);
     return { status: 'failed' };

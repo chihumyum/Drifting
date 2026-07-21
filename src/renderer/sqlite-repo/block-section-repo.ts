@@ -1,6 +1,6 @@
 import { v7 as uuidv7 } from 'uuid';
 import { and, asc, eq } from 'drizzle-orm';
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import { BlockSectionTable } from '../schema/drizzle';
 import {
   decodeBlockHashes,
@@ -49,9 +49,10 @@ function toDomain(row: typeof BlockSectionTable.$inferSelect): BlockSection {
   };
 }
 
-export function createBlockSectionRepository(): BlockSectionRepository {
+export function createBlockSectionRepository(dbOverride?: DbExecutor): BlockSectionRepository {
+  const dbProvider = () => dbOverride ?? getDb();
   const create = async (input: CreateBlockSectionInput): Promise<BlockSection> => {
-    const db = getDb();
+    const db = dbProvider();
     const now = new Date().toISOString();
     const row = {
       id: input.id ?? uuidv7(),
@@ -72,7 +73,7 @@ export function createBlockSectionRepository(): BlockSectionRepository {
     id: string,
     updates: UpdateBlockSectionInput,
   ): Promise<BlockSection | null> => {
-    const db = getDb();
+    const db = dbProvider();
     const now = new Date().toISOString();
     const setValues: Record<string, unknown> = { updatedAt: now };
     if (updates.blockIds !== undefined) setValues.blockIdsJson = encodeBlockIds(updates.blockIds);
@@ -92,11 +93,11 @@ export function createBlockSectionRepository(): BlockSectionRepository {
   };
 
   const deleteSection = async (id: string): Promise<void> => {
-    await getDb().delete(BlockSectionTable).where(eq(BlockSectionTable.id, id));
+    await dbProvider().delete(BlockSectionTable).where(eq(BlockSectionTable.id, id));
   };
 
   const findById = async (id: string): Promise<BlockSection | null> => {
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select()
       .from(BlockSectionTable)
       .where(eq(BlockSectionTable.id, id))
@@ -105,7 +106,7 @@ export function createBlockSectionRepository(): BlockSectionRepository {
   };
 
   const findByChapter = async (chapterId: string): Promise<BlockSection[]> => {
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select()
       .from(BlockSectionTable)
       .where(eq(BlockSectionTable.chapterId, chapterId))
@@ -114,7 +115,7 @@ export function createBlockSectionRepository(): BlockSectionRepository {
   };
 
   const findByProject = async (projectId: string): Promise<BlockSection[]> => {
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select()
       .from(BlockSectionTable)
       .where(and(eq(BlockSectionTable.projectId, projectId)))

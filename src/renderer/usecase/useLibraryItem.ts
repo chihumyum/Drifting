@@ -9,12 +9,7 @@ import { assetCacheService, extForMime } from '../services/asset-cache.service';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import { platform } from '../platform';
-import {
-  syncLibraryItemCreate,
-  syncLibraryItemUpdate,
-  syncLibraryItemDelete,
-  syncEntityRelationCreate,
-} from './sync-helpers';
+import { withAtomicSyncTransaction } from './sync-helpers';
 
 export interface CreateLibraryItemInput {
   title?: string;
@@ -119,27 +114,6 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
       ]);
     },
     [projectId, removeLocalAsset],
-  );
-
-  const syncLibraryItemRelations = useCallback(
-    (libraryItemId: string) => {
-      const relations = useDataStore
-        .getState()
-        .entityRelations.filter(
-          (relation) => relation.fromKind === 'library_item' && relation.fromId === libraryItemId,
-        );
-      relations.forEach((relation) => {
-        syncEntityRelationCreate(relation.id, projectId, {
-          id: relation.id,
-          fromKind: relation.fromKind,
-          fromId: relation.fromId,
-          toKind: relation.toKind,
-          toId: relation.toId,
-          kind: relation.kind,
-        });
-      });
-    },
-    [projectId],
   );
 
   const uploadLibraryMaterialAsset = useCallback(
@@ -298,15 +272,39 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
         }
 
         const updatedAt = new Date().toISOString();
-        const persisted = await repo.update(initialItem.id, {
-          source: 'r2',
-          uri: `asset://${readyAsset.id}`,
-          localPath: null,
-          assetId: readyAsset.id,
-          mime,
-          sizeBytes,
-          thumbnailUri: null,
-          updatedAt,
+        const relations = useDataStore
+          .getState()
+          .entityRelations.filter(
+            (relation) =>
+              relation.fromKind === 'library_item' && relation.fromId === initialItem.id,
+          );
+        const persisted = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+          const result = await createLibraryItemSqliteRepository(projectId, tx).update(
+            initialItem.id,
+            {
+              source: 'r2',
+              uri: `asset://${readyAsset.id}`,
+              localPath: null,
+              assetId: readyAsset.id,
+              mime,
+              sizeBytes,
+              thumbnailUri: null,
+              updatedAt,
+            },
+          );
+          if (!result) return null;
+          await sync('libraryItem', 'create', result.id, projectId, libraryItemSyncPayload(result));
+          for (const relation of relations) {
+            await sync('entityRelation', 'create', relation.id, projectId, {
+              id: relation.id,
+              fromKind: relation.fromKind,
+              fromId: relation.fromId,
+              toKind: relation.toKind,
+              toId: relation.toId,
+              kind: relation.kind,
+            });
+          }
+          return result;
         });
         if (!persisted) {
           cleanupUploadedAsset(readyAsset.id);
@@ -316,7 +314,10 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
 
         const latest = getItems();
         if (!latest.some((item) => item.id === initialItem.id)) {
-          await repo.delete(initialItem.id).catch(() => undefined);
+          await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            await createLibraryItemSqliteRepository(projectId, tx).delete(initialItem.id);
+            await sync('libraryItem', 'delete', initialItem.id, projectId);
+          }).catch(() => undefined);
           cleanupUploadedAsset(readyAsset.id);
           useDataStore.getState().clearLibraryItemUploadState(initialItem.id);
           return;
@@ -324,8 +325,6 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
 
         setItems(latest.map((item) => (item.id === initialItem.id ? persisted : item)));
         useDataStore.getState().clearLibraryItemUploadState(initialItem.id);
-        syncLibraryItemCreate(persisted.id, projectId, libraryItemSyncPayload(persisted));
-        syncLibraryItemRelations(persisted.id);
       } catch (error) {
         if (createdAssetId) {
           cleanupUploadedAsset(createdAssetId);
@@ -348,7 +347,6 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
       projectId,
       upsertLocalAsset,
       cleanupUploadedAsset,
-      syncLibraryItemRelations,
     ],
   );
 
@@ -391,7 +389,20 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
             useDataStore.getState().clearLibraryItemUploadState(newItem.id);
           }
         },
-        effect: () => repo.create(newItem),
+        effect: () =>
+          withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const persisted = await createLibraryItemSqliteRepository(projectId, tx).create(newItem);
+            if (!uploadToR2) {
+              await sync(
+                'libraryItem',
+                'create',
+                persisted.id,
+                projectId,
+                libraryItemSyncPayload(persisted),
+              );
+            }
+            return persisted;
+          }),
         onSuccess: (persisted) => {
           const current = getItems();
           setItems(current.map((m) => (m.id === persisted.id ? persisted : m)));
@@ -399,13 +410,9 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
             void uploadLibraryMaterialAsset(persisted, input);
           }
         },
-        sync: uploadToR2
-          ? undefined
-          : (persisted) =>
-              syncLibraryItemCreate(persisted.id, projectId, libraryItemSyncPayload(persisted)),
       });
     },
-    [repo, getItems, setItems, ensureDb, projectId, uploadLibraryMaterialAsset],
+    [getItems, setItems, ensureDb, projectId, uploadLibraryMaterialAsset],
   );
 
   const updateLibraryItem = useCallback(
@@ -422,34 +429,42 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
         apply: () => setItems(items.map((m) => (m.id === id ? updated : m))),
         rollback: () => setItems(items),
         effect: async () => {
-          const persisted = await repo.update(id, {
-            title: updated.title,
-            kind: updated.kind,
-            source: updated.source,
-            uri: updated.uri,
-            localPath: updated.localPath,
-            assetId: updated.assetId,
-            mime: updated.mime,
-            sizeBytes: updated.sizeBytes,
-            bodyJson: updated.bodyJson,
-            notesJson: updated.notesJson,
-            thumbnailUri: updated.thumbnailUri,
-            orderKey: updated.orderKey,
-            updatedAt: updated.updatedAt,
+          return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const persisted = await createLibraryItemSqliteRepository(projectId, tx).update(id, {
+              title: updated.title,
+              kind: updated.kind,
+              source: updated.source,
+              uri: updated.uri,
+              localPath: updated.localPath,
+              assetId: updated.assetId,
+              mime: updated.mime,
+              sizeBytes: updated.sizeBytes,
+              bodyJson: updated.bodyJson,
+              notesJson: updated.notesJson,
+              thumbnailUri: updated.thumbnailUri,
+              orderKey: updated.orderKey,
+              updatedAt: updated.updatedAt,
+            });
+            if (!persisted) throw new Error(`Library item with id ${id} not found`);
+            if (!uploadState) {
+              await sync(
+                'libraryItem',
+                'update',
+                id,
+                projectId,
+                libraryItemSyncPayload(persisted),
+              );
+            }
+            return persisted;
           });
-          if (!persisted) throw new Error(`Library item with id ${id} not found`);
-          return persisted;
         },
         onSuccess: (persisted) => {
           const current = getItems();
           setItems(current.map((m) => (m.id === id ? persisted : m)));
         },
-        sync: uploadState
-          ? undefined
-          : (persisted) => syncLibraryItemUpdate(id, projectId, libraryItemSyncPayload(persisted)),
       });
     },
-    [repo, getItems, setItems, ensureDb, projectId],
+    [getItems, setItems, ensureDb, projectId],
   );
 
   const removeLibraryItem = useCallback(
@@ -475,8 +490,12 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
             useDataStore.getState().setLibraryItemUploadState(id, previousUploadState);
           }
         },
-        effect: () => repo.delete(id),
-        sync: shouldSyncDelete ? () => syncLibraryItemDelete(id, projectId) : undefined,
+        effect: () =>
+          withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            const result = await createLibraryItemSqliteRepository(projectId, tx).delete(id);
+            if (shouldSyncDelete) await sync('libraryItem', 'delete', id, projectId);
+            return result;
+          }),
       });
       if (existing.source === 'r2' && existing.assetId) {
         const assetId = existing.assetId;
@@ -486,7 +505,7 @@ export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
       }
       return result;
     },
-    [repo, getItems, setItems, ensureDb, projectId, removeLocalAsset],
+    [getItems, setItems, ensureDb, projectId, removeLocalAsset],
   );
 
   return useMemo(

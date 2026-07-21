@@ -9,11 +9,7 @@ import { isSyncEnabled } from '../lib/config';
 import { getDeviceId } from '../lib/device-id';
 import { events, type SyncOperationEvent } from '../lib/events';
 import { v7 as uuidv7 } from 'uuid';
-import {
-  syncProjectCreate,
-  syncProjectUpdate,
-  syncProjectDelete,
-} from './sync-helpers';
+import { withAtomicSyncTransaction } from './sync-helpers';
 import { defaultProjectKvJson } from '../domain/kv';
 import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
@@ -371,15 +367,26 @@ export function useProject({ userId }: UseProjectContext) {
 
       const now = new Date().toISOString();
       const seededProjectKvJson = defaultProjectKvJson();
-      const project = await repo.create({
-        id: uuidv7(),
-        userId,
-        name: input.projectName ?? 'New Project',
-        summary: '',
-        kvJson: seededProjectKvJson,
-        storylineTemplateKvJson: '[]',
-        createdAt: now,
-        updatedAt: now,
+      const projectId = uuidv7();
+      const project = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        const created = await createProjectRepository(userId, tx).create({
+          id: projectId,
+          userId,
+          name: input.projectName ?? 'New Project',
+          summary: '',
+          kvJson: seededProjectKvJson,
+          storylineTemplateKvJson: '[]',
+          createdAt: now,
+          updatedAt: now,
+        });
+        await sync('project', 'create', created.id, created.id, {
+          id: created.id,
+          name: created.name,
+          summary: created.summary,
+          kvJson: created.kvJson,
+          storylineTemplateKvJson: created.storylineTemplateKvJson,
+        });
+        return created;
       });
 
       // Projects are allowed to have zero storylines AND zero categories. Both
@@ -390,17 +397,9 @@ export function useProject({ userId }: UseProjectContext) {
       dataStore.setStorylines([]);
       dataStore.setBookElementCategories([]);
 
-      syncProjectCreate(project.id, {
-        id: project.id,
-        name: project.name,
-        summary: project.summary,
-        kvJson: project.kvJson,
-        storylineTemplateKvJson: project.storylineTemplateKvJson,
-      });
-
       return project;
     },
-    [repo, userId, ensureDb],
+    [userId, ensureDb],
   );
 
   const updateProject = useCallback(
@@ -410,13 +409,24 @@ export function useProject({ userId }: UseProjectContext) {
         return Promise.resolve(null);
       }
       await ensureDb();
-      const result = await repo.update(id, {
-        userId,
-        name: input.name,
-        summary: input.summary,
-        kvJson: input.kvJson,
-        storylineTemplateKvJson: input.storylineTemplateKvJson,
-        updatedAt: new Date().toISOString(),
+      const result = await withAtomicSyncTransaction(id, async (tx, sync) => {
+        const updated = await createProjectRepository(userId, tx).update(id, {
+          userId,
+          name: input.name,
+          summary: input.summary,
+          kvJson: input.kvJson,
+          storylineTemplateKvJson: input.storylineTemplateKvJson,
+          updatedAt: new Date().toISOString(),
+        });
+        if (updated) {
+          await sync('project', 'update', id, id, {
+            name: input.name,
+            summary: input.summary,
+            kvJson: input.kvJson,
+            storylineTemplateKvJson: input.storylineTemplateKvJson,
+          });
+        }
+        return updated;
       });
       if (result) {
         // Reflect the write into useProjectStore so subscribers (the
@@ -427,26 +437,22 @@ export function useProject({ userId }: UseProjectContext) {
         // this problem because their usecases already write back through
         // useDataStore.update*State.
         useProjectStore.getState().updateProjectInList(id, result);
-        syncProjectUpdate(id, {
-          name: input.name,
-          summary: input.summary,
-          kvJson: input.kvJson,
-          storylineTemplateKvJson: input.storylineTemplateKvJson,
-        });
       }
       return result;
     },
-    [repo, userId, ensureDb],
+    [userId, ensureDb],
   );
 
   const deleteProject = useCallback(
     async (id: string): Promise<boolean> => {
       await ensureDb();
-      const ok = await repo.delete(id);
-      if (ok) syncProjectDelete(id);
-      return ok;
+      return withAtomicSyncTransaction(id, async (tx, sync) => {
+        const ok = await createProjectRepository(userId, tx).delete(id);
+        if (ok) await sync('project', 'delete', id, id);
+        return ok;
+      });
     },
-    [repo, ensureDb],
+    [userId, ensureDb],
   );
 
   return useMemo(

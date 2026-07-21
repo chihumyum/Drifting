@@ -1,4 +1,4 @@
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import { ProjectTable } from '../schema/drizzle';
 import { eq, desc } from 'drizzle-orm';
 import type { Project } from '../domain/project';
@@ -34,11 +34,19 @@ function recordToDomain(record: typeof ProjectTable.$inferSelect): Project {
   };
 }
 
-export function createProjectRepository(currentUserId?: string): ProjectRepository {
+export function createProjectRepository(
+  currentUserId?: string,
+  dbOverride?: DbExecutor,
+): ProjectRepository {
   const userId = currentUserId ?? 'anonymous';
+  const dbProvider = () => dbOverride ?? getDb();
 
   const findById = async (id: string): Promise<Project | null> => {
-    const rows = await getDb().select().from(ProjectTable).where(eq(ProjectTable.id, id)).limit(1);
+    const rows = await dbProvider()
+      .select()
+      .from(ProjectTable)
+      .where(eq(ProjectTable.id, id))
+      .limit(1);
     if (rows.length === 0) {
       log.warn(`Project with id ${id} not found`);
       return null;
@@ -51,7 +59,7 @@ export function createProjectRepository(currentUserId?: string): ProjectReposito
       log.warn('No authenticated user found, loading anonymous projects');
     }
 
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select()
       .from(ProjectTable)
       .where(eq(ProjectTable.userId, userId))
@@ -77,7 +85,7 @@ export function createProjectRepository(currentUserId?: string): ProjectReposito
       updatedAt: input.updatedAt,
     };
 
-    await getDb().insert(ProjectTable).values(newProject);
+    await dbProvider().insert(ProjectTable).values(newProject);
 
     return recordToDomain(newProject as typeof ProjectTable.$inferSelect);
   };
@@ -104,7 +112,7 @@ export function createProjectRepository(currentUserId?: string): ProjectReposito
     if (data.storylineTemplateKvJson !== undefined)
       updateValues.storylineTemplateKvJson = data.storylineTemplateKvJson;
     if (data.userId !== undefined) updateValues.userId = data.userId;
-    const res = await getDb()
+    const res = await dbProvider()
       .update(ProjectTable)
       .set(updateValues)
       .where(eq(ProjectTable.id, id))
@@ -114,7 +122,7 @@ export function createProjectRepository(currentUserId?: string): ProjectReposito
   };
 
   const deleteProject = async (id: string): Promise<boolean> => {
-    const result = await getDb().delete(ProjectTable).where(eq(ProjectTable.id, id));
+    const result = await dbProvider().delete(ProjectTable).where(eq(ProjectTable.id, id));
     return (result as any).rowsAffected > 0;
   };
 

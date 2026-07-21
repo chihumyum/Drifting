@@ -8,11 +8,11 @@
  *    agent tool handlers (which run outside React) and by the injection path.
  *  - A thin `useAgentMemory` hook for the author-facing management list.
  *
- * Local-only for now: not wired to the sync outbox (the repo is pure-local; sync
- * lives in this layer for synced entities, and memory's outbox route isn't built
- * yet). Soft-approval is an inline confirm at write time (see the `remember`
- * handler) rather than a pending queue, so the agent path writes straight to
- * 'active'; the 'pending' status stays reserved for a future async flow.
+ * Writes use the same local-row + durable-outbox transaction as other synced
+ * entities. Soft-approval is an inline confirm at write time (see the
+ * `remember` handler) rather than a pending queue, so the agent path writes
+ * straight to 'active'; the 'pending' status stays reserved for a future async
+ * flow.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { v7 as uuidv7 } from 'uuid';
@@ -24,10 +24,7 @@ import type {
   AgentMemoryStatus,
 } from '../domain/agent-memory';
 import type { StructuralEntityKind } from '../domain/entity-kinds';
-import {
-  syncAgentMemoryCreate,
-  syncAgentMemoryUpdate,
-} from './sync-helpers';
+import { withAtomicSyncTransaction } from './sync-helpers';
 
 // The create payload pushed to the server (projectId is in the URL, not the body).
 function memorySyncPayload(m: AgentMemory): Record<string, unknown> {
@@ -65,26 +62,27 @@ export async function createMemory(
   projectId: string,
   input: CreateAgentMemoryInput,
 ): Promise<AgentMemory> {
-  const repo = createAgentMemoryRepository(projectId);
   const now = new Date().toISOString();
-  const created = await repo.create({
-    id: uuidv7(),
-    projectId,
-    kind: input.kind,
-    body: input.body,
-    targetKind: input.targetKind ?? null,
-    targetId: input.targetId ?? null,
-    targetBlockId: input.targetBlockId ?? null,
-    source: input.source ?? 'agent',
-    originRef: input.originRef ?? null,
-    status: input.status ?? 'pending',
-    supersedesId: input.supersedesId ?? null,
-    createdAt: now,
-    updatedAt: now,
-    deletedAt: null,
+  return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+    const created = await createAgentMemoryRepository(projectId, tx).create({
+      id: uuidv7(),
+      projectId,
+      kind: input.kind,
+      body: input.body,
+      targetKind: input.targetKind ?? null,
+      targetId: input.targetId ?? null,
+      targetBlockId: input.targetBlockId ?? null,
+      source: input.source ?? 'agent',
+      originRef: input.originRef ?? null,
+      status: input.status ?? 'pending',
+      supersedesId: input.supersedesId ?? null,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+    });
+    await sync('agentMemory', 'create', created.id, projectId, memorySyncPayload(created));
+    return created;
   });
-  syncAgentMemoryCreate(created.id, projectId, memorySyncPayload(created));
-  return created;
 }
 
 /** Flip a memory's status (e.g. approve a pending → 'active', or 'dismissed'). */
@@ -93,11 +91,12 @@ export async function setMemoryStatus(
   id: string,
   status: AgentMemoryStatus,
 ): Promise<AgentMemory | null> {
-  const repo = createAgentMemoryRepository(projectId);
   const updatedAt = new Date().toISOString();
-  const row = await repo.update(id, { status, updatedAt });
-  syncAgentMemoryUpdate(id, projectId, { status, updatedAt });
-  return row;
+  return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+    const row = await createAgentMemoryRepository(projectId, tx).update(id, { status, updatedAt });
+    if (row) await sync('agentMemory', 'update', id, projectId, { status, updatedAt });
+    return row;
+  });
 }
 
 /** Update a memory's body (and optionally retire the one it supersedes). */
@@ -106,20 +105,22 @@ export async function updateMemoryBody(
   id: string,
   body: string,
 ): Promise<AgentMemory | null> {
-  const repo = createAgentMemoryRepository(projectId);
   const updatedAt = new Date().toISOString();
-  const row = await repo.update(id, { body, updatedAt });
-  syncAgentMemoryUpdate(id, projectId, { body, updatedAt });
-  return row;
+  return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+    const row = await createAgentMemoryRepository(projectId, tx).update(id, { body, updatedAt });
+    if (row) await sync('agentMemory', 'update', id, projectId, { body, updatedAt });
+    return row;
+  });
 }
 
 /** Soft-delete a memory (kept for provenance; drops out of all reads). The
  *  soft-delete travels to the server as an update carrying deletedAt. */
 export async function softDeleteMemory(projectId: string, id: string): Promise<void> {
-  const repo = createAgentMemoryRepository(projectId);
   const deletedAt = new Date().toISOString();
-  await repo.softDelete(id, deletedAt);
-  syncAgentMemoryUpdate(id, projectId, { deletedAt, updatedAt: deletedAt });
+  await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+    await createAgentMemoryRepository(projectId, tx).softDelete(id, deletedAt);
+    await sync('agentMemory', 'update', id, projectId, { deletedAt, updatedAt: deletedAt });
+  });
 }
 
 /** Live (not deleted) memories for the project, newest first. */

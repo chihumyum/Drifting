@@ -1,6 +1,6 @@
 import { v7 as uuidv7 } from 'uuid';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import {
   BookElementTable,
   BookNodeTable,
@@ -96,18 +96,17 @@ function toRecord(
   };
 }
 
-export function createInlineMentionRepository(): InlineMentionRepository {
+export function createInlineMentionRepository(dbOverride?: DbExecutor): InlineMentionRepository {
+  const dbProvider = () => dbOverride ?? getDb();
   const replaceMentionsFromSource = async (
     projectId: string,
     fromKind: EntityKind,
     fromId: string,
     drafts: InlineMentionDraft[],
   ): Promise<void> => {
-    const db = getDb();
     const now = new Date().toISOString();
-
-    await db.transaction(async (tx) => {
-      await tx
+    const replace = async (executor: DbExecutor) => {
+      await executor
         .delete(InlineMentionTable)
         .where(
           and(
@@ -130,15 +129,21 @@ export function createInlineMentionRepository(): InlineMentionRepository {
         createdAt: now,
         updatedAt: now,
       }));
-      await tx.insert(InlineMentionTable).values(rows);
-    });
+      await executor.insert(InlineMentionTable).values(rows);
+    };
+
+    if (dbOverride) {
+      await replace(dbOverride);
+      return;
+    }
+    await getDb().transaction(replace);
   };
 
   const listMentionsFromSource = async (
     fromKind: EntityKind,
     fromId: string,
   ): Promise<InlineMentionRecord[]> => {
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select()
       .from(InlineMentionTable)
       .where(
@@ -156,7 +161,7 @@ export function createInlineMentionRepository(): InlineMentionRepository {
     toKind: StructuralEntityKind,
     toId: string,
   ): Promise<InlineMentionBacklink[]> => {
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select({
         id: InlineMentionTable.id,
         fromKind: InlineMentionTable.fromKind,
@@ -226,7 +231,7 @@ export function createInlineMentionRepository(): InlineMentionRepository {
     toKind: StructuralEntityKind,
     toId: string,
   ): Promise<number> => {
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select({
         count: sql<number>`count(distinct ${InlineMentionTable.fromKind} || ':' || ${InlineMentionTable.fromId})`,
       })
@@ -244,7 +249,7 @@ export function createInlineMentionRepository(): InlineMentionRepository {
     toKind: StructuralEntityKind,
     toId: string,
   ): Promise<void> => {
-    await getDb()
+    await dbProvider()
       .delete(InlineMentionTable)
       .where(
         and(
@@ -258,7 +263,7 @@ export function createInlineMentionRepository(): InlineMentionRepository {
     fromKind: EntityKind,
     fromId: string,
   ): Promise<void> => {
-    await getDb()
+    await dbProvider()
       .delete(InlineMentionTable)
       .where(
         and(

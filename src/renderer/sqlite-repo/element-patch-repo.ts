@@ -1,6 +1,6 @@
 import { v7 as uuidv7 } from 'uuid';
 import { and, asc, eq, inArray } from 'drizzle-orm';
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import { ElementPatchTable, BookNodeTable } from '../schema/drizzle';
 
 export interface ElementPatch {
@@ -92,9 +92,10 @@ function toDomain(row: typeof ElementPatchTable.$inferSelect): ElementPatch {
   };
 }
 
-export function createElementPatchRepository(): ElementPatchRepository {
+export function createElementPatchRepository(dbOverride?: DbExecutor): ElementPatchRepository {
+  const dbProvider = () => dbOverride ?? getDb();
   const create = async (input: CreatePatchInput): Promise<ElementPatch> => {
-    const db = getDb();
+    const db = dbProvider();
     const now = new Date().toISOString();
     const row = {
       id: uuidv7(),
@@ -116,7 +117,7 @@ export function createElementPatchRepository(): ElementPatchRepository {
   };
 
   const update = async (id: string, updates: UpdatePatchInput): Promise<ElementPatch | null> => {
-    const db = getDb();
+    const db = dbProvider();
     const now = new Date().toISOString();
     const setValues: Record<string, unknown> = { updatedAt: now };
     if (updates.sourceNodeId !== undefined) setValues.sourceNodeId = updates.sourceNodeId;
@@ -137,11 +138,11 @@ export function createElementPatchRepository(): ElementPatchRepository {
   };
 
   const deletePatch = async (id: string): Promise<void> => {
-    await getDb().delete(ElementPatchTable).where(eq(ElementPatchTable.id, id));
+    await dbProvider().delete(ElementPatchTable).where(eq(ElementPatchTable.id, id));
   };
 
   const findById = async (id: string): Promise<ElementPatch | null> => {
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select()
       .from(ElementPatchTable)
       .where(eq(ElementPatchTable.id, id))
@@ -154,14 +155,14 @@ export function createElementPatchRepository(): ElementPatchRepository {
     // book_node.title are BOTH named "title". A wildcard JOIN produces duplicate
     // column names that cannot be represented safely by every SQLite transport,
     // silently dropping or shifting values. Resolve source title/order separately.
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select()
       .from(ElementPatchTable)
       .where(eq(ElementPatchTable.elementId, elementId));
 
     const nodeIds = [...new Set(rows.map((r) => r.sourceNodeId).filter((x): x is string => !!x))];
     const nodes = nodeIds.length
-      ? await getDb()
+      ? await dbProvider()
           .select({
             id: BookNodeTable.id,
             title: BookNodeTable.title,
@@ -203,7 +204,7 @@ export function createElementPatchRepository(): ElementPatchRepository {
   };
 
   const listBySourceNode = async (sourceNodeId: string): Promise<ElementPatch[]> => {
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select()
       .from(ElementPatchTable)
       .where(and(eq(ElementPatchTable.sourceNodeId, sourceNodeId)))

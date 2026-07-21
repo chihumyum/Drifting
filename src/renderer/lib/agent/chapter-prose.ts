@@ -41,6 +41,7 @@ import { countWordsInPmJson } from '../word-count';
 import { computeBlockChanges, type AgentBlockChange } from './block-diff';
 import { detectEntityLinkSpans } from '../extensions/entity-link';
 import type { AgentToolContext } from './tool-handlers';
+import { withAtomicSyncTransaction } from '../../usecase/sync-helpers';
 
 // Update origin: anything other than 'load'/'remote'/'seed'/'restore' is treated
 // as a local edit by useYjsDoc (→ appended to yjs_updates) and useYjsSync (→
@@ -545,6 +546,22 @@ export async function getElementContentJson(elementId: string): Promise<string> 
   return getEntityContentJson('element', elementId);
 }
 
+async function persistNodeContentProjection(
+  projectId: string,
+  nodeId: string,
+  contentJson: string,
+): Promise<void> {
+  await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+    const updated = await createBookContentRepository(tx).updateByNodeId(nodeId, {
+      contentJson,
+    });
+    if (!updated) {
+      throw new Error(`Node content for ${nodeId} not found`);
+    }
+    await sync('nodeContent', 'update', nodeId, projectId, { contentJson });
+  });
+}
+
 /**
  * Strip every entityLink mark pointing at `targetId` from ONE chapter's prose,
  * across whichever representation is live: the open editor's Y.Doc, a rehydrated
@@ -555,6 +572,7 @@ export async function getElementContentJson(elementId: string): Promise<string> 
  * Used by element delete to permanently break the link (解链保留文字).
  */
 export async function unlinkEntityFromChapterProse(
+  projectId: string,
   nodeId: string,
   targetId: string,
 ): Promise<void> {
@@ -571,9 +589,11 @@ export async function unlinkEntityFromChapterProse(
       changed = stripEntityLinkMarksInFrag(live.getXmlFragment('default'), targetId);
     }, AGENT_ORIGIN);
     if (changed) {
-      await contentRepo.updateByNodeId(nodeId, {
-        contentJson: JSON.stringify(yDocToProsemirrorJSON(live, 'default')),
-      });
+      await persistNodeContentProjection(
+        projectId,
+        nodeId,
+        JSON.stringify(yDocToProsemirrorJSON(live, 'default')),
+      );
     }
     return;
   }
@@ -601,9 +621,11 @@ export async function unlinkEntityFromChapterProse(
         const coveredId = await yrepo.maxUpdateId(docId);
         await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc));
         await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
-        await contentRepo.updateByNodeId(nodeId, {
-          contentJson: JSON.stringify(yDocToProsemirrorJSON(doc, 'default')),
-        });
+        await persistNodeContentProjection(
+          projectId,
+          nodeId,
+          JSON.stringify(yDocToProsemirrorJSON(doc, 'default')),
+        );
       }
     } finally {
       doc.destroy();
@@ -616,7 +638,7 @@ export async function unlinkEntityFromChapterProse(
   if (existing?.contentJson) {
     const stripped = stripEntityLinkMarksInJson(existing.contentJson, targetId);
     if (stripped !== existing.contentJson) {
-      await contentRepo.updateByNodeId(nodeId, { contentJson: stripped });
+      await persistNodeContentProjection(projectId, nodeId, stripped);
     }
   }
 }

@@ -20,8 +20,8 @@ let localFlushTail: Promise<void> = Promise.resolve();
 let remoteFlushInFlight: Promise<void> | null = null;
 
 async function performLocalFlush(): Promise<void> {
-  // Ordering is intentional. Saving the editor can enqueue both Yjs updates
-  // and entity outbox rows, so drain those queues only after the editor save.
+  // Ordering is intentional. Saving the editor can start Yjs and atomic entity
+  // persistence, so drain both before checkpointing the database.
   const steps: Array<() => Promise<unknown>> = [
     () => saveActiveEditor(),
     () => flushAllOpenYjsDocuments(),

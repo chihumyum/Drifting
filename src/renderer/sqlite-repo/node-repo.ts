@@ -177,6 +177,7 @@ export function createBookNodeSqliteRepository(
       };
 
       if (updates.title !== undefined) updateValues.title = updates.title;
+      if (updates.kind !== undefined) updateValues.kind = updates.kind;
       if (updates.bookOrder !== undefined) updateValues.bookOrder = updates.bookOrder;
       if (updates.narrativeOrder !== undefined) updateValues.narrativeOrder = updates.narrativeOrder;
       if (updates.summary !== undefined) updateValues.summary = updates.summary;
@@ -258,4 +259,3 @@ export function createBookNodeSqliteRepository(
     },
   };
 }
-
