@@ -1,0 +1,303 @@
+# Tauri Native Manual Regression
+
+这份清单用于记录 Drifting Tauri 客户端中只能依赖真实设备、系统浏览器、真实账号或真实云端完成的回归。
+它不替代自动化测试，也不把尚未完成的移动端 UI 适配当作发布验收项。
+
+最后更新：2026-07-22
+
+基线提交：
+
+- `c80245bc feat(auth): secure native OAuth handoff with PKCE`
+- `90b3de75 feat(native): add secure storage and system image codecs`
+- `6262b1d3 fix(auth): keep OAuth verifier out of request logs`
+- `81b3b2ee feat(assets): enable native HEIC and AVIF imports`
+- `b8239fc6 fix(assets): resume interrupted native uploads`
+- `d29841bf fix(assets): support signed R2 uploads behind TUN DNS`
+
+相关资料：
+
+- [Drifting Core README](../../README.md)
+- [Explicit Tauri migration boundaries](../../src-tauri/UNSUPPORTED.md)
+- [Server production environment example](../../private-service/.env.production.example)
+- [Android secure-storage instrumented test](../../src-tauri/plugins/drifting-secure-storage/android/src/androidTest/java/SecureStorageInstrumentedTest.kt)
+
+## 1. 使用方式
+
+优先级：
+
+- `P0`：发布阻断项。每个候选构建至少在一台当前 iPhone 和一台 Android 12+ 真机完成。
+- `P1`：完整功能回归。功能相关改动或里程碑构建时完成。
+- `P2`：破坏性、升级和边界回归。有设备和时间时分批完成。
+
+结果标记：
+
+- `[x]` 通过
+- `[ ]` 未执行
+- `FAIL` 实际结果与预期不一致
+- `BLOCKED` 缺少设备、账号、测试素材或环境
+- `N/A` 该设备或构建不适用
+
+每次执行先复制并填写下面的记录头，不要只在 checkbox 上打勾：
+
+```text
+日期：
+测试人：
+Client commit / build：
+Server commit / build：
+设备型号：
+OS / API level：
+安装态：fresh / update / reinstall
+账号：测试账号标识，不记录 token 或密码
+网络：Wi-Fi / cellular / offline / throttled
+结果汇总：PASS / FAIL / BLOCKED
+关联 Issue：
+```
+
+安全规则：
+
+- 只用可丢弃的测试账号、测试项目和测试 BYOK canary；不要破坏唯一一份真实作品。
+- 截图、录屏和 Issue 中不得粘贴 OAuth code、PKCE verifier、Bearer token 或完整 BYOK。
+- 做卸载、清数据、密文破坏和 Electron 升级测试前，先备份测试数据。
+- 模拟器可以补 API 边界，但不能替代真实 Keystore、厂商 codec、相册 provider 和 deep link。
+
+## 2. 自动化已经覆盖什么
+
+| 范围                   | 自动化已覆盖                                                                       | 仍需手工验证                                                          |
+| ---------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Android secure storage | Rust key 校验；Kotlin 格式、损坏、上限测试；instrumented test 源码                 | 真 Keystore、跨进程/重启、覆盖升级、卸载、真实密文检查、厂商差异      |
+| OAuth Server           | state、PKCE、HMAC binding、redirect allowlist、过期、一次性兑换、敏感 payload 解析 | 真实 Google、浏览器 cookie、真实 PostgreSQL 竞争、deep link、生产日志 |
+| OAuth renderer         | warm/queued callback、state 不匹配、过期、exchange 失败                            | 冷启动 callback、浏览器取消、断网、系统切换、session 持久化           |
+| 图片 pipeline          | 普通图片、方向、格式嗅探、尺寸/内存上限；macOS ImageIO HEIC/AVIF                   | iOS 真机、Android 系统 codec、照片选择器、R2、两个真实 UI 入口        |
+| 构建                   | macOS 测试、iOS/Android Rust 交叉编译、Android APK/Kotlin 编译                     | 安装、权限、后台生命周期、低内存、不同厂商设备                        |
+
+手工回归应集中在右列，不需要重复证明纯函数已经测过的细节。
+
+## 3. 准备
+
+### 3.1 构建与环境
+
+```bash
+pnpm install
+pnpm --dir client tauri:ios:dev
+pnpm --dir client tauri:android:dev
+```
+
+需要候选安装包时使用：
+
+```bash
+pnpm --dir client tauri:ios:build
+pnpm --dir client tauri:android:build
+```
+
+OAuth staging 必须满足：
+
+- Server 已应用 `0049_native_oauth_handoff.sql`。
+- `API_BASE_URL`、`BETTER_AUTH_URL` 是同一个公开 HTTPS origin。
+- 已设置稳定的 `BETTER_AUTH_SECRET`、`GOOGLE_CLIENT_ID` 和 `GOOGLE_CLIENT_SECRET`。
+- Google Console callback 是 `https://api.drifting.cc/api/auth/callback/google`，或 staging 的等价地址。
+- 测试设备已注册 `drifting://auth/callback`。
+- 当前 `LoginPage.tsx` 中 `SOCIAL_LOGIN_ENABLED` 默认为 `false`。OAuth 手测必须使用一个仅供 QA、明确开启该开关的构建；测完不要把开关误带入正式 beta。
+
+### 3.2 最小设备矩阵
+
+| 优先级 | 设备                      | 主要目的                                               |
+| ------ | ------------------------- | ------------------------------------------------------ |
+| 必须   | Android 12+ 当前系统真机  | Keystore、HEIC/AVIF、picker、OAuth deep link           |
+| 必须   | 当前 iPhone 真机          | Keychain、ImageIO、HEIC/AVIF、OAuth warm/cold callback |
+| 必须   | 当前 macOS                | Electron→Tauri 升级、OAuth、图片/PDF                   |
+| 推荐   | Android 7 / API 24        | 最低版本；secure storage 成功，HEIC/AVIF 明确不可用    |
+| 推荐   | Android 8–9 / API 26–28   | HEIC/HEIF BitmapFactory 路径；AVIF 明确不可用          |
+| 推荐   | Android 10–11 / API 29–30 | ImageDecoder runtime capability；AVIF 明确不可用       |
+| 推荐   | 第二品牌 Android 12+      | Pixel 之外的 Samsung、小米等厂商 codec 差异            |
+| 推荐   | 较旧受支持 iPhone / iOS   | ImageIO runtime capability 和系统 lifecycle 边界       |
+| 次要   | Windows 11、当前 Ubuntu   | PNG/JPEG/PDF；HEIC/AVIF 明确 unsupported               |
+
+### 3.3 回归素材
+
+为每个文件记录名称、来源、大小、像素尺寸和 SHA-256：
+
+- 带透明通道的 PNG。
+- 带 EXIF 90° 或 270° 方向的 JPEG。
+- iPhone 相机原生 HEIC，至少一张竖图、一张横图。
+- 一个独立 HEIF 文件。
+- 一个 AVIF 文件。
+- 多页 PDF。
+- 接近但小于 64 MiB 的有效图片和 PDF。
+- 大于 64 MiB 的有效图片和 PDF。
+- 损坏或截断的图片。
+- 超过 16,384 像素边长，或解码后预计超过 256 MiB 的压缩图片。
+
+成功图片的共同预期：
+
+- source 与原文件 SHA-256 一致。
+- display 为 JPEG，最长边不超过 1600，文件不超过 8 MiB。
+- thumbnail 为 JPEG，最长边不超过 512，文件不超过 1 MiB。
+- 方向和宽高比正确，肉眼颜色合理；透明 PNG 不出现黑块或乱码。
+- 关闭并重开 App 后仍能显示，第二台设备可以重新下载并显示。
+
+## 4. P0 快速放行
+
+- [ ] `P0-01` 新安装后用邮箱登录，进入项目，创建一个测试章节并写入唯一 canary。
+- [ ] `P0-02` Android 保存测试 BYOK，force-stop 后重开，登录和 BYOK 都仍可用。
+- [ ] `P0-03` iPhone 保存测试 BYOK，杀进程后重开，登录和 BYOK 都仍可用。
+- [ ] `P0-04` Google OAuth 从系统浏览器返回 App，登录成功；URL、日志和截图中没有 bearer/verifier。
+- [ ] `P0-05` 素材库分别导入 JPEG、PNG、HEIC、AVIF 和 PDF，方向与缩略图正确。
+- [ ] `P0-06` 元素头像分别使用 HEIC 和 AVIF，失败时不能覆盖旧头像。
+- [ ] `P0-07` 离线编辑正文，等待本地保存后强杀；离线重开仍有完整 canary。
+- [ ] `P0-08` 恢复联网后，同一项目在第二设备出现最新正文和已上传素材。
+- [ ] `P0-09` 大于 64 MiB 的文件被明确拒绝，App 不崩溃、不留下 ready 的半成品。
+- [ ] `P0-10` 登出并重启后仍保持登出；旧 OAuth callback 不能恢复 session。
+
+## 5. Android secure storage
+
+- [ ] `SS-01` `P0` 干净安装后登录，退出进程并重新打开，session 仍有效。
+- [ ] `SS-02` `P0` 保存带唯一 canary 的 BYOK；重开设置时遮罩尾号正确，实际 AI 请求可用。
+- [ ] `SS-03` `P1` 同一 BYOK 连续覆盖两次；只读到新值，旧值不可恢复。
+- [ ] `SS-04` `P0` 分别测试 force-stop、最近任务划掉、锁屏、手机重启；session/BYOK 仍可用。
+- [ ] `SS-05` `P0` 登出后重启，必须保持登出；不要把 logout 与 BYOK 清除混为一谈。
+- [ ] `SS-06` `P1` 在设置中显式清除 BYOK；重启后 key 不再存在，AI 请求要求重新配置。
+- [ ] `SS-07` `P1` 用相同签名覆盖安装新版；session、BYOK、SQLite 和素材都保留。
+- [ ] `SS-08` `P1` Android“清除应用数据”或卸载重装后，session/BYOK 必须消失。
+- [ ] `SS-09` `P2` 从系统备份恢复到另一设备时，不得恢复为可用 secret；应要求重新登录/录入。
+- [ ] `SS-10` `P1` debug build 检查 `no_backup/secure-storage-v1`；逻辑 key 和 canary 明文均不能出现在文件名或文件内容中。
+- [ ] `SS-11` `P2` debug build 破坏一个密文文件；读取必须 fail closed，不崩溃、不返回乱码或旧明文，日志不带 secret/底层异常文本。
+- [ ] `SS-12` `P1` 在真机运行 `SecureStorageInstrumentedTest`，覆盖新 backend 实例、无明文、`.bak` 恢复和删除残留。
+
+生成 Android 工程后，可从 Android Studio 运行上述 instrumented test；也可以尝试：
+
+```bash
+cd src-tauri/gen/android
+./gradlew :tauri-plugin-drifting-secure-storage:connectedDebugAndroidTest
+```
+
+debug APK 可选的明文检查示例：
+
+```bash
+adb shell run-as cc.drifting.client find no_backup/secure-storage-v1 -type f
+adb exec-out run-as cc.drifting.client sh -c 'grep -R -a -F "manual-test-canary" no_backup/secure-storage-v1; true'
+```
+
+预期第二条命令没有输出。不要在命令中放真实 BYOK。
+
+平台差异：Android 卸载会删除 Keystore key 和 `noBackupFilesDir`；iOS Keychain 和桌面 credential store 可能跨卸载保留，不能套用 Android 的预期。
+
+## 6. Native OAuth
+
+- [ ] `OA-01` `P0` App 前台点击 Google，必须打开系统浏览器，而非嵌入 WebView。
+- [ ] `OA-02` `P0` 完成 Google 登录，浏览器返回 App，App 加载真实用户与项目。
+- [ ] `OA-03` `P0` 登录后杀进程/重启，session 从 native secure storage 恢复。
+- [ ] `OA-04` `P1` 浏览器回调前杀掉 App；完成网页后冷启动 App，queued deep link 仍只兑换一次。
+- [ ] `OA-05` `P1` 用户取消、拒绝授权或 Google 返回错误；App 不进入半登录状态，下一次重试可成功。
+- [ ] `OA-06` `P1` 分别在浏览器、callback、exchange 阶段断网；恢复后重新发起完整流程，不能把 code 当 token 使用。
+- [ ] `OA-07` `P1` OAuth 页面停留超过 10 分钟再完成，必须失败。
+- [ ] `OA-08` `P2` handoff code 签发后超过 2 分钟再兑换，必须失败。
+- [ ] `OA-09` `P1` 重放同一 callback；不能生成第二个 session，登出后重放也不能恢复旧 session。
+- [ ] `OA-10` `P1` 修改/删除 `nativeState`、修改 code、增加重复 query 参数；必须忽略或失败。
+- [ ] `OA-11` `P1` 快速重复点击登录；只能有一个有效 flow，旧 flow 不能覆盖新 state。
+- [ ] `OA-12` `P2` 两个客户端同时兑换同一 code；真实 PostgreSQL 中只能一个成功。
+- [ ] `OA-13` `P0` 回调 URI/浏览器历史只能出现短期 `code` 和 `nativeState`，绝不能有 `token` 或 Bearer。
+- [ ] `OA-14` `P1` initiation、callback、exchange 响应都有 `Cache-Control: no-store`；callback 还有 `Referrer-Policy: no-referrer`。
+- [ ] `OA-15` `P1` `native_auth_code` 只含 hash、challenge、session id、redirect 和时间戳，无 raw code、bearer、verifier。
+- [ ] `OA-16` `P0` client/server 日志搜索 canary、`codeVerifier`、`Bearer ` 和测试 token，结果为空。
+- [ ] `OA-17` `P1` 成功或失败后 pending state/verifier 已清除；不得在流程完成后残留。
+
+日志脱敏快速检查：
+
+```bash
+SENTINEL="manual-verifier-sentinel-$(date +%s)"
+curl -i https://api.drifting.cc/api/auth/native-exchange \
+  -H 'Content-Type: application/json' \
+  --data "{\"code\":\"bad\",\"codeVerifier\":\"$SENTINEL\",\"redirectUri\":\"drifting://auth/callback\"}"
+```
+
+预期为 `400 invalid_grant`，响应包含 `Cache-Control: no-store`，Server 日志中搜索 `$SENTINEL` 没有结果。
+
+`drifting://` 仍是未验证 custom scheme。人工回归可以证明流程可用和 PKCE 防重放，但不能消除其他 App 抢占 scheme 的发布风险；公开分发前仍需 iOS Universal Links / Android App Links。
+
+## 7. 图片与 PDF
+
+以下用例原则上要在两个入口各执行一次：
+
+1. 素材库导入。
+2. 元素头像上传、替换和删除。
+
+### 7.1 成功路径
+
+- [ ] `IMG-01` `P1` 取消 picker，不新增素材、不改变头像。
+- [ ] `IMG-02` `P0` PNG、JPEG 在 Android、iOS、macOS 成功；PNG 透明区无黑块。
+- [ ] `IMG-03` `P0` EXIF 方向正确，横竖宽高不颠倒。
+- [ ] `IMG-04` `P0` HEIC、HEIF、AVIF 在 Apple 当前系统按 ImageIO runtime capability 成功。
+- [ ] `IMG-05` `P1` Android 8+ 的 HEIC/HEIF 按设备 runtime codec 能力成功；不支持时返回明确错误。
+- [ ] `IMG-06` `P0` Android 12+ 的 AVIF 按设备 runtime codec 能力成功；不支持时返回明确错误。
+- [ ] `IMG-07` `P0` PDF 原文件可打开，缩略图为第一页，不生成错误的 display variant。
+- [ ] `IMG-08` `P0` 素材卡片、预览、元素头像和重启后的 cache 加载均正确。
+- [ ] `IMG-09` `P0` 第二设备能下载 source/display/thumbnail 并正确显示。
+- [ ] `IMG-10` `P1` 原 source hash 不变；source MIME/扩展保持 heic/heif/avif，派生图为 jpg。
+- [ ] `IMG-11` `P0` 替换头像时，新图 ready 后才切换；失败时旧头像仍在。
+- [ ] `IMG-12` `P1` 删除头像后重启与第二设备都不再显示。
+- [ ] `IMG-13` `P1` 重复导入同一文件不会互相覆盖。
+
+### 7.2 失败与恢复
+
+- [ ] `IMG-F01` `P1` Android 7 HEIC/HEIF、Android 11 AVIF、Windows/Linux HEIC/AVIF 返回 `IMAGE_CODEC_UNAVAILABLE`，不崩溃。
+- [ ] `IMG-F02` `P1` codec 不支持时，素材库 local item 和 app-owned original 仍存在并可通过系统打开；头像不应覆盖旧值。
+- [ ] `IMG-F03` `P1` 损坏图片返回 `IMAGE_INVALID`，没有 ready 的半成品 asset。
+- [ ] `IMG-F04` `P0` 大于 64 MiB 的图片/PDF在 copy 完成前拒绝，临时文件被清理。
+- [ ] `IMG-F05` `P1` 超过 16,384 像素或 256 MiB 解码 guard 时明确失败，App 不 OOM。
+- [ ] `IMG-F06` `P1` 上传时断网、切后台、杀进程；素材 local item 与持久化上传任务仍存在并标记失败，元素旧头像保持。
+- [ ] `IMG-F07` `P2` incomplete server asset 与 local cache 最终被 best-effort cleanup。
+- [ ] `IMG-F08` `P1` 恢复网络后点击 Retry；复用原持久化任务继续上传，不要求重新选择或重新导入文件。
+
+失败素材现在有一等 Retry 操作，任务状态保存在 `asset_upload_job`。重启 App 后任务与 app-owned original 必须仍在；恢复网络后应从原任务继续，不能 silent success、重复创建素材，或要求用户重新选择文件。
+
+当前 picker/Rust pipeline 能解码 BMP、TIFF、ICO，但 Server source MIME allowlist 尚未接受这三类，因此完整云端上传不是预期成功路径。真正闭环的 source 格式是 JPEG、PNG、WebP、GIF、HEIC、HEIF、AVIF；BMP/TIFF/ICO 先记录为已知兼容缺口。
+
+## 8. SQLite、Yjs、同步与生命周期
+
+- [ ] `DATA-01` `P0` 新安装后创建项目、章节、元素、关系、素材，重启后全部存在。
+- [ ] `DATA-02` `P0` 离线输入唯一正文 canary，等待本地落盘后强杀；离线重开内容逐字一致。
+- [ ] `DATA-03` `P0` 离线新增/修改多类实体，恢复联网后第二设备收敛且无重复记录。
+- [ ] `DATA-04` `P1` 编辑时切后台、锁屏、旋转、接电话，再回前台；正文与选择状态不损坏。
+- [ ] `DATA-05` `P1` 上传素材时切后台或杀进程；重开后数据库无 ready 的空 asset，原文件不丢失。
+- [ ] `DATA-06` `P1` 登出 A、登录 B；本地数据库、项目和 session 不串账号。
+- [ ] `DATA-07` `P1` 同一账号从第二设备编辑同一章节，最终 Yjs 内容收敛且可继续编辑。
+- [ ] `DATA-08` `P2` 异常退出后重开，SQLite 无损坏提示，关键表和 Yjs snapshot/update 可读。
+
+## 9. 升级、迁移与重装
+
+- [ ] `UP-01` `P1` macOS 从最后一个 Electron 版本升级到 Tauri；项目 DB、Yjs、素材、session/BYOK 可用。
+- [ ] `UP-02` `P1` Electron source 数据目录保持不动，Tauri 数据通过 integrity check 后启用。
+- [ ] `UP-03` `P1` 同签名 Tauri→Tauri 覆盖升级；SQLite、asset cache、session、BYOK 保留。
+- [ ] `UP-04` `P1` Server 首次启动自动应用 `0049`，已有用户/session 不受影响。
+- [ ] `UP-05` `P1` Android 清数据或卸载重装后，本地数据与 secret 清空；重新登录后云端项目恢复。
+- [ ] `UP-06` `P2` 记录 iOS 卸载重装后的真实 Keychain 行为，不预设 secret 一定清除。
+- [ ] `UP-07` `P2` 记录桌面卸载重装后的 OS credential store 行为。
+
+Chromium Local Storage 偏好不自动迁移是已知边界；主题、panel 状态、快捷键、写作统计和 Agent UI 元数据可能重置，不作为当前迁移 blocker。若存在同名 Tauri 数据库冲突，自动迁移会保留 Tauri 副本而不是覆盖或合并，测试前先备份并决定权威副本。
+
+## 10. 发布阻断条件
+
+出现以下任一情况，停止发布并建 Issue：
+
+- Bearer、BYOK 或 PKCE verifier 出现在 URL、日志、截图证据或 Android 明文文件中。
+- Android 清数据/卸载后旧 session 仍可用。
+- 密文损坏后返回旧值、乱码，或发生 silent plaintext fallback。
+- 同一个 OAuth code 可以成功兑换两次，或错误 state 可以登录。
+- codec、网络或后台失败导致 app-owned original 丢失。
+- JPEG、PNG、PDF 任一主平台回归失败。
+- 图片方向错误、App OOM、数据库损坏或正文丢失。
+- 失败操作在数据库/云端留下被标记为 ready 的半成品。
+
+## 11. 结果表
+
+| Test ID | Client/Server build | 日期 | 设备 | OS/API | 安装态 | 素材/账号 | 网络 | 结果 | 实际表现/错误码 | 证据 | Issue |
+| ------- | ------------------- | ---- | ---- | ------ | ------ | --------- | ---- | ---- | --------------- | ---- | ----- |
+|         |                     |      |      |        |        |           |      |      |                 |      |       |
+
+## 12. 不属于这份回归的已知边界
+
+- General Agent 仍明确 unsupported。
+- 旧 Chromium WebView preferences 尚未迁移。
+- `drifting://` 尚未替换为 Universal Links / Android App Links。
+- 完整移动端信息架构、触摸交互和软键盘适配尚未完成。
+- 复杂 story graph、split editor、plot grid 的移动 UX 不以“能显示”视为通过。
