@@ -66,6 +66,9 @@ const ASSET_TRANSFER_READ_TIMEOUT: Duration = Duration::from_secs(30);
 const ASSET_TRANSFER_TOTAL_TIMEOUT: Duration = Duration::from_secs(20 * 60);
 const MAX_CACHE_SEGMENT_LEN: usize = 128;
 const MAX_EXTENSION_LEN: usize = 16;
+const R2_ASSET_HOST_SUFFIX: &str = ".r2.cloudflarestorage.com";
+const MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS: u64 = 300;
+const MAX_ASSET_DOWNLOAD_SIGNATURE_TTL_SECONDS: u64 = 60 * 60;
 const NAT64_DISCOVERY_HOST: &str = "ipv4only.arpa";
 const NAT64_DISCOVERY_IPV4: [Ipv4Addr; 2] =
     [Ipv4Addr::new(192, 0, 0, 170), Ipv4Addr::new(192, 0, 0, 171)];
@@ -1318,6 +1321,60 @@ fn parse_http_url(value: &str) -> Result<Url, String> {
     Ok(parsed)
 }
 
+fn parse_asset_transfer_url(value: &str, max_ttl_seconds: u64) -> Result<Url, String> {
+    let parsed = parse_http_url(value)?;
+    if parsed.scheme() != "https" || parsed.fragment().is_some() {
+        return Err("asset URL must use HTTPS".into());
+    }
+
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "asset URL has no host".to_string())?
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    let r2_prefix = host
+        .strip_suffix(R2_ASSET_HOST_SUFFIX)
+        .filter(|prefix| !prefix.is_empty())
+        .ok_or_else(|| "asset URL is not a Cloudflare R2 URL".to_string())?;
+    if !r2_prefix.split('.').all(|label| {
+        !label.is_empty()
+            && label.len() <= 63
+            && label
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    }) {
+        return Err("asset URL has an invalid Cloudflare R2 host".into());
+    }
+
+    let query = parsed
+        .query_pairs()
+        .map(|(key, value)| (key.to_ascii_lowercase(), value.into_owned()))
+        .collect::<HashMap<_, _>>();
+    if query.get("x-amz-algorithm").map(String::as_str) != Some("AWS4-HMAC-SHA256")
+        || query
+            .get("x-amz-credential")
+            .is_none_or(|value| value.is_empty())
+        || query
+            .get("x-amz-date")
+            .is_none_or(|value| value.len() != 16)
+        || query
+            .get("x-amz-signedheaders")
+            .is_none_or(|value| value.is_empty())
+        || query.get("x-amz-signature").is_none_or(|value| {
+            value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
+    {
+        return Err("asset URL has an invalid signature".into());
+    }
+    let expires = query
+        .get("x-amz-expires")
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|seconds| (1..=max_ttl_seconds).contains(seconds))
+        .ok_or_else(|| "asset URL has an invalid expiry".to_string())?;
+    debug_assert!(expires <= max_ttl_seconds);
+    Ok(parsed)
+}
+
 fn http_client_builder() -> ClientBuilder {
     Client::builder()
         .connect_timeout(HTTP_CONNECT_TIMEOUT)
@@ -1360,8 +1417,19 @@ fn url_metadata_http_client() -> Result<Client, String> {
 fn asset_transfer_http_client() -> Result<Client, String> {
     // Large assets may legitimately take minutes on mobile networks. A per-read timeout catches
     // stalled connections, while the total deadline bounds an otherwise continuously-progressing
-    // transfer so server-side deletion grace periods can be finite and deterministic.
-    http_client_builder()
+    // transfer so server-side deletion grace periods can be finite and deterministic. Asset URLs
+    // are separately restricted to short-lived Cloudflare R2 SigV4 URLs, so the platform resolver
+    // can remain active here. That is required by VPN/TUN clients whose DNS returns 198.18/15
+    // Fake-IP addresses; the generic metadata client must continue rejecting those addresses.
+    Client::builder()
+        .connect_timeout(HTTP_CONNECT_TIMEOUT)
+        .no_proxy()
+        .referer(false)
+        .redirect(Policy::none())
+        .user_agent(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
+             AppleWebKit/605.1.15 (KHTML, like Gecko) Drifting/1.0",
+        )
         .read_timeout(ASSET_TRANSFER_READ_TIMEOUT)
         .timeout(ASSET_TRANSFER_TOTAL_TIMEOUT)
         .build()
@@ -2081,7 +2149,7 @@ pub async fn asset_cache_upload_file(
     ext: String,
     content_type: String,
 ) -> AssetCacheUploadResult {
-    let parsed_url = match parse_http_url(&url) {
+    let parsed_url = match parse_asset_transfer_url(&url, MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS) {
         Ok(url) => url,
         Err(_) => {
             return AssetCacheUploadResult::Failure(FailureResult::new("invalid upload URL"));
@@ -2164,7 +2232,8 @@ pub async fn asset_cache_download(
     variant: AssetVariant,
     ext: String,
 ) -> AssetCacheWriteResult {
-    let parsed_url = match parse_http_url(&url) {
+    let parsed_url = match parse_asset_transfer_url(&url, MAX_ASSET_DOWNLOAD_SIGNATURE_TTL_SECONDS)
+    {
         Ok(url) => url,
         Err(_) => {
             return AssetCacheWriteResult::Failure(FailureResult::new("invalid download URL"))
@@ -2568,6 +2637,46 @@ mod tests {
         assert!(parse_http_url("https://8.8.8.8").is_ok());
         assert!(parse_http_url("https://[2606:4700:4700::1111]").is_err());
         assert!(parse_http_url("https://[64:ff9b::808:808]").is_ok());
+    }
+
+    #[test]
+    fn asset_transfers_only_accept_short_lived_r2_signatures() {
+        let signed = "https://bucket.account.r2.cloudflarestorage.com/assets/source.jpg?\
+            X-Amz-Algorithm=AWS4-HMAC-SHA256&\
+            X-Amz-Credential=credential&\
+            X-Amz-Date=20260721T160000Z&\
+            X-Amz-Expires=300&\
+            X-Amz-SignedHeaders=content-type%3Bhost&\
+            X-Amz-Signature=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        assert!(parse_asset_transfer_url(signed, MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS).is_ok());
+        assert!(parse_asset_transfer_url(
+            &signed.replace("X-Amz-Expires=300", "X-Amz-Expires=301"),
+            MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS,
+        )
+        .is_err());
+        assert!(parse_asset_transfer_url(
+            &signed.replace("bucket.account.r2.cloudflarestorage.com", "localhost"),
+            MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS,
+        )
+        .is_err());
+        assert!(parse_asset_transfer_url(
+            &signed.replace(
+                "bucket.account.r2.cloudflarestorage.com",
+                "r2.cloudflarestorage.com.evil.example"
+            ),
+            MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS
+        )
+        .is_err());
+        assert!(parse_asset_transfer_url(
+            &signed.replace("https://", "http://"),
+            MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS,
+        )
+        .is_err());
+
+        let download = signed.replace("X-Amz-Expires=300", "X-Amz-Expires=3600");
+        assert!(
+            parse_asset_transfer_url(&download, MAX_ASSET_DOWNLOAD_SIGNATURE_TTL_SECONDS).is_ok()
+        );
     }
 
     #[test]

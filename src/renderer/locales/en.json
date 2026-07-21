@@ -749,6 +749,7 @@
     "saving": "Saving…",
     "creating": "Creating…",
     "processing": "Processing…",
+    "retry": "Retry",
     "untitled": "Untitled",
     "words": "words",
     "wordsCount": "{{count}} words",

@@ -749,6 +749,7 @@
     "saving": "保存中…",
     "creating": "创建中…",
     "processing": "处理中…",
+    "retry": "重试",
     "untitled": "未命名",
     "words": "字",
     "wordsCount": "{{count}} 字",
