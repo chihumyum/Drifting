@@ -1,0 +1,18 @@
+[package]
+name = "tauri-plugin-drifting-image-codec"
+version = "0.1.0"
+description = "Android system image codec adapter for Drifting"
+edition = "2021"
+rust-version = "1.88"
+links = "tauri-plugin-drifting-image-codec"
+
+[lib]
+name = "tauri_plugin_drifting_image_codec"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2.11.5", default-features = false }
+thiserror = "2"
+
+[build-dependencies]
+tauri-plugin = { version = "2.6", features = ["build"] }

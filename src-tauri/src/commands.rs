@@ -27,8 +27,17 @@ pub struct PlatformCapabilities {
     asset_cache: bool,
     ai_log: bool,
     oauth: bool,
+    image_codecs: ImageCodecCapabilities,
     general_agent: bool,
     general_agent_unavailable_reason: &'static str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageCodecCapabilities {
+    rust: &'static [&'static str],
+    native_system: &'static [&'static str],
+    runtime_checked: bool,
 }
 
 #[derive(Serialize)]
@@ -80,12 +89,27 @@ pub fn platform_capabilities() -> PlatformCapabilities {
             target_os = "macos",
             target_os = "ios",
             target_os = "windows",
-            target_os = "linux"
+            target_os = "linux",
+            target_os = "android"
         )),
         material_files: true,
         asset_cache: true,
         ai_log: true,
         oauth: true,
+        image_codecs: ImageCodecCapabilities {
+            rust: &["jpeg", "png", "gif", "webp", "bmp", "ico", "tiff"],
+            native_system: if cfg!(any(
+                target_os = "macos",
+                target_os = "ios",
+                target_os = "android"
+            )) {
+                &["heic", "heif", "avif"]
+            } else {
+                &[]
+            },
+            // OS version and installed codec support are checked when the source is decoded.
+            runtime_checked: true,
+        },
         general_agent: false,
         general_agent_unavailable_reason:
             "The current Anthropic General Agent requires a desktop Node/CLI runtime and is not part of the Tauri migration yet.",

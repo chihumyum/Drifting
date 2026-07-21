@@ -11,18 +11,14 @@
 //! - `regex = "1"`
 //! - `reqwest = { version = "0.12", default-features = false, features =
 //!   ["charset", "http2", "rustls-tls"] }`
-//! - `keyring = { version = "3.6", features = ["apple-native", "windows-native",
-//!   "linux-native-sync-persistent", "crypto-rust"] }` on desktop and iOS only
 //!
 //! `tauri_plugin_dialog::init()` and `tauri_plugin_fs::init()` must be registered before
-//! `material_pick_file` is invoked. This module deliberately has no plaintext secure-storage
-//! fallback: Android remains an explicit unsupported target until an Android Keystore-backed
-//! credential implementation is integrated.
+//! `material_pick_file` is invoked. Secure storage lives in `secure_storage.rs`; keeping it
+//! separate prevents image/material changes from changing credential-handling code.
 //!
-//! Known codec boundary: PDF thumbnails must use the existing renderer `pdf.js` path. HEIC,
-//! HEIF, and AVIF files are imported durably and can be handed to the OS, but Rust-side image
-//! inspection/resizing needs a future mobile-safe libheif/AVIF decoder before it can advertise
-//! parity on every target.
+//! PDF thumbnails keep using the renderer `pdf.js` path. Image inspection and derivatives are
+//! centralized in `image_pipeline`; HEIC/HEIF/AVIF are routed to an operating-system codec where
+//! one exists instead of bundling a second native codec stack into every target.
 
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
@@ -32,11 +28,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
-use image::codecs::jpeg::JpegEncoder;
-use image::imageops::FilterType;
-use image::metadata::Orientation;
-use image::{DynamicImage, GenericImageView, ImageDecoder, ImageFormat, ImageReader, Limits};
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_LENGTH, CONTENT_TYPE};
 use reqwest::redirect::Policy;
@@ -49,13 +40,8 @@ use tauri_plugin_opener::OpenerExt;
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
 
-#[cfg(any(
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "windows",
-    target_os = "linux"
-))]
-const KEYCHAIN_SERVICE: &str = "Drifting";
+use crate::image_pipeline;
+
 // Material creation currently needs one bounded in-memory read for image/PDF
 // inspection and thumbnail generation. Keep the picker/import ceiling identical
 // to that read ceiling so a file can never be accepted and then fail solely
@@ -75,8 +61,6 @@ const MAX_REDIRECTS: usize = 5;
 const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const URL_METADATA_TOTAL_TIMEOUT: Duration = Duration::from_secs(8);
 const ASSET_TRANSFER_READ_TIMEOUT: Duration = Duration::from_secs(30);
-const MAX_IMAGE_DIMENSION: u32 = 16_384;
-const MAX_IMAGE_ALLOC: u64 = 256 * 1024 * 1024;
 const MAX_CACHE_SEGMENT_LEN: usize = 128;
 const MAX_EXTENSION_LEN: usize = 16;
 
@@ -201,6 +185,74 @@ pub struct ImageVariantSuccess {
 pub enum ImageVariantResult {
     Success(ImageVariantSuccess),
     Failure(FailureResult),
+}
+
+impl From<image_pipeline::ImageVariant> for ImageVariantSuccess {
+    fn from(variant: image_pipeline::ImageVariant) -> Self {
+        Self {
+            ok: true,
+            size_bytes: variant.size_bytes(),
+            bytes: variant.bytes,
+            mime: variant.mime,
+            width: variant.width,
+            height: variant.height,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreparedImageSource {
+    mime: String,
+    size_bytes: u64,
+    width: u32,
+    height: u32,
+}
+
+impl From<image_pipeline::ImageInspection> for PreparedImageSource {
+    fn from(source: image_pipeline::ImageInspection) -> Self {
+        Self {
+            mime: source.mime,
+            size_bytes: source.size_bytes,
+            width: source.width,
+            height: source.height,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct PrepareImageSuccess {
+    ok: bool,
+    source: PreparedImageSource,
+    display: ImageVariantSuccess,
+    thumbnail: ImageVariantSuccess,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrepareImageFailure {
+    ok: bool,
+    code: &'static str,
+    codec: Option<&'static str>,
+    error: String,
+}
+
+impl From<image_pipeline::ImagePipelineError> for PrepareImageFailure {
+    fn from(error: image_pipeline::ImagePipelineError) -> Self {
+        Self {
+            ok: false,
+            code: error.code,
+            codec: error.codec.map(image_pipeline::SystemImageCodec::extension),
+            error: error.message,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum PrepareImageResult {
+    Success(PrepareImageSuccess),
+    Failure(PrepareImageFailure),
 }
 
 #[derive(Debug, Serialize)]
@@ -730,26 +782,7 @@ fn selected_extension(selected: &FilePath) -> Option<String> {
 }
 
 fn sniff_extension(bytes: &[u8]) -> &'static str {
-    if bytes.starts_with(b"%PDF-") {
-        "pdf"
-    } else if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-        "png"
-    } else if bytes.starts_with(b"\xff\xd8\xff") {
-        "jpg"
-    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
-        "gif"
-    } else if bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
-        "webp"
-    } else if bytes.len() >= 12 && &bytes[4..8] == b"ftyp" {
-        match &bytes[8..12] {
-            b"heic" | b"heix" | b"hevc" | b"hevx" => "heic",
-            b"mif1" | b"msf1" => "heif",
-            b"avif" | b"avis" => "avif",
-            _ => "bin",
-        }
-    } else {
-        "bin"
-    }
+    image_pipeline::sniff_extension(bytes)
 }
 
 fn is_pdf_file(path: &Path) -> bool {
@@ -765,30 +798,6 @@ fn is_pdf_file(path: &Path) -> bool {
         .and_then(|mut file| file.read_exact(&mut signature))
         .is_ok()
         && &signature == b"%PDF-"
-}
-
-fn unsupported_native_image_codec(path: &Path) -> Option<&'static str> {
-    let extension = path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::to_ascii_lowercase);
-    let mut signature = [0_u8; 16];
-    let signature_length = File::open(path)
-        .and_then(|mut file| file.read(&mut signature))
-        .unwrap_or(0);
-    let sniffed = sniff_extension(&signature[..signature_length]);
-    let codec = if sniffed != "bin" {
-        sniffed
-    } else {
-        extension.as_deref().unwrap_or_default()
-    };
-    match codec {
-        "heic" | "heif" => {
-            Some("HEIC/HEIF inspection and resizing require a future mobile-safe libheif codec")
-        }
-        "avif" => Some("AVIF inspection and resizing require a future mobile-safe AVIF codec"),
-        _ => None,
-    }
 }
 
 fn copy_picker_file(app: &AppHandle, selected: FilePath) -> Result<(PathBuf, u64), String> {
@@ -841,7 +850,7 @@ fn copy_picker_file(app: &AppHandle, selected: FilePath) -> Result<(PathBuf, u64
             return Err(MATERIAL_FILE_TOO_LARGE_ERROR.into());
         }
 
-        let mut signature = [0_u8; 16];
+        let mut signature = [0_u8; 512];
         let signature_length = File::open(&temporary)
             .and_then(|mut file| file.read(&mut signature))
             .unwrap_or(0);
@@ -876,88 +885,6 @@ fn copy_picker_file(app: &AppHandle, selected: FilePath) -> Result<(PathBuf, u64
     copy_result
 }
 
-fn image_limits() -> Limits {
-    let mut limits = Limits::default();
-    limits.max_image_width = Some(MAX_IMAGE_DIMENSION);
-    limits.max_image_height = Some(MAX_IMAGE_DIMENSION);
-    limits.max_alloc = Some(MAX_IMAGE_ALLOC);
-    limits
-}
-
-fn image_reader(path: &Path) -> Result<ImageReader<BufReader<File>>, String> {
-    let metadata = fs::metadata(path).map_err(|_| "could not inspect image file".to_string())?;
-    if !metadata.is_file() {
-        return Err("path is not a file".into());
-    }
-    if metadata.len() > MATERIAL_FILE_LIMIT {
-        return Err("image file is too large (>64 MiB)".into());
-    }
-    if let Some(message) = unsupported_native_image_codec(path) {
-        return Err(message.into());
-    }
-    let file = File::open(path).map_err(|_| "could not open image file".to_string())?;
-    let mut reader = ImageReader::new(BufReader::new(file))
-        .with_guessed_format()
-        .map_err(|_| "could not identify image format".to_string())?;
-    reader.limits(image_limits());
-    Ok(reader)
-}
-
-fn decode_image(path: &Path) -> Result<DynamicImage, String> {
-    let reader = image_reader(path)?;
-    let mut decoder = reader
-        .into_decoder()
-        .map_err(|_| "unsupported or invalid image".to_string())?;
-    let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
-    let mut image = DynamicImage::from_decoder(decoder)
-        .map_err(|_| "unsupported or invalid image".to_string())?;
-    image.apply_orientation(orientation);
-    Ok(image)
-}
-
-fn oriented_dimensions(width: u32, height: u32, orientation: Orientation) -> (u32, u32) {
-    if matches!(
-        orientation,
-        Orientation::Rotate90
-            | Orientation::Rotate270
-            | Orientation::Rotate90FlipH
-            | Orientation::Rotate270FlipH
-    ) {
-        (height, width)
-    } else {
-        (width, height)
-    }
-}
-
-fn image_format_mime(format: ImageFormat) -> &'static str {
-    match format {
-        ImageFormat::Png => "image/png",
-        ImageFormat::Jpeg => "image/jpeg",
-        ImageFormat::Gif => "image/gif",
-        ImageFormat::WebP => "image/webp",
-        ImageFormat::Bmp => "image/bmp",
-        ImageFormat::Ico => "image/x-icon",
-        ImageFormat::Tiff => "image/tiff",
-        ImageFormat::Avif => "image/avif",
-        _ => "application/octet-stream",
-    }
-}
-
-fn bounded_dimensions(width: u32, height: u32, max_long_edge: u32) -> (u32, u32) {
-    let width = width.max(1);
-    let height = height.max(1);
-    let longest = width.max(height);
-    if longest <= max_long_edge {
-        return (width, height);
-    }
-
-    let scale = max_long_edge as u64;
-    let longest = longest as u64;
-    let resized_width = ((width as u64 * scale + longest / 2) / longest).max(1) as u32;
-    let resized_height = ((height as u64 * scale + longest / 2) / longest).max(1) as u32;
-    (resized_width, resized_height)
-}
-
 fn bounded_u32(value: f64, minimum: u32, maximum: u32, fallback: u32) -> u32 {
     let value = if value.is_finite() {
         value.round()
@@ -965,37 +892,6 @@ fn bounded_u32(value: f64, minimum: u32, maximum: u32, fallback: u32) -> u32 {
         fallback as f64
     };
     value.clamp(minimum as f64, maximum as f64) as u32
-}
-
-fn encode_jpeg(image: &DynamicImage, quality: u8) -> Result<Vec<u8>, String> {
-    let mut bytes = Vec::new();
-    JpegEncoder::new_with_quality(&mut bytes, quality)
-        .encode_image(image)
-        .map_err(|_| "could not encode JPEG variant".to_string())?;
-    Ok(bytes)
-}
-
-fn create_image_variant_impl(
-    path: &Path,
-    max_long_edge: u32,
-    quality: u8,
-) -> Result<ImageVariantSuccess, String> {
-    let image = decode_image(path)?;
-    let (width, height) = bounded_dimensions(image.width(), image.height(), max_long_edge);
-    let variant = if (width, height) == image.dimensions() {
-        image
-    } else {
-        image.resize_exact(width, height, FilterType::Lanczos3)
-    };
-    let bytes = encode_jpeg(&variant, quality)?;
-    Ok(ImageVariantSuccess {
-        ok: true,
-        size_bytes: bytes.len() as u64,
-        bytes,
-        mime: "image/jpeg".into(),
-        width,
-        height,
-    })
 }
 
 fn parse_http_url(value: &str) -> Result<Url, String> {
@@ -1300,129 +1196,6 @@ fn redact_log_secrets(content: &str) -> String {
         .into_owned()
 }
 
-fn keychain_key_is_valid(key: &str) -> bool {
-    !key.is_empty()
-        && key.len() <= 128
-        && key.chars().all(|character| {
-            character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | ':' | '-')
-        })
-}
-
-#[cfg(any(
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "windows",
-    target_os = "linux"
-))]
-fn secure_storage_get(key: &str) -> Result<Option<String>, String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, key)
-        .map_err(|_| "secure storage entry could not be opened".to_string())?;
-    match entry.get_password() {
-        Ok(value) => Ok(Some(value)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(_) => Err("secure storage read failed".into()),
-    }
-}
-
-#[cfg(any(
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "windows",
-    target_os = "linux"
-))]
-fn secure_storage_set(key: &str, value: &str) -> Result<bool, String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, key)
-        .map_err(|_| "secure storage entry could not be opened".to_string())?;
-    entry
-        .set_password(value)
-        .map_err(|_| "secure storage write failed".to_string())?;
-    Ok(true)
-}
-
-#[cfg(any(
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "windows",
-    target_os = "linux"
-))]
-fn secure_storage_delete(key: &str) -> Result<bool, String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, key)
-        .map_err(|_| "secure storage entry could not be opened".to_string())?;
-    match entry.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(true),
-        Err(_) => Err("secure storage delete failed".into()),
-    }
-}
-
-#[cfg(not(any(
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "windows",
-    target_os = "linux"
-)))]
-fn secure_storage_get(_key: &str) -> Result<Option<String>, String> {
-    Err(
-        "secure storage is unavailable on this target; Android requires a Keystore-backed Tauri plugin before BYOK can be enabled"
-            .into(),
-    )
-}
-
-#[cfg(not(any(
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "windows",
-    target_os = "linux"
-)))]
-fn secure_storage_set(_key: &str, _value: &str) -> Result<bool, String> {
-    Err(
-        "secure storage is unavailable on this target; Android requires a Keystore-backed Tauri plugin before BYOK can be enabled"
-            .into(),
-    )
-}
-
-#[cfg(not(any(
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "windows",
-    target_os = "linux"
-)))]
-fn secure_storage_delete(_key: &str) -> Result<bool, String> {
-    Err(
-        "secure storage is unavailable on this target; Android requires a Keystore-backed Tauri plugin before BYOK can be enabled"
-            .into(),
-    )
-}
-
-#[tauri::command]
-pub async fn keychain_get(key: String) -> Result<Option<String>, String> {
-    if !keychain_key_is_valid(&key) {
-        return Err("invalid secure storage key".into());
-    }
-    tauri::async_runtime::spawn_blocking(move || secure_storage_get(&key))
-        .await
-        .map_err(|_| "secure storage worker failed".to_string())?
-}
-
-#[tauri::command]
-pub async fn keychain_set(key: String, value: String) -> Result<bool, String> {
-    if !keychain_key_is_valid(&key) || value.len() > 256 * 1024 {
-        return Err("invalid secure storage entry".into());
-    }
-    tauri::async_runtime::spawn_blocking(move || secure_storage_set(&key, &value))
-        .await
-        .map_err(|_| "secure storage worker failed".to_string())?
-}
-
-#[tauri::command]
-pub async fn keychain_delete(key: String) -> Result<bool, String> {
-    if !keychain_key_is_valid(&key) {
-        return Err("invalid secure storage key".into());
-    }
-    tauri::async_runtime::spawn_blocking(move || secure_storage_delete(&key))
-        .await
-        .map_err(|_| "secure storage worker failed".to_string())?
-}
-
 #[tauri::command]
 pub fn material_open_local(app: AppHandle, file_path: String) -> OpenResult {
     let path = PathBuf::from(file_path);
@@ -1505,13 +1278,12 @@ pub async fn material_thumbnail(file_path: String, size: f64) -> ThumbnailResult
                     .to_string(),
             );
         }
-        let image = decode_image(Path::new(&file_path))?;
-        let thumbnail = image.resize(bounded_size, bounded_size, FilterType::Lanczos3);
-        let bytes = encode_jpeg(&thumbnail, 80)?;
-        Ok::<_, String>(format!(
-            "data:image/jpeg;base64,{}",
-            BASE64_STANDARD.encode(bytes)
-        ))
+        image_pipeline::thumbnail_data_url(
+            Path::new(&file_path),
+            MATERIAL_FILE_LIMIT,
+            bounded_size,
+        )
+        .map_err(|error| error.to_string())
     })
     .await;
 
@@ -1539,36 +1311,89 @@ pub async fn material_read_bytes(file_path: String) -> ReadBytesResult {
 #[tauri::command]
 pub async fn material_inspect_image(file_path: String) -> InspectImageResult {
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let path = PathBuf::from(file_path);
-        let size_bytes = fs::metadata(&path)
-            .map_err(|_| "could not inspect image file".to_string())?
-            .len();
-        let reader = image_reader(&path)?;
-        let format = reader
-            .format()
-            .ok_or_else(|| "unsupported or invalid image".to_string())?;
-        let mut decoder = reader
-            .into_decoder()
-            .map_err(|_| "unsupported or invalid image".to_string())?;
-        let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
-        let (width, height) = decoder.dimensions();
-        let (width, height) = oriented_dimensions(width, height, orientation);
-        Ok::<_, String>((image_format_mime(format), size_bytes, width, height))
+        image_pipeline::inspect(Path::new(&file_path), MATERIAL_FILE_LIMIT)
     })
     .await;
 
     match result {
-        Ok(Ok((mime, size_bytes, width, height))) => {
-            InspectImageResult::Success(InspectImageSuccess {
-                ok: true,
-                mime: mime.into(),
-                size_bytes,
-                width,
-                height,
-            })
-        }
-        Ok(Err(error)) => InspectImageResult::Failure(FailureResult::new(error)),
+        Ok(Ok(inspection)) => InspectImageResult::Success(InspectImageSuccess {
+            ok: true,
+            mime: inspection.mime,
+            size_bytes: inspection.size_bytes,
+            width: inspection.width,
+            height: inspection.height,
+        }),
+        Ok(Err(error)) => InspectImageResult::Failure(FailureResult::new(error.to_string())),
         Err(_) => InspectImageResult::Failure(FailureResult::new("image inspection worker failed")),
+    }
+}
+
+#[tauri::command]
+pub async fn material_prepare_image(
+    app: AppHandle,
+    file_path: String,
+    display_max_long_edge: f64,
+    display_quality: f64,
+    thumbnail_max_long_edge: f64,
+    thumbnail_quality: f64,
+) -> PrepareImageResult {
+    let display_max_long_edge = bounded_u32(display_max_long_edge, 1, 4096, 1600);
+    let display_quality = bounded_u32(display_quality, 1, 100, 82) as u8;
+    let thumbnail_max_long_edge = bounded_u32(thumbnail_max_long_edge, 1, 2048, 512);
+    let thumbnail_quality = bounded_u32(thumbnail_quality, 1, 100, 72) as u8;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let path = Path::new(&file_path);
+        if let Some(codec) = image_pipeline::detect_system_codec(path)? {
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            return crate::apple_image_codec::prepare(
+                path,
+                codec,
+                MATERIAL_FILE_LIMIT,
+                display_max_long_edge,
+                display_quality,
+                thumbnail_max_long_edge,
+                thumbnail_quality,
+            );
+            #[cfg(target_os = "android")]
+            return crate::android_image_codec::prepare(
+                &app,
+                path,
+                codec,
+                MATERIAL_FILE_LIMIT,
+                display_max_long_edge,
+                display_quality,
+                thumbnail_max_long_edge,
+                thumbnail_quality,
+            );
+            #[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "android")))]
+            return Err(image_pipeline::ImagePipelineError::codec_unavailable(codec));
+        }
+        let _ = &app;
+        image_pipeline::prepare(
+            path,
+            MATERIAL_FILE_LIMIT,
+            display_max_long_edge,
+            display_quality,
+            thumbnail_max_long_edge,
+            thumbnail_quality,
+        )
+    })
+    .await;
+
+    match result {
+        Ok(Ok(prepared)) => PrepareImageResult::Success(PrepareImageSuccess {
+            ok: true,
+            source: prepared.source.into(),
+            display: prepared.display.into(),
+            thumbnail: prepared.thumbnail.into(),
+        }),
+        Ok(Err(error)) => PrepareImageResult::Failure(error.into()),
+        Err(_) => PrepareImageResult::Failure(PrepareImageFailure {
+            ok: false,
+            code: image_pipeline::IMAGE_INVALID_CODE,
+            codec: None,
+            error: "image preparation worker failed".into(),
+        }),
     }
 }
 
@@ -1579,16 +1404,17 @@ pub async fn material_create_image_variant(
     quality: f64,
 ) -> ImageVariantResult {
     let result = tauri::async_runtime::spawn_blocking(move || {
-        create_image_variant_impl(
+        image_pipeline::create_variant(
             Path::new(&file_path),
+            MATERIAL_FILE_LIMIT,
             bounded_u32(max_long_edge, 1, 4096, 1600),
             bounded_u32(quality, 1, 100, 82) as u8,
         )
     })
     .await;
     match result {
-        Ok(Ok(success)) => ImageVariantResult::Success(success),
-        Ok(Err(error)) => ImageVariantResult::Failure(FailureResult::new(error)),
+        Ok(Ok(success)) => ImageVariantResult::Success(success.into()),
+        Ok(Err(error)) => ImageVariantResult::Failure(FailureResult::new(error.to_string())),
         Err(_) => ImageVariantResult::Failure(FailureResult::new("image variant worker failed")),
     }
 }
@@ -1600,16 +1426,17 @@ pub async fn material_create_thumbnail_variant(
     quality: f64,
 ) -> ImageVariantResult {
     let result = tauri::async_runtime::spawn_blocking(move || {
-        create_image_variant_impl(
+        image_pipeline::create_variant(
             Path::new(&file_path),
+            MATERIAL_FILE_LIMIT,
             bounded_u32(size, 1, 2048, 512),
             bounded_u32(quality, 1, 100, 72) as u8,
         )
     })
     .await;
     match result {
-        Ok(Ok(success)) => ImageVariantResult::Success(success),
-        Ok(Err(error)) => ImageVariantResult::Failure(FailureResult::new(error)),
+        Ok(Ok(success)) => ImageVariantResult::Success(success.into()),
+        Ok(Err(error)) => ImageVariantResult::Failure(FailureResult::new(error.to_string())),
         Err(_) => {
             ImageVariantResult::Failure(FailureResult::new("thumbnail variant worker failed"))
         }
@@ -2114,27 +1941,11 @@ mod tests {
     }
 
     #[test]
-    fn image_bounds_preserve_aspect_ratio_and_never_enlarge() {
-        assert_eq!(bounded_dimensions(4000, 2000, 1600), (1600, 800));
-        assert_eq!(bounded_dimensions(1000, 2000, 512), (256, 512));
-        assert_eq!(bounded_dimensions(200, 100, 1600), (200, 100));
+    fn image_command_numbers_are_bounded() {
         assert_eq!(bounded_u32(-20.0, 1, 4096, 1600), 1);
         assert_eq!(bounded_u32(50_000.0, 1, 4096, 1600), 4096);
         assert_eq!(bounded_u32(f64::NAN, 1, 4096, 1600), 1600);
         assert_eq!(sniff_extension(b"%PDF-1.7"), "pdf");
-        assert_eq!(sniff_extension(b"\0\0\0\x18ftypheic"), "heic");
-        assert_eq!(
-            oriented_dimensions(4032, 3024, Orientation::Rotate90),
-            (3024, 4032)
-        );
-        assert_eq!(
-            oriented_dimensions(4032, 3024, Orientation::Rotate90FlipH),
-            (3024, 4032)
-        );
-        assert_eq!(
-            oriented_dimensions(4032, 3024, Orientation::FlipHorizontal),
-            (4032, 3024)
-        );
     }
 
     #[test]

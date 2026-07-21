@@ -1,7 +1,13 @@
+#[cfg(target_os = "android")]
+mod android_image_codec;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+mod apple_image_codec;
 mod commands;
 mod data_migration;
 mod database;
+mod image_pipeline;
 mod native_capabilities;
+mod secure_storage;
 mod state;
 
 use std::sync::Arc;
@@ -76,6 +82,11 @@ pub fn run() {
         }
     }));
 
+    #[cfg(target_os = "android")]
+    let builder = builder
+        .plugin(tauri_plugin_drifting_secure_storage::init())
+        .plugin(tauri_plugin_drifting_image_codec::init());
+
     let app = builder
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
@@ -97,14 +108,15 @@ pub fn run() {
             commands::lifecycle_get_status,
             commands::lifecycle_complete_flush,
             commands::general_agent_start_unsupported,
-            native_capabilities::keychain_get,
-            native_capabilities::keychain_set,
-            native_capabilities::keychain_delete,
+            secure_storage::keychain_get,
+            secure_storage::keychain_set,
+            secure_storage::keychain_delete,
             native_capabilities::material_open_local,
             native_capabilities::material_pick_file,
             native_capabilities::material_thumbnail,
             native_capabilities::material_read_bytes,
             native_capabilities::material_inspect_image,
+            native_capabilities::material_prepare_image,
             native_capabilities::material_create_image_variant,
             native_capabilities::material_create_thumbnail_variant,
             native_capabilities::material_resolve_url_meta,

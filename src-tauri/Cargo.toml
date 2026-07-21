@@ -34,6 +34,15 @@ tokio-util = { version = "0.7", features = ["io"] }
 [target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "windows", target_os = "linux"))'.dependencies]
 keyring = { version = "3.6", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "crypto-rust"] }
 
+[target.'cfg(target_os = "android")'.dependencies]
+tauri-plugin-drifting-image-codec = { path = "plugins/drifting-image-codec" }
+tauri-plugin-drifting-secure-storage = { path = "plugins/drifting-secure-storage" }
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFData", "CFDictionary", "CFNumber", "CFString", "CFURL"] }
+objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["std", "CGImage"] }
+objc2-image-io = { version = "0.3.2", default-features = false, features = ["std", "CGImageDestination", "CGImageProperties", "CGImageSource", "objc2-core-graphics"] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSButton", "NSView", "NSWindow"] }
 
