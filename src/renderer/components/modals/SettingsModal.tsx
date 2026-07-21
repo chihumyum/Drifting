@@ -309,8 +309,14 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
           <AppearancePanel registerRef={(el) => (panelRefs.current.appearance = el ?? undefined)} />
           <EditorPanel registerRef={(el) => (panelRefs.current.editor = el ?? undefined)} />
           <LanguagePanel registerRef={(el) => (panelRefs.current.language = el ?? undefined)} />
-          <CopilotPanel registerRef={(el) => (panelRefs.current.copilot = el ?? undefined)} />
-          <ShadowPanel registerRef={(el) => (panelRefs.current.shadow = el ?? undefined)} />
+          <CopilotPanel
+            credentialsActive={active === 'copilot'}
+            registerRef={(el) => (panelRefs.current.copilot = el ?? undefined)}
+          />
+          <ShadowPanel
+            credentialsActive={active === 'shadow'}
+            registerRef={(el) => (panelRefs.current.shadow = el ?? undefined)}
+          />
           <AgentPanel
             open={isOpen}
             registerRef={(el) => (panelRefs.current.agent = el ?? undefined)}
@@ -2351,12 +2357,14 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
 }
 
 function ProviderRow({
+  credentialsActive,
   provider,
   logoClass,
   logoText,
   name,
   desc,
 }: {
+  credentialsActive: boolean;
   provider: BYOKProvider;
   logoClass: string;
   logoText: string;
@@ -2372,16 +2380,23 @@ function ProviderRow({
   // Hydrate from the OS keychain on mount. The renderer never holds the
   // secret in any persisted store — only this local state for masking.
   useEffect(() => {
+    if (!credentialsActive) return;
     let cancelled = false;
-    byokKeychain.get(provider).then((value) => {
-      if (cancelled) return;
-      setStored(value);
-      setLoading(false);
-    });
+    void byokKeychain
+      .get(provider)
+      .then((value) => {
+        if (!cancelled) setStored(value);
+      })
+      .catch(() => {
+        if (!cancelled) setStored(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
     };
-  }, [provider]);
+  }, [credentialsActive, provider]);
 
   const connected = !!stored;
   const masked = useMemo(() => maskBYOK(stored), [stored]);
@@ -2572,9 +2587,9 @@ function ProviderRow({
 // key entry of its own. This makes that borrow VISIBLE: shows connected/未连接 and
 // jumps to the Copilot panel (where the key is actually entered) so the user isn't
 // left with a silent no-key BYOK that only errors at run time.
-function ShadowDeepseekKeyStatus() {
+function ShadowDeepseekKeyStatus({ credentialsActive }: { credentialsActive: boolean }) {
   const { t } = useTranslation();
-  const connected = useByokConnected('deepseek');
+  const connected = useByokConnected('deepseek', credentialsActive);
   const jumpToCopilot = () =>
     document.getElementById('copilot')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   if (connected === null) return null;
@@ -2603,7 +2618,13 @@ function ShadowDeepseekKeyStatus() {
 // continuity review (CI) and element-arc derivation. Both read resolveShadowModel()
 // (lib/shadow/model-routing.ts). Hosted = a capability tier the server maps to a
 // concrete model (低 flash / 中 pro / 高 sonnet); BYOK = pin a DeepSeek model.
-function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
+function ShadowPanel({
+  credentialsActive,
+  registerRef,
+}: {
+  credentialsActive: boolean;
+  registerRef: RegisterRef;
+}) {
   const { t } = useTranslation();
   const shadowByokModel = useSettingsStore((s) => s.shadowByokModel);
   const setShadowByokModel = useSettingsStore((s) => s.setShadowByokModel);
@@ -2624,7 +2645,7 @@ function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
       <div className="set-sec">
         <SecHead title={t('settings.ai.byokTitle')} hint="BYOK ONLY" />
         <p className="set-row__desc">{t('settings.ai.preAlphaByokOnly')}</p>
-        <ShadowDeepseekKeyStatus />
+        <ShadowDeepseekKeyStatus credentialsActive={credentialsActive} />
         <Row
           label={t('settings.shadow.deepseekModel')}
           desc={t('settings.shadow.deepseekModelDesc')}
@@ -2812,14 +2833,20 @@ const BYOK_PROVIDER_LABEL: Record<BYOKProvider, string> = {
 // Live keychain-connected status for one BYOK provider. Re-reads on mount and on
 // any 'byok:keys-changed' (ProviderRow connect/disconnect) so indicators that
 // don't own ProviderRow's local state stay in sync. null = still loading.
-function useByokConnected(provider: BYOKProvider): boolean | null {
+function useByokConnected(provider: BYOKProvider, credentialsActive: boolean): boolean | null {
   const [connected, setConnected] = useState<boolean | null>(null);
   useEffect(() => {
+    if (!credentialsActive) return;
     let cancelled = false;
     const read = () => {
-      void byokKeychain.get(provider).then((k) => {
-        if (!cancelled) setConnected(!!k);
-      });
+      void byokKeychain
+        .get(provider)
+        .then((k) => {
+          if (!cancelled) setConnected(!!k);
+        })
+        .catch(() => {
+          if (!cancelled) setConnected(false);
+        });
     };
     read();
     events.on('byok:keys-changed', read);
@@ -2827,7 +2854,7 @@ function useByokConnected(provider: BYOKProvider): boolean | null {
       cancelled = true;
       events.off('byok:keys-changed', read);
     };
-  }, [provider]);
+  }, [credentialsActive, provider]);
   return connected;
 }
 
@@ -2883,10 +2910,10 @@ function CopilotByokModelPicker() {
 }
 
 // Warns when the active provider has no key. Pre-Alpha never falls back to hosted.
-function CopilotByokWarning() {
+function CopilotByokWarning({ credentialsActive }: { credentialsActive: boolean }) {
   const { t } = useTranslation();
   const provider = useSettingsStore((s) => s.copilotByokProvider);
-  const connected = useByokConnected(provider);
+  const connected = useByokConnected(provider, credentialsActive);
   if (connected !== false) return null;
   return (
     <div
@@ -2908,7 +2935,13 @@ function CopilotByokWarning() {
   );
 }
 
-function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
+function CopilotPanel({
+  credentialsActive,
+  registerRef,
+}: {
+  credentialsActive: boolean;
+  registerRef: RegisterRef;
+}) {
   const { t } = useTranslation();
   const autoTrigger = useSettingsStore((s) => s.copilotAutoTrigger);
   const setAutoTrigger = useSettingsStore((s) => s.setCopilotAutoTrigger);
@@ -2936,8 +2969,9 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
         <div className="set-sec">
           <SecHead title={t('settings.ai.byokTitle')} hint="BYOK ONLY · 4 PROVIDERS" />
           <p className="set-row__desc">{t('settings.ai.preAlphaByokOnly')}</p>
-          <CopilotByokWarning />
+          <CopilotByokWarning credentialsActive={credentialsActive} />
           <ProviderRow
+            credentialsActive={credentialsActive}
             provider="deepseek"
             logoClass="set-provider__logo--deepseek"
             logoText="D"
@@ -2945,6 +2979,7 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
             desc={t('settings.copilot.providers.deepseek')}
           />
           <ProviderRow
+            credentialsActive={credentialsActive}
             provider="anthropic"
             logoClass="set-provider__logo--anthropic"
             logoText="A"
@@ -2952,6 +2987,7 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
             desc={t('settings.copilot.providers.anthropic')}
           />
           <ProviderRow
+            credentialsActive={credentialsActive}
             provider="openai"
             logoClass="set-provider__logo--openai"
             logoText="O"
@@ -2959,6 +2995,7 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
             desc={t('settings.copilot.providers.openai')}
           />
           <ProviderRow
+            credentialsActive={credentialsActive}
             provider="google"
             logoClass="set-provider__logo--google"
             logoText="G"

@@ -16,9 +16,29 @@ function keyOf(provider: BYOKProvider): string {
   return `byok.${provider}`;
 }
 
+// Settings has several consumers for the active provider (provider row,
+// Copilot warning, Shadow status), and React Strict Mode intentionally mounts
+// effects twice in development. Coalesce only concurrent reads so one logical
+// lookup produces one OS prompt without retaining secrets beyond the caller's
+// own lifetime.
+const pendingReads = new Map<string, Promise<string | null>>();
+
+function readSecret(key: string): Promise<string | null> {
+  const pending = pendingReads.get(key);
+  if (pending) return pending;
+
+  const read = Promise.resolve().then(() => platform.keychain.get(key));
+  pendingReads.set(key, read);
+  const clear = () => {
+    if (pendingReads.get(key) === read) pendingReads.delete(key);
+  };
+  void read.then(clear, clear);
+  return read;
+}
+
 export const byokKeychain = {
   async get(provider: BYOKProvider): Promise<string | null> {
-    return platform.keychain.get(keyOf(provider));
+    return readSecret(keyOf(provider));
   },
   async set(provider: BYOKProvider, value: string): Promise<boolean> {
     return platform.keychain.set(keyOf(provider), value);
@@ -37,7 +57,7 @@ export const AGENT_API_KEY_ID = 'byok.agent.anthropic';
 
 export const agentApiKeychain = {
   async get(): Promise<string | null> {
-    return platform.keychain.get(AGENT_API_KEY_ID);
+    return readSecret(AGENT_API_KEY_ID);
   },
   async set(value: string): Promise<boolean> {
     return platform.keychain.set(AGENT_API_KEY_ID, value);
