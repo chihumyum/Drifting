@@ -1,4 +1,13 @@
 {
+  "appShell": {
+    "checkingAuthentication": "正在检查登录状态…",
+    "loadingProject": "正在打开项目…",
+    "projectLoadFailedTitle": "无法打开这个项目",
+    "projectLoadFailedDetail": "没有继续修改数据。请检查本地数据库后重试。",
+    "unexpectedTitle": "Drifting 遇到了意外错误",
+    "unexpectedDetail": "当前界面已经停止，以免继续产生错误修改。",
+    "retry": "重试"
+  },
   "preAlphaGuide": {
     "title": "欢迎参加 Drifting Pre-Alpha",
     "intro": "这是给少量内测用户使用的早期版本。核心写作、云同步与关系数据已经可用，但接口、数据格式和体验仍可能变化。",
@@ -56,7 +65,8 @@
       "disconnect": "断开",
       "test_connection": "测试连接",
       "open_in_browser": "在浏览器打开",
-      "back": "返回"
+      "back": "返回",
+      "not_available_yet": "当前版本尚未提供"
     },
 
     "account": {
@@ -308,15 +318,19 @@
       "cloud": "Drifting 云",
       "lastSuccess": "上次成功",
       "successRate": "成功率",
+      "no_activity": "本次会话尚无同步活动。",
       "inflight": " · 进行中 {{count}}",
       "online": "在线",
       "syncing": "同步中",
+      "idle": "空闲",
+      "needs_attention": "需要处理",
       "back_to_sync": "返回同步",
       "activity_kicker": "同步活动 · ACTIVITY",
       "activity_title": "刚才同步了什么。",
       "activity_sub": "最近 200 条同步事件。失败原因会展开在每行尾部。",
       "cloud_sync": "云同步",
       "vault_path": "本地仓库",
+      "local_data_managed": "保存在 Drifting 管理的应用数据目录中。",
       "show_in_finder": "在 Finder 中显示",
       "debug_toast": "调试模式 · Toast",
       "debug_toast_desc": "开启后，主页右下角会浮出 push / pull 事件的小提示，用于排查同步问题。",
@@ -417,6 +431,7 @@
       "version": "版本",
       "channel": "通道",
       "channelDev": "开发",
+      "channelPreAlpha": "Pre-Alpha",
       "engine": "引擎",
       "checkUpdates": "检查更新",
       "credits": "致谢与许可",
@@ -1282,7 +1297,7 @@
       "featureStorylineSub": "时间轴 · 叙事弧 · 跨线索引",
       "featureShadowTitle": "Shadow · 离线 AI 校读",
       "featureShadowSub": "人物年龄 / 视角越界 / 设定矛盾",
-      "brandVersion": "Drifting Writing Studio · v3.2",
+      "brandVersion": "Drifting Writing Studio · v{{version}}",
       "footer": "本地优先 · 云端同步"
     },
     "signin": {
@@ -1526,11 +1541,15 @@
       "noDailyGoal": "未设每日目标"
     },
     "footer": {
-      "backup": "本地 · 自动备份"
+      "localReady": "本地数据已就绪",
+      "syncing": "正在同步…",
+      "syncedAt": "上次同步 {{time}}",
+      "syncNeedsAttention": "同步需要处理"
     }
   },
   "importDialog": {
     "title": "导入文件",
+    "closeBlocked": "请等待当前导入完成",
     "descriptionA": "每次导入只能选一种类型，支持",
     "descriptionB": "可以选多个文件或一个文件夹（仅取支持的扩展名）。",
     "targetTitle": "类型 · TARGET",
@@ -1705,6 +1724,7 @@
       "chaptersValue": "{{count}} 章",
       "averagePerChapter": "平均每章",
       "writtenTarget": "已写 / 目标",
+      "chapterWordCount": "本章字数",
       "actRhythm": "分幕节奏",
       "actTooltip": "{{name}} · {{chapters}}章 · {{words}}字",
       "actMeta": "{{chapters}}章 · {{wordsK}}k · {{pct}}%",
@@ -2382,6 +2402,7 @@
       "card": "元素卡片"
     },
     "summaryShortPlaceholder": "摘要…",
+    "bodyLoadError": "正文加载失败，已切换为只读。为避免覆盖现有内容，这里不会保存正文改动。",
     "syncNote": "改动会同步到完整编辑器"
   },
   "superElement": {

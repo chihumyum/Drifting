@@ -1,4 +1,13 @@
 {
+  "appShell": {
+    "checkingAuthentication": "Checking authentication…",
+    "loadingProject": "Opening project…",
+    "projectLoadFailedTitle": "This project could not be opened",
+    "projectLoadFailedDetail": "No data was changed. Check the local database and try again.",
+    "unexpectedTitle": "Drifting encountered an unexpected error",
+    "unexpectedDetail": "The current screen was stopped before it could make more changes.",
+    "retry": "Try again"
+  },
   "preAlphaGuide": {
     "title": "Welcome to Drifting Pre-Alpha",
     "intro": "This is an early build for a small group of testers. Core writing, cloud sync, and relational data work, but APIs, data formats, and UX may still change.",
@@ -56,7 +65,8 @@
       "disconnect": "Disconnect",
       "test_connection": "Test connection",
       "open_in_browser": "Open in browser",
-      "back": "Back"
+      "back": "Back",
+      "not_available_yet": "Not available in this build"
     },
 
     "account": {
@@ -308,15 +318,19 @@
       "cloud": "Drifting Cloud",
       "lastSuccess": "Last success",
       "successRate": "success rate",
+      "no_activity": "No sync activity in this session yet.",
       "inflight": " · in progress {{count}}",
       "online": "Online",
       "syncing": "Syncing",
+      "idle": "Idle",
+      "needs_attention": "Needs attention",
       "back_to_sync": "Back to sync",
       "activity_kicker": "Sync activity",
       "activity_title": "What just synced.",
       "activity_sub": "The latest 200 sync events. Failure reasons expand at the end of each row.",
       "cloud_sync": "Cloud sync",
       "vault_path": "Local vault",
+      "local_data_managed": "Stored in Drifting's managed application data directory.",
       "show_in_finder": "Show in Finder",
       "debug_toast": "Debug mode · Toast",
       "debug_toast_desc": "When on, push / pull event toasts appear in the lower right of the home screen for sync debugging.",
@@ -417,6 +431,7 @@
       "version": "Version",
       "channel": "Channel",
       "channelDev": "Development",
+      "channelPreAlpha": "Pre-Alpha",
       "engine": "Engine",
       "checkUpdates": "Check for updates",
       "credits": "Credits and licenses",
@@ -1282,7 +1297,7 @@
       "featureStorylineSub": "timeline · narrative arcs · cross-line references",
       "featureShadowTitle": "Shadow · offline AI review",
       "featureShadowSub": "character age / POV drift / canon contradictions",
-      "brandVersion": "Drifting Writing Studio · v3.2",
+      "brandVersion": "Drifting Writing Studio · v{{version}}",
       "footer": "Local-first · cloud sync"
     },
     "signin": {
@@ -1526,11 +1541,15 @@
       "noDailyGoal": "No daily goal set"
     },
     "footer": {
-      "backup": "Local · automatic backup"
+      "localReady": "Local data ready",
+      "syncing": "Syncing…",
+      "syncedAt": "Last sync {{time}}",
+      "syncNeedsAttention": "Sync needs attention"
     }
   },
   "importDialog": {
     "title": "Import files",
+    "closeBlocked": "Wait for the current import to finish",
     "descriptionA": "Each import can target one type. Supported formats:",
     "descriptionB": "You can select multiple files or one folder; unsupported extensions are ignored.",
     "targetTitle": "Target",
@@ -1705,6 +1724,7 @@
       "chaptersValue": "{{count}} chapters",
       "averagePerChapter": "Average per chapter",
       "writtenTarget": "Written / target",
+      "chapterWordCount": "Word count",
       "actRhythm": "Act rhythm",
       "actTooltip": "{{name}} · {{chapters}} chapters · {{words}} words",
       "actMeta": "{{chapters}} chapters · {{wordsK}}k · {{pct}}%",
@@ -2382,6 +2402,7 @@
       "card": "Element card"
     },
     "summaryShortPlaceholder": "Summary…",
+    "bodyLoadError": "The body failed to load and is now read-only. Body changes will not be saved here, protecting the existing content.",
     "syncNote": "Changes sync to the full editor"
   },
   "superElement": {

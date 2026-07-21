@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { Component, useEffect, useRef, useState } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { NodeEditorView } from './views/NodeEditorView';
 import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
@@ -30,7 +32,6 @@ import { ImportDialog } from './components/modals/ImportDialog';
 import { EditChapterStorylineModal } from './components/modals/EditChapterStorylineModal';
 import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
 import { useAgentToolBridge } from './lib/agent/useAgentToolBridge';
-import './lib/goal/dev-harness'; // /goal 演化 first-slice smoke: mounts window.__goalEvolve (GOAL-EVOLVE.md §12)
 import { EditorFindPanel } from './components/search/EditorFindPanel';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { AgentConfirmDialog } from './components/agent/AgentConfirmDialog';
@@ -78,6 +79,12 @@ import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('App');
 
+// The goal smoke harness can execute real staged writes. Keep it out of the
+// production module graph instead of merely hiding its UI.
+if (import.meta.env.DEV) {
+  void import('./lib/goal/dev-harness');
+}
+
 // URL builder for a leaf tab — used by the keyboard tab-cycle shortcut when
 // stepping into a split tab. Lives next to App because it's the only call
 // site outside useProjectNavigation, and duplicating the four short cases
@@ -106,11 +113,106 @@ function urlForLeaf(
       return null;
   }
 }
-// log.setLevel(loglevel.levels.ERROR);
-log.setLevel(loglevel.levels.TRACE);
+log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
+
+function FullScreenStatus({
+  title,
+  detail,
+  action,
+}: {
+  title: string;
+  detail?: string;
+  action?: { label: string; onClick: () => void };
+}) {
+  return (
+    <div
+      role={action ? 'alert' : 'status'}
+      aria-live={action ? 'assertive' : 'polite'}
+      style={{
+        minHeight: '100vh',
+        width: '100vw',
+        display: 'grid',
+        placeItems: 'center',
+        padding: 24,
+        background: 'hsl(var(--paper))',
+        color: 'hsl(var(--ink-1))',
+      }}
+    >
+      <div style={{ width: 'min(440px, 100%)', textAlign: 'center' }}>
+        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22 }}>{title}</div>
+        {detail && (
+          <div
+            style={{
+              marginTop: 10,
+              color: 'hsl(var(--ink-3))',
+              fontFamily: 'var(--font-sans)',
+              fontSize: 13,
+              lineHeight: 1.6,
+              overflowWrap: 'anywhere',
+            }}
+          >
+            {detail}
+          </div>
+        )}
+        {action && (
+          <button
+            type="button"
+            className="set-btn set-btn--primary"
+            style={{ marginTop: 18 }}
+            onClick={action.onClick}
+          >
+            {action.label}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface RootErrorBoundaryState {
+  error: Error | null;
+}
+
+class RootErrorBoundary extends Component<{ children: ReactNode }, RootErrorBoundaryState> {
+  state: RootErrorBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: Error): RootErrorBoundaryState {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    log.error('[App] Unhandled renderer error:', error, info.componentStack);
+  }
+
+  private retry = () => this.setState({ error: null });
+
+  render() {
+    if (this.state.error) {
+      return <RootErrorFallback error={this.state.error} onRetry={this.retry} />;
+    }
+    return this.props.children;
+  }
+}
+
+function RootErrorFallback({ error, onRetry }: { error: Error; onRetry: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <FullScreenStatus
+      title={t('appShell.unexpectedTitle')}
+      detail={`${t('appShell.unexpectedDetail')} ${error.message}`}
+      action={{ label: t('appShell.retry'), onClick: onRetry }}
+    />
+  );
+}
+
+type ProjectBootState =
+  | { key: string; status: 'loading' }
+  | { key: string; status: 'ready' }
+  | { key: string; status: 'error'; error: string };
 
 // 认证路由守卫
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const authRequired = isAuthRequired();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const userId = useAuthStore((state) => state.user?.id);
@@ -130,19 +232,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, userId]);
 
   if (isChecking) {
-    return (
-      <div
-        style={{
-          height: '100vh',
-          width: '100vw',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        Checking authentication...
-      </div>
-    );
+    return <FullScreenStatus title={t('appShell.checkingAuthentication')} />;
   }
 
   if (authRequired && (!isAuthenticated || !userId)) {
@@ -153,6 +243,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const authRequired = isAuthRequired();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const userId = useAuthStore((state) => state.user?.id);
@@ -164,19 +255,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   }, [checkSession]);
 
   if (isChecking) {
-    return (
-      <div
-        style={{
-          height: '100vh',
-          width: '100vw',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        Checking authentication...
-      </div>
-    );
+    return <FullScreenStatus title={t('appShell.checkingAuthentication')} />;
   }
 
   if (!authRequired || (isAuthenticated && !!userId)) {
@@ -187,6 +266,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function Layout() {
+  const { t } = useTranslation();
   const location = useLocation();
   const { projectId } = useParams<{ projectId: string }>();
   const userId = useAuthStore((state) => state.user?.id);
@@ -202,7 +282,12 @@ function Layout() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsTargetRail, setSettingsTargetRail] = useState<string | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [dbReady, setDbReady] = useState(false);
+  const bootKey = `${userId}:${projectId}`;
+  const [bootAttempt, setBootAttempt] = useState(0);
+  const [bootState, setBootState] = useState<ProjectBootState>({
+    key: bootKey,
+    status: 'loading',
+  });
   const [findPanelEditor, setFindPanelEditor] = useState<Editor | null>(null);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const { openEntity, navigateToHome, navigateToAllChapters } = useProjectNavigation();
@@ -258,13 +343,6 @@ function Layout() {
     setCommentKind: commentUsecases.setCommentKind,
     commitShadowReview: shadowReviewUsecases.commitShadowReview,
   });
-
-  // Reset ready state when project or user changes — syncing to an external
-  // trigger (project/user switch), not a derived-render smell.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDbReady(false);
-  }, [projectId, userId]);
 
   // Writing-stats recorder. Subscribes directly to the data store so it ticks
   // regardless of which view is mounted — without this, snapshots would only
@@ -357,23 +435,16 @@ function Layout() {
   }, []);
 
   useEffect(() => {
-    // Initialize theme
-    initAccentColor();
+    let active = true;
+    // This state mirrors an external boot attempt, rather than deriving local
+    // render data. It must reset before a retry starts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setBootState({ key: bootKey, status: 'loading' });
 
-    // Initialize database for the current user
-    if (!projectId) {
-      log.error('No projectId found in URL params');
-      return;
-    }
-    if (!userId) {
-      log.error('No userId found in auth store');
-      return;
-    }
-
-    log.info('[App] Initializing database for user:', userId);
-
-    initDatabase(userId)
-      .then(async () => {
+    const initialize = async () => {
+      log.info('[App] Initializing database for user:', userId);
+      try {
+        await initDatabase(userId);
         // Initialize project-specific data (stores etc). Story-graph edges
         // come from entity_relation now and load with relationUsecases.
         await Promise.all([
@@ -403,9 +474,10 @@ function Layout() {
           log.warn('[App] Reference index rebuild failed:', error);
         });
 
+        if (!active) return;
         events.emit('db:ready');
         log.info('[App] Database ready for project:', projectId);
-        setDbReady(true);
+        setBootState({ key: bootKey, status: 'ready' });
         void pullAndHydrateProjectGraph(projectId).catch((error) => {
           log.warn('[App] Project graph hydrate failed:', error);
         });
@@ -415,12 +487,21 @@ function Layout() {
         void startPreferencesSync().catch((error) => {
           log.warn('[App] Preferences sync init failed:', error);
         });
-      })
-      .catch((error) => {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
         log.error('[App] Failed to initialize database:', error);
-        events.emit('db:error', { error: error.message });
-      });
+        events.emit('db:error', { error: message });
+        if (active) setBootState({ key: bootKey, status: 'error', error: message });
+      }
+    };
+
+    void initialize();
+    return () => {
+      active = false;
+    };
   }, [
+    bootAttempt,
+    bootKey,
     projectId,
     userId,
     projectUsecases,
@@ -675,19 +756,24 @@ function Layout() {
     });
   }, []);
 
-  if (!dbReady) {
+  const currentBoot: ProjectBootState =
+    bootState.key === bootKey ? bootState : { key: bootKey, status: 'loading' };
+  if (currentBoot.status === 'loading') {
+    return <FullScreenStatus title={t('appShell.loadingProject')} />;
+  }
+  if (currentBoot.status === 'error') {
     return (
-      <div
-        style={{
-          height: '100vh',
-          width: '100vw',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+      <FullScreenStatus
+        title={t('appShell.projectLoadFailedTitle')}
+        detail={`${t('appShell.projectLoadFailedDetail')} ${currentBoot.error}`}
+        action={{
+          label: t('appShell.retry'),
+          onClick: () => {
+            setBootState({ key: bootKey, status: 'loading' });
+            setBootAttempt((attempt) => attempt + 1);
+          },
         }}
-      >
-        Loading Project...
-      </div>
+      />
     );
   }
 
@@ -844,6 +930,10 @@ function AppearanceEffects() {
   const setUiTheme = useUiStore((state) => state.setTheme);
 
   useEffect(() => {
+    initAccentColor();
+  }, []);
+
+  useEffect(() => {
     const root = document.documentElement;
     const apply = (mode: 'light' | 'dark') => {
       if (mode === 'dark') root.classList.add('dark');
@@ -925,7 +1015,7 @@ function PersistenceLifecycleEffects() {
   return null;
 }
 
-export default function App() {
+function AppContents() {
   return (
     <>
       <LocaleEffects />
@@ -1026,5 +1116,13 @@ export default function App() {
         </Route>
       </Routes>
     </>
+  );
+}
+
+export default function App() {
+  return (
+    <RootErrorBoundary>
+      <AppContents />
+    </RootErrorBoundary>
   );
 }

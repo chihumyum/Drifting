@@ -1,17 +1,24 @@
-// Initialize accent color theme on app load
+const LEGACY_ACCENT_PROPERTIES = [
+  '--accent',
+  '--accent-border',
+  '--accent-foreground',
+  '--ring',
+] as const;
+
+/**
+ * Remove the pre-skin custom-accent override.
+ *
+ * Accent is now a semantic part of each classic/modern + light/dark palette
+ * in index.css. Keeping the old inline override would outrank every palette
+ * and could pair one theme's accent with another theme's foreground/ring.
+ */
 export function initAccentColor() {
-  const savedHue = localStorage.getItem('accentHue');
-  const hue = savedHue ? parseInt(savedHue) : 30; // Default to brown
-
-  applyAccentColor(hue);
-}
-
-export function applyAccentColor(hue: number) {
   const root = document.documentElement;
-
-  // Design tokens are HSL triplets (no hsl() wrapper). Consumers must wrap
-  // them as `hsl(var(--accent))` to render — this lets the same token also
-  // be used with alpha, e.g. `hsl(var(--accent) / 0.1)`.
-  root.style.setProperty('--accent', `${hue} 35% 55%`);
-  root.style.setProperty('--accent-border', `${hue} 25% 82%`);
+  for (const property of LEGACY_ACCENT_PROPERTIES) root.style.removeProperty(property);
+  try {
+    localStorage.removeItem('accentHue');
+  } catch {
+    // Some embedded/privacy-restricted WebViews expose localStorage but deny
+    // access. Palette initialization must still leave the app bootable.
+  }
 }

@@ -39,7 +39,7 @@
     --input: 35 15% 84%;
     --ring: 8 55% 33%;
 
-    /* Runtime-overridden by theme.ts based on the user's accent hue. */
+    /* Palette-specific quiet border used around accent surfaces. */
     --accent-border: 30 25% 82%;
 
     --radius: 0.375rem;
