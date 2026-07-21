@@ -30,6 +30,11 @@ export interface NativePlatformCapabilities {
   assetCache?: boolean;
   aiLog?: boolean;
   oauth?: boolean;
+  imageCodecs?: {
+    rust: string[];
+    nativeSystem: string[];
+    runtimeChecked: boolean;
+  };
 }
 
 export interface PlatformCapabilities extends NativePlatformCapabilities {
@@ -110,6 +115,27 @@ export type ImageVariantResult =
     }
   | { ok: false; error: string };
 
+export interface PrepareImageOptions {
+  displayMaxLongEdge: number;
+  displayQuality: number;
+  thumbnailMaxLongEdge: number;
+  thumbnailQuality: number;
+}
+
+export type PrepareImageResult =
+  | {
+      ok: true;
+      source: { mime: string; sizeBytes: number; width: number; height: number };
+      display: Extract<ImageVariantResult, { ok: true }>;
+      thumbnail: Extract<ImageVariantResult, { ok: true }>;
+    }
+  | {
+      ok: false;
+      code: 'IMAGE_CODEC_UNAVAILABLE' | 'IMAGE_INVALID';
+      codec: 'heic' | 'heif' | 'avif' | null;
+      error: string;
+    };
+
 export type UrlMetadataResult =
   | { ok: true; title: string | null; ogImage: string | null; favicon: string | null }
   | { ok: false; error: string };
@@ -163,6 +189,10 @@ export interface TauriCommandContract {
   };
   material_read_bytes: { args: { filePath: string }; result: ReadBytesResult };
   material_inspect_image: { args: { filePath: string }; result: InspectImageResult };
+  material_prepare_image: {
+    args: { filePath: string } & PrepareImageOptions;
+    result: PrepareImageResult;
+  };
   material_create_image_variant: {
     args: { filePath: string; maxLongEdge: number; quality: number };
     result: ImageVariantResult;

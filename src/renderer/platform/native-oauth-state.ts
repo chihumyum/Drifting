@@ -1,11 +1,25 @@
 const STORAGE_KEY = 'drifting.native_oauth_state';
-const STATE_BYTES = 32;
-const STATE_HEX_LENGTH = STATE_BYTES * 2;
+const RANDOM_BYTES = 32;
+const STATE_HEX_LENGTH = RANDOM_BYTES * 2;
+const STATE_PATTERN = /^[0-9a-f]{64}$/;
+const VERIFIER_PATTERN = /^[A-Za-z0-9._~-]{43,128}$/;
 export const NATIVE_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+export const NATIVE_OAUTH_REDIRECT_URI = 'drifting://auth/callback';
 
-interface PendingNativeOAuthState {
-  value: string;
+interface PendingNativeOAuth {
+  nativeState: string;
+  codeVerifier: string;
+  redirectUri: string;
   expiresAt: number;
+}
+
+export interface NativeOAuthInitiation extends PendingNativeOAuth {
+  codeChallenge: string;
+}
+
+export interface NativeOAuthExchangeSecret {
+  codeVerifier: string;
+  redirectUri: string;
 }
 
 function stateStorage(): Storage {
@@ -16,11 +30,11 @@ function stateStorage(): Storage {
   }
 }
 
-function isStateValue(value: unknown): value is string {
-  return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+function isRedirectUri(value: unknown): value is string {
+  return value === NATIVE_OAUTH_REDIRECT_URI;
 }
 
-function readPendingState(storage: Storage): PendingNativeOAuthState | null {
+function readPendingState(storage: Storage): PendingNativeOAuth | null {
   let raw: string | null;
   try {
     raw = storage.getItem(STORAGE_KEY);
@@ -30,12 +44,24 @@ function readPendingState(storage: Storage): PendingNativeOAuthState | null {
   if (!raw) return null;
 
   try {
-    const parsed = JSON.parse(raw) as Partial<PendingNativeOAuthState>;
-    if (!isStateValue(parsed.value) || typeof parsed.expiresAt !== 'number') {
+    const parsed = JSON.parse(raw) as Partial<PendingNativeOAuth>;
+    if (
+      typeof parsed.nativeState !== 'string' ||
+      !STATE_PATTERN.test(parsed.nativeState) ||
+      typeof parsed.codeVerifier !== 'string' ||
+      !VERIFIER_PATTERN.test(parsed.codeVerifier) ||
+      !isRedirectUri(parsed.redirectUri) ||
+      typeof parsed.expiresAt !== 'number'
+    ) {
       storage.removeItem(STORAGE_KEY);
       return null;
     }
-    return { value: parsed.value, expiresAt: parsed.expiresAt };
+    return {
+      nativeState: parsed.nativeState,
+      codeVerifier: parsed.codeVerifier,
+      redirectUri: parsed.redirectUri,
+      expiresAt: parsed.expiresAt,
+    };
   } catch {
     try {
       storage.removeItem(STORAGE_KEY);
@@ -56,23 +82,45 @@ function constantTimeStateEqual(expected: string, candidate: string): boolean {
   return mismatch === 0;
 }
 
-/** Create and persist one 256-bit native OAuth correlation state for ten minutes. */
-export function createPendingNativeOAuthState(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(STATE_BYTES));
-  const value = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+function randomHex(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(RANDOM_BYTES));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+export async function createPkceCodeChallenge(verifier: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  return bytesToBase64Url(new Uint8Array(digest));
+}
+
+/** Create and persist one state/verifier pair before opening the system browser. */
+export async function createPendingNativeOAuth(): Promise<NativeOAuthInitiation> {
+  const nativeState = randomHex();
+  // Hex is part of PKCE's unreserved character set and provides 256 bits of entropy.
+  const codeVerifier = randomHex();
+  const codeChallenge = await createPkceCodeChallenge(codeVerifier);
+  const redirectUri = NATIVE_OAUTH_REDIRECT_URI;
+  const expiresAt = Date.now() + NATIVE_OAUTH_STATE_TTL_MS;
   const storage = stateStorage();
   storage.setItem(
     STORAGE_KEY,
-    JSON.stringify({ value, expiresAt: Date.now() + NATIVE_OAUTH_STATE_TTL_MS }),
+    JSON.stringify({ nativeState, codeVerifier, redirectUri, expiresAt }),
   );
-  return value;
+  return { nativeState, codeVerifier, codeChallenge, redirectUri, expiresAt };
 }
 
 /**
- * Constant-time match against the pending value. A successful state is removed
- * synchronously before the callback is exposed, making it single-use.
+ * Constant-time state match followed by synchronous single-use cleanup. The
+ * verifier is released only to the adapter that performs the HTTPS exchange.
  */
-export function consumePendingNativeOAuthState(candidate: string | null): boolean {
+export function consumePendingNativeOAuth(
+  candidate: string | null,
+): NativeOAuthExchangeSecret | null {
   const storage = (() => {
     try {
       return stateStorage();
@@ -80,28 +128,29 @@ export function consumePendingNativeOAuthState(candidate: string | null): boolea
       return null;
     }
   })();
-  if (!storage) return false;
+  if (!storage) return null;
 
   const pending = readPendingState(storage);
-  if (!pending) return false;
+  if (!pending) return null;
   if (pending.expiresAt <= Date.now()) {
     try {
       storage.removeItem(STORAGE_KEY);
     } catch {
       // Expired state remains unusable even if cleanup is unavailable.
     }
-    return false;
+    return null;
   }
 
   const supplied = candidate ?? '';
-  const matches = constantTimeStateEqual(pending.value, supplied) && isStateValue(supplied);
-  if (!matches) return false;
+  const matches =
+    constantTimeStateEqual(pending.nativeState, supplied) && STATE_PATTERN.test(supplied);
+  if (!matches) return null;
 
   try {
     storage.removeItem(STORAGE_KEY);
   } catch {
-    // If single-use cleanup cannot be guaranteed, do not release credentials.
-    return false;
+    // If single-use cleanup cannot be guaranteed, do not release the verifier.
+    return null;
   }
-  return true;
+  return { codeVerifier: pending.codeVerifier, redirectUri: pending.redirectUri };
 }

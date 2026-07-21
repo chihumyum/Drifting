@@ -2,10 +2,7 @@ import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { APP_CONFIG } from '../lib/config';
 import { hasPdfSignature, renderPdfThumbnail } from '../lib/pdf-thumbnail';
-import {
-  consumePendingNativeOAuthState,
-  createPendingNativeOAuthState,
-} from './native-oauth-state';
+import { consumePendingNativeOAuth, createPendingNativeOAuth } from './native-oauth-state';
 import type {
   ContractAvailability,
   ImageVariantResult,
@@ -13,12 +10,13 @@ import type {
   NativeBytes,
   NativePlatformCapabilities,
   PlatformCapabilities,
+  PrepareImageResult,
   TauriCommandArgs,
   TauriCommandName,
   TauriCommandResult,
   TauriEventContract,
 } from './contracts';
-import type { OAuthCallback, PlatformApi, Unsubscribe } from './types';
+import type { PlatformApi, Unsubscribe } from './types';
 
 const DEEP_LINK_EVENT = 'drifting:deep-link' as const;
 const LIFECYCLE_EVENT = 'drifting:lifecycle' as const;
@@ -134,6 +132,15 @@ function normalizeImageVariant(result: ImageVariantResult) {
   return { ...result, bytes: toArrayBuffer(result.bytes) };
 }
 
+function normalizePreparedImage(result: PrepareImageResult) {
+  if (!result.ok) return result;
+  return {
+    ...result,
+    display: { ...result.display, bytes: toArrayBuffer(result.display.bytes) },
+    thumbnail: { ...result.thumbnail, bytes: toArrayBuffer(result.thumbnail.bytes) },
+  };
+}
+
 async function readNativeFileBytes(filePath: string): Promise<ArrayBuffer | null> {
   const result = await invokeContract('material_read_bytes', { filePath });
   return result.ok ? toArrayBuffer(result.bytes) : null;
@@ -177,7 +184,9 @@ function normalizeCapabilities(
   };
 }
 
-interface ParsedOAuthCallback extends OAuthCallback {
+interface ParsedOAuthCallback {
+  code: string | null;
+  error: string | null;
   nativeState: string | null;
 }
 
@@ -191,14 +200,54 @@ function parseOAuthCallback(url: string): ParsedOAuthCallback | null {
     ) {
       return null;
     }
+    const codes = parsed.searchParams.getAll('code');
+    const errors = parsed.searchParams.getAll('error');
+    const states = parsed.searchParams.getAll('nativeState');
+    if (codes.length > 1 || errors.length > 1 || states.length !== 1) return null;
+    const code = codes[0] ?? null;
+    const error = errors[0] ?? null;
+    if ((code == null) === (error == null)) return null;
+    if (code != null && !/^[A-Za-z0-9_-]{43}$/.test(code)) return null;
+    if (error != null && !/^[a-z0-9_]{1,64}$/.test(error)) return null;
     return {
-      token: parsed.searchParams.get('token'),
-      error: parsed.searchParams.get('error'),
-      nativeState: parsed.searchParams.get('nativeState'),
+      code,
+      error,
+      nativeState: states[0],
     };
   } catch {
     return null;
   }
+}
+
+async function exchangeNativeOAuthCode(
+  code: string,
+  codeVerifier: string,
+  redirectUri: string,
+): Promise<string> {
+  const response = await fetch(
+    `${APP_CONFIG.API_BASE_URL.replace(/\/$/, '')}/api/auth/native-exchange`,
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      credentials: 'omit',
+      cache: 'no-store',
+      body: JSON.stringify({ code, codeVerifier, redirectUri }),
+    },
+  );
+  if (!response.ok) throw new Error(`Native OAuth exchange failed (${response.status})`);
+
+  const payload = (await response.json()) as { token?: unknown };
+  if (
+    typeof payload.token !== 'string' ||
+    payload.token.length === 0 ||
+    payload.token.length > 4096
+  ) {
+    throw new Error('Native OAuth exchange returned no session token');
+  }
+  return payload.token;
 }
 
 export const tauriPlatform: PlatformApi = {
@@ -266,25 +315,44 @@ export const tauriPlatform: PlatformApi = {
 
   auth: {
     async openOAuthBrowser(provider) {
+      const pending = await createPendingNativeOAuth();
       const url = new URL(
         `${APP_CONFIG.API_BASE_URL.replace(/\/$/, '')}/api/auth/oauth-redirect/${encodeURIComponent(provider)}`,
       );
-      url.searchParams.set('nativeState', createPendingNativeOAuthState());
+      url.searchParams.set('nativeState', pending.nativeState);
+      url.searchParams.set('codeChallenge', pending.codeChallenge);
+      url.searchParams.set('codeChallengeMethod', 'S256');
+      url.searchParams.set('redirectUri', pending.redirectUri);
       await invokeContract('opener_open_external', { url: url.toString() });
     },
     onOAuthCallback(callback) {
       const seen = new Set<string>();
       let active = true;
       let drainChain = Promise.resolve();
-      const dispatch = (urls: string[]) => {
+      const dispatch = async (urls: string[]) => {
         if (!active) return;
         for (const url of urls) {
           if (seen.has(url)) continue;
           seen.add(url);
           const result = parseOAuthCallback(url);
-          if (!result || (!result.token && !result.error)) continue;
-          if (!consumePendingNativeOAuthState(result.nativeState)) continue;
-          callback({ token: result.token, error: result.error });
+          if (!result) continue;
+          const pending = consumePendingNativeOAuth(result.nativeState);
+          if (!pending) continue;
+          if (result.error) {
+            callback({ token: null, error: result.error });
+            continue;
+          }
+          try {
+            const token = await exchangeNativeOAuthCode(
+              result.code!,
+              pending.codeVerifier,
+              pending.redirectUri,
+            );
+            if (active) callback({ token, error: null });
+          } catch (error) {
+            console.error(error);
+            if (active) callback({ token: null, error: 'exchange_failed' });
+          }
         }
       };
       const drainPending = () => {
@@ -345,6 +413,17 @@ export const tauriPlatform: PlatformApi = {
       return result.ok ? { ...result, bytes: toArrayBuffer(result.bytes) } : result;
     },
     inspectImage: (filePath) => invokeContract('material_inspect_image', { filePath }),
+    async prepareImage(filePath, options = {}) {
+      return normalizePreparedImage(
+        await invokeContract('material_prepare_image', {
+          filePath,
+          displayMaxLongEdge: options.displayMaxLongEdge ?? 1600,
+          displayQuality: options.displayQuality ?? 82,
+          thumbnailMaxLongEdge: options.thumbnailMaxLongEdge ?? 512,
+          thumbnailQuality: options.thumbnailQuality ?? 72,
+        }),
+      );
+    },
     async createImageVariant(filePath, maxLongEdge, quality) {
       return normalizeImageVariant(
         await invokeContract('material_create_image_variant', {

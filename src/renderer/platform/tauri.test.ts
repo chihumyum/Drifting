@@ -17,7 +17,12 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 import { tauriPlatform } from './tauri';
-import { createPendingNativeOAuthState, NATIVE_OAUTH_STATE_TTL_MS } from './native-oauth-state';
+import {
+  createPendingNativeOAuth,
+  createPkceCodeChallenge,
+  NATIVE_OAUTH_REDIRECT_URI,
+  NATIVE_OAUTH_STATE_TTL_MS,
+} from './native-oauth-state';
 
 type DeepLinkEventHandler = (event: { payload: { urls: string[] } }) => void;
 
@@ -25,15 +30,16 @@ describe('tauri OAuth callback delivery', () => {
   let eventHandler: DeepLinkEventHandler | undefined;
   let pendingUrls: string[];
   let storage: Storage;
+  let exchangeFetch: ReturnType<typeof vi.fn>;
 
-  const callbackUrl = (token: string, nativeState: string) => {
+  const callbackUrl = (code: string, nativeState: string) => {
     const url = new URL('drifting://auth/callback');
-    url.searchParams.set('token', token);
+    url.searchParams.set('code', code);
     url.searchParams.set('nativeState', nativeState);
     return url.toString();
   };
 
-  const newPendingState = () => createPendingNativeOAuthState();
+  const newPendingState = async () => (await createPendingNativeOAuth()).nativeState;
 
   beforeEach(() => {
     eventHandler = undefined;
@@ -57,6 +63,14 @@ describe('tauri OAuth callback delivery', () => {
       },
     };
     vi.stubGlobal('localStorage', storage);
+    exchangeFetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ token: 'exchanged-session-token' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    );
+    vi.stubGlobal('fetch', exchangeFetch);
 
     Object.defineProperty(globalThis, '__TAURI_INTERNALS__', {
       configurable: true,
@@ -83,7 +97,7 @@ describe('tauri OAuth callback delivery', () => {
     vi.unstubAllGlobals();
   });
 
-  it('opens OAuth with a persisted 256-bit state that expires after ten minutes', async () => {
+  it('opens OAuth with a persisted state and S256 PKCE verifier', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-21T00:00:00.000Z'));
 
@@ -96,34 +110,52 @@ describe('tauri OAuth callback delivery', () => {
     const openedUrl = new URL((openerCall?.[1] as { url: string }).url);
     const nativeState = openedUrl.searchParams.get('nativeState');
     expect(nativeState).toMatch(/^[0-9a-f]{64}$/);
+    expect(openedUrl.searchParams.get('codeChallengeMethod')).toBe('S256');
+    expect(openedUrl.searchParams.get('redirectUri')).toBe(NATIVE_OAUTH_REDIRECT_URI);
 
     const pending = JSON.parse(storage.getItem('drifting.native_oauth_state') ?? '{}') as {
-      value?: string;
+      nativeState?: string;
+      codeVerifier?: string;
+      redirectUri?: string;
       expiresAt?: number;
     };
-    expect(pending).toEqual({
-      value: nativeState,
-      expiresAt: Date.now() + NATIVE_OAUTH_STATE_TTL_MS,
-    });
+    expect(pending.nativeState).toBe(nativeState);
+    expect(pending.codeVerifier).toMatch(/^[0-9a-f]{64}$/);
+    expect(pending.redirectUri).toBe(NATIVE_OAUTH_REDIRECT_URI);
+    expect(pending.expiresAt).toBe(Date.now() + NATIVE_OAUTH_STATE_TTL_MS);
+    expect(openedUrl.searchParams.get('codeChallenge')).toBe(
+      await createPkceCodeChallenge(pending.codeVerifier!),
+    );
   });
 
-  it('drains URLs queued before the listener becomes ready', async () => {
-    const nativeState = newPendingState();
-    pendingUrls.push(callbackUrl('startup-token', nativeState));
+  it('drains a queued code and exchanges it over HTTPS before releasing a token', async () => {
+    const pending = await createPendingNativeOAuth();
+    const code = 'A'.repeat(43);
+    pendingUrls.push(callbackUrl(code, pending.nativeState));
     const callback = vi.fn();
 
     const stop = tauriPlatform.auth.onOAuthCallback(callback);
     await vi.waitFor(() => expect(callback).toHaveBeenCalledOnce());
 
-    expect(callback).toHaveBeenCalledWith({ token: 'startup-token', error: null });
+    expect(callback).toHaveBeenCalledWith({ token: 'exchanged-session-token', error: null });
+    expect(exchangeFetch).toHaveBeenCalledOnce();
+    const [exchangeUrl, exchangeInit] = exchangeFetch.mock.calls[0] as [string, RequestInit];
+    expect(exchangeUrl).toBe('http://localhost:3000/api/auth/native-exchange');
+    expect(JSON.parse(exchangeInit.body as string)).toEqual({
+      code,
+      codeVerifier: pending.codeVerifier,
+      redirectUri: pending.redirectUri,
+    });
+    expect(exchangeInit.credentials).toBe('omit');
     expect(pendingUrls).toEqual([]);
+    expect(storage.getItem('drifting.native_oauth_state')).toBeNull();
     stop();
     expect(tauriMocks.unlisten).toHaveBeenCalledOnce();
   });
 
   it('consumes a live URL from the native queue so it cannot replay on remount', async () => {
-    const nativeState = newPendingState();
-    const liveUrl = callbackUrl('live-token', nativeState);
+    const nativeState = await newPendingState();
+    const liveUrl = callbackUrl('B'.repeat(43), nativeState);
     const firstCallback = vi.fn();
     const stopFirst = tauriPlatform.auth.onOAuthCallback(firstCallback);
     await vi.waitFor(() => expect(eventHandler).toBeTypeOf('function'));
@@ -142,36 +174,40 @@ describe('tauri OAuth callback delivery', () => {
     await Promise.resolve();
 
     expect(secondCallback).not.toHaveBeenCalled();
+    expect(exchangeFetch).toHaveBeenCalledOnce();
     stopSecond();
   });
 
   it('rejects missing and mismatched state without consuming the valid pending state', async () => {
-    const nativeState = newPendingState();
+    const nativeState = await newPendingState();
     const callback = vi.fn();
     const stop = tauriPlatform.auth.onOAuthCallback(callback);
     await vi.waitFor(() => expect(eventHandler).toBeTypeOf('function'));
 
-    pendingUrls.push('drifting://auth/callback?token=missing-state');
-    eventHandler?.({ payload: { urls: ['drifting://auth/callback?token=missing-state'] } });
-    pendingUrls.push(callbackUrl('wrong-state', 'cd'.repeat(32)));
-    eventHandler?.({ payload: { urls: [callbackUrl('wrong-state', 'cd'.repeat(32))] } });
+    const missingState = `drifting://auth/callback?code=${'C'.repeat(43)}`;
+    const wrongState = callbackUrl('D'.repeat(43), 'cd'.repeat(32));
+    pendingUrls.push(missingState);
+    eventHandler?.({ payload: { urls: [missingState] } });
+    pendingUrls.push(wrongState);
+    eventHandler?.({ payload: { urls: [wrongState] } });
     await vi.waitFor(() => expect(pendingUrls).toEqual([]));
     expect(callback).not.toHaveBeenCalled();
+    expect(exchangeFetch).not.toHaveBeenCalled();
 
-    const validUrl = callbackUrl('valid-token', nativeState);
+    const validUrl = callbackUrl('E'.repeat(43), nativeState);
     pendingUrls.push(validUrl);
     eventHandler?.({ payload: { urls: [validUrl] } });
     await vi.waitFor(() => expect(callback).toHaveBeenCalledOnce());
-    expect(callback).toHaveBeenCalledWith({ token: 'valid-token', error: null });
+    expect(callback).toHaveBeenCalledWith({ token: 'exchanged-session-token', error: null });
     stop();
   });
 
   it('rejects an expired pending state', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-21T00:00:00.000Z'));
-    const nativeState = newPendingState();
+    const nativeState = await newPendingState();
     vi.advanceTimersByTime(NATIVE_OAUTH_STATE_TTL_MS + 1);
-    const expiredUrl = callbackUrl('expired-token', nativeState);
+    const expiredUrl = callbackUrl('F'.repeat(43), nativeState);
     pendingUrls.push(expiredUrl);
     const callback = vi.fn();
 
@@ -179,6 +215,28 @@ describe('tauri OAuth callback delivery', () => {
     await vi.runAllTimersAsync();
 
     expect(callback).not.toHaveBeenCalled();
+    expect(exchangeFetch).not.toHaveBeenCalled();
+    expect(storage.getItem('drifting.native_oauth_state')).toBeNull();
+    stop();
+  });
+
+  it('surfaces a failed HTTPS exchange without exposing the handoff code as a token', async () => {
+    const nativeState = await newPendingState();
+    exchangeFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }),
+    );
+    const callback = vi.fn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const stop = tauriPlatform.auth.onOAuthCallback(callback);
+    await vi.waitFor(() => expect(eventHandler).toBeTypeOf('function'));
+
+    const url = callbackUrl('G'.repeat(43), nativeState);
+    pendingUrls.push(url);
+    eventHandler?.({ payload: { urls: [url] } });
+    await vi.waitFor(() => expect(callback).toHaveBeenCalledOnce());
+
+    expect(callback).toHaveBeenCalledWith({ token: null, error: 'exchange_failed' });
+    expect(consoleError).toHaveBeenCalledOnce();
     expect(storage.getItem('drifting.native_oauth_state')).toBeNull();
     stop();
   });

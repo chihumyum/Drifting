@@ -107,7 +107,6 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const adoptSession = useAuthStore((state) => state.adoptSession);
-  const checkSession = useAuthStore((state) => state.checkSession);
 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState('');
@@ -142,13 +141,14 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
       }
       try {
         setSessionToken(token);
-        await checkSession();
+        await adoptSession();
+        navigate('/');
       } catch {
         setError(t('auth.errors.sessionFailed'));
       }
     });
     return cleanup;
-  }, [checkSession, t]);
+  }, [adoptSession, navigate, t]);
 
   const handleOAuth = async (provider: SupportedOAuthProvider) => {
     setError(null);

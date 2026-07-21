@@ -12,6 +12,8 @@ import type {
   OpenResult,
   PickFileResult,
   PlatformCapabilities,
+  PrepareImageOptions,
+  PrepareImageResult,
   ThumbnailResult,
   UrlMetadataResult,
 } from './contracts';
@@ -73,6 +75,20 @@ export interface MaterialPlatformApi {
     filePath: string,
   ): Promise<{ ok: true; bytes: ArrayBuffer } | { ok: false; error: string }>;
   inspectImage(filePath: string): Promise<InspectImageResult>;
+  prepareImage(
+    filePath: string,
+    options?: Partial<PrepareImageOptions>,
+  ): Promise<
+    | (Omit<Extract<PrepareImageResult, { ok: true }>, 'display' | 'thumbnail'> & {
+        display: Omit<Extract<ImageVariantResult, { ok: true }>, 'bytes'> & {
+          bytes: ArrayBuffer;
+        };
+        thumbnail: Omit<Extract<ImageVariantResult, { ok: true }>, 'bytes'> & {
+          bytes: ArrayBuffer;
+        };
+      })
+    | Extract<PrepareImageResult, { ok: false }>
+  >;
   createImageVariant(
     filePath: string,
     maxLongEdge: number,
