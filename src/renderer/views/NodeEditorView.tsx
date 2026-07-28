@@ -857,7 +857,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             />
             <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
               <div className="editor__spread">
-                <article className="page">
+                <article className="page page--entity">
                   {!isDriftNode && (
                     <div className="page__folio" aria-hidden="true">
                       <span className="page__folio-line">{t('nodeEditor.folio.chapter')}</span>

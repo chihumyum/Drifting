@@ -86,8 +86,8 @@
     --el-period: var(--story-2);
     --el-lex: var(--story-5);
 
-    /* The application UI has one bundled sans face. Prose alone can choose a
-       platform serif/sans stack, one installed family, or one imported font. */
+    /* The application UI has one bundled sans face. Authored content can choose
+       a platform serif/sans stack, one installed family, or one imported font. */
     --font-prose-system-serif:
       ui-serif, 'Songti SC', STSong, 'Source Han Serif SC', 'Noto Serif CJK SC', Georgia,
       'Times New Roman', serif;
@@ -98,10 +98,13 @@
       'Inter Tight Variable', 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system,
       system-ui, sans-serif;
     /* Compatibility aliases for existing component styles. Both resolve to
-       the one application UI face; prose is the only independent font axis. */
+       the one application UI face. */
     --font-sans: var(--font-ui);
     --font-mono: var(--font-ui);
     --editor-font-family: var(--font-prose-system-serif);
+    /* One semantic font axis for manuscript prose and authored entity content.
+       --editor-font-family remains the preference bridge updated at runtime. */
+    --font-content: var(--editor-font-family);
 
     --chrome-bg: hsl(var(--paper) / 0.55);
     --chrome-divider: none;
@@ -1144,7 +1147,7 @@ html[data-platform-target='mobile'] .app-mid {
   margin-bottom: 8px;
 }
 .page__title {
-  font-family: var(--font-sans);
+  font-family: var(--font-content);
   font-weight: 400;
   font-size: 42px;
   /* Rendered in an <input>; keep enough line height for CJK glyph bounds. */
@@ -1164,7 +1167,7 @@ html[data-platform-target='mobile'] .app-mid {
 }
 
 .page__sub {
-  font-family: var(--font-sans);
+  font-family: var(--font-content);
   font-style: italic;
   font-size: calc(var(--editor-font-size, 17.5px) - 2px);
   color: hsl(var(--ink-3));
@@ -1190,7 +1193,7 @@ html[data-platform-target='mobile'] .app-mid {
 }
 
 .page__body .ProseMirror {
-  font-family: var(--editor-font-family);
+  font-family: var(--font-content);
   font-size: var(--editor-font-size, 17.5px);
   line-height: var(--editor-line-height, 1.75);
   color: hsl(var(--ink-1));
@@ -1251,20 +1254,20 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   color: hsl(var(--ink-2));
 }
 .page__body .ProseMirror h1 {
-  font-family: var(--editor-font-family);
+  font-family: var(--font-content);
   font-weight: 500;
   font-size: 28px;
   letter-spacing: -0.01em;
   margin: 1.4em 0 0.5em;
 }
 .page__body .ProseMirror h2 {
-  font-family: var(--editor-font-family);
+  font-family: var(--font-content);
   font-weight: 500;
   font-size: 22px;
   margin: 1.3em 0 0.4em;
 }
 .page__body .ProseMirror h3 {
-  font-family: var(--editor-font-family);
+  font-family: var(--font-content);
   font-weight: 500;
   font-size: 18px;
   margin: 1.2em 0 0.3em;
@@ -3979,6 +3982,46 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 }
 .patch-card__body .ProseMirror p:last-child {
   margin-bottom: 0;
+}
+
+/* ============================================================
+   Authored-content typography
+
+   Entity pages contain both author-owned text and application chrome. Only
+   author-owned fields follow the selected content font: entity names,
+   summaries, long-form bodies, fact values, relation text, patches, quoted
+   manuscript snapshots, and their review diffs. Section labels, actions,
+   pickers, sidebars, dialogs, and node/list cards keep the unified UI face.
+   ============================================================ */
+.page--entity .elem-hero__name,
+.page--entity .elem-hero__alias,
+.page--entity .elem-hero__summary,
+.page--entity .elem-hero__fact-v,
+.page--entity .elem-body,
+.page--entity .kv-editor__value,
+.page--entity .field-review__body,
+.page--entity .refs-rel-card__title,
+.page--entity .refs-rel-card__tag,
+.page--entity .refs-rel-card__tag-input,
+.page--entity .refs-card__title,
+.page--entity .patch-card__title,
+.page--entity .patch-card__review-diff,
+.page--entity .patch-card__review-diff-title,
+.page--entity .patch-card__snapshot-body,
+.page--entity .patch-card__body .ProseMirror,
+.page--entity .mgr-row__title,
+.page--entity .mgr-row__summary:not(.mgr-row__summary--empty) {
+  font-family: var(--font-content);
+}
+
+.page--entity .field-diff__del {
+  font-family: inherit;
+}
+
+/* List chrome stays on the unified UI face even when its authored title and
+   summary use the selected content font. */
+.page--entity .mgr-row__title-mark {
+  font-family: var(--font-ui);
 }
 
 /* ============================================================

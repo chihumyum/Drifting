@@ -61,6 +61,12 @@
   color: hsl(var(--ink-1));
   background: hsl(var(--rule));
 }
+.set-head__back-glyph {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-style: italic;
+  line-height: 1;
+}
 .set-head__title {
   font-family: var(--font-sans);
   font-size: 17px;

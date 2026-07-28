@@ -150,7 +150,7 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
     [ensureDb, projectId],
   );
 
-  // Update the free-form relation category. Used by EdgeKindManager's rename
+  // Update the free-form relation category. Used by RelationKindMenu's rename
   // flow to retag all rows of a given kind at once.
   const updateRelationKind = useCallback(
     async (id: string, kind: string | null) => {

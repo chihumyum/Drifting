@@ -20,7 +20,6 @@ import { events } from '../lib/events';
 import { NodeCardPopover, type AnchorRect } from '../components/graph/NodeCardPopover';
 import { EntityCellContextMenu } from '../components/leftBars/EntityCellContextMenu';
 import { useEntityCellAction } from '../hooks/useEntityCellAction';
-import { EdgeKindManager } from '../components/graph/EdgeKindManager';
 import { TimelinePin } from '../components/timeline/TimelinePin';
 import { TimelineRailMenu } from '../components/graph/TimelineRailMenu';
 import { DriftPanel, useDriftPanelAnim } from '../components/DriftPanel';
@@ -29,6 +28,11 @@ import { SuperViewShell } from '../components/SuperViewShell';
 import { AnchoredPopover } from '../components/ui/AnchoredPopover';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
 import { FilterChip } from '../components/ui/FilterChip';
+import { HeaderChipStrip } from '../components/ui/HeaderChipStrip';
+import {
+  RelationKindMenu,
+  UNCATEGORIZED_RELATION_KIND as UNCATEGORIZED_KIND,
+} from '../components/ui/RelationKindMenu';
 import loglevel from 'loglevel';
 import '../../styles/graph-view.css';
 
@@ -117,9 +121,6 @@ type PositionedNode = BookNode & {
   x: number; // tile left, in canvas pixels (already includes padding)
   y: number; // track center, in canvas pixels
 };
-
-// Sentinel used in the filter map for edges with `kind === null`.
-const UNCATEGORIZED_KIND = '__uncategorized__';
 
 // Stable color from a kind string so two edges of the same kind always
 // share a color across renders. djb2-ish hash → palette index.
@@ -746,6 +747,26 @@ export function StoryGraphView() {
     if (hasNullDrift) d.push(UNCATEGORIZED_KIND);
     return { regularKinds: r, driftOnlyKinds: d };
   }, [nodeEdges, driftIds]);
+  const allKinds = useMemo(
+    () => [...regularKinds, ...driftOnlyKinds],
+    [driftOnlyKinds, regularKinds],
+  );
+  const kindCounts = useMemo<Record<string, number>>(() => {
+    const counts: Record<string, number> = {};
+    for (const edge of nodeEdges) {
+      const key = edge.kind ?? UNCATEGORIZED_KIND;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [nodeEdges]);
+  const toggleKindVisibility = useCallback((kind: string) => {
+    setHiddenKinds((previous) => {
+      const next = new Set(previous);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  }, []);
 
   const visibleEdges = useMemo(() => {
     const halfTile = (GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT) / 2;
@@ -1257,19 +1278,11 @@ export function StoryGraphView() {
     return (
       <FilterChip
         key={kind}
-        shape="strip"
         size="sm"
         activeStyle="solid"
         active={active}
         markerColor={color}
-        onClick={() =>
-          setHiddenKinds((prev) => {
-            const next = new Set(prev);
-            if (next.has(kind)) next.delete(kind);
-            else next.add(kind);
-            return next;
-          })
-        }
+        onClick={() => toggleKindVisibility(kind)}
         title={
           active
             ? t('storyGraph.edge.hideKind', { label })
@@ -1425,9 +1438,9 @@ export function StoryGraphView() {
           //     whitespace gap (the wrapping container's gap)
           //   · regular kind chips — toggleable; visible whenever the kind
           //     has at least one storyline-only edge
-          //   · edge-management button — rightmost; opens a dropdown where
-          //     users can rename / recolor / delete kinds, and where the
-          //     storyline-transit legend lives in locked read-only form
+          //   · "全部" button — rightmost; the one complete filter +
+          //     management menu for rename / recolor / delete, plus the
+          //     locked storyline-transit legend
           <>
             {nodeEdges.length === 0 && (
               <div className="graph-head__filters">
@@ -1436,47 +1449,46 @@ export function StoryGraphView() {
                 </div>
               </div>
             )}
-            {driftPanelOpen && driftOnlyKinds.length > 0 && (
-              <div className="graph-head__filters">
-                {driftOnlyKinds.map((kind) => renderKindChip(kind))}
-              </div>
-            )}
-            {regularKinds.length > 0 && (
-              <div className="graph-head__filters">
-                {regularKinds.map((kind) => renderKindChip(kind))}
-              </div>
-            )}
+            <HeaderChipStrip>
+              {driftPanelOpen && driftOnlyKinds.map((kind) => renderKindChip(kind))}
+              {regularKinds.map((kind) => renderKindChip(kind))}
+            </HeaderChipStrip>
             <div
-              className="graph-head__edge-mgr-wrap super-view-head__no-drag"
+              className="relation-kind-menu-anchor super-view-head__no-drag"
               data-tauri-drag-region="false"
             >
               <button
                 ref={edgeMgrBtnRef}
                 type="button"
-                className={`graph-head__edge-mgr-btn${edgeMgrOpen ? ' is-open' : ''}`}
+                className={`relation-kind-menu-trigger${edgeMgrOpen ? ' is-open' : ''}`}
                 onClick={() => setEdgeMgrOpen((v) => !v)}
-                title={t('storyGraph.edge.manageTitle')}
+                title={t('edgeKindManager.openAllTitle')}
                 aria-haspopup="menu"
                 aria-expanded={edgeMgrOpen}
               >
-                <span aria-hidden>≡</span>
-                <span>{t('storyGraph.edge.type')}</span>
+                <span>{t('edgeKindManager.all')}</span>
+                <span className="relation-kind-menu-trigger__count">{allKinds.length}</span>
               </button>
-              <EdgeKindManager
+              <RelationKindMenu
                 open={edgeMgrOpen}
                 onClose={() => setEdgeMgrOpen(false)}
                 anchorRef={edgeMgrBtnRef}
-                kinds={[...regularKinds, ...driftOnlyKinds]}
+                kinds={allKinds}
+                hiddenKinds={hiddenKinds}
+                onToggleKind={toggleKindVisibility}
+                kindCounts={kindCounts}
                 resolveKindColor={resolveKindColor}
                 setKindColor={edgeKindMeta.setColor}
                 clearKindColor={edgeKindMeta.clearColor}
                 reassignMeta={edgeKindMeta.reassign}
                 removeMeta={edgeKindMeta.remove}
-                nodeEdges={entityRelations.filter(
+                relations={entityRelations.filter(
                   (r) => r.fromKind === 'node' && r.toKind === 'node',
                 )}
-                updateEdgeKind={updateEdgeKind}
-                deleteEdge={deleteEdge}
+                updateRelationKind={updateEdgeKind}
+                deleteRelation={deleteEdge}
+                showStorylineTransit
+                dismissOnEscape={false}
               />
             </div>
           </>
@@ -2342,7 +2354,7 @@ export function StoryGraphView() {
                   }
                 }}
               />
-              {/* Custom suggestions list — mirrors `.edge-kind-mgr` rows
+              {/* Custom suggestions list — mirrors relation-kind menu rows
                   so picking a kind here looks like the management menu.
                   Only opens when the input has focus; filtered against
                   the current input. */}

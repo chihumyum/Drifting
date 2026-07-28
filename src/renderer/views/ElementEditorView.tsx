@@ -767,7 +767,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
           ref={setScrollEl}
         >
           <div className="editor__spread">
-            <article className="page">
+            <article className="page page--entity">
               <div className="page__folio" aria-hidden="true">
                 <span className="page__folio-line">{t('elementEditor.folio')}</span>
                 {currentCategory && (
@@ -912,7 +912,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                             borderRadius: 999,
                             background: 'hsl(var(--surface-elev, var(--surface)))',
                             border: '1px solid hsl(var(--rule))',
-                            fontFamily: 'var(--font-sans)',
+                            fontFamily: 'var(--font-content)',
                             fontStyle: 'italic',
                             fontSize: 12,
                             color: 'hsl(var(--ink-2))',
@@ -962,7 +962,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                           border: 0,
                           outline: 0,
                           padding: '2px 4px',
-                          fontFamily: 'var(--font-sans)',
+                          fontFamily: 'var(--font-content)',
                           fontStyle: 'italic',
                           fontSize: 12,
                           color: 'hsl(var(--ink-3))',

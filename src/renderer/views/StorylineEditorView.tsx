@@ -374,7 +374,10 @@ export function StorylineEditorView({
         />
         <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
           <div className="editor__spread">
-          <article className="page" style={{ ['--s-color' as string]: storylineColor } as React.CSSProperties}>
+          <article
+            className="page page--entity"
+            style={{ ['--s-color' as string]: storylineColor } as React.CSSProperties}
+          >
             <div className="page__folio" aria-hidden="true">
               <span className="page__folio-line">{t('storylineEditor.folio')}</span>
               <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>

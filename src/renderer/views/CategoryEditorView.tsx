@@ -348,7 +348,10 @@ export function CategoryEditorView({
         />
         <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
           <div className="editor__spread">
-          <article className="page" style={{ ['--c-color' as string]: categoryColor } as React.CSSProperties}>
+          <article
+            className="page page--entity"
+            style={{ ['--c-color' as string]: categoryColor } as React.CSSProperties}
+          >
             <div className="page__folio" aria-hidden="true">
               <span className="page__folio-line">{t('categoryEditor.folio')}</span>
               <span className="page__folio-line" style={{ color: categoryColor, fontWeight: 600 }}>

@@ -5,6 +5,7 @@ import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
+import { useEdgeKindMeta, UNCATEGORIZED_META_KEY } from '../../hooks/useEdgeKindMeta';
 import { actBoundDriftIds } from '../../domain/book-act';
 import type { BookElement, BookElementCategory } from '../../domain/book-element';
 import type { BookNode } from '../../domain/book-node';
@@ -25,6 +26,11 @@ import { SuperViewHeader } from '../../components/SuperViewHeader';
 import { SuperViewShell } from '../../components/SuperViewShell';
 import { Button } from '../../components/ui/Button';
 import { FilterChip } from '../../components/ui/FilterChip';
+import { HeaderChipStrip } from '../../components/ui/HeaderChipStrip';
+import {
+  RelationKindMenu,
+  UNCATEGORIZED_RELATION_KIND as UNCATEGORIZED_KIND,
+} from '../../components/ui/RelationKindMenu';
 import {
   ModalActions,
   ModalCard,
@@ -142,9 +148,6 @@ function edgePath(x1: number, y1: number, x2: number, y2: number): string {
 const EDGE_SELECTED_WIDTH = 2.4;
 const EDGE_DEFAULT_WIDTH = 1.6;
 const EDGE_HIT_WIDTH = 10;
-/** Sentinel used in the filter set to represent null-kind ("uncategorised"). */
-const UNCATEGORIZED_KIND = '__uncategorized__';
-
 // localStorage key for the viewport (pan + zoom) per project. Restoring on
 // re-entry preserves the user's mental map — they don't have to re-pan to
 // the iceberg every time they pop the view.
@@ -935,6 +938,7 @@ export function SuperElementView() {
   const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
   const { openEntity, projectId } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id) ?? '';
+  const edgeKindMeta = useEdgeKindMeta(projectId);
 
   const {
     bookElements,
@@ -1050,6 +1054,8 @@ export function SuperElementView() {
   } | null>(null);
   // Hidden kinds — UNCATEGORIZED_KIND sentinel covers null-kind refs.
   const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(() => new Set());
+  const [kindMenuOpen, setKindMenuOpen] = useState(false);
+  const kindMenuButtonRef = useRef<HTMLButtonElement>(null);
 
   // ESC stack — most-recent sub-overlay pops first. The popover registers
   // its own capture-phase ESC, so we don't include it in our priority list
@@ -1271,10 +1277,17 @@ export function SuperElementView() {
   );
 
   // ---- Reference / edge state ----
-  const { addRelation, removeRelation } = useEntityRelations({
+  const { addRelation, removeRelation, updateRelationKind } = useEntityRelations({
     projectId: projectId ?? '',
     userId,
   });
+  const resolveKindColor = useCallback(
+    (kind: string | null): string => {
+      const key = kind ?? UNCATEGORIZED_META_KEY;
+      return edgeKindMeta.meta[key]?.color ?? colorForKind(kind);
+    },
+    [edgeKindMeta.meta],
+  );
 
   // Filter & build edges sourced from the manual-reference store. v1 only
   // pulls non-inline refs (fromBlockId IS NULL — that's the store filter);
@@ -1342,7 +1355,7 @@ export function SuperElementView() {
         x2: toPt.x,
         y2: toPt.y,
         kind,
-        color: colorForKind(kind),
+        color: resolveKindColor(kind),
         fromName,
         toName,
       });
@@ -1356,22 +1369,46 @@ export function SuperElementView() {
     driftIds,
     bookElements,
     bookNodes,
+    resolveKindColor,
   ]);
+
+  const elementRelations = useMemo(
+    () =>
+      entityRelations.filter(
+        (relation) => relation.fromKind === 'element' || relation.toKind === 'element',
+      ),
+    [entityRelations],
+  );
 
   // Kinds actually present in element-touching refs — drives chip rendering.
   // Includes UNCATEGORIZED_KIND when at least one ref has a null kind.
   const availableKinds = useMemo<string[]>(() => {
     const named = new Set<string>();
     let hasNull = false;
-    entityRelations.forEach((r) => {
-      if (!(r.fromKind === 'element' || r.toKind === 'element')) return;
-      if (r.kind && r.kind.trim()) named.add(r.kind);
+    elementRelations.forEach((relation) => {
+      if (relation.kind && relation.kind.trim()) named.add(relation.kind);
       else hasNull = true;
     });
     const sorted = [...named].sort();
     if (hasNull) sorted.push(UNCATEGORIZED_KIND);
     return sorted;
-  }, [entityRelations]);
+  }, [elementRelations]);
+  const kindCounts = useMemo<Record<string, number>>(() => {
+    const counts: Record<string, number> = {};
+    for (const relation of elementRelations) {
+      const key = relation.kind ?? UNCATEGORIZED_KIND;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [elementRelations]);
+  const toggleKindVisibility = useCallback((kind: string) => {
+    setHiddenKinds((previous) => {
+      const next = new Set(previous);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  }, []);
 
   // ---- Pan + zoom ----
   // Lazy initial state seeds the world transform so the FIRST frame already
@@ -1973,7 +2010,7 @@ export function SuperElementView() {
           x2: r2.left + r2.width / 2,
           y2: r2.top + r2.height / 2,
           kind,
-          color: colorForKind(kind),
+          color: resolveKindColor(kind),
         });
       }
       setDriftEdgeGeom(out);
@@ -2004,7 +2041,7 @@ export function SuperElementView() {
       window.removeEventListener('scroll', onScrollOrResize, true);
       window.removeEventListener('super-element:pan-end', onScrollOrResize);
     };
-  }, [driftPanelOpen, entityRelations, hiddenKinds, driftIds]);
+  }, [driftPanelOpen, entityRelations, hiddenKinds, driftIds, resolveKindColor]);
 
   // ---- Viewport edge geometry (sticky mode only) ----
   // Recomputed whenever the committed pan/zoom changes (state-driven), i.e.
@@ -2113,7 +2150,7 @@ export function SuperElementView() {
         x2: toX,
         y2: toY,
         kind,
-        color: colorForKind(kind),
+        color: resolveKindColor(kind),
         fromName,
         toName,
       });
@@ -2133,7 +2170,32 @@ export function SuperElementView() {
     driftIds,
     bookElements,
     bookNodes,
+    resolveKindColor,
   ]);
+
+  const renderKindFilterChip = (kind: string) => {
+    const isUncategorized = kind === UNCATEGORIZED_KIND;
+    const label = isUncategorized ? t('storyGraph.edge.uncategorized') : kind;
+    const color = resolveKindColor(isUncategorized ? null : kind);
+    const visible = !hiddenKinds.has(kind);
+    return (
+      <FilterChip
+        key={kind}
+        size="sm"
+        active={visible}
+        markerColor={color}
+        dimmed={!visible}
+        onClick={() => toggleKindVisibility(kind)}
+        title={
+          visible
+            ? t('storyGraph.edge.hideKind', { label })
+            : t('storyGraph.edge.showKind', { label })
+        }
+      >
+        {label}
+      </FilterChip>
+    );
+  };
 
   return (
     <SuperViewShell className="super-element-overlay">
@@ -2169,39 +2231,47 @@ export function SuperElementView() {
 
             {/* Kind filter chips — one per distinct kind in the project
                 (plus an "未分类" chip when null-kind refs exist). Toggle
-                hides matching edges across both world + drift layers. */}
-            {availableKinds.map((k) => {
-              const isUncat = k === UNCATEGORIZED_KIND;
-              const label = isUncat ? t('storyGraph.edge.uncategorized') : k;
-              // Color: hash of kind for named; ink-4 for uncategorised (mirrors
-              // the default fallback used by edges with null kind).
-              const color = isUncat ? 'hsl(var(--ink-4))' : colorForKind(k);
-              const visible = !hiddenKinds.has(k);
-              return (
-                <FilterChip
-                  key={k}
-                  size="sm"
-                  active={visible}
-                  markerColor={color}
-                  dimmed={!visible}
-                  onClick={() =>
-                    setHiddenKinds((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(k)) next.delete(k);
-                      else next.add(k);
-                      return next;
-                    })
-                  }
-                  title={
-                    visible
-                      ? t('storyGraph.edge.hideKind', { label })
-                      : t('storyGraph.edge.showKind', { label })
-                  }
-                >
-                  {label}
-                </FilterChip>
-              );
-            })}
+                hides matching edges across both world + drift layers. The strip
+                reveals as many complete leading chips as the header can hold. */}
+            <HeaderChipStrip>
+              {availableKinds.map(renderKindFilterChip)}
+            </HeaderChipStrip>
+            <div
+              className="relation-kind-menu-anchor super-view-head__no-drag"
+              data-tauri-drag-region="false"
+            >
+              <button
+                ref={kindMenuButtonRef}
+                type="button"
+                className={`relation-kind-menu-trigger${kindMenuOpen ? ' is-open' : ''}`}
+                onClick={() => setKindMenuOpen((open) => !open)}
+                title={t('edgeKindManager.openAllTitle')}
+                aria-haspopup="menu"
+                aria-expanded={kindMenuOpen}
+              >
+                <span>{t('edgeKindManager.all')}</span>
+                <span className="relation-kind-menu-trigger__count">
+                  {availableKinds.length}
+                </span>
+              </button>
+              <RelationKindMenu
+                open={kindMenuOpen}
+                onClose={() => setKindMenuOpen(false)}
+                anchorRef={kindMenuButtonRef}
+                kinds={availableKinds}
+                hiddenKinds={hiddenKinds}
+                onToggleKind={toggleKindVisibility}
+                kindCounts={kindCounts}
+                resolveKindColor={resolveKindColor}
+                setKindColor={edgeKindMeta.setColor}
+                clearKindColor={edgeKindMeta.clearColor}
+                reassignMeta={edgeKindMeta.reassign}
+                removeMeta={edgeKindMeta.remove}
+                relations={elementRelations}
+                updateRelationKind={updateRelationKind}
+                deleteRelation={removeRelation}
+              />
+            </div>
 
             <button
               className={`super-element-toggle${edgesViewportOnly ? ' is-on' : ''}`}
@@ -2812,7 +2882,7 @@ export function SuperElementView() {
                                 width: 6,
                                 height: 6,
                                 borderRadius: 1.5,
-                                background: colorForKind(k),
+                                background: resolveKindColor(k),
                               }}
                             />
                             {k}

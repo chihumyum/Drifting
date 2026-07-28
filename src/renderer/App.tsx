@@ -940,11 +940,11 @@ function AppearanceEffects() {
   useEffect(() => {
     const runtime = getPlatformRuntime();
     if (!runtime.isMacDesktop || !runtime.desktopWindowControls) return;
-    // Standard macOS traffic-light buttons are 14px tall. Center them in the
-    // shared 42px renderer titlebar. The 6px application-shell inset shifts
-    // both the renderer surface and native buttons down together.
+    // The native overlay titlebar and the inset renderer island have different
+    // vertical origins. This measured 26px offset centers the 14px buttons on
+    // the shared 42px header pill instead of leaving them high by one inset.
     void platform.window
-      .setTrafficLightPosition({ x: 18, y: 20 })
+      .setTrafficLightPosition({ x: 18, y: 26 })
       .catch((error) => log.warn('[App] native window-control positioning is unavailable:', error));
   }, []);
 

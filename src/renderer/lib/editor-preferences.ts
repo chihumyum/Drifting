@@ -1,11 +1,11 @@
 /**
- * Editor preferences → CSS variables.
+ * Authored-content preferences → CSS variables.
  *
- * The editor view consumes CSS custom properties (--editor-font-family,
- * --editor-font-size, --editor-line-height, --editor-max-width,
- * --editor-indent). Centralising the application here means the editor
- * stylesheet doesn't need to know about the settings store, and the settings
- * page doesn't need to know about ProseMirror selectors.
+ * Manuscript prose and entity-editor content share --editor-font-family
+ * through the semantic --font-content alias. The remaining editor layout
+ * properties (--editor-font-size, --editor-line-height, --editor-max-width,
+ * --editor-indent) stay manuscript-only. Centralising the application here
+ * keeps styles independent from the settings store.
  */
 import type {
   EditorFontSource,

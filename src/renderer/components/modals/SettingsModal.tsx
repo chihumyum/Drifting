@@ -364,6 +364,17 @@ function SetHead({
       style={{ paddingLeft: runtime.isMacDesktop ? 86 : 18 }}
     >
       <div className="set-head__left">
+        <button
+          type="button"
+          className="set-head__back"
+          onClick={onClose}
+          title={t('navigation.back')}
+        >
+          <span className="set-head__back-glyph" aria-hidden>
+            ‹
+          </span>
+          <span>{t('navigation.back')}</span>
+        </button>
         <div className="set-head__title">
           {t('settings.title')}{' '}
           <em>
