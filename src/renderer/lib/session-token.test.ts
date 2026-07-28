@@ -28,9 +28,103 @@ function createMemoryStorage(): Storage {
 
 describe('session token durability', () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
     vi.resetModules();
     vi.resetAllMocks();
+    vi.stubEnv('VITE_DEV_SESSION_STORAGE', 'keychain');
     vi.stubGlobal('localStorage', createMemoryStorage());
+  });
+
+  it('uses local dev persistence only for loopback APIs', async () => {
+    const { shouldUseLocalDevSessionStorage } = await import('./session-token');
+
+    expect(
+      shouldUseLocalDevSessionStorage({
+        dev: true,
+        mode: 'development',
+        apiBaseUrl: 'http://localhost:3000',
+      }),
+    ).toBe(true);
+    expect(
+      shouldUseLocalDevSessionStorage({
+        dev: true,
+        mode: 'test',
+        apiBaseUrl: 'http://localhost:3000',
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseLocalDevSessionStorage({
+        dev: true,
+        mode: 'development',
+        apiBaseUrl: 'http://127.example.com:3000',
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseLocalDevSessionStorage({
+        dev: true,
+        mode: 'development',
+        apiBaseUrl: 'https://api.drifting.cc',
+        preference: 'local',
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseLocalDevSessionStorage({
+        dev: false,
+        mode: 'production',
+        apiBaseUrl: 'http://localhost:3000',
+        preference: 'local',
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseLocalDevSessionStorage({
+        dev: true,
+        mode: 'development',
+        apiBaseUrl: 'http://localhost:3000',
+        preference: 'keychain',
+      }),
+    ).toBe(false);
+  });
+
+  it('keeps loopback dev tokens out of the keychain', async () => {
+    vi.stubEnv('VITE_DEV_SESSION_STORAGE', 'local');
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:3000');
+    vi.resetModules();
+    localStorage.setItem('drifting.dev.session_token', 'existing-dev-token');
+
+    const {
+      clearSessionToken,
+      flushSessionTokenStorage,
+      getSessionToken,
+      hydrateSessionToken,
+      setSessionToken,
+    } = await import('./session-token');
+
+    await hydrateSessionToken();
+    expect(getSessionToken()).toBe('existing-dev-token');
+    expect(mocks.get).not.toHaveBeenCalled();
+
+    setSessionToken('next-dev-token');
+    await flushSessionTokenStorage();
+    expect(localStorage.getItem('drifting.dev.session_token')).toBe('next-dev-token');
+    expect(mocks.set).not.toHaveBeenCalled();
+
+    clearSessionToken();
+    await flushSessionTokenStorage();
+    expect(getSessionToken()).toBeNull();
+    expect(localStorage.getItem('drifting.dev.session_token')).toBeNull();
+    expect(mocks.delete).not.toHaveBeenCalled();
+  });
+
+  it('hydrates packaged and remote-connected sessions from secure storage', async () => {
+    mocks.get.mockResolvedValue('secure-token');
+    const { getSessionToken, hydrateSessionToken } = await import('./session-token');
+
+    await hydrateSessionToken();
+
+    expect(getSessionToken()).toBe('secure-token');
+    expect(mocks.get).toHaveBeenCalledOnce();
+    expect(mocks.get).toHaveBeenCalledWith('drifting.session_token');
+    expect(localStorage.getItem('drifting.dev.session_token')).toBeNull();
   });
 
   it('surfaces a secure-storage write failure and allows a later retry', async () => {

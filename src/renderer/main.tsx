@@ -54,14 +54,3 @@ async function bootstrap() {
 }
 
 void bootstrap();
-
-// Fallback for Tauri dev: if React Fast Refresh misses a boundary,
-// force a full-page reload so edits are still reflected immediately.
-if (import.meta.hot) {
-  import.meta.hot.on('vite:beforeUpdate', (payload) => {
-    const hasScriptUpdate = payload.updates.some((update) => update.type === 'js-update');
-    if (hasScriptUpdate) {
-      window.location.reload();
-    }
-  });
-}
