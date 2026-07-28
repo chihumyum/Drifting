@@ -55,12 +55,12 @@ export function CopilotBottomMenu() {
 
   // Panel position: anchored above the button, computed from its captured
   // rect. The panel is portaled to <body> with a high z-index so the editor
-  // floating island (modern skin) can't paint over it.
+  // floating island can't paint over it.
   const panelStyle: React.CSSProperties = {
     position: 'fixed',
     bottom: rect ? window.innerHeight - rect.top + 6 : 48,
     left: rect ? Math.max(8, rect.right - 248) : 8,
-    zIndex: 100000,
+    zIndex: 'var(--z-toast)',
     width: 248,
     background: 'var(--copilot-surface)',
     border: '1px solid var(--copilot-border)',
@@ -90,7 +90,7 @@ export function CopilotBottomMenu() {
           <>
             <div
               onMouseDown={() => setOpen(false)}
-              style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
+              style={{ position: 'fixed', inset: 0, zIndex: 'calc(var(--z-toast) - 1)' }}
             />
             <div onMouseDown={(e) => e.stopPropagation()} style={panelStyle}>
           <ToggleRow

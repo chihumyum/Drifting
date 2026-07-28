@@ -9,7 +9,6 @@
  * (binding is exclusive — one drift, one anchor). Picking one binds + closes.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
 import { events } from '../../lib/events';
@@ -19,6 +18,7 @@ import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
 import { useBookAct } from '../../usecase/useBookAct';
 import { isDrift } from '../../domain/book-node';
 import { actBoundDriftIds } from '../../domain/book-act';
+import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
 type Target = { kind: 'marker' | 'act'; id: string };
 
@@ -43,18 +43,6 @@ export function DriftBindModal() {
   }, []);
 
   const close = useCallback(() => setTarget(null), []);
-
-  useEffect(() => {
-    if (!target) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.preventDefault();
-      e.stopPropagation();
-      close();
-    };
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
-  }, [target, close]);
 
   // Drifts free to bind: drift kind, not already anchored by a marker or act.
   const options = useMemo(() => {
@@ -86,89 +74,20 @@ export function DriftBindModal() {
 
   if (!target) return null;
 
-  return createPortal(
-    <>
-      <div
-        onMouseDown={close}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'hsl(var(--ink-1) / 0.32)',
-          zIndex: 12000,
-        }}
-      />
-      <div
-        role="dialog"
-        aria-label={t('driftBind.title')}
-        style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 460,
-          maxWidth: 'calc(100vw - 48px)',
-          maxHeight: 'min(560px, calc(100vh - 96px))',
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'hsl(var(--surface))',
-          border: '1px solid hsl(var(--rule-strong))',
-          borderRadius: 8,
-          boxShadow: '0 18px 48px hsl(var(--ink-1) / 0.25)',
-          zIndex: 12001,
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'baseline',
-            justifyContent: 'space-between',
-            gap: 12,
-            padding: '14px 18px 10px',
-            borderBottom: '1px solid hsl(var(--rule))',
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                textTransform: 'uppercase',
-                letterSpacing: '0.14em',
-                color: 'hsl(var(--ink-3))',
-                marginBottom: 4,
-              }}
-            >
-              {t('driftBind.title')}
-            </div>
-            <div
-              style={{
-                fontFamily: 'var(--font-serif)',
-                fontSize: 15,
-                color: 'hsl(var(--ink-1))',
-              }}
-            >
-              {target.kind === 'marker' ? t('driftBind.markerSubtitle') : t('driftBind.actSubtitle')}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={close}
-            aria-label={t('common.close')}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              color: 'hsl(var(--ink-3))',
-              fontSize: 16,
-              cursor: 'pointer',
-              padding: 4,
-              flexShrink: 0,
-            }}
-          >
-            ×
-          </button>
-        </div>
-
+  return (
+    <ModalRoot onClose={close} ariaLabel={t('driftBind.title')}>
+      <ModalCard width={460} style={{ maxHeight: 'min(560px, calc(100vh - 96px))' }}>
+        <ModalHeader
+          kicker={t('driftBind.title')}
+          title={
+            target.kind === 'marker'
+              ? t('driftBind.markerSubtitle')
+              : t('driftBind.actSubtitle')
+          }
+          onClose={close}
+          closeLabel={t('common.close')}
+        />
+        <ModalBody className="drift-bind-modal__body">
         <div style={{ padding: '10px 14px 8px' }}>
           <input
             autoFocus
@@ -189,7 +108,7 @@ export function DriftBindModal() {
           />
         </div>
 
-        <div style={{ overflowY: 'auto', padding: '0 10px 12px', flex: 1 }}>
+        <div style={{ overflowY: 'auto', padding: '0 10px 12px', flex: 1, minHeight: 0 }}>
           {options.length === 0 ? (
             <div
               style={{
@@ -257,8 +176,8 @@ export function DriftBindModal() {
             ))
           )}
         </div>
-      </div>
-    </>,
-    document.body,
+        </ModalBody>
+      </ModalCard>
+    </ModalRoot>
   );
 }

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Node as PMNode } from '@tiptap/pm/model';
 import type { JSONContent } from '@tiptap/core';
 import type { LibraryItem } from '../../domain/library-item';
+import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
 interface Props {
   item: LibraryItem;
@@ -65,118 +66,19 @@ export function MaterialPreviewPopover({ item, onClose }: Props) {
     }
   }, [editor, item.bodyJson]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (
-        document.activeElement instanceof HTMLElement &&
-        document.activeElement !== document.body
-      ) {
-        document.activeElement.blur();
-      }
-      onClose();
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
-
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'hsl(var(--ink-1) / 0.30)',
-        backdropFilter: 'blur(2px)',
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 32,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: 'hsl(var(--paper))',
-          border: '1px solid hsl(var(--rule))',
-          borderRadius: 8,
-          width: 'min(720px, 92vw)',
-          maxHeight: '82vh',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 24px 48px -16px hsl(var(--ink-1) / 0.30)',
-        }}
-      >
-        <div
-          style={{
-            padding: '12px 16px',
-            borderBottom: '1px solid hsl(var(--rule))',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexShrink: 0,
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
-                textTransform: 'uppercase',
-                letterSpacing: '0.12em',
-                color: 'hsl(var(--ink-4))',
-              }}
-            >
-              {t('materialPreview.kicker')}
-            </div>
-            <div
-              style={{
-                fontFamily: 'var(--font-serif)',
-                fontSize: 16,
-                fontWeight: 500,
-                color: 'hsl(var(--ink-1))',
-                lineHeight: 1.25,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {item.title || 'Untitled'}
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            title={t('materialPreview.closeTitle')}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              padding: '4px 8px',
-              borderRadius: 3,
-              border: '1px solid hsl(var(--rule))',
-              background: 'transparent',
-              color: 'hsl(var(--ink-2))',
-              cursor: 'pointer',
-            }}
-          >
-            {t('common.close')}
-          </button>
-        </div>
-        <div
-          style={{
-            padding: '14px 20px 18px',
-            overflowY: 'auto',
-            flex: 1,
-            minHeight: 0,
-          }}
-        >
+    <ModalRoot onClose={onClose} ariaLabel={item.title || 'Untitled'}>
+      <ModalCard width="min(720px, 92vw)">
+        <ModalHeader
+          kicker={t('materialPreview.kicker')}
+          title={item.title || 'Untitled'}
+          onClose={onClose}
+          closeLabel={t('materialPreview.closeTitle')}
+        />
+        <ModalBody>
           <EditorContent editor={editor} />
-        </div>
-      </div>
-    </div>
+        </ModalBody>
+      </ModalCard>
+    </ModalRoot>
   );
 }

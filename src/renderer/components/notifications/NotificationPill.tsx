@@ -274,7 +274,7 @@ function NotificationCenter({
         border: '1px solid hsl(var(--rule))',
         borderRadius: 10,
         boxShadow: '0 12px 40px hsl(var(--ink-1) / 0.18)',
-        zIndex: 1300,
+        zIndex: 'var(--z-toast)',
         overflow: 'hidden',
       }}
     >
@@ -320,7 +320,7 @@ function NotificationCenter({
             textAlign: 'center',
             fontSize: 12,
             color: 'hsl(var(--ink-4))',
-            fontFamily: 'var(--font-serif)',
+            fontFamily: 'var(--font-sans)',
             fontStyle: 'italic',
           }}
         >

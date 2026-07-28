@@ -52,6 +52,14 @@ import {
   queueElementPortraitUpload,
   retryAssetUploadForOwner,
 } from '../services/durable-asset-upload.service';
+import { Button } from '../components/ui/Button';
+import {
+  ModalActions,
+  ModalBody,
+  ModalCard,
+  ModalHeader,
+  ModalRoot,
+} from '../components/ui/Modal';
 
 const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -684,7 +692,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
       >
         {currentCategory && (
           <EditorCrumb
-            dotColor={currentCategory.color || '#8A2A1E'}
+            dotColor={currentCategory.color || 'hsl(var(--accent))'}
             dropdown={
               bookElementCategories.length === 0 ? (
                 <div className="crumb-dropdown__empty">{t('elementEditor.empty.noCategories')}</div>
@@ -699,7 +707,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                     >
                       <span
                         className="crumb-dropdown__dot"
-                        style={{ background: cat.color || '#8A2A1E' }}
+                        style={{ background: cat.color || 'hsl(var(--accent))' }}
                       />
                       <span>{cat.name}</span>
                     </div>
@@ -904,7 +912,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                             borderRadius: 999,
                             background: 'hsl(var(--surface-elev, var(--surface)))',
                             border: '1px solid hsl(var(--rule))',
-                            fontFamily: 'var(--font-serif)',
+                            fontFamily: 'var(--font-sans)',
                             fontStyle: 'italic',
                             fontSize: 12,
                             color: 'hsl(var(--ink-2))',
@@ -954,7 +962,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                           border: 0,
                           outline: 0,
                           padding: '2px 4px',
-                          fontFamily: 'var(--font-serif)',
+                          fontFamily: 'var(--font-sans)',
                           fontStyle: 'italic',
                           fontSize: 12,
                           color: 'hsl(var(--ink-3))',
@@ -1084,42 +1092,23 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
 
       {/* Category picker (triggered from 3-dot menu) */}
       {editingCategory && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(28, 24, 19, 0.32)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-          onClick={() => setEditingCategory(false)}
+        <ModalRoot
+          onClose={() => setEditingCategory(false)}
+          ariaLabel={t('elementEditor.category.change')}
         >
-          <div
-            style={{
-              background: 'hsl(var(--page))',
-              border: '1px solid hsl(var(--rule-strong))',
-              borderRadius: 8,
-              padding: 24,
-              minWidth: 360,
-              boxShadow: '0 18px 50px rgba(28, 24, 19, 0.22)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>
-              {t('elementEditor.category.change')}
-            </h3>
+          <ModalCard width={360}>
+            <ModalHeader
+              title={t('elementEditor.category.change')}
+              onClose={() => setEditingCategory(false)}
+              closeLabel={t('common.close')}
+            />
+            <ModalBody>
             <select
               value={curElement.categoryId ?? ''}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === '__new__') {
+                  setEditingCategory(false);
                   setShowNewCategoryModal(true);
                   return;
                 }
@@ -1145,45 +1134,27 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
               ))}
               <option value="__new__">{t('elementEditor.category.newOption')}</option>
             </select>
-          </div>
-        </div>
+            </ModalBody>
+          </ModalCard>
+        </ModalRoot>
       )}
 
       {showGroupModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(28, 24, 19, 0.32)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-          onClick={() => setShowGroupModal(false)}
+        <ModalRoot
+          onClose={() => setShowGroupModal(false)}
+          ariaLabel={t('elementEditor.group.title', {
+            category: currentCategory?.name ?? t('storyGraph.edge.uncategorized'),
+          })}
         >
-          <div
-            style={{
-              background: 'hsl(var(--page))',
-              border: '1px solid hsl(var(--rule-strong))',
-              borderRadius: 8,
-              padding: 20,
-              minWidth: 360,
-              maxWidth: 420,
-              boxShadow: '0 18px 50px rgba(28, 24, 19, 0.22)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>
-              {t('elementEditor.group.title', {
+          <ModalCard width={420}>
+            <ModalHeader
+              title={t('elementEditor.group.title', {
                 category: currentCategory?.name ?? t('storyGraph.edge.uncategorized'),
               })}
-            </h3>
+              onClose={() => setShowGroupModal(false)}
+              closeLabel={t('common.close')}
+            />
+            <ModalBody>
             <input
               type="text"
               value={groupNameInput}
@@ -1286,54 +1257,36 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                 </button>
               )}
             </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => setShowGroupModal(false)}
-                className="mgr-toolbar__btn"
-              >
+            </ModalBody>
+            <ModalActions>
+              <Button variant="default" onClick={() => setShowGroupModal(false)}>
                 {t('common.cancel')}
-              </button>
-            </div>
-          </div>
-        </div>
+              </Button>
+            </ModalActions>
+          </ModalCard>
+        </ModalRoot>
       )}
 
       {showNewCategoryModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(28, 24, 19, 0.32)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1001,
-          }}
-          onClick={() => {
+        <ModalRoot
+          onClose={() => {
             setShowNewCategoryModal(false);
             setNewCategoryName('');
             setEditingCategory(false);
           }}
+          ariaLabel={t('elementEditor.category.newTitle')}
         >
-          <div
-            style={{
-              background: 'hsl(var(--page))',
-              border: '1px solid hsl(var(--rule-strong))',
-              borderRadius: 8,
-              padding: 24,
-              minWidth: 360,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>
-              {t('elementEditor.category.newTitle')}
-            </h3>
+          <ModalCard width={360}>
+            <ModalHeader
+              title={t('elementEditor.category.newTitle')}
+              onClose={() => {
+                setShowNewCategoryModal(false);
+                setNewCategoryName('');
+                setEditingCategory(false);
+              }}
+              closeLabel={t('common.close')}
+            />
+            <ModalBody>
             <input
               type="text"
               value={newCategoryName}
@@ -1355,32 +1308,30 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                 borderRadius: 4,
                 padding: '8px 12px',
                 outline: 'none',
-                marginBottom: 16,
                 background: 'hsl(var(--surface))',
               }}
             />
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button
-                type="button"
+            </ModalBody>
+            <ModalActions>
+              <Button
+                variant="default"
                 onClick={() => {
                   setShowNewCategoryModal(false);
                   setNewCategoryName('');
                   setEditingCategory(false);
                 }}
-                className="mgr-toolbar__btn"
               >
                 {t('common.cancel')}
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
                 onClick={handleCreateNewCategory}
-                className="mgr-toolbar__btn mgr-toolbar__btn--accent"
               >
                 {t('elementEditor.category.create')}
-              </button>
-            </div>
-          </div>
-        </div>
+              </Button>
+            </ModalActions>
+          </ModalCard>
+        </ModalRoot>
       )}
 
       {portraitPreviewOpen && portraitPreviewMaterial && (

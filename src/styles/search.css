@@ -1,56 +1,16 @@
 /* ============================================================================
    Search components — Global search modal + Editor find panel.
 
-   Skinning model
-   --------------
-   The four supported variants come from two orthogonal switches on <html>:
-       data-skin = classic | modern         (default classic)
-       .dark     = dark mode toggle         (off  = light)
-
-       :root                            → classic-light  (default)
-       html.dark                        → classic-dark
-       html[data-skin='modern']         → modern-light
-       html.dark[data-skin='modern']    → modern-dark
-
-   Backgrounds / text / borders ride the app-wide --surface / --ink-* /
-   --rule tokens, so they swap automatically. Highlight tints, the count
-   badge, and the field-tag pill have no good app-wide analogue so we
-   define local --search-* vars per variant.
+   Backgrounds, text, and borders ride the app-wide light/dark tokens.
+   Highlight tints, the count badge, and field-tag pill have no direct
+   analogue, so they use local semantic variables.
    ============================================================================ */
 
 @layer base {
   :root {
-    /* Overlay must be a *dark* tint regardless of skin — using --ink-1 with
+    /* Overlay must be a dark tint regardless of theme — using --ink-1 with
        low alpha breaks in dark mode (ink-1 is near-white there, so the
        overlay reads as a brightening film instead of a scrim). */
-    --search-overlay-bg:           hsl(30 8% 10% / 0.32);
-    --search-group-bg:             hsl(35 22% 91%);
-    --search-row-active-bg:        hsl(35 30% 87%);
-    --search-mark-bg:              hsl(28 80% 55% / 0.30);
-    --search-find-match-bg:        hsl(42 60% 58% / 0.35);
-    --search-find-match-cur-bg:    hsl(28 85% 52% / 0.55);
-    --search-find-match-cur-ring:  hsl(20 70% 38% / 0.70);
-    --search-count-bg:             hsl(35 30% 55%);
-    --search-count-fg:             hsl(40 30% 96%);
-    --search-tag-bg:               hsl(35 30% 86%);
-  }
-
-  /* Classic dark — warm ink mode */
-  html.dark {
-    --search-overlay-bg:           hsl(30 10% 4% / 0.62);
-    --search-group-bg:             hsl(36 8% 18%);
-    --search-row-active-bg:        hsl(36 12% 24%);
-    --search-mark-bg:              hsl(40 75% 60% / 0.30);
-    --search-find-match-bg:        hsl(40 70% 60% / 0.28);
-    --search-find-match-cur-bg:    hsl(35 80% 55% / 0.50);
-    --search-find-match-cur-ring:  hsl(35 75% 50% / 0.70);
-    --search-count-bg:             hsl(35 25% 55%);
-    --search-count-fg:             hsl(36 10% 14%);
-    --search-tag-bg:               hsl(36 8% 22%);
-  }
-
-  /* Modern light — cool neutral with muted blue accent */
-  html[data-skin='modern'] {
     --search-overlay-bg:           hsl(220 10% 14% / 0.32);
     --search-group-bg:             hsl(30 6% 96%);
     --search-row-active-bg:        hsl(218 30% 94%);
@@ -63,8 +23,8 @@
     --search-tag-bg:               hsl(30 6% 90%);
   }
 
-  /* Modern dark — cold blue-gray */
-  html.dark[data-skin='modern'] {
+  /* Dark search palette */
+  html.dark {
     --search-overlay-bg:           hsl(220 12% 4% / 0.65);
     --search-group-bg:             hsl(220 6% 18%);
     --search-row-active-bg:        hsl(218 18% 24%);
@@ -91,7 +51,7 @@
   align-items: flex-start;
   justify-content: center;
   padding-top: 80px;
-  z-index: 10000;
+  z-index: var(--z-modal);
 }
 
 .gsearch-modal {
@@ -186,7 +146,7 @@
 }
 
 .gsearch-group-icon {
-  font-family: var(--font-serif), Georgia, serif;
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 14px;
   color: hsl(var(--ink-3));

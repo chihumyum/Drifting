@@ -19,6 +19,7 @@ import { TodoPanel } from './TodoPanel';
 import { CompanionPanel } from '../agent/CompanionPanel';
 import { ShadowPanel } from './ShadowPanel';
 import type { EntityKind } from '../../lib/extensions/entity-link';
+import { EmptyState } from '../ui/EmptyState';
 
 interface ResolvedTarget {
   kind: 'chapter' | 'storyline' | 'element' | 'category' | 'drift' | 'all-chapters' | 'none';
@@ -1065,18 +1066,18 @@ function ChapterStats({
               <MetaK>{t('rightSidebar.stats.storyline')}</MetaK>
               <MetaV>
                 <Dot color={storyline.color} />
-                <SerifSpan>{storyline.name}</SerifSpan>
+                <DetailValue>{storyline.name}</DetailValue>
               </MetaV>
             </>
           ) : (
             <>
               <MetaK>{t('rightSidebar.stats.type')}</MetaK>
               <MetaV>
-                <SerifSpan>
+                <DetailValue>
                   {target.kind === 'drift'
                     ? t('rightSidebar.stats.driftFreeFragment')
                     : t('rightSidebar.stats.chapter')}
-                </SerifSpan>
+                </DetailValue>
               </MetaV>
             </>
           )}
@@ -1088,7 +1089,7 @@ function ChapterStats({
           )}
           <MetaK>{t('rightSidebar.stats.lastModified')}</MetaK>
           <MetaV>
-            <SerifSpan>{formatDateTime(node.updatedAt)}</SerifSpan>
+            <DetailValue>{formatDateTime(node.updatedAt)}</DetailValue>
           </MetaV>
         </MetaGrid>
       </StatsSection>
@@ -1206,7 +1207,7 @@ function StatsLinkRow({
       <Dot color={color} />
       <span
         style={{
-          fontFamily: 'var(--font-serif)',
+          fontFamily: 'var(--font-sans)',
           fontSize: 13,
           color: 'hsl(var(--ink-1))',
           overflow: 'hidden',
@@ -1286,13 +1287,13 @@ function StorylineStats({
           <MetaK>{t('rightSidebar.stats.storyline')}</MetaK>
           <MetaV>
             <Dot color={storyline.color} />
-            <SerifSpan>{storyline.name}</SerifSpan>
+            <DetailValue>{storyline.name}</DetailValue>
           </MetaV>
           <MetaK>{t('rightSidebar.stats.chapterCount')}</MetaK>
           <MetaV>{t('rightSidebar.stats.chaptersValue', { count: total })}</MetaV>
           <MetaK>{t('rightSidebar.stats.recent')}</MetaK>
           <MetaV>
-            <SerifSpan>{formatDateTime(storyline.updatedAt)}</SerifSpan>
+            <DetailValue>{formatDateTime(storyline.updatedAt)}</DetailValue>
           </MetaV>
         </MetaGrid>
       </StatsSection>
@@ -1418,15 +1419,15 @@ function ElementStats({
           <MetaK>{t('rightSidebar.stats.category')}</MetaK>
           <MetaV>
             {category && <Dot color={category.color} />}
-            <SerifSpan>{category?.name ?? '—'}</SerifSpan>
+            <DetailValue>{category?.name ?? '—'}</DetailValue>
           </MetaV>
           <MetaK>{t('rightSidebar.stats.name')}</MetaK>
           <MetaV>
-            <SerifSpan>{element.name}</SerifSpan>
+            <DetailValue>{element.name}</DetailValue>
           </MetaV>
           <MetaK>{t('rightSidebar.stats.updated')}</MetaK>
           <MetaV>
-            <SerifSpan>{formatDateTime(element.updatedAt)}</SerifSpan>
+            <DetailValue>{formatDateTime(element.updatedAt)}</DetailValue>
           </MetaV>
         </MetaGrid>
       </StatsSection>
@@ -1495,7 +1496,7 @@ function CategoryStats({
           <MetaK>{t('rightSidebar.stats.category')}</MetaK>
           <MetaV>
             <Dot color={category.color} />
-            <SerifSpan>{category.name}</SerifSpan>
+            <DetailValue>{category.name}</DetailValue>
           </MetaV>
           <MetaK>{t('rightSidebar.stats.elementCount')}</MetaK>
           <MetaV>{t('rightSidebar.stats.elementsValue', { count: total })}</MetaV>
@@ -1587,7 +1588,7 @@ function CategoryStats({
                   <Dot color="hsl(var(--ink-4))" />
                   <span
                     style={{
-                      fontFamily: 'var(--font-serif)',
+                      fontFamily: 'var(--font-sans)',
                       fontSize: 13,
                       color: 'hsl(var(--ink-3))',
                       flex: 1,
@@ -1736,7 +1737,7 @@ function StatsRow({
       </span>
       <span
         style={{
-          fontFamily: 'var(--font-serif)',
+          fontFamily: 'var(--font-sans)',
           fontSize: 13,
           color: placeholder ? 'hsl(var(--ink-4))' : 'hsl(var(--ink-1))',
           fontStyle: placeholder ? 'italic' : 'normal',
@@ -1806,9 +1807,9 @@ function MetaV({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SerifSpan({ children }: { children: React.ReactNode }) {
+function DetailValue({ children }: { children: React.ReactNode }) {
   return (
-    <span style={{ fontFamily: 'var(--font-serif)', fontSize: 13, fontStyle: 'italic' }}>
+    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontStyle: 'italic' }}>
       {children}
     </span>
   );
@@ -1832,34 +1833,17 @@ function Notes({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        fontFamily: 'var(--font-serif)',
+        fontFamily: 'var(--font-sans)',
         fontStyle: 'italic',
         fontSize: 13,
         lineHeight: 1.55,
         color: 'hsl(var(--ink-2))',
         padding: '8px 10px',
         background: 'hsl(var(--ink-1) / 0.03)',
-        borderLeft: '2px solid hsl(var(--ink-5))',
+        borderRadius: 'var(--radius-xs)',
       }}
     >
       {children}
-    </div>
-  );
-}
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        padding: '40px 20px',
-        textAlign: 'center',
-        fontFamily: 'var(--font-serif)',
-        fontStyle: 'italic',
-        fontSize: 12,
-        color: 'hsl(var(--ink-3))',
-      }}
-    >
-      {message}
     </div>
   );
 }

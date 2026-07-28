@@ -21,6 +21,7 @@ import { useDriftGroup } from '../../usecase/useDriftGroup';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
 import { SortMenu, sortMenuGroup, type SortMenuOption } from './SortMenu';
+import { Switch } from '../ui/Switch';
 
 const log = loglevel.getLogger('LeftSidebarSubHeader');
 log.setLevel(loglevel.levels.ERROR);
@@ -592,39 +593,11 @@ function ViewModeSwitch({
   titleOff: string;
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
+    <Switch
+      size="sm"
+      checked={on}
+      onCheckedChange={onToggle}
       title={on ? titleOn : titleOff}
-      onClick={onToggle}
-      style={{
-        position: 'relative',
-        width: 22,
-        height: 12,
-        flexShrink: 0,
-        padding: 0,
-        border: 'none',
-        borderRadius: 6,
-        cursor: 'pointer',
-        background: on ? 'hsl(var(--accent))' : 'hsl(var(--rule-strong))',
-        transition: 'background 0.15s',
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          position: 'absolute',
-          top: 2,
-          left: on ? 12 : 2,
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background: on ? 'hsl(var(--paper))' : 'hsl(var(--page))',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.18)',
-          transition: 'left 0.18s cubic-bezier(0.4,0,0.2,1)',
-        }}
-      />
-    </button>
+    />
   );
 }

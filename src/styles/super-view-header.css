@@ -1,19 +1,16 @@
 /* ============================================================
    Shared top header for fullscreen "super views" (StoryGraphView,
-   SuperElementView, SuperMemoMaterialView). 44px bar with title +
+   SuperElementView, SuperMemoMaterialView). Shared native-titlebar-height
+   bar with title +
    back + left/right slots; left padding clears the macOS native
    controls when present. Tauri's drag-region script automatically
    excludes interactive descendants.
    ============================================================ */
 
-/* Base positioning for the two super-view overlays that previously set
-   these properties inline. .graph-overlay declares the same block in
-   graph-view.css (legacy) — kept there to avoid touching unrelated rules
-   in that file. The bottom inset comes from --super-view-bottom-inset
-   (defined in index.css) so it grows in modern to also clear the
-   floating-island gap above the BottomStatusBar. */
-.super-element-overlay,
-.super-mm-overlay {
+/* One viewport shell for StoryGraph, SuperElement, and SuperMemoMaterial.
+   Features may attach their own class for local tokens, but fixed geometry
+   and shell behavior stay here so the three surfaces cannot drift apart. */
+.super-view-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -23,6 +20,7 @@
   background: hsl(var(--paper));
   display: flex;
   flex-direction: column;
+  font-family: var(--font-sans);
 }
 .super-mm-overlay {
   min-height: 0;
@@ -30,8 +28,8 @@
 
 /* Shared body wrapper for SuperElementView (added on the canvas viewport)
    and SuperMemoMaterialView (wraps the split row + BottomDrawer). Lets
-   modern skin turn the body into its own floating island distinct from
-   the header. StoryGraphView already has an equivalent .graph-body
+   turn the body into its own floating island distinct from the header.
+   StoryGraphView already has an equivalent .graph-body
    wrapper and is targeted alongside this class below. */
 .super-view-body {
   flex: 1;
@@ -40,7 +38,7 @@
   flex-direction: column;
 }
 
-/* ─── Modern skin: three-island layout ─────────────────────────────
+/* ─── Three-island layout ──────────────────────────────────────────
    Splits each super view into a header island + a body island,
    matching the rest of the app's floating-card aesthetic. The
    overlay container extends edge-to-edge above the BottomStatusBar
@@ -52,13 +50,11 @@
    The 6px island insets are created via padding (not position) so
    the opaque bg can fully cover the gap area. Bottom stops at the
    BSB's top edge: BSB height (20) + app-root's bottom padding (6)
-   = 26 in modern. Drift panel / popovers keep using
+   = 26px. Drift panel / popovers keep using
    --super-view-bottom-inset (= 32) since they anchor against the
    body island's bottom edge (overlay bottom + padding-bottom).
    ──────────────────────────────────────────────────────────────── */
-html[data-skin='modern'] .graph-overlay,
-html[data-skin='modern'] .super-element-overlay,
-html[data-skin='modern'] .super-mm-overlay {
+.super-view-overlay {
   top: 0;
   left: 0;
   right: 0;
@@ -68,39 +64,32 @@ html[data-skin='modern'] .super-mm-overlay {
   gap: 6px;
 }
 
-/* Head + body islands. Borrow .app-island's rounded + shadow vocabulary
-   so the two surfaces read as the same kind of card the topbar / sidebars
-   are in modern. position:fixed children of the overlay (drift panel,
-   popovers) escape these clips naturally and keep working unchanged. */
-html[data-skin='modern'] .super-view-head,
-html[data-skin='modern'] .graph-body,
-html[data-skin='modern'] .super-view-body {
+/* Head + body islands borrow the shared rounded + shadow vocabulary.
+   Fixed-position descendants (drift panel, popovers) escape these clips
+   naturally and keep working unchanged. */
+.super-view-head,
+.super-view-body {
   border-radius: 8px;
   box-shadow:
     0 1px 2px hsl(var(--ink-1) / 0.06),
     0 1px 4px hsl(var(--ink-1) / 0.04);
 }
-html[data-skin='modern'] .graph-body,
-html[data-skin='modern'] .super-view-body {
+.super-view-body {
   overflow: hidden;
 }
 
-/* In classic the header sits on paper-deep (distinct from the page's
-   paper); in modern paper-deep is the wallpaper itself, so the header
-   would visually merge with the gap unless we promote it to the lighter
-   chrome surface. Same reason the body island needs an explicit bg —
-   the overlay is transparent in modern, so child elements that don't
-   paint a full bg (e.g. MaterialMain) would otherwise show wallpaper. */
-html[data-skin='modern'] .super-view-head {
+/* Promote the header to the lighter chrome surface so it stays distinct
+   from the wallpaper gap. The body also paints an explicit surface so
+   partially transparent feature content never leaks the wallpaper. */
+.super-view-head {
   background: var(--chrome-bg);
   /* Header popovers (e.g. StoryGraphView's edge menu) must escape the
      header island and stack over the body island below. */
   overflow: visible;
-  /* Gap below the header replaces the divider that classic uses. */
+  /* The shell gap replaces a header divider. */
   border-bottom: none;
 }
-html[data-skin='modern'] .graph-body,
-html[data-skin='modern'] .super-view-body {
+.super-view-body {
   background: hsl(var(--paper));
 }
 
@@ -119,13 +108,19 @@ html[data-skin='modern'] .super-view-body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 44px;
-  padding: 0 18px 0 0;
-  border-bottom: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper-deep));
+  height: var(--window-titlebar-height);
+  padding: 0 18px;
+  border-bottom: none;
+  background: var(--chrome-bg);
   flex-shrink: 0;
   gap: 16px;
   font-family: var(--font-sans);
+}
+
+.super-view-head[data-macos-window-controls] {
+  /* The overlay starts 6px in from the viewport. Subtract that surface
+     inset so every super-view title keeps the shared visible origin. */
+  padding-left: calc(var(--window-header-leading-inset) - var(--window-surface-inline-inset));
 }
 
 .super-view-head__left {
@@ -165,14 +160,14 @@ html[data-skin='modern'] .super-view-body {
   background: hsl(var(--rule));
 }
 .super-view-head__back-glyph {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 16px;
   line-height: 1;
 }
 
 .super-view-head__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 17px;
   font-weight: 500;
   color: hsl(var(--ink-1));
@@ -189,9 +184,7 @@ html[data-skin='modern'] .super-view-body {
   margin-left: 10px;
 }
 
-html[data-platform-target='mobile'] .graph-overlay,
-html[data-platform-target='mobile'] .super-element-overlay,
-html[data-platform-target='mobile'] .super-mm-overlay {
+html[data-platform-target='mobile'] .super-view-overlay {
   top: var(--safe-area-top);
   right: var(--safe-area-right);
   bottom: max(var(--super-view-bottom-inset), var(--safe-area-bottom));

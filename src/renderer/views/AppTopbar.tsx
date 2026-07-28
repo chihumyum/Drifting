@@ -21,7 +21,7 @@ export function AppTopbar() {
       style={{
         display: 'flex',
         width: '100%',
-        height: 42,
+        height: 'var(--window-titlebar-height)',
         overflow: 'hidden',
         background: 'var(--chrome-bg)',
       }}

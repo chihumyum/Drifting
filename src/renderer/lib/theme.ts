@@ -6,11 +6,11 @@ const LEGACY_ACCENT_PROPERTIES = [
 ] as const;
 
 /**
- * Remove the pre-skin custom-accent override.
+ * Remove the retired custom-accent override.
  *
- * Accent is now a semantic part of each classic/modern + light/dark palette
- * in index.css. Keeping the old inline override would outrank every palette
- * and could pair one theme's accent with another theme's foreground/ring.
+ * Accent is now a semantic part of the shared light/dark palette in index.css.
+ * Keeping the old inline override would outrank the palette and could pair
+ * one theme's accent with another theme's foreground/ring.
  */
 export function initAccentColor() {
   const root = document.documentElement;

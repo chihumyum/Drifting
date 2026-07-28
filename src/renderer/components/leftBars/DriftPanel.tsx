@@ -292,21 +292,6 @@ export function DriftPanel() {
           });
         }}
       >
-        {selected && (
-          <span
-            aria-hidden
-            className="cell-accent-stripe"
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 4,
-              bottom: 4,
-              width: 2,
-              background: 'hsl(var(--accent))',
-            }}
-          />
-        )}
-
         {/* Drift mark — ❦ glyph (or "M" once an agent has touched it). */}
         <span
           aria-hidden
@@ -319,7 +304,7 @@ export function DriftPanel() {
                 : undefined
           }
           style={{
-            fontFamily: agentChanged ? 'var(--font-mono)' : 'var(--font-serif)',
+            fontFamily: agentChanged ? 'var(--font-mono)' : 'var(--font-sans)',
             fontStyle: agentChanged ? 'normal' : 'italic',
             fontSize: agentChanged ? 10 : 11,
             fontWeight: agentChanged ? 600 : undefined,
@@ -641,7 +626,7 @@ export function DriftPanel() {
           <div
             style={{
               fontSize: 12,
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               fontStyle: 'italic',
               color: 'hsl(var(--ink-3))',
               padding: '40px 20px',
@@ -757,12 +742,6 @@ export function DriftPanel() {
         />
       )}
 
-      <style>{`
-        .left-sb-group-add { opacity: 0; }
-        .left-sb-group:hover .left-sb-group-add { opacity: 1; }
-        .left-panel-scroll-hidden { scrollbar-width: none; }
-        .left-panel-scroll-hidden::-webkit-scrollbar { width: 0; height: 0; display: none; }
-      `}</style>
     </div>
   );
 }

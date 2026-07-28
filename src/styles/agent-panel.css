@@ -45,7 +45,7 @@
   color: hsl(var(--ink-4));
 }
 /* The composer signals focus via its own :focus-within border. Suppress the
-   global modern-skin form focus ring (index.css adds a 3px box-shadow to
+   global form focus ring (index.css adds a 3px box-shadow to
    textarea:focus-visible) so it doesn't draw a sharp rectangle inside the
    rounded box. Selector is specific enough (class·class·pseudo) to win. */
 .agt-composer .agt-composer__text:focus,
@@ -315,37 +315,4 @@
 .agt-dot--on {
   background: hsl(var(--accent));
   border-color: hsl(var(--accent));
-}
-
-/* thinking: a compact toggle (mirrors .tog) */
-.agt-tog {
-  width: 30px;
-  height: 17px;
-  background: hsl(var(--rule-strong));
-  border-radius: 9px;
-  position: relative;
-  cursor: pointer;
-  border: 0;
-  padding: 0;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
-.agt-tog::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  background: hsl(var(--page));
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
-  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.agt-tog--on {
-  background: hsl(var(--accent));
-}
-.agt-tog--on::after {
-  transform: translateX(13px);
-  background: hsl(var(--paper));
 }

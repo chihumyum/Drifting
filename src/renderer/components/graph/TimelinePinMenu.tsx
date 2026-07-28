@@ -1,10 +1,9 @@
-import { useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { ContextMenuSurface } from '../ui/ContextMenuSurface';
 import '../../../styles/timeline-pin-menu.css';
 
 // Context menu shared by both timeline pins (BottomTimeline's TimelinePin and
-// StoryGraphView's GraphTimelinePin). Owns the drift-binding actions:
+// StoryGraphView's TimelinePin). Owns the drift-binding actions:
 //
 //   unbound pin → 绑定漂浮节点…(opens DriftBindModal) / 重命名 / 删除
 //   bound pin   → 打开漂浮节点 / 解绑（恢复为纯标签）/ 删除
@@ -37,34 +36,13 @@ export function TimelinePinMenu({
   onClose,
 }: TimelinePinMenuProps) {
   const { t } = useTranslation();
-  useEffect(() => {
-    const onPointerDown = (e: PointerEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t?.closest('.tlpin-menu')) return;
-      onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('pointerdown', onPointerDown, true);
-    document.addEventListener('keydown', onKey, true);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      document.removeEventListener('keydown', onKey, true);
-    };
-  }, [onClose]);
-
   const run = (fn: () => void) => () => {
     onClose();
     fn();
   };
 
-  return createPortal(
-    <div
-      className="tlpin-menu"
-      style={{ position: 'fixed', left: x, top: y }}
-      onContextMenu={(e) => e.preventDefault()}
-    >
+  return (
+    <ContextMenuSurface x={x} y={y} onClose={onClose} className="tlpin-menu">
       {isBound ? (
         <>
           <button type="button" onClick={run(onOpenDrift)}>
@@ -87,7 +65,6 @@ export function TimelinePinMenu({
       <button type="button" className="is-danger" onClick={run(onDelete)}>
         {t('bottomTimeline.pinMenu.deleteMarker')}
       </button>
-    </div>,
-    document.body,
+    </ContextMenuSurface>
   );
 }

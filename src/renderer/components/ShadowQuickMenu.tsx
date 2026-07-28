@@ -40,7 +40,7 @@ export function ShadowQuickMenu() {
     position: 'fixed',
     bottom: rect ? window.innerHeight - rect.top + 6 : 48,
     left: rect ? Math.max(8, rect.right - WIDTH) : 8,
-    zIndex: 100000,
+    zIndex: 'var(--z-toast)',
     width: WIDTH,
     maxHeight: 'min(70vh, 560px)',
     overflowY: 'auto',
@@ -65,7 +65,7 @@ export function ShadowQuickMenu() {
       >
         <span
           style={{
-            fontFamily: 'var(--font-serif)',
+            fontFamily: 'var(--font-sans)',
             fontStyle: 'italic',
             fontSize: 12,
             lineHeight: 1,
@@ -81,7 +81,7 @@ export function ShadowQuickMenu() {
           <>
             <div
               onMouseDown={() => setOpen(false)}
-              style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
+              style={{ position: 'fixed', inset: 0, zIndex: 'calc(var(--z-toast) - 1)' }}
             />
             <div onMouseDown={(e) => e.stopPropagation()} style={panelStyle}>
               <ToggleRow

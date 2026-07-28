@@ -30,6 +30,7 @@ import {
   AGENT_MODEL_OPTIONS,
   AGENT_EFFORT_OPTIONS,
   AGENT_TOOL_SEARCH_OPTIONS,
+  type EditorFontSource,
   type FocusLineMode,
   type LocaleCode,
   type ParagraphIndent,
@@ -63,8 +64,18 @@ import { acceleratorFromEvent, formatAccelerator, matchesAccelerator } from '../
 import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
 import { exportAllProjectsAsRelationalMarkdown } from '../../services/export/relational-markdown.service';
 import { generalAgentTransport } from '../../lib/agent/transport';
-import { platform } from '../../platform';
+import { platform, type SystemFontFamily } from '../../platform';
 import { getPlatformRuntime } from '../../platform/runtime';
+import { SegmentedControl } from '../ui/SegmentedControl';
+import { Switch } from '../ui/Switch';
+import {
+  getImportedProseFontMetadata,
+  importProseFont,
+  IMPORTED_PROSE_FONT_ACCEPT,
+  ProseFontImportError,
+  removeImportedProseFont,
+  type ImportedProseFontMetadata,
+} from '../../lib/prose-fonts';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -464,19 +475,7 @@ function Toggle({
   onChange: (next: boolean) => void;
   disabled?: boolean;
 }) {
-  return (
-    <button
-      type="button"
-      className={'tog' + (on ? ' tog--on' : '')}
-      role="switch"
-      aria-checked={on}
-      disabled={disabled}
-      style={disabled ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
-      onClick={() => {
-        if (!disabled) onChange(!on);
-      }}
-    />
-  );
+  return <Switch checked={on} onCheckedChange={onChange} disabled={disabled} />;
 }
 
 function Seg<T extends string>({
@@ -488,19 +487,7 @@ function Seg<T extends string>({
   options: { value: T; label: string }[];
   onChange: (next: T) => void;
 }) {
-  return (
-    <div className="seg">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          className={'seg__btn' + (o.value === value ? ' seg__btn--active' : '')}
-          onClick={() => onChange(o.value)}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
+  return <SegmentedControl value={value} options={options} onChange={onChange} />;
 }
 
 function PanelHead({
@@ -1610,7 +1597,7 @@ function ShadowUsageSection() {
         </div>
         <div
           style={{
-            fontFamily: 'var(--font-serif)',
+            fontFamily: 'var(--font-sans)',
             fontSize: 36,
             color: 'hsl(var(--ink-1))',
             marginTop: 6,
@@ -1687,8 +1674,6 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
   const { t } = useTranslation();
   const themeMode = useSettingsStore((s) => s.themeMode);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
-  const appearanceSkin = useSettingsStore((s) => s.appearanceSkin);
-  const setAppearanceSkin = useSettingsStore((s) => s.setAppearanceSkin);
 
   const themes: { value: ThemeMode; name: string; kind: string; tp: string }[] = [
     { value: 'light', name: t('settings.appearance.light'), kind: 'LIGHT', tp: 'tp--light' },
@@ -1703,24 +1688,6 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
         title={t('settings.appearance.title')}
         sub={t('settings.appearance.sub')}
       />
-
-      <div className="set-sec">
-        <SecHead title={t('settings.appearance.skin')} hint="SKIN" />
-        <Row
-          label={t('settings.appearance.skin_label')}
-          desc={t('settings.appearance.skin_desc')}
-          control={
-            <Seg
-              value={appearanceSkin}
-              options={[
-                { value: 'classic', label: t('settings.appearance.skin_classic') },
-                { value: 'modern', label: t('settings.appearance.skin_modern') },
-              ]}
-              onChange={setAppearanceSkin}
-            />
-          }
-        />
-      </div>
 
       <div className="set-sec">
         <SecHead title={t('settings.appearance.theme')} hint="THEME" />
@@ -1759,6 +1726,344 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function formatFontFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function EditorFontControl() {
+  const { t, i18n } = useTranslation();
+  const editorFontSource = useSettingsStore((state) => state.editorFontSource);
+  const setEditorFontSource = useSettingsStore((state) => state.setEditorFontSource);
+  const editorSystemFontFamily = useSettingsStore((state) => state.editorSystemFontFamily);
+  const setEditorSystemFontFamily = useSettingsStore(
+    (state) => state.setEditorSystemFontFamily,
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [systemFamilyDraft, setSystemFamilyDraft] = useState(editorSystemFontFamily);
+  const [systemFonts, setSystemFonts] = useState<SystemFontFamily[]>([]);
+  const [loadingSystemFonts, setLoadingSystemFonts] = useState(true);
+  const [systemFontsUnavailable, setSystemFontsUnavailable] = useState(false);
+  const [importedFont, setImportedFont] = useState<ImportedProseFontMetadata | null>(null);
+  const [loadingImportedFont, setLoadingImportedFont] = useState(true);
+  const [fontBusy, setFontBusy] = useState(false);
+  const [fontMessage, setFontMessage] = useState<{
+    tone: 'error' | 'success';
+    text: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getImportedProseFontMetadata()
+      .then((metadata) => {
+        if (!cancelled) setImportedFont(metadata);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFontMessage({ tone: 'error', text: t('settings.editor.font_error_storage') });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingImportedFont(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void platform.typography
+      .listSystemFonts()
+      .then((fonts) => {
+        if (!cancelled) setSystemFonts(fonts);
+      })
+      .catch(() => {
+        if (!cancelled) setSystemFontsUnavailable(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSystemFonts(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectKnownSystemFont = useCallback(
+    (family: string) => {
+      if (!family) return;
+      setSystemFamilyDraft(family);
+      setEditorSystemFontFamily(family);
+      setEditorFontSource('system-custom');
+      setFontMessage(null);
+    },
+    [setEditorFontSource, setEditorSystemFontFamily],
+  );
+
+  const messageForImportError = useCallback(
+    (error: unknown): string => {
+      if (error instanceof ProseFontImportError) {
+        switch (error.code) {
+          case 'empty':
+            return t('settings.editor.font_error_empty');
+          case 'unsupported-format':
+            return t('settings.editor.font_error_format');
+          case 'too-large':
+            return t('settings.editor.font_error_size');
+          case 'invalid-font':
+            return t('settings.editor.font_error_invalid');
+          case 'storage-unavailable':
+            return t('settings.editor.font_error_storage');
+        }
+      }
+      return t('settings.editor.font_error_unknown');
+    },
+    [t],
+  );
+
+  const applySystemFont = useCallback(() => {
+    const family = systemFamilyDraft.trim();
+    if (!family) {
+      setFontMessage({ tone: 'error', text: t('settings.editor.font_system_required') });
+      return;
+    }
+    setEditorSystemFontFamily(family);
+    setEditorFontSource('system-custom');
+    setFontMessage({ tone: 'success', text: t('settings.editor.font_system_applied') });
+  }, [
+    setEditorFontSource,
+    setEditorSystemFontFamily,
+    systemFamilyDraft,
+    t,
+  ]);
+
+  const handleFontFile = useCallback(
+    async (file: File) => {
+      setFontBusy(true);
+      setFontMessage(null);
+      try {
+        const metadata = await importProseFont(file);
+        setImportedFont(metadata);
+        setEditorFontSource('imported');
+        setFontMessage({ tone: 'success', text: t('settings.editor.font_import_done') });
+      } catch (error) {
+        setFontMessage({ tone: 'error', text: messageForImportError(error) });
+      } finally {
+        setFontBusy(false);
+      }
+    },
+    [messageForImportError, setEditorFontSource, t],
+  );
+
+  const removeImportedFont = useCallback(async () => {
+    setFontBusy(true);
+    setFontMessage(null);
+    try {
+      await removeImportedProseFont();
+      setImportedFont(null);
+      if (useSettingsStore.getState().editorFontSource === 'imported') {
+        setEditorFontSource('system-serif');
+      }
+      setFontMessage({ tone: 'success', text: t('settings.editor.font_remove_done') });
+    } catch (error) {
+      setFontMessage({ tone: 'error', text: messageForImportError(error) });
+    } finally {
+      setFontBusy(false);
+    }
+  }, [messageForImportError, setEditorFontSource, t]);
+
+  const options: {
+    source: EditorFontSource;
+    label: string;
+    detail: string;
+    disabled?: boolean;
+  }[] = [
+    {
+      source: 'system-serif',
+      label: t('settings.editor.font_system_serif'),
+      detail: t('settings.editor.font_system_serif_desc'),
+    },
+    {
+      source: 'system-sans',
+      label: t('settings.editor.font_system_sans'),
+      detail: t('settings.editor.font_system_sans_desc'),
+    },
+    {
+      source: 'system-custom',
+      label: t('settings.editor.font_system_custom'),
+      detail: editorSystemFontFamily || t('settings.editor.font_not_configured'),
+      disabled: !editorSystemFontFamily,
+    },
+    {
+      source: 'imported',
+      label: t('settings.editor.font_imported'),
+      detail: loadingImportedFont
+        ? t('settings.editor.font_loading')
+        : importedFont?.fileName || t('settings.editor.font_not_imported'),
+      disabled: loadingImportedFont || !importedFont,
+    },
+  ];
+
+  return (
+    <div className="set-font-control">
+      <div
+        className="set-font-options"
+        role="radiogroup"
+        aria-label={t('settings.editor.font_source')}
+      >
+        {options.map((option) => (
+          <button
+            key={option.source}
+            type="button"
+            role="radio"
+            aria-checked={editorFontSource === option.source}
+            className={
+              'set-font-option' +
+              (editorFontSource === option.source ? ' set-font-option--active' : '')
+            }
+            disabled={option.disabled || fontBusy}
+            onClick={() => setEditorFontSource(option.source)}
+          >
+            <span className="set-font-option__name">{option.label}</span>
+            <span className="set-font-option__detail">{option.detail}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="set-font-tools">
+        <div className="set-font-tool">
+          <div className="set-font-tool__copy">
+            <span className="set-font-tool__title">
+              {t('settings.editor.font_system_title')}
+            </span>
+            <span className="set-font-tool__desc">
+              {t('settings.editor.font_system_help')}{' '}
+              {loadingSystemFonts
+                ? t('settings.editor.font_system_loading')
+                : systemFontsUnavailable
+                  ? t('settings.editor.font_system_unavailable')
+                  : t('settings.editor.font_system_loaded', { count: systemFonts.length })}
+            </span>
+          </div>
+          <div className="set-font-tool__actions">
+            <select
+              className="set-input set-font-tool__select"
+              aria-label={t('settings.editor.font_system_placeholder')}
+              value={
+                systemFonts.some((font) => font.family === editorSystemFontFamily)
+                  ? editorSystemFontFamily
+                  : ''
+              }
+              disabled={loadingSystemFonts || systemFontsUnavailable || systemFonts.length === 0}
+              onChange={(event) => selectKnownSystemFont(event.target.value)}
+            >
+              <option value="">
+                {loadingSystemFonts
+                  ? t('settings.editor.font_system_loading')
+                  : t('settings.editor.font_system_placeholder')}
+              </option>
+              {systemFonts.map((font) => {
+                const localizedAlias = i18n.resolvedLanguage?.startsWith('zh')
+                  ? font.aliases.find((alias) => /[\u3400-\u9fff]/u.test(alias))
+                  : undefined;
+                return (
+                  <option
+                    key={font.family}
+                    value={font.family}
+                  >
+                    {localizedAlias ? `${localizedAlias} — ${font.family}` : font.family}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+          <details className="set-font-tool__manual">
+            <summary>{t('settings.editor.font_system_manual')}</summary>
+            <div className="set-font-tool__manual-actions">
+              <input
+                className="set-input set-font-tool__input"
+                value={systemFamilyDraft}
+                maxLength={128}
+                placeholder={t('settings.editor.font_system_manual_placeholder')}
+                aria-label={t('settings.editor.font_system_manual_placeholder')}
+                onChange={(event) => setSystemFamilyDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') applySystemFont();
+                }}
+              />
+              <button
+                type="button"
+                className="set-btn"
+                disabled={fontBusy}
+                onClick={applySystemFont}
+              >
+                {t('settings.editor.font_use')}
+              </button>
+            </div>
+          </details>
+        </div>
+
+        <div className="set-font-tool">
+          <div className="set-font-tool__copy">
+            <span className="set-font-tool__title">
+              {t('settings.editor.font_import_title')}
+            </span>
+            <span className="set-font-tool__desc">
+              {importedFont
+                ? `${importedFont.fileName} · ${formatFontFileSize(importedFont.byteLength)}`
+                : t('settings.editor.font_import_help')}
+            </span>
+          </div>
+          <div className="set-font-tool__actions">
+            <button
+              type="button"
+              className="set-btn"
+              disabled={fontBusy}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {fontBusy
+                ? t('settings.editor.font_importing')
+                : importedFont
+                  ? t('settings.editor.font_replace')
+                  : t('settings.editor.font_import')}
+            </button>
+            {importedFont && (
+              <button
+                type="button"
+                className="set-btn set-btn--ghost"
+                disabled={fontBusy}
+                onClick={() => void removeImportedFont()}
+              >
+                {t('settings.editor.font_remove')}
+              </button>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={IMPORTED_PROSE_FONT_ACCEPT}
+            style={{ display: 'none' }}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void handleFontFile(file);
+              event.target.value = '';
+            }}
+          />
+        </div>
+      </div>
+
+      {fontMessage && (
+        <div
+          className={`set-font-message set-font-message--${fontMessage.tone}`}
+          role={fontMessage.tone === 'error' ? 'alert' : 'status'}
+        >
+          {fontMessage.text}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1820,6 +2125,12 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
               {t('settings.editor.reset_style')}
             </button>
           }
+        />
+        <Row
+          label={t('settings.editor.font_source')}
+          desc={t('settings.editor.font_scope_desc')}
+          control={<EditorFontControl />}
+          stack
         />
         <Row
           label={t('settings.editor.font_size')}
@@ -3389,7 +3700,7 @@ function AgentUsageSection({ open }: { open: boolean }) {
       </div>
       <div
         style={{
-          fontFamily: 'var(--font-serif)',
+          fontFamily: 'var(--font-sans)',
           fontSize: 30,
           color: 'hsl(var(--ink-1))',
           marginTop: 6,
@@ -4158,7 +4469,7 @@ function AboutPanel({ registerRef }: { registerRef: RegisterRef }) {
       <p
         style={{
           margin: '48px 0 0',
-          fontFamily: 'var(--font-serif)',
+          fontFamily: 'var(--font-sans)',
           fontStyle: 'italic',
           fontSize: 14,
           color: 'hsl(var(--ink-4))',

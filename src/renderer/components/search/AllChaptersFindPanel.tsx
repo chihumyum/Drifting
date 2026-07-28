@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronUp, ChevronDown, X } from 'lucide-react';
 
 import type { NodeContent } from '../../domain/node-content';
 import {
@@ -11,6 +10,7 @@ import {
   type ChapterDoc,
 } from '../../lib/all-chapters-find';
 import { FindResultsList, type FindResultRow } from './FindResultsList';
+import { FindToolbar } from './FindToolbar';
 import '../../../styles/search.css';
 
 // Title/summary/contentJson are snapshotted from the chapter nodes; contentJson
@@ -203,43 +203,30 @@ export function AllChaptersFindPanel({
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="editor-find-panel">
-        <input
+      <FindToolbar
           ref={inputRef}
-          className="editor-find-input"
           value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
+          onChange={(event) => {
+            setQuery(event.target.value);
             setCurrentIndex(0);
           }}
           onKeyDown={handleKeyDown}
           placeholder={t('findPanel.bookPlaceholder')}
+          stats={
+            noMatches
+              ? query
+                ? '0/0'
+                : t('findPanel.wholeBook')
+              : `${safeIndex + 1}/${matches.length}`
+          }
+          noMatches={noMatches}
+          onPrevious={() => jumpTo(safeIndex - 1)}
+          onNext={() => jumpTo(safeIndex + 1)}
+          onClose={onClose}
+          previousTitle={t('findPanel.previousTitle')}
+          nextTitle={t('findPanel.nextTitle')}
+          closeTitle={t('findPanel.closeTitle')}
         />
-        <span className="editor-find-stats">
-          {noMatches ? (query ? '0/0' : t('findPanel.wholeBook')) : `${safeIndex + 1}/${matches.length}`}
-        </span>
-        <button
-          type="button"
-          className="editor-find-btn"
-          onClick={() => jumpTo(safeIndex - 1)}
-          disabled={noMatches}
-          title={t('findPanel.previousTitle')}
-        >
-          <ChevronUp size={14} />
-        </button>
-        <button
-          type="button"
-          className="editor-find-btn"
-          onClick={() => jumpTo(safeIndex + 1)}
-          disabled={noMatches}
-          title={t('findPanel.nextTitle')}
-        >
-          <ChevronDown size={14} />
-        </button>
-        <button type="button" className="editor-find-btn" onClick={onClose} title={t('findPanel.closeTitle')}>
-          <X size={14} />
-        </button>
-      </div>
 
       <FindResultsList
         rows={resultRows}

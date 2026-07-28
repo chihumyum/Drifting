@@ -7,6 +7,7 @@ import type { ActivityMark } from '../../store/agent-activity-store';
 import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
 import { AgentCountBadge } from './AgentCountBadge';
 import { type GroupActivity } from './agentActivityBubble';
+import { PanelTab as SharedPanelTab, PanelTabTray } from '../ui/PanelTabs';
 
 // 三个带标签的 tab 平分整条 header 宽度所需的最小值。低于此值切到 glyph-only。
 // 实测：每个 tab 需要 glyph(13) + gap(6) + label(~28) + padding(20) ≈ 67px，
@@ -62,9 +63,7 @@ export function LeftSidebarHeader() {
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [compact, setCompact] = useState(false);
-  // Sliding pill that animates between the three panel buttons in modern.
-  // Classic keeps the indicator hidden via CSS — each button paints its
-  // own static surface bg on active instead.
+  // Sliding pill that animates between the three panel buttons.
   const [trayRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
     activeLeftPanel,
     '.app-panel-tab.is-active',
@@ -95,21 +94,11 @@ export function LeftSidebarHeader() {
         zIndex: 20,
       }}
     >
-      <div
+      <PanelTabTray
         ref={trayRef}
         className="leftbar-tab-tray"
-        style={{
-          display: 'flex',
-          flex: 1,
-          minWidth: 0,
-          gap: 0,
-          background: 'hsl(var(--paper-deep))',
-          borderRadius: 4,
-          padding: 2,
-          position: 'relative',
-        }}
+        indicatorStyle={indicatorStyle}
       >
-        <div className="tab-indicator" style={indicatorStyle} />
         <PanelTab
           label={t('leftSidebar.tabs.chapters')}
           glyph="§"
@@ -134,7 +123,7 @@ export function LeftSidebarHeader() {
           activity={tabActivity.drift}
           onClick={() => setActiveLeftPanel('drift')}
         />
-      </div>
+      </PanelTabTray>
     </div>
   );
 }
@@ -186,54 +175,16 @@ function PanelTabButton({
   const { t } = useTranslation();
   const busy = activity?.busy ?? false;
   const doneCount = activity?.doneCount ?? 0;
-  // Always pill (both skins). Classic: button paints its own surface bg on
-  // active — static, no animation. Modern: sliding indicator (sibling of
-  // these buttons) carries the active visual; modern CSS overrides the
-  // active button's bg/shadow to transparent so the indicator shows
-  // through. See index.css `.tab-indicator` + `html[data-skin='modern']
-  // .app-panel-tab.is-active`.
+  // The sibling sliding indicator carries the active visual; the button
+  // remains transparent so the indicator can show through.
   return (
-    <button
+    <SharedPanelTab
       onClick={onClick}
       title={compact ? label : undefined}
-      className={`app-panel-tab${isActive ? ' is-active' : ''}`}
-      style={{
-        position: 'relative',
-        zIndex: 1,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: compact ? 0 : 6,
-        flex: 1,
-        minWidth: 0,
-        // Fix compact-vs-non-compact height drift: the glyph carries
-        // lineHeight:1 while the label inherits ~1.4, so a glyph-only button
-        // is ~3px shorter than a glyph+label button. Pin a min-height so
-        // the pill wrapper doesn't visibly shrink when the sidebar gets
-        // narrow enough to trigger compact mode.
-        minHeight: 24,
-        background: isActive ? 'hsl(var(--surface))' : 'transparent',
-        color: isActive ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
-        padding: compact ? '4px 8px' : '4px 10px',
-        fontSize: 11.5,
-        cursor: 'pointer',
-        fontFamily: 'var(--font-mono)',
-        letterSpacing: '0.08em',
-        fontWeight: 500,
-        border: 'none',
-        // Concentric with the tray frame: tray radius 4 − 2px padding = 2.
-        borderRadius: 2,
-        boxShadow: isActive ? '0 1px 2px hsl(var(--ink-1) / 0.06)' : 'none',
-        transition: 'background 0.15s, color 0.15s',
-        textAlign: 'center',
-        whiteSpace: 'nowrap',
-      }}
-      onMouseEnter={(e) => {
-        if (!isActive) e.currentTarget.style.color = 'hsl(var(--ink-1))';
-      }}
-      onMouseLeave={(e) => {
-        if (!isActive) e.currentTarget.style.color = 'hsl(var(--ink-3))';
-      }}
+      active={isActive}
+      compact={compact}
+      typography="label"
+      className="left-panel-tab"
     >
       {/* Glyph slot — while a run is working over this panel the glyph blinks in
           accent; only once it finishes and leaves unviewed changes is the glyph
@@ -247,7 +198,7 @@ function PanelTabButton({
             className={busy ? 'agent-glyph-busy' : undefined}
             title={busy ? t('agentActivity.working') : undefined}
             style={{
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               fontStyle: 'italic',
               fontSize: 12.5,
               color: busy || isActive ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))',
@@ -259,6 +210,6 @@ function PanelTabButton({
         )
       )}
       {!compact && <span>{label}</span>}
-    </button>
+    </SharedPanelTab>
   );
 }

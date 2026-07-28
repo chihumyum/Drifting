@@ -9,6 +9,7 @@ mod image_pipeline;
 mod native_capabilities;
 mod secure_storage;
 mod state;
+mod system_fonts;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -118,6 +119,7 @@ pub fn run() {
             commands::lifecycle_get_status,
             commands::lifecycle_complete_flush,
             commands::general_agent_start_unsupported,
+            system_fonts::typography_list_system_fonts,
             secure_storage::keychain_get,
             secure_storage::keychain_set,
             secure_storage::keychain_delete,

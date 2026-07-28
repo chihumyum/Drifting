@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/auth';
 import { UserAvatar, UserMenu } from './UserMenu';
 import { NotificationPill } from '../notifications/NotificationPill';
 import { getPlatformRuntime } from '../../platform/runtime';
+import { GhostIconButton } from '../ui/GhostIconButton';
 
 export function RightSidebarTopBar() {
   const { desktopWindowControls } = getPlatformRuntime();
@@ -23,7 +24,7 @@ export function RightSidebarTopBar() {
       data-tauri-drag-region={desktopWindowControls ? 'deep' : undefined}
       style={
         {
-          height: 42,
+          height: 'var(--window-titlebar-height)',
           display: 'flex',
           alignItems: 'center',
           paddingLeft: 6,
@@ -35,41 +36,18 @@ export function RightSidebarTopBar() {
       }
     >
       <NotificationPill />
-      <button
+      <GhostIconButton
         onClick={() => toggleSidebar('right')}
         title={isRightSidebarOpen ? 'Close Right Sidebar' : 'Open Right Sidebar'}
-        style={
-          {
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 26,
-            height: 26,
-            borderRadius: 4,
-            border: 'none',
-            background: 'transparent',
-            color: 'hsl(var(--ink-3))',
-            cursor: 'pointer',
-            transition: 'background 0.15s ease, color 0.15s ease',
-            padding: 0,
-            flexShrink: 0,
-          } as React.CSSProperties
+        aria-label={isRightSidebarOpen ? 'Close Right Sidebar' : 'Open Right Sidebar'}
+        icon={
+          isRightSidebarOpen ? (
+            <PanelRightClose size={iconSize} strokeWidth={1.6} />
+          ) : (
+            <PanelRightOpen size={iconSize} strokeWidth={1.6} />
+          )
         }
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-          e.currentTarget.style.color = 'hsl(var(--ink-1))';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = 'hsl(var(--ink-3))';
-        }}
-      >
-        {isRightSidebarOpen ? (
-          <PanelRightClose size={iconSize} strokeWidth={1.6} />
-        ) : (
-          <PanelRightOpen size={iconSize} strokeWidth={1.6} />
-        )}
-      </button>
+      />
       <UserAvatar
         forwardRef={avatarRef}
         initial={initial}

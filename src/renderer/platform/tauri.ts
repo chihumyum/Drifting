@@ -381,6 +381,10 @@ export const tauriPlatform: PlatformApi = {
     delete: (key) => invokeContract('keychain_delete', { key }),
   },
 
+  typography: {
+    listSystemFonts: () => invokeContract('typography_list_system_fonts', undefined),
+  },
+
   material: {
     toLocalResourceUrl(filePath) {
       if (!filePath || !isTauriRuntime()) return null;

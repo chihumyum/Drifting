@@ -112,39 +112,7 @@
 /* View toggle (书序 ↔ 叙事时) sits in the head-left cluster next to the
    title so the active view is always visible while scanning the dock. */
 .btl__view-toggle {
-  display: inline-flex;
   margin-left: 4px;
-  flex-shrink: 0;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 3px;
-  overflow: hidden;
-  background: hsl(var(--surface));
-}
-.btl__view-toggle button {
-  height: 20px;
-  padding: 0 8px;
-  display: grid;
-  place-items: center;
-  white-space: nowrap;
-  color: hsl(var(--ink-4));
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1;
-  letter-spacing: 0.04em;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.btl__view-toggle button:hover {
-  color: hsl(var(--ink-2));
-  background: hsl(var(--rule) / 0.5);
-}
-.btl__view-toggle button.is-active {
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
 }
 
 /* ---------------- Unplaced popover (narrative view, head-right) ----------
@@ -195,7 +163,7 @@
 }
 .btl__unplaced-popover {
   /* Portaled + fixed by AnchoredPopover so app-island overflow cannot clip it. */
-  z-index: 1000;
+  z-index: var(--z-popover);
   min-width: 240px;
   max-width: 360px;
   max-height: 320px;
@@ -207,7 +175,7 @@
   box-shadow: 0 6px 18px hsl(var(--ink-1) / 0.15);
 }
 .btl__unplaced-empty {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 11.5px;
   color: hsl(var(--ink-4));
@@ -293,7 +261,7 @@
 }
 
 .btl__unplaced-chip-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   color: hsl(var(--ink-1));
   overflow: hidden;
@@ -379,7 +347,7 @@
 .btl-rail__name {
   flex: 1;
   min-width: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 12.5px;
   font-weight: 500;
@@ -679,7 +647,7 @@
   pointer-events: none;
 }
 .btl-clip__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 11.5px;
   font-weight: 500;
   line-height: 1.15;
@@ -705,7 +673,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 11px;
   color: hsl(var(--ink-4));
@@ -748,13 +716,13 @@
    "overview" role. */
 
 /* ---------------- Context menu (right-click on timeline) ----------------
-   Matches the v2 design-spec `.user-menu` aesthetic: small serif glyph
-   gutter, mono uppercase microcopy on hover targets, soft shadow, grouped
+   Matches the v2 design-spec `.user-menu` aesthetic: small italic glyph
+   gutter, uppercase microcopy on hover targets, soft shadow, grouped
    sections with hairline dividers. Replaces the old inline-styled menu
    that was too generic-emoji-heavy. */
 .btl-cmenu {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-popover);
   min-width: 220px;
   max-width: 280px;
   background: hsl(var(--surface));
@@ -783,7 +751,7 @@
   background: hsl(var(--paper-deep));
 }
 .btl-cmenu__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13.5px;
   color: hsl(var(--ink-1));
@@ -858,7 +826,7 @@
   place-items: center;
   width: 18px;
   height: 18px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1;
   color: hsl(var(--ink-4));

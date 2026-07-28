@@ -257,7 +257,7 @@ export function EntityRelationPicker({
             placeholder={t('relationPicker.searchPlaceholder')}
             style={{
               width: '100%',
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               fontSize: 12.5,
               padding: '4px 6px',
               border: '1px solid hsl(var(--rule))',
@@ -368,7 +368,7 @@ function Chip({
           display: 'inline-flex',
           alignItems: 'center',
           gap: 4,
-          fontFamily: 'var(--font-serif)',
+          fontFamily: 'var(--font-sans)',
           fontSize: 12,
           padding: '2px 4px 2px 8px',
           borderRadius: 12,
@@ -458,7 +458,7 @@ function Chip({
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
-        fontFamily: 'var(--font-serif)',
+        fontFamily: 'var(--font-sans)',
         fontSize: 12,
         padding: '2px 8px',
         borderRadius: 12,

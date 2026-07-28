@@ -198,7 +198,7 @@ function RuleRow({ rule, onCommit, onToggle, onRemove }: RuleRowProps) {
           style={{
             flex: 1,
             resize: 'vertical',
-            fontFamily: 'var(--font-serif)',
+            fontFamily: 'var(--font-sans)',
             fontSize: 13.5,
             lineHeight: 1.4,
             color: 'hsl(var(--ink-1))',

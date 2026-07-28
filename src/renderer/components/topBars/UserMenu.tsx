@@ -8,7 +8,6 @@ import {
   Upload,
   BookOpenText,
   HelpCircle,
-  Palette,
   LogOut,
   Languages,
 } from 'lucide-react';
@@ -47,8 +46,6 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   // sticks; the resolver in App.tsx then writes back to ui-store.theme.
   const themeMode = useSettingsStore((s) => s.themeMode);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
-  const appearanceSkin = useSettingsStore((s) => s.appearanceSkin);
-  const setAppearanceSkin = useSettingsStore((s) => s.setAppearanceSkin);
   const uiLocale = useSettingsStore((s) => s.uiLocale);
   const setUiLocale = useSettingsStore((s) => s.setUiLocale);
   const navigate = useNavigate();
@@ -86,18 +83,12 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
           border: '1px solid hsl(var(--rule))',
           borderRadius: 6,
           boxShadow: '0 10px 28px hsl(var(--ink-1) / 0.15), 0 2px 6px hsl(var(--ink-1) / 0.08)',
-          zIndex: 300,
+          zIndex: 'var(--z-popover)',
           fontFamily: 'var(--font-sans)',
           overflow: 'hidden',
           animation: 'userMenuIn 180ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         }}
       >
-        <style>{`
-          @keyframes userMenuIn {
-            from { opacity: 0; transform: translateY(-6px); }
-            to   { opacity: 1; transform: translateY(0); }
-          }
-        `}</style>
 
         <div
           style={{
@@ -112,7 +103,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <span
               style={{
-                fontFamily: 'var(--font-serif)',
+                fontFamily: 'var(--font-sans)',
                 fontStyle: 'italic',
                 fontSize: 14,
                 color: 'hsl(var(--ink-1))',
@@ -141,37 +132,6 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
         </div>
 
         <MenuGroup>
-          <MenuItem
-            icon={<Palette size={13} />}
-            label={t('userMenu.appearance')}
-            tail={
-              <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  display: 'flex',
-                  marginLeft: 'auto',
-                  background: 'hsl(var(--paper-deep))',
-                  borderRadius: 3,
-                  padding: 1,
-                }}
-              >
-                <ThemeSwitchBtn
-                  active={appearanceSkin === 'classic'}
-                  onClick={() => setAppearanceSkin('classic')}
-                  title={t('userMenu.skinClassicTitle')}
-                >
-                  {t('userMenu.skinClassic')}
-                </ThemeSwitchBtn>
-                <ThemeSwitchBtn
-                  active={appearanceSkin === 'modern'}
-                  onClick={() => setAppearanceSkin('modern')}
-                  title={t('userMenu.skinModernTitle')}
-                >
-                  {t('userMenu.skinModern')}
-                </ThemeSwitchBtn>
-              </div>
-            }
-          />
           <MenuItem
             icon={
               themeMode === 'light' ? (
@@ -345,7 +305,7 @@ export function UserAvatar({
           color: 'hsl(var(--paper))',
           display: 'grid',
           placeItems: 'center',
-          fontFamily: 'var(--font-serif)',
+          fontFamily: 'var(--font-sans)',
           fontStyle: 'italic',
           fontSize,
           fontWeight: 500,

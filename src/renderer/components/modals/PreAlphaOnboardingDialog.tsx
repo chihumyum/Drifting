@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
 import { useAuthStore } from '../../store/auth';
+import { Button } from '../ui/Button';
+import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
 const GUIDE_VERSION = 'v1';
 
@@ -27,49 +28,16 @@ export function PreAlphaOnboardingDialog() {
     setDismissedKey(storageKey);
   };
 
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="pre-alpha-guide-title"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10000,
-        display: 'grid',
-        placeItems: 'center',
-        padding: 24,
-        background: 'hsl(220 16% 10% / 0.58)',
-        backdropFilter: 'blur(4px)',
-      }}
+  return (
+    <ModalRoot
+      onClose={dismiss}
+      ariaLabel={t('preAlphaGuide.title')}
+      closeOnBackdrop={false}
+      dismissOnEscape={false}
     >
-      <div
-        style={{
-          width: 'min(560px, 100%)',
-          borderRadius: 18,
-          padding: '28px 30px 24px',
-          color: 'hsl(var(--ink))',
-          background: 'hsl(var(--surface))',
-          border: '1px solid hsl(var(--rule))',
-          boxShadow: '0 24px 80px hsl(220 20% 5% / 0.32)',
-        }}
-      >
-        <div
-          style={{
-            display: 'inline-flex',
-            padding: '5px 9px',
-            borderRadius: 999,
-            font: '600 11px/1 var(--font-mono)',
-            letterSpacing: '.08em',
-            color: 'hsl(var(--accent))',
-            background: 'hsl(var(--accent) / 0.1)',
-          }}
-        >
-          PRE-ALPHA
-        </div>
-        <h2 id="pre-alpha-guide-title" style={{ margin: '16px 0 8px', fontSize: 25 }}>
-          {t('preAlphaGuide.title')}
-        </h2>
+      <ModalCard width={560}>
+        <ModalHeader kicker="PRE-ALPHA" title={t('preAlphaGuide.title')} />
+        <ModalBody>
         <p style={{ margin: 0, color: 'hsl(var(--ink-2))', lineHeight: 1.7 }}>
           {t('preAlphaGuide.intro')}
         </p>
@@ -91,13 +59,13 @@ export function PreAlphaOnboardingDialog() {
         <p style={{ margin: '0 0 20px', color: 'hsl(var(--ink-2))', lineHeight: 1.65 }}>
           {t('preAlphaGuide.settingsHint')}
         </p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="set-btn set-btn--primary" onClick={dismiss} autoFocus>
+        </ModalBody>
+        <ModalActions>
+          <Button variant="primary" onClick={dismiss} autoFocus>
             {t('preAlphaGuide.continue')}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+          </Button>
+        </ModalActions>
+      </ModalCard>
+    </ModalRoot>
   );
 }

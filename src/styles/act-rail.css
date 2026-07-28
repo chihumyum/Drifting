@@ -218,9 +218,9 @@
 }
 
 /* Band context menu — portaled to body (position: fixed) so it escapes the
-   modern-skin backdrop-filter containing block, same as every other popover. */
+   shell's backdrop-filter containing block, same as every other popover. */
 .actrail__menu {
-  z-index: 1000;
+  z-index: var(--z-popover);
   min-width: 168px;
   padding: 4px;
   display: flex;

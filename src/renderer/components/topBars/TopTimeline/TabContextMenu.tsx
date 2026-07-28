@@ -1,5 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { ContextMenuSurface } from '../../ui/ContextMenuSurface';
 
 export interface TabMenuItem {
   label?: string;
@@ -26,58 +25,14 @@ interface Props {
 //   • Scroll / resize (so it doesn't float over stale anchors)
 //   • Selecting an item
 export function TabContextMenu({ x, y, items, onClose }: Props) {
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState<{ x: number; y: number }>({ x, y });
-
-  useLayoutEffect(() => {
-    const el = menuRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const margin = 8;
-    let nx = x;
-    let ny = y;
-    if (nx + rect.width + margin > window.innerWidth) {
-      nx = Math.max(margin, window.innerWidth - rect.width - margin);
-    }
-    if (ny + rect.height + margin > window.innerHeight) {
-      ny = Math.max(margin, window.innerHeight - rect.height - margin);
-    }
-    if (nx !== x || ny !== y) setPos({ x: nx, y: ny });
-  }, [x, y]);
-
-  useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      if (menuRef.current && menuRef.current.contains(e.target as Node)) return;
-      onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    const onScroll = () => onClose();
-    // Use capture so we beat any descendant handlers.
-    document.addEventListener('mousedown', onDocClick, true);
-    document.addEventListener('contextmenu', onDocClick, true);
-    document.addEventListener('keydown', onKey);
-    window.addEventListener('resize', onScroll);
-    window.addEventListener('scroll', onScroll, true);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick, true);
-      document.removeEventListener('contextmenu', onDocClick, true);
-      document.removeEventListener('keydown', onKey);
-      window.removeEventListener('resize', onScroll);
-      window.removeEventListener('scroll', onScroll, true);
-    };
-  }, [onClose]);
-
-  return createPortal(
-    <div
-      ref={menuRef}
-      role="menu"
+  return (
+    <ContextMenuSurface
+      x={x}
+      y={y}
+      onClose={onClose}
+      dismissOnScroll
+      className="tab-context-menu"
       style={{
-        position: 'fixed',
-        top: pos.y,
-        left: pos.x,
-        zIndex: 10000,
         minWidth: 180,
         background: 'hsl(var(--surface))',
         border: '1px solid hsl(var(--rule))',
@@ -154,7 +109,6 @@ export function TabContextMenu({ x, y, items, onClose }: Props) {
           </button>
         );
       })}
-    </div>,
-    document.body,
+    </ContextMenuSurface>
   );
 }

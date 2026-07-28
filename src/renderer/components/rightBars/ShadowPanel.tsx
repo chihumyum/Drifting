@@ -507,7 +507,7 @@ export function ShadowPanel() {
               borderRadius: 4,
               border: '1px dashed hsl(var(--rule))',
               textAlign: 'center',
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               fontStyle: 'italic',
               fontSize: 13,
               color: 'hsl(var(--ink-4))',

@@ -15,9 +15,8 @@ import {
 /**
  * The "mini-Excel" grid surface for the in-chapter plot planner. Follows the
  * Claude-design prototype: a centered table whose row/col headers render as
- * borderless *labels* (not dark cells), content cells render as cards
- * (modern skin) or gridlines (classic skin) — driven purely by `html[data-skin]`
- * in CSS. No color tagging.
+ * borderless *labels* (not dark cells), and content cells render as the shared
+ * rounded card treatment. No color tagging.
  *
  * Editing model (from the prototype): cell text lives in a ref and is committed
  * imperatively on input, so typing never re-renders and the caret never jumps.

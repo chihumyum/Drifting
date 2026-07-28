@@ -9,7 +9,6 @@
  * first, so a restore is itself always undoable).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { events } from '../../lib/events';
 import {
@@ -22,6 +21,7 @@ import { docToPlainText } from '../../lib/agent/serialize';
 import { countWordsInPmJson } from '../../lib/word-count';
 import { useDataStore } from '../../store/data-store';
 import type { ProseEntityType } from '../../lib/yjs-doc-id';
+import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
 interface Target {
   entityKind: ProseEntityType;
@@ -108,18 +108,6 @@ export function EntitySnapshotHistoryModal() {
     };
   }, [target]);
 
-  useEffect(() => {
-    if (!target) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.preventDefault();
-      e.stopPropagation();
-      close();
-    };
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
-  }, [target, close]);
-
   // Resolve the entity's current display name from the live store.
   const entityName = useDataStore((s) => {
     if (!target) return '';
@@ -168,91 +156,15 @@ export function EntitySnapshotHistoryModal() {
 
   if (!target) return null;
 
-  return createPortal(
-    <>
-      <div
-        onMouseDown={close}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'hsl(var(--ink-1) / 0.32)',
-          zIndex: 12000,
-        }}
-      />
-      <div
-        role="dialog"
-        aria-label={t('snapshotHistory.aria')}
-        style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 520,
-          maxWidth: 'calc(100vw - 48px)',
-          maxHeight: 'min(620px, calc(100vh - 96px))',
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'hsl(var(--surface))',
-          border: '1px solid hsl(var(--rule-strong))',
-          borderRadius: 8,
-          boxShadow: '0 18px 48px hsl(var(--ink-1) / 0.25)',
-          zIndex: 12001,
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'baseline',
-            justifyContent: 'space-between',
-            gap: 12,
-            padding: '14px 18px 10px',
-            borderBottom: '1px solid hsl(var(--rule))',
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                textTransform: 'uppercase',
-                letterSpacing: '0.14em',
-                color: 'hsl(var(--ink-3))',
-                marginBottom: 4,
-              }}
-            >
-              {t('snapshotHistory.title')}
-            </div>
-            <div
-              style={{
-                fontFamily: 'var(--font-serif)',
-                fontSize: 16,
-                color: 'hsl(var(--ink-1))',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {header}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={close}
-            aria-label={t('common.close')}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              color: 'hsl(var(--ink-3))',
-              fontSize: 16,
-              cursor: 'pointer',
-              padding: 4,
-              flexShrink: 0,
-            }}
-          >
-            ×
-          </button>
-        </div>
+  return (
+    <ModalRoot onClose={close} ariaLabel={t('snapshotHistory.aria')} closeOnBackdrop={!busy}>
+      <ModalCard width={520} style={{ maxHeight: 'min(620px, calc(100vh - 96px))' }}>
+        <ModalHeader
+          kicker={t('snapshotHistory.title')}
+          title={header}
+          onClose={close}
+          closeLabel={t('common.close')}
+        />
 
         {note && (
           <div
@@ -268,7 +180,7 @@ export function EntitySnapshotHistoryModal() {
           </div>
         )}
 
-        <div style={{ overflowY: 'auto', padding: '6px 10px 12px', flex: 1 }}>
+        <ModalBody className="snapshot-history-modal__body">
           {rows === null ? (
             <EmptyLine text={t('snapshotHistory.loading')} />
           ) : rows.length === 0 ? (
@@ -309,7 +221,7 @@ export function EntitySnapshotHistoryModal() {
                   {row.metaLabel && (
                     <span
                       style={{
-                        fontFamily: 'var(--font-serif)',
+                        fontFamily: 'var(--font-sans)',
                         fontStyle: 'italic',
                         fontSize: 12,
                         color: 'hsl(var(--ink-3))',
@@ -359,7 +271,7 @@ export function EntitySnapshotHistoryModal() {
                 {row.excerpt && (
                   <div
                     style={{
-                      fontFamily: 'var(--font-serif)',
+                      fontFamily: 'var(--font-sans)',
                       fontSize: 12,
                       lineHeight: 1.5,
                       color: 'hsl(var(--ink-3))',
@@ -375,10 +287,9 @@ export function EntitySnapshotHistoryModal() {
               </div>
             ))
           )}
-        </div>
-      </div>
-    </>,
-    document.body,
+        </ModalBody>
+      </ModalCard>
+    </ModalRoot>
   );
 }
 
@@ -388,7 +299,7 @@ function EmptyLine({ text }: { text: string }) {
       style={{
         padding: '28px 12px',
         textAlign: 'center',
-        fontFamily: 'var(--font-serif)',
+        fontFamily: 'var(--font-sans)',
         fontStyle: 'italic',
         fontSize: 12.5,
         color: 'hsl(var(--ink-3))',

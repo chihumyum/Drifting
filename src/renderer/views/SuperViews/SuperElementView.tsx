@@ -22,6 +22,15 @@ import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { DriftPanel, useDriftPanelAnim } from '../../components/DriftPanel';
 import { NodeCardPopover } from '../../components/graph/NodeCardPopover';
 import { SuperViewHeader } from '../../components/SuperViewHeader';
+import { SuperViewShell } from '../../components/SuperViewShell';
+import { Button } from '../../components/ui/Button';
+import { FilterChip } from '../../components/ui/FilterChip';
+import {
+  ModalActions,
+  ModalCard,
+  ModalHeader,
+  ModalRoot,
+} from '../../components/ui/Modal';
 
 // Visual cell dimensions for CATEGORY world. Each element card occupies one
 // cell. Categories expand by adding cells along whichever axis the
@@ -542,7 +551,7 @@ function ChapterBand({
               borderRadius: 3,
               background: isLinkSource ? 'hsl(var(--paper-deep))' : 'hsl(var(--paper))',
               border: `1px solid ${color}`,
-              borderLeft: `3px solid ${color}`,
+              boxShadow: `inset 0 2px 0 ${color}`,
               outline: isLinkSource ? `2px dashed ${color}` : 'none',
               outlineOffset: isLinkSource ? '1px' : 0,
               display: 'flex',
@@ -559,7 +568,7 @@ function ChapterBand({
           >
             <div
               style={{
-                fontFamily: 'var(--font-serif)',
+                fontFamily: 'var(--font-sans)',
                 fontSize: 11,
                 lineHeight: 1.15,
                 color: 'hsl(var(--ink-1))',
@@ -850,7 +859,7 @@ function CategoryBox({
             >
               <div
                 style={{
-                  fontFamily: 'var(--font-serif)',
+                  fontFamily: 'var(--font-sans)',
                   fontSize: 11.5,
                   lineHeight: 1.15,
                   color: 'hsl(var(--ink-1))',
@@ -2127,10 +2136,8 @@ export function SuperElementView() {
   ]);
 
   return (
-    <div className="super-element-overlay">
-      {/* Header — back + title + filter chips + view-mode toggles. The
-          button visual styles still live in the trailing <style> block
-          so :hover/.is-on can be expressed in real CSS. */}
+    <SuperViewShell className="super-element-overlay">
+      {/* Header — back + title + filter chips + view-mode toggles. */}
       <SuperViewHeader
         title={t('superElement.title')}
         meta={t('superElement.meta', {
@@ -2171,9 +2178,12 @@ export function SuperElementView() {
               const color = isUncat ? 'hsl(var(--ink-4))' : colorForKind(k);
               const visible = !hiddenKinds.has(k);
               return (
-                <button
+                <FilterChip
                   key={k}
-                  type="button"
+                  size="sm"
+                  active={visible}
+                  markerColor={color}
+                  dimmed={!visible}
                   onClick={() =>
                     setHiddenKinds((prev) => {
                       const next = new Set(prev);
@@ -2187,39 +2197,9 @@ export function SuperElementView() {
                       ? t('storyGraph.edge.hideKind', { label })
                       : t('storyGraph.edge.showKind', { label })
                   }
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    border: `1px solid ${visible ? color : 'hsl(var(--rule))'}`,
-                    background: visible ? 'hsl(var(--paper))' : 'transparent',
-                    color: visible ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-4))',
-                    padding: '3px 8px',
-                    borderRadius: 3,
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 9.5,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.1em',
-                    cursor: 'pointer',
-                    opacity: visible ? 1 : 0.55,
-                    maxWidth: 140,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
                 >
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: 1.5,
-                      background: color,
-                      flexShrink: 0,
-                    }}
-                  />
                   {label}
-                </button>
+                </FilterChip>
               );
             })}
 
@@ -2258,39 +2238,7 @@ export function SuperElementView() {
         }
       />
 
-      {/* The button visual styles for the header toggles live here so
-          :hover / .is-on can be expressed in real CSS. The .super-view-head
-          rules in the shared stylesheet keep the header controls interactive;
-          the remaining selectors below style cards / edges / drift overlays. */}
-      <style>{`
-        .super-element-overlay .super-element-reset,
-        .super-element-overlay .super-element-toggle {
-          border: 1px solid hsl(var(--rule));
-          background: transparent;
-          color: hsl(var(--ink-2));
-          border-radius: 3px;
-          cursor: pointer;
-          font-family: var(--font-mono);
-          padding: 3px 10px;
-          font-size: 10px;
-          text-transform: uppercase;
-          letter-spacing: 0.12em;
-          transition: background 120ms, color 120ms, border-color 120ms;
-        }
-        .super-element-overlay .super-element-reset:hover,
-        .super-element-overlay .super-element-toggle:hover {
-          background: hsl(var(--ink-1));
-          color: hsl(var(--paper));
-          border-color: hsl(var(--ink-1));
-        }
-        .super-element-overlay .super-element-toggle.is-on {
-          background: hsl(var(--ink-1));
-          color: hsl(var(--paper));
-          border-color: hsl(var(--ink-1));
-        }
-      `}</style>
-
-      {/* Canvas viewport. Doubles as the body island in modern skin —
+      {/* Canvas viewport. Doubles as the body island —
           .super-view-body picks up the rounded+shadow treatment alongside
           the header above it. position:absolute child (`worldRef`) is
           unaffected by the class's `display: flex` since it's out of flow. */}
@@ -2532,7 +2480,6 @@ export function SuperElementView() {
               zIndex: 10,
             }}
           >
-            <style>{`svg.super-viewport-edges[data-panning='1'] { visibility: hidden; }`}</style>
             {viewportEdgeGeom.map((edge) => {
               // Same click-focus boost as the world-space layer above.
               const selected = selectedEdgeId === edge.id || !!focusConnected?.edgeIds.has(edge.id);
@@ -2647,7 +2594,7 @@ export function SuperElementView() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               fontStyle: 'italic',
               fontSize: 14,
               color: 'hsl(var(--ink-3))',
@@ -2710,57 +2657,23 @@ export function SuperElementView() {
             ? existingKinds.filter((k) => k.toLowerCase().includes(filter))
             : existingKinds;
           return (
-            <>
-              <div
-                data-super-modal
-                style={{
-                  position: 'fixed',
-                  inset: 0,
-                  background: 'hsl(var(--ink-1) / 0.18)',
-                  backdropFilter: 'blur(2px)',
-                  zIndex: 310,
-                }}
-                onClick={() => setPendingLink(null)}
-              />
-              <div
-                data-super-modal
-                role="dialog"
-                aria-label={t('storyGraph.edge.newTitle')}
-                style={{
-                  position: 'fixed',
-                  left: '50%',
-                  top: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: 440,
-                  background: 'hsl(var(--paper))',
-                  border: '1px solid hsl(var(--rule))',
-                  borderRadius: 4,
-                  boxShadow: '0 8px 28px hsl(var(--ink-1) / 0.18)',
-                  zIndex: 311,
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-                <div
-                  style={{
-                    padding: '14px 18px 8px',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 10,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.12em',
-                    color: 'hsl(var(--ink-3))',
-                    borderBottom: '1px solid hsl(var(--rule))',
-                  }}
-                >
-                  {t('superElement.manualRelationTitle')}
-                </div>
+            <ModalRoot
+              onClose={() => setPendingLink(null)}
+              ariaLabel={t('storyGraph.edge.newTitle')}
+            >
+              <ModalCard width={440}>
+                <ModalHeader
+                  title={t('superElement.manualRelationTitle')}
+                  onClose={() => setPendingLink(null)}
+                  closeLabel={t('common.close')}
+                />
                 <div
                   style={{
                     padding: '14px 18px',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 8,
-                    fontFamily: 'var(--font-serif)',
+                    fontFamily: 'var(--font-sans)',
                     fontSize: 13,
                     color: 'hsl(var(--ink-1))',
                     lineHeight: 1.5,
@@ -2840,7 +2753,7 @@ export function SuperElementView() {
                         border: '1px solid hsl(var(--rule))',
                         borderRadius: 3,
                         padding: '6px 10px',
-                        fontFamily: 'var(--font-serif)',
+                        fontFamily: 'var(--font-sans)',
                         fontSize: 13,
                         color: 'hsl(var(--ink-1))',
                         background: 'hsl(var(--paper))',
@@ -2861,7 +2774,7 @@ export function SuperElementView() {
                           maxHeight: 160,
                           overflowY: 'auto',
                           boxShadow: '0 4px 14px hsl(var(--ink-1) / 0.1)',
-                          zIndex: 312,
+                          zIndex: 'calc(var(--z-modal) + 1)',
                         }}
                       >
                         {matches.map((k) => (
@@ -2909,57 +2822,26 @@ export function SuperElementView() {
                     )}
                   </div>
                 </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 8,
-                    padding: '10px 18px 14px',
-                    justifyContent: 'flex-end',
-                    borderTop: '1px solid hsl(var(--rule))',
-                    background: 'hsl(var(--paper-deep) / 0.5)',
-                  }}
-                >
-                  <button
-                    type="button"
+                <ModalActions>
+                  <Button
                     onClick={() => setPendingLink(null)}
-                    style={{
-                      border: '1px solid hsl(var(--rule))',
-                      background: 'transparent',
-                      color: 'hsl(var(--ink-2))',
-                      padding: '4px 14px',
-                      borderRadius: 3,
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.12em',
-                      cursor: 'pointer',
-                    }}
+                    variant="default"
+                    size="sm"
                   >
                     {t('common.cancel')}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
                     onClick={() => {
                       void confirmPendingLink();
                     }}
-                    style={{
-                      border: '1px solid hsl(var(--ink-1))',
-                      background: 'hsl(var(--ink-1))',
-                      color: 'hsl(var(--paper))',
-                      padding: '4px 14px',
-                      borderRadius: 3,
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.12em',
-                      cursor: 'pointer',
-                    }}
+                    variant="primary"
+                    size="sm"
                   >
                     {t('storyGraph.edge.create')}
-                  </button>
-                </div>
-              </div>
-            </>
+                  </Button>
+                </ModalActions>
+              </ModalCard>
+            </ModalRoot>
           );
         })()}
 
@@ -3209,6 +3091,6 @@ export function SuperElementView() {
           onClose={() => setDriftContextMenu(null)}
         />
       )}
-    </div>
+    </SuperViewShell>
   );
 }

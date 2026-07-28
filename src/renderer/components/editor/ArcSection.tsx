@@ -153,7 +153,14 @@ function ArcMapView({ arc, onJump }: { arc: ArcMap; onJump: (chapterId: string) 
           return (
             <div
               key={`${p.order}-${p.label}`}
-              style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '4px 0', borderLeft: '2px solid hsl(var(--rule))', paddingLeft: 10 }}
+              style={{
+                display: 'flex',
+                gap: 8,
+                alignItems: 'baseline',
+                padding: '4px 10px',
+                borderRadius: 'var(--radius-xs)',
+                background: 'hsl(var(--ink-1) / 0.025)',
+              }}
             >
               <button
                 type="button"

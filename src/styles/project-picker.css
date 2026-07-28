@@ -67,7 +67,7 @@
   color: hsl(var(--ink-5));
 }
 .pp-head__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: 400;
   font-size: 56px;
   line-height: 1;
@@ -81,7 +81,7 @@
   font-weight: 400;
 }
 .pp-head__sub {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 16px;
   color: hsl(var(--ink-3));
@@ -111,7 +111,7 @@
   color: hsl(var(--paper));
   display: grid;
   place-items: center;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 16px;
   font-weight: 500;
@@ -122,7 +122,7 @@
   align-items: flex-end;
 }
 .pp-head__user-name-main {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 14px;
   color: hsl(var(--ink-1));
@@ -174,43 +174,6 @@
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-}
-.pp-toolbar__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 12px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: hsl(var(--ink-4));
-  border: 1px solid hsl(var(--rule));
-  border-radius: 14px;
-  background: hsl(var(--page));
-  cursor: pointer;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  white-space: nowrap;
-  transition:
-    color 0.12s,
-    background 0.12s,
-    border-color 0.12s;
-}
-.pp-toolbar__chip em {
-  font-style: normal;
-  color: hsl(var(--ink-5));
-  font-size: 9px;
-}
-.pp-toolbar__chip:hover {
-  color: hsl(var(--ink-2));
-  border-color: hsl(var(--ink-4));
-}
-.pp-toolbar__chip--active {
-  color: hsl(var(--ink-1));
-  background: hsl(var(--surface));
-  border-color: hsl(var(--ink-3));
 }
 
 .pp-toolbar__actions {
@@ -273,7 +236,7 @@
   border-color: hsl(var(--accent) / 0.85);
 }
 .pp-toolbar__btn-glyph {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 12px;
   text-transform: none;
@@ -300,13 +263,13 @@
   gap: 12px;
 }
 .pp-section__title-mark {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 20px;
   color: hsl(var(--accent));
 }
 .pp-section__title-cn {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 22px;
   font-weight: 400;
   color: hsl(var(--ink-1));
@@ -407,7 +370,7 @@
   color: rgba(255, 255, 255, 0.65);
 }
 .pp-card__spine-glyph {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-weight: 500;
   font-size: 44px;
@@ -417,7 +380,7 @@
   margin-top: 8px;
 }
 .pp-card__spine-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: 400;
   font-size: 22px;
   line-height: 1.12;
@@ -428,7 +391,7 @@
   text-wrap: balance;
 }
 .pp-card__spine-sub {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 12px;
   color: rgba(255, 255, 255, 0.78);
@@ -451,7 +414,7 @@
 .pp-card__spine-foot b {
   color: hsl(var(--paper));
   font-weight: 500;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   letter-spacing: 0;
   text-transform: none;
   font-size: 12px;
@@ -466,7 +429,7 @@
   padding: 12px 4px 6px;
 }
 .pp-card__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 16px;
   font-weight: 400;
   color: hsl(var(--ink-1));
@@ -491,7 +454,7 @@
 .pp-card__meta b {
   color: hsl(var(--ink-2));
   font-weight: 500;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   letter-spacing: 0;
   text-transform: none;
@@ -609,7 +572,7 @@
   box-shadow: none;
 }
 .pp-card--new__glyph {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 56px;
   line-height: 1;
@@ -670,7 +633,7 @@
 }
 
 .pp-list__glyph {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-weight: 500;
   font-size: 26px;
@@ -685,7 +648,7 @@
   min-width: 0;
 }
 .pp-list__title-main {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 17px;
   font-weight: 400;
   color: hsl(var(--ink-1));
@@ -709,7 +672,7 @@
   margin-top: 2px;
 }
 .pp-list__sub {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13px;
   color: hsl(var(--ink-3));
@@ -727,7 +690,7 @@
   text-align: right;
 }
 .pp-list__cell-v {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15px;
   color: hsl(var(--ink-1));
   line-height: 1.1;
@@ -796,7 +759,7 @@
   flex: 0 0 280px;
   background: hsl(var(--page));
   border: 1px solid hsl(var(--rule));
-  border-left: 3px solid hsl(var(--pp-c, var(--accent)));
+  box-shadow: inset 0 2px 0 hsl(var(--pp-c, var(--accent)));
   padding: 14px 16px;
   cursor: pointer;
   display: flex;
@@ -817,7 +780,7 @@
   color: hsl(var(--ink-4));
 }
 .pp-recent__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 16px;
   font-weight: 400;
   color: hsl(var(--ink-1));
@@ -837,7 +800,7 @@
   margin-top: auto;
 }
 .pp-recent__last b {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   color: hsl(var(--ink-2));
   font-weight: 400;
@@ -860,7 +823,7 @@
   color: hsl(var(--ink-4));
 }
 .pp-foot__orn {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14px;
   letter-spacing: 0.8em;
   color: hsl(var(--ink-5));
@@ -870,7 +833,7 @@
 .pp-empty {
   padding: 64px 24px;
   text-align: center;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 15px;
   color: hsl(var(--ink-4));
@@ -928,7 +891,7 @@
   margin-bottom: 4px;
 }
 .pp-modal__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 22px;
   font-weight: 400;
   color: hsl(var(--ink-1));
@@ -946,7 +909,7 @@
   gap: 14px;
 }
 .pp-modal__sub {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 14px;
   color: hsl(var(--ink-3));
@@ -966,7 +929,7 @@
   color: hsl(var(--ink-4));
 }
 .pp-modal__input {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 16px;
   background: hsl(var(--page));
   border: 1px solid hsl(var(--rule));
@@ -980,7 +943,7 @@
   border-color: hsl(var(--accent));
 }
 .pp-modal__textarea {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 14px;
   background: hsl(var(--page));

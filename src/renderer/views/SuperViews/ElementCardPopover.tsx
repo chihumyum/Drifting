@@ -7,6 +7,12 @@ import { useBookElement } from '../../usecase/useBookElement';
 import { useEntityEditor, type EditorPersistDerived } from '../../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../../hooks/useEntityYjsDoc';
 import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
+import {
+  EntityCardPopoverShell,
+  type EntityCardAnchorRect,
+} from '../../components/ui/EntityCardPopoverShell';
+import { GhostIconButton } from '../../components/ui/GhostIconButton';
+import { X } from 'lucide-react';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('ElementCardPopover');
@@ -21,17 +27,7 @@ log.setLevel(loglevel.levels.WARN);
 // a form field / contenteditable inside the popover holds focus so the
 // inner element can use ESC to revert its own draft.
 
-const POPOVER_WIDTH = 380;
-const POPOVER_GAP = 10;
-const UPGRADE_WIDTH = 640;
-const UPGRADE_HEIGHT_MAX = 720;
-
-export interface AnchorRect {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
+export type AnchorRect = EntityCardAnchorRect;
 
 interface ElementPopoverBodyEditorProps {
   element: BookElement;
@@ -89,7 +85,7 @@ function ElementPopoverBodyEditor({
             borderRadius: 4,
             background: 'hsl(var(--destructive) / 0.08)',
             color: 'hsl(var(--destructive))',
-            fontFamily: 'var(--font-serif)',
+            fontFamily: 'var(--font-sans)',
             fontSize: 12,
             lineHeight: 1.5,
           }}
@@ -110,7 +106,7 @@ function ElementPopoverBodyEditor({
       <div
         role="status"
         style={{
-          fontFamily: 'var(--font-serif)',
+          fontFamily: 'var(--font-sans)',
           fontStyle: 'italic',
           color: 'hsl(var(--ink-3))',
           padding: 16,
@@ -148,7 +144,6 @@ export function ElementCardPopover({
   const [nameDraft, setNameDraft] = useState(element.name);
   const [summaryDraft, setSummaryDraft] = useState(element.summary ?? '');
   const summaryRef = useAutosizeTextArea(summaryDraft);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const activeElementIdRef = useRef(element.id);
 
   const { updateElement } = useBookElement({ projectId, userId });
@@ -174,45 +169,6 @@ export function ElementCardPopover({
   useEffect(() => {
     activeElementIdRef.current = element.id;
   }, [element.id]);
-
-  // ESC closes — but pass through to focused inputs / the editor so their
-  // own revert behavior runs first.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      const active = document.activeElement as HTMLElement | null;
-      const inField =
-        !!active &&
-        (active.tagName === 'TEXTAREA' ||
-          active.tagName === 'INPUT' ||
-          active.isContentEditable);
-      if (inField && containerRef.current?.contains(active)) {
-        e.stopPropagation();
-        return;
-      }
-      e.stopPropagation();
-      onClose();
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
-
-  // Outside click closes. Defer one tick so the click that opened us
-  // doesn't immediately dismiss it.
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-      if (containerRef.current.contains(e.target as Node)) return;
-      onClose();
-    };
-    const id = window.setTimeout(() => {
-      window.addEventListener('mousedown', onDown);
-    }, 0);
-    return () => {
-      window.clearTimeout(id);
-      window.removeEventListener('mousedown', onDown);
-    };
-  }, [onClose]);
 
   // --- Save handlers ---
   const commitName = useCallback(async () => {
@@ -251,74 +207,16 @@ export function ElementCardPopover({
     [element.id, element.contentJson, updateElement],
   );
 
-  // --- Positioning ---
-  const popoverStyle: React.CSSProperties = (() => {
-    if (mode === 'upgrade') {
-      const h = Math.min(UPGRADE_HEIGHT_MAX, window.innerHeight - 64);
-      return {
-        position: 'fixed',
-        width: UPGRADE_WIDTH,
-        height: h,
-        left: '50%',
-        top: '50%',
-        transform: 'translate(-50%, -50%)',
-      };
-    }
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const anchorCenterX = anchorRect.left + anchorRect.width / 2;
-    let left = anchorCenterX - POPOVER_WIDTH / 2;
-    left = Math.max(8, Math.min(left, vw - POPOVER_WIDTH - 8));
-    const estimatedHeight = 240;
-    const spaceAbove = anchorRect.top;
-    const spaceBelow = vh - (anchorRect.top + anchorRect.height);
-    if (spaceAbove >= estimatedHeight + POPOVER_GAP || spaceAbove >= spaceBelow) {
-      return {
-        position: 'fixed',
-        width: POPOVER_WIDTH,
-        left,
-        bottom: vh - anchorRect.top + POPOVER_GAP,
-        maxHeight: Math.max(0, spaceAbove - POPOVER_GAP - 8),
-      };
-    }
-    const top = anchorRect.top + anchorRect.height + POPOVER_GAP;
-    return {
-      position: 'fixed',
-      width: POPOVER_WIDTH,
-      left,
-      top,
-      maxHeight: Math.max(0, vh - top - 8),
-    };
-  })();
-
   return (
-    <>
-      {mode === 'upgrade' && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'hsl(var(--ink-1) / 0.18)',
-            backdropFilter: 'blur(2px)',
-            zIndex: 300,
-          }}
-        />
-      )}
-      <div
-        ref={containerRef}
-        role="dialog"
-        aria-label={t('elementCardPopover.aria.card')}
-        style={{
-          ...popoverStyle,
-          background: 'hsl(var(--paper))',
-          border: `1.5px solid ${accentColor}`,
-          borderRadius: 4,
-          boxShadow: '0 8px 28px hsl(var(--ink-1) / 0.18)',
-          zIndex: 301,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
+    <EntityCardPopoverShell
+        mode={mode}
+        anchorRect={anchorRect}
+        popoverWidth={380}
+        estimatedHeight={240}
+        onClose={onClose}
+        ariaLabel={t('elementCardPopover.aria.card')}
+        className="element-card-popover"
+        style={{ borderColor: accentColor }}
       >
         {/* Head */}
         <div
@@ -335,7 +233,7 @@ export function ElementCardPopover({
           <span
             aria-hidden
             style={{
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               fontStyle: 'italic',
               color: accentColor,
               fontSize: 12,
@@ -367,30 +265,20 @@ export function ElementCardPopover({
               border: 'none',
               outline: 'none',
               background: 'transparent',
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               fontSize: 14,
               fontWeight: 500,
               color: 'hsl(var(--ink-1))',
               padding: '2px 0',
             }}
           />
-          <button
-            type="button"
+          <GhostIconButton
             onClick={onClose}
             title={t('common.close')}
             aria-label={t('common.close')}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: 'hsl(var(--ink-3))',
-              fontSize: 18,
-              lineHeight: 1,
-              padding: '0 4px',
-            }}
-          >
-            ×
-          </button>
+            size="sm"
+            icon={<X size={14} aria-hidden="true" />}
+          />
         </div>
 
         {/* Body */}
@@ -418,7 +306,7 @@ export function ElementCardPopover({
                 outline: 'none',
                 padding: 12,
                 background: 'transparent',
-                fontFamily: 'var(--font-serif)',
+                fontFamily: 'var(--font-sans)',
                 fontSize: 'calc(var(--entity-body-font-size, 16px) - 4px)',
                 lineHeight: 1.5,
                 color: 'hsl(var(--ink-1))',
@@ -482,7 +370,7 @@ export function ElementCardPopover({
                   outline: 'none',
                   padding: '6px 0',
                   background: 'transparent',
-                  fontFamily: 'var(--font-serif)',
+                  fontFamily: 'var(--font-sans)',
                   fontSize: 'calc(var(--entity-body-font-size, 16px) - 4px)',
                   fontStyle: 'italic',
                   lineHeight: 1.4,
@@ -550,8 +438,7 @@ export function ElementCardPopover({
             </div>
           </>
         )}
-      </div>
-    </>
+    </EntityCardPopoverShell>
   );
 }
 

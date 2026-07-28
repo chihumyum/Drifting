@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ContextMenuSurface } from '../ui/ContextMenuSurface';
 
 // In-place combobox for changing an element's secondary group (groupName)
 // within its category. Replaces the old jump-to-editor + modal flow — opened
@@ -29,46 +29,7 @@ export function ElementGroupPicker({
   onClose,
 }: ElementGroupPickerProps) {
   const { t } = useTranslation();
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState<{ left: number; top: number }>({ left: x, top: y });
   const [query, setQuery] = useState('');
-
-  useLayoutEffect(() => {
-    const el = menuRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const pad = 6;
-    let left = x;
-    let top = y;
-    if (left + rect.width + pad > window.innerWidth) {
-      left = Math.max(pad, window.innerWidth - rect.width - pad);
-    }
-    if (top + rect.height + pad > window.innerHeight) {
-      top = Math.max(pad, window.innerHeight - rect.height - pad);
-    }
-    setPos({ left, top });
-  }, [x, y]);
-
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!menuRef.current) return;
-      if (menuRef.current.contains(event.target as Node)) return;
-      onClose();
-    };
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener('pointerdown', handlePointerDown, true);
-    document.addEventListener('keydown', handleKey, true);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown, true);
-      document.removeEventListener('keydown', handleKey, true);
-    };
-  }, [onClose]);
 
   const trimmed = query.trim();
   const filtered = useMemo(() => {
@@ -86,21 +47,13 @@ export function ElementGroupPicker({
     onClose();
   };
 
-  return createPortal(
-    <div
-      ref={menuRef}
+  return (
+    <ContextMenuSurface
+      x={x}
+      y={y}
+      onClose={onClose}
       className="editor-bar__menu"
-      role="menu"
-      onClick={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.preventDefault()}
       style={{
-        position: 'fixed',
-        left: pos.left,
-        top: pos.top,
-        right: 'auto',
-        bottom: 'auto',
-        zIndex: 10000,
-        margin: 0,
         minWidth: 200,
         maxHeight: '60vh',
         overflowY: 'auto',
@@ -170,7 +123,6 @@ export function ElementGroupPicker({
           {current === name && <span aria-hidden>✓</span>}
         </button>
       ))}
-    </div>,
-    document.body,
+    </ContextMenuSurface>
   );
 }

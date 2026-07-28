@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SyncOperationEvent } from '../../lib/events';
 import { useSyncObserver } from '../../services/sync-observer.service';
+import { SegmentedControl } from '../ui/SegmentedControl';
 
 const STATE_COLOR: Record<SyncOperationEvent['state'], string> = {
   started: 'hsl(var(--story-2))',
@@ -94,28 +95,26 @@ export function SyncActivityPanel() {
 
       {/* Filter row */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <div className="seg">
-          {(['all', 'yjs', 'crud'] as const).map((k) => (
-            <button
-              key={k}
-              className={'seg__btn' + (filterKind === k ? ' seg__btn--active' : '')}
-              onClick={() => setFilterKind(k)}
-            >
-              {k === 'all' ? t('syncActivity.filters.all') : k === 'yjs' ? 'Yjs' : 'CRUD'}
-            </button>
-          ))}
-        </div>
-        <div className="seg">
-          {(['all', 'started', 'succeeded', 'failed'] as const).map((s) => (
-            <button
-              key={s}
-              className={'seg__btn' + (filterState === s ? ' seg__btn--active' : '')}
-              onClick={() => setFilterState(s)}
-            >
-              {s === 'all' ? t('syncActivity.filters.all') : t(`syncActivity.state.${s}`)}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          value={filterKind}
+          options={(['all', 'yjs', 'crud'] as const).map((kind) => ({
+            value: kind,
+            label:
+              kind === 'all' ? t('syncActivity.filters.all') : kind === 'yjs' ? 'Yjs' : 'CRUD',
+          }))}
+          onChange={setFilterKind}
+        />
+        <SegmentedControl
+          value={filterState}
+          options={(['all', 'started', 'succeeded', 'failed'] as const).map((state) => ({
+            value: state,
+            label:
+              state === 'all'
+                ? t('syncActivity.filters.all')
+                : t(`syncActivity.state.${state}`),
+          }))}
+          onChange={setFilterState}
+        />
         <span style={{ flex: 1 }} />
         <button className="set-btn" onClick={clear}>
           {t('syncActivity.clear')}
@@ -237,7 +236,7 @@ function Stat({
       </div>
       <div
         style={{
-          fontFamily: 'var(--font-serif)',
+          fontFamily: 'var(--font-sans)',
           fontSize: 22,
           color: 'hsl(var(--ink-1))',
           marginTop: 2,

@@ -7,22 +7,18 @@ import { useBookNode } from '../../usecase/useBookNode';
 import { useBookContent } from '../../usecase/useBookContent';
 import { useDataStore } from '../../store/data-store';
 import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
+import {
+  EntityCardPopoverShell,
+  type EntityCardAnchorRect,
+} from '../ui/EntityCardPopoverShell';
+import { GhostIconButton } from '../ui/GhostIconButton';
+import { X } from 'lucide-react';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('NodeCardPopover');
 log.setLevel(loglevel.levels.WARN);
 
-const POPOVER_WIDTH = 360;
-const POPOVER_GAP = 10;
-const UPGRADE_WIDTH = 640;
-const UPGRADE_HEIGHT_MAX = 720;
-
-export interface AnchorRect {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
+export type AnchorRect = EntityCardAnchorRect;
 
 interface NodeCardPopoverProps {
   node: BookNode;
@@ -51,7 +47,6 @@ export function NodeCardPopover({
   // this way (vs a separate `contentLoaded` boolean) avoids a setState-in-
   // effect at the top of the load effect.
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const activeNodeIdRef = useRef(node.id);
 
   const { updateNodeSummary, renameNode, updateNode } = useBookNode({ projectId, userId });
@@ -94,51 +89,6 @@ export function NodeCardPopover({
   }, [mode, node.id, getContentByNodeId]);
 
   const contentLoaded = loadedFor === node.id;
-
-  // Esc closes the popover in both modes. The explicit "折叠" button still
-  // lets users move from the compact editor back to the summary card.
-  // We use the capture phase so we run before StoryGraphView's own Esc-closes-the-
-  // super-view handler, and call stopPropagation to suppress that.
-  // If a form field or the tiptap editor inside the popover has focus, we
-  // let that element's own Esc handler (revert/blur) run instead.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      const active = document.activeElement as HTMLElement | null;
-      const inField =
-        !!active &&
-        (active.tagName === 'TEXTAREA' ||
-          active.tagName === 'INPUT' ||
-          active.isContentEditable);
-      if (inField && containerRef.current?.contains(active)) {
-        e.stopPropagation();
-        return;
-      }
-      e.stopPropagation();
-      onClose();
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
-
-  // Outside click closes (both modes: in upgrade mode, the modal is the
-  // container, so clicking outside the modal box closes).
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-      if (containerRef.current.contains(e.target as Node)) return;
-      onClose();
-    };
-    // Defer one tick so the very click that opened us doesn't immediately
-    // close it.
-    const id = window.setTimeout(() => {
-      window.addEventListener('mousedown', onDown);
-    }, 0);
-    return () => {
-      window.clearTimeout(id);
-      window.removeEventListener('mousedown', onDown);
-    };
-  }, [onClose]);
 
   // --- Save handlers ---
   const handleSummaryBlur = useCallback(async () => {
@@ -210,59 +160,18 @@ export function NodeCardPopover({
     [getContentByNodeId, updateContentByNodeId, createContent, persistWordCountIfChanged],
   );
 
-  // --- Positioning ---
-  const popoverStyle: React.CSSProperties = (() => {
-    if (mode === 'upgrade') {
-      const h = Math.min(UPGRADE_HEIGHT_MAX, window.innerHeight - 64);
-      return {
-        position: 'fixed',
-        width: UPGRADE_WIDTH,
-        height: h,
-        left: '50%',
-        top: '50%',
-        transform: 'translate(-50%, -50%)',
-      };
-    }
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const anchorCenterX = anchorRect.left + anchorRect.width / 2;
-    let left = anchorCenterX - POPOVER_WIDTH / 2;
-    left = Math.max(8, Math.min(left, vw - POPOVER_WIDTH - 8));
-    // Prefer above the tile; if not enough room, place below.
-    const estimatedHeight = 220;
-    const spaceAbove = anchorRect.top;
-    const spaceBelow = vh - (anchorRect.top + anchorRect.height);
-    if (spaceAbove >= estimatedHeight + POPOVER_GAP || spaceAbove >= spaceBelow) {
-      return {
-        position: 'fixed',
-        width: POPOVER_WIDTH,
-        left,
-        bottom: vh - anchorRect.top + POPOVER_GAP,
-        maxHeight: Math.max(0, spaceAbove - POPOVER_GAP - 8),
-      };
-    }
-    const top = anchorRect.top + anchorRect.height + POPOVER_GAP;
-    return {
-      position: 'fixed',
-      width: POPOVER_WIDTH,
-      left,
-      top,
-      maxHeight: Math.max(0, vh - top - 8),
-    };
-  })();
-
   const labelNum =
     node.bookOrder != null ? `§ ${String(node.bookOrder).padStart(2, '0')}` : '§ —';
 
   return (
-    <>
-      {mode === 'upgrade' && <div className="node-card-backdrop" />}
-      <div
-        ref={containerRef}
-        className={`node-card${mode === 'upgrade' ? ' is-upgrade' : ''}`}
-        style={popoverStyle}
-        role="dialog"
-        aria-label={t('nodeCardPopover.aria.card')}
+    <EntityCardPopoverShell
+        mode={mode}
+        anchorRect={anchorRect}
+        popoverWidth={360}
+        estimatedHeight={220}
+        onClose={onClose}
+        ariaLabel={t('nodeCardPopover.aria.card')}
+        className="node-card"
       >
         {mode === 'default' ? (
           <>
@@ -271,15 +180,14 @@ export function NodeCardPopover({
               <span className="node-card__title" title={node.title || t('common.untitled')}>
                 {node.title || t('common.untitled')}
               </span>
-              <button
-                type="button"
+              <GhostIconButton
                 className="node-card__close"
                 onClick={onClose}
                 title={t('commentRail.actions.close')}
                 aria-label={t('commentRail.actions.close')}
-              >
-                ×
-              </button>
+                size="sm"
+                icon={<X size={14} aria-hidden="true" />}
+              />
             </div>
             <textarea
               ref={summaryRef}
@@ -337,15 +245,14 @@ export function NodeCardPopover({
               >
                 {t('nodeCardPopover.fullEditor')} →
               </button>
-              <button
-                type="button"
+              <GhostIconButton
                 className="node-card__close"
                 onClick={onClose}
                 title={t('commentRail.actions.close')}
                 aria-label={t('commentRail.actions.close')}
-              >
-                ×
-              </button>
+                size="sm"
+                icon={<X size={14} aria-hidden="true" />}
+              />
             </div>
             <div className="node-card__editor">
               {contentLoaded ? (
@@ -377,7 +284,6 @@ export function NodeCardPopover({
             </div>
           </>
         )}
-      </div>
-    </>
+    </EntityCardPopoverShell>
   );
 }

@@ -3,7 +3,7 @@
    blocks; same visual recipe as .actrail__menu. */
 
 .tlpin-menu {
-  z-index: 1000;
+  z-index: var(--z-context-menu);
   min-width: 176px;
   max-width: 240px;
   padding: 4px;

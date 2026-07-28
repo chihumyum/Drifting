@@ -398,9 +398,6 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                     ? t('auth.signIn')
                     : t('auth.createAccount')}
               </span>
-              <span>
-                {mode === 'signin' ? t('auth.signInShort') : t('auth.createAccountShort')}
-              </span>
               <span className="si-submit__arrow">→</span>
             </button>
 

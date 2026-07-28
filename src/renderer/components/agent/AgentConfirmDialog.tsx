@@ -1,6 +1,7 @@
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAgentConfirmStore } from '../../store/agent-confirm-store';
+import { Button } from '../ui/Button';
+import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
 /**
  * Global, non-blocking confirmation dialog for the agent's destructive tools.
@@ -12,67 +13,26 @@ export function AgentConfirmDialog() {
   const pending = useAgentConfirmStore((s) => s.pending);
   if (!pending) return null;
 
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 2000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.32)',
-      }}
-      onClick={() => pending.respond(false)}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          minWidth: 320,
-          maxWidth: 440,
-          padding: '20px 22px',
-          borderRadius: 12,
-          background: 'var(--bg-elevated, #fff)',
-          color: 'var(--text-primary, #1a1a1a)',
-          boxShadow: '0 12px 40px rgba(0,0,0,0.28)',
-        }}
-      >
+  return (
+    <ModalRoot onClose={() => pending.respond(false)} ariaLabel={t('common.confirm')}>
+      <ModalCard width={440}>
+        <ModalHeader title={t('common.confirm')} />
+        <ModalBody>
         <div style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{pending.message}</div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
-          <button
-            type="button"
-            onClick={() => pending.respond(false)}
-            style={{
-              padding: '6px 16px',
-              borderRadius: 8,
-              border: '1px solid var(--border, #d4d4d4)',
-              background: 'transparent',
-              color: 'inherit',
-              cursor: 'pointer',
-            }}
-          >
+        </ModalBody>
+        <ModalActions>
+          <Button variant="default" onClick={() => pending.respond(false)}>
             {t('common.cancel')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="danger"
             autoFocus
             onClick={() => pending.respond(true)}
-            style={{
-              padding: '6px 16px',
-              borderRadius: 8,
-              border: '1px solid #c0392b',
-              background: '#c0392b',
-              color: '#fff',
-              cursor: 'pointer',
-            }}
           >
             {t('agentConfirm.allowDelete')}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+          </Button>
+        </ModalActions>
+      </ModalCard>
+    </ModalRoot>
   );
 }

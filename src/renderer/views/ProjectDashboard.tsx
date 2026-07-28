@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { FilterChip } from '../components/ui/FilterChip';
 import { useDataStore } from '../store/data-store';
 import { useStoryline } from '../usecase/useStoryline';
 import { useProject } from '../usecase/useProject';
@@ -491,14 +492,14 @@ export function ProjectDashboard() {
         {/* ════════ Chip filter row ════════ */}
         <div className="dash-chips">
           {chips.map((c) => (
-            <div
+            <FilterChip
               key={c.id}
-              className={`dash-chip ${chip === c.id ? 'dash-chip--active' : ''}`}
+              active={chip === c.id}
+              count={`· ${c.count}`}
               onClick={() => setChip(c.id)}
             >
-              <span>{c.label}</span>
-              <span className="dash-chip__count">· {c.count}</span>
-            </div>
+              {c.label}
+            </FilterChip>
           ))}
         </div>
 

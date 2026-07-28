@@ -33,6 +33,7 @@ import { useProjectStore } from '../../store/project-store';
 import { useAgentMemory } from '../../usecase/useAgentMemory';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useAgentCheckpointStore } from '../../store/agent-checkpoint-store';
+import { Switch } from '../ui/Switch';
 import { revertToTurn } from '../../lib/agent/turn-revert';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -232,12 +233,10 @@ function ComposerConfig() {
                 <div className="agt-menu__sec">{t('agentPanel.config.reasoning')}</div>
                 <div className="agt-menu__row">
                   <span>{t('agentPanel.config.extendedThinking')}</span>
-                  <button
-                    type="button"
-                    aria-pressed={agentThinking === 'adaptive'}
-                    className={'agt-tog' + (agentThinking === 'adaptive' ? ' agt-tog--on' : '')}
-                    onClick={() =>
-                      setAgentThinking(agentThinking === 'adaptive' ? 'off' : 'adaptive')
+                  <Switch
+                    checked={agentThinking === 'adaptive'}
+                    onCheckedChange={(checked) =>
+                      setAgentThinking(checked ? 'adaptive' : 'off')
                     }
                   />
                 </div>
@@ -261,12 +260,10 @@ function ComposerConfig() {
                 <div className="agt-menu__sec">{t('agentPanel.config.edits')}</div>
                 <div className="agt-menu__row" title={t('agentPanel.config.reviewEditsTitle')}>
                   <span>{t('agentPanel.config.reviewEdits')}</span>
-                  <button
-                    type="button"
-                    aria-pressed={agentEditMode === 'approve'}
-                    className={'agt-tog' + (agentEditMode === 'approve' ? ' agt-tog--on' : '')}
-                    onClick={() =>
-                      setAgentEditMode(agentEditMode === 'approve' ? 'auto' : 'approve')
+                  <Switch
+                    checked={agentEditMode === 'approve'}
+                    onCheckedChange={(checked) =>
+                      setAgentEditMode(checked ? 'approve' : 'auto')
                     }
                   />
                 </div>
@@ -1472,8 +1469,9 @@ const thinkingSummary: React.CSSProperties = {
 
 const thinkingBody: React.CSSProperties = {
   marginTop: 4,
-  paddingLeft: 10,
-  borderLeft: '2px solid hsl(var(--rule))',
+  padding: '6px 8px',
+  borderRadius: 'var(--radius-xs)',
+  background: 'hsl(var(--ink-1) / 0.025)',
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
   fontStyle: 'italic',
@@ -1643,7 +1641,7 @@ const panelCss = `
 .agent-md code { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11.5px; background: hsl(var(--ink-1) / 0.08); padding: 1px 4px; border-radius: 3px; }
 .agent-md pre { margin: 0 0 8px; padding: 8px; background: hsl(var(--ink-1) / 0.06); border-radius: 6px; overflow: auto; }
 .agent-md pre code { background: none; padding: 0; }
-.agent-md blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 2px solid hsl(var(--rule)); opacity: 0.85; }
+.agent-md blockquote { margin: 0 0 8px; padding: 6px 10px; border-radius: var(--radius-xs); background: hsl(var(--ink-1) / 0.035); opacity: 0.85; }
 .agent-md a { color: hsl(var(--accent)); text-decoration: underline; }
 .agent-md table { border-collapse: collapse; margin: 0 0 8px; }
 .agent-md th, .agent-md td { border: 1px solid hsl(var(--rule)); padding: 3px 6px; }
@@ -1658,7 +1656,7 @@ const panelCss = `
 .agt-entity-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 2px 2px; }
 .agt-entity-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid hsl(var(--rule)); border-radius: 999px; background: hsl(var(--surface)); color: hsl(var(--ink-1)); font-size: 11.5px; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
 .agt-entity-chip:hover { background: hsl(var(--accent) / 0.08); border-color: hsl(var(--accent) / 0.5); }
-.agt-entity-chip__glyph { color: hsl(var(--accent)); font-family: var(--font-serif); font-style: italic; }
+.agt-entity-chip__glyph { color: hsl(var(--accent)); font-family: var(--font-sans); font-style: italic; }
 .agt-entity-chip__op { font-size: 9.5px; opacity: 0.55; }
 .agt-otherrun { display: flex; align-items: center; gap: 7px; width: 100%; margin: 0 0 8px; padding: 6px 10px; border: 1px solid hsl(var(--accent) / 0.3); border-radius: 8px; background: hsl(var(--accent) / 0.06); color: hsl(var(--ink-2)); font-size: 11.5px; cursor: pointer; text-align: left; transition: background 0.12s, border-color 0.12s; }
 .agt-otherrun:hover { background: hsl(var(--accent) / 0.12); border-color: hsl(var(--accent) / 0.5); }

@@ -15,6 +15,7 @@ import type {
   PlatformCapabilities,
   PrepareImageOptions,
   PrepareImageResult,
+  SystemFontFamily,
   ThumbnailResult,
   UrlMetadataResult,
 } from './contracts';
@@ -63,6 +64,10 @@ export interface KeychainPlatformApi {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<boolean>;
   delete(key: string): Promise<boolean>;
+}
+
+export interface TypographyPlatformApi {
+  listSystemFonts(): Promise<SystemFontFamily[]>;
 }
 
 export interface MaterialPlatformApi {
@@ -161,6 +166,7 @@ export interface PlatformApi {
   readonly lifecycle: LifecyclePlatformApi;
   readonly auth: AuthPlatformApi;
   readonly keychain: KeychainPlatformApi;
+  readonly typography: TypographyPlatformApi;
   readonly material: MaterialPlatformApi;
   readonly assetCache: AssetCachePlatformApi;
   readonly aiLog: AILogPlatformApi;

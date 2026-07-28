@@ -7,10 +7,8 @@
    grid is centered in a faintly recessed tray; the top-bar button
    is the only toggle.
 
-   Cell style follows the active skin (html[data-skin]):
-     modern  → cards (gaps, rounded, hover-lift)
-     classic → sheet (collapsed gridlines)
-   Row/col headers render as borderless italic labels in both.
+   Content cells use the shared card treatment: gaps, rounded corners,
+   and a restrained hover lift. Row/column headers remain borderless.
    ============================================================ */
 
 .plot-planner {
@@ -72,11 +70,8 @@
 .pl-table {
   border-collapse: separate;
 }
-html[data-skin='modern'] .pl-table {
+.pl-table {
   border-spacing: 7px;
-}
-html[data-skin='classic'] .pl-table {
-  border-spacing: 0;
 }
 
 .pl-corner {
@@ -92,16 +87,12 @@ html[data-skin='classic'] .pl-table {
   border: 0;
   padding: 0 8px 6px;
   vertical-align: middle;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: normal;
   font-size: 13.5px;
   font-weight: 400;
   color: hsl(var(--ink-3));
   text-align: center;
-}
-/* Italic labels only in classic; modern (sans) stays upright. */
-html[data-skin='classic'] .pl-head {
-  font-style: italic;
 }
 .pl-head--row {
   padding: 0 12px;
@@ -167,7 +158,7 @@ html[data-skin='classic'] .pl-head {
   width: var(--pl-cell-w, 184px);
   min-height: var(--pl-cell-h, 96px);
   padding: 11px 12px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.55;
   color: hsl(var(--ink-2));
@@ -194,34 +185,22 @@ html[data-skin='classic'] .pl-head {
   opacity: 0;
 }
 
-/* modern → cards */
-html[data-skin='modern'] .pl-cell {
+.pl-cell {
   background: linear-gradient(158deg, hsl(var(--page)) 0%, hsl(var(--surface)) 100%);
   border: 1px solid hsl(var(--rule-strong));
   border-radius: 7px;
   box-shadow: 0 1px 2px hsl(var(--ink-1) / 0.05);
   transition: border-color 0.14s, box-shadow 0.14s, transform 0.14s;
 }
-html[data-skin='modern'] .pl-cell:hover {
+.pl-cell:hover {
   border-color: hsl(var(--accent) / 0.4);
   box-shadow: 0 3px 10px hsl(var(--ink-1) / 0.08);
   transform: translateY(-1px);
 }
-html[data-skin='modern'] .pl-cell:focus {
+.pl-cell:focus {
   border-color: hsl(var(--accent) / 0.55);
   box-shadow: 0 0 0 3px hsl(var(--accent) / 0.12), 0 3px 10px hsl(var(--ink-1) / 0.08);
   transform: translateY(-1px);
-}
-
-/* classic → sheet (collapsed gridlines) */
-html[data-skin='classic'] .pl-cell {
-  background: hsl(var(--page));
-  border: 1px solid hsl(var(--rule));
-  margin: -0.5px; /* overlap shared borders into single lines */
-}
-html[data-skin='classic'] .pl-cell:focus {
-  box-shadow: inset 0 0 0 2px hsl(var(--accent) / 0.5);
-  z-index: 2;
 }
 
 /* ── add row / col (floating, revealed on grid hover) ── */

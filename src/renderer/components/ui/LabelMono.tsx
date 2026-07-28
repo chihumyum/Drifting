@@ -23,17 +23,16 @@ export function LabelMono({
 }: LabelMonoProps) {
   return (
     <span
-      className={className}
+      className={[
+        'label-mono',
+        `label-mono--${size}`,
+        `label-mono--${tone}`,
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
       title={title}
-      style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: size === 'xs' ? 9.5 : 10.5,
-        textTransform: 'uppercase',
-        letterSpacing: '0.12em',
-        color: `hsl(var(--${tone}))`,
-        fontWeight: 500,
-        ...style,
-      }}
+      style={style}
     >
       {children}
     </span>

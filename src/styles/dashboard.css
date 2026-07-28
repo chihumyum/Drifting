@@ -60,7 +60,7 @@
 .dash-hero__kicker-sep { color: hsl(var(--ink-5)); }
 
 .dash-hero__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: 400;
   font-size: 64px;
   line-height: 0.96;
@@ -106,13 +106,13 @@
   font-weight: 300;
 }
 .dash-hero__title-cn {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: 500;
   letter-spacing: 0.02em;
 }
 
 .dash-hero__sub {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 17px;
   color: hsl(var(--ink-3));
@@ -145,7 +145,7 @@
   white-space: nowrap;
 }
 .dash-hero__metric-v {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 22px;
   color: hsl(var(--ink-1));
   line-height: 1.1;
@@ -225,7 +225,7 @@
   display: flex; flex-direction: column; gap: 0;
 }
 .dash-hero__progress-pct {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 26px;
   font-weight: 400;
   color: hsl(var(--ink-1));
@@ -253,28 +253,6 @@
   gap: 10px;
   margin-bottom: 22px;
 }
-.dash-chip {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 4px 11px 4px 9px;
-  border: 1px solid hsl(var(--ink-5));
-  border-radius: 14px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: hsl(var(--ink-3));
-  cursor: pointer;
-  background: hsl(var(--page));
-  transition: border-color 0.12s, color 0.12s;
-}
-.dash-chip:hover { color: hsl(var(--ink-1)); border-color: hsl(var(--ink-4)); }
-.dash-chip--active { color: hsl(var(--ink-1)); border-color: hsl(var(--ink-3)); background: hsl(var(--surface)); }
-.dash-chip__count {
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  color: hsl(var(--ink-4));
-  letter-spacing: 0.06em;
-}
 
 /* ───── ROW 1 — CONTINUE + TODAY ────────────────────────── */
 .dash-row {
@@ -290,7 +268,7 @@
 .dash-continue {
   background: hsl(var(--page));
   border: 1px solid hsl(var(--rule));
-  border-left: 3px solid var(--c-color, hsl(var(--accent)));
+  box-shadow: inset 0 2px 0 var(--c-color, hsl(var(--accent)));
   padding: 22px 28px 22px 30px;
   position: relative;
   min-height: 220px;
@@ -320,7 +298,7 @@
   margin-bottom: 4px;
 }
 .dash-continue__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 36px;
   font-weight: 400;
   line-height: 1.08;
@@ -329,20 +307,20 @@
   margin: 0 0 4px;
 }
 .dash-continue__sub {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 14px;
   color: hsl(var(--ink-3));
   margin: 0 0 14px;
 }
 .dash-continue__snippet {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 15px;
   line-height: 1.6;
   color: hsl(var(--ink-2));
-  border-left: 2px solid hsl(var(--ink-5));
-  padding: 2px 0 2px 14px;
+  padding: 8px 12px;
+  background: hsl(var(--ink-1) / 0.035);
   margin: 6px 0 0;
   max-width: 600px;
 }
@@ -366,7 +344,7 @@
 .dash-continue__meta b {
   color: hsl(var(--ink-2));
   font-weight: 500;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   text-transform: none;
   letter-spacing: 0;
   font-size: 12px;
@@ -387,7 +365,7 @@
 }
 .dash-continue__resume:hover { background: hsl(var(--accent) / 0.85); }
 .dash-continue__resume-arrow {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 15px;
   line-height: 1;
@@ -410,7 +388,7 @@
   margin-bottom: 6px;
 }
 .dash-today__date {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 14px;
   color: hsl(var(--ink-3));
@@ -421,7 +399,7 @@
   margin-bottom: 4px;
 }
 .dash-today__big {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 44px;
   font-weight: 400;
   line-height: 1;
@@ -476,7 +454,7 @@
   color: hsl(var(--ink-4));
 }
 .dash-today__streak-v {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 20px;
   line-height: 1.05;
   color: hsl(var(--ink-1));
@@ -505,7 +483,7 @@
   display: flex; align-items: baseline; gap: 12px;
 }
 .dash-section__title-mark {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 22px;
   line-height: 1;
@@ -513,7 +491,7 @@
   margin-right: 2px;
 }
 .dash-section__title-cn {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 22px;
   font-weight: 400;
   color: hsl(var(--ink-1));
@@ -565,7 +543,7 @@
   border-color: hsl(var(--accent));
 }
 .dash-section__btn-mark {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13px;
   line-height: 1;
@@ -615,7 +593,7 @@
 }
 .dash-track__name-main {
   display: flex; align-items: baseline; gap: 8px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 19px;
   font-weight: 400;
   color: hsl(var(--ink-1));
@@ -629,10 +607,10 @@
   font-style: italic;
   color: var(--s-color, hsl(var(--accent)));
   font-size: 17px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
 }
 .dash-track__name-sub {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 12.5px;
   color: hsl(var(--ink-4));
@@ -718,7 +696,7 @@
   align-items: flex-end;
 }
 .dash-track__wc-v {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 22px;
   font-weight: 400;
   color: hsl(var(--ink-1));
@@ -763,7 +741,7 @@
   background: hsl(var(--accent) / 0.06);
 }
 .dash-track--new-glyph {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 18px;
   text-transform: none;
@@ -801,7 +779,7 @@
   flex-shrink: 0;
 }
 .dash-cat__name {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15px;
   font-weight: 400;
   color: hsl(var(--ink-1));
@@ -825,7 +803,7 @@
   display: flex; flex-wrap: wrap;
   gap: 4px 10px;
   margin-top: 2px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 12.5px;
   color: hsl(var(--ink-3));
@@ -865,7 +843,7 @@
 }
 .dash-cat--new:hover { color: hsl(var(--accent)); background: hsl(var(--accent) / 0.06); }
 .dash-cat--new__glyph {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 20px;
   line-height: 1;
@@ -900,21 +878,21 @@
   display: block;
   color: hsl(var(--ink-2));
   font-weight: 500;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 13px;
   letter-spacing: 0;
   text-transform: none;
 }
 .dash-act-row__desc {
   display: flex; align-items: baseline; gap: 8px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14.5px;
   color: hsl(var(--ink-1));
   line-height: 1.4;
   min-width: 0;
 }
 .dash-act-row__desc-mark {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13px;
   color: var(--a-color, hsl(var(--accent)));
@@ -922,7 +900,7 @@
 }
 .dash-act-row__desc-main { font-weight: 400; }
 .dash-act-row__desc-tail {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   color: hsl(var(--ink-4));
   font-size: 13px;
@@ -968,7 +946,7 @@
 .dash-plan__input {
   width: 100%;
   min-width: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-feature-settings: 'onum', 'tnum';
   font-size: 22px;
   background: transparent;
@@ -1056,7 +1034,7 @@
   min-height: 112px;
   padding: 10px;
   resize: vertical;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.6;
 }
@@ -1082,7 +1060,7 @@
   color: hsl(var(--ink-4));
 }
 .dash-foot__ornament {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14px;
   letter-spacing: 0.8em;
   color: hsl(var(--ink-5));

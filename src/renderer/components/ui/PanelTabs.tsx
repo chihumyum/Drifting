@@ -1,0 +1,64 @@
+import {
+  forwardRef,
+  type ButtonHTMLAttributes,
+  type CSSProperties,
+  type HTMLAttributes,
+  type ReactNode,
+} from 'react';
+
+interface PanelTabTrayProps extends HTMLAttributes<HTMLDivElement> {
+  indicatorStyle: CSSProperties;
+  children: ReactNode;
+}
+
+export const PanelTabTray = forwardRef<HTMLDivElement, PanelTabTrayProps>(function PanelTabTray(
+  { indicatorStyle, className = '', children, ...props },
+  ref,
+) {
+  return (
+    <div ref={ref} className={`panel-tab-tray ${className}`.trim()} {...props}>
+      <div className="tab-indicator" style={indicatorStyle} />
+      {children}
+    </div>
+  );
+});
+
+interface PanelTabProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  active: boolean;
+  accent?: boolean;
+  compact?: boolean;
+  typography?: 'label' | 'caps';
+}
+
+/**
+ * Shared sidebar panel tab. Both sidebars use a real button with identical
+ * geometry; glyph/activity content and responsive labels remain caller slots.
+ */
+export function PanelTab({
+  active,
+  accent = false,
+  compact = false,
+  typography = 'caps',
+  className = '',
+  children,
+  ...props
+}: PanelTabProps) {
+  return (
+    <button
+      type="button"
+      className={[
+        'app-panel-tab',
+        `app-panel-tab--${typography}`,
+        active ? 'is-active' : '',
+        accent ? 'is-accent' : '',
+        compact ? 'is-compact' : '',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}

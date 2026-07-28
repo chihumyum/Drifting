@@ -2,7 +2,8 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } fr
 import { useTranslation } from 'react-i18next';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book-node';
-import { CHAPTER_ORDER_STRIDE, isChapter, isDrift } from '../domain/book-node';
+import { isChapter, isDrift } from '../domain/book-node';
+import { spreadTimelineNodes } from '../domain/timeline-spread';
 import { useDataStore, type EntityRelationLink } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
 import { useAuthStore } from '../store/auth';
@@ -20,11 +21,14 @@ import { NodeCardPopover, type AnchorRect } from '../components/graph/NodeCardPo
 import { EntityCellContextMenu } from '../components/leftBars/EntityCellContextMenu';
 import { useEntityCellAction } from '../hooks/useEntityCellAction';
 import { EdgeKindManager } from '../components/graph/EdgeKindManager';
-import { GraphTimelinePin } from '../components/graph/GraphTimelinePin';
+import { TimelinePin } from '../components/timeline/TimelinePin';
 import { TimelineRailMenu } from '../components/graph/TimelineRailMenu';
 import { DriftPanel, useDriftPanelAnim } from '../components/DriftPanel';
 import { SuperViewHeader } from '../components/SuperViewHeader';
+import { SuperViewShell } from '../components/SuperViewShell';
 import { AnchoredPopover } from '../components/ui/AnchoredPopover';
+import { SegmentedControl } from '../components/ui/SegmentedControl';
+import { FilterChip } from '../components/ui/FilterChip';
 import loglevel from 'loglevel';
 import '../../styles/graph-view.css';
 
@@ -817,31 +821,13 @@ export function StoryGraphView() {
   // semantics with BottomTimeline's handleSpread.
   const handleSpread = useCallback(async () => {
     if (placedNodes.length < 2) return;
-    const sorted = placedNodes.slice().sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0));
-    const SPACING = CHAPTER_ORDER_STRIDE;
-    const startOrder = Math.min(orderOf(sorted[0]) ?? 1, 1);
-    // Full old→new maps (not just the changed subset): the act-boundary
-    // repair below needs every chapter's position to find the straddling
-    // pair for each boundary.
-    const oldOrderById = new Map<string, number>();
-    const newOrderById = new Map<string, number>();
-    const updates: Array<{ id: string; newOrder: number }> = [];
-    sorted.forEach((node, i) => {
-      const newOrder = startOrder + i * SPACING;
-      oldOrderById.set(node.id, orderOf(node) ?? 0);
-      newOrderById.set(node.id, newOrder);
-      if (orderOf(node) !== newOrder) updates.push({ id: node.id, newOrder });
-    });
     try {
-      for (const u of updates) {
-        await updateNode(u.id, { [orderField]: u.newOrder });
-      }
-      // Spread rewrote the bookOrder axis — remap act boundaries against the
-      // same old→new mapping so each boundary keeps sitting between the same
-      // two chapters. Narrative spread doesn't touch bookOrder; skip.
-      if (!isNarrative && updates.length > 0) {
-        await remapAfterSpread(oldOrderById, newOrderById);
-      }
+      await spreadTimelineNodes({
+        nodes: placedNodes,
+        orderOf,
+        updateOrder: (id, newOrder) => updateNode(id, { [orderField]: newOrder }),
+        remapAfterSpread: isNarrative ? undefined : remapAfterSpread,
+      });
     } catch (err) {
       log.error('Failed to spread graph nodes', err);
     }
@@ -1269,9 +1255,13 @@ export function StoryGraphView() {
     const color = resolveKindColor(isUncategorized ? null : kind);
     const active = !hiddenKinds.has(kind);
     return (
-      <button
+      <FilterChip
         key={kind}
-        className={`graph-head__filter${active ? ' is-active' : ''}`}
+        shape="strip"
+        size="sm"
+        activeStyle="solid"
+        active={active}
+        markerColor={color}
         onClick={() =>
           setHiddenKinds((prev) => {
             const next = new Set(prev);
@@ -1286,36 +1276,38 @@ export function StoryGraphView() {
             : t('storyGraph.edge.showKind', { label })
         }
       >
-        <span className="graph-head__filter-dot" style={{ background: color }} />
-        <span>{label}</span>
-      </button>
+        {label}
+      </FilterChip>
     );
   };
 
   return (
-    <div className="graph-overlay" data-view={viewMode}>
+    <SuperViewShell className="graph-overlay" data-view={viewMode}>
       <SuperViewHeader
         title={t('storyGraph.title')}
         meta={totalsLabel}
         onBack={close}
         leftSlot={
           <>
-            <div className="graph-head__view-toggle">
-              <button
-                className={viewMode === 'book' ? 'is-active' : ''}
-                onClick={() => setViewMode('book')}
-                title={t('bottomTimeline.view.bookTitle')}
-              >
-                {t('bottomTimeline.view.book')}
-              </button>
-              <button
-                className={viewMode === 'narrative' ? 'is-active' : ''}
-                onClick={() => setViewMode('narrative')}
-                title={t('bottomTimeline.view.narrativeTitle')}
-              >
-                {t('bottomTimeline.view.narrative')}
-              </button>
-            </div>
+            <SegmentedControl
+              className="graph-head__view-toggle"
+              size="md"
+              value={viewMode}
+              onChange={setViewMode}
+              ariaLabel={t('bottomTimeline.view.toggleTitle')}
+              options={[
+                {
+                  value: 'book',
+                  label: t('bottomTimeline.view.book'),
+                  title: t('bottomTimeline.view.bookTitle'),
+                },
+                {
+                  value: 'narrative',
+                  label: t('bottomTimeline.view.narrative'),
+                  title: t('bottomTimeline.view.narrativeTitle'),
+                },
+              ]}
+            />
             <button
               type="button"
               className="graph-head__spread-btn"
@@ -1491,7 +1483,7 @@ export function StoryGraphView() {
         }
       />
 
-      <div className="graph-body">
+      <div className="super-view-body graph-body">
         {/* Single scroll container for the whole grid (vertical for
             many storylines, horizontal for many chapters). Rail labels
             stick to the left via `position: sticky` so they stay aligned
@@ -1654,11 +1646,12 @@ export function StoryGraphView() {
                     (m) => m.narrativeOrder >= orderSpan.min && m.narrativeOrder <= orderSpan.max,
                   )
                   .map((m) => (
-                    <GraphTimelinePin
+                    <TimelinePin
                       key={`pin-${m.id}`}
                       marker={m}
                       snapValues={snapValues}
-                      orderToX={orderToX}
+                      orderToPosition={orderToX}
+                      variant="graph"
                       pinHeight={GRAPH_CONFIG.AXIS_HEIGHT}
                       isDragging={pinDragXs.has(m.id)}
                       editOnMount={m.id === newlyAddedPinId}
@@ -2568,6 +2561,6 @@ export function StoryGraphView() {
             />
           );
         })()}
-    </div>
+    </SuperViewShell>
   );
 }

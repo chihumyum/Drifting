@@ -8,6 +8,14 @@ import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
 import { isChapter } from '../../domain/book-node';
+import { Button } from '../ui/Button';
+import {
+  ModalActions,
+  ModalBody,
+  ModalCard,
+  ModalHeader,
+  ModalRoot,
+} from '../ui/Modal';
 
 const log = loglevel.getLogger('EditChapterStorylineModal');
 log.setLevel(loglevel.levels.ERROR);
@@ -116,56 +124,17 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
   const disabled = !willUnaffiliate && !draftMainStorylineId;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 1000,
-        background: 'rgba(35, 28, 20, 0.32)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          width: 'min(520px, 100%)',
-          maxHeight: '80vh',
-          overflow: 'auto',
-          background: '#fefdfb',
-          border: '1px solid hsl(var(--accent-border))',
-          borderRadius: 10,
-          boxShadow: '0 18px 50px rgba(42, 26, 10, 0.22)',
-        }}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div
-          style={{
-            padding: '20px 22px 14px',
-            borderBottom: '1px solid rgba(184, 153, 104, 0.18)',
-          }}
-        >
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#2a1a0a' }}>
-            {t('editChapterStoryline.title')}
-          </div>
-          <div style={{ marginTop: 6, fontSize: 13, color: '#7a6a56' }}>{curNode.title}</div>
-        </div>
-
-        <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <ModalRoot onClose={onClose} ariaLabel={t('editChapterStoryline.title')}>
+      <ModalCard width={520}>
+        <ModalHeader title={t('editChapterStoryline.title')} subtitle={curNode.title} />
+        <ModalBody className="edit-storyline-modal__body">
           {storylines.length === 0 ? (
             <div
               style={{
                 padding: '24px 12px',
                 textAlign: 'center',
-                color: '#7a6a56',
-                fontFamily: 'var(--font-serif)',
+                color: 'hsl(var(--ink-3))',
+                fontFamily: 'var(--font-sans)',
                 fontStyle: 'italic',
                 fontSize: 13,
               }}
@@ -176,6 +145,7 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
             storylines.map((storyline) => {
               const selected = draftStorylineIds.includes(storyline.id);
               const isMain = draftMainStorylineId === storyline.id;
+              const color = storyline.color || 'hsl(var(--accent))';
               return (
                 <div
                   key={storyline.id}
@@ -185,11 +155,11 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
                     alignItems: 'center',
                     gap: 10,
                     padding: '10px 12px',
-                    borderRadius: 8,
-                    border: selected
-                      ? `1px solid ${storyline.color || '#b89968'}66`
-                      : '1px solid rgba(184, 153, 104, 0.18)',
-                    background: selected ? `${storyline.color || '#b89968'}12` : '#fffaf2',
+                    borderRadius: 'var(--radius-md)',
+                    border: selected ? `1px solid ${color}` : '1px solid hsl(var(--rule))',
+                    background: selected
+                      ? `color-mix(in srgb, ${color} 8%, transparent)`
+                      : 'hsl(var(--paper))',
                   }}
                 >
                   <input
@@ -209,7 +179,7 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
                       border: 'none',
                       background: 'transparent',
                       padding: 0,
-                      color: '#3c3025',
+                      color: 'hsl(var(--ink-2))',
                       cursor: 'pointer',
                       textAlign: 'left',
                     }}
@@ -220,7 +190,7 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
                         width: 10,
                         height: 10,
                         borderRadius: '50%',
-                        background: storyline.color || '#b89968',
+                        background: color,
                         flex: '0 0 auto',
                       }}
                     />
@@ -241,7 +211,7 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: 6,
-                      color: selected ? '#5a4a3a' : '#a39787',
+                      color: selected ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
                       fontSize: 12,
                       fontWeight: 600,
                     }}
@@ -259,49 +229,20 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
               );
             })
           )}
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 10,
-            padding: '14px 18px 18px',
-            borderTop: '1px solid rgba(184, 153, 104, 0.18)',
-          }}
-        >
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 6,
-              border: '1px solid hsl(var(--accent-border))',
-              background: '#fefdfb',
-              color: '#5a4a3a',
-              cursor: 'pointer',
-            }}
-          >
+        </ModalBody>
+        <ModalActions>
+          <Button onClick={onClose}>
             {t('common.cancel')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
             disabled={disabled}
             onClick={() => void handleSave()}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 6,
-              border: 'none',
-              background: disabled ? '#d8d0c3' : 'hsl(var(--accent))',
-              color: '#fefdfb',
-              cursor: disabled ? 'not-allowed' : 'pointer',
-              fontWeight: 700,
-            }}
           >
             {willUnaffiliate ? t('editChapterStoryline.unaffiliate') : t('common.save')}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </ModalActions>
+      </ModalCard>
+    </ModalRoot>
   );
 }

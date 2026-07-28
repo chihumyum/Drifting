@@ -22,7 +22,7 @@ import '../../../styles/act-rail.css';
 //     (snapped to integer grid orders, clamped strictly between neighbors)
 //   • double-click a band → inline rename
 //   • right-click a band → 重命名 / 在此处开始新幕 / 删除（并入相邻幕）
-//     (menu portals to body — fixed positioning escapes the modern-skin
+//     (menu portals to body — fixed positioning escapes the shell
 //     backdrop-filter containing block)
 interface ActRailProps {
   acts: BookAct[];

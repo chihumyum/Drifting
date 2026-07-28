@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookNode } from '../../usecase/useBookNode';
 import type { Storyline } from '../../domain/storyline';
-import { CHAPTER_ORDER_STRIDE, isChapter, isDrift } from '../../domain/book-node';
+import { isChapter, isDrift } from '../../domain/book-node';
+import { spreadTimelineNodes } from '../../domain/timeline-spread';
 import { useAuthStore } from '../../store/auth';
 import { NodeHoverPreview } from '../NodeHoverPreview';
 import { useDataStore } from '../../store/data-store';
@@ -15,8 +16,8 @@ import { useBottomTimelineSelectors } from './useBottomTimelineSelectors';
 import { useBottomTimelineInteractionState } from './useBottomTimelineInteractionState';
 import { EntityCellContextMenu } from '../leftBars/EntityCellContextMenu';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
-import { TimelinePinMenu } from '../graph/TimelinePinMenu';
 import { TimelineRailMenu } from '../graph/TimelineRailMenu';
+import { TimelinePin as SharedTimelinePin } from '../timeline/TimelinePin';
 import { ActRail } from './ActRail';
 import { useBookAct } from '../../usecase/useBookAct';
 import { events } from '../../lib/events';
@@ -29,6 +30,7 @@ import type { TimelineNode } from './types';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import loglevel from 'loglevel';
 import '../../../styles/bottom-timeline.css';
 const log = loglevel.getLogger('BottomTimeline');
@@ -76,221 +78,6 @@ function readPersistedView(): TimelineView {
   if (typeof localStorage === 'undefined') return 'book';
   const v = localStorage.getItem(TIMELINE_VIEW_STORAGE_KEY);
   return v === 'narrative' ? 'narrative' : 'book';
-}
-
-interface TimelinePinProps {
-  marker: import('../../domain/timeline-marker').TimelineMarker;
-  snapValues: number[];
-  orderToPosition: (order: number) => number;
-  xOffset: number;
-  isDragging: boolean;
-  pinHeight: number;
-  editOnMount?: boolean;
-  onChange: (patch: {
-    narrativeOrder?: number;
-    label?: string;
-    driftNodeId?: string | null;
-  }) => void;
-  onDelete: () => void;
-  onDragMove: (nextPixelX: number | null) => void;
-  // ---- Drift binding (see domain/timeline-marker.ts) ----
-  boundDriftTitle?: string | null;
-  onRequestBind?: () => void;
-  onOpenDrift?: () => void;
-}
-
-// A pin bound to a drift node renders the DRIFT's title instead of its own
-// label; double-click OPENS the drift's editor instead of inline-renaming,
-// and the context menu offers 解绑/打开 instead of 绑定/重命名.
-function TimelinePin({
-  marker,
-  snapValues,
-  orderToPosition,
-  xOffset,
-  isDragging,
-  pinHeight,
-  editOnMount = false,
-  onChange,
-  onDelete,
-  onDragMove,
-  boundDriftTitle = null,
-  onRequestBind,
-  onOpenDrift,
-}: TimelinePinProps) {
-  const { t } = useTranslation();
-  const isBound = Boolean(marker.driftNodeId);
-  const [editing, setEditing] = useState(editOnMount && !isBound);
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-  const labelRef = useRef<HTMLDivElement>(null);
-  // Pin head/label stays anchored to the persisted narrativeOrder during a
-  // drag. A separate timeline-level overlay follows the cursor as the drop
-  // indicator; on mouseup the pin "jumps" to the new slot.
-  const x = xOffset + orderToPosition(marker.narrativeOrder);
-
-  const startDrag = useCallback(
-    (e: React.MouseEvent) => {
-      // Left button only. A right-click must fall through to onContextMenu —
-      // if startDrag runs it flips the pin into is-dragging (opacity:0,
-      // pointer-events:none) synchronously, so the contextmenu event then
-      // resolves to whatever sits BEHIND the pin and the menu never opens.
-      if (e.button !== 0) return;
-      if (editing) return;
-      if (snapValues.length === 0) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const startMouseX = e.clientX;
-      const startPixel = orderToPosition(marker.narrativeOrder);
-      let nearest = marker.narrativeOrder;
-      // Don't enter drag state until the mouse passes a small threshold.
-      // Calling onDragMove on mousedown flips the pin to is-dragging
-      // (opacity:0, pointer-events:none) before any movement, which swallowed
-      // plain clicks / double-clicks — so the pin felt "drag only".
-      let dragging = false;
-      const onMove = (ev: MouseEvent) => {
-        const dx = ev.clientX - startMouseX;
-        if (!dragging && Math.abs(dx) < 4) return;
-        dragging = true;
-        const newPixel = startPixel + dx;
-        // Smooth drop indicator: report the raw pixel position so the
-        // line follows the mouse continuously. Snap is computed locally
-        // and only applied on mouseup, matching how chapter-clip drops
-        // work (drop indicator at mouse x; snap on drop).
-        let best = snapValues[0];
-        let bestDist = Infinity;
-        for (const s of snapValues) {
-          const d = Math.abs(orderToPosition(s) - newPixel);
-          if (d < bestDist) {
-            bestDist = d;
-            best = s;
-          }
-        }
-        nearest = best;
-        onDragMove(newPixel);
-      };
-      const onUp = () => {
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-        if (!dragging) {
-          // A click, not a drag. A bound pin opens its drift on SINGLE click
-          // (the caption is the drift's title, so there's no inline rename to
-          // reserve dblclick for); an unbound pin leaves it for dblclick→rename.
-          if (isBound) onOpenDrift?.();
-          return;
-        }
-        onDragMove(null);
-        if (nearest !== marker.narrativeOrder) onChange({ narrativeOrder: nearest });
-      };
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-    },
-    [
-      editing,
-      isBound,
-      onOpenDrift,
-      snapValues,
-      marker.narrativeOrder,
-      orderToPosition,
-      onChange,
-      onDragMove,
-    ],
-  );
-
-  useEffect(() => {
-    if (editing && labelRef.current) {
-      labelRef.current.focus();
-      const r = document.createRange();
-      r.selectNodeContents(labelRef.current);
-      const sel = window.getSelection();
-      sel?.removeAllRanges();
-      sel?.addRange(r);
-    }
-  }, [editing]);
-
-  // Unbind keeps the pin captioned: an own label wins, else the drift title.
-  const handleUnbind = useCallback(() => {
-    onChange({
-      driftNodeId: null,
-      label: marker.label.trim() ? marker.label : (boundDriftTitle ?? t('bottomTimeline.marker.defaultLabel')),
-    });
-  }, [onChange, marker.label, boundDriftTitle, t]);
-
-  const className = [
-    'btl-pin',
-    isDragging ? 'is-dragging' : '',
-    editing ? 'is-editing' : '',
-    isBound ? 'is-bound' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const displayLabel = isBound ? (boundDriftTitle || t('common.untitled')) : marker.label;
-
-  return (
-    <div
-      className={className}
-      style={{ left: x, height: pinHeight }}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setMenu({ x: e.clientX + 2, y: e.clientY - 2 });
-      }}
-    >
-      <div
-        ref={labelRef}
-        className="btl-pin__label"
-        contentEditable={editing}
-        suppressContentEditableWarning
-        onMouseDown={editing ? (e) => e.stopPropagation() : startDrag}
-        onDoubleClick={(e) => {
-          e.stopPropagation();
-          // Bound pins open on single click (handled in startDrag's mouseup);
-          // dblclick is only the rename trigger for unbound pins.
-          if (isBound) return;
-          if (!editing) setEditing(true);
-        }}
-        onBlur={(e) => {
-          if (isBound) return;
-          const text = (e.currentTarget.textContent ?? '').trim();
-          setEditing(false);
-          if (!text) onDelete();
-          else if (text !== marker.label) onChange({ label: text });
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            (e.currentTarget as HTMLDivElement).blur();
-          } else if (e.key === 'Escape') {
-            e.preventDefault();
-            (e.currentTarget as HTMLDivElement).textContent = marker.label;
-            (e.currentTarget as HTMLDivElement).blur();
-          }
-        }}
-        title={
-          isBound
-            ? t('bottomTimeline.marker.boundTitle')
-            : editing
-              ? t('bottomTimeline.marker.editingTitle')
-              : t('bottomTimeline.marker.renameTitle')
-        }
-      >
-        {displayLabel}
-      </div>
-      <div className="btl-pin__line" onMouseDown={startDrag} title={t('bottomTimeline.marker.dragTitle')} />
-      {menu && (
-        <TimelinePinMenu
-          x={menu.x}
-          y={menu.y}
-          isBound={isBound}
-          onOpenDrift={() => onOpenDrift?.()}
-          onUnbind={handleUnbind}
-          onRequestBind={() => onRequestBind?.()}
-          onRename={() => setEditing(true)}
-          onDelete={onDelete}
-          onClose={() => setMenu(null)}
-        />
-      )}
-    </div>
-  );
 }
 
 // Synthetic lane sentinels. These never hit the DB — they're virtual lanes
@@ -1261,33 +1048,13 @@ export function BottomTimeline() {
   // creation spacing and adjacent tiles sit a single grid unit apart.
   const handleSpread = useCallback(async () => {
     if (placedNodes.length < 2) return;
-    const sorted = placedNodes
-      .slice()
-      .sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0));
-    const SPACING = CHAPTER_ORDER_STRIDE;
-    const startOrder = Math.min(orderOf(sorted[0]) ?? 1, 1);
-    // Full old→new maps (not just the changed subset): the act-boundary
-    // repair below needs every chapter's position to find the straddling
-    // pair for each boundary.
-    const oldOrderById = new Map<string, number>();
-    const newOrderById = new Map<string, number>();
-    const updates: Array<{ id: string; newOrder: number }> = [];
-    sorted.forEach((node, i) => {
-      const newOrder = startOrder + i * SPACING;
-      oldOrderById.set(node.id, orderOf(node) ?? 0);
-      newOrderById.set(node.id, newOrder);
-      if (orderOf(node) !== newOrder) updates.push({ id: node.id, newOrder });
-    });
     try {
-      for (const u of updates) {
-        await updateNode(u.id, { [orderField]: u.newOrder });
-      }
-      // Spread rewrote the bookOrder axis — remap act boundaries against the
-      // same old→new mapping so each boundary keeps sitting between the same
-      // two chapters. Narrative spread doesn't touch bookOrder; skip.
-      if (!isNarrative && updates.length > 0) {
-        await remapAfterSpread(oldOrderById, newOrderById);
-      }
+      await spreadTimelineNodes({
+        nodes: placedNodes,
+        orderOf,
+        updateOrder: (id, newOrder) => updateNode(id, { [orderField]: newOrder }),
+        remapAfterSpread: isNarrative ? undefined : remapAfterSpread,
+      });
     } catch (err) {
       log.error('Failed to spread timeline nodes', err);
     }
@@ -1423,22 +1190,25 @@ export function BottomTimeline() {
     return (
       <div className="btl__head" onClick={(e) => e.stopPropagation()}>
         <div className="btl__head-left">
-          <div className="btl__view-toggle" title={t('bottomTimeline.view.toggleTitle')}>
-            <button
-              className={viewMode === 'book' ? 'is-active' : ''}
-              onClick={() => setViewMode('book')}
-              title={t('bottomTimeline.view.bookTitle')}
-            >
-              {t('bottomTimeline.view.book')}
-            </button>
-            <button
-              className={viewMode === 'narrative' ? 'is-active' : ''}
-              onClick={() => setViewMode('narrative')}
-              title={t('bottomTimeline.view.narrativeTitle')}
-            >
-              {t('bottomTimeline.view.narrative')}
-            </button>
-          </div>
+          <SegmentedControl
+            className="btl__view-toggle"
+            size="sm"
+            value={viewMode}
+            onChange={setViewMode}
+            ariaLabel={t('bottomTimeline.view.toggleTitle')}
+            options={[
+              {
+                value: 'book',
+                label: t('bottomTimeline.view.book'),
+                title: t('bottomTimeline.view.bookTitle'),
+              },
+              {
+                value: 'narrative',
+                label: t('bottomTimeline.view.narrative'),
+                title: t('bottomTimeline.view.narrativeTitle'),
+              },
+            ]}
+          />
           {/* 未归属 toggle — only meaningful when there are storylines AND
               chapters with no primary. Click reveals the 未归属 lane in the
               timeline; click again hides it. Hidden by default per UX spec.
@@ -1703,11 +1473,12 @@ export function BottomTimeline() {
 
         {isNarrative &&
           markers.map((m) => (
-            <TimelinePin
+            <SharedTimelinePin
               key={`pin-${m.id}`}
               marker={m}
               snapValues={snapValues}
               orderToPosition={orderToPosition}
+              variant="bottom"
               xOffset={railOffset}
               isDragging={pinDragXs.has(m.id)}
               pinHeight={overlayTopOffset}

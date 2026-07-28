@@ -248,7 +248,7 @@ export function SyncStatusHUD() {
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
-        zIndex: 1200,
+        zIndex: 'var(--z-toast)',
         pointerEvents: 'none',
       }}
     >

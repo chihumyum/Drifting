@@ -1,6 +1,5 @@
-import { useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { ContextMenuSurface } from '../ui/ContextMenuSurface';
 import '../../../styles/timeline-pin-menu.css';
 
 // Context menu for the EMPTY area of the narrative time-axis (marker) rail,
@@ -22,29 +21,8 @@ export interface TimelineRailMenuProps {
 
 export function TimelineRailMenu({ x, y, onAddMarker, onClose }: TimelineRailMenuProps) {
   const { t } = useTranslation();
-  useEffect(() => {
-    const onPointerDown = (e: PointerEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t?.closest('.tlpin-menu')) return;
-      onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('pointerdown', onPointerDown, true);
-    document.addEventListener('keydown', onKey, true);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      document.removeEventListener('keydown', onKey, true);
-    };
-  }, [onClose]);
-
-  return createPortal(
-    <div
-      className="tlpin-menu"
-      style={{ position: 'fixed', left: x, top: y }}
-      onContextMenu={(e) => e.preventDefault()}
-    >
+  return (
+    <ContextMenuSurface x={x} y={y} onClose={onClose} className="tlpin-menu">
       <button
         type="button"
         onClick={() => {
@@ -54,7 +32,6 @@ export function TimelineRailMenu({ x, y, onAddMarker, onClose }: TimelineRailMen
       >
         {t('bottomTimeline.railMenu.addMarkerHere')}
       </button>
-    </div>,
-    document.body,
+    </ContextMenuSurface>
   );
 }

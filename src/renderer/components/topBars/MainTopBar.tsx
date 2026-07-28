@@ -13,7 +13,7 @@ export function MainTopBar({ children, leftContent }: MainTopBarProps) {
       data-tauri-drag-region={desktopWindowControls ? 'deep' : undefined}
       style={
         {
-          height: 42,
+          height: 'var(--window-titlebar-height)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',

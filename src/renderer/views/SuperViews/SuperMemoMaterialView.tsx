@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../store/data-store';
 import { isChapter } from '../../domain/book-node';
@@ -7,6 +7,11 @@ import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { SuperViewHeader } from '../../components/SuperViewHeader';
+import { SuperViewShell } from '../../components/SuperViewShell';
+import { FilterChip } from '../../components/ui/FilterChip';
+import { ContextMenuSurface } from '../../components/ui/ContextMenuSurface';
+import { GhostIconButton } from '../../components/ui/GhostIconButton';
+import { LabelMono } from '../../components/ui/LabelMono';
 import { useComment } from '../../usecase/useComment';
 import { useLibraryItem } from '../../usecase/useLibraryItem';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
@@ -242,13 +247,7 @@ export function SuperMemoMaterialView() {
   const focusedEntity: FocusedEntity = entityFilter;
 
   return (
-    <div className="super-mm-overlay">
-      <style>{`
-        .smm-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-        .smm-scroll::-webkit-scrollbar-thumb { background: hsl(var(--rule)); border-radius: 4px; }
-        .smm-scroll::-webkit-scrollbar-track { background: transparent; }
-      `}</style>
-
+    <SuperViewShell className="super-mm-overlay">
       {/* Top header — back + title + global search. LibraryItem-specific
           filters (KIND chips, entity-target filter) live inside the
           LibraryItemMain section header so the global header stays focused
@@ -267,7 +266,7 @@ export function SuperMemoMaterialView() {
             placeholder={t('memoMaterial.super.searchPlaceholder')}
             style={{
               width: 220,
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               fontSize: 12.5,
               padding: '5px 9px',
               border: '1px solid hsl(var(--rule))',
@@ -280,10 +279,8 @@ export function SuperMemoMaterialView() {
         }
       />
 
-      {/* Body island — wraps the rail/main split AND the bottom drawer so
-          they read as one card in modern skin (header is the sibling island
-          above; BSB is the global island below). In classic the wrapper is
-          just an invisible flex column. */}
+      {/* Body island — wraps the rail/main split and bottom drawer so they
+          read as one card. Header and BottomStatusBar remain sibling islands. */}
       <div className="super-view-body">
         <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
           <TodoRail
@@ -401,7 +398,7 @@ export function SuperMemoMaterialView() {
           }
         />
       )}
-    </div>
+    </SuperViewShell>
   );
 }
 
@@ -444,29 +441,16 @@ function KindChip({
 }) {
   const { t } = useTranslation();
   return (
-    <button
+    <FilterChip
+      size="sm"
+      active={active}
+      count={count}
+      dimmed={count === 0}
       onClick={onClick}
       title={active ? t('memoMaterial.super.hideKind') : t('memoMaterial.super.showKind')}
-      style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 9.5,
-        textTransform: 'uppercase',
-        letterSpacing: '0.1em',
-        padding: '3px 8px',
-        borderRadius: 11,
-        border: `1px solid ${active ? 'hsl(var(--ink-1))' : 'hsl(var(--rule))'}`,
-        background: active ? 'hsl(var(--ink-1) / 0.06)' : 'transparent',
-        color: active ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-4))',
-        cursor: 'pointer',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        opacity: count === 0 ? 0.45 : 1,
-      }}
     >
-      <span>{children}</span>
-      <span style={{ fontSize: 9, color: 'hsl(var(--ink-4))' }}>{count}</span>
-    </button>
+      {children}
+    </FilterChip>
   );
 }
 
@@ -483,6 +467,7 @@ function EntityFilterButton({
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const { bookNodes, bookElements, storylines, bookElementCategories } = useDataStore();
 
@@ -511,109 +496,95 @@ function EntityFilterButton({
 
   return (
     <>
-      <span style={kickerStyle}>{t('memoMaterial.super.relations')}</span>
-      <button
-        ref={buttonRef}
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          fontFamily: 'var(--font-serif)',
-          fontSize: 12,
-          padding: '3px 8px',
-          borderRadius: 11,
-          border: `1px solid ${entityFilter.kind ? 'hsl(var(--ink-1))' : 'hsl(var(--rule))'}`,
-          background: entityFilter.kind ? 'hsl(var(--ink-1) / 0.06)' : 'transparent',
-          color: 'hsl(var(--ink-1))',
-          cursor: 'pointer',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 5,
-          maxWidth: 220,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-        title={
-          entityFilter.kind
-            ? t('memoMaterial.super.entityFilterActiveTitle', { label })
-            : t('memoMaterial.super.entityFilterTitle')
-        }
-      >
-        <span
+      <LabelMono tone="ink-4">{t('memoMaterial.super.relations')}</LabelMono>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+        <button
+          ref={buttonRef}
+          onClick={() => {
+            const rect = buttonRef.current?.getBoundingClientRect();
+            if (rect) setAnchor({ x: rect.left, y: rect.bottom + 6 });
+            setOpen((value) => !value);
+          }}
           style={{
+            minHeight: 'var(--control-height-sm)',
+            maxWidth: 220,
+            padding: '3px 8px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
             overflow: 'hidden',
-            textOverflow: 'ellipsis',
+            border: `1px solid ${entityFilter.kind ? 'hsl(var(--ink-1))' : 'hsl(var(--rule))'}`,
+            borderRadius: 'var(--radius-lg)',
+            background: entityFilter.kind ? 'hsl(var(--ink-1) / 0.06)' : 'transparent',
+            color: 'hsl(var(--ink-1))',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)',
+            fontSize: 12,
             whiteSpace: 'nowrap',
-            maxWidth: 180,
+          }}
+          title={
+            entityFilter.kind
+              ? t('memoMaterial.super.entityFilterActiveTitle', { label })
+              : t('memoMaterial.super.entityFilterTitle')
+          }
+        >
+          <span
+            style={{
+              maxWidth: 180,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {label}
+          </span>
+          {!entityFilter.kind && <ChevronDown size={12} aria-hidden="true" />}
+        </button>
+        {entityFilter.kind && (
+          <GhostIconButton
+            size="sm"
+            icon={<X size={13} aria-hidden="true" />}
+            aria-label={t('memoMaterial.super.clearEntityFilter')}
+            title={t('memoMaterial.super.clearEntityFilter')}
+            onClick={() => {
+              onChange({ kind: null, id: null });
+              setOpen(false);
+            }}
+          />
+        )}
+      </div>
+      {open && (
+        <ContextMenuSurface
+          x={anchor.x}
+          y={anchor.y}
+          onClose={() => setOpen(false)}
+          role="dialog"
+          ariaLabel={t('memoMaterial.super.entityFilterTitle')}
+          className="entity-filter-popover"
+          style={{
+            width: 360,
+            maxHeight: 440,
+            padding: 10,
+            overflowY: 'auto',
+            border: '1px solid hsl(var(--rule))',
+            borderRadius: 'var(--radius-sm)',
+            background: 'hsl(var(--paper))',
+            boxShadow: 'var(--shadow-control)',
           }}
         >
-          {label}
-        </span>
-        {entityFilter.kind ? (
-          <span
-            role="button"
-            aria-label={t('memoMaterial.super.clearEntityFilter')}
-            onClick={(e) => {
-              e.stopPropagation();
-              onChange({ kind: null, id: null });
-            }}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              color: 'hsl(var(--ink-4))',
-            }}
-          >
-            ×
-          </span>
-        ) : (
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              color: 'hsl(var(--ink-4))',
-            }}
-          >
-            ▾
-          </span>
-        )}
-      </button>
-      {open && (
-        <>
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
-          <div
-            style={{
-              position: 'absolute',
-              top: 44,
-              left: 14,
-              zIndex: 61,
-              width: 360,
-              maxHeight: 440,
-              overflowY: 'auto',
-              background: 'hsl(var(--paper))',
-              border: '1px solid hsl(var(--rule))',
-              borderRadius: 4,
-              padding: 10,
-              boxShadow: '0 10px 26px -8px hsl(var(--ink-1) / 0.22)',
-            }}
-          >
-            <div
-              style={{
-                ...kickerStyle,
-                marginBottom: 6,
-              }}
-            >
-              {t('memoMaterial.super.entityFilterHint')}
-            </div>
-            <EntityRelationPicker
-              selected={selected}
-              selectedChipMode="toggle"
-              onAdd={(t) => {
-                onChange({ kind: t.kind, id: t.id });
-                setOpen(false);
-              }}
-              onRemove={() => onChange({ kind: null, id: null })}
-            />
+          <div style={{ ...kickerStyle, marginBottom: 6 }}>
+            {t('memoMaterial.super.entityFilterHint')}
           </div>
-        </>
+          <EntityRelationPicker
+            selected={selected}
+            selectedChipMode="toggle"
+            onAdd={(target) => {
+              onChange({ kind: target.kind, id: target.id });
+              setOpen(false);
+            }}
+            onRemove={() => onChange({ kind: null, id: null })}
+          />
+        </ContextMenuSurface>
       )}
     </>
   );
@@ -777,7 +748,7 @@ function RailEmpty({ hint }: { hint: string }) {
       style={{
         padding: '20px 12px',
         textAlign: 'center',
-        fontFamily: 'var(--font-serif)',
+        fontFamily: 'var(--font-sans)',
         fontStyle: 'italic',
         fontSize: 12,
         color: 'hsl(var(--ink-4))',
@@ -862,7 +833,7 @@ function LibraryItemMain({
           background: 'hsl(var(--paper))',
         }}
       >
-        <span style={kickerStyle}>{t('memoMaterial.super.material')}</span>
+        <LabelMono tone="ink-4">{t('memoMaterial.super.material')}</LabelMono>
         <span
           style={{
             fontFamily: 'var(--font-mono)',
@@ -875,7 +846,7 @@ function LibraryItemMain({
 
         <ToolbarDivider />
 
-        <span style={kickerStyle}>{t('memoMaterial.super.kind')}</span>
+        <LabelMono tone="ink-4">{t('memoMaterial.super.kind')}</LabelMono>
         <div style={{ display: 'flex', gap: 4 }}>
           {KIND_ORDER.map((k) => (
             <KindChip
@@ -938,7 +909,7 @@ function LibraryItemMain({
             style={{
               padding: '60px 20px',
               textAlign: 'center',
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               fontStyle: 'italic',
               fontSize: 13,
               color: 'hsl(var(--ink-3))',
@@ -1244,7 +1215,7 @@ function BottomDrawer({
                   style={{
                     gridColumn: '1 / -1',
                     padding: '20px 8px',
-                    fontFamily: 'var(--font-serif)',
+                    fontFamily: 'var(--font-sans)',
                     fontStyle: 'italic',
                     fontSize: 12,
                     color: 'hsl(var(--ink-4))',
@@ -1306,7 +1277,7 @@ function BottomDrawer({
                 <div
                   style={{
                     padding: '20px 8px',
-                    fontFamily: 'var(--font-serif)',
+                    fontFamily: 'var(--font-sans)',
                     fontStyle: 'italic',
                     fontSize: 12,
                     color: 'hsl(var(--ink-4))',
@@ -1346,7 +1317,7 @@ function SubHeader({ kicker, count }: { kicker: string; count: number }) {
         background: 'hsl(var(--paper-deep) / 0.4)',
       }}
     >
-      <span style={kickerStyle}>{kicker}</span>
+      <LabelMono tone="ink-4">{kicker}</LabelMono>
       <span
         style={{
           fontFamily: 'var(--font-mono)',
@@ -1396,7 +1367,7 @@ function ResolvedTodoRow({
         style={{
           flex: 1,
           minWidth: 0,
-          fontFamily: 'var(--font-serif)',
+          fontFamily: 'var(--font-sans)',
           fontSize: 12.5,
           color: 'hsl(var(--ink-2))',
           textDecoration: 'line-through',

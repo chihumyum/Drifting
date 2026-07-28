@@ -628,7 +628,11 @@ function ActivityLog({
       {ordered.map(([chapterId, e]) => (
         <details
           key={chapterId}
-          style={{ borderLeft: '2px solid hsl(var(--rule))', paddingLeft: 10 }}
+          style={{
+            padding: '4px 10px',
+            borderRadius: 'var(--radius-xs)',
+            background: 'hsl(var(--ink-1) / 0.025)',
+          }}
         >
           <summary
             style={{
@@ -750,9 +754,9 @@ function Row({
         alignItems: 'baseline',
         fontSize: 12,
         lineHeight: 1.45,
-        padding: '2px 0',
-        borderLeft: '2px solid hsl(var(--rule))',
-        paddingLeft: 10,
+        padding: '4px 10px',
+        borderRadius: 'var(--radius-xs)',
+        background: 'hsl(var(--ink-1) / 0.025)',
       }}
     >
       <button

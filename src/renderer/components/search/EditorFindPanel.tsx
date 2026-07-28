@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import type { Editor } from '@tiptap/core';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { FindResultsList, type FindResultRow } from './FindResultsList';
+import { FindToolbar } from './FindToolbar';
 import '../../../styles/search.css';
 
 interface Match {
@@ -217,45 +217,21 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="editor-find-panel">
-        <input
-          ref={inputRef}
-          className="editor-find-input"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={t('findPanel.currentPlaceholder')}
-        />
-        <span className="editor-find-stats">
-          {noMatches ? '0/0' : `${currentIndex + 1}/${matches.length}`}
-        </span>
-        <button
-          type="button"
-          className="editor-find-btn"
-          onClick={() => jumpTo(currentIndex - 1)}
-          disabled={noMatches}
-          title={t('findPanel.previousTitle')}
-        >
-          <ChevronUp size={14} />
-        </button>
-        <button
-          type="button"
-          className="editor-find-btn"
-          onClick={() => jumpTo(currentIndex + 1)}
-          disabled={noMatches}
-          title={t('findPanel.nextTitle')}
-        >
-          <ChevronDown size={14} />
-        </button>
-        <button
-          type="button"
-          className="editor-find-btn"
-          onClick={onClose}
-          title={t('findPanel.closeTitle')}
-        >
-          <X size={14} />
-        </button>
-      </div>
+      <FindToolbar
+        ref={inputRef}
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={t('findPanel.currentPlaceholder')}
+        stats={noMatches ? '0/0' : `${currentIndex + 1}/${matches.length}`}
+        noMatches={noMatches}
+        onPrevious={() => jumpTo(currentIndex - 1)}
+        onNext={() => jumpTo(currentIndex + 1)}
+        onClose={onClose}
+        previousTitle={t('findPanel.previousTitle')}
+        nextTitle={t('findPanel.nextTitle')}
+        closeTitle={t('findPanel.closeTitle')}
+      />
 
       <FindResultsList
         rows={resultRows}

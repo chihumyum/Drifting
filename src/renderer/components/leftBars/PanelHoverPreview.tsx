@@ -70,7 +70,7 @@ export function PanelHoverPreview({
   emptyText?: string;
 }) {
   const body = summary?.trim() ?? '';
-  // Portal to <body>: the sidebars live under `.app-chrome`, whose modern-skin
+  // Portal to <body>: the sidebars live under `.app-chrome`, whose
   // backdrop-filter makes it the containing block for fixed descendants — a
   // non-portaled card gets re-anchored to the chrome and clipped invisible.
   return createPortal(
@@ -84,7 +84,7 @@ export function PanelHoverPreview({
         background: 'hsl(var(--surface))',
         border: '1px solid hsl(var(--rule-strong))',
         boxShadow: '0 6px 18px hsl(var(--ink-1) / 0.15)',
-        zIndex: 10000,
+        zIndex: 'var(--z-popover)',
         pointerEvents: 'none',
         display: 'flex',
         flexDirection: 'column',
@@ -105,7 +105,7 @@ export function PanelHoverPreview({
         <span
           aria-hidden
           style={{
-            fontFamily: 'var(--font-serif)',
+            fontFamily: 'var(--font-sans)',
             fontStyle: 'italic',
             fontSize: 11,
             color: accentColor,

@@ -204,7 +204,7 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
             list.style.overflowX = 'hidden';
             list.style.minWidth = '220px';
             list.style.maxWidth = '320px';
-            list.style.fontFamily = 'Georgia, "Times New Roman", "Songti SC", SimSun, serif';
+            list.style.fontFamily = 'var(--font-sans)';
             list.style.fontSize = '13px';
 
             if (items.length === 0) {
@@ -235,7 +235,7 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
               btn.style.color = idx === selected ? '#fefdfb' : '#5a4a3a';
               btn.style.cursor = 'pointer';
               btn.style.fontSize = '13px';
-              btn.style.fontFamily = 'Georgia, "Times New Roman", "Songti SC", SimSun, serif';
+              btn.style.fontFamily = 'var(--font-sans)';
               btn.style.transition = 'all 0.15s ease';
 
               const { tag, text } = labelFor(item);

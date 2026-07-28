@@ -101,7 +101,7 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
         list.style.overflowX = 'hidden';
         list.style.minWidth = '140px';
         list.style.maxWidth = '180px';
-        list.style.fontFamily = 'Georgia, "Times New Roman", "Songti SC", SimSun, serif';
+        list.style.fontFamily = 'var(--font-sans)';
         list.style.fontSize = '13px';
         let selectedBtn: HTMLButtonElement | null = null;
         items.forEach((item, idx) => {
@@ -117,7 +117,7 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
           btn.style.color = idx === selected ? '#fefdfb' : '#5a4a3a';
           btn.style.cursor = 'pointer';
           btn.style.fontSize = '13px';
-          btn.style.fontFamily = 'Georgia, "Times New Roman", "Songti SC", SimSun, serif';
+          btn.style.fontFamily = 'var(--font-sans)';
           btn.style.transition = 'all 0.15s ease';
           btn.style.flexShrink = '0';
           btn.onmouseenter = () => {

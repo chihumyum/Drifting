@@ -545,21 +545,6 @@ export function ElementPanel() {
           });
         }}
       >
-        {selected && (
-          <span
-            aria-hidden
-            className="cell-accent-stripe"
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 4,
-              bottom: 4,
-              width: 2,
-              background: 'hsl(var(--accent))',
-            }}
-          />
-        )}
-
         {/* Element mark — diamond in category color. Sized to occupy the
             same 12px-wide slot the chapter stripe uses, so titles line up
             across panels. */}
@@ -574,9 +559,9 @@ export function ElementPanel() {
                 : undefined
           }
           style={{
-            // Done swaps the diamond for a plain mono "M" marker; working/rest
-            // keep the italic serif diamond.
-            fontFamily: agentChanged ? 'var(--font-mono)' : 'var(--font-serif)',
+            // Done swaps the diamond for a plain "M" marker; working/rest
+            // keep the italic diamond.
+            fontFamily: agentChanged ? 'var(--font-mono)' : 'var(--font-sans)',
             fontStyle: agentChanged ? 'normal' : 'italic',
             fontSize: agentChanged ? 10 : 11,
             fontWeight: agentChanged ? 600 : undefined,
@@ -759,7 +744,7 @@ export function ElementPanel() {
             <div
               style={{
                 fontSize: 12,
-                fontFamily: 'var(--font-serif)',
+                fontFamily: 'var(--font-sans)',
                 fontStyle: 'italic',
                 color: 'hsl(var(--ink-3))',
                 padding: '40px 20px',
@@ -920,14 +905,6 @@ export function ElementPanel() {
         );
       })()}
 
-      {/* Hide the vertical scrollbar on the inner scroll container and the
-          horizontal scrollbar on the category footer (scroll still works). */}
-      <style>{`
-        .left-panel-scroll { scrollbar-width: none; }
-        .left-panel-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
-        .left-panel-cat-footer { scrollbar-width: none; }
-        .left-panel-cat-footer::-webkit-scrollbar { width: 0; height: 0; display: none; }
-      `}</style>
     </div>
   );
 }

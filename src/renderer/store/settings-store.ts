@@ -4,9 +4,13 @@ import type { BYOKProvider } from '../lib/byok-keychain';
 import { APP_CONFIG } from '../lib/config';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type AppearanceSkin = 'classic' | 'modern';
 export type FocusLineMode = 'off' | 'paragraph' | 'line' | 'sentence';
 export type ParagraphIndent = 'none' | 'one' | 'two';
+export type EditorFontSource =
+  | 'system-serif'
+  | 'system-sans'
+  | 'system-custom'
+  | 'imported';
 /** Editor line height, a free ratio in [1.0, 2.0] (slider, clamped on set). */
 export type LineHeight = number;
 
@@ -16,6 +20,7 @@ export type LineHeight = number;
  * can never drift apart.
  */
 export const EDITOR_STYLE_DEFAULTS = {
+  editorFontSource: 'system-serif',
   bodyFontSize: 17,
   lineHeight: 1.5,
   paragraphIndent: 'none',
@@ -23,6 +28,7 @@ export const EDITOR_STYLE_DEFAULTS = {
   paragraphSpacing: 1.0,
   maxLineWidth: 720,
 } satisfies {
+  editorFontSource: EditorFontSource;
   bodyFontSize: number;
   lineHeight: LineHeight;
   paragraphIndent: ParagraphIndent;
@@ -190,14 +196,13 @@ interface SettingsState {
   // 外观
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
-  // Classic = literary manuscript palette (oxblood, serif). Modern = Craft /
-  // Arc-style: muted blue-gray accent, pastel story colors, sans-serif body,
-  // pure-white doc surface. App.tsx pipes this into `data-skin` on <html>;
-  // index.css remaps tokens accordingly. No per-page JS branching.
-  appearanceSkin: AppearanceSkin;
-  setAppearanceSkin: (skin: AppearanceSkin) => void;
 
   // 编辑器
+  /** Device-local because installed/imported font availability is not portable. */
+  editorFontSource: EditorFontSource;
+  setEditorFontSource: (source: EditorFontSource) => void;
+  editorSystemFontFamily: string;
+  setEditorSystemFontFamily: (family: string) => void;
   bodyFontSize: number;
   setBodyFontSize: (px: number) => void;
   lineHeight: LineHeight;
@@ -417,9 +422,12 @@ export const useSettingsStore = create<SettingsState>()(
 
       themeMode: 'light',
       setThemeMode: (mode) => set({ themeMode: mode }),
-      appearanceSkin: 'classic',
-      setAppearanceSkin: (skin) => set({ appearanceSkin: skin }),
 
+      editorFontSource: EDITOR_STYLE_DEFAULTS.editorFontSource,
+      setEditorFontSource: (source) => set({ editorFontSource: source }),
+      editorSystemFontFamily: '',
+      setEditorSystemFontFamily: (family) =>
+        set({ editorSystemFontFamily: family.trim().slice(0, 128) }),
       bodyFontSize: EDITOR_STYLE_DEFAULTS.bodyFontSize,
       setBodyFontSize: (px) => set({ bodyFontSize: clamp(px, 12, 28, 17) }),
       lineHeight: EDITOR_STYLE_DEFAULTS.lineHeight,
@@ -563,10 +571,12 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 13,
+      version: 15,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
+          appearanceSkin?: 'classic' | 'modern';
           manuscriptSans?: boolean;
+          editorSerif?: boolean;
           marginNotes?: boolean;
           marginNotesByKind?: unknown;
           animationsEnabled?: boolean;
@@ -579,7 +589,9 @@ export const useSettingsStore = create<SettingsState>()(
           agentMode?: AiMode;
         };
         let next: Partial<SettingsState> & {
+          appearanceSkin?: 'classic' | 'modern';
           manuscriptSans?: boolean;
+          editorSerif?: boolean;
           marginNotes?: boolean;
           marginNotesByKind?: unknown;
           animationsEnabled?: boolean;
@@ -591,14 +603,12 @@ export const useSettingsStore = create<SettingsState>()(
           agentMode?: AiMode;
         } = state;
         if (version < 2) {
-          // manuscriptSans is subsumed by appearanceSkin = 'modern' (which
-          // remaps --font-serif to the sans stack). Users who had it on get
-          // upgraded to the full modern palette; the alternative (silently
-          // dropping the preference) feels worse.
+          // Preserve the original prose-font preference from the setting that
+          // predated the retired application-wide skin.
           const wasSans = (state as { manuscriptSans?: boolean }).manuscriptSans === true;
           const { manuscriptSans: _omit, ...rest } = next;
           void _omit;
-          next = { ...rest, appearanceSkin: wasSans ? 'modern' : 'classic' };
+          next = { ...rest, editorSerif: !wasSans };
         }
         if (version < 4) {
           // The margin-notes toggle moved out of global settings entirely —
@@ -769,6 +779,27 @@ export const useSettingsStore = create<SettingsState>()(
           // choice to the renderer-native Shadow function-calling editor.
           next.evolveEditorEngine = 'shadow-fc';
         }
+        if (version < 14) {
+          // The application now has one modern UI. Preserve the only visual
+          // choice that belongs to manuscript editing: classic users keep
+          // serif prose, while modern users keep sans prose.
+          const { appearanceSkin: legacySkin, ...rest } = next;
+          next = {
+            ...rest,
+            editorSerif:
+              typeof next.editorSerif === 'boolean' ? next.editorSerif : legacySkin !== 'modern',
+          };
+        }
+        if (version < 15) {
+          // Prose typography is now a device-local font source instead of a
+          // boolean serif switch. Preserve the old choice while dropping the
+          // retired field from persisted state.
+          const { editorSerif: legacyEditorSerif, ...rest } = next;
+          next = {
+            ...rest,
+            editorFontSource: legacyEditorSerif === false ? 'system-sans' : 'system-serif',
+          };
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -783,10 +814,25 @@ export const useSettingsStore = create<SettingsState>()(
           if (merged.shadowAiMode === 'hosted') merged.shadowAiMode = 'byok';
           if (merged.agentAuth === 'hosted') merged.agentAuth = 'oauth';
         }
-        // `merge` runs on every hydration, including stores already marked v13
+        // `merge` runs on every hydration, including stores already marked v14
         // or hand-edited values that bypassed the one-time migration.
         if (merged.evolveEditorEngine === 'agent-sdk') {
           merged.evolveEditorEngine = 'shadow-fc';
+        }
+        if (
+          merged.editorFontSource !== 'system-serif' &&
+          merged.editorFontSource !== 'system-sans' &&
+          merged.editorFontSource !== 'system-custom' &&
+          merged.editorFontSource !== 'imported'
+        ) {
+          merged.editorFontSource = EDITOR_STYLE_DEFAULTS.editorFontSource;
+        }
+        merged.editorSystemFontFamily =
+          typeof merged.editorSystemFontFamily === 'string'
+            ? merged.editorSystemFontFamily.trim().slice(0, 128)
+            : '';
+        if (merged.editorFontSource === 'system-custom' && !merged.editorSystemFontFamily) {
+          merged.editorFontSource = EDITOR_STYLE_DEFAULTS.editorFontSource;
         }
         return merged;
       },

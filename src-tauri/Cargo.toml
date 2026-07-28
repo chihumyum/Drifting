@@ -47,6 +47,7 @@ objc2-image-io = { version = "0.3.2", default-features = false, features = ["std
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSButton", "NSView", "NSWindow"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+fontdb = "0.23"
 tauri-plugin-single-instance = { version = "2.4.3", features = ["deep-link"] }
 
 [dev-dependencies]

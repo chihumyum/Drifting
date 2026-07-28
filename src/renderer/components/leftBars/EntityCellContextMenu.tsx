@@ -1,5 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type EditorType,
@@ -15,6 +14,7 @@ import {
   DRIFT_STATUSES,
   type WritingStatus,
 } from '../../domain/book-node';
+import { ContextMenuSurface } from '../ui/ContextMenuSurface';
 
 // Header surface — title + optional subtitle + storyline tags, lifted from
 // the old BottomTimeline-specific context menu so any caller can render
@@ -74,47 +74,6 @@ export function EntityCellContextMenu({
   onClose,
 }: EntityCellContextMenuProps) {
   const { t } = useTranslation();
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState<{ left: number; top: number }>({ left: x, top: y });
-
-  useLayoutEffect(() => {
-    const el = menuRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const pad = 6;
-    let left = x;
-    let top = y;
-    if (left + rect.width + pad > window.innerWidth) {
-      left = Math.max(pad, window.innerWidth - rect.width - pad);
-    }
-    if (top + rect.height + pad > window.innerHeight) {
-      top = Math.max(pad, window.innerHeight - rect.height - pad);
-    }
-    setPos({ left, top });
-  }, [x, y]);
-
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!menuRef.current) return;
-      if (menuRef.current.contains(event.target as Node)) return;
-      onClose();
-    };
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-      }
-    };
-    // Capture so we beat React's synthetic delegation when the click
-    // originated outside this component.
-    document.addEventListener('pointerdown', handlePointerDown, true);
-    document.addEventListener('keydown', handleKey, true);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown, true);
-      document.removeEventListener('keydown', handleKey, true);
-    };
-  }, [onClose]);
 
   const items: MenuItem[] = getMenuItems(editorType, nodeStatusKind, t);
   const showStatus =
@@ -135,32 +94,8 @@ export function EntityCellContextMenu({
     return null;
   }
 
-  // Portal to <body> so the menu escapes any ancestor that creates a new
-  // containing block for `position: fixed` (modern skin gives `.app-chrome`
-  // a `backdrop-filter`, which per CSS spec re-anchors fixed descendants to
-  // the chrome instead of the viewport — making the menu drop by the chrome's
-  // viewport offset and clip against `.app-island`'s `overflow: hidden`).
-  return createPortal(
-    <div
-      ref={menuRef}
-      className="editor-bar__menu"
-      role="menu"
-      onClick={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.preventDefault()}
-      style={{
-        position: 'fixed',
-        left: pos.left,
-        top: pos.top,
-        // The .editor-bar__menu class is built for absolute-positioned
-        // anchoring (top/right relative to its trigger). Reset right/bottom
-        // so the menu shrinks to content width at our fixed (left, top)
-        // instead of stretching to the viewport's right edge.
-        right: 'auto',
-        bottom: 'auto',
-        zIndex: 10000,
-        margin: 0,
-      }}
-    >
+  return (
+    <ContextMenuSurface x={x} y={y} onClose={onClose}>
       {hasHeader && header && (
         <>
           <div
@@ -191,7 +126,7 @@ export function EntityCellContextMenu({
                   marginTop: 2,
                   fontSize: 11,
                   color: 'hsl(var(--ink-3))',
-                  fontFamily: 'var(--font-serif)',
+                  fontFamily: 'var(--font-sans)',
                   fontStyle: 'italic',
                   overflow: 'hidden',
                   display: '-webkit-box',
@@ -293,7 +228,6 @@ export function EntityCellContextMenu({
           ))}
         </Fragment>
       ))}
-    </div>,
-    document.body,
+    </ContextMenuSurface>
   );
 }

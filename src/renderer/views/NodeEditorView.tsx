@@ -43,6 +43,14 @@ import { useSettingsStore } from '../store/settings-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { Button } from '../components/ui/Button';
+import {
+  ModalActions,
+  ModalBody,
+  ModalCard,
+  ModalHeader,
+  ModalRoot,
+} from '../components/ui/Modal';
 import { enqueueShadowReview } from '../lib/shadow/job-recorder';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { countWordsInPmJson } from '../lib/word-count';
@@ -699,7 +707,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     updateNode,
   ]);
 
-  const storylineColor = mainStoryline?.color || '#8A2A1E';
+  const storylineColor = mainStoryline?.color || 'hsl(var(--accent))';
 
   return (
     <div
@@ -764,7 +772,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                           >
                             <span
                               className="crumb-dropdown__dot"
-                              style={{ background: s.color || '#8A2A1E' }}
+                              style={{ background: s.color || 'hsl(var(--accent))' }}
                             />
                             <span>{s.name}</span>
                           </div>
@@ -963,7 +971,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 'var(--z-popover)',
           }}
           onClick={() => setShowGroupModal(false)}
         >
@@ -1052,67 +1060,20 @@ function ConversionPickerModal({
     : t('nodeEditor.conversion.toElement');
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 1000,
-        background: 'rgba(35, 28, 20, 0.32)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-      }}
-      onClick={onCancel}
-    >
-      <div
-        style={{
-          width: 'min(460px, 100%)',
-          maxHeight: '80vh',
-          display: 'flex',
-          flexDirection: 'column',
-          background: '#fefdfb',
-          border: '1px solid hsl(var(--accent-border))',
-          borderRadius: 10,
-          boxShadow: '0 18px 50px rgba(42, 26, 10, 0.22)',
-        }}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div
-          style={{
-            padding: '20px 22px 14px',
-            borderBottom: '1px solid rgba(184, 153, 104, 0.18)',
-          }}
-        >
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#2a1a0a' }}>{title}</div>
-          <div style={{ marginTop: 6, fontSize: 13, color: '#7a6a56' }}>{nodeTitle || t('common.untitled')}</div>
-          <div style={{ marginTop: 4, fontSize: 12, color: '#a39787', lineHeight: 1.4 }}>
-            {subtitle}
-          </div>
-        </div>
-
-        <div
-          style={{
-            padding: 14,
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            minHeight: 0,
-            flex: 1,
-          }}
-        >
+    <ModalRoot onClose={onCancel} ariaLabel={title}>
+      <ModalCard width={460}>
+        <ModalHeader
+          title={title}
+          subtitle={nodeTitle || t('common.untitled')}
+          description={subtitle}
+        />
+        <ModalBody className="conversion-picker__body">
           {options.length === 0 && (
             <div
               style={{
                 padding: 24,
                 textAlign: 'center',
-                color: '#a39787',
+                color: 'hsl(var(--ink-4))',
                 fontStyle: 'italic',
                 fontSize: 13,
               }}
@@ -1122,6 +1083,7 @@ function ConversionPickerModal({
           )}
           {options.map((opt) => {
             const selected = pickedId === opt.id;
+            const color = opt.color || 'hsl(var(--accent))';
             return (
               <button
                 type="button"
@@ -1132,16 +1094,16 @@ function ConversionPickerModal({
                   alignItems: 'center',
                   gap: 10,
                   padding: '10px 12px',
-                  borderRadius: 6,
-                  border: selected
-                    ? `1px solid ${opt.color || '#b89968'}`
-                    : '1px solid rgba(184, 153, 104, 0.18)',
-                  background: selected ? `${opt.color || '#b89968'}14` : '#fffaf2',
+                  borderRadius: 'var(--radius-md)',
+                  border: selected ? `1px solid ${color}` : '1px solid hsl(var(--rule))',
+                  background: selected
+                    ? `color-mix(in srgb, ${color} 8%, transparent)`
+                    : 'hsl(var(--paper))',
                   cursor: 'pointer',
                   textAlign: 'left',
                   fontSize: 14,
                   fontWeight: selected ? 600 : 500,
-                  color: '#2a1a0a',
+                  color: 'hsl(var(--ink-1))',
                 }}
               >
                 <span
@@ -1150,7 +1112,7 @@ function ConversionPickerModal({
                     width: 10,
                     height: 10,
                     borderRadius: '50%',
-                    background: opt.color || '#b89968',
+                    background: color,
                     flexShrink: 0,
                   }}
                 />
@@ -1168,55 +1130,20 @@ function ConversionPickerModal({
               </button>
             );
           })}
-        </div>
-
-        <div
-          style={{
-            padding: '12px 18px 16px',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 10,
-            borderTop: '1px solid rgba(184, 153, 104, 0.12)',
-          }}
-        >
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={busy}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 6,
-              border: '1px solid rgba(184, 153, 104, 0.4)',
-              background: 'transparent',
-              cursor: busy ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-              color: '#5a4a3a',
-            }}
-          >
+        </ModalBody>
+        <ModalActions>
+          <Button onClick={onCancel} disabled={busy}>
             {t('common.cancel')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
             onClick={onConfirm}
             disabled={busy || !pickedId || options.length === 0}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 6,
-              border: 'none',
-              background:
-                busy || !pickedId || options.length === 0
-                  ? 'hsl(var(--ink-4))'
-                  : 'hsl(var(--accent))',
-              color: 'hsl(var(--accent-foreground))',
-              cursor: busy || !pickedId || options.length === 0 ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-              fontWeight: 700,
-            }}
           >
             {busy ? t('nodeEditor.conversion.converting') : confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </ModalActions>
+      </ModalCard>
+    </ModalRoot>
   );
 }

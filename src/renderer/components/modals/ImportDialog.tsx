@@ -16,7 +16,7 @@
  * inferred title, then commits the whole batch on click.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X, FileText, Folder, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { FileText, Folder, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth';
@@ -26,6 +26,8 @@ import { useBookElement } from '../../usecase/useBookElement';
 import { useBookContent } from '../../usecase/useBookContent';
 import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { inferFormat, parseFile, type ImportTarget, type ParsedDoc } from '../../services/import';
+import { Button } from '../ui/Button';
+import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
 interface ImportDialogProps {
   open: boolean;
@@ -231,66 +233,25 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
   // ─── Render ───────────────────────────────────────────────────────
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.4)',
-        backdropFilter: 'blur(4px)',
-        display: 'grid',
-        placeItems: 'center',
-        zIndex: 10000,
-      }}
-      onClick={requestClose}
-      aria-busy={running}
+    <ModalRoot
+      onClose={requestClose}
+      ariaLabel={t('importDialog.title')}
+      closeOnBackdrop={!running}
+      dismissOnEscape={!running}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 640,
-          maxWidth: 'calc(100vw - 48px)',
-          maxHeight: 'calc(100vh - 80px)',
-          background: 'hsl(var(--surface))',
-          border: '1px solid hsl(var(--rule))',
-          borderRadius: 8,
-          padding: 24,
-          fontFamily: 'var(--font-sans)',
-          color: 'hsl(var(--ink-1))',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2
-            style={{
-              fontFamily: 'var(--font-serif)',
-              fontSize: 22,
-              fontWeight: 400,
-              margin: 0,
-            }}
-          >
-            {t('importDialog.title')}
-          </h2>
-          <button
-            type="button"
-            onClick={requestClose}
-            disabled={running}
-            title={running ? t('importDialog.closeBlocked') : t('settings.close')}
-            style={{
-              background: 'transparent',
-              border: 0,
-              cursor: 'pointer',
-              color: 'hsl(var(--ink-3))',
-            }}
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <p style={{ fontSize: 13, color: 'hsl(var(--ink-3))', marginTop: 8, marginBottom: 18 }}>
-          {t('importDialog.descriptionA')} <code>.md</code> / <code>.docx</code> / <code>.txt</code>
-          。{t('importDialog.descriptionB')}
-        </p>
+      <ModalCard width={640}>
+        <ModalHeader
+          title={t('importDialog.title')}
+          description={
+            <>
+              {t('importDialog.descriptionA')} <code>.md</code> / <code>.docx</code> /{' '}
+              <code>.txt</code>。{t('importDialog.descriptionB')}
+            </>
+          }
+          onClose={running ? undefined : requestClose}
+          closeLabel={running ? t('importDialog.closeBlocked') : t('settings.close')}
+        />
+        <ModalBody>
 
         {/* Target type */}
         <section style={{ marginBottom: 16 }}>
@@ -538,12 +499,13 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
           </div>
         )}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 'auto' }}>
-          <button type="button" className="set-btn" onClick={requestClose} disabled={running}>
+        </ModalBody>
+        <ModalActions>
+          <Button variant="default" onClick={requestClose} disabled={running}>
             {t('settings.close')}
-          </button>
-          <button
-            className="set-btn set-btn--primary"
+          </Button>
+          <Button
+            variant="primary"
             onClick={commit}
             disabled={running || !canCommit}
           >
@@ -552,9 +514,9 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
               : t('importDialog.start', {
                   count: items.filter((it) => it.status === 'ready').length,
                 })}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </ModalActions>
+      </ModalCard>
+    </ModalRoot>
   );
 }

@@ -328,21 +328,6 @@ export function ChapterPanel() {
           });
         }}
       >
-        {selected && (
-          <span
-            aria-hidden
-            className="cell-accent-stripe"
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 4,
-              bottom: 4,
-              width: 2,
-              background: 'hsl(var(--accent))',
-            }}
-          />
-        )}
-
         {agentChanged ? (
           <span
             aria-hidden
@@ -448,7 +433,7 @@ export function ChapterPanel() {
             <div
               style={{
                 fontSize: 12,
-                fontFamily: 'var(--font-serif)',
+                fontFamily: 'var(--font-sans)',
                 fontStyle: 'italic',
                 color: 'hsl(var(--ink-3))',
                 padding: '40px 20px',
@@ -516,7 +501,7 @@ export function ChapterPanel() {
             <div
               style={{
                 fontSize: 12,
-                fontFamily: 'var(--font-serif)',
+                fontFamily: 'var(--font-sans)',
                 fontStyle: 'italic',
                 color: 'hsl(var(--ink-3))',
                 padding: '40px 20px',
@@ -572,7 +557,7 @@ export function ChapterPanel() {
             <div
               style={{
                 fontSize: 11.5,
-                fontFamily: 'var(--font-serif)',
+                fontFamily: 'var(--font-sans)',
                 fontStyle: 'italic',
                 color: 'hsl(var(--ink-4))',
                 padding: '16px 20px',
@@ -630,13 +615,6 @@ export function ChapterPanel() {
         />
       )}
 
-      {/* Reveal the per-group + button on hover (no extra chrome at rest). */}
-      <style>{`
-        .left-sb-group-add { opacity: 0; }
-        .left-sb-group:hover .left-sb-group-add { opacity: 1; }
-        .left-panel-scroll-hidden { scrollbar-width: none; }
-        .left-panel-scroll-hidden::-webkit-scrollbar { width: 0; height: 0; display: none; }
-      `}</style>
     </div>
   );
 }

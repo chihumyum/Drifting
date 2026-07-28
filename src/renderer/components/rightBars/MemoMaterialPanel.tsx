@@ -21,6 +21,10 @@ import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import { scrollToBlockWhenReady } from '../../lib/scroll-to-block';
 import { EntityRelationPicker, type RelationTarget } from './EntityRelationPicker';
 import { CollapsibleFooter } from '../ui/CollapsibleFooter';
+import { Button } from '../ui/Button';
+import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
+import { FilterChip } from '../ui/FilterChip';
+import { EmptyState } from '../ui/EmptyState';
 import { assetCacheService } from '../../services/asset-cache.service';
 import type { AssetVariant } from '../../services/project-asset.service';
 import { platform } from '../../platform';
@@ -307,6 +311,7 @@ export function LibraryPanel({ focused }: Props) {
       >
         {filteredLibraryItems.length === 0 && (
           <EmptyState
+            density="compact"
             message={
               filter === 'related'
                 ? t('memoMaterial.empty.noRelated')
@@ -561,25 +566,14 @@ function FilterPill({
   children: React.ReactNode;
 }) {
   return (
-    <button
+    <FilterChip
+      size="sm"
+      active={active}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
-      style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 9.5,
-        textTransform: 'uppercase',
-        letterSpacing: '0.1em',
-        padding: '1px 8px',
-        borderRadius: 12,
-        border: `1px solid ${active ? 'hsl(var(--ink-1))' : 'hsl(var(--rule))'}`,
-        background: active ? 'hsl(var(--ink-1) / 0.06)' : 'transparent',
-        color: disabled ? 'hsl(var(--ink-5))' : active ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.5 : 1,
-      }}
     >
       {children}
-    </button>
+    </FilterChip>
   );
 }
 
@@ -695,7 +689,7 @@ function LibraryItemContextMenu({
       className="btl-cmenu"
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
-      style={{ left: pos.left, top: pos.top, zIndex: 10000 }}
+      style={{ left: pos.left, top: pos.top, zIndex: 'var(--z-context-menu)' }}
     >
       <div className="btl-cmenu__head">
         <div className="btl-cmenu__title">{material.title || subtitle || t('common.untitled')}</div>
@@ -866,7 +860,7 @@ export function TodoCard({
 
       <div
         style={{
-          fontFamily: 'var(--font-serif)',
+          fontFamily: 'var(--font-sans)',
           fontSize: 13,
           color: 'hsl(var(--ink-1))',
           whiteSpace: 'pre-wrap',
@@ -1166,7 +1160,7 @@ export function LibraryItemCard({
                   }}
                   style={{
                     width: '100%',
-                    fontFamily: 'var(--font-serif)',
+                    fontFamily: 'var(--font-sans)',
                     fontSize: 13.5,
                     color: 'hsl(var(--ink-1))',
                     lineHeight: 1.35,
@@ -1185,7 +1179,7 @@ export function LibraryItemCard({
                   }}
                   title={material.title || subtitle}
                   style={{
-                    fontFamily: 'var(--font-serif)',
+                    fontFamily: 'var(--font-sans)',
                     fontSize: 13.5,
                     fontWeight: 500,
                     color: 'hsl(var(--ink-1))',
@@ -1271,7 +1265,7 @@ export function LibraryItemCard({
                 }}
                 style={{
                   width: '100%',
-                  fontFamily: 'var(--font-serif)',
+                  fontFamily: 'var(--font-sans)',
                   fontSize: 13.5,
                   color: 'hsl(var(--ink-1))',
                   lineHeight: 1.35,
@@ -1290,7 +1284,7 @@ export function LibraryItemCard({
                 }}
                 title={material.title || subtitle}
                 style={{
-                  fontFamily: 'var(--font-serif)',
+                  fontFamily: 'var(--font-sans)',
                   fontSize: 13.5,
                   fontWeight: 500,
                   color: 'hsl(var(--ink-1))',
@@ -1311,7 +1305,7 @@ export function LibraryItemCard({
             <div
               onClick={handleOpenInApp}
               style={{
-                fontFamily: 'var(--font-serif)',
+                fontFamily: 'var(--font-sans)',
                 fontSize: 12.5,
                 color: material.bodyJson ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
                 fontStyle: material.bodyJson ? 'normal' : 'italic',
@@ -1365,7 +1359,7 @@ export function LibraryItemCard({
             onClick={handleOpenInApp}
             style={{
               marginTop: 6,
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               fontSize: 12.5,
               color: material.bodyJson ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
               fontStyle: material.bodyJson ? 'normal' : 'italic',
@@ -1588,117 +1582,16 @@ export function TextSnippetPopover({
     onExpand();
   }, [persistIfChanged, onExpand]);
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      close();
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [close]);
-
-  return createPortal(
-    <div
-      onClick={close}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'hsl(var(--ink-1) / 0.22)',
-        zIndex: 950,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 32,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: 'hsl(var(--paper))',
-          border: '1px solid hsl(var(--rule))',
-          borderRadius: 6,
-          width: 'min(440px, 92vw)',
-          maxHeight: '70vh',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 16px 36px -12px hsl(var(--ink-1) / 0.30)',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '10px 12px',
-            borderBottom: '1px solid hsl(var(--rule))',
-            flexShrink: 0,
-          }}
-        >
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
-              textTransform: 'uppercase',
-              letterSpacing: '0.12em',
-              color: 'hsl(var(--story-4))',
-            }}
-          >
-            {t('memoMaterial.kind.text')}
-          </span>
-          <span
-            title={material.title}
-            style={{
-              fontFamily: 'var(--font-serif)',
-              fontSize: 13.5,
-              color: 'hsl(var(--ink-1))',
-              flex: 1,
-              minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {material.title || t('common.untitled')}
-          </span>
-          <button
-            onClick={expand}
-            title={t('memoMaterial.preview.expandFullscreenTitle')}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              padding: '3px 8px',
-              borderRadius: 3,
-              border: '1px solid hsl(var(--rule))',
-              background: 'transparent',
-              color: 'hsl(var(--ink-2))',
-              cursor: 'pointer',
-            }}
-          >
-            {t('memoMaterial.preview.fullscreen')}
-          </button>
-          <button
-            onClick={close}
-            title={t('memoMaterial.preview.closeEsc')}
-            aria-label={t('common.cancel')}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 12,
-              padding: '0 6px',
-              borderRadius: 3,
-              border: 'none',
-              background: 'transparent',
-              color: 'hsl(var(--ink-4))',
-              cursor: 'pointer',
-            }}
-          >
-            ×
-          </button>
-        </div>
-        <div style={{ flex: 1, minHeight: 0, padding: 12, overflow: 'hidden' }}>
+  return (
+    <ModalRoot onClose={close} ariaLabel={material.title || t('common.untitled')}>
+      <ModalCard width="min(440px, 92vw)">
+        <ModalHeader
+          kicker={t('memoMaterial.kind.text')}
+          title={material.title || t('common.untitled')}
+          onClose={close}
+          closeLabel={t('memoMaterial.preview.closeEsc')}
+        />
+        <ModalBody>
           <textarea
             autoFocus
             value={draft}
@@ -1714,17 +1607,26 @@ export function TextSnippetPopover({
               padding: '8px 10px',
               background: 'hsl(var(--paper))',
               color: 'hsl(var(--ink-1))',
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               fontSize: 13.5,
               lineHeight: 1.55,
               outline: 'none',
               whiteSpace: 'pre-wrap',
             }}
           />
-        </div>
-      </div>
-    </div>,
-    document.body,
+        </ModalBody>
+        <ModalActions>
+          <Button
+            onClick={expand}
+            title={t('memoMaterial.preview.expandFullscreenTitle')}
+            variant="default"
+            size="sm"
+          >
+            {t('memoMaterial.preview.fullscreen')}
+          </Button>
+        </ModalActions>
+      </ModalCard>
+    </ModalRoot>
   );
 }
 
@@ -2004,7 +1906,7 @@ export function LibraryItemFullscreenPreview({
           outline: 'none',
           background: 'hsl(var(--paper))',
           color: 'hsl(var(--ink-1))',
-          fontFamily: 'var(--font-serif)',
+          fontFamily: 'var(--font-sans)',
           fontSize: 17,
           lineHeight: 1.65,
           padding: 24,
@@ -2020,7 +1922,7 @@ export function LibraryItemFullscreenPreview({
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 10000,
+        zIndex: 'var(--z-context-menu)',
         padding: isZoomablePreview ? 0 : '28px 32px',
         background: 'hsl(var(--ink-1) / 0.58)',
         backdropFilter: isZoomablePreview ? 'none' : 'blur(2px)',
@@ -2312,7 +2214,7 @@ function FullscreenEmpty({ message }: { message: string }) {
   return (
     <div
       style={{
-        fontFamily: 'var(--font-serif)',
+        fontFamily: 'var(--font-sans)',
         fontSize: 15,
         color: 'hsl(var(--ink-3))',
       }}
@@ -2374,7 +2276,7 @@ export function ResolvedTodoArchive({
           <div
             style={{
               flex: 1,
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               textDecoration: 'line-through',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
@@ -2480,7 +2382,7 @@ export function ComposeTodoDialog({
 
 const dialogTextareaStyle: React.CSSProperties = {
   width: '100%',
-  fontFamily: 'var(--font-serif)',
+  fontFamily: 'var(--font-sans)',
   fontSize: 13,
   padding: '6px 8px',
   borderRadius: 3,
@@ -2866,7 +2768,7 @@ export function ComposeLibraryItemDialog({
                 </div>
                 <div
                   style={{
-                    fontFamily: 'var(--font-serif)',
+                    fontFamily: 'var(--font-sans)',
                     fontSize: 12.5,
                     color: 'hsl(var(--ink-1))',
                     lineHeight: 1.3,
@@ -2932,7 +2834,7 @@ export function ComposeLibraryItemDialog({
             resize: 'vertical',
             minHeight: 100,
             maxHeight: 240,
-            fontFamily: 'var(--font-serif)',
+            fontFamily: 'var(--font-sans)',
           }}
         />
       )}
@@ -2966,50 +2868,13 @@ function DialogShell({
   onCancel: () => void;
   children: React.ReactNode;
 }) {
-  useEscapeToClose(true, onCancel);
-  return createPortal(
-    <div
-      onClick={onCancel}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'hsl(var(--ink-1) / 0.30)',
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 32,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: 'hsl(var(--paper))',
-          border: '1px solid hsl(var(--rule))',
-          borderRadius: 6,
-          width: 'min(520px, 92vw)',
-          maxHeight: 'calc(100vh - 64px)',
-          overflowY: 'auto',
-          overscrollBehavior: 'contain',
-          padding: 16,
-          boxShadow: '0 16px 32px -12px hsl(var(--ink-1) / 0.30)',
-        }}
-      >
-        <div
-          style={{
-            fontFamily: 'var(--font-serif)',
-            fontSize: 14,
-            fontWeight: 500,
-            color: 'hsl(var(--ink-1))',
-            marginBottom: 10,
-          }}
-        >
-          {title}
-        </div>
-        {children}
-      </div>
-    </div>,
-    document.body,
+  return (
+    <ModalRoot onClose={onCancel} ariaLabel={title}>
+      <ModalCard width={520}>
+        <ModalHeader title={title} />
+        <ModalBody>{children}</ModalBody>
+      </ModalCard>
+    </ModalRoot>
   );
 }
 
@@ -3032,45 +2897,24 @@ function DialogActions({
         marginTop: 12,
       }}
     >
-      <button
-        onClick={onCancel}
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          padding: '5px 12px',
-          border: '1px solid hsl(var(--rule))',
-          borderRadius: 3,
-          background: 'transparent',
-          color: 'hsl(var(--ink-2))',
-          cursor: 'pointer',
-        }}
-      >
+      <Button size="sm" onClick={onCancel}>
         {t('common.cancel')}
-      </button>
-      <button
+      </Button>
+      <Button
+        size="sm"
+        variant="primary"
         onClick={onConfirm}
         disabled={confirmDisabled}
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          padding: '5px 12px',
-          border: '1px solid hsl(var(--ink-1))',
-          borderRadius: 3,
-          background: confirmDisabled ? 'hsl(var(--ink-4))' : 'hsl(var(--ink-1))',
-          color: 'hsl(var(--paper))',
-          cursor: confirmDisabled ? 'not-allowed' : 'pointer',
-          opacity: confirmDisabled ? 0.5 : 1,
-        }}
       >
         {t('memoMaterial.dialog.create')}
-      </button>
+      </Button>
     </div>
   );
 }
 
 const dialogInputStyle: React.CSSProperties = {
   width: '100%',
-  fontFamily: 'var(--font-serif)',
+  fontFamily: 'var(--font-sans)',
   fontSize: 13.5,
   padding: '6px 8px',
   border: '1px solid hsl(var(--rule))',
@@ -3079,20 +2923,3 @@ const dialogInputStyle: React.CSSProperties = {
   color: 'hsl(var(--ink-1))',
   outline: 'none',
 };
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        padding: '32px 20px',
-        textAlign: 'center',
-        fontFamily: 'var(--font-serif)',
-        fontStyle: 'italic',
-        fontSize: 12.5,
-        color: 'hsl(var(--ink-3))',
-      }}
-    >
-      {message}
-    </div>
-  );
-}

@@ -425,7 +425,10 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
 
   return (
     <>
-      <div onMouseDown={doClose} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+      <div
+        onMouseDown={doClose}
+        style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-popover)' }}
+      />
       <div
         ref={panelRef}
         onMouseDown={(e) => e.stopPropagation()}
@@ -434,7 +437,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
           left: pos ? pos.left : Math.max(VIEWPORT_MARGIN, ctx.clientX),
           top: pos ? pos.top : ctx.clientY + 8,
           visibility: pos ? 'visible' : 'hidden',
-          zIndex: 999,
+          zIndex: 'calc(var(--z-popover) + 1)',
           width: PANEL_WIDTH,
           maxHeight: `calc(100vh - ${VIEWPORT_MARGIN * 2}px)`,
           overflowY: 'auto',

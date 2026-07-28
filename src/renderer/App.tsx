@@ -41,6 +41,7 @@ import { useSettingsStore } from './store/settings-store';
 import { useShortcutsStore } from './store/shortcuts-store';
 import { setI18nLocale } from './lib/i18n';
 import { applyEditorPreferences } from './lib/editor-preferences';
+import { ensureImportedProseFontLoaded } from './lib/prose-fonts';
 import { startPreferencesSync } from './services/preferences-sync.service';
 import { startSyncObserver } from './services/sync-observer.service';
 import { matchesAccelerator } from './lib/shortcuts';
@@ -140,7 +141,7 @@ function FullScreenStatus({
       }}
     >
       <div style={{ width: 'min(440px, 100%)', textAlign: 'center' }}>
-        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22 }}>{title}</div>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 22 }}>{title}</div>
         {detail && (
           <div
             style={{
@@ -365,40 +366,6 @@ function Layout() {
     tick(); // seed on mount so today's snapshot exists even before any edit.
     return useDataStore.subscribe(tick);
   }, [projectId]);
-
-  // Editor typography → CSS variables on <html>. Select fields one at a
-  // time so each subscriber is a stable primitive identity — wrapping
-  // them in an object literal here would mint a new snapshot every render
-  // and trigger React's "getSnapshot should be cached" infinite loop.
-  const bodyFontSize = useSettingsStore((s) => s.bodyFontSize);
-  const editorLineHeight = useSettingsStore((s) => s.lineHeight);
-  const maxLineWidth = useSettingsStore((s) => s.maxLineWidth);
-  const paragraphIndent = useSettingsStore((s) => s.paragraphIndent);
-  const editorIndentStep = useSettingsStore((s) => s.editorIndentStep);
-  const paragraphSpacing = useSettingsStore((s) => s.paragraphSpacing);
-  const focusLine = useSettingsStore((s) => s.focusLine);
-  const entityLinkInteractive = useSettingsStore((s) => s.entityLinkInteractive);
-  useEffect(() => {
-    applyEditorPreferences({
-      bodyFontSize,
-      lineHeight: editorLineHeight,
-      maxLineWidth,
-      paragraphIndent,
-      editorIndentStep,
-      paragraphSpacing,
-      focusLine,
-      entityLinkInteractive,
-    });
-  }, [
-    bodyFontSize,
-    editorLineHeight,
-    maxLineWidth,
-    paragraphIndent,
-    editorIndentStep,
-    paragraphSpacing,
-    focusLine,
-    entityLinkInteractive,
-  ]);
 
   useEffect(() => {
     // Start the sync history recorder. Safe to call multiple times; it
@@ -845,11 +812,8 @@ function Layout() {
           </div>
         </Sidebar>
 
-        {/* Middle column — transparent container so the editor card and
-            timeline card can float as separate islands in modern. Bg moves
-            into the editor card so classic looks identical (it was solid
-            paper/surface before; same area still fills with the same color,
-            just on the inner div). */}
+        {/* Transparent middle column: editor and timeline remain independent
+            floating islands, with each child painting its own surface. */}
         <main
           className="app-mid"
           style={{
@@ -878,8 +842,7 @@ function Layout() {
           >
             <EditorMainArea />
           </div>
-          {/* 底部时间轴 — separate floating card in modern; flush sibling
-              in classic. `.btl` carries its own bg so no wrapper bg needed. */}
+          {/* 底部时间轴是独立浮层；`.btl` 自己绘制背景。 */}
           {!bottomTimelineHidden && (
             <div className="app-island" style={{ flexShrink: 0, zIndex: 10 }}>
               <BottomTimeline />
@@ -943,13 +906,11 @@ function Layout() {
 import { ProjectPickerView } from './views/ProjectPickerView';
 import { ProjectDashboard } from './views/ProjectDashboard';
 
-// Mirror themeMode → <html class="dark"> and appearanceSkin → <html data-skin>
-// from the topmost component, not inside Layout. The bookshelf route renders
-// outside Layout, and we still want light/dark + classic/modern to toggle
-// there. Side effects only — no render output.
+// Mirror themeMode → <html class="dark"> from the topmost component, not
+// inside Layout. The bookshelf route renders outside Layout and still needs
+// to follow the selected light/dark mode. Side effects only — no render output.
 function AppearanceEffects() {
   const themeMode = useSettingsStore((state) => state.themeMode);
-  const appearanceSkin = useSettingsStore((state) => state.appearanceSkin);
   const setUiTheme = useUiStore((state) => state.setTheme);
 
   useEffect(() => {
@@ -974,18 +935,84 @@ function AppearanceEffects() {
     return undefined;
   }, [themeMode, setUiTheme]);
 
-  // Keep the native macOS controls aligned with the selected shell skin.
+  // Keep the native macOS controls aligned with the shared renderer titlebar.
   // Tauri mobile and decorated non-macOS windows never receive this command.
   useEffect(() => {
-    const root = document.documentElement;
-    root.setAttribute('data-skin', appearanceSkin);
     const runtime = getPlatformRuntime();
     if (!runtime.isMacDesktop || !runtime.desktopWindowControls) return;
-    const y = appearanceSkin === 'modern' ? 20 : 14;
+    // Standard macOS traffic-light buttons are 14px tall. Center them in the
+    // shared 42px renderer titlebar. The 6px application-shell inset shifts
+    // both the renderer surface and native buttons down together.
     void platform.window
-      .setTrafficLightPosition({ x: 18, y })
+      .setTrafficLightPosition({ x: 18, y: 20 })
       .catch((error) => log.warn('[App] native window-control positioning is unavailable:', error));
-  }, [appearanceSkin]);
+  }, []);
+
+  return null;
+}
+
+function EditorPreferenceEffects() {
+  // Select fields one at a time so each subscriber keeps a stable primitive
+  // identity. This effect lives above routing so the Settings preview also
+  // updates when opened from the bookshelf.
+  const editorFontSource = useSettingsStore((s) => s.editorFontSource);
+  const editorSystemFontFamily = useSettingsStore((s) => s.editorSystemFontFamily);
+  const setEditorFontSource = useSettingsStore((s) => s.setEditorFontSource);
+  const bodyFontSize = useSettingsStore((s) => s.bodyFontSize);
+  const editorLineHeight = useSettingsStore((s) => s.lineHeight);
+  const maxLineWidth = useSettingsStore((s) => s.maxLineWidth);
+  const paragraphIndent = useSettingsStore((s) => s.paragraphIndent);
+  const editorIndentStep = useSettingsStore((s) => s.editorIndentStep);
+  const paragraphSpacing = useSettingsStore((s) => s.paragraphSpacing);
+  const focusLine = useSettingsStore((s) => s.focusLine);
+  const entityLinkInteractive = useSettingsStore((s) => s.entityLinkInteractive);
+
+  useEffect(() => {
+    applyEditorPreferences({
+      editorFontSource,
+      editorSystemFontFamily,
+      bodyFontSize,
+      lineHeight: editorLineHeight,
+      maxLineWidth,
+      paragraphIndent,
+      editorIndentStep,
+      paragraphSpacing,
+      focusLine,
+      entityLinkInteractive,
+    });
+  }, [
+    editorFontSource,
+    editorSystemFontFamily,
+    bodyFontSize,
+    editorLineHeight,
+    maxLineWidth,
+    paragraphIndent,
+    editorIndentStep,
+    paragraphSpacing,
+    focusLine,
+    entityLinkInteractive,
+  ]);
+
+  useEffect(() => {
+    if (editorFontSource !== 'imported') return;
+    let cancelled = false;
+    void ensureImportedProseFontLoaded()
+      .then((metadata) => {
+        // The selection can outlive browser storage cleanup. Heal that stale
+        // pointer instead of leaving Settings on an unavailable font forever.
+        if (
+          !cancelled &&
+          !metadata &&
+          useSettingsStore.getState().editorFontSource === 'imported'
+        ) {
+          setEditorFontSource('system-serif');
+        }
+      })
+      .catch((error) => log.warn('[App] imported prose font could not be loaded:', error));
+    return () => {
+      cancelled = true;
+    };
+  }, [editorFontSource, setEditorFontSource]);
 
   return null;
 }
@@ -1043,6 +1070,7 @@ function AppContents() {
     <>
       <LocaleEffects />
       <AppearanceEffects />
+      <EditorPreferenceEffects />
       <PersistenceLifecycleEffects />
       <PreAlphaOnboardingDialog />
       <Routes>

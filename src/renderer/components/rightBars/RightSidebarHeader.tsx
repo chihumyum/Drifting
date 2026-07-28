@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui-store';
 import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
+import { PanelTab, PanelTabTray } from '../ui/PanelTabs';
+import { LabelMono } from '../ui/LabelMono';
 
 type RightPanelId = 'todo' | 'library' | 'stats' | 'companion' | 'shadow';
 
@@ -81,17 +83,6 @@ export function RightSidebarHeader({
 
   return (
     <>
-      <style>{`
-        @keyframes insp-tab-count-pulse {
-          0%   { color: hsl(var(--ink-4)); transform: scale(1); }
-          30%  { color: hsl(var(--accent)); transform: scale(1.4); }
-          100% { color: hsl(var(--ink-4)); transform: scale(1); }
-        }
-        @keyframes insp-shadow-tab-pulse {
-          0%, 100% { background: transparent; box-shadow: 0 0 0 0 hsl(var(--accent) / 0.18); }
-          50%      { background: hsl(var(--accent) / 0.10); box-shadow: 0 0 0 4px hsl(var(--accent) / 0.10); }
-        }
-      `}</style>
       <div
         style={{
           display: 'flex',
@@ -103,21 +94,11 @@ export function RightSidebarHeader({
           flexShrink: 0,
         }}
       >
-        <div
+        <PanelTabTray
           ref={trayRef}
           className="rightbar-tab-tray"
-          style={{
-            display: 'flex',
-            flex: 1,
-            minWidth: 0,
-            gap: 0,
-            background: 'hsl(var(--paper-deep))',
-            borderRadius: 4,
-            padding: 2,
-            position: 'relative',
-          }}
+          indicatorStyle={indicatorStyle}
         >
-          <div className="tab-indicator" style={indicatorStyle} />
           {(flat || renderGroup === 'content') && (
             <>
               <RightPanelTab
@@ -179,7 +160,7 @@ export function RightSidebarHeader({
               )}
             </>
           )}
-        </div>
+        </PanelTabTray>
       </div>
 
       {!hideTitleBlock && (
@@ -190,21 +171,12 @@ export function RightSidebarHeader({
             flexShrink: 0,
           }}
         >
-          <div
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
-              textTransform: 'uppercase',
-              letterSpacing: '0.12em',
-              color: 'hsl(var(--ink-4))',
-              marginBottom: 3,
-            }}
-          >
+          <LabelMono tone="ink-4" style={{ display: 'block', marginBottom: 3 }}>
             {kicker}
-          </div>
+          </LabelMono>
           <div
             style={{
-              fontFamily: 'var(--font-serif)',
+              fontFamily: 'var(--font-sans)',
               fontSize: 16,
               fontWeight: 500,
               color: 'hsl(var(--ink-1))',
@@ -237,48 +209,17 @@ function RightPanelTab({
   extraStyle?: React.CSSProperties;
   children: React.ReactNode;
 }) {
-  const baseColor = accent ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))';
-  const activeColor = accent ? 'hsl(var(--accent))' : 'hsl(var(--ink-1))';
-  // Always pill (both skins). Classic paints its own surface bg on active;
-  // modern's CSS overrides that to transparent so the sliding indicator
-  // shows through (see index.css `html[data-skin='modern'] .app-panel-tab
-  // .is-active`).
+  // The sibling sliding indicator carries the active visual, so this button
+  // remains transparent while active.
   return (
-    <div
+    <PanelTab
       onClick={onClick}
-      className={`app-panel-tab${active ? ' is-active' : ''}`}
-      style={{
-        position: 'relative',
-        zIndex: 1,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        flex: 1,
-        minWidth: 0,
-        padding: '4px 8px',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 10,
-        textTransform: 'uppercase',
-        letterSpacing: '0.12em',
-        color: active ? activeColor : baseColor,
-        background: active ? 'hsl(var(--surface))' : 'transparent',
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-        // Concentric with the tray frame: tray radius 4 − 2px padding = 2.
-        borderRadius: 2,
-        boxShadow: active ? '0 1px 2px hsl(var(--ink-1) / 0.06)' : 'none',
-        transition: 'background 0.15s, color 0.15s',
-        ...extraStyle,
-      }}
-      onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.color = 'hsl(var(--ink-2))';
-      }}
-      onMouseLeave={(e) => {
-        if (!active) e.currentTarget.style.color = baseColor;
-      }}
+      active={active}
+      accent={accent}
+      typography="caps"
+      style={extraStyle}
     >
       {children}
-    </div>
+    </PanelTab>
   );
 }

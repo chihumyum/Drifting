@@ -4,7 +4,7 @@ import { getPlatformRuntime } from '../platform/runtime';
 import '../../styles/super-view-header.css';
 
 export interface SuperViewHeaderProps {
-  /** Serif title text shown after the back button. */
+  /** Title text shown after the back button. */
   title: string;
   /** Optional inline caption (e.g. counts like "3 故事线 · 12 章") rendered
    *  in the monospace meta style next to the title. */
@@ -35,7 +35,9 @@ export function SuperViewHeader({
     <div
       className="super-view-head"
       data-tauri-drag-region={runtime.desktopWindowControls ? 'deep' : undefined}
-      style={{ paddingLeft: runtime.isMacDesktop ? 86 : 18 }}
+      data-macos-window-controls={
+        runtime.isMacDesktop && runtime.desktopWindowControls ? '' : undefined
+      }
     >
       <div className="super-view-head__left">
         {onBack && (

@@ -2,18 +2,8 @@
    Copilot floating surfaces — the ⇧⌘I inline popover (CopilotInlinePopover)
    and the bottom-bar mini-menu (CopilotBottomMenu).
 
-   Both used to hard-code a single warm cream / oxblood palette, so they only
-   matched classic-light and read as out-of-place chips in modern / dark. Here
-   we hoist every color into a `--copilot-*` token. Most ride the app-wide
-   --popover / --ink-* / --rule / --accent tokens, so all four variants (plus
-   shadow mode) swap automatically — the component code stays skin-agnostic.
-
-   Skinning model (same two switches on <html> as the rest of the app)
-   --------------------------------------------------------------------
-       :root                            → classic-light  (default)
-       html.dark                        → classic-dark / modern-dark
-       html[data-skin='modern']         → modern-light
-       html.dark[data-skin='modern']    → modern-dark
+   Local `--copilot-*` tokens sit on top of the shared light/dark palette so
+   both surfaces remain consistent with the rest of the application shell.
 
    Only the things with no good app-wide analogue are tuned per variant here:
    the char-level diff red/green (needs lifting on dark) and the drop shadow
@@ -30,7 +20,7 @@
     /* Borders / shadow */
     --copilot-border:         hsl(var(--rule-strong));
     --copilot-border-soft:    hsl(var(--rule));
-    --copilot-shadow:         hsl(28 25% 18% / 0.18);
+    --copilot-shadow:         hsl(220 18% 22% / 0.12);
 
     /* Text */
     --copilot-text:           hsl(var(--ink-1));
@@ -38,8 +28,7 @@
     --copilot-text-faint:     hsl(var(--ink-4));
     --copilot-warn:           hsl(var(--destructive));
 
-    /* Accent-derived — primary buttons, toggles, spinner, caret. Rides the
-       app accent so it's oxblood in classic, blue-gray in modern. */
+    /* Accent-derived — primary buttons, toggles, spinner, caret. */
     --copilot-accent:         hsl(var(--accent));
     --copilot-accent-text:    hsl(var(--accent-foreground));
     --copilot-hover-bg:       hsl(var(--accent) / 0.12);
@@ -56,24 +45,12 @@
     --copilot-diff-ins-fg:    hsl(115 35% 35%);
     --copilot-diff-ins-bg:    hsl(104 35% 42% / 0.18);
 
-    /* Corner radius — classic keeps the squared manuscript look; modern
-       rounds up (overridden in the html[data-skin='modern'] block below).
-       --copilot-radius = the panel; --copilot-radius-sm = inner controls
-       (inputs, buttons, diff cards, menu rows). */
-    --copilot-radius:         4px;
-    --copilot-radius-sm:      3px;
-  }
-
-  /* Modern light — rounder corners + a cooler, softer drop shadow
-     (Craft/Arc vocabulary). */
-  html[data-skin='modern'] {
-    --copilot-shadow:         hsl(220 18% 22% / 0.12);
+    /* Panel and inner-control radii follow the shared rounded vocabulary. */
     --copilot-radius:         10px;
     --copilot-radius-sm:      6px;
   }
 
-  /* Any dark mode (classic or modern) — lift the diff hues so they read on a
-     dark surface, and switch the shadow to a true black so it doesn't glow. */
+  /* Lift diff hues on dark surfaces and use a true black shadow. */
   html.dark {
     --copilot-shadow:         hsl(0 0% 0% / 0.5);
     --copilot-diff-del-fg:    hsl(9 70% 68%);

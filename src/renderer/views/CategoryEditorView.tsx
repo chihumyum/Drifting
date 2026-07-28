@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { FilterChip } from '../components/ui/FilterChip';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import { useParams } from 'react-router-dom';
@@ -310,7 +311,7 @@ export function CategoryEditorView({
         }
       >
         <EditorCrumb
-          dotColor={curCategory.color || '#8A2A1E'}
+          dotColor={curCategory.color || 'hsl(var(--accent))'}
           dropdown={
             bookElementCategories.length === 0 ? (
               <div className="crumb-dropdown__empty">{t('categoryEditor.empty.noCategories')}</div>
@@ -323,7 +324,7 @@ export function CategoryEditorView({
                     className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
                     onClick={() => { if (!isActive) navigateToCategory(cat.id); }}
                   >
-                    <span className="crumb-dropdown__dot" style={{ background: cat.color || '#8A2A1E' }} />
+                    <span className="crumb-dropdown__dot" style={{ background: cat.color || 'hsl(var(--accent))' }} />
                     <span>{cat.name}</span>
                   </div>
                 );
@@ -477,14 +478,15 @@ export function CategoryEditorView({
                       ['used',   t('categoryEditor.filters.used'),   usedCount],
                       ['unused', t('categoryEditor.filters.unused'),   cEls.length - usedCount],
                     ] as const).map(([k, label, n]) => (
-                      <div
+                      <FilterChip
                         key={k}
-                        className={`mgr-toolbar__chip${elementFilter === k ? ' mgr-toolbar__chip--active' : ''}`}
+                        shape="square"
+                        active={elementFilter === k}
+                        count={`· ${n}`}
                         onClick={() => setElementFilter(k)}
                       >
-                        <span>{label}</span>
-                        <em>· {n}</em>
-                      </div>
+                        {label}
+                      </FilterChip>
                     ))}
                   </div>
                   {/* DEFERRED: search / sort / batch / + new element */}

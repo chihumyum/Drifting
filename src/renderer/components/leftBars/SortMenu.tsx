@@ -77,18 +77,12 @@ export function SortMenu<T extends string>({
           borderRadius: 6,
           boxShadow:
             '0 10px 28px hsl(var(--ink-1) / 0.15), 0 2px 6px hsl(var(--ink-1) / 0.08)',
-          zIndex: 300,
+          zIndex: 'var(--z-popover)',
           fontFamily: 'var(--font-sans)',
           overflow: 'hidden',
           animation: 'sortMenuIn 160ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         }}
       >
-        <style>{`
-          @keyframes sortMenuIn {
-            from { opacity: 0; transform: translateY(-6px); }
-            to   { opacity: 1; transform: translateY(0); }
-          }
-        `}</style>
 
         {title && <GroupTitle>{title}</GroupTitle>}
 

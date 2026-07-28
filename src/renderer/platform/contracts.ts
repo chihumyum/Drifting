@@ -19,6 +19,13 @@ export interface AppInfo {
   architecture: string;
 }
 
+export interface SystemFontFamily {
+  /** Stable family name used as the CSS font-family value. */
+  family: string;
+  /** Localized family names used for search/display only. */
+  aliases: string[];
+}
+
 export interface NativePlatformCapabilities {
   desktopWindowControls: boolean;
   deepLinks: boolean;
@@ -180,6 +187,7 @@ export interface TauriCommandContract {
   deep_link_take_pending: { args: undefined; result: string[] };
   lifecycle_get_status: { args: undefined; result: LifecycleStatus };
   lifecycle_complete_flush: { args: { requestId: number }; result: boolean };
+  typography_list_system_fonts: { args: undefined; result: SystemFontFamily[] };
   keychain_get: { args: { key: string }; result: string | null };
   keychain_set: { args: { key: string; value: string }; result: boolean };
   keychain_delete: { args: { key: string }; result: boolean };

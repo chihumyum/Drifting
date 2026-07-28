@@ -5,6 +5,7 @@ import { useProject, type ProjectSummary } from '../usecase/useProject';
 import { useAuthStore } from '../store/auth';
 import { SyncStatusHUD } from '../components/sync/SyncStatusHUD';
 import { UserAvatar, UserMenu } from '../components/topBars/UserMenu';
+import { FilterChip } from '../components/ui/FilterChip';
 import { parseKv } from '../domain/kv';
 import { getPlatformRuntime } from '../platform/runtime';
 import {
@@ -347,16 +348,14 @@ export function ProjectPickerView() {
                 ['paused', t('projectPicker.filters.paused'), counts.paused],
               ] as Array<[Filter, string, number]>
             ).map(([k, label, n]) => (
-              <button
-                type="button"
+              <FilterChip
                 key={k}
-                className={`pp-toolbar__chip ${filter === k ? 'pp-toolbar__chip--active' : ''}`}
+                active={filter === k}
+                count={`· ${n}`}
                 onClick={() => setFilter(k)}
-                aria-pressed={filter === k}
               >
-                <span>{label}</span>
-                <em>· {n}</em>
-              </button>
+                {label}
+              </FilterChip>
             ))}
           </div>
           <div className="pp-toolbar__actions">

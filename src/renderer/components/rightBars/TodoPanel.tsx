@@ -15,6 +15,7 @@ import {
   ResolvedTodoArchive,
   TodoCard,
 } from './MemoMaterialPanel';
+import { EmptyState } from '../ui/EmptyState';
 
 interface Props {
   /** The currently-focused entity. Used to bias the sort (chapter-related
@@ -258,23 +259,6 @@ function Subheader({ count, onCompose }: { count: number; onCompose: () => void 
       >
         <Plus size={12} strokeWidth={1.6} />
       </button>
-    </div>
-  );
-}
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        padding: '40px 20px',
-        textAlign: 'center',
-        fontFamily: 'var(--font-serif)',
-        fontStyle: 'italic',
-        fontSize: 12,
-        color: 'hsl(var(--ink-3))',
-      }}
-    >
-      {message}
     </div>
   );
 }

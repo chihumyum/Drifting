@@ -54,7 +54,7 @@ export function NodeHoverPreview({ node, position, showAbove = false }: NodeHove
         background: 'hsl(var(--surface))',
         border: '1px solid hsl(var(--rule-strong))',
         boxShadow: '0 6px 18px hsl(var(--ink-1) / 0.15)',
-        zIndex: 10000,
+        zIndex: 'var(--z-popover)',
         pointerEvents: 'auto',
         display: 'flex',
         flexDirection: 'column',

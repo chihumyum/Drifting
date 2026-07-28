@@ -2,9 +2,8 @@ import { ReactNode, useState, useEffect } from 'react';
 import { useUiStore, SidebarType } from '../store/ui-store';
 import { clampSidebarWidth } from '../lib/layout-geometry';
 
-// Modern's open/close slide. Must match the `width` transition duration in
-// index.css `.sidebar-shell` so children stay mounted long enough for the
-// outgoing slide to play out, then unmount cleanly.
+// Must match the `width` transition duration in index.css `.sidebar-shell`
+// so children stay mounted through the outgoing slide, then unmount cleanly.
 const COLLAPSE_ANIM_MS = 280;
 
 interface SidebarProps {
@@ -66,7 +65,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
 
   // Keep children mounted for the duration of the collapse animation so the
   // panel actually appears to slide out — without this they'd unmount the
-  // moment `isExpanded` flips and modern would just see an empty bar shrink.
+  // moment `isExpanded` flips and the user would just see an empty bar shrink.
   // Re-expanding mid-collapse cancels the pending unmount via cleanup.
   const [mountChildren, setMountChildren] = useState(isExpanded);
   useEffect(() => {
@@ -115,7 +114,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
     };
   }, [isResizing, oppositeType, setSidebarWidth, setResizingSidebar, sidebarType]);
 
-  // Two-layer geometry so modern's open/close slide reads as a real slide:
+  // Two-layer geometry so open/close reads as a real slide:
   //   - outer (`.sidebar-shell`) is the layout-sized box; its `width`
   //     transitions between 0 and `expandedWidth`.
   //   - inner (`.sidebar-shell__content`) is absolutely positioned at the
@@ -123,8 +122,6 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
   //     sidebar → right:0; right sidebar → left:0). As the outer shrinks
   //     from the inside edge inward, the inner stays put and gets clipped
   //     from the inside, which reads as content sliding off-screen.
-  // Classic skips the transition entirely (see index.css) so the layout
-  // snap behavior is unchanged.
   const innerAnchorSide = sidebarType === 'left' ? 'right' : 'left';
   const showCollapsedSlot = !isExpanded && !mountChildren && Boolean(collapsedContent);
   const outerWidth = isExpanded
@@ -134,7 +131,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
       : 0;
 
   // When collapsed without any collapsed-content slot the sidebar contributes
-  // 0 visible width. Mark that state so the modern skin can zero out the
+  // 0 visible width. Mark that state so the shell can zero out the
   // inside-facing margin (see `.sidebar-shell.is-fully-hidden` in index.css),
   // letting the editor + bottom-timeline column align flush with the topbar
   // and BSB right edges.
@@ -158,7 +155,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
         // tab tray paint their full-width bg over the rounded top corners
         // and the island shape doesn't show. Cost: resize handle has to
         // live inside the bounds instead of straddling them (see below).
-        // Also load-bearing for the modern slide animation: the inner
+        // Also load-bearing for the slide animation: the inner
         // fixed-width content is clipped here as the outer shrinks.
         overflow: 'hidden',
         // Suppress the width transition during a drag-resize, otherwise the
@@ -226,14 +223,13 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
             // before). Required because the root now has `overflow: hidden`
             // for border-radius clipping, which would otherwise crop the
             // straddling handle to a 3px sliver. The 6px gap around each
-            // sidebar in modern still provides plenty of cursor area, and
-            // classic loses nothing visible (handle was transparent).
+            // shell gutter still provides usable cursor area.
             right: sidebarType === 'left' ? 0 : 'auto',
             left: sidebarType === 'right' ? 0 : 'auto',
             // Hit zone (transparent until hovered). Widened to 16 for an easier
             // grab — it extends inward from the inside edge (root is
-            // overflow:hidden, so it can't straddle outward; the modern skin's
-            // 6px gutter adds a little reachable area on the outside).
+            // overflow:hidden, so it can't straddle outward; the 6px shell
+            // gutter adds reachable area on the outside).
             width: 16,
             height: '100%',
             cursor: 'col-resize',

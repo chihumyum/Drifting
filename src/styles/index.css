@@ -3,73 +3,81 @@
 
 /* ============================================================
    Drifting Design System — tokens
-   Aesthetic: literary journal · manuscript paper · ink stamp
-   Type:      Newsreader (serif) · Inter Tight (sans) · JetBrains Mono
+   Aesthetic: calm modern workspace · floating surfaces · focused prose
+   Type:      Inter Tight (UI) · Newsreader / Noto Serif SC (optional prose)
    ============================================================ */
 
 @layer base {
   :root {
     /* ─── shadcn-compatible tokens (HSL triplets, no hsl() wrapper) ─── */
-    --background: 40 22% 93%; /* paper #F2EDE2 */
-    --foreground: 30 8% 10%; /* ink   #1C1813 */
+    --background: 0 0% 100%;
+    --foreground: 30 6% 12%;
 
-    --card: 43 50% 98%; /* page  #FCFAF4 */
-    --card-foreground: 30 8% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 30 6% 12%;
 
-    --popover: 40 35% 97%; /* surface */
-    --popover-foreground: 30 8% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 30 6% 12%;
 
-    --primary: 30 8% 10%; /* ink — main button bg */
-    --primary-foreground: 40 22% 93%;
+    --primary: 30 6% 12%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 40 22% 87%; /* paper-deep */
-    --secondary-foreground: 30 12% 20%;
+    --secondary: 30 6% 92%;
+    --secondary-foreground: 30 4% 26%;
 
-    --muted: 40 22% 89%;
-    --muted-foreground: 30 11% 38%;
+    --muted: 30 6% 94%;
+    --muted-foreground: 30 3% 48%;
 
-    --accent: 8 55% 33%; /* 印章红 oxblood #8A2A1E */
-    --accent-foreground: 40 22% 93%;
-    --comment: 18 52% 47%; /* Claude 橙褐 terracotta — comment chrome (vs. accent) */
+    --accent: 218 22% 52%;
+    --accent-foreground: 0 0% 100%;
+    --comment: 18 55% 57%;
 
     --destructive: 14 55% 38%;
     --destructive-foreground: 40 22% 93%;
 
-    --border: 35 15% 84%;
-    --input: 35 15% 84%;
-    --ring: 8 55% 33%;
+    --border: 30 6% 92%;
+    --input: 30 6% 92%;
+    --ring: 218 22% 52%;
 
     /* Palette-specific quiet border used around accent surfaces. */
-    --accent-border: 30 25% 82%;
+    --accent-border: 30 6% 88%;
 
     --radius: 0.375rem;
+    --radius-xs: 2px;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --control-height-sm: 24px;
+    --control-height-md: 28px;
+    --shadow-control: 0 1px 2px hsl(var(--ink-1) / 0.06);
+    --z-popover: 1000;
+    --z-context-menu: 10000;
+    --z-modal: 12000;
+    --z-toast: 100000;
 
     /* ─── Drifting-only tokens (full ink scale, paper scale, accents) ─── */
-    --paper: 40 22% 93%; /* same as background */
-    --paper-deep: 40 22% 87%;
-    --surface: 40 35% 96%;
-    --page: 43 50% 98%;
-    /* 正文纸的浮起阴影 —— 仅 modern 皮肤启用 (见下方 data-skin='modern')。
-       classic 皮肤不用阴影，改用 --surface / --page 之间略大的明度差 (95% vs
-       98%) 来区分纸与背景，更贴合暖色稿纸的平面气质。 */
-    --page-elevation: none;
+    --paper: 30 8% 96.5%;
+    --paper-deep: 30 6% 92%;
+    --surface: 0 0% 100%;
+    --page: 0 0% 100%;
+    --page-elevation: 0 1px 0 rgba(28, 24, 19, 0.05), 0 5px 30px -15px rgba(28, 24, 19, 0.13);
 
-    --ink-1: 30 8% 10%; /* near-black warm */
-    --ink-2: 30 12% 20%;
-    --ink-3: 30 11% 38%;
-    --ink-4: 32 12% 58%;
-    --ink-5: 35 15% 75%;
-    --ink-6: 38 20% 85%; /* faintest — frontispiece numerals & decoration */
-    --rule: 35 15% 84%;
-    --rule-strong: 35 15% 76%;
+    --ink-1: 30 6% 12%;
+    --ink-2: 30 4% 26%;
+    --ink-3: 30 3% 48%;
+    --ink-4: 30 3% 64%;
+    --ink-5: 30 4% 84%;
+    --ink-6: 30 5% 89%;
+    --rule: 30 6% 92%;
+    --rule-strong: 30 6% 84%;
 
     /* Storyline track palette — curated, museum-quality */
-    --story-1: 8 55% 33%; /* 朱砂 oxblood   #8A2A1E */
-    --story-2: 212 41% 30%; /* 群青 ink blue  #2D4A6B */
-    --story-3: 78 30% 32%; /* 苔绿 moss      #5A6B3A */
-    --story-4: 40 51% 36%; /* 赭黄 ochre     #8B6B2E */
-    --story-5: 300 22% 39%; /* 梅紫 plum      #5C3A5C */
-    --story-6: 165 40% 30%; /* 鸭蓝 teal      #2E6B5C */
+    --story-1: 252 62% 72%;
+    --story-2: 208 70% 66%;
+    --story-3: 148 38% 60%;
+    --story-4: 45 82% 66%;
+    --story-5: 282 50% 72%;
+    --story-6: 182 42% 58%;
 
     /* Element category semantic aliases (you can rebind these freely) */
     --el-person: var(--story-1);
@@ -78,185 +86,38 @@
     --el-period: var(--story-2);
     --el-lex: var(--story-5);
 
-    /* Type stacks. The '* Variable' faces are bundled locally (@fontsource-variable,
-       imported in main.tsx) and lead each stack so packaged builds get true,
-       weight-correct rendering offline. The bundled CJK serif ('Noto Serif SC
-       Variable') sits just ahead of the bare system 'Noto Serif SC' so Chinese
-       body text never falls back to the system variable font's thin ExtraLight
-       default; a locally-installed 'Source Han Serif SC' still wins if present. */
-    --font-serif:
-      'Newsreader Variable', 'Newsreader', 'Source Han Serif SC', 'Noto Serif SC Variable',
-      'Noto Serif SC', 'Songti SC', Georgia, serif;
-    --font-sans:
+    /* The application UI has one bundled sans face. Prose alone can choose a
+       platform serif/sans stack, one installed family, or one imported font. */
+    --font-prose-system-serif:
+      ui-serif, 'Songti SC', STSong, 'Source Han Serif SC', 'Noto Serif CJK SC', Georgia,
+      'Times New Roman', serif;
+    --font-prose-system-sans:
+      -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Segoe UI',
+      system-ui, sans-serif;
+    --font-ui:
       'Inter Tight Variable', 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system,
       system-ui, sans-serif;
-    --font-mono:
-      'JetBrains Mono Variable', 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+    /* Compatibility aliases for existing component styles. Both resolve to
+       the one application UI face; prose is the only independent font axis. */
+    --font-sans: var(--font-ui);
+    --font-mono: var(--font-ui);
+    --editor-font-family: var(--font-prose-system-serif);
 
-    /* Surface used by chrome elements (sidebars, topbar, status bar). Opaque
-       in classic — visually identical to the previous hard-coded paper bg.
-       Modern overrides this to a semi-transparent paper and pairs it with
-       backdrop-filter (see `.app-chrome` rule below) for the frosted look.
-       Components opt in by reading this var instead of `hsl(var(--paper))`. */
-    --chrome-bg: hsl(var(--paper));
-
-    /* Divider drawn between flush-stacked chrome surfaces in classic. In
-       modern the chrome detaches into floating islands and the gap itself
-       does the separating, so this becomes `none`. Components use this var
-       instead of hard-coding `1px solid hsl(var(--rule))`. */
-    --chrome-divider: 1px solid hsl(var(--rule));
-
-    /* Bottom inset for full-screen super views (StoryGraphView,
-       SuperElementView, SuperMemoMaterialView) so they don't cover the
-       BottomStatusBar. Classic = BSB height alone (20px). Modern adds the
-       6px app-root gap + 6px bottom padding so the overlay aligns with
-       .app-row's bottom edge and the BSB island still reads as detached. */
-    --super-view-bottom-inset: 20px;
-  }
-
-  /* ─── Modern skin (Craft / Arc-inspired) ─────────────────────────────
-     Set by App.tsx via `data-skin` on <html>. Pure token remap — no
-     component-level overrides here yet. Components keep reading the same
-     CSS vars, so no per-page JS branching is needed; new pages get both
-     palettes for free as long as they don't hardcode colors/fonts.
-
-     Aesthetic: pure-white doc area, warm-neutral chrome, muted blue-gray
-     accent, pastel storyline colors. Body collapses to sans (subsumes the
-     old `manuscriptSans` setting).
-     -------------------------------------------------------------------- */
-  html[data-skin='modern'] {
-    /* Paper / surface — quieter, more neutral than classic */
-    --paper: 30 8% 96.5%;
-    --paper-deep: 30 6% 92%;
-    --surface: 0 0% 100%;
-    --page: 0 0% 100%;
-    /* modern 纸与背景同为纯白，没有色差 —— 用极淡投影把纸立起来。 */
-    --page-elevation: 0 1px 0 rgba(28, 24, 19, 0.05), 0 5px 30px -15px rgba(28, 24, 19, 0.13);
-    --background: 0 0% 100%;
-    --card: 0 0% 100%;
-    --popover: 0 0% 100%;
-    --secondary: 30 6% 92%;
-    --muted: 30 6% 94%;
-
-    /* Ink scale — faintly warm near-black */
-    --ink-1: 30 6% 12%;
-    --ink-2: 30 4% 26%;
-    --ink-3: 30 3% 48%;
-    --ink-4: 30 3% 64%;
-    --ink-5: 30 4% 84%;
-    --ink-6: 30 5% 89%;
-    --foreground: 30 6% 12%;
-    --card-foreground: 30 6% 12%;
-    --popover-foreground: 30 6% 12%;
-    --primary: 30 6% 12%;
-    --primary-foreground: 0 0% 100%;
-    --secondary-foreground: 30 4% 26%;
-    --muted-foreground: 30 3% 48%;
-
-    --rule: 30 6% 92%;
-    --rule-strong: 30 6% 84%;
-    --border: 30 6% 92%;
-    --input: 30 6% 92%;
-
-    /* Accent — muted blue-gray, very low saturation */
-    --accent: 218 22% 52%;
-    --accent-foreground: 0 0% 100%;
-    --comment: 18 55% 57%; /* Claude 橙褐 terracotta — comment chrome */
-    --ring: 218 22% 52%;
-    --accent-border: 30 6% 88%;
-
-    /* Storyline palette — Craft-style pastels (62-72% L band keeps them
-       quiet). Element aliases (--el-person etc.) inherit automatically
-       since they're declared as `var(--story-N)` in :root. */
-    --story-1: 252 62% 72%; /* lavender    — person */
-    --story-2: 208 70% 66%; /* sky blue    — period */
-    --story-3: 148 38% 60%; /* mint green  — place  */
-    --story-4: 45 82% 66%; /* soft yellow — item   */
-    --story-5: 282 50% 72%; /* violet      — lex    */
-    --story-6: 182 42% 58%; /* teal        — extra  */
-
-    /* Body / titles / dashboard glyphs collapse to sans. */
-    --font-serif:
-      'Inter Tight Variable', 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system,
-      system-ui, sans-serif;
-    /* Modern routes the mono stack to sans too — every chrome label that
-       reads `var(--font-mono)` (kicker badges, breadcrumbs, status bar,
-       word-count chips, panel titles) becomes the unified sans face. */
-    --font-mono:
-      'Inter Tight Variable', 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system,
-      system-ui, sans-serif;
-
-    /* Frosted chrome — semi-transparent paper that picks up whatever's
-       behind via backdrop-filter (see `.app-chrome` rule). Opacity tuned
-       for the floating-islands layout: body wallpaper (paper-deep) shows
-       through enough that the transparency is actually visible. */
     --chrome-bg: hsl(var(--paper) / 0.55);
-
-    /* Modern's gap between chrome panels replaces the classic 1px divider. */
     --chrome-divider: none;
+
+    /* BottomStatusBar height + shell gap + bottom padding. */
+    --super-view-bottom-inset: 32px;
+
+    /* Native window chrome geometry. Every renderer-owned titlebar surface
+       consumes the same height so its content center stays aligned with the
+       14px macOS traffic lights. */
+    --window-titlebar-height: 42px;
+    --window-header-leading-inset: 86px;
+    --window-surface-inline-inset: 6px;
   }
 
-  /* Modern + dark: cold neutral gray (≈220° hue), independent of classic's
-     warm-brown ink mode. v3 mockup didn't ship a dark+modern reference, so
-     these values are my best read of the Craft / Linear / GitHub-dark
-     vocabulary — adjust to taste once you see it in motion. */
-  html.dark[data-skin='modern'] {
-    --paper: 220 6% 11%;
-    --paper-deep: 220 7% 8%;
-    --surface: 220 6% 14%;
-    --page: 220 6% 14%;
-    /* 同色纸面，暗色用纯黑投影立起。 */
-    --page-elevation: 0 1px 0 rgba(0, 0, 0, 0.28), 0 5px 30px -15px rgba(0, 0, 0, 0.55);
-    --background: 220 6% 11%;
-    --card: 220 6% 14%;
-    --popover: 220 6% 16%;
-    --secondary: 220 6% 18%;
-    --muted: 220 5% 20%;
-
-    --ink-1: 220 8% 93%;
-    --ink-2: 220 6% 82%;
-    --ink-3: 220 5% 62%;
-    --ink-4: 220 4% 48%;
-    --ink-5: 220 5% 28%;
-    --ink-6: 220 5% 22%;
-    --foreground: 220 8% 93%;
-    --card-foreground: 220 8% 93%;
-    --popover-foreground: 220 8% 93%;
-    --primary: 220 8% 93%;
-    --primary-foreground: 220 6% 11%;
-    --secondary-foreground: 220 6% 82%;
-    --muted-foreground: 220 5% 62%;
-
-    --rule: 220 6% 22%;
-    --rule-strong: 220 6% 30%;
-    --border: 220 6% 22%;
-    --input: 220 6% 22%;
-
-    /* Accent stays the same muted blue-gray, lifted slightly for dark
-       contrast. */
-    --accent: 218 35% 65%;
-    --accent-foreground: 220 6% 11%;
-    --comment: 20 58% 66%; /* Claude 橙褐 terracotta — comment chrome */
-    --ring: 218 35% 65%;
-    --accent-border: 220 6% 26%;
-
-    /* Pastels lifted slightly so they read on dark surfaces without going
-       neon. Same hues as light modern. */
-    --story-1: 252 50% 74%;
-    --story-2: 208 58% 68%;
-    --story-3: 148 34% 62%;
-    --story-4: 45 68% 68%;
-    --story-5: 282 44% 74%;
-    --story-6: 182 38% 60%;
-
-    /* Dark needs more opacity than light to keep text readable, but still
-       transparent enough that the wallpaper shows through the gaps. */
-    --chrome-bg: hsl(var(--paper) / 0.65);
-
-    --chrome-divider: none;
-  }
-
-  /* ─── Floating-islands layout (modern only) ───────────────────────────
+  /* ─── Floating-islands layout ─────────────────────────────────────────
      Every visible surface — topbar, sidebars, editor, bottom timeline,
      status bar — becomes its own floating island with gaps and rounded
      corners. The body wallpaper (paper-deep) shows through all the gaps,
@@ -271,18 +132,12 @@
        .app-chrome — topbar, sidebars, status bar (frosted bg via backdrop-filter)
        .app-island — every floating surface (rounded + shadow + clip)
      -------------------------------------------------------------------- */
-  html[data-skin='modern'] {
-    /* BSB (20px) + 6px gap above it + 6px root bottom padding = 32px. Keeps
-       the super-view overlays from covering the BSB island and preserves
-       modern's gap aesthetic between the two surfaces. */
-    --super-view-bottom-inset: 32px;
-  }
-  html[data-skin='modern'] .app-root {
+  .app-root {
     padding: 6px;
     gap: 6px;
     background: hsl(var(--paper-deep));
   }
-  html[data-skin='modern'] .app-mid {
+  .app-mid {
     gap: 6px;
   }
   /* `.app-row` intentionally has no `gap`: the horizontal spacing between
@@ -292,21 +147,21 @@
      column extends to the topbar/BSB right edge — a `gap` on `.app-row`
      would still apply across the 0-width item and leave a stranded 6px
      sliver. */
-  html[data-skin='modern'] .sidebar-shell--left {
+  .sidebar-shell--left {
     margin-right: 6px;
   }
-  html[data-skin='modern'] .sidebar-shell--right {
+  .sidebar-shell--right {
     margin-left: 6px;
   }
-  html[data-skin='modern'] .sidebar-shell.is-fully-hidden {
+  .sidebar-shell.is-fully-hidden {
     margin-left: 0;
     margin-right: 0;
   }
-  html[data-skin='modern'] .app-chrome {
+  .app-chrome {
     backdrop-filter: blur(28px) saturate(180%);
     -webkit-backdrop-filter: blur(28px) saturate(180%);
   }
-  html[data-skin='modern'] .app-island {
+  .app-island {
     border-radius: 8px;
     /* Clip child backgrounds (panel headers, tab strips, .btl bg) to the
        rounded shape. Resize handles sit at right:0/left:0 inside the
@@ -317,29 +172,20 @@
       0 1px 4px hsl(var(--ink-1) / 0.04);
   }
 
-  /* `.bsb` declares its own opaque paper-deep bg + a border-top at rule
-     specificity (0,1,0). Modern reroutes the bg through chrome-bg so it
-     reads as frosted, and drops the border-top since the gap above
-     replaces the divider. */
-  html[data-skin='modern'] .bsb.app-chrome {
+  /* The shell gap replaces the status bar's old divider. */
+  .bsb.app-chrome {
     background: var(--chrome-bg);
     border-top: none;
   }
 
-  /* LeftSidebarHeader pill — in modern, round the top corners to match
-     the island shape so the tab tray reads as part of the rounded panel
-     top instead of a separate inset pill. */
-  html[data-skin='modern'] .leftbar-tab-tray {
+  /* Round the tab tray into the sidebar island. */
+  .leftbar-tab-tray {
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
   }
 
-  /* BottomTimeline — `.btl` hard-codes `background: hsl(var(--paper-deep))`
-     which in modern matches the body wallpaper exactly, so the timeline
-     card is indistinguishable from the gap. Surface (pure white in light
-     modern, slightly lifted gray in dark modern) gives it the same kind
-     of contrast the other cards (editor, sidebars) get. */
-  html[data-skin='modern'] .btl {
+  /* Keep the timeline distinct from the shell wallpaper. */
+  html .btl {
     background: hsl(var(--surface));
   }
 
@@ -353,9 +199,6 @@
      (`.leftbar-tab-tray`, `.rightbar-tab-tray`) override to 2px so the
      indicator hugs the wrapper's own padding inset.
 
-     Only modern shows the indicator. Classic hides it and falls back to
-     each component's inline-styled active state (colored underline for
-     TopTimeline tabs, static surface bg for panel switcher buttons).
      -------------------------------------------------------------------- */
   .tab-indicator {
     position: absolute;
@@ -375,7 +218,7 @@
       transform 320ms cubic-bezier(0.34, 1.1, 0.64, 1),
       width 320ms cubic-bezier(0.34, 1.1, 0.64, 1),
       opacity 200ms ease;
-    display: none;
+    display: block;
   }
   .leftbar-tab-tray .tab-indicator,
   .rightbar-tab-tray .tab-indicator {
@@ -385,76 +228,23 @@
        the default 6px pill rounding that visibly mismatched the frame. */
     border-radius: 2px;
   }
-  html[data-skin='modern'] .tab-indicator {
-    display: block;
-  }
-
-  /* Modern tabs / pill buttons: the indicator carries the active visual,
-     so the active element itself must not paint its own bg / shadow /
-     underline. Inactive hover stays neutral — colored hover that classic
-     uses (from inline JS handlers) is suppressed. */
-  html[data-skin='modern'] .app-tab {
+  /* The indicator carries the active visual, so the tab itself stays clear. */
+  .app-tab {
     position: relative;
     z-index: 1;
   }
-  html[data-skin='modern'] .app-tab.is-active {
-    background: transparent !important;
-    border-bottom-color: transparent !important;
-    box-shadow: none !important;
-  }
-  html[data-skin='modern'] .app-tab:hover {
-    background: transparent !important;
-  }
-
-  /* Panel switcher pill buttons (left + right sidebar). Classic paints its
-     own static surface bg on active. Modern lets the sliding indicator
-     paint the active state by suppressing the button's bg + shadow. */
-  html[data-skin='modern'] .app-panel-tab.is-active {
-    background: transparent !important;
-    box-shadow: none !important;
-  }
-
-  /* Left sidebar cell selection accent stripe (2px vertical bar) — design's
-     modern drops the stripe and relies on the bg tint alone for selection.
-     Classic keeps the stripe (matches design's `.v3-cell.is-selected`
-     `border-left-color: accent`). */
-  html[data-skin='modern'] .cell-accent-stripe {
-    display: none;
-  }
-
   /* TopTimeline-only pill tweaks. Scoped to `.top-timeline-container` so
      the sidebar panel switchers — which reuse the same `.tab-indicator` —
      keep their frame-concentric 2px rounding. */
 
   /* Sliding active-tab indicator: full half-circle ends → reads as a
      horizontal medicine pill. */
-  html[data-skin='modern'] .top-timeline-container .tab-indicator {
+  .top-timeline-container .tab-indicator {
     border-radius: 999px;
   }
 
-  /* ─── Drag-and-drop drop indicator ────────────────────────────────────
-     Two implementations, one per skin:
-
-       Classic — per-tab `.app-tab__drop-indicator` (rendered as a child of
-       the hovered tab slot). A hard 2px line at the leading or trailing
-       edge. Already styled inline; we just leave it visible.
-
-       Modern — a single `.tab-drop-indicator` sibling of the active-tab
-       pill that *slides* between drop positions via translateX. Matches
-       the active pill's easing so a drag reads as the same motion
-       language as a click-activation, just slimmer and softer-toned.
-     -------------------------------------------------------------------- */
-
-  /* Default (classic): hide the modern sliding pill. */
-  .tab-drop-indicator {
-    display: none;
-  }
-
-  /* Modern: show the sliding pill, hide the classic per-tab line. */
-  html[data-skin='modern'] .app-tab__drop-indicator {
-    display: none;
-  }
-  html[data-skin='modern'] .top-timeline-container .tab-drop-indicator {
+  /* Container-level drag-and-drop position indicator. */
+  .top-timeline-container .tab-drop-indicator {
     display: block;
     position: absolute;
     top: 7px;
@@ -476,30 +266,25 @@
     will-change: transform, opacity;
   }
 
-  /* Tab close (×) button: circular hover bg, matching the pill vocabulary
-     of the surrounding strip. Classic keeps the existing 3px rounding. */
-  html[data-skin='modern'] .app-tab__close {
+  .app-tab__close {
     border-radius: 50% !important;
   }
 
-  /* Split tab in modern: drop the bracket borders (left/right) since the
-     sliding pill already brackets the whole slot, but KEEP the middle
-     divider as the only cue that this is a fused pair vs a single tab.
+  /* Drop split-tab brackets because the pill already contains the slot, but
+     keep the middle divider as the cue that this is a fused pair.
      Tighten its vertical inset so it sits comfortably inside the active
      pill (pill is inset 5px top/bottom = 32 tall in a 42 strip; divider
      at 8px margin = 26 tall, ~3px breathing room each side). */
-  html[data-skin='modern'] .app-tab--split {
+  .app-tab--split {
     border-left: none !important;
     border-right: none !important;
   }
-  html[data-skin='modern'] .app-tab__split-divider {
+  .app-tab__split-divider {
     margin-top: 8px !important;
     margin-bottom: 8px !important;
   }
 
-  /* Skin crossfade — soft 240ms transition on chrome surfaces and body so
-     toggling 经典 ↔ 现代 feels intentional rather than abrupt. Scoped to
-     known chrome to avoid bleeding into editor / animation paths. */
+  /* Smooth light/dark transitions on the stable shell surfaces. */
   body,
   .app-chrome,
   .bsb {
@@ -510,85 +295,84 @@
       border-color 240ms ease;
   }
 
-  /* Modern sidebar slide. Outer shell animates `width` between 0 and the
+  /* Sidebar slide. Outer shell animates `width` between 0 and the
      last expanded width; inner content is absolute-positioned at fixed
      width anchored to the outside edge so it actually slides off-screen
-     instead of just narrowing in place. Classic stays instant — the toggle
-     is a layout snap there, no transition. The duration matches the
-     `COLLAPSE_ANIM_MS` constant in components/Sidebar.tsx that keeps
-     children mounted long enough for the outgoing slide to play. */
-  html[data-skin='modern'] .sidebar-shell {
+     instead of just narrowing in place. The duration matches the
+     `COLLAPSE_ANIM_MS` constant in components/Sidebar.tsx. */
+  .sidebar-shell {
     transition:
       width 280ms cubic-bezier(0.32, 0.72, 0, 1),
       margin 280ms cubic-bezier(0.32, 0.72, 0, 1);
   }
 
-  /* Modern focus glow — soft accent ring on form controls only. The
+  /* Soft accent ring on form controls only. The
      editor body is contenteditable but ringing the whole prosemirror area
      when the user clicks in is awful, so contenteditable is intentionally
-     excluded. Classic unchanged. */
-  html[data-skin='modern'] input:focus-visible,
-  html[data-skin='modern'] textarea:focus-visible,
-  html[data-skin='modern'] select:focus-visible {
+     excluded. */
+  html input:focus-visible,
+  html textarea:focus-visible,
+  html select:focus-visible {
     outline: none;
     box-shadow: 0 0 0 3px hsl(var(--accent) / 0.22);
     border-color: hsl(var(--accent) / 0.55);
   }
 
   .dark {
-    /* "Ink mode" — late-night writing */
-    --background: 36 8% 10%; /* deep paper-dark */
-    --foreground: 42 25% 88%;
+    --background: 220 6% 11%;
+    --foreground: 220 8% 93%;
 
-    --card: 36 8% 12%;
-    --card-foreground: 42 25% 88%;
+    --card: 220 6% 14%;
+    --card-foreground: 220 8% 93%;
 
-    --popover: 36 8% 13%;
-    --popover-foreground: 42 25% 88%;
+    --popover: 220 6% 16%;
+    --popover-foreground: 220 8% 93%;
 
-    --primary: 42 25% 88%;
-    --primary-foreground: 36 8% 10%;
+    --primary: 220 8% 93%;
+    --primary-foreground: 220 6% 11%;
 
-    --secondary: 36 8% 16%;
-    --secondary-foreground: 42 25% 80%;
+    --secondary: 220 6% 18%;
+    --secondary-foreground: 220 6% 82%;
 
-    --muted: 36 8% 16%;
-    --muted-foreground: 36 12% 55%;
+    --muted: 220 5% 20%;
+    --muted-foreground: 220 5% 62%;
 
-    --accent: 13 45% 60%;
-    --accent-foreground: 36 8% 10%;
-    --comment: 18 52% 60%; /* Claude 橙褐 terracotta — comment chrome */
+    --accent: 218 35% 65%;
+    --accent-foreground: 220 6% 11%;
+    --comment: 20 58% 66%;
 
     --destructive: 14 45% 50%;
-    --destructive-foreground: 42 25% 88%;
+    --destructive-foreground: 220 8% 93%;
 
-    --border: 36 8% 20%;
-    --input: 36 8% 20%;
-    --ring: 13 45% 60%;
+    --border: 220 6% 22%;
+    --input: 220 6% 22%;
+    --ring: 218 35% 65%;
 
-    --accent-border: 36 10% 25%;
+    --accent-border: 220 6% 26%;
 
-    --paper: 36 8% 10%;
-    --paper-deep: 36 8% 8%;
-    --surface: 36 8% 11%;
-    --page: 36 8% 14%;
-    /* classic 暗色同样不用阴影 (继承 :root 的 none)，靠明度差 (11% vs 14%) 区分。 */
+    --paper: 220 6% 11%;
+    --paper-deep: 220 7% 8%;
+    --surface: 220 6% 14%;
+    --page: 220 6% 14%;
+    --page-elevation: 0 1px 0 rgba(0, 0, 0, 0.28), 0 5px 30px -15px rgba(0, 0, 0, 0.55);
 
-    --ink-1: 42 25% 88%;
-    --ink-2: 40 22% 76%;
-    --ink-3: 38 15% 58%;
-    --ink-4: 36 12% 42%;
-    --ink-5: 36 8% 25%;
-    --ink-6: 36 8% 20%;
-    --rule: 36 8% 22%;
-    --rule-strong: 36 8% 32%;
+    --ink-1: 220 8% 93%;
+    --ink-2: 220 6% 82%;
+    --ink-3: 220 5% 62%;
+    --ink-4: 220 4% 48%;
+    --ink-5: 220 5% 28%;
+    --ink-6: 220 5% 22%;
+    --rule: 220 6% 22%;
+    --rule-strong: 220 6% 30%;
 
-    --story-1: 13 45% 60%;
-    --story-2: 210 35% 60%;
-    --story-3: 75 22% 58%;
-    --story-4: 40 45% 60%;
-    --story-5: 295 15% 60%;
-    --story-6: 165 25% 56%;
+    --story-1: 252 50% 74%;
+    --story-2: 208 58% 68%;
+    --story-3: 148 34% 62%;
+    --story-4: 45 68% 68%;
+    --story-5: 282 44% 74%;
+    --story-6: 182 38% 60%;
+
+    --chrome-bg: hsl(var(--paper) / 0.65);
   }
 }
 
@@ -607,11 +391,6 @@
     @apply bg-background text-foreground;
   }
 
-  /* Literary defaults for content surfaces */
-  .font-serif {
-    font-family: var(--font-serif);
-    font-feature-settings: 'liga', 'kern', 'onum';
-  }
   .font-sans {
     font-family: var(--font-sans);
   }
@@ -836,8 +615,7 @@ button,
   color: inherit !important;
 }
 
-/* Editor find-in-document highlights live in styles/search.css (token-driven
-   for all four skin variants). */
+/* Editor find-in-document highlights live in styles/search.css. */
 
 /* ============================================================
    Tiptap placeholder
@@ -906,7 +684,7 @@ html[data-platform-target='mobile'] .app-root {
   overscroll-behavior: none;
 }
 
-html[data-platform-target='mobile'][data-skin='modern'] .app-root {
+html[data-platform-target='mobile'] .app-root {
   padding-top: max(6px, var(--safe-area-top));
   padding-right: max(6px, var(--safe-area-right));
   padding-bottom: max(6px, var(--safe-area-bottom));
@@ -1303,7 +1081,7 @@ html[data-platform-target='mobile'] .app-mid {
 }
 .crumb-dropdown__empty {
   padding: 8px 8px 6px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   color: hsl(var(--ink-4));
   font-size: 13px;
@@ -1366,11 +1144,10 @@ html[data-platform-target='mobile'] .app-mid {
   margin-bottom: 8px;
 }
 .page__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: 400;
   font-size: 42px;
-  /* Rendered in an <input>, which clips glyphs to the line box — CJK serif
-     ascenders/descenders need ≥1.3 to avoid being shaved off. */
+  /* Rendered in an <input>; keep enough line height for CJK glyph bounds. */
   line-height: 1.3;
   letter-spacing: -0.01em;
   color: hsl(var(--ink-1));
@@ -1387,7 +1164,7 @@ html[data-platform-target='mobile'] .app-mid {
 }
 
 .page__sub {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: calc(var(--editor-font-size, 17.5px) - 2px);
   color: hsl(var(--ink-3));
@@ -1413,7 +1190,7 @@ html[data-platform-target='mobile'] .app-mid {
 }
 
 .page__body .ProseMirror {
-  font-family: var(--font-serif);
+  font-family: var(--editor-font-family);
   font-size: var(--editor-font-size, 17.5px);
   line-height: var(--editor-line-height, 1.75);
   color: hsl(var(--ink-1));
@@ -1474,20 +1251,20 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   color: hsl(var(--ink-2));
 }
 .page__body .ProseMirror h1 {
-  font-family: var(--font-serif);
+  font-family: var(--editor-font-family);
   font-weight: 500;
   font-size: 28px;
   letter-spacing: -0.01em;
   margin: 1.4em 0 0.5em;
 }
 .page__body .ProseMirror h2 {
-  font-family: var(--font-serif);
+  font-family: var(--editor-font-family);
   font-weight: 500;
   font-size: 22px;
   margin: 1.3em 0 0.4em;
 }
 .page__body .ProseMirror h3 {
-  font-family: var(--font-serif);
+  font-family: var(--editor-font-family);
   font-weight: 500;
   font-size: 18px;
   margin: 1.2em 0 0.3em;
@@ -1516,7 +1293,7 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 
 .page__ornament {
   text-align: center;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 20px;
   color: hsl(var(--ink-4));
   margin: 36px 0 12px;
@@ -1537,7 +1314,7 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   scroll-margin-top: 24px;
 }
 .act-break__num {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: 400;
   font-style: normal; /* upright Roman, not italic */
   font-size: 132px;
@@ -1547,7 +1324,7 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   user-select: none;
 }
 .act-break__label {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: 500;
   font-size: 31px;
   color: hsl(var(--ink-1));
@@ -1601,7 +1378,7 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   border-radius: 0;
   transition: background 0.25s ease;
 }
-html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
+.editor-scroll::-webkit-scrollbar-thumb {
   border-radius: 4px;
 }
 .editor-scroll.is-scrolling::-webkit-scrollbar-thumb {
@@ -1670,8 +1447,8 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 
 .mnote {
   background: hsl(var(--surface));
+  background-image: linear-gradient(hsl(var(--accent) / 0.04), hsl(var(--accent) / 0.04));
   border: 1px solid hsl(var(--rule));
-  border-left: 2px solid hsl(var(--accent));
   border-radius: 4px;
   padding: 9px 11px 10px;
   position: absolute;
@@ -1696,7 +1473,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   z-index: 5;
 }
 .mnote--resolved {
-  border-left-color: hsl(var(--ink-5));
+  background-image: none;
   opacity: 0.72;
 }
 /* Card has been promoted to a TODO (comment.kind = 'todo'). Keeps the
@@ -1712,7 +1489,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
    card would render semi-transparent against whatever sits behind the
    editor rail. */
 .mnote--todo {
-  border-left: 1px solid hsl(var(--rule)); /* no stripe — ochre tint + glyph carry the TODO identity */
+  border-color: hsl(var(--rule)); /* ochre tint + glyph carry the TODO identity */
   background-color: hsl(var(--surface));
   background-image: linear-gradient(hsl(var(--story-4) / 0.12), hsl(var(--story-4) / 0.12));
 }
@@ -1859,7 +1636,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   border: none;
 }
 .mnote__head-glyph {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 11px;
   color: hsl(var(--accent));
@@ -1870,19 +1647,20 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   color: hsl(var(--ink-4));
 }
 .mnote__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 13px;
   color: hsl(var(--ink));
   line-height: 1.42;
   word-break: break-word;
 }
 .mnote__quote {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 11.5px;
   color: hsl(var(--ink-3));
-  border-left: 2px solid hsl(var(--rule-strong));
-  padding-left: 7px;
+  padding: 5px 7px;
+  border-radius: var(--radius-xs);
+  background: hsl(var(--ink-1) / 0.03);
   margin-top: 6px;
   line-height: 1.4;
   word-break: break-word;
@@ -1959,7 +1737,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   border-radius: 3px;
   background: hsl(var(--page));
   color: hsl(var(--ink));
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.5;
   outline: none;
@@ -2273,7 +2051,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 
 /* Agent-edit op colours: new = 苔绿 moss green, changed = 群青 ink blue,
-   deleted = 朱砂 oxblood red. Each drops once its block's reveal has played. */
+   deleted = muted destructive red. Each drops once its block's reveal has played. */
 .editor__scrollmap-tick--agent-new {
   background: hsl(var(--story-3));
 }
@@ -2676,7 +2454,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: var(--z-popover);
 }
 .snapshot-modal {
   width: min(560px, 90vw);
@@ -2701,7 +2479,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   color: hsl(var(--ink-4));
 }
 .snapshot-modal__body {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.6;
   color: hsl(var(--ink));
@@ -2745,7 +2523,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 .editor-comment-menu {
   position: fixed;
-  z-index: 2000;
+  z-index: var(--z-context-menu);
   min-width: 112px;
   padding: 4px;
   background: hsl(var(--surface));
@@ -2786,7 +2564,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
    it never tucks behind it; column layout matches the slash menu's list. */
 .editor-comment-menu__flyout {
   flex-direction: column;
-  z-index: 2001;
+  z-index: calc(var(--z-context-menu) + 1);
 }
 /* Active format (mark/block already applied to the selection), snapshotted at
    open time. */
@@ -2928,7 +2706,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   background: hsl(var(--rule));
 }
 .toc-act__label {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13.5px;
   font-weight: 500;
@@ -2992,7 +2770,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 .toc-row__text {
   min-width: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3021,7 +2799,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   left: calc(var(--toc-scene) + var(--toc-indent) + 7px);
 }
 
-/* L2 · chapter / section — primary navigation unit: serif, mid-weight, darkest. */
+/* L2 · chapter / section — primary navigation unit: mid-weight and darkest. */
 .toc-block--l2 > .toc-row {
   padding-left: 14px;
 }
@@ -3113,7 +2891,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   margin-top: 8px;
 }
 .page__scene-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 16px;
   font-style: italic;
   font-weight: 400;
@@ -3355,12 +3133,12 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   border-radius: 2px;
 }
 .elem-hero__name {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 38px;
   font-weight: 500;
   font-style: italic;
   color: hsl(var(--ink-1));
-  /* <input> clips to the line box; italic serif + CJK needs ≥1.3. */
+  /* <input> clips to the line box; italic CJK needs ≥1.3. */
   line-height: 1.3;
   margin: 0;
   letter-spacing: -0.005em;
@@ -3375,7 +3153,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   font-style: italic;
 }
 .elem-hero__alias {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 14.5px;
   color: hsl(var(--ink-3));
@@ -3386,7 +3164,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   margin: 0 6px;
 }
 .elem-hero__summary {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: calc(var(--entity-body-font-size, 16px) - 4px);
   color: hsl(var(--ink-3));
@@ -3419,7 +3197,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   color: hsl(var(--ink-4));
 }
 .elem-hero__fact-v {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13px;
   color: hsl(var(--ink-2));
@@ -3427,7 +3205,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 
 /* Long-form body shared by element / storyline / category editors. */
 .elem-body {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--entity-body-font-size, 16px);
   line-height: 1.7;
   color: hsl(var(--ink-1));
@@ -3462,7 +3240,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   border-bottom: 1px dotted hsl(var(--rule));
 }
 .refs-section__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 16px;
   color: hsl(var(--ink-2));
@@ -3496,7 +3274,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 
 .refs-empty {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13px;
   color: hsl(var(--ink-4));
@@ -3573,7 +3351,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   background: transparent;
   border: 0;
   padding: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 15px;
   color: hsl(var(--ink-1));
@@ -3687,7 +3465,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .refs-card__title {
   flex: 1;
   min-width: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 14.5px;
   color: hsl(var(--ink-1));
@@ -3706,7 +3484,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   flex-shrink: 0;
   width: 14px;
   text-align: center;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 12px;
   color: hsl(var(--ink-5));
@@ -3763,7 +3541,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .refs-picker__input {
   width: 100%;
   padding: 6px 10px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13px;
   color: hsl(var(--ink-1));
@@ -3816,7 +3594,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .refs-picker__item-name {
   flex: 1;
   min-width: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13.5px;
   color: hsl(var(--ink-1));
@@ -3826,7 +3604,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 .refs-picker__empty {
   padding: 6px 4px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 12px;
   color: hsl(var(--ink-4));
@@ -3851,7 +3629,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 
 .refs-loading {
   padding: 18px 4px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13px;
   color: hsl(var(--ink-4));
@@ -3900,7 +3678,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   background: transparent;
   border: 0;
   outline: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   /* The patch's primary identifier — leads the row, so it reads as the title. */
   font-size: 13px;
   color: hsl(var(--ink-2));
@@ -4021,7 +3799,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 .patch-card__anchor-pop-empty {
   padding: 6px 12px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 12px;
   color: hsl(var(--ink-5));
@@ -4039,7 +3817,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   padding: 6px 12px;
   background: transparent;
   border: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13px;
   color: hsl(var(--ink-2));
@@ -4119,15 +3897,16 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 .patch-card__snapshot {
   margin: 4px 0 6px 22px;
-  border-left: 2px solid hsl(var(--ink-5) / 0.4);
-  padding: 2px 0 2px 8px;
+  padding: 6px 8px;
+  background: hsl(var(--ink-1) / 0.025);
+  border-radius: var(--radius-xs);
 }
 .patch-card__snapshot-body {
   margin: 0;
   padding: 6px 8px;
   background: hsl(var(--ink-1) / 0.03);
   border-radius: 3px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.55;
   color: hsl(var(--ink-3));
@@ -4189,7 +3968,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .patch-card__body .ProseMirror {
   outline: none;
   min-height: 1.6em;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   /* Body is the primary read-target — bigger than title + anchor combined. */
   font-size: 15px;
   line-height: 1.7;
@@ -4262,39 +4041,6 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   gap: 4px;
   flex-wrap: wrap;
 }
-.mgr-toolbar__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: hsl(var(--ink-4));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 2px;
-  cursor: pointer;
-  background: transparent;
-  transition:
-    color 0.12s,
-    background 0.12s,
-    border-color 0.12s;
-}
-.mgr-toolbar__chip:hover {
-  color: hsl(var(--ink-2));
-  border-color: hsl(var(--ink-4));
-}
-.mgr-toolbar__chip--active {
-  color: hsl(var(--ink-1));
-  background: hsl(var(--surface));
-  border-color: hsl(var(--ink-3));
-}
-.mgr-toolbar__chip em {
-  font-style: normal;
-  color: hsl(var(--ink-5));
-  font-size: 9px;
-}
 .mgr-toolbar__actions {
   display: flex;
   gap: 4px;
@@ -4330,7 +4076,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   border-color: hsl(var(--accent));
 }
 .mgr-toolbar__btn-glyph {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13px;
   text-transform: none;
@@ -4415,7 +4161,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   min-width: 0;
 }
 .mgr-row__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 17px;
   font-weight: 400;
   color: hsl(var(--ink-1));
@@ -4433,7 +4179,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   font-size: 15px;
 }
 .mgr-row__summary {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13.5px;
   color: hsl(var(--ink-3));
@@ -4470,7 +4216,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .mgr-row__meta b {
   color: hsl(var(--ink-2));
   font-weight: 500;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   text-transform: none;
   letter-spacing: 0;
   font-size: 11.5px;
@@ -4486,7 +4232,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   white-space: nowrap;
 }
 .mgr-row__wc-v {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 19px;
   color: hsl(var(--ink-1));
   font-weight: 400;
@@ -4515,7 +4261,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   align-self: center;
   border-radius: 2px;
   color: hsl(var(--ink-4));
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 16px;
   transition:
@@ -4553,7 +4299,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   background: hsl(var(--accent) / 0.08);
 }
 .mgr-add__glyph {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 18px;
   text-transform: none;
@@ -4600,7 +4346,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 .kv-editor__key,
 .kv-editor__value {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.6;
   background: transparent;

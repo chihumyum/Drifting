@@ -8,7 +8,6 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronUp } from 'lucide-react';
-import { useSettingsStore } from '../../store/settings-store';
 
 /**
  * Shared collapsible footer drawer used by the sidebar panels:
@@ -105,10 +104,6 @@ export function CollapsibleFooter({
     [heightControlled, onHeightChange],
   );
 
-  // Expand/collapse easing is a modern-skin flourish only — classic snaps
-  // open/closed instantly (matches the sidebar slide, which classic also skips).
-  const animate = useSettingsStore((s) => s.appearanceSkin === 'modern');
-
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const teardownRef = useRef<(() => void) | null>(null);
@@ -167,9 +162,9 @@ export function CollapsibleFooter({
         background: 'hsl(var(--paper-deep) / 0.5)',
         minHeight: COLLAPSIBLE_FOOTER_HEADER_HEIGHT,
         height: isExpanded ? currentHeight : COLLAPSIBLE_FOOTER_HEADER_HEIGHT,
-        // Smooth the open/close toggle (modern only); drop the transition
-        // mid-drag so the resize cursor stays glued to the edge.
-        transition: isDragging || !animate ? 'none' : 'height 0.18s ease',
+        // Drop the transition mid-drag so the resize cursor stays glued to
+        // the edge.
+        transition: isDragging ? 'none' : 'height 0.18s ease',
       }}
     >
       {/* Top-edge resize grip — only while expanded so the collapsed strip
@@ -228,7 +223,7 @@ export function CollapsibleFooter({
             style={{
               flexShrink: 0,
               transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition: animate ? 'transform 0.18s ease' : 'none',
+              transition: 'transform 0.18s ease',
             }}
           />
           <span

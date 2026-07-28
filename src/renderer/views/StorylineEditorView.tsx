@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { FilterChip } from '../components/ui/FilterChip';
 import { useAutosizeTextArea } from '../hooks/useAutosizeTextArea';
 import { useParams } from 'react-router-dom';
 import { EditorContent } from '@tiptap/react';
@@ -336,7 +337,7 @@ export function StorylineEditorView({
         }
       >
         <EditorCrumb
-          dotColor={currentStoryline.color || '#8A2A1E'}
+          dotColor={currentStoryline.color || 'hsl(var(--accent))'}
           dropdown={
             storylines.length === 0 ? (
               <div className="crumb-dropdown__empty">{t('nodeEditor.empty.noStorylines')}</div>
@@ -349,7 +350,7 @@ export function StorylineEditorView({
                     className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
                     onClick={() => navigateToStoryline(s.id)}
                   >
-                    <span className="crumb-dropdown__dot" style={{ background: s.color || '#8A2A1E' }} />
+                    <span className="crumb-dropdown__dot" style={{ background: s.color || 'hsl(var(--accent))' }} />
                     <span>{s.name}</span>
                   </div>
                 );
@@ -533,14 +534,15 @@ export function StorylineEditorView({
                       ['written',    t('storylineEditor.filters.written'),    writtenCount],
                       ['unwritten',  t('storylineEditor.filters.unwritten'),    unwrittenCount],
                     ] as const).map(([k, label, n]) => (
-                      <div
+                      <FilterChip
                         key={k}
-                        className={`mgr-toolbar__chip${chapterFilter === k ? ' mgr-toolbar__chip--active' : ''}`}
+                        shape="square"
+                        active={chapterFilter === k}
+                        count={`· ${n}`}
                         onClick={() => setChapterFilter(k)}
                       >
-                        <span>{label}</span>
-                        <em>· {n}</em>
-                      </div>
+                        {label}
+                      </FilterChip>
                     ))}
                   </div>
                   {/* DEFERRED: search / reorder / batch actions */}

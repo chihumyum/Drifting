@@ -7,7 +7,7 @@
 .set-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-modal);
   background: hsl(var(--paper));
   display: flex;
   flex-direction: column;
@@ -62,7 +62,7 @@
   background: hsl(var(--rule));
 }
 .set-head__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 17px;
   font-weight: 500;
   color: hsl(var(--ink-1));
@@ -172,7 +172,7 @@
   color: hsl(var(--paper));
   display: grid;
   place-items: center;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 17px;
   font-weight: 500;
@@ -182,7 +182,7 @@
   min-width: 0;
 }
 .set-rail__who-name {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 15px;
   color: hsl(var(--ink-1));
@@ -246,7 +246,7 @@
 .set-rail__glyph {
   width: 16px;
   text-align: center;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 13px;
   color: hsl(var(--ink-4));
@@ -309,7 +309,7 @@
   margin-bottom: 6px;
 }
 .set-panel__title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 32px;
   font-weight: 400;
   letter-spacing: -0.005em;
@@ -318,7 +318,7 @@
   margin: 0 0 6px;
 }
 .set-panel__sub {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 15px;
   color: hsl(var(--ink-3));
@@ -384,7 +384,7 @@
   min-width: 0;
 }
 .set-row__label {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 15px;
   color: hsl(var(--ink-1));
   line-height: 1.3;
@@ -423,72 +423,6 @@
   flex-shrink: 0;
 }
 
-/* Segmented control */
-.seg {
-  display: inline-flex;
-  background: hsl(var(--paper-deep));
-  border-radius: 4px;
-  padding: 2px;
-  border: 1px solid hsl(var(--rule));
-}
-.seg__btn {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 4px 11px;
-  border-radius: 3px;
-  color: hsl(var(--ink-4));
-  cursor: pointer;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: transparent;
-  border: 0;
-}
-.seg__btn:hover {
-  color: hsl(var(--ink-2));
-}
-.seg__btn--active {
-  background: hsl(var(--surface));
-  color: hsl(var(--ink-1));
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-}
-
-/* Toggle */
-.tog {
-  width: 32px;
-  height: 18px;
-  background: hsl(var(--rule-strong));
-  border-radius: 9px;
-  position: relative;
-  cursor: pointer;
-  transition: background 0.15s;
-  flex-shrink: 0;
-  border: 0;
-  padding: 0;
-}
-.tog::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: hsl(var(--page));
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
-  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.tog--on {
-  background: hsl(var(--accent));
-}
-.tog--on::after {
-  transform: translateX(14px);
-  background: hsl(var(--paper));
-}
-
 /* Text input */
 .set-input {
   font-family: var(--font-sans);
@@ -511,6 +445,141 @@
 }
 .set-input--wide {
   min-width: 340px;
+}
+
+/* Prose font source. Labels and controls deliberately stay on --font-ui;
+   the selected face is demonstrated only by the typesetting preview. */
+.set-font-control {
+  width: 100%;
+}
+.set-font-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.set-font-option {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 5px;
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-2));
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.set-font-option:hover:not(:disabled) {
+  border-color: hsl(var(--rule-strong));
+  background: hsl(var(--paper-deep));
+}
+.set-font-option--active {
+  border-color: hsl(var(--accent) / 0.65);
+  background: hsl(var(--accent) / 0.08);
+  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.12);
+}
+.set-font-option:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+.set-font-option__name,
+.set-font-option__detail {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.set-font-option__name {
+  color: hsl(var(--ink-1));
+  font-size: 13px;
+  font-weight: 550;
+}
+.set-font-option__detail {
+  margin-top: 3px;
+  color: hsl(var(--ink-3));
+  font-size: 11px;
+}
+.set-font-tools {
+  margin-top: 10px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 5px;
+  background: hsl(var(--surface));
+}
+.set-font-tool {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+}
+.set-font-tool + .set-font-tool {
+  border-top: 1px dotted hsl(var(--rule));
+}
+.set-font-tool__copy {
+  min-width: 0;
+}
+.set-font-tool__title,
+.set-font-tool__desc {
+  display: block;
+  font-family: var(--font-ui);
+}
+.set-font-tool__title {
+  color: hsl(var(--ink-1));
+  font-size: 12.5px;
+}
+.set-font-tool__desc {
+  margin-top: 2px;
+  color: hsl(var(--ink-3));
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.set-font-tool__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.set-font-tool__input {
+  width: min(240px, 34vw);
+  min-width: 160px;
+}
+.set-font-tool__select {
+  width: min(300px, 38vw);
+  min-width: 200px;
+  cursor: pointer;
+}
+.set-font-tool__manual {
+  grid-column: 1 / -1;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: hsl(var(--ink-3));
+}
+.set-font-tool__manual summary {
+  width: fit-content;
+  cursor: pointer;
+  user-select: none;
+}
+.set-font-tool__manual[open] summary {
+  margin-bottom: 8px;
+  color: hsl(var(--ink-2));
+}
+.set-font-tool__manual-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.set-font-message {
+  margin-top: 8px;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.set-font-message--error {
+  color: hsl(var(--danger, var(--accent)));
+}
+.set-font-message--success {
+  color: hsl(var(--ink-2));
 }
 
 /* Select-style chip */
@@ -679,7 +748,7 @@
   justify-content: space-between;
 }
 .set-theme-card__name {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 15px;
   color: hsl(var(--ink-1));
@@ -712,27 +781,27 @@
 /* Theme card preview variants — frozen palette previews so they always
    show what each mode looks like regardless of current app theme. */
 .tp--light {
-  --card-bg: #fcfaf4;
-  --card-chrome: #e8e1d2;
-  --card-ink: #1c1813;
+  --card-bg: #ffffff;
+  --card-chrome: #efeeed;
+  --card-ink: #211f1e;
   background: var(--card-bg);
 }
 .tp--dark {
-  --card-bg: #2a251d;
-  --card-chrome: #16120c;
-  --card-ink: #e8dec9;
+  --card-bg: #222326;
+  --card-chrome: #141518;
+  --card-ink: #ececef;
   background: var(--card-bg);
 }
 .tp--system {
-  background: linear-gradient(135deg, #fcfaf4 0 50%, #2a251d 50% 100%);
-  --card-chrome: #e8e1d2;
-  --card-ink: #6e5a3b;
+  background: linear-gradient(135deg, #ffffff 0 50%, #222326 50% 100%);
+  --card-chrome: #efeeed;
+  --card-ink: #6f7075;
 }
 .set-theme-card .tp--light .set-theme-card__preview-bar {
-  background: #e8e1d2;
+  background: #efeeed;
 }
 .set-theme-card .tp--dark .set-theme-card__preview-bar {
-  background: #16120c;
+  background: #141518;
   border-color: rgba(255, 255, 255, 0.06);
 }
 .set-theme-card .tp--system .set-theme-card__preview-bar {
@@ -755,7 +824,8 @@
   border-color: hsl(var(--rule-strong));
 }
 .set-provider--connected {
-  border-left: 3px solid hsl(var(--accent));
+  border-color: hsl(var(--accent) / 0.6);
+  background: hsl(var(--accent) / 0.035);
 }
 .set-provider--disconnected {
   opacity: 0.78;
@@ -775,7 +845,7 @@
   border: 1px solid hsl(var(--rule));
   display: grid;
   place-items: center;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 18px;
   font-style: italic;
   color: hsl(var(--ink-2));
@@ -817,7 +887,7 @@
   min-width: 0;
 }
 .set-provider__name {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 17px;
   color: hsl(var(--ink-1));
   display: flex;
@@ -954,7 +1024,7 @@
   border-radius: 50%;
   border: 1px solid currentColor;
   font-size: 16px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   line-height: 1;
   font-weight: 300;
 }
@@ -1012,7 +1082,7 @@
   color: hsl(var(--accent));
 }
 .set-tier__name {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 19px;
   color: hsl(var(--ink-1));
@@ -1057,7 +1127,7 @@
   background: hsl(var(--ink-1) / 0.025);
 }
 .set-keys__label {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 13.5px;
   color: hsl(var(--ink-2));
 }
@@ -1118,7 +1188,7 @@
   color: hsl(var(--accent));
 }
 .set-plan-current__name {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 22px;
   color: hsl(var(--ink-1));
@@ -1171,7 +1241,7 @@
   color: hsl(var(--accent));
 }
 .set-plan__name {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 20px;
   color: hsl(var(--ink-1));
@@ -1179,7 +1249,7 @@
   line-height: 1.1;
 }
 .set-plan__price {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 24px;
   color: hsl(var(--ink-1));
   margin-top: 10px;
@@ -1211,7 +1281,7 @@
 .set-plan__feat::before {
   content: '·';
   color: hsl(var(--accent));
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14px;
   font-style: italic;
   width: 8px;
@@ -1241,14 +1311,14 @@
   border-bottom: 0;
 }
 .set-device__glyph {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 18px;
   color: hsl(var(--ink-3));
   text-align: center;
 }
 .set-device__name {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 13.5px;
   color: hsl(var(--ink-1));
 }
@@ -1313,13 +1383,13 @@
   color: hsl(var(--accent));
 }
 .set-locale__name {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14px;
   color: hsl(var(--ink-1));
   flex: 1;
 }
 .set-locale__native {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 12px;
   color: hsl(var(--ink-3));
@@ -1343,7 +1413,7 @@
   color: hsl(var(--paper));
   display: grid;
   place-items: center;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   font-size: 38px;
   font-weight: 500;
@@ -1354,7 +1424,7 @@
   min-width: 0;
 }
 .set-about__name {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 22px;
   color: hsl(var(--ink-1));
 }
@@ -1387,7 +1457,7 @@
   gap: 8px;
 }
 .set-field__value {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 14.5px;
   font-style: italic;
   color: hsl(var(--ink-2));
@@ -1457,8 +1527,7 @@
      PAST the 760px settings column. It breaks out and centers on the editor
      area via margin-left:50% + translateX(-50%), capped to the viewport (minus
      the rail + gutters) so it never spills into a page-wide horizontal scroll.
-     Both skins keep it contained: classic clips nothing because it stays in
-     bounds; modern's .set-main has overflow-x:hidden as a backstop. */
+     `.set-main` uses overflow-x:hidden as a final containment backstop. */
   width: var(--editor-max-width, 720px);
   max-width: calc(100vw - 320px);
   margin: 4px 0 0 50%;
@@ -1467,7 +1536,7 @@
   border: 1px solid hsl(var(--rule));
   border-radius: 4px;
   background: hsl(var(--paper-deep));
-  font-family: var(--font-serif);
+  font-family: var(--editor-font-family);
   font-size: var(--editor-font-size, 17.5px);
   line-height: var(--editor-line-height, 1.75);
   color: hsl(var(--ink-1));
@@ -1579,39 +1648,39 @@
   letter-spacing: 0.02em;
 }
 .set-italic {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-style: italic;
   color: hsl(var(--ink-2));
 }
 
 /* ============================================================
-   Modern skin · Floating-islands layout
+   Floating-islands layout
    Mirrors index.css's app-root → app-chrome + app-island pattern:
    the overlay becomes the wallpaper (paper-deep with 6px padding +
    gap), and head / rail / main become three frosted islands that
-   sit on it. Classic skin keeps the full-bleed paper layout above.
+   sit on it.
    ============================================================ */
-html[data-skin='modern'] .set-overlay {
+.set-overlay {
   padding: 6px;
   gap: 6px;
   background: hsl(var(--paper-deep));
 }
 
-html[data-skin='modern'] .set-head {
+.set-head {
   background: var(--chrome-bg);
   border-bottom: none;
 }
 
-html[data-skin='modern'] .set-body {
+.set-body {
   gap: 6px;
 }
 
-html[data-skin='modern'] .set-rail {
+.set-rail {
   background: var(--chrome-bg);
   border-right: none;
 }
 
-html[data-skin='modern'] .set-main {
+.set-main {
   background: var(--chrome-bg);
 }
 
@@ -1619,8 +1688,8 @@ html[data-skin='modern'] .set-main {
    child backgrounds; rail + main both need vertical scrolling
    though, so restore it at higher specificity. overflow-x stays
    hidden so the rounded corners still clip horizontally. */
-html[data-skin='modern'] .set-rail.app-island,
-html[data-skin='modern'] .set-main.app-island {
+.set-rail.app-island,
+.set-main.app-island {
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -1635,7 +1704,7 @@ html[data-platform-target='mobile'] .set-overlay {
   padding-left: var(--safe-area-left);
 }
 
-html[data-platform-target='mobile'][data-skin='modern'] .set-overlay {
+html[data-platform-target='mobile'] .set-overlay {
   padding-top: max(6px, var(--safe-area-top));
   padding-right: max(6px, var(--safe-area-right));
   padding-bottom: max(6px, var(--safe-area-bottom));
@@ -1662,5 +1731,26 @@ html[data-platform-target='mobile'][data-skin='modern'] .set-overlay {
 
   html[data-platform-target='mobile'] .set-main {
     min-width: 0;
+  }
+
+  .set-font-options {
+    grid-template-columns: 1fr;
+  }
+
+  .set-font-tool {
+    grid-template-columns: 1fr;
+  }
+
+  .set-font-tool__actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .set-font-tool__input {
+    width: 100%;
+  }
+
+  .set-font-tool__select {
+    width: 100%;
   }
 }

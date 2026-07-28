@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import type { ReactNode } from 'react';
+import { ContextMenuSurface } from '../ui/ContextMenuSurface';
 
 // A lightweight, generic portal menu for the left sidebar — used by the drift
 // panel's group-header context menu and its "move to group" picker. Mirrors
@@ -30,67 +30,10 @@ export interface SimpleContextMenuProps {
 }
 
 export function SimpleContextMenu({ x, y, items, onClose, title }: SimpleContextMenuProps) {
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState<{ left: number; top: number }>({ left: x, top: y });
-
-  useLayoutEffect(() => {
-    const el = menuRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const pad = 6;
-    let left = x;
-    let top = y;
-    if (left + rect.width + pad > window.innerWidth) {
-      left = Math.max(pad, window.innerWidth - rect.width - pad);
-    }
-    if (top + rect.height + pad > window.innerHeight) {
-      top = Math.max(pad, window.innerHeight - rect.height - pad);
-    }
-    setPos({ left, top });
-  }, [x, y]);
-
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!menuRef.current) return;
-      if (menuRef.current.contains(event.target as Node)) return;
-      onClose();
-    };
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener('pointerdown', handlePointerDown, true);
-    document.addEventListener('keydown', handleKey, true);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown, true);
-      document.removeEventListener('keydown', handleKey, true);
-    };
-  }, [onClose]);
-
   if (items.length === 0) return null;
 
-  return createPortal(
-    <div
-      ref={menuRef}
-      className="editor-bar__menu"
-      role="menu"
-      onClick={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.preventDefault()}
-      style={{
-        position: 'fixed',
-        left: pos.left,
-        top: pos.top,
-        right: 'auto',
-        bottom: 'auto',
-        zIndex: 10000,
-        margin: 0,
-        maxHeight: '60vh',
-        overflowY: 'auto',
-      }}
-    >
+  return (
+    <ContextMenuSurface x={x} y={y} onClose={onClose} style={{ maxHeight: '60vh' }}>
       {title && <div className="editor-bar__menu-section-label">{title}</div>}
       {items.map((item) => (
         <div key={item.key}>
@@ -125,7 +68,6 @@ export function SimpleContextMenu({ x, y, items, onClose, title }: SimpleContext
           </button>
         </div>
       ))}
-    </div>,
-    document.body,
+    </ContextMenuSurface>
   );
 }
