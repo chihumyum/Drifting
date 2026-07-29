@@ -3,12 +3,14 @@ import { BYOKCredentialsProvider } from '../ai/credentials/byok';
 import { ChainCredentialsProvider } from '../ai/credentials/chain';
 import { EnvCredentialsProvider } from '../ai/credentials/env';
 import { createAgentRuntimeWriteEffectRepository } from '../../sqlite-repo/agent-runtime-write-effect-repo';
+import { createAgentRuntimeFreshnessRepository } from '../../sqlite-repo/agent-runtime-freshness-repo';
 import type { GeneralAgentAuthStatus } from './protocol';
 import {
   createDriftingToolSelectionStrategy,
   createDriftingWriteToolRuntime,
   createLocalGeneralAgentTransport,
   createRepositoryAgentTransportPersistence,
+  DriftingReadToolRuntime,
   DriftingAgentModelDriver,
   resolveDriftingCertifiedToolAccess,
 } from './runtime';
@@ -39,8 +41,14 @@ async function readLocalAgentAuthStatus(): Promise<GeneralAgentAuthStatus> {
 }
 
 const driftingWriteEffects = createAgentRuntimeWriteEffectRepository();
+const driftingFreshness = createAgentRuntimeFreshnessRepository();
+const driftingReadTools = new DriftingReadToolRuntime({
+  freshness: driftingFreshness,
+});
 const driftingAgentTools = createDriftingWriteToolRuntime({
   repository: driftingWriteEffects,
+  freshness: driftingFreshness,
+  readRuntime: driftingReadTools,
 });
 const driftingToolSelector = createDriftingToolSelectionStrategy();
 

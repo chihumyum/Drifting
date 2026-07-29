@@ -46,6 +46,20 @@ const optionalStr = (description: string) =>
   Type.Optional(Type.String({ description }));
 const optionalInteger = (description: string) =>
   Type.Optional(Type.Integer({ minimum: 1, description }));
+const expectedRevision = Type.Object(
+  {
+    receiptId: str('最近一次 read_node 返回的 freshness.receiptId'),
+    observationId: str(
+      '同一次 read_node 返回的目标 node freshness observation id',
+    ),
+    revision: str('同一 observation 返回的精确 revision；不得自行生成'),
+  },
+  {
+    additionalProperties: false,
+    description:
+      '必须逐字段复制最近一次目标 read_node 的 freshness 引用',
+  },
+);
 
 const fact = Type.Object(
   {
@@ -470,7 +484,11 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     name: 'rename_node',
     description: '重命名章节或 drift。',
     parametersSchema: Type.Object(
-      { node: str('章节/drift 名'), title: str('新标题') },
+      {
+        node: str('章节/drift 名'),
+        title: str('新标题'),
+        expectedRevision,
+      },
       { additionalProperties: false },
     ),
     risk: 'low',
@@ -488,7 +506,11 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     name: 'set_node_summary',
     description: '设置章节或 drift 的梗概。',
     parametersSchema: Type.Object(
-      { node: str('章节/drift 名'), summary: str('新梗概') },
+      {
+        node: str('章节/drift 名'),
+        summary: str('新梗概'),
+        expectedRevision,
+      },
       { additionalProperties: false },
     ),
     risk: 'low',

@@ -1,5 +1,16 @@
 import { Type, type TSchema } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
+import type {
+  AgentRuntimeReadFreshnessObservation,
+  AgentRuntimeReadResult,
+  CreateAgentRuntimeReadObservation,
+  PersistedAgentRuntimeReadReceipt,
+} from '../../../domain/agent-runtime-freshness';
+import { useDataStore } from '../../../store/data-store';
+import {
+  createAgentRuntimeFreshnessRepository,
+  type AgentRuntimeFreshnessRepository,
+} from '../../../sqlite-repo/agent-runtime-freshness-repo';
 import {
   getActiveAgentToolContext,
   runAgentTool,
@@ -44,6 +55,14 @@ interface StoredReadResult {
 
 export interface DriftingReadToolRuntimeOptions {
   getContext?: () => AgentToolContext | null;
+  /**
+   * Product runtimes use the canonical repository. `null` exists only for
+   * isolated P1/P3 compatibility fixtures that have no canonical lifecycle
+   * rows; never use it in the renderer product wiring.
+   */
+  freshness?: AgentRuntimeFreshnessRepository | null;
+  now?: () => string;
+  dispatch?: typeof runAgentTool;
   maxStoredResults?: number;
   maxStoredChars?: number;
 }
@@ -74,6 +93,9 @@ export interface TruncatedAgentToolResult {
  */
 export class DriftingReadToolRuntime implements AgentToolRuntime {
   private readonly getContext: () => AgentToolContext | null;
+  private readonly freshness: AgentRuntimeFreshnessRepository | null;
+  private readonly now: () => string;
+  private readonly dispatch: typeof runAgentTool;
   private readonly maxStoredResults: number;
   private readonly maxStoredChars: number;
   private readonly storedResults = new Map<string, StoredReadResult>();
@@ -81,6 +103,12 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
 
   constructor(options: DriftingReadToolRuntimeOptions = {}) {
     this.getContext = options.getContext ?? getActiveAgentToolContext;
+    this.freshness =
+      options.freshness === undefined
+        ? createAgentRuntimeFreshnessRepository()
+        : options.freshness;
+    this.now = options.now ?? (() => new Date().toISOString());
+    this.dispatch = options.dispatch ?? runAgentTool;
     this.maxStoredResults =
       options.maxStoredResults ?? DEFAULT_MAX_STORED_RESULTS;
     this.maxStoredChars = options.maxStoredChars ?? DEFAULT_MAX_STORED_CHARS;
@@ -106,7 +134,11 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     }
 
     if (request.name === RESULT_PAGE_TOOL) {
-      return this.readStoredResult(request);
+      return this.executeReadWithReceipt(
+        request,
+        () => this.readStoredResultData(request),
+        [],
+      );
     }
 
     const catalogEntry = AGENT_READ_TOOLS.find(
@@ -121,20 +153,161 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
 
     try {
       const active = this.requireMatchingContext(request.context);
-      const data = await runAgentTool(
+      const replay = await this.replayReadReceipt(request);
+      if (replay) return replay;
+      const observations = this.captureObservations(request, active);
+      const data = await this.dispatch(
         request.name,
         request.arguments,
         active,
       );
       throwIfAgentAborted(request.signal);
       this.requireMatchingContext(request.context);
-      return {
-        ok: true,
-        data: this.budgetResult(request, catalogEntry, data),
-      };
+      this.assertObservationsStillCurrent(observations, active.projectId);
+      return await this.persistSuccessfulRead(
+        request,
+        this.budgetResult(request, catalogEntry, data),
+        observations,
+      );
     } catch (error) {
       if (isAgentAbort(error, request.signal)) throw error;
       return { ok: false, error: publicToolError(error) };
+    }
+  }
+
+  private async executeReadWithReceipt(
+    request: AgentToolExecutionRequest,
+    read: () => unknown,
+    observations: readonly CreateAgentRuntimeReadObservation[],
+  ): Promise<AgentToolExecutionResult> {
+    try {
+      const replay = await this.replayReadReceipt(request);
+      if (replay) {
+        this.requireMatchingContext(request.context);
+        return replay;
+      }
+      const data = read();
+      throwIfAgentAborted(request.signal);
+      this.requireMatchingContext(request.context);
+      return await this.persistSuccessfulRead(request, data, observations);
+    } catch (error) {
+      if (isAgentAbort(error, request.signal)) throw error;
+      return { ok: false, error: publicToolError(error) };
+    }
+  }
+
+  private async persistSuccessfulRead(
+    request: AgentToolExecutionRequest,
+    result: unknown,
+    observations: readonly CreateAgentRuntimeReadObservation[],
+  ): Promise<AgentToolExecutionResult> {
+    if (!this.freshness) {
+      return { ok: true, data: result };
+    }
+    const receiptId = readReceiptId(request);
+    const providerObservations: AgentRuntimeReadFreshnessObservation[] =
+      observations.map((observation) => ({
+        id: observation.id,
+        entityKind: observation.entityKind,
+        entityId: observation.entityId,
+        revision: observation.revision,
+      }));
+    const envelope: AgentRuntimeReadResult = {
+      result,
+      freshness: {
+        receiptId,
+        observations: providerObservations,
+      },
+    };
+    const persisted = await this.freshness.persistReadReceipt({
+      id: receiptId,
+      projectId: durableReadProjectId(request),
+      sessionId: request.sessionId,
+      turnId: request.turnId,
+      toolCallId: runtimeToolCallId(request),
+      callId: request.callId,
+      toolName: request.name,
+      idempotencyKey: request.idempotencyKey,
+      result: envelope,
+      observations,
+      createdAt: this.now(),
+    });
+    // Return the verified canonical result, not a separately-serialized
+    // approximation. This makes the provider result and durable result exact.
+    return { ok: true, data: persisted.receipt.result };
+  }
+
+  private async replayReadReceipt(
+    request: AgentToolExecutionRequest,
+  ): Promise<AgentToolExecutionResult | null> {
+    if (!this.freshness) return null;
+    const receipt = await this.freshness.getReadReceipt(readReceiptId(request));
+    if (!receipt) return null;
+    assertReadReceiptProvenance(receipt, request);
+    return { ok: true, data: receipt.result };
+  }
+
+  private captureObservations(
+    request: AgentToolExecutionRequest,
+    active: AgentToolContext,
+  ): CreateAgentRuntimeReadObservation[] {
+    if (request.name !== 'read_node') return [];
+    const rawKind =
+      typeof request.arguments.kind === 'string'
+        ? request.arguments.kind
+        : 'node';
+    if (
+      rawKind !== 'node' &&
+      rawKind !== 'chapter' &&
+      rawKind !== 'drift'
+    ) {
+      return [];
+    }
+    const ref = String(request.arguments.node ?? '').trim();
+    if (!ref) return [];
+    const nodes = useDataStore
+      .getState()
+      .bookNodes.filter((node) => node.projectId === active.projectId);
+    const direct = nodes.find((node) => node.id === ref);
+    const matches = direct
+      ? [direct]
+      : nodes.filter(
+          (node) =>
+            node.title.trim().toLocaleLowerCase() ===
+            ref.toLocaleLowerCase(),
+        );
+    // The canonical dispatcher will produce the user-facing not-found or
+    // ambiguity error. Only a uniquely-resolved node becomes an observation.
+    if (matches.length !== 1) return [];
+    const node = matches[0];
+    return [
+      {
+        id: readObservationId(request, 0),
+        entityKind: 'node',
+        entityId: node.id,
+        revision: node.updatedAt,
+      },
+    ];
+  }
+
+  private assertObservationsStillCurrent(
+    observations: readonly CreateAgentRuntimeReadObservation[],
+    projectId: string,
+  ): void {
+    for (const observation of observations) {
+      if (observation.entityKind !== 'node') continue;
+      const current = useDataStore
+        .getState()
+        .bookNodes.find(
+          (node) =>
+            node.id === observation.entityId &&
+            node.projectId === projectId,
+        );
+      if (!current || current.updatedAt !== observation.revision) {
+        throw new Error(
+          'The node changed while it was being read; retry read_node before writing',
+        );
+      }
     }
   }
 
@@ -202,9 +375,9 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     return result;
   }
 
-  private readStoredResult(
+  private readStoredResultData(
     request: AgentToolExecutionRequest,
-  ): AgentToolExecutionResult {
+  ): unknown {
     const resultRef = String(request.arguments.resultRef ?? '');
     const stored = this.storedResults.get(resultRef);
     if (
@@ -212,10 +385,9 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
       stored.sessionId !== request.sessionId ||
       stored.projectId !== (request.context.route.projectId ?? '')
     ) {
-      return {
-        ok: false,
-        error: 'The requested Agent result is unavailable in this session',
-      };
+      throw new Error(
+        'The requested Agent result is unavailable in this session',
+      );
     }
     const offset = Number(request.arguments.offset ?? 0);
     const limit = Number(request.arguments.limit ?? MAX_RESULT_PAGE_CHARS);
@@ -223,25 +395,22 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     const content = sliceCodePoints(stored.serialized, offset, limit);
     const nextOffset = Math.min(totalChars, offset + codePointLength(content));
     return {
-      ok: true,
-      data: {
-        resultRef,
-        sourceTool: stored.toolName,
-        sourceArguments: stored.arguments,
-        offset,
-        nextOffset,
-        totalChars,
-        truncated: nextOffset < totalChars,
-        content,
-        ...(nextOffset < totalChars
-          ? {
-              reread: {
-                tool: RESULT_PAGE_TOOL,
-                arguments: { resultRef, offset: nextOffset, limit },
-              },
-            }
-          : {}),
-      },
+      resultRef,
+      sourceTool: stored.toolName,
+      sourceArguments: stored.arguments,
+      offset,
+      nextOffset,
+      totalChars,
+      truncated: nextOffset < totalChars,
+      content,
+      ...(nextOffset < totalChars
+        ? {
+            reread: {
+              tool: RESULT_PAGE_TOOL,
+              arguments: { resultRef, offset: nextOffset, limit },
+            },
+          }
+        : {}),
     };
   }
 
@@ -265,6 +434,46 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
       this.storedResults.delete(oldest[0]);
       this.storedChars -= oldest[1].serialized.length;
     }
+  }
+}
+
+function durableReadProjectId(request: AgentToolExecutionRequest): string {
+  const projectId = request.context.route.projectId;
+  if (!projectId || request.context.route.kind === 'test') {
+    throw new Error('A durable Agent read requires a project route');
+  }
+  return projectId;
+}
+
+function runtimeToolCallId(request: AgentToolExecutionRequest): string {
+  return `agent-tool:${request.sessionId}:${request.turnId}:${request.callId}`;
+}
+
+function readReceiptId(request: AgentToolExecutionRequest): string {
+  return `agent-read:${request.idempotencyKey}`;
+}
+
+function readObservationId(
+  request: AgentToolExecutionRequest,
+  ordinal: number,
+): string {
+  return `agent-observation:${request.idempotencyKey}:${ordinal}`;
+}
+
+function assertReadReceiptProvenance(
+  receipt: PersistedAgentRuntimeReadReceipt,
+  request: AgentToolExecutionRequest,
+): void {
+  if (
+    receipt.projectId !== durableReadProjectId(request) ||
+    receipt.sessionId !== request.sessionId ||
+    receipt.turnId !== request.turnId ||
+    receipt.toolCallId !== runtimeToolCallId(request) ||
+    receipt.callId !== request.callId ||
+    receipt.toolName !== request.name ||
+    receipt.idempotencyKey !== request.idempotencyKey
+  ) {
+    throw new Error('The durable Agent read receipt has conflicting provenance');
   }
 }
 

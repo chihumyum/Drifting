@@ -46,6 +46,16 @@ class ConcurrentIsolationDriver implements AgentModelDriver {
   readonly requestKeys = new Set<string>();
   activeStreams = 0;
   maxActiveStreams = 0;
+  private enteredStreams = 0;
+  private readonly barriers = new Map<
+    number,
+    {
+      entered: number;
+      promise: Promise<void>;
+      release: () => void;
+      timeout: ReturnType<typeof setTimeout>;
+    }
+  >();
 
   async *stream(
     request: AgentModelRequest,
@@ -63,9 +73,10 @@ class ConcurrentIsolationDriver implements AgentModelDriver {
     );
 
     try {
-      // Two yields force streams from different sessions to overlap.
-      await Promise.resolve();
-      await Promise.resolve();
+      // Web Crypto preflight completes on event-loop tasks, so microtask
+      // yielding does not prove provider concurrency. Every deterministic
+      // 50-stream wave must enter before any stream may complete.
+      await this.enterBarrier(50);
       yield {
         type: 'text_delta',
         text: `answer:${key}:${latestMessage?.role === 'user' ? latestMessage.content : ''}`,
@@ -74,6 +85,34 @@ class ConcurrentIsolationDriver implements AgentModelDriver {
       yield { type: 'finish', reason: 'end_turn' };
     } finally {
       this.activeStreams -= 1;
+    }
+  }
+
+  private async enterBarrier(width: number): Promise<void> {
+    const barrierIndex = Math.floor(this.enteredStreams / width);
+    this.enteredStreams += 1;
+    let barrier = this.barriers.get(barrierIndex);
+    if (!barrier) {
+      let release: () => void = () => undefined;
+      const promise = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const timeout = setTimeout(() => {
+        release();
+      }, 5_000);
+      barrier = { entered: 0, promise, release, timeout };
+      this.barriers.set(barrierIndex, barrier);
+    }
+    barrier.entered += 1;
+    if (barrier.entered === width) {
+      clearTimeout(barrier.timeout);
+      barrier.release();
+    }
+    await barrier.promise;
+    if (barrier.entered !== width) {
+      throw new Error(
+        `concurrency barrier ${barrierIndex} timed out at ${barrier.entered}/${width}`,
+      );
     }
   }
 }
@@ -283,7 +322,7 @@ describe('P1 deterministic Agent runtime acceptance', () => {
   }, 30_000);
 
   it('covers normal, empty, and invalid schemas for every registered read tool and never executes invalid calls', async () => {
-    const tools = new DriftingReadToolRuntime();
+    const tools = new DriftingReadToolRuntime({ freshness: null });
     const definitions = tools
       .listDefinitions(runtimeContext())
       .filter((definition) => definition.name !== 'read_tool_result');
@@ -368,7 +407,7 @@ describe('P1 deterministic Agent runtime acceptance', () => {
   });
 
   it('returns explicit truncation metadata and reuses resultRef for deterministic rereads', async () => {
-    const tools = new DriftingReadToolRuntime();
+    const tools = new DriftingReadToolRuntime({ freshness: null });
     const source = '序😀'.repeat(6_001);
     const sourceCodePoints = [...source];
     toolHandlerMocks.runAgentTool.mockResolvedValue(source);

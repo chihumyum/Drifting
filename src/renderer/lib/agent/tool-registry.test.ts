@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { Value } from '@sinclair/typebox/value';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -163,12 +164,34 @@ describe('canonical Agent tool catalog', () => {
         .map((tool) => tool.name),
     ).toEqual(P3_CERTIFIED_WRITE_NAMES);
     for (const name of P3_CERTIFIED_WRITE_NAMES) {
-      expect(getRegisteredTool(name)).toMatchObject({
+      const tool = getRegisteredTool(name);
+      expect(tool).toMatchObject({
         approval: 'soft_review',
         retry: 'inspect_before_retry',
         revertStrategy: 'exact_inverse',
         certification: 'write-certified',
       });
+      expect(
+        Value.Check(tool!.parametersSchema, {
+          node: '第一章',
+          ...(name === 'rename_node'
+            ? { title: '序章' }
+            : { summary: '新的梗概' }),
+        }),
+      ).toBe(false);
+      expect(
+        Value.Check(tool!.parametersSchema, {
+          node: '第一章',
+          ...(name === 'rename_node'
+            ? { title: '序章' }
+            : { summary: '新的梗概' }),
+          expectedRevision: {
+            receiptId: 'agent-read:session:turn:call',
+            observationId: 'agent-observation:session:turn:call:0',
+            revision: '2026-07-30T00:00:00.000Z',
+          },
+        }),
+      ).toBe(true);
     }
   });
 

@@ -20,6 +20,8 @@ export function buildDriftingAgentSystemPrompt(
     'Use only the provided Drifting tools. Never assume that entities are filesystem files.',
     'All reads and writes must go through those tools so they share renderer use cases, live Yjs prose, sync, checkpoints, and edit review with manual edits.',
     'For prose, prefer stable block-addressed operations. Treat tool results as the current truth.',
+    'Every successful read returns { result, freshness }. Use result as the tool payload; preserve freshness citations exactly for any dependent write.',
+    'Before rename_node or set_node_summary, call read_node for that exact node, then copy freshness.receiptId plus the matching observation id/revision into expectedRevision. Never invent, reuse across nodes, or strip this freshness citation.',
     'Canon is authored truth. When prose needs to evolve established canon, use the sanctioned patch/evolution tools instead of silently contradicting it.',
   ];
 

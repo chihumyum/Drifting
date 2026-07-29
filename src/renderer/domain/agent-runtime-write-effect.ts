@@ -108,7 +108,7 @@ export type AgentRuntimeWriteEffectTransition =
     }
   | {
       effectId: string;
-      expectedPhase: 'claimed' | 'confirmed';
+      expectedPhase: 'claimed' | 'confirmed' | 'mutation_started';
       nextPhase: 'failed';
       at: string;
       errorCode: string;

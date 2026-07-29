@@ -559,6 +559,13 @@ export function createAgentRuntimeWriteEffectRepository(
             values.errorCode = transition.errorCode;
             values.errorMessage = transition.errorMessage ?? null;
             values.failedAt = transition.at;
+            // A certified compare-and-swap can prove that its UPDATE changed
+            // zero rows and the surrounding transaction rolled back. Reclassify
+            // that entered attempt as known-failed by clearing the conservative
+            // mutation marker required only for unknown outcomes.
+            if (transition.expectedPhase === 'mutation_started') {
+              values.mutationStartedAt = null;
+            }
             await tx
               .update(AgentRuntimeToolCallTable)
               .set({

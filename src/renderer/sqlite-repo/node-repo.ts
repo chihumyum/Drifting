@@ -33,12 +33,38 @@ export interface BookNodeUpdateData {
   updatedAt: string;
 }
 
+export interface BookNodeUpdateOptions {
+  /**
+   * When present, the update is a single-statement compare-and-swap against
+   * the exact durable revision observed by an Agent read receipt.
+   */
+  expectedRevision?: string;
+}
+
+export class BookNodeRevisionConflictError extends Error {
+  readonly code = 'STALE_REVISION';
+
+  constructor(
+    readonly nodeId: string,
+    readonly expectedRevision: string,
+  ) {
+    super(
+      `Book node ${nodeId} changed after Agent observation ${expectedRevision}.`,
+    );
+    this.name = 'BookNodeRevisionConflictError';
+  }
+}
+
 export interface BookNodeRepository {
   findById(id: string): Promise<BookNode | null>;
   findAll(): Promise<BookNode[]>;
   findTrashed(): Promise<Array<BookNode & { deletedAt: string }>>;
   create(data: BookNodeCreateData): Promise<BookNode>;
-  update(id: string, data: BookNodeUpdateData): Promise<BookNode | null>;
+  update(
+    id: string,
+    data: BookNodeUpdateData,
+    options?: BookNodeUpdateOptions,
+  ): Promise<BookNode | null>;
   delete(id: string): Promise<boolean>;
   softDelete(id: string): Promise<boolean>;
   restore(id: string): Promise<boolean>;
@@ -161,17 +187,7 @@ export function createBookNodeSqliteRepository(
       } as typeof BookNodeTable.$inferSelect);
     },
 
-    async update(id: string, updates: BookNodeUpdateData) {
-      const existing = await dbProvider()
-        .select()
-        .from(BookNodeTable)
-        .where(eq(BookNodeTable.id, id))
-        .limit(1);
-      if (!existing[0]) {
-        log.warn(`[BookNodeRepository] update: Node with ID ${id} does not exist.`);
-        return null;
-      }
-
+    async update(id: string, updates: BookNodeUpdateData, options = {}) {
       const updateValues: Partial<typeof BookNodeTable.$inferInsert> = {
         updatedAt: updates.updatedAt,
       };
@@ -193,15 +209,34 @@ export function createBookNodeSqliteRepository(
           updateValues.positionY = updates.position.y;
       }
 
-      await dbProvider().update(BookNodeTable).set(updateValues).where(eq(BookNodeTable.id, id));
-
-      // Fetch updated
+      const conditions = [
+        eq(BookNodeTable.id, id),
+        eq(BookNodeTable.projectId, currentProject),
+        isNull(BookNodeTable.deletedAt),
+      ];
+      if (options.expectedRevision !== undefined) {
+        conditions.push(
+          eq(BookNodeTable.updatedAt, options.expectedRevision),
+        );
+      }
       const updated = await dbProvider()
-        .select()
-        .from(BookNodeTable)
-        .where(eq(BookNodeTable.id, id))
-        .limit(1);
-      return updated[0] ? toBookNode(updated[0]) : null;
+        .update(BookNodeTable)
+        .set(updateValues)
+        .where(and(...conditions))
+        .returning();
+      if (!updated[0]) {
+        if (options.expectedRevision !== undefined) {
+          throw new BookNodeRevisionConflictError(
+            id,
+            options.expectedRevision,
+          );
+        }
+        log.warn(
+          `[BookNodeRepository] update: Node with ID ${id} does not exist in project ${currentProject}.`,
+        );
+        return null;
+      }
+      return toBookNode(updated[0]);
     },
 
     async delete(id: string) {

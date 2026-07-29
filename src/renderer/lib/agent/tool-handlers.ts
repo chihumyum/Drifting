@@ -56,6 +56,10 @@ import {
   updateElementPatchWithSync,
 } from '../../usecase/synced-entity-commands';
 import { isChapter, type BookNode } from '../../domain/book-node';
+import type {
+  AgentRuntimeExpectedRevision,
+  AgentRuntimeNodeWriteGuard,
+} from '../../domain/agent-runtime-freshness';
 import { parseKv, stringifyKv, type KvEntry } from '../../domain/kv';
 import {
   commentIdsRelatedToEntity,
@@ -196,10 +200,15 @@ function toKvEntries(raw: unknown): KvEntry[] {
 export interface AgentWriteApi {
   updateElement: (id: string, updates: UpdateElementUsecaseInput) => Promise<unknown>;
   createElement: (input: CreateBookElementInput) => Promise<unknown>;
-  renameNode: (id: string, title: string) => Promise<unknown>;
+  renameNode: (
+    id: string,
+    title: string,
+    guard?: AgentRuntimeNodeWriteGuard,
+  ) => Promise<unknown>;
   updateNode: (
     id: string,
     updates: Partial<BookNode> & { mainStorylineId?: string | null },
+    guard?: AgentRuntimeNodeWriteGuard,
   ) => Promise<unknown>;
   updateContentByNodeId: (nodeId: string, updates: Partial<NodeContent>) => Promise<unknown>;
   addNodeToStoryline: (nodeId: string, storylineId: string) => Promise<void>;
@@ -244,7 +253,7 @@ export interface AgentToolProvenance {
   turnId: string;
   callId: string;
   idempotencyKey: string;
-  expectedRevision?: string;
+  expectedRevision?: AgentRuntimeExpectedRevision;
   signal: AbortSignal;
 }
 
@@ -1202,7 +1211,13 @@ async function renameChapter(ctx: AgentToolContext, args: Record<string, unknown
   const nodeId = String(args.nodeId ?? '');
   const title = String(args.title ?? '');
   if (!nodeId || !title) throw new Error('rename_node requires node and title');
-  await ctx.write.renameNode(nodeId, title);
+  await ctx.write.renameNode(
+    nodeId,
+    title,
+    ctx.provenance?.expectedRevision
+      ? { expectedRevision: ctx.provenance.expectedRevision.revision }
+      : undefined,
+  );
   // The stored title may be uniqueness-deduped — report the actual one.
   return { ok: true, node: entityLabel(useDataStore.getState(), 'node', nodeId) };
 }
@@ -1210,7 +1225,13 @@ async function renameChapter(ctx: AgentToolContext, args: Record<string, unknown
 async function setNodeSummary(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
   if (!nodeId) throw new Error('set_node_summary requires node');
-  await ctx.write.updateNode(nodeId, { summary: String(args.summary ?? '') });
+  await ctx.write.updateNode(
+    nodeId,
+    { summary: String(args.summary ?? '') },
+    ctx.provenance?.expectedRevision
+      ? { expectedRevision: ctx.provenance.expectedRevision.revision }
+      : undefined,
+  );
   return { ok: true, node: entityLabel(useDataStore.getState(), 'node', nodeId) };
 }
 

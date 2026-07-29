@@ -3,10 +3,20 @@ import type {
   PersistedAgentRuntimeWriteEffect,
   PersistedAgentRuntimeWriteReview,
 } from '../../../domain/agent-runtime-write-effect';
+import type {
+  AgentRuntimeExpectedRevision,
+  PersistedAgentRuntimeReadReceipt,
+  PersistedAgentRuntimeWriteExpectation,
+} from '../../../domain/agent-runtime-freshness';
+import {
+  createAgentRuntimeFreshnessRepository,
+  type AgentRuntimeFreshnessRepository,
+} from '../../../sqlite-repo/agent-runtime-freshness-repo';
 import {
   createAgentRuntimeWriteEffectRepository,
   type AgentRuntimeWriteEffectRepository,
 } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
+import { useDataStore } from '../../../store/data-store';
 import {
   getActiveAgentToolContext,
   runAgentTool,
@@ -39,6 +49,11 @@ import type {
 
 export interface DriftingWriteToolRuntimeOptions {
   repository?: AgentRuntimeWriteEffectRepository;
+  /**
+   * Product runtimes use the canonical repository. `null` is reserved for the
+   * pre-P4 deterministic fixtures whose purpose is unrelated to freshness.
+   */
+  freshness?: AgentRuntimeFreshnessRepository | null;
   getContext?: () => AgentToolContext | null;
   readRuntime?: AgentToolRuntime;
   now?: () => string;
@@ -61,6 +76,7 @@ export interface AgentWriteReviewDecisionResult {
  */
 export class DriftingWriteToolRuntime implements AgentToolRuntime {
   private readonly repository: AgentRuntimeWriteEffectRepository;
+  private readonly freshness: AgentRuntimeFreshnessRepository | null;
   private readonly getContext: () => AgentToolContext | null;
   private readonly readRuntime: AgentToolRuntime;
   private readonly now: () => string;
@@ -72,6 +88,10 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
   constructor(options: DriftingWriteToolRuntimeOptions = {}) {
     this.repository =
       options.repository ?? createAgentRuntimeWriteEffectRepository();
+    this.freshness =
+      options.freshness === undefined
+        ? createAgentRuntimeFreshnessRepository()
+        : options.freshness;
     this.getContext = options.getContext ?? getActiveAgentToolContext;
     this.readRuntime = options.readRuntime ?? new DriftingReadToolRuntime();
     this.now = options.now ?? (() => new Date().toISOString());
@@ -260,6 +280,9 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
   ): Promise<AgentToolExecutionResult> {
     const route = durableWriteRoute(request.context.route);
     const effectId = writeEffectId(request.idempotencyKey);
+    const expectedRevision = this.freshness
+      ? parseExpectedRevision(request.arguments.expectedRevision)
+      : null;
     const claimed = await this.repository.claimEffect({
       id: effectId,
       ...route,
@@ -270,17 +293,61 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       toolName: tool.name,
       idempotencyKey: request.idempotencyKey,
       arguments: request.arguments,
-      expectedRevision: null,
+      expectedRevision,
       claimedAt: this.now(),
     });
     let effect = claimed.effect;
+
+    if (effect.phase === 'failed' || effect.phase === 'declined') {
+      const replay = await this.replayDurableOutcome(effect, tool, request);
+      if (replay) return replay;
+    }
+
+    if (this.freshness && expectedRevision) {
+      try {
+        if (effect.phase === 'claimed' || effect.phase === 'confirmed') {
+          const observation = await this.validateExpectedRevision(
+            request,
+            expectedRevision,
+          );
+          await this.attachWriteExpectation(effect, observation);
+        } else {
+          await this.assertDurableWriteExpectation(
+            effect,
+            expectedRevision,
+          );
+        }
+      } catch (error) {
+        if (effect.phase === 'claimed' || effect.phase === 'confirmed') {
+          await this.repository.transitionEffect({
+            effectId,
+            expectedPhase: effect.phase,
+            nextPhase: 'failed',
+            errorCode: 'WRITE_FRESHNESS_REJECTED',
+            errorMessage: publicWriteError(error),
+            at: this.now(),
+          });
+        }
+        throw error;
+      }
+    }
 
     const replay = await this.replayDurableOutcome(effect, tool, request);
     if (replay) return replay;
 
     let prepared: PreparedDriftingWriteEffect | null = null;
     try {
-      prepared = await strategy.prepare(request, context);
+      const strategyPrepared = await strategy.prepare(request, context);
+      prepared =
+        expectedRevision === null
+          ? strategyPrepared
+          : {
+              ...strategyPrepared,
+              // The effect repository compares this value to the immutable
+              // claim token. The actual SQLite CAS still uses the revision
+              // string passed through renderer provenance below.
+              observedRevision: expectedRevision,
+            };
       throwIfAgentAborted(request.signal);
       if (effect.phase === 'claimed') {
         effect = (
@@ -326,7 +393,12 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       const handlerResult = await this.dispatch(
         tool.name,
         request.arguments,
-        withProvenance(context, effect, request.signal),
+        withProvenance(
+          context,
+          effect,
+          request.signal,
+          expectedRevision ?? undefined,
+        ),
       );
       const committedEffect = await strategy.captureEffect(
         request,
@@ -346,16 +418,119 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       return this.settleCommittedEffect(effect, tool, handlerResult);
     } catch (error) {
       if (effect.phase === 'mutation_started') {
-        await this.repository.transitionEffect({
-          effectId,
-          expectedPhase: 'mutation_started',
-          nextPhase: 'uncertain',
-          errorCode: 'WRITE_EFFECT_UNCERTAIN',
-          errorMessage: publicWriteError(error),
-          at: this.now(),
-        });
+        if (isDeterministicStaleWriteError(error)) {
+          await this.repository.transitionEffect({
+            effectId,
+            expectedPhase: 'mutation_started',
+            nextPhase: 'failed',
+            errorCode: 'STALE_REVISION',
+            errorMessage: publicWriteError(error),
+            at: this.now(),
+          });
+        } else {
+          await this.repository.transitionEffect({
+            effectId,
+            expectedPhase: 'mutation_started',
+            nextPhase: 'uncertain',
+            errorCode: 'WRITE_EFFECT_UNCERTAIN',
+            errorMessage: publicWriteError(error),
+            at: this.now(),
+          });
+        }
       }
       throw error;
+    }
+  }
+
+  private async validateExpectedRevision(
+    request: AgentToolExecutionRequest,
+    expected: AgentRuntimeExpectedRevision,
+  ): Promise<PersistedAgentRuntimeWriteExpectation> {
+    if (!this.freshness) {
+      throw new Error('Agent freshness repository is unavailable');
+    }
+    const receipt = await this.freshness.getReadReceipt(expected.receiptId);
+    assertExpectedReceiptProvenance(receipt, request);
+    const observation = receipt.observations.find(
+      (candidate) => candidate.id === expected.observationId,
+    );
+    if (
+      !observation ||
+      observation.receiptId !== expected.receiptId ||
+      observation.entityKind !== 'node' ||
+      observation.revision !== expected.revision
+    ) {
+      throw new Error(
+        'expectedRevision does not match a node observation from the cited read receipt',
+      );
+    }
+    const target = resolveWriteTargetNode(request);
+    if (target.id !== observation.entityId) {
+      throw new Error(
+        'expectedRevision cites a different node than the requested write',
+      );
+    }
+    if (target.updatedAt !== expected.revision) {
+      throw new Error(
+        'The node changed after read_node; read it again before writing',
+      );
+    }
+    return {
+      id: writeExpectationId(request.idempotencyKey),
+      effectId: writeEffectId(request.idempotencyKey),
+      projectId: receipt.projectId,
+      sessionId: receipt.sessionId,
+      writeTurnId: request.turnId,
+      writeToolCallId: runtimeToolCallId(request),
+      observationId: observation.id,
+      readReceiptId: receipt.id,
+      readTurnId: observation.turnId,
+      readToolCallId: observation.toolCallId,
+      entityKind: observation.entityKind,
+      entityId: observation.entityId,
+      expectedRevision: observation.revision,
+      expectedStateVector: observation.stateVector,
+      expectedStateHash: observation.stateHash,
+      createdAt: this.now(),
+    };
+  }
+
+  private async attachWriteExpectation(
+    effect: PersistedAgentRuntimeWriteEffect,
+    expected: PersistedAgentRuntimeWriteExpectation,
+  ): Promise<void> {
+    if (!this.freshness) return;
+    await this.freshness.attachWriteExpectations({
+      effectId: effect.id,
+      projectId: effect.projectId,
+      sessionId: effect.sessionId,
+      observations: [
+        {
+          id: expected.id,
+          observationId: expected.observationId,
+        },
+      ],
+      createdAt: expected.createdAt,
+    });
+  }
+
+  private async assertDurableWriteExpectation(
+    effect: PersistedAgentRuntimeWriteEffect,
+    expected: AgentRuntimeExpectedRevision,
+  ): Promise<void> {
+    if (!this.freshness) return;
+    const durable = await this.freshness.listWriteExpectations(effect.id);
+    if (
+      durable.length !== 1 ||
+      durable[0].id !== writeExpectationId(effect.idempotencyKey) ||
+      durable[0].readReceiptId !== expected.receiptId ||
+      durable[0].observationId !== expected.observationId ||
+      durable[0].expectedRevision !== expected.revision ||
+      durable[0].entityKind !== 'node'
+    ) {
+      throw new Error(
+        'The durable write effect lost its exact read expectation',
+      );
     }
   }
 
@@ -574,10 +749,15 @@ function writeReviewId(effectId: string): string {
   return `agent-review:${effectId}`;
 }
 
+function writeExpectationId(idempotencyKey: string): string {
+  return `agent-expectation:${idempotencyKey}:0`;
+}
+
 function withProvenance(
   context: AgentToolContext,
   effect: PersistedAgentRuntimeWriteEffect,
   signal: AbortSignal,
+  expectedRevision?: AgentRuntimeExpectedRevision,
 ): AgentToolContext {
   return {
     ...context,
@@ -586,9 +766,85 @@ function withProvenance(
       turnId: effect.turnId,
       callId: effect.callId,
       idempotencyKey: effect.idempotencyKey,
+      ...(expectedRevision ? { expectedRevision } : {}),
       signal,
     },
   };
+}
+
+function parseExpectedRevision(value: unknown): AgentRuntimeExpectedRevision {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    typeof (value as { receiptId?: unknown }).receiptId !== 'string' ||
+    !(value as { receiptId: string }).receiptId.trim() ||
+    typeof (value as { observationId?: unknown }).observationId !== 'string' ||
+    !(value as { observationId: string }).observationId.trim() ||
+    typeof (value as { revision?: unknown }).revision !== 'string' ||
+    !(value as { revision: string }).revision.trim()
+  ) {
+    throw new Error(
+      'rename_node and set_node_summary require expectedRevision copied from read_node freshness',
+    );
+  }
+  return {
+    receiptId: (value as { receiptId: string }).receiptId,
+    observationId: (value as { observationId: string }).observationId,
+    revision: (value as { revision: string }).revision,
+  };
+}
+
+function isDeterministicStaleWriteError(
+  error: unknown,
+): error is Error & { code: 'STALE_REVISION' } {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    error.code === 'STALE_REVISION'
+  );
+}
+
+function assertExpectedReceiptProvenance(
+  receipt: PersistedAgentRuntimeReadReceipt | null,
+  request: AgentToolExecutionRequest,
+): asserts receipt is PersistedAgentRuntimeReadReceipt {
+  if (
+    !receipt ||
+    receipt.projectId !== request.context.route.projectId ||
+    receipt.sessionId !== request.sessionId ||
+    receipt.toolName !== 'read_node'
+  ) {
+    throw new Error(
+      'expectedRevision must cite a read_node receipt from this project and session',
+    );
+  }
+}
+
+function resolveWriteTargetNode(request: AgentToolExecutionRequest) {
+  const projectId = request.context.route.projectId;
+  const ref = String(
+    request.arguments.node ?? request.arguments.nodeId ?? '',
+  ).trim();
+  if (!projectId || !ref) {
+    throw new Error(`${request.name} requires a project-scoped node`);
+  }
+  const nodes = useDataStore
+    .getState()
+    .bookNodes.filter((node) => node.projectId === projectId);
+  const direct = nodes.find((node) => node.id === ref);
+  if (direct) return direct;
+  const matches = nodes.filter(
+    (node) =>
+      node.title.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
+  );
+  if (matches.length !== 1) {
+    throw new Error(
+      matches.length === 0
+        ? `No node named "${ref}" exists in this project`
+        : `Node reference "${ref}" is ambiguous`,
+    );
+  }
+  return matches[0];
 }
 
 function persistedExecutionResult(value: unknown): AgentToolExecutionResult {

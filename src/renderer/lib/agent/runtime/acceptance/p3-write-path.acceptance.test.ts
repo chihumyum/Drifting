@@ -489,6 +489,7 @@ class P3WriteFixture {
     this.runtimeRepository = createAgentRuntimePersistenceRepository(client);
     this.runtime = new DriftingWriteToolRuntime({
       repository: this.writeRepository,
+      freshness: null,
       getContext: () => this.context,
       readRuntime: emptyReadRuntime,
       now: () => iso(this.timestampTick++),

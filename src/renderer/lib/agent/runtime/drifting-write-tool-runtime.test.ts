@@ -263,6 +263,7 @@ function createRuntime(
   };
   return new DriftingWriteToolRuntime({
     repository: repository.api,
+    freshness: null,
     getContext: () => context,
     readRuntime: emptyReadRuntime,
     now: incrementingClock(),

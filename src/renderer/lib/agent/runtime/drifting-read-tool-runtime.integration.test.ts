@@ -360,7 +360,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
   });
 
   it('executes every registered read tool without mutating domain state or leaking projects', async () => {
-    const runtime = new DriftingReadToolRuntime();
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
     const before = domainSnapshot();
     const results: Record<string, unknown> = {};
 
@@ -386,7 +386,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
   });
 
   it('has local schema coverage for normal and invalid arguments on every tool', () => {
-    const runtime = new DriftingReadToolRuntime();
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
     const definitions = runtime
       .listDefinitions(route)
       .filter((definition) => definition.name !== 'read_tool_result');
@@ -431,7 +431,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
       comments: [],
       entityRelations: [],
     });
-    const runtime = new DriftingReadToolRuntime();
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
     const emptySuccesses = new Set([
       'get_overview',
       'get_project_brief',

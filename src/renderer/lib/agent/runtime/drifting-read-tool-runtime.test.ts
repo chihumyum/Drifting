@@ -55,7 +55,7 @@ describe('DriftingReadToolRuntime', () => {
   });
 
   it('only exposes read-certified catalog entries and the result paging tool', () => {
-    const runtime = new DriftingReadToolRuntime();
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
     const definitions = runtime.listDefinitions(runtimeContext());
     const catalogDefinitions = definitions.filter(
       (definition) => definition.name !== 'read_tool_result',
@@ -87,7 +87,7 @@ describe('DriftingReadToolRuntime', () => {
   });
 
   it('rejects an unmounted or cross-project active context without dispatching', async () => {
-    const runtime = new DriftingReadToolRuntime();
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
     toolHandlerMocks.getActiveAgentToolContext.mockReturnValueOnce(null);
 
     expect(() => runtime.listDefinitions(runtimeContext())).toThrow(
@@ -111,7 +111,7 @@ describe('DriftingReadToolRuntime', () => {
   });
 
   it('validates tool input schemas locally, including additional properties', () => {
-    const runtime = new DriftingReadToolRuntime();
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
     const definitions = runtime.listDefinitions(runtimeContext());
     const readElement = definitions.find(
       (definition) => definition.name === 'read_element',
@@ -136,7 +136,7 @@ describe('DriftingReadToolRuntime', () => {
   });
 
   it('denies write access before dispatching even when the tool name is read-certified', async () => {
-    const runtime = new DriftingReadToolRuntime();
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
 
     await expect(
       runtime.execute(
@@ -154,7 +154,7 @@ describe('DriftingReadToolRuntime', () => {
   });
 
   it('returns an explicit resultRef and reread instruction for oversized results', async () => {
-    const runtime = new DriftingReadToolRuntime();
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
     const oversized = 'x'.repeat(12_001);
     toolHandlerMocks.runAgentTool.mockResolvedValue(oversized);
 
@@ -180,7 +180,7 @@ describe('DriftingReadToolRuntime', () => {
   });
 
   it('pages Chinese and emoji by Unicode code points without splitting surrogate pairs', async () => {
-    const runtime = new DriftingReadToolRuntime();
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
     const oversized = '中😀'.repeat(7_000);
     const codePoints = [...oversized];
     toolHandlerMocks.runAgentTool.mockResolvedValue(oversized);
@@ -233,7 +233,7 @@ describe('DriftingReadToolRuntime', () => {
   });
 
   it('scopes stored result references to both session and project', async () => {
-    const runtime = new DriftingReadToolRuntime();
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
     toolHandlerMocks.runAgentTool.mockResolvedValue('x'.repeat(12_001));
     const first = await runtime.execute(executionRequest());
     expect(first.ok).toBe(true);
@@ -268,7 +268,7 @@ describe('DriftingReadToolRuntime', () => {
   });
 
   it('redacts bearer tokens and API keys from dispatcher errors', async () => {
-    const runtime = new DriftingReadToolRuntime();
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
     toolHandlerMocks.runAgentTool.mockRejectedValue(
       new Error(
         'upstream rejected Bearer secret-token-123 and sk-private_credential',
@@ -289,7 +289,7 @@ describe('DriftingReadToolRuntime', () => {
   });
 
   it('honors abort before dispatch and after an in-flight read resolves', async () => {
-    const runtime = new DriftingReadToolRuntime();
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
     const beforeController = new AbortController();
     beforeController.abort('abort before read');
 

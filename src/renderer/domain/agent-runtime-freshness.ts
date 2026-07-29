@@ -5,6 +5,43 @@
  */
 export type AgentRuntimeEntityRevision = string;
 
+/**
+ * Opaque provider-facing citation copied from a successful read tool result.
+ * Writes must echo this object exactly; they may not invent a revision from a
+ * renderer store snapshot.
+ */
+export interface AgentRuntimeExpectedRevision {
+  receiptId: string;
+  observationId: string;
+  revision: AgentRuntimeEntityRevision;
+}
+
+/** Renderer-usecase CAS capability. Manual callers omit this object. */
+export interface AgentRuntimeNodeWriteGuard {
+  expectedRevision: AgentRuntimeEntityRevision;
+}
+
+export interface AgentRuntimeReadFreshnessObservation {
+  id: string;
+  entityKind: string;
+  entityId: string;
+  revision: AgentRuntimeEntityRevision;
+}
+
+export interface AgentRuntimeReadFreshness {
+  receiptId: string;
+  observations: AgentRuntimeReadFreshnessObservation[];
+}
+
+/**
+ * Canonical provider-neutral read envelope. The exact envelope, including its
+ * stable receipt/observation ids, is persisted before it is returned.
+ */
+export interface AgentRuntimeReadResult<T = unknown> {
+  result: T;
+  freshness: AgentRuntimeReadFreshness;
+}
+
 export interface CreateAgentRuntimeReadObservation {
   id: string;
   entityKind: string;

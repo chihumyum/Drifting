@@ -5,6 +5,7 @@ import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo.ts';
 import { createBookContentRepository } from '../sqlite-repo/content-repo.ts';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo.ts';
 import type { BookNode } from '../domain/book-node.ts';
+import type { AgentRuntimeNodeWriteGuard } from '../domain/agent-runtime-freshness';
 import { compareBookOrder, isChapter, isDrift, makeUniqueNodeTitle } from '../domain/book-node.ts';
 import { unbindMarkersForDrift } from '../hooks/useTimelineMarkers';
 import { unbindActsForDrift } from './useBookAct';
@@ -18,6 +19,7 @@ import {
   deleteEntityRelationsInTransaction,
   withoutRelationsForEntity,
 } from './entity-relation-cleanup';
+import { persistBookNodeUpdateWithSync } from './book-node-write';
 
 const log = loglevel.getLogger('UseBookNode');
 log.setLevel(loglevel.levels.ERROR);
@@ -228,7 +230,11 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
   );
 
   const renameNode = useCallback(
-    async (id: string, title: string) => {
+    async (
+      id: string,
+      title: string,
+      guard?: AgentRuntimeNodeWriteGuard,
+    ) => {
       await ensureDb();
       const prevNodes = getNodesState().slice();
       const existing = prevNodes.find((node) => node.id === id);
@@ -236,20 +242,21 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
 
       // Keep titles project-unique so nodes stay addressable by name (#11).
       const uniqueTitle = makeUniqueNodeTitle(title, prevNodes, activeProjectId, id);
-      const updatedAt = new Date().toISOString();
+      const updatedAt = nextNodeUpdatedAt(existing.updatedAt);
       return withOptimisticUpdate({
         apply: () => updateNodeState(id, { title: uniqueTitle, updatedAt }),
         rollback: () => setNodesState(prevNodes),
-        effect: async () => {
-          return withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
-            const result = await createBookNodeSqliteRepository(activeProjectId, tx).update(id, {
+        effect: () =>
+          persistBookNodeUpdateWithSync({
+            projectId: activeProjectId,
+            nodeId: id,
+            updates: {
               title: uniqueTitle,
               updatedAt,
-            });
-            await sync('node', 'update', id, activeProjectId, { title: uniqueTitle });
-            return result;
-          });
-        },
+            },
+            syncPayload: { title: uniqueTitle },
+            guard,
+          }),
       });
     },
     [ensureDb, getNodesState, updateNodeState, setNodesState, activeProjectId],
@@ -369,13 +376,14 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
     async (
       id: string,
       updates: Partial<BookNode> & { mainStorylineId?: string | null },
+      guard?: AgentRuntimeNodeWriteGuard,
     ) => {
       await ensureDb();
       const prevNodes = getNodesState().slice();
       const existing = prevNodes.find((node) => node.id === id);
       if (!existing) throw new Error(`Book node ${id} not found`);
 
-      const updatedAt = new Date().toISOString();
+      const updatedAt = nextNodeUpdatedAt(existing.updatedAt);
       const { mainStorylineId: newPrimary, ...nodeUpdates } = updates;
       const serverUpdates: Record<string, unknown> = { ...nodeUpdates };
       if (nodeUpdates.position) {
@@ -411,9 +419,27 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
           }
         },
         effect: async () => {
+          if (!mainChanged) {
+            return persistBookNodeUpdateWithSync({
+              projectId: activeProjectId,
+              nodeId: id,
+              updates: { ...nodeUpdates, updatedAt },
+              syncPayload: serverUpdates,
+              guard,
+            });
+          }
           return withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
             const nodeRepoTx = createBookNodeSqliteRepository(activeProjectId, tx);
-            const result = await nodeRepoTx.update(id, { ...nodeUpdates, updatedAt });
+            const result = await nodeRepoTx.update(
+              id,
+              { ...nodeUpdates, updatedAt },
+              guard,
+            );
+            if (!result) {
+              throw new Error(
+                `Book node ${id} no longer exists in project ${activeProjectId}.`,
+              );
+            }
             if (mainChanged) {
               // Flip the primary link atomically — demotes the previous primary
               // and promotes the new one (or just demotes when going to null).
@@ -600,4 +626,10 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       listTrashedNodes,
     ],
   );
+}
+
+function nextNodeUpdatedAt(previous: string): string {
+  const previousMs = Date.parse(previous);
+  const floor = Number.isFinite(previousMs) ? previousMs + 1 : 0;
+  return new Date(Math.max(Date.now(), floor)).toISOString();
 }
