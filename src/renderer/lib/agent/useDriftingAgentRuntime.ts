@@ -2,13 +2,14 @@ import { useLayoutEffect, useReducer } from 'react';
 import { BYOKCredentialsProvider } from '../ai/credentials/byok';
 import { ChainCredentialsProvider } from '../ai/credentials/chain';
 import { EnvCredentialsProvider } from '../ai/credentials/env';
+import { createAgentRuntimeWriteEffectRepository } from '../../sqlite-repo/agent-runtime-write-effect-repo';
 import type { GeneralAgentAuthStatus } from './protocol';
 import {
-  createDriftingReadToolRuntime,
+  createDriftingWriteToolRuntime,
   createLocalGeneralAgentTransport,
   createRepositoryAgentTransportPersistence,
   DriftingAgentModelDriver,
-  resolveDriftingReadToolAccess,
+  resolveDriftingCertifiedToolAccess,
 } from './runtime';
 import {
   installGeneralAgentTransport,
@@ -36,16 +37,37 @@ async function readLocalAgentAuthStatus(): Promise<GeneralAgentAuthStatus> {
   };
 }
 
+const driftingWriteEffects = createAgentRuntimeWriteEffectRepository();
+const driftingAgentTools = createDriftingWriteToolRuntime({
+  repository: driftingWriteEffects,
+});
+
 export function createDriftingLocalAgentTransport(): GeneralAgentTransport {
   return createLocalGeneralAgentTransport({
     driver: new DriftingAgentModelDriver(),
-    tools: createDriftingReadToolRuntime(),
+    tools: driftingAgentTools,
     persistence: createRepositoryAgentTransportPersistence({
-      resolveToolAccess: resolveDriftingReadToolAccess,
+      writeEffects: driftingWriteEffects,
+      resolveToolAccess: resolveDriftingCertifiedToolAccess,
     }),
     authStatus: readLocalAgentAuthStatus,
   });
 }
+
+/** Canonical soft-review actions for the Agent edit UI. */
+export const acceptDriftingAgentWriteReview = (reviewId: string) =>
+  driftingAgentTools.acceptReview(reviewId);
+
+export const rejectDriftingAgentWriteReview = (
+  reviewId: string,
+  decisionNote?: unknown,
+  signal?: AbortSignal,
+) =>
+  driftingAgentTools.rejectReview(
+    reviewId,
+    decisionNote,
+    signal,
+  );
 
 // One product transport per renderer lifetime. React Strict Mode may mount,
 // clean up, and remount effects; reusing this instance preserves subscriptions

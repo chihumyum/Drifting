@@ -9,6 +9,7 @@ import {
   createAgentRuntimePersistenceRepository,
   type AgentRuntimePersistenceRepository,
 } from '../../../sqlite-repo/agent-runtime-persistence-repo';
+import type { AgentRuntimeWriteEffectRepository } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
 import type { AgentStartRoute } from '../protocol';
 import { clonePortableData } from './portable-data';
 import {
@@ -38,6 +39,10 @@ export interface AgentRuntimeRecoveryCodec {
 
 export interface RepositoryAgentTransportPersistenceOptions {
   repository?: AgentRuntimePersistenceRepository;
+  writeEffects?: Pick<
+    AgentRuntimeWriteEffectRepository,
+    'interruptSessionWrites'
+  >;
   recovery?: AgentRuntimeRecoveryCodec;
   /** Canonical catalog lookup. Unknown names fail closed before execution. */
   resolveToolAccess: (name: string) => 'read' | 'write' | undefined;
@@ -124,6 +129,11 @@ export function createRepositoryAgentTransportPersistence(
         // `loadAndRecover` above is the fail-closed validation pass. Only after
         // it succeeds may this transaction materialize the recovery plan's
         // process-interrupted transitions for session/turn/message/tool rows.
+        throwIfAborted(signal);
+        await options.writeEffects?.interruptSessionWrites(
+          session.id,
+          input.acceptedAt,
+        );
         throwIfAborted(signal);
         await repository.interruptSession(session.id, input.acceptedAt);
         throwIfAborted(signal);

@@ -38,6 +38,7 @@ import type {
 } from '../domain/agent-conversation';
 import type { AgentEvent, AgentEventEnvelope } from '../lib/agent/protocol';
 import { loadCanonicalAgentTranscript } from '../lib/agent/runtime/recovered-transcript';
+import { buildAgentWriteReviewFeedback } from '../lib/agent/runtime/write-review-feedback';
 import { generalAgentTransport } from '../lib/agent/transport';
 
 const repo = createAgentConversationRepository();
@@ -352,7 +353,27 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     // the visible transcript keeps the ORIGINAL text, only the SDK prompt is
     // prefixed.
     const reverts = useAgentEditStore.getState().drainReverts(projectId);
-    const promptToSend = reverts.length ? `${buildRevertNote(reverts)}\n\n${text}` : text;
+    const runtimeSessionId = s.activeConvId
+      ? s.runs[s.activeConvId]?.runtimeSessionId
+      : null;
+    let canonicalReviewFeedback = '';
+    if (runtimeSessionId) {
+      try {
+        canonicalReviewFeedback =
+          await buildAgentWriteReviewFeedback(runtimeSessionId);
+      } catch {
+        // Review feedback is advisory prompt context. Durable write/revert
+        // enforcement remains in the coordinator even if this read is
+        // temporarily unavailable.
+      }
+    }
+    const promptNotes = [
+      ...(reverts.length ? [buildRevertNote(reverts)] : []),
+      ...(canonicalReviewFeedback ? [canonicalReviewFeedback] : []),
+    ];
+    const promptToSend = promptNotes.length
+      ? `${promptNotes.join('\n\n')}\n\n${text}`
+      : text;
     const now = new Date().toISOString();
     const settings = useSettingsStore.getState();
     const auth = settings.agentAuth;

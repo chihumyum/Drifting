@@ -325,8 +325,18 @@ describe('repository Agent transport persistence adapter', () => {
         return 'sha256:checkpoint';
       },
     };
+    const interruptSessionWrites = vi.fn(
+      async (_sessionId: string, _at: string) => {
+        fake.order.push('interrupt-writes');
+        return {
+          failedBeforeMutation: 0,
+          uncertainAfterMutationStart: 1,
+        };
+      },
+    );
     const persistence = createRepositoryAgentTransportPersistence({
       repository: fake.repository,
+      writeEffects: { interruptSessionWrites },
       recovery,
       resolveToolAccess: () => 'read',
     });
@@ -355,10 +365,12 @@ describe('repository Agent transport persistence adapter', () => {
 
     expect(fake.order).toEqual([
       'recover',
+      'interrupt-writes',
       'interrupt',
       'recover',
       'accept',
     ]);
+    expect(interruptSessionWrites).toHaveBeenCalledWith('session-1', NOW);
     expect(fake.accepted[0]?.session).toMatchObject({
       id: 'session-1',
       provider: 'provider-new',

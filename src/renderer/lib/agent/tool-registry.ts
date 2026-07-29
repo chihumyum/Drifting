@@ -89,6 +89,8 @@ interface ClassifiedToolSpec {
   aliases?: readonly string[];
   handlerAliases?: readonly string[];
   resultBudgetChars?: number;
+  certification?: 'unavailable' | 'write-certified';
+  certificationNote?: string;
 }
 
 interface InternalToolSpec extends ClassifiedToolSpec {
@@ -125,7 +127,7 @@ function registerReadTool(spec: ReadToolSpec): RegisteredTool {
   };
 }
 
-function registerUnavailableWrite(
+function registerWriteTool(
   spec: ClassifiedToolSpec,
 ): RegisteredTool {
   return {
@@ -136,8 +138,9 @@ function registerUnavailableWrite(
     reversible: reversibleFrom(spec.revertStrategy),
     resultBudgetChars:
       spec.resultBudgetChars ?? DEFAULT_RESULT_BUDGET_CHARS,
-    certification: 'unavailable',
+    certification: spec.certification ?? 'unavailable',
     certificationNote:
+      spec.certificationNote ??
       'Classified for P3 inventory only; provider execution remains unavailable until mutation, recovery, review and revert certification passes.',
     aliases: spec.aliases ?? [],
     handlerAliases: spec.handlerAliases ?? [],
@@ -477,6 +480,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['rename chapter', '重命名章节'],
+    certification: 'write-certified',
+    certificationNote:
+      'P3 exact field-write certification: durable idempotency/effect receipt, renderer rename usecase, soft review, and guarded exact inverse.',
   },
   {
     name: 'set_node_summary',
@@ -492,6 +498,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['set chapter summary', '设置章节梗概'],
+    certification: 'write-certified',
+    certificationNote:
+      'P3 exact field-write certification: durable idempotency/effect receipt, renderer update usecase, soft review, and guarded exact inverse.',
   },
   {
     name: 'edit_block',
@@ -1188,7 +1197,7 @@ function freezeCatalogEntry(tool: RegisteredTool): RegisteredTool {
 
 export const AGENT_TOOL_CATALOG: readonly RegisteredTool[] = Object.freeze([
   ...GENERAL_READ_TOOL_SPECS.map(registerReadTool).map(freezeCatalogEntry),
-  ...GENERAL_WRITE_TOOL_SPECS.map(registerUnavailableWrite).map(
+  ...GENERAL_WRITE_TOOL_SPECS.map(registerWriteTool).map(
     freezeCatalogEntry,
   ),
   ...SHADOW_INTERNAL_TOOL_SPECS.map(registerInternalTool).map(

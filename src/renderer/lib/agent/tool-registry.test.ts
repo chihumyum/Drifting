@@ -38,6 +38,11 @@ const P3_AUDITED_READ_NAMES = [
   'lookup_block',
 ] as const;
 
+const P3_CERTIFIED_WRITE_NAMES = [
+  'rename_node',
+  'set_node_summary',
+] as const;
+
 function dispatcherNamesFromSource(): string[] {
   const source = readFileSync(
     fileURLToPath(new URL('./tool-handlers.ts', import.meta.url)),
@@ -144,19 +149,27 @@ describe('canonical Agent tool catalog', () => {
     expect(AGENT_READ_TOOLS).toHaveLength(18);
   });
 
-  it('keeps all 34 General writes unavailable until their safety paths are certified', () => {
+  it('certifies only writes with durable receipts and exact guarded inverses', () => {
     const writes = AGENT_TOOL_CATALOG.filter(
       (tool) => tool.scope === 'general' && tool.access === 'write',
     );
     expect(writes).toHaveLength(34);
     expect(
-      writes.every((tool) => tool.certification === 'unavailable'),
-    ).toBe(true);
+      writes.filter((tool) => tool.certification === 'unavailable'),
+    ).toHaveLength(32);
     expect(
-      AGENT_TOOL_CATALOG.filter(
-        (tool) => tool.certification === 'write-certified',
-      ),
-    ).toHaveLength(0);
+      writes
+        .filter((tool) => tool.certification === 'write-certified')
+        .map((tool) => tool.name),
+    ).toEqual(P3_CERTIFIED_WRITE_NAMES);
+    for (const name of P3_CERTIFIED_WRITE_NAMES) {
+      expect(getRegisteredTool(name)).toMatchObject({
+        approval: 'soft_review',
+        retry: 'inspect_before_retry',
+        revertStrategy: 'exact_inverse',
+        certification: 'write-certified',
+      });
+    }
   });
 
   it('exposes only canonical tools allowed and certified by provider policy', () => {
@@ -170,8 +183,12 @@ describe('canonical Agent tool catalog', () => {
     expect(reads.every((tool) => tool.access === 'read')).toBe(true);
     expect(reads.every((tool) => tool.scope === 'general')).toBe(true);
 
-    // Asking for writes is not itself certification.
-    expect(listProviderTools({ allowWrite: true })).toEqual(reads);
+    // Asking for writes admits only the independently certified subset.
+    expect(
+      listProviderTools({ allowWrite: true })
+        .filter((tool) => tool.access === 'write')
+        .map((tool) => tool.name),
+    ).toEqual(P3_CERTIFIED_WRITE_NAMES);
 
     const providerNames = toAITools(AGENT_TOOL_CATALOG).map(
       (tool) => tool.name,
@@ -195,7 +212,14 @@ describe('canonical Agent tool catalog', () => {
       ],
     });
 
-    expect(result).toHaveLength(18);
-    expect(result.every((tool) => tool.access === 'read')).toBe(true);
+    expect(result).toHaveLength(20);
+    expect(
+      result
+        .filter((tool) => tool.access === 'write')
+        .map((tool) => tool.name),
+    ).toEqual(P3_CERTIFIED_WRITE_NAMES);
+    expect(
+      result.some((tool) => tool.certification === 'unavailable'),
+    ).toBe(false);
   });
 });

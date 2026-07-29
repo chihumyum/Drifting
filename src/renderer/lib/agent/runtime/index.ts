@@ -1,5 +1,7 @@
 export * from './clock';
 export * from './drifting-read-tool-runtime';
+export * from './drifting-write-strategies';
+export * from './drifting-write-tool-runtime';
 export * from './drivers';
 export * from './errors';
 export * from './legacy-projection';
@@ -14,3 +16,5 @@ export * from './scheduler';
 export * from './system-prompt';
 export * from './transport-persistence';
 export * from './types';
+export * from './write-review-feedback';
+export * from './yjs-prose-command';
