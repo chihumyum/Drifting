@@ -179,6 +179,49 @@ describe('DriftingWriteToolRuntime', () => {
     expect(dispatches).toBe(1);
   });
 
+  it('reconciles a review after result commit without replaying the mutation', async () => {
+    const repository = memoryRepository();
+    const createReview = repository.api.createReview.bind(repository.api);
+    let failReviewInsert = true;
+    repository.api.createReview = async (input) => {
+      if (failReviewInsert) {
+        failReviewInsert = false;
+        throw new Error('review insert boundary lost');
+      }
+      return createReview(input);
+    };
+    const renameNode = vi.fn(async (id: string, title: string) => {
+      updateNode(id, { title });
+    });
+    const runtime = createRuntime(repository, { renameNode });
+    const input = request('rename_node', {
+      node: 'Chapter One',
+      title: 'Opening',
+    });
+
+    await expect(runtime.execute(input)).resolves.toEqual({
+      ok: false,
+      error: 'review insert boundary lost',
+    });
+    expect(
+      repository.effect(`agent-write:${input.idempotencyKey}`).phase,
+    ).toBe('result_committed');
+    expect(repository.reviews()).toHaveLength(0);
+    expect(renameNode).toHaveBeenCalledOnce();
+
+    await expect(runtime.execute(input)).resolves.toMatchObject({
+      ok: true,
+      data: {
+        review: {
+          id: `agent-review:agent-write:${input.idempotencyKey}`,
+          status: 'pending',
+        },
+      },
+    });
+    expect(repository.reviews()).toHaveLength(1);
+    expect(renameNode).toHaveBeenCalledOnce();
+  });
+
   it('fails closed on an unavailable write before claiming an effect', async () => {
     const repository = memoryRepository();
     const runtime = createRuntime(repository, {});

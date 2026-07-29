@@ -366,6 +366,11 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
   ): Promise<AgentToolExecutionResult | null> {
     switch (effect.phase) {
       case 'result_committed':
+        // The result row is the effect's canonical commit point. A crash can
+        // happen immediately after that transaction and before the separate
+        // review insert. Reconcile the deterministic review id on replay
+        // instead of returning a result that points at a missing review.
+        await this.ensureCommittedReview(effect, tool);
         return persistedExecutionResult(effect.result);
       case 'effect_committed': {
         const handlerResult = persistedHandlerResult(effect.effect);
@@ -400,16 +405,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     const reviewId = writeReviewId(effect.id);
     const review =
       tool.approval === 'soft_review'
-        ? (
-            await this.repository.createReview({
-              id: reviewId,
-              effectId: effect.id,
-              sessionId: effect.sessionId,
-              turnId: effect.turnId,
-              toolCallId: effect.toolCallId,
-              createdAt: this.now(),
-            })
-          ).review
+        ? { id: reviewId, status: 'pending' as const }
         : null;
     const result: AgentToolExecutionResult = {
       ok: true,
@@ -433,7 +429,25 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       result,
       at: this.now(),
     });
+    await this.ensureCommittedReview(effect, tool);
     return result;
+  }
+
+  private async ensureCommittedReview(
+    effect: PersistedAgentRuntimeWriteEffect,
+    tool: RegisteredTool,
+  ): Promise<PersistedAgentRuntimeWriteReview | null> {
+    if (tool.approval !== 'soft_review') return null;
+    return (
+      await this.repository.createReview({
+        id: writeReviewId(effect.id),
+        effectId: effect.id,
+        sessionId: effect.sessionId,
+        turnId: effect.turnId,
+        toolCallId: effect.toolCallId,
+        createdAt: this.now(),
+      })
+    ).review;
   }
 
   private requireMatchingContext(
