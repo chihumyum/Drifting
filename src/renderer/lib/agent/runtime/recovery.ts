@@ -11,6 +11,16 @@ import type {
 import {
   replayAgentRuntimeJournal,
 } from './reducer';
+import {
+  agentModelMessagesToContextSources,
+  rebuildAgentContextProviderProjection,
+  type AgentContextProviderEnvelopeV2,
+  type AgentContextSupplementalPinnedRow,
+} from './context-message-adapter';
+import type {
+  AgentContextSourceKind,
+  AgentContextSourceRow,
+} from './context-planner';
 import type {
   AgentAssistantContentBlock,
   AgentModelMessage,
@@ -40,6 +50,28 @@ export type AgentRuntimeRecoveryCorruptionCode =
   | 'ORDER_INVALID'
   | 'STALE_RECOVERY_PLAN'
   | 'TURN_STATUS_CONFLICT';
+
+export const AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_VERSION = 2 as const;
+export const AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_FORMAT =
+  'drifting.agent-runtime-checkpoint-context' as const;
+
+/**
+ * Durable P4 checkpoint payload.
+ *
+ * `canonicalHistory` remains the provider-neutral source of truth and must
+ * exactly match normalized message rows through the checkpoint turn.
+ * `canonicalSourceRows` carries the system/supplemental/tool-access evidence
+ * needed to independently rebuild the planner bridge. The provider envelope
+ * is then verified against that rebuilt bridge; its duplicated projection is
+ * never trusted directly.
+ */
+export interface AgentRuntimeCheckpointContextV2 {
+  schemaVersion: typeof AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_VERSION;
+  format: typeof AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_FORMAT;
+  canonicalHistory: AgentModelMessage[];
+  canonicalSourceRows: AgentContextSourceRow[];
+  providerEnvelope: AgentContextProviderEnvelopeV2;
+}
 
 export class AgentRuntimeRecoveryCorruptionError extends Error {
   readonly cause?: unknown;
@@ -210,6 +242,13 @@ function bytesToHex(bytes: ArrayBuffer): string {
 export async function hashAgentRuntimeCheckpointContext(
   context: readonly AgentModelMessage[],
 ): Promise<string> {
+  return hashAgentRuntimeCheckpointPayload(context);
+}
+
+/** Hash any supported durable checkpoint payload with canonical JSON. */
+export async function hashAgentRuntimeCheckpointPayload(
+  payload: unknown,
+): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) {
     corruption(
@@ -217,7 +256,7 @@ export async function hashAgentRuntimeCheckpointContext(
       'Web Crypto SHA-256 is unavailable; Agent recovery cannot verify checkpoints.',
     );
   }
-  const encoded = new TextEncoder().encode(canonicalRecoveryJson(context));
+  const encoded = new TextEncoder().encode(canonicalRecoveryJson(payload));
   const digest = await subtle.digest('SHA-256', encoded);
   return `sha256:${bytesToHex(digest)}`;
 }
@@ -326,45 +365,299 @@ function parseModelMessageContent(
   };
 }
 
-function parseCheckpointContext(
-  checkpoint: PersistedAgentRuntimeCheckpoint,
+function parseCheckpointMessages(
+  value: unknown,
+  checkpointId: string,
+  path: string,
 ): AgentModelMessage[] {
-  if (!Array.isArray(checkpoint.context)) {
+  if (!Array.isArray(value)) {
     corruption(
       'INVALID_CHECKPOINT',
-      `Checkpoint "${checkpoint.id}" context must be an AgentModelMessage array.`,
+      `Checkpoint "${checkpointId}" canonical history must be an AgentModelMessage array.`,
     );
   }
-  return checkpoint.context.map((value, index) => {
-    if (!isRecord(value) || typeof value.role !== 'string') {
+  return value.map((message, index) => {
+    if (!isRecord(message) || typeof message.role !== 'string') {
       corruption(
         'INVALID_CHECKPOINT',
-        `Checkpoint "${checkpoint.id}" message ${index} is invalid.`,
+        `Checkpoint "${checkpointId}" message ${index} is invalid.`,
       );
     }
     if (
-      value.role !== 'user' &&
-      value.role !== 'assistant' &&
-      value.role !== 'tool'
+      message.role !== 'user' &&
+      message.role !== 'assistant' &&
+      message.role !== 'tool'
     ) {
       corruption(
         'INVALID_CHECKPOINT',
-        `Checkpoint "${checkpoint.id}" message ${index} has an unsupported role.`,
+        `Checkpoint "${checkpointId}" message ${index} has an unsupported role.`,
       );
     }
     const parsed = parseModelMessageContent(
-      value.role,
-      value.content,
-      `checkpoint[${checkpoint.id}].context[${index}].content`,
+      message.role,
+      message.content,
+      `${path}[${index}].content`,
     );
     if (!parsed) {
       corruption(
         'INVALID_CHECKPOINT',
-        `Checkpoint "${checkpoint.id}" contains a system message.`,
+        `Checkpoint "${checkpointId}" contains a system message.`,
       );
     }
     return parsed;
   });
+}
+
+const CONTEXT_SOURCE_KINDS: ReadonlySet<AgentContextSourceKind> = new Set([
+  'system_policy',
+  'user',
+  'assistant_narrative',
+  'thinking',
+  'tool_call',
+  'tool_result',
+  'write_review',
+  'write_revert',
+  'freshness',
+]);
+
+function parseCheckpointSourceRow(
+  value: unknown,
+  checkpointId: string,
+  index: number,
+): AgentContextSourceRow {
+  const path =
+    `checkpoint[${checkpointId}].context.canonicalSourceRows[${index}]`;
+  if (
+    !isRecord(value) ||
+    !isNonEmptyString(value.sourceId) ||
+    !isNonNegativeInteger(value.ordinal) ||
+    (value.turnOrdinal !== null &&
+      !isNonNegativeInteger(value.turnOrdinal)) ||
+    typeof value.kind !== 'string' ||
+    !CONTEXT_SOURCE_KINDS.has(value.kind as AgentContextSourceKind) ||
+    typeof value.content !== 'string'
+  ) {
+    corruption(
+      'INVALID_CHECKPOINT',
+      `${path} is not a canonical context source row.`,
+    );
+  }
+  const isTool = value.kind === 'tool_call' || value.kind === 'tool_result';
+  if (
+    isTool
+      ? !isNonEmptyString(value.callId) ||
+        !isNonEmptyString(value.toolName) ||
+        (value.toolAccess !== 'read' && value.toolAccess !== 'write')
+      : value.callId !== undefined ||
+        value.toolName !== undefined ||
+        value.toolAccess !== undefined
+  ) {
+    corruption(
+      'INVALID_CHECKPOINT',
+      `${path} has invalid tool metadata.`,
+    );
+  }
+  return toCanonicalJsonValue(
+    value,
+    path,
+  ) as unknown as AgentContextSourceRow;
+}
+
+function deriveCheckpointBridgeInput(
+  rows: readonly AgentContextSourceRow[],
+  checkpointId: string,
+): {
+  systemPrompt: string;
+  supplementalRows: AgentContextSupplementalPinnedRow[];
+  resolveToolAccess: (toolName: string) => 'read' | 'write' | undefined;
+} {
+  const systems = rows.filter((row) => row.kind === 'system_policy');
+  if (
+    systems.length !== 1 ||
+    systems[0].sourceId !== 'model/system' ||
+    systems[0].turnOrdinal !== null
+  ) {
+    corruption(
+      'INVALID_CHECKPOINT',
+      `Checkpoint "${checkpointId}" must contain exactly one canonical system source.`,
+    );
+  }
+
+  const toolAccess = new Map<string, 'read' | 'write'>();
+  for (const row of rows) {
+    if (row.kind !== 'tool_call' && row.kind !== 'tool_result') continue;
+    const prior = toolAccess.get(row.toolName!);
+    if (prior && prior !== row.toolAccess) {
+      corruption(
+        'INVALID_CHECKPOINT',
+        `Checkpoint "${checkpointId}" changes tool access for "${row.toolName}".`,
+      );
+    }
+    toolAccess.set(row.toolName!, row.toolAccess!);
+  }
+
+  const supplementalRows = rows.flatMap(
+    (row): AgentContextSupplementalPinnedRow[] => {
+      if (
+        row.kind !== 'write_review' &&
+        row.kind !== 'write_revert' &&
+        row.kind !== 'freshness'
+      ) {
+        return [];
+      }
+      return [
+        {
+          sourceId: row.sourceId,
+          turnOrdinal: row.turnOrdinal,
+          kind: row.kind,
+          content: row.content,
+        },
+      ];
+    },
+  );
+  return {
+    systemPrompt: systems[0].content,
+    supplementalRows,
+    resolveToolAccess: (toolName) => toolAccess.get(toolName),
+  };
+}
+
+async function parseCheckpointContextV2(
+  value: Record<string, unknown>,
+  checkpointId: string,
+): Promise<{
+  context: AgentModelMessage[];
+  payload: AgentRuntimeCheckpointContextV2;
+}> {
+  if (
+    value.schemaVersion !== AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_VERSION ||
+    value.format !== AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_FORMAT
+  ) {
+    corruption(
+      'INVALID_CHECKPOINT',
+      `Checkpoint "${checkpointId}" has an unsupported context envelope.`,
+    );
+  }
+  const context = parseCheckpointMessages(
+    value.canonicalHistory,
+    checkpointId,
+    `checkpoint[${checkpointId}].context.canonicalHistory`,
+  );
+  if (!Array.isArray(value.canonicalSourceRows)) {
+    corruption(
+      'INVALID_CHECKPOINT',
+      `Checkpoint "${checkpointId}" has no canonical source rows.`,
+    );
+  }
+  const canonicalSourceRows = value.canonicalSourceRows.map((row, index) =>
+    parseCheckpointSourceRow(row, checkpointId, index),
+  );
+  const providerEnvelope = toCanonicalJsonValue(
+    value.providerEnvelope,
+    `checkpoint[${checkpointId}].context.providerEnvelope`,
+  ) as unknown as AgentContextProviderEnvelopeV2;
+  const payload: AgentRuntimeCheckpointContextV2 = {
+    schemaVersion: AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_VERSION,
+    format: AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_FORMAT,
+    canonicalHistory: context,
+    canonicalSourceRows,
+    providerEnvelope,
+  };
+  if (!sameJson(value, payload)) {
+    corruption(
+      'INVALID_CHECKPOINT',
+      `Checkpoint "${checkpointId}" contains non-canonical V2 fields.`,
+    );
+  }
+
+  try {
+    const bridgeInput = deriveCheckpointBridgeInput(
+      canonicalSourceRows,
+      checkpointId,
+    );
+    const rebuiltBridge = agentModelMessagesToContextSources({
+      ...bridgeInput,
+      messages: context,
+    });
+    if (!sameJson(rebuiltBridge.sourceRows, canonicalSourceRows)) {
+      corruption(
+        'INVALID_CHECKPOINT',
+        `Checkpoint "${checkpointId}" canonical source rows do not rebuild from canonical history.`,
+      );
+    }
+    // Rebuild from verified planner segments and canonical rows. The stored
+    // providerContext projection is only a redundant integrity witness.
+    await rebuildAgentContextProviderProjection({
+      envelope: providerEnvelope,
+      canonicalSourceRows: rebuiltBridge.sourceRows,
+    });
+  } catch (cause) {
+    if (cause instanceof AgentRuntimeRecoveryCorruptionError) throw cause;
+    corruption(
+      'INVALID_CHECKPOINT',
+      `Checkpoint "${checkpointId}" provider envelope failed strict recovery.`,
+      cause,
+    );
+  }
+  return { context, payload };
+}
+
+async function parseCheckpointContext(
+  checkpoint: PersistedAgentRuntimeCheckpoint,
+): Promise<{
+  context: AgentModelMessage[];
+  hashPayload: unknown;
+  version: 1 | 2;
+}> {
+  if (Array.isArray(checkpoint.context)) {
+    const context = parseCheckpointMessages(
+      checkpoint.context,
+      checkpoint.id,
+      `checkpoint[${checkpoint.id}].context`,
+    );
+    return { context, hashPayload: context, version: 1 };
+  }
+  if (!isRecord(checkpoint.context)) {
+    corruption(
+      'INVALID_CHECKPOINT',
+      `Checkpoint "${checkpoint.id}" context is not a supported durable payload.`,
+    );
+  }
+  const parsed = await parseCheckpointContextV2(
+    checkpoint.context,
+    checkpoint.id,
+  );
+  return {
+    context: parsed.context,
+    hashPayload: parsed.payload,
+    version: 2,
+  };
+}
+
+/**
+ * Compose and verify a durable P4 payload from the exact canonical history.
+ * Transport persistence calls this after appending the final assistant
+ * message, so an envelope planned against a shorter pre-completion history is
+ * rejected before SQLite commit.
+ */
+export async function createAgentRuntimeCheckpointContextV2(input: {
+  canonicalHistory: readonly AgentModelMessage[];
+  canonicalSourceRows: readonly AgentContextSourceRow[];
+  providerEnvelope: AgentContextProviderEnvelopeV2;
+}): Promise<AgentRuntimeCheckpointContextV2> {
+  const candidate = toCanonicalJsonValue(
+    {
+      schemaVersion: AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_VERSION,
+      format: AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_FORMAT,
+      canonicalHistory: input.canonicalHistory,
+      canonicalSourceRows: input.canonicalSourceRows,
+      providerEnvelope: input.providerEnvelope,
+    },
+    'checkpoint.context',
+  ) as unknown as Record<string, unknown>;
+  return (
+    await parseCheckpointContextV2(candidate, 'pending-v2-checkpoint')
+  ).payload;
 }
 
 interface ScopedModelMessage {
@@ -1357,14 +1650,17 @@ async function validateCheckpoints(
           `Checkpoint "${checkpoint.id}" points past the session turn range.`,
         );
       }
-      const context = parseCheckpointContext(checkpoint);
+      const parsedContext = await parseCheckpointContext(checkpoint);
+      const context = parsedContext.context;
       if (context.length !== checkpoint.messageCount) {
         corruption(
           'INVALID_CHECKPOINT',
           `Checkpoint "${checkpoint.id}" messageCount does not match its context.`,
         );
       }
-      const actualHash = await hashAgentRuntimeCheckpointContext(context);
+      const actualHash = await hashAgentRuntimeCheckpointPayload(
+        parsedContext.hashPayload,
+      );
       if (checkpoint.contextHash !== actualHash) {
         corruption(
           'CHECKPOINT_HASH_MISMATCH',

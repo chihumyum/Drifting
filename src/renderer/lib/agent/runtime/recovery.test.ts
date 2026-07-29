@@ -6,9 +6,13 @@ import type {
 import {
   AgentRuntimeRecoveryCorruptionError,
   applyAgentRuntimeRecoveryPlan,
+  createAgentRuntimeCheckpointContextV2,
   hashAgentRuntimeCheckpointContext,
+  hashAgentRuntimeCheckpointPayload,
   recoverAgentRuntimeSnapshot,
+  type AgentRuntimeCheckpointContextV2,
 } from './recovery';
+import { planAgentModelContext } from './context-message-adapter';
 import type {
   AgentModelMessage,
   AgentRuntimeEvent,
@@ -412,6 +416,30 @@ function failureCode(error: unknown): string | undefined {
     : undefined;
 }
 
+async function completeV2Context(
+  history: readonly AgentModelMessage[],
+): Promise<AgentRuntimeCheckpointContextV2> {
+  const planned = await planAgentModelContext({
+    systemPrompt: 'Drifting canonical agent policy.',
+    messages: history,
+    resolveToolAccess: (name) =>
+      name === 'search_project' ? 'read' : undefined,
+    planner: {
+      contextWindowTokens: 20_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 120,
+    },
+  });
+  if (!planned.ok) {
+    throw new Error(`V2 fixture planning failed: ${planned.error.code}`);
+  }
+  return createAgentRuntimeCheckpointContextV2({
+    canonicalHistory: history,
+    canonicalSourceRows: planned.bridge.sourceRows,
+    providerEnvelope: planned.envelope,
+  });
+}
+
 describe('Agent runtime canonical recovery', () => {
   it('rebuilds provider history and the UI transcript without display cache', async () => {
     const snapshot = completeSnapshot();
@@ -475,6 +503,107 @@ describe('Agent runtime canonical recovery', () => {
     expect(result.checkpointId).toBe('checkpoint-1');
     expect(result.providerHistory).toEqual(context);
   });
+
+  it('recovers canonical history from a verified V2 provider envelope', async () => {
+    const snapshot = completeSnapshot();
+    const context = completeMessages().map((row) => ({
+      role: row.role,
+      content: row.content,
+    })) as AgentModelMessage[];
+    const durableContext = await completeV2Context(context);
+    snapshot.checkpoints = [
+      {
+        id: 'checkpoint-v2',
+        sessionId: SESSION_ID,
+        throughTurnOrdinal: 0,
+        messageCount: context.length,
+        context: durableContext,
+        contextHash: await hashAgentRuntimeCheckpointPayload(durableContext),
+        createdAt: NOW,
+      },
+    ];
+
+    const result = await recoverAgentRuntimeSnapshot(snapshot);
+    expect(result.checkpointId).toBe('checkpoint-v2');
+    expect(result.providerHistory).toEqual(context);
+    expect(
+      durableContext.canonicalHistory[
+        durableContext.canonicalHistory.length - 1
+      ],
+    ).toEqual({
+      role: 'assistant',
+      content: [{ type: 'text', text: 'Alice appears once.' }],
+    });
+  });
+
+  it.each([
+    {
+      label: 'canonical history',
+      mutate: (context: AgentRuntimeCheckpointContextV2) => {
+        const message =
+          context.canonicalHistory[context.canonicalHistory.length - 1];
+        if (message?.role !== 'assistant') throw new Error('fixture drift');
+        message.content[0] = { type: 'text', text: 'tampered answer' };
+      },
+    },
+    {
+      label: 'canonical source rows',
+      mutate: (context: AgentRuntimeCheckpointContextV2) => {
+        context.canonicalSourceRows[0].content = 'tampered policy';
+      },
+    },
+    {
+      label: 'source manifest',
+      mutate: (context: AgentRuntimeCheckpointContextV2) => {
+        context.providerEnvelope.sourceManifest[0].sourceHash = 'sha256:tampered';
+      },
+    },
+    {
+      label: 'source binding',
+      mutate: (context: AgentRuntimeCheckpointContextV2) => {
+        context.providerEnvelope.sourceBindings[0].sourceId = 'tampered-source';
+      },
+    },
+    {
+      label: 'provider projection',
+      mutate: (context: AgentRuntimeCheckpointContextV2) => {
+        context.providerEnvelope.providerContext.systemPrompt =
+          'tampered provider policy';
+      },
+    },
+    {
+      label: 'planner budget',
+      mutate: (context: AgentRuntimeCheckpointContextV2) => {
+        context.providerEnvelope.plannerCheckpoint.budget.fixedInputTokens += 1;
+      },
+    },
+  ])(
+    'fails closed when V2 $label is changed even with a recomputed outer hash',
+    async ({ mutate }) => {
+      const snapshot = completeSnapshot();
+      const history = completeMessages().map((row) => ({
+        role: row.role,
+        content: row.content,
+      })) as AgentModelMessage[];
+      const durableContext = await completeV2Context(history);
+      mutate(durableContext);
+      snapshot.checkpoints = [
+        {
+          id: 'checkpoint-v2-tampered',
+          sessionId: SESSION_ID,
+          throughTurnOrdinal: 0,
+          messageCount: history.length,
+          context: durableContext,
+          contextHash: await hashAgentRuntimeCheckpointPayload(durableContext),
+          createdAt: NOW,
+        },
+      ];
+
+      await expect(recoverAgentRuntimeSnapshot(snapshot)).rejects.toSatisfy(
+        (error: unknown) => failureCode(error) === 'INVALID_CHECKPOINT',
+      );
+    },
+  );
 
   it('adds only post-checkpoint completed turns and permits callId reuse across turns', async () => {
     const snapshot = addCompletedSecondTurn(completeSnapshot());

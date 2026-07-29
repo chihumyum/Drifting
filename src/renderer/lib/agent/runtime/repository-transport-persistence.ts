@@ -13,7 +13,9 @@ import type { AgentRuntimeWriteEffectRepository } from '../../../sqlite-repo/age
 import type { AgentStartRoute } from '../protocol';
 import { clonePortableData } from './portable-data';
 import {
+  createAgentRuntimeCheckpointContextV2,
   hashAgentRuntimeCheckpointContext,
+  hashAgentRuntimeCheckpointPayload,
   recoverAgentRuntimeSnapshot,
 } from './recovery';
 import type {
@@ -342,13 +344,25 @@ export function createRepositoryAgentTransportPersistence(
           ...providerHistory,
           ...input.turnMessages.map(clonePortableData),
         ];
+        const durableContext = input.contextCheckpointV2
+          ? await createAgentRuntimeCheckpointContextV2({
+              canonicalHistory: context,
+              canonicalSourceRows:
+                input.contextCheckpointV2.canonicalSourceRows,
+              providerEnvelope:
+                input.contextCheckpointV2.providerEnvelope,
+            })
+          : context.map(clonePortableData);
+        throwIfAborted(signal);
         checkpoint = {
           id: runtimeCheckpointId(input.sessionId, turn.ordinal),
           sessionId: input.sessionId,
           throughTurnOrdinal: turn.ordinal,
           messageCount: context.length,
-          context: context.map(clonePortableData),
-          contextHash: await recovery.hashCheckpointContext(context),
+          context: durableContext,
+          contextHash: input.contextCheckpointV2
+            ? await hashAgentRuntimeCheckpointPayload(durableContext)
+            : await recovery.hashCheckpointContext(context),
           createdAt: input.endedAt,
         };
         throwIfAborted(signal);

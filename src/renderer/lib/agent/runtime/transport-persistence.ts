@@ -1,5 +1,9 @@
 import type { AgentStartRoute } from '../protocol';
 import type {
+  AgentContextProviderEnvelopeV2,
+} from './context-message-adapter';
+import type { AgentContextSourceRow } from './context-planner';
+import type {
   AgentModelMessage,
   AgentRuntimeJournalEntry,
   AgentRuntimeOutcome,
@@ -73,8 +77,22 @@ export interface AgentTransportCommitTurnInput {
    * prompt. Only complete assistant/tool messages may follow it.
    */
   turnMessages: AgentModelMessage[];
+  /**
+   * Optional P4 context projection for the completed canonical history.
+   *
+   * The persistence adapter supplies `canonicalHistory` itself from durable
+   * rows plus `turnMessages`; callers cannot substitute a shorter history.
+   * The supplied bridge rows and envelope must therefore include this turn's
+   * final assistant message or the commit fails closed.
+   */
+  contextCheckpointV2?: AgentTransportContextCheckpointV2Input;
   outcome: AgentRuntimeOutcome;
   errorCode: string | null;
   errorMessage: string | null;
   endedAt: string;
+}
+
+export interface AgentTransportContextCheckpointV2Input {
+  canonicalSourceRows: readonly AgentContextSourceRow[];
+  providerEnvelope: AgentContextProviderEnvelopeV2;
 }

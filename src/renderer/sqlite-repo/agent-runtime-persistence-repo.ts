@@ -353,6 +353,23 @@ function sameCheckpoint(
   return canonicalAgentRuntimeJson(a) === canonicalAgentRuntimeJson(b);
 }
 
+function checkpointCanonicalMessageCount(context: unknown): number | null {
+  if (Array.isArray(context)) return context.length;
+  if (
+    typeof context !== 'object' ||
+    context === null ||
+    !('schemaVersion' in context) ||
+    context.schemaVersion !== 2 ||
+    !('format' in context) ||
+    context.format !== 'drifting.agent-runtime-checkpoint-context' ||
+    !('canonicalHistory' in context) ||
+    !Array.isArray(context.canonicalHistory)
+  ) {
+    return null;
+  }
+  return context.canonicalHistory.length;
+}
+
 function sameEvent(
   row: typeof AgentRuntimeEventTable.$inferSelect,
   event: PersistedAgentRuntimeEvent,
@@ -1134,11 +1151,14 @@ export function createAgentRuntimePersistenceRepository(
           expectedOrdinal += 1;
         }
         if (checkpoint) {
+          const checkpointMessageCount = checkpointCanonicalMessageCount(
+            checkpoint.context,
+          );
           if (
             checkpoint.sessionId !== sessionId ||
             checkpoint.throughTurnOrdinal !== turn.ordinal ||
-            !Array.isArray(checkpoint.context) ||
-            checkpoint.messageCount !== checkpoint.context.length
+            checkpointMessageCount === null ||
+            checkpoint.messageCount !== checkpointMessageCount
           ) {
             throw new AgentRuntimePersistenceConflictError(
               'CHECKPOINT_CONFLICT',
