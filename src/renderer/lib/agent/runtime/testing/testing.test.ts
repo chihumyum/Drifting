@@ -19,7 +19,16 @@ function request(
     sessionId: 'session-1',
     turnId: 'turn-1',
     iteration: 1,
-    messages: [{ role: 'user', content: 'hello' }],
+    context: {
+      systemPrompt: 'system',
+      messages: [
+        {
+          type: 'model_message',
+          sourceIds: ['test/model-message/0'],
+          message: { role: 'user', content: 'hello' },
+        },
+      ],
+    },
     tools: [],
     maxOutputTokens: 512,
     signal,
@@ -37,7 +46,16 @@ async function collect(
 
 describe('ScriptedFakeDriver', () => {
   it('records immutable request snapshots and emits scripted rounds', async () => {
-    const messages: AgentModelRequest['messages'] = [{ role: 'user', content: 'original' }];
+    const context: AgentModelRequest['context'] = {
+      systemPrompt: 'system',
+      messages: [
+        {
+          type: 'model_message',
+          sourceIds: ['test/model-message/0'],
+          message: { role: 'user', content: 'original' },
+        },
+      ],
+    };
     const driver = new ScriptedFakeDriver({
       rounds: [
         {
@@ -56,7 +74,7 @@ describe('ScriptedFakeDriver', () => {
     const controller = new AbortController();
     const stream = driver.stream(
       request(controller.signal, {
-        messages,
+        context,
         tools: [
           {
             name: 'read_chapter',
@@ -66,7 +84,11 @@ describe('ScriptedFakeDriver', () => {
         ],
       }),
     );
-    messages[0] = { role: 'user', content: 'mutated later' };
+    context.messages[0] = {
+      type: 'model_message',
+      sourceIds: ['test/model-message/0'],
+      message: { role: 'user', content: 'mutated later' },
+    };
 
     await expect(collect(stream)).resolves.toEqual([
       { type: 'text_delta', text: 'done' },

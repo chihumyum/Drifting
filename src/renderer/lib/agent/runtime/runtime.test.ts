@@ -94,7 +94,9 @@ async function waitUntil(
 ): Promise<void> {
   for (let index = 0; index < turns; index += 1) {
     if (predicate()) return;
-    await Promise.resolve();
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
   }
   throw new Error(message);
 }
@@ -875,5 +877,5 @@ describe('AgentRuntime', () => {
       driver.assertExhausted();
       clock.assertIdle();
     }
-  });
+  }, 20_000);
 });

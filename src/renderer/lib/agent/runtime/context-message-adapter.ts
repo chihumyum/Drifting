@@ -20,14 +20,16 @@ import {
   type AgentContextProjectionSegment,
   type AgentContextSourceKind,
   type AgentContextSourceRow,
+  type AgentContextToolAccess,
   type AgentContextTokenEstimator,
 } from './context-planner';
-import type {
-  AgentAssistantContentBlock,
-  AgentAssistantToolCallBlock,
-  AgentModelMessage,
-  AgentModelToolDefinition,
-  AgentToolResultBlock,
+import {
+  isCanonicalAgentRuntimeUnknownToolResult,
+  type AgentAssistantContentBlock,
+  type AgentAssistantToolCallBlock,
+  type AgentModelMessage,
+  type AgentModelToolDefinition,
+  type AgentToolResultBlock,
 } from './types';
 
 export const AGENT_CONTEXT_PROVIDER_ENVELOPE_VERSION = 2 as const;
@@ -214,7 +216,9 @@ type JsonValue =
 interface ToolCallTopology {
   callId: string;
   name: string;
-  access: 'read' | 'write';
+  access: AgentContextToolAccess;
+  policyAccess: 'read' | 'write' | null;
+  sourceRow: AgentContextSourceRow;
   turnOrdinal: number;
   resolved: boolean;
 }
@@ -314,8 +318,7 @@ function serializeToolBlock(
   value: AgentAssistantToolCallBlock | AgentToolResultBlock,
   label: string,
 ): string {
-  canonicalJsonValue(value, label);
-  return JSON.stringify(value);
+  return canonicalJson(canonicalJsonValue(value, label));
 }
 
 function parseToolCall(
@@ -358,12 +361,35 @@ function parseToolResult(content: string, label: string): AgentToolResultBlock {
     typeof (parsed as { callId?: unknown }).callId !== 'string' ||
     typeof (parsed as { name?: unknown }).name !== 'string' ||
     typeof (parsed as { ok?: unknown }).ok !== 'boolean' ||
-    typeof (parsed as { content?: unknown }).content !== 'string'
+    typeof (parsed as { content?: unknown }).content !== 'string' ||
+    ((parsed as { source?: unknown }).source !== undefined &&
+      (parsed as { source?: unknown }).source !== 'runtime') ||
+    ((parsed as { errorCode?: unknown }).errorCode !== undefined &&
+      (parsed as { errorCode?: unknown }).errorCode !== 'UNKNOWN_TOOL') ||
+    Object.keys(parsed as Record<string, unknown>).some(
+      (key) =>
+        key !== 'callId' &&
+        key !== 'name' &&
+        key !== 'ok' &&
+        key !== 'content' &&
+        key !== 'source' &&
+        key !== 'errorCode',
+    )
   ) {
     failure('INVALID_PROJECTION', `${label} is not a canonical tool result.`);
   }
   canonicalJsonValue(parsed, label);
-  return parsed as AgentToolResultBlock;
+  const result = parsed as AgentToolResultBlock;
+  if (
+    (result.source !== undefined || result.errorCode !== undefined) &&
+    !isCanonicalAgentRuntimeUnknownToolResult(result)
+  ) {
+    failure(
+      'INVALID_PROJECTION',
+      `${label} has invalid runtime-denial provenance.`,
+    );
+  }
+  return result;
 }
 
 function sourceIdForMessage(
@@ -398,7 +424,7 @@ function validateResolvedBeforeNextMessage(
 function resolveAccess(
   resolver: AgentContextToolAccessResolver,
   toolName: string,
-): 'read' | 'write' {
+): 'read' | 'write' | null {
   let access: ReturnType<AgentContextToolAccessResolver>;
   try {
     access = resolver(toolName);
@@ -408,13 +434,7 @@ function resolveAccess(
       `Tool access resolver failed for "${toolName}".`,
     );
   }
-  if (access !== 'read' && access !== 'write') {
-    failure(
-      'UNKNOWN_TOOL_ACCESS',
-      `Tool "${toolName}" has no policy-resolved read/write access.`,
-    );
-  }
-  return access;
+  return access === 'read' || access === 'write' ? access : null;
 }
 
 /**
@@ -448,7 +468,7 @@ export function agentModelMessagesToContextSources(input: {
   const add = (
     row: Omit<AgentContextSourceRow, 'ordinal'>,
     binding: AgentContextSourceBinding,
-  ): void => {
+  ): AgentContextSourceRow => {
     if (!row.sourceId || sourceIds.has(row.sourceId)) {
       failure(
         'INVALID_MODEL_CONTEXT',
@@ -456,9 +476,11 @@ export function agentModelMessagesToContextSources(input: {
       );
     }
     sourceIds.add(row.sourceId);
-    sourceRows.push({ ...row, ordinal });
+    const added = { ...row, ordinal };
+    sourceRows.push(added);
     bindings.push(binding);
     ordinal += 1;
+    return added;
   };
 
   const systemSourceId = `${CANONICAL_SOURCE_PREFIX}/system`;
@@ -618,21 +640,16 @@ export function agentModelMessagesToContextSources(input: {
             `Tool call id "${callId}" is reused inside turn ${turnOrdinal}.`,
           );
         }
-        const access = resolveAccess(input.resolveToolAccess, name);
-        topology.set(key, {
-          callId,
-          name,
-          access,
-          turnOrdinal,
-          resolved: false,
-        });
+        const policyAccess = resolveAccess(input.resolveToolAccess, name);
+        const access: AgentContextToolAccess =
+          policyAccess ?? 'denied';
         const sourceId = sourceIdForMessage(
           messageOrdinal,
           message.role,
           blockOrdinal,
           block.type,
         );
-        add(
+        const sourceRow = add(
           {
             sourceId,
             turnOrdinal,
@@ -654,6 +671,15 @@ export function agentModelMessagesToContextSources(input: {
             blockType: 'tool_call',
           },
         );
+        topology.set(key, {
+          callId,
+          name,
+          access,
+          policyAccess,
+          sourceRow,
+          turnOrdinal,
+          resolved: false,
+        });
       }
       continue;
     }
@@ -680,7 +706,19 @@ export function agentModelMessagesToContextSources(input: {
       );
       if (
         typeof result.ok !== 'boolean' ||
-        typeof result.content !== 'string'
+        typeof result.content !== 'string' ||
+        (result.source !== undefined && result.source !== 'runtime') ||
+        (result.errorCode !== undefined &&
+          result.errorCode !== 'UNKNOWN_TOOL') ||
+        Object.keys(result).some(
+          (key) =>
+            key !== 'callId' &&
+            key !== 'name' &&
+            key !== 'ok' &&
+            key !== 'content' &&
+            key !== 'source' &&
+            key !== 'errorCode',
+        )
       ) {
         failure(
           'INVALID_MODEL_CONTEXT',
@@ -694,6 +732,28 @@ export function agentModelMessagesToContextSources(input: {
           'INVALID_TOOL_TOPOLOGY',
           `Tool result "${key}" is orphaned, duplicated, or name-mismatched.`,
         );
+      }
+      const carriesDenialProvenance =
+        result.source !== undefined || result.errorCode !== undefined;
+      const isDenied =
+        isCanonicalAgentRuntimeUnknownToolResult(result);
+      if (carriesDenialProvenance && !isDenied) {
+        failure(
+          'UNKNOWN_TOOL_ACCESS',
+          `Tool result "${key}" has forged or incomplete runtime-denial provenance.`,
+        );
+      }
+      if (isDenied) {
+        call.access = 'denied';
+        call.sourceRow.toolAccess = 'denied';
+      } else if (call.policyAccess === null) {
+        failure(
+          'UNKNOWN_TOOL_ACCESS',
+          `Tool "${call.name}" has no policy-resolved access or canonical runtime denial.`,
+        );
+      } else {
+        call.access = call.policyAccess;
+        call.sourceRow.toolAccess = call.policyAccess;
       }
       call.resolved = true;
       const sourceId = sourceIdForMessage(
@@ -831,7 +891,9 @@ function appendCanonicalSource(
       if (
         call.callId !== row.callId ||
         call.name !== row.toolName ||
-        (row.toolAccess !== 'read' && row.toolAccess !== 'write')
+        (row.toolAccess !== 'read' &&
+          row.toolAccess !== 'write' &&
+          row.toolAccess !== 'denied')
       ) {
         failure(
           'INVALID_PROJECTION',
@@ -875,7 +937,9 @@ function appendCanonicalSource(
   if (
     result.callId !== row.callId ||
     result.name !== row.toolName ||
-    (row.toolAccess !== 'read' && row.toolAccess !== 'write')
+    (row.toolAccess !== 'read' &&
+      row.toolAccess !== 'write' &&
+      row.toolAccess !== 'denied')
   ) {
     failure(
       'INVALID_PROJECTION',

@@ -27,10 +27,11 @@ import {
   type AgentRuntimeCheckpointContextV2,
 } from './recovery';
 import { createRepositoryAgentTransportPersistence } from './repository-transport-persistence';
-import type {
-  AgentModelMessage,
-  AgentRuntimeEvent,
-  AgentRuntimeUsage,
+import {
+  agentRuntimeUnknownToolResultContent,
+  type AgentModelMessage,
+  type AgentRuntimeEvent,
+  type AgentRuntimeUsage,
 } from './types';
 
 const migrationSql = readFileSync(
@@ -53,6 +54,77 @@ const HISTORY: AgentModelMessage[] = [
   {
     role: 'assistant',
     content: [{ type: 'text', text: 'Final answer is durable.' }],
+  },
+];
+const DENIED_HISTORY: AgentModelMessage[] = [
+  { role: 'user', content: 'Use the missing tool, then recover.' },
+  {
+    role: 'assistant',
+    content: [
+      {
+        type: 'tool_call',
+        callId: 'denied-call',
+        name: 'missing_tool',
+        arguments: {},
+        rawArguments: '{}',
+      },
+    ],
+  },
+  {
+    role: 'tool',
+    content: [
+      {
+        callId: 'denied-call',
+        name: 'missing_tool',
+        ok: false,
+        content: agentRuntimeUnknownToolResultContent('missing_tool'),
+        source: 'runtime',
+        errorCode: 'UNKNOWN_TOOL',
+      },
+    ],
+  },
+  {
+    role: 'assistant',
+    content: [{ type: 'text', text: 'Recovered after denial.' }],
+  },
+];
+const NON_LEXICAL_TOOL_ARGUMENTS = {
+  b: 1,
+  a: {
+    z: 3,
+    m: [{ y: 2, x: 1 }],
+  },
+};
+const NON_LEXICAL_TOOL_RAW_ARGUMENTS =
+  '{"b":1,"a":{"z":3,"m":[{"y":2,"x":1}]}}';
+const NON_LEXICAL_TOOL_HISTORY: AgentModelMessage[] = [
+  { role: 'user', content: 'Read with nested arguments.' },
+  {
+    role: 'assistant',
+    content: [
+      {
+        type: 'tool_call',
+        callId: 'nested-call',
+        name: 'read_complex',
+        arguments: NON_LEXICAL_TOOL_ARGUMENTS,
+        rawArguments: NON_LEXICAL_TOOL_RAW_ARGUMENTS,
+      },
+    ],
+  },
+  {
+    role: 'tool',
+    content: [
+      {
+        name: 'read_complex',
+        callId: 'nested-call',
+        content: '{"ok":true}',
+        ok: true,
+      },
+    ],
+  },
+  {
+    role: 'assistant',
+    content: [{ type: 'text', text: 'Nested arguments survived.' }],
   },
 ];
 const USAGE: AgentRuntimeUsage = {
@@ -210,6 +282,161 @@ function completeJournal(): AgentRuntimeEvent[] {
       outcome: 'completed',
       usage: USAGE,
       modelIterations: 1,
+      durationMs: 1_000,
+    },
+  ];
+}
+
+function deniedJournal(): AgentRuntimeEvent[] {
+  const totalUsage: AgentRuntimeUsage = {
+    inputTokens: USAGE.inputTokens * 2,
+    outputTokens: USAGE.outputTokens * 2,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    costUsd: 0,
+  };
+  return [
+    {
+      type: 'turn_started',
+      prompt: 'Use the missing tool, then recover.',
+    },
+    {
+      type: 'model_iteration_started',
+      iteration: 1,
+      driverId: 'test-provider',
+    },
+    {
+      type: 'tool_call_started',
+      iteration: 1,
+      callId: 'denied-call',
+      name: 'missing_tool',
+    },
+    {
+      type: 'tool_args_delta',
+      iteration: 1,
+      callId: 'denied-call',
+      delta: '{}',
+    },
+    {
+      type: 'tool_result',
+      callId: 'denied-call',
+      name: 'missing_tool',
+      ok: false,
+      content: agentRuntimeUnknownToolResultContent('missing_tool'),
+      source: 'runtime',
+      errorCode: 'UNKNOWN_TOOL',
+    },
+    { type: 'model_usage', iteration: 1, usage: USAGE },
+    {
+      type: 'model_iteration_completed',
+      iteration: 1,
+      stopReason: 'tool_use',
+    },
+    {
+      type: 'model_iteration_started',
+      iteration: 2,
+      driverId: 'test-provider',
+    },
+    {
+      type: 'text_delta',
+      iteration: 2,
+      text: 'Recovered after denial.',
+    },
+    { type: 'model_usage', iteration: 2, usage: USAGE },
+    {
+      type: 'model_iteration_completed',
+      iteration: 2,
+      stopReason: 'end_turn',
+    },
+    {
+      type: 'turn_finished',
+      outcome: 'completed',
+      usage: totalUsage,
+      modelIterations: 2,
+      durationMs: 1_000,
+    },
+  ];
+}
+
+function nonLexicalToolJournal(): AgentRuntimeEvent[] {
+  const totalUsage: AgentRuntimeUsage = {
+    inputTokens: USAGE.inputTokens * 2,
+    outputTokens: USAGE.outputTokens * 2,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    costUsd: 0,
+  };
+  return [
+    {
+      type: 'turn_started',
+      prompt: 'Read with nested arguments.',
+    },
+    {
+      type: 'model_iteration_started',
+      iteration: 1,
+      driverId: 'test-provider',
+    },
+    {
+      type: 'tool_call_started',
+      iteration: 1,
+      callId: 'nested-call',
+      name: 'read_complex',
+    },
+    {
+      type: 'tool_args_delta',
+      iteration: 1,
+      callId: 'nested-call',
+      delta: NON_LEXICAL_TOOL_RAW_ARGUMENTS,
+    },
+    {
+      type: 'tool_call_ready',
+      iteration: 1,
+      callId: 'nested-call',
+      name: 'read_complex',
+      arguments: NON_LEXICAL_TOOL_ARGUMENTS,
+      rawArguments: NON_LEXICAL_TOOL_RAW_ARGUMENTS,
+    },
+    { type: 'model_usage', iteration: 1, usage: USAGE },
+    {
+      type: 'model_iteration_completed',
+      iteration: 1,
+      stopReason: 'tool_use',
+    },
+    {
+      type: 'tool_execution_started',
+      callId: 'nested-call',
+      name: 'read_complex',
+      access: 'read',
+    },
+    {
+      type: 'tool_result',
+      callId: 'nested-call',
+      name: 'read_complex',
+      ok: true,
+      content: '{"ok":true}',
+      source: 'executor',
+    },
+    {
+      type: 'model_iteration_started',
+      iteration: 2,
+      driverId: 'test-provider',
+    },
+    {
+      type: 'text_delta',
+      iteration: 2,
+      text: 'Nested arguments survived.',
+    },
+    { type: 'model_usage', iteration: 2, usage: USAGE },
+    {
+      type: 'model_iteration_completed',
+      iteration: 2,
+      stopReason: 'end_turn',
+    },
+    {
+      type: 'turn_finished',
+      outcome: 'completed',
+      usage: totalUsage,
+      modelIterations: 2,
       durationMs: 1_000,
     },
   ];
@@ -496,6 +723,245 @@ describe('file-backed Agent V2 context recovery', () => {
     ).resolves.toEqual({
       sessionId: 'session-v2',
       history: HISTORY,
+      recovered: false,
+    });
+  });
+
+  it('restarts and resumes a V2 session containing a canonical denied tool pair', async () => {
+    directory = mkdtempSync(join(tmpdir(), 'drifting-agent-v2-denied-'));
+    const databasePath = join(directory, 'runtime.sqlite');
+    gateway = new FileSqliteGateway(databasePath, true);
+    const repository = createAgentRuntimePersistenceRepository(
+      createDatabaseClient(gateway),
+    );
+    const persistence = createRepositoryAgentTransportPersistence({
+      repository,
+      resolveToolAccess: () => undefined,
+    });
+
+    await persistence.prepareTurn({
+      candidateSessionId: 'session-v2-denied',
+      newConversation: true,
+      route: ROUTE,
+      provider: 'test-provider',
+      model: 'test-model',
+      turnId: 'turn-v2-denied',
+      prompt: 'Use the missing tool, then recover.',
+      acceptedAt: NOW,
+    });
+    for (const [index, event] of deniedJournal().entries()) {
+      const seq = index + 1;
+      await persistence.appendJournal({
+        schemaVersion: 1,
+        sessionId: 'session-v2-denied',
+        turnId: 'turn-v2-denied',
+        route: ROUTE,
+        seq,
+        eventId: `turn-v2-denied:${String(seq).padStart(8, '0')}`,
+        wallTimeMs: Date.parse(NOW) + seq,
+        event,
+      });
+    }
+    const planned = await planAgentModelContext({
+      systemPrompt: 'Drifting durable policy.',
+      messages: DENIED_HISTORY,
+      resolveToolAccess: () => undefined,
+      planner: {
+        contextWindowTokens: 20_000,
+        requestedOutputTokens: 1_000,
+        fixedInputTokens: 100,
+      },
+    });
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    expect(
+      planned.bridge.sourceRows
+        .filter(
+          (row) =>
+            row.kind === 'tool_call' || row.kind === 'tool_result',
+        )
+        .map((row) => row.toolAccess),
+    ).toEqual(['denied', 'denied']);
+    await persistence.commitTurn({
+      sessionId: 'session-v2-denied',
+      turnId: 'turn-v2-denied',
+      turnMessages: DENIED_HISTORY,
+      contextCheckpointV2: {
+        canonicalSourceRows: planned.bridge.sourceRows,
+        providerEnvelope: planned.envelope,
+      },
+      outcome: 'completed',
+      errorCode: null,
+      errorMessage: null,
+      endedAt: ENDED,
+    });
+
+    await gateway.close();
+    gateway = new FileSqliteGateway(databasePath, false);
+    const restartedRepository =
+      createAgentRuntimePersistenceRepository(
+        createDatabaseClient(gateway),
+      );
+    const snapshot = await restartedRepository.loadRecoverySnapshot(
+      'session-v2-denied',
+    );
+    if (!snapshot) throw new Error('restart lost denied session');
+    await expect(
+      recoverAgentRuntimeSnapshot(snapshot),
+    ).resolves.toMatchObject({
+      providerHistory: DENIED_HISTORY,
+      checkpointId: 'agent-checkpoint:session-v2-denied:0',
+    });
+
+    const restartedPersistence =
+      createRepositoryAgentTransportPersistence({
+        repository: restartedRepository,
+        resolveToolAccess: () => undefined,
+      });
+    await expect(
+      restartedPersistence.prepareTurn({
+        candidateSessionId: 'unused-session',
+        resumeSessionId: 'session-v2-denied',
+        newConversation: false,
+        route: ROUTE,
+        provider: 'test-provider',
+        model: 'test-model',
+        turnId: 'turn-after-denied-restart',
+        prompt: 'Continue after the denied tool.',
+        acceptedAt: '2026-07-30T10:00:02.000Z',
+      }),
+    ).resolves.toEqual({
+      sessionId: 'session-v2-denied',
+      history: DENIED_HISTORY,
+      recovered: false,
+    });
+  });
+
+  it('canonicalizes non-lexical nested tool arguments while preserving rawArguments across a V2 restart', async () => {
+    directory = mkdtempSync(join(tmpdir(), 'drifting-agent-v2-args-'));
+    const databasePath = join(directory, 'runtime.sqlite');
+    gateway = new FileSqliteGateway(databasePath, true);
+    const repository = createAgentRuntimePersistenceRepository(
+      createDatabaseClient(gateway),
+    );
+    const resolveToolAccess = (name: string) =>
+      name === 'read_complex' ? ('read' as const) : undefined;
+    const persistence = createRepositoryAgentTransportPersistence({
+      repository,
+      resolveToolAccess,
+    });
+
+    await persistence.prepareTurn({
+      candidateSessionId: 'session-v2-args',
+      newConversation: true,
+      route: ROUTE,
+      provider: 'test-provider',
+      model: 'test-model',
+      turnId: 'turn-v2-args',
+      prompt: 'Read with nested arguments.',
+      acceptedAt: NOW,
+    });
+    for (const [index, event] of nonLexicalToolJournal().entries()) {
+      const seq = index + 1;
+      await persistence.appendJournal({
+        schemaVersion: 1,
+        sessionId: 'session-v2-args',
+        turnId: 'turn-v2-args',
+        route: ROUTE,
+        seq,
+        eventId: `turn-v2-args:${String(seq).padStart(8, '0')}`,
+        wallTimeMs: Date.parse(NOW) + seq,
+        event,
+      });
+    }
+
+    const planned = await planAgentModelContext({
+      systemPrompt: 'Drifting durable policy.',
+      messages: NON_LEXICAL_TOOL_HISTORY,
+      resolveToolAccess,
+      planner: {
+        contextWindowTokens: 20_000,
+        requestedOutputTokens: 1_000,
+        fixedInputTokens: 100,
+      },
+    });
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    const toolCallRow = planned.bridge.sourceRows.find(
+      (row) => row.kind === 'tool_call',
+    );
+    if (!toolCallRow) throw new Error('planned context lost the tool call');
+    const serializedToolCall = JSON.parse(toolCallRow.content) as {
+      arguments: unknown;
+      rawArguments: string;
+    };
+    expect(JSON.stringify(serializedToolCall.arguments)).toBe(
+      '{"a":{"m":[{"x":1,"y":2}],"z":3},"b":1}',
+    );
+    expect(serializedToolCall.rawArguments).toBe(
+      NON_LEXICAL_TOOL_RAW_ARGUMENTS,
+    );
+
+    await persistence.commitTurn({
+      sessionId: 'session-v2-args',
+      turnId: 'turn-v2-args',
+      turnMessages: NON_LEXICAL_TOOL_HISTORY,
+      contextCheckpointV2: {
+        canonicalSourceRows: planned.bridge.sourceRows,
+        providerEnvelope: planned.envelope,
+      },
+      outcome: 'completed',
+      errorCode: null,
+      errorMessage: null,
+      endedAt: ENDED,
+    });
+
+    await gateway.close();
+    gateway = new FileSqliteGateway(databasePath, false);
+    const restartedRepository =
+      createAgentRuntimePersistenceRepository(
+        createDatabaseClient(gateway),
+      );
+    const snapshot = await restartedRepository.loadRecoverySnapshot(
+      'session-v2-args',
+    );
+    if (!snapshot) throw new Error('restart lost nested-argument session');
+    const recovered = await recoverAgentRuntimeSnapshot(snapshot);
+    expect(recovered).toMatchObject({
+      providerHistory: NON_LEXICAL_TOOL_HISTORY,
+      checkpointId: 'agent-checkpoint:session-v2-args:0',
+    });
+    expect(recovered.providerHistory[1]).toMatchObject({
+      role: 'assistant',
+      content: [
+        {
+          type: 'tool_call',
+          rawArguments: NON_LEXICAL_TOOL_RAW_ARGUMENTS,
+          arguments: NON_LEXICAL_TOOL_ARGUMENTS,
+        },
+      ],
+    });
+
+    const restartedPersistence =
+      createRepositoryAgentTransportPersistence({
+        repository: restartedRepository,
+        resolveToolAccess,
+      });
+    await expect(
+      restartedPersistence.prepareTurn({
+        candidateSessionId: 'unused-session',
+        resumeSessionId: 'session-v2-args',
+        newConversation: false,
+        route: ROUTE,
+        provider: 'test-provider',
+        model: 'test-model',
+        turnId: 'turn-after-args-restart',
+        prompt: 'Continue after nested arguments.',
+        acceptedAt: '2026-07-30T10:00:02.000Z',
+      }),
+    ).resolves.toEqual({
+      sessionId: 'session-v2-args',
+      history: NON_LEXICAL_TOOL_HISTORY,
       recovered: false,
     });
   });

@@ -12,7 +12,16 @@ function request(): AgentModelRequest {
     sessionId: 'session-1',
     turnId: 'turn-1',
     iteration: 1,
-    messages: [{ role: 'user', content: 'hello' }],
+    context: {
+      systemPrompt: 'system',
+      messages: [
+        {
+          type: 'model_message',
+          sourceIds: ['test/model-message/0'],
+          message: { role: 'user', content: 'hello' },
+        },
+      ],
+    },
     tools: [],
     maxOutputTokens: 256,
     reasoning: { enabled: false },

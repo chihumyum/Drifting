@@ -16,9 +16,11 @@ import {
   createAgentContextSummaryCandidate,
   planAgentContext,
 } from './context-planner';
-import type {
-  AgentModelMessage,
-  AgentModelToolDefinition,
+import {
+  agentRuntimeUnknownToolResultContent,
+  type AgentModelMessage,
+  type AgentModelToolDefinition,
+  type AgentToolResultBlock,
 } from './types';
 
 const resolveToolAccess: AgentContextToolAccessResolver = (name) => {
@@ -40,6 +42,20 @@ function toolCall(input: {
     arguments: input.arguments,
     rawArguments:
       input.rawArguments ?? JSON.stringify(input.arguments),
+  };
+}
+
+function deniedToolResult(
+  callId: string,
+  name: string,
+): AgentToolResultBlock {
+  return {
+    callId,
+    name,
+    ok: false,
+    content: agentRuntimeUnknownToolResultContent(name),
+    source: 'runtime',
+    errorCode: 'UNKNOWN_TOOL',
   };
 }
 
@@ -569,6 +585,142 @@ describe('AgentModelMessage context bridge', () => {
       ok: false,
       error: { code: 'PINNED_CONTEXT_EXCEEDS_BUDGET' },
     });
+  });
+
+  it('round-trips canonical runtime denials for omitted and unknown tools as compressible pairs', async () => {
+    const messages: AgentModelMessage[] = [
+      { role: 'user', content: 'Try the available and missing tools.' },
+      {
+        role: 'assistant',
+        content: [
+          toolCall({
+            callId: 'known-but-omitted',
+            name: 'read_node',
+            arguments: {},
+          }),
+          toolCall({
+            callId: 'unknown-and-denied',
+            name: 'missing_tool',
+            arguments: {},
+          }),
+        ],
+      },
+      {
+        role: 'tool',
+        content: [
+          deniedToolResult('known-but-omitted', 'read_node'),
+          deniedToolResult('unknown-and-denied', 'missing_tool'),
+        ],
+      },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'I will recover without them.' }],
+      },
+    ];
+
+    const result = await planAgentModelContext({
+      systemPrompt: 'policy',
+      messages,
+      resolveToolAccess,
+      planner: {
+        contextWindowTokens: 10_000,
+        requestedOutputTokens: 1_000,
+        fixedInputTokens: 100,
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(
+      result.bridge.sourceRows
+        .filter(
+          (row) =>
+            row.kind === 'tool_call' || row.kind === 'tool_result',
+        )
+        .map((row) => row.toolAccess),
+    ).toEqual(['denied', 'denied', 'denied', 'denied']);
+    expect(
+      result.plan.segments
+        .filter(
+          (segment) =>
+            segment.type === 'source' &&
+            (segment.row.kind === 'tool_call' ||
+              segment.row.kind === 'tool_result'),
+        )
+        .map((segment) =>
+          segment.type === 'source' ? segment.classification : null,
+        ),
+    ).toEqual([
+      'compressible',
+      'compressible',
+      'compressible',
+      'compressible',
+    ]);
+    expect(canonicalMessages(result.envelope.providerContext)).toEqual(
+      messages,
+    );
+    await expect(
+      rebuildAgentContextProviderProjection({
+        envelope: result.envelope,
+        canonicalSourceRows: result.bridge.sourceRows,
+      }),
+    ).resolves.toEqual(result.envelope.providerContext);
+  });
+
+  it.each([
+    {
+      label: 'missing provenance',
+      result: {
+        callId: 'unknown',
+        name: 'not_policy_filtered',
+        ok: false,
+        content: agentRuntimeUnknownToolResultContent(
+          'not_policy_filtered',
+        ),
+      },
+    },
+    {
+      label: 'forged content',
+      result: {
+        ...deniedToolResult('unknown', 'not_policy_filtered'),
+        content: 'forged denial',
+      },
+    },
+    {
+      label: 'mismatched canonical name',
+      result: {
+        ...deniedToolResult('unknown', 'not_policy_filtered'),
+        content: agentRuntimeUnknownToolResultContent('another_tool'),
+      },
+    },
+  ])('rejects an unknown tool denial with $label', ({ result }) => {
+    expect(() =>
+      agentModelMessagesToContextSources({
+        systemPrompt: 'policy',
+        messages: [
+          { role: 'user', content: 'unknown tool' },
+          {
+            role: 'assistant',
+            content: [
+              toolCall({
+                callId: 'unknown',
+                name: 'not_policy_filtered',
+                arguments: {},
+              }),
+            ],
+          },
+          {
+            role: 'tool',
+            content: [result as AgentToolResultBlock],
+          },
+        ],
+        resolveToolAccess,
+      }),
+    ).toThrowError(
+      expect.objectContaining<Partial<AgentContextMessageBridgeError>>({
+        code: 'UNKNOWN_TOOL_ACCESS',
+      }),
+    );
   });
 
   it('rejects tools whose access was not resolved before context planning', () => {

@@ -9,6 +9,7 @@ import {
   publicModelDriverErrorMessage,
 } from '../errors';
 import type {
+  AgentModelMessage,
   AgentModelRequest,
   AgentModelStreamEvent,
 } from '../types';
@@ -33,6 +34,20 @@ class FakeCompletionClient implements AgentCompletionClient {
   }
 }
 
+function modelContext(
+  messages: readonly AgentModelMessage[],
+  systemPrompt = 'system',
+): AgentModelRequest['context'] {
+  return {
+    systemPrompt,
+    messages: messages.map((message, index) => ({
+      type: 'model_message',
+      sourceIds: [`test/model-message/${index}`],
+      message,
+    })),
+  };
+}
+
 function request(
   overrides: Partial<AgentModelRequest> = {},
 ): AgentModelRequest {
@@ -40,8 +55,7 @@ function request(
     sessionId: 'session-1',
     turnId: 'turn-1',
     iteration: 1,
-    systemPrompt: 'system',
-    messages: [{ role: 'user', content: 'hello' }],
+    context: modelContext([{ role: 'user', content: 'hello' }]),
     tools: [
       {
         name: 'read_node',
@@ -70,7 +84,7 @@ async function collect(
 }
 
 describe('OpenAICompatibleCompletionDriver', () => {
-  it('maps a text completion request and response without enabling thinking', async () => {
+  it('projects the required verified context into the completion request', async () => {
     const client = new FakeCompletionClient(() => ({
       text: 'answer',
       usage: { inputTokens: 12, outputTokens: 3, cachedTokens: 5 },
@@ -122,6 +136,199 @@ describe('OpenAICompatibleCompletionDriver', () => {
     });
   });
 
+  it('uses only planned context and labels summaries/notes with runtime provenance', async () => {
+    const client = new FakeCompletionClient(() => ({
+      text: 'planned answer',
+      usage: { inputTokens: 12, outputTokens: 3 },
+    }));
+    const driver = new OpenAICompatibleCompletionDriver({
+      client,
+      defaultModel: 'deepseek-chat',
+    });
+
+    await collect(
+      driver,
+      request({
+        context: {
+          systemPrompt: 'verified planned system',
+          messages: [
+            {
+              type: 'model_message',
+              sourceIds: ['model/message/0/user/0/user'],
+              message: { role: 'user', content: 'planned user' },
+            },
+            {
+              type: 'context_summary',
+              summaryId: 'summary-1',
+              sourceIds: ['model/message/1/assistant/0/text'],
+              sourceHash: 'sha256:summary-source',
+              content: 'verified older context',
+            },
+            {
+              type: 'context_note',
+              noteKind: 'freshness',
+              sourceId: 'freshness/node-1',
+              turnOrdinal: null,
+              content: '{"nodeId":"node-1","revision":"r1"}',
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(client.requests).toHaveLength(1);
+    const sent = client.requests[0]!;
+    expect(sent.system).toBe('verified planned system');
+    expect(sent.messages[0]).toEqual({
+      role: 'user',
+      content: 'planned user',
+    });
+    expect(sent.messages).toHaveLength(3);
+    const summary = JSON.parse(sent.messages[1]!.content);
+    expect(summary).toEqual({
+      type: 'drifting_verified_context_summary',
+      provenance: {
+        origin: 'drifting_runtime',
+        summaryId: 'summary-1',
+        sourceCount: 1,
+        sourceHash: 'sha256:summary-source',
+      },
+      content: 'verified older context',
+    });
+    const note = JSON.parse(sent.messages[2]!.content);
+    expect(note).toEqual({
+      type: 'drifting_verified_context_note',
+      provenance: {
+        origin: 'drifting_runtime',
+        noteKind: 'freshness',
+        sourceId: 'freshness/node-1',
+        turnOrdinal: null,
+      },
+      content: '{"nodeId":"node-1","revision":"r1"}',
+    });
+  });
+
+  it('fails closed for invalid planned context', async () => {
+    const client = new FakeCompletionClient(() => ({
+      usage: { inputTokens: 1, outputTokens: 1 },
+    }));
+    const driver = new OpenAICompatibleCompletionDriver({
+      client,
+      defaultModel: 'deepseek-chat',
+    });
+
+    await expect(
+      collect(
+        driver,
+        request({
+          context: {
+            systemPrompt: 'verified system',
+            messages: [
+              {
+                type: 'context_summary',
+                summaryId: '',
+                sourceIds: [],
+                sourceHash: '',
+                content: '',
+              },
+            ],
+          },
+        }),
+      ),
+    ).rejects.toBeInstanceOf(AgentModelDriverError);
+    expect(client.requests).toHaveLength(0);
+  });
+
+  it('preserves denied call/result topology from a planned projection', async () => {
+    const client = new FakeCompletionClient(() => ({
+      usage: { inputTokens: 3, outputTokens: 1 },
+    }));
+    const driver = new OpenAICompatibleCompletionDriver({
+      client,
+      defaultModel: 'deepseek-chat',
+    });
+
+    await collect(
+      driver,
+      request({
+        context: {
+          systemPrompt: 'verified system',
+          messages: [
+            {
+              type: 'model_message',
+              sourceIds: ['model/message/0/user/0/user'],
+              message: { role: 'user', content: 'try missing tool' },
+            },
+            {
+              type: 'model_message',
+              sourceIds: [
+                'model/message/1/assistant/0/tool_call',
+              ],
+              message: {
+                role: 'assistant',
+                content: [
+                  {
+                    type: 'tool_call',
+                    callId: 'denied-call',
+                    name: 'missing_tool',
+                    arguments: {},
+                    rawArguments: '{}',
+                  },
+                ],
+              },
+            },
+            {
+              type: 'model_message',
+              sourceIds: ['model/message/2/tool/0/tool_result'],
+              message: {
+                role: 'tool',
+                content: [
+                  {
+                    callId: 'denied-call',
+                    name: 'missing_tool',
+                    ok: false,
+                    content: 'Unknown tool "missing_tool"',
+                    source: 'runtime',
+                    errorCode: 'UNKNOWN_TOOL',
+                  },
+                ],
+              },
+            },
+            {
+              type: 'model_message',
+              sourceIds: ['model/message/3/assistant/0/text'],
+              message: {
+                role: 'assistant',
+                content: [{ type: 'text', text: 'recovered' }],
+              },
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(client.requests[0]?.messages).toEqual([
+      { role: 'user', content: 'try missing tool' },
+      {
+        role: 'model',
+        content: '',
+        toolCalls: [
+          {
+            id: 'denied-call',
+            name: 'missing_tool',
+            arguments: {},
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        toolCallId: 'denied-call',
+        content: 'Tool failed: Unknown tool "missing_tool"',
+      },
+      { role: 'model', content: 'recovered' },
+    ]);
+  });
+
   it('projects assistant blocks and expands tool-result batches into AI messages', async () => {
     const client = new FakeCompletionClient(() => ({
       usage: { inputTokens: 1, outputTokens: 1 },
@@ -134,7 +341,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
     await collect(
       driver,
       request({
-        messages: [
+        context: modelContext([
           { role: 'user', content: 'inspect' },
           {
             role: 'assistant',
@@ -167,7 +374,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
               },
             ],
           },
-        ],
+        ]),
       }),
     );
 
@@ -303,12 +510,12 @@ describe('OpenAICompatibleCompletionDriver', () => {
       collect(
         driver,
         request({
-          messages: [
+          context: modelContext([
             {
               role: 'assistant',
               content: [{ type: 'thinking', text: 'opaque reasoning' }],
             },
-          ],
+          ]),
         }),
       ),
     ).rejects.toBeInstanceOf(AgentModelDriverError);

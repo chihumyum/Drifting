@@ -21,17 +21,18 @@ import type {
   AgentContextSourceKind,
   AgentContextSourceRow,
 } from './context-planner';
-import type {
-  AgentAssistantContentBlock,
-  AgentModelMessage,
-  AgentRuntimeEvent,
-  AgentRuntimeJournalEntry,
-  AgentRuntimeRoute,
-  AgentRuntimeState,
-  AgentRuntimeUsage,
-  AgentToolResultBlock,
+import {
+  AGENT_RUNTIME_SCHEMA_VERSION,
+  isCanonicalAgentRuntimeUnknownToolResult,
+  type AgentAssistantContentBlock,
+  type AgentModelMessage,
+  type AgentRuntimeEvent,
+  type AgentRuntimeJournalEntry,
+  type AgentRuntimeRoute,
+  type AgentRuntimeState,
+  type AgentRuntimeUsage,
+  type AgentToolResultBlock,
 } from './types';
-import { AGENT_RUNTIME_SCHEMA_VERSION } from './types';
 
 export type AgentRuntimeRecoveryCorruptionCode =
   | 'CHECKPOINT_HASH_MISMATCH'
@@ -321,12 +322,42 @@ function parseToolResult(value: unknown, path: string): AgentToolResultBlock {
   ) {
     corruption('INVALID_MESSAGE', `${path} is not a canonical tool result.`);
   }
-  return {
+  if (
+    (value.source !== undefined && value.source !== 'runtime') ||
+    (value.errorCode !== undefined &&
+      value.errorCode !== 'UNKNOWN_TOOL') ||
+    Object.keys(value).some(
+      (key) =>
+        key !== 'callId' &&
+        key !== 'name' &&
+        key !== 'ok' &&
+        key !== 'content' &&
+        key !== 'source' &&
+        key !== 'errorCode',
+    )
+  ) {
+    corruption(
+      'INVALID_MESSAGE',
+      `${path} has invalid tool-result provenance.`,
+    );
+  }
+  const result: AgentToolResultBlock = {
     callId: value.callId,
     name: value.name,
     ok: value.ok,
     content: value.content,
   };
+  if (value.source !== undefined || value.errorCode !== undefined) {
+    result.source = value.source as 'runtime';
+    result.errorCode = value.errorCode as 'UNKNOWN_TOOL';
+    if (!isCanonicalAgentRuntimeUnknownToolResult(result)) {
+      corruption(
+        'INVALID_MESSAGE',
+        `${path} has forged runtime-denial provenance.`,
+      );
+    }
+  }
+  return result;
 }
 
 function parseModelMessageContent(
@@ -447,7 +478,9 @@ function parseCheckpointSourceRow(
     isTool
       ? !isNonEmptyString(value.callId) ||
         !isNonEmptyString(value.toolName) ||
-        (value.toolAccess !== 'read' && value.toolAccess !== 'write')
+        (value.toolAccess !== 'read' &&
+          value.toolAccess !== 'write' &&
+          value.toolAccess !== 'denied')
       : value.callId !== undefined ||
         value.toolName !== undefined ||
         value.toolAccess !== undefined
@@ -486,6 +519,7 @@ function deriveCheckpointBridgeInput(
   const toolAccess = new Map<string, 'read' | 'write'>();
   for (const row of rows) {
     if (row.kind !== 'tool_call' && row.kind !== 'tool_result') continue;
+    if (row.toolAccess === 'denied') continue;
     const prior = toolAccess.get(row.toolName!);
     if (prior && prior !== row.toolAccess) {
       corruption(

@@ -75,8 +75,8 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
 
     const completionRequest: AICompletionRequest = {
       model: request.model ?? this.defaultModel,
-      ...(request.systemPrompt ? { system: request.systemPrompt } : {}),
-      messages: projectMessages(request.messages),
+      system: requirePlannedSystem(request.context.systemPrompt),
+      messages: projectPlannedMessages(request.context),
       tools: request.tools.map((tool) => ({
         name: tool.name,
         description: tool.description,
@@ -129,6 +129,71 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
   }
 }
 
+function projectPlannedMessages(
+  context: AgentModelRequest['context'],
+): AIMessage[] {
+  const projected: AIMessage[] = [];
+  for (const message of context.messages) {
+    switch (message.type) {
+      case 'model_message':
+        requireSourceIds(message.sourceIds, 'canonical model context');
+        projected.push(...projectMessages([message.message]));
+        break;
+      case 'context_summary':
+        requireSourceIds(message.sourceIds, 'context summary');
+        if (
+          !message.summaryId ||
+          !message.sourceHash.startsWith('sha256:') ||
+          !message.content
+        ) {
+          invalidPlannedContext();
+        }
+        projected.push({
+          role: 'user',
+          content: JSON.stringify({
+            type: 'drifting_verified_context_summary',
+            provenance: {
+              origin: 'drifting_runtime',
+              summaryId: message.summaryId,
+              sourceCount: message.sourceIds.length,
+              sourceHash: message.sourceHash,
+            },
+            content: message.content,
+          }),
+        });
+        break;
+      case 'context_note':
+        if (
+          !message.sourceId ||
+          (message.noteKind !== 'write_review' &&
+            message.noteKind !== 'write_revert' &&
+            message.noteKind !== 'freshness') ||
+          (message.turnOrdinal !== null &&
+            (!Number.isSafeInteger(message.turnOrdinal) ||
+              message.turnOrdinal < 0)) ||
+          typeof message.content !== 'string'
+        ) {
+          invalidPlannedContext();
+        }
+        projected.push({
+          role: 'user',
+          content: JSON.stringify({
+            type: 'drifting_verified_context_note',
+            provenance: {
+              origin: 'drifting_runtime',
+              noteKind: message.noteKind,
+              sourceId: message.sourceId,
+              turnOrdinal: message.turnOrdinal,
+            },
+            content: message.content,
+          }),
+        });
+        break;
+    }
+  }
+  return projected;
+}
+
 function projectMessages(messages: readonly AgentModelMessage[]): AIMessage[] {
   const projected: AIMessage[] = [];
   for (const message of messages) {
@@ -177,6 +242,32 @@ function projectMessages(messages: readonly AgentModelMessage[]): AIMessage[] {
     });
   }
   return projected;
+}
+
+function requirePlannedSystem(systemPrompt: string): string {
+  if (typeof systemPrompt !== 'string' || systemPrompt.trim().length === 0) {
+    invalidPlannedContext();
+  }
+  return systemPrompt;
+}
+
+function requireSourceIds(sourceIds: readonly string[], label: string): void {
+  if (
+    !Array.isArray(sourceIds) ||
+    sourceIds.length === 0 ||
+    new Set(sourceIds).size !== sourceIds.length ||
+    sourceIds.some((sourceId) => !sourceId)
+  ) {
+    throw new AgentModelDriverError(
+      `The planned ${label} has invalid provenance.`,
+    );
+  }
+}
+
+function invalidPlannedContext(): never {
+  throw new AgentModelDriverError(
+    'The runtime supplied an invalid planned model context.',
+  );
 }
 
 function projectToolResult(result: AgentToolResultBlock): string {

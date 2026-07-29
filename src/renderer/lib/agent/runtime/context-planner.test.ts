@@ -6,8 +6,11 @@ import {
   classifyAgentContextSource,
   computeAgentContextBudget,
   createAgentContextSummaryCandidate,
+  estimateAgentContextTextTokens,
   hashAgentContextSourceRows,
   planAgentContext,
+  serializeAgentContextNoteBudgetPayload,
+  serializeAgentContextSummaryBudgetPayload,
   type AgentContextSourceRow,
 } from './context-planner';
 
@@ -20,7 +23,7 @@ function row(
   tool?: {
     callId: string;
     toolName: string;
-    toolAccess: 'read' | 'write';
+    toolAccess: 'read' | 'write' | 'denied';
   },
 ): AgentContextSourceRow {
   return {
@@ -210,6 +213,107 @@ describe('provider-neutral Agent context planner', () => {
     });
   });
 
+  it('charges every one of 3000 summary source ids instead of budgeting only summary prose', async () => {
+    const oldRows = Array.from({ length: 3_000 }, (_, index) =>
+      row(
+        `model/message/0/assistant/${index}/assistant_narrative_with_deliberately_long_identity`,
+        index + 2,
+        0,
+        'assistant_narrative',
+        'historical payload '.repeat(10),
+      ),
+    );
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user-0', 1, 0, 'user', 'first turn'),
+      ...oldRows,
+      row('user-1', 3_002, 1, 'user', 'second turn'),
+      row('assistant-1', 3_003, 1, 'assistant_narrative', 'recent one'),
+      row('user-2', 3_004, 2, 'user', 'third turn'),
+      row('assistant-2', 3_005, 2, 'assistant_narrative', 'recent two'),
+    ];
+    const summary = await createAgentContextSummaryCandidate({
+      summaryId: 'summary-3000-sources',
+      sourceRows: oldRows,
+      content: 'Compact old history.',
+    });
+    const expectedSummaryTokens =
+      estimateAgentContextTextTokens(
+        serializeAgentContextSummaryBudgetPayload(summary),
+      ) + 8;
+
+    const roomy = await planAgentContext({
+      contextWindowTokens: 100_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      deterministicSummaries: [summary],
+    });
+    expect(roomy.ok).toBe(true);
+    if (!roomy.ok) return;
+    const summarySegment = roomy.plan.segments.find(
+      (segment) =>
+        segment.type === 'summary' &&
+        segment.summaryId === 'summary-3000-sources',
+    );
+    expect(summarySegment?.estimatedTokens).toBe(expectedSummaryTokens);
+    expect(expectedSummaryTokens).toBeGreaterThan(20_000);
+
+    const constrained = await planAgentContext({
+      contextWindowTokens: 20_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      deterministicSummaries: [summary],
+    });
+    expect(constrained).toMatchObject({
+      ok: false,
+      error: { code: 'CONTEXT_BUDGET_EXCEEDED' },
+    });
+    if (!constrained.ok) {
+      expect(constrained.diagnostics.estimatedInputTokens).toBeGreaterThan(
+        expectedSummaryTokens,
+      );
+    }
+  });
+
+  it('charges supplemental note provenance as well as its visible content', async () => {
+    const freshness = row(
+      `freshness/${'source-identity-'.repeat(400)}`,
+      2,
+      null,
+      'freshness',
+      'r1',
+    );
+    const result = await planAgentContext({
+      contextWindowTokens: 20_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: [
+        row('system', 0, null, 'system_policy', 'policy'),
+        row('user', 1, 0, 'user', 'inspect'),
+        freshness,
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const expected =
+      estimateAgentContextTextTokens(
+        serializeAgentContextNoteBudgetPayload({
+          noteKind: 'freshness',
+          sourceId: freshness.sourceId,
+          turnOrdinal: null,
+          content: freshness.content,
+        }),
+      ) + 6;
+    expect(sourceSegment(result, freshness.sourceId)?.estimatedTokens).toBe(
+      expected,
+    );
+    expect(expected).toBeGreaterThan(
+      estimateAgentContextTextTokens(freshness.content) + 1_000,
+    );
+  });
+
   it('runs a full compactor at most once and accepts only a positive verified projection', async () => {
     const rows = baseRows({ oldNarrative: 'history '.repeat(6_000) });
     let calls = 0;
@@ -274,6 +378,37 @@ describe('provider-neutral Agent context planner', () => {
         pinReason: 'semantic',
       });
     }
+  });
+
+  it('treats a canonical denied tool pair as compressible context', async () => {
+    const denied = {
+      callId: 'denied-1',
+      toolName: 'missing_tool',
+      toolAccess: 'denied' as const,
+    };
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user', 1, 0, 'user', 'try it'),
+      row('denied-call', 2, 0, 'tool_call', '{"type":"tool_call"}', denied),
+      row(
+        'denied-result',
+        3,
+        0,
+        'tool_result',
+        '{"ok":false,"errorCode":"UNKNOWN_TOOL"}',
+        denied,
+      ),
+    ];
+
+    expect(classifyAgentContextSource(rows[2])).toBe('compressible');
+    expect(classifyAgentContextSource(rows[3])).toBe('compressible');
+    const result = await planAgentContext({
+      contextWindowTokens: 10_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+    });
+    expect(result.ok).toBe(true);
   });
 
   it('rejects a summary that splits a read call/result pair and opens the circuit', async () => {

@@ -6,6 +6,11 @@
  * `AgentModelStreamEvent`; the runtime turns those events into a deterministic
  * journal and executes tools through `AgentToolRuntime`.
  */
+import type {
+  AgentContextProviderEnvelopeV2,
+  AgentContextProviderProjection,
+} from './context-message-adapter';
+import type { AgentContextSourceRow } from './context-planner';
 
 export const AGENT_RUNTIME_SCHEMA_VERSION = 1 as const;
 export const AGENT_RUNTIME_TOOL_SEARCH_LIMIT = 8 as const;
@@ -79,6 +84,32 @@ export interface AgentToolResultBlock {
   name: string;
   ok: boolean;
   content: string;
+  /**
+   * Runtime provenance is persisted only for results whose origin materially
+   * affects context safety. Today that is the canonical UNKNOWN_TOOL denial.
+   */
+  source?: 'runtime';
+  errorCode?: 'UNKNOWN_TOOL';
+}
+
+export const AGENT_RUNTIME_UNKNOWN_TOOL_ERROR_CODE =
+  'UNKNOWN_TOOL' as const;
+
+export function agentRuntimeUnknownToolResultContent(
+  toolName: string,
+): string {
+  return `Unknown tool "${toolName}"`;
+}
+
+export function isCanonicalAgentRuntimeUnknownToolResult(
+  result: AgentToolResultBlock,
+): boolean {
+  return (
+    result.ok === false &&
+    result.source === 'runtime' &&
+    result.errorCode === AGENT_RUNTIME_UNKNOWN_TOOL_ERROR_CODE &&
+    result.content === agentRuntimeUnknownToolResultContent(result.name)
+  );
 }
 
 export type AgentModelMessage =
@@ -91,9 +122,13 @@ export interface AgentModelRequest {
   turnId: string;
   iteration: number;
   model?: string;
-  systemPrompt?: string;
   reasoning?: AgentReasoningOptions;
-  messages: AgentModelMessage[];
+  /**
+   * The only model-visible conversation context. The runtime has already
+   * verified and budgeted this projection for this exact provider invocation.
+   * Full canonical history must never cross the provider-driver seam.
+   */
+  context: AgentContextProviderProjection;
   tools: AgentModelToolDefinition[];
   maxOutputTokens: number;
   signal: AbortSignal;
@@ -380,4 +415,19 @@ export interface AgentRuntimeRunResult {
   state: AgentRuntimeState;
   entries: AgentRuntimeJournalEntry[];
   messages: AgentModelMessage[];
+  /**
+   * Verified context used immediately before the most recent provider call.
+   * It intentionally excludes assistant/tool output produced by that call and
+   * therefore is not a completed-turn checkpoint.
+   */
+  lastProviderCallContextEnvelope?: AgentContextProviderEnvelopeV2;
+  /**
+   * Created only after a successful turn's final assistant message has been
+   * folded back through strict context planning. Persistence may use this as
+   * the complete-turn V2 checkpoint source.
+   */
+  completedContextCheckpoint?: {
+    canonicalSourceRows: AgentContextSourceRow[];
+    providerEnvelope: AgentContextProviderEnvelopeV2;
+  };
 }

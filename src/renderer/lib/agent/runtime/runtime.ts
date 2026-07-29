@@ -11,10 +11,16 @@ import {
   reduceAgentRuntimeJournal,
 } from './reducer';
 import { clonePortableData } from './portable-data';
+import {
+  AgentRuntimeContextPlanningCoordinator,
+  type AgentRuntimeContextPlanningOptions,
+} from './runtime-context-planning';
 import { sharedAgentRuntimeScheduler } from './scheduler';
 import {
   AGENT_RUNTIME_SCHEMA_VERSION,
   AGENT_RUNTIME_TOOL_SEARCH_LIMIT,
+  AGENT_RUNTIME_UNKNOWN_TOOL_ERROR_CODE,
+  agentRuntimeUnknownToolResultContent,
   type AgentAssistantContentBlock,
   type AgentAssistantThinkingBlock,
   type AgentAssistantTextBlock,
@@ -63,6 +69,7 @@ export interface AgentRuntimeDependencies {
   driver: import('./types').AgentModelDriver;
   tools?: AgentToolRuntime;
   toolSelector?: AgentToolSelectionStrategy;
+  contextPlanning?: AgentRuntimeContextPlanningOptions;
   clock?: AgentClock;
   journal?: AgentJournalSink;
   scheduler?: AgentRuntimeScheduler;
@@ -312,6 +319,7 @@ export class AgentRuntime {
   private readonly driver: AgentRuntimeDependencies['driver'];
   private readonly tools: AgentToolRuntime;
   private readonly toolSelector?: AgentToolSelectionStrategy;
+  private readonly contextPlanning: AgentRuntimeContextPlanningCoordinator;
   private readonly clock: AgentClock;
   private readonly journal?: AgentJournalSink;
   private readonly scheduler: AgentRuntimeScheduler;
@@ -321,6 +329,9 @@ export class AgentRuntime {
     this.driver = dependencies.driver;
     this.tools = dependencies.tools ?? emptyToolRuntime;
     this.toolSelector = dependencies.toolSelector;
+    this.contextPlanning = new AgentRuntimeContextPlanningCoordinator(
+      dependencies.contextPlanning,
+    );
     this.clock = dependencies.clock ?? systemAgentClock;
     this.journal = dependencies.journal;
     this.scheduler = dependencies.scheduler ?? sharedAgentRuntimeScheduler;
@@ -397,6 +408,19 @@ export class AgentRuntime {
     let seq = 0;
     let totalToolCalls = 0;
     let journalDisabled = false;
+    let lastProviderCallContextEnvelope:
+      | import('./context-message-adapter').AgentContextProviderEnvelopeV2
+      | undefined;
+    let completedContextCheckpoint:
+      | NonNullable<AgentRuntimeRunResult['completedContextCheckpoint']>
+      | undefined;
+    let lastPlanningSelection:
+      | {
+          iteration: number;
+          requestedOutputTokens: number;
+          tools: import('./types').AgentModelToolDefinition[];
+        }
+      | undefined;
     const seenToolCallIds = new Set<string>();
 
     const durationMs = () => Math.max(0, this.clock.monotonicNowMs() - startedMonoMs);
@@ -558,6 +582,12 @@ export class AgentRuntime {
         name: call.name,
         ok: false,
         content,
+        ...(errorCode === AGENT_RUNTIME_UNKNOWN_TOOL_ERROR_CODE
+          ? {
+              source: 'runtime' as const,
+              errorCode: AGENT_RUNTIME_UNKNOWN_TOOL_ERROR_CODE,
+            }
+          : {}),
       };
     };
 
@@ -598,12 +628,21 @@ export class AgentRuntime {
       for (const call of toolCalls) {
         const result = state.tools[call.callId]?.result;
         if (!result) return;
-        results.push({
+        const recovered: AgentToolResultBlock = {
           callId: call.callId,
           name: call.name,
           ok: result.ok,
           content: result.content,
-        });
+        };
+        if (
+          result.source === 'runtime' &&
+          result.errorCode === AGENT_RUNTIME_UNKNOWN_TOOL_ERROR_CODE &&
+          result.content === agentRuntimeUnknownToolResultContent(call.name)
+        ) {
+          recovered.source = 'runtime';
+          recovered.errorCode = AGENT_RUNTIME_UNKNOWN_TOOL_ERROR_CODE;
+        }
+        results.push(recovered);
       }
       messages.push({ role: 'tool', content: results });
     };
@@ -879,6 +918,38 @@ export class AgentRuntime {
         });
       }
       const definitionsByName = groupDefinitions(iterationDefinitions);
+      const providerTools = iterationDefinitions.map(
+        ({ name, description, inputSchema }) => ({
+          name,
+          description,
+          inputSchema: clonePortableData(inputSchema),
+        }),
+      );
+      const plannedContext = await awaitAbortable(
+        this.contextPlanning.plan({
+          purpose: 'provider_call',
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          iteration,
+          driverId: this.driver.id,
+          ...(input.model ? { model: input.model } : {}),
+          context,
+          ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
+          messages,
+          executableDefinitions: definitions,
+          selectedTools: providerTools,
+          requestedOutputTokens: requestMaxOutputTokens,
+          signal: controller.signal,
+        }),
+      );
+      lastProviderCallContextEnvelope = deepFreeze(
+        clonePortableData(plannedContext.envelope),
+      );
+      lastPlanningSelection = {
+        iteration,
+        requestedOutputTokens: requestMaxOutputTokens,
+        tools: providerTools.map((tool) => clonePortableData(tool)),
+      };
       await emit({
         type: 'model_iteration_started',
         iteration,
@@ -896,14 +967,11 @@ export class AgentRuntime {
         turnId: input.turnId,
         iteration,
         ...(input.model ? { model: input.model } : {}),
-        ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
         ...(input.reasoning ? { reasoning: input.reasoning } : {}),
-        messages: messages.map(cloneMessage),
-        tools: iterationDefinitions.map(({ name, description, inputSchema }) => ({
-          name,
-          description,
-          inputSchema: clonePortableData(inputSchema),
-        })),
+        context: deepFreeze(
+          clonePortableData(plannedContext.envelope.providerContext),
+        ),
+        tools: providerTools.map((tool) => clonePortableData(tool)),
         maxOutputTokens: requestMaxOutputTokens,
         signal: controller.signal,
       };
@@ -1038,8 +1106,8 @@ export class AgentRuntime {
               if (!definition) {
                 await emitRuntimeToolResult(
                   call,
-                  `Unknown tool "${call.name}"`,
-                  'UNKNOWN_TOOL',
+                  agentRuntimeUnknownToolResultContent(call.name),
+                  AGENT_RUNTIME_UNKNOWN_TOOL_ERROR_CODE,
                 );
                 break;
               }
@@ -1140,6 +1208,11 @@ export class AgentRuntime {
         iteration,
         stopReason: finishReason,
       });
+      if (blocks.length === 0 && finishReason === 'end_turn') {
+        // Keep a provider's valid empty completion explicit so the canonical
+        // message bridge can preserve the completed assistant turn.
+        blocks.push({ type: 'text', text: '' });
+      }
       const assistant: AgentModelMessage = {
         role: 'assistant',
         content: blocks,
@@ -1190,6 +1263,38 @@ export class AgentRuntime {
         const result = await runModelIteration(iteration);
         if (result.toolResults.length === 0) {
           checkBeforeWork();
+          if (!lastPlanningSelection) {
+            throw new AgentRuntimeError(
+              'INTERNAL_ERROR',
+              'Completed turn has no provider context planning state',
+            );
+          }
+          const completedPlan = await awaitAbortable(
+            this.contextPlanning.plan({
+              purpose: 'completed_turn',
+              sessionId: input.sessionId,
+              turnId: input.turnId,
+              iteration: lastPlanningSelection.iteration,
+              driverId: this.driver.id,
+              ...(input.model ? { model: input.model } : {}),
+              context,
+              ...(input.systemPrompt
+                ? { systemPrompt: input.systemPrompt }
+                : {}),
+              messages,
+              executableDefinitions: definitions,
+              selectedTools: lastPlanningSelection.tools,
+              requestedOutputTokens:
+                lastPlanningSelection.requestedOutputTokens,
+              signal: controller.signal,
+            }),
+          );
+          completedContextCheckpoint = deepFreeze({
+            canonicalSourceRows: clonePortableData(
+              completedPlan.canonicalSourceRows,
+            ),
+            providerEnvelope: clonePortableData(completedPlan.envelope),
+          });
           await finish('completed');
           break;
         }
@@ -1228,7 +1333,17 @@ export class AgentRuntime {
       detachParentJournalAbort();
     }
 
-    return { state, entries, messages };
+    return {
+      state,
+      entries,
+      messages,
+      ...(lastProviderCallContextEnvelope
+        ? { lastProviderCallContextEnvelope }
+        : {}),
+      ...(state.status === 'completed' && completedContextCheckpoint
+        ? { completedContextCheckpoint }
+        : {}),
+    };
   }
 
   private linkAbort(parent: AbortSignal | undefined, child: AbortController): () => void {

@@ -15,6 +15,7 @@ export * from './recovered-transcript';
 export * from './reducer';
 export * from './repository-transport-persistence';
 export * from './runtime';
+export * from './runtime-context-planning';
 export * from './scheduler';
 export * from './system-prompt';
 export * from './tool-search-metadata';

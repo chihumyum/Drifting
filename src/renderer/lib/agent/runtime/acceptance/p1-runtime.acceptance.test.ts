@@ -61,7 +61,22 @@ class ConcurrentIsolationDriver implements AgentModelDriver {
     request: AgentModelRequest,
   ): AsyncIterable<AgentModelStreamEvent> {
     const key = `${request.sessionId}/${request.turnId}`;
-    const latestMessage = request.messages[request.messages.length - 1];
+    let latestMessage:
+      | Extract<
+          (typeof request.context.messages)[number],
+          { type: 'model_message' }
+        >['message']
+      | undefined;
+    for (let index = request.context.messages.length - 1; index >= 0; index -= 1) {
+      const candidate = request.context.messages[index];
+      if (
+        candidate?.type === 'model_message' &&
+        candidate.message.role === 'user'
+      ) {
+        latestMessage = candidate.message;
+        break;
+      }
+    }
     if (this.requestKeys.has(key)) {
       throw new Error(`duplicate request key ${key}`);
     }

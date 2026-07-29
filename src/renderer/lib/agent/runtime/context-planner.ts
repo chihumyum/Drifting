@@ -29,6 +29,7 @@ const AGENT_CONTEXT_SOURCE_KINDS: ReadonlySet<AgentContextSourceKind> = new Set(
 ]);
 
 export type AgentContextClass = 'pinned' | 'compressible' | 'discardable';
+export type AgentContextToolAccess = 'read' | 'write' | 'denied';
 
 export type AgentContextSourceKind =
   | 'system_policy'
@@ -60,7 +61,7 @@ export interface AgentContextSourceRow {
   content: string;
   callId?: string;
   toolName?: string;
-  toolAccess?: 'read' | 'write';
+  toolAccess?: AgentContextToolAccess;
 }
 
 export interface AgentContextSummaryCandidate {
@@ -415,6 +416,48 @@ export function estimateAgentContextTextTokens(text: string): number {
   return Math.max(1, Math.ceil(new TextEncoder().encode(text).byteLength / 4));
 }
 
+/**
+ * Canonical conservative payload used for summary budgeting. It deliberately
+ * includes every source id retained by the internal verified envelope even
+ * when a provider adapter sends only sourceCount + sourceHash on its wire.
+ */
+export function serializeAgentContextSummaryBudgetPayload(input: {
+  summaryId: string;
+  sourceIds: readonly string[];
+  sourceHash: string;
+  content: string;
+}): string {
+  return canonicalJson({
+    type: 'drifting_verified_context_summary',
+    provenance: {
+      origin: 'drifting_runtime',
+      summaryId: input.summaryId,
+      sourceIds: [...input.sourceIds],
+      sourceHash: input.sourceHash,
+    },
+    content: input.content,
+  });
+}
+
+/** Canonical wire-equivalent payload for pinned supplemental runtime facts. */
+export function serializeAgentContextNoteBudgetPayload(input: {
+  noteKind: 'write_review' | 'write_revert' | 'freshness';
+  sourceId: string;
+  turnOrdinal: number | null;
+  content: string;
+}): string {
+  return canonicalJson({
+    type: 'drifting_verified_context_note',
+    provenance: {
+      origin: 'drifting_runtime',
+      noteKind: input.noteKind,
+      sourceId: input.sourceId,
+      turnOrdinal: input.turnOrdinal,
+    },
+    content: input.content,
+  });
+}
+
 export function computeAgentContextBudget(input: {
   contextWindowTokens: number;
   requestedOutputTokens: number;
@@ -548,7 +591,9 @@ function validateSourceRows(rows: readonly AgentContextSourceRow[]): ToolPair[] 
       isTool &&
       (!row.callId ||
         !row.toolName ||
-        (row.toolAccess !== 'read' && row.toolAccess !== 'write') ||
+        (row.toolAccess !== 'read' &&
+          row.toolAccess !== 'write' &&
+          row.toolAccess !== 'denied') ||
         row.turnOrdinal === null)
     ) {
       throw new PlannerFailure(
@@ -628,14 +673,33 @@ function estimateSourceTokens(
   row: AgentContextSourceRow,
   estimator: AgentContextTokenEstimator,
 ): number {
-  return validatedEstimate(estimator, row.content) + SOURCE_SEGMENT_OVERHEAD_TOKENS;
+  const budgetText =
+    row.kind === 'write_review' ||
+    row.kind === 'write_revert' ||
+    row.kind === 'freshness'
+      ? serializeAgentContextNoteBudgetPayload({
+          noteKind: row.kind,
+          sourceId: row.sourceId,
+          turnOrdinal: row.turnOrdinal,
+          content: row.content,
+        })
+      : row.content;
+  return (
+    validatedEstimate(estimator, budgetText) +
+    SOURCE_SEGMENT_OVERHEAD_TOKENS
+  );
 }
 
 function estimateSummaryTokens(
-  content: string,
+  candidate: AgentContextSummaryCandidate,
   estimator: AgentContextTokenEstimator,
 ): number {
-  return validatedEstimate(estimator, content) + SUMMARY_SEGMENT_OVERHEAD_TOKENS;
+  return (
+    validatedEstimate(
+      estimator,
+      serializeAgentContextSummaryBudgetPayload(candidate),
+    ) + SUMMARY_SEGMENT_OVERHEAD_TOKENS
+  );
 }
 
 function validatedEstimate(
@@ -877,7 +941,10 @@ async function applySummaryBatch(input: {
       );
     }
     const beforeTokens = projectionTokens(replaced);
-    const estimatedTokens = estimateSummaryTokens(candidate.content, input.estimator);
+    const estimatedTokens = estimateSummaryTokens(
+      candidate,
+      input.estimator,
+    );
     if (estimatedTokens >= beforeTokens) {
       throw new PlannerFailure(
         input.producer === 'full_compactor'

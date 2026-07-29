@@ -13,11 +13,12 @@ import {
   type AgentRuntimeCheckpointContextV2,
 } from './recovery';
 import { planAgentModelContext } from './context-message-adapter';
-import type {
-  AgentModelMessage,
-  AgentRuntimeEvent,
-  AgentRuntimeRoute,
-  AgentRuntimeUsage,
+import {
+  agentRuntimeUnknownToolResultContent,
+  type AgentModelMessage,
+  type AgentRuntimeEvent,
+  type AgentRuntimeRoute,
+  type AgentRuntimeUsage,
 } from './types';
 
 const SESSION_ID = 'session-1';
@@ -440,6 +441,54 @@ async function completeV2Context(
   });
 }
 
+function deniedHistory(): AgentModelMessage[] {
+  return [
+    { role: 'user', content: 'Find Alice.' },
+    {
+      role: 'assistant',
+      content: [
+        { type: 'text', text: 'Trying the requested tool. ' },
+        {
+          type: 'tool_call',
+          callId: 'call-1',
+          name: 'missing_tool',
+          arguments: { query: 'Alice' },
+          rawArguments: '{"query":"Alice"}',
+        },
+      ],
+    },
+    {
+      role: 'tool',
+      content: [
+        {
+          callId: 'call-1',
+          name: 'missing_tool',
+          ok: false,
+          content: agentRuntimeUnknownToolResultContent('missing_tool'),
+          source: 'runtime',
+          errorCode: 'UNKNOWN_TOOL',
+        },
+      ],
+    },
+    {
+      role: 'assistant',
+      content: [{ type: 'text', text: 'Recovered without that tool.' }],
+    },
+  ];
+}
+
+function snapshotWithHistory(
+  history: readonly AgentModelMessage[],
+): AgentRuntimeRecoverySnapshot {
+  const snapshot = completeSnapshot();
+  snapshot.messages = snapshot.messages.map((row, index) => ({
+    ...row,
+    role: history[index]!.role,
+    content: history[index]!.content,
+  }));
+  return snapshot;
+}
+
 describe('Agent runtime canonical recovery', () => {
   it('rebuilds provider history and the UI transcript without display cache', async () => {
     const snapshot = completeSnapshot();
@@ -533,6 +582,62 @@ describe('Agent runtime canonical recovery', () => {
     ).toEqual({
       role: 'assistant',
       content: [{ type: 'text', text: 'Alice appears once.' }],
+    });
+  });
+
+  it('round-trips a denied tool pair through a verified V2 checkpoint', async () => {
+    const history = deniedHistory();
+    const snapshot = snapshotWithHistory(history);
+    const durableContext = await completeV2Context(history);
+    expect(
+      durableContext.canonicalSourceRows
+        .filter(
+          (row) =>
+            row.kind === 'tool_call' || row.kind === 'tool_result',
+        )
+        .map((row) => row.toolAccess),
+    ).toEqual(['denied', 'denied']);
+    snapshot.checkpoints = [
+      {
+        id: 'checkpoint-v2-denied',
+        sessionId: SESSION_ID,
+        throughTurnOrdinal: 0,
+        messageCount: history.length,
+        context: durableContext,
+        contextHash:
+          await hashAgentRuntimeCheckpointPayload(durableContext),
+        createdAt: NOW,
+      },
+    ];
+
+    await expect(
+      recoverAgentRuntimeSnapshot(snapshot),
+    ).resolves.toMatchObject({
+      checkpointId: 'checkpoint-v2-denied',
+      providerHistory: history,
+    });
+  });
+
+  it('parses canonical denied provenance in a legacy P2 checkpoint', async () => {
+    const history = deniedHistory();
+    const snapshot = snapshotWithHistory(history);
+    snapshot.checkpoints = [
+      {
+        id: 'checkpoint-p2-denied',
+        sessionId: SESSION_ID,
+        throughTurnOrdinal: 0,
+        messageCount: history.length,
+        context: history,
+        contextHash: await hashAgentRuntimeCheckpointContext(history),
+        createdAt: NOW,
+      },
+    ];
+
+    await expect(
+      recoverAgentRuntimeSnapshot(snapshot),
+    ).resolves.toMatchObject({
+      checkpointId: 'checkpoint-p2-denied',
+      providerHistory: history,
     });
   });
 

@@ -3,6 +3,7 @@ import {
   AgentRuntimeAbortError,
   throwIfAgentAborted,
 } from '../errors';
+import type { AgentContextProviderProjection } from '../context-message-adapter';
 import type {
   AgentClock,
   AgentModelDriver,
@@ -23,6 +24,12 @@ export interface AgentModelRequestSnapshot {
   readonly turnId: string;
   readonly iteration: number;
   readonly model?: string;
+  readonly context: AgentContextProviderProjection;
+  /**
+   * Test-only convenience projections derived from `context`. They are not
+   * fields on AgentModelRequest and therefore cannot bypass context planning.
+   * Summary/note rows remain available through `context`.
+   */
   readonly systemPrompt?: string;
   readonly reasoning?: AgentReasoningOptions;
   readonly messages: readonly AgentModelMessage[];
@@ -36,6 +43,7 @@ export interface ScriptedRequestExpectation {
   readonly turnId?: string;
   readonly iteration?: number;
   readonly model?: string;
+  readonly context?: AgentContextProviderProjection;
   readonly systemPrompt?: string;
   readonly reasoning?: AgentReasoningOptions;
   readonly messages?: readonly AgentModelMessage[];
@@ -151,14 +159,19 @@ function freezeData<T>(value: T, seen = new WeakSet<object>()): T {
 }
 
 function snapshotRequest(request: AgentModelRequest): AgentModelRequestSnapshot {
+  const context = cloneData(request.context);
+  const directModelMessages = context.messages.flatMap((message) =>
+    message.type === 'model_message' ? [cloneData(message.message)] : [],
+  );
   const snapshot: AgentModelRequestSnapshot = {
     sessionId: request.sessionId,
     turnId: request.turnId,
     iteration: request.iteration,
     ...(request.model ? { model: request.model } : {}),
-    ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}),
+    context,
+    systemPrompt: context.systemPrompt,
     ...(request.reasoning ? { reasoning: cloneData(request.reasoning) } : {}),
-    messages: cloneData(request.messages),
+    messages: directModelMessages,
     tools: request.tools.map((tool) => ({
       name: tool.name,
       description: tool.description,
@@ -416,6 +429,7 @@ export class ScriptedFakeDriver implements AgentModelDriver {
       'turnId',
       'iteration',
       'model',
+      'context',
       'systemPrompt',
       'reasoning',
       'messages',
