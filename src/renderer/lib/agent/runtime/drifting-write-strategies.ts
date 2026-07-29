@@ -125,6 +125,21 @@ function nodeFieldStrategy(field: 'title' | 'summary'): DriftingWriteStrategy {
       if (!current) {
         throw new Error('The node for this Agent review no longer exists');
       }
+      // A process can die after the exact inverse usecase commits but before
+      // the review row advances from revert_started to reverted. Re-entering
+      // review settlement must recognize that durable postimage instead of
+      // applying the inverse twice or misclassifying a successful revert as a
+      // conflict.
+      if (current[field] === inverse.value) {
+        return {
+          kind: 'node_field_revert',
+          nodeId: inverse.nodeId,
+          field,
+          value: inverse.value,
+          revision: nodeRevision(current),
+          reconciled: true,
+        };
+      }
       // Reject must not erase a newer manual edit. Exact inversion is available
       // only while the field still equals the effect this review represents.
       if (current[field] !== forward.value) {

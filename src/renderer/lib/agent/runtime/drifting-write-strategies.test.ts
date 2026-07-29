@@ -114,6 +114,42 @@ describe('Drifting write strategies', () => {
     expect(node('node-1').summary).toBe('Newer author summary');
   });
 
+  it('reconciles an inverse that committed before review settlement', async () => {
+    const strategy = getDriftingWriteStrategy('rename_node')!;
+    const request = executionRequest('rename_node', {
+      node: 'Old title',
+      title: 'Agent title',
+    });
+    const prepared = await strategy.prepare(request, context());
+    updateNodeField('node-1', 'title', 'Agent title');
+    const committed = await strategy.captureEffect(
+      request,
+      context(),
+      { ok: true },
+      prepared,
+    );
+    // Simulate a crash after the inverse usecase committed but before the
+    // canonical review advanced from revert_started to reverted.
+    updateNodeField('node-1', 'title', 'Old title');
+    const reviewContext = context();
+
+    await expect(
+      strategy.applyInverse(
+        persistedEffect({
+          inverse: prepared.inverse,
+          effect: committed,
+        }),
+        reviewContext,
+        request.signal,
+      ),
+    ).resolves.toMatchObject({
+      value: 'Old title',
+      reconciled: true,
+    });
+    expect(reviewContext.write.renameNode).not.toHaveBeenCalled();
+    expect(node('node-1').title).toBe('Old title');
+  });
+
   it('rejects foreign-project node references before mutation preparation', async () => {
     const strategy = getDriftingWriteStrategy('rename_node')!;
     await expect(
