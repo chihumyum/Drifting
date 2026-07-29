@@ -111,6 +111,7 @@ describe('P4 context planner acceptance', () => {
               const result = await planAgentContext({
                 contextWindowTokens: 20_000,
                 requestedOutputTokens: 1_024,
+                fixedInputTokens: 0,
                 sourceRows: rows,
               });
               return { seed, rows, result };

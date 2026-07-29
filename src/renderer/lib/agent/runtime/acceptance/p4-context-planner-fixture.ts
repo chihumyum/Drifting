@@ -190,6 +190,7 @@ export async function createP4LongContextScenario(input: {
   const plannerInput: AgentContextPlannerInput = {
     contextWindowTokens: 16_000,
     requestedOutputTokens: 2_048,
+    fixedInputTokens: 0,
     sourceRows: rows,
     deterministicSummaries,
     compactionCircuit: circuit,

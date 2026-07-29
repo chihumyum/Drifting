@@ -1,4 +1,5 @@
 export * from './clock';
+export * from './context-message-adapter';
 export * from './context-planner';
 export * from './drifting-read-tool-runtime';
 export * from './drifting-tool-selection';

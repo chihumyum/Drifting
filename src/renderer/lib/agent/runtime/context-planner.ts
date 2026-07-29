@@ -93,6 +93,13 @@ export type AgentContextTokenEstimator = (text: string) => number;
 export interface AgentContextPlannerInput {
   contextWindowTokens: number;
   requestedOutputTokens: number;
+  /**
+   * Provider input that is not represented by `sourceRows`, including the
+   * selected tool schemas and provider framing overhead. Callers must compute
+   * this before every model invocation; it is deducted after the output
+   * reserve and the full-window safety margin.
+   */
+  fixedInputTokens: number;
   sourceRows: readonly AgentContextSourceRow[];
   deterministicSummaries?: readonly AgentContextSummaryCandidate[];
   fullCompactor?: AgentContextFullCompactor;
@@ -134,6 +141,7 @@ export interface AgentContextCheckpointV2 {
     requestedOutputTokens: number;
     reservedOutputTokens: number;
     safetyMarginTokens: number;
+    fixedInputTokens: number;
     usableInputBudgetTokens: number;
     initialEstimatedTokens: number;
     finalEstimatedTokens: number;
@@ -241,6 +249,7 @@ interface ContextBudget {
   requestedOutputTokens: number;
   reservedOutputTokens: number;
   safetyMarginTokens: number;
+  fixedInputTokens: number;
   usableInputBudgetTokens: number;
 }
 
@@ -409,16 +418,19 @@ export function estimateAgentContextTextTokens(text: string): number {
 export function computeAgentContextBudget(input: {
   contextWindowTokens: number;
   requestedOutputTokens: number;
+  fixedInputTokens: number;
 }): ContextBudget {
   if (
     !Number.isSafeInteger(input.contextWindowTokens) ||
     input.contextWindowTokens <= 0 ||
     !Number.isSafeInteger(input.requestedOutputTokens) ||
-    input.requestedOutputTokens < 0
+    input.requestedOutputTokens < 0 ||
+    !Number.isSafeInteger(input.fixedInputTokens) ||
+    input.fixedInputTokens < 0
   ) {
     throw new PlannerFailure(
       'INVALID_CONTEXT',
-      'Context window must be positive and requested output must be non-negative safe integers.',
+      'Context window must be positive and requested output/fixed input must be non-negative safe integers.',
     );
   }
   const reservedOutputTokens = Math.max(
@@ -429,11 +441,14 @@ export function computeAgentContextBudget(input: {
     input.contextWindowTokens * SAFETY_MARGIN_RATIO,
   );
   const usableInputBudgetTokens =
-    input.contextWindowTokens - reservedOutputTokens - safetyMarginTokens;
+    input.contextWindowTokens -
+    reservedOutputTokens -
+    safetyMarginTokens -
+    input.fixedInputTokens;
   if (usableInputBudgetTokens <= 0) {
     throw new PlannerFailure(
       'INVALID_CONTEXT',
-      'Output reserve and safety margin leave no usable provider input budget.',
+      'Output reserve, safety margin, and fixed provider input leave no usable context-row budget.',
     );
   }
   return {

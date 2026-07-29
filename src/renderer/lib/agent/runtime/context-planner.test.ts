@@ -72,20 +72,37 @@ describe('provider-neutral Agent context planner', () => {
       computeAgentContextBudget({
         contextWindowTokens: 20_000,
         requestedOutputTokens: 1_000,
+        fixedInputTokens: 0,
       }),
     ).toEqual({
       contextWindowTokens: 20_000,
       requestedOutputTokens: 1_000,
       reservedOutputTokens: 4_096,
       safetyMarginTokens: 2_000,
+      fixedInputTokens: 0,
       usableInputBudgetTokens: 13_904,
     });
     expect(
       computeAgentContextBudget({
         contextWindowTokens: 20_000,
         requestedOutputTokens: 8_000,
+        fixedInputTokens: 0,
       }).usableInputBudgetTokens,
     ).toBe(10_000);
+    expect(
+      computeAgentContextBudget({
+        contextWindowTokens: 20_000,
+        requestedOutputTokens: 1_000,
+        fixedInputTokens: 1_250,
+      }),
+    ).toEqual({
+      contextWindowTokens: 20_000,
+      requestedOutputTokens: 1_000,
+      reservedOutputTokens: 4_096,
+      safetyMarginTokens: 2_000,
+      fixedInputTokens: 1_250,
+      usableInputBudgetTokens: 12_654,
+    });
   });
 
   it('derives safety classes, drops thinking, and keeps the latest two turns byte-exact', async () => {
@@ -100,6 +117,7 @@ describe('provider-neutral Agent context planner', () => {
     const result = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: rows,
     });
 
@@ -141,6 +159,7 @@ describe('provider-neutral Agent context planner', () => {
     const result = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: rows,
       fullCompactor: compactor,
     });
@@ -166,6 +185,7 @@ describe('provider-neutral Agent context planner', () => {
     const result = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: rows,
       deterministicSummaries: [deterministic],
       fullCompactor,
@@ -196,6 +216,7 @@ describe('provider-neutral Agent context planner', () => {
     const result = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: rows,
       fullCompactor: async ({ eligibleRuns }) => {
         calls += 1;
@@ -240,6 +261,7 @@ describe('provider-neutral Agent context planner', () => {
     const result = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: rows,
     });
 
@@ -286,6 +308,7 @@ describe('provider-neutral Agent context planner', () => {
     const first = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: rows,
       fullCompactor: compactor,
       compactionCircuit: circuit,
@@ -293,6 +316,7 @@ describe('provider-neutral Agent context planner', () => {
     const second = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: rows,
       fullCompactor: compactor,
       compactionCircuit: circuit,
@@ -322,6 +346,7 @@ describe('provider-neutral Agent context planner', () => {
     const result = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: rows,
       compactionTimeoutMs: 5,
       compactionCircuit: circuit,
@@ -349,6 +374,7 @@ describe('provider-neutral Agent context planner', () => {
     const result = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: rows,
       compactionCircuit: circuit,
       fullCompactor: async ({ eligibleRuns }) => [
@@ -374,6 +400,7 @@ describe('provider-neutral Agent context planner', () => {
     const result = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: rows,
       compactionCircuit: circuit,
       fullCompactor: async () => [
@@ -400,6 +427,7 @@ describe('provider-neutral Agent context planner', () => {
     const result = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: [
         row('system', 0, null, 'system_policy', 'policy'),
         row('user', 1, 0, 'user', 'read'),
@@ -425,11 +453,13 @@ describe('provider-neutral Agent context planner', () => {
     const first = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: rows,
     });
     const second = await planAgentContext({
       contextWindowTokens: 10_000,
       requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
       sourceRows: rows,
     });
 
