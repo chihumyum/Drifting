@@ -1,0 +1,288 @@
+{
+  "suite": "p4-agent-runtime-framework",
+  "schemaVersion": 1,
+  "nodeVersion": "v24.4.0",
+  "platform": "darwin",
+  "gitHead": "e4253dbc16f5d4c06670a21d0331633c6264183a",
+  "provider": "not applicable",
+  "model": "not applicable",
+  "sourceSetSha256": "sha256:dae43b9d8e4133620632e20bd7d525a4c5a7eab037c98366bc1ffaf96102383c",
+  "migration": {
+    "count": 64,
+    "latestIndex": 63,
+    "latestTag": "0063_agent_runtime_freshness",
+    "requiredCount": 64,
+    "requiredLatestTag": "0063_agent_runtime_freshness",
+    "passed": true
+  },
+  "vitest": {
+    "files": {
+      "required": 16,
+      "discovered": 16
+    },
+    "tests": {
+      "total": 135,
+      "passed": 135,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0
+    },
+    "groups": {
+      "toolSelectorAcceptance": {
+        "files": 1,
+        "discoveredFiles": 1,
+        "tests": {
+          "total": 3,
+          "passed": 3,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "toolSelectionIntegration": {
+        "files": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 14,
+          "passed": 14,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "contextPlannerAcceptance": {
+        "files": 1,
+        "discoveredFiles": 1,
+        "tests": {
+          "total": 3,
+          "passed": 3,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "contextPlannerUnit": {
+        "files": 1,
+        "discoveredFiles": 1,
+        "tests": {
+          "total": 15,
+          "passed": 15,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "contextBridge": {
+        "files": 1,
+        "discoveredFiles": 1,
+        "tests": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "runtimeContextPlanning": {
+        "files": 1,
+        "discoveredFiles": 1,
+        "tests": {
+          "total": 8,
+          "passed": 8,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "providerPlannedContextSeam": {
+        "files": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 33,
+          "passed": 33,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "completedCheckpointTransport": {
+        "files": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 11,
+          "passed": 11,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "freshnessRepository": {
+        "files": 1,
+        "discoveredFiles": 1,
+        "tests": {
+          "total": 6,
+          "passed": 6,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "productFreshnessCas": {
+        "files": 1,
+        "discoveredFiles": 1,
+        "tests": {
+          "total": 4,
+          "passed": 4,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "checkpointV2": {
+        "files": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 28,
+          "passed": 28,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      }
+    },
+    "process": {
+      "exitCode": 0,
+      "signal": null
+    },
+    "passed": true
+  },
+  "gates": {
+    "metricPolicy": "latestObservedThisRun values are parsed from this verbose Vitest run; null means the reporter omitted the observation, while machineAsserted thresholds remain enforced by test assertions",
+    "toolSelection": {
+      "corpus": {
+        "intents": 150,
+        "bilingual": true
+      },
+      "machineAsserted": {
+        "top3RecallGte": 0.95,
+        "top5RecallGte": 0.99,
+        "safetyTop5RecallEquals": 1,
+        "maxSelectedToolsLte": 8,
+        "medianSchemaReductionGte": 0.3,
+        "warmedSearches": 10000,
+        "warmedP95MsLt": 20
+      },
+      "latestObservedThisRun": {
+        "top3Recall": 0.9866666666666667,
+        "top5Recall": 1,
+        "safetyTop5Recall": 1,
+        "medianSchemaReduction": 0.7639538509510446,
+        "warmedSearches": 10000,
+        "warmedP95Ms": 2.7873749999998836
+      }
+    },
+    "contextPlanning": {
+      "machineAsserted": {
+        "generatedHistories": 10000,
+        "danglingOrphanDuplicateViolationsEquals": 0,
+        "longScenarios": 20,
+        "deterministicSeeds": 3,
+        "longRuns": 60,
+        "pinnedExactRecallEquals": 1,
+        "constraintRecallEquals": 1,
+        "completionDropLte": 0.05,
+        "medianTokenReductionGte": 0.5,
+        "p95ContextWindowRatioLte": 0.9,
+        "fullCompactorCallsPerLongRunEquals": 1,
+        "compactorFaultRetriesEquals": 0
+      },
+      "latestObservedThisRun": {
+        "generatedHistories": 10000,
+        "danglingOrphanDuplicateViolations": 0,
+        "longRuns": 60,
+        "pinnedExactRecall": 1,
+        "constraintRecall": 1,
+        "completionDrop": 0,
+        "medianTokenReduction": 0.8567518861847443,
+        "p95ContextWindowRatio": 0.2956875
+      }
+    },
+    "contextBridgeAndRuntime": {
+      "machineAsserted": {
+        "summariesAreFirstClassContextMessages": true,
+        "latestTwoTurnsRemainExact": true,
+        "toolCallTopologyVerified": true,
+        "selectedSchemaBudgetChargedPerProviderCall": true,
+        "providerPlanningRunsEveryIteration": true,
+        "providerSeamCannotAccessUnplannedCanonicalHistory": true,
+        "finalAssistantIncludedInCompletedCheckpoint": true,
+        "completedCheckpointPassedToTransportCommit": true,
+        "pinnedOverflowFailsBeforeProvider": true,
+        "compactorCircuitScopedBySessionProviderEpoch": true,
+        "canonicalDeniedUnknownToolPairSelfHeals": true,
+        "unknownSuccessfulOrForgedToolHistoryFailsClosed": true
+      }
+    },
+    "freshnessRepository": {
+      "adapter": "file-backed node:sqlite with transactional CAS",
+      "machineAsserted": {
+        "concurrentCompetitions": 1000,
+        "contendersPerCompetition": 2,
+        "committedWritersEquals": 1000,
+        "staleWritersEquals": 1000,
+        "mutationCallsEquals": 1000,
+        "committedEffectsEquals": 1000,
+        "outboxRowsEquals": 1000,
+        "crossProjectWritesEquals": 0,
+        "tamperedReceiptAndExpectationRejected": true
+      }
+    },
+    "productFreshnessCas": {
+      "machineAsserted": {
+        "certifiedNodeWrites": [
+          "rename_node",
+          "set_node_summary"
+        ],
+        "readReceiptReturnedToProvider": true,
+        "expectedRevisionRequired": true,
+        "staleManualRaceMutationsEquals": 0,
+        "staleManualRaceOutboxRowsEquals": 0,
+        "duplicateAndCrossProjectExpectationsRejected": true,
+        "exactInverseGuardsThePostWriteRevision": true
+      }
+    },
+    "checkpointV2": {
+      "adapter": "file-backed node:sqlite restart",
+      "machineAsserted": {
+        "finalAssistantCommittedAtomically": true,
+        "restartRecoveryUsesVerifiedCanonicalHistory": true,
+        "outerHashTamperRejected": true,
+        "nestedTamperCases": 5,
+        "nestedTamperRejected": true,
+        "legacyV1CheckpointStillRecoverable": true,
+        "legacyV1IsStorageCompatibilityNotProviderFallback": true
+      }
+    },
+    "redTeamP1Blockers": {
+      "machineAsserted": {
+        "providerRequestHasNoLegacyUnplannedFallback": true,
+        "largeSummaryMetadataIsChargedToContextBudget": true,
+        "threeThousandSourceSummaryFailsClosedWhenOverBudget": true,
+        "v2ToolArgumentsUseCanonicalRecursiveJson": true
+      }
+    }
+  },
+  "boundaries": {
+    "providerCallsRequired": false,
+    "anthropicRequired": false,
+    "writeCertification": [
+      "rename_node",
+      "set_node_summary"
+    ],
+    "otherEntityObservations": "empty",
+    "oversizedResultPaging": "bounded in-memory map; durable receipts replay but post-restart continuation paging is not certified",
+    "checkpointIntegrity": "unkeyed SHA-256 self-consistency, not authenticity against a local attacker who can rewrite payloads and all hashes",
+    "manualNativeSmoke": "pending"
+  },
+  "passed": true
+}
