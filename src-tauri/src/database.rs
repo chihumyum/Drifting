@@ -1547,7 +1547,7 @@ mod tests {
         let first_open = gateway
             .open("migrations.db".into(), CLIENT_SESSION.into(), false)
             .expect("first open");
-        assert_eq!(first_open.migrations_applied, 63);
+        assert_eq!(first_open.migrations_applied, 64);
         assert_eq!(first_open.journal_mode.to_ascii_lowercase(), "wal");
 
         let migration_count = gateway
@@ -1558,7 +1558,7 @@ mod tests {
                 CLIENT_SESSION.into(),
             )
             .expect("migration count");
-        assert_eq!(migration_count.rows, [vec![integer(63)]]);
+        assert_eq!(migration_count.rows, [vec![integer(64)]]);
 
         gateway
             .close(CLIENT_SESSION.into())
@@ -1685,6 +1685,50 @@ mod tests {
                 CLIENT_SESSION.into(),
             )
             .expect("insert canonical context checkpoint");
+        gateway
+            .execute(
+                "INSERT INTO agent_runtime_read_receipt \
+                 (id, project_id, session_id, turn_id, tool_call_id, call_id, tool_name, \
+                  idempotency_key, result_blob, result_hash, created_at) \
+                 VALUES ('read-receipt-1', 'project-1', 'session-1', 'turn-1', \
+                 'tool-record-1', 'call-1', 'list_nodes', \
+                 'session-1:turn-1:call-1', CAST('{}' AS BLOB), \
+                 'sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a', \
+                 '2026-07-30T00:00:02Z')"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("insert canonical read receipt");
+        gateway
+            .execute(
+                "INSERT INTO agent_runtime_read_observation \
+                 (id, receipt_id, project_id, session_id, turn_id, tool_call_id, ordinal, \
+                  entity_kind, entity_id, revision, created_at) \
+                 VALUES ('read-observation-1', 'read-receipt-1', 'project-1', 'session-1', \
+                 'turn-1', 'tool-record-1', 0, 'project', 'project-1', \
+                 '2026-07-30T00:00:00Z', '2026-07-30T00:00:02Z')"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("insert canonical read observation");
+
+        let mutable_read_receipt = gateway.execute(
+            "UPDATE agent_runtime_read_receipt SET result_hash = \
+             'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
+             WHERE id = 'read-receipt-1'"
+                .into(),
+            Vec::new(),
+            None,
+            CLIENT_SESSION.into(),
+        );
+        assert!(
+            mutable_read_receipt.is_err(),
+            "durable read receipts must be immutable"
+        );
 
         let invalid_goal_route = gateway.execute(
             "INSERT INTO agent_runtime_session \
@@ -1767,10 +1811,7 @@ mod tests {
                 CLIENT_SESSION.into(),
             )
             .expect("integrity check");
-        assert_eq!(
-            integrity.rows,
-            [vec![DatabaseValue::Text("ok".into())]]
-        );
+        assert_eq!(integrity.rows, [vec![DatabaseValue::Text("ok".into())]]);
     }
 
     #[test]

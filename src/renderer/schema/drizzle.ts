@@ -1050,6 +1050,142 @@ export const AgentRuntimeToolCallTable = sqliteTable(
   ],
 );
 
+export const AgentRuntimeReadReceiptTable = sqliteTable(
+  'agent_runtime_read_receipt',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    turnId: text('turn_id').notNull(),
+    toolCallId: text('tool_call_id').notNull(),
+    callId: text('call_id').notNull(),
+    toolName: text('tool_name').notNull(),
+    toolAccess: text('tool_access').notNull().default('read'),
+    idempotencyKey: text('idempotency_key').notNull(),
+    resultBlob: blob('result_blob').notNull(),
+    resultHash: text('result_hash').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_read_receipt_tool_call').on(t.toolCallId),
+    uniqueIndex('uniq_agent_runtime_read_receipt_idempotency').on(
+      t.idempotencyKey,
+    ),
+    uniqueIndex('uniq_agent_runtime_read_receipt_provenance').on(
+      t.id,
+      t.projectId,
+      t.sessionId,
+      t.turnId,
+      t.toolCallId,
+    ),
+    index('idx_agent_runtime_read_receipt_session_created').on(
+      t.sessionId,
+      t.createdAt,
+    ),
+    foreignKey({
+      columns: [t.sessionId, t.projectId],
+      foreignColumns: [
+        AgentRuntimeSessionTable.id,
+        AgentRuntimeSessionTable.projectId,
+      ],
+      name: 'fk_agent_runtime_read_receipt_session_project',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.turnId, t.sessionId],
+      foreignColumns: [
+        AgentRuntimeTurnTable.id,
+        AgentRuntimeTurnTable.sessionId,
+      ],
+      name: 'fk_agent_runtime_read_receipt_turn_session',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [
+        t.toolCallId,
+        t.sessionId,
+        t.turnId,
+        t.callId,
+        t.idempotencyKey,
+        t.toolAccess,
+        t.toolName,
+      ],
+      foreignColumns: [
+        AgentRuntimeToolCallTable.id,
+        AgentRuntimeToolCallTable.sessionId,
+        AgentRuntimeToolCallTable.turnId,
+        AgentRuntimeToolCallTable.callId,
+        AgentRuntimeToolCallTable.idempotencyKey,
+        AgentRuntimeToolCallTable.access,
+        AgentRuntimeToolCallTable.name,
+      ],
+      name: 'fk_agent_runtime_read_receipt_tool_provenance',
+    }).onDelete('cascade'),
+  ],
+);
+
+export const AgentRuntimeReadObservationTable = sqliteTable(
+  'agent_runtime_read_observation',
+  {
+    id: text('id').primaryKey(),
+    receiptId: text('receipt_id').notNull(),
+    projectId: text('project_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    turnId: text('turn_id').notNull(),
+    toolCallId: text('tool_call_id').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    entityKind: text('entity_kind').notNull(),
+    entityId: text('entity_id').notNull(),
+    revision: text('revision').notNull(),
+    stateVector: blob('state_vector'),
+    stateHash: text('state_hash'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_read_observation_ordinal').on(
+      t.receiptId,
+      t.ordinal,
+    ),
+    uniqueIndex('uniq_agent_runtime_read_observation_entity').on(
+      t.receiptId,
+      t.entityKind,
+      t.entityId,
+    ),
+    uniqueIndex('uniq_agent_runtime_read_observation_provenance').on(
+      t.id,
+      t.receiptId,
+      t.projectId,
+      t.sessionId,
+      t.turnId,
+      t.toolCallId,
+      t.entityKind,
+      t.entityId,
+      t.revision,
+    ),
+    index('idx_agent_runtime_read_observation_entity_revision').on(
+      t.projectId,
+      t.entityKind,
+      t.entityId,
+      t.revision,
+    ),
+    foreignKey({
+      columns: [
+        t.receiptId,
+        t.projectId,
+        t.sessionId,
+        t.turnId,
+        t.toolCallId,
+      ],
+      foreignColumns: [
+        AgentRuntimeReadReceiptTable.id,
+        AgentRuntimeReadReceiptTable.projectId,
+        AgentRuntimeReadReceiptTable.sessionId,
+        AgentRuntimeReadReceiptTable.turnId,
+        AgentRuntimeReadReceiptTable.toolCallId,
+      ],
+      name: 'fk_agent_runtime_read_observation_receipt_provenance',
+    }).onDelete('cascade'),
+  ],
+);
+
 export const AgentRuntimeWriteEffectTable = sqliteTable(
   'agent_runtime_write_effect',
   {
@@ -1103,6 +1239,13 @@ export const AgentRuntimeWriteEffectTable = sqliteTable(
       t.turnId,
       t.toolCallId,
     ),
+    uniqueIndex('uniq_agent_runtime_write_effect_freshness_provenance').on(
+      t.id,
+      t.projectId,
+      t.sessionId,
+      t.turnId,
+      t.toolCallId,
+    ),
     index('idx_agent_runtime_write_effect_session_phase').on(
       t.sessionId,
       t.phase,
@@ -1151,6 +1294,82 @@ export const AgentRuntimeWriteEffectTable = sqliteTable(
         AgentConversationTable.projectId,
       ],
       name: 'fk_agent_runtime_write_effect_conversation_project',
+    }).onDelete('cascade'),
+  ],
+);
+
+export const AgentRuntimeWriteExpectationTable = sqliteTable(
+  'agent_runtime_write_expectation',
+  {
+    id: text('id').primaryKey(),
+    effectId: text('effect_id').notNull(),
+    projectId: text('project_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    writeTurnId: text('write_turn_id').notNull(),
+    writeToolCallId: text('write_tool_call_id').notNull(),
+    observationId: text('observation_id').notNull(),
+    readReceiptId: text('read_receipt_id').notNull(),
+    readTurnId: text('read_turn_id').notNull(),
+    readToolCallId: text('read_tool_call_id').notNull(),
+    entityKind: text('entity_kind').notNull(),
+    entityId: text('entity_id').notNull(),
+    expectedRevision: text('expected_revision').notNull(),
+    expectedStateVector: blob('expected_state_vector'),
+    expectedStateHash: text('expected_state_hash'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_write_expectation_observation').on(
+      t.effectId,
+      t.observationId,
+    ),
+    uniqueIndex('uniq_agent_runtime_write_expectation_entity').on(
+      t.effectId,
+      t.entityKind,
+      t.entityId,
+    ),
+    index('idx_agent_runtime_write_expectation_effect').on(t.effectId),
+    foreignKey({
+      columns: [
+        t.effectId,
+        t.projectId,
+        t.sessionId,
+        t.writeTurnId,
+        t.writeToolCallId,
+      ],
+      foreignColumns: [
+        AgentRuntimeWriteEffectTable.id,
+        AgentRuntimeWriteEffectTable.projectId,
+        AgentRuntimeWriteEffectTable.sessionId,
+        AgentRuntimeWriteEffectTable.turnId,
+        AgentRuntimeWriteEffectTable.toolCallId,
+      ],
+      name: 'fk_agent_runtime_write_expectation_effect_provenance',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [
+        t.observationId,
+        t.readReceiptId,
+        t.projectId,
+        t.sessionId,
+        t.readTurnId,
+        t.readToolCallId,
+        t.entityKind,
+        t.entityId,
+        t.expectedRevision,
+      ],
+      foreignColumns: [
+        AgentRuntimeReadObservationTable.id,
+        AgentRuntimeReadObservationTable.receiptId,
+        AgentRuntimeReadObservationTable.projectId,
+        AgentRuntimeReadObservationTable.sessionId,
+        AgentRuntimeReadObservationTable.turnId,
+        AgentRuntimeReadObservationTable.toolCallId,
+        AgentRuntimeReadObservationTable.entityKind,
+        AgentRuntimeReadObservationTable.entityId,
+        AgentRuntimeReadObservationTable.revision,
+      ],
+      name: 'fk_agent_runtime_write_expectation_observation_provenance',
     }).onDelete('cascade'),
   ],
 );
