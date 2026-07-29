@@ -16,6 +16,7 @@ vi.mock('../sqlite-repo/yjs-repo', () => ({
 }));
 
 import {
+  flushOpenYjsDocument,
   forceSyncAllDocuments,
   registerSyncDocument,
   waitForYjsDocumentTeardown,
@@ -44,6 +45,36 @@ describe('app-wide Yjs lifecycle flush', () => {
     expect(flushLocal).toHaveBeenCalledOnce();
     expect(syncNow).not.toHaveBeenCalled();
     expect(mocks.listDocIds).not.toHaveBeenCalled();
+  });
+
+  it('flushes only the requested live document before an Agent result', async () => {
+    const targetFlush = vi.fn(async () => undefined);
+    const otherFlush = vi.fn(async () => undefined);
+    unregisters.push(
+      registerSyncDocument(
+        'node-content:target',
+        targetFlush,
+        async () => undefined,
+      ),
+    );
+    unregisters.push(
+      registerSyncDocument(
+        'node-content:other',
+        otherFlush,
+        async () => undefined,
+      ),
+    );
+
+    await flushOpenYjsDocument('node-content:target');
+
+    expect(targetFlush).toHaveBeenCalledOnce();
+    expect(otherFlush).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when a live doc has no registered durability queue', async () => {
+    await expect(
+      flushOpenYjsDocument('node-content:unregistered'),
+    ).rejects.toThrow('No active Yjs persistence session');
   });
 
   it('finishes every local queue before starting any remote sync', async () => {

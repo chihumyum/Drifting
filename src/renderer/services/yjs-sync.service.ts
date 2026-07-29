@@ -138,14 +138,35 @@ export function waitForYjsDocumentTeardown(timeoutMs = 5_000): Promise<void> {
 
 /** Drain every open document's local SQLite write queue. */
 export async function flushAllOpenYjsDocuments(): Promise<void> {
+  await flushActiveEntries(activeDocumentEntries());
+}
+
+/**
+ * Durably drain one live document. Agent writes call this before publishing a
+ * successful tool result, so an open-editor mutation cannot be acknowledged
+ * while its asynchronous SQLite queue is still pending.
+ */
+export async function flushOpenYjsDocument(docId: string): Promise<void> {
+  const entries = [...(activeSyncDocuments.get(docId) ?? [])].map(
+    (entry) => [docId, entry] as [string, ActiveSyncDocument],
+  );
+  if (entries.length === 0) {
+    throw new Error(`No active Yjs persistence session is registered for ${docId}`);
+  }
+  await flushActiveEntries(entries);
+}
+
+async function flushActiveEntries(
+  entries: Array<[string, ActiveSyncDocument]>,
+): Promise<void> {
   const results = await Promise.allSettled(
-    activeDocumentEntries().map(([, { flushLocal }]) => flushLocal()),
+    entries.map(([, { flushLocal }]) => flushLocal()),
   );
   const failures = results.filter((result) => result.status === 'rejected');
   if (failures.length > 0) {
     throw new AggregateError(
       failures.map((failure) => (failure as PromiseRejectedResult).reason),
-      `${failures.length} Yjs document(s) failed to persist locally`,
+      `${failures.length} Yjs document persistence queue(s) failed to flush`,
     );
   }
 }

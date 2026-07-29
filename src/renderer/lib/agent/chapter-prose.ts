@@ -33,7 +33,10 @@ import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { effectiveAgentEditMode } from './agent-edit-mode';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
-import { compactUpdatesAfterSnapshot } from '../../services/yjs-sync.service';
+import {
+  compactUpdatesAfterSnapshot,
+  flushOpenYjsDocument,
+} from '../../services/yjs-sync.service';
 import { maybeCaptureSnapshotHistory } from '../../services/snapshot-history.service';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { hydrateProseJson } from './prose-hydrate-client';
@@ -374,6 +377,9 @@ async function writeProseDoc(
       blockIds = yMutate(frag);
       relinkBlockMentions(frag, blockIds); // re-derive @-mention marks on plain agent text
     }, AGENT_ORIGIN);
+    // The live editor persists Y.Doc updates through an asynchronous queue.
+    // Do not acknowledge an Agent write until that exact queue is durable.
+    await flushOpenYjsDocument(docId);
     const contentJson = toJson(live);
     return { contentJson, blockIds, changes: computeBlockChanges(beforeJson, contentJson) };
   }
