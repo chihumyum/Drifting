@@ -1,0 +1,75 @@
+{
+  "suite": "p3-agent-write-runtime",
+  "schemaVersion": 1,
+  "nodeVersion": "v22.23.1",
+  "platform": "darwin",
+  "writePath": {
+    "adapter": "product repositories over file-backed node:sqlite WAL/FULL",
+    "scheduler": "ReaderWriterAgentRuntimeScheduler",
+    "runtime": "DriftingWriteToolRuntime",
+    "dispatch": "runAgentTool",
+    "mutationBoundary": "renderer usecase callback with transactional projection/outbox",
+    "yjs": "real Y.Doc with revision/vector/hash CAS",
+    "tests": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "concurrency": {
+      "seeds": 100,
+      "operationsPerSeed": 50,
+      "totalOperations": 5000,
+      "uniqueWrites": 1000,
+      "duplicateWriteDeliveries": 1000,
+      "reads": 3000
+    },
+    "injectedBoundaries": [
+      "pre_mutation_prepare_failure",
+      "after_yjs_before_projection",
+      "after_projection_before_outbox",
+      "after_outbox_before_result",
+      "after_inverse_before_review_receipt"
+    ],
+    "passed": true
+  },
+  "crash": {
+    "suite": "p3-crash-consistency",
+    "schemaVersion": 1,
+    "nodeVersion": "v22.23.1",
+    "platform": "darwin",
+    "sqliteAdapter": "node:sqlite DatabaseSync, file-backed WAL/FULL",
+    "yjsAdapter": "yjs",
+    "matrix": {
+      "markers": [
+        "before_transaction",
+        "after_yjs_before_projection",
+        "after_projection_before_outbox",
+        "after_outbox_before_result"
+      ],
+      "seedsPerMarker": 20,
+      "expectedCases": 80,
+      "cases": 80,
+      "realSigkillCount": 80,
+      "recoveries": 160
+    },
+    "recoveryEndToEndMs": {
+      "p95": 44.83,
+      "max": 45.32
+    },
+    "hardViolations": {
+      "wrongRecoveryPhase": 0,
+      "blindRetry": 0,
+      "yjsDurabilityMismatch": 0,
+      "projectionMismatch": 0,
+      "outboxMismatch": 0,
+      "partialYjsUpdate": 0,
+      "foreignKeyViolations": 0,
+      "integrityFailures": 0,
+      "nonIdempotentRecovery": 0
+    },
+    "processFailures": [],
+    "passed": true,
+    "tempDirectory": null
+  },
+  "passed": true
+}
