@@ -79,9 +79,15 @@ describe('Drifting write strategies', () => {
       effect: committed,
     });
 
+    const reviewContext = context();
     await expect(
-      strategy!.applyInverse(effect, context(), request.signal),
+      strategy!.applyInverse(effect, reviewContext, request.signal),
     ).resolves.toMatchObject({ value: 'Old title' });
+    expect(reviewContext.write.renameNode).toHaveBeenCalledWith(
+      'node-1',
+      'Old title',
+      { expectedRevision: '2026-01-02T00:00:00.000Z' },
+    );
     expect(node('node-1').title).toBe('Old title');
   });
 

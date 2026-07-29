@@ -147,12 +147,15 @@ function nodeFieldStrategy(field: 'title' | 'summary'): DriftingWriteStrategy {
           `The node ${field} changed after the Agent write; exact revert is unavailable`,
         );
       }
+      const guard = { expectedRevision: current.updatedAt };
       if (field === 'title') {
-        await context.write.renameNode(inverse.nodeId, inverse.value);
+        await context.write.renameNode(inverse.nodeId, inverse.value, guard);
       } else {
-        await context.write.updateNode(inverse.nodeId, {
-          summary: inverse.value,
-        });
+        await context.write.updateNode(
+          inverse.nodeId,
+          { summary: inverse.value },
+          guard,
+        );
       }
       throwIfAgentAborted(signal);
       const reverted = useDataStore

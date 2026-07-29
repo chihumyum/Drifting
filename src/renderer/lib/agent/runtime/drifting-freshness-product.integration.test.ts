@@ -339,6 +339,46 @@ describe('Drifting product freshness path', () => {
     );
     expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(0);
   });
+
+  it('uses the forward postimage revision as the exact-inverse SQL CAS guard', async () => {
+    const read = fixture.readRequest('inverse-read', 'read_node', {
+      node: 'Chapter One',
+      prose: false,
+    });
+    fixture.seedToolCall(read);
+    const token = expectedRevision(
+      readEnvelope(await fixture.readRuntime.execute(read)),
+    );
+    const write = fixture.writeRequest('inverse-write', 'rename_node', {
+      node: 'Chapter One',
+      title: 'Agent title',
+      expectedRevision: token,
+    });
+    fixture.seedToolCall(write);
+    const written = await fixture.writeRuntime.execute(write);
+    if (!written.ok) throw new Error(written.error);
+    const reviewId = (
+      written.data as { review?: { id?: unknown } }
+    ).review?.id;
+    if (typeof reviewId !== 'string') {
+      throw new Error('Certified write did not create its review');
+    }
+
+    fixture.armCasRace();
+    const rejected = await fixture.writeRuntime.rejectReview(reviewId);
+
+    expect(rejected.review).toMatchObject({
+      status: 'revert_failed',
+      errorMessage: expect.stringContaining('changed after Agent observation'),
+    });
+    expect(fixture.writeUsecaseCalls).toBe(2);
+    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(
+      fixture.scalar(
+        "SELECT count(*) FROM book_node WHERE id = 'node-1' AND title = 'Concurrent manual title'",
+      ),
+    ).toBe(1);
+  });
 });
 
 class ProductFreshnessFixture {
