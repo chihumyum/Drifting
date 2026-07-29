@@ -1,4 +1,6 @@
 export * from './clock';
+export * from './drifting-read-tool-runtime';
+export * from './drivers';
 export * from './errors';
 export * from './legacy-projection';
 export * from './local-transport';
