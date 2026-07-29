@@ -23,6 +23,16 @@ const DEFAULT_MAX_STORED_RESULTS = 128;
 const DEFAULT_MAX_STORED_CHARS = 8 * 1024 * 1024;
 const MAX_RESULT_PAGE_CHARS = 16_000;
 
+/** Canonical P1 catalog lookup used by durable tool lifecycle projection. */
+export function resolveDriftingReadToolAccess(
+  name: string,
+): 'read' | undefined {
+  return name === RESULT_PAGE_TOOL ||
+    AGENT_READ_TOOLS.some((tool) => tool.name === name)
+    ? 'read'
+    : undefined;
+}
+
 interface StoredReadResult {
   ref: string;
   projectId: string;

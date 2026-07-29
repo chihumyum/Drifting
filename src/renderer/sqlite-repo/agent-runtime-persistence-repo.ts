@@ -785,7 +785,7 @@ export function createAgentRuntimePersistenceRepository(
             or(
               eq(AgentRuntimeToolCallTable.id, toolCall.id),
               and(
-                eq(AgentRuntimeToolCallTable.sessionId, toolCall.sessionId),
+                eq(AgentRuntimeToolCallTable.turnId, toolCall.turnId),
                 eq(AgentRuntimeToolCallTable.callId, toolCall.callId),
               ),
               eq(
@@ -885,7 +885,9 @@ export function createAgentRuntimePersistenceRepository(
         }
         if (
           session.routeKind === 'chat'
-            ? session.goalRunId !== null || session.chapterId !== null
+            ? !session.conversationId ||
+              session.goalRunId !== null ||
+              session.chapterId !== null
             : session.conversationId !== null
         ) {
           throw new AgentRuntimePersistenceConflictError(
@@ -1135,7 +1137,8 @@ export function createAgentRuntimePersistenceRepository(
           if (
             checkpoint.sessionId !== sessionId ||
             checkpoint.throughTurnOrdinal !== turn.ordinal ||
-            checkpoint.messageCount !== expectedOrdinal
+            !Array.isArray(checkpoint.context) ||
+            checkpoint.messageCount !== checkpoint.context.length
           ) {
             throw new AgentRuntimePersistenceConflictError(
               'CHECKPOINT_CONFLICT',

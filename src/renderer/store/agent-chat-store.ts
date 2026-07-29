@@ -15,8 +15,9 @@
  * turn keeps folding into — and on `done` persists to — its OWN conversation.
  *
  * Display transcript is persisted to SQLite (agent_conversation) on each turn's
- * `done`. The opaque transport session id is retained in the legacy
- * `sdkSessionId` column and passed back as `resume`; it has no vendor semantics.
+ * `done`. New provider-neutral sessions use `runtimeSessionId`. The legacy
+ * `sdkSessionId` remains readable on old conversations but is never
+ * reinterpreted as a self-hosted runtime session.
  */
 import { create } from 'zustand';
 import { v7 as uuidv7 } from 'uuid';
@@ -36,6 +37,7 @@ import type {
   AgentConversationSummary,
 } from '../domain/agent-conversation';
 import type { AgentEvent, AgentEventEnvelope } from '../lib/agent/protocol';
+import { loadCanonicalAgentTranscript } from '../lib/agent/runtime/recovered-transcript';
 import { generalAgentTransport } from '../lib/agent/transport';
 
 const repo = createAgentConversationRepository();
@@ -221,8 +223,8 @@ interface RunState {
   /** Owning project — so a background turn doesn't pulse another project's cells. */
   projectId: string;
   messages: ChatMsg[];
-  /** Opaque transport session; legacy field name retained for schema compatibility. */
-  sdkSessionId: string | null;
+  /** Provider-neutral canonical runtime session used for context recovery. */
+  runtimeSessionId: string | null;
 }
 
 interface AgentChatState {
@@ -372,6 +374,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           mode: convMode,
           messages: [{ kind: 'user', text }],
           sdkSessionId: null,
+          runtimeSessionId: null,
           createdAt: now,
           updatedAt: now,
         });
@@ -387,7 +390,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     const run: RunState = {
       projectId,
       messages: [...(prevRun?.messages ?? []), { kind: 'user', text }],
-      sdkSessionId: prevRun?.sdkSessionId ?? null,
+      runtimeSessionId: prevRun?.runtimeSessionId ?? null,
     };
 
     const turnId = uuidv7();
@@ -442,7 +445,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       effort: settings.agentEffort,
       thinking: settings.agentThinking,
       toolSearch: settings.agentToolSearch,
-      resume: run.sdkSessionId ?? undefined,
+      resume: run.runtimeSessionId ?? undefined,
       writingLanguage,
       projectFacts,
       memories,
@@ -493,13 +496,25 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     if (!get().runs[id]) {
       const conv = await repo.get(id);
       if (!conv) return;
+      let messages = conv.messages;
+      if (conv.runtimeSessionId) {
+        try {
+          messages =
+            (await loadCanonicalAgentTranscript(conv.runtimeSessionId)) ??
+            messages;
+        } catch {
+          // A corrupt/unavailable canonical session must never be fed back to
+          // the model. The display cache is still useful as a read-only
+          // fallback while the transport refuses that resume.
+        }
+      }
       set((st) => ({
         runs: {
           ...st.runs,
           [id]: {
             projectId: conv.projectId,
-            messages: conv.messages,
-            sdkSessionId: conv.sdkSessionId,
+            messages,
+            runtimeSessionId: conv.runtimeSessionId,
           },
         },
       }));
@@ -587,7 +602,7 @@ async function persistConv(convId: string): Promise<void> {
   try {
     await repo.update(convId, {
       messages: run.messages,
-      sdkSessionId: run.sdkSessionId,
+      runtimeSessionId: run.runtimeSessionId,
       updatedAt: new Date().toISOString(),
     });
   } catch {
@@ -604,7 +619,14 @@ function handleEvent(env: AgentEventEnvelope): void {
   if (ev.type === 'session') {
     useAgentChatStore.setState((s) => {
       const run = s.runs[convId];
-      return run ? { runs: { ...s.runs, [convId]: { ...run, sdkSessionId: ev.id } } } : s;
+      return run
+        ? {
+            runs: {
+              ...s.runs,
+              [convId]: { ...run, runtimeSessionId: ev.id },
+            },
+          }
+        : s;
     });
     return;
   }

@@ -1017,8 +1017,8 @@ export const AgentRuntimeToolCallTable = sqliteTable(
     completedAt: text('completed_at'),
   },
   (t) => [
-    uniqueIndex('uniq_agent_runtime_tool_call_session_call').on(
-      t.sessionId,
+    uniqueIndex('uniq_agent_runtime_tool_call_turn_call').on(
+      t.turnId,
       t.callId,
     ),
     uniqueIndex('uniq_agent_runtime_tool_call_idempotency').on(

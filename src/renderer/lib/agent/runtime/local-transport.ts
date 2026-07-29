@@ -21,6 +21,7 @@ import type {
   AgentToolRuntime,
 } from './types';
 import { clonePortableData } from './portable-data';
+import type { AgentTransportPersistence } from './transport-persistence';
 
 export type RuntimeIdKind = 'session' | 'turn';
 
@@ -37,6 +38,7 @@ export interface LocalGeneralAgentTransportDependencies {
   limits?: Partial<AgentRuntimeLimits>;
   createId?: (kind: RuntimeIdKind) => string;
   authStatus?: () => Promise<GeneralAgentAuthStatus>;
+  persistence?: AgentTransportPersistence;
 }
 
 interface ActiveTurn {
@@ -48,6 +50,13 @@ interface LocalSessionState {
   id: string;
   routeKey: string;
   history: AgentModelMessage[];
+}
+
+class AgentTransportCommitError extends Error {
+  constructor() {
+    super('The Agent turn could not be durably committed.');
+    this.name = 'AgentTransportCommitError';
+  }
 }
 
 function transportError<T = void>(code: string, error: string): GeneralAgentResult<T> {
@@ -102,6 +111,9 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   private readonly createId: (kind: RuntimeIdKind) => string;
   private readonly resolveAuthStatus?: () => Promise<GeneralAgentAuthStatus>;
   private readonly supportsReasoning: boolean;
+  private readonly driverId: string;
+  private readonly persistence?: AgentTransportPersistence;
+  private readonly wallNowMs: () => number;
   private readonly listeners = new Set<(event: AgentEventEnvelope) => void>();
   private readonly sessions = new Map<string, LocalSessionState>();
   private readonly routeSessionIds = new Map<string, string>();
@@ -110,10 +122,26 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   private lastSessionId: string | null = null;
 
   constructor(dependencies: LocalGeneralAgentTransportDependencies) {
-    this.runtime = new AgentRuntime(dependencies);
+    this.persistence = dependencies.persistence;
+    const journal =
+      dependencies.persistence || dependencies.journal
+        ? createTransportJournal(
+            dependencies.persistence,
+            dependencies.journal,
+          )
+        : undefined;
+    this.runtime = new AgentRuntime({
+      driver: dependencies.driver,
+      ...(dependencies.tools ? { tools: dependencies.tools } : {}),
+      ...(dependencies.clock ? { clock: dependencies.clock } : {}),
+      ...(journal ? { journal } : {}),
+    });
     this.limits = dependencies.limits;
     this.createId = dependencies.createId ?? createPortableRuntimeId;
     this.resolveAuthStatus = dependencies.authStatus;
+    this.driverId = dependencies.driver.id;
+    this.wallNowMs =
+      dependencies.clock?.wallNowMs.bind(dependencies.clock) ?? Date.now;
     this.supportsReasoning =
       dependencies.driver.capabilities?.reasoning !== false;
   }
@@ -178,49 +206,6 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       );
     }
 
-    const routeKey =
-      route.kind === 'chat'
-        ? `chat:${route.projectId}:${route.conversationId ?? ''}`
-        : `goal:${route.projectId}:${route.goalRunId ?? ''}:${route.chapterId ?? ''}`;
-    let session: LocalSessionState | undefined;
-    if (!input.newConversation && input.resume) {
-      session = this.sessions.get(input.resume);
-      if (session && session.routeKey !== routeKey) {
-        return transportError(
-          'AGENT_SESSION_ROUTE_MISMATCH',
-          'The Agent session belongs to a different project or conversation.',
-        );
-      }
-      // P1 sessions are memory-resident while the user transcript is already
-      // durable. After a renderer restart the old id is only a resume hint:
-      // start a fresh model session instead of making the saved conversation
-      // unusable. P2 replaces this fallback with canonical history recovery.
-    } else if (!input.newConversation) {
-      const existingId = this.routeSessionIds.get(routeKey);
-      if (existingId) session = this.sessions.get(existingId);
-    }
-    if (!session) {
-      let sessionId: string;
-      try {
-        sessionId = this.createId('session');
-      } catch {
-        return transportError(
-          'AGENT_ID_UNAVAILABLE',
-          'Secure runtime id generation is unavailable.',
-        );
-      }
-      if (this.sessions.has(sessionId)) {
-        return transportError(
-          'AGENT_ID_CONFLICT',
-          `Generated Agent session id "${sessionId}" already exists.`,
-        );
-      }
-      session = { id: sessionId, routeKey, history: [] };
-      this.sessions.set(session.id, session);
-    }
-    this.routeSessionIds.set(routeKey, session.id);
-    this.lastSessionId = session.id;
-
     let turnId = input.turnId;
     if (!turnId) {
       try {
@@ -242,6 +227,64 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     const controller = new AbortController();
     const active: ActiveTurn = { turnId, controller };
     this.active = active;
+    const routeKey = routeKeyFor(route);
+    let candidateSessionId: string;
+    try {
+      candidateSessionId = this.createId('session');
+    } catch {
+      if (this.active === active) this.active = null;
+      return transportError(
+        'AGENT_ID_UNAVAILABLE',
+        'Secure runtime id generation is unavailable.',
+      );
+    }
+
+    let session: LocalSessionState;
+    if (this.persistence) {
+      try {
+        const prepared = await this.persistence.prepareTurn(
+          {
+            candidateSessionId,
+            ...(input.resume ? { resumeSessionId: input.resume } : {}),
+            newConversation: input.newConversation === true,
+            route,
+            provider: this.driverId,
+            model: input.model ?? null,
+            turnId,
+            prompt: input.prompt,
+            acceptedAt: this.nowIso(),
+          },
+          controller.signal,
+        );
+        session = {
+          id: prepared.sessionId,
+          routeKey,
+          history: prepared.history.map(clonePortableData),
+        };
+        this.sessions.set(session.id, session);
+      } catch (error) {
+        if (this.active === active) this.active = null;
+        return transportError(
+          persistenceErrorCode(error),
+          persistenceErrorMessage(error),
+        );
+      }
+    } else {
+      const resolved = this.resolveMemorySession(
+        routeKey,
+        input.resume,
+        input.newConversation === true,
+        candidateSessionId,
+      );
+      if (!resolved.ok) {
+        if (this.active === active) this.active = null;
+        return resolved.result;
+      }
+      session = resolved.session;
+    }
+    this.routeSessionIds.set(routeKey, session.id);
+    this.lastSessionId = session.id;
+
     const projector = new LegacyAgentEventProjector(session.id);
     let terminalEvents: AgentEventEnvelope['event'][] = [];
     let didStart = false;
@@ -294,8 +337,26 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         signal: controller.signal,
         onEntry: publishProjected,
       })
-      .then((result) => {
-        if (result.state.modelIterations > 0) {
+      .then(async (result) => {
+        if (this.persistence) {
+          const priorHistoryLength = session.history.length;
+          try {
+            await this.persistence.commitTurn({
+              sessionId: session.id,
+              turnId,
+              turnMessages: result.messages
+                .slice(priorHistoryLength)
+                .map(clonePortableData),
+              outcome: runtimeOutcome(result.state.status),
+              errorCode: result.state.terminal?.failureCode ?? null,
+              errorMessage: result.state.terminal?.message ?? null,
+              endedAt: this.nowIso(),
+            });
+          } catch {
+            throw new AgentTransportCommitError();
+          }
+          session.history = result.messages.map(clonePortableData);
+        } else if (result.state.modelIterations > 0) {
           session.history = result.messages.map(clonePortableData);
         }
         publishTerminal();
@@ -304,6 +365,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         acknowledgeStart(false);
         if (this.active === active) this.active = null;
         if (!didStart) return;
+        terminalEvents = [];
         const message = error instanceof Error ? error.message : String(error);
         this.publish({ turnId, event: { type: 'error', message } });
         this.publish({ turnId, event: { type: 'done' } });
@@ -361,10 +423,110 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       }
     }
   }
+
+  private resolveMemorySession(
+    routeKey: string,
+    resume: string | undefined,
+    newConversation: boolean,
+    candidateSessionId: string,
+  ):
+    | { ok: true; session: LocalSessionState }
+    | { ok: false; result: GeneralAgentResult } {
+    let session: LocalSessionState | undefined;
+    if (!newConversation && resume) {
+      session = this.sessions.get(resume);
+      if (session && session.routeKey !== routeKey) {
+        return {
+          ok: false,
+          result: transportError(
+            'AGENT_SESSION_ROUTE_MISMATCH',
+            'The Agent session belongs to a different project or conversation.',
+          ),
+        };
+      }
+    } else if (!newConversation) {
+      const existingId = this.routeSessionIds.get(routeKey);
+      if (existingId) session = this.sessions.get(existingId);
+    }
+    if (session) return { ok: true, session };
+    if (this.sessions.has(candidateSessionId)) {
+      return {
+        ok: false,
+        result: transportError(
+          'AGENT_ID_CONFLICT',
+          `Generated Agent session id "${candidateSessionId}" already exists.`,
+        ),
+      };
+    }
+    session = { id: candidateSessionId, routeKey, history: [] };
+    this.sessions.set(session.id, session);
+    return { ok: true, session };
+  }
+
+  private nowIso(): string {
+    return new Date(this.wallNowMs()).toISOString();
+  }
 }
 
 export function createLocalGeneralAgentTransport(
   dependencies: LocalGeneralAgentTransportDependencies,
 ): GeneralAgentTransport {
   return new LocalGeneralAgentTransport(dependencies);
+}
+
+function routeKeyFor(route: AgentStartRoute): string {
+  return route.kind === 'chat'
+    ? `chat:${route.projectId}:${route.conversationId ?? ''}`
+    : `goal:${route.projectId}:${route.goalRunId ?? ''}:${route.chapterId ?? ''}`;
+}
+
+function createTransportJournal(
+  persistence: AgentTransportPersistence | undefined,
+  observer: AgentJournalSink | undefined,
+): AgentJournalSink {
+  return {
+    async append(entry, signal) {
+      if (persistence) await persistence.appendJournal(entry, signal);
+      if (observer) await observer.append(entry, signal);
+    },
+  };
+}
+
+function runtimeOutcome(
+  status: 'idle' | 'running' | 'completed' | 'failed' | 'aborted' | 'budget_exceeded',
+): import('./types').AgentRuntimeOutcome {
+  switch (status) {
+    case 'completed':
+    case 'failed':
+    case 'aborted':
+    case 'budget_exceeded':
+      return status;
+    case 'idle':
+    case 'running':
+      return 'failed';
+  }
+}
+
+function persistenceErrorCode(error: unknown): string {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string'
+  ) {
+    return error.code;
+  }
+  return 'AGENT_PERSISTENCE_START_FAILED';
+}
+
+function persistenceErrorMessage(error: unknown): string {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'publicMessage' in error &&
+    typeof error.publicMessage === 'string'
+  ) {
+    return error.publicMessage;
+  }
+  return 'The Agent turn could not be durably accepted.';
 }

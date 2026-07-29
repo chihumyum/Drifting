@@ -6,7 +6,9 @@ import type { GeneralAgentAuthStatus } from './protocol';
 import {
   createDriftingReadToolRuntime,
   createLocalGeneralAgentTransport,
+  createRepositoryAgentTransportPersistence,
   DriftingAgentModelDriver,
+  resolveDriftingReadToolAccess,
 } from './runtime';
 import {
   installGeneralAgentTransport,
@@ -38,6 +40,9 @@ export function createDriftingLocalAgentTransport(): GeneralAgentTransport {
   return createLocalGeneralAgentTransport({
     driver: new DriftingAgentModelDriver(),
     tools: createDriftingReadToolRuntime(),
+    persistence: createRepositoryAgentTransportPersistence({
+      resolveToolAccess: resolveDriftingReadToolAccess,
+    }),
     authStatus: readLocalAgentAuthStatus,
   });
 }

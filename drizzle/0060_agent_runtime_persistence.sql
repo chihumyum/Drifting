@@ -22,10 +22,13 @@ CREATE TABLE `agent_runtime_session` (
 	CHECK (`provider_epoch` >= 0),
 	CHECK (`route_kind` IN ('chat', 'goal')),
 	CHECK (
-		(`route_kind` = 'chat' AND `goal_run_id` IS NULL AND `chapter_id` IS NULL)
+		(`route_kind` = 'chat' AND `conversation_id` IS NOT NULL AND length(`conversation_id`) > 0 AND `goal_run_id` IS NULL AND `chapter_id` IS NULL)
 		OR
 		(`route_kind` = 'goal' AND `conversation_id` IS NULL)
 	),
+	CHECK (`goal_run_id` IS NULL OR length(`goal_run_id`) > 0),
+	CHECK (`chapter_id` IS NULL OR length(`chapter_id`) > 0),
+	CHECK (length(`provider`) > 0),
 	CHECK (`status` IN ('pending', 'idle', 'running', 'recovering', 'interrupted', 'closed', 'failed', 'aborted'))
 );
 --> statement-breakpoint
@@ -125,7 +128,7 @@ CREATE TABLE `agent_runtime_tool_call` (
 	CHECK (`status` IN ('requested', 'running', 'completed', 'failed', 'interrupted', 'uncertain'))
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `uniq_agent_runtime_tool_call_session_call` ON `agent_runtime_tool_call` (`session_id`,`call_id`);
+CREATE UNIQUE INDEX `uniq_agent_runtime_tool_call_turn_call` ON `agent_runtime_tool_call` (`turn_id`,`call_id`);
 --> statement-breakpoint
 CREATE UNIQUE INDEX `uniq_agent_runtime_tool_call_idempotency` ON `agent_runtime_tool_call` (`idempotency_key`);
 --> statement-breakpoint
