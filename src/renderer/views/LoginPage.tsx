@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Moon, Sun } from 'lucide-react';
+import { BookOpen, Layers3, Moon, Route, ShieldCheck, Sun } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { useSettingsStore } from '../store/settings-store';
 import { authClient } from '../lib/auth-client';
@@ -210,7 +210,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
   return (
     <div className="signin">
       <LoginQuickToggles />
-      {/* ═══ Left · editorial / brand ═══ */}
+      {/* Brand and product context */}
       <aside className="si-left">
         <div className="si-brand">
           <span className="si-brand__name">Drifting</span>
@@ -235,7 +235,9 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
 
           <div className="si-feats">
             <div className="si-feat">
-              <span className="si-feat__mark">§</span>
+              <span className="si-feat__mark">
+                <BookOpen size={18} aria-hidden="true" />
+              </span>
               <div className="si-feat__body">
                 <span className="si-feat__title">
                   {t('auth.hero.featureOutlineTitle')} · <em>{t('auth.hero.featureOutlineEm')}</em>
@@ -244,14 +246,18 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
               </div>
             </div>
             <div className="si-feat">
-              <span className="si-feat__mark">◆</span>
+              <span className="si-feat__mark">
+                <Layers3 size={18} aria-hidden="true" />
+              </span>
               <div className="si-feat__body">
                 <span className="si-feat__title">{t('auth.hero.featureElementTitle')}</span>
                 <span className="si-feat__sub">{t('auth.hero.featureElementSub')}</span>
               </div>
             </div>
             <div className="si-feat">
-              <span className="si-feat__mark">¶</span>
+              <span className="si-feat__mark">
+                <Route size={18} aria-hidden="true" />
+              </span>
               <div className="si-feat__body">
                 <span className="si-feat__title">
                   {t('auth.hero.featureStorylineTitleA')} ·{' '}
@@ -262,7 +268,9 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
               </div>
             </div>
             <div className="si-feat">
-              <span className="si-feat__mark">◐</span>
+              <span className="si-feat__mark">
+                <ShieldCheck size={18} aria-hidden="true" />
+              </span>
               <div className="si-feat__body">
                 <span className="si-feat__title">{t('auth.hero.featureShadowTitle')}</span>
                 <span className="si-feat__sub">{t('auth.hero.featureShadowSub')}</span>
@@ -277,12 +285,11 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
               version: getPlatformRuntime().appInfo?.version ?? '0.1.0',
             })}
           </span>
-          <span className="si-foot__orn">⁂</span>
           <span>{t('auth.hero.footer')}</span>
         </div>
       </aside>
 
-      {/* ═══ Right · form ═══ */}
+      {/* Focused authentication task */}
       <main className="si-right">
         <div className="si-tabs">
           <button

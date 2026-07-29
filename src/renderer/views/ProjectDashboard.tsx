@@ -16,10 +16,21 @@ import { ShadowRulesSection } from '../components/dashboard/ShadowRulesSection';
 import { isChapter, deriveStatus, type BookNode } from '../domain/book-node';
 import { getPlatformRuntime } from '../platform/runtime';
 import { useSyncObserver } from '../services/sync-observer.service';
+import {
+  BookOpen,
+  Boxes,
+  GitBranch,
+  LayoutDashboard,
+  ListTree,
+  Plus,
+  Settings2,
+  ShieldCheck,
+} from 'lucide-react';
 import loglevel from 'loglevel';
 import '../../styles/dashboard.css';
 
 const log = loglevel.getLogger('ProjectDashboard');
+type DashboardView = 'overview' | 'structure' | 'rules';
 
 const STORY_TOKENS = [
   '--story-1',
@@ -166,6 +177,7 @@ export function ProjectDashboard() {
   );
 
   const [chip, setChip] = useState<'all' | 'draft' | 'todo' | 'done'>('all');
+  const [dashboardView, setDashboardView] = useState<DashboardView>('overview');
 
   // ─── Hero / aggregate stats ────────────────────────────
   // Dashboard treats drift nodes as out-of-band (they live in their own
@@ -189,13 +201,15 @@ export function ProjectDashboard() {
     [writingHistory, totalWc],
   );
   const dailyGoal = projectPlan.dailyWordGoal || 0;
-  const todayGoalPct = dailyGoal > 0 ? Math.min(100, (writingStats.todayWords / dailyGoal) * 100) : 0;
+  const todayGoalPct =
+    dailyGoal > 0 ? Math.min(100, (writingStats.todayWords / dailyGoal) * 100) : 0;
   const projectGoalPct = targetWc > 0 ? Math.min(100, (totalWc / targetWc) * 100) : 0;
   const syncFooter =
     syncMetrics.inflight > 0
       ? t('dashboard.footer.syncing')
       : syncMetrics.lastFailureAt !== null &&
-          (syncMetrics.lastSuccessAt === null || syncMetrics.lastFailureAt > syncMetrics.lastSuccessAt)
+          (syncMetrics.lastSuccessAt === null ||
+            syncMetrics.lastFailureAt > syncMetrics.lastSuccessAt)
         ? t('dashboard.footer.syncNeedsAttention')
         : syncMetrics.lastSuccessAt !== null
           ? t('dashboard.footer.syncedAt', {
@@ -222,7 +236,7 @@ export function ProjectDashboard() {
   const continueStoryline = useMemo(() => {
     if (!continueNode) return null;
     const slId = primaryStorylineByNode[continueNode.id] ?? null;
-    return slId ? storylines.find((s) => s.id === slId) ?? null : null;
+    return slId ? (storylines.find((s) => s.id === slId) ?? null) : null;
   }, [continueNode, primaryStorylineByNode, storylines]);
 
   const continueStorylineColor = continueStoryline
@@ -254,6 +268,18 @@ export function ProjectDashboard() {
         };
       }),
     [storylines, storylineNodeMapping, bookNodes],
+  );
+
+  const visibleStorylineStats = useMemo(
+    () =>
+      storylineStats
+        .map((row) => ({
+          ...row,
+          visibleNodes:
+            chip === 'all' ? row.sNodes : row.sNodes.filter((node) => deriveStatus(node) === chip),
+        }))
+        .filter((row) => chip === 'all' || row.visibleNodes.length > 0),
+    [chip, storylineStats],
   );
 
   // ─── Filter chips ──────────────────────────────────────
@@ -293,7 +319,9 @@ export function ProjectDashboard() {
     if (!bookNodes.length) return null;
     return [...bookNodes].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))[0];
   }, [bookNodes]);
-  const lastTouchedRel = lastTouchedNode ? formatRelativeTime(lastTouchedNode.updatedAt, i18n.language) : '—';
+  const lastTouchedRel = lastTouchedNode
+    ? formatRelativeTime(lastTouchedNode.updatedAt, i18n.language)
+    : '—';
   const lastTouchedTitle = lastTouchedNode?.title || '—';
   const projectSinceLabel = currentProject?.createdAt
     ? new Date(currentProject.createdAt).toLocaleDateString(undefined, {
@@ -346,7 +374,7 @@ export function ProjectDashboard() {
         return {
           id: n.id,
           dateLabel: formatRelativeTime(n.updatedAt, i18n.language),
-          mark: '§',
+          mark: '',
           desc: n.title || 'Untitled',
           tail: sl ? ` · ${sl.name}` : '',
           meta: n.wordCount
@@ -407,11 +435,7 @@ export function ProjectDashboard() {
               }}
             />
 
-            {heroProjectSummary && (
-              <p className="dash-hero__sub">
-                {heroProjectSummary}
-              </p>
-            )}
+            {heroProjectSummary && <p className="dash-hero__sub">{heroProjectSummary}</p>}
 
             <div className="dash-hero__meta">
               <div className="dash-hero__metric">
@@ -429,16 +453,16 @@ export function ProjectDashboard() {
                 <span className="dash-hero__metric-k">{t('dashboard.metrics.elements')}</span>
                 <span className="dash-hero__metric-v">
                   {bookElements.length}
-                  <em>· {bookElementCategories.length} {t('common.categoriesUnit')}</em>
+                  <em>
+                    · {bookElementCategories.length} {t('common.categoriesUnit')}
+                  </em>
                 </span>
               </div>
               <div className="dash-hero__metric">
                 <span className="dash-hero__metric-k">{t('dashboard.metrics.words')}</span>
                 <span className="dash-hero__metric-v">
                   {(totalWc / 1000).toFixed(1)}
-                  <em>
-                    k{targetWc > 0 ? ` / ${(targetWc / 1000).toFixed(0)}k` : ''}
-                  </em>
+                  <em>k{targetWc > 0 ? ` / ${(targetWc / 1000).toFixed(0)}k` : ''}</em>
                 </span>
               </div>
               <div className="dash-hero__metric">
@@ -466,394 +490,467 @@ export function ProjectDashboard() {
                   {donePct}
                   <em>%</em>
                 </span>
-              <span className="dash-hero__progress-k">{t('dashboard.chips.done')}</span>
+                <span className="dash-hero__progress-k">{t('dashboard.chips.done')}</span>
               </div>
             </div>
             <div className="dash-hero__btns">
               <button className="dash-hero__btn" onClick={openStoryGraph}>
-                ⌬ {t('dashboard.actions.storyGraph')}
+                <GitBranch size={16} aria-hidden="true" />
+                {t('dashboard.actions.storyGraph')}
               </button>
               <button className="dash-hero__btn" onClick={openElementOverview}>
-                ⊞ {t('dashboard.actions.elementOverview')}
+                <Boxes size={16} aria-hidden="true" />
+                {t('dashboard.actions.elementOverview')}
               </button>
               <button className="dash-hero__btn" onClick={openAllChapters}>
-                ☷ {t('dashboard.actions.allChapters')}
+                <BookOpen size={16} aria-hidden="true" />
+                {t('dashboard.actions.allChapters')}
               </button>
               <button
                 className="dash-hero__btn dash-hero__btn--primary"
-                onClick={handleCreateStoryline}
+                onClick={() =>
+                  continueNode
+                    ? openEntity({ entityType: 'node', id: continueNode.id })
+                    : openAllChapters()
+                }
               >
-                ＋ {t('dashboard.actions.newChapter')}
+                {t('dashboard.continue.resume')}
               </button>
             </div>
           </div>
         </header>
 
-        {/* ════════ Chip filter row ════════ */}
-        <div className="dash-chips">
-          {chips.map((c) => (
-            <FilterChip
-              key={c.id}
-              active={chip === c.id}
-              count={`· ${c.count}`}
-              onClick={() => setChip(c.id)}
+        <div className="dash-view-tabs" role="tablist" aria-label={t('dashboard.hero.projectHome')}>
+          {(
+            [
+              ['overview', isZh(i18n.language) ? '概览' : 'Overview', LayoutDashboard],
+              ['structure', isZh(i18n.language) ? '结构与设定' : 'Structure', ListTree],
+              ['rules', isZh(i18n.language) ? '规则' : 'Rules', ShieldCheck],
+            ] as const
+          ).map(([id, label, Icon]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={dashboardView === id}
+              className={`dash-view-tab${dashboardView === id ? ' dash-view-tab--active' : ''}`}
+              onClick={() => setDashboardView(id)}
             >
-              {c.label}
-            </FilterChip>
+              <Icon size={16} aria-hidden="true" />
+              {label}
+            </button>
           ))}
+          <button
+            type="button"
+            className="dash-view-tabs__settings"
+            onClick={() => setDashboardView('structure')}
+          >
+            <Settings2 size={16} aria-hidden="true" />
+            {isZh(i18n.language) ? '项目设置' : 'Project settings'}
+          </button>
         </div>
 
-        {/* ════════ ROW 1 — CONTINUE + TODAY ════════ */}
-        <div className="dash-row">
-          {/* CONTINUE */}
-          {continueNode ? (
-            <article
-              className="dash-continue"
-              style={{ '--c-color': continueStorylineColor } as React.CSSProperties}
-              onClick={() => openEntity({ entityType: 'node', id: continueNode.id })}
-            >
-              <div className="dash-continue__kicker">
-                <span>{t('dashboard.continue.kicker')}</span>
-                <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
-                <em>{formatRelativeTime(continueNode.updatedAt, i18n.language)}</em>
-              </div>
-              <div className="dash-continue__path">
-                {continueStoryline ? `${continueStoryline.name} · ` : ''}
-                §{String(continueNode.bookOrder || 1).padStart(2, '0')}
-              </div>
-              <h2 className="dash-continue__title">{continueNode.title || 'Untitled'}</h2>
-              {continueNode.summary && (
-                <div className="dash-continue__sub">{continueNode.summary}</div>
-              )}
-              {/* TODO: snippet currently re-uses summary; pull first paragraph from node content once exposed. */}
-              <p className="dash-continue__snippet">
-                {continueNode.summary || t('dashboard.continue.noBody')}
-              </p>
-              <div className="dash-continue__foot">
-                <div className="dash-continue__meta">
-                  <span>
-                    <b>{(continueNode.wordCount || 0).toLocaleString()}</b>
-                    <span style={{ color: 'hsl(var(--ink-4))' }}>{t('common.words')}</span>
-                  </span>
-                  {/* TODO: revisions count not yet tracked. */}
-                  <span>
-                    <b>—</b>{t('dashboard.continue.revisions')}
-                  </span>
-                </div>
-                <div className="dash-continue__resume">
-                  {t('dashboard.continue.resume')}
-                  <span className="dash-continue__resume-arrow">→</span>
-                </div>
-              </div>
-            </article>
-          ) : (
-            <article className="dash-continue" style={{ cursor: 'default' }}>
-              <div className="dash-continue__kicker">
-                <span>{t('dashboard.continue.kicker')}</span>
-              </div>
-              <div className="dash-continue__path">{t('dashboard.continue.noChapters')}</div>
-              <h2 className="dash-continue__title">{t('dashboard.continue.emptyTitle')}</h2>
-              <div className="dash-continue__sub">{t('dashboard.continue.emptySub')}</div>
-              <div className="dash-continue__foot">
-                <div className="dash-continue__resume" onClick={handleCreateStoryline}>
-                  {t('dashboard.actions.newStoryline')}
-                  <span className="dash-continue__resume-arrow">→</span>
-                </div>
-              </div>
-            </article>
-          )}
-
-          {/* TODAY */}
-          <aside className="dash-today">
-            <div className="dash-today__kicker">{t('dashboard.today.kicker')}</div>
-            <div className="dash-today__date">{todayDateLabel}</div>
-            <div className="dash-today__main">
-              <span className="dash-today__big">
-                {writingStats.todayWords.toLocaleString()}
-              </span>
-              <span className="dash-today__unit">{t('common.words')}</span>
-            </div>
-            <div className="dash-today__goal">
-              {t('dashboard.today.goal')} <b>{dailyGoal.toLocaleString()}</b> {t('common.words')}
-            </div>
-            <div className="dash-today__bar">
-              <div
-                className="dash-today__bar-fill"
-                style={{ width: `${todayGoalPct}%` }}
-              ></div>
-            </div>
-            <div className="dash-today__streak">
-              <div className="dash-today__streak-cell">
-                <span className="dash-today__streak-k">{t('dashboard.today.streak')}</span>
-                <span className="dash-today__streak-v">
-                  {writingStats.streakDays}
-                  <em>{t('common.days')}</em>
-                </span>
-              </div>
-              <div className="dash-today__streak-cell">
-                <span className="dash-today__streak-k">{t('dashboard.today.week')}</span>
-                <span className="dash-today__streak-v">
-                  {(writingStats.weekWords / 1000).toFixed(1)}
-                  <em>k{t('common.words')}</em>
-                </span>
-              </div>
-              <div className="dash-today__streak-cell">
-                <span className="dash-today__streak-k">{t('dashboard.today.month')}</span>
-                <span className="dash-today__streak-v">
-                  {writingStats.monthDaysWritten}
-                  <em>{t('common.days')}</em>
-                </span>
-              </div>
-            </div>
-          </aside>
-        </div>
-
-        {/* ════════ STORYLINES ════════ */}
-        <section className="dash-section">
-          <div className="dash-section__head">
-            <div className="dash-section__title">
-              <span className="dash-section__title-mark">§</span>
-              <span className="dash-section__title-cn">{t('dashboard.sections.storylines')}</span>
-              <span className="dash-section__title-en">{t('dashboard.sections.storylinesShort')}</span>
-              <span className="dash-section__count">
-                · <em>{storylines.length}</em> {t('common.storylinesUnit')} / <em>{totalNodes}</em> {t('common.chapters')} /{' '}
-                <em>{(totalWc / 1000).toFixed(1)}k</em> {t('common.words')}
-              </span>
-            </div>
-            <div className="dash-section__actions">
-              <button className="dash-section__btn" onClick={openStoryGraph}>
-                ⌬ {t('dashboard.actions.storyGraph')}
-              </button>
-              <button className="dash-section__btn" onClick={openAllChapters}>
-                ☷ {t('dashboard.actions.allChapters')}
-              </button>
-              <button
-                className="dash-section__btn dash-section__btn--accent"
-                onClick={handleCreateStoryline}
-              >
-                <span className="dash-section__btn-mark">＋</span> {t('dashboard.actions.newStoryline')}
-              </button>
-            </div>
-          </div>
-
-          <div className="dash-tracks">
-            {storylineStats.map(({ s, index, sNodes, done, draft, total, wc, color }) => {
-              const trackDonePct = total ? (done / total) * 100 : 0;
-              const trackDraftPct = total ? (draft / total) * 100 : 0;
-              return (
-                <div
-                  key={s.id}
-                  className="dash-track"
-                  style={{ '--s-color': color } as React.CSSProperties}
-                  onClick={() => openEntity({ entityType: 'storyline', id: s.id })}
+        {dashboardView === 'overview' && (
+          <>
+            {/* Chapter filters apply to the storyline chapter sequence below. */}
+            <div className="dash-chips">
+              {chips.map((c) => (
+                <FilterChip
+                  key={c.id}
+                  active={chip === c.id}
+                  count={`· ${c.count}`}
+                  onClick={() => setChip(c.id)}
                 >
-                  <div className="dash-track__no">
-                    {(index + 1).toString().padStart(2, '0')}
-                  </div>
+                  {c.label}
+                </FilterChip>
+              ))}
+            </div>
 
-                  <div className="dash-track__name">
-                    <div className="dash-track__name-main">
-                      <span>{s.name || 'Untitled Storyline'}</span>
-                    </div>
-                    <div className="dash-track__name-sub">
-                      {s.summary
-                        ? s.summary
-                        : t('dashboard.storylineSummary', {
-                            total,
-                            done,
-                            draft,
-                            todo: total - done - draft,
-                          })}
-                    </div>
+            {/* ════════ ROW 1 — CONTINUE + TODAY ════════ */}
+            <div className="dash-row">
+              {/* CONTINUE */}
+              {continueNode ? (
+                <article
+                  className="dash-continue"
+                  style={{ '--c-color': continueStorylineColor } as React.CSSProperties}
+                  onClick={() => openEntity({ entityType: 'node', id: continueNode.id })}
+                >
+                  <div className="dash-continue__kicker">
+                    <span>{t('dashboard.continue.kicker')}</span>
+                    <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
+                    <em>{formatRelativeTime(continueNode.updatedAt, i18n.language)}</em>
                   </div>
-
-                  <div className="dash-track__chapters" title={t('dashboard.chaptersTitle', { count: total })}>
-                    {sNodes.map((n) => {
-                      const status = deriveStatus(n);
-                      const isActive = n.id === continueNode?.id;
-                      return (
-                        <span
-                          key={n.id}
-                          className={`dash-track__ch dash-track__ch--${status} ${
-                            isActive ? 'dash-track__ch--active' : ''
-                          }`}
-                          title={`§${n.bookOrder} · ${n.title} · ${status}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEntity({ entityType: 'node', id: n.id });
-                          }}
-                        ></span>
-                      );
-                    })}
+                  <div className="dash-continue__path">
+                    {continueStoryline ? `${continueStoryline.name} · ` : ''}§
+                    {String(continueNode.bookOrder || 1).padStart(2, '0')}
                   </div>
-
-                  <div className="dash-track__bar-wrap">
-                    <div className="dash-track__bar-label">
+                  <h2 className="dash-continue__title">{continueNode.title || 'Untitled'}</h2>
+                  {continueNode.summary && (
+                    <div className="dash-continue__sub">{continueNode.summary}</div>
+                  )}
+                  {/* TODO: snippet currently re-uses summary; pull first paragraph from node content once exposed. */}
+                  <p className="dash-continue__snippet">
+                    {continueNode.summary || t('dashboard.continue.noBody')}
+                  </p>
+                  <div className="dash-continue__foot">
+                    <div className="dash-continue__meta">
                       <span>
-                        <b>
-                          {done}/{total}
-                        </b>{' '}
-                        {t('common.chapters')}
+                        <b>{(continueNode.wordCount || 0).toLocaleString()}</b>
+                        <span style={{ color: 'hsl(var(--ink-4))' }}>{t('common.words')}</span>
                       </span>
-                      <span>{Math.round(trackDonePct)}%</span>
-                    </div>
-                    <div className="dash-track__bar">
-                      <div
-                        className="dash-track__bar-done"
-                        style={{ width: `${trackDonePct}%` }}
-                      ></div>
-                      <div
-                        className="dash-track__bar-draft"
-                        style={{ left: `${trackDonePct}%`, width: `${trackDraftPct}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  <div className="dash-track__wc">
-                    <span className="dash-track__wc-v">
-                      {(wc / 1000).toFixed(1)}
-                      <em>k</em>
-                    </span>
-                    <span className="dash-track__wc-k">{t('dashboard.wordsLabel')}</span>
-                  </div>
-                </div>
-              );
-            })}
-
-            <div className="dash-track dash-track--new" onClick={handleCreateStoryline}>
-              <span className="dash-track--new-glyph">＋</span>
-              <span>{t('dashboard.actions.newStorylineLong')}</span>
-            </div>
-          </div>
-        </section>
-
-        {/* ════════ ELEMENT CATEGORIES + ACTIVITY ════════ */}
-        <div className="dash-row dash-row--2">
-          {/* Element categories */}
-          <section className="dash-section" style={{ marginBottom: 0 }}>
-            <div className="dash-section__head">
-              <div className="dash-section__title">
-                <span className="dash-section__title-mark">◆</span>
-                <span className="dash-section__title-cn">{t('dashboard.sections.elementCategories')}</span>
-                <span className="dash-section__title-en">{t('dashboard.sections.elementCategoriesShort')}</span>
-                <span className="dash-section__count">
-                  · <em>{bookElementCategories.length}</em> {t('common.categoriesUnit')} / <em>{bookElements.length}</em> {t('common.itemsUnit')}
-                </span>
-              </div>
-              <div className="dash-section__actions">
-                <button
-                  className="dash-section__btn dash-section__btn--accent"
-                  onClick={handleCreateCategory}
-                >
-                  <span className="dash-section__btn-mark">＋</span> {t('dashboard.actions.newCategory')}
-                </button>
-              </div>
-            </div>
-
-            <div className="dash-cats">
-              {bookElementCategories.map((c) => {
-                const cEls = bookElements.filter((e) => e.categoryId === c.id);
-                const samples = cEls.slice(0, 3).map((e) => e.name);
-                const more = Math.max(0, cEls.length - 3);
-                const catColor = resolveColor(c.color, c.id);
-                return (
-                  <div
-                    key={c.id}
-                    className="dash-cat"
-                    style={{ '--c-color': catColor } as React.CSSProperties}
-                    onClick={() => openEntity({ entityType: 'category', id: c.id })}
-                  >
-                    <div className="dash-cat__head">
-                      <span className="dash-cat__dot"></span>
-                      <span className="dash-cat__name">{c.name}</span>
-                      <span className="dash-cat__count">
-                        <b>{cEls.length}</b>
+                      {/* TODO: revisions count not yet tracked. */}
+                      <span>
+                        <b>—</b>
+                        {t('dashboard.continue.revisions')}
                       </span>
                     </div>
-                    <div className="dash-cat__samples">
-                      {samples.length === 0 ? (
-                        <span className="dash-cat__samples-empty">— {t('dashboard.empty.noElements')} —</span>
-                      ) : (
-                        samples.map((nm, i) => (
-                          <span key={i}>
-                            {i > 0 && <span className="dash-cat__samples-sep">·</span>}
-                            <span>{nm || 'Untitled'}</span>
-                          </span>
-                        ))
-                      )}
-                      {more > 0 && <span className="dash-cat__samples-more">+{more}</span>}
+                    <div className="dash-continue__resume">
+                      {t('dashboard.continue.resume')}
+                      <span className="dash-continue__resume-arrow">→</span>
                     </div>
                   </div>
-                );
-              })}
-              <div className="dash-cat dash-cat--new" onClick={handleCreateCategory}>
-                <span className="dash-cat--new__glyph">＋</span>
-                <span>{t('dashboard.actions.newCategory')}</span>
-              </div>
-            </div>
-          </section>
-
-          {/* Recent activity */}
-          <section className="dash-section" style={{ marginBottom: 0 }}>
-            <div className="dash-section__head">
-              <div className="dash-section__title">
-                <span className="dash-section__title-mark">✦</span>
-                <span className="dash-section__title-cn">{t('dashboard.sections.recent')}</span>
-                <span className="dash-section__title-en">{t('dashboard.sections.recentShort')}</span>
-                <span className="dash-section__count">
-                  · <em>{recentActivity.length}</em> {t('common.itemsUnit')}
-                </span>
-              </div>
-              <div className="dash-section__actions">
-                <button className="dash-section__btn" onClick={openAllChapters}>
-                  {t('dashboard.actions.allChapters')} →
-                </button>
-              </div>
-            </div>
-
-            <div className="dash-act">
-              {recentActivity.length === 0 ? (
-                <div className="dash-act-row" style={{ gridTemplateColumns: '1fr' }}>
-                  <span className="dash-cat__samples-empty">— {t('dashboard.empty.noActivity')} —</span>
-                </div>
+                </article>
               ) : (
-                recentActivity.map((r) => (
-                  <div
-                    key={r.id}
-                    className="dash-act-row"
-                    style={{ '--a-color': r.accent } as React.CSSProperties}
-                    onClick={() => openEntity({ entityType: 'node', id: r.id })}
-                  >
-                    <div className="dash-act-row__date">
-                      <b>{r.dateLabel}</b>
-                    </div>
-                    <div className="dash-act-row__desc">
-                      <span className="dash-act-row__desc-mark">{r.mark}</span>
-                      <span className="dash-act-row__desc-main">{r.desc}</span>
-                      <span className="dash-act-row__desc-tail">{r.tail}</span>
-                    </div>
-                    <div className={`dash-act-row__meta dash-act-row__meta--${r.metaCls}`}>
-                      {r.meta}
+                <article className="dash-continue" style={{ cursor: 'default' }}>
+                  <div className="dash-continue__kicker">
+                    <span>{t('dashboard.continue.kicker')}</span>
+                  </div>
+                  <div className="dash-continue__path">{t('dashboard.continue.noChapters')}</div>
+                  <h2 className="dash-continue__title">{t('dashboard.continue.emptyTitle')}</h2>
+                  <div className="dash-continue__sub">{t('dashboard.continue.emptySub')}</div>
+                  <div className="dash-continue__foot">
+                    <div className="dash-continue__resume" onClick={handleCreateStoryline}>
+                      {t('dashboard.actions.newStoryline')}
+                      <span className="dash-continue__resume-arrow">→</span>
                     </div>
                   </div>
-                ))
+                </article>
               )}
+
+              {/* TODAY */}
+              <aside className="dash-today">
+                <div className="dash-today__kicker">{t('dashboard.today.kicker')}</div>
+                <div className="dash-today__date">{todayDateLabel}</div>
+                <div className="dash-today__main">
+                  <span className="dash-today__big">
+                    {writingStats.todayWords.toLocaleString()}
+                  </span>
+                  <span className="dash-today__unit">{t('common.words')}</span>
+                </div>
+                <div className="dash-today__goal">
+                  {t('dashboard.today.goal')} <b>{dailyGoal.toLocaleString()}</b>{' '}
+                  {t('common.words')}
+                </div>
+                <div className="dash-today__bar">
+                  <div className="dash-today__bar-fill" style={{ width: `${todayGoalPct}%` }}></div>
+                </div>
+                <div className="dash-today__streak">
+                  <div className="dash-today__streak-cell">
+                    <span className="dash-today__streak-k">{t('dashboard.today.streak')}</span>
+                    <span className="dash-today__streak-v">
+                      {writingStats.streakDays}
+                      <em>{t('common.days')}</em>
+                    </span>
+                  </div>
+                  <div className="dash-today__streak-cell">
+                    <span className="dash-today__streak-k">{t('dashboard.today.week')}</span>
+                    <span className="dash-today__streak-v">
+                      {(writingStats.weekWords / 1000).toFixed(1)}
+                      <em>k{t('common.words')}</em>
+                    </span>
+                  </div>
+                  <div className="dash-today__streak-cell">
+                    <span className="dash-today__streak-k">{t('dashboard.today.month')}</span>
+                    <span className="dash-today__streak-v">
+                      {writingStats.monthDaysWritten}
+                      <em>{t('common.days')}</em>
+                    </span>
+                  </div>
+                </div>
+              </aside>
             </div>
-          </section>
-        </div>
+
+            {/* ════════ STORYLINES ════════ */}
+            <section className="dash-section">
+              <div className="dash-section__head">
+                <div className="dash-section__title">
+                  <GitBranch className="dash-section__title-mark" size={18} aria-hidden="true" />
+                  <span className="dash-section__title-cn">
+                    {t('dashboard.sections.storylines')}
+                  </span>
+                  <span className="dash-section__title-en">
+                    {t('dashboard.sections.storylinesShort')}
+                  </span>
+                  <span className="dash-section__count">
+                    · <em>{storylines.length}</em> {t('common.storylinesUnit')} /{' '}
+                    <em>{totalNodes}</em> {t('common.chapters')} /{' '}
+                    <em>{(totalWc / 1000).toFixed(1)}k</em> {t('common.words')}
+                  </span>
+                </div>
+                <div className="dash-section__actions">
+                  <button className="dash-section__btn" onClick={openStoryGraph}>
+                    <GitBranch size={15} aria-hidden="true" /> {t('dashboard.actions.storyGraph')}
+                  </button>
+                  <button className="dash-section__btn" onClick={openAllChapters}>
+                    <BookOpen size={15} aria-hidden="true" /> {t('dashboard.actions.allChapters')}
+                  </button>
+                  <button
+                    className="dash-section__btn dash-section__btn--accent"
+                    onClick={handleCreateStoryline}
+                  >
+                    <Plus size={15} aria-hidden="true" /> {t('dashboard.actions.newStoryline')}
+                  </button>
+                </div>
+              </div>
+
+              <div className="dash-tracks">
+                {visibleStorylineStats.map(
+                  ({ s, index, visibleNodes, done, draft, total, wc, color }) => {
+                    const trackDonePct = total ? (done / total) * 100 : 0;
+                    const trackDraftPct = total ? (draft / total) * 100 : 0;
+                    return (
+                      <div
+                        key={s.id}
+                        className="dash-track"
+                        style={{ '--s-color': color } as React.CSSProperties}
+                        onClick={() => openEntity({ entityType: 'storyline', id: s.id })}
+                      >
+                        <div className="dash-track__no">
+                          {(index + 1).toString().padStart(2, '0')}
+                        </div>
+
+                        <div className="dash-track__name">
+                          <div className="dash-track__name-main">
+                            <span>{s.name || 'Untitled Storyline'}</span>
+                          </div>
+                          <div className="dash-track__name-sub">
+                            {s.summary
+                              ? s.summary
+                              : t('dashboard.storylineSummary', {
+                                  total,
+                                  done,
+                                  draft,
+                                  todo: total - done - draft,
+                                })}
+                          </div>
+                        </div>
+
+                        <div
+                          className="dash-track__chapters"
+                          title={t('dashboard.chaptersTitle', { count: total })}
+                        >
+                          {visibleNodes.map((n) => {
+                            const status = deriveStatus(n);
+                            const isActive = n.id === continueNode?.id;
+                            return (
+                              <span
+                                key={n.id}
+                                className={`dash-track__ch dash-track__ch--${status} ${
+                                  isActive ? 'dash-track__ch--active' : ''
+                                }`}
+                                title={`§${n.bookOrder} · ${n.title} · ${status}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEntity({ entityType: 'node', id: n.id });
+                                }}
+                              ></span>
+                            );
+                          })}
+                        </div>
+
+                        <div className="dash-track__bar-wrap">
+                          <div className="dash-track__bar-label">
+                            <span>
+                              <b>
+                                {done}/{total}
+                              </b>{' '}
+                              {t('common.chapters')}
+                            </span>
+                            <span>{Math.round(trackDonePct)}%</span>
+                          </div>
+                          <div className="dash-track__bar">
+                            <div
+                              className="dash-track__bar-done"
+                              style={{ width: `${trackDonePct}%` }}
+                            ></div>
+                            <div
+                              className="dash-track__bar-draft"
+                              style={{ left: `${trackDonePct}%`, width: `${trackDraftPct}%` }}
+                            ></div>
+                          </div>
+                        </div>
+
+                        <div className="dash-track__wc">
+                          <span className="dash-track__wc-v">
+                            {(wc / 1000).toFixed(1)}
+                            <em>k</em>
+                          </span>
+                          <span className="dash-track__wc-k">{t('dashboard.wordsLabel')}</span>
+                        </div>
+                      </div>
+                    );
+                  },
+                )}
+
+                <div className="dash-track dash-track--new" onClick={handleCreateStoryline}>
+                  <span className="dash-track--new-glyph">
+                    <Plus size={16} aria-hidden="true" />
+                  </span>
+                  <span>{t('dashboard.actions.newStorylineLong')}</span>
+                </div>
+              </div>
+            </section>
+
+            {/* ════════ ELEMENT CATEGORIES + ACTIVITY ════════ */}
+            <div className="dash-row dash-row--2">
+              {/* Element categories */}
+              <section className="dash-section" style={{ marginBottom: 0 }}>
+                <div className="dash-section__head">
+                  <div className="dash-section__title">
+                    <Boxes className="dash-section__title-mark" size={18} aria-hidden="true" />
+                    <span className="dash-section__title-cn">
+                      {t('dashboard.sections.elementCategories')}
+                    </span>
+                    <span className="dash-section__title-en">
+                      {t('dashboard.sections.elementCategoriesShort')}
+                    </span>
+                    <span className="dash-section__count">
+                      · <em>{bookElementCategories.length}</em> {t('common.categoriesUnit')} /{' '}
+                      <em>{bookElements.length}</em> {t('common.itemsUnit')}
+                    </span>
+                  </div>
+                  <div className="dash-section__actions">
+                    <button
+                      className="dash-section__btn dash-section__btn--accent"
+                      onClick={handleCreateCategory}
+                    >
+                      <Plus size={15} aria-hidden="true" /> {t('dashboard.actions.newCategory')}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="dash-cats">
+                  {bookElementCategories.map((c) => {
+                    const cEls = bookElements.filter((e) => e.categoryId === c.id);
+                    const samples = cEls.slice(0, 3).map((e) => e.name);
+                    const more = Math.max(0, cEls.length - 3);
+                    const catColor = resolveColor(c.color, c.id);
+                    return (
+                      <div
+                        key={c.id}
+                        className="dash-cat"
+                        style={{ '--c-color': catColor } as React.CSSProperties}
+                        onClick={() => openEntity({ entityType: 'category', id: c.id })}
+                      >
+                        <div className="dash-cat__head">
+                          <span className="dash-cat__dot"></span>
+                          <span className="dash-cat__name">{c.name}</span>
+                          <span className="dash-cat__count">
+                            <b>{cEls.length}</b>
+                          </span>
+                        </div>
+                        <div className="dash-cat__samples">
+                          {samples.length === 0 ? (
+                            <span className="dash-cat__samples-empty">
+                              — {t('dashboard.empty.noElements')} —
+                            </span>
+                          ) : (
+                            samples.map((nm, i) => (
+                              <span key={i}>
+                                {i > 0 && <span className="dash-cat__samples-sep">·</span>}
+                                <span>{nm || 'Untitled'}</span>
+                              </span>
+                            ))
+                          )}
+                          {more > 0 && <span className="dash-cat__samples-more">+{more}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="dash-cat dash-cat--new" onClick={handleCreateCategory}>
+                    <span className="dash-cat--new__glyph">
+                      <Plus size={16} aria-hidden="true" />
+                    </span>
+                    <span>{t('dashboard.actions.newCategory')}</span>
+                  </div>
+                </div>
+              </section>
+
+              {/* Recent activity */}
+              <section className="dash-section" style={{ marginBottom: 0 }}>
+                <div className="dash-section__head">
+                  <div className="dash-section__title">
+                    <LayoutDashboard
+                      className="dash-section__title-mark"
+                      size={18}
+                      aria-hidden="true"
+                    />
+                    <span className="dash-section__title-cn">{t('dashboard.sections.recent')}</span>
+                    <span className="dash-section__title-en">
+                      {t('dashboard.sections.recentShort')}
+                    </span>
+                    <span className="dash-section__count">
+                      · <em>{recentActivity.length}</em> {t('common.itemsUnit')}
+                    </span>
+                  </div>
+                  <div className="dash-section__actions">
+                    <button className="dash-section__btn" onClick={openAllChapters}>
+                      {t('dashboard.actions.allChapters')} →
+                    </button>
+                  </div>
+                </div>
+
+                <div className="dash-act">
+                  {recentActivity.length === 0 ? (
+                    <div className="dash-act-row" style={{ gridTemplateColumns: '1fr' }}>
+                      <span className="dash-cat__samples-empty">
+                        — {t('dashboard.empty.noActivity')} —
+                      </span>
+                    </div>
+                  ) : (
+                    recentActivity.map((r) => (
+                      <div
+                        key={r.id}
+                        className="dash-act-row"
+                        style={{ '--a-color': r.accent } as React.CSSProperties}
+                        onClick={() => openEntity({ entityType: 'node', id: r.id })}
+                      >
+                        <div className="dash-act-row__date">
+                          <b>{r.dateLabel}</b>
+                        </div>
+                        <div className="dash-act-row__desc">
+                          <span className="dash-act-row__desc-mark">{r.mark}</span>
+                          <span className="dash-act-row__desc-main">{r.desc}</span>
+                          <span className="dash-act-row__desc-tail">{r.tail}</span>
+                        </div>
+                        <div className={`dash-act-row__meta dash-act-row__meta--${r.metaCls}`}>
+                          {r.meta}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+            </div>
+          </>
+        )}
 
         {/* ════════ WRITING PLAN ════════
             Per-project goals (project word target + daily quota). Both are
             stored in writing-stats-store (localStorage), independent of
             the Project model, so a fresh project picks reasonable defaults
             without a DB migration. */}
-        {projectId && (
+        {dashboardView === 'structure' && projectId && (
           <section className="dash-section">
             <div className="dash-section__head">
               <div className="dash-section__title">
-                <span className="dash-section__title-mark">◷</span>
-                <span className="dash-section__title-cn">{t('dashboard.sections.writingPlan')}</span>
-                <span className="dash-section__title-en">{t('dashboard.sections.writingPlanShort')}</span>
+                <Settings2 className="dash-section__title-mark" size={18} aria-hidden="true" />
+                <span className="dash-section__title-cn">
+                  {t('dashboard.sections.writingPlan')}
+                </span>
+                <span className="dash-section__title-en">
+                  {t('dashboard.sections.writingPlanShort')}
+                </span>
                 <span className="dash-section__count">
                   · {t('dashboard.plan.project')} <em>{(totalWc / 1000).toFixed(1)}k</em>
                   {targetWc > 0 ? ` / ${(targetWc / 1000).toFixed(0)}k` : ''} {t('common.words')}
@@ -871,15 +968,11 @@ export function ProjectDashboard() {
                     step={1000}
                     className="dash-plan__input"
                     value={projectPlan.projectWordTarget}
-                    onChange={(e) =>
-                      setProjectWordTarget(projectId, Number(e.target.value) || 0)
-                    }
+                    onChange={(e) => setProjectWordTarget(projectId, Number(e.target.value) || 0)}
                   />
                   <span className="dash-plan__unit">{t('common.words')}</span>
                 </span>
-                <span className="dash-plan__hint">
-                  {t('dashboard.plan.projectHint')}
-                </span>
+                <span className="dash-plan__hint">{t('dashboard.plan.projectHint')}</span>
               </label>
 
               <label className="dash-plan__field">
@@ -891,22 +984,22 @@ export function ProjectDashboard() {
                     step={100}
                     className="dash-plan__input"
                     value={projectPlan.dailyWordGoal}
-                    onChange={(e) =>
-                      setDailyWordGoal(projectId, Number(e.target.value) || 0)
-                    }
+                    onChange={(e) => setDailyWordGoal(projectId, Number(e.target.value) || 0)}
                   />
                   <span className="dash-plan__unit">{t('dashboard.plan.wordsPerDay')}</span>
                 </span>
-                <span className="dash-plan__hint">
-                  {t('dashboard.plan.dailyHint')}
-                </span>
+                <span className="dash-plan__hint">{t('dashboard.plan.dailyHint')}</span>
               </label>
 
               <div className="dash-plan__progress">
                 <div className="dash-plan__progress-row">
-                  <span className="dash-plan__progress-k">{t('dashboard.plan.projectProgress')}</span>
+                  <span className="dash-plan__progress-k">
+                    {t('dashboard.plan.projectProgress')}
+                  </span>
                   <span className="dash-plan__progress-v">
-                    {targetWc > 0 ? `${projectGoalPct.toFixed(1)}%` : t('dashboard.plan.noProjectGoal')}
+                    {targetWc > 0
+                      ? `${projectGoalPct.toFixed(1)}%`
+                      : t('dashboard.plan.noProjectGoal')}
                   </span>
                 </div>
                 <div className="dash-plan__bar">
@@ -935,13 +1028,17 @@ export function ProjectDashboard() {
         )}
 
         {/* ════════ PROJECT PROFILE ════════ */}
-        {currentProject && (
+        {dashboardView === 'structure' && currentProject && (
           <section className="dash-section">
             <div className="dash-section__head">
               <div className="dash-section__title">
-                <span className="dash-section__title-mark">¶</span>
-                <span className="dash-section__title-cn">{t('dashboard.sections.projectProfile')}</span>
-                <span className="dash-section__title-en">{t('dashboard.sections.projectProfileShort')}</span>
+                <BookOpen className="dash-section__title-mark" size={18} aria-hidden="true" />
+                <span className="dash-section__title-cn">
+                  {t('dashboard.sections.projectProfile')}
+                </span>
+                <span className="dash-section__title-en">
+                  {t('dashboard.sections.projectProfileShort')}
+                </span>
               </div>
             </div>
             <ProjectProfileEditor
@@ -956,14 +1053,18 @@ export function ProjectDashboard() {
             Project-level facts (own KV) and the storyline template KV new
             storylines inherit. Mirrors the same KvEditor used on storyline /
             element / category, plumbed through updateProject. */}
-        {currentProject && (
+        {dashboardView === 'structure' && currentProject && (
           <div className="dash-row dash-row--2">
             <section className="dash-section" style={{ marginBottom: 0 }}>
               <div className="dash-section__head">
                 <div className="dash-section__title">
-                  <span className="dash-section__title-mark">⁂</span>
-                  <span className="dash-section__title-cn">{t('dashboard.sections.projectFacts')}</span>
-                  <span className="dash-section__title-en">{t('dashboard.sections.projectFactsShort')}</span>
+                  <Settings2 className="dash-section__title-mark" size={18} aria-hidden="true" />
+                  <span className="dash-section__title-cn">
+                    {t('dashboard.sections.projectFacts')}
+                  </span>
+                  <span className="dash-section__title-en">
+                    {t('dashboard.sections.projectFactsShort')}
+                  </span>
                 </div>
               </div>
               <div style={{ padding: '0 4px' }}>
@@ -979,9 +1080,13 @@ export function ProjectDashboard() {
             <section className="dash-section" style={{ marginBottom: 0 }}>
               <div className="dash-section__head">
                 <div className="dash-section__title">
-                  <span className="dash-section__title-mark">§</span>
-                  <span className="dash-section__title-cn">{t('dashboard.sections.storylineTemplate')}</span>
-                  <span className="dash-section__title-en">{t('dashboard.sections.storylineTemplateShort')}</span>
+                  <ListTree className="dash-section__title-mark" size={18} aria-hidden="true" />
+                  <span className="dash-section__title-cn">
+                    {t('dashboard.sections.storylineTemplate')}
+                  </span>
+                  <span className="dash-section__title-en">
+                    {t('dashboard.sections.storylineTemplateShort')}
+                  </span>
                 </div>
               </div>
               <div style={{ padding: '0 4px' }}>
@@ -1000,12 +1105,13 @@ export function ProjectDashboard() {
         {/* ════════ SHADOW RULES ════════
             Temporary authoring surface for shadow review rules (freeform; an LLM
             compiles each into a checklist). Parked here until a dedicated UX. */}
-        {currentProject && <ShadowRulesSection projectId={currentProject.id} />}
+        {dashboardView === 'rules' && currentProject && (
+          <ShadowRulesSection projectId={currentProject.id} />
+        )}
 
         {/* ════════ FOOTER ════════ */}
         <footer className="dash-foot">
           <span>Drifting · v{appVersion} · pre-alpha</span>
-          <span className="dash-foot__ornament">⁂</span>
           <span>{syncFooter}</span>
         </footer>
       </div>

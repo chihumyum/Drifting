@@ -8,10 +8,8 @@ import { UserAvatar, UserMenu } from '../components/topBars/UserMenu';
 import { FilterChip } from '../components/ui/FilterChip';
 import { parseKv } from '../domain/kv';
 import { getPlatformRuntime } from '../platform/runtime';
-import {
-  DEFAULT_PROJECT_TARGET,
-  useWritingStatsStore,
-} from '../store/writing-stats-store';
+import { BookOpen, Grid2X2, List, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { DEFAULT_PROJECT_TARGET, useWritingStatsStore } from '../store/writing-stats-store';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
 
@@ -27,10 +25,7 @@ type View = 'grid' | 'list';
 type Filter = 'all' | 'active' | 'paused';
 type Status = 'writing' | 'draft' | 'paused';
 
-function activateOnEnterOrSpace(
-  event: React.KeyboardEvent<HTMLElement>,
-  action: () => void,
-) {
+function activateOnEnterOrSpace(event: React.KeyboardEvent<HTMLElement>, action: () => void) {
   if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
   event.preventDefault();
   action();
@@ -151,6 +146,7 @@ export function ProjectPickerView() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>('grid');
   const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectSummary | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ProjectSummary | null>(null);
@@ -200,12 +196,19 @@ export function ProjectPickerView() {
     [projects, i18n.language, writingPlans],
   );
 
-  const filtered = decorated.filter(
-    ({ status }) =>
+  const normalizedQuery = query.trim().toLocaleLowerCase(i18n.language);
+  const filtered = decorated.filter(({ project, meta, status }) => {
+    const matchesFilter =
       filter === 'all' ||
       (filter === 'active' && (status === 'writing' || status === 'draft')) ||
-      (filter === 'paused' && status === 'paused'),
-  );
+      (filter === 'paused' && status === 'paused');
+    const matchesQuery =
+      !normalizedQuery ||
+      [project.name, project.summary, meta.subtitle, meta.genre]
+        .filter(Boolean)
+        .some((value) => value!.toLocaleLowerCase(i18n.language).includes(normalizedQuery));
+    return matchesFilter && matchesQuery;
+  });
 
   const counts = useMemo(
     () => ({
@@ -301,14 +304,11 @@ export function ProjectPickerView() {
         <header className="pp-head">
           <div>
             <div className="pp-head__kicker">
-              <span className="pp-head__kicker-dot" />
+              <span>Drifting</span>
+              <span className="pp-head__kicker-sep">/</span>
               <span>{t('projectPicker.header.workspace')}</span>
-              <span className="pp-head__kicker-sep">·</span>
-              <span>{t('projectPicker.header.studio')}</span>
             </div>
-            <h1 className="pp-head__title">
-              <em>{t('projectPicker.header.titleEm')}</em> {t('projectPicker.header.title')}
-            </h1>
+            <h1 className="pp-head__title">{t('projectPicker.header.titleEm')}</h1>
             <p className="pp-head__sub">{t('projectPicker.header.subtitle')}</p>
           </div>
           <aside className="pp-head__aside">
@@ -340,6 +340,16 @@ export function ProjectPickerView() {
 
         {/* ─── Toolbar ─── */}
         <div className="pp-toolbar">
+          <label className="pp-toolbar__search">
+            <Search size={17} aria-hidden="true" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={isZh(i18n.language) ? '搜索项目' : 'Search projects'}
+              aria-label={isZh(i18n.language) ? '搜索项目' : 'Search projects'}
+            />
+          </label>
           <div className="pp-toolbar__chips">
             {(
               [
@@ -364,15 +374,19 @@ export function ProjectPickerView() {
                 type="button"
                 className={`pp-toolbar__view-btn ${view === 'grid' ? 'pp-toolbar__view-btn--active' : ''}`}
                 onClick={() => setView('grid')}
+                aria-label={t('projectPicker.view.card')}
+                aria-pressed={view === 'grid'}
               >
-                ⊞ {t('projectPicker.view.card')}
+                <Grid2X2 size={16} aria-hidden="true" />
               </button>
               <button
                 type="button"
                 className={`pp-toolbar__view-btn ${view === 'list' ? 'pp-toolbar__view-btn--active' : ''}`}
                 onClick={() => setView('list')}
+                aria-label={t('projectPicker.view.list')}
+                aria-pressed={view === 'list'}
               >
-                ☰ {t('projectPicker.view.list')}
+                <List size={17} aria-hidden="true" />
               </button>
             </div>
             <button
@@ -380,7 +394,7 @@ export function ProjectPickerView() {
               className="pp-toolbar__btn pp-toolbar__btn--accent"
               onClick={() => setCreateOpen(true)}
             >
-              <span className="pp-toolbar__btn-glyph">＋</span> {t('projectPicker.newProject')}
+              <Plus size={17} aria-hidden="true" /> {t('projectPicker.newProject')}
             </button>
           </div>
         </div>
@@ -389,9 +403,8 @@ export function ProjectPickerView() {
         <section className="pp-section">
           <div className="pp-section__head">
             <div className="pp-section__title">
-              <span className="pp-section__title-mark">¶</span>
+              <BookOpen className="pp-section__title-mark" size={18} aria-hidden="true" />
               <span className="pp-section__title-cn">{t('projectPicker.allProjectsCn')}</span>
-              <span className="pp-section__title-en">{t('projectPicker.allProjectsEn')}</span>
             </div>
             <span className="pp-section__count">
               {t('projectPicker.projectCount', {
@@ -417,27 +430,15 @@ export function ProjectPickerView() {
               <div
                 className="pp-card pp-card--new"
                 onClick={() => setCreateOpen(true)}
-                onKeyDown={(event) =>
-                  activateOnEnterOrSpace(event, () => setCreateOpen(true))
-                }
+                onKeyDown={(event) => activateOnEnterOrSpace(event, () => setCreateOpen(true))}
                 role="button"
                 tabIndex={0}
               >
-                <div className="pp-card__spine">
-                  <div>
-                    <div className="pp-card--new__glyph">＋</div>
-                    <div className="pp-card--new__label">
-                      {t('projectPicker.newBookLine1')}
-                      <br />
-                      {t('projectPicker.newBookLine2')}
-                    </div>
-                  </div>
+                <div className="pp-card--new__glyph">
+                  <Plus size={24} aria-hidden="true" />
                 </div>
-                <div className="pp-card__body">
-                  <div className="pp-card__title" style={{ color: 'hsl(var(--ink-4))' }}>
-                    {t('projectPicker.newBookSubtitle')}
-                  </div>
-                </div>
+                <div className="pp-card--new__label">{t('projectPicker.newBookInline')}</div>
+                <div className="pp-card--new__sub">{t('projectPicker.newBookSubtitle')}</div>
               </div>
             </div>
           ) : (
@@ -455,14 +456,12 @@ export function ProjectPickerView() {
                 className="pp-list__row"
                 style={{ borderStyle: 'dashed', cursor: 'pointer', color: 'hsl(var(--ink-4))' }}
                 onClick={() => setCreateOpen(true)}
-                onKeyDown={(event) =>
-                  activateOnEnterOrSpace(event, () => setCreateOpen(true))
-                }
+                onKeyDown={(event) => activateOnEnterOrSpace(event, () => setCreateOpen(true))}
                 role="button"
                 tabIndex={0}
               >
-                <span className="pp-list__glyph" style={{ color: 'hsl(var(--ink-4))' }}>
-                  ＋
+                <span className="pp-list__glyph">
+                  <Plus size={18} aria-hidden="true" />
                 </span>
                 <div className="pp-list__title">
                   <span className="pp-list__title-main" style={{ color: 'hsl(var(--ink-4))' }}>
@@ -476,7 +475,6 @@ export function ProjectPickerView() {
 
         <footer className="pp-foot">
           <span>{t('projectPicker.footer.brand')}</span>
-          <span className="pp-foot__orn">⁂</span>
           <span>{user?.email || t('projectPicker.footer.local')}</span>
         </footer>
       </div>
@@ -540,63 +538,59 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
     project.source === 'server'
       ? t('projectPicker.source.cloud')
       : t('projectPicker.source.localDraft');
-  const spineLine = meta.genre || sourceLabel;
+  const categoryLabel = meta.genre || sourceLabel;
 
   return (
-    <div
+    <article
       className="pp-card"
       style={{ ['--pp-c' as string]: `var(${colorToken})` }}
-      onClick={onOpen}
-      onKeyDown={(event) => activateOnEnterOrSpace(event, onOpen)}
-      role="button"
-      tabIndex={0}
-      aria-label={project.name}
     >
-      <div className="pp-card__menu" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="pp-card__menu-btn" onClick={onEdit} title={t('common.edit')}>
-          ✎
-        </button>
-        <button type="button" className="pp-card__menu-btn" onClick={onDelete} title={t('common.delete')}>
-          ×
-        </button>
-      </div>
-      <div className="pp-card__spine">
-        <div className="pp-card__spine-top">
-          <span className="pp-card__spine-mark">{spineLine}</span>
-          <span className="pp-card__spine-glyph">{glyph}</span>
-        </div>
-        <div>
-          <h2 className="pp-card__spine-title">{project.name}</h2>
-          {meta.subtitle && <div className="pp-card__spine-sub">— {meta.subtitle}</div>}
-          <div className="pp-card__spine-foot" style={{ marginTop: 14 }}>
-            <span>
-              <b>{formatWordsK(stats.words)}</b> {t('common.words')}
-            </span>
-            <span>
-              {stats.nodes} {t('common.chapters')}
-            </span>
-          </div>
-        </div>
+      <div className="pp-card__cover" aria-hidden="true">
+        <span className="pp-card__cover-glyph">{glyph}</span>
+        <span className="pp-card__cover-label">{categoryLabel}</span>
       </div>
       <div className="pp-card__body">
-        <div className="pp-card__title">
-          <em>《</em>
-          {project.name}
-          <em>》</em>
-          {meta.subtitle ? ` · ${meta.subtitle}` : ''}
+        <div className="pp-card__head">
+          <div>
+            <h2 className="pp-card__title">{project.name}</h2>
+            {meta.subtitle && <div className="pp-card__subtitle">{meta.subtitle}</div>}
+          </div>
+          <div className="pp-card__menu" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="pp-card__menu-btn"
+              onClick={onEdit}
+              title={t('common.edit')}
+              aria-label={t('common.edit')}
+            >
+              <Pencil size={15} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="pp-card__menu-btn"
+              onClick={onDelete}
+              title={t('common.delete')}
+              aria-label={t('common.delete')}
+            >
+              <Trash2 size={15} aria-hidden="true" />
+            </button>
+          </div>
         </div>
+        <p className="pp-card__summary">
+          {project.summary || meta.subtitle || t('projectPicker.newBookSubtitle')}
+        </p>
         <div className="pp-card__meta">
           <span>
-            <b>{stats.storylines}</b>
-            {t('common.storylinesUnit')}
+            <b>{formatWordsK(stats.words)}</b> {t('common.words')}
           </span>
           <span>
-            <b>{stats.elements}</b>
-            {t('common.elementsUnit')}
+            <b>{stats.nodes}</b> {t('common.chapters')}
           </span>
           <span>
-            <b>{stats.categories}</b>
-            {t('common.categoriesUnit')}
+            <b>{stats.storylines}</b> {t('common.storylinesUnit')}
+          </span>
+          <span>
+            <b>{stats.elements}</b> {t('common.elementsUnit')}
           </span>
         </div>
         {wordProgress !== null && (
@@ -610,11 +604,20 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
             <div className="pp-card__progress-fill" style={{ width: `${wordProgress}%` }} />
           </div>
         )}
-        <div className={`pp-card__status pp-card__status--${status}`}>
-          {t(`projectPicker.status.${status}`)} · {lastEditedRel}
+        <div className="pp-card__foot">
+          <span className={`pp-card__status pp-card__status--${status}`}>
+            {t(`projectPicker.status.${status}`)}
+          </span>
+          <span>{lastEditedRel}</span>
         </div>
       </div>
-    </div>
+      <button
+        type="button"
+        className="pp-card__hit"
+        onClick={onOpen}
+        aria-label={project.name}
+      />
+    </article>
   );
 }
 
@@ -632,11 +635,6 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
     <div
       className="pp-list__row"
       style={{ ['--pp-c' as string]: `var(${colorToken})` }}
-      onClick={onOpen}
-      onKeyDown={(event) => activateOnEnterOrSpace(event, onOpen)}
-      role="button"
-      tabIndex={0}
-      aria-label={project.name}
     >
       <span className="pp-list__glyph">{glyph}</span>
       <div className="pp-list__title">
@@ -672,13 +670,31 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
         <span className="pp-list__cell-k">{t(`projectPicker.status.${status}`)}</span>
       </div>
       <div className="pp-list__menu" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="pp-list__menu-btn" onClick={onEdit} title={t('common.edit')}>
-          ✎
+        <button
+          type="button"
+          className="pp-list__menu-btn"
+          onClick={onEdit}
+          title={t('common.edit')}
+          aria-label={t('common.edit')}
+        >
+          <Pencil size={15} aria-hidden="true" />
         </button>
-        <button type="button" className="pp-list__menu-btn" onClick={onDelete} title={t('common.delete')}>
-          ×
+        <button
+          type="button"
+          className="pp-list__menu-btn"
+          onClick={onDelete}
+          title={t('common.delete')}
+          aria-label={t('common.delete')}
+        >
+          <Trash2 size={15} aria-hidden="true" />
         </button>
       </div>
+      <button
+        type="button"
+        className="pp-list__hit"
+        onClick={onOpen}
+        aria-label={project.name}
+      />
     </div>
   );
 }
@@ -728,7 +744,13 @@ function DeleteModal({ project, busy, onConfirm, onClose }: DeleteModalProps) {
           </p>
         </div>
         <div className="pp-modal__foot">
-          <button type="button" className="pp-modal__btn" onClick={onClose} disabled={busy} autoFocus>
+          <button
+            type="button"
+            className="pp-modal__btn"
+            onClick={onClose}
+            disabled={busy}
+            autoFocus
+          >
             {t('common.cancel')}
           </button>
           <button
