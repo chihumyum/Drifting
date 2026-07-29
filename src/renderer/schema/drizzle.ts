@@ -7,6 +7,7 @@ import {
   index,
   uniqueIndex,
   blob,
+  foreignKey,
 } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 // schema definition in users' local sqlite database.
@@ -886,6 +887,10 @@ export const AgentConversationTable = sqliteTable(
     index('idx_agent_conversation_project').on(t.projectId),
     index('idx_agent_conversation_project_updated').on(t.projectId, t.updatedAt),
     index('idx_agent_conversation_deleted_at').on(t.deletedAt),
+    uniqueIndex('uniq_agent_conversation_project_identity').on(
+      t.id,
+      t.projectId,
+    ),
   ],
 );
 
@@ -919,6 +924,10 @@ export const AgentRuntimeSessionTable = sqliteTable(
     index('idx_agent_runtime_session_conversation').on(t.conversationId),
     index('idx_agent_runtime_session_goal').on(t.projectId, t.goalRunId),
     index('idx_agent_runtime_session_recovery').on(t.projectId, t.status, t.updatedAt),
+    uniqueIndex('uniq_agent_runtime_session_project_identity').on(
+      t.id,
+      t.projectId,
+    ),
   ],
 );
 
@@ -941,6 +950,10 @@ export const AgentRuntimeTurnTable = sqliteTable(
   },
   (t) => [
     uniqueIndex('uniq_agent_runtime_turn_session_ordinal').on(t.sessionId, t.ordinal),
+    uniqueIndex('uniq_agent_runtime_turn_session_identity').on(
+      t.id,
+      t.sessionId,
+    ),
     index('idx_agent_runtime_turn_session_status').on(t.sessionId, t.status),
   ],
 );
@@ -1024,7 +1037,160 @@ export const AgentRuntimeToolCallTable = sqliteTable(
     uniqueIndex('uniq_agent_runtime_tool_call_idempotency').on(
       t.idempotencyKey,
     ),
+    uniqueIndex('uniq_agent_runtime_tool_call_write_provenance').on(
+      t.id,
+      t.sessionId,
+      t.turnId,
+      t.callId,
+      t.idempotencyKey,
+      t.access,
+      t.name,
+    ),
     index('idx_agent_runtime_tool_call_turn_status').on(t.turnId, t.status),
+  ],
+);
+
+export const AgentRuntimeWriteEffectTable = sqliteTable(
+  'agent_runtime_write_effect',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').notNull(),
+    routeKind: text('route_kind').notNull(),
+    conversationId: text('conversation_id'),
+    goalRunId: text('goal_run_id'),
+    chapterId: text('chapter_id'),
+    sessionId: text('session_id').notNull(),
+    turnId: text('turn_id').notNull(),
+    toolCallId: text('tool_call_id').notNull(),
+    callId: text('call_id').notNull(),
+    toolName: text('tool_name').notNull(),
+    toolAccess: text('tool_access').notNull().default('write'),
+    idempotencyKey: text('idempotency_key').notNull(),
+    phase: text('phase').notNull().default('claimed'),
+    argumentsJson: text('arguments_json').notNull(),
+    expectedRevisionJson: text('expected_revision_json'),
+    observedRevisionJson: text('observed_revision_json'),
+    preimageJson: text('preimage_json'),
+    forwardJson: text('forward_json'),
+    inverseJson: text('inverse_json'),
+    reversibility: text('reversibility'),
+    effectJson: text('effect_json'),
+    resultJson: text('result_json'),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    claimedAt: text('claimed_at').notNull(),
+    confirmedAt: text('confirmed_at'),
+    mutationStartedAt: text('mutation_started_at'),
+    effectCommittedAt: text('effect_committed_at'),
+    resultCommittedAt: text('result_committed_at'),
+    uncertainAt: text('uncertain_at'),
+    failedAt: text('failed_at'),
+    declinedAt: text('declined_at'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_write_effect_tool_call').on(t.toolCallId),
+    uniqueIndex('uniq_agent_runtime_write_effect_idempotency').on(
+      t.idempotencyKey,
+    ),
+    uniqueIndex('uniq_agent_runtime_write_effect_turn_call').on(
+      t.turnId,
+      t.callId,
+    ),
+    uniqueIndex('uniq_agent_runtime_write_effect_provenance').on(
+      t.id,
+      t.sessionId,
+      t.turnId,
+      t.toolCallId,
+    ),
+    index('idx_agent_runtime_write_effect_session_phase').on(
+      t.sessionId,
+      t.phase,
+    ),
+    foreignKey({
+      columns: [t.sessionId, t.projectId],
+      foreignColumns: [
+        AgentRuntimeSessionTable.id,
+        AgentRuntimeSessionTable.projectId,
+      ],
+      name: 'fk_agent_runtime_write_effect_session_project',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.turnId, t.sessionId],
+      foreignColumns: [
+        AgentRuntimeTurnTable.id,
+        AgentRuntimeTurnTable.sessionId,
+      ],
+      name: 'fk_agent_runtime_write_effect_turn_session',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [
+        t.toolCallId,
+        t.sessionId,
+        t.turnId,
+        t.callId,
+        t.idempotencyKey,
+        t.toolAccess,
+        t.toolName,
+      ],
+      foreignColumns: [
+        AgentRuntimeToolCallTable.id,
+        AgentRuntimeToolCallTable.sessionId,
+        AgentRuntimeToolCallTable.turnId,
+        AgentRuntimeToolCallTable.callId,
+        AgentRuntimeToolCallTable.idempotencyKey,
+        AgentRuntimeToolCallTable.access,
+        AgentRuntimeToolCallTable.name,
+      ],
+      name: 'fk_agent_runtime_write_effect_tool_provenance',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.conversationId, t.projectId],
+      foreignColumns: [
+        AgentConversationTable.id,
+        AgentConversationTable.projectId,
+      ],
+      name: 'fk_agent_runtime_write_effect_conversation_project',
+    }).onDelete('cascade'),
+  ],
+);
+
+export const AgentRuntimeWriteReviewTable = sqliteTable(
+  'agent_runtime_write_review',
+  {
+    id: text('id').primaryKey(),
+    effectId: text('effect_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    turnId: text('turn_id').notNull(),
+    toolCallId: text('tool_call_id').notNull(),
+    status: text('status').notNull().default('pending'),
+    decisionNoteJson: text('decision_note_json'),
+    revertEffectJson: text('revert_effect_json'),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    createdAt: text('created_at').notNull(),
+    acceptedAt: text('accepted_at'),
+    rejectedAt: text('rejected_at'),
+    revertStartedAt: text('revert_started_at'),
+    settledAt: text('settled_at'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_write_review_effect').on(t.effectId),
+    index('idx_agent_runtime_write_review_session_status').on(
+      t.sessionId,
+      t.status,
+    ),
+    foreignKey({
+      columns: [t.effectId, t.sessionId, t.turnId, t.toolCallId],
+      foreignColumns: [
+        AgentRuntimeWriteEffectTable.id,
+        AgentRuntimeWriteEffectTable.sessionId,
+        AgentRuntimeWriteEffectTable.turnId,
+        AgentRuntimeWriteEffectTable.toolCallId,
+      ],
+      name: 'fk_agent_runtime_write_review_effect_provenance',
+    }).onDelete('cascade'),
   ],
 );
 

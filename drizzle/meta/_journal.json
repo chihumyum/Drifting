@@ -428,6 +428,13 @@
       "when": 1784500000000,
       "tag": "0060_agent_runtime_persistence",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "6",
+      "when": 1784600000000,
+      "tag": "0061_agent_runtime_write_effect",
+      "breakpoints": true
     }
   ]
 }
