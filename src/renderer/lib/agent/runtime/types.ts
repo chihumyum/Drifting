@@ -1,0 +1,355 @@
+/**
+ * Provider-neutral contracts for the Drifting Agent Runtime.
+ *
+ * This layer deliberately knows nothing about React, Tauri, persistence, or a
+ * vendor SDK. Provider adapters normalize their wire stream into
+ * `AgentModelStreamEvent`; the runtime turns those events into a deterministic
+ * journal and executes tools through `AgentToolRuntime`.
+ */
+
+export const AGENT_RUNTIME_SCHEMA_VERSION = 1 as const;
+
+export interface AgentRuntimeUsage {
+  /**
+   * Provider-normalized total input tokens for this iteration. Cache token
+   * fields are diagnostic subsets/breakdowns and must not be added again.
+   */
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  costUsd: number;
+}
+
+export interface AgentReasoningOptions {
+  enabled: boolean;
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+}
+
+export interface AgentToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: object;
+  access: 'read' | 'write';
+  /**
+   * Runtime validation is mandatory. `inputSchema` is sent to the model, while
+   * this function is the local authority and may also normalize the value.
+   */
+  validateInput: (input: Record<string, unknown>) => AgentToolValidationResult;
+}
+
+/** JSON/IPC-safe subset exposed to a provider adapter. */
+export interface AgentModelToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: object;
+}
+
+export type AgentToolValidationResult =
+  | { ok: true; value: Record<string, unknown> }
+  | { ok: false; error: string };
+
+export interface AgentAssistantTextBlock {
+  type: 'text';
+  text: string;
+}
+
+export interface AgentAssistantThinkingBlock {
+  type: 'thinking';
+  text: string;
+}
+
+export interface AgentAssistantToolCallBlock {
+  type: 'tool_call';
+  callId: string;
+  name: string;
+  arguments: Record<string, unknown>;
+  /** Exact normalized JSON assembled from provider argument deltas. */
+  rawArguments: string;
+}
+
+export type AgentAssistantContentBlock =
+  | AgentAssistantTextBlock
+  | AgentAssistantThinkingBlock
+  | AgentAssistantToolCallBlock;
+
+export interface AgentToolResultBlock {
+  callId: string;
+  name: string;
+  ok: boolean;
+  content: string;
+}
+
+export type AgentModelMessage =
+  | { role: 'user'; content: string }
+  | { role: 'assistant'; content: AgentAssistantContentBlock[] }
+  | { role: 'tool'; content: AgentToolResultBlock[] };
+
+export interface AgentModelRequest {
+  sessionId: string;
+  turnId: string;
+  iteration: number;
+  model?: string;
+  systemPrompt?: string;
+  reasoning?: AgentReasoningOptions;
+  messages: AgentModelMessage[];
+  tools: AgentModelToolDefinition[];
+  maxOutputTokens: number;
+  signal: AbortSignal;
+}
+
+export type AgentModelStopReason =
+  | 'end_turn'
+  | 'tool_use'
+  | 'max_tokens'
+  | 'content_filter'
+  | 'unknown';
+
+export type AgentModelStreamEvent =
+  | { type: 'text_delta'; text: string }
+  | { type: 'thinking_delta'; text: string }
+  | { type: 'tool_call_start'; callId: string; name: string }
+  | { type: 'tool_args_delta'; callId: string; delta: string }
+  | { type: 'tool_call_end'; callId: string }
+  | { type: 'usage'; usage: AgentRuntimeUsage }
+  | { type: 'finish'; reason: AgentModelStopReason };
+
+export interface AgentModelDriver {
+  readonly id: string;
+  stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent>;
+}
+
+export type AgentRuntimeRoute =
+  | { kind: 'chat'; projectId: string; conversationId?: string }
+  | { kind: 'goal'; projectId: string; goalRunId?: string; chapterId?: string }
+  | { kind: 'test'; projectId?: string };
+
+export interface AgentRuntimeContext {
+  route: AgentRuntimeRoute;
+}
+
+export interface AgentToolExecutionRequest {
+  sessionId: string;
+  turnId: string;
+  callId: string;
+  /** Stable effect key; write adapters must make duplicate delivery harmless. */
+  idempotencyKey: string;
+  name: string;
+  arguments: Record<string, unknown>;
+  access: AgentToolDefinition['access'];
+  context: AgentRuntimeContext;
+  signal: AbortSignal;
+}
+
+export type AgentToolExecutionResult =
+  | { ok: true; data: unknown }
+  | { ok: false; error: string };
+
+/**
+ * Policy-filtered tool surface for one runtime invocation.
+ *
+ * Future Drifting integration will derive definitions from the canonical tool
+ * catalog and route `execute` through `runAgentTool`/renderer use cases.
+ */
+export interface AgentToolRuntime {
+  listDefinitions(context: AgentRuntimeContext): readonly AgentToolDefinition[];
+  /**
+   * Write implementations must check `signal` before entering their mutation
+   * phase, make the `(sessionId, turnId, callId)` idempotency key durable, and
+   * settle promptly once execution has started. The runtime will not publish a
+   * terminal event while an entered write is unresolved.
+   */
+  execute(request: AgentToolExecutionRequest): Promise<AgentToolExecutionResult>;
+}
+
+/** Coordinates write effects across concurrently running runtime instances. */
+export interface AgentRuntimeScheduler {
+  runRead<T>(
+    request: AgentToolExecutionRequest,
+    execute: () => Promise<T>,
+  ): Promise<T>;
+  runWrite<T>(
+    request: AgentToolExecutionRequest,
+    execute: () => Promise<T>,
+  ): Promise<T>;
+}
+
+export interface AgentRuntimeLimits {
+  maxModelIterations: number;
+  maxToolCalls: number;
+  maxInputTokens: number;
+  maxOutputTokens: number;
+  maxTotalTokens: number;
+  maxCostUsd: number;
+  maxDurationMs: number;
+  maxOutputTokensPerIteration: number;
+  maxToolArgumentBytes: number;
+  maxToolResultBytes: number;
+}
+
+export interface AgentClock {
+  wallNowMs(): number;
+  monotonicNowMs(): number;
+  sleep(ms: number, signal?: AbortSignal): Promise<void>;
+}
+
+export interface AgentJournalSink {
+  /**
+   * Persist one immutable entry. Implementations should be atomic/idempotent by
+   * eventId and must observe the signal before committing late writes.
+   */
+  append(
+    entry: AgentRuntimeJournalEntry,
+    signal?: AbortSignal,
+  ): void | Promise<void>;
+}
+
+export type AgentRuntimeFailureCode =
+  | 'BUDGET_EXCEEDED'
+  | 'MAX_MODEL_ITERATIONS'
+  | 'MODEL_ERROR'
+  | 'MODEL_MAX_TOKENS'
+  | 'PROTOCOL_VIOLATION'
+  | 'JOURNAL_ERROR'
+  | 'INTERNAL_ERROR';
+
+export type AgentToolResultSource = 'executor' | 'runtime';
+export type AgentRuntimeOutcome = 'completed' | 'failed' | 'aborted' | 'budget_exceeded';
+
+export type AgentRuntimeEvent =
+  | { type: 'turn_started'; prompt: string }
+  | { type: 'model_iteration_started'; iteration: number; driverId: string }
+  | { type: 'text_delta'; iteration: number; text: string }
+  | { type: 'thinking_delta'; iteration: number; text: string }
+  | {
+      type: 'tool_call_started';
+      iteration: number;
+      callId: string;
+      name: string;
+    }
+  | {
+      type: 'tool_args_delta';
+      iteration: number;
+      callId: string;
+      delta: string;
+    }
+  | {
+      type: 'tool_call_ready';
+      iteration: number;
+      callId: string;
+      name: string;
+      arguments: Record<string, unknown>;
+      rawArguments: string;
+    }
+  | {
+      type: 'tool_execution_started';
+      callId: string;
+      name: string;
+      access: AgentToolDefinition['access'];
+    }
+  | {
+      type: 'tool_result';
+      callId: string;
+      name: string;
+      ok: boolean;
+      content: string;
+      source: AgentToolResultSource;
+      errorCode?: string;
+    }
+  | { type: 'model_usage'; iteration: number; usage: AgentRuntimeUsage }
+  | {
+      type: 'model_iteration_completed';
+      iteration: number;
+      stopReason: AgentModelStopReason;
+    }
+  | {
+      type: 'turn_finished';
+      outcome: AgentRuntimeOutcome;
+      failureCode?: AgentRuntimeFailureCode;
+      message?: string;
+      usage: AgentRuntimeUsage;
+      modelIterations: number;
+      durationMs: number;
+    };
+
+export type AgentRuntimeTerminalEvent = Extract<AgentRuntimeEvent, { type: 'turn_finished' }>;
+
+export interface AgentRuntimeJournalEntry {
+  schemaVersion: typeof AGENT_RUNTIME_SCHEMA_VERSION;
+  sessionId: string;
+  turnId: string;
+  route: AgentRuntimeRoute;
+  seq: number;
+  eventId: string;
+  wallTimeMs: number;
+  event: AgentRuntimeEvent;
+}
+
+export type AgentRuntimeToolStatus = 'streaming' | 'ready' | 'executing' | 'completed';
+
+export interface AgentRuntimeToolState {
+  callId: string;
+  name: string;
+  iteration: number;
+  argumentsText: string;
+  arguments?: Record<string, unknown>;
+  status: AgentRuntimeToolStatus;
+  result?: {
+    ok: boolean;
+    content: string;
+    source: AgentToolResultSource;
+    errorCode?: string;
+  };
+}
+
+export type AgentRuntimeStatus =
+  | 'idle'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'aborted'
+  | 'budget_exceeded';
+
+export interface AgentRuntimeState {
+  sessionId: string;
+  turnId: string;
+  route: AgentRuntimeRoute;
+  status: AgentRuntimeStatus;
+  lastSeq: number;
+  lastEventId: string | null;
+  journalEntries: number;
+  prompt: string | null;
+  startedAtMs: number | null;
+  endedAtMs: number | null;
+  activeIteration: number | null;
+  activeIterationUsageSeen: boolean;
+  modelIterations: number;
+  modelIterationsWithUsage: number;
+  lastStopReason: AgentModelStopReason | null;
+  assistantText: string;
+  thinkingText: string;
+  toolOrder: string[];
+  tools: Record<string, AgentRuntimeToolState>;
+  usage: AgentRuntimeUsage;
+  terminal: AgentRuntimeTerminalEvent | null;
+}
+
+export interface AgentRuntimeRunInput {
+  sessionId: string;
+  turnId: string;
+  route: AgentRuntimeRoute;
+  prompt: string;
+  model?: string;
+  systemPrompt?: string;
+  reasoning?: AgentReasoningOptions;
+  history?: readonly AgentModelMessage[];
+  limits?: Partial<AgentRuntimeLimits>;
+  signal?: AbortSignal;
+  onEntry?: (entry: AgentRuntimeJournalEntry) => void;
+}
+
+export interface AgentRuntimeRunResult {
+  state: AgentRuntimeState;
+  entries: AgentRuntimeJournalEntry[];
+  messages: AgentModelMessage[];
+}

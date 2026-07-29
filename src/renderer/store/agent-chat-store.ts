@@ -15,8 +15,8 @@
  * turn keeps folding into — and on `done` persists to — its OWN conversation.
  *
  * Display transcript is persisted to SQLite (agent_conversation) on each turn's
- * `done`; the SDK's own session file is the source of truth for *resuming*
- * context, tracked per run as sdkSessionId and passed back as `resume`.
+ * `done`. The opaque transport session id is retained in the legacy
+ * `sdkSessionId` column and passed back as `resume`; it has no vendor semantics.
  */
 import { create } from 'zustand';
 import { v7 as uuidv7 } from 'uuid';
@@ -221,7 +221,7 @@ interface RunState {
   /** Owning project — so a background turn doesn't pulse another project's cells. */
   projectId: string;
   messages: ChatMsg[];
-  /** SDK session to resume context; null until the first turn reports one. */
+  /** Opaque transport session; legacy field name retained for schema compatibility. */
   sdkSessionId: string | null;
 }
 
@@ -424,6 +424,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
 
     const r = await generalAgentTransport.start({
       prompt: promptToSend,
+      route: { kind: 'chat', projectId, conversationId: cid },
+      projectId,
       mode: auth,
       model: settings.agentModel,
       effort: settings.agentEffort,

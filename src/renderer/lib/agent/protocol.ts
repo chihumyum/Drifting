@@ -48,8 +48,15 @@ export type AgentEffortChoice = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type AgentThinkingChoice = 'adaptive' | 'off';
 export type AgentToolSearchChoice = 'off' | 'auto' | 'on';
 
+export type AgentStartRoute =
+  | { kind: 'chat'; projectId: string; conversationId?: string }
+  | { kind: 'goal'; projectId: string; goalRunId?: string; chapterId?: string };
+
 export interface AgentStartInput {
   prompt: string;
+  /** Canonical destination for runtime events and tool execution. */
+  route?: AgentStartRoute;
+  /** Legacy compatibility field. Prefer `route.projectId` in new transports. */
   projectId?: string;
   mode?: AgentMode;
   newConversation?: boolean;

@@ -3,12 +3,12 @@ import type { AgentEventEnvelope, AgentStartInput, GeneralAgentAuthStatus } from
 export const GENERAL_AGENT_UNSUPPORTED = {
   code: 'GENERAL_AGENT_UNSUPPORTED',
   message:
-    'General Agent is not supported in the Tauri client because the current Anthropic runtime requires the desktop Node/Claude CLI SDK.',
+    'General Agent is not enabled because no production model driver and Drifting tool adapter are installed yet.',
   future:
-    'A future desktop sidecar or authenticated remote-agent service can implement the transport without changing the renderer chat or tool runtime.',
+    'A provider adapter can implement the local runtime, sidecar, or authenticated remote transport without changing the renderer chat contract.',
 } as const;
 
-export type GeneralAgentTransportKind = 'unsupported' | 'sidecar' | 'remote';
+export type GeneralAgentTransportKind = 'unsupported' | 'local' | 'sidecar' | 'remote';
 
 export interface GeneralAgentCapability {
   available: boolean;
@@ -74,7 +74,7 @@ export const generalAgentTransport: GeneralAgentTransport = {
 };
 
 /**
- * Installs a future sidecar/remote implementation. The cleanup function only
+ * Installs a local/sidecar/remote implementation. The cleanup function only
  * restores the previous transport when the installed instance is still active.
  */
 export function installGeneralAgentTransport(transport: GeneralAgentTransport): () => void {

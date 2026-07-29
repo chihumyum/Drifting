@@ -54,6 +54,14 @@ export async function runScopedAgentTurn(
   const settings = useSettingsStore.getState();
   const projectId = useProjectStore.getState().currentProject?.id;
   const project = useProjectStore.getState().currentProject;
+  if (!projectId) {
+    return {
+      chapterId,
+      ok: false,
+      editedBlockIds: [],
+      error: 'No active project for the Agent turn',
+    };
+  }
   const turnId = uuidv7();
   const key = entityKey('node', chapterId);
 
@@ -128,6 +136,7 @@ export async function runScopedAgentTurn(
 
   const r = await generalAgentTransport.start({
     prompt: buildEditPrompt(chapterTitle, change, spots),
+    route: { kind: 'goal', projectId, chapterId },
     projectId,
     mode: settings.agentAuth,
     model: settings.agentModel,
