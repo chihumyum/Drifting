@@ -29,6 +29,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
     "test:agent-runtime": "vitest run src/renderer/lib/agent/runtime --reporter=dot",
+    "eval:agent:p1:live": "node scripts/run-p1-deepseek-live-eval.mjs",
     "eval:shadow": "vitest run --config vitest.eval.config.ts src/renderer/lib/shadow/eval/shadow-eval.eval.ts",
     "eval:shadow:smoke": "vitest run --config vitest.eval.config.ts src/renderer/lib/shadow/eval/smoke.eval.ts",
     "eval:corpus": "node scripts/eval-corpus.mjs",

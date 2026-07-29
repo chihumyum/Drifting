@@ -1,0 +1,56 @@
+{
+  "phase": "P1",
+  "runAt": "2026-07-30",
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "repeat": 3,
+  "success": {
+    "passed": 63,
+    "total": 66,
+    "rate": 0.9545454545454546,
+    "threshold": 0.9,
+    "meetsThreshold": true,
+    "readPassed": 57,
+    "readTotal": 60,
+    "readRate": 0.95,
+    "readMeetsThreshold": true
+  },
+  "tokens": {
+    "input": 323374,
+    "output": 7437,
+    "total": 330811,
+    "costUsd": null,
+    "costNote": "The provider response did not include billed cost."
+  },
+  "latency": {
+    "totalMs": 136240,
+    "medianMs": 1831,
+    "p95Ms": 3792,
+    "maxMs": 6584
+  },
+  "violations": {
+    "unauthorizedWrite": 0,
+    "crossProject": 0,
+    "unknownTool": 0,
+    "fixtureMutation": 0
+  },
+  "strictPathMisses": [
+    {
+      "id": "material-not-found",
+      "count": 3,
+      "observedTools": [
+        "list_materials"
+      ],
+      "requiredTools": [
+        "read_material"
+      ],
+      "note": "The model safely listed materials and concluded the title was absent, but the strict evaluator required a direct read_material call."
+    }
+  ],
+  "artifactPolicy": {
+    "containsSecret": false,
+    "containsPrompts": false,
+    "containsAnswers": false,
+    "containsRawErrors": false
+  }
+}

@@ -1,5 +1,7 @@
 import type { AgentStartInput, AgentStartRoute } from '../protocol';
 
+export const DRIFTING_AGENT_PROMPT_VERSION = 1 as const;
+
 function clean(value: string, maxLength: number): string {
   const normalized = value.split('\u0000').join('').trim();
   return normalized.length > maxLength
