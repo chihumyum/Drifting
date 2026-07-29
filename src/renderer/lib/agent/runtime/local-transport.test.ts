@@ -22,7 +22,7 @@ async function waitForDone(
 ): Promise<void> {
   for (let index = 0; index < 100; index += 1) {
     if (events.filter((event) => event.event.type === 'done').length >= count) return;
-    await Promise.resolve();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }
   throw new Error(`Expected ${count} done event(s)`);
 }

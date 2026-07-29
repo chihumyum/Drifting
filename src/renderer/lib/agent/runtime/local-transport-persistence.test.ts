@@ -40,7 +40,7 @@ async function waitForDone(
     if (events.filter((event) => event.event.type === 'done').length >= count) {
       return;
     }
-    await Promise.resolve();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }
   throw new Error(`Expected ${count} done event(s)`);
 }
@@ -84,6 +84,7 @@ class FakeTransportPersistence implements AgentTransportPersistence {
   readonly routeSessions = new Map<string, string>();
   readonly journal: AgentRuntimeJournalEntry[] = [];
   readonly order: string[] = [];
+  readonly commits: AgentTransportCommitTurnInput[] = [];
   prepareCalls = 0;
   commitCalls = 0;
   commitGate: Promise<void> | null = null;
@@ -149,6 +150,7 @@ class FakeTransportPersistence implements AgentTransportPersistence {
     if (first?.role !== 'user') throw new Error('accepted prompt is missing');
     session.history.push(...structuredClone(input.turnMessages));
     session.activeTurnId = null;
+    this.commits.push(structuredClone(input));
     this.commitCalls += 1;
     this.order.push(`commit-done:${input.turnId}`);
   }
@@ -249,6 +251,23 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
 
     expect(persistence.prepareCalls).toBe(2);
     expect(persistence.commitCalls).toBe(2);
+    expect(persistence.commits).toHaveLength(2);
+    expect(
+      persistence.commits.map((commit) =>
+        commit.contextCheckpointV2?.canonicalSourceRows.some(
+          (row) =>
+            row.kind === 'assistant_narrative' &&
+            row.content ===
+              (commit.turnId === 'turn-1' ? 'answer-one' : 'answer-two'),
+        ),
+      ),
+    ).toEqual([true, true]);
+    expect(
+      persistence.commits.every(
+        (commit) =>
+          commit.contextCheckpointV2?.providerEnvelope.schemaVersion === 2,
+      ),
+    ).toBe(true);
     expect(
       persistence.order.indexOf('prepare:turn-1'),
     ).toBeLessThan(

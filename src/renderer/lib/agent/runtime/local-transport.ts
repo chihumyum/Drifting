@@ -11,6 +11,7 @@ import type {
 import { AgentRuntime } from './runtime';
 import { LegacyAgentEventProjector } from './legacy-projection';
 import { buildDriftingAgentSystemPrompt } from './system-prompt';
+import type { AgentRuntimeContextPlanningOptions } from './runtime-context-planning';
 import type {
   AgentClock,
   AgentJournalSink,
@@ -35,6 +36,7 @@ export interface LocalGeneralAgentTransportDependencies {
   driver: AgentModelDriver;
   tools?: AgentToolRuntime;
   toolSelector?: AgentToolSelectionStrategy;
+  contextPlanning?: AgentRuntimeContextPlanningOptions;
   clock?: AgentClock;
   journal?: AgentJournalSink;
   limits?: Partial<AgentRuntimeLimits>;
@@ -137,6 +139,9 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       ...(dependencies.tools ? { tools: dependencies.tools } : {}),
       ...(dependencies.toolSelector
         ? { toolSelector: dependencies.toolSelector }
+        : {}),
+      ...(dependencies.contextPlanning
+        ? { contextPlanning: dependencies.contextPlanning }
         : {}),
       ...(dependencies.clock ? { clock: dependencies.clock } : {}),
       ...(journal ? { journal } : {}),
@@ -347,12 +352,25 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         if (this.persistence) {
           const priorHistoryLength = session.history.length;
           try {
+            if (
+              result.state.status === 'completed' &&
+              !result.completedContextCheckpoint
+            ) {
+              throw new AgentTransportCommitError();
+            }
             await this.persistence.commitTurn({
               sessionId: session.id,
               turnId,
               turnMessages: result.messages
                 .slice(priorHistoryLength)
                 .map(clonePortableData),
+              ...(result.completedContextCheckpoint
+                ? {
+                    contextCheckpointV2: clonePortableData(
+                      result.completedContextCheckpoint,
+                    ),
+                  }
+                : {}),
               outcome: runtimeOutcome(result.state.status),
               errorCode: result.state.terminal?.failureCode ?? null,
               errorMessage: result.state.terminal?.message ?? null,
