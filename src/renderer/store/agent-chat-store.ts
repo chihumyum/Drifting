@@ -399,6 +399,17 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       runningTurnId: turnId,
       runningConvId: cid,
     }));
+    // A prompt is accepted once it leaves the composer. Persist that user
+    // message before model startup so a crash, auth failure, or app restart
+    // cannot erase it merely because no terminal `done` event arrived.
+    try {
+      await repo.update(cid, {
+        messages: run.messages,
+        updatedAt: now,
+      });
+    } catch {
+      /* persistence is best-effort — the in-memory transcript remains usable */
+    }
     // Open this turn's checkpoint: writes the agent makes are folded into it so
     // the user can later revert the whole turn (see lib/agent/turn-revert).
     useAgentCheckpointStore.getState().beginTurn({

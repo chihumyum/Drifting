@@ -2411,7 +2411,7 @@ function GroupHead({ label, hint, desc }: { label: string; hint?: string; desc?:
   );
 }
 
-/** Connect / status for the Agent's credentials (Claude OAuth or hosted). */
+/** Credential status for the installed General Agent transport. */
 function AgentAuthRow({ auth }: { auth: AgentAuth }) {
   const { t } = useTranslation();
   const api = generalAgentTransport;
@@ -2428,6 +2428,7 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
   const [keyStored, setKeyStored] = useState<string | null>(null);
   const [keyEditing, setKeyEditing] = useState(false);
   const [keyDraft, setKeyDraft] = useState('');
+  const usesSharedDeepSeekKey = api.capability.kind === 'local';
 
   const refresh = useCallback(() => {
     if (!api.capability.available) return;
@@ -2449,13 +2450,16 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
   }, [refresh]);
   useEffect(() => {
     let cancelled = false;
-    void agentApiKeychain.get().then((v) => {
+    const read = usesSharedDeepSeekKey
+      ? byokKeychain.get('deepseek')
+      : agentApiKeychain.get();
+    void read.then((v) => {
       if (!cancelled) setKeyStored(v);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [usesSharedDeepSeekKey]);
 
   if (!api.capability.available) {
     return (
@@ -2504,10 +2508,12 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
   const saveKey = async () => {
     const v = keyDraft.trim();
     if (!v) {
-      await agentApiKeychain.clear();
+      if (usesSharedDeepSeekKey) await byokKeychain.clear('deepseek');
+      else await agentApiKeychain.clear();
       setKeyStored(null);
     } else {
-      await agentApiKeychain.set(v);
+      if (usesSharedDeepSeekKey) await byokKeychain.set('deepseek', v);
+      else await agentApiKeychain.set(v);
       setKeyStored(v);
     }
     setKeyDraft('');
@@ -2516,7 +2522,8 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
     events.emit('agent:auth-changed');
   };
   const clearKey = async () => {
-    await agentApiKeychain.clear();
+    if (usesSharedDeepSeekKey) await byokKeychain.clear('deepseek');
+    else await agentApiKeychain.clear();
     setKeyStored(null);
     refresh();
     events.emit('agent:auth-changed');
@@ -2549,11 +2556,14 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
     );
   }
 
-  if (auth === 'apikey') {
+  if (auth === 'apikey' || usesSharedDeepSeekKey) {
     const hasKey = !!keyStored;
     return (
       <div className="set-sec">
-        <SecHead title="Anthropic API Key" hint="PAY-AS-YOU-GO" />
+        <SecHead
+          title={usesSharedDeepSeekKey ? 'DeepSeek API Key' : 'Anthropic API Key'}
+          hint="PAY-AS-YOU-GO"
+        />
         {keyEditing ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 0' }}>
             <div style={{ fontSize: 12, opacity: 0.8 }}>{t('settings.agentAuth.pasteApiKey')}</div>
@@ -2562,7 +2572,7 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
               style={{ minWidth: 320 }}
               value={keyDraft}
               onChange={(e) => setKeyDraft(e.target.value)}
-              placeholder="sk-ant-..."
+              placeholder={usesSharedDeepSeekKey ? 'sk-...' : 'sk-ant-...'}
               autoFocus
             />
             <div style={{ display: 'flex', gap: 6 }}>
@@ -3922,7 +3932,6 @@ function AgentUsageSection({ open }: { open: boolean }) {
 }
 
 const AGENT_AUTH_OPTIONS: { value: Exclude<AgentAuth, 'hosted'>; kickerKey: string }[] = [
-  { value: 'oauth', kickerKey: 'settings.agent.auth.oauth.kicker' },
   { value: 'apikey', kickerKey: 'settings.agent.auth.apikey.kicker' },
 ];
 

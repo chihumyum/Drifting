@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { AgentEventEnvelope } from '../protocol';
 import { LocalGeneralAgentTransport } from './local-transport';
 import { ManualAgentClock, ScriptedFakeDriver } from './testing';
-import type { AgentToolRuntime } from './types';
+import type {
+  AgentModelDriver,
+  AgentModelRequest,
+  AgentToolRuntime,
+} from './types';
 
 const USAGE = {
   inputTokens: 3,
@@ -390,12 +394,71 @@ describe('LocalGeneralAgentTransport', () => {
     clock.assertIdle();
   });
 
-  it('rejects missing or conflicting routes before calling a driver', async () => {
-    const driver = new ScriptedFakeDriver({ rounds: [] });
+  it('uses installed auth status and disables unsupported provider reasoning', async () => {
+    const requests: AgentModelRequest[] = [];
+    const driver: AgentModelDriver = {
+      id: 'no-reasoning',
+      capabilities: { reasoning: false },
+      async *stream(request) {
+        requests.push(request);
+        yield { type: 'usage', usage: USAGE };
+        yield { type: 'finish', reason: 'end_turn' };
+      },
+    };
+    const transport = new LocalGeneralAgentTransport({
+      driver,
+      authStatus: async () => ({
+        byokConnected: true,
+        apiKeyConnected: true,
+        hostedAvailable: false,
+      }),
+      createId: (kind) => `${kind}-capabilities`,
+    });
+    const events: AgentEventEnvelope[] = [];
+    transport.subscribeEvents((event) => events.push(event));
+
+    await expect(transport.authStatus()).resolves.toEqual({
+      ok: true,
+      value: {
+        byokConnected: true,
+        apiKeyConnected: true,
+        hostedAvailable: false,
+      },
+    });
+    await expect(
+      transport.start({
+        prompt: 'inspect',
+        route: { kind: 'chat', projectId: 'project-1' },
+        thinking: 'adaptive',
+        effort: 'max',
+      }),
+    ).resolves.toEqual({ ok: true, value: undefined });
+    await waitForDone(events, 1);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.reasoning).toEqual({ enabled: false });
+  });
+
+  it('rejects invalid routes and treats a post-restart session id as a resume hint', async () => {
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          expectRequest: {
+            messages: [{ role: 'user', content: 'unknown resume' }],
+          },
+          steps: [
+            { op: 'emit', event: { type: 'usage', usage: USAGE } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
     const transport = new LocalGeneralAgentTransport({
       driver,
       createId: (kind) => `${kind}-route`,
     });
+    const events: AgentEventEnvelope[] = [];
+    transport.subscribeEvents((event) => events.push(event));
 
     await expect(transport.start({ prompt: 'missing' })).resolves.toMatchObject({
       ok: false,
@@ -417,11 +480,9 @@ describe('LocalGeneralAgentTransport', () => {
         resume: 'missing-session',
         route: { kind: 'chat', projectId: 'project-a' },
       }),
-    ).resolves.toMatchObject({
-      ok: false,
-      code: 'AGENT_SESSION_NOT_AVAILABLE',
-    });
-    expect(driver.calls).toHaveLength(0);
+    ).resolves.toEqual({ ok: true, value: undefined });
+    await waitForDone(events, 1);
+    expect(driver.calls).toHaveLength(1);
     driver.assertExhausted();
   });
 });

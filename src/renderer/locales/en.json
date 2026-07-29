@@ -487,7 +487,7 @@
       "byokTitle": "Bring your own key · BYOK",
       "modelTitle": "Model",
       "preAlphaByokOnly": "Pre-Alpha provides no hosted model or Drifting AI quota. Every AI call requires your own API key and uses that provider's billing and quota.",
-      "preAlphaAgentCredentials": "Pre-Alpha provides no Drifting-hosted Agent. You may keep Claude Code OAuth login or use your own Anthropic API key; both are your personal credentials.",
+      "preAlphaAgentCredentials": "General Agent currently uses your own DeepSeek API key, shared with Copilot in the local Keychain. It does not use Drifting-hosted quota.",
       "hostedByokOnlyTitle": "Hosted is unavailable · beta only supports BYOK",
       "disabledSuffix": " · Unavailable"
     },
@@ -513,11 +513,11 @@
       "hostedSignedOutDesc": "Hosted Agent requires signing in to a Drifting account in Account.",
       "hostedAvailable": "● Available",
       "hostedUnavailable": "○ Not ready",
-      "pasteApiKey": "Paste Anthropic API Key (sk-ant-…):",
+      "pasteApiKey": "Paste DeepSeek API Key (sk-…):",
       "filled": "Filled",
       "notFilled": "Not filled",
-      "apiKeyFilledDesc": "Agent will call Anthropic directly with your Anthropic API Key. The key stays in local Keychain.",
-      "apiKeyEmptyDesc": "Use an Anthropic Console API Key. No subscription or OAuth required.",
+      "apiKeyFilledDesc": "Agent uses the DeepSeek API key shared with Copilot. The key stays in the local Keychain.",
+      "apiKeyEmptyDesc": "Add a DeepSeek API key to enable the local read-only agent loop.",
       "enterKey": "Enter key",
       "oauthTitle": "Claude account · OAuth",
       "connected": "Connected",
@@ -663,13 +663,13 @@
     "agent": {
       "kicker": "GENERAL AGENT",
       "title": "The agent in the right rail that can act.",
-      "sub": "A conversational agent that can read and write the whole manuscript. It is currently paused in the Tauri client.",
-      "unavailableTitle": "General Agent is not supported in Tauri yet",
-      "unavailableStatus": "Current implementation explicitly disabled",
-      "unavailableReason": "The current Anthropic General Agent depends on the desktop Node/Claude CLI SDK and cannot run directly inside a Tauri WebView or mobile sandbox.",
-      "unavailableFuture": "A desktop sidecar or authenticated remote-agent service can be added later; the chat UI and local Yjs tool runtime already have a replaceable transport boundary.",
+      "sub": "A provider-neutral Agent running inside the Tauri renderer. This phase can read the whole manuscript; write capabilities are enabled only after their acceptance gates pass.",
+      "unavailableTitle": "General Agent runtime is not installed",
+      "unavailableStatus": "No active transport",
+      "unavailableReason": "This window has no usable Agent model driver or tool runtime.",
+      "unavailableFuture": "Reopen the project. If this persists, check the app version and DeepSeek key.",
       "credentialPrivacy": "Credentials stay local and are not uploaded.",
-      "hostedDisabledTitle": "Hosted is unavailable · beta uses your own Claude account or key",
+      "hostedDisabledTitle": "Hosted is unavailable · beta uses your own DeepSeek key",
       "auth": {
         "oauth": {
           "kicker": "CLAUDE ACCOUNT",
@@ -677,9 +677,9 @@
           "desc": "Sign in with your Claude account (Max/Pro) via OAuth and call Anthropic directly without hosted quota."
         },
         "apikey": {
-          "kicker": "API KEY",
-          "name": "Anthropic Key",
-          "desc": "Use an Anthropic Console API Key. No subscription required; the key stays in local Keychain."
+          "kicker": "DEEPSEEK · BYOK",
+          "name": "DeepSeek Key",
+          "desc": "Share Copilot's DeepSeek API key; it stays only in the local Keychain."
         },
         "hosted": {
           "kicker": "HOSTED",
@@ -688,45 +688,25 @@
         }
       },
       "chatModel": "Chat model",
-      "chatModelDesc": "\"Follow latest\" uses aliases that track each tier's latest version; you can also pin a concrete version. Default leaves it to the Anthropic SDK.",
+      "chatModelDesc": "P1 uses DeepSeek OpenAI-compatible function calling. Choose the speed-first or quality-first model.",
       "modelOptions": {
-        "default": {
-          "label": "Default · Anthropic SDK",
-          "short": "Default"
+        "deepseek-v4-flash": {
+          "label": "DeepSeek Flash · fast",
+          "short": "Flash"
         },
-        "opus": {
-          "label": "Opus · latest",
-          "short": "Opus"
-        },
-        "sonnet": {
-          "label": "Sonnet · latest",
-          "short": "Sonnet"
-        },
-        "haiku": {
-          "label": "Haiku · latest",
-          "short": "Haiku"
-        },
-        "claude-opus-4-8": {
-          "label": "Claude Opus 4.8",
-          "short": "Opus 4.8"
-        },
-        "claude-sonnet-4-6": {
-          "label": "Claude Sonnet 4.6",
-          "short": "Sonnet 4.6"
-        },
-        "claude-haiku-4-5-20251001": {
-          "label": "Claude Haiku 4.5",
-          "short": "Haiku 4.5"
+        "deepseek-v4-pro": {
+          "label": "DeepSeek Pro · steady",
+          "short": "Pro"
         }
       },
       "reasoningTitle": "Reasoning",
       "thinking": "Extended thinking",
-      "thinkingDesc": "When on, the model thinks before answering. It is steadier for complex tasks; off is faster and cheaper. The thinking process appears in the chat.",
+      "thinkingDesc": "P1 keeps extended thinking off so provider-neutral tool history can be replayed safely.",
       "effort": "Thinking effort",
-      "effortDesc": "Applies when thinking is on. high is deepest by default, low is fastest; xhigh / max are only supported by some Opus versions.",
+      "effortDesc": "Has no effect while extended thinking is off.",
       "toolSearchTitle": "Tool search",
       "toolSearch": "Tool search (experimental)",
-      "toolSearchDesc": "About 49 tool definitions would otherwise stay in context at roughly 10k tokens. When enabled, tools are retrieved on demand and each turn loads only the relevant 3-5 tools. Auto triggers only when tool definitions cross the threshold, and is mostly off at this scale. Requires Sonnet 4+/Opus 4+; Haiku is unsupported.",
+      "toolSearchDesc": "Retrieves a small set of schemas after policy filtering. Keep it off until the P4 acceptance gate passes.",
       "toolSearchOptions": {
         "off": "Off · load all tools",
         "auto": "Auto · enable above threshold",
@@ -1046,9 +1026,9 @@
   "agentPanel": {
     "newConversation": "New chat",
     "unavailable": "Agent is unavailable.",
-    "unavailableTitle": "General Agent is not supported in Tauri yet",
-    "unavailableReason": "The current Anthropic implementation requires the desktop Node/Claude CLI SDK, which cannot run directly in a Tauri WebView or mobile sandbox.",
-    "unavailableFuture": "Local Shadow and the Yjs tool context are unaffected. A desktop sidecar or remote-agent transport can restore this entry later.",
+    "unavailableTitle": "General Agent runtime is not installed",
+    "unavailableReason": "This window has no usable Agent model driver or tool runtime.",
+    "unavailableFuture": "Reopen the project. If this persists, check the app version and DeepSeek key.",
     "checking": "Checking…",
     "common": {
       "none": "None"
@@ -1115,8 +1095,8 @@
     "setup": {
       "title": "Agent is not connected",
       "hosted": "Hosted subscription mode is selected, but it is not ready yet. Go to settings to sign in and subscribe.",
-      "apiKey": "Anthropic API Key mode is selected, but no key is saved yet. Go to settings to enter your API key.",
-      "byok": "Bring-your-own Claude account mode is selected, but it is not connected yet. Go to settings to connect your Claude account (Max/Pro).",
+      "apiKey": "No DeepSeek API key is saved. Open settings and add the key shared with Copilot.",
+      "byok": "No DeepSeek API key is saved. Open settings to finish local BYOK setup.",
       "openSettings": "Open settings"
     },
     "toolbar": {

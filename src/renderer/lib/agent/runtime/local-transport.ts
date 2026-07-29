@@ -2,6 +2,7 @@ import type {
   AgentEventEnvelope,
   AgentStartInput,
   AgentStartRoute,
+  GeneralAgentAuthStatus,
 } from '../protocol';
 import type {
   GeneralAgentResult,
@@ -35,6 +36,7 @@ export interface LocalGeneralAgentTransportDependencies {
   journal?: AgentJournalSink;
   limits?: Partial<AgentRuntimeLimits>;
   createId?: (kind: RuntimeIdKind) => string;
+  authStatus?: () => Promise<GeneralAgentAuthStatus>;
 }
 
 interface ActiveTurn {
@@ -98,6 +100,8 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   private readonly runtime: AgentRuntime;
   private readonly limits?: Partial<AgentRuntimeLimits>;
   private readonly createId: (kind: RuntimeIdKind) => string;
+  private readonly resolveAuthStatus?: () => Promise<GeneralAgentAuthStatus>;
+  private readonly supportsReasoning: boolean;
   private readonly listeners = new Set<(event: AgentEventEnvelope) => void>();
   private readonly sessions = new Map<string, LocalSessionState>();
   private readonly routeSessionIds = new Map<string, string>();
@@ -109,6 +113,9 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     this.runtime = new AgentRuntime(dependencies);
     this.limits = dependencies.limits;
     this.createId = dependencies.createId ?? createPortableRuntimeId;
+    this.resolveAuthStatus = dependencies.authStatus;
+    this.supportsReasoning =
+      dependencies.driver.capabilities?.reasoning !== false;
   }
 
   async authPrepare(): Promise<GeneralAgentResult<{ url: string }>> {
@@ -132,6 +139,16 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       hostedAvailable: boolean;
     }>
   > {
+    if (this.resolveAuthStatus) {
+      try {
+        return { ok: true, value: await this.resolveAuthStatus() };
+      } catch {
+        return transportError(
+          'AGENT_AUTH_STATUS_FAILED',
+          'Agent credential status could not be read.',
+        );
+      }
+    }
     return {
       ok: true,
       value: {
@@ -168,18 +185,16 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     let session: LocalSessionState | undefined;
     if (!input.newConversation && input.resume) {
       session = this.sessions.get(input.resume);
-      if (!session) {
-        return transportError(
-          'AGENT_SESSION_NOT_AVAILABLE',
-          'This local Agent session is not available in memory and cannot be resumed.',
-        );
-      }
-      if (session.routeKey !== routeKey) {
+      if (session && session.routeKey !== routeKey) {
         return transportError(
           'AGENT_SESSION_ROUTE_MISMATCH',
           'The Agent session belongs to a different project or conversation.',
         );
       }
+      // P1 sessions are memory-resident while the user transcript is already
+      // durable. After a renderer restart the old id is only a resume hint:
+      // start a fresh model session instead of making the saved conversation
+      // unusable. P2 replaces this fallback with canonical history recovery.
     } else if (!input.newConversation) {
       const existingId = this.routeSessionIds.get(routeKey);
       if (existingId) session = this.sessions.get(existingId);
@@ -267,10 +282,13 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         prompt: input.prompt,
         systemPrompt: buildDriftingAgentSystemPrompt(input, route),
         ...(input.model ? { model: input.model } : {}),
-        reasoning: {
-          enabled: input.thinking !== 'off',
-          ...(input.effort ? { effort: input.effort } : {}),
-        },
+        reasoning:
+          !this.supportsReasoning
+            ? { enabled: false }
+            : {
+                enabled: input.thinking !== 'off',
+                ...(input.effort ? { effort: input.effort } : {}),
+              },
         history: session.history,
         ...(this.limits ? { limits: this.limits } : {}),
         signal: controller.signal,

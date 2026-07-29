@@ -48,6 +48,7 @@ const DEFAULT_FEATURE = 'general-agent';
 
 export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
   readonly id: string;
+  readonly capabilities = { reasoning: false } as const;
 
   private readonly client: AgentCompletionClient;
   private readonly defaultModel: string;

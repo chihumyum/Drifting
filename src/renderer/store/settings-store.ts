@@ -108,13 +108,16 @@ export type EvolveEditorEngine = 'agent-sdk' | 'shadow-fc';
  * track the latest of each family; pinned ids name an exact version.
  */
 export const AGENT_MODEL_OPTIONS: { value: string; label: string; short: string }[] = [
-  { value: 'default', label: 'Default · subscription / CLI', short: 'Default' },
-  { value: 'opus', label: 'Opus · latest', short: 'Opus' },
-  { value: 'sonnet', label: 'Sonnet · latest', short: 'Sonnet' },
-  { value: 'haiku', label: 'Haiku · latest', short: 'Haiku' },
-  { value: 'claude-opus-4-8', label: 'Claude Opus 4.8', short: 'Opus 4.8' },
-  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', short: 'Sonnet 4.6' },
-  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', short: 'Haiku 4.5' },
+  {
+    value: 'deepseek-v4-flash',
+    label: 'DeepSeek Flash · fast',
+    short: 'Flash',
+  },
+  {
+    value: 'deepseek-v4-pro',
+    label: 'DeepSeek Pro · steady',
+    short: 'Pro',
+  },
 ];
 
 /** Effort levels for the pickers, with compact labels. */
@@ -478,13 +481,13 @@ export const useSettingsStore = create<SettingsState>()(
       setShadowByokProvider: (p) => set({ shadowByokProvider: p }),
       shadowByokModel: 'deepseek-v4-flash',
       setShadowByokModel: (m) => set({ shadowByokModel: m }),
-      agentAuth: 'oauth',
-      setAgentAuth: (auth) => set({ agentAuth: auth === 'hosted' ? 'oauth' : auth }),
-      agentModel: 'default',
+      agentAuth: 'apikey',
+      setAgentAuth: (auth) => set({ agentAuth: auth === 'hosted' ? 'apikey' : auth }),
+      agentModel: 'deepseek-v4-flash',
       setAgentModel: (m) => set({ agentModel: m }),
       agentEffort: 'high',
       setAgentEffort: (e) => set({ agentEffort: e }),
-      agentThinking: 'adaptive',
+      agentThinking: 'off',
       setAgentThinking: (t) => set({ agentThinking: t }),
       agentToolSearch: 'off',
       setAgentToolSearch: (t) => set({ agentToolSearch: t }),
@@ -571,7 +574,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 15,
+      version: 16,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           appearanceSkin?: 'classic' | 'modern';
@@ -800,6 +803,21 @@ export const useSettingsStore = create<SettingsState>()(
             editorFontSource: legacyEditorSerif === false ? 'system-sans' : 'system-serif',
           };
         }
+        if (version < 16) {
+          // General Agent now runs in-process through the provider-neutral
+          // runtime. P1 exposes the existing DeepSeek BYOK substrate and a
+          // completion-mode tool loop; legacy Claude OAuth/model/thinking
+          // selections are not valid inputs for this adapter.
+          next.agentAuth = 'apikey';
+          if (
+            typeof next.agentModel !== 'string' ||
+            !next.agentModel.startsWith('deepseek-')
+          ) {
+            next.agentModel = 'deepseek-v4-flash';
+          }
+          next.agentThinking = 'off';
+          next.agentToolSearch = 'off';
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -812,7 +830,7 @@ export const useSettingsStore = create<SettingsState>()(
         if (APP_CONFIG.BYOK_ONLY) {
           if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';
           if (merged.shadowAiMode === 'hosted') merged.shadowAiMode = 'byok';
-          if (merged.agentAuth === 'hosted') merged.agentAuth = 'oauth';
+          if (merged.agentAuth === 'hosted') merged.agentAuth = 'apikey';
         }
         // `merge` runs on every hydration, including stores already marked v14
         // or hand-edited values that bypassed the one-time migration.

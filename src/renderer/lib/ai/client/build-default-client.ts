@@ -109,6 +109,39 @@ export async function buildShadowClient(
   return wrapClient(provider, options.logTag ?? 'shadow');
 }
 
+/**
+ * General Agent P1 client.
+ *
+ * The Agent is a renderer-local runtime and must keep BYOK credentials on the
+ * device. It therefore never follows the global proxy build flag. P1 is
+ * deliberately DeepSeek-only; adding more providers later is an adapter
+ * decision rather than a change to the Agent runtime or tool contracts.
+ */
+export async function buildGeneralAgentClient(
+  options: BuildDefaultLLMClientOptions = {},
+): Promise<LLMClient> {
+  const credentials = new ChainCredentialsProvider([
+    new EnvCredentialsProvider(),
+    new BYOKCredentialsProvider(),
+  ]);
+  const deepseekKey = await tryGetKey(credentials, 'deepseek');
+  if (!deepseekKey) {
+    throw new AIError(
+      'auth',
+      'No DeepSeek key is configured for General Agent. Add one in Settings → Models & API.',
+    );
+  }
+  return wrapClient(
+    new DeepSeekProvider({
+      apiKey: deepseekKey,
+      // P1 uses completion-mode function calling and does not round-trip
+      // provider reasoning state.
+      thinking: false,
+    }),
+    options.logTag ?? 'general-agent',
+  );
+}
+
 async function pickProvider(credentials: ChainCredentialsProvider): Promise<LLMProvider> {
   const deepseekKey = await tryGetKey(credentials, 'deepseek');
   if (deepseekKey) {

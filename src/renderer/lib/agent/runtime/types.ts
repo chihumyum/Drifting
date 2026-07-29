@@ -116,6 +116,10 @@ export type AgentModelStreamEvent =
 
 export interface AgentModelDriver {
   readonly id: string;
+  readonly capabilities?: {
+    /** False when this adapter cannot safely round-trip provider reasoning state. */
+    reasoning?: boolean;
+  };
   stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent>;
 }
 

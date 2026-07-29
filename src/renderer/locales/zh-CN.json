@@ -487,7 +487,7 @@
       "byokTitle": "自带密钥 · BYOK",
       "modelTitle": "模型",
       "preAlphaByokOnly": "Pre-Alpha 不提供任何托管模型或 Drifting 额度。所有 AI 调用都必须使用你自己的 API Key，并计入对应服务商的费用与额度。",
-      "preAlphaAgentCredentials": "Pre-Alpha 不提供 Drifting 托管 Agent。你可以保留 Claude Code OAuth 登录，或使用自己的 Anthropic API Key；两者都属于你的个人凭据。",
+      "preAlphaAgentCredentials": "General Agent 当前使用你自己的 DeepSeek API Key，与 Copilot 共用本机 Keychain 条目；不经过 Drifting 托管额度。",
       "hostedByokOnlyTitle": "托管暂不可用 · 测试版仅支持自带 Key",
       "disabledSuffix": " · 暂不可用"
     },
@@ -513,11 +513,11 @@
       "hostedSignedOutDesc": "托管 Agent 需要先登录 Drifting 账号（在「账户」中登录）。",
       "hostedAvailable": "● 可用",
       "hostedUnavailable": "○ 未就绪",
-      "pasteApiKey": "粘贴 Anthropic API Key（sk-ant-…）：",
+      "pasteApiKey": "粘贴 DeepSeek API Key（sk-…）：",
       "filled": "已填写",
       "notFilled": "未填写",
-      "apiKeyFilledDesc": "Agent 将用你的 Anthropic API Key（按量付费）直连 Anthropic。密钥仅存于本机 Keychain。",
-      "apiKeyEmptyDesc": "使用 Anthropic Console 的 API Key（按量付费，无需订阅 / OAuth）。",
+      "apiKeyFilledDesc": "Agent 将使用与 Copilot 共用的 DeepSeek API Key。密钥仅存于本机 Keychain。",
+      "apiKeyEmptyDesc": "填入 DeepSeek API Key 后，Agent 可在本机执行只读工具循环。",
       "enterKey": "填入 Key",
       "oauthTitle": "Claude 账号 · OAuth",
       "connected": "已连接",
@@ -663,13 +663,13 @@
     "agent": {
       "kicker": "GENERAL AGENT · 对话",
       "title": "右栏那位能动手的 Agent。",
-      "sub": "对话式、能读写整本稿子的 Agent。目前在 Tauri 客户端中暂停。",
-      "unavailableTitle": "General Agent 暂不支持 Tauri",
-      "unavailableStatus": "当前实现已明确停用",
-      "unavailableReason": "现有 Anthropic General Agent 依赖桌面 Node/Claude CLI SDK，无法直接运行在 Tauri 的 WebView 与移动端沙箱中。",
-      "unavailableFuture": "后续可接入桌面 sidecar 或带身份验证的远程 agent 服务；聊天 UI 与本地 Yjs 工具运行上下文已保留为可替换 transport。",
+      "sub": "运行在 Tauri renderer 内的 provider-neutral Agent。当前阶段可读取整本稿子，写入能力按验收阶段逐步开放。",
+      "unavailableTitle": "General Agent 运行时未安装",
+      "unavailableStatus": "当前 transport 不可用",
+      "unavailableReason": "本窗口没有安装可用的 Agent model driver 或工具运行时。",
+      "unavailableFuture": "重新打开项目；若问题持续，请检查应用版本与 DeepSeek Key。",
       "credentialPrivacy": "凭据仅存于本机，不上传服务器。",
-      "hostedDisabledTitle": "托管暂不可用 · 测试版用你自己的 Claude 账号或 Key",
+      "hostedDisabledTitle": "托管暂不可用 · 测试版使用你自己的 DeepSeek Key",
       "auth": {
         "oauth": {
           "kicker": "CLAUDE 账号",
@@ -677,9 +677,9 @@
           "desc": "用你的 Claude 账号（Max/Pro）登录（OAuth），直连 Anthropic，不计入托管额度。"
         },
         "apikey": {
-          "kicker": "API KEY",
-          "name": "Anthropic Key",
-          "desc": "用 Anthropic Console 的 API Key（按量付费），无需订阅。密钥仅存于本机 Keychain。"
+          "kicker": "DEEPSEEK · BYOK",
+          "name": "DeepSeek Key",
+          "desc": "与 Copilot 共用 DeepSeek API Key；密钥只存于本机 Keychain。"
         },
         "hosted": {
           "kicker": "HOSTED",
@@ -688,45 +688,25 @@
         }
       },
       "chatModel": "对话模型",
-      "chatModelDesc": "「跟随最新」用别名自动指向各档最新版本；也可固定到具体版本。默认则交给 Anthropic SDK。",
+      "chatModelDesc": "P1 使用 DeepSeek 的 OpenAI-compatible function calling；可选速度优先或质量优先模型。",
       "modelOptions": {
-        "default": {
-          "label": "默认 · Anthropic SDK",
-          "short": "默认"
+        "deepseek-v4-flash": {
+          "label": "DeepSeek Flash · 快",
+          "short": "Flash"
         },
-        "opus": {
-          "label": "Opus · 跟随最新",
-          "short": "Opus"
-        },
-        "sonnet": {
-          "label": "Sonnet · 跟随最新",
-          "short": "Sonnet"
-        },
-        "haiku": {
-          "label": "Haiku · 跟随最新",
-          "short": "Haiku"
-        },
-        "claude-opus-4-8": {
-          "label": "Claude Opus 4.8",
-          "short": "Opus 4.8"
-        },
-        "claude-sonnet-4-6": {
-          "label": "Claude Sonnet 4.6",
-          "short": "Sonnet 4.6"
-        },
-        "claude-haiku-4-5-20251001": {
-          "label": "Claude Haiku 4.5",
-          "short": "Haiku 4.5"
+        "deepseek-v4-pro": {
+          "label": "DeepSeek Pro · 稳",
+          "short": "Pro"
         }
       },
       "reasoningTitle": "推理参数",
       "thinking": "扩展思考",
-      "thinkingDesc": "开启后模型会先「想」再答，复杂任务更稳；关闭更快更省。思考过程会显示在对话里。",
+      "thinkingDesc": "P1 的工具调用适配器固定关闭扩展思考，以保证 provider-neutral 历史可重放。",
       "effort": "思考强度",
-      "effortDesc": "思考开启时生效。high 推理最深（默认），low 最快；xhigh / max 仅部分 Opus 版本支持。",
+      "effortDesc": "扩展思考关闭时不生效。",
       "toolSearchTitle": "工具检索",
       "toolSearch": "工具检索（实验）",
-      "toolSearchDesc": "约 49 个工具的定义常驻上下文约 10k tokens。开启后按需检索、每轮只加载相关的 3–5 个，省 token；「自动」仅在工具占比超阈值（约 10%）时才触发，当前规模下基本不启用。需 Sonnet 4+/Opus 4+，Haiku 不支持。",
+      "toolSearchDesc": "按授权策略检索并动态加载少量工具 schema；在 P4 验收前保持关闭。",
       "toolSearchOptions": {
         "off": "关闭 · 全量加载工具",
         "auto": "自动 · 超阈值才启用",
@@ -1046,9 +1026,9 @@
   "agentPanel": {
     "newConversation": "新对话",
     "unavailable": "Agent 不可用。",
-    "unavailableTitle": "General Agent 暂不支持 Tauri",
-    "unavailableReason": "当前 Anthropic 实现依赖桌面 Node/Claude CLI SDK，不能在 Tauri WebView 或移动端沙箱中直接运行。",
-    "unavailableFuture": "本地 Shadow 与 Yjs 工具上下文不受影响。未来可通过桌面 sidecar 或远程 agent transport 恢复此入口。",
+    "unavailableTitle": "General Agent 运行时未安装",
+    "unavailableReason": "本窗口没有安装可用的 Agent model driver 或工具运行时。",
+    "unavailableFuture": "重新打开项目；若问题持续，请检查应用版本与 DeepSeek Key。",
     "checking": "检查中…",
     "common": {
       "none": "无"
@@ -1115,8 +1095,8 @@
     "setup": {
       "title": "Agent 未连接",
       "hosted": "当前为「托管订阅」模式，但尚未就绪。前往设置登录并开通订阅。",
-      "apiKey": "当前为「Anthropic API Key」模式，但还没填写密钥。前往设置填入你的 API Key。",
-      "byok": "当前为「自带 Claude 账号」模式，但还没连接。前往设置连接你的 Claude 账号（Max/Pro）。",
+      "apiKey": "尚未填写 DeepSeek API Key。前往设置填入与 Copilot 共用的 Key。",
+      "byok": "尚未填写 DeepSeek API Key。前往设置完成本机 BYOK 配置。",
       "openSettings": "前往设置"
     },
     "toolbar": {

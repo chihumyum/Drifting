@@ -32,6 +32,7 @@ import { ImportDialog } from './components/modals/ImportDialog';
 import { EditChapterStorylineModal } from './components/modals/EditChapterStorylineModal';
 import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
 import { useAgentToolBridge } from './lib/agent/useAgentToolBridge';
+import { useDriftingAgentRuntime } from './lib/agent/useDriftingAgentRuntime';
 import { EditorFindPanel } from './components/search/EditorFindPanel';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { AgentConfirmDialog } from './components/agent/AgentConfirmDialog';
@@ -350,6 +351,7 @@ function Layout() {
     setCommentKind: commentUsecases.setCommentKind,
     commitShadowReview: shadowReviewUsecases.commitShadowReview,
   });
+  useDriftingAgentRuntime();
 
   // Writing-stats recorder. Subscribes directly to the data store so it ticks
   // regardless of which view is mounted — without this, snapshots would only
