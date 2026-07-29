@@ -71,7 +71,6 @@ import {
   createMemory,
   listLiveMemories,
   loadActiveMemories,
-  setMemoryStatus,
   softDeleteMemory,
 } from '../../usecase/useAgentMemory';
 import type { AgentMemoryKind } from '../../domain/agent-memory';
@@ -240,9 +239,20 @@ export interface AgentWriteApi {
   ) => Promise<unknown>;
 }
 
+export interface AgentToolProvenance {
+  sessionId: string;
+  turnId: string;
+  callId: string;
+  idempotencyKey: string;
+  expectedRevision?: string;
+  signal: AbortSignal;
+}
+
 export interface AgentToolContext {
   projectId: string;
   write: AgentWriteApi;
+  /** Present for General Agent calls; Shadow/manual reuse has no Agent receipt. */
+  provenance?: AgentToolProvenance;
 }
 
 /** The live tool context (projectId + write usecases) published by the mounted
@@ -257,6 +267,20 @@ export function setActiveAgentToolContext(ctx: AgentToolContext | null): void {
 }
 export function getActiveAgentToolContext(): AgentToolContext | null {
   return activeAgentToolContext;
+}
+
+function confirmOptions(ctx: AgentToolContext) {
+  const provenance = ctx.provenance;
+  return provenance
+    ? {
+        requestId: `${provenance.idempotencyKey}:confirm`,
+        projectId: ctx.projectId,
+        sessionId: provenance.sessionId,
+        turnId: provenance.turnId,
+        callId: provenance.callId,
+        signal: provenance.signal,
+      }
+    : { projectId: ctx.projectId };
 }
 
 // Names are project-unique, so the list/read tools return NAMES (not long
@@ -1563,7 +1587,12 @@ async function removeRelation(ctx: AgentToolContext, args: Record<string, unknow
   const relationId = String(args.relationId ?? '');
   if (!relationId)
     throw new Error('remove_relation requires relationId (from get_entity_relations)');
-  if (!(await requestAgentConfirm('Agent 想删除一条实体关系。允许吗？'))) {
+  if (
+    !(await requestAgentConfirm(
+      'Agent 想删除一条实体关系。允许吗？',
+      confirmOptions(ctx),
+    ))
+  ) {
     return { ok: false, declined: true };
   }
   await ctx.write.removeRelation(relationId);
@@ -1691,7 +1720,12 @@ async function deleteElement(ctx: AgentToolContext, args: Record<string, unknown
   const label = el ? el.name : id;
   // Destructive — require explicit human confirmation (non-blocking, auto-declines
   // before the bridge timeout so a delete can't run after the agent is told it failed).
-  if (!(await requestAgentConfirm(`Agent 想删除元素「${label}」。允许吗？`))) {
+  if (
+    !(await requestAgentConfirm(
+      `Agent 想删除元素「${label}」。允许吗？`,
+      confirmOptions(ctx),
+    ))
+  ) {
     return { ok: false, declined: true };
   }
   await ctx.write.removeElement(id);
@@ -1873,7 +1907,12 @@ async function createComment(ctx: AgentToolContext, args: Record<string, unknown
 async function deleteCommentTool(ctx: AgentToolContext, args: Record<string, unknown>) {
   const id = String(args.commentId ?? '');
   if (!id) throw new Error('delete_comment requires commentId');
-  if (!(await requestAgentConfirm('Agent 想删除一条批注 / TODO。允许吗？'))) {
+  if (
+    !(await requestAgentConfirm(
+      'Agent 想删除一条批注 / TODO。允许吗？',
+      confirmOptions(ctx),
+    ))
+  ) {
     return { ok: false, declined: true };
   }
   await ctx.write.deleteComment(id);
@@ -1902,10 +1941,8 @@ async function setCommentKind(ctx: AgentToolContext, args: Record<string, unknow
 }
 
 // ---- agent memory (author-level standing guidance) -------------------------
-// `remember` writes straight to 'active' (no confirm — saving a memory is cheap
-// and reversible; the author manages/deletes them in 设置 → General Agent or the
-// composer 记忆 menu). Only `forget` blocks on requestAgentConfirm, since a
-// delete is the one destructive memory action.
+// Agent proposals remain pending until the author accepts them. In particular,
+// remember must not retire its superseded active memory before that decision.
 
 function coerceMemoryKind(raw: unknown): AgentMemoryKind {
   return raw === 'veto' ? 'veto' : raw === 'directive' ? 'directive' : 'preference';
@@ -1933,21 +1970,31 @@ async function rememberTool(ctx: AgentToolContext, args: Record<string, unknown>
   const supersedesId =
     typeof args.supersedes === 'string' && args.supersedes.trim() ? args.supersedes.trim() : null;
 
-  // Write straight to 'active' — no confirm; the author manages/deletes memories
-  // in settings or the composer 记忆 menu.
+  const originRef = ctx.provenance
+    ? [
+        'agent',
+        ctx.provenance.sessionId,
+        ctx.provenance.turnId,
+        ctx.provenance.callId,
+      ].join(':')
+    : null;
   const created = await createMemory(ctx.projectId, {
     kind,
     body,
     source: 'agent',
-    status: 'active',
+    status: 'pending',
     targetKind,
     targetId,
+    originRef,
     supersedesId,
   });
-  // Evolution: retire the memory this one replaces so it stops steering.
-  if (supersedesId) await setMemoryStatus(ctx.projectId, supersedesId, 'dismissed');
 
-  return { ok: true, memoryId: created.id };
+  return {
+    ok: true,
+    pendingReview: true,
+    memoryId: created.id,
+    originRef,
+  };
 }
 
 async function listMemoryTool(ctx: AgentToolContext, _args: Record<string, unknown>) {
@@ -1972,7 +2019,12 @@ async function listMemoryTool(ctx: AgentToolContext, _args: Record<string, unkno
 async function forgetTool(ctx: AgentToolContext, args: Record<string, unknown>) {
   const id = String(args.memoryId ?? '');
   if (!id) throw new Error('forget requires memoryId');
-  if (!(await requestAgentConfirm('Agent 想删除一条记忆。允许吗？'))) {
+  if (
+    !(await requestAgentConfirm(
+      'Agent 想删除一条记忆。允许吗？',
+      confirmOptions(ctx),
+    ))
+  ) {
     return { ok: false, declined: true };
   }
   await softDeleteMemory(ctx.projectId, id);

@@ -77,7 +77,12 @@ export function createAgentMemoryRepository(
     const rows = await dbProvider()
       .select()
       .from(AgentMemoryTable)
-      .where(eq(AgentMemoryTable.id, id))
+      .where(
+        and(
+          eq(AgentMemoryTable.id, id),
+          eq(AgentMemoryTable.projectId, projectId),
+        ),
+      )
       .limit(1);
     return rows[0] ? toDomain(rows[0]) : null;
   };
@@ -180,7 +185,12 @@ export function createAgentMemoryRepository(
       await dbProvider()
         .update(AgentMemoryTable)
         .set(updateValues)
-        .where(eq(AgentMemoryTable.id, id));
+        .where(
+          and(
+            eq(AgentMemoryTable.id, id),
+            eq(AgentMemoryTable.projectId, projectId),
+          ),
+        );
       return findById(id);
     },
 
@@ -188,11 +198,23 @@ export function createAgentMemoryRepository(
       await dbProvider()
         .update(AgentMemoryTable)
         .set({ deletedAt, updatedAt: deletedAt })
-        .where(eq(AgentMemoryTable.id, id));
+        .where(
+          and(
+            eq(AgentMemoryTable.id, id),
+            eq(AgentMemoryTable.projectId, projectId),
+          ),
+        );
     },
 
     delete: async (id) => {
-      await dbProvider().delete(AgentMemoryTable).where(eq(AgentMemoryTable.id, id));
+      await dbProvider()
+        .delete(AgentMemoryTable)
+        .where(
+          and(
+            eq(AgentMemoryTable.id, id),
+            eq(AgentMemoryTable.projectId, projectId),
+          ),
+        );
       return true;
     },
   };

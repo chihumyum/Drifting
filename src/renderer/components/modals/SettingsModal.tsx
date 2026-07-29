@@ -45,9 +45,9 @@ import {
   type AgentConversationUsage,
 } from '../../sqlite-repo/agent-conversation-repo';
 import {
+  approvePendingMemory,
   createMemory,
   listLiveMemories,
-  setMemoryStatus,
   softDeleteMemory,
 } from '../../usecase/useAgentMemory';
 import type { AgentMemory, AgentMemoryKind } from '../../domain/agent-memory';
@@ -3490,7 +3490,7 @@ function AgentMemorySection({ open }: { open: boolean }) {
 
   const approve = (id: string) => {
     if (!projectId) return;
-    void setMemoryStatus(projectId, id, 'active').then(reload);
+    void approvePendingMemory(projectId, id).then(reload);
   };
   const remove = (id: string) => {
     if (!projectId) return;

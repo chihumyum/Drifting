@@ -9,10 +9,9 @@
  *  - A thin `useAgentMemory` hook for the author-facing management list.
  *
  * Writes use the same local-row + durable-outbox transaction as other synced
- * entities. Soft-approval is an inline confirm at write time (see the
- * `remember` handler) rather than a pending queue, so the agent path writes
- * straight to 'active'; the 'pending' status stays reserved for a future async
- * flow.
+ * entities. Agent-authored memories remain pending until the author approves
+ * them. Approval activates the proposal and retires its superseded memory in
+ * one transaction, so a crash or rejection cannot silently remove guidance.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { v7 as uuidv7 } from 'uuid';
@@ -99,6 +98,62 @@ export async function setMemoryStatus(
   });
 }
 
+/**
+ * Approve one pending Agent memory. If it supersedes an older memory, both the
+ * activation and retirement are committed in the same SQLite/outbox
+ * transaction. Replaying an already-approved decision is idempotent.
+ */
+export async function approvePendingMemory(
+  projectId: string,
+  id: string,
+): Promise<AgentMemory> {
+  const updatedAt = new Date().toISOString();
+  return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+    const repo = createAgentMemoryRepository(projectId, tx);
+    const candidate = await repo.findById(id);
+    if (!candidate || candidate.deletedAt) {
+      throw new Error('Pending Agent memory was not found in this project');
+    }
+    if (candidate.status === 'dismissed') {
+      throw new Error('A dismissed Agent memory cannot be approved');
+    }
+
+    let active = candidate;
+    if (candidate.status !== 'active') {
+      const updated = await repo.update(id, {
+        status: 'active',
+        updatedAt,
+      });
+      if (!updated) throw new Error('Agent memory approval did not persist');
+      active = updated;
+      await sync('agentMemory', 'update', id, projectId, {
+        status: 'active',
+        updatedAt,
+      });
+    }
+
+    const supersedesId = candidate.supersedesId;
+    if (supersedesId && supersedesId !== id) {
+      const superseded = await repo.findById(supersedesId);
+      if (
+        superseded &&
+        !superseded.deletedAt &&
+        superseded.status !== 'dismissed'
+      ) {
+        await repo.update(supersedesId, {
+          status: 'dismissed',
+          updatedAt,
+        });
+        await sync('agentMemory', 'update', supersedesId, projectId, {
+          status: 'dismissed',
+          updatedAt,
+        });
+      }
+    }
+    return active;
+  });
+}
+
 /** Update a memory's body (and optionally retire the one it supersedes). */
 export async function updateMemoryBody(
   projectId: string,
@@ -180,7 +235,7 @@ export function useAgentMemory(projectId: string) {
 
   const approve = useCallback(
     async (id: string) => {
-      await setMemoryStatus(projectId, id, 'active');
+      await approvePendingMemory(projectId, id);
       await refresh();
     },
     [projectId, refresh],
