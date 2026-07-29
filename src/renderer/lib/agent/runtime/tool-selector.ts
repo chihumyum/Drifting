@@ -3,8 +3,8 @@ import {
   type AgentProviderToolPolicy,
   type RegisteredTool,
 } from '../tool-registry';
+import { AGENT_RUNTIME_TOOL_SEARCH_LIMIT } from './types';
 
-const HARD_TOOL_LIMIT = 8;
 const DEFAULT_TOOL_LIMIT = 5;
 
 const LAYER_WEIGHT = {
@@ -260,7 +260,10 @@ function scoreSignal(
 
 function clampLimit(limit: number | undefined, fallback: number): number {
   const requested = Number.isFinite(limit) ? Math.floor(limit ?? fallback) : fallback;
-  return Math.max(0, Math.min(HARD_TOOL_LIMIT, requested));
+  return Math.max(
+    0,
+    Math.min(AGENT_RUNTIME_TOOL_SEARCH_LIMIT, requested),
+  );
 }
 
 /**
@@ -342,4 +345,4 @@ export function createToolSelector(
   });
 }
 
-export const MAX_SELECTED_AGENT_TOOLS = HARD_TOOL_LIMIT;
+export const MAX_SELECTED_AGENT_TOOLS = AGENT_RUNTIME_TOOL_SEARCH_LIMIT;

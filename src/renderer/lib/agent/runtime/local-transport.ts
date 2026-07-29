@@ -18,6 +18,7 @@ import type {
   AgentModelMessage,
   AgentRuntimeJournalEntry,
   AgentRuntimeLimits,
+  AgentToolSelectionStrategy,
   AgentToolRuntime,
 } from './types';
 import { clonePortableData } from './portable-data';
@@ -33,6 +34,7 @@ export interface RuntimeCryptoSource {
 export interface LocalGeneralAgentTransportDependencies {
   driver: AgentModelDriver;
   tools?: AgentToolRuntime;
+  toolSelector?: AgentToolSelectionStrategy;
   clock?: AgentClock;
   journal?: AgentJournalSink;
   limits?: Partial<AgentRuntimeLimits>;
@@ -133,6 +135,9 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     this.runtime = new AgentRuntime({
       driver: dependencies.driver,
       ...(dependencies.tools ? { tools: dependencies.tools } : {}),
+      ...(dependencies.toolSelector
+        ? { toolSelector: dependencies.toolSelector }
+        : {}),
       ...(dependencies.clock ? { clock: dependencies.clock } : {}),
       ...(journal ? { journal } : {}),
     });
@@ -332,6 +337,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
                 enabled: input.thinking !== 'off',
                 ...(input.effort ? { effort: input.effort } : {}),
               },
+        toolSearch: input.toolSearch ?? 'off',
         history: session.history,
         ...(this.limits ? { limits: this.limits } : {}),
         signal: controller.signal,

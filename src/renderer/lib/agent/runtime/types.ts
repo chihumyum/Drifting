@@ -8,6 +8,7 @@
  */
 
 export const AGENT_RUNTIME_SCHEMA_VERSION = 1 as const;
+export const AGENT_RUNTIME_TOOL_SEARCH_LIMIT = 8 as const;
 
 export interface AgentRuntimeUsage {
   /**
@@ -164,6 +165,28 @@ export interface AgentToolRuntime {
    * terminal event while an entered write is unresolved.
    */
   execute(request: AgentToolExecutionRequest): Promise<AgentToolExecutionResult>;
+}
+
+export type AgentRuntimeToolSearchMode = 'off' | 'auto' | 'on';
+
+export interface AgentToolSelectionRequest {
+  /** Policy-filtered executable definitions for this runtime invocation. */
+  definitions: readonly AgentToolDefinition[];
+  context: AgentRuntimeContext;
+  iteration: number;
+  /** Deterministic, bounded query derived from the original request and recent work. */
+  query: string;
+  /** Hard provider-facing cap; selectors must never return more names. */
+  limit: number;
+}
+
+/**
+ * Provider-neutral retrieval seam. A selector returns canonical executable
+ * names, never schemas or aliases; AgentRuntime intersects them with the
+ * policy-filtered definitions before exposing or dispatching anything.
+ */
+export interface AgentToolSelectionStrategy {
+  select(request: AgentToolSelectionRequest): readonly string[];
 }
 
 /** Coordinates write effects across concurrently running runtime instances. */
@@ -346,6 +369,7 @@ export interface AgentRuntimeRunInput {
   model?: string;
   systemPrompt?: string;
   reasoning?: AgentReasoningOptions;
+  toolSearch?: AgentRuntimeToolSearchMode;
   history?: readonly AgentModelMessage[];
   limits?: Partial<AgentRuntimeLimits>;
   signal?: AbortSignal;

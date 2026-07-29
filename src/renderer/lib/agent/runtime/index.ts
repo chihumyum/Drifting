@@ -1,6 +1,7 @@
 export * from './clock';
 export * from './context-planner';
 export * from './drifting-read-tool-runtime';
+export * from './drifting-tool-selection';
 export * from './drifting-write-strategies';
 export * from './drifting-write-tool-runtime';
 export * from './drivers';
@@ -15,6 +16,8 @@ export * from './repository-transport-persistence';
 export * from './runtime';
 export * from './scheduler';
 export * from './system-prompt';
+export * from './tool-search-metadata';
+export * from './tool-selector';
 export * from './transport-persistence';
 export * from './types';
 export * from './write-review-feedback';

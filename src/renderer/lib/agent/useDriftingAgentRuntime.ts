@@ -5,6 +5,7 @@ import { EnvCredentialsProvider } from '../ai/credentials/env';
 import { createAgentRuntimeWriteEffectRepository } from '../../sqlite-repo/agent-runtime-write-effect-repo';
 import type { GeneralAgentAuthStatus } from './protocol';
 import {
+  createDriftingToolSelectionStrategy,
   createDriftingWriteToolRuntime,
   createLocalGeneralAgentTransport,
   createRepositoryAgentTransportPersistence,
@@ -41,11 +42,13 @@ const driftingWriteEffects = createAgentRuntimeWriteEffectRepository();
 const driftingAgentTools = createDriftingWriteToolRuntime({
   repository: driftingWriteEffects,
 });
+const driftingToolSelector = createDriftingToolSelectionStrategy();
 
 export function createDriftingLocalAgentTransport(): GeneralAgentTransport {
   return createLocalGeneralAgentTransport({
     driver: new DriftingAgentModelDriver(),
     tools: driftingAgentTools,
+    toolSelector: driftingToolSelector,
     persistence: createRepositoryAgentTransportPersistence({
       writeEffects: driftingWriteEffects,
       resolveToolAccess: resolveDriftingCertifiedToolAccess,

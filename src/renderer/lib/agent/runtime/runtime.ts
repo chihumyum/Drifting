@@ -14,6 +14,7 @@ import { clonePortableData } from './portable-data';
 import { sharedAgentRuntimeScheduler } from './scheduler';
 import {
   AGENT_RUNTIME_SCHEMA_VERSION,
+  AGENT_RUNTIME_TOOL_SEARCH_LIMIT,
   type AgentAssistantContentBlock,
   type AgentAssistantThinkingBlock,
   type AgentAssistantTextBlock,
@@ -36,6 +37,7 @@ import {
   type AgentToolExecutionResult,
   type AgentToolResultBlock,
   type AgentToolRuntime,
+  type AgentToolSelectionStrategy,
   type AgentToolValidationResult,
 } from './types';
 
@@ -60,6 +62,7 @@ const emptyToolRuntime: AgentToolRuntime = {
 export interface AgentRuntimeDependencies {
   driver: import('./types').AgentModelDriver;
   tools?: AgentToolRuntime;
+  toolSelector?: AgentToolSelectionStrategy;
   clock?: AgentClock;
   journal?: AgentJournalSink;
   scheduler?: AgentRuntimeScheduler;
@@ -252,9 +255,63 @@ function groupDefinitions(
   return byName;
 }
 
+const TOOL_SEARCH_PROMPT_CHARS = 1_024;
+const TOOL_SEARCH_RECENT_MESSAGE_CHARS = 640;
+const TOOL_SEARCH_RECENT_MESSAGE_COUNT = 4;
+const TOOL_SEARCH_QUERY_CHARS = 4_096;
+
+function clipped(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value;
+  const omission = '\n…\n';
+  const available = maxChars - omission.length;
+  const headChars = Math.ceil(available / 2);
+  const tailChars = available - headChars;
+  return `${value.slice(0, headChars)}${omission}${value.slice(-tailChars)}`;
+}
+
+function searchableMessageText(message: AgentModelMessage): string {
+  if (message.role === 'user') return '';
+  if (message.role === 'tool') {
+    return message.content
+      .map((result) => `${result.name}: ${result.content}`)
+      .join('\n');
+  }
+  return message.content
+    .flatMap((block) => {
+      if (block.type === 'text') return [block.text];
+      if (block.type === 'tool_call') return [`tool ${block.name}`];
+      return [];
+    })
+    .join('\n');
+}
+
+/**
+ * Keep retrieval deterministic and bounded. The original request remains the
+ * stable anchor; only the four most recent assistant/tool messages can affect
+ * a later iteration's tool surface.
+ */
+export function buildAgentToolSearchQuery(
+  prompt: string,
+  messages: readonly AgentModelMessage[],
+): string {
+  const recent = messages
+    .map((message) => searchableMessageText(message))
+    .filter((value) => value.trim().length > 0)
+    .slice(-TOOL_SEARCH_RECENT_MESSAGE_COUNT)
+    .map((value) => clipped(value, TOOL_SEARCH_RECENT_MESSAGE_CHARS));
+  return clipped(
+    [
+      `original request:\n${clipped(prompt, TOOL_SEARCH_PROMPT_CHARS)}`,
+      ...recent.map((value) => `recent work:\n${value}`),
+    ].join('\n'),
+    TOOL_SEARCH_QUERY_CHARS,
+  );
+}
+
 export class AgentRuntime {
   private readonly driver: AgentRuntimeDependencies['driver'];
   private readonly tools: AgentToolRuntime;
+  private readonly toolSelector?: AgentToolSelectionStrategy;
   private readonly clock: AgentClock;
   private readonly journal?: AgentJournalSink;
   private readonly scheduler: AgentRuntimeScheduler;
@@ -263,6 +320,7 @@ export class AgentRuntime {
   constructor(dependencies: AgentRuntimeDependencies) {
     this.driver = dependencies.driver;
     this.tools = dependencies.tools ?? emptyToolRuntime;
+    this.toolSelector = dependencies.toolSelector;
     this.clock = dependencies.clock ?? systemAgentClock;
     this.journal = dependencies.journal;
     this.scheduler = dependencies.scheduler ?? sharedAgentRuntimeScheduler;
@@ -272,28 +330,41 @@ export class AgentRuntime {
     const limits = mergeLimits(input.limits);
     const route = deepFreeze(clonePortableData(input.route));
     const context: AgentRuntimeContext = { route };
-    const definitions = [...this.tools.listDefinitions(context)].map((definition) => {
-      if (
-        (definition.access !== 'read' && definition.access !== 'write') ||
-        typeof definition.validateInput !== 'function'
-      ) {
-        throw new AgentRuntimeError(
-          'INTERNAL_ERROR',
-          `Tool definition "${definition.name}" is not executable`,
-        );
-      }
-      let inputSchema: object;
-      try {
-        inputSchema = deepFreeze(clonePortableData(definition.inputSchema));
-      } catch {
-        throw new AgentRuntimeError(
-          'INTERNAL_ERROR',
-          `Tool definition "${definition.name}" has a non-portable schema`,
-        );
-      }
-      return { ...definition, inputSchema };
-    });
-    const definitionsByName = groupDefinitions(definitions);
+    const definitions = Object.freeze(
+      [...this.tools.listDefinitions(context)].map((definition) => {
+        if (
+          (definition.access !== 'read' && definition.access !== 'write') ||
+          typeof definition.validateInput !== 'function'
+        ) {
+          throw new AgentRuntimeError(
+            'INTERNAL_ERROR',
+            `Tool definition "${definition.name}" is not executable`,
+          );
+        }
+        let inputSchema: object;
+        try {
+          inputSchema = deepFreeze(clonePortableData(definition.inputSchema));
+        } catch {
+          throw new AgentRuntimeError(
+            'INTERNAL_ERROR',
+            `Tool definition "${definition.name}" has a non-portable schema`,
+          );
+        }
+        return { ...definition, inputSchema };
+      }),
+    );
+    const availableDefinitionsByName = groupDefinitions(definitions);
+    const toolSearch = input.toolSearch ?? 'off';
+    if (
+      toolSearch !== 'off' &&
+      toolSearch !== 'auto' &&
+      toolSearch !== 'on'
+    ) {
+      throw new AgentRuntimeError(
+        'INTERNAL_ERROR',
+        `Invalid tool search mode "${String(toolSearch)}"`,
+      );
+    }
     const messages: AgentModelMessage[] = [
       ...(input.history ?? []).map(cloneMessage),
       { role: 'user', content: input.prompt },
@@ -755,6 +826,59 @@ export class AgentRuntime {
       if (requestMaxOutputTokens <= 0) {
         budget('No output token budget remains for another model iteration');
       }
+      const shouldSearch =
+        toolSearch === 'on' ||
+        (toolSearch === 'auto' &&
+          definitions.length > AGENT_RUNTIME_TOOL_SEARCH_LIMIT);
+      let iterationDefinitions = definitions;
+      if (shouldSearch) {
+        if (!this.toolSelector) {
+          throw new AgentRuntimeError(
+            'INTERNAL_ERROR',
+            'Tool search was requested but no selection strategy is installed',
+          );
+        }
+        let selectedNames: readonly string[];
+        try {
+          selectedNames = this.toolSelector.select({
+            definitions,
+            context,
+            iteration,
+            query: buildAgentToolSearchQuery(input.prompt, messages),
+            limit: AGENT_RUNTIME_TOOL_SEARCH_LIMIT,
+          });
+        } catch {
+          throw new AgentRuntimeError(
+            'INTERNAL_ERROR',
+            'The installed tool selection strategy failed',
+          );
+        }
+        if (selectedNames.length > AGENT_RUNTIME_TOOL_SEARCH_LIMIT) {
+          throw new AgentRuntimeError(
+            'INTERNAL_ERROR',
+            `Tool selection exceeded the ${AGENT_RUNTIME_TOOL_SEARCH_LIMIT}-tool limit`,
+          );
+        }
+        const selected = new Set<string>();
+        iterationDefinitions = selectedNames.map((name) => {
+          if (selected.has(name)) {
+            throw new AgentRuntimeError(
+              'INTERNAL_ERROR',
+              `Tool selection returned duplicate name "${name}"`,
+            );
+          }
+          selected.add(name);
+          const definition = availableDefinitionsByName.get(name);
+          if (!definition) {
+            throw new AgentRuntimeError(
+              'INTERNAL_ERROR',
+              `Tool selection returned unavailable name "${name}"`,
+            );
+          }
+          return definition;
+        });
+      }
+      const definitionsByName = groupDefinitions(iterationDefinitions);
       await emit({
         type: 'model_iteration_started',
         iteration,
@@ -775,7 +899,7 @@ export class AgentRuntime {
         ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
         ...(input.reasoning ? { reasoning: input.reasoning } : {}),
         messages: messages.map(cloneMessage),
-        tools: definitions.map(({ name, description, inputSchema }) => ({
+        tools: iterationDefinitions.map(({ name, description, inputSchema }) => ({
           name,
           description,
           inputSchema: clonePortableData(inputSchema),
