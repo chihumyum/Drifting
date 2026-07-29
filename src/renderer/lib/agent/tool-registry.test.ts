@@ -172,6 +172,54 @@ describe('canonical Agent tool catalog', () => {
     }
   });
 
+  it('keeps exact, compensating, irreversible, and unavailable write policy distinct', () => {
+    const writes = AGENT_TOOL_CATALOG.filter(
+      (tool) => tool.scope === 'general' && tool.access === 'write',
+    );
+    const exact = writes.filter(
+      (tool) => tool.revertStrategy === 'exact_inverse',
+    );
+    const compensating = writes.filter(
+      (tool) => tool.revertStrategy === 'compensating',
+    );
+    const irreversible = writes.filter(
+      (tool) => tool.revertStrategy === 'irreversible',
+    );
+
+    expect(exact.length).toBeGreaterThan(0);
+    expect(compensating.length).toBeGreaterThan(0);
+    expect(irreversible.map((tool) => tool.name).sort()).toEqual([
+      'delete_comment',
+      'delete_element',
+    ]);
+
+    for (const tool of exact) {
+      expect(tool.reversible).toBe(true);
+    }
+    for (const tool of compensating) {
+      expect(tool.reversible).toBe(true);
+      expect(tool.certification).toBe('unavailable');
+    }
+    for (const tool of irreversible) {
+      expect(tool).toMatchObject({
+        approval: 'confirm_before',
+        retry: 'never',
+        reversible: false,
+        certification: 'unavailable',
+      });
+    }
+
+    for (const tool of writes) {
+      if (tool.certification === 'write-certified') {
+        expect(tool.revertStrategy).toBe('exact_inverse');
+        expect(tool.approval).toBe('soft_review');
+      } else {
+        expect(tool.certification).toBe('unavailable');
+        expect(tool.certificationNote).toContain('unavailable');
+      }
+    }
+  });
+
   it('exposes only canonical tools allowed and certified by provider policy', () => {
     const reads = listProviderTools();
     expect(reads).toEqual(AGENT_READ_TOOLS);
