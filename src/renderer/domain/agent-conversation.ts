@@ -61,6 +61,8 @@ export interface AgentConversation {
   title: string;
   /** SDK session to resume for context; null until the first turn reports one. */
   sdkSessionId: string | null;
+  /** Provider-neutral canonical runtime session used for crash recovery. */
+  runtimeSessionId: string | null;
   mode: AgentConvMode;
   messages: AgentChatMessage[];
   createdAt: string;

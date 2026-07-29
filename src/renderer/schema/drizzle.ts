@@ -869,6 +869,11 @@ export const AgentConversationTable = sqliteTable(
     // turn reports one. If the SDK's transcript file is gone, resuming starts
     // fresh — the conversation stays viewable from messagesJson regardless.
     sdkSessionId: text('sdk_session_id'),
+    // Provider-neutral runtime session currently attached to this conversation.
+    // Kept alongside sdkSessionId during the compatibility window: old Claude
+    // conversations can still be inspected while new turns recover from the
+    // canonical runtime tables below.
+    runtimeSessionId: text('runtime_session_id'),
     // Which credentials the conversation last ran under ('byok' | 'hosted').
     mode: text('mode').notNull().default('byok'),
     // Serialized display transcript (AgentChatMessage[] — see domain).
@@ -881,6 +886,170 @@ export const AgentConversationTable = sqliteTable(
     index('idx_agent_conversation_project').on(t.projectId),
     index('idx_agent_conversation_project_updated').on(t.projectId, t.updatedAt),
     index('idx_agent_conversation_deleted_at').on(t.deletedAt),
+  ],
+);
+
+// Canonical, provider-neutral Agent runtime persistence. Unlike
+// AgentConversation.messagesJson (a compatibility/display cache), these rows
+// are normalized recovery state. Runtime events are immutable and append-only.
+export const AgentRuntimeSessionTable = sqliteTable(
+  'agent_runtime_session',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    routeKind: text('route_kind').notNull(),
+    conversationId: text('conversation_id')
+      .references(() => AgentConversationTable.id, { onDelete: 'cascade' }),
+    goalRunId: text('goal_run_id'),
+    chapterId: text('chapter_id'),
+    provider: text('provider').notNull(),
+    model: text('model'),
+    // Bumped whenever provider-side resumable state is replaced. Recovery must
+    // never attach an acknowledgement from an older epoch to a newer session.
+    providerEpoch: integer('provider_epoch').notNull().default(0),
+    status: text('status').notNull().default('pending'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    endedAt: text('ended_at'),
+  },
+  (t) => [
+    index('idx_agent_runtime_session_project').on(t.projectId),
+    index('idx_agent_runtime_session_conversation').on(t.conversationId),
+    index('idx_agent_runtime_session_goal').on(t.projectId, t.goalRunId),
+    index('idx_agent_runtime_session_recovery').on(t.projectId, t.status, t.updatedAt),
+  ],
+);
+
+export const AgentRuntimeTurnTable = sqliteTable(
+  'agent_runtime_turn',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => AgentRuntimeSessionTable.id, { onDelete: 'cascade' }),
+    ordinal: integer('ordinal').notNull(),
+    status: text('status').notNull().default('accepted'),
+    promptMessageId: text('prompt_message_id'),
+    acceptedAt: text('accepted_at').notNull(),
+    startedAt: text('started_at'),
+    endedAt: text('ended_at'),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_turn_session_ordinal').on(t.sessionId, t.ordinal),
+    index('idx_agent_runtime_turn_session_status').on(t.sessionId, t.status),
+  ],
+);
+
+export const AgentRuntimeMessageTable = sqliteTable(
+  'agent_runtime_message',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => AgentRuntimeSessionTable.id, { onDelete: 'cascade' }),
+    turnId: text('turn_id').references(() => AgentRuntimeTurnTable.id, {
+      onDelete: 'cascade',
+    }),
+    ordinal: integer('ordinal').notNull(),
+    role: text('role').notNull(),
+    status: text('status').notNull().default('accepted'),
+    contentJson: text('content_json').notNull(),
+    createdAt: text('created_at').notNull(),
+    completedAt: text('completed_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_message_session_ordinal').on(
+      t.sessionId,
+      t.ordinal,
+    ),
+    index('idx_agent_runtime_message_turn_ordinal').on(t.turnId, t.ordinal),
+  ],
+);
+
+export const AgentRuntimeEventTable = sqliteTable(
+  'agent_runtime_event',
+  {
+    eventId: text('event_id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => AgentRuntimeSessionTable.id, { onDelete: 'cascade' }),
+    turnId: text('turn_id')
+      .notNull()
+      .references(() => AgentRuntimeTurnTable.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    schemaVersion: integer('schema_version').notNull(),
+    eventType: text('event_type').notNull(),
+    payloadJson: text('payload_json').notNull(),
+    wallTimeMs: integer('wall_time_ms').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_event_turn_seq').on(t.turnId, t.seq),
+    index('idx_agent_runtime_event_session').on(t.sessionId),
+  ],
+);
+
+export const AgentRuntimeToolCallTable = sqliteTable(
+  'agent_runtime_tool_call',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => AgentRuntimeSessionTable.id, { onDelete: 'cascade' }),
+    turnId: text('turn_id')
+      .notNull()
+      .references(() => AgentRuntimeTurnTable.id, { onDelete: 'cascade' }),
+    callId: text('call_id').notNull(),
+    name: text('name').notNull(),
+    access: text('access').notNull(),
+    status: text('status').notNull().default('requested'),
+    idempotencyKey: text('idempotency_key').notNull(),
+    argumentsJson: text('arguments_json').notNull(),
+    resultJson: text('result_json'),
+    errorCode: text('error_code'),
+    createdAt: text('created_at').notNull(),
+    startedAt: text('started_at'),
+    completedAt: text('completed_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_tool_call_session_call').on(
+      t.sessionId,
+      t.callId,
+    ),
+    uniqueIndex('uniq_agent_runtime_tool_call_idempotency').on(
+      t.idempotencyKey,
+    ),
+    index('idx_agent_runtime_tool_call_turn_status').on(t.turnId, t.status),
+  ],
+);
+
+export const AgentRuntimeCheckpointTable = sqliteTable(
+  'agent_runtime_checkpoint',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => AgentRuntimeSessionTable.id, { onDelete: 'cascade' }),
+    throughTurnOrdinal: integer('through_turn_ordinal').notNull(),
+    messageCount: integer('message_count').notNull(),
+    contextJson: text('context_json').notNull(),
+    contextHash: text('context_hash').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_checkpoint_session_turn').on(
+      t.sessionId,
+      t.throughTurnOrdinal,
+    ),
+    index('idx_agent_runtime_checkpoint_session_created').on(
+      t.sessionId,
+      t.createdAt,
+    ),
   ],
 );
 

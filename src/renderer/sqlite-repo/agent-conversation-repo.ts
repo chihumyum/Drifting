@@ -35,6 +35,7 @@ function recordToDomain(record: typeof AgentConversationTable.$inferSelect): Age
     projectId: record.projectId,
     title: record.title,
     sdkSessionId: record.sdkSessionId ?? null,
+    runtimeSessionId: record.runtimeSessionId ?? null,
     mode: coerceMode(record.mode),
     messages: parseMessages(record.messagesJson),
     createdAt: record.createdAt,
@@ -49,6 +50,7 @@ export interface CreateAgentConversationInput {
   mode: AgentConvMode;
   messages: AgentChatMessage[];
   sdkSessionId?: string | null;
+  runtimeSessionId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -58,6 +60,7 @@ export interface UpdateAgentConversationInput {
   mode?: AgentConvMode;
   messages?: AgentChatMessage[];
   sdkSessionId?: string | null;
+  runtimeSessionId?: string | null;
   updatedAt?: string;
 }
 
@@ -183,6 +186,7 @@ export function createAgentConversationRepository(): AgentConversationRepository
         mode: input.mode,
         messagesJson: JSON.stringify(input.messages),
         sdkSessionId: input.sdkSessionId ?? null,
+        runtimeSessionId: input.runtimeSessionId ?? null,
         createdAt: input.createdAt,
         updatedAt: input.updatedAt,
       };
@@ -195,6 +199,8 @@ export function createAgentConversationRepository(): AgentConversationRepository
       if (patch.mode !== undefined) set.mode = patch.mode;
       if (patch.messages !== undefined) set.messagesJson = JSON.stringify(patch.messages);
       if (patch.sdkSessionId !== undefined) set.sdkSessionId = patch.sdkSessionId;
+      if (patch.runtimeSessionId !== undefined)
+        set.runtimeSessionId = patch.runtimeSessionId;
       if (patch.updatedAt !== undefined) set.updatedAt = patch.updatedAt;
       await getDb()
         .update(AgentConversationTable)

@@ -1547,7 +1547,7 @@ mod tests {
         let first_open = gateway
             .open("migrations.db".into(), CLIENT_SESSION.into(), false)
             .expect("first open");
-        assert_eq!(first_open.migrations_applied, 60);
+        assert_eq!(first_open.migrations_applied, 61);
         assert_eq!(first_open.journal_mode.to_ascii_lowercase(), "wal");
 
         let migration_count = gateway
@@ -1558,7 +1558,7 @@ mod tests {
                 CLIENT_SESSION.into(),
             )
             .expect("migration count");
-        assert_eq!(migration_count.rows, [vec![integer(60)]]);
+        assert_eq!(migration_count.rows, [vec![integer(61)]]);
 
         gateway
             .close(CLIENT_SESSION.into())
@@ -1567,6 +1567,210 @@ mod tests {
             .open("migrations.db".into(), CLIENT_SESSION.into(), false)
             .expect("second open");
         assert_eq!(second_open.migrations_applied, 0);
+    }
+
+    #[test]
+    fn agent_runtime_migration_enforces_canonical_journal_constraints() {
+        let (_directory, gateway) = gateway();
+        gateway
+            .open("agent-runtime.db".into(), CLIENT_SESSION.into(), false)
+            .expect("open migrated database");
+
+        gateway
+            .execute(
+                "INSERT INTO project (id, name, user_id, created_at, updated_at) \
+                 VALUES ('project-1', 'Novel', 'user-1', '2026-07-30T00:00:00Z', '2026-07-30T00:00:00Z')"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("insert project");
+        gateway
+            .execute(
+                "INSERT INTO agent_conversation \
+                 (id, project_id, title, sdk_session_id, created_at, updated_at) \
+                 VALUES ('conversation-1', 'project-1', 'Recovery', 'legacy-sdk-session', \
+                 '2026-07-30T00:00:00Z', '2026-07-30T00:00:00Z')"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("insert conversation");
+        gateway
+            .execute(
+                "INSERT INTO agent_runtime_session \
+                 (id, project_id, route_kind, conversation_id, provider, model, status, created_at, updated_at) \
+                 VALUES ('session-1', 'project-1', 'chat', 'conversation-1', 'deepseek', \
+                 'deepseek-chat', 'running', '2026-07-30T00:00:00Z', '2026-07-30T00:00:00Z')"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("insert runtime session");
+        gateway
+            .execute(
+                "UPDATE agent_conversation SET runtime_session_id = 'session-1' \
+                 WHERE id = 'conversation-1'"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("attach canonical session");
+        gateway
+            .execute(
+                "INSERT INTO agent_runtime_turn \
+                 (id, session_id, ordinal, status, accepted_at, updated_at) \
+                 VALUES ('turn-1', 'session-1', 0, 'running', \
+                 '2026-07-30T00:00:01Z', '2026-07-30T00:00:01Z')"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("insert runtime turn");
+        gateway
+            .execute(
+                "INSERT INTO agent_runtime_message \
+                 (id, session_id, turn_id, ordinal, role, status, content_json, created_at, completed_at) \
+                 VALUES ('message-1', 'session-1', 'turn-1', 0, 'user', 'complete', \
+                 '{\"content\":\"写第一章\",\"role\":\"user\"}', \
+                 '2026-07-30T00:00:01Z', '2026-07-30T00:00:01Z')"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("insert canonical prompt");
+        gateway
+            .execute(
+                "INSERT INTO agent_runtime_event \
+                 (event_id, session_id, turn_id, seq, schema_version, event_type, \
+                  payload_json, wall_time_ms, created_at) \
+                 VALUES ('turn-1:00000001', 'session-1', 'turn-1', 1, 1, \
+                 'turn_started', '{\"prompt\":\"写第一章\"}', 1, '2026-07-30T00:00:01Z')"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("insert first journal event");
+        gateway
+            .execute(
+                "INSERT INTO agent_runtime_tool_call \
+                 (id, session_id, turn_id, call_id, name, access, status, idempotency_key, \
+                  arguments_json, created_at) \
+                 VALUES ('tool-record-1', 'session-1', 'turn-1', 'call-1', 'list_nodes', \
+                 'read', 'requested', 'session-1:turn-1:call-1', '{}', \
+                 '2026-07-30T00:00:01Z')"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("insert canonical tool lifecycle");
+        gateway
+            .execute(
+                "INSERT INTO agent_runtime_checkpoint \
+                 (id, session_id, through_turn_ordinal, message_count, context_json, \
+                  context_hash, created_at) \
+                 VALUES ('checkpoint-1', 'session-1', 0, 1, '[]', 'sha256:test', \
+                 '2026-07-30T00:00:02Z')"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("insert canonical context checkpoint");
+
+        let invalid_goal_route = gateway.execute(
+            "INSERT INTO agent_runtime_session \
+             (id, project_id, route_kind, conversation_id, provider, status, created_at, updated_at) \
+             VALUES ('session-invalid', 'project-1', 'goal', 'conversation-1', 'deepseek', \
+             'running', '2026-07-30T00:00:00Z', '2026-07-30T00:00:00Z')"
+                .into(),
+            Vec::new(),
+            None,
+            CLIENT_SESSION.into(),
+        );
+        assert!(
+            invalid_goal_route.is_err(),
+            "goal sessions must not claim a chat conversation"
+        );
+
+        let duplicate_message_ordinal = gateway.execute(
+            "INSERT INTO agent_runtime_message \
+             (id, session_id, turn_id, ordinal, role, status, content_json, created_at) \
+             VALUES ('message-duplicate', 'session-1', 'turn-1', 0, 'assistant', \
+             'complete', '{}', '2026-07-30T00:00:02Z')"
+                .into(),
+            Vec::new(),
+            None,
+            CLIENT_SESSION.into(),
+        );
+        assert!(
+            duplicate_message_ordinal.is_err(),
+            "message ordinals must be unique per session"
+        );
+
+        let duplicate_event_id = gateway.execute(
+            "INSERT INTO agent_runtime_event \
+             (event_id, session_id, turn_id, seq, schema_version, event_type, \
+              payload_json, wall_time_ms, created_at) \
+             VALUES ('turn-1:00000001', 'session-1', 'turn-1', 2, 1, \
+             'text_delta', '{}', 2, '2026-07-30T00:00:02Z')"
+                .into(),
+            Vec::new(),
+            None,
+            CLIENT_SESSION.into(),
+        );
+        assert!(duplicate_event_id.is_err(), "eventId must be unique");
+
+        let duplicate_turn_seq = gateway.execute(
+            "INSERT INTO agent_runtime_event \
+             (event_id, session_id, turn_id, seq, schema_version, event_type, \
+              payload_json, wall_time_ms, created_at) \
+             VALUES ('another-id', 'session-1', 'turn-1', 1, 1, \
+             'text_delta', '{}', 2, '2026-07-30T00:00:02Z')"
+                .into(),
+            Vec::new(),
+            None,
+            CLIENT_SESSION.into(),
+        );
+        assert!(duplicate_turn_seq.is_err(), "(turnId, seq) must be unique");
+
+        let attached = gateway
+            .query(
+                "SELECT sdk_session_id, runtime_session_id FROM agent_conversation \
+                 WHERE id = 'conversation-1'"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("read attached runtime session");
+        assert_eq!(
+            attached.rows,
+            [vec![
+                DatabaseValue::Text("legacy-sdk-session".into()),
+                DatabaseValue::Text("session-1".into())
+            ]]
+        );
+        let integrity = gateway
+            .query(
+                "PRAGMA integrity_check".into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("integrity check");
+        assert_eq!(
+            integrity.rows,
+            [vec![DatabaseValue::Text("ok".into())]]
+        );
     }
 
     #[test]
@@ -1681,7 +1885,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("migration count");
-        assert_eq!(migration_count, 60);
+        assert_eq!(migration_count, 61);
     }
 
     fn application_table_counts(connection: &Connection) -> Vec<(String, i64)> {
