@@ -435,6 +435,13 @@
       "when": 1784600000000,
       "tag": "0061_agent_runtime_write_effect",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "6",
+      "when": 1784700000000,
+      "tag": "0062_yjs_document_revision",
+      "breakpoints": true
     }
   ]
 }

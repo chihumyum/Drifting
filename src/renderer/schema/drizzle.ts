@@ -1368,6 +1368,55 @@ export const yjsSnapshots = sqliteTable(
   (t) => [index('idx_yjs_snapshot_doc').on(t.docId)],
 );
 
+/**
+ * Monotonic document generation used for optimistic Agent prose writes.
+ *
+ * `yjs_updates.id` is not a revision: compaction may delete every covered
+ * update row. This counter is intentionally independent from the append log
+ * and survives snapshots/compaction so a stale prepared command can never
+ * become current again merely because old update rows were pruned.
+ */
+export const YjsDocumentRevisionTable = sqliteTable('yjs_document_revision', {
+  docId: text('document_id').primaryKey(),
+  revision: integer('revision').notNull().default(0),
+  updatedAt: text('updated_at').notNull(),
+});
+
+/**
+ * Durable idempotency/reconciliation receipt for provider-neutral prose
+ * commands. The referenced update row may later be compacted, so updateId is a
+ * watermark rather than a foreign key.
+ */
+export const YjsProseCommandReceiptTable = sqliteTable(
+  'yjs_prose_command_receipt',
+  {
+    id: text('id').primaryKey(),
+    commandId: text('command_id').notNull(),
+    direction: text('direction').notNull(),
+    docId: text('document_id').notNull(),
+    sourceKind: text('source_kind').notNull(),
+    baseRevision: integer('base_revision').notNull(),
+    committedRevision: integer('committed_revision').notNull(),
+    baseStateVector: blob('base_state_vector').notNull(),
+    baseStateHash: text('base_state_hash').notNull(),
+    resultStateVector: blob('result_state_vector').notNull(),
+    resultStateHash: text('result_state_hash').notNull(),
+    updateHash: text('update_hash').notNull(),
+    updateId: integer('update_id').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_yjs_prose_command_direction').on(
+      t.commandId,
+      t.direction,
+    ),
+    index('idx_yjs_prose_command_doc_revision').on(
+      t.docId,
+      t.committedRevision,
+    ),
+  ],
+);
+
 // Yjs sync cursor: tracks push/pull progress per document
 export const yjsSyncCursor = sqliteTable('yjs_sync_cursor', {
   docId: text('doc_id').primaryKey(),

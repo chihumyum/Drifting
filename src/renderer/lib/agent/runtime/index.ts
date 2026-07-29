@@ -18,3 +18,4 @@ export * from './transport-persistence';
 export * from './types';
 export * from './write-review-feedback';
 export * from './yjs-prose-command';
+export * from './yjs-prose-persistence-coordinator';

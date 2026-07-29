@@ -1547,7 +1547,7 @@ mod tests {
         let first_open = gateway
             .open("migrations.db".into(), CLIENT_SESSION.into(), false)
             .expect("first open");
-        assert_eq!(first_open.migrations_applied, 62);
+        assert_eq!(first_open.migrations_applied, 63);
         assert_eq!(first_open.journal_mode.to_ascii_lowercase(), "wal");
 
         let migration_count = gateway
@@ -1558,7 +1558,7 @@ mod tests {
                 CLIENT_SESSION.into(),
             )
             .expect("migration count");
-        assert_eq!(migration_count.rows, [vec![integer(62)]]);
+        assert_eq!(migration_count.rows, [vec![integer(63)]]);
 
         gateway
             .close(CLIENT_SESSION.into())
@@ -1885,7 +1885,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("migration count");
-        assert_eq!(migration_count, 62);
+        assert_eq!(migration_count, 63);
     }
 
     fn application_table_counts(connection: &Connection) -> Vec<(String, i64)> {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 
+import { createPersistedYjsUpdateOrigin } from '../lib/yjs-persistence-origin';
 import type { YjsRepository, YjsUpdateRow } from '../sqlite-repo/yjs-repo';
 import {
   scheduleMicrotask,
@@ -20,12 +21,18 @@ function createHarness(options: { updates?: YjsUpdateRow[]; snapshotError?: Erro
     listUpdates: vi.fn(async () => options.updates ?? []),
     listDocIds: vi.fn(async () => []),
     appendUpdate: vi.fn(async () => nextId++),
+    appendUpdateCas: vi.fn(async (_docId, _update, expectedRevision) => ({
+      updateId: nextId++,
+      previousRevision: expectedRevision,
+      revision: expectedRevision + 1,
+    })),
     getSnapshot: vi.fn(async () => {
       if (options.snapshotError) throw options.snapshotError;
       return null;
     }),
     upsertSnapshot: vi.fn(async () => undefined),
     hasDocState: vi.fn(async () => false),
+    getRevision: vi.fn(async () => 0),
     maxUpdateId: vi.fn(async () => 999_999),
     deleteUpdatesUpTo: vi.fn(async () => 0),
   };
@@ -53,6 +60,27 @@ async function settleFinalClose(session: {
 }
 
 describe('YjsDocumentSessionRegistry', () => {
+  it('does not append an update that an atomic coordinator already persisted', async () => {
+    const { repo, registry } = createHarness();
+    const session = registry.get('node-content:persisted-agent', 'user-1');
+    const release = session.retain();
+    await session.waitUntilLoaded();
+
+    Y.applyUpdate(
+      session.ydoc,
+      yjsUpdate('already durable'),
+      createPersistedYjsUpdateOrigin(
+        73,
+        'yjs-prose:command-persisted:forward',
+      ),
+    );
+    await session.flushPendingWrites();
+
+    expect(repo.appendUpdate).not.toHaveBeenCalled();
+    release();
+    await settleFinalClose(session);
+  });
+
   it('preserves the Window receiver for WebKit queueMicrotask', async () => {
     const nativeQueueMicrotask = globalThis.queueMicrotask;
     const callback = vi.fn();

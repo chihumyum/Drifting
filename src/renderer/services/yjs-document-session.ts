@@ -3,6 +3,7 @@ import * as Y from 'yjs';
 
 import { isSyncEnabled } from '../lib/config';
 import { initDatabase } from '../lib/db';
+import { readPersistedYjsUpdateOrigin } from '../lib/yjs-persistence-origin';
 import { createYjsRepository, type YjsRepository } from '../sqlite-repo/yjs-repo';
 import { maybeCaptureSnapshotHistory } from './snapshot-history.service';
 import {
@@ -292,6 +293,20 @@ export class YjsDocumentSession {
 
   private readonly handleUpdate = (update: Uint8Array, origin: unknown): void => {
     if (origin === 'load') return;
+
+    const persistedOrigin = readPersistedYjsUpdateOrigin(origin);
+    if (persistedOrigin) {
+      // The coordinator committed this exact update and its receipt before
+      // merging it into the editor. Advancing the coverage watermark keeps a
+      // future snapshot eligible to compact it; appending again would create a
+      // duplicate local-sync row and a second revision.
+      this.snapshotCoveredUpdateId = Math.max(
+        this.snapshotCoveredUpdateId,
+        persistedOrigin.updateId,
+      );
+      this.localUpdatesSinceSnapshot = 0;
+      return;
+    }
 
     const isLocalEdit = origin !== 'remote' && origin !== 'seed' && origin !== 'restore';
     const updateCopy = new Uint8Array(update);
