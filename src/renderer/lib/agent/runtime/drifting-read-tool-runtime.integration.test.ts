@@ -106,10 +106,13 @@ const route = {
 const validArguments: Record<string, Record<string, unknown>> = {
   get_overview: {},
   get_project_brief: {},
+  list_nodes: {},
   list_elements: {},
   read_element: { element: '柳青' },
   get_element_patches: { element: '柳青' },
   read_node: { node: '第一章' },
+  read_block: { node: '第一章', blockId: 'block-1' },
+  lookup_block: { node: '第一章', ordinal: 1 },
   get_storyline: { storyline: '主线' },
   get_entity_relations: { kind: 'element', name: '柳青' },
   where_does_entity_appear: { kind: 'element', name: '柳青' },
@@ -432,6 +435,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
     const emptySuccesses = new Set([
       'get_overview',
       'get_project_brief',
+      'list_nodes',
       'list_elements',
       'search_prose',
       'search_project',

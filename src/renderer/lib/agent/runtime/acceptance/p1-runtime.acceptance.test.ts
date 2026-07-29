@@ -95,10 +95,13 @@ class TenThousandEventDriver implements AgentModelDriver {
 const VALID_ARGUMENTS_BY_TOOL: Record<string, Record<string, unknown>> = {
   get_overview: {},
   get_project_brief: {},
+  list_nodes: {},
   list_elements: {},
   read_element: { element: '林😀' },
   get_element_patches: { element: '林默' },
   read_node: { node: '第一章', prose: false },
+  read_block: { node: '第一章', blockId: 'block-1' },
+  lookup_block: { node: '第一章', ordinal: 1 },
   get_storyline: { storyline: '主线' },
   get_entity_relations: { kind: 'element', name: '林默' },
   where_does_entity_appear: { kind: 'element', name: '林默' },
@@ -113,6 +116,7 @@ const VALID_ARGUMENTS_BY_TOOL: Record<string, Record<string, unknown>> = {
 const EMPTY_ARGUMENT_TOOLS = new Set([
   'get_overview',
   'get_project_brief',
+  'list_nodes',
   'list_elements',
   'list_comments',
   'list_memory',

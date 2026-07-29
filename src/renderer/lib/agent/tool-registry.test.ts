@@ -1,0 +1,201 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+
+import {
+  AGENT_READ_TOOLS,
+  AGENT_TOOL_CATALOG,
+  GENERAL_READ_ONLY_PROVIDER_POLICY,
+  getRegisteredTool,
+  isToolAllowedByPolicy,
+  listProviderTools,
+  registeredDispatchNames,
+  selectProviderTools,
+  toAITools,
+} from './tool-registry';
+
+const P1_READ_NAMES = [
+  'get_overview',
+  'get_project_brief',
+  'list_elements',
+  'read_element',
+  'get_element_patches',
+  'read_node',
+  'get_storyline',
+  'get_entity_relations',
+  'where_does_entity_appear',
+  'search_prose',
+  'search_project',
+  'list_comments',
+  'list_memory',
+  'list_materials',
+  'read_material',
+] as const;
+
+const P3_AUDITED_READ_NAMES = [
+  'list_nodes',
+  'read_block',
+  'lookup_block',
+] as const;
+
+function dispatcherNamesFromSource(): string[] {
+  const source = readFileSync(
+    fileURLToPath(new URL('./tool-handlers.ts', import.meta.url)),
+    'utf8',
+  );
+  const marker = 'export async function runAgentTool';
+  const start = source.indexOf(marker);
+  if (start < 0) throw new Error(`Missing ${marker}`);
+  return [
+    ...source
+      .slice(start)
+      .matchAll(/case\s+['"]([^'"]+)['"]\s*:/gu),
+  ].map((match) => match[1]);
+}
+
+describe('canonical Agent tool catalog', () => {
+  it('covers every runAgentTool handler exactly once, including the deprecated alias', () => {
+    const dispatcherNames = dispatcherNamesFromSource();
+    const catalogDispatchNames = AGENT_TOOL_CATALOG.filter(
+      (tool) => tool.scope !== 'runtime-virtual',
+    ).flatMap(registeredDispatchNames);
+
+    expect(new Set(dispatcherNames).size).toBe(dispatcherNames.length);
+    expect(new Set(catalogDispatchNames).size).toBe(
+      catalogDispatchNames.length,
+    );
+    expect(catalogDispatchNames.sort()).toEqual(dispatcherNames.sort());
+    expect(getRegisteredTool('set_element_body')).toBe(
+      getRegisteredTool('set_entity_body'),
+    );
+    expect(getRegisteredTool('set_entity_body')?.aliases).toContain(
+      'set_element_body',
+    );
+  });
+
+  it('classifies the full surface with no unclassified entry', () => {
+    const canonicalNames = AGENT_TOOL_CATALOG.map((tool) => tool.name);
+    expect(new Set(canonicalNames).size).toBe(canonicalNames.length);
+
+    expect(
+      AGENT_TOOL_CATALOG.filter(
+        (tool) => tool.scope === 'general' && tool.access === 'read',
+      ),
+    ).toHaveLength(18);
+    expect(
+      AGENT_TOOL_CATALOG.filter(
+        (tool) => tool.scope === 'general' && tool.access === 'write',
+      ),
+    ).toHaveLength(34);
+    expect(
+      AGENT_TOOL_CATALOG.filter(
+        (tool) => tool.scope === 'shadow-internal',
+      ),
+    ).toHaveLength(4);
+    expect(
+      AGENT_TOOL_CATALOG.filter(
+        (tool) => tool.scope === 'runtime-virtual',
+      ),
+    ).toHaveLength(1);
+
+    for (const tool of AGENT_TOOL_CATALOG) {
+      expect(tool.name).not.toBe('');
+      expect(tool.version).toBeGreaterThan(0);
+      expect(tool.description).not.toBe('');
+      expect(tool.parametersSchema).toMatchObject({ type: 'object' });
+      expect(tool.scope).not.toBeUndefined();
+      expect(tool.access).not.toBeUndefined();
+      expect(tool.risk).not.toBeUndefined();
+      expect(tool.effect).not.toBeUndefined();
+      expect(tool.approval).not.toBeUndefined();
+      expect(tool.retry).not.toBeUndefined();
+      expect(tool.revertStrategy).not.toBeUndefined();
+      expect(tool.certification).not.toBeUndefined();
+      expect(tool.certificationNote).not.toBe('');
+      expect(Array.isArray(tool.aliases)).toBe(true);
+      expect(Array.isArray(tool.handlerAliases)).toBe(true);
+    }
+  });
+
+  it('preserves the P1 reads and certifies the three audited pure reads', () => {
+    for (const name of P1_READ_NAMES) {
+      expect(getRegisteredTool(name)).toMatchObject({
+        name,
+        scope: 'general',
+        access: 'read',
+        risk: 'none',
+        effect: 'none',
+        certification: 'read-certified',
+      });
+    }
+    for (const name of P3_AUDITED_READ_NAMES) {
+      expect(getRegisteredTool(name)).toMatchObject({
+        name,
+        scope: 'general',
+        access: 'read',
+        risk: 'none',
+        effect: 'none',
+        certification: 'read-certified',
+      });
+      expect(getRegisteredTool(name)?.certificationNote).toContain(
+        'P3 read audit',
+      );
+    }
+    expect(AGENT_READ_TOOLS).toHaveLength(18);
+  });
+
+  it('keeps all 34 General writes unavailable until their safety paths are certified', () => {
+    const writes = AGENT_TOOL_CATALOG.filter(
+      (tool) => tool.scope === 'general' && tool.access === 'write',
+    );
+    expect(writes).toHaveLength(34);
+    expect(
+      writes.every((tool) => tool.certification === 'unavailable'),
+    ).toBe(true);
+    expect(
+      AGENT_TOOL_CATALOG.filter(
+        (tool) => tool.certification === 'write-certified',
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('exposes only canonical tools allowed and certified by provider policy', () => {
+    const reads = listProviderTools();
+    expect(reads).toEqual(AGENT_READ_TOOLS);
+    expect(
+      reads.every((tool) =>
+        isToolAllowedByPolicy(tool, GENERAL_READ_ONLY_PROVIDER_POLICY),
+      ),
+    ).toBe(true);
+    expect(reads.every((tool) => tool.access === 'read')).toBe(true);
+    expect(reads.every((tool) => tool.scope === 'general')).toBe(true);
+
+    // Asking for writes is not itself certification.
+    expect(listProviderTools({ allowWrite: true })).toEqual(reads);
+
+    const providerNames = toAITools(AGENT_TOOL_CATALOG).map(
+      (tool) => tool.name,
+    );
+    expect(providerNames).toEqual(reads.map((tool) => tool.name));
+    expect(new Set(providerNames).size).toBe(providerNames.length);
+    expect(providerNames).not.toContain('set_element_body');
+    expect(providerNames).not.toContain('shadow_commit_review');
+    expect(providerNames).not.toContain('read_tool_result');
+  });
+
+  it('cannot leak an unavailable write through a permissive-looking policy', () => {
+    const result = selectProviderTools({
+      scopes: ['general'],
+      accesses: ['read', 'write'],
+      certifications: [
+        'unavailable',
+        'protocol-conformant',
+        'read-certified',
+        'write-certified',
+      ],
+    });
+
+    expect(result).toHaveLength(18);
+    expect(result.every((tool) => tool.access === 'read')).toBe(true);
+  });
+});
