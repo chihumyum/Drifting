@@ -43,7 +43,7 @@ type SyncableSlice = {
   editorIndentStep: unknown;
   paragraphSpacing: unknown;
   maxLineWidth: unknown;
-  focusLine: unknown;
+  caretColor: unknown;
   entityLinkInteractive: unknown;
   autosave: unknown;
   autoElementLinkEnabled: unknown;
@@ -91,7 +91,7 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'editorIndentStep',
   'paragraphSpacing',
   'maxLineWidth',
-  'focusLine',
+  'caretColor',
   'entityLinkInteractive',
   'autosave',
   'autoElementLinkEnabled',
@@ -218,7 +218,9 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
       if (Number.isFinite(n)) store.setParagraphSpacing(n);
     },
     maxLineWidth: (v) => store.setMaxLineWidth(Number(v)),
-    focusLine: (v) => store.setFocusLine(v as never),
+    caretColor: (v) => {
+      if (typeof v === 'string') store.setCaretColor(v);
+    },
     entityLinkInteractive: (v) => store.setEntityLinkInteractive(!!v),
     autosave: (v) => store.setAutosave(!!v),
     autoElementLinkEnabled: (v) => store.setAutoElementLinkEnabled(!!v),

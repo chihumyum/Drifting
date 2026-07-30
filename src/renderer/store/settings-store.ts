@@ -4,15 +4,25 @@ import type { BYOKProvider } from '../lib/byok-keychain';
 import { APP_CONFIG } from '../lib/config';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type FocusLineMode = 'off' | 'paragraph' | 'line' | 'sentence';
 export type ParagraphIndent = 'none' | 'one' | 'two';
 export type EditorFontSource =
   | 'system-serif'
   | 'system-sans'
+  | 'system-mono'
   | 'system-custom'
   | 'imported';
 /** Editor line height, a free ratio in [1.0, 2.0] (slider, clamped on set). */
 export type LineHeight = number;
+export const TYPEWRITER_POSITION_MIN = 25;
+export const TYPEWRITER_POSITION_MAX = 75;
+export const TYPEWRITER_POSITION_DEFAULT = 50;
+export const CARET_COLOR_DEFAULT = '#6b7fa6';
+
+export function normalizeCaretColor(color: unknown): string {
+  return typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)
+    ? color.toLowerCase()
+    : CARET_COLOR_DEFAULT;
+}
 
 /**
  * Recommended editor typography / layout defaults. Single source of truth for
@@ -223,8 +233,14 @@ interface SettingsState {
   // Restore all of the above editor typography/layout fields to
   // EDITOR_STYLE_DEFAULTS in one shot.
   resetEditorStyle: () => void;
-  focusLine: FocusLineMode;
-  setFocusLine: (mode: FocusLineMode) => void;
+  /** Keep the active prose caret line at a stable viewport position. */
+  typewriterMode: boolean;
+  setTypewriterMode: (enabled: boolean) => void;
+  /** Vertical caret target as a percentage from the top of the editor viewport. */
+  typewriterPosition: number;
+  setTypewriterPosition: (percent: number) => void;
+  caretColor: string;
+  setCaretColor: (color: string) => void;
   entityLinkInteractive: boolean;
   setEntityLinkInteractive: (on: boolean) => void;
   autosave: boolean;
@@ -444,8 +460,20 @@ export const useSettingsStore = create<SettingsState>()(
       maxLineWidth: EDITOR_STYLE_DEFAULTS.maxLineWidth,
       setMaxLineWidth: (px) => set({ maxLineWidth: clamp(px, 480, 1280, 720) }),
       resetEditorStyle: () => set({ ...EDITOR_STYLE_DEFAULTS }),
-      focusLine: 'paragraph',
-      setFocusLine: (m) => set({ focusLine: m }),
+      typewriterMode: false,
+      setTypewriterMode: (enabled) => set({ typewriterMode: enabled }),
+      typewriterPosition: TYPEWRITER_POSITION_DEFAULT,
+      setTypewriterPosition: (percent) =>
+        set({
+          typewriterPosition: clamp(
+            percent,
+            TYPEWRITER_POSITION_MIN,
+            TYPEWRITER_POSITION_MAX,
+            TYPEWRITER_POSITION_DEFAULT,
+          ),
+        }),
+      caretColor: CARET_COLOR_DEFAULT,
+      setCaretColor: (color) => set({ caretColor: normalizeCaretColor(color) }),
       entityLinkInteractive: true,
       setEntityLinkInteractive: (on) => set({ entityLinkInteractive: on }),
       autosave: true,
@@ -574,7 +602,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 16,
+      version: 19,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           appearanceSkin?: 'classic' | 'modern';
@@ -590,6 +618,7 @@ export const useSettingsStore = create<SettingsState>()(
           aiMode?: AiMode;
           byokProvider?: BYOKProvider;
           agentMode?: AiMode;
+          focusLine?: unknown;
         };
         let next: Partial<SettingsState> & {
           appearanceSkin?: 'classic' | 'modern';
@@ -604,6 +633,7 @@ export const useSettingsStore = create<SettingsState>()(
           aiMode?: AiMode;
           byokProvider?: BYOKProvider;
           agentMode?: AiMode;
+          focusLine?: unknown;
         } = state;
         if (version < 2) {
           // Preserve the original prose-font preference from the setting that
@@ -818,6 +848,22 @@ export const useSettingsStore = create<SettingsState>()(
           next.agentThinking = 'off';
           next.agentToolSearch = 'off';
         }
+        if (version < 17) {
+          // Typewriter scrolling is a device-local editor behavior, separate
+          // from manuscript/Yjs data.
+          next.typewriterMode = false;
+          next.typewriterPosition = TYPEWRITER_POSITION_DEFAULT;
+        }
+        if (version < 18) {
+          // Focus dimming was removed. Drop the obsolete persisted preference
+          // instead of carrying an inert field indefinitely.
+          const { focusLine: _omit, ...rest } = next;
+          void _omit;
+          next = rest;
+        }
+        if (version < 19) {
+          next.caretColor = CARET_COLOR_DEFAULT;
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -840,6 +886,7 @@ export const useSettingsStore = create<SettingsState>()(
         if (
           merged.editorFontSource !== 'system-serif' &&
           merged.editorFontSource !== 'system-sans' &&
+          merged.editorFontSource !== 'system-mono' &&
           merged.editorFontSource !== 'system-custom' &&
           merged.editorFontSource !== 'imported'
         ) {
@@ -852,6 +899,14 @@ export const useSettingsStore = create<SettingsState>()(
         if (merged.editorFontSource === 'system-custom' && !merged.editorSystemFontFamily) {
           merged.editorFontSource = EDITOR_STYLE_DEFAULTS.editorFontSource;
         }
+        merged.typewriterMode = merged.typewriterMode === true;
+        merged.typewriterPosition = clamp(
+          merged.typewriterPosition,
+          TYPEWRITER_POSITION_MIN,
+          TYPEWRITER_POSITION_MAX,
+          TYPEWRITER_POSITION_DEFAULT,
+        );
+        merged.caretColor = normalizeCaretColor(merged.caretColor);
         return merged;
       },
     },

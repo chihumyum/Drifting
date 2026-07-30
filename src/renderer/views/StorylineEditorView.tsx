@@ -236,6 +236,7 @@ export function StorylineEditorView({
     ydoc,
     onPersist: handlePersist,
     placeholder: t('storylineEditor.scratchPlaceholder'),
+    typewriterScrolling: true,
     onAddCommentRequest: handleAddCommentRequest,
     selectionKey: currentStoryline
       ? editorTabSelectionKey(projectId, { entityType: 'storyline', id: currentStoryline.id })

@@ -30,8 +30,9 @@ import {
   AGENT_MODEL_OPTIONS,
   AGENT_EFFORT_OPTIONS,
   AGENT_TOOL_SEARCH_OPTIONS,
+  TYPEWRITER_POSITION_MAX,
+  TYPEWRITER_POSITION_MIN,
   type EditorFontSource,
-  type FocusLineMode,
   type LocaleCode,
   type ParagraphIndent,
   type ThemeMode,
@@ -1903,6 +1904,11 @@ function EditorFontControl() {
       detail: t('settings.editor.font_system_sans_desc'),
     },
     {
+      source: 'system-mono',
+      label: t('settings.editor.font_system_mono'),
+      detail: t('settings.editor.font_system_mono_desc'),
+    },
+    {
       source: 'system-custom',
       label: t('settings.editor.font_system_custom'),
       detail: editorSystemFontFamily || t('settings.editor.font_not_configured'),
@@ -2094,8 +2100,12 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
     maxLineWidth,
     setMaxLineWidth,
     resetEditorStyle,
-    focusLine,
-    setFocusLine,
+    typewriterMode,
+    setTypewriterMode,
+    typewriterPosition,
+    setTypewriterPosition,
+    caretColor,
+    setCaretColor,
     autosave,
     setAutosave,
     autoElementLinkEnabled,
@@ -2247,19 +2257,44 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
       <div className="set-sec">
         <SecHead title={t('settings.editor.flow')} hint="FLOW" />
         <Row
-          label={t('settings.editor.focus_line')}
-          desc={t('settings.editor.focus_line_desc')}
+          label={t('settings.editor.typewriter_mode')}
+          desc={t('settings.editor.typewriter_mode_desc')}
+          control={<Toggle on={typewriterMode} onChange={setTypewriterMode} />}
+        />
+        <Row
+          label={t('settings.editor.typewriter_position')}
+          desc={t('settings.editor.typewriter_position_desc')}
           control={
-            <Seg<FocusLineMode>
-              value={focusLine}
-              options={[
-                { value: 'off', label: t('settings.editor.focus_off') },
-                { value: 'paragraph', label: t('settings.editor.focus_paragraph') },
-                { value: 'line', label: t('settings.editor.focus_line_only') },
-                { value: 'sentence', label: t('settings.editor.focus_sentence') },
-              ]}
-              onChange={setFocusLine}
-            />
+            <div className="set-slider">
+              <input
+                type="range"
+                min={TYPEWRITER_POSITION_MIN}
+                max={TYPEWRITER_POSITION_MAX}
+                step={1}
+                value={typewriterPosition}
+                disabled={!typewriterMode}
+                aria-label={t('settings.editor.typewriter_position')}
+                onChange={(event) => setTypewriterPosition(Number(event.target.value))}
+                style={{ width: 140 }}
+              />
+              <span className="set-slider__val">{typewriterPosition}%</span>
+            </div>
+          }
+        />
+        <Row
+          label={t('settings.editor.caret_color')}
+          desc={t('settings.editor.caret_color_desc')}
+          control={
+            <div className="set-color-picker">
+              <input
+                className="set-color-picker__input"
+                type="color"
+                value={caretColor}
+                aria-label={t('settings.editor.caret_color')}
+                onChange={(event) => setCaretColor(event.target.value)}
+              />
+              <span className="set-color-picker__value">{caretColor.toUpperCase()}</span>
+            </div>
           }
         />
         <Row

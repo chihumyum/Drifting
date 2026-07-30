@@ -178,6 +178,7 @@ export function ChapterEditor({
     onEntityClick,
     autoFocus,
     minHeight,
+    typewriterScrolling: true,
     selectionKey,
     onAddCommentRequest,
     onAddPatchRequest: handleAddPatchRequest,

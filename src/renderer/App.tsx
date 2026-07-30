@@ -966,7 +966,7 @@ function EditorPreferenceEffects() {
   const paragraphIndent = useSettingsStore((s) => s.paragraphIndent);
   const editorIndentStep = useSettingsStore((s) => s.editorIndentStep);
   const paragraphSpacing = useSettingsStore((s) => s.paragraphSpacing);
-  const focusLine = useSettingsStore((s) => s.focusLine);
+  const caretColor = useSettingsStore((s) => s.caretColor);
   const entityLinkInteractive = useSettingsStore((s) => s.entityLinkInteractive);
 
   useEffect(() => {
@@ -979,7 +979,7 @@ function EditorPreferenceEffects() {
       paragraphIndent,
       editorIndentStep,
       paragraphSpacing,
-      focusLine,
+      caretColor,
       entityLinkInteractive,
     });
   }, [
@@ -991,7 +991,7 @@ function EditorPreferenceEffects() {
     paragraphIndent,
     editorIndentStep,
     paragraphSpacing,
-    focusLine,
+    caretColor,
     entityLinkInteractive,
   ]);
 

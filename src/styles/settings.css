@@ -1522,6 +1522,35 @@
   letter-spacing: 0.04em;
 }
 
+.set-color-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.set-color-picker__input {
+  width: 34px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 3px;
+  background: hsl(var(--surface));
+  cursor: pointer;
+}
+.set-color-picker__input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.set-color-picker__input::-webkit-color-swatch {
+  border: 0;
+  border-radius: 2px;
+}
+.set-color-picker__value {
+  min-width: 62px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: hsl(var(--ink-3));
+}
+
 /* Typography preview — mirrors the real editor by reading the same global
    --editor-* CSS variables (set by applyEditorPreferences), so 字号 / 行距 /
    段间距 / 段首缩进 and the Tab 缩进 width all reflect live as the controls below

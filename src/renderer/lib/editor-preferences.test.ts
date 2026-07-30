@@ -14,7 +14,7 @@ const BASE_PREFERENCES: EditorPreferences = {
   paragraphIndent: 'none',
   editorIndentStep: 2,
   paragraphSpacing: 1,
-  focusLine: 'off',
+  caretColor: '#6b7fa6',
   entityLinkInteractive: true,
 };
 
@@ -24,6 +24,7 @@ describe('editor preferences', () => {
   it.each([
     ['system-serif', '', 'var(--font-prose-system-serif)'],
     ['system-sans', '', 'var(--font-prose-system-sans)'],
+    ['system-mono', '', 'var(--font-prose-mono)'],
     ['system-custom', 'Charter', '"Charter", var(--font-prose-system-serif)'],
     ['imported', '', '"Drifting Imported Prose", var(--font-prose-system-serif)'],
   ] as const)(
@@ -42,7 +43,7 @@ describe('editor preferences', () => {
       });
 
       expect(setProperty).toHaveBeenCalledWith('--editor-font-family', expected);
-      expect(setAttribute).toHaveBeenCalledWith('data-focus-line', 'off');
+      expect(setProperty).toHaveBeenCalledWith('--editor-caret-color', '#6b7fa6');
       expect(setAttribute).toHaveBeenCalledWith('data-entity-link-interactive', 'on');
     },
   );

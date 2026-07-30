@@ -9,7 +9,6 @@
  */
 import type {
   EditorFontSource,
-  FocusLineMode,
   LineHeight,
   ParagraphIndent,
 } from '../store/settings-store';
@@ -26,7 +25,7 @@ export interface EditorPreferences {
   editorIndentStep: number;
   /** Vertical gap between paragraphs in em (drives --editor-paragraph-spacing). */
   paragraphSpacing: number;
-  focusLine: FocusLineMode;
+  caretColor: string;
   entityLinkInteractive: boolean;
 }
 
@@ -53,6 +52,8 @@ export function editorFontFamilyValue(
   switch (source) {
     case 'system-sans':
       return 'var(--font-prose-system-sans)';
+    case 'system-mono':
+      return 'var(--font-prose-mono)';
     case 'system-custom':
       return customSystemFamily.trim()
         ? `${quoteFontFamily(customSystemFamily)}, var(--font-prose-system-serif)`
@@ -77,6 +78,6 @@ export function applyEditorPreferences(prefs: EditorPreferences): void {
   root.style.setProperty('--editor-indent', INDENT_EM[prefs.paragraphIndent]);
   root.style.setProperty('--editor-indent-step', `${prefs.editorIndentStep}em`);
   root.style.setProperty('--editor-paragraph-spacing', `${prefs.paragraphSpacing}em`);
-  root.setAttribute('data-focus-line', prefs.focusLine);
+  root.style.setProperty('--editor-caret-color', prefs.caretColor);
   root.setAttribute('data-entity-link-interactive', prefs.entityLinkInteractive ? 'on' : 'off');
 }

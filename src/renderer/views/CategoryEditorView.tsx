@@ -220,6 +220,7 @@ export function CategoryEditorView({
     ydoc,
     onPersist: handlePersist,
     placeholder: t('categoryEditor.scratchPlaceholder'),
+    typewriterScrolling: true,
     onAddCommentRequest: handleAddCommentRequest,
     selectionKey: curCategory
       ? editorTabSelectionKey(projectId, { entityType: 'category', id: curCategory.id })

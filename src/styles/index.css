@@ -87,13 +87,17 @@
     --el-lex: var(--story-5);
 
     /* The application UI has one bundled sans face. Authored content can choose
-       a platform serif/sans stack, one installed family, or one imported font. */
+       a platform serif/sans/monospace stack, one installed family, or one
+       imported font. */
     --font-prose-system-serif:
       ui-serif, 'Songti SC', STSong, 'Source Han Serif SC', 'Noto Serif CJK SC', Georgia,
       'Times New Roman', serif;
     --font-prose-system-sans:
       -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Segoe UI',
       system-ui, sans-serif;
+    --font-prose-mono:
+      ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono',
+      'PingFang SC', 'Hiragino Sans GB', monospace;
     --font-ui:
       'Inter Tight Variable', 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system,
       system-ui, sans-serif;
@@ -623,6 +627,9 @@ button,
 /* ============================================================
    Tiptap placeholder
    ============================================================ */
+.ProseMirror {
+  caret-color: var(--editor-caret-color, #6b7fa6);
+}
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
@@ -1215,25 +1222,6 @@ html[data-platform-target='mobile'] .app-mid {
   text-indent: var(--editor-indent, 0);
 }
 
-/* Focus modes — fade everything except the active scope. Class is set by
-   the editor when focus mode is active. CSS reads --editor-focus-line via
-   data-focus-line so themes/dark mode can override the opacity if needed. */
-html[data-focus-line='paragraph'] .page__body .ProseMirror p:not(.has-focus),
-html[data-focus-line='paragraph'] .page__body .ProseMirror h1:not(.has-focus),
-html[data-focus-line='paragraph'] .page__body .ProseMirror h2:not(.has-focus),
-html[data-focus-line='paragraph'] .page__body .ProseMirror h3:not(.has-focus),
-html[data-focus-line='line'] .page__body .ProseMirror p:not(.has-focus),
-html[data-focus-line='sentence'] .page__body .ProseMirror p:not(.has-focus) {
-  opacity: 0.4;
-  transition: opacity 0.2s ease;
-}
-html[data-focus-line='off'] .page__body .ProseMirror p,
-html[data-focus-line='off'] .page__body .ProseMirror h1,
-html[data-focus-line='off'] .page__body .ProseMirror h2,
-html[data-focus-line='off'] .page__body .ProseMirror h3 {
-  opacity: 1;
-}
-
 /* Reference-link rendering master toggle. When off, every entity-link mark
    (manual / auto / ai) renders as plain inline text — no color, background,
    underline, deep-link arrow, or pointer affordance. Click navigation is
@@ -1282,16 +1270,6 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 .all-chap-row {
   content-visibility: auto;
   contain-intrinsic-size: auto var(--all-chap-row-h, 600px);
-}
-
-/* The static prose mirror is read-only, never "the line being written", so the
-   focus-line dimming must skip it — otherwise turning focus mode on greys out
-   the entire read-through. */
-.all-chap-static p,
-.all-chap-static h1,
-.all-chap-static h2,
-.all-chap-static h3 {
-  opacity: 1 !important;
 }
 
 .page__ornament {
@@ -1364,6 +1342,22 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   align-self: stretch;
   scrollbar-gutter: stable;
   scrollbar-color: transparent transparent;
+}
+/* Typewriter scrolling needs virtual room below the real document so the last
+   prose line can reach the configured viewport anchor. This spacer is visual
+   only: it never becomes a ProseMirror node or Yjs content. It also works for
+   通览全书, whose live ChapterEditor does not sit inside .editor__spread. */
+.editor-scroll[data-typewriter-scroll='on']::after {
+  content: '';
+  display: block;
+  height: var(--editor-typewriter-tail-space, 50vh);
+  pointer-events: none;
+}
+/* WebKit may retain the old native contenteditable caret after script-driven
+   overflow scrolling. Hide it for that paint only; the hook removes this
+   attribute on the next animation frame, forcing a clean caret redraw. */
+.ProseMirror[data-typewriter-caret-repaint='on'] {
+  caret-color: transparent;
 }
 /* 仅在 .is-scrolling 时显示滚动条（由 App Layout 中的全局 scroll 监听器切换） */
 .editor-scroll.is-scrolling {

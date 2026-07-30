@@ -259,6 +259,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
     ydoc,
     onPersist: handlePersist,
     placeholder: t('elementEditor.bodyPlaceholder'),
+    typewriterScrolling: true,
     onAddCommentRequest: handleAddCommentRequest,
     selectionKey:
       projectId && curElement

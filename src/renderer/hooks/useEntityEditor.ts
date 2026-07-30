@@ -66,6 +66,7 @@ import {
   saveEditorSelectionSnapshot,
 } from '../lib/editor-selection-memory';
 import type { CommentTargetKind } from '../domain/comment';
+import { useTypewriterScrolling } from './useTypewriterScrolling';
 
 const log = loglevel.getLogger('useEntityEditor');
 log.setLevel(loglevel.levels.WARN);
@@ -543,6 +544,9 @@ export interface UseEntityEditorConfig {
   placeholder?: string;
   editorClass?: string;
   minHeight?: string;
+  // Primary long-form prose surfaces opt in to typewriter scrolling. Embedded
+  // patch/template/popover editors stay false so they never move a whole page.
+  typewriterScrolling?: boolean;
 
   // Optional top-level tab selection key. Popovers / virtualized editors leave
   // this unset so their transient caret positions don't focus newly-opened tabs.
@@ -607,6 +611,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     placeholder,
     editorClass,
     minHeight,
+    typewriterScrolling = false,
     selectionKey,
     onAddCommentRequest,
     onAddPatchRequest,
@@ -1230,6 +1235,8 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       ydoc,
     ],
   );
+
+  useTypewriterScrolling(editor, typewriterScrolling);
 
   useEffect(() => {
     editorRef.current = editor;
