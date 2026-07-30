@@ -1,0 +1,238 @@
+{
+  "suite": "p5-drifting-creative-agent-runtime",
+  "schemaVersion": 1,
+  "nodeVersion": "v22.23.1",
+  "platform": "darwin",
+  "gitHead": "68751ebeeceb66fdc38553df9dea108cfd5d4c95",
+  "provider": "not applicable",
+  "model": "not applicable",
+  "sourceSetSha256": "sha256:165439dc71e8e2d7ea246fcaf27ff13f2ef5abaa68c7fbc95018d2c22b4a3a6a",
+  "migration": {
+    "count": 66,
+    "latestIndex": 65,
+    "latestTag": "0065_agent_runtime_element_patch_receipt",
+    "requiredCount": 66,
+    "requiredLatestTag": "0065_agent_runtime_element_patch_receipt",
+    "indexesCanonical": true,
+    "tagsUnique": true,
+    "rustEmbedsDrizzleDirectory": true,
+    "files": [
+      {
+        "index": 64,
+        "tag": "0064_agent_runtime_result_artifact",
+        "file": "drizzle/0064_agent_runtime_result_artifact.sql",
+        "exists": true,
+        "journalMatches": true,
+        "requiredSqlPresent": true
+      },
+      {
+        "index": 65,
+        "tag": "0065_agent_runtime_element_patch_receipt",
+        "file": "drizzle/0065_agent_runtime_element_patch_receipt.sql",
+        "exists": true,
+        "journalMatches": true,
+        "requiredSqlPresent": true
+      }
+    ],
+    "passed": true
+  },
+  "vitest": {
+    "files": {
+      "required": 23,
+      "discovered": 23
+    },
+    "tests": {
+      "total": 177,
+      "passed": 177,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0
+    },
+    "groups": {
+      "controlPermissionAndInteraction": {
+        "files": 5,
+        "discoveredFiles": 5,
+        "tests": {
+          "total": 37,
+          "passed": 37,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "restartRecovery": {
+        "files": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 34,
+          "passed": 34,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "resultArtifactAndContext": {
+        "files": 6,
+        "discoveredFiles": 6,
+        "tests": {
+          "total": 51,
+          "passed": 51,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "yjsProseAndDurableReview": {
+        "files": 6,
+        "discoveredFiles": 6,
+        "tests": {
+          "total": 39,
+          "passed": 39,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "elementPatchAndCertification": {
+        "files": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 16,
+          "passed": 16,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      }
+    },
+    "process": {
+      "exitCode": 0,
+      "signal": null
+    },
+    "passed": true
+  },
+  "gates": {
+    "controlPermissionAndInteraction": {
+      "machineAsserted": {
+        "permissionBeforeSchedulingAndDispatch": true,
+        "decisionBoundToToolNameAndFullArgumentsHash": true,
+        "deniedToolReturnsCanonicalProviderVisibleResult": true,
+        "permissionScopesImplemented": [
+          "once"
+        ],
+        "askUserPausesAndReturnsProviderVisibleAnswer": true,
+        "duplicateAskUserReplaysDurableAnswer": true,
+        "steeringRecordedAsCanonicalInput": true,
+        "stopAfterCurrentToolPreventsUnstartedWrites": true
+      }
+    },
+    "restartRecovery": {
+      "machineAsserted": {
+        "pendingControlsRehydrated": true,
+        "lostExecutionStackNeverClaimedResumable": true,
+        "recoveredPendingControlCanBeSafelyCancelled": true,
+        "interruptedYjsReceiptReconciledBeforeSessionResume": true,
+        "interruptedMutationNotReplayed": true
+      }
+    },
+    "resultArtifactAndContext": {
+      "machineAsserted": {
+        "resultArtifactsDurableAcrossRestart": true,
+        "exactUnicodeCodePointPaging": true,
+        "projectAndSessionIsolation": true,
+        "contentHashAndQuotaFailClosed": true,
+        "proseReadReturnsExactYjsRevisionVectorAndHash": true,
+        "fullCompactorRunsUnderVerifiedPlanner": true,
+        "oldAuthorMessagesRemainPinnedWithoutVerifiedPolicy": true
+      }
+    },
+    "yjsProseAndDurableReview": {
+      "certifiedTools": [
+        "edit_block",
+        "edit_blocks",
+        "append_paragraph",
+        "insert_blocks",
+        "remove_blocks",
+        "replace_block_range"
+      ],
+      "machineAsserted": {
+        "liveYDocIsProseSourceOfTruth": true,
+        "exactRevisionVectorAndSemanticHashCas": true,
+        "deterministicForwardAndGuardedInverse": true,
+        "randomizedRichTextOperations": 500,
+        "receiptProvenRestartReconciliation": true,
+        "orderedReviewBatchesPreserved": true,
+        "approveSettlesCanonicalReview": true,
+        "rejectRunsGuardedInversesInReverseOrder": true,
+        "failedSettlementKeepsLocalReviewPending": true,
+        "autoModeSettlesCanonicalReview": true
+      }
+    },
+    "elementPatchAndCertification": {
+      "certifiedWrites": {
+        "totalCatalogWrites": 34,
+        "certified": 10,
+        "unavailable": 24,
+        "names": [
+          "rename_node",
+          "set_node_summary",
+          "edit_block",
+          "edit_blocks",
+          "append_paragraph",
+          "insert_blocks",
+          "remove_blocks",
+          "replace_block_range",
+          "create_element_patch",
+          "update_element_patch"
+        ]
+      },
+      "machineAsserted": {
+        "patchSetAndIndividualPatchFreshness": true,
+        "receiptRevisionAndFrozenEffectIntegrity": true,
+        "createReceiptSurvivesRestartWithoutDuplicateMutation": true,
+        "updateUsesPatchCas": true,
+        "exactInverseIsRestartIdempotent": true,
+        "staleCrossProjectAndPendingDeletionFailClosed": true,
+        "createElementCertified": false,
+        "updateElementCertified": false
+      }
+    }
+  },
+  "boundaries": {
+    "providerCallsRequired": false,
+    "anthropicRequired": false,
+    "permissionGrantScopes": {
+      "implemented": [
+        "once"
+      ],
+      "notImplemented": [
+        "session",
+        "project"
+      ]
+    },
+    "recoveredWaitingControl": "safe cancel/new turn only; a lost JavaScript execution stack is not resumed in place",
+    "verifiedAuthorConstraintLedger": "not connected in product; without an explicit verified policy, old user rows remain fail-safe pinned",
+    "certifiedWrites": {
+      "count": 10,
+      "catalogCount": 34,
+      "uncertifiedNamedGaps": [
+        "create_element",
+        "update_element"
+      ]
+    },
+    "liveProviderSmoke": {
+      "deepSeek": "not run"
+    },
+    "manualNativeSmoke": {
+      "desktop": "not run",
+      "ios": "not run",
+      "android": "not run"
+    },
+    "deferredRuntimeBreadth": [
+      "multi-provider adapter conformance",
+      "subagents",
+      "MCP"
+    ]
+  },
+  "passed": true
+}

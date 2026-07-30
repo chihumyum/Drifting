@@ -35,6 +35,7 @@
     "eval:agent:p3:crash": "node src/renderer/lib/agent/runtime/acceptance/p3-crash-consistency.acceptance.mjs",
     "eval:agent:p3": "node src/renderer/lib/agent/runtime/acceptance/p3.acceptance.mjs",
     "eval:agent:p4": "node src/renderer/lib/agent/runtime/acceptance/p4.acceptance.mjs --output=docs/agent-runtime/acceptance/p4-summary.json",
+    "eval:agent:p5": "node src/renderer/lib/agent/runtime/acceptance/p5.acceptance.mjs --output=docs/agent-runtime/acceptance/p5-summary.json",
     "eval:shadow": "vitest run --config vitest.eval.config.ts src/renderer/lib/shadow/eval/shadow-eval.eval.ts",
     "eval:shadow:smoke": "vitest run --config vitest.eval.config.ts src/renderer/lib/shadow/eval/smoke.eval.ts",
     "eval:corpus": "node scripts/eval-corpus.mjs",
