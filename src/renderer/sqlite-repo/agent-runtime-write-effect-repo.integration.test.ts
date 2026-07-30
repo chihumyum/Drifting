@@ -748,6 +748,31 @@ describe('agent runtime write-effect persistence against real SQLite', () => {
         ['call-committed', 'running'],
       ]),
     );
+
+    const reconciled = await writes.transitionEffect({
+      effectId: entered.effect.id,
+      expectedPhase: 'uncertain',
+      nextPhase: 'effect_committed',
+      effect: { revision: 8, receiptId: 'immutable-receipt' },
+      at: at(10),
+    });
+    expect(reconciled.effect).toMatchObject({
+      phase: 'effect_committed',
+      effect: { revision: 8, receiptId: 'immutable-receipt' },
+      errorCode: null,
+      errorMessage: null,
+      uncertainAt: null,
+      effectCommittedAt: at(10),
+    });
+    expect(
+      (await runtime.listToolCalls('session-1')).find(
+        (tool) => tool.callId === 'call-entered',
+      ),
+    ).toMatchObject({
+      status: 'running',
+      errorCode: null,
+      completedAt: null,
+    });
   });
 
   it('settles reversible rejection in order and records irreversible unavailability', async () => {

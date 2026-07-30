@@ -94,7 +94,12 @@ export type AgentRuntimeWriteEffectTransition =
     }
   | {
       effectId: string;
-      expectedPhase: 'mutation_started';
+      /**
+       * `uncertain` may advance only after an entity-specific strategy proves
+       * the already-entered mutation by an immutable durable receipt. This is
+       * reconciliation, never permission to dispatch the write again.
+       */
+      expectedPhase: 'mutation_started' | 'uncertain';
       nextPhase: 'effect_committed';
       at: string;
       effect: unknown;

@@ -541,6 +541,23 @@ export function createAgentRuntimeWriteEffectRepository(
           case 'effect_committed':
             values.effectJson = canonicalAgentRuntimeJson(transition.effect);
             values.effectCommittedAt = transition.at;
+            // Receipt-backed reconciliation can prove that an outcome marked
+            // uncertain during process recovery did commit. Clear the
+            // diagnostic uncertainty and return the canonical tool call to an
+            // entered state until result_committed settles it.
+            values.errorCode = null;
+            values.errorMessage = null;
+            values.uncertainAt = null;
+            if (transition.expectedPhase === 'uncertain') {
+              await tx
+                .update(AgentRuntimeToolCallTable)
+                .set({
+                  status: 'running',
+                  errorCode: null,
+                  completedAt: null,
+                })
+                .where(eq(AgentRuntimeToolCallTable.id, current.toolCallId));
+            }
             break;
           case 'result_committed':
             values.resultJson = canonicalAgentRuntimeJson(transition.result);
