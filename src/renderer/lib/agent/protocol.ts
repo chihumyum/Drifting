@@ -12,6 +12,91 @@ export interface AgentTodoItem {
   activeForm?: string;
 }
 
+export type AgentControlStatus =
+  | 'running'
+  | 'waiting_permission'
+  | 'waiting_user'
+  | 'cancelling'
+  | 'committing';
+
+export type AgentPermissionScope = 'once' | 'session' | 'project';
+
+export interface AgentPermissionRequest {
+  requestId: string;
+  sessionId: string;
+  turnId: string;
+  callId: string;
+  toolName: string;
+  access: 'read' | 'write';
+  arguments: Record<string, unknown>;
+  argumentsHash: string;
+  revision: string | null;
+  reason?: string;
+  allowedScopes: readonly AgentPermissionScope[];
+}
+
+export interface AgentPermissionResolutionInput {
+  requestId: string;
+  sessionId: string;
+  turnId: string;
+  callId: string;
+  argumentsHash: string;
+  revision: string | null;
+  decision: 'allow' | 'deny';
+  scope: AgentPermissionScope;
+  reason?: string;
+}
+
+export interface AgentUserInputRequest {
+  requestId: string;
+  sessionId: string;
+  turnId: string;
+  callId: string;
+  prompt: string;
+}
+
+export interface AgentUserInputResponseInput {
+  requestId: string;
+  sessionId: string;
+  turnId: string;
+  callId: string;
+  text: string;
+}
+
+export interface AgentSteeringInput {
+  turnId: string;
+  text: string;
+}
+
+export interface AgentStopAfterToolInput {
+  turnId: string;
+}
+
+export interface AgentPendingControl {
+  sessionId: string;
+  turnId: string;
+  status: 'waiting_permission' | 'waiting_user';
+  permissionRequest?: AgentPermissionRequest;
+  userInputRequest?: AgentUserInputRequest;
+  /**
+   * True when the renderer process that owned the original execution stack is
+   * gone. The control may be displayed or safely cancelled, but must not be
+   * presented as directly resumable.
+   */
+  requiresContinuation: boolean;
+}
+
+export interface AgentListPendingControlsInput {
+  sessionId: string;
+}
+
+export interface AgentCancelPendingControlInput {
+  sessionId: string;
+  turnId: string;
+  requestId: string;
+  reason?: string;
+}
+
 export type AgentEvent =
   | { type: 'system'; text: string }
   | { type: 'assistant'; text: string }
@@ -34,6 +119,19 @@ export type AgentEvent =
       durationApiMs: number;
     }
   | { type: 'session'; id: string }
+  | { type: 'control_state'; status: AgentControlStatus }
+  | { type: 'permission_request'; request: AgentPermissionRequest }
+  | {
+      type: 'permission_resolved';
+      resolution: AgentPermissionResolutionInput;
+    }
+  | { type: 'user_input_request'; request: AgentUserInputRequest }
+  | {
+      type: 'user_input_received';
+      response: AgentUserInputResponseInput;
+    }
+  | { type: 'steering_received'; messageId: string; text: string }
+  | { type: 'stop_after_tool_requested' }
   | { type: 'error'; message: string }
   | { type: 'done' };
 

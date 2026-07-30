@@ -25,7 +25,9 @@ import {
 } from '../../store/settings-store';
 import {
   useAgentChatStore,
+  selectControlStatus,
   selectMessages,
+  selectPendingControl,
   selectRunning,
   selectOtherRunning,
 } from '../../store/agent-chat-store';
@@ -44,7 +46,11 @@ import {
   type ToolEntityRef,
 } from '../../lib/agent/tool-entity-ref';
 import { events } from '../../lib/events';
-import type { GeneralAgentAuthStatus } from '../../lib/agent/protocol';
+import type {
+  AgentPendingControl,
+  AgentPermissionScope,
+  GeneralAgentAuthStatus,
+} from '../../lib/agent/protocol';
 import { generalAgentTransport } from '../../lib/agent/transport';
 import type {
   AgentChatMessage as ChatMsg,
@@ -563,6 +569,84 @@ const MessageView = memo(function MessageView({ msg }: { msg: ChatMsg }) {
   }
 });
 
+function RuntimeControlCard({
+  pending,
+  onPermission,
+  onCancelRecovered,
+}: {
+  pending: AgentPendingControl;
+  onPermission: (
+    decision: 'allow' | 'deny',
+    scope?: AgentPermissionScope,
+  ) => void;
+  onCancelRecovered: () => void;
+}) {
+  const { t } = useTranslation();
+  if (pending.requiresContinuation) {
+    return (
+      <div className="agt-control-card" role="status">
+        <strong>{t('agentPanel.control.recoveredTitle')}</strong>
+        <span>{t('agentPanel.control.recoveredBody')}</span>
+        <div className="agt-control-card__actions">
+          <button type="button" onClick={onCancelRecovered}>
+            {t('agentPanel.control.endRecovered')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const permission = pending.permissionRequest;
+  if (pending.status === 'waiting_permission' && permission) {
+    let argumentsText = '{}';
+    try {
+      argumentsText = JSON.stringify(permission.arguments, null, 2);
+    } catch {
+      argumentsText = String(permission.arguments);
+    }
+    return (
+      <div className="agt-control-card" role="alertdialog">
+        <strong>{t('agentPanel.control.permissionTitle')}</strong>
+        <span>
+          <code>{permission.toolName}</code>
+          {permission.reason ? ` · ${permission.reason}` : ''}
+        </span>
+        <details>
+          <summary>{t('agentPanel.control.arguments')}</summary>
+          <pre>{argumentsText}</pre>
+        </details>
+        <div className="agt-control-card__actions">
+          <button type="button" onClick={() => onPermission('deny', 'once')}>
+            {t('agentPanel.control.deny')}
+          </button>
+          {permission.allowedScopes.map((scope) => (
+            <button
+              key={scope}
+              type="button"
+              className="agt-control-card__allow"
+              onClick={() => onPermission('allow', scope)}
+            >
+              {t(`agentPanel.control.allow.${scope}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const request = pending.userInputRequest;
+  if (pending.status === 'waiting_user' && request) {
+    return (
+      <div className="agt-control-card" role="status">
+        <strong>{t('agentPanel.control.questionTitle')}</strong>
+        <span>{request.prompt}</span>
+        <small>{t('agentPanel.control.answerHint')}</small>
+      </div>
+    );
+  }
+  return null;
+}
+
 function TodoList({ items }: { items: Extract<ChatMsg, { kind: 'todos' }>['items'] }) {
   const { t } = useTranslation();
   if (items.length === 0) return null;
@@ -614,11 +698,18 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   // = a turn is running, but in a different conversation than the one shown.
   const running = useAgentChatStore(selectRunning);
   const otherRunning = useAgentChatStore(selectOtherRunning);
+  const controlStatus = useAgentChatStore(selectControlStatus);
+  const pendingControl = useAgentChatStore(selectPendingControl);
   const runningConvId = useAgentChatStore((s) => s.runningConvId);
   const convList = useAgentChatStore((s) => s.convList);
   const activeConvId = useAgentChatStore((s) => s.activeConvId);
   const setPrompt = useAgentChatStore((s) => s.setPrompt);
   const send = useAgentChatStore((s) => s.send);
+  const respondPermission = useAgentChatStore((s) => s.respondPermission);
+  const stopAfterTool = useAgentChatStore((s) => s.stopAfterTool);
+  const cancelRecoveredControl = useAgentChatStore(
+    (s) => s.cancelRecoveredControl,
+  );
   const abort = useAgentChatStore((s) => s.abort);
   const newConversation = useAgentChatStore((s) => s.newConversation);
   const loadConversation = useAgentChatStore((s) => s.loadConversation);
@@ -768,7 +859,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
     !!lastMsg &&
     (((lastMsg.kind === 'assistant' || lastMsg.kind === 'thinking') && lastMsg.streaming) ||
       (lastMsg.kind === 'tool' && lastMsg.status === 'running'));
-  const waiting = running && !busyTail;
+  const waiting = running && !busyTail && !pendingControl;
 
   // Session totals — summed across the conversation's per-turn usage rows (which
   // persist in the transcript), plus a tool-call count. Drives the footer.
@@ -1158,6 +1249,17 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
             messages.map((m, i) => <MessageView key={i} msg={m} />)
           )}
           {waiting && <PendingRow />}
+          {pendingControl && (
+            <RuntimeControlCard
+              pending={pendingControl}
+              onPermission={(decision, scope) => {
+                void respondPermission(decision, scope);
+              }}
+              onCancelRecovered={() => {
+                void cancelRecoveredControl();
+              }}
+            />
+          )}
           {turnRefs.length > 0 && (
             <div className="agt-entity-links">
               <span style={{ opacity: 0.55, fontSize: 11 }}>{t('agentPanel.turnChanges')}</span>
@@ -1218,16 +1320,54 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                 handleSend();
               }
             }}
-            placeholder={t('agentPanel.composer.placeholder')}
+            placeholder={
+              pendingControl?.status === 'waiting_user' &&
+              !pendingControl.requiresContinuation
+                ? t('agentPanel.composer.answerPlaceholder')
+                : running
+                  ? t('agentPanel.composer.steerPlaceholder')
+                  : t('agentPanel.composer.placeholder')
+            }
+            disabled={Boolean(pendingControl?.requiresContinuation)}
             rows={1}
           />
           <div className="agt-composer__bar">
             <ComposerConfig />
             <div className="agt-composer__spacer" />
             {running ? (
-              <button type="button" className="agt-send agt-send--stop" onClick={abort}>
-                {t('agentPanel.composer.stop')}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="agt-send agt-send--stop"
+                  onClick={() => void stopAfterTool()}
+                  title={t('agentPanel.composer.stopAfterToolTitle')}
+                >
+                  {t('agentPanel.composer.stopAfterTool')}
+                </button>
+                <button
+                  type="button"
+                  className="agt-send agt-send--stop"
+                  onClick={abort}
+                  title={t('agentPanel.composer.abortTitle')}
+                >
+                  {t('agentPanel.composer.stop')}
+                </button>
+                <button
+                  type="button"
+                  className="agt-send"
+                  onClick={handleSend}
+                  disabled={
+                    !prompt.trim() ||
+                    controlStatus === 'waiting_permission' ||
+                    controlStatus === 'cancelling' ||
+                    controlStatus === 'committing'
+                  }
+                >
+                  {pendingControl?.status === 'waiting_user'
+                    ? t('agentPanel.composer.answer')
+                    : t('agentPanel.composer.steer')}
+                </button>
+              </>
             ) : otherRunning ? (
               <button
                 type="button"
@@ -1239,7 +1379,12 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                 {t('agentPanel.composer.send')}
               </button>
             ) : (
-              <button type="button" className="agt-send" onClick={handleSend}>
+              <button
+                type="button"
+                className="agt-send"
+                onClick={handleSend}
+                disabled={Boolean(pendingControl?.requiresContinuation)}
+              >
                 {t('agentPanel.composer.send')}
               </button>
             )}

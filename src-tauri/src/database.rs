@@ -1547,7 +1547,7 @@ mod tests {
         let first_open = gateway
             .open("migrations.db".into(), CLIENT_SESSION.into(), false)
             .expect("first open");
-        assert_eq!(first_open.migrations_applied, 64);
+        assert_eq!(first_open.migrations_applied, 66);
         assert_eq!(first_open.journal_mode.to_ascii_lowercase(), "wal");
 
         let migration_count = gateway
@@ -1558,7 +1558,7 @@ mod tests {
                 CLIENT_SESSION.into(),
             )
             .expect("migration count");
-        assert_eq!(migration_count.rows, [vec![integer(64)]]);
+        assert_eq!(migration_count.rows, [vec![integer(66)]]);
 
         gateway
             .close(CLIENT_SESSION.into())
@@ -1715,6 +1715,35 @@ mod tests {
                 CLIENT_SESSION.into(),
             )
             .expect("insert canonical read observation");
+        gateway
+            .execute(
+                "INSERT INTO agent_runtime_result_blob \
+                 (content_hash, content_blob, byte_count, char_count, created_at) \
+                 VALUES (\
+                 'sha256:56bc2404e330671e4d867faca25a27078be7fbe10d2d72273d4de5d936a5fc42', \
+                 CAST('oversized result' AS BLOB), 16, 16, '2026-07-30T00:00:02Z')"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("insert content-addressed result blob");
+        gateway
+            .execute(
+                "INSERT INTO agent_runtime_result_artifact \
+                 (ref, project_id, session_id, turn_id, tool_call_id, call_id, tool_name, \
+                  idempotency_key, arguments_json, content_hash, created_at) \
+                 VALUES ('agent-result:session-1:turn-1:call-1', 'project-1', \
+                 'session-1', 'turn-1', 'tool-record-1', 'call-1', 'list_nodes', \
+                 'session-1:turn-1:call-1', '{}', \
+                 'sha256:56bc2404e330671e4d867faca25a27078be7fbe10d2d72273d4de5d936a5fc42', \
+                 '2026-07-30T00:00:02Z')"
+                    .into(),
+                Vec::new(),
+                None,
+                CLIENT_SESSION.into(),
+            )
+            .expect("insert durable result reference");
 
         let mutable_read_receipt = gateway.execute(
             "UPDATE agent_runtime_read_receipt SET result_hash = \
@@ -1728,6 +1757,31 @@ mod tests {
         assert!(
             mutable_read_receipt.is_err(),
             "durable read receipts must be immutable"
+        );
+        let mutable_result_blob = gateway.execute(
+            "UPDATE agent_runtime_result_blob SET content_blob = CAST('tampered payload' AS BLOB) \
+             WHERE content_hash = \
+             'sha256:56bc2404e330671e4d867faca25a27078be7fbe10d2d72273d4de5d936a5fc42'"
+                .into(),
+            Vec::new(),
+            None,
+            CLIENT_SESSION.into(),
+        );
+        assert!(
+            mutable_result_blob.is_err(),
+            "content-addressed Agent result blobs must be immutable"
+        );
+        let mutable_result_ref = gateway.execute(
+            "UPDATE agent_runtime_result_artifact SET arguments_json = '{\"changed\":true}' \
+             WHERE ref = 'agent-result:session-1:turn-1:call-1'"
+                .into(),
+            Vec::new(),
+            None,
+            CLIENT_SESSION.into(),
+        );
+        assert!(
+            mutable_result_ref.is_err(),
+            "Agent result reference provenance must be immutable"
         );
 
         let invalid_goal_route = gateway.execute(
@@ -1926,7 +1980,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("migration count");
-        assert_eq!(migration_count, 63);
+        assert_eq!(migration_count, 66);
     }
 
     fn application_table_counts(connection: &Connection) -> Vec<(String, i64)> {

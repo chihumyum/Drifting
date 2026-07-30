@@ -98,6 +98,16 @@ function assertRunning(state: AgentRuntimeState, event: AgentRuntimeEvent): void
   invariant(state.status === 'running', `${event.type} requires a running turn`);
 }
 
+function assertRunningOrCancelling(
+  state: AgentRuntimeState,
+  event: AgentRuntimeEvent,
+): void {
+  invariant(
+    state.status === 'running' || state.status === 'cancelling',
+    `${event.type} requires a running or cancelling turn`,
+  );
+}
+
 function assertActiveIteration(state: AgentRuntimeState, iteration: number): void {
   invariant(
     state.activeIteration === iteration,
@@ -130,7 +140,9 @@ function applyEvent(state: AgentRuntimeState, event: AgentRuntimeEvent, wallTime
       );
       if (state.modelIterations > 0) {
         invariant(
-          state.lastStopReason === 'tool_use',
+          state.lastStopReason === 'tool_use' ||
+            (state.lastStopReason === 'end_turn' &&
+              state.appliedSteeringSinceIteration),
           `cannot continue after ${String(state.lastStopReason)}`,
         );
       }
@@ -140,6 +152,7 @@ function applyEvent(state: AgentRuntimeState, event: AgentRuntimeEvent, wallTime
         activeIteration: event.iteration,
         activeIterationUsageSeen: false,
         modelIterations: event.iteration,
+        appliedSteeringSinceIteration: false,
       };
     }
 
@@ -200,8 +213,162 @@ function applyEvent(state: AgentRuntimeState, event: AgentRuntimeEvent, wallTime
         return { ...tool, status: 'executing' };
       });
 
-    case 'tool_result':
+    case 'permission_requested': {
       assertRunning(state, event);
+      invariant(state.activeIteration === null, 'permission requested before model finished');
+      invariant(state.pendingPermission === null, 'permission request already pending');
+      invariant(state.pendingUserInput === null, 'user input request already pending');
+      invariant(
+        event.request.sessionId === state.sessionId &&
+          event.request.turnId === state.turnId,
+        'permission request changed turn identity',
+      );
+      const tool = state.tools[event.request.callId];
+      invariant(tool?.status === 'ready', 'permission requested for a non-ready tool');
+      invariant(tool.name === event.request.toolName, 'permission tool name mismatch');
+      return {
+        ...state,
+        status: 'waiting_permission' as const,
+        pendingPermission: event.request,
+      };
+    }
+
+    case 'permission_resolved': {
+      invariant(
+        state.status === 'waiting_permission',
+        'permission_resolved requires waiting_permission',
+      );
+      const request = state.pendingPermission;
+      invariant(request !== null, 'permission resolution has no request');
+      invariant(
+        event.resolution.requestId === request.requestId &&
+          event.resolution.sessionId === request.sessionId &&
+          event.resolution.turnId === request.turnId &&
+          event.resolution.callId === request.callId &&
+          event.resolution.argumentsHash === request.argumentsHash &&
+          event.resolution.revision === request.revision &&
+          request.allowedScopes.includes(event.resolution.scope),
+        'permission resolution does not match request provenance',
+      );
+      return {
+        ...state,
+        status: 'running' as const,
+        pendingPermission: null,
+      };
+    }
+
+    case 'user_input_requested': {
+      assertRunning(state, event);
+      invariant(state.pendingPermission === null, 'permission request already pending');
+      invariant(state.pendingUserInput === null, 'user input request already pending');
+      invariant(
+        event.request.sessionId === state.sessionId &&
+          event.request.turnId === state.turnId,
+        'user input request changed turn identity',
+      );
+      const tool = state.tools[event.request.callId];
+      invariant(tool?.status === 'executing', 'user input requested outside tool execution');
+      return {
+        ...state,
+        status: 'waiting_user' as const,
+        pendingUserInput: event.request,
+      };
+    }
+
+    case 'user_input_received': {
+      invariant(
+        state.status === 'waiting_user',
+        'user_input_received requires waiting_user',
+      );
+      const request = state.pendingUserInput;
+      invariant(request !== null, 'user response has no pending request');
+      invariant(
+        event.response.requestId === request.requestId &&
+          event.response.sessionId === request.sessionId &&
+          event.response.turnId === request.turnId &&
+          event.response.callId === request.callId,
+        'user response does not match request provenance',
+      );
+      return {
+        ...state,
+        status: 'running' as const,
+        pendingUserInput: null,
+      };
+    }
+
+    case 'steering_received':
+      invariant(
+        state.status === 'running' ||
+          state.status === 'waiting_permission' ||
+          state.status === 'waiting_user',
+        'steering_received requires an active controllable turn',
+      );
+      invariant(
+        !state.pendingSteering.some(
+          (message) => message.messageId === event.messageId,
+        ),
+        `duplicate steering message "${event.messageId}"`,
+      );
+      return {
+        ...state,
+        pendingSteering: [
+          ...state.pendingSteering,
+          { messageId: event.messageId, text: event.text },
+        ],
+      };
+
+    case 'steering_applied': {
+      assertRunning(state, event);
+      invariant(
+        state.pendingSteering.some(
+          (message) => message.messageId === event.messageId,
+        ),
+        `unknown steering message "${event.messageId}"`,
+      );
+      return {
+        ...state,
+        pendingSteering: state.pendingSteering.filter(
+          (message) => message.messageId !== event.messageId,
+        ),
+        appliedSteeringSinceIteration: true,
+      };
+    }
+
+    case 'stop_after_tool_requested':
+      invariant(
+        state.status === 'running' ||
+          state.status === 'waiting_permission' ||
+          state.status === 'waiting_user',
+        'stop_after_tool_requested requires an active controllable turn',
+      );
+      invariant(!state.stopAfterToolRequested, 'stop-after-tool already requested');
+      return { ...state, stopAfterToolRequested: true };
+
+    case 'cancellation_requested':
+      invariant(
+        state.status === 'running' ||
+          state.status === 'waiting_permission' ||
+          state.status === 'waiting_user',
+        'cancellation_requested requires an active controllable turn',
+      );
+      return {
+        ...state,
+        status: 'cancelling' as const,
+        pendingPermission: null,
+        pendingUserInput: null,
+      };
+
+    case 'commit_started':
+      invariant(
+        state.status === 'running' || state.status === 'cancelling',
+        'commit_started requires a running or cancelling turn',
+      );
+      invariant(state.pendingPermission === null, 'cannot commit with pending permission');
+      invariant(state.pendingUserInput === null, 'cannot commit with pending user input');
+      return { ...state, status: 'committing' as const };
+
+    case 'tool_result':
+      assertRunningOrCancelling(state, event);
       return replaceTool(state, event.callId, (tool) => {
         invariant(tool.status !== 'completed', `duplicate result for tool "${event.callId}"`);
         invariant(tool.name === event.name, 'tool result name mismatch');
@@ -239,7 +406,7 @@ function applyEvent(state: AgentRuntimeState, event: AgentRuntimeEvent, wallTime
       };
 
     case 'model_iteration_completed': {
-      assertRunning(state, event);
+      assertRunningOrCancelling(state, event);
       assertActiveIteration(state, event.iteration);
       invariant(
         state.toolOrder.every((id) => {
@@ -270,7 +437,12 @@ function applyEvent(state: AgentRuntimeState, event: AgentRuntimeEvent, wallTime
     }
 
     case 'turn_finished': {
-      assertRunning(state, event);
+      invariant(
+        state.status === 'committing' ||
+          state.status === 'running' ||
+          state.status === 'cancelling',
+        'turn_finished requires a committing turn',
+      );
       assertUsageValues(event.usage);
       invariant(
         Number.isFinite(event.durationMs) && event.durationMs >= 0,
@@ -330,6 +502,11 @@ export function createAgentRuntimeState(
     thinkingText: '',
     toolOrder: [],
     tools: {},
+    pendingPermission: null,
+    pendingUserInput: null,
+    pendingSteering: [],
+    appliedSteeringSinceIteration: false,
+    stopAfterToolRequested: false,
     usage: zeroUsage(),
     terminal: null,
   };

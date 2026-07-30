@@ -28,6 +28,110 @@ async function waitForDone(
 }
 
 describe('LocalGeneralAgentTransport', () => {
+  it('projects an interactive permission wait and validates the full resolution binding', async () => {
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            {
+              op: 'emit',
+              event: { type: 'tool_call_start', callId: 'write-1', name: 'write' },
+            },
+            {
+              op: 'emit',
+              event: {
+                type: 'tool_args_delta',
+                callId: 'write-1',
+                delta: '{"expectedRevision":"rev-1"}',
+              },
+            },
+            {
+              op: 'emit',
+              event: { type: 'tool_call_end', callId: 'write-1' },
+            },
+            { op: 'emit', event: { type: 'usage', usage: USAGE } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: 'written' } },
+            { op: 'emit', event: { type: 'usage', usage: USAGE } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const tools: AgentToolRuntime = {
+      listDefinitions: () => [{
+        name: 'write',
+        description: 'write',
+        inputSchema: { type: 'object' },
+        access: 'write',
+        validateInput: (value) => ({ ok: true, value }),
+      }],
+      execute: async () => ({ ok: true, data: 'ok' }),
+    };
+    const transport = new LocalGeneralAgentTransport({
+      driver,
+      tools,
+      permissionPolicy: { decide: () => ({ decision: 'ask' }) },
+      createId: (kind) => `${kind}-permission`,
+    });
+    const events: AgentEventEnvelope[] = [];
+    transport.subscribeEvents((event) => events.push(event));
+    await transport.start({
+      prompt: 'write',
+      turnId: 'turn-permission',
+      route: { kind: 'chat', projectId: 'project-1' },
+    });
+    for (let index = 0; index < 100; index += 1) {
+      if (events.some((event) => event.event.type === 'permission_request')) {
+        break;
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+    const requestEvent = events.find(
+      (event) => event.event.type === 'permission_request',
+    )?.event;
+    if (!requestEvent || requestEvent.type !== 'permission_request') {
+      throw new Error('missing permission request');
+    }
+    await expect(
+      transport.resolvePermission({
+        requestId: requestEvent.request.requestId,
+        sessionId: requestEvent.request.sessionId,
+        turnId: requestEvent.request.turnId,
+        callId: requestEvent.request.callId,
+        argumentsHash: `sha256:${'0'.repeat(64)}`,
+        revision: requestEvent.request.revision,
+        decision: 'allow',
+        scope: 'once',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'AGENT_CONTROL_STALE' });
+    await expect(
+      transport.resolvePermission({
+        requestId: requestEvent.request.requestId,
+        sessionId: requestEvent.request.sessionId,
+        turnId: requestEvent.request.turnId,
+        callId: requestEvent.request.callId,
+        argumentsHash: requestEvent.request.argumentsHash,
+        revision: requestEvent.request.revision,
+        decision: 'allow',
+        scope: 'once',
+      }),
+    ).resolves.toEqual({ ok: true, value: undefined });
+    await waitForDone(events, 1);
+    expect(events.map((event) => event.event.type)).toEqual(
+      expect.arrayContaining([
+        'permission_request',
+        'permission_resolved',
+        'control_state',
+        'done',
+      ]),
+    );
+  });
+
   it('projects canonical entries, keeps session history, and emits done last once per turn', async () => {
     const clock = new ManualAgentClock();
     const driver = new ScriptedFakeDriver({
@@ -101,6 +205,7 @@ describe('LocalGeneralAgentTransport', () => {
       expect(turn.map((event) => event.event.type)).toEqual([
         'session',
         'assistant_delta',
+        'control_state',
         'usage',
         'result',
         'done',
@@ -138,6 +243,8 @@ describe('LocalGeneralAgentTransport', () => {
 
     expect(events.map((event) => event.event.type)).toEqual([
       'session',
+      'control_state',
+      'control_state',
       'usage',
       'done',
     ]);
@@ -175,11 +282,12 @@ describe('LocalGeneralAgentTransport', () => {
 
     expect(events.map((event) => event.event.type)).toEqual([
       'session',
+      'control_state',
       'usage',
       'error',
       'done',
     ]);
-    expect(events[2].event).toEqual({
+    expect(events[3].event).toEqual({
       type: 'error',
       message: 'Agent journal persistence failed',
     });

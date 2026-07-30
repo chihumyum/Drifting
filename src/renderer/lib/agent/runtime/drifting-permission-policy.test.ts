@@ -59,7 +59,7 @@ describe('Drifting Agent permission policy', () => {
     });
   });
 
-  it('asks before confirm-before writes and restricts critical grants to once', async () => {
+  it('asks before confirm-before writes and exposes only implemented once grants', async () => {
     const policy = createDriftingAgentPermissionPolicy({
       resolveTool: () =>
         tool({
@@ -68,6 +68,18 @@ describe('Drifting Agent permission policy', () => {
         }),
     });
     await expect(policy.decide(request())).resolves.toMatchObject({
+      decision: 'ask',
+      allowedScopes: ['once'],
+    });
+
+    const nonCritical = createDriftingAgentPermissionPolicy({
+      resolveTool: () =>
+        tool({
+          approval: 'confirm_before',
+          risk: 'medium',
+        }),
+    });
+    await expect(nonCritical.decide(request())).resolves.toMatchObject({
       decision: 'ask',
       allowedScopes: ['once'],
     });

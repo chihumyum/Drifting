@@ -36,20 +36,11 @@ function row(
   };
 }
 
-function baseRows(options?: {
-  oldNarrative?: string;
-  thinking?: string;
-}): AgentContextSourceRow[] {
+function baseRows(options?: { oldNarrative?: string; thinking?: string }): AgentContextSourceRow[] {
   return [
     row('system', 0, null, 'system_policy', 'POLICY: use tools safely'),
     row('user-0', 1, 0, 'user', 'Keep every user byte.'),
-    row(
-      'assistant-0',
-      2,
-      0,
-      'assistant_narrative',
-      options?.oldNarrative ?? 'old answer',
-    ),
+    row('assistant-0', 2, 0, 'assistant_narrative', options?.oldNarrative ?? 'old answer'),
     row('user-1', 3, 1, 'user', 'second turn'),
     row('assistant-1', 4, 1, 'assistant_narrative', 'recent answer one'),
     row('user-2', 5, 2, 'user', 'third turn'),
@@ -58,14 +49,10 @@ function baseRows(options?: {
   ];
 }
 
-function sourceSegment(
-  result: Awaited<ReturnType<typeof planAgentContext>>,
-  sourceId: string,
-) {
+function sourceSegment(result: Awaited<ReturnType<typeof planAgentContext>>, sourceId: string) {
   if (!result.ok) throw new Error(result.error.message);
   return result.plan.segments.find(
-    (segment) =>
-      segment.type === 'source' && segment.row.sourceId === sourceId,
+    (segment) => segment.type === 'source' && segment.row.sourceId === sourceId,
   );
 }
 
@@ -128,8 +115,7 @@ describe('provider-neutral Agent context planner', () => {
     if (!result.ok) return;
     expect(
       result.plan.segments.some(
-        (segment) =>
-          segment.type === 'source' && segment.row.sourceId === 'thinking-2',
+        (segment) => segment.type === 'source' && segment.row.sourceId === 'thinking-2',
       ),
     ).toBe(false);
     expect(sourceSegment(result, 'user-2')).toMatchObject({
@@ -149,9 +135,96 @@ describe('provider-neutral Agent context planner', () => {
       type: 'source',
       pinReason: null,
     });
-    expect(result.plan.checkpoint.coverage.discardedSourceIds).toEqual([
-      'thinking-2',
-    ]);
+    expect(result.plan.checkpoint.coverage.discardedSourceIds).toEqual(['thinking-2']);
+  });
+
+  it('compacts old ordinary user rows only under an exact verified constraint ledger', async () => {
+    const rows = baseRows();
+    const verified = await planAgentContext({
+      contextWindowTokens: 10_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      constraintLedger: [],
+    });
+    const legacy = await planAgentContext({
+      contextWindowTokens: 10_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+    });
+
+    expect(verified.ok).toBe(true);
+    expect(legacy.ok).toBe(true);
+    if (!verified.ok || !legacy.ok) return;
+    expect(sourceSegment(verified, 'user-0')).toMatchObject({
+      classification: 'compressible',
+      pinReason: null,
+    });
+    expect(sourceSegment(legacy, 'user-0')).toMatchObject({
+      classification: 'pinned',
+      pinReason: 'semantic',
+    });
+    expect(verified.plan.checkpoint.constraintLedger).toMatchObject({
+      mode: 'verified',
+      entries: [],
+      ledgerHash: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+    });
+    expect(legacy.plan.checkpoint.constraintLedger).toMatchObject({
+      mode: 'legacy_all_user',
+      entries: expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'user-0',
+          kind: 'legacy_user',
+        }),
+      ]),
+    });
+  });
+
+  it('pins ledger-bound author constraints and rejects a stale source hash', async () => {
+    const rows = baseRows();
+    const constraint = rows[1]!;
+    const ledger = [
+      {
+        constraintId: 'author-rule-1',
+        sourceId: constraint.sourceId,
+        sourceHash: await hashAgentContextSourceRows([constraint]),
+        kind: 'author_instruction' as const,
+      },
+    ];
+    const valid = await planAgentContext({
+      contextWindowTokens: 10_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      constraintLedger: ledger,
+    });
+    const stale = await planAgentContext({
+      contextWindowTokens: 10_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      constraintLedger: [
+        {
+          ...ledger[0],
+          sourceHash: `sha256:${'0'.repeat(64)}`,
+        },
+      ],
+    });
+
+    expect(valid.ok).toBe(true);
+    if (valid.ok) {
+      expect(sourceSegment(valid, constraint.sourceId)).toMatchObject({
+        classification: 'pinned',
+        pinReason: 'semantic',
+        row: { content: constraint.content },
+      });
+      expect(valid.plan.checkpoint.constraintLedger.entries).toEqual(ledger);
+    }
+    expect(stale).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_CONTEXT' },
+    });
   });
 
   it('fails closed before compaction when exact pinned context exceeds the budget', async () => {
@@ -203,9 +276,7 @@ describe('provider-neutral Agent context planner', () => {
     });
     expect(
       result.plan.segments.find(
-        (segment) =>
-          segment.type === 'summary' &&
-          segment.summaryId === 'summary-old',
+        (segment) => segment.type === 'summary' && segment.summaryId === 'summary-old',
       ),
     ).toMatchObject({
       producer: 'deterministic',
@@ -238,9 +309,7 @@ describe('provider-neutral Agent context planner', () => {
       content: 'Compact old history.',
     });
     const expectedSummaryTokens =
-      estimateAgentContextTextTokens(
-        serializeAgentContextSummaryBudgetPayload(summary),
-      ) + 8;
+      estimateAgentContextTextTokens(serializeAgentContextSummaryBudgetPayload(summary)) + 8;
 
     const roomy = await planAgentContext({
       contextWindowTokens: 100_000,
@@ -252,9 +321,7 @@ describe('provider-neutral Agent context planner', () => {
     expect(roomy.ok).toBe(true);
     if (!roomy.ok) return;
     const summarySegment = roomy.plan.segments.find(
-      (segment) =>
-        segment.type === 'summary' &&
-        segment.summaryId === 'summary-3000-sources',
+      (segment) => segment.type === 'summary' && segment.summaryId === 'summary-3000-sources',
     );
     expect(summarySegment?.estimatedTokens).toBe(expectedSummaryTokens);
     expect(expectedSummaryTokens).toBeGreaterThan(20_000);
@@ -271,9 +338,7 @@ describe('provider-neutral Agent context planner', () => {
       error: { code: 'CONTEXT_BUDGET_EXCEEDED' },
     });
     if (!constrained.ok) {
-      expect(constrained.diagnostics.estimatedInputTokens).toBeGreaterThan(
-        expectedSummaryTokens,
-      );
+      expect(constrained.diagnostics.estimatedInputTokens).toBeGreaterThan(expectedSummaryTokens);
     }
   });
 
@@ -306,12 +371,8 @@ describe('provider-neutral Agent context planner', () => {
           content: freshness.content,
         }),
       ) + 6;
-    expect(sourceSegment(result, freshness.sourceId)?.estimatedTokens).toBe(
-      expected,
-    );
-    expect(expected).toBeGreaterThan(
-      estimateAgentContextTextTokens(freshness.content) + 1_000,
-    );
+    expect(sourceSegment(result, freshness.sourceId)?.estimatedTokens).toBe(expected);
+    expect(expected).toBeGreaterThan(estimateAgentContextTextTokens(freshness.content) + 1_000);
   });
 
   it('runs a full compactor at most once and accepts only a positive verified projection', async () => {
@@ -390,14 +451,7 @@ describe('provider-neutral Agent context planner', () => {
       row('system', 0, null, 'system_policy', 'policy'),
       row('user', 1, 0, 'user', 'try it'),
       row('denied-call', 2, 0, 'tool_call', '{"type":"tool_call"}', denied),
-      row(
-        'denied-result',
-        3,
-        0,
-        'tool_result',
-        '{"ok":false,"errorCode":"UNKNOWN_TOOL"}',
-        denied,
-      ),
+      row('denied-result', 3, 0, 'tool_result', '{"ok":false,"errorCode":"UNKNOWN_TOOL"}', denied),
     ];
 
     expect(classifyAgentContextSource(rows[2])).toBe('compressible');
@@ -612,8 +666,6 @@ describe('provider-neutral Agent context planner', () => {
     expect(first.plan.checkpoint.projection.contextHash).toBe(
       second.plan.checkpoint.projection.contextHash,
     );
-    expect(first.plan.checkpoint.pinned.sourceHash).toBe(
-      second.plan.checkpoint.pinned.sourceHash,
-    );
+    expect(first.plan.checkpoint.pinned.sourceHash).toBe(second.plan.checkpoint.pinned.sourceHash);
   });
 });

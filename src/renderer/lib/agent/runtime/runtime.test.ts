@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AgentModelDriverError } from './errors';
+import { AgentRuntimeControlChannel } from './control-plane';
 import { replayAgentRuntimeJournal } from './reducer';
 import { AgentRuntime } from './runtime';
 import {
@@ -102,6 +103,226 @@ async function waitUntil(
 }
 
 describe('AgentRuntime', () => {
+  it('gates a write before the scheduler and executes only after a provenance-bound approval', async () => {
+    const clock = new ManualAgentClock();
+    const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({
+      ok: true,
+      data: 'written',
+    }));
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            ...toolCallSteps('write-1', 'write', [
+              '{"expectedRevision":"rev-1","title":"New"}',
+            ]),
+            { op: 'emit', event: { type: 'usage', usage: usage(4, 2) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: 'done' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(5, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const control = new AgentRuntimeControlChannel('session-1', 'turn-1');
+    const entries: AgentRuntimeJournalEntry[] = [];
+    const turn = new AgentRuntime({
+      driver,
+      clock,
+      tools: toolRuntime([definition('write', 'write')], execute),
+      permissionPolicy: {
+        decide: () => ({
+          decision: 'ask',
+          reason: 'write requires approval',
+          allowedScopes: ['once'],
+        }),
+      },
+    }).runTurn(input({ control, onEntry: (entry) => entries.push(entry) }));
+
+    await waitUntil(
+      () => entries.some((entry) => entry.event.type === 'permission_requested'),
+      'permission request was not journaled',
+    );
+    expect(execute).not.toHaveBeenCalled();
+    const requested = entries.find(
+      (entry) => entry.event.type === 'permission_requested',
+    )?.event;
+    if (!requested || requested.type !== 'permission_requested') {
+      throw new Error('missing permission request');
+    }
+    expect(requested.request).toMatchObject({
+      toolName: 'write',
+      arguments: { expectedRevision: 'rev-1', title: 'New' },
+      revision: 'rev-1',
+    });
+    await expect(
+      control.resolvePermission({
+        requestId: requested.request.requestId,
+        sessionId: requested.request.sessionId,
+        turnId: requested.request.turnId,
+        callId: requested.request.callId,
+        argumentsHash: `sha256:${'0'.repeat(64)}`,
+        revision: requested.request.revision,
+        decision: 'allow',
+        scope: 'once',
+      }),
+    ).rejects.toMatchObject({ code: 'AGENT_CONTROL_STALE' });
+
+    const approved = control.resolvePermission({
+      requestId: requested.request.requestId,
+      sessionId: requested.request.sessionId,
+      turnId: requested.request.turnId,
+      callId: requested.request.callId,
+      argumentsHash: requested.request.argumentsHash,
+      revision: requested.request.revision,
+      decision: 'allow',
+      scope: 'once',
+    });
+    const result = await turn;
+    await approved;
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(result.state.status).toBe('completed');
+    expect(
+      result.entries.map((entry) => entry.event.type),
+    ).toEqual(expect.arrayContaining([
+      'permission_requested',
+      'permission_resolved',
+      'tool_execution_started',
+      'commit_started',
+    ]));
+    expect(
+      result.entries.findIndex(
+        (entry) => entry.event.type === 'permission_resolved',
+      ),
+    ).toBeLessThan(
+      result.entries.findIndex(
+        (entry) => entry.event.type === 'tool_execution_started',
+      ),
+    );
+    expect(replayAgentRuntimeJournal(result.entries)).toEqual(result.state);
+    clock.assertIdle();
+  });
+
+  it('feeds a policy denial back to the model without dispatching the tool', async () => {
+    const execute = vi.fn<AgentToolRuntime['execute']>();
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            ...toolCallSteps('write-denied', 'write', ['{}']),
+            { op: 'emit', event: { type: 'usage', usage: usage(2, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          expectRequest: (request) => {
+            const result = request.messages[request.messages.length - 1];
+            expect(result).toMatchObject({
+              role: 'tool',
+              content: [{
+                callId: 'write-denied',
+                ok: false,
+                content: 'Permission denied: project policy',
+              }],
+            });
+          },
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: 'I did not write.' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(3, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime([definition('write', 'write')], execute),
+      permissionPolicy: {
+        decide: () => ({ decision: 'deny', reason: 'project policy' }),
+      },
+    }).runTurn(input());
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.state.status).toBe('completed');
+    expect(
+      result.entries.find(
+        (entry) =>
+          entry.event.type === 'tool_result' &&
+          entry.event.callId === 'write-denied',
+      )?.event,
+    ).toMatchObject({
+      source: 'runtime',
+      errorCode: 'PERMISSION_DENIED',
+    });
+  });
+
+  it('lets a tool wait for canonical user input and resumes exactly once', async () => {
+    const control = new AgentRuntimeControlChannel('session-1', 'turn-1');
+    const entries: AgentRuntimeJournalEntry[] = [];
+    const execute = vi.fn<AgentToolRuntime['execute']>(async (request) => {
+      const answer = await request.control!.requestUserInput({
+        prompt: 'Choose an ending',
+      });
+      return { ok: true, data: { answer } };
+    });
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            ...toolCallSteps('ask-1', 'ask_user', ['{}']),
+            { op: 'emit', event: { type: 'usage', usage: usage(2, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: 'accepted' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(3, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const turn = new AgentRuntime({
+      driver,
+      tools: toolRuntime([definition('ask_user')], execute),
+    }).runTurn(input({ control, onEntry: (entry) => entries.push(entry) }));
+    await waitUntil(
+      () => entries.some((entry) => entry.event.type === 'user_input_requested'),
+      'user input request was not journaled',
+    );
+    const event = entries.find(
+      (entry) => entry.event.type === 'user_input_requested',
+    )?.event;
+    if (!event || event.type !== 'user_input_requested') {
+      throw new Error('missing user input request');
+    }
+    const submitted = control.submitUserInput({
+      requestId: event.request.requestId,
+      sessionId: event.request.sessionId,
+      turnId: event.request.turnId,
+      callId: event.request.callId,
+      text: 'Keep the ambiguous ending',
+    });
+    const result = await turn;
+    await submitted;
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(result.state.status).toBe('completed');
+    expect(
+      result.entries.map((entry) => entry.event.type),
+    ).toEqual(expect.arrayContaining([
+      'user_input_requested',
+      'user_input_received',
+    ]));
+  });
+
   it('completes a text-only turn and replays the exact canonical state', async () => {
     const clock = new ManualAgentClock({ wallTimeMs: 1_000 });
     const driver = new ScriptedFakeDriver({
@@ -371,6 +592,69 @@ describe('AgentRuntime', () => {
     expect(result.state.status).toBe('completed');
     driver.assertExhausted();
     clock.assertIdle();
+  });
+
+  it('stops scheduling later writes immediately after the current tool settles', async () => {
+    let releaseFirstWrite: () => void = () => undefined;
+    const firstWrite = new Promise<void>((resolve) => {
+      releaseFirstWrite = resolve;
+    });
+    const started: string[] = [];
+    const execute = vi.fn<AgentToolRuntime['execute']>(async (request) => {
+      started.push(request.name);
+      if (request.name === 'write_a') await firstWrite;
+      return { ok: true, data: request.name };
+    });
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            ...toolCallSteps('a', 'write_a', ['{}']),
+            ...toolCallSteps('b', 'write_b', ['{}']),
+            ...toolCallSteps('c', 'write_c', ['{}']),
+            { op: 'emit', event: { type: 'usage', usage: usage(4, 3) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+      ],
+    });
+    const control = new AgentRuntimeControlChannel('session-1', 'turn-1');
+    const turn = new AgentRuntime({
+      driver,
+      tools: toolRuntime(
+        [
+          definition('write_a', 'write'),
+          definition('write_b', 'write'),
+          definition('write_c', 'write'),
+        ],
+        execute,
+      ),
+    }).runTurn(input({ control }));
+
+    await waitUntil(
+      () => started.length === 1,
+      'the first write did not start',
+    );
+    const stop = control.stopAfterTool({ turnId: 'turn-1' });
+    releaseFirstWrite();
+    const result = await turn;
+    await stop;
+
+    expect(started).toEqual(['write_a']);
+    expect(result.state.status).toBe('aborted');
+    expect(
+      result.entries
+        .filter(
+          (entry) =>
+            entry.event.type === 'tool_result' &&
+            (entry.event.callId === 'b' || entry.event.callId === 'c'),
+        )
+        .map((entry) =>
+          entry.event.type === 'tool_result'
+            ? entry.event.errorCode
+            : null,
+        ),
+    ).toEqual(['STOP_AFTER_TOOL', 'STOP_AFTER_TOOL']);
   });
 
   it('serializes writes across concurrent runtime instances', async () => {

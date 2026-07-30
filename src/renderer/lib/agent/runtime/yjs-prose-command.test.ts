@@ -4,6 +4,7 @@ import * as Y from 'yjs';
 import { canonicalAgentRuntimeJson } from '../../../sqlite-repo/agent-runtime-persistence-repo';
 import {
   applyPreparedYjsProseUpdate,
+  createYjsProseSeedState,
   deserializePreparedYjsProseCommand,
   hashYjsProseState,
   prepareYjsProseCommand,
@@ -122,6 +123,12 @@ function expectedAfter(
       result.splice(at, 1, structuredClone(operation.block) as YjsProseBlock);
       return result;
     }
+    case 'edit_many':
+      for (const edit of operation.edits) {
+        const at = result.findIndex((block) => block.id === edit.blockId);
+        result.splice(at, 1, structuredClone(edit.block) as YjsProseBlock);
+      }
+      return result;
     case 'remove':
       return result.filter((block) => !operation.blockIds.includes(block.id));
     case 'replace': {
@@ -404,6 +411,89 @@ describe('Yjs prose command', () => {
     expect(seeded.projection.contentJson).toContain('seed-first-block');
     source.destroy();
     emptySeed.destroy();
+  });
+
+  it('converts a never-opened contentJson projection into a deterministic rich Yjs seed', async () => {
+    const projection = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'text',
+              text: 'Alpha',
+              marks: [{ type: 'bold' }],
+            },
+          ],
+        },
+        {
+          type: 'heading',
+          attrs: { level: 2, id: 'existing-id' },
+          content: [{ type: 'text', text: 'Beta' }],
+        },
+      ],
+    });
+    const first = await createYjsProseSeedState(projection);
+    const second = await createYjsProseSeedState(projection);
+    expect(bytes(first)).toEqual(bytes(second));
+
+    const seeded = new Y.Doc({ gc: false });
+    Y.applyUpdate(seeded, first);
+    const blocks = snapshotYjsProseBlocks(seeded);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toMatchObject({
+      type: 'paragraph',
+      content: [{ kind: 'text', text: 'Alpha', marks: { bold: {} } }],
+    });
+    expect(blocks[0].id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(blocks[1].id).toBe('existing-id');
+    seeded.destroy();
+  });
+
+  it('edits non-contiguous blocks atomically without touching the middle block', async () => {
+    const source = createDoc(baseBlocks(7));
+    const before = snapshotYjsProseBlocks(source);
+    const operation: YjsProseOperation = {
+      kind: 'edit_many',
+      edits: [
+        {
+          blockId: before[0].id,
+          block: richBlock(before[0].id, 7001),
+        },
+        {
+          blockId: before[3].id,
+          block: richBlock(before[3].id, 7003),
+        },
+      ],
+    };
+    const prepared = await prepareYjsProseCommand({
+      commandId: 'edit-many-non-contiguous',
+      source: { kind: 'live', doc: source, revision: 3 },
+      expectedBase: {
+        revision: 3,
+        stateVector: Y.encodeStateVector(source),
+      },
+      operation,
+    });
+    expect(prepared.affectedBlockIds).toEqual([
+      before[0].id,
+      before[3].id,
+    ]);
+    expect(prepared.projection.blocks[1]).toEqual(before[1]);
+    expect(prepared.projection.blocks[2]).toEqual(before[2]);
+
+    const applied = cloneDoc(source);
+    await applyPreparedYjsProseUpdate(applied, prepared, 'forward');
+    expect(snapshotYjsProseBlocks(applied)).toEqual(
+      expectedAfter(before, operation),
+    );
+    await applyPreparedYjsProseUpdate(applied, prepared, 'inverse');
+    expect(snapshotYjsProseBlocks(applied)).toEqual(before);
+    source.destroy();
+    applied.destroy();
   });
 
   it('round-trips canonical portable JSON and retains executable forward/inverse deltas', async () => {

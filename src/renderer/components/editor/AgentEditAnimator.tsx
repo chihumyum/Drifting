@@ -15,6 +15,14 @@ import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { entityKey, type ActivityEntityType } from '../../lib/agent/tool-entity-ref';
 import { diffTokens, type AgentBlockChange } from '../../lib/agent/block-diff';
 import { revertEntityBlock } from '../../lib/agent/chapter-prose';
+import {
+  acceptDriftingAgentWriteReview,
+  rejectDriftingAgentWriteReview,
+} from '../../lib/agent/useDriftingAgentRuntime';
+import {
+  approveDurableAgentReview,
+  rejectDurableAgentReviewsForEntity,
+} from '../../lib/agent/durable-review-actions';
 
 /**
  * Agent prose-edit reveal layer (#3 / #4). Renders OVER the manuscript (a fixed
@@ -39,8 +47,9 @@ import { revertEntityBlock } from '../../lib/agent/chapter-prose';
  * The live GLOBAL `agentEditMode` governs behavior (the toggle is authoritative):
  * switching to auto auto-applies pending edits, switching to approve surfaces ✓/✗.
  *
- * Pure UI: the entity content already holds the agent's edit. Nothing here writes
- * the doc except an explicit ✗ (reject), which calls revertEntityBlock.
+ * Durable runtime changes settle their canonical review before this layer clears
+ * presentation state. Only legacy changes without reviewId may still use the old
+ * local block reverter.
  */
 interface AgentEditAnimatorProps {
   scrollEl: HTMLElement | null;
@@ -460,6 +469,7 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   const [revealing, setRevealing] = useState<Map<string, AgentBlockChange>>(() => new Map());
   const [committing, setCommitting] = useState<AgentBlockChange | null>(null);
   const layerRef = useRef<HTMLDivElement>(null);
+  const settlingRef = useRef(new Set<string>());
 
   // Live heights (keyed) of the deletion overlays currently revealing, reported
   // by each RevealOverlay — used to STACK a run of deletions that share one
@@ -524,7 +534,34 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   const resolve = useCallback(
     (c: AgentBlockChange) => {
       if (!id) return;
-      useAgentEditStore.getState().resolveBlocks(entityType, id, [c.blockId]);
+      const store = useAgentEditStore.getState();
+      store.resolveBlocks(entityType, id, [c.blockId]);
+      if (c.reviewId && (c.mode ?? 'approve') === 'auto') {
+        const current = useAgentEditStore.getState();
+        const key = entityKey(entityType, id);
+        const hasAutoVisualChanges = Boolean(
+          current.pending[key]?.changes.some(
+            (change) =>
+              change.reviewId &&
+              (change.mode ?? 'approve') === 'auto',
+          ),
+        );
+        if (!hasAutoVisualChanges) {
+          current.resolveReviews(
+            current.reviewOrder.filter((reviewId) => {
+              const batch = current.reviewBatches[reviewId];
+              return Boolean(
+                batch &&
+                  batch.entityType === entityType &&
+                  batch.id === id &&
+                  batch.changes.every(
+                    (change) => change.mode === 'auto',
+                  ),
+              );
+            }),
+          );
+        }
+      }
       // Clearing the activity spot is what drops the panel "M" once every change
       // has been revealed — so the badge tracks "unrevealed edits", not "unclicked".
       useAgentActivityStore.getState().markSpotSeen(entityType, id, { block: c.blockId });
@@ -693,6 +730,39 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
             scrollEl={scrollEl}
             change={c}
             onApprove={() => {
+              if (c.reviewId) {
+                if (settlingRef.current.has(c.reviewId)) return;
+                settlingRef.current.add(c.reviewId);
+                void approveDurableAgentReview(
+                  c.reviewId,
+                  acceptDriftingAgentWriteReview,
+                  () => {
+                    // Mount the commit overlay before removing the in-place
+                    // durable batch, especially for deleted-block ghosts.
+                    flushSync(() => setCommitting(c));
+                    const store = useAgentEditStore.getState();
+                    const batch = store.reviewBatches[c.reviewId!];
+                    store.resolveReviews([c.reviewId!]);
+                    for (const change of batch?.changes ?? [c]) {
+                      useAgentActivityStore
+                        .getState()
+                        .markSpotSeen(entityType, id, {
+                          block: change.blockId,
+                        });
+                    }
+                  },
+                )
+                  .catch((error) => {
+                    console.error(
+                      '[agent] approve: durable review failed, keeping edit pending',
+                      error,
+                    );
+                  })
+                  .finally(() => {
+                    settlingRef.current.delete(c.reviewId!);
+                  });
+                return;
+              }
               // changed / new: the real (post-edit) block already holds the space,
               // so clear the in-place decoration now and play the commit reveal over
               // it. DELETION: the struck placeholder IS the decoration — keep it
@@ -702,6 +772,50 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
               setCommitting(c);
             }}
             onReject={() => {
+              if (c.reviewId) {
+                const settlementKey = `${entityType}:${id}:reject`;
+                if (settlingRef.current.has(settlementKey)) return;
+                settlingRef.current.add(settlementKey);
+                const store = useAgentEditStore.getState();
+                void rejectDurableAgentReviewsForEntity({
+                  entityType,
+                  id,
+                  batches: store,
+                  rejectReview: rejectDriftingAgentWriteReview,
+                  decisionNote: 'Rejected from editor review',
+                  onAllReverted(reviewIds, batches) {
+                    const current = useAgentEditStore.getState();
+                    // Feedback is emitted only after every canonical guarded
+                    // inverse succeeded; a partial failure leaves all batches.
+                    for (const batch of batches) {
+                      for (const change of batch.changes) {
+                        current.recordRevert(
+                          projectId,
+                          batch.entityType,
+                          batch.id,
+                          change,
+                        );
+                        useAgentActivityStore
+                          .getState()
+                          .markSpotSeen(batch.entityType, batch.id, {
+                            block: change.blockId,
+                          });
+                      }
+                    }
+                    current.resolveReviews([...reviewIds]);
+                  },
+                })
+                  .catch((error) => {
+                    console.error(
+                      '[agent] reject: durable inverse failed, keeping review stack pending',
+                      error,
+                    );
+                  })
+                  .finally(() => {
+                    settlingRef.current.delete(settlementKey);
+                  });
+                return;
+              }
               // Only clear the review marker once the undo ACTUALLY applies. If
               // the revert throws (block id moved, doc unregistered), the agent's
               // text is still in the doc — so keep the block flagged (the ✓/✗

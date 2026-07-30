@@ -36,7 +36,13 @@ import type {
   AgentChatMessage as ChatMsg,
   AgentConversationSummary,
 } from '../domain/agent-conversation';
-import type { AgentEvent, AgentEventEnvelope } from '../lib/agent/protocol';
+import type {
+  AgentControlStatus,
+  AgentEvent,
+  AgentEventEnvelope,
+  AgentPendingControl,
+  AgentPermissionScope,
+} from '../lib/agent/protocol';
 import { loadCanonicalAgentTranscript } from '../lib/agent/runtime/recovered-transcript';
 import { buildAgentWriteReviewFeedback } from '../lib/agent/runtime/write-review-feedback';
 import { generalAgentTransport } from '../lib/agent/transport';
@@ -132,6 +138,16 @@ export function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
       ];
     case 'error':
       return [...finalizeStreaming(list), { kind: 'error', text: ev.message }];
+    case 'steering_received':
+      return [
+        ...finalizeStreaming(list),
+        { kind: 'user', text: ev.text },
+      ];
+    case 'user_input_received':
+      return [
+        ...finalizeStreaming(list),
+        { kind: 'user', text: ev.response.text },
+      ];
     case 'system':
       return list; // suppress init / compact breadcrumbs
     case 'done':
@@ -226,6 +242,8 @@ interface RunState {
   messages: ChatMsg[];
   /** Provider-neutral canonical runtime session used for context recovery. */
   runtimeSessionId: string | null;
+  controlStatus: AgentControlStatus | null;
+  pendingControl: AgentPendingControl | null;
 }
 
 interface AgentChatState {
@@ -248,6 +266,12 @@ interface AgentChatState {
   bindProject: (projectId: string) => void;
   refreshList: () => void;
   send: () => Promise<void>;
+  respondPermission: (
+    decision: 'allow' | 'deny',
+    scope?: AgentPermissionScope,
+  ) => Promise<void>;
+  stopAfterTool: () => Promise<void>;
+  cancelRecoveredControl: () => Promise<void>;
   abort: () => void;
   newConversation: () => void;
   loadConversation: (id: string) => Promise<void>;
@@ -266,6 +290,10 @@ export const selectRunning = (s: AgentChatState): boolean =>
 /** A turn is running, but in a DIFFERENT conversation than the one displayed. */
 export const selectOtherRunning = (s: AgentChatState): boolean =>
   s.runningConvId !== null && s.runningConvId !== s.activeConvId;
+export const selectControlStatus = (s: AgentChatState): AgentControlStatus | null =>
+  s.activeConvId ? (s.runs[s.activeConvId]?.controlStatus ?? null) : null;
+export const selectPendingControl = (s: AgentChatState): AgentPendingControl | null =>
+  s.activeConvId ? (s.runs[s.activeConvId]?.pendingControl ?? null) : null;
 
 // Maps an in-flight turn id → the conversation that owns it, so streamed events
 // route to that conversation even after the user navigates elsewhere. A turn not
@@ -342,9 +370,44 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   send: async () => {
     ensureSubscription();
     const s = get();
-    // One turn at a time (main runs a single query): refuse if one is in flight,
-    // even if it's a background turn in another conversation.
-    if (!s.prompt.trim() || !s.boundProjectId || s.runningConvId) return;
+    if (!s.prompt.trim() || !s.boundProjectId) return;
+    const displayedRun = s.activeConvId
+      ? s.runs[s.activeConvId]
+      : undefined;
+    if (displayedRun?.pendingControl?.requiresContinuation) return;
+    if (s.runningConvId) {
+      if (
+        s.activeConvId !== s.runningConvId ||
+        !s.runningTurnId
+      ) {
+        return;
+      }
+      const liveRun = s.runs[s.runningConvId];
+      const text = s.prompt.trim();
+      const pending = liveRun?.pendingControl;
+      if (pending?.requiresContinuation) return;
+      const response =
+        pending?.status === 'waiting_user' && pending.userInputRequest
+          ? await generalAgentTransport.submitUserInput({
+              requestId: pending.userInputRequest.requestId,
+              sessionId: pending.userInputRequest.sessionId,
+              turnId: pending.userInputRequest.turnId,
+              callId: pending.userInputRequest.callId,
+              text,
+            })
+          : await generalAgentTransport.steer({
+              turnId: s.runningTurnId,
+              text,
+            });
+      if (response.ok) {
+        set((current) =>
+          current.prompt === s.prompt ? { prompt: '' } : current,
+        );
+      } else {
+        appendRunError(s.runningConvId, response.error);
+      }
+      return;
+    }
     const projectId = s.boundProjectId;
     const text = s.prompt.trim();
     // Drain edits the user rejected since the last turn and prepend them as a
@@ -412,6 +475,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       projectId,
       messages: [...(prevRun?.messages ?? []), { kind: 'user', text }],
       runtimeSessionId: prevRun?.runtimeSessionId ?? null,
+      controlStatus: null,
+      pendingControl: null,
     };
 
     const turnId = uuidv7();
@@ -498,6 +563,74 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     }
   },
 
+  respondPermission: async (decision, requestedScope = 'once') => {
+    const s = get();
+    const convId = s.activeConvId;
+    const pending = convId ? s.runs[convId]?.pendingControl : null;
+    const request = pending?.permissionRequest;
+    if (
+      !convId ||
+      !request ||
+      pending.requiresContinuation ||
+      !request.allowedScopes.includes(requestedScope)
+    ) {
+      return;
+    }
+    const response = await generalAgentTransport.resolvePermission({
+      requestId: request.requestId,
+      sessionId: request.sessionId,
+      turnId: request.turnId,
+      callId: request.callId,
+      argumentsHash: request.argumentsHash,
+      revision: request.revision,
+      decision,
+      scope: requestedScope,
+    });
+    if (!response.ok) appendRunError(convId, response.error);
+  },
+
+  stopAfterTool: async () => {
+    const s = get();
+    if (!s.runningTurnId || !s.runningConvId) return;
+    const response = await generalAgentTransport.stopAfterTool({
+      turnId: s.runningTurnId,
+    });
+    if (!response.ok) appendRunError(s.runningConvId, response.error);
+  },
+
+  cancelRecoveredControl: async () => {
+    const s = get();
+    const convId = s.activeConvId;
+    const pending = convId ? s.runs[convId]?.pendingControl : null;
+    const request =
+      pending?.permissionRequest ?? pending?.userInputRequest;
+    if (!convId || !pending?.requiresContinuation || !request) return;
+    const response = await generalAgentTransport.cancelPendingControl({
+      sessionId: pending.sessionId,
+      turnId: pending.turnId,
+      requestId: request.requestId,
+      reason: 'Recovered Agent wait cancelled by the author',
+    });
+    if (!response.ok) {
+      appendRunError(convId, response.error);
+      return;
+    }
+    set((state) => {
+      const run = state.runs[convId];
+      if (!run || run.pendingControl?.turnId !== pending.turnId) return state;
+      return {
+        runs: {
+          ...state.runs,
+          [convId]: {
+            ...run,
+            controlStatus: null,
+            pendingControl: null,
+          },
+        },
+      };
+    });
+  },
+
   abort: () => {
     void generalAgentTransport.abort();
   },
@@ -536,11 +669,36 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             projectId: conv.projectId,
             messages,
             runtimeSessionId: conv.runtimeSessionId,
+            controlStatus: null,
+            pendingControl: null,
           },
         },
       }));
     }
     set({ activeConvId: id });
+    const runtimeSessionId = get().runs[id]?.runtimeSessionId;
+    if (runtimeSessionId) {
+      const pending = await generalAgentTransport.listPendingControls({
+        sessionId: runtimeSessionId,
+      });
+      if (pending.ok) {
+        const recovered = pending.value[0] ?? null;
+        set((state) => {
+          const run = state.runs[id];
+          if (!run || run.runtimeSessionId !== runtimeSessionId) return state;
+          return {
+            runs: {
+              ...state.runs,
+              [id]: {
+                ...run,
+                controlStatus: recovered?.status ?? null,
+                pendingControl: recovered,
+              },
+            },
+          };
+        });
+      }
+    }
     const pid = get().boundProjectId;
     if (pid) useSettingsStore.getState().setLastAgentConv(pid, id);
   },
@@ -652,13 +810,62 @@ function handleEvent(env: AgentEventEnvelope): void {
     return;
   }
 
-  // Fold the event into the OWNING conversation's transcript (not the displayed
-  // one) — this is what lets a background turn keep streaming after navigation.
+  // Fold the event and its canonical control projection into the OWNING
+  // conversation (not necessarily the displayed one).
   useAgentChatStore.setState((s) => {
     const run = s.runs[convId];
-    return run
-      ? { runs: { ...s.runs, [convId]: { ...run, messages: applyEvent(run.messages, ev) } } }
-      : s;
+    if (!run) return s;
+    let controlStatus = run.controlStatus;
+    let pendingControl = run.pendingControl;
+    if (ev.type === 'control_state') {
+      controlStatus = ev.status;
+    } else if (ev.type === 'permission_request') {
+      controlStatus = 'waiting_permission';
+      pendingControl = {
+        sessionId: ev.request.sessionId,
+        turnId: ev.request.turnId,
+        status: 'waiting_permission',
+        permissionRequest: ev.request,
+        requiresContinuation: false,
+      };
+    } else if (ev.type === 'permission_resolved') {
+      if (
+        pendingControl?.permissionRequest?.requestId ===
+        ev.resolution.requestId
+      ) {
+        pendingControl = null;
+      }
+    } else if (ev.type === 'user_input_request') {
+      controlStatus = 'waiting_user';
+      pendingControl = {
+        sessionId: ev.request.sessionId,
+        turnId: ev.request.turnId,
+        status: 'waiting_user',
+        userInputRequest: ev.request,
+        requiresContinuation: false,
+      };
+    } else if (ev.type === 'user_input_received') {
+      if (
+        pendingControl?.userInputRequest?.requestId ===
+        ev.response.requestId
+      ) {
+        pendingControl = null;
+      }
+    } else if (ev.type === 'done') {
+      controlStatus = null;
+      pendingControl = null;
+    }
+    return {
+      runs: {
+        ...s.runs,
+        [convId]: {
+          ...run,
+          messages: applyEvent(run.messages, ev),
+          controlStatus,
+          pendingControl,
+        },
+      },
+    };
   });
 
   // Mirror tool activity to the perception store (left-panel pulses + dots) only
@@ -685,6 +892,26 @@ function handleEvent(env: AgentEventEnvelope): void {
 }
 
 let subscribed = false;
+
+function appendRunError(convId: string, message: string): void {
+  useAgentChatStore.setState((state) => {
+    const run = state.runs[convId];
+    if (!run) return state;
+    return {
+      runs: {
+        ...state.runs,
+        [convId]: {
+          ...run,
+          messages: [
+            ...finalizeStreaming(run.messages),
+            { kind: 'error', text: message },
+          ],
+        },
+      },
+    };
+  });
+}
+
 /** Subscribe to agent events once for the app's lifetime (never torn down, so
  *  streaming survives the panel unmounting). Idempotent. */
 function ensureSubscription(): void {

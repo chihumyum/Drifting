@@ -11,6 +11,13 @@ import type {
   AgentContextProviderProjection,
 } from './context-message-adapter';
 import type { AgentContextSourceRow } from './context-planner';
+import type {
+  AgentPermissionRequest,
+  AgentPermissionResolutionInput,
+  AgentPermissionScope,
+  AgentUserInputRequest,
+} from '../protocol';
+import type { AgentRuntimeControlChannel } from './control-plane';
 
 export const AGENT_RUNTIME_SCHEMA_VERSION = 1 as const;
 export const AGENT_RUNTIME_TOOL_SEARCH_LIMIT = 8 as const;
@@ -179,6 +186,16 @@ export interface AgentToolExecutionRequest {
   access: AgentToolDefinition['access'];
   context: AgentRuntimeContext;
   signal: AbortSignal;
+  control?: {
+    /**
+     * Pause this tool at a canonical safe point until the user answers.
+     * A provider-visible elicitation tool should delegate to this primitive.
+     */
+    requestUserInput(input: {
+      requestId?: string;
+      prompt: string;
+    }): Promise<string>;
+  };
 }
 
 export type AgentToolExecutionResult =
@@ -200,6 +217,39 @@ export interface AgentToolRuntime {
    * terminal event while an entered write is unresolved.
    */
   execute(request: AgentToolExecutionRequest): Promise<AgentToolExecutionResult>;
+}
+
+export interface AgentToolPermissionPolicyRequest
+  extends AgentPermissionRequest {
+  context: AgentRuntimeContext;
+}
+
+export type AgentToolPermissionPolicyDecision =
+  | {
+      decision: 'allow';
+      scope?: AgentPermissionScope;
+    }
+  | {
+      decision: 'ask';
+      reason?: string;
+      allowedScopes?: readonly AgentPermissionScope[];
+    }
+  | {
+      decision: 'deny';
+      reason: string;
+    };
+
+/**
+ * One centralized authorization gate. The runtime invokes it after strict
+ * argument validation and before the scheduler/tool handler can observe the
+ * call, so individual handlers cannot accidentally bypass policy.
+ */
+export interface AgentToolPermissionPolicy {
+  decide(
+    request: AgentToolPermissionPolicyRequest,
+  ):
+    | AgentToolPermissionPolicyDecision
+    | Promise<AgentToolPermissionPolicyDecision>;
 }
 
 export type AgentRuntimeToolSearchMode = 'off' | 'auto' | 'on';
@@ -310,6 +360,40 @@ export type AgentRuntimeEvent =
       access: AgentToolDefinition['access'];
     }
   | {
+      type: 'permission_requested';
+      request: AgentPermissionRequest;
+    }
+  | {
+      type: 'permission_resolved';
+      resolution: AgentPermissionResolutionInput;
+    }
+  | {
+      type: 'user_input_requested';
+      request: AgentUserInputRequest;
+    }
+  | {
+      type: 'user_input_received';
+      response: {
+        requestId: string;
+        sessionId: string;
+        turnId: string;
+        callId: string;
+        text: string;
+      };
+    }
+  | {
+      type: 'steering_received';
+      messageId: string;
+      text: string;
+    }
+  | {
+      type: 'steering_applied';
+      messageId: string;
+    }
+  | { type: 'stop_after_tool_requested' }
+  | { type: 'cancellation_requested'; reason: string }
+  | { type: 'commit_started'; outcome: AgentRuntimeOutcome }
+  | {
       type: 'tool_result';
       callId: string;
       name: string;
@@ -367,6 +451,10 @@ export interface AgentRuntimeToolState {
 export type AgentRuntimeStatus =
   | 'idle'
   | 'running'
+  | 'waiting_permission'
+  | 'waiting_user'
+  | 'cancelling'
+  | 'committing'
   | 'completed'
   | 'failed'
   | 'aborted'
@@ -392,6 +480,11 @@ export interface AgentRuntimeState {
   thinkingText: string;
   toolOrder: string[];
   tools: Record<string, AgentRuntimeToolState>;
+  pendingPermission: AgentPermissionRequest | null;
+  pendingUserInput: AgentUserInputRequest | null;
+  pendingSteering: { messageId: string; text: string }[];
+  appliedSteeringSinceIteration: boolean;
+  stopAfterToolRequested: boolean;
   usage: AgentRuntimeUsage;
   terminal: AgentRuntimeTerminalEvent | null;
 }
@@ -408,6 +501,7 @@ export interface AgentRuntimeRunInput {
   history?: readonly AgentModelMessage[];
   limits?: Partial<AgentRuntimeLimits>;
   signal?: AbortSignal;
+  control?: AgentRuntimeControlChannel;
   onEntry?: (entry: AgentRuntimeJournalEntry) => void;
 }
 

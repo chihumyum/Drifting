@@ -5,7 +5,7 @@ import {
   verifyAgentContextProviderEnvelope,
   type AgentContextSupplementalPinnedRow,
 } from './context-message-adapter';
-import { createAgentContextSummaryCandidate } from './context-planner';
+import { createAgentContextSummaryCandidate, type AgentContextSourceRow } from './context-planner';
 import {
   DEFAULT_AGENT_RUNTIME_SYSTEM_POLICY,
   type AgentRuntimeContextPlanningHookInput,
@@ -49,9 +49,7 @@ function definition(name: string, schemaPadding = ''): AgentToolDefinition {
   };
 }
 
-function toolRuntime(
-  definitions: readonly AgentToolDefinition[],
-): AgentToolRuntime {
+function toolRuntime(definitions: readonly AgentToolDefinition[]): AgentToolRuntime {
   return {
     listDefinitions: () => definitions,
     execute: async () => ({ ok: true, data: { value: 'read result' } }),
@@ -63,22 +61,16 @@ class RecordingDriver implements AgentModelDriver {
   readonly requests: AgentModelRequest[] = [];
 
   constructor(
-    private readonly respond: (
-      request: AgentModelRequest,
-    ) => readonly AgentModelStreamEvent[],
+    private readonly respond: (request: AgentModelRequest) => readonly AgentModelStreamEvent[],
   ) {}
 
-  async *stream(
-    request: AgentModelRequest,
-  ): AsyncIterable<AgentModelStreamEvent> {
+  async *stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
     this.requests.push(request);
     for (const event of this.respond(request)) yield event;
   }
 }
 
-function runInput(
-  overrides: Partial<AgentRuntimeRunInput> = {},
-): AgentRuntimeRunInput {
+function runInput(overrides: Partial<AgentRuntimeRunInput> = {}): AgentRuntimeRunInput {
   return {
     sessionId: 'session-1',
     turnId: 'turn-1',
@@ -88,10 +80,7 @@ function runInput(
   };
 }
 
-function toolCall(
-  callId: string,
-  name: string,
-): readonly AgentModelStreamEvent[] {
+function toolCall(callId: string, name: string): readonly AgentModelStreamEvent[] {
   return [
     { type: 'tool_call_start', callId, name },
     { type: 'tool_args_delta', callId, delta: '{}' },
@@ -102,11 +91,7 @@ function toolCall(
 }
 
 function endTurn(text = 'final answer'): readonly AgentModelStreamEvent[] {
-  return [
-    { type: 'text_delta', text },
-    USAGE,
-    { type: 'finish', reason: 'end_turn' },
-  ];
+  return [{ type: 'text_delta', text }, USAGE, { type: 'finish', reason: 'end_turn' }];
 }
 
 describe('AgentRuntime context planning integration', () => {
@@ -124,17 +109,13 @@ describe('AgentRuntime context planning integration', () => {
       },
     ];
     const driver = new RecordingDriver((request) =>
-      request.iteration === 1
-        ? toolCall('call-1', 'tool_0')
-        : endTurn(),
+      request.iteration === 1 ? toolCall('call-1', 'tool_0') : endTurn(),
     );
     const runtime = new AgentRuntime({
       driver,
       tools: toolRuntime(definitions),
       toolSelector: {
-        select: ({ iteration }) => [
-          iteration === 1 ? 'tool_0' : 'tool_9',
-        ],
+        select: ({ iteration }) => [iteration === 1 ? 'tool_0' : 'tool_9'],
       },
       contextPlanning: {
         providerOverheadTokens: 101,
@@ -146,23 +127,19 @@ describe('AgentRuntime context planning integration', () => {
       },
     });
 
-    const result = await runtime.runTurn(
-      runInput({ toolSearch: 'auto' }),
-    );
+    const result = await runtime.runTurn(runInput({ toolSearch: 'auto' }));
 
     expect(result.state.status).toBe('completed');
     expect(driver.requests).toHaveLength(2);
-    expect(
-      driver.requests.map((request) =>
-        request.tools.map((tool) => tool.name),
-      ),
-    ).toEqual([['tool_0'], ['tool_9']]);
+    expect(driver.requests.map((request) => request.tools.map((tool) => tool.name))).toEqual([
+      ['tool_0'],
+      ['tool_9'],
+    ]);
     expect(
       driver.requests.every(
         (request) =>
           request.tools.length <= 8 &&
-          request.context.systemPrompt ===
-            DEFAULT_AGENT_RUNTIME_SYSTEM_POLICY,
+          request.context.systemPrompt === DEFAULT_AGENT_RUNTIME_SYSTEM_POLICY,
       ),
     ).toBe(true);
     expect(hookCalls.map((call) => call.purpose)).toEqual([
@@ -170,49 +147,41 @@ describe('AgentRuntime context planning integration', () => {
       'provider_call',
       'completed_turn',
     ]);
-    expect(
-      hookCalls.map((call) => call.tools.map((tool) => tool.name)),
-    ).toEqual([['tool_0'], ['tool_9'], ['tool_9']]);
+    expect(hookCalls.map((call) => call.tools.map((tool) => tool.name))).toEqual([
+      ['tool_0'],
+      ['tool_9'],
+      ['tool_9'],
+    ]);
 
     const expectedFixedTokens = estimateAgentContextFixedInputTokens({
       tools: driver.requests[1]!.tools,
       providerOverheadTokens: 101,
       perToolOverheadTokens: 7,
     });
+    expect(result.lastProviderCallContextEnvelope?.plannerCheckpoint.budget.fixedInputTokens).toBe(
+      expectedFixedTokens,
+    );
     expect(
-      result.lastProviderCallContextEnvelope?.plannerCheckpoint.budget
-        .fixedInputTokens,
+      result.completedContextCheckpoint?.providerEnvelope.plannerCheckpoint.budget.fixedInputTokens,
     ).toBe(expectedFixedTokens);
-    expect(
-      result.completedContextCheckpoint?.providerEnvelope.plannerCheckpoint
-        .budget.fixedInputTokens,
-    ).toBe(expectedFixedTokens);
-    expect(
-      JSON.stringify(
-        result.lastProviderCallContextEnvelope?.providerContext,
-      ),
-    ).not.toContain('final answer');
-    expect(
-      JSON.stringify(
-        result.completedContextCheckpoint?.canonicalSourceRows,
-      ),
-    ).toContain('final answer');
+    expect(JSON.stringify(result.lastProviderCallContextEnvelope?.providerContext)).not.toContain(
+      'final answer',
+    );
+    expect(JSON.stringify(result.completedContextCheckpoint?.canonicalSourceRows)).toContain(
+      'final answer',
+    );
 
     const rebuilt = agentModelMessagesToContextSources({
       systemPrompt: DEFAULT_AGENT_RUNTIME_SYSTEM_POLICY,
       messages: result.messages,
-      resolveToolAccess: (name) =>
-        definitions.find((tool) => tool.name === name)?.access ?? null,
+      resolveToolAccess: (name) => definitions.find((tool) => tool.name === name)?.access ?? null,
       supplementalRows,
     });
-    expect(
-      result.completedContextCheckpoint?.canonicalSourceRows,
-    ).toEqual(rebuilt.sourceRows);
+    expect(result.completedContextCheckpoint?.canonicalSourceRows).toEqual(rebuilt.sourceRows);
     await expect(
       verifyAgentContextProviderEnvelope({
         envelope: result.completedContextCheckpoint!.providerEnvelope,
-        canonicalSourceRows:
-          result.completedContextCheckpoint!.canonicalSourceRows,
+        canonicalSourceRows: result.completedContextCheckpoint!.canonicalSourceRows,
       }),
     ).resolves.toBeUndefined();
   });
@@ -273,9 +242,7 @@ describe('AgentRuntime context planning integration', () => {
     }).runTurn(runInput({ history }));
 
     expect(result.state.status).toBe('failed');
-    expect(result.state.terminal?.failureCode).toBe(
-      'PROTOCOL_VIOLATION',
-    );
+    expect(result.state.terminal?.failureCode).toBe('PROTOCOL_VIOLATION');
     expect(driver.requests).toHaveLength(0);
     expect(result.lastProviderCallContextEnvelope).toBeUndefined();
     expect(result.completedContextCheckpoint).toBeUndefined();
@@ -332,9 +299,7 @@ describe('AgentRuntime context planning integration', () => {
       resolveToolAccess: () => null,
     });
     const oldRows = bridge.sourceRows.filter(
-      (source) =>
-        source.turnOrdinal === 0 &&
-        source.kind === 'assistant_narrative',
+      (source) => source.turnOrdinal === 0 && source.kind === 'assistant_narrative',
     );
     const summary = await createAgentContextSummaryCandidate({
       summaryId: 'old-turn-summary',
@@ -368,27 +333,21 @@ describe('AgentRuntime context planning integration', () => {
     expect(result.state.status).toBe('completed');
     expect(driver.requests).toHaveLength(1);
     const actualRequest = driver.requests[0]!;
-    const hasOwn = (key: string) =>
-      Object.prototype.hasOwnProperty.call(actualRequest, key);
+    const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(actualRequest, key);
     expect(hasOwn('messages')).toBe(false);
     expect(hasOwn('systemPrompt')).toBe(false);
     expect(hasOwn('plannedContext')).toBe(false);
-    expect(
-      actualRequest.context.messages.map((message) => message.type),
-    ).toContain('context_summary');
-    expect(
-      actualRequest.context.messages.map((message) => message.type),
-    ).toContain('context_note');
+    expect(actualRequest.context.messages.map((message) => message.type)).toContain(
+      'context_summary',
+    );
+    expect(actualRequest.context.messages.map((message) => message.type)).toContain('context_note');
   });
 
   it('counts 3000 summary source ids and fails before invoking the provider', async () => {
-    const oldAssistantBlocks = Array.from(
-      { length: 3_000 },
-      (_, index) => ({
-        type: 'text' as const,
-        text: `historical-${index}:${'payload '.repeat(24)}`,
-      }),
-    );
+    const oldAssistantBlocks = Array.from({ length: 3_000 }, (_, index) => ({
+      type: 'text' as const,
+      text: `historical-${index}:${'payload '.repeat(24)}`,
+    }));
     const history: AgentModelMessage[] = [
       { role: 'user', content: 'turn zero' },
       { role: 'assistant', content: oldAssistantBlocks },
@@ -413,9 +372,7 @@ describe('AgentRuntime context planning integration', () => {
       resolveToolAccess: () => null,
     });
     const oldRows = bridge.sourceRows.filter(
-      (source) =>
-        source.turnOrdinal === 0 &&
-        source.kind === 'assistant_narrative',
+      (source) => source.turnOrdinal === 0 && source.kind === 'assistant_narrative',
     );
     expect(oldRows).toHaveLength(3_000);
     const summary = await createAgentContextSummaryCandidate({
@@ -446,9 +403,7 @@ describe('AgentRuntime context planning integration', () => {
   });
 
   it('fails closed when the completed assistant no longer fits a verified checkpoint', async () => {
-    const driver = new RecordingDriver(() =>
-      endTurn('x'.repeat(3_000)),
-    );
+    const driver = new RecordingDriver(() => endTurn('x'.repeat(3_000)));
     const result = await new AgentRuntime({
       driver,
       contextPlanning: {
@@ -467,6 +422,110 @@ describe('AgentRuntime context planning integration', () => {
     expect(result.state.status).toBe('budget_exceeded');
     expect(result.state.terminal?.failureCode).toBe('BUDGET_EXCEEDED');
     expect(result.completedContextCheckpoint).toBeUndefined();
+  });
+
+  it('summarizes old ordinary dialogue only with an explicit verified constraint policy', async () => {
+    const ordinaryUser = `brainstorm ${'possibility '.repeat(1_500)}`;
+    const explicitVeto = '不要改变主角的第一人称视角。';
+    const history: AgentModelMessage[] = [
+      { role: 'user', content: 'Draft this chapter carefully.' },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Understood.' }],
+      },
+      { role: 'user', content: ordinaryUser },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'old exploration '.repeat(900) }],
+      },
+      { role: 'user', content: explicitVeto },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'I will preserve it.' }],
+      },
+      { role: 'user', content: 'Continue.' },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Continuing.' }],
+      },
+    ];
+    const compactedRows: AgentContextSourceRow[][] = [];
+    const driver = new RecordingDriver(() => endTurn());
+    const result = await new AgentRuntime({
+      driver,
+      contextPlanning: {
+        contextWindowTokens: 8_000,
+        providerOverheadTokens: 0,
+        perToolOverheadTokens: 0,
+        userConstraintPolicy: ({ candidates }) =>
+          candidates
+            .filter(
+              (candidate, index) =>
+                index === 0 || candidate.content === explicitVeto,
+            )
+            .map((candidate, index) => ({
+              constraintId: `author-verified:${candidate.sourceId}`,
+              sourceId: candidate.sourceId,
+              kind:
+                index === 0
+                  ? ('session_goal' as const)
+                  : ('author_veto' as const),
+            })),
+        fullCompactor: async ({ eligibleRuns }) => {
+          const candidates = [];
+          for (const run of eligibleRuns) {
+            if (run.reduce((total, source) => total + source.content.length, 0) < 1_000) {
+              continue;
+            }
+            compactedRows.push([...run]);
+            candidates.push(
+              await createAgentContextSummaryCandidate({
+                summaryId: `summary-${candidates.length}`,
+                sourceRows: run,
+                content: 'Verified historical exploration summary.',
+              }),
+            );
+          }
+          return candidates;
+        },
+      },
+    }).runTurn(
+      runInput({
+        history,
+        limits: { maxOutputTokensPerIteration: 512 },
+      }),
+    );
+
+    expect(result.state.status, JSON.stringify(result.state.terminal)).toBe('completed');
+    expect(driver.requests).toHaveLength(1);
+    expect(
+      compactedRows
+        .flat()
+        .some((source) => source.kind === 'user' && source.content === ordinaryUser),
+    ).toBe(true);
+    expect(compactedRows.flat().some((source) => source.content === explicitVeto)).toBe(false);
+    const checkpoint = result.lastProviderCallContextEnvelope!.plannerCheckpoint;
+    const vetoEntry = checkpoint.constraintLedger.entries.find(
+      (entry) => entry.kind === 'author_veto',
+    );
+    expect(vetoEntry).toBeDefined();
+    expect(
+      checkpoint.projection.segments.find(
+        (segment) => segment.type === 'source' && segment.row.sourceId === vetoEntry?.sourceId,
+      ),
+    ).toMatchObject({
+      type: 'source',
+      classification: 'pinned',
+      pinReason: 'semantic',
+      row: { content: explicitVeto },
+    });
+    const tampered = structuredClone(result.lastProviderCallContextEnvelope!);
+    tampered.plannerCheckpoint.constraintLedger.entries[0]!.sourceHash = `sha256:${'0'.repeat(64)}`;
+    await expect(
+      verifyAgentContextProviderEnvelope({
+        envelope: tampered,
+      }),
+    ).rejects.toThrow('envelope hash drifted');
   });
 
   it('opens a compaction circuit only for the failing session/provider epoch', async () => {
@@ -540,12 +599,7 @@ describe('AgentRuntime context planning integration', () => {
       sameEpoch.state.status,
       otherSession.state.status,
       otherProviderEpoch.state.status,
-    ]).toEqual([
-      'budget_exceeded',
-      'budget_exceeded',
-      'budget_exceeded',
-      'budget_exceeded',
-    ]);
+    ]).toEqual(['budget_exceeded', 'budget_exceeded', 'budget_exceeded', 'budget_exceeded']);
     expect(compact).toHaveBeenCalledTimes(3);
     expect(driver.requests).toHaveLength(0);
   });

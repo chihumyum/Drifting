@@ -47,6 +47,49 @@ export class LegacyAgentEventProjector {
         ];
       }
 
+      case 'permission_requested':
+        return [
+          { type: 'control_state', status: 'waiting_permission' },
+          { type: 'permission_request', request: event.request },
+        ];
+
+      case 'permission_resolved':
+        return [
+          {
+            type: 'permission_resolved',
+            resolution: event.resolution,
+          },
+          { type: 'control_state', status: 'running' },
+        ];
+
+      case 'user_input_requested':
+        return [
+          { type: 'control_state', status: 'waiting_user' },
+          { type: 'user_input_request', request: event.request },
+        ];
+
+      case 'user_input_received':
+        return [
+          { type: 'user_input_received', response: event.response },
+          { type: 'control_state', status: 'running' },
+        ];
+
+      case 'steering_received':
+        return [{
+          type: 'steering_received',
+          messageId: event.messageId,
+          text: event.text,
+        }];
+
+      case 'stop_after_tool_requested':
+        return [{ type: 'stop_after_tool_requested' }];
+
+      case 'cancellation_requested':
+        return [{ type: 'control_state', status: 'cancelling' }];
+
+      case 'commit_started':
+        return [{ type: 'control_state', status: 'committing' }];
+
       case 'tool_result': {
         const projected: AgentEvent[] = [];
         const tool = this.tools.get(event.callId);
@@ -95,6 +138,7 @@ export class LegacyAgentEventProjector {
 
       case 'tool_args_delta':
       case 'tool_execution_started':
+      case 'steering_applied':
       case 'model_iteration_started':
       case 'model_usage':
       case 'model_iteration_completed':

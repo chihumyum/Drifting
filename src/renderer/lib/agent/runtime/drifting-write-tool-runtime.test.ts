@@ -13,6 +13,7 @@ import type {
   AgentToolContext,
   AgentWriteApi,
 } from '../tool-handlers';
+import type { DriftingWriteStrategy } from './drifting-write-strategies';
 import { DriftingWriteToolRuntime } from './drifting-write-tool-runtime';
 import type {
   AgentToolExecutionRequest,
@@ -60,7 +61,18 @@ describe('DriftingWriteToolRuntime', () => {
       runtime
         .listDefinitions(request('rename_node', {}).context)
         .map((definition) => definition.name),
-    ).toEqual(['rename_node', 'set_node_summary']);
+    ).toEqual([
+      'rename_node',
+      'set_node_summary',
+      'edit_block',
+      'edit_blocks',
+      'append_paragraph',
+      'remove_blocks',
+      'replace_block_range',
+      'insert_blocks',
+      'create_element_patch',
+      'update_element_patch',
+    ]);
 
     const input = request('rename_node', {
       node: 'Chapter One',
@@ -222,6 +234,130 @@ describe('DriftingWriteToolRuntime', () => {
     expect(renameNode).toHaveBeenCalledOnce();
   });
 
+  it('reconciles an entered prose write from its durable receipt without replaying mutation', async () => {
+    const repository = memoryRepository();
+    let forwardCalls = 0;
+    let reconcileCalls = 0;
+    const strategy: DriftingWriteStrategy = {
+      prepare: async () => ({
+        observedRevision: null,
+        preimage: { stateHash: 'before' },
+        forward: { commandId: 'command-1' },
+        inverse: { commandId: 'command-1' },
+        reversibility: 'exact',
+      }),
+      applyForward: async () => {
+        forwardCalls += 1;
+        // The inner Yjs coordinator receipt committed, but its caller lost the
+        // response before effect_committed could be journaled.
+        throw new Error('response lost after prose receipt commit');
+      },
+      captureEffect: async () => {
+        throw new Error('capture must not run after response loss');
+      },
+      reconcileEnteredEffect: async () => {
+        reconcileCalls += 1;
+        return {
+          handlerResult: {
+            ok: true,
+            nodeId: 'node-1',
+            stateHash: 'after',
+            revision: 'yjs:1',
+          },
+          committedEffect: {
+            kind: 'yjs_prose',
+            commandId: 'command-1',
+            stateHash: 'after',
+            handlerResult: {
+              ok: true,
+              nodeId: 'node-1',
+              stateHash: 'after',
+              revision: 'yjs:1',
+            },
+          },
+        };
+      },
+      applyInverse: async () => ({ ok: true }),
+    };
+    const runtime = createRuntime(
+      repository,
+      {},
+      undefined,
+      () => strategy,
+      () => true,
+    );
+    const input = request('edit_block', {
+      entity: 'Chapter One',
+      block: 1,
+      text: 'Changed',
+    });
+
+    await expect(runtime.execute(input)).resolves.toEqual({
+      ok: false,
+      error: 'response lost after prose receipt commit',
+    });
+    expect(
+      repository.effect(`agent-write:${input.idempotencyKey}`).phase,
+    ).toBe('uncertain');
+
+    const replay = await runtime.execute(input);
+    expect(replay).toMatchObject({
+      ok: true,
+      data: {
+        result: {
+          stateHash: 'after',
+          revision: 'yjs:1',
+        },
+        review: { status: 'pending' },
+      },
+    });
+    expect(
+      repository.effect(`agent-write:${input.idempotencyKey}`).phase,
+    ).toBe('result_committed');
+    expect(forwardCalls).toBe(1);
+    expect(reconcileCalls).toBe(1);
+    expect(repository.reviews()).toEqual([
+      expect.objectContaining({ status: 'accepted_effect' }),
+    ]);
+  });
+
+  it('canonically settles an auto-mode soft review after creating it', async () => {
+    const repository = memoryRepository();
+    const renameNode = vi.fn(async (id: string, title: string) => {
+      updateNode(id, { title });
+    });
+    const runtime = createRuntime(
+      repository,
+      { renameNode },
+      undefined,
+      undefined,
+      () => true,
+    );
+    const input = request('rename_node', {
+      node: 'Chapter One',
+      title: 'Auto accepted',
+    });
+
+    await expect(runtime.execute(input)).resolves.toMatchObject({
+      ok: true,
+      data: {
+        effectId: `agent-write:${input.idempotencyKey}`,
+      },
+    });
+    expect(repository.reviews()).toEqual([
+      expect.objectContaining({
+        id: `agent-review:agent-write:${input.idempotencyKey}`,
+        status: 'accepted_effect',
+        decisionNote: 'auto mode',
+      }),
+    ]);
+
+    await runtime.execute(input);
+    expect(repository.reviews()).toHaveLength(1);
+    expect(repository.reviews()[0]?.status).toBe('accepted_effect');
+    expect(renameNode).toHaveBeenCalledOnce();
+  });
+
   it('fails closed on an unavailable write before claiming an effect', async () => {
     const repository = memoryRepository();
     const runtime = createRuntime(repository, {});
@@ -243,6 +379,12 @@ function createRuntime(
     args: Record<string, unknown>,
     context: AgentToolContext,
   ) => Promise<unknown>,
+  resolveStrategy?: (
+    name: string,
+  ) => DriftingWriteStrategy | undefined,
+  autoAcceptReview?: (
+    effect: PersistedAgentRuntimeWriteEffect,
+  ) => boolean,
 ): DriftingWriteToolRuntime {
   const write = {
     renameNode: async (id: string, title: string) => {
@@ -268,6 +410,8 @@ function createRuntime(
     readRuntime: emptyReadRuntime,
     now: incrementingClock(),
     ...(dispatch ? { dispatch } : {}),
+    ...(resolveStrategy ? { resolveStrategy } : {}),
+    ...(autoAcceptReview ? { autoAcceptReview } : {}),
   });
 }
 
@@ -288,6 +432,11 @@ function request(
         kind: 'chat',
         projectId: 'project-1',
         conversationId: 'conversation-1',
+      },
+    },
+    control: {
+      requestUserInput: async () => {
+        throw new Error('User input is unavailable in this write-runtime test');
       },
     },
     signal: new AbortController().signal,

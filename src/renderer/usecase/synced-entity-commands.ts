@@ -9,8 +9,17 @@ import {
   type CreateBlockSectionInput,
   type UpdateBlockSectionInput,
 } from '../sqlite-repo/block-section-repo';
+import type { DbExecutor } from '../lib/db';
 import { encodeBlockHashes, encodeBlockIds, type BlockSection } from '../domain/block-section';
-import { withAtomicSyncTransaction } from './sync-helpers';
+import {
+  withAtomicSyncTransaction,
+  type AtomicSyncWriter,
+} from './sync-helpers';
+
+export type ElementPatchAtomicTransactionRunner = <T>(
+  projectId: string,
+  work: (tx: DbExecutor, sync: AtomicSyncWriter) => Promise<T>,
+) => Promise<T>;
 
 function elementPatchPayload(patch: ElementPatch): Record<string, unknown> {
   return {
@@ -60,8 +69,12 @@ function blockSectionUpdatePayload(section: BlockSection): Record<string, unknow
   };
 }
 
-export async function createElementPatchWithSync(input: CreatePatchInput): Promise<ElementPatch> {
-  return withAtomicSyncTransaction(input.projectId, async (tx, sync) => {
+export async function createElementPatchWithSync(
+  input: CreatePatchInput,
+  runAtomic: ElementPatchAtomicTransactionRunner =
+    withAtomicSyncTransaction,
+): Promise<ElementPatch> {
+  return runAtomic(input.projectId, async (tx, sync) => {
     const created = await createElementPatchRepository(tx).create(input);
     await sync('elementPatch', 'create', created.id, input.projectId, elementPatchPayload(created));
     return created;
@@ -72,8 +85,10 @@ export async function updateElementPatchWithSync(
   projectId: string,
   id: string,
   updates: UpdatePatchInput,
+  runAtomic: ElementPatchAtomicTransactionRunner =
+    withAtomicSyncTransaction,
 ): Promise<ElementPatch | null> {
-  return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+  return runAtomic(projectId, async (tx, sync) => {
     const updated = await createElementPatchRepository(tx).update(id, updates);
     if (updated) {
       await sync('elementPatch', 'update', id, projectId, elementPatchUpdatePayload(updated));
@@ -99,8 +114,13 @@ export async function updateElementPatchesWithSync(
   });
 }
 
-export async function deleteElementPatchWithSync(projectId: string, id: string): Promise<void> {
-  await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+export async function deleteElementPatchWithSync(
+  projectId: string,
+  id: string,
+  runAtomic: ElementPatchAtomicTransactionRunner =
+    withAtomicSyncTransaction,
+): Promise<void> {
+  await runAtomic(projectId, async (tx, sync) => {
     await createElementPatchRepository(tx).delete(id);
     await sync('elementPatch', 'delete', id, projectId);
   });

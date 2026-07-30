@@ -1,4 +1,15 @@
-import type { AgentEventEnvelope, AgentStartInput, GeneralAgentAuthStatus } from './protocol';
+import type {
+  AgentCancelPendingControlInput,
+  AgentEventEnvelope,
+  AgentListPendingControlsInput,
+  AgentPendingControl,
+  AgentPermissionResolutionInput,
+  AgentStartInput,
+  AgentSteeringInput,
+  AgentStopAfterToolInput,
+  AgentUserInputResponseInput,
+  GeneralAgentAuthStatus,
+} from './protocol';
 
 export const GENERAL_AGENT_UNSUPPORTED = {
   code: 'GENERAL_AGENT_UNSUPPORTED',
@@ -27,6 +38,16 @@ export interface GeneralAgentTransport {
   authStatus(): Promise<GeneralAgentResult<GeneralAgentAuthStatus>>;
   authLogout(): Promise<GeneralAgentResult>;
   start(input: AgentStartInput): Promise<GeneralAgentResult>;
+  resolvePermission(input: AgentPermissionResolutionInput): Promise<GeneralAgentResult>;
+  submitUserInput(input: AgentUserInputResponseInput): Promise<GeneralAgentResult>;
+  steer(input: AgentSteeringInput): Promise<GeneralAgentResult>;
+  stopAfterTool(input: AgentStopAfterToolInput): Promise<GeneralAgentResult>;
+  listPendingControls(
+    input: AgentListPendingControlsInput,
+  ): Promise<GeneralAgentResult<AgentPendingControl[]>>;
+  cancelPendingControl(
+    input: AgentCancelPendingControlInput,
+  ): Promise<GeneralAgentResult>;
   abort(): Promise<GeneralAgentResult>;
   resetSession(): Promise<GeneralAgentResult>;
   subscribeEvents(callback: (event: AgentEventEnvelope) => void): GeneralAgentResult<() => void>;
@@ -51,6 +72,12 @@ export const unsupportedGeneralAgentTransport: GeneralAgentTransport = {
   authStatus: async () => unsupportedResult(),
   authLogout: async () => unsupportedResult(),
   start: async () => unsupportedResult(),
+  resolvePermission: async () => unsupportedResult(),
+  submitUserInput: async () => unsupportedResult(),
+  steer: async () => unsupportedResult(),
+  stopAfterTool: async () => unsupportedResult(),
+  listPendingControls: async () => unsupportedResult(),
+  cancelPendingControl: async () => unsupportedResult(),
   abort: async () => unsupportedResult(),
   resetSession: async () => unsupportedResult(),
   subscribeEvents: () => unsupportedResult(),
@@ -68,6 +95,12 @@ export const generalAgentTransport: GeneralAgentTransport = {
   authStatus: () => activeTransport.authStatus(),
   authLogout: () => activeTransport.authLogout(),
   start: (input) => activeTransport.start(input),
+  resolvePermission: (input) => activeTransport.resolvePermission(input),
+  submitUserInput: (input) => activeTransport.submitUserInput(input),
+  steer: (input) => activeTransport.steer(input),
+  stopAfterTool: (input) => activeTransport.stopAfterTool(input),
+  listPendingControls: (input) => activeTransport.listPendingControls(input),
+  cancelPendingControl: (input) => activeTransport.cancelPendingControl(input),
   abort: () => activeTransport.abort(),
   resetSession: () => activeTransport.resetSession(),
   subscribeEvents: (callback) => activeTransport.subscribeEvents(callback),

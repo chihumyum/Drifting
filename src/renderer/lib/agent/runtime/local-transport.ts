@@ -1,7 +1,14 @@
 import type {
+  AgentCancelPendingControlInput,
   AgentEventEnvelope,
+  AgentListPendingControlsInput,
+  AgentPendingControl,
+  AgentPermissionResolutionInput,
   AgentStartInput,
   AgentStartRoute,
+  AgentSteeringInput,
+  AgentStopAfterToolInput,
+  AgentUserInputResponseInput,
   GeneralAgentAuthStatus,
 } from '../protocol';
 import type {
@@ -9,6 +16,10 @@ import type {
   GeneralAgentTransport,
 } from '../transport';
 import { AgentRuntime } from './runtime';
+import {
+  AgentRuntimeControlChannel,
+  AgentRuntimeControlError,
+} from './control-plane';
 import { LegacyAgentEventProjector } from './legacy-projection';
 import { buildDriftingAgentSystemPrompt } from './system-prompt';
 import type { AgentRuntimeContextPlanningOptions } from './runtime-context-planning';
@@ -20,6 +31,7 @@ import type {
   AgentRuntimeJournalEntry,
   AgentRuntimeLimits,
   AgentToolSelectionStrategy,
+  AgentToolPermissionPolicy,
   AgentToolRuntime,
 } from './types';
 import { clonePortableData } from './portable-data';
@@ -37,6 +49,7 @@ export interface LocalGeneralAgentTransportDependencies {
   tools?: AgentToolRuntime;
   toolSelector?: AgentToolSelectionStrategy;
   contextPlanning?: AgentRuntimeContextPlanningOptions;
+  permissionPolicy?: AgentToolPermissionPolicy;
   clock?: AgentClock;
   journal?: AgentJournalSink;
   limits?: Partial<AgentRuntimeLimits>;
@@ -48,6 +61,7 @@ export interface LocalGeneralAgentTransportDependencies {
 interface ActiveTurn {
   turnId: string;
   controller: AbortController;
+  control?: AgentRuntimeControlChannel;
 }
 
 interface LocalSessionState {
@@ -142,6 +156,9 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         : {}),
       ...(dependencies.contextPlanning
         ? { contextPlanning: dependencies.contextPlanning }
+        : {}),
+      ...(dependencies.permissionPolicy
+        ? { permissionPolicy: dependencies.permissionPolicy }
         : {}),
       ...(dependencies.clock ? { clock: dependencies.clock } : {}),
       ...(journal ? { journal } : {}),
@@ -294,6 +311,8 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     }
     this.routeSessionIds.set(routeKey, session.id);
     this.lastSessionId = session.id;
+    const control = new AgentRuntimeControlChannel(session.id, turnId);
+    active.control = control;
 
     const projector = new LegacyAgentEventProjector(session.id);
     let terminalEvents: AgentEventEnvelope['event'][] = [];
@@ -346,6 +365,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         history: session.history,
         ...(this.limits ? { limits: this.limits } : {}),
         signal: controller.signal,
+        control,
         onEntry: publishProjected,
       })
       .then(async (result) => {
@@ -403,8 +423,123 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       : transportError('AGENT_RUNTIME_START_FAILED', 'The local Agent Runtime failed to start.');
   }
 
+  async resolvePermission(
+    input: AgentPermissionResolutionInput,
+  ): Promise<GeneralAgentResult> {
+    const control = this.active?.control;
+    if (!control || control.turnId !== input.turnId) {
+      return transportError(
+        'AGENT_CONTINUATION_REQUIRED',
+        'The original Agent execution stack is unavailable; this permission cannot be resumed directly.',
+      );
+    }
+    return runControlCommand(() => control.resolvePermission(input));
+  }
+
+  async submitUserInput(
+    input: AgentUserInputResponseInput,
+  ): Promise<GeneralAgentResult> {
+    const control = this.active?.control;
+    if (!control || control.turnId !== input.turnId) {
+      return transportError(
+        'AGENT_CONTINUATION_REQUIRED',
+        'The original Agent execution stack is unavailable; this answer was not accepted.',
+      );
+    }
+    return runControlCommand(() => control.submitUserInput(input));
+  }
+
+  async steer(input: AgentSteeringInput): Promise<GeneralAgentResult> {
+    const control = this.active?.control;
+    if (!control || control.turnId !== input.turnId) {
+      return transportError(
+        'AGENT_CONTROL_NOT_ACTIVE',
+        'There is no matching active Agent turn to steer.',
+      );
+    }
+    return runControlCommand(() => control.steer(input));
+  }
+
+  async stopAfterTool(
+    input: AgentStopAfterToolInput,
+  ): Promise<GeneralAgentResult> {
+    const control = this.active?.control;
+    if (!control || control.turnId !== input.turnId) {
+      return transportError(
+        'AGENT_CONTROL_NOT_ACTIVE',
+        'There is no matching active Agent turn to stop.',
+      );
+    }
+    return runControlCommand(() => control.stopAfterTool(input));
+  }
+
+  async listPendingControls(
+    input: AgentListPendingControlsInput,
+  ): Promise<GeneralAgentResult<AgentPendingControl[]>> {
+    const activePending =
+      this.active?.control?.sessionId === input.sessionId
+        ? this.active.control.pendingControl()
+        : null;
+    if (activePending) return { ok: true, value: [activePending] };
+    if (!this.persistence?.listPendingControls) {
+      return { ok: true, value: [] };
+    }
+    try {
+      return {
+        ok: true,
+        value: await this.persistence.listPendingControls(input),
+      };
+    } catch (error) {
+      return transportError(
+        persistenceErrorCode(error),
+        persistenceErrorMessage(error),
+      );
+    }
+  }
+
+  async cancelPendingControl(
+    input: AgentCancelPendingControlInput,
+  ): Promise<GeneralAgentResult> {
+    const activePending = this.active?.control?.pendingControl();
+    if (
+      activePending &&
+      activePending.sessionId === input.sessionId &&
+      activePending.turnId === input.turnId &&
+      (activePending.permissionRequest?.requestId === input.requestId ||
+        activePending.userInputRequest?.requestId === input.requestId)
+    ) {
+      return runControlCommand(() =>
+        this.active!.control!.requestCancellation(
+          input.reason ?? 'Recovered control cancelled by user',
+        ),
+      );
+    }
+    if (!this.persistence?.cancelPendingControl) {
+      return transportError(
+        'AGENT_CONTROL_NOT_ACTIVE',
+        'No matching pending Agent control was found.',
+      );
+    }
+    try {
+      await this.persistence.cancelPendingControl(input);
+      return { ok: true, value: undefined };
+    } catch (error) {
+      return transportError(
+        persistenceErrorCode(error),
+        persistenceErrorMessage(error),
+      );
+    }
+  }
+
   async abort(): Promise<GeneralAgentResult> {
-    this.active?.controller.abort('Agent turn aborted by user');
+    const active = this.active;
+    if (active?.control) {
+      const result = await runControlCommand(() =>
+        active.control!.requestCancellation('Agent turn aborted by user'),
+      );
+      if (result.ok) return result;
+    }
+    active?.controller.abort('Agent turn aborted by user');
     return { ok: true, value: undefined };
   }
 
@@ -517,7 +652,17 @@ function createTransportJournal(
 }
 
 function runtimeOutcome(
-  status: 'idle' | 'running' | 'completed' | 'failed' | 'aborted' | 'budget_exceeded',
+  status:
+    | 'idle'
+    | 'running'
+    | 'waiting_permission'
+    | 'waiting_user'
+    | 'cancelling'
+    | 'committing'
+    | 'completed'
+    | 'failed'
+    | 'aborted'
+    | 'budget_exceeded',
 ): import('./types').AgentRuntimeOutcome {
   switch (status) {
     case 'completed':
@@ -527,6 +672,10 @@ function runtimeOutcome(
       return status;
     case 'idle':
     case 'running':
+    case 'waiting_permission':
+    case 'waiting_user':
+    case 'cancelling':
+    case 'committing':
       return 'failed';
   }
 }
@@ -553,4 +702,23 @@ function persistenceErrorMessage(error: unknown): string {
     return error.publicMessage;
   }
   return 'The Agent turn could not be durably accepted.';
+}
+
+async function runControlCommand(
+  command: () => Promise<void>,
+): Promise<GeneralAgentResult> {
+  try {
+    await command();
+    return { ok: true, value: undefined };
+  } catch (error) {
+    if (error instanceof AgentRuntimeControlError) {
+      return transportError(error.code, error.publicMessage);
+    }
+    return transportError(
+      'AGENT_CONTROL_FAILED',
+      error instanceof Error
+        ? error.message
+        : 'The Agent control command failed.',
+    );
+  }
 }

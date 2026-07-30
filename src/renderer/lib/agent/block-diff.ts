@@ -54,6 +54,13 @@ export interface AgentBlockChange {
    */
   mode?: 'auto' | 'approve';
   /**
+   * Durable General Agent write provenance. Present on changes rebuilt by the
+   * runtime's receipt-reconciliation path so the review UI can settle the
+   * canonical soft-approval row instead of inventing a second review identity.
+   */
+  effectId?: string;
+  reviewId?: string;
+  /**
    * Set when this change targets a structured NON-PROSE field (summary / kv /
    * template kv), not a prose block. Prose surfaces ignore changes with `field`
    * set; the field-review surface renders only these. See {@link AgentFieldRef}.

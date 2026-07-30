@@ -235,7 +235,9 @@ describe('Drifting product freshness path', () => {
     fixture.seedToolCall(wrongEntity);
     expect(await fixture.writeRuntime.execute(wrongEntity)).toMatchObject({
       ok: false,
-      error: expect.stringContaining('different node'),
+      error: expect.stringContaining(
+        'does not match the requested node observation',
+      ),
     });
 
     const crossToken = await fixture.seedForeignReadReceipt();
@@ -629,6 +631,7 @@ class ProductFreshnessFixture {
       arguments: arguments_,
       access: 'read',
       context: runtimeContext(),
+      control: unavailableControl(),
       signal: new AbortController().signal,
     };
   }
@@ -647,6 +650,7 @@ class ProductFreshnessFixture {
       arguments: arguments_,
       access: 'write',
       context: runtimeContext(),
+      control: unavailableControl(),
       signal: new AbortController().signal,
     };
   }
@@ -668,6 +672,7 @@ class ProductFreshnessFixture {
           conversationId: OTHER_CONVERSATION_ID,
         },
       },
+      control: unavailableControl(),
       signal: new AbortController().signal,
     };
     this.seedToolCall(request);
@@ -870,6 +875,14 @@ function runtimeContext(): AgentRuntimeContext {
       kind: 'chat',
       projectId: PROJECT_ID,
       conversationId: CONVERSATION_ID,
+    },
+  };
+}
+
+function unavailableControl(): AgentToolExecutionRequest['control'] {
+  return {
+    requestUserInput: async () => {
+      throw new Error('User input is unavailable in this integration test');
     },
   };
 }

@@ -10,7 +10,10 @@ import {
   type AgentRuntimePersistenceRepository,
 } from '../../../sqlite-repo/agent-runtime-persistence-repo';
 import type { AgentRuntimeWriteEffectRepository } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
-import type { AgentStartRoute } from '../protocol';
+import type {
+  AgentPendingControl,
+  AgentStartRoute,
+} from '../protocol';
 import { clonePortableData } from './portable-data';
 import {
   createAgentRuntimeCheckpointContextV2,
@@ -24,16 +27,20 @@ import type {
   AgentTransportPrepareTurnInput,
   AgentTransportPreparedTurn,
 } from './transport-persistence';
-import type {
-  AgentModelMessage,
-  AgentRuntimeEvent,
-  AgentRuntimeJournalEntry,
+import {
+  AGENT_RUNTIME_SCHEMA_VERSION,
+  type AgentModelMessage,
+  type AgentRuntimeEvent,
+  type AgentRuntimeJournalEntry,
 } from './types';
 
 export interface AgentRuntimeRecoveryCodec {
   recoverSnapshot(
     snapshot: AgentRuntimeRecoverySnapshot,
-  ): Promise<{ providerHistory: AgentModelMessage[] }>;
+  ): Promise<{
+    providerHistory: AgentModelMessage[];
+    pendingControls?: AgentPendingControl[];
+  }>;
   hashCheckpointContext(
     context: readonly AgentModelMessage[],
   ): Promise<string>;
@@ -46,6 +53,14 @@ export interface RepositoryAgentTransportPersistenceOptions {
     'interruptSessionWrites'
   >;
   recovery?: AgentRuntimeRecoveryCodec;
+  /**
+   * Product-owned receipt reconciliation that runs after the saved session is
+   * validated and before generic process-interruption repair.
+   */
+  beforeResumeSession?: (
+    sessionId: string,
+    signal?: AbortSignal,
+  ) => Promise<unknown>;
   /** Canonical catalog lookup. Unknown names fail closed before execution. */
   resolveToolAccess: (name: string) => 'read' | 'write' | undefined;
 }
@@ -63,7 +78,9 @@ export class AgentTransportPersistenceError extends Error {
       | 'AGENT_ROUTE_REQUIRED'
       | 'AGENT_PERSISTENCE_CORRUPT'
       | 'AGENT_PERSISTENCE_CONFLICT'
-      | 'AGENT_TOOL_NOT_CERTIFIED',
+      | 'AGENT_TOOL_NOT_CERTIFIED'
+      | 'AGENT_CONTROL_RESOLUTION_REQUIRED'
+      | 'AGENT_CONTROL_STALE',
     publicMessage: string,
     readonly originalCause?: unknown,
   ) {
@@ -91,6 +108,7 @@ export function createRepositoryAgentTransportPersistence(
   ): Promise<{
     snapshot: AgentRuntimeRecoverySnapshot;
     providerHistory: AgentModelMessage[];
+    pendingControls: AgentPendingControl[];
   } | null> => {
     const snapshot = await repository.loadRecoverySnapshot(sessionId);
     if (!snapshot) return null;
@@ -99,6 +117,7 @@ export function createRepositoryAgentTransportPersistence(
       return {
         snapshot,
         providerHistory: result.providerHistory.map(clonePortableData),
+        pendingControls: (result.pendingControls ?? []).map(clonePortableData),
       };
     } catch (cause) {
       throw new AgentTransportPersistenceError(
@@ -122,7 +141,21 @@ export function createRepositoryAgentTransportPersistence(
         ? await loadAndRecover(session.id)
         : null;
       throwIfAborted(signal);
+      if (session) {
+        await options.beforeResumeSession?.(session.id, signal);
+        throwIfAborted(signal);
+      }
       let recovered = false;
+      if (
+        session &&
+        recoveredSnapshot &&
+        recoveredSnapshot.pendingControls.length > 0
+      ) {
+        throw new AgentTransportPersistenceError(
+          'AGENT_CONTROL_RESOLUTION_REQUIRED',
+          'The Agent session has a pending control that must be inspected or cancelled before continuing.',
+        );
+      }
       if (
         session &&
         recoveredSnapshot &&
@@ -380,6 +413,113 @@ export function createRepositoryAgentTransportPersistence(
       });
       throwIfAborted(signal);
     },
+
+    async listPendingControls(input, signal) {
+      throwIfAborted(signal);
+      const recovered = await loadAndRecover(input.sessionId);
+      throwIfAborted(signal);
+      return (recovered?.pendingControls ?? []).map(clonePortableData);
+    },
+
+    async cancelPendingControl(input, signal) {
+      throwIfAborted(signal);
+      const recovered = await loadAndRecover(input.sessionId);
+      throwIfAborted(signal);
+      const pending = recovered?.pendingControls.find(
+        (control) =>
+          control.turnId === input.turnId &&
+          (control.permissionRequest?.requestId === input.requestId ||
+            control.userInputRequest?.requestId === input.requestId),
+      );
+      if (!recovered || !pending) {
+        throw new AgentTransportPersistenceError(
+          'AGENT_CONTROL_STALE',
+          'The pending Agent control no longer matches durable state.',
+        );
+      }
+      const turn = recovered.snapshot.turns.find(
+        (candidate) => candidate.id === input.turnId,
+      );
+      if (!turn) {
+        throw new AgentTransportPersistenceError(
+          'AGENT_CONTROL_STALE',
+          'The pending Agent control no longer matches durable state.',
+        );
+      }
+      const journalState = (
+        await recoverAgentRuntimeSnapshot(recovered.snapshot)
+      ).turns.find((candidate) => candidate.turnId === input.turnId)?.journalState;
+      if (!journalState) {
+        throw new AgentTransportPersistenceError(
+          'AGENT_PERSISTENCE_CORRUPT',
+          'The pending Agent control has no canonical journal state.',
+        );
+      }
+      const at = new Date().toISOString();
+      let seq = journalState.lastSeq;
+      const route = routeFromSession(recovered.snapshot.session);
+      const append = async (event: AgentRuntimeEvent): Promise<void> => {
+        seq += 1;
+        await repository.appendEvent({
+          eventId: `${input.turnId}:${String(seq).padStart(8, '0')}`,
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          seq,
+          schemaVersion: AGENT_RUNTIME_SCHEMA_VERSION,
+          eventType: event.type,
+          payload: { route: clonePortableData(route), event },
+          wallTimeMs: Date.parse(at) + seq,
+          createdAt: new Date(Date.parse(at) + seq).toISOString(),
+        });
+      };
+      if (pending.permissionRequest) {
+        await append({
+          type: 'permission_resolved',
+          resolution: {
+            requestId: pending.permissionRequest.requestId,
+            sessionId: input.sessionId,
+            turnId: input.turnId,
+            callId: pending.permissionRequest.callId,
+            argumentsHash: pending.permissionRequest.argumentsHash,
+            revision: pending.permissionRequest.revision,
+            decision: 'deny',
+            scope: 'once',
+            reason: input.reason ?? 'Recovered permission request cancelled.',
+          },
+        });
+      }
+      const request =
+        pending.permissionRequest ?? pending.userInputRequest;
+      if (!request) {
+        throw new AgentTransportPersistenceError(
+          'AGENT_PERSISTENCE_CORRUPT',
+          'The pending Agent control has no request provenance.',
+        );
+      }
+      await append({
+        type: 'cancellation_requested',
+        reason: input.reason ?? 'Recovered control cancelled by user.',
+      });
+      await append({
+        type: 'tool_result',
+        callId: request.callId,
+        name:
+          pending.permissionRequest?.toolName ??
+          journalState.tools[request.callId]?.name ??
+          'user_input',
+        ok: false,
+        content: 'The pending control was cancelled after process restart.',
+        source: 'runtime',
+        errorCode: 'RECOVERED_CONTROL_CANCELLED',
+      });
+      throwIfAborted(signal);
+      await options.writeEffects?.interruptSessionWrites(
+        input.sessionId,
+        at,
+      );
+      await repository.interruptSession(input.sessionId, at);
+      throwIfAborted(signal);
+    },
   };
 }
 
@@ -474,6 +614,25 @@ function routeLookup(route: AgentStartRoute): Parameters<
         routeKind: 'goal',
         goalRunId: route.goalRunId ?? null,
         chapterId: route.chapterId ?? null,
+      };
+}
+
+function routeFromSession(
+  session: PersistedAgentRuntimeSession,
+): AgentStartRoute {
+  return session.routeKind === 'chat'
+    ? {
+        kind: 'chat',
+        projectId: session.projectId,
+        ...(session.conversationId
+          ? { conversationId: session.conversationId }
+          : {}),
+      }
+    : {
+        kind: 'goal',
+        projectId: session.projectId,
+        ...(session.goalRunId ? { goalRunId: session.goalRunId } : {}),
+        ...(session.chapterId ? { chapterId: session.chapterId } : {}),
       };
 }
 

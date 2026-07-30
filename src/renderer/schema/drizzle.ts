@@ -1186,6 +1186,99 @@ export const AgentRuntimeReadObservationTable = sqliteTable(
   ],
 );
 
+/**
+ * Content-addressed backing bytes for oversized Agent tool results. References
+ * below carry ownership/provenance; this table only owns immutable UTF-8 bytes.
+ */
+export const AgentRuntimeResultBlobTable = sqliteTable(
+  'agent_runtime_result_blob',
+  {
+    contentHash: text('content_hash').primaryKey(),
+    contentBlob: blob('content_blob').notNull(),
+    byteCount: integer('byte_count').notNull(),
+    charCount: integer('char_count').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [index('idx_agent_runtime_result_blob_created').on(t.createdAt)],
+);
+
+/**
+ * Durable resultRef ownership and original tool provenance. The full payload
+ * remains local-only runtime state and is cascade-deleted with its session.
+ */
+export const AgentRuntimeResultArtifactTable = sqliteTable(
+  'agent_runtime_result_artifact',
+  {
+    ref: text('ref').primaryKey(),
+    projectId: text('project_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    turnId: text('turn_id').notNull(),
+    toolCallId: text('tool_call_id').notNull(),
+    callId: text('call_id').notNull(),
+    toolName: text('tool_name').notNull(),
+    toolAccess: text('tool_access').notNull().default('read'),
+    idempotencyKey: text('idempotency_key').notNull(),
+    argumentsJson: text('arguments_json').notNull(),
+    contentHash: text('content_hash')
+      .notNull()
+      .references(() => AgentRuntimeResultBlobTable.contentHash),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_result_artifact_tool_call').on(t.toolCallId),
+    uniqueIndex('uniq_agent_runtime_result_artifact_provenance').on(
+      t.ref,
+      t.projectId,
+      t.sessionId,
+      t.turnId,
+      t.toolCallId,
+    ),
+    index('idx_agent_runtime_result_artifact_session_created').on(
+      t.projectId,
+      t.sessionId,
+      t.createdAt,
+    ),
+    index('idx_agent_runtime_result_artifact_content').on(t.contentHash),
+    foreignKey({
+      columns: [t.sessionId, t.projectId],
+      foreignColumns: [
+        AgentRuntimeSessionTable.id,
+        AgentRuntimeSessionTable.projectId,
+      ],
+      name: 'fk_agent_runtime_result_artifact_session_project',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.turnId, t.sessionId],
+      foreignColumns: [
+        AgentRuntimeTurnTable.id,
+        AgentRuntimeTurnTable.sessionId,
+      ],
+      name: 'fk_agent_runtime_result_artifact_turn_session',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [
+        t.toolCallId,
+        t.sessionId,
+        t.turnId,
+        t.callId,
+        t.idempotencyKey,
+        t.toolAccess,
+        t.toolName,
+      ],
+      foreignColumns: [
+        AgentRuntimeToolCallTable.id,
+        AgentRuntimeToolCallTable.sessionId,
+        AgentRuntimeToolCallTable.turnId,
+        AgentRuntimeToolCallTable.callId,
+        AgentRuntimeToolCallTable.idempotencyKey,
+        AgentRuntimeToolCallTable.access,
+        AgentRuntimeToolCallTable.name,
+      ],
+      name: 'fk_agent_runtime_result_artifact_tool_provenance',
+    }).onDelete('cascade'),
+  ],
+);
+
 export const AgentRuntimeWriteEffectTable = sqliteTable(
   'agent_runtime_write_effect',
   {
@@ -1294,6 +1387,56 @@ export const AgentRuntimeWriteEffectTable = sqliteTable(
         AgentConversationTable.projectId,
       ],
       name: 'fk_agent_runtime_write_effect_conversation_project',
+    }).onDelete('cascade'),
+  ],
+);
+
+/**
+ * Immutable domain receipt for certified element-patch commands. It is written
+ * in the same SQLite transaction as element_patch and the sync outbox, closing
+ * the crash window between a renderer mutation and the outer write-effect row.
+ */
+export const AgentRuntimeElementPatchReceiptTable = sqliteTable(
+  'agent_runtime_element_patch_receipt',
+  {
+    id: text('id').primaryKey(),
+    effectId: text('effect_id')
+      .notNull()
+      .references(() => AgentRuntimeWriteEffectTable.id, {
+        onDelete: 'cascade',
+      }),
+    commandId: text('command_id').notNull(),
+    direction: text('direction').notNull(),
+    projectId: text('project_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    toolName: text('tool_name').notNull(),
+    patchId: text('patch_id').notNull(),
+    expectedRevision: text('expected_revision'),
+    resultRevision: text('result_revision'),
+    postimageJson: text('postimage_json'),
+    postimageHash: text('postimage_hash'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_element_patch_receipt_command').on(
+      t.commandId,
+      t.direction,
+    ),
+    uniqueIndex('uniq_agent_runtime_element_patch_receipt_effect').on(
+      t.effectId,
+      t.direction,
+    ),
+    index('idx_agent_runtime_element_patch_receipt_patch').on(
+      t.projectId,
+      t.patchId,
+    ),
+    foreignKey({
+      columns: [t.sessionId, t.projectId],
+      foreignColumns: [
+        AgentRuntimeSessionTable.id,
+        AgentRuntimeSessionTable.projectId,
+      ],
+      name: 'fk_agent_runtime_element_patch_receipt_session_project',
     }).onDelete('cascade'),
   ],
 );

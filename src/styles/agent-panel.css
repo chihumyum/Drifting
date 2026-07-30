@@ -295,6 +295,67 @@
   color: hsl(0 70% 55%);
 }
 
+/* ---- runtime permission / elicitation ----------------------------------- */
+.agt-control-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 8px 2px;
+  padding: 10px 11px;
+  border: 1px solid hsl(var(--accent) / 0.24);
+  border-radius: 9px;
+  background: hsl(var(--accent) / 0.075);
+  color: hsl(var(--ink-2));
+  font-size: 12px;
+  line-height: 1.5;
+}
+.agt-control-card strong {
+  color: hsl(var(--ink-1));
+  font-size: 12.5px;
+}
+.agt-control-card code {
+  color: hsl(var(--accent));
+}
+.agt-control-card details summary {
+  cursor: pointer;
+  color: hsl(var(--ink-3));
+}
+.agt-control-card pre {
+  max-height: 160px;
+  margin: 6px 0 0;
+  padding: 7px 8px;
+  overflow: auto;
+  border-radius: 6px;
+  background: hsl(var(--paper) / 0.72);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agt-control-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 2px;
+}
+.agt-control-card__actions button {
+  border: 1px solid hsl(var(--rule));
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-2));
+  font: inherit;
+  cursor: pointer;
+}
+.agt-control-card__actions button:hover {
+  background: hsl(var(--ink-1) / 0.06);
+}
+.agt-control-card__actions .agt-control-card__allow {
+  border-color: hsl(var(--accent) / 0.35);
+  color: hsl(var(--accent));
+}
+
 /* ---- inline controls inside the menu ------------------------------------- */
 
 /* effort: a 5-dot strength meter (low→max) */

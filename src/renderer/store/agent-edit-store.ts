@@ -37,6 +37,19 @@ export interface PendingEntityEdits {
   changes: AgentBlockChange[];
 }
 
+export interface AgentEditReviewBatch {
+  effectId: string;
+  reviewId: string;
+  entityType: ActivityEntityType;
+  id: string;
+  /**
+   * Exact per-effect diff, before cross-effect visual merging. Durable review
+   * settlement must consume these batches in reverse reviewOrder and call the
+   * Agent runtime's guarded inverse; it must never locally replay old text.
+   */
+  changes: AgentBlockChange[];
+}
+
 /**
  * A block edit the user REJECTED (approve-mode ✗) and that was successfully
  * reverted in the doc. The agent ran `bypassPermissions`, so it believes its
@@ -64,6 +77,17 @@ interface AgentEditState {
   pending: Record<string, PendingEntityEdits>;
   /** Rejected-then-reverted edits awaiting delivery to the agent's next turn. */
   pendingReverts: RevertRecord[];
+  /**
+   * Independent persistent idempotency/provenance ledger for runtime reviews.
+   * `pending` is a visual aggregate and cannot answer whether an older effect
+   * was already recorded after a later effect touched the same block.
+   */
+  reviewBatches: Record<string, AgentEditReviewBatch>;
+  reviewOrder: string[];
+  /** Reviews whose canonical runtime settlement succeeded and whose local
+   * visual batch was removed. Prevents a late receipt replay from resurrecting
+   * an already-settled review. */
+  settledReviewIds: Record<string, true>;
 
   /** Record a batch of agent block edits (from the write path). */
   record: (
@@ -72,6 +96,23 @@ interface AgentEditState {
     changes: AgentBlockChange[],
     mode: AgentEditMode,
   ) => void;
+  /**
+   * Record one deterministic durable Agent review exactly once. Returns false
+   * for a replay of the same reviewId.
+   */
+  recordReview: (
+    entityType: ActivityEntityType,
+    id: string,
+    changes: AgentBlockChange[],
+    mode: AgentEditMode,
+    provenance: { effectId: string; reviewId: string },
+  ) => boolean;
+  /**
+   * Remove successfully settled durable batches and deterministically rebuild
+   * the visual aggregate from legacy changes plus the remaining ordered
+   * batches. Idempotent for duplicate settlement notifications.
+   */
+  resolveReviews: (reviewIds: string[]) => void;
   /** A block's reveal animation finished (auto) or it was approved/rejected
    *  (approve) — drop it; the entity clears once nothing is left. */
   resolveBlocks: (entityType: ActivityEntityType, id: string, blockIds: string[]) => void;
@@ -96,6 +137,9 @@ export const useAgentEditStore = create<AgentEditState>()(
     (set, get) => ({
       pending: {},
       pendingReverts: [],
+      reviewBatches: {},
+      reviewOrder: [],
+      settledReviewIds: {},
 
       record: (entityType, id, changes, mode) => {
         if (changes.length === 0) return;
@@ -118,6 +162,94 @@ export const useAgentEditStore = create<AgentEditState>()(
             return { pending: next };
           }
           return { pending: { ...s.pending, [key]: { entityType, id, changes: merged } } };
+        });
+      },
+
+      recordReview: (
+        entityType,
+        id,
+        changes,
+        mode,
+        provenance,
+      ) => {
+        if (
+          changes.length === 0 ||
+          get().reviewBatches[provenance.reviewId] ||
+          get().settledReviewIds[provenance.reviewId]
+        ) {
+          return false;
+        }
+        const key = entityKey(entityType, id);
+        const stamped = changes.map((change) => ({
+          ...change,
+          mode,
+          effectId: provenance.effectId,
+          reviewId: provenance.reviewId,
+        }));
+        useAgentCheckpointStore
+          .getState()
+          .recordChanges(entityType, id, stamped);
+        set((state) => {
+          // Keep this guard inside the state transition as well as above: the
+          // batch map, not merged block contents, is the idempotency authority.
+          if (state.reviewBatches[provenance.reviewId]) return state;
+          const previous = state.pending[key];
+          const merged = previous
+            ? mergeBlockChanges(previous.changes, stamped)
+            : stamped;
+          return {
+            pending: {
+              ...state.pending,
+              [key]: { entityType, id, changes: merged },
+            },
+            reviewBatches: {
+              ...state.reviewBatches,
+              [provenance.reviewId]: {
+                ...provenance,
+                entityType,
+                id,
+                changes: stamped,
+              },
+            },
+            reviewOrder: [...state.reviewOrder, provenance.reviewId],
+          };
+        });
+        return true;
+      },
+
+      resolveReviews: (reviewIds) => {
+        const resolved = new Set(
+          reviewIds.filter((reviewId) => reviewId.trim().length > 0),
+        );
+        if (resolved.size === 0) return;
+        set((state) => {
+          const reviewBatches = { ...state.reviewBatches };
+          const settledReviewIds = { ...state.settledReviewIds };
+          let changed = false;
+          for (const reviewId of resolved) {
+            if (reviewBatches[reviewId]) {
+              delete reviewBatches[reviewId];
+              changed = true;
+            }
+            if (!settledReviewIds[reviewId]) {
+              settledReviewIds[reviewId] = true;
+              changed = true;
+            }
+          }
+          if (!changed) return state;
+          const reviewOrder = state.reviewOrder.filter(
+            (reviewId) => !resolved.has(reviewId),
+          );
+          return {
+            reviewBatches,
+            reviewOrder,
+            settledReviewIds,
+            pending: rebuildVisualPending(
+              state.pending,
+              reviewBatches,
+              reviewOrder,
+            ),
+          };
         });
       },
 
@@ -169,14 +301,55 @@ export const useAgentEditStore = create<AgentEditState>()(
         });
       },
 
-      clearAll: () => set({ pending: {}, pendingReverts: [] }),
+      clearAll: () =>
+        set({
+          pending: {},
+          pendingReverts: [],
+          reviewBatches: {},
+          reviewOrder: [],
+          settledReviewIds: {},
+        }),
     }),
     {
       name: 'agent-edit-pending',
       storage: createJSONStorage(() => localStorage),
       // Only the data — methods come from the initializer on every load. Reverts
       // persist too, so a reject survives a reload before the next turn drains it.
-      partialize: (s) => ({ pending: s.pending, pendingReverts: s.pendingReverts }),
+      partialize: (s) => ({
+        pending: s.pending,
+        pendingReverts: s.pendingReverts,
+        reviewBatches: s.reviewBatches,
+        reviewOrder: s.reviewOrder,
+        settledReviewIds: s.settledReviewIds,
+      }),
     },
   ),
 );
+
+function rebuildVisualPending(
+  previous: Record<string, PendingEntityEdits>,
+  reviewBatches: Record<string, AgentEditReviewBatch>,
+  reviewOrder: readonly string[],
+): Record<string, PendingEntityEdits> {
+  const rebuilt: Record<string, PendingEntityEdits> = {};
+  for (const [key, entry] of Object.entries(previous)) {
+    const legacy = entry.changes.filter((change) => !change.reviewId);
+    if (legacy.length > 0) {
+      rebuilt[key] = { ...entry, changes: legacy };
+    }
+  }
+  for (const reviewId of reviewOrder) {
+    const batch = reviewBatches[reviewId];
+    if (!batch) continue;
+    const key = entityKey(batch.entityType, batch.id);
+    const previousEntry = rebuilt[key];
+    rebuilt[key] = {
+      entityType: batch.entityType,
+      id: batch.id,
+      changes: previousEntry
+        ? mergeBlockChanges(previousEntry.changes, batch.changes)
+        : [...batch.changes],
+    };
+  }
+  return rebuilt;
+}

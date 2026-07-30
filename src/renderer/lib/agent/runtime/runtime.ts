@@ -1,4 +1,5 @@
 import { systemAgentClock } from './clock';
+import { hashAgentPermissionArguments } from './control-plane';
 import {
   abortReason,
   AgentRuntimeAbortError,
@@ -41,6 +42,9 @@ import {
   type AgentRuntimeUsage,
   type AgentToolDefinition,
   type AgentToolExecutionResult,
+  type AgentToolPermissionPolicy,
+  type AgentToolPermissionPolicyDecision,
+  type AgentToolPermissionPolicyRequest,
   type AgentToolResultBlock,
   type AgentToolRuntime,
   type AgentToolSelectionStrategy,
@@ -70,6 +74,7 @@ export interface AgentRuntimeDependencies {
   tools?: AgentToolRuntime;
   toolSelector?: AgentToolSelectionStrategy;
   contextPlanning?: AgentRuntimeContextPlanningOptions;
+  permissionPolicy?: AgentToolPermissionPolicy;
   clock?: AgentClock;
   journal?: AgentJournalSink;
   scheduler?: AgentRuntimeScheduler;
@@ -128,6 +133,62 @@ function canonicalizeArguments(
       error: `Validator returned a non-serializable value: ${toErrorMessage(error)}`,
     };
   }
+}
+
+function permissionRevision(
+  value: Record<string, unknown>,
+): string | null {
+  const revision = value.expectedRevision;
+  if (
+    typeof revision === 'string' ||
+    (typeof revision === 'number' && Number.isFinite(revision))
+  ) {
+    return String(revision);
+  }
+  return null;
+}
+
+function validatePermissionDecision(
+  value: AgentToolPermissionPolicyDecision,
+): AgentToolPermissionPolicyDecision {
+  if (value.decision === 'allow') {
+    if (
+      value.scope !== undefined &&
+      value.scope !== 'once'
+    ) {
+      throw new AgentRuntimeError(
+        'INTERNAL_ERROR',
+        'Session/project permission grants are not installed; only once is supported',
+      );
+    }
+    return value;
+  }
+  if (value.decision === 'deny') {
+    if (!value.reason.trim()) {
+      throw new AgentRuntimeError(
+        'INTERNAL_ERROR',
+        'Permission policy returned an empty deny reason',
+      );
+    }
+    return value;
+  }
+  if (value.decision !== 'ask') {
+    throw new AgentRuntimeError(
+      'INTERNAL_ERROR',
+      'Permission policy returned an unsupported decision',
+    );
+  }
+  const scopes = value.allowedScopes ?? ['once'];
+  if (
+    scopes.length !== 1 ||
+    scopes[0] !== 'once'
+  ) {
+    throw new AgentRuntimeError(
+      'INTERNAL_ERROR',
+      'Session/project permission grants are not installed; only once is supported',
+    );
+  }
+  return { ...value, allowedScopes: [...scopes] };
 }
 
 function mergeLimits(overrides?: Partial<AgentRuntimeLimits>): AgentRuntimeLimits {
@@ -320,6 +381,7 @@ export class AgentRuntime {
   private readonly tools: AgentToolRuntime;
   private readonly toolSelector?: AgentToolSelectionStrategy;
   private readonly contextPlanning: AgentRuntimeContextPlanningCoordinator;
+  private readonly permissionPolicy?: AgentToolPermissionPolicy;
   private readonly clock: AgentClock;
   private readonly journal?: AgentJournalSink;
   private readonly scheduler: AgentRuntimeScheduler;
@@ -332,6 +394,7 @@ export class AgentRuntime {
     this.contextPlanning = new AgentRuntimeContextPlanningCoordinator(
       dependencies.contextPlanning,
     );
+    this.permissionPolicy = dependencies.permissionPolicy;
     this.clock = dependencies.clock ?? systemAgentClock;
     this.journal = dependencies.journal;
     this.scheduler = dependencies.scheduler ?? sharedAgentRuntimeScheduler;
@@ -341,6 +404,16 @@ export class AgentRuntime {
     const limits = mergeLimits(input.limits);
     const route = deepFreeze(clonePortableData(input.route));
     const context: AgentRuntimeContext = { route };
+    if (
+      input.control &&
+      (input.control.sessionId !== input.sessionId ||
+        input.control.turnId !== input.turnId)
+    ) {
+      throw new AgentRuntimeError(
+        'INTERNAL_ERROR',
+        'The runtime control channel belongs to a different turn',
+      );
+    }
     const definitions = Object.freeze(
       [...this.tools.listDefinitions(context)].map((definition) => {
         if (
@@ -407,6 +480,10 @@ export class AgentRuntime {
     const entries: AgentRuntimeJournalEntry[] = [];
     let seq = 0;
     let totalToolCalls = 0;
+    let userInputSequence = 0;
+    let steeringSequence = 0;
+    let acceptingControl = true;
+    let detachControl: () => void = () => undefined;
     let journalDisabled = false;
     let lastProviderCallContextEnvelope:
       | import('./context-message-adapter').AgentContextProviderEnvelopeV2
@@ -535,6 +612,56 @@ export class AgentRuntime {
       return operation;
     };
 
+    if (input.control) {
+      detachControl = input.control.attach({
+        onSteering: async ({ text }) => {
+          if (!acceptingControl || state.terminal) {
+            throw new AgentRuntimeError(
+              'INTERNAL_ERROR',
+              'The Agent turn is no longer accepting steering',
+            );
+          }
+          steeringSequence += 1;
+          await emit({
+            type: 'steering_received',
+            messageId: `${input.turnId}:steering:${steeringSequence}`,
+            text,
+          });
+        },
+        onStopAfterTool: async () => {
+          if (!acceptingControl || state.terminal) {
+            throw new AgentRuntimeError(
+              'INTERNAL_ERROR',
+              'The Agent turn is no longer accepting stop requests',
+            );
+          }
+          if (state.stopAfterToolRequested) return;
+          await emit({ type: 'stop_after_tool_requested' });
+        },
+        onCancellation: async (reason) => {
+          if (state.terminal || state.status === 'committing') return;
+          if (state.status !== 'cancelling') {
+            await emit({ type: 'cancellation_requested', reason }, true);
+          }
+          if (!controller.signal.aborted) controller.abort(reason);
+        },
+      });
+    }
+
+    const applyPendingSteering = async (): Promise<number> => {
+      let applied = 0;
+      while (state.pendingSteering.length > 0) {
+        const message = state.pendingSteering[0];
+        messages.push({ role: 'user', content: message.text });
+        await emit({
+          type: 'steering_applied',
+          messageId: message.messageId,
+        });
+        applied += 1;
+      }
+      return applied;
+    };
+
     const checkDurationBudget = (): void => {
       if (durationMs() > limits.maxDurationMs) {
         budget(`maxDurationMs exceeded: ${durationMs()} > ${limits.maxDurationMs}`);
@@ -590,6 +717,144 @@ export class AgentRuntime {
           : {}),
       };
     };
+
+    const authorizeTool = async (
+      call: MutableToolCall,
+    ): Promise<boolean> => {
+      if (!call.definition || !call.validatedArguments || call.result) {
+        return false;
+      }
+      const argumentsHash = await awaitAbortable(
+        hashAgentPermissionArguments(call.validatedArguments),
+      );
+      const baseRequest = {
+        requestId: `${input.turnId}:${call.callId}:permission`,
+        sessionId: input.sessionId,
+        turnId: input.turnId,
+        callId: call.callId,
+        toolName: call.name,
+        access: call.definition.access,
+        arguments: clonePortableData(call.validatedArguments),
+        argumentsHash,
+        revision: permissionRevision(call.validatedArguments),
+        allowedScopes: ['once'] as const,
+      };
+      let decision: AgentToolPermissionPolicyDecision = {
+        decision: 'allow',
+        scope: 'once',
+      };
+      if (this.permissionPolicy) {
+        const policyRequest: AgentToolPermissionPolicyRequest = {
+          ...baseRequest,
+          context,
+        };
+        try {
+          decision = validatePermissionDecision(
+            await awaitAbortable(
+              Promise.resolve(this.permissionPolicy.decide(policyRequest)),
+            ),
+          );
+        } catch (error) {
+          if (error instanceof AgentRuntimeError) throw error;
+          throw new AgentRuntimeError(
+            'INTERNAL_ERROR',
+            `Permission policy failed: ${toErrorMessage(error)}`,
+          );
+        }
+      }
+      if (decision.decision === 'allow') return true;
+      if (decision.decision === 'deny') {
+        await emitRuntimeToolResult(
+          call,
+          `Permission denied: ${decision.reason}`,
+          'PERMISSION_DENIED',
+        );
+        return false;
+      }
+      const request = deepFreeze({
+        ...baseRequest,
+        ...(decision.reason ? { reason: decision.reason } : {}),
+        allowedScopes: [
+          ...(decision.allowedScopes ?? ['once']),
+        ],
+      });
+      if (!input.control) {
+        await emitRuntimeToolResult(
+          call,
+          'Permission denied because no interactive control channel is installed.',
+          'PERMISSION_CONTROL_UNAVAILABLE',
+        );
+        return false;
+      }
+      const resolutionPromise = input.control.waitForPermission(
+        request,
+        controller.signal,
+      );
+      await emit({ type: 'permission_requested', request });
+      let resolution;
+      try {
+        resolution = await awaitAbortable(resolutionPromise);
+        await emit({ type: 'permission_resolved', resolution });
+        input.control.acknowledgePermission(resolution.requestId);
+      } catch (error) {
+        input.control.acknowledgePermission(request.requestId);
+        throw error;
+      }
+      if (resolution.decision === 'allow') return true;
+      await emitRuntimeToolResult(
+        call,
+        `Permission denied${resolution.reason ? `: ${resolution.reason}` : '.'}`,
+        'PERMISSION_DENIED',
+      );
+      return false;
+    };
+
+    const toolControl = (call: MutableToolCall) => ({
+      requestUserInput: async ({
+        requestId,
+        prompt,
+      }: {
+        requestId?: string;
+        prompt: string;
+      }): Promise<string> => {
+        if (!prompt.trim()) {
+          throw new AgentRuntimeError(
+            'INTERNAL_ERROR',
+            'A user input request cannot have an empty prompt',
+          );
+        }
+        if (!input.control) {
+          throw new AgentRuntimeError(
+            'INTERNAL_ERROR',
+            'No interactive control channel is installed',
+          );
+        }
+        userInputSequence += 1;
+        const request = deepFreeze({
+          requestId:
+            requestId ??
+            `${input.turnId}:${call.callId}:user-input:${userInputSequence}`,
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          callId: call.callId,
+          prompt,
+        });
+        const responsePromise = input.control.waitForUserInput(
+          request,
+          controller.signal,
+        );
+        await emit({ type: 'user_input_requested', request });
+        try {
+          const response = await awaitAbortable(responsePromise);
+          await emit({ type: 'user_input_received', response });
+          input.control.acknowledgeUserInput(response.requestId);
+          return response.text;
+        } catch (error) {
+          input.control.acknowledgeUserInput(request.requestId);
+          throw error;
+        }
+      },
+    });
 
     const closeUnfinishedTools = async (errorCode: string, message: string): Promise<void> => {
       for (const callId of state.toolOrder) {
@@ -651,6 +916,9 @@ export class AgentRuntime {
       outcome: 'completed' | 'failed' | 'aborted' | 'budget_exceeded',
       failure?: { code?: import('./types').AgentRuntimeFailureCode; message?: string },
     ): Promise<void> => {
+      if (input.control && state.status !== 'committing') {
+        await emit({ type: 'commit_started', outcome }, true);
+      }
       await emit({
         type: 'turn_finished',
         outcome,
@@ -675,6 +943,7 @@ export class AgentRuntime {
         access: call.definition.access,
         context,
         signal: controller.signal,
+        control: toolControl(call),
       };
       let executionStarted = false;
       const execute = async (): Promise<AgentToolExecutionResult> => {
@@ -765,6 +1034,7 @@ export class AgentRuntime {
             access: call.definition.access,
             context,
             signal: controller.signal,
+            control: toolControl(call),
           };
           const execute = async (): Promise<AgentToolExecutionResult> => {
             checkBeforeWork();
@@ -824,6 +1094,21 @@ export class AgentRuntime {
 
     const executeTools = async (calls: MutableToolCall[]): Promise<void> => {
       let readBatch: MutableToolCall[] = [];
+      const stopUnstarted = async (
+        startIndex: number,
+      ): Promise<boolean> => {
+        if (!state.stopAfterToolRequested) return false;
+        for (let index = startIndex; index < calls.length; index += 1) {
+          const pending = calls[index];
+          if (pending.result) continue;
+          await emitRuntimeToolResult(
+            pending,
+            'Tool was not started because the author requested a stop after the current tool.',
+            'STOP_AFTER_TOOL',
+          );
+        }
+        return true;
+      };
       const flushReads = async (): Promise<void> => {
         if (readBatch.length === 0) return;
         const batch = readBatch;
@@ -831,16 +1116,30 @@ export class AgentRuntime {
         await executeReadBatch(batch);
       };
 
-      for (const call of calls) {
+      for (let index = 0; index < calls.length; index += 1) {
+        const call = calls[index];
         if (call.result || !call.definition || !call.validatedArguments) continue;
+        if (await stopUnstarted(index)) break;
+        if (!(await authorizeTool(call))) continue;
+        if (await stopUnstarted(index)) break;
         if (call.definition.access === 'read') {
           readBatch.push(call);
           continue;
         }
         await flushReads();
+        if (await stopUnstarted(index)) break;
         await executeOne(call);
+        if (await stopUnstarted(index + 1)) break;
       }
-      await flushReads();
+      if (state.stopAfterToolRequested) {
+        const firstBatched = readBatch.length > 0
+          ? calls.indexOf(readBatch[0])
+          : calls.length;
+        readBatch = [];
+        await stopUnstarted(firstBatched);
+      } else {
+        await flushReads();
+      }
       throwIfStopped();
     };
 
@@ -1261,7 +1560,27 @@ export class AgentRuntime {
         }
         const iteration = state.modelIterations + 1;
         const result = await runModelIteration(iteration);
+        await emitTail;
+        if (
+          result.toolResults.length > 0 &&
+          state.stopAfterToolRequested
+        ) {
+          const reason = 'Agent stopped after the current tool completed.';
+          await emit({ type: 'cancellation_requested', reason }, true);
+          throw new AgentRuntimeAbortError(reason);
+        }
+        if (result.toolResults.length > 0) {
+          await applyPendingSteering();
+          continue;
+        }
         if (result.toolResults.length === 0) {
+          acceptingControl = false;
+          await emitTail;
+          const appliedSteering = await applyPendingSteering();
+          if (appliedSteering > 0) {
+            acceptingControl = true;
+            continue;
+          }
           checkBeforeWork();
           if (!lastPlanningSelection) {
             throw new AgentRuntimeError(
@@ -1304,7 +1623,23 @@ export class AgentRuntime {
         if (!controller.signal.aborted) controller.abort(error);
         throw error;
       }
-      const aborted = controller.signal.aborted && !deadlineTriggered;
+      acceptingControl = false;
+      const aborted =
+        !deadlineTriggered &&
+        (controller.signal.aborted || error instanceof AgentRuntimeAbortError);
+      if (
+        (aborted ||
+          state.status === 'waiting_permission' ||
+          state.status === 'waiting_user') &&
+        state.status !== 'cancelling' &&
+        state.status !== 'committing'
+      ) {
+        const reason =
+          error instanceof AgentRuntimeAbortError
+            ? error.message
+            : abortReason(controller.signal);
+        await emit({ type: 'cancellation_requested', reason }, true);
+      }
       if (!controller.signal.aborted) controller.abort(error);
       const runtimeError =
         deadlineTriggered
@@ -1327,6 +1662,11 @@ export class AgentRuntime {
         await finish('failed', { code, message });
       }
     } finally {
+      acceptingControl = false;
+      detachControl();
+      input.control?.close(
+        controller.signal.reason ?? new Error('Agent turn finished.'),
+      );
       deadlineController.abort('Agent turn finished');
       journalController.abort('Agent turn finished');
       detachParentAbort();

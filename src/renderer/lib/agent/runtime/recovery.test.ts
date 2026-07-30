@@ -13,6 +13,7 @@ import {
   type AgentRuntimeCheckpointContextV2,
 } from './recovery';
 import { planAgentModelContext } from './context-message-adapter';
+import { hashAgentPermissionArguments } from './control-plane';
 import {
   agentRuntimeUnknownToolResultContent,
   type AgentModelMessage,
@@ -490,6 +491,89 @@ function snapshotWithHistory(
 }
 
 describe('Agent runtime canonical recovery', () => {
+  it('replays a durable permission wait without claiming its lost execution stack is resumable', async () => {
+    const snapshot = interruptedSnapshot();
+    const argumentsValue = { expectedRevision: 'rev-1', title: 'New title' };
+    const argumentsHash = await hashAgentPermissionArguments(argumentsValue);
+    snapshot.messages = [snapshot.messages[0]];
+    snapshot.events = [
+      event(1, { type: 'turn_started', prompt: 'Find Alice.' }),
+      event(2, {
+        type: 'model_iteration_started',
+        iteration: 1,
+        driverId: 'deepseek',
+      }),
+      event(3, {
+        type: 'tool_call_started',
+        iteration: 1,
+        callId: 'call-1',
+        name: 'rename_node',
+      }),
+      event(4, {
+        type: 'tool_args_delta',
+        iteration: 1,
+        callId: 'call-1',
+        delta: JSON.stringify(argumentsValue),
+      }),
+      event(5, {
+        type: 'tool_call_ready',
+        iteration: 1,
+        callId: 'call-1',
+        name: 'rename_node',
+        arguments: argumentsValue,
+        rawArguments: JSON.stringify(argumentsValue),
+      }),
+      event(6, { type: 'model_usage', iteration: 1, usage: USAGE_1 }),
+      event(7, {
+        type: 'model_iteration_completed',
+        iteration: 1,
+        stopReason: 'tool_use',
+      }),
+      event(8, {
+        type: 'permission_requested',
+        request: {
+          requestId: 'permission-1',
+          sessionId: SESSION_ID,
+          turnId: TURN_ID,
+          callId: 'call-1',
+          toolName: 'rename_node',
+          access: 'write',
+          arguments: argumentsValue,
+          argumentsHash,
+          revision: 'rev-1',
+          allowedScopes: ['once'],
+        },
+      }),
+    ];
+    snapshot.toolCalls = [{
+      ...snapshot.toolCalls[0],
+      name: 'rename_node',
+      access: 'write',
+      status: 'requested',
+      arguments: argumentsValue,
+      result: null,
+      startedAt: null,
+      completedAt: null,
+    }];
+
+    const recovered = await recoverAgentRuntimeSnapshot(snapshot);
+
+    expect(recovered.pendingControls).toEqual([{
+      sessionId: SESSION_ID,
+      turnId: TURN_ID,
+      status: 'waiting_permission',
+      permissionRequest: expect.objectContaining({
+        requestId: 'permission-1',
+        argumentsHash,
+      }),
+      requiresContinuation: true,
+    }]);
+    expect(recovered.turns[0]?.journalState?.status).toBe(
+      'waiting_permission',
+    );
+    expect(recovered.turns[0]?.recoveredStatus).toBe('interrupted');
+  });
+
   it('rebuilds provider history and the UI transcript without display cache', async () => {
     const snapshot = completeSnapshot();
     const before = structuredClone(snapshot);

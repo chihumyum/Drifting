@@ -51,8 +51,12 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
   private activeTransaction: string | null = null;
   private nextTransactionId = 1;
 
-  constructor(readonly databasePath: string) {
+  constructor(
+    readonly databasePath: string,
+    initialize = true,
+  ) {
     this.database = new DatabaseSync(databasePath);
+    if (!initialize) return;
     this.database.exec(`
       PRAGMA foreign_keys = ON;
       PRAGMA journal_mode = WAL;

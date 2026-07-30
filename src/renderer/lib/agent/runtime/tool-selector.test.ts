@@ -52,7 +52,15 @@ describe('local Agent tool selector', () => {
       },
     });
 
-    expect(selector.eligibleTools).toHaveLength(19);
+    const expectedEligibleNames = AGENT_TOOL_CATALOG.filter(
+      (tool) =>
+        tool.scope === 'general' &&
+        tool.certification !== 'unavailable' &&
+        tool.name !== 'read_node',
+    ).map((tool) => tool.name);
+    expect(selector.eligibleTools.map((tool) => tool.name)).toEqual(
+      expectedEligibleNames,
+    );
     expect(
       selector.eligibleTools.every(
         (tool) =>

@@ -48,16 +48,16 @@ const optionalInteger = (description: string) =>
   Type.Optional(Type.Integer({ minimum: 1, description }));
 const expectedRevision = Type.Object(
   {
-    receiptId: str('最近一次 read_node 返回的 freshness.receiptId'),
+    receiptId: str('最近一次依赖读取返回的 freshness.receiptId'),
     observationId: str(
-      '同一次 read_node 返回的目标 node freshness observation id',
+      '同一次读取返回的目标实体 freshness observation id',
     ),
     revision: str('同一 observation 返回的精确 revision；不得自行生成'),
   },
   {
     additionalProperties: false,
     description:
-      '必须逐字段复制最近一次目标 read_node 的 freshness 引用',
+      '必须逐字段复制最近一次目标实体读取的 freshness 引用',
   },
 );
 
@@ -75,9 +75,20 @@ const optionalFacts = (description: string) =>
 
 const proseEntityTarget = {
   kind: Type.Optional(
-    str('实体类型：node（默认）/ element / storyline / category'),
+    Type.Union(
+      [
+        Type.Literal('node'),
+        Type.Literal('chapter'),
+        Type.Literal('drift'),
+      ],
+      {
+        description:
+          'P5 已认证的正文写入仅支持 node/chapter/drift；默认 node',
+      },
+    ),
   ),
-  entity: str('章节/drift、元素、故事线或类目的项目内唯一名称'),
+  entity: str('章节或 drift 的项目内唯一名称'),
+  expectedRevision,
 };
 
 interface ReadToolSpec {
@@ -544,6 +555,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['replace paragraph', '改写段落'],
+    certification: 'write-certified',
+    certificationNote:
+      'P5 Yjs prose certification: exact read freshness, deterministic command, atomic Yjs/projection/outbox receipt, soft review, and guarded semantic inverse.',
   },
   {
     name: 'edit_blocks',
@@ -572,6 +586,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['replace paragraphs', '批量改写段落'],
+    certification: 'write-certified',
+    certificationNote:
+      'P5 Yjs prose certification: non-contiguous edits share one deterministic command and exact semantic inverse.',
   },
   {
     name: 'append_paragraph',
@@ -587,6 +604,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['append prose', '追加段落'],
+    certification: 'write-certified',
+    certificationNote:
+      'P5 Yjs prose certification: deterministic block id, atomic Yjs/projection/outbox receipt, and exact semantic inverse.',
   },
   {
     name: 'remove_blocks',
@@ -608,6 +628,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'never',
     revertStrategy: 'exact_inverse',
     aliases: ['delete paragraphs', '删除段落'],
+    certification: 'write-certified',
+    certificationNote:
+      'P5 Yjs prose certification: exact block-set freshness, atomic removal receipt, and fail-closed semantic inverse.',
   },
   {
     name: 'replace_block_range',
@@ -630,6 +653,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'never',
     revertStrategy: 'exact_inverse',
     aliases: ['replace prose range', '替换段落区间'],
+    certification: 'write-certified',
+    certificationNote:
+      'P5 Yjs prose certification: exact range freshness, deterministic replacement ids, and exact semantic inverse.',
   },
   {
     name: 'insert_blocks',
@@ -650,6 +676,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['insert paragraphs', '插入段落'],
+    certification: 'write-certified',
+    certificationNote:
+      'P5 Yjs prose certification: exact insertion anchor freshness, deterministic block ids, and exact semantic inverse.',
   },
   {
     name: 'link_chapter_to_storyline',
@@ -926,6 +955,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
         title: optionalStr('补丁标题'),
         body: optionalStr('补丁正文'),
         sourceChapter: optionalStr('变化发生的章节名'),
+        expectedRevision,
       },
       { additionalProperties: false },
     ),
@@ -934,8 +964,11 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     concurrency: 'exclusive_entity',
     approval: 'soft_review',
     retry: 'inspect_before_retry',
-    revertStrategy: 'compensating',
+    revertStrategy: 'exact_inverse',
     aliases: ['record evolution', '创建元素补丁'],
+    certification: 'write-certified',
+    certificationNote:
+      'P5 element-patch certification: exact patch-set freshness, deterministic id, atomic patch/outbox receipt, soft review, and guarded exact delete inverse.',
   },
   {
     name: 'update_element_patch',
@@ -945,6 +978,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
         patchId: str('来自 get_element_patches 的 patchId'),
         title: optionalStr('新标题'),
         body: optionalStr('新正文'),
+        expectedRevision,
       },
       { additionalProperties: false },
     ),
@@ -955,6 +989,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['edit evolution', '更新元素补丁'],
+    certification: 'write-certified',
+    certificationNote:
+      'P5 element-patch certification: exact patch freshness, atomic patch/outbox receipt, crash reconciliation, soft review, and guarded exact field inverse.',
   },
   {
     name: 'delete_element_patch',
@@ -1172,6 +1209,33 @@ const SHADOW_INTERNAL_TOOL_SPECS: InternalToolSpec[] = [
 // ---------------------------------------------------------------------------
 
 const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
+  {
+    name: 'ask_user',
+    description:
+      'Pause the current turn and ask the author one focused question when a real author decision is required. Do not use it for facts available through Drifting read tools.',
+    parametersSchema: Type.Object(
+      {
+        prompt: Type.String({
+          minLength: 1,
+          maxLength: 4_000,
+          description:
+            'One focused question for the author, including the choice or missing decision that blocks progress',
+        }),
+      },
+      { additionalProperties: false },
+    ),
+    scope: 'runtime-virtual',
+    access: 'read',
+    risk: 'none',
+    effect: 'none',
+    concurrency: 'exclusive_project',
+    approval: 'automatic',
+    retry: 'safe',
+    revertStrategy: 'not_applicable',
+    certificationNote:
+      'P5 runtime-certified durable elicitation; implemented by the control plane and never dispatched through runAgentTool.',
+    resultBudgetChars: 12_000,
+  },
   {
     name: 'read_tool_result',
     description:

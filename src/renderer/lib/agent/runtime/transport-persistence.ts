@@ -1,4 +1,9 @@
-import type { AgentStartRoute } from '../protocol';
+import type {
+  AgentCancelPendingControlInput,
+  AgentListPendingControlsInput,
+  AgentPendingControl,
+  AgentStartRoute,
+} from '../protocol';
 import type {
   AgentContextProviderEnvelopeV2,
 } from './context-message-adapter';
@@ -46,6 +51,21 @@ export interface AgentTransportPersistence {
    */
   commitTurn(
     input: AgentTransportCommitTurnInput,
+    signal?: AbortSignal,
+  ): Promise<void>;
+
+  /** Inspect durable wait points left by a renderer process restart. */
+  listPendingControls?(
+    input: AgentListPendingControlsInput,
+    signal?: AbortSignal,
+  ): Promise<AgentPendingControl[]>;
+
+  /**
+   * Safely settle a recovered wait point as cancelled. It never approves or
+   * supplies user input because the original execution stack no longer exists.
+   */
+  cancelPendingControl?(
+    input: AgentCancelPendingControlInput,
     signal?: AbortSignal,
   ): Promise<void>;
 }

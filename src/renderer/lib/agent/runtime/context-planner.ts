@@ -8,8 +8,7 @@
  */
 
 export const AGENT_CONTEXT_CHECKPOINT_VERSION = 2 as const;
-export const AGENT_CONTEXT_CHECKPOINT_FORMAT =
-  'drifting.agent-context-checkpoint' as const;
+export const AGENT_CONTEXT_CHECKPOINT_FORMAT = 'drifting.agent-context-checkpoint' as const;
 
 const MIN_OUTPUT_RESERVE_TOKENS = 4_096;
 const SAFETY_MARGIN_RATIO = 0.1;
@@ -73,6 +72,24 @@ export interface AgentContextSummaryCandidate {
   content: string;
 }
 
+export type AgentContextConstraintKind =
+  | 'session_goal'
+  | 'author_instruction'
+  | 'author_veto'
+  | 'author_fact'
+  | 'legacy_user';
+
+/**
+ * A first-class reason an old user row must remain byte-exact. The row hash is
+ * mandatory: a stale ledger can never pin a different revision of the text.
+ */
+export interface AgentContextConstraintLedgerEntry {
+  constraintId: string;
+  sourceId: string;
+  sourceHash: string;
+  kind: AgentContextConstraintKind;
+}
+
 export interface AgentContextFullCompactionRequest {
   /**
    * Contiguous, unpinned source runs that are safe to summarize. A callback
@@ -102,6 +119,13 @@ export interface AgentContextPlannerInput {
    */
   fixedInputTokens: number;
   sourceRows: readonly AgentContextSourceRow[];
+  /**
+   * `undefined` preserves the P4 fail-safe and pins every user row. Supplying a
+   * verified ledger (including an empty one) upgrades to P5 policy: only listed
+   * constraints and the latest two turns stay exact, while old ordinary user
+   * dialogue becomes eligible for compaction.
+   */
+  constraintLedger?: readonly AgentContextConstraintLedgerEntry[];
   deterministicSummaries?: readonly AgentContextSummaryCandidate[];
   fullCompactor?: AgentContextFullCompactor;
   compactionCircuit?: AgentContextCompactionCircuitBreaker;
@@ -130,9 +154,7 @@ export interface AgentContextSummarySegment {
   producer: 'deterministic' | 'full_compactor';
 }
 
-export type AgentContextProjectionSegment =
-  | AgentContextSourceSegment
-  | AgentContextSummarySegment;
+export type AgentContextProjectionSegment = AgentContextSourceSegment | AgentContextSummarySegment;
 
 export interface AgentContextCheckpointV2 {
   schemaVersion: typeof AGENT_CONTEXT_CHECKPOINT_VERSION;
@@ -155,6 +177,11 @@ export interface AgentContextCheckpointV2 {
     sourceIds: string[];
     sourceHash: string;
   };
+  constraintLedger: {
+    mode: 'legacy_all_user' | 'verified';
+    entries: AgentContextConstraintLedgerEntry[];
+    ledgerHash: string;
+  };
   coverage: {
     representedSourceIds: string[];
     discardedSourceIds: string[];
@@ -165,9 +192,7 @@ export interface AgentContextCheckpointV2 {
     contextHash: string;
   };
   compaction: {
-    stages: Array<
-      'drop_discardable' | 'deterministic_summaries' | 'full_compactor'
-    >;
+    stages: Array<'drop_discardable' | 'deterministic_summaries' | 'full_compactor'>;
     fullCompactionCount: 0 | 1;
     circuitState: AgentContextCompactionCircuitSnapshot;
   };
@@ -294,27 +319,17 @@ function canonicalJsonValue(
   path = 'value',
   ancestors = new WeakSet<object>(),
 ): CanonicalJson {
-  if (
-    value === null ||
-    typeof value === 'string' ||
-    typeof value === 'boolean'
-  ) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
     return value;
   }
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) {
-      throw new PlannerFailure(
-        'INVALID_CONTEXT',
-        `${path} contains a non-finite number.`,
-      );
+      throw new PlannerFailure('INVALID_CONTEXT', `${path} contains a non-finite number.`);
     }
     return value;
   }
   if (typeof value !== 'object') {
-    throw new PlannerFailure(
-      'INVALID_CONTEXT',
-      `${path} contains unsupported ${typeof value}.`,
-    );
+    throw new PlannerFailure('INVALID_CONTEXT', `${path} contains unsupported ${typeof value}.`);
   }
   if (ancestors.has(value)) {
     throw new PlannerFailure('INVALID_CONTEXT', `${path} contains a cycle.`);
@@ -322,9 +337,7 @@ function canonicalJsonValue(
   ancestors.add(value);
   try {
     if (Array.isArray(value)) {
-      return value.map((entry, index) =>
-        canonicalJsonValue(entry, `${path}[${index}]`, ancestors),
-      );
+      return value.map((entry, index) => canonicalJsonValue(entry, `${path}[${index}]`, ancestors));
     }
     const output: Record<string, CanonicalJson> = {};
     for (const key of Object.keys(value).sort()) {
@@ -343,9 +356,7 @@ function canonicalJson(value: unknown): string {
 }
 
 function bytesToHex(bytes: ArrayBuffer): string {
-  return [...new Uint8Array(bytes)]
-    .map((value) => value.toString(16).padStart(2, '0'))
-    .join('');
+  return [...new Uint8Array(bytes)].map((value) => value.toString(16).padStart(2, '0')).join('');
 }
 
 async function sha256(value: unknown): Promise<string> {
@@ -356,10 +367,7 @@ async function sha256(value: unknown): Promise<string> {
       'Web Crypto SHA-256 is unavailable; context cannot be verified.',
     );
   }
-  const digest = await subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(canonicalJson(value)),
-  );
+  const digest = await subtle.digest('SHA-256', new TextEncoder().encode(canonicalJson(value)));
   return `sha256:${bytesToHex(digest)}`;
 }
 
@@ -376,13 +384,9 @@ function canonicalSourceShape(row: AgentContextSourceRow): CanonicalJson {
   });
 }
 
-function orderedRows(
-  rows: readonly AgentContextSourceRow[],
-): AgentContextSourceRow[] {
+function orderedRows(rows: readonly AgentContextSourceRow[]): AgentContextSourceRow[] {
   return [...rows].sort(
-    (left, right) =>
-      left.ordinal - right.ordinal ||
-      left.sourceId.localeCompare(right.sourceId),
+    (left, right) => left.ordinal - right.ordinal || left.sourceId.localeCompare(right.sourceId),
   );
 }
 
@@ -476,18 +480,10 @@ export function computeAgentContextBudget(input: {
       'Context window must be positive and requested output/fixed input must be non-negative safe integers.',
     );
   }
-  const reservedOutputTokens = Math.max(
-    input.requestedOutputTokens,
-    MIN_OUTPUT_RESERVE_TOKENS,
-  );
-  const safetyMarginTokens = Math.ceil(
-    input.contextWindowTokens * SAFETY_MARGIN_RATIO,
-  );
+  const reservedOutputTokens = Math.max(input.requestedOutputTokens, MIN_OUTPUT_RESERVE_TOKENS);
+  const safetyMarginTokens = Math.ceil(input.contextWindowTokens * SAFETY_MARGIN_RATIO);
   const usableInputBudgetTokens =
-    input.contextWindowTokens -
-    reservedOutputTokens -
-    safetyMarginTokens -
-    input.fixedInputTokens;
+    input.contextWindowTokens - reservedOutputTokens - safetyMarginTokens - input.fixedInputTokens;
   if (usableInputBudgetTokens <= 0) {
     throw new PlannerFailure(
       'INVALID_CONTEXT',
@@ -495,7 +491,9 @@ export function computeAgentContextBudget(input: {
     );
   }
   return {
-    ...input,
+    contextWindowTokens: input.contextWindowTokens,
+    requestedOutputTokens: input.requestedOutputTokens,
+    fixedInputTokens: input.fixedInputTokens,
     reservedOutputTokens,
     safetyMarginTokens,
     usableInputBudgetTokens,
@@ -504,14 +502,18 @@ export function computeAgentContextBudget(input: {
 
 export function classifyAgentContextSource(
   row: AgentContextSourceRow,
+  constraintSourceIds?: ReadonlySet<string>,
 ): AgentContextClass {
   switch (row.kind) {
     case 'system_policy':
-    case 'user':
     case 'write_review':
     case 'write_revert':
     case 'freshness':
       return 'pinned';
+    case 'user':
+      return constraintSourceIds === undefined || constraintSourceIds.has(row.sourceId)
+        ? 'pinned'
+        : 'compressible';
     case 'thinking':
       return 'discardable';
     case 'tool_call':
@@ -520,6 +522,68 @@ export function classifyAgentContextSource(
     case 'assistant_narrative':
       return 'compressible';
   }
+}
+
+async function normalizeConstraintLedger(input: {
+  rows: readonly AgentContextSourceRow[];
+  sourceHashes: ReadonlyMap<string, string>;
+  ledger: readonly AgentContextConstraintLedgerEntry[] | undefined;
+}): Promise<{
+  mode: 'legacy_all_user' | 'verified';
+  entries: AgentContextConstraintLedgerEntry[];
+  sourceIds: Set<string>;
+  ledgerHash: string;
+}> {
+  const sourceById = new Map(input.rows.map((source) => [source.sourceId, source]));
+  const rawEntries =
+    input.ledger === undefined
+      ? input.rows
+          .filter((source) => source.kind === 'user')
+          .map((source) => ({
+            constraintId: `legacy-user:${source.sourceId}`,
+            sourceId: source.sourceId,
+            sourceHash: input.sourceHashes.get(source.sourceId)!,
+            kind: 'legacy_user' as const,
+          }))
+      : input.ledger.map((entry) => ({ ...entry }));
+  const constraintIds = new Set<string>();
+  const sourceIds = new Set<string>();
+  for (const entry of rawEntries) {
+    const source = sourceById.get(entry.sourceId);
+    if (
+      !entry.constraintId ||
+      constraintIds.has(entry.constraintId) ||
+      !entry.sourceId ||
+      sourceIds.has(entry.sourceId) ||
+      !source ||
+      source.kind !== 'user' ||
+      entry.sourceHash !== input.sourceHashes.get(entry.sourceId) ||
+      (entry.kind !== 'session_goal' &&
+        entry.kind !== 'author_instruction' &&
+        entry.kind !== 'author_veto' &&
+        entry.kind !== 'author_fact' &&
+        entry.kind !== 'legacy_user') ||
+      (input.ledger !== undefined && entry.kind === 'legacy_user')
+    ) {
+      throw new PlannerFailure(
+        'INVALID_CONTEXT',
+        `Constraint ledger entry "${entry.constraintId || '(empty)'}" has duplicate, stale, or invalid user provenance.`,
+      );
+    }
+    constraintIds.add(entry.constraintId);
+    sourceIds.add(entry.sourceId);
+  }
+  const entries = rawEntries.sort((left, right) => {
+    const leftOrdinal = sourceById.get(left.sourceId)!.ordinal;
+    const rightOrdinal = sourceById.get(right.sourceId)!.ordinal;
+    return leftOrdinal - rightOrdinal || left.constraintId.localeCompare(right.constraintId);
+  });
+  return {
+    mode: input.ledger === undefined ? 'legacy_all_user' : 'verified',
+    entries,
+    sourceIds,
+    ledgerHash: await sha256(entries),
+  };
 }
 
 function cloneSourceRow(row: AgentContextSourceRow): AgentContextSourceRow {
@@ -553,11 +617,7 @@ function validateSourceRows(rows: readonly AgentContextSourceRow[]): ToolPair[] 
       );
     }
     sourceIds.add(row.sourceId);
-    if (
-      !Number.isSafeInteger(row.ordinal) ||
-      row.ordinal < 0 ||
-      ordinals.has(row.ordinal)
-    ) {
+    if (!Number.isSafeInteger(row.ordinal) || row.ordinal < 0 || ordinals.has(row.ordinal)) {
       throw new PlannerFailure(
         'INVALID_CONTEXT',
         `Source "${row.sourceId}" has a duplicate or invalid ordinal.`,
@@ -591,9 +651,7 @@ function validateSourceRows(rows: readonly AgentContextSourceRow[]): ToolPair[] 
       isTool &&
       (!row.callId ||
         !row.toolName ||
-        (row.toolAccess !== 'read' &&
-          row.toolAccess !== 'write' &&
-          row.toolAccess !== 'denied') ||
+        (row.toolAccess !== 'read' && row.toolAccess !== 'write' && row.toolAccess !== 'denied') ||
         row.turnOrdinal === null)
     ) {
       throw new PlannerFailure(
@@ -603,9 +661,7 @@ function validateSourceRows(rows: readonly AgentContextSourceRow[]): ToolPair[] 
     }
     if (
       !isTool &&
-      (row.callId !== undefined ||
-        row.toolName !== undefined ||
-        row.toolAccess !== undefined)
+      (row.callId !== undefined || row.toolName !== undefined || row.toolAccess !== undefined)
     ) {
       throw new PlannerFailure(
         'INVALID_CONTEXT',
@@ -626,9 +682,7 @@ function toolKey(row: AgentContextSourceRow): string {
   return `${row.turnOrdinal}:${row.callId}`;
 }
 
-function validateCanonicalToolTopology(
-  rows: readonly AgentContextSourceRow[],
-): ToolPair[] {
+function validateCanonicalToolTopology(rows: readonly AgentContextSourceRow[]): ToolPair[] {
   const calls = new Map<string, AgentContextSourceRow>();
   const results = new Map<string, AgentContextSourceRow>();
   for (const row of orderedRows(rows)) {
@@ -636,10 +690,7 @@ function validateCanonicalToolTopology(
     const key = toolKey(row);
     const target = row.kind === 'tool_call' ? calls : results;
     if (target.has(key)) {
-      throw new PlannerFailure(
-        'INVALID_CONTEXT',
-        `Duplicate ${row.kind} for "${key}".`,
-      );
+      throw new PlannerFailure('INVALID_CONTEXT', `Duplicate ${row.kind} for "${key}".`);
     }
     target.set(key, row);
   }
@@ -649,20 +700,14 @@ function validateCanonicalToolTopology(
     const call = calls.get(key);
     const result = results.get(key);
     if (!call || !result) {
-      throw new PlannerFailure(
-        'INVALID_CONTEXT',
-        `Dangling tool call/result for "${key}".`,
-      );
+      throw new PlannerFailure('INVALID_CONTEXT', `Dangling tool call/result for "${key}".`);
     }
     if (
       call.ordinal >= result.ordinal ||
       call.toolName !== result.toolName ||
       call.toolAccess !== result.toolAccess
     ) {
-      throw new PlannerFailure(
-        'INVALID_CONTEXT',
-        `Mismatched tool call/result for "${key}".`,
-      );
+      throw new PlannerFailure('INVALID_CONTEXT', `Mismatched tool call/result for "${key}".`);
     }
     pairs.push({ key, call, result });
   }
@@ -674,9 +719,7 @@ function estimateSourceTokens(
   estimator: AgentContextTokenEstimator,
 ): number {
   const budgetText =
-    row.kind === 'write_review' ||
-    row.kind === 'write_revert' ||
-    row.kind === 'freshness'
+    row.kind === 'write_review' || row.kind === 'write_revert' || row.kind === 'freshness'
       ? serializeAgentContextNoteBudgetPayload({
           noteKind: row.kind,
           sourceId: row.sourceId,
@@ -684,10 +727,7 @@ function estimateSourceTokens(
           content: row.content,
         })
       : row.content;
-  return (
-    validatedEstimate(estimator, budgetText) +
-    SOURCE_SEGMENT_OVERHEAD_TOKENS
-  );
+  return validatedEstimate(estimator, budgetText) + SOURCE_SEGMENT_OVERHEAD_TOKENS;
 }
 
 function estimateSummaryTokens(
@@ -695,17 +735,12 @@ function estimateSummaryTokens(
   estimator: AgentContextTokenEstimator,
 ): number {
   return (
-    validatedEstimate(
-      estimator,
-      serializeAgentContextSummaryBudgetPayload(candidate),
-    ) + SUMMARY_SEGMENT_OVERHEAD_TOKENS
+    validatedEstimate(estimator, serializeAgentContextSummaryBudgetPayload(candidate)) +
+    SUMMARY_SEGMENT_OVERHEAD_TOKENS
   );
 }
 
-function validatedEstimate(
-  estimator: AgentContextTokenEstimator,
-  content: string,
-): number {
+function validatedEstimate(estimator: AgentContextTokenEstimator, content: string): number {
   const estimate = estimator(content);
   if (!Number.isSafeInteger(estimate) || estimate < 0) {
     throw new PlannerFailure(
@@ -722,11 +757,7 @@ function projectionTokens(segments: readonly AgentContextProjectionSegment[]): n
 
 function recentTurnOrdinals(rows: readonly AgentContextSourceRow[]): Set<number> {
   const turns = [
-    ...new Set(
-      rows
-        .map((row) => row.turnOrdinal)
-        .filter((turn): turn is number => turn !== null),
-    ),
+    ...new Set(rows.map((row) => row.turnOrdinal).filter((turn): turn is number => turn !== null)),
   ].sort((left, right) => right - left);
   return new Set(turns.slice(0, 2));
 }
@@ -754,10 +785,7 @@ function initialProjection(
   sourceHashes: ReadonlyMap<string, string>,
   estimator: AgentContextTokenEstimator,
 ): WorkingProjection {
-  const coverage = new Map<
-    string,
-    { type: 'source' } | { type: 'summary'; id: string }
-  >();
+  const coverage = new Map<string, { type: 'source' } | { type: 'summary'; id: string }>();
   const segments: AgentContextProjectionSegment[] = [];
   for (const row of orderedRows(rows)) {
     const classification = classifications.get(row.sourceId)!;
@@ -779,11 +807,7 @@ function candidateSourceRows(
   candidate: AgentContextSummaryCandidate,
   sourceById: ReadonlyMap<string, AgentContextSourceRow>,
 ): AgentContextSourceRow[] {
-  if (
-    !candidate.summaryId ||
-    candidate.sourceIds.length === 0 ||
-    !candidate.content
-  ) {
+  if (!candidate.summaryId || candidate.sourceIds.length === 0 || !candidate.content) {
     throw new PlannerFailure(
       'INVALID_SUMMARY',
       'A summary must have an id, non-empty source coverage, and non-empty content.',
@@ -870,10 +894,7 @@ async function applySummaryBatch(input: {
       );
     }
     if (projection.summaryIds.has(candidate.summaryId)) {
-      throw new PlannerFailure(
-        'INVALID_SUMMARY',
-        `Duplicate summary id "${candidate.summaryId}".`,
-      );
+      throw new PlannerFailure('INVALID_SUMMARY', `Duplicate summary id "${candidate.summaryId}".`);
     }
     for (const row of sourceRows) {
       if (input.classifications.get(row.sourceId) !== 'compressible') {
@@ -902,10 +923,7 @@ async function applySummaryBatch(input: {
     for (const row of sourceRows) {
       const pair = input.toolPairBySourceId.get(row.sourceId);
       if (!pair) continue;
-      if (
-        !coveredIds.has(pair.call.sourceId) ||
-        !coveredIds.has(pair.result.sourceId)
-      ) {
+      if (!coveredIds.has(pair.call.sourceId) || !coveredIds.has(pair.result.sourceId)) {
         throw new PlannerFailure(
           'INVALID_SUMMARY',
           `Summary "${candidate.summaryId}" splits read tool pair "${pair.key}".`,
@@ -916,8 +934,7 @@ async function applySummaryBatch(input: {
     const sourceSegmentIndexes = sourceRows
       .map((row) =>
         projection.segments.findIndex(
-          (segment) =>
-            segment.type === 'source' && segment.row.sourceId === row.sourceId,
+          (segment) => segment.type === 'source' && segment.row.sourceId === row.sourceId,
         ),
       )
       .sort((left, right) => left - right);
@@ -941,15 +958,10 @@ async function applySummaryBatch(input: {
       );
     }
     const beforeTokens = projectionTokens(replaced);
-    const estimatedTokens = estimateSummaryTokens(
-      candidate,
-      input.estimator,
-    );
+    const estimatedTokens = estimateSummaryTokens(candidate, input.estimator);
     if (estimatedTokens >= beforeTokens) {
       throw new PlannerFailure(
-        input.producer === 'full_compactor'
-          ? 'COMPACTOR_NO_GAIN'
-          : 'INVALID_SUMMARY',
+        input.producer === 'full_compactor' ? 'COMPACTOR_NO_GAIN' : 'INVALID_SUMMARY',
         `Summary "${candidate.summaryId}" has no positive token gain.`,
       );
     }
@@ -1046,12 +1058,7 @@ async function runFullCompactor(input: {
     const aborted = new Promise<never>((_resolve, reject) => {
       if (!input.signal) return;
       rejectOnAbort = () => {
-        reject(
-          new PlannerFailure(
-            'COMPACTOR_ABORTED',
-            'Context compaction was aborted.',
-          ),
-        );
+        reject(new PlannerFailure('COMPACTOR_ABORTED', 'Context compaction was aborted.'));
       };
       input.signal.addEventListener('abort', rejectOnAbort, { once: true });
     });
@@ -1091,9 +1098,7 @@ async function validateFinalProjection(input: {
   const segmentSummaryIds = new Set<string>();
   for (const segment of input.projection.segments) {
     if (segment.type === 'source') {
-      const source = input.rows.find(
-        (row) => row.sourceId === segment.row.sourceId,
-      );
+      const source = input.rows.find((row) => row.sourceId === segment.row.sourceId);
       if (
         !source ||
         segmentSourceIds.has(source.sourceId) ||
@@ -1156,12 +1161,9 @@ async function validateFinalProjection(input: {
 
   for (const pair of input.toolPairs) {
     const callRepresentation = input.projection.coverage.get(pair.call.sourceId);
-    const resultRepresentation = input.projection.coverage.get(
-      pair.result.sourceId,
-    );
+    const resultRepresentation = input.projection.coverage.get(pair.result.sourceId);
     const bothOriginal =
-      callRepresentation?.type === 'source' &&
-      resultRepresentation?.type === 'source';
+      callRepresentation?.type === 'source' && resultRepresentation?.type === 'source';
     const sameSummary =
       callRepresentation?.type === 'summary' &&
       resultRepresentation?.type === 'summary' &&
@@ -1205,8 +1207,7 @@ function failureResult(input: {
 export async function planAgentContext(
   input: AgentContextPlannerInput,
 ): Promise<AgentContextPlannerResult> {
-  const circuit =
-    input.compactionCircuit ?? new AgentContextCompactionCircuitBreaker();
+  const circuit = input.compactionCircuit ?? new AgentContextCompactionCircuitBreaker();
   let budget: ContextBudget | null = null;
   let estimatedInputTokens: number | null = null;
   let fullCompactionCount: 0 | 1 = 0;
@@ -1216,18 +1217,23 @@ export async function planAgentContext(
     const rows = orderedRows(input.sourceRows.map(cloneSourceRow));
     const toolPairs = validateSourceRows(rows);
     const sourceById = new Map(rows.map((row) => [row.sourceId, row]));
-    const classifications = new Map(
-      rows.map((row) => [row.sourceId, classifyAgentContextSource(row)]),
-    );
-    const recentTurns = recentTurnOrdinals(rows);
     const sourceHashes = new Map(
       await Promise.all(
-        rows.map(async (row) => [
-          row.sourceId,
-          await hashAgentContextSourceRows([row]),
-        ] as const),
+        rows.map(async (row) => [row.sourceId, await hashAgentContextSourceRows([row])] as const),
       ),
     );
+    const constraintLedger = await normalizeConstraintLedger({
+      rows,
+      sourceHashes,
+      ledger: input.constraintLedger,
+    });
+    const classifications = new Map(
+      rows.map((row) => [
+        row.sourceId,
+        classifyAgentContextSource(row, constraintLedger.sourceIds),
+      ]),
+    );
+    const recentTurns = recentTurnOrdinals(rows);
     const initialTokens = rows.reduce(
       (total, row) => total + estimateSourceTokens(row, estimator),
       0,
@@ -1245,13 +1251,7 @@ export async function planAgentContext(
       );
     }
 
-    let projection = initialProjection(
-      rows,
-      classifications,
-      recentTurns,
-      sourceHashes,
-      estimator,
-    );
+    let projection = initialProjection(rows, classifications, recentTurns, sourceHashes, estimator);
     const stages: AgentContextCheckpointV2['compaction']['stages'] = [];
     if (rows.some((row) => classifications.get(row.sourceId) === 'discardable')) {
       stages.push('drop_discardable');
@@ -1311,8 +1311,7 @@ export async function planAgentContext(
             usableInputBudgetTokens: budget.usableInputBudgetTokens,
           },
           signal: input.signal,
-          timeoutMs:
-            input.compactionTimeoutMs ?? DEFAULT_COMPACTION_TIMEOUT_MS,
+          timeoutMs: input.compactionTimeoutMs ?? DEFAULT_COMPACTION_TIMEOUT_MS,
         });
       } catch (error) {
         const failure =
@@ -1381,15 +1380,9 @@ export async function planAgentContext(
       toolPairs,
     });
     const sourceOrderHash = await hashAgentContextSourceRows(rows);
-    const pinnedSourceIds = orderedRows(validated.pinnedRows).map(
-      (row) => row.sourceId,
-    );
-    const representedSourceIds = orderedRows(validated.representedRows).map(
-      (row) => row.sourceId,
-    );
-    const discardedSourceIds = orderedRows(validated.discardedRows).map(
-      (row) => row.sourceId,
-    );
+    const pinnedSourceIds = orderedRows(validated.pinnedRows).map((row) => row.sourceId);
+    const representedSourceIds = orderedRows(validated.representedRows).map((row) => row.sourceId);
+    const discardedSourceIds = orderedRows(validated.discardedRows).map((row) => row.sourceId);
     const segments = cloneProjectionSegments(projection.segments);
     const checkpoint: AgentContextCheckpointV2 = {
       schemaVersion: AGENT_CONTEXT_CHECKPOINT_VERSION,
@@ -1406,6 +1399,11 @@ export async function planAgentContext(
       pinned: {
         sourceIds: pinnedSourceIds,
         sourceHash: await hashAgentContextSourceRows(validated.pinnedRows),
+      },
+      constraintLedger: {
+        mode: constraintLedger.mode,
+        entries: constraintLedger.entries.map((entry) => ({ ...entry })),
+        ledgerHash: constraintLedger.ledgerHash,
       },
       coverage: {
         representedSourceIds,

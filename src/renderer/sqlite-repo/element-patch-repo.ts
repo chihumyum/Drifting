@@ -38,6 +38,8 @@ export interface PatchWithSourceTitle extends ElementPatch {
 }
 
 export interface CreatePatchInput {
+  /** Optional deterministic id for crash-recoverable renderer commands. */
+  id?: string;
   projectId: string;
   elementId: string;
   sourceNodeId?: string | null;
@@ -98,7 +100,7 @@ export function createElementPatchRepository(dbOverride?: DbExecutor): ElementPa
     const db = dbProvider();
     const now = new Date().toISOString();
     const row = {
-      id: uuidv7(),
+      id: input.id ?? uuidv7(),
       projectId: input.projectId,
       elementId: input.elementId,
       sourceNodeId: input.sourceNodeId ?? null,

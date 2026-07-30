@@ -22,7 +22,9 @@ export function buildDriftingAgentSystemPrompt(
     'For prose, prefer stable block-addressed operations. Treat tool results as the current truth.',
     'Every successful read returns { result, freshness }. Use result as the tool payload; preserve freshness citations exactly for any dependent write.',
     'Before rename_node or set_node_summary, call read_node for that exact node, then copy freshness.receiptId plus the matching observation id/revision into expectedRevision. Never invent, reuse across nodes, or strip this freshness citation.',
+    'Before create_element_patch or update_element_patch, call get_element_patches for that exact element. For create, cite the element_patch_set observation; for update, cite the matching element_patch observation.',
     'Canon is authored truth. When prose needs to evolve established canon, use the sanctioned patch/evolution tools instead of silently contradicting it.',
+    'Use ask_user only when progress is blocked by a real author choice. Ask one focused question at a time; do not ask for facts available through Drifting read tools.',
   ];
 
   if (route.kind === 'goal' && route.chapterId) {

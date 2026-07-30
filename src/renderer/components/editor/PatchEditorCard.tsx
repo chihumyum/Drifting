@@ -18,6 +18,14 @@ import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { docToPlainText } from '../../lib/agent/serialize';
 import { FieldDiff } from './FieldReview';
 import {
+  approveDurableAgentReviewsForEntity,
+  rejectDurableAgentReviewsForEntity,
+} from '../../lib/agent/durable-review-actions';
+import {
+  acceptDriftingAgentWriteReview,
+  rejectDriftingAgentWriteReview,
+} from '../../lib/agent/useDriftingAgentRuntime';
+import {
   deleteElementPatchWithSync,
   updateElementPatchWithSync,
 } from '../../usecase/synced-entity-commands';
@@ -123,6 +131,8 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
       entry?.changes.find((c) => c.field?.kind === 'patch' && c.field.key === patch.id) ?? null
     );
   });
+  const reviewBatches = useAgentEditStore((s) => s.reviewBatches);
+  const reviewOrder = useAgentEditStore((s) => s.reviewOrder);
   const reviewMode = patchChange ? patchChange.mode ?? 'approve' : null;
   const isDeleting = patchChange?.op === 'deleted';
   const isChanged = patchChange?.op === 'changed';
@@ -140,15 +150,82 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const acceptPatch = useCallback(() => {
     const c = patchChange;
     if (!c) return;
+    if (c.reviewId) {
+      void approveDurableAgentReviewsForEntity({
+        entityType: 'element',
+        id: patch.elementId,
+        batches: { reviewBatches, reviewOrder },
+        matchesBatch: (batch) =>
+          batch.changes.some(
+            (change) =>
+              change.field?.kind === 'patch' &&
+              change.field.key === patch.id,
+          ),
+        acceptReview: acceptDriftingAgentWriteReview,
+        onAllAccepted: (reviewIds) => {
+          useAgentEditStore.getState().resolveReviews([...reviewIds]);
+          onChange?.();
+        },
+      }).catch((error) => {
+        log.error('Failed to accept durable Agent patch review:', error);
+      });
+      return;
+    }
     // Accept = the agent's action stands: a create stays; a (soft) delete is
     // committed for real now.
     useAgentEditStore.getState().resolveBlocks('element', patch.elementId, [c.blockId]);
     if (c.op === 'deleted') void handleDelete();
-  }, [patchChange, patch.elementId, handleDelete]);
+  }, [
+    patchChange,
+    patch.elementId,
+    patch.id,
+    reviewBatches,
+    reviewOrder,
+    onChange,
+    handleDelete,
+  ]);
 
   const rejectPatch = useCallback(() => {
     const c = patchChange;
     if (!c) return;
+    if (c.reviewId) {
+      void rejectDurableAgentReviewsForEntity({
+        entityType: 'element',
+        id: patch.elementId,
+        batches: { reviewBatches, reviewOrder },
+        matchesBatch: (batch) =>
+          batch.changes.some(
+            (change) =>
+              change.field?.kind === 'patch' &&
+              change.field.key === patch.id,
+          ),
+        rejectReview: rejectDriftingAgentWriteReview,
+        decisionNote: 'Rejected from the element patch review card',
+        onAllReverted: (reviewIds, batches) => {
+          const store = useAgentEditStore.getState();
+          for (const batch of batches) {
+            for (const change of batch.changes) {
+              if (
+                change.field?.kind === 'patch' &&
+                change.field.key === patch.id
+              ) {
+                store.recordRevert(
+                  projectId,
+                  'element',
+                  patch.elementId,
+                  change,
+                );
+              }
+            }
+          }
+          store.resolveReviews([...reviewIds]);
+          onChange?.();
+        },
+      }).catch((error) => {
+        log.error('Failed to reject durable Agent patch review:', error);
+      });
+      return;
+    }
     // Reject = undo the agent's action (and tell it next turn, since it ran
     // bypassPermissions): undo a create by deleting; undo a (soft) delete by
     // keeping the still-present row.
@@ -171,7 +248,16 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
         }
       })();
     }
-  }, [patchChange, projectId, patch.elementId, patch.id, handleDelete, onChange]);
+  }, [
+    patchChange,
+    projectId,
+    patch.elementId,
+    patch.id,
+    reviewBatches,
+    reviewOrder,
+    handleDelete,
+    onChange,
+  ]);
 
   // Auto mode: once the card is on screen, settle (keep) after a brief beat.
   const acceptRef = useRef(acceptPatch);

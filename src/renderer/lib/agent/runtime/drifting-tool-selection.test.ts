@@ -37,6 +37,7 @@ const EXECUTABLE_NAMES = [
       DRIFTING_RUNTIME_TOOL_SEARCH_POLICY.accesses.includes(tool.access) &&
       DRIFTING_RUNTIME_TOOL_SEARCH_POLICY.certifications.includes(tool.certification),
   ).map((tool) => tool.name),
+  'ask_user',
   'read_tool_result',
 ];
 
@@ -90,8 +91,21 @@ describe('Drifting runtime tool selection', () => {
     );
 
     expect(ordinary).not.toContain('read_tool_result');
-    expect(paged[0]).toBe('read_tool_result');
+    expect(ordinary[0]).toBe('ask_user');
+    expect(paged.slice(0, 2)).toEqual(['ask_user', 'read_tool_result']);
     expect(paged.length).toBeLessThanOrEqual(8);
     expect(new Set(paged).size).toBe(paged.length);
+  });
+
+  it('always keeps ask_user available without exceeding the hard limit', () => {
+    const strategy = createDriftingToolSelectionStrategy();
+
+    const selected = strategy.select(
+      request('rewrite this chapter using the current canon', EXECUTABLE_NAMES),
+    );
+
+    expect(selected[0]).toBe('ask_user');
+    expect(selected.length).toBeLessThanOrEqual(8);
+    expect(new Set(selected).size).toBe(selected.length);
   });
 });

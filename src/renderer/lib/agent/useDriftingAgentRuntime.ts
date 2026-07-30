@@ -4,14 +4,19 @@ import { ChainCredentialsProvider } from '../ai/credentials/chain';
 import { EnvCredentialsProvider } from '../ai/credentials/env';
 import { createAgentRuntimeWriteEffectRepository } from '../../sqlite-repo/agent-runtime-write-effect-repo';
 import { createAgentRuntimeFreshnessRepository } from '../../sqlite-repo/agent-runtime-freshness-repo';
+import { createAgentRuntimeResultArtifactRepository } from '../../sqlite-repo/agent-runtime-result-artifact-repo';
+import { useAgentEditStore } from '../../store/agent-edit-store';
 import type { GeneralAgentAuthStatus } from './protocol';
 import {
+  createDriftingAgentPermissionPolicy,
+  createDriftingContextCompactor,
   createDriftingToolSelectionStrategy,
   createDriftingWriteToolRuntime,
   createLocalGeneralAgentTransport,
   createRepositoryAgentTransportPersistence,
   DriftingReadToolRuntime,
   DriftingAgentModelDriver,
+  loadAgentWriteReviewContextRows,
   resolveDriftingCertifiedToolAccess,
 } from './runtime';
 import {
@@ -42,23 +47,50 @@ async function readLocalAgentAuthStatus(): Promise<GeneralAgentAuthStatus> {
 
 const driftingWriteEffects = createAgentRuntimeWriteEffectRepository();
 const driftingFreshness = createAgentRuntimeFreshnessRepository();
+const driftingResultArtifacts =
+  createAgentRuntimeResultArtifactRepository();
 const driftingReadTools = new DriftingReadToolRuntime({
   freshness: driftingFreshness,
+  artifacts: driftingResultArtifacts,
 });
 const driftingAgentTools = createDriftingWriteToolRuntime({
   repository: driftingWriteEffects,
   freshness: driftingFreshness,
   readRuntime: driftingReadTools,
+  autoAcceptReview: (effect) => {
+    const batch =
+      useAgentEditStore.getState().reviewBatches[
+        `agent-review:${effect.id}`
+      ];
+    return Boolean(
+      batch &&
+        batch.changes.length > 0 &&
+        batch.changes.every((change) => change.mode === 'auto'),
+    );
+  },
 });
 const driftingToolSelector = createDriftingToolSelectionStrategy();
+const driftingPermissionPolicy = createDriftingAgentPermissionPolicy();
+const driftingContextCompactor = createDriftingContextCompactor();
 
 export function createDriftingLocalAgentTransport(): GeneralAgentTransport {
   return createLocalGeneralAgentTransport({
     driver: new DriftingAgentModelDriver(),
     tools: driftingAgentTools,
     toolSelector: driftingToolSelector,
+    permissionPolicy: driftingPermissionPolicy,
+    contextPlanning: {
+      fullCompactor: driftingContextCompactor,
+      supplementalRows: ({ sessionId }) =>
+        loadAgentWriteReviewContextRows(
+          sessionId,
+          driftingWriteEffects,
+        ),
+    },
     persistence: createRepositoryAgentTransportPersistence({
       writeEffects: driftingWriteEffects,
+      beforeResumeSession: (sessionId, signal) =>
+        driftingAgentTools.reconcileInterruptedWrites(sessionId, signal),
       resolveToolAccess: resolveDriftingCertifiedToolAccess,
     }),
     authStatus: readLocalAgentAuthStatus,

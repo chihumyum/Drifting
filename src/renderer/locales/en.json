@@ -1136,9 +1136,31 @@
       "message": "Agent is working in \"{{title}}\" · View",
       "disabledTitle": "Agent is working in another chat. You can continue after it finishes."
     },
+    "control": {
+      "permissionTitle": "Agent requests an action",
+      "arguments": "View full arguments",
+      "deny": "Deny",
+      "allow": {
+        "once": "Allow once",
+        "session": "Allow for session",
+        "project": "Allow for project"
+      },
+      "questionTitle": "Agent needs your decision",
+      "answerHint": "Type your answer below and send it to continue the current step.",
+      "recoveredTitle": "An interrupted wait was recovered",
+      "recoveredBody": "The original execution stack no longer exists, so Drifting will not auto-approve, replay a write, or pretend to resume it. End this wait safely, then send a new instruction to continue.",
+      "endRecovered": "End pending step"
+    },
     "composer": {
       "placeholder": "Ask the agent… (Cmd/Ctrl+Enter)",
+      "steerPlaceholder": "Add to or correct the running task…",
+      "answerPlaceholder": "Answer the agent's question…",
       "stop": "Stop",
+      "abortTitle": "Request cancellation now; a transaction already committing will settle safely first",
+      "stopAfterTool": "Stop after tool",
+      "stopAfterToolTitle": "Stop after the current tool reaches a safe boundary",
+      "steer": "Steer",
+      "answer": "Answer",
       "send": "Send"
     }
   },

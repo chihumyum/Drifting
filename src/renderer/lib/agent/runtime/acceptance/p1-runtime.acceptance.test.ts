@@ -340,7 +340,11 @@ describe('P1 deterministic Agent runtime acceptance', () => {
     const tools = new DriftingReadToolRuntime({ freshness: null });
     const definitions = tools
       .listDefinitions(runtimeContext())
-      .filter((definition) => definition.name !== 'read_tool_result');
+      .filter(
+        (definition) =>
+          definition.name !== 'read_tool_result' &&
+          definition.name !== 'ask_user',
+      );
 
     expect(definitions.map((definition) => definition.name)).toEqual(
       AGENT_READ_TOOLS.map((tool) => tool.name),

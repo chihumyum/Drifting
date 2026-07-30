@@ -168,7 +168,7 @@ function recordFieldChanges(
 /** Patch ids this element has SOFT-deleted (agent ran delete_element_patch, but
  *  the row stays until the user confirms on the card). The agent's patch reads
  *  hide these so its view matches its belief that they're gone. */
-function pendingDeletedPatchIds(elementId: string): Set<string> {
+export function pendingDeletedPatchIds(elementId: string): Set<string> {
   const entry = useAgentEditStore.getState().pending[entityKey('element', elementId)];
   return new Set(
     (entry?.changes ?? [])

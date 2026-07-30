@@ -44,6 +44,26 @@ const P3_CERTIFIED_WRITE_NAMES = [
   'set_node_summary',
 ] as const;
 
+const P5_PROSE_WRITE_NAMES = [
+  'edit_block',
+  'edit_blocks',
+  'append_paragraph',
+  'remove_blocks',
+  'replace_block_range',
+  'insert_blocks',
+] as const;
+
+const P5_ELEMENT_PATCH_WRITE_NAMES = [
+  'create_element_patch',
+  'update_element_patch',
+] as const;
+
+const CERTIFIED_WRITE_NAMES = [
+  ...P3_CERTIFIED_WRITE_NAMES,
+  ...P5_PROSE_WRITE_NAMES,
+  ...P5_ELEMENT_PATCH_WRITE_NAMES,
+] as const;
+
 function dispatcherNamesFromSource(): string[] {
   const source = readFileSync(
     fileURLToPath(new URL('./tool-handlers.ts', import.meta.url)),
@@ -102,7 +122,7 @@ describe('canonical Agent tool catalog', () => {
       AGENT_TOOL_CATALOG.filter(
         (tool) => tool.scope === 'runtime-virtual',
       ),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
 
     for (const tool of AGENT_TOOL_CATALOG) {
       expect(tool.name).not.toBe('');
@@ -157,12 +177,12 @@ describe('canonical Agent tool catalog', () => {
     expect(writes).toHaveLength(34);
     expect(
       writes.filter((tool) => tool.certification === 'unavailable'),
-    ).toHaveLength(32);
+    ).toHaveLength(24);
     expect(
       writes
         .filter((tool) => tool.certification === 'write-certified')
         .map((tool) => tool.name),
-    ).toEqual(P3_CERTIFIED_WRITE_NAMES);
+    ).toEqual(CERTIFIED_WRITE_NAMES);
     for (const name of P3_CERTIFIED_WRITE_NAMES) {
       const tool = getRegisteredTool(name);
       expect(tool).toMatchObject({
@@ -189,6 +209,55 @@ describe('canonical Agent tool catalog', () => {
             receiptId: 'agent-read:session:turn:call',
             observationId: 'agent-observation:session:turn:call:0',
             revision: '2026-07-30T00:00:00.000Z',
+          },
+        }),
+      ).toBe(true);
+    }
+    for (const name of P5_PROSE_WRITE_NAMES) {
+      const tool = getRegisteredTool(name)!;
+      expect(tool).toMatchObject({
+        effect: 'prose',
+        approval: 'soft_review',
+        revertStrategy: 'exact_inverse',
+        certification: 'write-certified',
+      });
+      expect(tool.certificationNote).toContain('P5 Yjs prose');
+      const properties = (
+        tool.parametersSchema as unknown as {
+          properties: Record<string, unknown>;
+        }
+      ).properties;
+      expect(properties.expectedRevision).toBeDefined();
+      expect(
+        Value.Check(tool.parametersSchema, proseArguments(name, false)),
+      ).toBe(false);
+      expect(
+        Value.Check(tool.parametersSchema, proseArguments(name, true)),
+      ).toBe(true);
+    }
+    for (const name of P5_ELEMENT_PATCH_WRITE_NAMES) {
+      const tool = getRegisteredTool(name)!;
+      expect(tool).toMatchObject({
+        approval: 'soft_review',
+        revertStrategy: 'exact_inverse',
+        certification: 'write-certified',
+      });
+      expect(
+        Value.Check(tool.parametersSchema, {
+          ...(name === 'create_element_patch'
+            ? { element: '柳青', body: '立场发生变化' }
+            : { patchId: 'patch-1', title: '新的演化标题' }),
+        }),
+      ).toBe(false);
+      expect(
+        Value.Check(tool.parametersSchema, {
+          ...(name === 'create_element_patch'
+            ? { element: '柳青', body: '立场发生变化' }
+            : { patchId: 'patch-1', title: '新的演化标题' }),
+          expectedRevision: {
+            receiptId: 'agent-read:session:turn:call',
+            observationId: 'agent-observation:session:turn:call:0',
+            revision: `element-patch:sha256:${'0'.repeat(64)}`,
           },
         }),
       ).toBe(true);
@@ -259,7 +328,7 @@ describe('canonical Agent tool catalog', () => {
       listProviderTools({ allowWrite: true })
         .filter((tool) => tool.access === 'write')
         .map((tool) => tool.name),
-    ).toEqual(P3_CERTIFIED_WRITE_NAMES);
+    ).toEqual(CERTIFIED_WRITE_NAMES);
 
     const providerNames = toAITools(AGENT_TOOL_CATALOG).map(
       (tool) => tool.name,
@@ -269,6 +338,7 @@ describe('canonical Agent tool catalog', () => {
     expect(providerNames).not.toContain('set_element_body');
     expect(providerNames).not.toContain('shadow_commit_review');
     expect(providerNames).not.toContain('read_tool_result');
+    expect(providerNames).not.toContain('ask_user');
   });
 
   it('cannot leak an unavailable write through a permissive-looking policy', () => {
@@ -283,14 +353,54 @@ describe('canonical Agent tool catalog', () => {
       ],
     });
 
-    expect(result).toHaveLength(20);
+    expect(result).toHaveLength(28);
     expect(
       result
         .filter((tool) => tool.access === 'write')
         .map((tool) => tool.name),
-    ).toEqual(P3_CERTIFIED_WRITE_NAMES);
+    ).toEqual(CERTIFIED_WRITE_NAMES);
     expect(
       result.some((tool) => tool.certification === 'unavailable'),
     ).toBe(false);
   });
 });
+
+function proseArguments(
+  name: (typeof P5_PROSE_WRITE_NAMES)[number],
+  withFreshness: boolean,
+): Record<string, unknown> {
+  const target = {
+    entity: '第一章',
+    ...(withFreshness
+      ? {
+          expectedRevision: {
+            receiptId: 'agent-read:session:turn:call',
+            observationId: 'agent-observation:session:turn:call:1',
+            revision: 'yjs:7',
+          },
+        }
+      : {}),
+  };
+  switch (name) {
+    case 'edit_block':
+      return { ...target, block: 1, text: '新段落' };
+    case 'edit_blocks':
+      return {
+        ...target,
+        edits: [{ block: 1, text: '新段落' }],
+      };
+    case 'append_paragraph':
+      return { ...target, text: '新增段落' };
+    case 'remove_blocks':
+      return { ...target, blockNumbers: [1] };
+    case 'replace_block_range':
+      return {
+        ...target,
+        fromBlock: 1,
+        toBlock: 2,
+        blocks: ['替换段落'],
+      };
+    case 'insert_blocks':
+      return { ...target, afterBlock: 1, blocks: ['插入段落'] };
+  }
+}

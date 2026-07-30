@@ -8,6 +8,7 @@ import { createToolSelector, type ToolSearchMetadataByName } from './tool-select
 import type { AgentToolSelectionStrategy } from './types';
 
 const RESULT_PAGE_TOOL = 'read_tool_result';
+const ASK_USER_TOOL = 'ask_user';
 
 export const DRIFTING_RUNTIME_TOOL_SEARCH_POLICY: AgentProviderToolPolicy =
   Object.freeze<AgentProviderToolPolicy>({
@@ -56,8 +57,11 @@ export function createDriftingToolSelectionStrategy(
     select(request): readonly string[] {
       const executableNames = new Set(request.definitions.map((definition) => definition.name));
       const selected: string[] = [];
+      if (request.limit > 0 && executableNames.has(ASK_USER_TOOL)) {
+        selected.push(ASK_USER_TOOL);
+      }
       if (
-        request.limit > 0 &&
+        selected.length < request.limit &&
         executableNames.has(RESULT_PAGE_TOOL) &&
         requestsResultPage(request.query)
       ) {

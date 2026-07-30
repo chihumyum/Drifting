@@ -13,6 +13,7 @@ import {
   createRepositoryAgentTransportPersistence,
   type AgentRuntimeRecoveryCodec,
 } from './repository-transport-persistence';
+import { hashAgentPermissionArguments } from './control-plane';
 import { hashAgentRuntimeCheckpointContext } from './recovery';
 import type { AgentModelMessage } from './types';
 
@@ -175,6 +176,145 @@ function fakeRepository(): FakeRepository {
 }
 
 describe('repository Agent transport persistence adapter', () => {
+  it('lists recovered wait points and safely cancels them without approving a lost execution stack', async () => {
+    const fake = fakeRepository();
+    const route = {
+      kind: 'chat' as const,
+      projectId: 'project-1',
+      conversationId: 'conversation-1',
+    };
+    const args = { expectedRevision: 'rev-1', title: 'New' };
+    const argumentsHash = await hashAgentPermissionArguments(args);
+    fake.state.messages = [{
+      id: 'prompt-crashed',
+      sessionId: 'session-1',
+      turnId: 'turn-crashed',
+      ordinal: 0,
+      role: 'user',
+      status: 'complete',
+      content: 'unanswered prompt',
+      createdAt: NOW,
+      completedAt: NOW,
+    }];
+    const usage = {
+      inputTokens: 2,
+      outputTokens: 1,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      costUsd: 0,
+    };
+    const events = [
+      { type: 'turn_started' as const, prompt: 'unanswered prompt' },
+      {
+        type: 'model_iteration_started' as const,
+        iteration: 1,
+        driverId: 'provider-old',
+      },
+      {
+        type: 'tool_call_started' as const,
+        iteration: 1,
+        callId: 'call-1',
+        name: 'rename_node',
+      },
+      {
+        type: 'tool_args_delta' as const,
+        iteration: 1,
+        callId: 'call-1',
+        delta: JSON.stringify(args),
+      },
+      {
+        type: 'tool_call_ready' as const,
+        iteration: 1,
+        callId: 'call-1',
+        name: 'rename_node',
+        arguments: args,
+        rawArguments: JSON.stringify(args),
+      },
+      { type: 'model_usage' as const, iteration: 1, usage },
+      {
+        type: 'model_iteration_completed' as const,
+        iteration: 1,
+        stopReason: 'tool_use' as const,
+      },
+      {
+        type: 'permission_requested' as const,
+        request: {
+          requestId: 'permission-1',
+          sessionId: 'session-1',
+          turnId: 'turn-crashed',
+          callId: 'call-1',
+          toolName: 'rename_node',
+          access: 'write' as const,
+          arguments: args,
+          argumentsHash,
+          revision: 'rev-1',
+          allowedScopes: ['once' as const],
+        },
+      },
+    ];
+    fake.state.events = events.map((runtimeEvent, index) => ({
+      eventId: `turn-crashed:${String(index + 1).padStart(8, '0')}`,
+      sessionId: 'session-1',
+      turnId: 'turn-crashed',
+      seq: index + 1,
+      schemaVersion: 1,
+      eventType: runtimeEvent.type,
+      payload: { route, event: runtimeEvent },
+      wallTimeMs: Date.parse(NOW) + index,
+      createdAt: new Date(Date.parse(NOW) + index).toISOString(),
+    }));
+    fake.state.toolCalls = [{
+      id: 'tool-1',
+      sessionId: 'session-1',
+      turnId: 'turn-crashed',
+      callId: 'call-1',
+      name: 'rename_node',
+      access: 'write',
+      status: 'requested',
+      idempotencyKey: 'session-1:turn-crashed:call-1',
+      arguments: args,
+      result: null,
+      errorCode: null,
+      createdAt: NOW,
+      startedAt: null,
+      completedAt: null,
+    }];
+    const persistence = createRepositoryAgentTransportPersistence({
+      repository: fake.repository,
+      resolveToolAccess: () => 'write',
+    });
+
+    await expect(
+      persistence.listPendingControls!({ sessionId: 'session-1' }),
+    ).resolves.toEqual([expect.objectContaining({
+      status: 'waiting_permission',
+      requiresContinuation: true,
+      permissionRequest: expect.objectContaining({
+        requestId: 'permission-1',
+        argumentsHash,
+      }),
+    })]);
+
+    await persistence.cancelPendingControl!({
+      sessionId: 'session-1',
+      turnId: 'turn-crashed',
+      requestId: 'permission-1',
+      reason: 'cancel after restart',
+    });
+
+    expect(fake.appended.slice(-3).map((row) => row.eventType)).toEqual([
+      'permission_resolved',
+      'cancellation_requested',
+      'tool_result',
+    ]);
+    expect(fake.appended[fake.appended.length - 1]?.payload).toMatchObject({
+      event: {
+        errorCode: 'RECOVERED_CONTROL_CANCELLED',
+      },
+    });
+    expect(fake.order).toContain('interrupt');
+  });
+
   it('hydrates provider history through the real strict recovery codec', async () => {
     const fake = fakeRepository();
     const route = {
@@ -337,6 +477,10 @@ describe('repository Agent transport persistence adapter', () => {
     const persistence = createRepositoryAgentTransportPersistence({
       repository: fake.repository,
       writeEffects: { interruptSessionWrites },
+      beforeResumeSession: vi.fn(async (sessionId) => {
+        expect(sessionId).toBe('session-1');
+        fake.order.push('reconcile-writes');
+      }),
       recovery,
       resolveToolAccess: () => 'read',
     });
@@ -365,6 +509,7 @@ describe('repository Agent transport persistence adapter', () => {
 
     expect(fake.order).toEqual([
       'recover',
+      'reconcile-writes',
       'interrupt-writes',
       'interrupt',
       'recover',

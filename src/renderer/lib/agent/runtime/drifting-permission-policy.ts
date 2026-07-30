@@ -58,10 +58,10 @@ export function createDriftingAgentPermissionPolicy(
         return {
           decision: 'ask',
           reason: `${tool.name} requires author approval before execution.`,
-          allowedScopes:
-            tool.risk === 'critical'
-              ? ['once']
-              : ['once', 'session'],
+          // Broader grants stay closed until a durable session/project grant
+          // store exists. Advertising an unimplemented scope would make the
+          // permission UI promise authority that the runtime cannot honor.
+          allowedScopes: ['once'],
         };
       }
       if (

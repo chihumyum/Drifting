@@ -1,4 +1,5 @@
 import type { AgentChatMessage } from '../../../domain/agent-conversation';
+import type { AgentPendingControl } from '../protocol';
 import type {
   AgentRuntimeRecoverySnapshot,
   AgentRuntimeSessionStatus,
@@ -133,6 +134,7 @@ export interface AgentRuntimeRecoveryResult {
   repairs: AgentRuntimeRecoveryRepair[];
   plan: AgentRuntimeRecoveryPlan;
   checkpointId: string | null;
+  pendingControls: AgentPendingControl[];
 }
 
 const INTERRUPTED_TOOL_RESULT =
@@ -1026,6 +1028,176 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
         access: value.access,
       };
 
+    case 'permission_requested': {
+      const request = value.request;
+      if (
+        !isRecord(request) ||
+        !isNonEmptyString(request.requestId) ||
+        !isNonEmptyString(request.sessionId) ||
+        !isNonEmptyString(request.turnId) ||
+        !isNonEmptyString(request.callId) ||
+        !isNonEmptyString(request.toolName) ||
+        (request.access !== 'read' && request.access !== 'write') ||
+        !isRecord(request.arguments) ||
+        typeof request.argumentsHash !== 'string' ||
+        !/^sha256:[0-9a-f]{64}$/.test(request.argumentsHash) ||
+        (request.revision !== null && typeof request.revision !== 'string') ||
+        !Array.isArray(request.allowedScopes) ||
+        request.allowedScopes.length === 0 ||
+        request.allowedScopes.some(
+          (scope) =>
+            scope !== 'once' && scope !== 'session' && scope !== 'project',
+        ) ||
+        (request.reason !== undefined && typeof request.reason !== 'string')
+      ) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid permission request.`);
+      }
+      return {
+        type: 'permission_requested',
+        request: {
+          requestId: request.requestId,
+          sessionId: request.sessionId,
+          turnId: request.turnId,
+          callId: request.callId,
+          toolName: request.toolName,
+          access: request.access,
+          arguments: toCanonicalJsonValue(
+            request.arguments,
+            `${path}.request.arguments`,
+          ) as Record<string, unknown>,
+          argumentsHash: request.argumentsHash,
+          revision: request.revision,
+          ...(request.reason ? { reason: request.reason } : {}),
+          allowedScopes: [...request.allowedScopes],
+        },
+      };
+    }
+
+    case 'permission_resolved': {
+      const resolution = value.resolution;
+      if (
+        !isRecord(resolution) ||
+        !isNonEmptyString(resolution.requestId) ||
+        !isNonEmptyString(resolution.sessionId) ||
+        !isNonEmptyString(resolution.turnId) ||
+        !isNonEmptyString(resolution.callId) ||
+        typeof resolution.argumentsHash !== 'string' ||
+        !/^sha256:[0-9a-f]{64}$/.test(resolution.argumentsHash) ||
+        (resolution.revision !== null &&
+          typeof resolution.revision !== 'string') ||
+        (resolution.decision !== 'allow' &&
+          resolution.decision !== 'deny') ||
+        (resolution.scope !== 'once' &&
+          resolution.scope !== 'session' &&
+          resolution.scope !== 'project') ||
+        (resolution.reason !== undefined &&
+          typeof resolution.reason !== 'string')
+      ) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid permission resolution.`);
+      }
+      return {
+        type: 'permission_resolved',
+        resolution: {
+          requestId: resolution.requestId,
+          sessionId: resolution.sessionId,
+          turnId: resolution.turnId,
+          callId: resolution.callId,
+          argumentsHash: resolution.argumentsHash,
+          revision: resolution.revision,
+          decision: resolution.decision,
+          scope: resolution.scope,
+          ...(resolution.reason ? { reason: resolution.reason } : {}),
+        },
+      };
+    }
+
+    case 'user_input_requested': {
+      const request = value.request;
+      if (
+        !isRecord(request) ||
+        !isNonEmptyString(request.requestId) ||
+        !isNonEmptyString(request.sessionId) ||
+        !isNonEmptyString(request.turnId) ||
+        !isNonEmptyString(request.callId) ||
+        !isNonEmptyString(request.prompt)
+      ) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid user input request.`);
+      }
+      return {
+        type: 'user_input_requested',
+        request: {
+          requestId: request.requestId,
+          sessionId: request.sessionId,
+          turnId: request.turnId,
+          callId: request.callId,
+          prompt: request.prompt,
+        },
+      };
+    }
+
+    case 'user_input_received': {
+      const response = value.response;
+      if (
+        !isRecord(response) ||
+        !isNonEmptyString(response.requestId) ||
+        !isNonEmptyString(response.sessionId) ||
+        !isNonEmptyString(response.turnId) ||
+        !isNonEmptyString(response.callId) ||
+        typeof response.text !== 'string'
+      ) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid user input response.`);
+      }
+      return {
+        type: 'user_input_received',
+        response: {
+          requestId: response.requestId,
+          sessionId: response.sessionId,
+          turnId: response.turnId,
+          callId: response.callId,
+          text: response.text,
+        },
+      };
+    }
+
+    case 'steering_received':
+      if (!isNonEmptyString(value.messageId) || !isNonEmptyString(value.text)) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path} has invalid steering.`);
+      }
+      return {
+        type: 'steering_received',
+        messageId: value.messageId,
+        text: value.text,
+      };
+
+    case 'steering_applied':
+      if (!isNonEmptyString(value.messageId)) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path} has invalid steering application.`);
+      }
+      return { type: 'steering_applied', messageId: value.messageId };
+
+    case 'stop_after_tool_requested':
+      return { type: 'stop_after_tool_requested' };
+
+    case 'cancellation_requested':
+      if (!isNonEmptyString(value.reason)) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid cancellation reason.`);
+      }
+      return { type: 'cancellation_requested', reason: value.reason };
+
+    case 'commit_started': {
+      const outcomes = ['completed', 'failed', 'aborted', 'budget_exceeded'];
+      if (typeof value.outcome !== 'string' || !outcomes.includes(value.outcome)) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid commit outcome.`);
+      }
+      return {
+        type: 'commit_started',
+        outcome: value.outcome as Extract<
+          AgentRuntimeEvent,
+          { type: 'commit_started' }
+        >['outcome'],
+      };
+    }
+
     case 'tool_result':
       if (
         !isNonEmptyString(value.callId) ||
@@ -1867,7 +2039,33 @@ export async function recoverAgentRuntimeSnapshot(
     ]),
     plan,
     checkpointId: checkpoint.checkpoint?.id ?? null,
+    pendingControls: replayed.turns.flatMap((turn): AgentPendingControl[] => {
+      const state = turn.journalState;
+      if (state?.status === 'waiting_permission' && state.pendingPermission) {
+        return [{
+          sessionId: snapshot.session.id,
+          turnId: turn.turnId,
+          status: 'waiting_permission',
+          permissionRequest: cloneRecoveryValue(state.pendingPermission),
+          requiresContinuation: true,
+        }];
+      }
+      if (state?.status === 'waiting_user' && state.pendingUserInput) {
+        return [{
+          sessionId: snapshot.session.id,
+          turnId: turn.turnId,
+          status: 'waiting_user',
+          userInputRequest: cloneRecoveryValue(state.pendingUserInput),
+          requiresContinuation: true,
+        }];
+      }
+      return [];
+    }),
   };
+}
+
+function cloneRecoveryValue<T>(value: T): T {
+  return JSON.parse(canonicalRecoveryJson(value)) as T;
 }
 
 function applyTransition<T extends { id: string; status: string }>(

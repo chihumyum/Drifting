@@ -76,6 +76,18 @@ export type YjsProseOperation =
       block: YjsProseBlock;
     }
   | {
+      /**
+       * Atomically edit non-contiguous blocks without recreating the untouched
+       * blocks between them. This is the command primitive behind the
+       * provider-facing `edit_blocks` tool.
+       */
+      kind: 'edit_many';
+      edits: readonly {
+        blockId: string;
+        block: YjsProseBlock;
+      }[];
+    }
+  | {
       kind: 'remove';
       blockIds: readonly string[];
     }
@@ -392,8 +404,14 @@ function normalizeBlock(block: YjsProseBlock, path: string): YjsProseBlock {
   };
 }
 
-function normalizeBlocks(blocks: readonly YjsProseBlock[], path: string): YjsProseBlock[] {
-  if (blocks.length === 0) invalidCommand(`${path} must contain at least one block.`);
+function normalizeBlocks(
+  blocks: readonly YjsProseBlock[],
+  path: string,
+  allowEmpty = false,
+): YjsProseBlock[] {
+  if (!allowEmpty && blocks.length === 0) {
+    invalidCommand(`${path} must contain at least one block.`);
+  }
   const normalized = blocks.map((block, index) => normalizeBlock(block, `${path}[${index}]`));
   const ids = new Set<string>();
   for (const block of normalized) {
@@ -422,6 +440,31 @@ function normalizeOperation(operation: YjsProseOperation): YjsProseOperation {
       }
       return { kind: 'edit', blockId, block };
     }
+    case 'edit_many': {
+      if (operation.edits.length === 0) {
+        invalidCommand('operation.edits must contain at least one edit.');
+      }
+      const edits = operation.edits.map((edit, index) => {
+        const blockId = assertNonEmpty(
+          edit.blockId,
+          `operation.edits[${index}].blockId`,
+        );
+        const block = normalizeBlock(
+          edit.block,
+          `operation.edits[${index}].block`,
+        );
+        if (block.id !== blockId) {
+          invalidCommand(
+            `operation.edits[${index}].block.id must equal its blockId.`,
+          );
+        }
+        return { blockId, block };
+      });
+      if (new Set(edits.map((edit) => edit.blockId)).size !== edits.length) {
+        invalidCommand('operation.edits must not target a block twice.');
+      }
+      return { kind: 'edit_many', edits };
+    }
     case 'remove': {
       if (operation.blockIds.length === 0) {
         invalidCommand('operation.blockIds must contain at least one block id.');
@@ -439,7 +482,7 @@ function normalizeOperation(operation: YjsProseOperation): YjsProseOperation {
         kind: 'replace',
         fromBlockId: assertNonEmpty(operation.fromBlockId, 'operation.fromBlockId'),
         toBlockId: assertNonEmpty(operation.toBlockId, 'operation.toBlockId'),
-        blocks: normalizeBlocks(operation.blocks, 'operation.blocks'),
+        blocks: normalizeBlocks(operation.blocks, 'operation.blocks', true),
       };
     case 'append':
       return {
@@ -574,6 +617,148 @@ export function replaceYjsProseBlocks(doc: Y.Doc, blocks: readonly YjsProseBlock
   }, 'agent-runtime:yjs-prose-fixture');
 }
 
+/**
+ * Convert a never-opened node_content projection into a full Yjs seed.
+ *
+ * This deliberately uses the same minimal TipTap schema as
+ * `useEntityYjsDoc`. Missing/duplicate top-level ids are deterministically
+ * materialized before conversion so an Agent retry prepares the same command
+ * instead of inventing fresh UUIDs. Once the first command commits, this seed
+ * is persisted as canonical Yjs state and contentJson returns to being only a
+ * projection.
+ */
+export async function createYjsProseSeedState(
+  contentJson: string,
+): Promise<Uint8Array> {
+  let document: Record<string, unknown>;
+  const source = contentJson.trim();
+  if (!source || source === '{}') {
+    document = { type: 'doc', content: [] };
+  } else {
+    try {
+      const parsed = JSON.parse(source) as unknown;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return invalidProse('Seed contentJson must contain a ProseMirror document.');
+      }
+      document = parsed as Record<string, unknown>;
+    } catch (error) {
+      if (error instanceof YjsProseCommandError) throw error;
+      return invalidProse('Seed contentJson is not valid JSON.');
+    }
+  }
+  if (document.type !== 'doc') {
+    return invalidProse('Seed contentJson must have type "doc".');
+  }
+  const rawContent = document.content;
+  if (rawContent !== undefined && !Array.isArray(rawContent)) {
+    return invalidProse('Seed contentJson.content must be an array.');
+  }
+  const content = (rawContent ?? []) as unknown[];
+  const seen = new Set<string>();
+  const normalizedContent: Record<string, unknown>[] = [];
+  for (const [index, rawNode] of content.entries()) {
+    if (!rawNode || typeof rawNode !== 'object' || Array.isArray(rawNode)) {
+      return invalidProse(`Seed top-level block ${index} must be an object.`);
+    }
+    const node = structuredClone(rawNode) as Record<string, unknown>;
+    const attrs =
+      node.attrs && typeof node.attrs === 'object' && !Array.isArray(node.attrs)
+        ? { ...(node.attrs as Record<string, unknown>) }
+        : {};
+    const candidate =
+      typeof attrs.id === 'string' && attrs.id.trim() ? attrs.id.trim() : null;
+    const id =
+      candidate && !seen.has(candidate)
+        ? candidate
+        : await deterministicSeedBlockId(index, node);
+    attrs.id = id;
+    seen.add(id);
+    node.attrs = attrs;
+    normalizedContent.push(node);
+  }
+  document = { ...document, content: normalizedContent };
+
+  try {
+    const [
+      { getSchema },
+      { prosemirrorJSONToYDoc },
+      StarterKit,
+      Underline,
+      Link,
+      TextAlign,
+      { BlockId },
+      { EntityLink },
+    ] = await Promise.all([
+      import('@tiptap/core'),
+      import('y-prosemirror'),
+      import('@tiptap/starter-kit').then((module) => module.default),
+      import('@tiptap/extension-underline').then((module) => module.default),
+      import('@tiptap/extension-link').then((module) => module.default),
+      import('@tiptap/extension-text-align').then((module) => module.default),
+      import('../../extensions/block-id'),
+      import('../../extensions/entity-link'),
+    ]);
+    const schema = getSchema([
+      StarterKit.configure({ underline: false, link: false }),
+      Underline,
+      Link,
+      TextAlign,
+      BlockId,
+      EntityLink,
+    ] as never);
+    const seeded = prosemirrorJSONToYDoc(schema, document, DEFAULT_FRAGMENT);
+    try {
+      // Fail closed now if this projection cannot satisfy the runtime's
+      // stable top-level block contract (rather than after mutation journal).
+      const blocks = snapshotYjsProseBlocks(seeded);
+      const stable = new Y.Doc({ gc: false });
+      const clientDigest = (
+        await sha256Text(
+          canonicalStringify({
+            namespace: 'drifting.yjs-prose-seed-client',
+            document,
+          }),
+        )
+      ).slice('sha256:'.length);
+      stable.clientID = Number.parseInt(clientDigest.slice(0, 8), 16) || 1;
+      try {
+        replaceYjsProseBlocks(stable, blocks);
+        return Y.encodeStateAsUpdate(stable);
+      } finally {
+        stable.destroy();
+      }
+    } finally {
+      seeded.destroy();
+    }
+  } catch (error) {
+    if (error instanceof YjsProseCommandError) throw error;
+    const detail = error instanceof Error ? error.message : String(error);
+    return invalidProse(`Seed contentJson could not be decoded: ${detail}`);
+  }
+}
+
+async function deterministicSeedBlockId(
+  index: number,
+  node: Record<string, unknown>,
+): Promise<string> {
+  const digest = (
+    await sha256Text(
+      canonicalStringify({
+        namespace: 'drifting.yjs-prose-seed',
+        index,
+        node,
+      }),
+    )
+  ).slice('sha256:'.length);
+  const bytes = digest.slice(0, 32).split('');
+  // RFC 4122 variant plus a name-derived version nibble. The identifier is
+  // deterministic, not a claim that SHA-256 is UUIDv5/SHA-1.
+  bytes[12] = '5';
+  bytes[16] = (Number.parseInt(bytes[16], 16) & 0x3 | 0x8).toString(16);
+  const hex = bytes.join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 interface PreflightPlan {
   operation: YjsProseOperation;
   affectedBlockIds: string[];
@@ -627,6 +812,27 @@ function preflightOperation(baseBlocks: readonly YjsProseBlock[], raw: YjsProseO
         },
       };
     }
+    case 'edit_many': {
+      const planned = operation.edits.map((edit, index) => ({
+        at: blockIndex(ids, edit.blockId, `edit_many.edits[${index}]`),
+        edit,
+      }));
+      return {
+        operation,
+        affectedBlockIds: planned.map(({ edit }) => edit.blockId),
+        apply: (fragment) => {
+          // Replacing a top-level Y.XmlElement does not shift later indices,
+          // but descending order also makes that invariant explicit if Yjs'
+          // list integration changes.
+          for (const { at, edit } of [...planned].sort(
+            (left, right) => right.at - left.at,
+          )) {
+            fragment.delete(at, 1);
+            fragment.insert(at, [createBlock(edit.block)]);
+          }
+        },
+      };
+    }
     case 'remove': {
       const indices = operation.blockIds.map((id) => blockIndex(ids, id, 'remove'));
       if (baseBlocks.length - indices.length < 1) {
@@ -647,6 +853,9 @@ function preflightOperation(baseBlocks: readonly YjsProseBlock[], raw: YjsProseO
       const to = blockIndex(ids, operation.toBlockId, 'replace.toBlockId');
       if (from > to) invalidCommand('replace.fromBlockId must be at or before replace.toBlockId.');
       const removed = ids.slice(from, to + 1);
+      if (baseBlocks.length - removed.length + operation.blocks.length < 1) {
+        invalidCommand('A prose command must leave at least one top-level block.');
+      }
       assertInsertedIdsAvailable(ids, new Set(removed), operation.blocks);
       return {
         operation,
@@ -944,12 +1153,17 @@ function parsePortableBlock(value: unknown, path: string): YjsProseBlock {
   };
 }
 
-function parsePortableBlocks(value: unknown, path: string): YjsProseBlock[] {
+function parsePortableBlocks(
+  value: unknown,
+  path: string,
+  allowEmpty = false,
+): YjsProseBlock[] {
   return normalizeBlocks(
     requireArray(value, path).map((block, index) =>
       parsePortableBlock(block, `${path}[${index}]`),
     ),
     path,
+    allowEmpty,
   );
 }
 
@@ -971,6 +1185,28 @@ function parsePortableOperation(value: unknown): YjsProseOperation {
         blockId: assertNonEmpty(record.blockId, 'operation.blockId'),
         block: parsePortableBlock(record.block, 'operation.block'),
       });
+    case 'edit_many':
+      return normalizeOperation({
+        kind: 'edit_many',
+        edits: requireArray(record.edits, 'operation.edits').map(
+          (value, index) => {
+            const edit = requireRecord(
+              value,
+              `operation.edits[${index}]`,
+            );
+            return {
+              blockId: assertNonEmpty(
+                edit.blockId,
+                `operation.edits[${index}].blockId`,
+              ),
+              block: parsePortableBlock(
+                edit.block,
+                `operation.edits[${index}].block`,
+              ),
+            };
+          },
+        ),
+      });
     case 'remove':
       return normalizeOperation({
         kind: 'remove',
@@ -981,7 +1217,11 @@ function parsePortableOperation(value: unknown): YjsProseOperation {
         kind: 'replace',
         fromBlockId: assertNonEmpty(record.fromBlockId, 'operation.fromBlockId'),
         toBlockId: assertNonEmpty(record.toBlockId, 'operation.toBlockId'),
-        blocks: parsePortableBlocks(record.blocks, 'operation.blocks'),
+        blocks: parsePortableBlocks(
+          record.blocks,
+          'operation.blocks',
+          true,
+        ),
       });
     case 'append':
       return normalizeOperation({

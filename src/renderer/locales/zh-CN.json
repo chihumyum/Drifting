@@ -1136,9 +1136,31 @@
       "message": "Agent 正在「{{title}}」中工作 · 查看",
       "disabledTitle": "Agent 正在另一个对话中工作，完成后可继续"
     },
+    "control": {
+      "permissionTitle": "Agent 请求执行操作",
+      "arguments": "查看完整参数",
+      "deny": "拒绝",
+      "allow": {
+        "once": "仅这一次",
+        "session": "本会话允许",
+        "project": "本项目允许"
+      },
+      "questionTitle": "Agent 需要你的决定",
+      "answerHint": "在下方输入回答后发送，Agent 会从当前步骤继续。",
+      "recoveredTitle": "发现上次中断的等待步骤",
+      "recoveredBody": "原执行栈已经不存在，因此不会自动批准、重放写入或假装从原位置继续。先安全结束该等待步骤，再发送新指令继续。",
+      "endRecovered": "结束挂起步骤"
+    },
     "composer": {
       "placeholder": "询问 Agent…（Cmd/Ctrl+Enter）",
+      "steerPlaceholder": "补充或纠正正在执行的任务…",
+      "answerPlaceholder": "回答 Agent 的问题…",
       "stop": "停止",
+      "abortTitle": "立即请求取消；已进入提交的事务会先安全收敛",
+      "stopAfterTool": "做完当前工具后停",
+      "stopAfterToolTitle": "让 Agent 在当前工具安全结束后停止",
+      "steer": "补充",
+      "answer": "回答",
       "send": "发送"
     }
   },
