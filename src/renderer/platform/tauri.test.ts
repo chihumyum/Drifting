@@ -24,6 +24,71 @@ import {
   NATIVE_OAUTH_STATE_TTL_MS,
 } from './native-oauth-state';
 
+describe('tauri General Agent capability', () => {
+  beforeEach(() => {
+    tauriMocks.invoke.mockReset();
+    Object.defineProperty(globalThis, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {},
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ['macos', 'desktop'],
+    ['ios', 'mobile'],
+    ['android', 'mobile'],
+  ] as const)(
+    'advertises the renderer-local runtime on %s',
+    async (platform, target) => {
+      tauriMocks.invoke.mockImplementation(async (command: string) => {
+        if (command === 'app_get_info') {
+          return {
+            name: 'Drifting',
+            version: '0.0.0',
+            platform,
+            architecture: 'test',
+          };
+        }
+        if (command === 'platform_capabilities') {
+          // An older native binary may still report the retired sidecar-era
+          // value. The renderer owns this capability and must normalize it.
+          return {
+            desktopWindowControls: platform === 'macos',
+            deepLinks: true,
+            externalUrlOpener: true,
+            secureStorage: true,
+            materialFiles: true,
+            assetCache: true,
+            aiLog: true,
+            oauth: true,
+            imageCodecs: {
+              rust: [],
+              nativeSystem: [],
+              runtimeChecked: true,
+            },
+            generalAgent: false,
+            generalAgentUnavailableReason:
+              'legacy Node/CLI requirement',
+          };
+        }
+        throw new Error(`unexpected command: ${command}`);
+      });
+
+      await expect(tauriPlatform.app.getCapabilities()).resolves.toMatchObject({
+        runtime: 'tauri',
+        target,
+        generalAgent: true,
+        generalAgentUnavailableReason: '',
+        featureStatus: { generalAgent: 'available' },
+      });
+    },
+  );
+});
+
 type DeepLinkEventHandler = (event: { payload: { urls: string[] } }) => void;
 
 describe('tauri OAuth callback delivery', () => {

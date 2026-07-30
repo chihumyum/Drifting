@@ -118,7 +118,6 @@ pub fn run() {
             commands::deep_link_take_pending,
             commands::lifecycle_get_status,
             commands::lifecycle_complete_flush,
-            commands::general_agent_start_unsupported,
             system_fonts::typography_list_system_fonts,
             secure_storage::keychain_get,
             secure_storage::keychain_set,

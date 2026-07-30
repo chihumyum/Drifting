@@ -20,8 +20,6 @@ import type { PlatformApi, Unsubscribe } from './types';
 
 const DEEP_LINK_EVENT = 'drifting:deep-link' as const;
 const LIFECYCLE_EVENT = 'drifting:lifecycle' as const;
-const GENERAL_AGENT_UNAVAILABLE =
-  'General Agent is unavailable in the Tauri client because the current Anthropic runtime requires the desktop Node/CLI SDK.';
 
 type TauriGlobal = typeof globalThis & {
   __TAURI_INTERNALS__?: unknown;
@@ -167,9 +165,11 @@ function normalizeCapabilities(
     ...native,
     runtime: 'tauri',
     target: isMobilePlatform(platform) ? 'mobile' : 'desktop',
-    generalAgent: false,
-    generalAgentUnavailableReason:
-      native.generalAgentUnavailableReason || GENERAL_AGENT_UNAVAILABLE,
+    // General Agent is renderer-local and provider-neutral. It no longer
+    // depends on an Electron main process, Node sidecar, or Anthropic CLI, so
+    // every Tauri target that can run this renderer has the same contract.
+    generalAgent: true,
+    generalAgentUnavailableReason: '',
     featureStatus: {
       secureStorage: advertised(native.secureStorage),
       materialFiles: advertised(native.materialFiles),
@@ -179,7 +179,7 @@ function normalizeCapabilities(
         native.oauth === undefined && native.deepLinks && native.externalUrlOpener
           ? 'available'
           : advertised(native.oauth),
-      generalAgent: 'unsupported',
+      generalAgent: 'available',
     },
   };
 }

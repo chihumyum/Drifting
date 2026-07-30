@@ -110,9 +110,10 @@ pub fn platform_capabilities() -> PlatformCapabilities {
             // OS version and installed codec support are checked when the source is decoded.
             runtime_checked: true,
         },
-        general_agent: false,
-        general_agent_unavailable_reason:
-            "The current Anthropic General Agent requires a desktop Node/CLI runtime and is not part of the Tauri migration yet.",
+        // The provider-neutral runtime executes in the renderer and calls
+        // Drifting's own use cases. It does not require a native sidecar.
+        general_agent: true,
+        general_agent_unavailable_reason: "",
     }
 }
 
@@ -280,12 +281,4 @@ pub fn lifecycle_complete_flush(
         ShutdownAction::ExitApp => app.exit(0),
     }
     Ok(true)
-}
-
-#[tauri::command]
-pub fn general_agent_start_unsupported() -> Result<(), String> {
-    Err(
-        "General Agent is unsupported in the Tauri client. The existing runtime requires the desktop-only Anthropic Node/CLI SDK."
-            .into(),
-    )
 }
