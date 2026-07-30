@@ -2,9 +2,20 @@ import {
   createAgentRuntimeWriteEffectRepository,
   type AgentRuntimeWriteEffectRepository,
 } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
+import type { AgentContextSupplementalPinnedRow } from './context-message-adapter';
 
 const MAX_FEEDBACK_ITEMS = 20;
 const MAX_ARGUMENT_CHARS = 240;
+const PINNED_REVIEW_STATUSES = new Set([
+  'pending',
+  'accepted',
+  'rejected',
+  'revert_started',
+  'accepted_effect',
+  'reverted',
+  'revert_failed',
+  'revert_unavailable',
+]);
 
 /**
  * Canonical user-decision feedback appended to the next model prompt.
@@ -69,6 +80,70 @@ export async function buildAgentWriteReviewFeedback(
         ...lines,
       ].join('\n')
     : '';
+}
+
+/**
+ * First-class context rows for current durable review decisions.
+ *
+ * Unlike the legacy prompt prefix, these rows retain canonical provenance and
+ * remain semantically pinned by the context planner. Pending/in-progress
+ * decisions are never trimmed; settled history is bounded because accepted
+ * domain state must be re-read through tools rather than growing an eternal
+ * prompt log.
+ */
+export async function loadAgentWriteReviewContextRows(
+  sessionId: string,
+  repository: AgentRuntimeWriteEffectRepository =
+    createAgentRuntimeWriteEffectRepository(),
+): Promise<AgentContextSupplementalPinnedRow[]> {
+  if (!sessionId) return [];
+  const snapshot = await repository.loadSnapshot(sessionId);
+  const effects = new Map(snapshot.effects.map((effect) => [effect.id, effect]));
+  const eligible = snapshot.reviews
+    .filter((review) => PINNED_REVIEW_STATUSES.has(review.status))
+    .filter((review) => effects.has(review.effectId))
+    .sort(
+      (left, right) =>
+        left.createdAt.localeCompare(right.createdAt) ||
+        left.id.localeCompare(right.id),
+    );
+  const unsettled = eligible.filter((review) =>
+    ['pending', 'accepted', 'rejected', 'revert_started'].includes(
+      review.status,
+    ),
+  );
+  const settled = eligible
+    .filter((review) => !unsettled.includes(review))
+    .slice(-MAX_FEEDBACK_ITEMS);
+
+  return [...settled, ...unsettled]
+    .sort(
+      (left, right) =>
+        left.createdAt.localeCompare(right.createdAt) ||
+        left.id.localeCompare(right.id),
+    )
+    .map((review) => {
+      const effect = effects.get(review.effectId)!;
+      return {
+        sourceId: `write-review:${review.id}`,
+        turnOrdinal: null,
+        kind: 'write_review',
+        content: JSON.stringify({
+          reviewId: review.id,
+          effectId: effect.id,
+          toolName: effect.toolName,
+          arguments: clamp(
+            JSON.stringify(effect.arguments),
+            MAX_ARGUMENT_CHARS,
+          ),
+          effectPhase: effect.phase,
+          reviewStatus: review.status,
+          decisionNote: review.decisionNote,
+          errorCode: review.errorCode,
+          errorMessage: review.errorMessage,
+        }),
+      };
+    });
 }
 
 function clamp(value: string, maxLength: number): string {
