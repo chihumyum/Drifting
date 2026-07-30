@@ -197,19 +197,20 @@
 .header-chip-strip {
   display: flex;
   align-items: center;
-  flex: 1 1 auto;
+  justify-content: flex-end;
+  flex: 1 1 0;
   min-width: 0;
   height: 26px;
   overflow: hidden;
 }
 
 .header-chip-strip__content {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
   width: max-content;
-  margin-inline-start: auto;
   white-space: nowrap;
 }
 
@@ -219,8 +220,67 @@
 }
 
 .header-chip-strip__item[data-hidden] {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
   visibility: hidden;
   pointer-events: none;
+}
+
+/* A chip backed by an edge rising from the bottom Drift Panel. Header chips
+   receive this state only while the panel is open; the complete relation menu
+   preserves it as provenance even while the panel is closed. Its colored
+   border uses the edge layer's 5/7 dash rhythm and 1.8s flow cadence. */
+:is(.header-chip-strip, .relation-kind-menu__chips) .filter-chip--drift-edge {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-color: transparent;
+  box-shadow: 0 0 5px color-mix(in srgb, var(--filter-chip-marker) 18%, transparent);
+}
+
+:is(.header-chip-strip, .relation-kind-menu__chips) .filter-chip--drift-edge .filter-chip__marker {
+  width: 10px;
+  height: 2px;
+  border-radius: 999px;
+  box-shadow: 0 0 4px color-mix(in srgb, var(--filter-chip-marker) 72%, transparent);
+}
+
+:is(.header-chip-strip, .relation-kind-menu__chips) .filter-chip--drift-edge::after {
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--filter-chip-marker) 0 5px,
+    transparent 5px 12px
+  );
+  background-size: 12px 100%;
+  content: '';
+  opacity: 0.82;
+  filter: drop-shadow(0 0 2px var(--filter-chip-marker));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(.header-chip-strip, .relation-kind-menu__chips) .filter-chip--drift-edge.is-active::after {
+    animation: header-drift-chip-flow 1.8s linear infinite;
+  }
+}
+
+@keyframes header-drift-chip-flow {
+  to {
+    background-position-x: -24px;
+  }
 }
 
 /* One shared trigger/menu for every graph-style relation-type surface. */

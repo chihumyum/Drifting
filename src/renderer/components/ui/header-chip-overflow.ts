@@ -1,11 +1,16 @@
 const FIT_TOLERANCE_PX = 1;
 
 export function countFittingHeaderChips(
-  itemRightEdges: readonly number[],
+  itemWidths: readonly number[],
   availableWidth: number,
+  gap: number,
 ): number {
-  const lastFittingIndex = itemRightEdges.findIndex(
-    (rightEdge) => rightEdge > availableWidth + FIT_TOLERANCE_PX,
-  );
-  return lastFittingIndex === -1 ? itemRightEdges.length : lastFittingIndex;
+  let occupiedWidth = 0;
+
+  for (let index = 0; index < itemWidths.length; index += 1) {
+    occupiedWidth += itemWidths[index] + (index === 0 ? 0 : gap);
+    if (occupiedWidth > availableWidth + FIT_TOLERANCE_PX) return index;
+  }
+
+  return itemWidths.length;
 }

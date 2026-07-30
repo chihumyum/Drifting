@@ -30,11 +30,17 @@ export function HeaderChipStrip({ children, className = '' }: HeaderChipStripPro
     const viewport = viewportRef.current;
     const content = contentRef.current;
     if (!viewport || !content) return;
-    const rightEdges = Array.from(content.children, (item) => {
-      const element = item as HTMLElement;
-      return element.offsetLeft + element.offsetWidth;
-    });
-    const nextVisibleCount = countFittingHeaderChips(rightEdges, viewport.clientWidth);
+    const itemWidths = Array.from(
+      content.children,
+      (item) => (item as HTMLElement).getBoundingClientRect().width,
+    );
+    const measuredGap = Number.parseFloat(window.getComputedStyle(content).columnGap);
+    const gap = Number.isFinite(measuredGap) ? measuredGap : 0;
+    const nextVisibleCount = countFittingHeaderChips(
+      itemWidths,
+      viewport.getBoundingClientRect().width,
+      gap,
+    );
     setVisibleCount((current) => (current === nextVisibleCount ? current : nextVisibleCount));
   }, []);
 
@@ -50,7 +56,7 @@ export function HeaderChipStrip({ children, className = '' }: HeaderChipStripPro
     if (typeof ResizeObserver !== 'undefined') {
       const observer = new ResizeObserver(measure);
       observer.observe(viewport);
-      observer.observe(content);
+      Array.from(content.children).forEach((item) => observer.observe(item));
       return () => observer.disconnect();
     }
 

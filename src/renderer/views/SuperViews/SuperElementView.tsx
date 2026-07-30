@@ -1393,6 +1393,36 @@ export function SuperElementView() {
     if (hasNull) sorted.push(UNCATEGORIZED_KIND);
     return sorted;
   }, [elementRelations]);
+  // Drift provenance is determined solely by endpoints: if either endpoint
+  // is a drift node, this is a special drift edge even when that node is bound
+  // elsewhere or the bottom panel is closed.
+  const driftEdgeKinds = useMemo(() => {
+    const kinds = new Set<string>();
+    for (const relation of elementRelations) {
+      const fromDrift = relation.fromKind === 'node' && driftIds.has(relation.fromId);
+      const toDrift = relation.toKind === 'node' && driftIds.has(relation.toId);
+      if (!fromDrift && !toDrift) continue;
+      kinds.add(relation.kind ?? UNCATEGORIZED_KIND);
+    }
+    return kinds;
+  }, [driftIds, elementRelations]);
+  const worldEdgeKinds = useMemo(() => {
+    const kinds = new Set<string>();
+    for (const relation of elementRelations) {
+      const fromDrift = relation.fromKind === 'node' && driftIds.has(relation.fromId);
+      const toDrift = relation.toKind === 'node' && driftIds.has(relation.toId);
+      if (fromDrift || toDrift) continue;
+      kinds.add(relation.kind ?? UNCATEGORIZED_KIND);
+    }
+    return kinds;
+  }, [driftIds, elementRelations]);
+  const headerKinds = useMemo(
+    () =>
+      availableKinds.filter(
+        (kind) => worldEdgeKinds.has(kind) || (driftPanelOpen && driftEdgeKinds.has(kind)),
+      ),
+    [availableKinds, driftEdgeKinds, driftPanelOpen, worldEdgeKinds],
+  );
   const kindCounts = useMemo<Record<string, number>>(() => {
     const counts: Record<string, number> = {};
     for (const relation of elementRelations) {
@@ -2185,6 +2215,7 @@ export function SuperElementView() {
         active={visible}
         markerColor={color}
         dimmed={!visible}
+        className={driftPanelOpen && driftEdgeKinds.has(kind) ? 'filter-chip--drift-edge' : ''}
         onClick={() => toggleKindVisibility(kind)}
         title={
           visible
@@ -2229,12 +2260,13 @@ export function SuperElementView() {
               </div>
             )}
 
-            {/* Kind filter chips — one per distinct kind in the project
-                (plus an "未分类" chip when null-kind refs exist). Toggle
-                hides matching edges across both world + drift layers. The strip
-                reveals as many complete leading chips as the header can hold. */}
+            {/* Kind filter chips — world-backed kinds stay visible; kinds
+                exclusive to bottom-panel drift edges join only while that panel
+                is open. Toggle hides matching edges across both layers. The
+                strip reveals as many complete leading chips as the header can
+                hold; the adjacent menu still owns every kind. */}
             <HeaderChipStrip>
-              {availableKinds.map(renderKindFilterChip)}
+              {headerKinds.map(renderKindFilterChip)}
             </HeaderChipStrip>
             <div
               className="relation-kind-menu-anchor super-view-head__no-drag"
@@ -2259,6 +2291,7 @@ export function SuperElementView() {
                 onClose={() => setKindMenuOpen(false)}
                 anchorRef={kindMenuButtonRef}
                 kinds={availableKinds}
+                driftDerivedKinds={driftEdgeKinds}
                 hiddenKinds={hiddenKinds}
                 onToggleKind={toggleKindVisibility}
                 kindCounts={kindCounts}

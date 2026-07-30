@@ -751,6 +751,17 @@ export function StoryGraphView() {
     () => [...regularKinds, ...driftOnlyKinds],
     [driftOnlyKinds, regularKinds],
   );
+  // Drift provenance is a data invariant, not a panel-visibility detail:
+  // whenever either endpoint is a drift node, the relation is a drift edge.
+  // A kind shared by regular and drift edges still keeps one filter chip.
+  const driftEdgeKinds = useMemo(() => {
+    const kinds = new Set<string>();
+    for (const edge of nodeEdges) {
+      if (!driftIds.has(edge.sourceNodeId) && !driftIds.has(edge.targetNodeId)) continue;
+      kinds.add(edge.kind ?? UNCATEGORIZED_KIND);
+    }
+    return kinds;
+  }, [driftIds, nodeEdges]);
   const kindCounts = useMemo<Record<string, number>>(() => {
     const counts: Record<string, number> = {};
     for (const edge of nodeEdges) {
@@ -1270,7 +1281,7 @@ export function StoryGraphView() {
     total: bookNodes.length,
   });
 
-  const renderKindChip = (kind: string) => {
+  const renderKindChip = (kind: string, driftDerived = false) => {
     const isUncategorized = kind === UNCATEGORIZED_KIND;
     const label = isUncategorized ? t('storyGraph.edge.uncategorized') : kind;
     const color = resolveKindColor(isUncategorized ? null : kind);
@@ -1282,6 +1293,7 @@ export function StoryGraphView() {
         activeStyle="solid"
         active={active}
         markerColor={color}
+        className={driftDerived ? 'filter-chip--drift-edge' : ''}
         onClick={() => toggleKindVisibility(kind)}
         title={
           active
@@ -1450,8 +1462,13 @@ export function StoryGraphView() {
               </div>
             )}
             <HeaderChipStrip>
-              {driftPanelOpen && driftOnlyKinds.map((kind) => renderKindChip(kind))}
-              {regularKinds.map((kind) => renderKindChip(kind))}
+              {driftPanelOpen &&
+                driftOnlyKinds
+                  .filter((kind) => driftEdgeKinds.has(kind))
+                  .map((kind) => renderKindChip(kind, true))}
+              {regularKinds.map((kind) =>
+                renderKindChip(kind, driftPanelOpen && driftEdgeKinds.has(kind)),
+              )}
             </HeaderChipStrip>
             <div
               className="relation-kind-menu-anchor super-view-head__no-drag"
@@ -1474,6 +1491,7 @@ export function StoryGraphView() {
                 onClose={() => setEdgeMgrOpen(false)}
                 anchorRef={edgeMgrBtnRef}
                 kinds={allKinds}
+                driftDerivedKinds={driftEdgeKinds}
                 hiddenKinds={hiddenKinds}
                 onToggleKind={toggleKindVisibility}
                 kindCounts={kindCounts}

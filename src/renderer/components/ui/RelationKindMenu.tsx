@@ -22,6 +22,8 @@ export interface RelationKindMenuProps {
   anchorRef: RefObject<HTMLElement | null>;
   /** Every kind in this surface, including the uncategorized sentinel. */
   kinds: string[];
+  /** Kinds backed by an edge derived from the bottom Drift Panel. */
+  driftDerivedKinds: ReadonlySet<string>;
   hiddenKinds: ReadonlySet<string>;
   onToggleKind: (kind: string) => void;
   kindCounts: Readonly<Record<string, number>>;
@@ -49,6 +51,7 @@ export function RelationKindMenu({
   onClose,
   anchorRef,
   kinds,
+  driftDerivedKinds,
   hiddenKinds,
   onToggleKind,
   kindCounts,
@@ -166,6 +169,7 @@ export function RelationKindMenu({
                   markerColor={resolveKindColor(dataKind(kind))}
                   count={kindCounts[kind] ?? 0}
                   dimmed={!active}
+                  className={driftDerivedKinds.has(kind) ? 'filter-chip--drift-edge' : ''}
                   onClick={() => onToggleKind(kind)}
                   title={
                     active
