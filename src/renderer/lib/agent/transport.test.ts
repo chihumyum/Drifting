@@ -96,4 +96,77 @@ describe('General Agent transport boundary', () => {
     }
     expect(generalAgentTransport.capability.kind).toBe('unsupported');
   });
+
+  it('moves existing stream subscriptions across transport replacement', () => {
+    const journalA = new Set<(entry: never) => void>();
+    const journalB = new Set<(entry: never) => void>();
+    const eventsA = new Set<(event: never) => void>();
+    const eventsB = new Set<(event: never) => void>();
+    const transport = (
+      journal: Set<(entry: never) => void>,
+      events: Set<(event: never) => void>,
+      kind: 'local' | 'remote',
+    ): GeneralAgentTransport => ({
+      capability: { available: true, kind },
+      authPrepare: async () => ({ ok: true, value: { url: 'https://example.invalid' } }),
+      authSubmitCode: async () => ({ ok: true, value: undefined }),
+      authStatus: async () => ({
+        ok: true,
+        value: { byokConnected: true, apiKeyConnected: false, hostedAvailable: false },
+      }),
+      authLogout: async () => ({ ok: true, value: undefined }),
+      start: async () => ({ ok: true, value: undefined }),
+      resolvePermission: async () => ({ ok: true, value: undefined }),
+      submitUserInput: async () => ({ ok: true, value: undefined }),
+      steer: async () => ({ ok: true, value: undefined }),
+      stopAfterTool: async () => ({ ok: true, value: undefined }),
+      listPendingControls: async () => ({ ok: true, value: [] }),
+      cancelPendingControl: async () => ({ ok: true, value: undefined }),
+      abort: async () => ({ ok: true, value: undefined }),
+      resetSession: async () => ({ ok: true, value: undefined }),
+      subscribeJournal: (callback) => {
+        journal.add(callback as (entry: never) => void);
+        return {
+          ok: true,
+          value: () => journal.delete(callback as (entry: never) => void),
+        };
+      },
+      subscribeEvents: (callback) => {
+        events.add(callback as (event: never) => void);
+        return {
+          ok: true,
+          value: () => events.delete(callback as (event: never) => void),
+        };
+      },
+    });
+    const first = transport(journalA, eventsA, 'local');
+    const second = transport(journalB, eventsB, 'remote');
+    const restoreFirst = installGeneralAgentTransport(first);
+    const onJournal = vi.fn();
+    const onEvent = vi.fn();
+    const journalSubscription = generalAgentTransport.subscribeJournal(onJournal);
+    const eventSubscription = generalAgentTransport.subscribeEvents(onEvent);
+    expect(journalSubscription.ok).toBe(true);
+    expect(eventSubscription.ok).toBe(true);
+    const restoreSecond = installGeneralAgentTransport(second);
+    try {
+      expect(journalA.size).toBe(0);
+      expect(eventsA.size).toBe(0);
+      expect(journalB.size).toBe(1);
+      expect(eventsB.size).toBe(1);
+
+      restoreSecond();
+      expect(journalA.size).toBe(1);
+      expect(eventsA.size).toBe(1);
+      expect(journalB.size).toBe(0);
+      expect(eventsB.size).toBe(0);
+    } finally {
+      if (journalSubscription.ok) journalSubscription.value();
+      if (eventSubscription.ok) eventSubscription.value();
+      restoreSecond();
+      restoreFirst();
+    }
+    expect(journalA.size).toBe(0);
+    expect(eventsA.size).toBe(0);
+  });
 });

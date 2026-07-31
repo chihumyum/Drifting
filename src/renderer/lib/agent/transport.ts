@@ -95,6 +95,46 @@ export const unsupportedGeneralAgentTransport: GeneralAgentTransport = {
 
 let activeTransport: GeneralAgentTransport = unsupportedGeneralAgentTransport;
 
+interface JournalRelaySubscription {
+  callback: (entry: AgentRuntimeJournalEntry) => void;
+  cleanup: (() => void) | null;
+}
+
+interface EventRelaySubscription {
+  callback: (event: AgentEventEnvelope) => void;
+  cleanup: (() => void) | null;
+}
+
+const journalRelaySubscriptions = new Set<JournalRelaySubscription>();
+const eventRelaySubscriptions = new Set<EventRelaySubscription>();
+
+function bindJournalRelay(subscription: JournalRelaySubscription): boolean {
+  subscription.cleanup?.();
+  subscription.cleanup = null;
+  const result = activeTransport.subscribeJournal(subscription.callback);
+  if (!result.ok) return false;
+  subscription.cleanup = result.value;
+  return true;
+}
+
+function bindEventRelay(subscription: EventRelaySubscription): boolean {
+  subscription.cleanup?.();
+  subscription.cleanup = null;
+  const result = activeTransport.subscribeEvents(subscription.callback);
+  if (!result.ok) return false;
+  subscription.cleanup = result.value;
+  return true;
+}
+
+function rebindRelaySubscriptions(): void {
+  for (const subscription of journalRelaySubscriptions) {
+    bindJournalRelay(subscription);
+  }
+  for (const subscription of eventRelaySubscriptions) {
+    bindEventRelay(subscription);
+  }
+}
+
 /** Stable delegating facade used by stores/components. */
 export const generalAgentTransport: GeneralAgentTransport = {
   get capability() {
@@ -113,8 +153,32 @@ export const generalAgentTransport: GeneralAgentTransport = {
   cancelPendingControl: (input) => activeTransport.cancelPendingControl(input),
   abort: () => activeTransport.abort(),
   resetSession: () => activeTransport.resetSession(),
-  subscribeJournal: (callback) => activeTransport.subscribeJournal(callback),
-  subscribeEvents: (callback) => activeTransport.subscribeEvents(callback),
+  subscribeJournal: (callback) => {
+    const subscription: JournalRelaySubscription = { callback, cleanup: null };
+    if (!bindJournalRelay(subscription)) return unsupportedResult();
+    journalRelaySubscriptions.add(subscription);
+    return {
+      ok: true,
+      value: () => {
+        if (!journalRelaySubscriptions.delete(subscription)) return;
+        subscription.cleanup?.();
+        subscription.cleanup = null;
+      },
+    };
+  },
+  subscribeEvents: (callback) => {
+    const subscription: EventRelaySubscription = { callback, cleanup: null };
+    if (!bindEventRelay(subscription)) return unsupportedResult();
+    eventRelaySubscriptions.add(subscription);
+    return {
+      ok: true,
+      value: () => {
+        if (!eventRelaySubscriptions.delete(subscription)) return;
+        subscription.cleanup?.();
+        subscription.cleanup = null;
+      },
+    };
+  },
 };
 
 /**
@@ -124,7 +188,10 @@ export const generalAgentTransport: GeneralAgentTransport = {
 export function installGeneralAgentTransport(transport: GeneralAgentTransport): () => void {
   const previous = activeTransport;
   activeTransport = transport;
+  rebindRelaySubscriptions();
   return () => {
-    if (activeTransport === transport) activeTransport = previous;
+    if (activeTransport !== transport) return;
+    activeTransport = previous;
+    rebindRelaySubscriptions();
   };
 }

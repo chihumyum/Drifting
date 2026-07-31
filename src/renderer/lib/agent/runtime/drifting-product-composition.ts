@@ -112,6 +112,10 @@ export interface CreateDriftingAgentProductCompositionOptions {
   getContext?: () => AgentToolContext | null;
   journal?: AgentJournalSink;
   limits?: Partial<AgentRuntimeLimits>;
+  /** Test/DEV override; product defaults to the exported 200k window. */
+  contextWindowTokens?: number;
+  /** Test/DEV cap that can only make read-result paging happen earlier. */
+  readResultBudgetCharsCap?: number;
   createId?: (kind: RuntimeIdKind) => string;
   authStatus?: () => Promise<GeneralAgentAuthStatus>;
   /** Runtime-discovered MCP/plugin tools, project-filtered by the registry. */
@@ -175,6 +179,9 @@ export function createDriftingAgentProductComposition(
     getContext,
     freshness: repositories.freshness,
     artifacts: repositories.artifacts,
+    ...(options.readResultBudgetCharsCap
+      ? { resultBudgetCharsCap: options.readResultBudgetCharsCap }
+      : {}),
     readProseBase,
     readElementPatches: (elementId) =>
       elementPatchRepository.listByElement(elementId),
@@ -247,7 +254,8 @@ export function createDriftingAgentProductComposition(
       dynamicTools,
     ),
     contextPlanning: {
-      contextWindowTokens: DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS,
+      contextWindowTokens:
+        options.contextWindowTokens ?? DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS,
       compactionTimeoutMs: 60_000,
       fullCompactor: createDriftingContextCompactor(),
       userConstraintPolicy: identifyExplicitAgentUserConstraints,

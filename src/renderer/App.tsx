@@ -353,6 +353,23 @@ function Layout() {
   });
   useDriftingAgentRuntime();
 
+  // DEV-only structured Agent harness. The native renderer remains the owner
+  // of real stores/usecases/Yjs; a loopback broker can drive it without UI
+  // automation once this project's boot has completed.
+  useEffect(() => {
+    if (!import.meta.env.DEV || bootState.status !== 'ready') return undefined;
+    let cancelled = false;
+    let dispose: (() => void) | undefined;
+    void import('./lib/agent/debug/headless-bridge').then((module) => {
+      if (cancelled) return;
+      dispose = module.installAgentHeadlessDebugBridge({ projectId });
+    });
+    return () => {
+      cancelled = true;
+      dispose?.();
+    };
+  }, [bootState.status, projectId]);
+
   // Writing-stats recorder. Subscribes directly to the data store so it ticks
   // regardless of which view is mounted — without this, snapshots would only
   // refresh when the user happened to load the dashboard. Throttled in the

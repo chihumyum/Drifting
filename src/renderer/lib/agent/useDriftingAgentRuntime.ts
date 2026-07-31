@@ -10,6 +10,33 @@ import {
   type DriftingAgentWriteReviewProvenance,
 } from './runtime/write-review-provenance';
 
+function debugPositiveInteger(value: string | undefined): number | undefined {
+  if (!value?.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function headlessDebugRuntimeOverrides(): {
+  contextWindowTokens?: number;
+  readResultBudgetCharsCap?: number;
+} {
+  if (!import.meta.env.DEV || !import.meta.env.VITE_DRIFTING_AGENT_DEBUG_URL) {
+    return {};
+  }
+  const contextWindowTokens = debugPositiveInteger(
+    import.meta.env.VITE_DRIFTING_AGENT_DEBUG_CONTEXT_WINDOW_TOKENS,
+  );
+  const readResultBudgetCharsCap = debugPositiveInteger(
+    import.meta.env.VITE_DRIFTING_AGENT_DEBUG_RESULT_BUDGET_CHARS,
+  );
+  return {
+    ...(contextWindowTokens ? { contextWindowTokens } : {}),
+    ...(readResultBudgetCharsCap ? { readResultBudgetCharsCap } : {}),
+  };
+}
+
+const debugRuntimeOverrides = headlessDebugRuntimeOverrides();
+
 async function readLocalAgentAuthStatus(): Promise<GeneralAgentAuthStatus> {
   const credentials = new ChainCredentialsProvider([
     new EnvCredentialsProvider(),
@@ -34,11 +61,13 @@ async function readLocalAgentAuthStatus(): Promise<GeneralAgentAuthStatus> {
 export function createDriftingLocalAgentTransport(): GeneralAgentTransport {
   return createDriftingAgentProductComposition({
     authStatus: readLocalAgentAuthStatus,
+    ...debugRuntimeOverrides,
   }).transport;
 }
 
 const driftingProductComposition = createDriftingAgentProductComposition({
   authStatus: readLocalAgentAuthStatus,
+  ...debugRuntimeOverrides,
 });
 
 export interface DriftingAgentWriteReviewStatusEvent {

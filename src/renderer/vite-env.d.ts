@@ -14,6 +14,14 @@ interface ImportMetaEnv {
   readonly VITE_OPENAI_API_KEY?: string;
   readonly VITE_DEEPSEEK_AI_API_KEY?: string;
   readonly VITE_DEEPSEEK_API_KEY?: string;
+  /** DEV-only loopback broker for structured General Agent smoke tests. */
+  readonly VITE_DRIFTING_AGENT_DEBUG_URL?: string;
+  /** DEV-only project route claimed by the Agent debug renderer. */
+  readonly VITE_DRIFTING_AGENT_DEBUG_PROJECT_ID?: string;
+  /** DEV-only reduced context window for forcing compaction in headless tests. */
+  readonly VITE_DRIFTING_AGENT_DEBUG_CONTEXT_WINDOW_TOKENS?: string;
+  /** DEV-only read-result cap for forcing durable result paging. */
+  readonly VITE_DRIFTING_AGENT_DEBUG_RESULT_BUDGET_CHARS?: string;
   /**
    * DeepSeek thinking-mode toggle. Set to "enabled" / "1" / "true" / "on"
    * to turn on thinking mode for the DeepSeek provider. Default OFF —

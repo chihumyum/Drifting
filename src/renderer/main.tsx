@@ -31,6 +31,15 @@ if (!(globalThis as { Buffer?: typeof Buffer }).Buffer) {
   (globalThis as { Buffer?: typeof Buffer }).Buffer = Buffer;
 }
 
+// A debug broker should not need UI automation merely to select its project.
+// HashRouter reads this route on first render after auth/session hydration.
+if (import.meta.env.DEV) {
+  const debugProjectId = import.meta.env.VITE_DRIFTING_AGENT_DEBUG_PROJECT_ID?.trim();
+  if (debugProjectId) {
+    window.location.hash = `/project/${encodeURIComponent(debugProjectId)}`;
+  }
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
