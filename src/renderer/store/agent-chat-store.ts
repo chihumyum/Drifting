@@ -4,7 +4,8 @@
  * Holds the right-sidebar Agent conversations so they survive the panel
  * unmounting/remounting when the user switches sidebar tabs — the view is a thin
  * projection of this store. The single agent-event subscription also lives here
- * (set up once), so streaming keeps flowing and `done` still persists even while
+ * (set up once), so streaming keeps flowing and the canonical terminal entry
+ * still persists even while
  * the panel isn't mounted.
  *
  * Per-conversation live state lives in `runs` (keyed by convId), which decouples
@@ -12,10 +13,12 @@
  * streamed event belongs to" (resolved from the event's turnId via `turnConv`).
  * That decoupling is what lets a turn keep running in the background: switching
  * conversation or project changes only the displayed `runs` entry; the in-flight
- * turn keeps folding into — and on `done` persists to — its OWN conversation.
+ * turn keeps folding into — and on `turn_finished` persists to — its OWN
+ * conversation.
  *
- * Display transcript is persisted to SQLite (agent_conversation) on each turn's
- * `done`. New provider-neutral sessions use `runtimeSessionId`. The legacy
+ * Display transcript is persisted to SQLite (agent_conversation) on each
+ * canonical `turn_finished`. New provider-neutral sessions use
+ * `runtimeSessionId`. The legacy
  * `sdkSessionId` remains readable on old conversations but is never
  * reinterpreted as a self-hosted runtime session.
  */
@@ -31,142 +34,41 @@ import type { ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import { resolveWritingLanguage } from '../lib/ai/output-language';
 import { loadActiveMemoryHints } from '../usecase/useAgentMemory';
 import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
+import { createAgentRuntimeLongTaskRepository } from '../sqlite-repo/agent-runtime-long-task-repo';
 import type {
   AgentChatMessage as ChatMsg,
   AgentConversationSummary,
 } from '../domain/agent-conversation';
+import type { AgentRuntimeTaskStatus } from '../domain/agent-runtime-long-task';
 import type {
   AgentControlStatus,
-  AgentEvent,
-  AgentEventEnvelope,
   AgentPendingControl,
   AgentPermissionScope,
 } from '../lib/agent/protocol';
-import { loadCanonicalAgentTranscript } from '../lib/agent/runtime/recovered-transcript';
+import type {
+  AgentContextUsageSnapshot,
+  AgentRuntimeJournalEntry,
+  AgentRuntimeOutcome,
+} from '../lib/agent/runtime/types';
+import {
+  applyAgentChatJournalEntry,
+  finalizeAgentChatStreaming,
+} from '../lib/agent/runtime/chat-journal-projection';
+import {
+  findCanonicalAgentChatSessionId,
+  loadCanonicalAgentChatProjection,
+} from '../lib/agent/runtime/recovered-transcript';
 import { buildAgentWriteReviewFeedback } from '../lib/agent/runtime/write-review-feedback';
 import { generalAgentTransport } from '../lib/agent/transport';
 import { buildGeneralAgentProjectContext } from '../lib/agent/product-project-context';
 
 const repo = createAgentConversationRepository();
+const longTaskRepo = createAgentRuntimeLongTaskRepository();
 
 // ---- transcript reducer (pure) --------------------------------------------
 
-/** Mark any trailing still-streaming assistant/thinking message as finished. */
-function finalizeStreaming(list: ChatMsg[]): ChatMsg[] {
-  const last = list[list.length - 1];
-  if (last && (last.kind === 'assistant' || last.kind === 'thinking') && last.streaming) {
-    const copy = list.slice();
-    copy[copy.length - 1] = { ...last, streaming: false };
-    return copy;
-  }
-  return list;
-}
-
-/** Fold one streamed agent event into the chat transcript. */
-export function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
-  switch (ev.type) {
-    case 'assistant_delta': {
-      const last = list[list.length - 1];
-      if (last && last.kind === 'assistant' && last.streaming) {
-        const copy = list.slice();
-        copy[copy.length - 1] = { ...last, text: last.text + ev.text };
-        return copy;
-      }
-      return [...finalizeStreaming(list), { kind: 'assistant', text: ev.text, streaming: true }];
-    }
-    case 'thinking_delta': {
-      const last = list[list.length - 1];
-      if (last && last.kind === 'thinking' && last.streaming) {
-        const copy = list.slice();
-        copy[copy.length - 1] = { ...last, text: last.text + ev.text };
-        return copy;
-      }
-      return [...finalizeStreaming(list), { kind: 'thinking', text: ev.text, streaming: true }];
-    }
-    case 'assistant':
-      return [...finalizeStreaming(list), { kind: 'assistant', text: ev.text, streaming: false }];
-    case 'thinking':
-      // Complete (non-streamed) thinking block — appears all at once after the
-      // model finishes, when thinking_delta events didn't fire.
-      return [...finalizeStreaming(list), { kind: 'thinking', text: ev.text, streaming: false }];
-    case 'tool_use':
-      return [
-        ...finalizeStreaming(list),
-        { kind: 'tool', id: ev.id, name: ev.name, input: ev.input, status: 'running' },
-      ];
-    case 'todos': {
-      // The plan is replaced in place — keep a single todos block at its
-      // original position and refresh its items as TodoWrite is re-called.
-      const idx = list.findIndex((m) => m.kind === 'todos');
-      if (idx === -1) return [...finalizeStreaming(list), { kind: 'todos', items: ev.items }];
-      const copy = list.slice();
-      copy[idx] = { kind: 'todos', items: ev.items };
-      return copy;
-    }
-    case 'tool_result': {
-      // Provider call ids are unique within one runtime turn, not necessarily
-      // across the whole persisted conversation. Resolve from the newest card
-      // so a later turn reusing `call_0` cannot overwrite an old completed card
-      // and leave the current one permanently running.
-      let idx = -1;
-      for (let i = list.length - 1; i >= 0; i -= 1) {
-        const message = list[i];
-        if (message?.kind === 'tool' && message.id === ev.id) {
-          idx = i;
-          break;
-        }
-      }
-      if (idx === -1) return list;
-      const copy = list.slice();
-      const t = copy[idx] as Extract<ChatMsg, { kind: 'tool' }>;
-      copy[idx] = { ...t, status: ev.ok ? 'ok' : 'error', result: ev.text };
-      return copy;
-    }
-    case 'result':
-      // A successful result mirrors the last assistant text — only surface failures.
-      return ev.ok
-        ? finalizeStreaming(list)
-        : [...finalizeStreaming(list), { kind: 'error', text: ev.text }];
-    case 'usage':
-      // Skip empty usage rows (e.g. a turn that produced no tokens).
-      if (!ev.inputTokens && !ev.outputTokens && !ev.costUsd) return list;
-      return [
-        ...finalizeStreaming(list),
-        {
-          kind: 'usage',
-          inputTokens: ev.inputTokens,
-          outputTokens: ev.outputTokens,
-          cacheReadTokens: ev.cacheReadTokens,
-          cacheCreationTokens: ev.cacheCreationTokens,
-          costUsd: ev.costUsd,
-          turns: ev.turns,
-          durationMs: ev.durationMs,
-          durationApiMs: ev.durationApiMs,
-          // Stamp the moment usage arrives so the settings panel can scope
-          // totals to a time window (this-month vs all-time).
-          at: new Date().toISOString(),
-        },
-      ];
-    case 'error':
-      return [...finalizeStreaming(list), { kind: 'error', text: ev.message }];
-    case 'steering_received':
-      return [
-        ...finalizeStreaming(list),
-        { kind: 'user', text: ev.text },
-      ];
-    case 'user_input_received':
-      return [
-        ...finalizeStreaming(list),
-        { kind: 'user', text: ev.response.text },
-      ];
-    case 'system':
-      return list; // suppress init / compact breadcrumbs
-    case 'done':
-      return finalizeStreaming(list);
-    default:
-      return list; // 'session' handled separately (stored on the store)
-  }
-}
+export const applyEvent = applyAgentChatJournalEntry;
+const finalizeStreaming = finalizeAgentChatStreaming;
 
 /** First user line, condensed, as the conversation title. */
 function deriveTitle(text: string): string {
@@ -240,6 +142,22 @@ function buildRevertNote(reverts: RevertRecord[]): string {
 /** Stable empty transcript so selectors never return a fresh array (which would
  *  re-render on every state change). */
 const EMPTY_MESSAGES: ChatMsg[] = [];
+export const BUDGET_CONTINUATION_PROMPT =
+  '继续完成上一轮因预算上限中断的任务。先检查上一轮已完成的工作和当前项目状态，不要重复已完成的步骤；从尚未完成的部分继续，完成后总结结果。';
+export const ACTIVE_PLAN_CONTINUATION_PROMPT =
+  '继续执行当前持久化任务计划。先读取计划、约束和当前项目状态，不要重复已完成的步骤；从第一个尚未完成的步骤继续，完成后更新计划并总结结果。';
+
+interface RunTerminalState {
+  turnId: string;
+  outcome: AgentRuntimeOutcome;
+  message?: string;
+}
+
+interface RunLongTaskPlanState {
+  sessionId: string;
+  /** `none` is an authoritative checked result, unlike null/unknown. */
+  status: AgentRuntimeTaskStatus | 'none';
+}
 
 /**
  * Live state for one conversation opened (or running) this session. Keyed by
@@ -253,8 +171,15 @@ interface RunState {
   messages: ChatMsg[];
   /** Provider-neutral canonical runtime session used for context recovery. */
   runtimeSessionId: string | null;
+  /** Live/replayed journal entries already folded into this projection. */
+  seenJournalEventIds: Record<string, true>;
   controlStatus: AgentControlStatus | null;
   pendingControl: AgentPendingControl | null;
+  lastTerminal: RunTerminalState | null;
+  /** Latest durable plan in this exact session; null means unchecked/read failure. */
+  longTaskPlanState: RunLongTaskPlanState | null;
+  /** Latest verified provider-input projection for this conversation. */
+  contextUsage: AgentContextUsageSnapshot | null;
 }
 
 interface AgentChatState {
@@ -270,6 +195,12 @@ interface AgentChatState {
   runningTurnId: string | null;
   /** The conversation that in-flight turn belongs to; null when idle. */
   runningConvId: string | null;
+  /**
+   * Synchronous startup mutex held before any repository/provider await.
+   * Without it, double Send/Continue can both pass the idle guard and overwrite
+   * the single in-flight turn pointers.
+   */
+  starting: boolean;
 
   setPrompt: (p: string) => void;
   /** Mount/route hook: switch to this project's history. Background runs and the
@@ -277,10 +208,9 @@ interface AgentChatState {
   bindProject: (projectId: string) => void;
   refreshList: () => void;
   send: () => Promise<void>;
-  respondPermission: (
-    decision: 'allow' | 'deny',
-    scope?: AgentPermissionScope,
-  ) => Promise<void>;
+  /** One author-triggered continuation; never loops automatically. */
+  continueTask: () => Promise<void>;
+  respondPermission: (decision: 'allow' | 'deny', scope?: AgentPermissionScope) => Promise<void>;
   stopAfterTool: () => Promise<void>;
   cancelRecoveredControl: () => Promise<void>;
   abort: () => void;
@@ -305,11 +235,66 @@ export const selectControlStatus = (s: AgentChatState): AgentControlStatus | nul
   s.activeConvId ? (s.runs[s.activeConvId]?.controlStatus ?? null) : null;
 export const selectPendingControl = (s: AgentChatState): AgentPendingControl | null =>
   s.activeConvId ? (s.runs[s.activeConvId]?.pendingControl ?? null) : null;
+export const selectContextUsage = (s: AgentChatState): AgentContextUsageSnapshot | null =>
+  s.activeConvId ? (s.runs[s.activeConvId]?.contextUsage ?? null) : null;
+export type AgentTaskContinuationReason = 'budget_exceeded' | 'active_plan';
+export const selectAgentTaskContinuationReason = (
+  s: AgentChatState,
+): AgentTaskContinuationReason | null => {
+  const run = s.activeConvId ? s.runs[s.activeConvId] : undefined;
+  if (s.starting || s.runningConvId !== null || run?.pendingControl) return null;
+  if (
+    !run ||
+    run.runtimeSessionId === null ||
+    run.longTaskPlanState?.sessionId !== run.runtimeSessionId
+  ) {
+    return null;
+  }
+  const planStatus = run.longTaskPlanState.status;
+  if (run.lastTerminal?.outcome === 'budget_exceeded') {
+    // A budget-only task without a plan remains manually continuable. A plan
+    // must be explicitly active; paused/blocked require a distinct author
+    // decision, while terminal states prove no continuation remains.
+    return planStatus === 'none' || planStatus === 'active' ? 'budget_exceeded' : null;
+  }
+  if (run.lastTerminal?.outcome === 'completed' && planStatus === 'active') {
+    return 'active_plan';
+  }
+  return null;
+};
+export const selectCanContinueAgentTask = (s: AgentChatState): boolean =>
+  selectAgentTaskContinuationReason(s) !== null;
 
 // Maps an in-flight turn id → the conversation that owns it, so streamed events
 // route to that conversation even after the user navigates elsewhere. A turn not
 // in this map is foreign (e.g. left over from before a reload) and is ignored.
 const turnConv = new Map<string, string>();
+
+export interface AgentConversationLoadToken {
+  generation: number;
+  projectId: string;
+}
+
+/** Latest-intent gate for asynchronous conversation hydration. */
+export class AgentConversationLoadGuard {
+  private generation = 0;
+
+  begin(projectId: string): AgentConversationLoadToken {
+    this.generation += 1;
+    return { generation: this.generation, projectId };
+  }
+
+  invalidate(): void {
+    this.generation += 1;
+  }
+
+  isCurrent(token: AgentConversationLoadToken, currentProjectId: string | null): boolean {
+    return token.generation === this.generation && token.projectId === currentProjectId;
+  }
+}
+
+const conversationLoadGuard = new AgentConversationLoadGuard();
+const conversationStartGuard = new AgentConversationLoadGuard();
 
 export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   boundProjectId: null,
@@ -319,6 +304,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   convList: [],
   runningTurnId: null,
   runningConvId: null,
+  starting: false,
 
   setPrompt: (p) => set({ prompt: p }),
 
@@ -338,12 +324,14 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       get().refreshList();
       return;
     }
+    conversationLoadGuard.invalidate();
+    conversationStartGuard.invalidate();
     // Switching CONVERSATIONS within a project keeps a background turn alive, but
     // switching PROJECTS cannot: the tool bridge (useAgentToolBridge) is bound to
     // the currently-viewed project, so a background turn's tool calls would run
     // against the wrong project's data. Until the bridge is turn/project-aware
     // (the prerequisite for true concurrency), abort an in-flight turn on a real
-    // project change. The tagged `done` it triggers persists its partial
+    // project change. The tagged terminal journal entry persists its partial
     // transcript and clears the running pointers.
     if (get().runningConvId) {
       void generalAgentTransport.abort();
@@ -381,16 +369,11 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   send: async () => {
     ensureSubscription();
     const s = get();
-    if (!s.prompt.trim() || !s.boundProjectId) return;
-    const displayedRun = s.activeConvId
-      ? s.runs[s.activeConvId]
-      : undefined;
+    if (s.starting || !s.prompt.trim() || !s.boundProjectId) return;
+    const displayedRun = s.activeConvId ? s.runs[s.activeConvId] : undefined;
     if (displayedRun?.pendingControl?.requiresContinuation) return;
     if (s.runningConvId) {
-      if (
-        s.activeConvId !== s.runningConvId ||
-        !s.runningTurnId
-      ) {
+      if (s.activeConvId !== s.runningConvId || !s.runningTurnId) {
         return;
       }
       const liveRun = s.runs[s.runningConvId];
@@ -411,167 +394,227 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
               text,
             });
       if (response.ok) {
-        set((current) =>
-          current.prompt === s.prompt ? { prompt: '' } : current,
-        );
+        set((current) => (current.prompt === s.prompt ? { prompt: '' } : current));
       } else {
         appendRunError(s.runningConvId, response.error);
       }
       return;
     }
-    const projectId = s.boundProjectId;
-    const text = s.prompt.trim();
-    // Drain edits the user rejected since the last turn and prepend them as a
-    // system note for the SDK only — so the agent works from the restored text.
-    // Drained AFTER the guard (an aborted send must not silently consume them);
-    // the visible transcript keeps the ORIGINAL text, only the SDK prompt is
-    // prefixed.
-    const reverts = useAgentEditStore.getState().drainReverts(projectId);
-    const runtimeSessionId = s.activeConvId
-      ? s.runs[s.activeConvId]?.runtimeSessionId
-      : null;
-    let canonicalReviewFeedback = '';
-    if (runtimeSessionId) {
-      try {
-        canonicalReviewFeedback =
-          await buildAgentWriteReviewFeedback(runtimeSessionId);
-      } catch {
-        // Review feedback is advisory prompt context. Durable write/revert
-        // enforcement remains in the coordinator even if this read is
-        // temporarily unavailable.
+    // Claim startup before the first await. `continueTask` and the
+    // ordinary composer share this exact gate.
+    conversationLoadGuard.invalidate();
+    const startToken = conversationStartGuard.begin(s.boundProjectId);
+    const isCurrentStart = (): boolean =>
+      conversationStartGuard.isCurrent(startToken, get().boundProjectId);
+    set({ starting: true });
+    try {
+      const projectId = s.boundProjectId;
+      const text = s.prompt.trim();
+      const runtimeSessionId = s.activeConvId ? s.runs[s.activeConvId]?.runtimeSessionId : null;
+      let canonicalReviewFeedback = '';
+      if (runtimeSessionId) {
+        try {
+          canonicalReviewFeedback = await buildAgentWriteReviewFeedback(runtimeSessionId);
+        } catch {
+          // Review feedback is advisory prompt context. Durable write/revert
+          // enforcement remains in the coordinator even if this read is
+          // temporarily unavailable.
+        }
       }
-    }
-    const promptNotes = [
-      ...(reverts.length ? [buildRevertNote(reverts)] : []),
-      ...(canonicalReviewFeedback ? [canonicalReviewFeedback] : []),
-    ];
-    const promptToSend = promptNotes.length
-      ? `${promptNotes.join('\n\n')}\n\n${text}`
-      : text;
-    const now = new Date().toISOString();
-    const settings = useSettingsStore.getState();
-    const auth = settings.agentAuth;
-    // The conversation row records only hosted vs byok-ish; oauth/apikey both
-    // collapse to 'byok' for that coarse label. The real auth method goes to
-    // the SDK via api.start({ mode }).
-    const convMode: 'hosted' | 'byok' = auth === 'hosted' ? 'hosted' : 'byok';
+      if (!isCurrentStart()) return;
+      const now = new Date().toISOString();
+      const settings = useSettingsStore.getState();
+      const auth = settings.agentAuth;
+      // The conversation row records only hosted vs byok-ish; oauth/apikey both
+      // collapse to 'byok' for that coarse label. The real auth method goes to
+      // the SDK via api.start({ mode }).
+      const convMode: 'hosted' | 'byok' = auth === 'hosted' ? 'hosted' : 'byok';
 
-    // Lazily create the conversation row on the first message so it shows up in
-    // history immediately; the transcript is overwritten on `done`.
-    let convId = s.activeConvId;
-    if (!convId) {
-      convId = uuidv7();
+      // Lazily create the conversation row on the first message so it shows up in
+      // history immediately; the transcript is overwritten on `turn_finished`.
+      let convId = s.activeConvId;
+      if (!convId) {
+        convId = uuidv7();
+        try {
+          await repo.create({
+            id: convId,
+            projectId,
+            title: deriveTitle(text),
+            mode: convMode,
+            messages: [{ kind: 'user', text }],
+            sdkSessionId: null,
+            runtimeSessionId: null,
+            createdAt: now,
+            updatedAt: now,
+          });
+        } catch {
+          /* persistence is best-effort — chat still works in-memory */
+        }
+        if (!isCurrentStart()) return;
+      }
+      const cid = convId;
+
+      // Append the user message into this conversation's live run state (seeding a
+      // fresh entry if it isn't loaded yet).
+      const prevRun = get().runs[cid];
+      const run: RunState = {
+        projectId,
+        messages: [...(prevRun?.messages ?? []), { kind: 'user', text }],
+        runtimeSessionId: prevRun?.runtimeSessionId ?? null,
+        seenJournalEventIds: prevRun?.seenJournalEventIds ?? {},
+        controlStatus: null,
+        pendingControl: null,
+        // Keep the previous terminal until the canonical turn_started entry is
+        // accepted. If provider preflight fails, the manual continuation remains
+        // available instead of disappearing on an unstarted attempt.
+        lastTerminal: prevRun?.lastTerminal ?? null,
+        longTaskPlanState: prevRun?.longTaskPlanState ?? null,
+        contextUsage: prevRun?.contextUsage ?? null,
+      };
+
+      const turnId = uuidv7();
+      turnConv.set(turnId, cid);
+      set((st) => ({
+        runs: { ...st.runs, [cid]: run },
+        activeConvId: cid,
+        prompt: '',
+        runningTurnId: turnId,
+        runningConvId: cid,
+      }));
+      // A prompt is accepted once it leaves the composer. Persist that user
+      // message before model startup so a crash, auth failure, or app restart
+      // cannot erase it merely because no terminal journal entry arrived.
       try {
-        await repo.create({
-          id: convId,
-          projectId,
-          title: deriveTitle(text),
-          mode: convMode,
-          messages: [{ kind: 'user', text }],
-          sdkSessionId: null,
-          runtimeSessionId: null,
-          createdAt: now,
+        await repo.update(cid, {
+          messages: run.messages,
           updatedAt: now,
         });
       } catch {
-        /* persistence is best-effort — chat still works in-memory */
+        /* persistence is best-effort — the in-memory transcript remains usable */
       }
-    }
-    const cid = convId;
-
-    // Append the user message into this conversation's live run state (seeding a
-    // fresh entry if it isn't loaded yet).
-    const prevRun = get().runs[cid];
-    const run: RunState = {
-      projectId,
-      messages: [...(prevRun?.messages ?? []), { kind: 'user', text }],
-      runtimeSessionId: prevRun?.runtimeSessionId ?? null,
-      controlStatus: null,
-      pendingControl: null,
-    };
-
-    const turnId = uuidv7();
-    turnConv.set(turnId, cid);
-    set((st) => ({
-      runs: { ...st.runs, [cid]: run },
-      activeConvId: cid,
-      prompt: '',
-      runningTurnId: turnId,
-      runningConvId: cid,
-    }));
-    // A prompt is accepted once it leaves the composer. Persist that user
-    // message before model startup so a crash, auth failure, or app restart
-    // cannot erase it merely because no terminal `done` event arrived.
-    try {
-      await repo.update(cid, {
-        messages: run.messages,
-        updatedAt: now,
+      const discardPreparedTurn = (): void => {
+        turnConv.delete(turnId);
+        useAgentCheckpointStore.getState().endTurn(turnId);
+        set((state) =>
+          state.runningTurnId === turnId
+            ? {
+                runningTurnId: null,
+                runningConvId: null,
+              }
+            : state,
+        );
+      };
+      if (!isCurrentStart()) {
+        discardPreparedTurn();
+        return;
+      }
+      // Register the provider-neutral boundary. This deliberately seals the
+      // legacy whole-turn checkpoint trail instead of collecting these writes:
+      // runtime inverses must settle through the canonical durable review ledger.
+      useAgentCheckpointStore.getState().beginTurn({
+        turnId,
+        convId: cid,
+        projectId,
+        label: text.length > 48 ? `${text.slice(0, 48)}…` : text,
       });
-    } catch {
-      /* persistence is best-effort — the in-memory transcript remains usable */
-    }
-    // Open this turn's checkpoint: writes the agent makes are folded into it so
-    // the user can later revert the whole turn (see lib/agent/turn-revert).
-    useAgentCheckpointStore.getState().beginTurn({
-      turnId,
-      convId: cid,
-      projectId,
-      label: text.length > 48 ? `${text.slice(0, 48)}…` : text,
-    });
-    // Remember this as the project's last-active conversation so it re-opens on
-    // next launch.
-    useSettingsStore.getState().setLastAgentConv(projectId, cid);
-    get().refreshList();
+      // Remember this as the project's last-active conversation so it re-opens on
+      // next launch.
+      useSettingsStore.getState().setLastAgentConv(projectId, cid);
+      get().refreshList();
 
-    // Project writing preferences (KV facts) + writing language, injected into
-    // the agent's system prompt so it honors the author's style/POV/length and
-    // writes in the manuscript's language. Empty facts → no style steer.
-    const project = useProjectStore.getState().currentProject;
-    const projectContext = buildGeneralAgentProjectContext(projectId, project);
-    const writingLanguage = resolveWritingLanguage(projectId);
-    // Active agent memories (author-approved standing guidance) — injected into
-    // the system prompt so past preferences/vetoes/directives keep steering.
-    const memories = await loadActiveMemoryHints(projectId).catch(() => []);
+      // Project writing preferences (KV facts) + writing language, injected into
+      // the agent's system prompt so it honors the author's style/POV/length and
+      // writes in the manuscript's language. Empty facts → no style steer.
+      const project = useProjectStore.getState().currentProject;
+      const projectContext = buildGeneralAgentProjectContext(projectId, project);
+      const writingLanguage = resolveWritingLanguage(projectId);
+      // Active agent memories (author-approved standing guidance) — injected into
+      // the system prompt so past preferences/vetoes/directives keep steering.
+      const memories = await loadActiveMemoryHints(projectId).catch(() => []);
+      if (!isCurrentStart()) {
+        discardPreparedTurn();
+        return;
+      }
 
-    const r = await generalAgentTransport.start({
-      prompt: promptToSend,
-      route: { kind: 'chat', projectId, conversationId: cid },
-      projectId,
-      mode: auth,
-      model: settings.agentModel,
-      effort: settings.agentEffort,
-      thinking: settings.agentThinking,
-      toolSearch: settings.agentToolSearch,
-      resume: run.runtimeSessionId ?? undefined,
-      ...projectContext,
-      writingLanguage,
-      memories,
-      turnId,
-    });
-    // !ok only fires for pre-flight failures (e.g. auth) that emitted no events
-    // for this turn — a turn that started surfaces its own errors via the tagged
-    // 'error'/'done' stream. So surface this one and clear the in-flight turn.
-    if (!r.ok) {
-      turnConv.delete(turnId);
-      useAgentCheckpointStore.getState().endTurn(turnId);
-      set((st) => {
-        const cur = st.runs[cid];
-        const runs = cur
-          ? {
-              ...st.runs,
-              [cid]: {
-                ...cur,
-                messages: [...cur.messages, { kind: 'error' as const, text: r.error }],
-              },
-            }
-          : st.runs;
-        const clearing = st.runningTurnId === turnId;
-        return {
-          runs,
-          ...(clearing ? { runningTurnId: null, runningConvId: null } : {}),
-        };
-      });
+      // Drain rejected edits only once all cancellable preflight reads are done.
+      // The visible transcript keeps the original user text; only the provider
+      // prompt receives this system context.
+      const reverts = useAgentEditStore.getState().drainReverts(projectId);
+      const promptNotes = [
+        ...(reverts.length ? [buildRevertNote(reverts)] : []),
+        ...(canonicalReviewFeedback ? [canonicalReviewFeedback] : []),
+      ];
+      const promptToSend = promptNotes.length ? `${promptNotes.join('\n\n')}\n\n${text}` : text;
+
+      const r = await generalAgentTransport
+        .start({
+          prompt: promptToSend,
+          route: { kind: 'chat', projectId, conversationId: cid },
+          projectId,
+          mode: auth,
+          model: settings.agentModel,
+          effort: settings.agentEffort,
+          thinking: settings.agentThinking,
+          toolSearch: settings.agentToolSearch,
+          resume: run.runtimeSessionId ?? undefined,
+          ...projectContext,
+          writingLanguage,
+          memories,
+          turnId,
+        })
+        .catch((error: unknown) => ({
+          ok: false as const,
+          code: 'AGENT_RUNTIME_START_FAILED',
+          error: error instanceof Error ? error.message : 'Agent Runtime failed to start.',
+        }));
+      if (!isCurrentStart()) {
+        discardPreparedTurn();
+        return;
+      }
+      // !ok only fires for pre-flight failures (e.g. auth) that emitted no events
+      // for this turn — a turn that started surfaces its own terminal state via
+      // the canonical journal. So surface this one and clear the in-flight turn.
+      if (!r.ok) {
+        turnConv.delete(turnId);
+        useAgentCheckpointStore.getState().endTurn(turnId);
+        set((st) => {
+          const cur = st.runs[cid];
+          const runs = cur
+            ? {
+                ...st.runs,
+                [cid]: {
+                  ...cur,
+                  messages: [...cur.messages, { kind: 'error' as const, text: r.error }],
+                },
+              }
+            : st.runs;
+          const clearing = st.runningTurnId === turnId;
+          return {
+            runs,
+            ...(clearing
+              ? {
+                  runningTurnId: null,
+                  runningConvId: null,
+                  starting: false,
+                }
+              : {}),
+          };
+        });
+      }
+    } finally {
+      set((state) => (state.starting ? { starting: false } : state));
     }
+  },
+
+  continueTask: async () => {
+    const state = get();
+    const reason = selectAgentTaskContinuationReason(state);
+    if (!reason) return;
+    set({
+      prompt:
+        reason === 'budget_exceeded' ? BUDGET_CONTINUATION_PROMPT : ACTIVE_PLAN_CONTINUATION_PROMPT,
+    });
+    await get().send();
   },
 
   respondPermission: async (decision, requestedScope = 'once') => {
@@ -613,8 +656,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     const s = get();
     const convId = s.activeConvId;
     const pending = convId ? s.runs[convId]?.pendingControl : null;
-    const request =
-      pending?.permissionRequest ?? pending?.userInputRequest;
+    const request = pending?.permissionRequest ?? pending?.userInputRequest;
     if (!convId || !pending?.requiresContinuation || !request) return;
     const response = await generalAgentTransport.cancelPendingControl({
       sessionId: pending.sessionId,
@@ -647,6 +689,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   },
 
   newConversation: () => {
+    conversationLoadGuard.invalidate();
+    conversationStartGuard.invalidate();
     void generalAgentTransport.resetSession();
     const pid = get().boundProjectId;
     if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
@@ -656,22 +700,79 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   },
 
   loadConversation: async (id) => {
+    const boundProjectId = get().boundProjectId;
+    if (!boundProjectId) return;
+    conversationStartGuard.invalidate();
+    const loadToken = conversationLoadGuard.begin(boundProjectId);
+    const isCurrentLoad = (): boolean =>
+      conversationLoadGuard.isCurrent(loadToken, get().boundProjectId);
     // Don't clobber a conversation that's live in memory (it may be running in
     // the background) with a stale DB snapshot — only hydrate if not loaded.
-    if (!get().runs[id]) {
+    const loadedRun = get().runs[id];
+    if (loadedRun && loadedRun.projectId !== boundProjectId) return;
+    if (!loadedRun) {
       const conv = await repo.get(id);
-      if (!conv) return;
+      if (!isCurrentLoad() || !conv || conv.projectId !== boundProjectId) {
+        return;
+      }
       let messages = conv.messages;
-      if (conv.runtimeSessionId) {
+      let seenJournalEventIds: Record<string, true> = {};
+      let lastTerminal: RunTerminalState | null = null;
+      let runtimeSessionId = conv.runtimeSessionId;
+      let longTaskPlanState: RunLongTaskPlanState | null = null;
+      let contextUsage: AgentContextUsageSnapshot | null = null;
+      if (!runtimeSessionId) {
         try {
-          messages =
-            (await loadCanonicalAgentTranscript(conv.runtimeSessionId)) ??
-            messages;
+          runtimeSessionId = await findCanonicalAgentChatSessionId(conv.projectId, conv.id);
+        } catch {
+          runtimeSessionId = null;
+        }
+        if (!isCurrentLoad()) return;
+      }
+      if (runtimeSessionId) {
+        try {
+          const projection = await loadCanonicalAgentChatProjection(
+            runtimeSessionId,
+            undefined,
+            conv.messages,
+          );
+          if (projection) {
+            messages = projection.messages;
+            seenJournalEventIds = Object.fromEntries(
+              projection.eventIds.map((eventId) => [eventId, true as const]),
+            );
+            lastTerminal = projection.lastTerminal;
+            contextUsage = projection.latestContextUsage;
+          }
         } catch {
           // A corrupt/unavailable canonical session must never be fed back to
           // the model. The display cache is still useful as a read-only
           // fallback while the transport refuses that resume.
         }
+        if (!isCurrentLoad()) return;
+      }
+      if (runtimeSessionId && runtimeSessionId !== conv.runtimeSessionId) {
+        try {
+          await repo.update(id, { runtimeSessionId });
+        } catch {
+          // Route lookup will recover the binding again on the next launch.
+        }
+        if (!isCurrentLoad()) return;
+      }
+      if (runtimeSessionId) {
+        try {
+          const latestPlan = await longTaskRepo.getLatestPlan({
+            projectId: conv.projectId,
+            sessionId: runtimeSessionId,
+          });
+          longTaskPlanState = {
+            sessionId: runtimeSessionId,
+            status: latestPlan?.task.status ?? 'none',
+          };
+        } catch {
+          longTaskPlanState = null;
+        }
+        if (!isCurrentLoad()) return;
       }
       set((st) => ({
         runs: {
@@ -679,19 +780,25 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           [id]: {
             projectId: conv.projectId,
             messages,
-            runtimeSessionId: conv.runtimeSessionId,
+            runtimeSessionId,
+            seenJournalEventIds,
             controlStatus: null,
             pendingControl: null,
+            lastTerminal,
+            longTaskPlanState,
+            contextUsage,
           },
         },
       }));
     }
+    if (!isCurrentLoad()) return;
     set({ activeConvId: id });
     const runtimeSessionId = get().runs[id]?.runtimeSessionId;
     if (runtimeSessionId) {
       const pending = await generalAgentTransport.listPendingControls({
         sessionId: runtimeSessionId,
       });
+      if (!isCurrentLoad()) return;
       if (pending.ok) {
         const recovered = pending.value[0] ?? null;
         set((state) => {
@@ -710,11 +817,15 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         });
       }
     }
-    const pid = get().boundProjectId;
-    if (pid) useSettingsStore.getState().setLastAgentConv(pid, id);
+    if (!isCurrentLoad()) return;
+    useSettingsStore.getState().setLastAgentConv(boundProjectId, id);
   },
 
   deleteConversation: async (id) => {
+    conversationLoadGuard.invalidate();
+    if (get().runningConvId === id && get().starting) {
+      conversationStartGuard.invalidate();
+    }
     // Abort + clear the in-flight turn if it belongs to the conversation we're
     // deleting (main runs a single query, so abort targets exactly this turn).
     if (get().runningConvId === id) {
@@ -743,6 +854,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   },
 
   clearConversations: async () => {
+    conversationLoadGuard.invalidate();
+    conversationStartGuard.invalidate();
     const pid = get().boundProjectId;
     if (!pid) return;
     // Abort + clear the in-flight turn (main runs a single query, so abort
@@ -801,36 +914,71 @@ async function persistConv(convId: string): Promise<void> {
   useAgentChatStore.getState().refreshList();
 }
 
-function handleEvent(env: AgentEventEnvelope): void {
-  const { turnId, event: ev } = env;
-  const convId = turnConv.get(turnId);
-  if (!convId) return; // foreign / stale turn (e.g. from before a reload) — ignore
-
-  if (ev.type === 'session') {
-    useAgentChatStore.setState((s) => {
-      const run = s.runs[convId];
-      return run
-        ? {
-            runs: {
-              ...s.runs,
-              [convId]: { ...run, runtimeSessionId: ev.id },
-            },
-          }
-        : s;
+async function refreshLongTaskPlanState(
+  convId: string,
+  projectId: string,
+  sessionId: string,
+  terminalTurnId: string,
+): Promise<void> {
+  let planState: RunLongTaskPlanState | null = null;
+  try {
+    const latestPlan = await longTaskRepo.getLatestPlan({
+      projectId,
+      sessionId,
     });
-    return;
+    planState = {
+      sessionId,
+      status: latestPlan?.task.status ?? 'none',
+    };
+  } catch {
+    // Continuation authority is fail-closed when the durable plan cannot be read.
   }
+  useAgentChatStore.setState((state) => {
+    const run = state.runs[convId];
+    if (!run || run.runtimeSessionId !== sessionId || run.lastTerminal?.turnId !== terminalTurnId) {
+      return state;
+    }
+    return {
+      runs: {
+        ...state.runs,
+        [convId]: {
+          ...run,
+          longTaskPlanState: planState,
+        },
+      },
+    };
+  });
+}
 
-  // Fold the event and its canonical control projection into the OWNING
-  // conversation (not necessarily the displayed one).
+function handleEvent(entry: AgentRuntimeJournalEntry): void {
+  const { turnId, event: ev } = entry;
+  const routedConvId = entry.route.kind === 'chat' ? entry.route.conversationId : undefined;
+  const mappedConvId = turnConv.get(turnId);
+  if (mappedConvId && routedConvId && mappedConvId !== routedConvId) return;
+  const convId = mappedConvId ?? routedConvId;
+  if (!convId) return;
+
+  const before = useAgentChatStore.getState().runs[convId];
+  if (!before || before.seenJournalEventIds[entry.eventId]) return;
+  const sessionBindingChanged = before.runtimeSessionId !== entry.sessionId;
+
+  // Fold the canonical event and control state into the OWNING conversation
+  // (not necessarily the displayed one). eventId makes a live/recovery race
+  // idempotent instead of duplicating deltas, tool cards, usage, or errors.
   useAgentChatStore.setState((s) => {
     const run = s.runs[convId];
-    if (!run) return s;
+    if (!run || run.seenJournalEventIds[entry.eventId]) return s;
     let controlStatus = run.controlStatus;
     let pendingControl = run.pendingControl;
-    if (ev.type === 'control_state') {
-      controlStatus = ev.status;
-    } else if (ev.type === 'permission_request') {
+    let lastTerminal = run.lastTerminal;
+    let longTaskPlanState = run.longTaskPlanState;
+    if (ev.type === 'turn_started' || ev.type === 'model_iteration_started') {
+      controlStatus = 'running';
+      if (ev.type === 'turn_started') {
+        lastTerminal = null;
+        longTaskPlanState = null;
+      }
+    } else if (ev.type === 'permission_requested') {
       controlStatus = 'waiting_permission';
       pendingControl = {
         sessionId: ev.request.sessionId,
@@ -840,13 +988,11 @@ function handleEvent(env: AgentEventEnvelope): void {
         requiresContinuation: false,
       };
     } else if (ev.type === 'permission_resolved') {
-      if (
-        pendingControl?.permissionRequest?.requestId ===
-        ev.resolution.requestId
-      ) {
+      controlStatus = 'running';
+      if (pendingControl?.permissionRequest?.requestId === ev.resolution.requestId) {
         pendingControl = null;
       }
-    } else if (ev.type === 'user_input_request') {
+    } else if (ev.type === 'user_input_requested') {
       controlStatus = 'waiting_user';
       pendingControl = {
         sessionId: ev.request.sessionId,
@@ -856,24 +1002,42 @@ function handleEvent(env: AgentEventEnvelope): void {
         requiresContinuation: false,
       };
     } else if (ev.type === 'user_input_received') {
-      if (
-        pendingControl?.userInputRequest?.requestId ===
-        ev.response.requestId
-      ) {
+      if (pendingControl?.userInputRequest?.requestId === ev.response.requestId) {
         pendingControl = null;
       }
-    } else if (ev.type === 'done') {
+      controlStatus = 'running';
+    } else if (ev.type === 'cancellation_requested') {
+      controlStatus = 'cancelling';
+    } else if (ev.type === 'commit_started') {
+      controlStatus = 'committing';
+    } else if (ev.type === 'turn_finished') {
       controlStatus = null;
       pendingControl = null;
+      // Hide continuation until an authoritative same-session plan read
+      // completes; never infer it from a tool-result payload.
+      longTaskPlanState = null;
+      lastTerminal = {
+        turnId,
+        outcome: ev.outcome,
+        ...(ev.message ? { message: ev.message } : {}),
+      };
     }
     return {
       runs: {
         ...s.runs,
         [convId]: {
           ...run,
-          messages: applyEvent(run.messages, ev),
+          messages: applyEvent(run.messages, entry),
+          runtimeSessionId: entry.sessionId,
+          seenJournalEventIds: {
+            ...run.seenJournalEventIds,
+            [entry.eventId]: true,
+          },
           controlStatus,
           pendingControl,
+          lastTerminal,
+          longTaskPlanState,
+          contextUsage: ev.type === 'context_planned' ? ev.snapshot : run.contextUsage,
         },
       },
     };
@@ -884,13 +1048,25 @@ function handleEvent(env: AgentEventEnvelope): void {
   // a background turn in another project doesn't pulse foreign cells.
   const st = useAgentChatStore.getState();
   const run = st.runs[convId];
+  if (sessionBindingChanged) {
+    // Bind the conversation to canonical persistence at turn start, not only
+    // at terminal completion. A renderer crash midway through the first turn
+    // can then find and replay its durable journal on the next launch.
+    void persistConv(convId);
+  }
   if (run && run.projectId === st.boundProjectId && st.runningConvId === convId) {
     const activity = useAgentActivityStore.getState();
-    if (ev.type === 'tool_use') activity.onToolUse(ev.id, ev.name, ev.input);
-    else if (ev.type === 'tool_result') activity.onToolResult(ev.id, ev.ok, ev.text);
+    if (ev.type === 'tool_call_ready') {
+      activity.onToolUse(ev.callId, ev.name, ev.arguments);
+    } else if (ev.type === 'tool_result') {
+      activity.onToolResult(ev.callId, ev.ok, ev.content);
+    }
   }
 
-  if (ev.type === 'done') {
+  if (ev.type === 'turn_finished') {
+    if (run) {
+      void refreshLongTaskPlanState(convId, run.projectId, entry.sessionId, turnId);
+    }
     turnConv.delete(turnId);
     useAgentCheckpointStore.getState().endTurn(turnId);
     useAgentActivityStore.getState().onTurnEnd();
@@ -913,21 +1089,18 @@ function appendRunError(convId: string, message: string): void {
         ...state.runs,
         [convId]: {
           ...run,
-          messages: [
-            ...finalizeStreaming(run.messages),
-            { kind: 'error', text: message },
-          ],
+          messages: [...finalizeStreaming(run.messages), { kind: 'error', text: message }],
         },
       },
     };
   });
 }
 
-/** Subscribe to agent events once for the app's lifetime (never torn down, so
- *  streaming survives the panel unmounting). Idempotent. */
+/** Subscribe to the canonical journal once for the app's lifetime (never torn
+ * down, so streaming survives the panel unmounting). Idempotent. */
 function ensureSubscription(): void {
   if (subscribed) return;
-  const subscription = generalAgentTransport.subscribeEvents(handleEvent);
+  const subscription = generalAgentTransport.subscribeJournal(handleEvent);
   if (!subscription.ok) return;
   subscribed = true;
 }

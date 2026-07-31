@@ -1,28 +1,176 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentChatMessage } from '../domain/agent-conversation';
-import { applyEvent } from './agent-chat-store';
+import {
+  AGENT_RUNTIME_SCHEMA_VERSION,
+  type AgentRuntimeEvent,
+  type AgentRuntimeJournalEntry,
+} from '../lib/agent/runtime/types';
+import {
+  AgentConversationLoadGuard,
+  ACTIVE_PLAN_CONTINUATION_PROMPT,
+  applyEvent,
+  BUDGET_CONTINUATION_PROMPT,
+  selectAgentTaskContinuationReason,
+  selectCanContinueAgentTask,
+  useAgentChatStore,
+} from './agent-chat-store';
 
-describe('agent chat canonical control projection', () => {
-  it('renders assistant deltas incrementally and finalizes the streaming tail on done', () => {
-    const first = applyEvent([], {
-      type: 'assistant_delta',
-      text: '逐',
+function journal(event: AgentRuntimeEvent, seq = 1): AgentRuntimeJournalEntry {
+  return {
+    schemaVersion: AGENT_RUNTIME_SCHEMA_VERSION,
+    sessionId: 'session-1',
+    turnId: 'turn-1',
+    route: {
+      kind: 'chat',
+      projectId: 'project-1',
+      conversationId: 'conversation-1',
+    },
+    seq,
+    eventId: `turn-1:${String(seq).padStart(8, '0')}`,
+    wallTimeMs: 1_700_000_000_000 + seq,
+    event,
+  };
+}
+
+const usage = {
+  inputTokens: 3,
+  outputTokens: 5,
+  cacheReadTokens: 7,
+  cacheWriteTokens: 11,
+  costUsd: 0.01,
+};
+
+describe('agent chat canonical journal projection', () => {
+  it('renders text deltas immediately and finalizes only from canonical lifecycle events', () => {
+    const first = applyEvent([], journal({ type: 'text_delta', iteration: 1, text: '逐' }));
+    expect(first).toEqual([{ kind: 'assistant', text: '逐', streaming: true }]);
+
+    const second = applyEvent(
+      first,
+      journal({ type: 'text_delta', iteration: 1, text: '字出现' }, 2),
+    );
+    expect(second).toEqual([{ kind: 'assistant', text: '逐字出现', streaming: true }]);
+
+    expect(
+      applyEvent(
+        second,
+        journal(
+          {
+            type: 'model_iteration_completed',
+            iteration: 1,
+            stopReason: 'end_turn',
+          },
+          3,
+        ),
+      ),
+    ).toEqual([{ kind: 'assistant', text: '逐字出现', streaming: false }]);
+  });
+
+  it('shows fragmented tool arguments before ready/execution/result', () => {
+    let messages = applyEvent(
+      [],
+      journal({
+        type: 'tool_call_started',
+        iteration: 1,
+        callId: 'call-1',
+        name: 'read_node',
+      }),
+    );
+    expect(messages).toEqual([
+      {
+        kind: 'tool',
+        id: 'call-1',
+        name: 'read_node',
+        inputText: '',
+        phase: 'arguments',
+        status: 'running',
+      },
+    ]);
+
+    messages = applyEvent(
+      messages,
+      journal(
+        {
+          type: 'tool_args_delta',
+          iteration: 1,
+          callId: 'call-1',
+          delta: '{"node":',
+        },
+        2,
+      ),
+    );
+    messages = applyEvent(
+      messages,
+      journal(
+        {
+          type: 'tool_args_delta',
+          iteration: 1,
+          callId: 'call-1',
+          delta: '"第一章"}',
+        },
+        3,
+      ),
+    );
+    expect(messages[0]).toMatchObject({
+      inputText: '{"node":"第一章"}',
+      phase: 'arguments',
     });
-    expect(first).toEqual([
-      { kind: 'assistant', text: '逐', streaming: true },
-    ]);
 
-    const second = applyEvent(first, {
-      type: 'assistant_delta',
-      text: '字出现',
+    messages = applyEvent(
+      messages,
+      journal(
+        {
+          type: 'tool_call_ready',
+          iteration: 1,
+          callId: 'call-1',
+          name: 'read_node',
+          arguments: { node: '第一章' },
+          rawArguments: '{"node":"第一章"}',
+        },
+        4,
+      ),
+    );
+    expect(messages[0]).toEqual({
+      kind: 'tool',
+      id: 'call-1',
+      name: 'read_node',
+      input: { node: '第一章' },
+      phase: 'ready',
+      status: 'running',
     });
-    expect(second).toEqual([
-      { kind: 'assistant', text: '逐字出现', streaming: true },
-    ]);
 
-    expect(applyEvent(second, { type: 'done' })).toEqual([
-      { kind: 'assistant', text: '逐字出现', streaming: false },
-    ]);
+    messages = applyEvent(
+      messages,
+      journal(
+        {
+          type: 'tool_execution_started',
+          callId: 'call-1',
+          name: 'read_node',
+          access: 'read',
+        },
+        5,
+      ),
+    );
+    expect(messages[0]).toMatchObject({ phase: 'executing' });
+
+    messages = applyEvent(
+      messages,
+      journal(
+        {
+          type: 'tool_result',
+          callId: 'call-1',
+          name: 'read_node',
+          ok: true,
+          content: '章节正文',
+          source: 'executor',
+        },
+        6,
+      ),
+    );
+    expect(messages[0]).toMatchObject({
+      status: 'ok',
+      result: '章节正文',
+    });
   });
 
   it('settles the newest tool card when a later turn reuses a provider call id', () => {
@@ -46,72 +194,358 @@ describe('agent chat canonical control projection', () => {
     ];
 
     expect(
-      applyEvent(initial, {
-        type: 'tool_result',
-        id: 'call_0',
-        ok: true,
-        text: 'new result',
-      }),
+      applyEvent(
+        initial,
+        journal({
+          type: 'tool_result',
+          callId: 'call_0',
+          name: 'read_node',
+          ok: true,
+          content: 'new result',
+          source: 'executor',
+        }),
+      ),
     ).toEqual([
       initial[0],
       initial[1],
       {
         ...initial[2],
+        name: 'read_node',
         status: 'ok',
         result: 'new result',
       },
     ]);
   });
 
-  it('adds accepted steering exactly once from the canonical event', () => {
+  it('surfaces a certified write review from the canonical tool result', () => {
     const initial: AgentChatMessage[] = [
-      { kind: 'assistant', text: 'working', streaming: true },
+      {
+        kind: 'tool',
+        id: 'write-1',
+        name: 'edit_block',
+        input: { node: '第一章' },
+        status: 'running',
+        phase: 'executing',
+      },
     ];
-
-    const next = applyEvent(initial, {
-      type: 'steering_received',
-      messageId: 'steering-1',
-      text: 'Keep the ending ambiguous.',
+    const content = JSON.stringify({
+      result: { changed: true },
+      effectId: 'effect-1',
+      review: { id: 'review-1', status: 'pending' },
     });
 
-    expect(next).toEqual([
-      { kind: 'assistant', text: 'working', streaming: false },
-      { kind: 'user', text: 'Keep the ending ambiguous.' },
+    expect(
+      applyEvent(
+        initial,
+        journal({
+          type: 'tool_result',
+          callId: 'write-1',
+          name: 'edit_block',
+          ok: true,
+          content,
+          source: 'executor',
+        }),
+      ),
+    ).toEqual([
+      {
+        ...initial[0],
+        name: 'edit_block',
+        status: 'ok',
+        result: content,
+        review: {
+          id: 'review-1',
+          status: 'pending',
+          provenance: {
+            sessionId: 'session-1',
+            turnId: 'turn-1',
+            callId: 'write-1',
+            toolName: 'edit_block',
+          },
+        },
+      },
     ]);
   });
 
-  it('adds a user-input answer while keeping permission state out of the transcript', () => {
-    const initial: AgentChatMessage[] = [];
-    const permissionOnly = applyEvent(initial, {
-      type: 'permission_request',
-      request: {
-        requestId: 'permission-1',
-        sessionId: 'session-1',
-        turnId: 'turn-1',
-        callId: 'call-1',
-        toolName: 'write',
-        access: 'write',
-        arguments: {},
-        argumentsHash: `sha256:${'a'.repeat(64)}`,
-        revision: null,
-        allowedScopes: ['once'],
-      },
-    });
-    expect(permissionOnly).toBe(initial);
+  it('adds accepted steering and user input once from canonical events', () => {
+    const steered = applyEvent(
+      [{ kind: 'assistant', text: 'working', streaming: true }],
+      journal({
+        type: 'steering_received',
+        messageId: 'steering-1',
+        text: 'Keep the ending ambiguous.',
+      }),
+    );
+
+    expect(steered).toEqual([
+      { kind: 'assistant', text: 'working', streaming: false },
+      { kind: 'user', text: 'Keep the ending ambiguous.' },
+    ]);
 
     expect(
-      applyEvent(permissionOnly, {
-        type: 'user_input_received',
-        response: {
-          requestId: 'question-1',
+      applyEvent(
+        steered,
+        journal(
+          {
+            type: 'user_input_received',
+            response: {
+              requestId: 'question-1',
+              sessionId: 'session-1',
+              turnId: 'turn-1',
+              callId: 'ask-1',
+              text: 'Choose the quieter version.',
+            },
+          },
+          2,
+        ),
+      ),
+    ).toEqual([...steered, { kind: 'user', text: 'Choose the quieter version.' }]);
+  });
+
+  it('keeps permission state out of transcript and derives usage/error from turn_finished', () => {
+    const initial: AgentChatMessage[] = [];
+    const permissionOnly = applyEvent(
+      initial,
+      journal({
+        type: 'permission_requested',
+        request: {
+          requestId: 'permission-1',
           sessionId: 'session-1',
           turnId: 'turn-1',
-          callId: 'ask-1',
-          text: 'Choose the quieter version.',
+          callId: 'call-1',
+          toolName: 'write',
+          access: 'write',
+          arguments: {},
+          argumentsHash: `sha256:${'a'.repeat(64)}`,
+          revision: null,
+          allowedScopes: ['once'],
         },
       }),
-    ).toEqual([
-      { kind: 'user', text: 'Choose the quieter version.' },
+    );
+    expect(permissionOnly).toBe(initial);
+
+    const terminal = applyEvent(
+      permissionOnly,
+      journal(
+        {
+          type: 'turn_finished',
+          outcome: 'failed',
+          failureCode: 'MODEL_ERROR',
+          message: 'provider failed',
+          usage,
+          modelIterations: 1,
+          durationMs: 420,
+        },
+        2,
+      ),
+    );
+    expect(terminal).toEqual([
+      {
+        kind: 'usage',
+        inputTokens: 3,
+        outputTokens: 5,
+        cacheReadTokens: 7,
+        cacheCreationTokens: 11,
+        costUsd: 0.01,
+        turns: 1,
+        durationMs: 420,
+        at: new Date(1_700_000_000_002).toISOString(),
+      },
+      { kind: 'error', text: 'provider failed' },
     ]);
+  });
+
+  it('offers an explicit one-shot continuation only after an idle budget terminal', () => {
+    const state = {
+      activeConvId: 'conversation-1',
+      runningConvId: null,
+      runs: {
+        'conversation-1': {
+          projectId: 'project-1',
+          messages: [],
+          runtimeSessionId: 'session-1',
+          longTaskPlanState: {
+            sessionId: 'session-1',
+            status: 'none',
+          },
+          seenJournalEventIds: {},
+          controlStatus: null,
+          pendingControl: null,
+          lastTerminal: {
+            turnId: 'turn-1',
+            outcome: 'budget_exceeded',
+          },
+        },
+      },
+    } as unknown as Parameters<typeof selectCanContinueAgentTask>[0];
+
+    expect(selectCanContinueAgentTask(state)).toBe(true);
+    expect(selectAgentTaskContinuationReason(state)).toBe('budget_exceeded');
+    expect(
+      selectCanContinueAgentTask({
+        ...state,
+        runningConvId: 'conversation-1',
+      }),
+    ).toBe(false);
+    expect(
+      selectCanContinueAgentTask({
+        ...state,
+        starting: true,
+      }),
+    ).toBe(false);
+    expect(
+      selectAgentTaskContinuationReason({
+        ...state,
+        runs: {
+          ...state.runs,
+          'conversation-1': {
+            ...state.runs['conversation-1'],
+            longTaskPlanState: {
+              sessionId: 'session-1',
+              status: 'completed',
+            },
+          },
+        },
+      }),
+    ).toBeNull();
+    expect(BUDGET_CONTINUATION_PROMPT).toContain('不要重复已完成的步骤');
+    expect(BUDGET_CONTINUATION_PROMPT).toContain('从尚未完成的部分继续');
+  });
+
+  it('offers continuation after a completed turn only for an authoritative same-session open plan', () => {
+    const state = {
+      activeConvId: 'conversation-1',
+      runningConvId: null,
+      starting: false,
+      runs: {
+        'conversation-1': {
+          projectId: 'project-1',
+          messages: [],
+          runtimeSessionId: 'session-1',
+          longTaskPlanState: {
+            sessionId: 'session-1',
+            status: 'active',
+          },
+          seenJournalEventIds: {},
+          controlStatus: null,
+          pendingControl: null,
+          lastTerminal: {
+            turnId: 'turn-1',
+            outcome: 'completed',
+          },
+        },
+      },
+    } as unknown as Parameters<typeof selectAgentTaskContinuationReason>[0];
+
+    expect(selectAgentTaskContinuationReason(state)).toBe('active_plan');
+    expect(selectCanContinueAgentTask(state)).toBe(true);
+    expect(ACTIVE_PLAN_CONTINUATION_PROMPT).toContain('持久化任务计划');
+
+    expect(
+      selectAgentTaskContinuationReason({
+        ...state,
+        runs: {
+          ...state.runs,
+          'conversation-1': {
+            ...state.runs['conversation-1'],
+            longTaskPlanState: {
+              sessionId: 'different-session',
+              status: 'active',
+            },
+          },
+        },
+      }),
+    ).toBeNull();
+    for (const status of ['paused', 'blocked', 'completed', 'failed'] as const) {
+      expect(
+        selectAgentTaskContinuationReason({
+          ...state,
+          runs: {
+            ...state.runs,
+            'conversation-1': {
+              ...state.runs['conversation-1'],
+              longTaskPlanState: {
+                sessionId: 'session-1',
+                status,
+              },
+            },
+          },
+        }),
+      ).toBeNull();
+    }
+  });
+
+  it('keeps only the latest same-project conversation load intent current', () => {
+    const guard = new AgentConversationLoadGuard();
+    const first = guard.begin('project-1');
+    const second = guard.begin('project-1');
+
+    expect(guard.isCurrent(first, 'project-1')).toBe(false);
+    expect(guard.isCurrent(second, 'project-1')).toBe(true);
+    expect(guard.isCurrent(second, 'project-2')).toBe(false);
+
+    guard.invalidate();
+    expect(guard.isCurrent(second, 'project-1')).toBe(false);
+  });
+
+  it('does not let an awaited send preflight override New Chat or Load Conversation intent', async () => {
+    const previous = useAgentChatStore.getState();
+    const seedOrigin = (): void => {
+      useAgentChatStore.setState(
+        {
+          ...previous,
+          boundProjectId: 'project-intent',
+          activeConvId: 'conversation-origin',
+          runs: {
+            'conversation-origin': {
+              projectId: 'project-intent',
+              messages: [],
+              runtimeSessionId: 'session-origin',
+              seenJournalEventIds: {},
+              controlStatus: null,
+            pendingControl: null,
+            lastTerminal: null,
+            longTaskPlanState: null,
+            contextUsage: null,
+          },
+          },
+          prompt: 'stale preflight prompt',
+          convList: [],
+          runningTurnId: null,
+          runningConvId: null,
+          starting: false,
+        },
+        true,
+      );
+    };
+
+    try {
+      seedOrigin();
+      const sendBeforeNew = useAgentChatStore.getState().send();
+      useAgentChatStore.getState().newConversation();
+      await sendBeforeNew;
+      expect(useAgentChatStore.getState()).toMatchObject({
+        activeConvId: null,
+        runningTurnId: null,
+        runningConvId: null,
+        starting: false,
+      });
+      expect(useAgentChatStore.getState().runs['conversation-origin']?.messages).toEqual([]);
+
+      seedOrigin();
+      const sendBeforeLoad = useAgentChatStore.getState().send();
+      const load = useAgentChatStore
+        .getState()
+        .loadConversation('conversation-target')
+        .catch(() => undefined);
+      await Promise.all([sendBeforeLoad, load]);
+      expect(useAgentChatStore.getState()).toMatchObject({
+        runningTurnId: null,
+        runningConvId: null,
+        starting: false,
+      });
+      expect(useAgentChatStore.getState().runs['conversation-origin']?.messages).toEqual([]);
+    } finally {
+      useAgentChatStore.setState(previous, true);
+    }
   });
 });

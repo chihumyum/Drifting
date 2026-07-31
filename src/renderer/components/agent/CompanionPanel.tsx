@@ -17,12 +17,11 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
-import {
-  useSettingsStore,
-  AGENT_MODEL_OPTIONS,
-} from '../../store/settings-store';
+import { useSettingsStore, AGENT_MODEL_OPTIONS } from '../../store/settings-store';
 import {
   useAgentChatStore,
+  selectAgentTaskContinuationReason,
+  selectContextUsage,
   selectControlStatus,
   selectMessages,
   selectPendingControl,
@@ -32,9 +31,15 @@ import {
 import { useProjectStore } from '../../store/project-store';
 import { useAgentMemory } from '../../usecase/useAgentMemory';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
-import { useAgentCheckpointStore } from '../../store/agent-checkpoint-store';
+import {
+  useAgentCheckpointStore,
+  type TurnCheckpoint,
+} from '../../store/agent-checkpoint-store';
 import { Switch } from '../ui/Switch';
-import { revertToTurn } from '../../lib/agent/turn-revert';
+import {
+  listLegacyRevertableCheckpoints,
+  revertToTurn,
+} from '../../lib/agent/turn-revert';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
@@ -45,17 +50,28 @@ import {
 } from '../../lib/agent/tool-entity-ref';
 import { events } from '../../lib/events';
 import type {
+  AgentControlStatus,
   AgentPendingControl,
   AgentPermissionScope,
   GeneralAgentAuthStatus,
 } from '../../lib/agent/protocol';
 import { generalAgentTransport } from '../../lib/agent/transport';
+import {
+  acceptDriftingAgentWriteReview,
+  getDriftingAgentWriteReview,
+  rejectDriftingAgentWriteReview,
+  subscribeDriftingAgentWriteReviewStatus,
+} from '../../lib/agent/useDriftingAgentRuntime';
+import { useAgentEditStore } from '../../store/agent-edit-store';
 import type {
   AgentChatMessage as ChatMsg,
   AgentConversationSummary,
 } from '../../domain/agent-conversation';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
+import { AgentContextIndicator } from './AgentContextIndicator';
 import '../../../styles/agent-panel.css';
+
+const STREAM_FOLLOW_BOTTOM_THRESHOLD_PX = 16;
 
 function relTime(iso: string): string {
   try {
@@ -81,42 +97,197 @@ function mdToHtml(text: string): string {
 
 // ---- Components ------------------------------------------------------------
 
+function ToolReviewRow({
+  review,
+}: {
+  review: NonNullable<Extract<ChatMsg, { kind: 'tool' }>['review']>;
+}) {
+  const { t } = useTranslation();
+  const projectId = useProjectStore((state) => state.currentProject?.id ?? '');
+  const [status, setStatus] = useState(review.status);
+  const [settling, setSettling] = useState<'accept' | 'reject' | null>(null);
+  const [error, setError] = useState('');
+  const [verified, setVerified] = useState(false);
+  const provenance = review.provenance;
+
+  useEffect(() => {
+    if (!provenance) return undefined;
+    let active = true;
+    void getDriftingAgentWriteReview(review.id, provenance)
+      .then((current) => {
+        if (!active || !current) return;
+        setStatus(current.status);
+        setVerified(true);
+      })
+      .catch(() => {
+        // Review authority is fail-closed: a transient durable read failure
+        // hides actions rather than trusting tool-result JSON.
+      });
+    const unsubscribe = subscribeDriftingAgentWriteReviewStatus((event) => {
+      if (event.reviewId === review.id) setStatus(event.status);
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [provenance, review.id]);
+
+  const settleLocalBatch = useCallback(
+    (decision: 'accept' | 'reject') => {
+      const store = useAgentEditStore.getState();
+      const batch = store.reviewBatches[review.id];
+      if (!batch) return;
+      if (decision === 'reject' && projectId) {
+        for (const change of batch.changes) {
+          store.recordRevert(projectId, batch.entityType, batch.id, change);
+        }
+      }
+      store.resolveReviews([review.id]);
+    },
+    [projectId, review.id],
+  );
+
+  const decide = useCallback(
+    async (decision: 'accept' | 'reject') => {
+      if (settling) return;
+      setSettling(decision);
+      setError('');
+      try {
+        const result =
+          decision === 'accept'
+            ? await acceptDriftingAgentWriteReview(review.id)
+            : await rejectDriftingAgentWriteReview(review.id, 'Rejected from the Agent panel');
+        setStatus(result.review.status);
+        if (result.review.status === 'accepted_effect' || result.review.status === 'reverted') {
+          settleLocalBatch(decision);
+        }
+        if (result.review.status === 'revert_failed') {
+          setError(
+            t('agentPanel.tool.reviewFailed', {
+              defaultValue: '无法安全还原：目标已在此后发生变化。',
+            }),
+          );
+        }
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : t('agentPanel.tool.reviewActionFailed', {
+                defaultValue: '审阅操作失败',
+              }),
+        );
+      } finally {
+        setSettling(null);
+      }
+    },
+    [review.id, settleLocalBatch, settling, t],
+  );
+
+  const pending = status === 'pending';
+  const statusLabel =
+    status === 'accepted_effect'
+      ? t('agentPanel.tool.reviewAccepted', {
+          defaultValue: '已接受',
+        })
+      : status === 'reverted'
+        ? t('agentPanel.tool.reviewReverted', {
+            defaultValue: '已还原',
+          })
+        : status === 'revert_failed'
+          ? t('agentPanel.tool.reviewConflict', {
+              defaultValue: '还原冲突',
+            })
+          : t('agentPanel.tool.reviewStatus', {
+              status,
+              defaultValue: '审阅 · {{status}}',
+            });
+
+  if (!verified) return null;
+
+  return (
+    <div style={toolReviewRow}>
+      <span style={toolReviewStatus}>{statusLabel}</span>
+      {pending && (
+        <span style={toolReviewActions}>
+          <button
+            type="button"
+            style={toolReviewButton}
+            disabled={settling !== null}
+            onClick={() => void decide('reject')}
+          >
+            {settling === 'reject'
+              ? '…'
+              : t('agentPanel.tool.rejectReview', {
+                  defaultValue: '还原',
+                })}
+          </button>
+          <button
+            type="button"
+            style={{
+              ...toolReviewButton,
+              ...toolReviewAcceptButton,
+            }}
+            disabled={settling !== null}
+            onClick={() => void decide('accept')}
+          >
+            {settling === 'accept'
+              ? '…'
+              : t('agentPanel.tool.acceptReview', {
+                  defaultValue: '接受',
+                })}
+          </button>
+        </span>
+      )}
+      {error && <span style={toolReviewError}>{error}</span>}
+    </div>
+  );
+}
+
 function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
   const { t } = useTranslation();
   const icon = msg.status === 'running' ? '◌' : msg.status === 'ok' ? '✓' : '✗';
   const inputStr = useMemo(() => {
+    if (msg.inputText !== undefined) return msg.inputText;
     if (msg.input == null) return '';
     try {
       return JSON.stringify(msg.input, null, 2);
     } catch {
       return String(msg.input);
     }
-  }, [msg.input]);
+  }, [msg.input, msg.inputText]);
   const hasBody = !!inputStr || !!msg.result;
   return (
-    <details style={toolRow}>
-      <summary style={toolSummary}>
-        <span style={{ opacity: 0.7, width: 12, display: 'inline-block' }}>{icon}</span>
-        <code style={toolName}>{msg.name}</code>
-        {msg.status === 'running' && <span style={{ opacity: 0.5 }}>…</span>}
-      </summary>
-      {hasBody && (
-        <div style={toolBody}>
-          {inputStr && (
-            <>
-              <div style={toolBodyLabel}>{t('agentPanel.tool.input')}</div>
-              <pre style={toolPre}>{inputStr}</pre>
-            </>
-          )}
-          {msg.result && (
-            <>
-              <div style={toolBodyLabel}>{t('agentPanel.tool.result')}</div>
-              <pre style={toolPre}>{msg.result}</pre>
-            </>
-          )}
-        </div>
+    <div style={toolRow}>
+      <details style={toolDetails}>
+        <summary style={toolSummary}>
+          <span style={{ opacity: 0.7, width: 12, display: 'inline-block' }}>{icon}</span>
+          <code style={toolName}>{msg.name}</code>
+          {msg.status === 'running' && <span style={{ opacity: 0.5 }}>…</span>}
+        </summary>
+        {hasBody && (
+          <div style={toolBody}>
+            {inputStr && (
+              <>
+                <div style={toolBodyLabel}>{t('agentPanel.tool.input')}</div>
+                <pre style={toolPre}>{inputStr}</pre>
+              </>
+            )}
+            {msg.result && (
+              <>
+                <div style={toolBodyLabel}>{t('agentPanel.tool.result')}</div>
+                <pre style={toolPre}>{msg.result}</pre>
+              </>
+            )}
+          </div>
+        )}
+      </details>
+      {msg.review && (
+        <ToolReviewRow
+          key={`${msg.review.id}:${msg.review.provenance?.sessionId ?? 'unbound'}:${msg.review.provenance?.turnId ?? 'unbound'}:${msg.review.provenance?.callId ?? 'unbound'}`}
+          review={msg.review}
+        />
       )}
-    </details>
+    </div>
   );
 }
 
@@ -212,124 +383,122 @@ function ComposerConfig() {
         role="dialog"
         ariaLabel={t('agentPanel.config.aria')}
       >
-            {view === 'main' ? (
-              <>
-                <div className="agt-menu__sec">{t('agentPanel.config.model')}</div>
-                <button
-                  type="button"
-                  className="agt-menu__row agt-menu__row--btn"
-                  onClick={() => setView('model')}
-                >
-                  <span>{t('agentPanel.config.switchModel')}</span>
-                  <span className="agt-menu__val">
-                    {modelShort}
-                    <span className="agt-menu__caret">›</span>
-                  </span>
-                </button>
-                <div className="agt-menu__divider" />
-                <div className="agt-menu__sec">{t('agentPanel.config.edits')}</div>
-                <div className="agt-menu__row" title={t('agentPanel.config.reviewEditsTitle')}>
-                  <span>{t('agentPanel.config.reviewEdits')}</span>
-                  <Switch
-                    checked={agentEditMode === 'approve'}
-                    onCheckedChange={(checked) =>
-                      setAgentEditMode(checked ? 'approve' : 'auto')
-                    }
-                  />
-                </div>
-                <div className="agt-menu__divider" />
-                <div className="agt-menu__sec">{t('agentPanel.config.memory')}</div>
-                <button
-                  type="button"
-                  className="agt-menu__row agt-menu__row--btn"
-                  title={t('agentPanel.config.memoryTitle')}
-                  onClick={() => {
-                    void memory.refresh();
-                    setView('memory');
-                  }}
-                >
-                  <span>{t('agentPanel.config.manageMemory')}</span>
-                  <span className="agt-menu__val">
-                    {visibleMemories.length || t('agentPanel.common.none')}
-                    <span className="agt-menu__caret">›</span>
-                  </span>
-                </button>
-              </>
-            ) : view === 'model' ? (
-              <>
-                <button type="button" className="agt-menu__back" onClick={() => setView('main')}>
-                  ‹ {t('agentPanel.config.model')}
-                </button>
-                {AGENT_MODEL_OPTIONS.map((m) => (
-                  <button
-                    type="button"
-                    key={m.value}
-                    className={
-                      'agt-menu__opt' + (m.value === agentModel ? ' agt-menu__opt--active' : '')
-                    }
-                    onClick={() => {
-                      setAgentModel(m.value);
-                      setView('main');
-                    }}
-                  >
-                    <span>
-                      {t(`settings.agent.modelOptions.${m.value}.label`, { defaultValue: m.label })}
-                    </span>
-                    {m.value === agentModel && <span className="agt-menu__check">●</span>}
-                  </button>
-                ))}
-              </>
+        {view === 'main' ? (
+          <>
+            <div className="agt-menu__sec">{t('agentPanel.config.model')}</div>
+            <button
+              type="button"
+              className="agt-menu__row agt-menu__row--btn"
+              onClick={() => setView('model')}
+            >
+              <span>{t('agentPanel.config.switchModel')}</span>
+              <span className="agt-menu__val">
+                {modelShort}
+                <span className="agt-menu__caret">›</span>
+              </span>
+            </button>
+            <div className="agt-menu__divider" />
+            <div className="agt-menu__sec">{t('agentPanel.config.edits')}</div>
+            <div className="agt-menu__row" title={t('agentPanel.config.reviewEditsTitle')}>
+              <span>{t('agentPanel.config.reviewEdits')}</span>
+              <Switch
+                checked={agentEditMode === 'approve'}
+                onCheckedChange={(checked) => setAgentEditMode(checked ? 'approve' : 'auto')}
+              />
+            </div>
+            <div className="agt-menu__divider" />
+            <div className="agt-menu__sec">{t('agentPanel.config.memory')}</div>
+            <button
+              type="button"
+              className="agt-menu__row agt-menu__row--btn"
+              title={t('agentPanel.config.memoryTitle')}
+              onClick={() => {
+                void memory.refresh();
+                setView('memory');
+              }}
+            >
+              <span>{t('agentPanel.config.manageMemory')}</span>
+              <span className="agt-menu__val">
+                {visibleMemories.length || t('agentPanel.common.none')}
+                <span className="agt-menu__caret">›</span>
+              </span>
+            </button>
+          </>
+        ) : view === 'model' ? (
+          <>
+            <button type="button" className="agt-menu__back" onClick={() => setView('main')}>
+              ‹ {t('agentPanel.config.model')}
+            </button>
+            {AGENT_MODEL_OPTIONS.map((m) => (
+              <button
+                type="button"
+                key={m.value}
+                className={
+                  'agt-menu__opt' + (m.value === agentModel ? ' agt-menu__opt--active' : '')
+                }
+                onClick={() => {
+                  setAgentModel(m.value);
+                  setView('main');
+                }}
+              >
+                <span>
+                  {t(`settings.agent.modelOptions.${m.value}.label`, { defaultValue: m.label })}
+                </span>
+                {m.value === agentModel && <span className="agt-menu__check">●</span>}
+              </button>
+            ))}
+          </>
+        ) : (
+          <>
+            <button type="button" className="agt-menu__back" onClick={() => setView('main')}>
+              ‹ {t('agentPanel.config.memory')}
+            </button>
+            {visibleMemories.length === 0 ? (
+              <div className="agt-menu__row agt-menu__row--empty">
+                <span style={{ opacity: 0.6 }}>{t('agentPanel.config.noMemory')}</span>
+              </div>
             ) : (
-              <>
-                <button type="button" className="agt-menu__back" onClick={() => setView('main')}>
-                  ‹ {t('agentPanel.config.memory')}
-                </button>
-                {visibleMemories.length === 0 ? (
-                  <div className="agt-menu__row agt-menu__row--empty">
-                    <span style={{ opacity: 0.6 }}>{t('agentPanel.config.noMemory')}</span>
+              <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                {visibleMemories.map((m) => (
+                  <div key={m.id} className="agt-mem">
+                    <div className="agt-mem__main">
+                      <span className={'agt-mem__kind agt-mem__kind--' + m.kind}>
+                        {m.kind === 'veto'
+                          ? t('agentPanel.memoryKind.veto')
+                          : m.kind === 'directive'
+                            ? t('agentPanel.memoryKind.directive')
+                            : t('agentPanel.memoryKind.preference')}
+                      </span>
+                      <span className="agt-mem__body" title={m.body}>
+                        {m.body}
+                      </span>
+                    </div>
+                    <div className="agt-mem__acts">
+                      {m.status === 'pending' && (
+                        <button
+                          type="button"
+                          className="agt-mem__btn"
+                          title={t('agentPanel.config.approveMemory')}
+                          onClick={() => void memory.approve(m.id)}
+                        >
+                          ✓
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="agt-mem__btn agt-mem__btn--del"
+                        title={t('common.delete')}
+                        onClick={() => void memory.remove(m.id)}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
-                ) : (
-                  <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-                    {visibleMemories.map((m) => (
-                      <div key={m.id} className="agt-mem">
-                        <div className="agt-mem__main">
-                          <span className={'agt-mem__kind agt-mem__kind--' + m.kind}>
-                            {m.kind === 'veto'
-                              ? t('agentPanel.memoryKind.veto')
-                              : m.kind === 'directive'
-                                ? t('agentPanel.memoryKind.directive')
-                                : t('agentPanel.memoryKind.preference')}
-                          </span>
-                          <span className="agt-mem__body" title={m.body}>
-                            {m.body}
-                          </span>
-                        </div>
-                        <div className="agt-mem__acts">
-                          {m.status === 'pending' && (
-                            <button
-                              type="button"
-                              className="agt-mem__btn"
-                              title={t('agentPanel.config.approveMemory')}
-                              onClick={() => void memory.approve(m.id)}
-                            >
-                              ✓
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="agt-mem__btn agt-mem__btn--del"
-                            title={t('common.delete')}
-                            onClick={() => void memory.remove(m.id)}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
+                ))}
+              </div>
             )}
+          </>
+        )}
       </AnchoredPopover>
     </div>
   );
@@ -483,7 +652,7 @@ function EntityLinkChip({
  * user has live feedback that the model is busy. Remounts each thinking gap, so
  * the count starts fresh whenever the model drops back into思考.
  */
-function PendingRow() {
+function PendingRow({ status }: { status: AgentControlStatus | null }) {
   const { t } = useTranslation();
   const [secs, setSecs] = useState(0);
   useEffect(() => {
@@ -491,16 +660,20 @@ function PendingRow() {
     const t = window.setInterval(() => setSecs(Math.floor((Date.now() - start) / 1000)), 1000);
     return () => window.clearInterval(t);
   }, []);
+  const label =
+    status === 'committing'
+      ? t('agentPanel.pending.committing', { defaultValue: '正在保存…' })
+      : status === 'cancelling'
+        ? t('agentPanel.pending.cancelling', { defaultValue: '正在停止…' })
+        : secs > 0
+          ? t('agentPanel.pending.withSeconds', { seconds: secs })
+          : t('agentPanel.pending.now');
   return (
     <div className="agt-pending">
       <span className="agt-pending__dot" />
       <span className="agt-pending__dot" />
       <span className="agt-pending__dot" />
-      <span>
-        {secs > 0
-          ? t('agentPanel.pending.withSeconds', { seconds: secs })
-          : t('agentPanel.pending.now')}
-      </span>
+      <span>{label}</span>
     </div>
   );
 }
@@ -539,10 +712,7 @@ function RuntimeControlCard({
   onCancelRecovered,
 }: {
   pending: AgentPendingControl;
-  onPermission: (
-    decision: 'allow' | 'deny',
-    scope?: AgentPermissionScope,
-  ) => void;
+  onPermission: (decision: 'allow' | 'deny', scope?: AgentPermissionScope) => void;
   onCancelRecovered: () => void;
 }) {
   const { t } = useTranslation();
@@ -662,18 +832,20 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   // = a turn is running, but in a different conversation than the one shown.
   const running = useAgentChatStore(selectRunning);
   const otherRunning = useAgentChatStore(selectOtherRunning);
+  const starting = useAgentChatStore((s) => s.starting);
   const controlStatus = useAgentChatStore(selectControlStatus);
   const pendingControl = useAgentChatStore(selectPendingControl);
+  const continuationReason = useAgentChatStore(selectAgentTaskContinuationReason);
+  const contextUsage = useAgentChatStore(selectContextUsage);
   const runningConvId = useAgentChatStore((s) => s.runningConvId);
   const convList = useAgentChatStore((s) => s.convList);
   const activeConvId = useAgentChatStore((s) => s.activeConvId);
   const setPrompt = useAgentChatStore((s) => s.setPrompt);
   const send = useAgentChatStore((s) => s.send);
+  const continueTask = useAgentChatStore((s) => s.continueTask);
   const respondPermission = useAgentChatStore((s) => s.respondPermission);
   const stopAfterTool = useAgentChatStore((s) => s.stopAfterTool);
-  const cancelRecoveredControl = useAgentChatStore(
-    (s) => s.cancelRecoveredControl,
-  );
+  const cancelRecoveredControl = useAgentChatStore((s) => s.cancelRecoveredControl);
   const abort = useAgentChatStore((s) => s.abort);
   const newConversation = useAgentChatStore((s) => s.newConversation);
   const loadConversation = useAgentChatStore((s) => s.loadConversation);
@@ -689,10 +861,20 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const [reverting, setReverting] = useState(false);
   const [revertNote, setRevertNote] = useState<string | null>(null);
   const allCheckpoints = useAgentCheckpointStore((s) => s.checkpoints);
-  const checkpoints = useMemo(
-    () => allCheckpoints.filter((c) => c.projectId === projectId).reverse(),
-    [allCheckpoints, projectId],
+  const providerNeutralCheckpointBarrier = useAgentCheckpointStore(
+    (state) => state.providerNeutralProjectBarriers[projectId] ?? null,
   );
+  const [legacyCheckpointState, setLegacyCheckpointState] = useState<{
+    projectId: string;
+    source: readonly TurnCheckpoint[];
+    checkpoints: TurnCheckpoint[];
+  }>({ projectId, source: allCheckpoints, checkpoints: [] });
+  const checkpoints =
+    !providerNeutralCheckpointBarrier &&
+    legacyCheckpointState.projectId === projectId &&
+    legacyCheckpointState.source === allCheckpoints
+      ? legacyCheckpointState.checkpoints
+      : [];
   const [atBottom, setAtBottom] = useState(true);
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
   const snapshotsTriggerRef = useRef<HTMLButtonElement>(null);
@@ -747,17 +929,52 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
     bindProject(projectId);
   }, [projectId, bindProject]);
 
+  // The old whole-turn inverse is a legacy SDK compatibility surface only.
+  // Resolve its authority from durable conversation identity before rendering
+  // the toolbar; provider-neutral checkpoints never get a clickable path.
+  useEffect(() => {
+    let active = true;
+    if (providerNeutralCheckpointBarrier) {
+      return () => {
+        active = false;
+      };
+    }
+    void listLegacyRevertableCheckpoints(projectId)
+      .then((rows) => {
+        if (!active) return;
+        setLegacyCheckpointState({
+          projectId,
+          source: allCheckpoints,
+          checkpoints: [...rows].reverse(),
+        });
+      })
+      .catch(() => {
+        if (!active) return;
+        // Revert authority is fail-closed when its durable identity cannot be
+        // loaded. Do not retain rows authorized by an earlier request.
+        setLegacyCheckpointState({
+          projectId,
+          source: allCheckpoints,
+          checkpoints: [],
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [allCheckpoints, projectId, providerNeutralCheckpointBarrier]);
+
   // Auto-follow the stream only while pinned to the bottom.
   useEffect(() => {
     if (stickRef.current && logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, pendingControl, controlStatus]);
 
   const onScroll = useCallback(() => {
     const el = logRef.current;
     if (!el) return;
-    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    const bottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight < STREAM_FOLLOW_BOTTOM_THRESHOLD_PX;
     stickRef.current = bottom;
     setAtBottom((prev) => (prev === bottom ? prev : bottom));
   }, []);
@@ -823,7 +1040,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
     !!lastMsg &&
     (((lastMsg.kind === 'assistant' || lastMsg.kind === 'thinking') && lastMsg.streaming) ||
       (lastMsg.kind === 'tool' && lastMsg.status === 'running'));
-  const waiting = running && !busyTail && !pendingControl;
+  const waiting = (running || starting) && !busyTail && !pendingControl;
 
   // Session totals — summed across the conversation's per-turn usage rows (which
   // persist in the transcript), plus a tool-call count. Drives the footer.
@@ -998,6 +1215,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           </button>
         )}
         <div style={toolbarRight}>
+          <AgentContextIndicator snapshot={contextUsage} />
           {checkpoints.length > 0 && (
             <button
               ref={snapshotsTriggerRef}
@@ -1043,7 +1261,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
 
       <AnchoredPopover
         anchorRef={snapshotsTriggerRef}
-        open={showSnapshots}
+        open={showSnapshots && checkpoints.length > 0}
         onClose={() => {
           setShowSnapshots(false);
           setConfirmTurnId(null);
@@ -1056,80 +1274,80 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
         autoFocus={false}
         restoreFocus={false}
       >
-          {revertNote && (
-            <div style={{ padding: '8px 12px', fontSize: 11.5, color: 'hsl(var(--ink-2))' }}>
-              {revertNote}
-            </div>
-          )}
-          {checkpoints.length === 0 ? (
-            <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>
-              {t('agentPanel.snapshots.empty')}
-            </div>
-          ) : (
-            checkpoints.map((cp, i) => {
-              const entityCount = Object.keys(cp.entities).length;
-              const changeCount = Object.values(cp.entities).reduce(
-                (n, e) => n + e.changes.length,
-                0,
-              );
-              const confirming = confirmTurnId === cp.turnId;
-              return (
-                <div key={cp.turnId} style={historyItem}>
-                  <span style={historyTitle} title={cp.label}>
-                    {cp.label || t('agentPanel.snapshots.emptyInstruction')}
-                  </span>
-                  <span style={historyTime}>
-                    {relTime(new Date(cp.ts).toISOString())} ·{' '}
-                    {t('agentPanel.snapshots.meta', {
-                      changes: changeCount,
-                      entities: entityCount,
-                    })}
-                  </span>
-                  {confirming ? (
-                    <>
-                      <button
-                        type="button"
-                        style={{ ...historyAct, color: 'hsl(var(--accent))' }}
-                        disabled={reverting}
-                        title={
-                          i === 0
-                            ? t('agentPanel.snapshots.revertThisTitle')
-                            : t('agentPanel.snapshots.revertThisAndAfterTitle', { count: i })
-                        }
-                        onClick={() => void handleRevert(cp.turnId)}
-                      >
-                        {reverting
-                          ? t('agentPanel.snapshots.reverting')
-                          : t('agentPanel.snapshots.confirmRevert')}
-                      </button>
-                      <button
-                        type="button"
-                        style={historyAct}
-                        disabled={reverting}
-                        onClick={() => setConfirmTurnId(null)}
-                      >
-                        {t('common.cancel')}
-                      </button>
-                    </>
-                  ) : (
+        {revertNote && (
+          <div style={{ padding: '8px 12px', fontSize: 11.5, color: 'hsl(var(--ink-2))' }}>
+            {revertNote}
+          </div>
+        )}
+        {checkpoints.length === 0 ? (
+          <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>
+            {t('agentPanel.snapshots.empty')}
+          </div>
+        ) : (
+          checkpoints.map((cp, i) => {
+            const entityCount = Object.keys(cp.entities).length;
+            const changeCount = Object.values(cp.entities).reduce(
+              (n, e) => n + e.changes.length,
+              0,
+            );
+            const confirming = confirmTurnId === cp.turnId;
+            return (
+              <div key={cp.turnId} style={historyItem}>
+                <span style={historyTitle} title={cp.label}>
+                  {cp.label || t('agentPanel.snapshots.emptyInstruction')}
+                </span>
+                <span style={historyTime}>
+                  {relTime(new Date(cp.ts).toISOString())} ·{' '}
+                  {t('agentPanel.snapshots.meta', {
+                    changes: changeCount,
+                    entities: entityCount,
+                  })}
+                </span>
+                {confirming ? (
+                  <>
+                    <button
+                      type="button"
+                      style={{ ...historyAct, color: 'hsl(var(--accent))' }}
+                      disabled={reverting}
+                      title={
+                        i === 0
+                          ? t('agentPanel.snapshots.revertThisTitle')
+                          : t('agentPanel.snapshots.revertThisAndAfterTitle', { count: i })
+                      }
+                      onClick={() => void handleRevert(cp.turnId)}
+                    >
+                      {reverting
+                        ? t('agentPanel.snapshots.reverting')
+                        : t('agentPanel.snapshots.confirmRevert')}
+                    </button>
                     <button
                       type="button"
                       style={historyAct}
-                      disabled={reverting || running || otherRunning}
-                      title={
-                        running || otherRunning
-                          ? t('agentPanel.snapshots.runningTitle')
-                          : t('agentPanel.snapshots.revertBeforeTitle')
-                      }
-                      onClick={() => setConfirmTurnId(cp.turnId)}
+                      disabled={reverting}
+                      onClick={() => setConfirmTurnId(null)}
                     >
-                      ↺ {t('agentPanel.snapshots.revert')}
+                      {t('common.cancel')}
                     </button>
-                  )}
-                </div>
-              );
-            })
-          )}
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    style={historyAct}
+                    disabled={reverting || running || otherRunning}
+                    title={
+                      running || otherRunning
+                        ? t('agentPanel.snapshots.runningTitle')
+                        : t('agentPanel.snapshots.revertBeforeTitle')
+                    }
+                    onClick={() => setConfirmTurnId(cp.turnId)}
+                  >
+                    ↺ {t('agentPanel.snapshots.revert')}
+                  </button>
+                )}
+              </div>
+            );
+          })
+        )}
       </AnchoredPopover>
 
       <AnchoredPopover
@@ -1144,65 +1362,61 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
         autoFocus={false}
         restoreFocus={false}
       >
-          {convList.length === 0 ? (
-            <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>
-              {t('agentPanel.history.empty')}
-            </div>
-          ) : (
-            convList.map((c) =>
-              editingItemId === c.id ? (
-                <div key={c.id} style={historyItem} onClick={(e) => e.stopPropagation()}>
-                  <input
-                    style={historyInput}
-                    value={itemDraft}
-                    autoFocus
-                    onChange={(e) => setItemDraft(e.target.value)}
-                    onFocus={(e) => e.target.select()}
-                    onBlur={() => commitItemRename(c.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        commitItemRename(c.id);
-                      } else if (e.key === 'Escape') {
-                        e.preventDefault();
-                        setEditingItemId(null);
-                      }
-                    }}
-                  />
-                </div>
-              ) : (
-                <div
-                  key={c.id}
-                  style={{ ...historyItem, ...(c.id === activeConvId ? historyItemActive : null) }}
+        {convList.length === 0 ? (
+          <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>
+            {t('agentPanel.history.empty')}
+          </div>
+        ) : (
+          convList.map((c) =>
+            editingItemId === c.id ? (
+              <div key={c.id} style={historyItem} onClick={(e) => e.stopPropagation()}>
+                <input
+                  style={historyInput}
+                  value={itemDraft}
+                  autoFocus
+                  onChange={(e) => setItemDraft(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  onBlur={() => commitItemRename(c.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      commitItemRename(c.id);
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setEditingItemId(null);
+                    }
+                  }}
+                />
+              </div>
+            ) : (
+              <div
+                key={c.id}
+                style={{ ...historyItem, ...(c.id === activeConvId ? historyItemActive : null) }}
+              >
+                <button type="button" style={historyLoadButton} onClick={() => handleLoad(c.id)}>
+                  <span style={historyTitle}>{c.title || t('agentPanel.history.untitled')}</span>
+                  <span style={historyTime}>{relTime(c.updatedAt)}</span>
+                </button>
+                <button
+                  type="button"
+                  style={historyAct}
+                  title={t('agentPanel.history.rename')}
+                  onClick={(e) => beginItemRename(c, e)}
                 >
-                  <button
-                    type="button"
-                    style={historyLoadButton}
-                    onClick={() => handleLoad(c.id)}
-                  >
-                    <span style={historyTitle}>{c.title || t('agentPanel.history.untitled')}</span>
-                    <span style={historyTime}>{relTime(c.updatedAt)}</span>
-                  </button>
-                  <button
-                    type="button"
-                    style={historyAct}
-                    title={t('agentPanel.history.rename')}
-                    onClick={(e) => beginItemRename(c, e)}
-                  >
-                    ✎
-                  </button>
-                  <button
-                    type="button"
-                    style={historyAct}
-                    title={t('agentPanel.history.delete')}
-                    onClick={(e) => handleDelete(c.id, e)}
-                  >
-                    ×
-                  </button>
-                </div>
-              ),
-            )
-          )}
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  style={historyAct}
+                  title={t('agentPanel.history.delete')}
+                  onClick={(e) => handleDelete(c.id, e)}
+                >
+                  ×
+                </button>
+              </div>
+            ),
+          )
+        )}
       </AnchoredPopover>
 
       <div style={logWrap}>
@@ -1212,7 +1426,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           ) : (
             messages.map((m, i) => <MessageView key={i} msg={m} />)
           )}
-          {waiting && <PendingRow />}
+          {waiting && <PendingRow status={controlStatus} />}
           {pendingControl && (
             <RuntimeControlCard
               pending={pendingControl}
@@ -1223,6 +1437,41 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                 void cancelRecoveredControl();
               }}
             />
+          )}
+          {continuationReason && (
+            <div className="agt-control-card" role="status">
+              <strong>
+                {continuationReason === 'budget_exceeded'
+                  ? t('agentPanel.budget.title', {
+                      defaultValue: '已达到本轮预算上限',
+                    })
+                  : t('agentPanel.longTask.title', {
+                      defaultValue: '任务计划尚未完成',
+                    })}
+              </strong>
+              <span>
+                {continuationReason === 'budget_exceeded'
+                  ? t('agentPanel.budget.body', {
+                      defaultValue:
+                        '已完成的进度会保留。你可以手动继续一次，Agent 会先检查当前状态并从未完成部分接着做。',
+                    })
+                  : t('agentPanel.longTask.body', {
+                      defaultValue:
+                        '本轮已正常结束，但同一会话的持久化任务计划仍有未完成内容。你可以继续执行下一步。',
+                    })}
+              </span>
+              <div className="agt-control-card__actions">
+                <button
+                  type="button"
+                  className="agt-control-card__allow"
+                  onClick={() => void continueTask()}
+                >
+                  {t('agentPanel.budget.continue', {
+                    defaultValue: '继续此任务',
+                  })}
+                </button>
+              </div>
+            </div>
           )}
           {turnRefs.length > 0 && (
             <div className="agt-entity-links">
@@ -1279,20 +1528,24 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              if (
+                e.key === 'Enter' &&
+                !e.shiftKey &&
+                !e.nativeEvent.isComposing &&
+                e.keyCode !== 229
+              ) {
                 e.preventDefault();
                 handleSend();
               }
             }}
             placeholder={
-              pendingControl?.status === 'waiting_user' &&
-              !pendingControl.requiresContinuation
+              pendingControl?.status === 'waiting_user' && !pendingControl.requiresContinuation
                 ? t('agentPanel.composer.answerPlaceholder')
                 : running
                   ? t('agentPanel.composer.steerPlaceholder')
                   : t('agentPanel.composer.placeholder')
             }
-            disabled={Boolean(pendingControl?.requiresContinuation)}
+            disabled={starting || Boolean(pendingControl?.requiresContinuation)}
             rows={1}
           />
           <div className="agt-composer__bar">
@@ -1304,6 +1557,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                   type="button"
                   className="agt-send agt-send--stop"
                   onClick={() => void stopAfterTool()}
+                  disabled={starting}
                   title={t('agentPanel.composer.stopAfterToolTitle')}
                 >
                   {t('agentPanel.composer.stopAfterTool')}
@@ -1312,6 +1566,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                   type="button"
                   className="agt-send agt-send--stop"
                   onClick={abort}
+                  disabled={starting}
                   title={t('agentPanel.composer.abortTitle')}
                 >
                   {t('agentPanel.composer.stop')}
@@ -1322,6 +1577,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                   onClick={handleSend}
                   disabled={
                     !prompt.trim() ||
+                    starting ||
                     controlStatus === 'waiting_permission' ||
                     controlStatus === 'cancelling' ||
                     controlStatus === 'committing'
@@ -1347,7 +1603,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                 type="button"
                 className="agt-send"
                 onClick={handleSend}
-                disabled={Boolean(pendingControl?.requiresContinuation)}
+                disabled={starting || Boolean(pendingControl?.requiresContinuation)}
               >
                 {t('agentPanel.composer.send')}
               </button>
@@ -1624,6 +1880,10 @@ const toolRow: React.CSSProperties = {
   fontSize: 12,
 };
 
+const toolDetails: React.CSSProperties = {
+  margin: 0,
+};
+
 const toolSummary: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -1643,6 +1903,51 @@ const toolName: React.CSSProperties = {
 const toolBody: React.CSSProperties = {
   borderTop: '1px solid hsl(var(--rule))',
   padding: '6px 8px',
+};
+
+const toolReviewRow: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: 6,
+  borderTop: '1px solid hsl(var(--rule))',
+  padding: '6px 8px',
+  background: 'hsl(var(--accent) / 0.06)',
+};
+
+const toolReviewStatus: React.CSSProperties = {
+  flex: 1,
+  minWidth: 80,
+  fontSize: 11,
+  opacity: 0.72,
+};
+
+const toolReviewActions: React.CSSProperties = {
+  display: 'flex',
+  gap: 5,
+};
+
+const toolReviewButton: React.CSSProperties = {
+  border: '1px solid hsl(var(--rule))',
+  borderRadius: 5,
+  background: 'hsl(var(--paper))',
+  color: 'inherit',
+  cursor: 'pointer',
+  font: 'inherit',
+  fontSize: 11,
+  lineHeight: 1.4,
+  padding: '2px 7px',
+};
+
+const toolReviewAcceptButton: React.CSSProperties = {
+  borderColor: 'hsl(var(--accent) / 0.45)',
+  background: 'hsl(var(--accent) / 0.12)',
+};
+
+const toolReviewError: React.CSSProperties = {
+  width: '100%',
+  color: 'hsl(0 65% 52%)',
+  fontSize: 10.5,
 };
 
 const toolBodyLabel: React.CSSProperties = {

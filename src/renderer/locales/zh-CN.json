@@ -13,9 +13,9 @@
     "intro": "这是给少量内测用户使用的早期版本。核心写作、云同步与关系数据已经可用，但接口、数据格式和体验仍可能变化。",
     "trial": "当前账户是 30 天试用账户；到期后服务器会清理账户及云端数据。",
     "sync": "稿件会以可读形式存储在 Drifting 服务器，目前不提供端到端加密。",
-    "byok": "不提供 hosted AI 服务；Copilot 和 Shadow 使用你自己的 API Key。Tauri 迁移期间 General Agent 暂不可用。",
+    "byok": "不提供 hosted AI 服务；Copilot、Shadow 和 General Agent 都使用你自己的 API Key。General Agent 当前通过本地运行时使用 DeepSeek BYOK。",
     "backup": "请定期用“导出关系型 Markdown”保存一份可阅读的副本。",
-    "settingsHint": "进入一本书后，可在“设置 → Copilot / Shadow”中连接自己的模型凭据。API Key 只持久化在本机 Keychain；General Agent 的远程/sidecar 方案仍在规划中。",
+    "settingsHint": "进入一本书后，可在“设置 → Copilot / Shadow / Agent”中连接自己的模型凭据。API Key 只持久化在系统安全存储；General Agent 当前不需要远程 runner 或 sidecar。",
     "continue": "了解，继续使用"
   },
   "settings": {
@@ -1035,9 +1035,68 @@
     "common": {
       "none": "无"
     },
+    "context": {
+      "tokens": "{{count}} tokens",
+      "progressAria": "当前 Agent context 占用",
+      "tooltip": "{{used}} / {{limit}} tokens（{{percent}}%）\n输出预留：{{output}} · 安全余量：{{safety}}",
+      "modalAria": "Agent context 占用详情",
+      "kicker": "第 {{iteration}} 次模型调用",
+      "title": "Context 占用",
+      "summary": "{{used}} / {{limit}}（{{percent}}%）",
+      "description": "基于最近一次实际提交给模型的已验证 context 规划快照；不是整场会话的累计 token 用量。",
+      "allocation": {
+        "title": "窗口分配",
+        "aria": "Context 输入、输出预留、安全余量和空闲空间的分配",
+        "input": "当前输入",
+        "output": "输出预留",
+        "safety": "安全余量",
+        "free": "空闲空间"
+      },
+      "breakdownTitle": "当前输入由什么组成",
+      "sources": "{{count}} 项来源",
+      "categories": {
+        "system_prompt": "System prompt",
+        "user_messages": "用户消息",
+        "assistant_messages": "Agent 消息",
+        "thinking": "思考内容",
+        "tool_calls": "工具调用",
+        "tool_results": "工具结果",
+        "write_reviews": "写入审阅",
+        "write_reverts": "改动回退",
+        "freshness": "数据新鲜度证据",
+        "task_plan": "任务计划",
+        "task_constraints": "任务约束",
+        "compaction_summaries": "Compaction 摘要",
+        "tool_definitions": "工具定义",
+        "provider_overhead": "Provider framing"
+      },
+      "detailsTitle": "规划细节",
+      "pinned": "Pinned context",
+      "pinnedDetail": "共 {{total}} · 语义固定 {{semantic}} · 最近轮次 {{recent}} · {{count}} 项来源",
+      "compaction": "Compaction",
+      "compactionDetail": "节省 {{saved}} · {{stages}} · {{count}} 份摘要",
+      "compactionNone": "本次未触发 compaction",
+      "compactionStages": {
+        "drop_discardable": "丢弃可舍弃内容",
+        "deterministic_summaries": "确定性摘要",
+        "full_compactor": "完整压缩"
+      },
+      "coverage": "Canonical coverage",
+      "coverageDetail": "已表示 {{represented}} / {{canonical}} 项来源 · 丢弃 {{discarded}} 项",
+      "toolDefinitions": "工具定义明细",
+      "orthogonalNote": "Pinned、compaction 和 coverage 是对当前输入的观察维度，可能与上方分类重叠，因此不会再次计入窗口总量。"
+    },
     "tool": {
       "input": "输入",
-      "result": "结果"
+      "result": "结果",
+      "reviewStatus": "审阅 · {{status}}",
+      "acceptReview": "接受",
+      "rejectReview": "还原",
+      "reviewAccepted": "已接受",
+      "reviewReverted": "已还原",
+      "reviewConflict": "还原冲突",
+      "reviewFailed": "无法安全还原：目标已在此后发生变化。",
+      "reviewActionFailed": "审阅操作失败"
     },
     "thinking": {
       "streaming": "思考中…",
@@ -1082,7 +1141,18 @@
     },
     "pending": {
       "now": "思考中…",
-      "withSeconds": "思考中 · {{seconds}}s"
+      "withSeconds": "思考中 · {{seconds}}s",
+      "committing": "正在保存…",
+      "cancelling": "正在停止…"
+    },
+    "budget": {
+      "title": "已达到本轮预算上限",
+      "body": "已完成的进度会保留。你可以手动继续一次，Agent 会先检查当前状态并从未完成部分接着做。",
+      "continue": "继续此任务"
+    },
+    "longTask": {
+      "title": "任务计划尚未完成",
+      "body": "本轮已正常结束，但同一会话的持久化任务计划仍有未完成内容。你可以继续执行下一步。"
     },
     "todos": {
       "plan": "计划"

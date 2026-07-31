@@ -13,9 +13,9 @@
     "intro": "This is an early build for a small group of testers. Core writing, cloud sync, and relational data work, but APIs, data formats, and UX may still change.",
     "trial": "This is a 30-day trial account; the server deletes the account and cloud data after expiry.",
     "sync": "Manuscripts are stored in readable form on Drifting's server; end-to-end encryption is not provided.",
-    "byok": "There is no hosted AI service. Copilot and Shadow use your own API key. General Agent is temporarily unavailable during the Tauri migration.",
+    "byok": "There is no hosted AI service. Copilot, Shadow, and General Agent use your own API keys. General Agent currently runs locally with DeepSeek BYOK.",
     "backup": "Regularly use Relational Markdown Export to keep a readable copy.",
-    "settingsHint": "After opening a book, connect your model credentials in Settings → Copilot / Shadow. API keys persist only in the local Keychain; a remote/sidecar path for General Agent is still planned.",
+    "settingsHint": "After opening a book, connect your model credentials in Settings → Copilot / Shadow / Agent. API keys persist only in system secure storage; General Agent does not currently require a remote runner or sidecar.",
     "continue": "I understand — continue"
   },
   "settings": {
@@ -1035,9 +1035,68 @@
     "common": {
       "none": "None"
     },
+    "context": {
+      "tokens": "{{count}} tokens",
+      "progressAria": "Current Agent context usage",
+      "tooltip": "{{used}} / {{limit}} tokens ({{percent}}%)\nOutput reserve: {{output}} · safety margin: {{safety}}",
+      "modalAria": "Agent context usage details",
+      "kicker": "Model call {{iteration}}",
+      "title": "Context usage",
+      "summary": "{{used}} / {{limit}} ({{percent}}%)",
+      "description": "Based on the latest verified context plan actually sent to the model, not cumulative token usage for the whole chat.",
+      "allocation": {
+        "title": "Window allocation",
+        "aria": "Allocation of context input, output reserve, safety margin, and free space",
+        "input": "Current input",
+        "output": "Output reserve",
+        "safety": "Safety margin",
+        "free": "Free space"
+      },
+      "breakdownTitle": "What the current input contains",
+      "sources": "{{count}} sources",
+      "categories": {
+        "system_prompt": "System prompt",
+        "user_messages": "User messages",
+        "assistant_messages": "Agent messages",
+        "thinking": "Thinking",
+        "tool_calls": "Tool calls",
+        "tool_results": "Tool results",
+        "write_reviews": "Write reviews",
+        "write_reverts": "Edit reverts",
+        "freshness": "Freshness evidence",
+        "task_plan": "Task plan",
+        "task_constraints": "Task constraints",
+        "compaction_summaries": "Compaction summaries",
+        "tool_definitions": "Tool definitions",
+        "provider_overhead": "Provider framing"
+      },
+      "detailsTitle": "Planning details",
+      "pinned": "Pinned context",
+      "pinnedDetail": "{{total}} total · {{semantic}} semantic · {{recent}} recent-turn · {{count}} sources",
+      "compaction": "Compaction",
+      "compactionDetail": "Saved {{saved}} · {{stages}} · {{count}} summaries",
+      "compactionNone": "Compaction was not needed for this call",
+      "compactionStages": {
+        "drop_discardable": "Drop discardable context",
+        "deterministic_summaries": "Deterministic summaries",
+        "full_compactor": "Full compaction"
+      },
+      "coverage": "Canonical coverage",
+      "coverageDetail": "{{represented}} / {{canonical}} sources represented · {{discarded}} discarded",
+      "toolDefinitions": "Tool definition detail",
+      "orthogonalNote": "Pinned, compaction, and coverage are views of the current input and can overlap the categories above, so they are not added to the window total again."
+    },
     "tool": {
       "input": "Input",
-      "result": "Result"
+      "result": "Result",
+      "reviewStatus": "Review · {{status}}",
+      "acceptReview": "Accept",
+      "rejectReview": "Restore",
+      "reviewAccepted": "Accepted",
+      "reviewReverted": "Restored",
+      "reviewConflict": "Restore conflict",
+      "reviewFailed": "This change cannot be restored safely because its target changed later.",
+      "reviewActionFailed": "Review action failed"
     },
     "thinking": {
       "streaming": "Thinking…",
@@ -1082,7 +1141,18 @@
     },
     "pending": {
       "now": "Thinking…",
-      "withSeconds": "Thinking · {{seconds}}s"
+      "withSeconds": "Thinking · {{seconds}}s",
+      "committing": "Saving…",
+      "cancelling": "Stopping…"
+    },
+    "budget": {
+      "title": "Turn budget reached",
+      "body": "Completed progress is preserved. You can continue once manually; the Agent will inspect current state and resume only unfinished work.",
+      "continue": "Continue task"
+    },
+    "longTask": {
+      "title": "The task plan is not finished",
+      "body": "This turn completed normally, but the durable plan in this session still has unfinished work. You can continue with the next step."
     },
     "todos": {
       "plan": "Plan"
