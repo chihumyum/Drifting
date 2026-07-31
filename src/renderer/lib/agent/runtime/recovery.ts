@@ -22,6 +22,7 @@ import type {
   AgentContextSourceKind,
   AgentContextSourceRow,
 } from './context-planner';
+import { isAgentContextUsageSnapshot } from './context-usage';
 import {
   AGENT_RUNTIME_SCHEMA_VERSION,
   isCanonicalAgentRuntimeUnknownToolResult,
@@ -451,6 +452,8 @@ const CONTEXT_SOURCE_KINDS: ReadonlySet<AgentContextSourceKind> = new Set([
   'write_review',
   'write_revert',
   'freshness',
+  'task_plan',
+  'task_constraints',
 ]);
 
 function parseCheckpointSourceRow(
@@ -537,7 +540,9 @@ function deriveCheckpointBridgeInput(
       if (
         row.kind !== 'write_review' &&
         row.kind !== 'write_revert' &&
-        row.kind !== 'freshness'
+        row.kind !== 'freshness' &&
+        row.kind !== 'task_plan' &&
+        row.kind !== 'task_constraints'
       ) {
         return [];
       }
@@ -942,6 +947,20 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
         driverId: value.driverId,
       };
 
+    case 'context_planned':
+      if (
+        !isPositiveInteger(value.iteration) ||
+        !isAgentContextUsageSnapshot(value.snapshot) ||
+        value.snapshot.iteration !== value.iteration
+      ) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid context snapshot.`);
+      }
+      return {
+        type: 'context_planned',
+        iteration: value.iteration,
+        snapshot: value.snapshot,
+      };
+
     case 'text_delta':
     case 'thinking_delta':
       if (!isPositiveInteger(value.iteration) || typeof value.text !== 'string') {
@@ -1042,6 +1061,8 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
         typeof request.argumentsHash !== 'string' ||
         !/^sha256:[0-9a-f]{64}$/.test(request.argumentsHash) ||
         (request.revision !== null && typeof request.revision !== 'string') ||
+        (request.toolDefinitionRevision !== undefined &&
+          !isNonEmptyString(request.toolDefinitionRevision)) ||
         !Array.isArray(request.allowedScopes) ||
         request.allowedScopes.length === 0 ||
         request.allowedScopes.some(
@@ -1067,6 +1088,12 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
           ) as Record<string, unknown>,
           argumentsHash: request.argumentsHash,
           revision: request.revision,
+          ...(request.toolDefinitionRevision
+            ? {
+                toolDefinitionRevision:
+                  request.toolDefinitionRevision,
+              }
+            : {}),
           ...(request.reason ? { reason: request.reason } : {}),
           allowedScopes: [...request.allowedScopes],
         },
@@ -1379,7 +1406,9 @@ function parsePersistedEvent(
 function terminalTurnStatus(state: AgentRuntimeState): AgentRuntimeTurnStatus | null {
   const outcome = state.terminal?.outcome;
   if (!outcome) return null;
-  if (outcome === 'completed') return 'completed';
+  if (outcome === 'completed' || outcome === 'budget_exceeded') {
+    return 'completed';
+  }
   if (outcome === 'aborted') return 'aborted';
   return 'failed';
 }

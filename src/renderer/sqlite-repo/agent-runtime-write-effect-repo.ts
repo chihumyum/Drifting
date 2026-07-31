@@ -913,7 +913,20 @@ export function createAgentRuntimeWriteEffectRepository(
       return dbProvider().transaction(async (tx) => {
         const effects = await listEffects(sessionId, tx);
         const reviews = await listReviews(sessionId, tx);
-        return { effects, reviews };
+        const turns = await tx
+          .select({
+            id: AgentRuntimeTurnTable.id,
+            ordinal: AgentRuntimeTurnTable.ordinal,
+          })
+          .from(AgentRuntimeTurnTable)
+          .where(eq(AgentRuntimeTurnTable.sessionId, sessionId));
+        return {
+          effects,
+          reviews,
+          turnOrdinalsById: Object.fromEntries(
+            turns.map((turn) => [turn.id, turn.ordinal]),
+          ),
+        };
       });
     },
   };

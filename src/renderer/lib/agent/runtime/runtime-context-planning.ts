@@ -16,8 +16,10 @@ import {
   type AgentContextSummaryCandidate,
   type AgentContextTokenEstimator,
 } from './context-planner';
+import { createAgentContextUsageSnapshot } from './context-usage';
 import { AgentRuntimeError } from './errors';
 import type {
+  AgentContextUsageSnapshot,
   AgentModelMessage,
   AgentModelToolDefinition,
   AgentRuntimeContext,
@@ -131,6 +133,8 @@ export interface AgentRuntimeVerifiedContextPlan {
   systemPrompt: string;
   envelope: AgentContextProviderEnvelopeV2;
   canonicalSourceRows: import('./context-planner').AgentContextSourceRow[];
+  /** Content-free projection of the exact verified provider input. */
+  contextUsage: AgentContextUsageSnapshot;
 }
 
 const BUDGET_FAILURES = new Set([
@@ -223,11 +227,12 @@ const EXPLICIT_USER_VETO =
   /(?:不得|禁止|不要|别再?|不能|绝不|请勿|不希望|拒绝|\bmust not\b|\bdo not\b|\bdon't\b|\bnever\b|\bforbid\b|\bavoid\b)/iu;
 
 /**
- * Heuristic candidate classifier for a future author-confirmation workflow.
+ * Conservative product classifier for directly stated author constraints.
  *
- * This is deliberately not the coordinator default: its output is neither
- * durable nor author-verified, and therefore must never decide which user rows
- * are safe to compress on its own.
+ * Decisions remain bound to the exact canonical source/hash in every planner
+ * checkpoint. This is not an author-confirmation UI and must not be broadened
+ * to infer implicit preferences; the durable long-task ledger separately pins
+ * constraints that the Agent has made explicit for multi-slice work.
  */
 export const identifyExplicitAgentUserConstraints: AgentRuntimeUserConstraintPolicy = ({
   candidates,
@@ -352,6 +357,15 @@ export class AgentRuntimeContextPlanningCoordinator {
     >;
 
   private readonly circuits = new Map<string, AgentContextCompactionCircuitBreaker>();
+  /**
+   * Reuse verified summaries between provider iterations/turns. The cache is
+   * keyed by session + provider epoch; every reuse still passes the planner's
+   * source-id/hash/contiguity checks against current canonical history.
+   */
+  private readonly verifiedSummaries = new Map<
+    string,
+    AgentContextSummaryCandidate[]
+  >();
 
   constructor(options: AgentRuntimeContextPlanningOptions = {}) {
     this.options = {
@@ -413,10 +427,14 @@ export class AgentRuntimeContextPlanningCoordinator {
       hookInput,
       'Supplemental',
     );
-    const deterministicSummaries = await resolveHook(
+    const durableSummaries = await resolveHook(
       this.options.deterministicSummaries,
       hookInput,
       'Deterministic-summary',
+    );
+    const deterministicSummaries = mergeSummaryCandidates(
+      durableSummaries,
+      this.verifiedSummaries.get(circuitKey),
     );
     const accessResolver = buildAccessResolver(request.executableDefinitions);
     let constraintLedger:
@@ -498,12 +516,38 @@ export class AgentRuntimeContextPlanningCoordinator {
         }`,
       );
     }
+    const plannedSummaries =
+      planned.envelope.plannerCheckpoint.projection.segments.flatMap(
+        (segment): AgentContextSummaryCandidate[] =>
+          segment.type === 'summary'
+            ? [
+                {
+                  summaryId: segment.summaryId,
+                  sourceIds: [...segment.sourceIds],
+                  sourceHash: segment.sourceHash,
+                  content: segment.content,
+                },
+              ]
+            : [],
+      );
+    if (plannedSummaries.length > 0) {
+      this.verifiedSummaries.set(circuitKey, plannedSummaries);
+    }
+    const contextUsage = createAgentContextUsageSnapshot({
+      iteration: request.iteration,
+      envelope: planned.envelope,
+      selectedTools: request.selectedTools,
+      providerOverheadTokens: this.options.providerOverheadTokens,
+      perToolOverheadTokens: this.options.perToolOverheadTokens,
+      ...(this.options.estimateTokens ? { estimateTokens: this.options.estimateTokens } : {}),
+    });
     return {
       systemPrompt,
       envelope: planned.envelope,
       canonicalSourceRows: planned.bridge.sourceRows.map((row) => ({
         ...row,
       })),
+      contextUsage,
     };
   }
 
@@ -521,4 +565,34 @@ export class AgentRuntimeContextPlanningCoordinator {
     }
     return epoch;
   }
+}
+
+function mergeSummaryCandidates(
+  first: readonly AgentContextSummaryCandidate[] | undefined,
+  second: readonly AgentContextSummaryCandidate[] | undefined,
+): AgentContextSummaryCandidate[] | undefined {
+  if (!first?.length && !second?.length) return undefined;
+  const byId = new Map<string, AgentContextSummaryCandidate>();
+  for (const candidate of [...(first ?? []), ...(second ?? [])]) {
+    const prior = byId.get(candidate.summaryId);
+    if (
+      prior &&
+      (prior.sourceHash !== candidate.sourceHash ||
+        prior.content !== candidate.content ||
+        JSON.stringify(prior.sourceIds) !==
+          JSON.stringify(candidate.sourceIds))
+    ) {
+      throw new AgentRuntimeError(
+        'PROTOCOL_VIOLATION',
+        `Verified context summary "${candidate.summaryId}" changed across loads.`,
+      );
+    }
+    byId.set(candidate.summaryId, {
+      summaryId: candidate.summaryId,
+      sourceIds: [...candidate.sourceIds],
+      sourceHash: candidate.sourceHash,
+      content: candidate.content,
+    });
+  }
+  return [...byId.values()];
 }

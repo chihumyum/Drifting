@@ -10,6 +10,7 @@ import type {
   AgentUserInputResponseInput,
   GeneralAgentAuthStatus,
 } from './protocol';
+import type { AgentRuntimeJournalEntry } from './runtime/types';
 
 export const GENERAL_AGENT_UNSUPPORTED = {
   code: 'GENERAL_AGENT_UNSUPPORTED',
@@ -50,6 +51,14 @@ export interface GeneralAgentTransport {
   ): Promise<GeneralAgentResult>;
   abort(): Promise<GeneralAgentResult>;
   resetSession(): Promise<GeneralAgentResult>;
+  /**
+   * Canonical, lossless runtime stream. Product UI should consume this journal
+   * instead of the legacy renderer projection below.
+   */
+  subscribeJournal(
+    callback: (entry: AgentRuntimeJournalEntry) => void,
+  ): GeneralAgentResult<() => void>;
+  /** @deprecated Compatibility projection for goal/eval consumers. */
   subscribeEvents(callback: (event: AgentEventEnvelope) => void): GeneralAgentResult<() => void>;
 }
 
@@ -80,6 +89,7 @@ export const unsupportedGeneralAgentTransport: GeneralAgentTransport = {
   cancelPendingControl: async () => unsupportedResult(),
   abort: async () => unsupportedResult(),
   resetSession: async () => unsupportedResult(),
+  subscribeJournal: () => unsupportedResult(),
   subscribeEvents: () => unsupportedResult(),
 };
 
@@ -103,6 +113,7 @@ export const generalAgentTransport: GeneralAgentTransport = {
   cancelPendingControl: (input) => activeTransport.cancelPendingControl(input),
   abort: () => activeTransport.abort(),
   resetSession: () => activeTransport.resetSession(),
+  subscribeJournal: (callback) => activeTransport.subscribeJournal(callback),
   subscribeEvents: (callback) => activeTransport.subscribeEvents(callback),
 };
 

@@ -46,7 +46,15 @@ function cloneValue(
       const clone: Record<string, unknown> = {};
       for (const [key, item] of Object.entries(objectValue)) {
         if (item === undefined) continue;
-        clone[key] = cloneValue(item, `${path}.${key}`, ancestors);
+        // Assignment to "__proto__" invokes Object.prototype's legacy setter.
+        // Defining an own data property preserves portable JSON faithfully
+        // without allowing untrusted tool data to mutate the clone's prototype.
+        Object.defineProperty(clone, key, {
+          value: cloneValue(item, `${path}.${key}`, ancestors),
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
       }
       return clone;
     } finally {

@@ -1,4 +1,14 @@
-import { and, asc, desc, eq, inArray, isNull, max, or } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lt,
+  max,
+  or,
+} from 'drizzle-orm';
 import type {
   AgentRuntimeToolCallStatus,
   AgentRuntimeMessageRole,
@@ -353,6 +363,48 @@ function sameCheckpoint(
   return canonicalAgentRuntimeJson(a) === canonicalAgentRuntimeJson(b);
 }
 
+const RETAINED_CHECKPOINT_DIGEST_FORMAT =
+  'drifting.agent-runtime-checkpoint-digest' as const;
+
+interface RetainedCheckpointDigest {
+  schemaVersion: 1;
+  format: typeof RETAINED_CHECKPOINT_DIGEST_FORMAT;
+  contextHash: string;
+}
+
+function isRetainedCheckpointDigest(
+  value: unknown,
+): value is RetainedCheckpointDigest {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      (value as { schemaVersion?: unknown }).schemaVersion === 1 &&
+      (value as { format?: unknown }).format ===
+        RETAINED_CHECKPOINT_DIGEST_FORMAT &&
+      typeof (value as { contextHash?: unknown }).contextHash ===
+        'string',
+  );
+}
+
+function sameCheckpointOrRetainedDigest(
+  durable: PersistedAgentRuntimeCheckpoint,
+  candidate: PersistedAgentRuntimeCheckpoint,
+): boolean {
+  if (!isRetainedCheckpointDigest(durable.context)) {
+    return sameCheckpoint(durable, candidate);
+  }
+  return (
+    durable.id === candidate.id &&
+    durable.sessionId === candidate.sessionId &&
+    durable.throughTurnOrdinal === candidate.throughTurnOrdinal &&
+    durable.messageCount === candidate.messageCount &&
+    durable.contextHash === candidate.contextHash &&
+    durable.context.contextHash === candidate.contextHash &&
+    durable.createdAt === candidate.createdAt
+  );
+}
+
 function checkpointCanonicalMessageCount(context: unknown): number | null {
   if (Array.isArray(context)) return context.length;
   if (
@@ -543,7 +595,12 @@ export function createAgentRuntimePersistenceRepository(
       .from(AgentRuntimeCheckpointTable)
       .where(eq(AgentRuntimeCheckpointTable.sessionId, sessionId))
       .orderBy(asc(AgentRuntimeCheckpointTable.throughTurnOrdinal));
-    return rows.map(checkpointToDomain);
+    return rows
+      .map(checkpointToDomain)
+      .filter(
+        (checkpoint) =>
+          !isRetainedCheckpointDigest(checkpoint.context),
+      );
   };
 
   const insertMessage = async (
@@ -601,6 +658,46 @@ export function createAgentRuntimePersistenceRepository(
       contextHash: checkpoint.contextHash,
       createdAt: checkpoint.createdAt,
     });
+  };
+
+  const compactOlderCheckpoints = async (
+    executor: DbExecutor,
+    checkpoint: PersistedAgentRuntimeCheckpoint,
+  ): Promise<void> => {
+    // Keep the latest two full anchor checkpoints so recovery can fall back
+    // one completed turn if the newest payload is damaged. Everything older
+    // retains only its immutable digest/idempotency identity.
+    const compactBeforeOrdinal =
+      checkpoint.throughTurnOrdinal - 1;
+    if (compactBeforeOrdinal <= 0) return;
+    const rows = await executor
+      .select()
+      .from(AgentRuntimeCheckpointTable)
+      .where(
+        and(
+          eq(
+            AgentRuntimeCheckpointTable.sessionId,
+            checkpoint.sessionId,
+          ),
+          lt(
+            AgentRuntimeCheckpointTable.throughTurnOrdinal,
+            compactBeforeOrdinal,
+          ),
+        ),
+      );
+    for (const row of rows) {
+      const durable = checkpointToDomain(row);
+      if (isRetainedCheckpointDigest(durable.context)) continue;
+      const digest: RetainedCheckpointDigest = {
+        schemaVersion: 1,
+        format: RETAINED_CHECKPOINT_DIGEST_FORMAT,
+        contextHash: durable.contextHash,
+      };
+      await executor
+        .update(AgentRuntimeCheckpointTable)
+        .set({ contextJson: canonicalAgentRuntimeJson(digest) })
+        .where(eq(AgentRuntimeCheckpointTable.id, durable.id));
+    }
   };
 
   const loadRecoverySnapshot = async (
@@ -876,7 +973,10 @@ export function createAgentRuntimePersistenceRepository(
         if (existingRows.length > 0) {
           if (
             existingRows.length === 1 &&
-            sameCheckpoint(checkpointToDomain(existingRows[0]), checkpoint)
+            sameCheckpointOrRetainedDigest(
+              checkpointToDomain(existingRows[0]),
+              checkpoint,
+            )
           ) {
             return 'duplicate';
           }
@@ -1096,7 +1196,10 @@ export function createAgentRuntimePersistenceRepository(
               .limit(1);
             if (
               !rows[0] ||
-              !sameCheckpoint(checkpointToDomain(rows[0]), checkpoint)
+              !sameCheckpointOrRetainedDigest(
+                checkpointToDomain(rows[0]),
+                checkpoint,
+              )
             ) {
               throw new AgentRuntimePersistenceConflictError(
                 'CHECKPOINT_CONFLICT',
@@ -1166,6 +1269,7 @@ export function createAgentRuntimePersistenceRepository(
             );
           }
           await insertCheckpoint(tx, checkpoint);
+          await compactOlderCheckpoints(tx, checkpoint);
         }
         await tx
           .update(AgentRuntimeTurnTable)

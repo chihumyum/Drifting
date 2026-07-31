@@ -136,9 +136,9 @@ class TenThousandEventDriver implements AgentModelDriver {
   readonly id = 'p1-10k-journal';
 
   async *stream(): AsyncIterable<AgentModelStreamEvent> {
-    // turn_started + model_iteration_started + 9,995 deltas + usage
-    // + model_iteration_completed + turn_finished = exactly 10,000 entries.
-    for (let index = 0; index < 9_995; index += 1) {
+    // turn_started + model_iteration_started + context_planned + 9,994 deltas
+    // + usage + model_iteration_completed + turn_finished = exactly 10,000 entries.
+    for (let index = 0; index < 9_994; index += 1) {
       yield { type: 'text_delta', text: String(index % 10) };
     }
     yield { type: 'usage', usage: ZERO_COST_USAGE };
@@ -302,7 +302,7 @@ describe('P1 deterministic Agent runtime acceptance', () => {
         true,
       );
       expect(result.entries.map((entry) => entry.seq)).toEqual([
-        1, 2, 3, 4, 5, 6,
+        1, 2, 3, 4, 5, 6, 7,
       ]);
     }
     expect(observedJournalKeys).toHaveLength(sessionCount * turnsPerSession);
@@ -321,7 +321,7 @@ describe('P1 deterministic Agent runtime acceptance', () => {
     expect(result.entries).toHaveLength(10_000);
     expect(result.state.journalEntries).toBe(10_000);
     expect(result.state.lastSeq).toBe(10_000);
-    expect(result.state.assistantText).toHaveLength(9_995);
+    expect(result.state.assistantText).toHaveLength(9_994);
 
     const sequenceNumbers = result.entries.map((entry) => entry.seq);
     expect(sequenceNumbers.every((seq, index) => seq === index + 1)).toBe(true);

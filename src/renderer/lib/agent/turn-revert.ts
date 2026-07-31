@@ -20,14 +20,22 @@ import { useAgentCheckpointStore, type TurnCheckpoint } from '../../store/agent-
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useDataStore } from '../../store/data-store';
+import { createAgentConversationRepository } from '../../sqlite-repo/agent-conversation-repo';
 import type { ActivityEntityType } from './tool-entity-ref';
 import type { AgentBlockChange } from './block-diff';
 import { applyKvRevert, isFieldChange } from './field-diff';
 import { revertEntityBlock } from './chapter-prose';
 import { getActiveAgentToolContext, type AgentToolContext } from './tool-handlers';
+import {
+  selectLegacyRevertableTurnIds,
+  type TurnCheckpointConversationIdentity,
+} from './turn-revert-policy';
 
 const log = loglevel.getLogger('turn-revert');
 log.setLevel(loglevel.levels.WARN);
+
+export const LEGACY_TURN_REVERT_UNAVAILABLE =
+  'This whole-turn checkpoint is unavailable because it is not an explicit legacy SDK session. Provider-neutral Agent writes must be reverted through their durable review controls.';
 
 export interface TurnRevertResult {
   /** Checkpoints (turns) rolled back. */
@@ -139,10 +147,70 @@ async function revertCheckpoint(cp: TurnCheckpoint, result: TurnRevertResult): P
   }
 }
 
+async function legacyRevertableCheckpoints(
+  projectId: string,
+  checkpoints: readonly TurnCheckpoint[],
+): Promise<TurnCheckpoint[]> {
+  const checkpointStore = useAgentCheckpointStore.getState();
+  if (checkpointStore.providerNeutralProjectBarriers[projectId]) return [];
+
+  const repository = createAgentConversationRepository();
+  const conversationIds = [...new Set(checkpoints.map((checkpoint) => checkpoint.convId))];
+  const identities = new Map<string, TurnCheckpointConversationIdentity | null>();
+  await Promise.all(
+    conversationIds.map(async (conversationId) => {
+      try {
+        const conversation = await repository.get(conversationId);
+        identities.set(
+          conversationId,
+          conversation
+            ? {
+                id: conversation.id,
+                projectId: conversation.projectId,
+                sdkSessionId: conversation.sdkSessionId,
+                runtimeSessionId: conversation.runtimeSessionId,
+              }
+            : null,
+        );
+      } catch {
+        // Revert authority is fail-closed when the conversation database is
+        // unavailable or the compatibility row cannot be verified.
+        identities.set(conversationId, null);
+      }
+    }),
+  );
+
+  // A provider-neutral turn may have begun while the durable identities were
+  // loading. Re-check the persisted barrier before exposing any checkpoint.
+  if (useAgentCheckpointStore.getState().providerNeutralProjectBarriers[projectId]) {
+    return [];
+  }
+  const turnIds = selectLegacyRevertableTurnIds(checkpoints, identities, false);
+  return checkpoints.filter((checkpoint) => turnIds.has(checkpoint.turnId));
+}
+
+/**
+ * Checkpoints the UI may expose. This returns only the newest contiguous suffix
+ * whose conversation rows prove `sdkSessionId != null && runtimeSessionId ==
+ * null`, and returns nothing after a provider-neutral project barrier.
+ */
+export async function listLegacyRevertableCheckpoints(
+  projectId: string,
+): Promise<TurnCheckpoint[]> {
+  const checkpoints = useAgentCheckpointStore
+    .getState()
+    .checkpoints.filter((checkpoint) => checkpoint.projectId === projectId);
+  return legacyRevertableCheckpoints(projectId, checkpoints);
+}
+
 /**
  * Roll the project back to the snapshot taken before `turnId` ran: reverts that
  * turn's checkpoint and every later checkpoint of the same project, newest
  * first, then drops them from the store.
+ *
+ * This compatibility operation is deliberately unavailable to the
+ * provider-neutral runtime: only its durable review coordinator may execute a
+ * guarded inverse and settle canonical task/context truth.
  */
 export async function revertToTurn(projectId: string, turnId: string): Promise<TurnRevertResult> {
   const all = useAgentCheckpointStore
@@ -151,6 +219,13 @@ export async function revertToTurn(projectId: string, turnId: string): Promise<T
   const idx = all.findIndex((c) => c.turnId === turnId);
   if (idx < 0) throw new Error('checkpoint not found');
   const toRevert = all.slice(idx).reverse(); // newest first
+  const authorized = await legacyRevertableCheckpoints(projectId, all);
+  if (!authorized.some((checkpoint) => checkpoint.turnId === turnId)) {
+    throw new Error(LEGACY_TURN_REVERT_UNAVAILABLE);
+  }
+  if (useAgentCheckpointStore.getState().activeTurn) {
+    throw new Error('A legacy whole-turn checkpoint cannot be reverted while an Agent turn is active.');
+  }
 
   const result: TurnRevertResult = { turns: 0, blocks: 0, fields: 0, skipped: [] };
   for (const cp of toRevert) {

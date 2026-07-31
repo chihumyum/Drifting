@@ -118,6 +118,7 @@ describe('AgentRuntime context planning integration', () => {
         select: ({ iteration }) => [iteration === 1 ? 'tool_0' : 'tool_9'],
       },
       contextPlanning: {
+        contextWindowTokens: 200_000,
         providerOverheadTokens: 101,
         perToolOverheadTokens: 7,
         supplementalRows: (input) => {
@@ -153,6 +154,52 @@ describe('AgentRuntime context planning integration', () => {
       ['tool_9'],
     ]);
 
+    const contextEntries = result.entries.filter(
+      (entry) => entry.event.type === 'context_planned',
+    );
+    expect(contextEntries).toHaveLength(driver.requests.length);
+    expect(
+      contextEntries.map((entry) =>
+        entry.event.type === 'context_planned' ? entry.event.iteration : null,
+      ),
+    ).toEqual([1, 2]);
+    for (const contextEntry of contextEntries) {
+      if (contextEntry.event.type !== 'context_planned') throw new Error('expected context event');
+      const contextEvent = contextEntry.event;
+      const iterationStartIndex = result.entries.findIndex(
+        (entry) =>
+          entry.event.type === 'model_iteration_started' &&
+          entry.event.iteration === contextEvent.iteration,
+      );
+      const contextIndex = result.entries.indexOf(contextEntry);
+      const firstModelOutputIndex = result.entries.findIndex(
+        (entry) =>
+          (entry.event.type === 'text_delta' ||
+            entry.event.type === 'thinking_delta' ||
+            entry.event.type === 'tool_call_started') &&
+          entry.event.iteration === contextEvent.iteration,
+      );
+      expect(iterationStartIndex).toBeGreaterThanOrEqual(0);
+      expect(contextIndex).toBeGreaterThan(iterationStartIndex);
+      expect(firstModelOutputIndex).toBeGreaterThan(contextIndex);
+      expect(contextEvent.snapshot).toMatchObject({
+        iteration: contextEvent.iteration,
+        contextWindowTokens: 200_000,
+      });
+      expect(
+        contextEvent.snapshot.categories.reduce(
+          (total, category) => total + category.tokens,
+          0,
+        ),
+      ).toBe(contextEvent.snapshot.estimatedInputTokens);
+      expect(
+        contextEvent.snapshot.estimatedInputTokens +
+          contextEvent.snapshot.reservedOutputTokens +
+          contextEvent.snapshot.safetyMarginTokens +
+          contextEvent.snapshot.freeTokens,
+      ).toBe(contextEvent.snapshot.contextWindowTokens);
+    }
+
     const expectedFixedTokens = estimateAgentContextFixedInputTokens({
       tools: driver.requests[1]!.tools,
       providerOverheadTokens: 101,
@@ -176,6 +223,52 @@ describe('AgentRuntime context planning integration', () => {
       messages: result.messages,
       resolveToolAccess: (name) => definitions.find((tool) => tool.name === name)?.access ?? null,
       supplementalRows,
+    });
+    expect(result.completedContextCheckpoint?.canonicalSourceRows).toEqual(rebuilt.sourceRows);
+    await expect(
+      verifyAgentContextProviderEnvelope({
+        envelope: result.completedContextCheckpoint!.providerEnvelope,
+        canonicalSourceRows: result.completedContextCheckpoint!.canonicalSourceRows,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('creates a verified complete V2 checkpoint at a resumable model-iteration budget boundary', async () => {
+    const read = definition('read_node');
+    const hookPurposes: string[] = [];
+    const driver = new RecordingDriver(() => toolCall('budget-read', 'read_node'));
+    const runtime = new AgentRuntime({
+      driver,
+      tools: toolRuntime([read]),
+      contextPlanning: {
+        supplementalRows: (input) => {
+          hookPurposes.push(input.purpose);
+          return [];
+        },
+      },
+    });
+
+    const result = await runtime.runTurn(
+      runInput({
+        limits: {
+          maxModelIterations: 1,
+          maxOutputTokensPerIteration: 512,
+        },
+      }),
+    );
+
+    expect(result.state.status).toBe('budget_exceeded');
+    expect(result.state.terminal?.failureCode).toBe('MAX_MODEL_ITERATIONS');
+    expect(driver.requests).toHaveLength(1);
+    expect(hookPurposes).toEqual(['provider_call', 'completed_turn']);
+    expect(result.completedContextCheckpoint).toBeDefined();
+    expect(JSON.stringify(result.completedContextCheckpoint?.canonicalSourceRows)).toContain(
+      'budget-read',
+    );
+    const rebuilt = agentModelMessagesToContextSources({
+      systemPrompt: DEFAULT_AGENT_RUNTIME_SYSTEM_POLICY,
+      messages: result.messages,
+      resolveToolAccess: (name) => (name === 'read_node' ? 'read' : null),
     });
     expect(result.completedContextCheckpoint?.canonicalSourceRows).toEqual(rebuilt.sourceRows);
     await expect(
@@ -459,17 +552,11 @@ describe('AgentRuntime context planning integration', () => {
         perToolOverheadTokens: 0,
         userConstraintPolicy: ({ candidates }) =>
           candidates
-            .filter(
-              (candidate, index) =>
-                index === 0 || candidate.content === explicitVeto,
-            )
+            .filter((candidate, index) => index === 0 || candidate.content === explicitVeto)
             .map((candidate, index) => ({
               constraintId: `author-verified:${candidate.sourceId}`,
               sourceId: candidate.sourceId,
-              kind:
-                index === 0
-                  ? ('session_goal' as const)
-                  : ('author_veto' as const),
+              kind: index === 0 ? ('session_goal' as const) : ('author_veto' as const),
             })),
         fullCompactor: async ({ eligibleRuns }) => {
           const candidates = [];
@@ -526,6 +613,82 @@ describe('AgentRuntime context planning integration', () => {
         envelope: tampered,
       }),
     ).rejects.toThrow('envelope hash drifted');
+  });
+
+  it('reuses a verified full-compaction summary across later plans in the same provider epoch', async () => {
+    const history: AgentModelMessage[] = [
+      { role: 'user', content: 'Keep the opening goal.' },
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: `old exploration ${'detail '.repeat(4_000)}`,
+          },
+        ],
+      },
+      { role: 'user', content: 'Recent instruction.' },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Recent answer.' }],
+      },
+      { role: 'user', content: 'Newest instruction.' },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Newest answer.' }],
+      },
+    ];
+    const compact = vi.fn(
+      async ({ eligibleRuns }: { eligibleRuns: readonly (readonly AgentContextSourceRow[])[] }) =>
+        Promise.all(
+          eligibleRuns.map((sourceRows, index) =>
+            createAgentContextSummaryCandidate({
+              summaryId: `reusable-summary-${index}`,
+              sourceRows,
+              content: 'Durable factual summary of the old exploration.',
+            }),
+          ),
+        ),
+    );
+    const runtime = new AgentRuntime({
+      driver: new RecordingDriver(() => endTurn()),
+      contextPlanning: {
+        contextWindowTokens: 8_000,
+        providerOverheadTokens: 0,
+        perToolOverheadTokens: 0,
+        userConstraintPolicy: ({ candidates }) =>
+          candidates.slice(0, 1).map((candidate) => ({
+            constraintId: `goal:${candidate.sourceId}`,
+            sourceId: candidate.sourceId,
+            kind: 'session_goal' as const,
+          })),
+        fullCompactor: compact,
+      },
+    });
+
+    const first = await runtime.runTurn(
+      runInput({
+        turnId: 'turn-summary-1',
+        history,
+        limits: { maxOutputTokensPerIteration: 512 },
+      }),
+    );
+    const second = await runtime.runTurn(
+      runInput({
+        turnId: 'turn-summary-2',
+        history,
+        limits: { maxOutputTokensPerIteration: 512 },
+      }),
+    );
+
+    expect(first.state.status).toBe('completed');
+    expect(second.state.status).toBe('completed');
+    expect(compact).toHaveBeenCalledTimes(1);
+    expect(
+      second.lastProviderCallContextEnvelope?.plannerCheckpoint.projection.segments.some(
+        (segment) => segment.type === 'summary' && segment.summaryId === 'reusable-summary-0',
+      ),
+    ).toBe(true);
   });
 
   it('opens a compaction circuit only for the failing session/provider epoch', async () => {

@@ -11,6 +11,8 @@ import type {
 import type {
   AgentModelMessage,
   AgentRuntimeJournalEntry,
+  AgentToolDefinition,
+  AgentToolRuntime,
 } from './types';
 
 const USAGE = {
@@ -32,10 +34,46 @@ function finalSteps(text: string) {
   ];
 }
 
-async function waitForDone(
-  events: AgentEventEnvelope[],
-  count: number,
-): Promise<void> {
+function budgetSteps() {
+  return [
+    {
+      op: 'emit' as const,
+      event: {
+        type: 'tool_call_start' as const,
+        callId: 'budget-read',
+        name: 'read_node',
+      },
+    },
+    {
+      op: 'emit' as const,
+      event: {
+        type: 'tool_args_delta' as const,
+        callId: 'budget-read',
+        delta: '{}',
+      },
+    },
+    {
+      op: 'emit' as const,
+      event: {
+        type: 'tool_call_end' as const,
+        callId: 'budget-read',
+      },
+    },
+    {
+      op: 'emit' as const,
+      event: { type: 'usage' as const, usage: USAGE },
+    },
+    {
+      op: 'emit' as const,
+      event: {
+        type: 'finish' as const,
+        reason: 'tool_use' as const,
+      },
+    },
+  ];
+}
+
+async function waitForDone(events: AgentEventEnvelope[], count: number): Promise<void> {
   for (let index = 0; index < 100; index += 1) {
     if (events.filter((event) => event.event.type === 'done').length >= count) {
       return;
@@ -89,9 +127,7 @@ class FakeTransportPersistence implements AgentTransportPersistence {
   commitCalls = 0;
   commitGate: Promise<void> | null = null;
 
-  async prepareTurn(
-    input: AgentTransportPrepareTurnInput,
-  ): Promise<AgentTransportPreparedTurn> {
+  async prepareTurn(input: AgentTransportPrepareTurnInput): Promise<AgentTransportPreparedTurn> {
     this.prepareCalls += 1;
     this.order.push(`prepare:${input.turnId}`);
     const key = routeKey(input.route);
@@ -181,9 +217,7 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
         {
           expectRequest: (request) => {
             expect(persistence.order[0]).toBe('prepare:turn-1');
-            expect(request.messages).toEqual([
-              { role: 'user', content: 'first' },
-            ]);
+            expect(request.messages).toEqual([{ role: 'user', content: 'first' }]);
           },
           steps: finalSteps('answer-one'),
         },
@@ -257,20 +291,16 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
         commit.contextCheckpointV2?.canonicalSourceRows.some(
           (row) =>
             row.kind === 'assistant_narrative' &&
-            row.content ===
-              (commit.turnId === 'turn-1' ? 'answer-one' : 'answer-two'),
+            row.content === (commit.turnId === 'turn-1' ? 'answer-one' : 'answer-two'),
         ),
       ),
     ).toEqual([true, true]);
     expect(
       persistence.commits.every(
-        (commit) =>
-          commit.contextCheckpointV2?.providerEnvelope.schemaVersion === 2,
+        (commit) => commit.contextCheckpointV2?.providerEnvelope.schemaVersion === 2,
       ),
     ).toBe(true);
-    expect(
-      persistence.order.indexOf('prepare:turn-1'),
-    ).toBeLessThan(
+    expect(persistence.order.indexOf('prepare:turn-1')).toBeLessThan(
       persistence.order.indexOf('journal:turn-1:turn_started'),
     );
     firstDriver.assertExhausted();
@@ -313,6 +343,70 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
     expect(persistence.order).toContain('commit-done:turn-gated');
   });
 
+  it('persists a verified V2 checkpoint for a resumable budget slice', async () => {
+    const persistence = new FakeTransportPersistence();
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: budgetSteps(),
+        },
+      ],
+    });
+    const readDefinition: AgentToolDefinition = {
+      name: 'read_node',
+      description: 'read one node',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false,
+      },
+      access: 'read',
+      validateInput: (value) => ({ ok: true, value }),
+    };
+    const tools: AgentToolRuntime = {
+      listDefinitions: () => [readDefinition],
+      execute: async () => ({
+        ok: true,
+        data: { node: 'Chapter One' },
+      }),
+    };
+    const transport = new LocalGeneralAgentTransport({
+      driver,
+      tools,
+      limits: { maxModelIterations: 1 },
+      persistence,
+      createId: (kind) => `${kind}-budget-v2`,
+    });
+    const events: AgentEventEnvelope[] = [];
+    transport.subscribeEvents((event) => events.push(event));
+
+    await expect(
+      transport.start({
+        prompt: 'start a long task',
+        turnId: 'turn-budget-v2',
+        route: { kind: 'chat', projectId: 'project-1' },
+      }),
+    ).resolves.toEqual({ ok: true, value: undefined });
+    await waitForDone(events, 1);
+
+    expect(persistence.commits).toHaveLength(1);
+    expect(persistence.commits[0]).toMatchObject({
+      outcome: 'budget_exceeded',
+      contextCheckpointV2: {
+        providerEnvelope: { schemaVersion: 2 },
+      },
+    });
+    expect(persistence.commits[0]?.contextCheckpointV2?.canonicalSourceRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'tool_result',
+          callId: 'budget-read',
+        }),
+      ]),
+    );
+    driver.assertExhausted();
+  });
+
   it('marks a stale active turn interrupted and excludes its incomplete prompt/assistant pair from resumed history', async () => {
     const persistence = new FakeTransportPersistence();
     const route: AgentStartRoute = {
@@ -320,12 +414,7 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
       projectId: 'project-1',
       conversationId: 'conversation-1',
     };
-    persistence.seedInterrupted(
-      'session-crashed',
-      route,
-      [],
-      'turn-crashed',
-    );
+    persistence.seedInterrupted('session-crashed', route, [], 'turn-crashed');
     // A text delta may exist in the immutable journal, but it was never
     // committed as a complete AgentModelMessage.
     persistence.journal.push({
@@ -343,9 +432,7 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
       rounds: [
         {
           expectRequest: {
-            messages: [
-              { role: 'user', content: 'retry safely' },
-            ],
+            messages: [{ role: 'user', content: 'retry safely' }],
           },
           steps: finalSteps('complete answer'),
         },
@@ -367,9 +454,7 @@ describe('LocalGeneralAgentTransport persistence boundary', () => {
     });
     await waitForDone(events, 1);
 
-    expect(
-      persistence.sessions.get('session-crashed')?.interruptedTurns,
-    ).toEqual(['turn-crashed']);
+    expect(persistence.sessions.get('session-crashed')?.interruptedTurns).toEqual(['turn-crashed']);
     driver.assertExhausted();
   });
 

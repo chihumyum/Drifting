@@ -140,6 +140,7 @@ export class LegacyAgentEventProjector {
       case 'tool_execution_started':
       case 'steering_applied':
       case 'model_iteration_started':
+      case 'context_planned':
       case 'model_usage':
       case 'model_iteration_completed':
         return [];

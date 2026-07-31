@@ -13,6 +13,7 @@ import {
   type AgentRuntimeCheckpointContextV2,
 } from './recovery';
 import { planAgentModelContext } from './context-message-adapter';
+import { contextUsageSnapshot } from './context-usage.test-fixture';
 import { hashAgentPermissionArguments } from './control-plane';
 import {
   agentRuntimeUnknownToolResultContent,
@@ -541,6 +542,7 @@ describe('Agent runtime canonical recovery', () => {
           arguments: argumentsValue,
           argumentsHash,
           revision: 'rev-1',
+          toolDefinitionRevision: 'dynamic:7:abcdef12',
           allowedScopes: ['once'],
         },
       }),
@@ -565,6 +567,7 @@ describe('Agent runtime canonical recovery', () => {
       permissionRequest: expect.objectContaining({
         requestId: 'permission-1',
         argumentsHash,
+        toolDefinitionRevision: 'dynamic:7:abcdef12',
       }),
       requiresContinuation: true,
     }]);
@@ -1067,6 +1070,21 @@ describe('Agent runtime canonical recovery', () => {
       ...snapshot.events[2],
       eventType: 'thinking_delta',
     };
+
+    await expect(recoverAgentRuntimeSnapshot(snapshot)).rejects.toSatisfy(
+      (error: unknown) => failureCode(error) === 'EVENT_PAYLOAD_INVALID',
+    );
+  });
+
+  it('fails closed when a persisted context snapshot fails strict validation', async () => {
+    const snapshot = completeSnapshot();
+    const invalidSnapshot = contextUsageSnapshot();
+    invalidSnapshot.freeTokens += 1;
+    snapshot.events[2] = event(3, {
+      type: 'context_planned',
+      iteration: 1,
+      snapshot: invalidSnapshot,
+    });
 
     await expect(recoverAgentRuntimeSnapshot(snapshot)).rejects.toSatisfy(
       (error: unknown) => failureCode(error) === 'EVENT_PAYLOAD_INVALID',

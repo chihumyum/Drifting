@@ -11,15 +11,9 @@ import type {
   AgentUserInputResponseInput,
   GeneralAgentAuthStatus,
 } from '../protocol';
-import type {
-  GeneralAgentResult,
-  GeneralAgentTransport,
-} from '../transport';
+import type { GeneralAgentResult, GeneralAgentTransport } from '../transport';
 import { AgentRuntime } from './runtime';
-import {
-  AgentRuntimeControlChannel,
-  AgentRuntimeControlError,
-} from './control-plane';
+import { AgentRuntimeControlChannel, AgentRuntimeControlError } from './control-plane';
 import { LegacyAgentEventProjector } from './legacy-projection';
 import { buildDriftingAgentSystemPrompt } from './system-prompt';
 import type { AgentRuntimeContextPlanningOptions } from './runtime-context-planning';
@@ -34,6 +28,7 @@ import type {
   AgentToolPermissionPolicy,
   AgentToolRuntime,
 } from './types';
+import { AGENT_RUNTIME_DURABLE_COMMIT_FAILURE_MESSAGE } from './types';
 import { clonePortableData } from './portable-data';
 import type { AgentTransportPersistence } from './transport-persistence';
 
@@ -133,6 +128,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   private readonly persistence?: AgentTransportPersistence;
   private readonly wallNowMs: () => number;
   private readonly listeners = new Set<(event: AgentEventEnvelope) => void>();
+  private readonly journalListeners = new Set<(entry: AgentRuntimeJournalEntry) => void>();
   private readonly sessions = new Map<string, LocalSessionState>();
   private readonly routeSessionIds = new Map<string, string>();
   private readonly seenTurnIds = new Set<string>();
@@ -143,23 +139,14 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     this.persistence = dependencies.persistence;
     const journal =
       dependencies.persistence || dependencies.journal
-        ? createTransportJournal(
-            dependencies.persistence,
-            dependencies.journal,
-          )
+        ? createTransportJournal(dependencies.persistence, dependencies.journal)
         : undefined;
     this.runtime = new AgentRuntime({
       driver: dependencies.driver,
       ...(dependencies.tools ? { tools: dependencies.tools } : {}),
-      ...(dependencies.toolSelector
-        ? { toolSelector: dependencies.toolSelector }
-        : {}),
-      ...(dependencies.contextPlanning
-        ? { contextPlanning: dependencies.contextPlanning }
-        : {}),
-      ...(dependencies.permissionPolicy
-        ? { permissionPolicy: dependencies.permissionPolicy }
-        : {}),
+      ...(dependencies.toolSelector ? { toolSelector: dependencies.toolSelector } : {}),
+      ...(dependencies.contextPlanning ? { contextPlanning: dependencies.contextPlanning } : {}),
+      ...(dependencies.permissionPolicy ? { permissionPolicy: dependencies.permissionPolicy } : {}),
       ...(dependencies.clock ? { clock: dependencies.clock } : {}),
       ...(journal ? { journal } : {}),
     });
@@ -167,10 +154,8 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     this.createId = dependencies.createId ?? createPortableRuntimeId;
     this.resolveAuthStatus = dependencies.authStatus;
     this.driverId = dependencies.driver.id;
-    this.wallNowMs =
-      dependencies.clock?.wallNowMs.bind(dependencies.clock) ?? Date.now;
-    this.supportsReasoning =
-      dependencies.driver.capabilities?.reasoning !== false;
+    this.wallNowMs = dependencies.clock?.wallNowMs.bind(dependencies.clock) ?? Date.now;
+    this.supportsReasoning = dependencies.driver.capabilities?.reasoning !== false;
   }
 
   async authPrepare(): Promise<GeneralAgentResult<{ url: string }>> {
@@ -260,10 +245,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       candidateSessionId = this.createId('session');
     } catch {
       if (this.active === active) this.active = null;
-      return transportError(
-        'AGENT_ID_UNAVAILABLE',
-        'Secure runtime id generation is unavailable.',
-      );
+      return transportError('AGENT_ID_UNAVAILABLE', 'Secure runtime id generation is unavailable.');
     }
 
     let session: LocalSessionState;
@@ -291,10 +273,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         this.sessions.set(session.id, session);
       } catch (error) {
         if (this.active === active) this.active = null;
-        return transportError(
-          persistenceErrorCode(error),
-          persistenceErrorMessage(error),
-        );
+        return transportError(persistenceErrorCode(error), persistenceErrorMessage(error));
       }
     } else {
       const resolved = this.resolveMemorySession(
@@ -316,6 +295,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
 
     const projector = new LegacyAgentEventProjector(session.id);
     let terminalEvents: AgentEventEnvelope['event'][] = [];
+    let terminalEntry: AgentRuntimeJournalEntry | null = null;
     let didStart = false;
 
     let acknowledgeStart: (started: boolean) => void = () => undefined;
@@ -330,15 +310,19 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       }
       const events = projector.project(entry);
       if (entry.event.type === 'turn_finished') {
+        terminalEntry = entry;
         terminalEvents = events;
         return;
       }
+      this.publishJournal(entry);
       for (const event of events) {
         this.publish({ turnId, event });
       }
     };
 
     const publishTerminal = (): void => {
+      if (terminalEntry) this.publishJournal(terminalEntry);
+      terminalEntry = null;
       for (const event of terminalEvents) {
         if (event.type === 'done' && this.active === active) this.active = null;
         this.publish({ turnId, event });
@@ -354,13 +338,12 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         prompt: input.prompt,
         systemPrompt: buildDriftingAgentSystemPrompt(input, route),
         ...(input.model ? { model: input.model } : {}),
-        reasoning:
-          !this.supportsReasoning
-            ? { enabled: false }
-            : {
-                enabled: input.thinking !== 'off',
-                ...(input.effort ? { effort: input.effort } : {}),
-              },
+        reasoning: !this.supportsReasoning
+          ? { enabled: false }
+          : {
+              enabled: input.thinking !== 'off',
+              ...(input.effort ? { effort: input.effort } : {}),
+            },
         toolSearch: input.toolSearch ?? 'off',
         history: session.history,
         ...(this.limits ? { limits: this.limits } : {}),
@@ -372,23 +355,16 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         if (this.persistence) {
           const priorHistoryLength = session.history.length;
           try {
-            if (
-              result.state.status === 'completed' &&
-              !result.completedContextCheckpoint
-            ) {
+            if (result.state.status === 'completed' && !result.completedContextCheckpoint) {
               throw new AgentTransportCommitError();
             }
             await this.persistence.commitTurn({
               sessionId: session.id,
               turnId,
-              turnMessages: result.messages
-                .slice(priorHistoryLength)
-                .map(clonePortableData),
+              turnMessages: result.messages.slice(priorHistoryLength).map(clonePortableData),
               ...(result.completedContextCheckpoint
                 ? {
-                    contextCheckpointV2: clonePortableData(
-                      result.completedContextCheckpoint,
-                    ),
+                    contextCheckpointV2: clonePortableData(result.completedContextCheckpoint),
                   }
                 : {}),
               outcome: runtimeOutcome(result.state.status),
@@ -409,6 +385,15 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         acknowledgeStart(false);
         if (this.active === active) this.active = null;
         if (!didStart) return;
+        // The immutable computational terminal was already appended, but the
+        // normalized message/checkpoint commit failed. Project it live as a
+        // fail-closed terminal so the UI cannot present an uncommitted slice as
+        // completed. Recovery derives the same overlay from the durable turn
+        // row plus journal.
+        if (terminalEntry) {
+          this.publishJournal(failClosedCommitTerminal(terminalEntry));
+        }
+        terminalEntry = null;
         terminalEvents = [];
         const message = error instanceof Error ? error.message : String(error);
         this.publish({ turnId, event: { type: 'error', message } });
@@ -423,9 +408,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       : transportError('AGENT_RUNTIME_START_FAILED', 'The local Agent Runtime failed to start.');
   }
 
-  async resolvePermission(
-    input: AgentPermissionResolutionInput,
-  ): Promise<GeneralAgentResult> {
+  async resolvePermission(input: AgentPermissionResolutionInput): Promise<GeneralAgentResult> {
     const control = this.active?.control;
     if (!control || control.turnId !== input.turnId) {
       return transportError(
@@ -436,9 +419,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     return runControlCommand(() => control.resolvePermission(input));
   }
 
-  async submitUserInput(
-    input: AgentUserInputResponseInput,
-  ): Promise<GeneralAgentResult> {
+  async submitUserInput(input: AgentUserInputResponseInput): Promise<GeneralAgentResult> {
     const control = this.active?.control;
     if (!control || control.turnId !== input.turnId) {
       return transportError(
@@ -460,9 +441,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     return runControlCommand(() => control.steer(input));
   }
 
-  async stopAfterTool(
-    input: AgentStopAfterToolInput,
-  ): Promise<GeneralAgentResult> {
+  async stopAfterTool(input: AgentStopAfterToolInput): Promise<GeneralAgentResult> {
     const control = this.active?.control;
     if (!control || control.turnId !== input.turnId) {
       return transportError(
@@ -490,16 +469,11 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         value: await this.persistence.listPendingControls(input),
       };
     } catch (error) {
-      return transportError(
-        persistenceErrorCode(error),
-        persistenceErrorMessage(error),
-      );
+      return transportError(persistenceErrorCode(error), persistenceErrorMessage(error));
     }
   }
 
-  async cancelPendingControl(
-    input: AgentCancelPendingControlInput,
-  ): Promise<GeneralAgentResult> {
+  async cancelPendingControl(input: AgentCancelPendingControlInput): Promise<GeneralAgentResult> {
     const activePending = this.active?.control?.pendingControl();
     if (
       activePending &&
@@ -524,10 +498,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       await this.persistence.cancelPendingControl(input);
       return { ok: true, value: undefined };
     } catch (error) {
-      return transportError(
-        persistenceErrorCode(error),
-        persistenceErrorMessage(error),
-      );
+      return transportError(persistenceErrorCode(error), persistenceErrorMessage(error));
     }
   }
 
@@ -561,9 +532,19 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     return { ok: true, value: undefined };
   }
 
-  subscribeEvents(
-    callback: (event: AgentEventEnvelope) => void,
+  subscribeJournal(
+    callback: (entry: AgentRuntimeJournalEntry) => void,
   ): GeneralAgentResult<() => void> {
+    this.journalListeners.add(callback);
+    return {
+      ok: true,
+      value: () => {
+        this.journalListeners.delete(callback);
+      },
+    };
+  }
+
+  subscribeEvents(callback: (event: AgentEventEnvelope) => void): GeneralAgentResult<() => void> {
     this.listeners.add(callback);
     return {
       ok: true,
@@ -583,14 +564,22 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     }
   }
 
+  private publishJournal(entry: AgentRuntimeJournalEntry): void {
+    for (const listener of this.journalListeners) {
+      try {
+        listener(entry);
+      } catch {
+        // UI projections cannot break runtime progress or other subscribers.
+      }
+    }
+  }
+
   private resolveMemorySession(
     routeKey: string,
     resume: string | undefined,
     newConversation: boolean,
     candidateSessionId: string,
-  ):
-    | { ok: true; session: LocalSessionState }
-    | { ok: false; result: GeneralAgentResult } {
+  ): { ok: true; session: LocalSessionState } | { ok: false; result: GeneralAgentResult } {
     let session: LocalSessionState | undefined;
     if (!newConversation && resume) {
       session = this.sessions.get(resume);
@@ -625,6 +614,19 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   private nowIso(): string {
     return new Date(this.wallNowMs()).toISOString();
   }
+}
+
+function failClosedCommitTerminal(entry: AgentRuntimeJournalEntry): AgentRuntimeJournalEntry {
+  if (entry.event.type !== 'turn_finished') return entry;
+  return {
+    ...entry,
+    event: {
+      ...entry.event,
+      outcome: 'failed',
+      failureCode: 'INTERNAL_ERROR',
+      message: AGENT_RUNTIME_DURABLE_COMMIT_FAILURE_MESSAGE,
+    },
+  };
 }
 
 export function createLocalGeneralAgentTransport(
@@ -704,9 +706,7 @@ function persistenceErrorMessage(error: unknown): string {
   return 'The Agent turn could not be durably accepted.';
 }
 
-async function runControlCommand(
-  command: () => Promise<void>,
-): Promise<GeneralAgentResult> {
+async function runControlCommand(command: () => Promise<void>): Promise<GeneralAgentResult> {
   try {
     await command();
     return { ok: true, value: undefined };
@@ -716,9 +716,7 @@ async function runControlCommand(
     }
     return transportError(
       'AGENT_CONTROL_FAILED',
-      error instanceof Error
-        ? error.message
-        : 'The Agent control command failed.',
+      error instanceof Error ? error.message : 'The Agent control command failed.',
     );
   }
 }

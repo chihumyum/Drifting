@@ -12,6 +12,7 @@ import {
   type AgentRuntimeRoute,
   type AgentRuntimeUsage,
 } from './types';
+import { contextUsageSnapshot } from './context-usage.test-fixture';
 
 const SESSION_ID = 'session-1';
 const TURN_ID = 'turn-1';
@@ -214,6 +215,39 @@ describe('agent runtime journal reducer', () => {
         ),
       ),
     ).toThrow('unexpected eventId "turn-1:conflicting-event-id"');
+  });
+
+  it('fails closed when a context snapshot does not belong to the active iteration', () => {
+    let state = createAgentRuntimeState(SESSION_ID, TURN_ID, ROUTE);
+    state = reduceAgentRuntimeJournal(
+      state,
+      entry(1, { type: 'turn_started', prompt: 'hello' }),
+    );
+    state = reduceAgentRuntimeJournal(
+      state,
+      entry(2, { type: 'model_iteration_started', iteration: 1, driverId: 'fake-driver' }),
+    );
+
+    expect(() =>
+      reduceAgentRuntimeJournal(
+        state,
+        entry(3, {
+          type: 'context_planned',
+          iteration: 2,
+          snapshot: contextUsageSnapshot(2),
+        }),
+      ),
+    ).toThrow('context snapshot belongs to iteration 2, active iteration is 1');
+    expect(() =>
+      reduceAgentRuntimeJournal(
+        state,
+        entry(3, {
+          type: 'context_planned',
+          iteration: 1,
+          snapshot: contextUsageSnapshot(2),
+        }),
+      ),
+    ).toThrow('context snapshot iteration does not match its journal event');
   });
 
   it('rejects a validly sequenced event after the terminal event', () => {

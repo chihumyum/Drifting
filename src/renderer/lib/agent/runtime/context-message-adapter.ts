@@ -14,6 +14,7 @@ import {
   hashAgentContextSourceRows,
   planAgentContext,
   type AgentContextCheckpointV2,
+  type AgentContextDurableWriteEvidence,
   type AgentContextPlan,
   type AgentContextPlannerInput,
   type AgentContextPlannerResult,
@@ -41,6 +42,8 @@ const SUPPLEMENTAL_KINDS = new Set<AgentContextSupplementalKind>([
   'write_review',
   'write_revert',
   'freshness',
+  'task_plan',
+  'task_constraints',
 ]);
 const SOURCE_KINDS = new Set<AgentContextSourceKind>([
   'system_policy',
@@ -52,12 +55,16 @@ const SOURCE_KINDS = new Set<AgentContextSourceKind>([
   'write_review',
   'write_revert',
   'freshness',
+  'task_plan',
+  'task_constraints',
 ]);
 
 export type AgentContextSupplementalKind =
   | 'write_review'
   | 'write_revert'
-  | 'freshness';
+  | 'freshness'
+  | 'task_plan'
+  | 'task_constraints';
 
 export interface AgentContextSupplementalPinnedRow {
   /** Caller-owned durable id. It must remain stable across recovery. */
@@ -66,6 +73,15 @@ export interface AgentContextSupplementalPinnedRow {
   kind: AgentContextSupplementalKind;
   /** Exact fact/review/revert payload. Never rewritten by this bridge. */
   content: string;
+  /**
+   * Product-owned durable provenance. The bridge strips this metadata from the
+   * provider projection and the planner accepts only exact write-pair matches.
+   */
+  durableWriteCoverage?: readonly {
+    turnOrdinal: number;
+    callId: string;
+    toolName: string;
+  }[];
 }
 
 export type AgentContextToolAccessResolver = (
@@ -118,7 +134,7 @@ export interface AgentContextNoteProviderMessage {
   noteKind: AgentContextSupplementalKind;
   sourceId: string;
   turnOrdinal: number | null;
-  /** Exact durable review/revert/freshness payload. */
+  /** Exact durable runtime note payload. */
   content: string;
 }
 
@@ -205,13 +221,7 @@ export type AgentModelContextPlanningResult =
     }
   | Extract<AgentContextPlannerResult, { ok: false }>;
 
-type JsonValue =
-  | null
-  | boolean
-  | number
-  | string
-  | JsonValue[]
-  | { [key: string]: JsonValue };
+type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 interface ToolCallTopology {
   callId: string;
@@ -223,10 +233,7 @@ interface ToolCallTopology {
   resolved: boolean;
 }
 
-function failure(
-  code: AgentContextMessageBridgeFailureCode,
-  message: string,
-): never {
+function failure(code: AgentContextMessageBridgeFailureCode, message: string): never {
   throw new AgentContextMessageBridgeError(code, message);
 }
 
@@ -242,11 +249,7 @@ function canonicalJsonValue(
   path = 'value',
   ancestors = new WeakSet<object>(),
 ): JsonValue {
-  if (
-    value === null ||
-    typeof value === 'string' ||
-    typeof value === 'boolean'
-  ) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
     return value;
   }
   if (typeof value === 'number') {
@@ -256,10 +259,7 @@ function canonicalJsonValue(
     return value;
   }
   if (typeof value !== 'object') {
-    failure(
-      'INVALID_MODEL_CONTEXT',
-      `${path} contains unsupported ${typeof value}.`,
-    );
+    failure('INVALID_MODEL_CONTEXT', `${path} contains unsupported ${typeof value}.`);
   }
   if (ancestors.has(value)) {
     failure('INVALID_MODEL_CONTEXT', `${path} contains a cycle.`);
@@ -267,9 +267,7 @@ function canonicalJsonValue(
   ancestors.add(value);
   try {
     if (Array.isArray(value)) {
-      return value.map((entry, index) =>
-        canonicalJsonValue(entry, `${path}[${index}]`, ancestors),
-      );
+      return value.map((entry, index) => canonicalJsonValue(entry, `${path}[${index}]`, ancestors));
     }
     const output: Record<string, JsonValue> = {};
     for (const key of Object.keys(value).sort()) {
@@ -290,9 +288,7 @@ function canonicalJson(value: unknown): string {
 }
 
 function bytesToHex(bytes: ArrayBuffer): string {
-  return [...new Uint8Array(bytes)]
-    .map((value) => value.toString(16).padStart(2, '0'))
-    .join('');
+  return [...new Uint8Array(bytes)].map((value) => value.toString(16).padStart(2, '0')).join('');
 }
 
 async function sha256Canonical(value: unknown): Promise<string> {
@@ -303,10 +299,7 @@ async function sha256Canonical(value: unknown): Promise<string> {
       'Web Crypto SHA-256 is unavailable; provider context cannot be verified.',
     );
   }
-  const digest = await subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(canonicalJson(value)),
-  );
+  const digest = await subtle.digest('SHA-256', new TextEncoder().encode(canonicalJson(value)));
   return `sha256:${bytesToHex(digest)}`;
 }
 
@@ -321,10 +314,7 @@ function serializeToolBlock(
   return canonicalJson(canonicalJsonValue(value, label));
 }
 
-function parseToolCall(
-  content: string,
-  label: string,
-): AgentAssistantToolCallBlock {
+function parseToolCall(content: string, label: string): AgentAssistantToolCallBlock {
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
@@ -384,10 +374,7 @@ function parseToolResult(content: string, label: string): AgentToolResultBlock {
     (result.source !== undefined || result.errorCode !== undefined) &&
     !isCanonicalAgentRuntimeUnknownToolResult(result)
   ) {
-    failure(
-      'INVALID_PROJECTION',
-      `${label} has invalid runtime-denial provenance.`,
-    );
+    failure('INVALID_PROJECTION', `${label} has invalid runtime-denial provenance.`);
   }
   return result;
 }
@@ -401,9 +388,7 @@ function sourceIdForMessage(
   return `${CANONICAL_SOURCE_PREFIX}/message/${messageOrdinal}/${role}/${blockOrdinal}/${blockType}`;
 }
 
-function unresolvedCalls(
-  topology: ReadonlyMap<string, ToolCallTopology>,
-): ToolCallTopology[] {
+function unresolvedCalls(topology: ReadonlyMap<string, ToolCallTopology>): ToolCallTopology[] {
   return [...topology.values()].filter((call) => !call.resolved);
 }
 
@@ -429,10 +414,7 @@ function resolveAccess(
   try {
     access = resolver(toolName);
   } catch {
-    failure(
-      'UNKNOWN_TOOL_ACCESS',
-      `Tool access resolver failed for "${toolName}".`,
-    );
+    failure('UNKNOWN_TOOL_ACCESS', `Tool access resolver failed for "${toolName}".`);
   }
   return access === 'read' || access === 'write' ? access : null;
 }
@@ -449,10 +431,7 @@ export function agentModelMessagesToContextSources(input: {
   supplementalRows?: readonly AgentContextSupplementalPinnedRow[];
 }): AgentContextCanonicalBridge {
   if (typeof input.systemPrompt !== 'string' || input.systemPrompt.length === 0) {
-    failure(
-      'INVALID_MODEL_CONTEXT',
-      'A non-empty canonical system prompt is required.',
-    );
+    failure('INVALID_MODEL_CONTEXT', 'A non-empty canonical system prompt is required.');
   }
   if (!Array.isArray(input.messages)) {
     failure('INVALID_MODEL_CONTEXT', 'Canonical messages must be an array.');
@@ -470,10 +449,7 @@ export function agentModelMessagesToContextSources(input: {
     binding: AgentContextSourceBinding,
   ): AgentContextSourceRow => {
     if (!row.sourceId || sourceIds.has(row.sourceId)) {
-      failure(
-        'INVALID_MODEL_CONTEXT',
-        `Duplicate or empty source id "${row.sourceId}".`,
-      );
+      failure('INVALID_MODEL_CONTEXT', `Duplicate or empty source id "${row.sourceId}".`);
     }
     sourceIds.add(row.sourceId);
     const added = { ...row, ordinal };
@@ -494,22 +470,13 @@ export function agentModelMessagesToContextSources(input: {
     { sourceId: systemSourceId, origin: 'system' },
   );
 
-  for (
-    let messageOrdinal = 0;
-    messageOrdinal < input.messages.length;
-    messageOrdinal += 1
-  ) {
+  for (let messageOrdinal = 0; messageOrdinal < input.messages.length; messageOrdinal += 1) {
     const message = input.messages[messageOrdinal];
     if (
       !message ||
-      (message.role !== 'user' &&
-        message.role !== 'assistant' &&
-        message.role !== 'tool')
+      (message.role !== 'user' && message.role !== 'assistant' && message.role !== 'tool')
     ) {
-      failure(
-        'INVALID_MODEL_CONTEXT',
-        `Message ${messageOrdinal} has an unsupported role.`,
-      );
+      failure('INVALID_MODEL_CONTEXT', `Message ${messageOrdinal} has an unsupported role.`);
     }
     validateResolvedBeforeNextMessage(topology, message.role, messageOrdinal);
 
@@ -521,12 +488,7 @@ export function agentModelMessagesToContextSources(input: {
         );
       }
       turnOrdinal += 1;
-      const sourceId = sourceIdForMessage(
-        messageOrdinal,
-        message.role,
-        0,
-        'user',
-      );
+      const sourceId = sourceIdForMessage(messageOrdinal, message.role, 0, 'user');
       add(
         {
           sourceId,
@@ -560,11 +522,7 @@ export function agentModelMessagesToContextSources(input: {
     }
 
     if (message.role === 'assistant') {
-      for (
-        let blockOrdinal = 0;
-        blockOrdinal < message.content.length;
-        blockOrdinal += 1
-      ) {
+      for (let blockOrdinal = 0; blockOrdinal < message.content.length; blockOrdinal += 1) {
         const block = message.content[blockOrdinal];
         if (!block || typeof block !== 'object') {
           failure(
@@ -589,8 +547,7 @@ export function agentModelMessagesToContextSources(input: {
             {
               sourceId,
               turnOrdinal,
-              kind:
-                block.type === 'text' ? 'assistant_narrative' : 'thinking',
+              kind: block.type === 'text' ? 'assistant_narrative' : 'thinking',
               content: block.text,
             },
             {
@@ -641,14 +598,8 @@ export function agentModelMessagesToContextSources(input: {
           );
         }
         const policyAccess = resolveAccess(input.resolveToolAccess, name);
-        const access: AgentContextToolAccess =
-          policyAccess ?? 'denied';
-        const sourceId = sourceIdForMessage(
-          messageOrdinal,
-          message.role,
-          blockOrdinal,
-          block.type,
-        );
+        const access: AgentContextToolAccess = policyAccess ?? 'denied';
+        const sourceId = sourceIdForMessage(messageOrdinal, message.role, blockOrdinal, block.type);
         const sourceRow = add(
           {
             sourceId,
@@ -684,11 +635,7 @@ export function agentModelMessagesToContextSources(input: {
       continue;
     }
 
-    for (
-      let blockOrdinal = 0;
-      blockOrdinal < message.content.length;
-      blockOrdinal += 1
-    ) {
+    for (let blockOrdinal = 0; blockOrdinal < message.content.length; blockOrdinal += 1) {
       const result = message.content[blockOrdinal];
       if (!result || typeof result !== 'object') {
         failure(
@@ -708,8 +655,7 @@ export function agentModelMessagesToContextSources(input: {
         typeof result.ok !== 'boolean' ||
         typeof result.content !== 'string' ||
         (result.source !== undefined && result.source !== 'runtime') ||
-        (result.errorCode !== undefined &&
-          result.errorCode !== 'UNKNOWN_TOOL') ||
+        (result.errorCode !== undefined && result.errorCode !== 'UNKNOWN_TOOL') ||
         Object.keys(result).some(
           (key) =>
             key !== 'callId' &&
@@ -733,10 +679,8 @@ export function agentModelMessagesToContextSources(input: {
           `Tool result "${key}" is orphaned, duplicated, or name-mismatched.`,
         );
       }
-      const carriesDenialProvenance =
-        result.source !== undefined || result.errorCode !== undefined;
-      const isDenied =
-        isCanonicalAgentRuntimeUnknownToolResult(result);
+      const carriesDenialProvenance = result.source !== undefined || result.errorCode !== undefined;
+      const isDenied = isCanonicalAgentRuntimeUnknownToolResult(result);
       if (carriesDenialProvenance && !isDenied) {
         failure(
           'UNKNOWN_TOOL_ACCESS',
@@ -805,7 +749,9 @@ export function agentModelMessagesToContextSources(input: {
     }
     requireNonEmptyString(supplemental.sourceId, 'Supplemental source id');
     if (
-      supplemental.kind === 'freshness'
+      supplemental.kind === 'freshness' ||
+      supplemental.kind === 'task_plan' ||
+      supplemental.kind === 'task_constraints'
         ? supplemental.turnOrdinal !== null
         : supplemental.turnOrdinal === null ||
           !Number.isSafeInteger(supplemental.turnOrdinal) ||
@@ -844,10 +790,7 @@ function bindingMap(
   const output = new Map<string, AgentContextSourceBinding>();
   for (const binding of bindings) {
     if (!binding.sourceId || output.has(binding.sourceId)) {
-      failure(
-        'INVALID_PROJECTION',
-        `Duplicate or empty binding source id "${binding.sourceId}".`,
-      );
+      failure('INVALID_PROJECTION', `Duplicate or empty binding source id "${binding.sourceId}".`);
     }
     output.set(binding.sourceId, binding);
   }
@@ -879,10 +822,7 @@ function appendCanonicalSource(
 
   if (binding.role === 'assistant') {
     let block: AgentAssistantContentBlock;
-    if (
-      binding.blockType === 'text' &&
-      row.kind === 'assistant_narrative'
-    ) {
+    if (binding.blockType === 'text' && row.kind === 'assistant_narrative') {
       block = { type: 'text', text: row.content };
     } else if (binding.blockType === 'thinking' && row.kind === 'thinking') {
       block = { type: 'thinking', text: row.content };
@@ -891,14 +831,9 @@ function appendCanonicalSource(
       if (
         call.callId !== row.callId ||
         call.name !== row.toolName ||
-        (row.toolAccess !== 'read' &&
-          row.toolAccess !== 'write' &&
-          row.toolAccess !== 'denied')
+        (row.toolAccess !== 'read' && row.toolAccess !== 'write' && row.toolAccess !== 'denied')
       ) {
-        failure(
-          'INVALID_PROJECTION',
-          `Tool call source "${row.sourceId}" metadata drifted.`,
-        );
+        failure('INVALID_PROJECTION', `Tool call source "${row.sourceId}" metadata drifted.`);
       }
       block = call;
     } else {
@@ -928,23 +863,15 @@ function appendCanonicalSource(
   }
 
   if (binding.blockType !== 'tool_result' || row.kind !== 'tool_result') {
-    failure(
-      'INVALID_PROJECTION',
-      `Tool binding "${row.sourceId}" does not match its source kind.`,
-    );
+    failure('INVALID_PROJECTION', `Tool binding "${row.sourceId}" does not match its source kind.`);
   }
   const result = parseToolResult(row.content, `Source "${row.sourceId}"`);
   if (
     result.callId !== row.callId ||
     result.name !== row.toolName ||
-    (row.toolAccess !== 'read' &&
-      row.toolAccess !== 'write' &&
-      row.toolAccess !== 'denied')
+    (row.toolAccess !== 'read' && row.toolAccess !== 'write' && row.toolAccess !== 'denied')
   ) {
-    failure(
-      'INVALID_PROJECTION',
-      `Tool result source "${row.sourceId}" metadata drifted.`,
-    );
+    failure('INVALID_PROJECTION', `Tool result source "${row.sourceId}" metadata drifted.`);
   }
   const priorTool =
     last?.type === 'model_message' &&
@@ -973,8 +900,7 @@ function validateDirectProjectedToolTopology(
   for (const segment of segments) {
     if (
       segment.type !== 'source' ||
-      (segment.row.kind !== 'tool_call' &&
-        segment.row.kind !== 'tool_result')
+      (segment.row.kind !== 'tool_call' && segment.row.kind !== 'tool_result')
     ) {
       continue;
     }
@@ -982,10 +908,7 @@ function validateDirectProjectedToolTopology(
     const key = `${row.turnOrdinal}:${row.callId}`;
     const target = row.kind === 'tool_call' ? calls : results;
     if (target.has(key)) {
-      failure(
-        'INVALID_PROJECTION',
-        `Projected context duplicates ${row.kind} "${key}".`,
-      );
+      failure('INVALID_PROJECTION', `Projected context duplicates ${row.kind} "${key}".`);
     }
     target.set(key, row);
   }
@@ -1046,10 +969,7 @@ export function projectAgentContextToProvider(input: {
     const row = segment.row;
     const binding = bindings.get(row.sourceId);
     if (!binding || covered.has(row.sourceId)) {
-      failure(
-        'INVALID_PROJECTION',
-        `Projected source "${row.sourceId}" has no unique binding.`,
-      );
+      failure('INVALID_PROJECTION', `Projected source "${row.sourceId}" has no unique binding.`);
     }
     covered.add(row.sourceId);
     if (binding.origin === 'system') {
@@ -1063,14 +983,8 @@ export function projectAgentContextToProvider(input: {
       continue;
     }
     if (binding.origin === 'supplemental') {
-      if (
-        row.kind !== binding.noteKind ||
-        !SUPPLEMENTAL_KINDS.has(binding.noteKind)
-      ) {
-        failure(
-          'INVALID_PROJECTION',
-          `Supplemental binding "${row.sourceId}" drifted.`,
-        );
+      if (row.kind !== binding.noteKind || !SUPPLEMENTAL_KINDS.has(binding.noteKind)) {
+        failure('INVALID_PROJECTION', `Supplemental binding "${row.sourceId}" drifted.`);
       }
       output.push({
         type: 'context_note',
@@ -1085,10 +999,7 @@ export function projectAgentContextToProvider(input: {
   }
 
   if (systemPrompt === null) {
-    failure(
-      'INVALID_PROJECTION',
-      'Provider projection is missing its exact system policy.',
-    );
+    failure('INVALID_PROJECTION', 'Provider projection is missing its exact system policy.');
   }
   return {
     systemPrompt,
@@ -1115,24 +1026,12 @@ export function estimateAgentContextFixedInputTokens(input: {
   perToolOverheadTokens?: number;
   estimateTokens?: AgentContextTokenEstimator;
 }): number {
-  if (
-    !Number.isSafeInteger(input.providerOverheadTokens) ||
-    input.providerOverheadTokens < 0
-  ) {
-    failure(
-      'INVALID_MODEL_CONTEXT',
-      'Provider overhead must be a non-negative safe integer.',
-    );
+  if (!Number.isSafeInteger(input.providerOverheadTokens) || input.providerOverheadTokens < 0) {
+    failure('INVALID_MODEL_CONTEXT', 'Provider overhead must be a non-negative safe integer.');
   }
   const perToolOverheadTokens = input.perToolOverheadTokens ?? 8;
-  if (
-    !Number.isSafeInteger(perToolOverheadTokens) ||
-    perToolOverheadTokens < 0
-  ) {
-    failure(
-      'INVALID_MODEL_CONTEXT',
-      'Per-tool overhead must be a non-negative safe integer.',
-    );
+  if (!Number.isSafeInteger(perToolOverheadTokens) || perToolOverheadTokens < 0) {
+    failure('INVALID_MODEL_CONTEXT', 'Per-tool overhead must be a non-negative safe integer.');
   }
   const estimator = input.estimateTokens ?? estimateAgentContextTextTokens;
   const names = new Set<string>();
@@ -1140,17 +1039,11 @@ export function estimateAgentContextFixedInputTokens(input: {
   for (const tool of input.tools) {
     requireNonEmptyString(tool.name, 'Tool definition name');
     if (names.has(tool.name)) {
-      failure(
-        'INVALID_MODEL_CONTEXT',
-        `Duplicate provider tool definition "${tool.name}".`,
-      );
+      failure('INVALID_MODEL_CONTEXT', `Duplicate provider tool definition "${tool.name}".`);
     }
     names.add(tool.name);
     if (typeof tool.description !== 'string') {
-      failure(
-        'INVALID_MODEL_CONTEXT',
-        `Tool "${tool.name}" description must be a string.`,
-      );
+      failure('INVALID_MODEL_CONTEXT', `Tool "${tool.name}" description must be a string.`);
     }
     const encoded = canonicalJson({
       name: tool.name,
@@ -1159,40 +1052,27 @@ export function estimateAgentContextFixedInputTokens(input: {
     });
     const estimate = estimator(encoded);
     if (!Number.isSafeInteger(estimate) || estimate < 0) {
-      failure(
-        'INVALID_MODEL_CONTEXT',
-        'Fixed-input token estimator returned an invalid value.',
-      );
+      failure('INVALID_MODEL_CONTEXT', 'Fixed-input token estimator returned an invalid value.');
     }
     total += estimate + perToolOverheadTokens;
     if (!Number.isSafeInteger(total)) {
-      failure(
-        'INVALID_MODEL_CONTEXT',
-        'Fixed provider input token estimate overflowed.',
-      );
+      failure('INVALID_MODEL_CONTEXT', 'Fixed provider input token estimate overflowed.');
     }
   }
   return total;
 }
 
-function cloneBinding(
-  binding: AgentContextSourceBinding,
-): AgentContextSourceBinding {
+function cloneBinding(binding: AgentContextSourceBinding): AgentContextSourceBinding {
   return { ...binding };
 }
 
-function cloneCheckpoint(
-  checkpoint: AgentContextCheckpointV2,
-): AgentContextCheckpointV2 {
+function cloneCheckpoint(checkpoint: AgentContextCheckpointV2): AgentContextCheckpointV2 {
   return cloneJson(checkpoint);
 }
 
 function envelopeBody(
   envelope: Omit<AgentContextProviderEnvelopeV2, 'integrity'> & {
-    integrity: Omit<
-      AgentContextProviderEnvelopeV2['integrity'],
-      'envelopeHash'
-    >;
+    integrity: Omit<AgentContextProviderEnvelopeV2['integrity'], 'envelopeHash'>;
   },
 ): unknown {
   return envelope;
@@ -1205,8 +1085,7 @@ async function sourceManifest(
     [...rows]
       .sort(
         (left, right) =>
-          left.ordinal - right.ordinal ||
-          left.sourceId.localeCompare(right.sourceId),
+          left.ordinal - right.ordinal || left.sourceId.localeCompare(right.sourceId),
       )
       .map(async (row) => ({
         sourceId: row.sourceId,
@@ -1224,23 +1103,16 @@ function validateBindingsAgainstRows(
 ): void {
   const byId = bindingMap(bindings);
   if (rows.length !== bindings.length) {
-    failure(
-      'INVALID_ENVELOPE',
-      'Canonical source and binding counts do not match.',
-    );
+    failure('INVALID_ENVELOPE', 'Canonical source and binding counts do not match.');
   }
   for (const row of rows) {
     const binding = byId.get(row.sourceId);
     if (!binding) {
-      failure(
-        'INVALID_ENVELOPE',
-        `Canonical source "${row.sourceId}" has no binding.`,
-      );
+      failure('INVALID_ENVELOPE', `Canonical source "${row.sourceId}" has no binding.`);
     }
     if (
       (binding.origin === 'system' && row.kind !== 'system_policy') ||
-      (binding.origin === 'supplemental' &&
-        row.kind !== binding.noteKind) ||
+      (binding.origin === 'supplemental' && row.kind !== binding.noteKind) ||
       (binding.origin === 'message' &&
         ((binding.role === 'user' && row.kind !== 'user') ||
           (binding.role === 'assistant' &&
@@ -1254,10 +1126,7 @@ function validateBindingsAgainstRows(
             row.kind !== 'tool_call') ||
           (binding.role === 'tool' && row.kind !== 'tool_result')))
     ) {
-      failure(
-        'INVALID_ENVELOPE',
-        `Canonical source "${row.sourceId}" binding kind drifted.`,
-      );
+      failure('INVALID_ENVELOPE', `Canonical source "${row.sourceId}" binding kind drifted.`);
     }
   }
 }
@@ -1268,22 +1137,15 @@ export async function createAgentContextProviderEnvelope(input: {
   plan: AgentContextPlan;
 }): Promise<AgentContextProviderEnvelopeV2> {
   validateBindingsAgainstRows(input.bridge.sourceRows, input.bridge.bindings);
-  const canonicalHash = await hashAgentContextSourceRows(
-    input.bridge.sourceRows,
-  );
+  const canonicalHash = await hashAgentContextSourceRows(input.bridge.sourceRows);
   if (
     input.plan.checkpoint.schemaVersion !== AGENT_CONTEXT_CHECKPOINT_VERSION ||
     input.plan.checkpoint.format !== AGENT_CONTEXT_CHECKPOINT_FORMAT ||
-    input.plan.checkpoint.canonicalSources.sourceCount !==
-      input.bridge.sourceRows.length ||
+    input.plan.checkpoint.canonicalSources.sourceCount !== input.bridge.sourceRows.length ||
     input.plan.checkpoint.canonicalSources.sourceOrderHash !== canonicalHash ||
-    canonicalJson(input.plan.checkpoint.projection.segments) !==
-      canonicalJson(input.plan.segments)
+    canonicalJson(input.plan.checkpoint.projection.segments) !== canonicalJson(input.plan.segments)
   ) {
-    failure(
-      'INVALID_ENVELOPE',
-      'Planner checkpoint does not match the canonical bridge or plan.',
-    );
+    failure('INVALID_ENVELOPE', 'Planner checkpoint does not match the canonical bridge or plan.');
   }
 
   const sourceBindings = input.bridge.bindings.map(cloneBinding);
@@ -1303,10 +1165,7 @@ export async function createAgentContextProviderEnvelope(input: {
       providerContextHash: await sha256Canonical(providerContext),
     },
   } satisfies Omit<AgentContextProviderEnvelopeV2, 'integrity'> & {
-    integrity: Omit<
-      AgentContextProviderEnvelopeV2['integrity'],
-      'envelopeHash'
-    >;
+    integrity: Omit<AgentContextProviderEnvelopeV2['integrity'], 'envelopeHash'>;
   };
   return {
     ...body,
@@ -1317,10 +1176,7 @@ export async function createAgentContextProviderEnvelope(input: {
   };
 }
 
-function validateUniqueIds(
-  ids: readonly string[],
-  label: string,
-): Set<string> {
+function validateUniqueIds(ids: readonly string[], label: string): Set<string> {
   const output = new Set<string>();
   for (const id of ids) {
     if (!id || output.has(id)) {
@@ -1331,9 +1187,7 @@ function validateUniqueIds(
   return output;
 }
 
-async function validateEnvelopeCoverage(
-  envelope: AgentContextProviderEnvelopeV2,
-): Promise<void> {
+async function validateEnvelopeCoverage(envelope: AgentContextProviderEnvelopeV2): Promise<void> {
   const checkpoint = envelope.plannerCheckpoint;
   const manifestIds = validateUniqueIds(
     envelope.sourceManifest.map((entry) => entry.sourceId),
@@ -1348,10 +1202,7 @@ async function validateEnvelopeCoverage(
     bindingIds.size !== manifestIds.size ||
     [...manifestIds].some((sourceId) => !bindingIds.has(sourceId))
   ) {
-    failure(
-      'INVALID_ENVELOPE',
-      'Source manifest, bindings, and checkpoint counts do not match.',
-    );
+    failure('INVALID_ENVELOPE', 'Source manifest, bindings, and checkpoint counts do not match.');
   }
 
   const ordinals = new Set<number>();
@@ -1362,8 +1213,7 @@ async function validateEnvelopeCoverage(
       entry.ordinal < 0 ||
       ordinals.has(entry.ordinal) ||
       (entry.turnOrdinal !== null &&
-        (!Number.isSafeInteger(entry.turnOrdinal) ||
-          entry.turnOrdinal < 0)) ||
+        (!Number.isSafeInteger(entry.turnOrdinal) || entry.turnOrdinal < 0)) ||
       !SOURCE_KINDS.has(entry.kind) ||
       !entry.sourceHash.startsWith('sha256:')
     ) {
@@ -1377,27 +1227,16 @@ async function validateEnvelopeCoverage(
     checkpoint.coverage.representedSourceIds,
     'Represented coverage',
   );
-  const discarded = validateUniqueIds(
-    checkpoint.coverage.discardedSourceIds,
-    'Discarded coverage',
-  );
+  const discarded = validateUniqueIds(checkpoint.coverage.discardedSourceIds, 'Discarded coverage');
   if (
-    [...represented].some(
-      (sourceId) => discarded.has(sourceId) || !manifestIds.has(sourceId),
-    ) ||
+    [...represented].some((sourceId) => discarded.has(sourceId) || !manifestIds.has(sourceId)) ||
     [...discarded].some((sourceId) => !manifestIds.has(sourceId)) ||
     represented.size + discarded.size !== manifestIds.size
   ) {
-    failure(
-      'INVALID_ENVELOPE',
-      'Represented/discarded coverage is not an exact source partition.',
-    );
+    failure('INVALID_ENVELOPE', 'Represented/discarded coverage is not an exact source partition.');
   }
 
-  const representation = new Map<
-    string,
-    { type: 'source' } | { type: 'summary'; id: string }
-  >();
+  const representation = new Map<string, { type: 'source' } | { type: 'summary'; id: string }>();
   for (const segment of checkpoint.projection.segments) {
     if (segment.type === 'source') {
       const sourceId = segment.row.sourceId;
@@ -1407,10 +1246,7 @@ async function validateEnvelopeCoverage(
         sourceHashById.get(sourceId) !== actualHash ||
         segment.sourceHash !== actualHash
       ) {
-        failure(
-          'INVALID_ENVELOPE',
-          `Projected source "${sourceId}" failed manifest verification.`,
-        );
+        failure('INVALID_ENVELOPE', `Projected source "${sourceId}" failed manifest verification.`);
       }
       representation.set(sourceId, { type: 'source' });
       continue;
@@ -1424,10 +1260,7 @@ async function validateEnvelopeCoverage(
           content: segment.content,
         }))
     ) {
-      failure(
-        'INVALID_ENVELOPE',
-        `Summary "${segment.summaryId}" failed hash verification.`,
-      );
+      failure('INVALID_ENVELOPE', `Summary "${segment.summaryId}" failed hash verification.`);
     }
     for (const sourceId of segment.sourceIds) {
       if (representation.has(sourceId) || !manifestIds.has(sourceId)) {
@@ -1444,34 +1277,20 @@ async function validateEnvelopeCoverage(
   }
   if (
     [...represented].some((sourceId) => !representation.has(sourceId)) ||
-    [...representation].some(
-      ([sourceId]) => !represented.has(sourceId),
-    )
+    [...representation].some(([sourceId]) => !represented.has(sourceId))
   ) {
-    failure(
-      'INVALID_ENVELOPE',
-      'Planner projection does not exactly represent declared coverage.',
-    );
+    failure('INVALID_ENVELOPE', 'Planner projection does not exactly represent declared coverage.');
   }
 
-  const pinnedIds = validateUniqueIds(
-    checkpoint.pinned.sourceIds,
-    'Pinned sources',
-  );
+  const pinnedIds = validateUniqueIds(checkpoint.pinned.sourceIds, 'Pinned sources');
   const pinnedRows = checkpoint.projection.segments.flatMap((segment) =>
-    segment.type === 'source' && pinnedIds.has(segment.row.sourceId)
-      ? [segment.row]
-      : [],
+    segment.type === 'source' && pinnedIds.has(segment.row.sourceId) ? [segment.row] : [],
   );
   if (
     pinnedRows.length !== pinnedIds.size ||
-    checkpoint.pinned.sourceHash !==
-      (await hashAgentContextSourceRows(pinnedRows))
+    checkpoint.pinned.sourceHash !== (await hashAgentContextSourceRows(pinnedRows))
   ) {
-    failure(
-      'INVALID_ENVELOPE',
-      'Pinned source bytes or hash were not preserved.',
-    );
+    failure('INVALID_ENVELOPE', 'Pinned source bytes or hash were not preserved.');
   }
 
   const coverageHash = await sha256Canonical(
@@ -1486,14 +1305,9 @@ async function validateEnvelopeCoverage(
   }
 }
 
-function validateCheckpointBudget(
-  checkpoint: AgentContextCheckpointV2,
-): void {
+function validateCheckpointBudget(checkpoint: AgentContextCheckpointV2): void {
   const budget = checkpoint.budget;
-  const reservedOutputTokens = Math.max(
-    budget.requestedOutputTokens,
-    4_096,
-  );
+  const reservedOutputTokens = Math.max(budget.requestedOutputTokens, 4_096);
   const safetyMarginTokens = Math.ceil(budget.contextWindowTokens * 0.1);
   const usableInputBudgetTokens =
     budget.contextWindowTokens -
@@ -1509,10 +1323,7 @@ function validateCheckpointBudget(
     usableInputBudgetTokens <= 0 ||
     budget.finalEstimatedTokens > usableInputBudgetTokens
   ) {
-    failure(
-      'INVALID_ENVELOPE',
-      'Checkpoint no longer satisfies the strict provider input budget.',
-    );
+    failure('INVALID_ENVELOPE', 'Checkpoint no longer satisfies the strict provider input budget.');
   }
 }
 
@@ -1530,8 +1341,7 @@ export async function verifyAgentContextProviderEnvelope(input: {
     !envelope ||
     envelope.schemaVersion !== AGENT_CONTEXT_PROVIDER_ENVELOPE_VERSION ||
     envelope.format !== AGENT_CONTEXT_PROVIDER_ENVELOPE_FORMAT ||
-    envelope.plannerCheckpoint.schemaVersion !==
-      AGENT_CONTEXT_CHECKPOINT_VERSION ||
+    envelope.plannerCheckpoint.schemaVersion !== AGENT_CONTEXT_CHECKPOINT_VERSION ||
     envelope.plannerCheckpoint.format !== AGENT_CONTEXT_CHECKPOINT_FORMAT
   ) {
     failure('INVALID_ENVELOPE', 'Unsupported provider context envelope.');
@@ -1550,16 +1360,11 @@ export async function verifyAgentContextProviderEnvelope(input: {
     },
   };
   if (
-    envelope.integrity.envelopeHash !==
-      (await sha256Canonical(envelopeBody(body))) ||
-    envelope.integrity.bindingHash !==
-      (await sha256Canonical(envelope.sourceBindings)) ||
-    envelope.integrity.providerContextHash !==
-      (await sha256Canonical(envelope.providerContext)) ||
+    envelope.integrity.envelopeHash !== (await sha256Canonical(envelopeBody(body))) ||
+    envelope.integrity.bindingHash !== (await sha256Canonical(envelope.sourceBindings)) ||
+    envelope.integrity.providerContextHash !== (await sha256Canonical(envelope.providerContext)) ||
     envelope.plannerCheckpoint.projection.contextHash !==
-      (await sha256Canonical(
-        envelope.plannerCheckpoint.projection.segments,
-      ))
+      (await sha256Canonical(envelope.plannerCheckpoint.projection.segments))
   ) {
     failure('INVALID_ENVELOPE', 'Provider context envelope hash drifted.');
   }
@@ -1579,19 +1384,13 @@ export async function verifyAgentContextProviderEnvelope(input: {
   }
 
   if (input.canonicalSourceRows) {
-    validateBindingsAgainstRows(
-      input.canonicalSourceRows,
-      envelope.sourceBindings,
-    );
+    validateBindingsAgainstRows(input.canonicalSourceRows, envelope.sourceBindings);
     if (
       input.canonicalSourceRows.length !== envelope.sourceManifest.length ||
       (await hashAgentContextSourceRows(input.canonicalSourceRows)) !==
         envelope.plannerCheckpoint.canonicalSources.sourceOrderHash
     ) {
-      failure(
-        'INVALID_ENVELOPE',
-        'Canonical source rows no longer match the durable envelope.',
-      );
+      failure('INVALID_ENVELOPE', 'Canonical source rows no longer match the durable envelope.');
     }
     const actualManifest = await sourceManifest(input.canonicalSourceRows);
     if (canonicalJson(actualManifest) !== canonicalJson(envelope.sourceManifest)) {
@@ -1624,9 +1423,21 @@ export async function planAgentModelContext(
   input: AgentModelContextPlanningInput,
 ): Promise<AgentModelContextPlanningResult> {
   const bridge = agentModelMessagesToContextSources(input);
+  const durableWriteEvidence: AgentContextDurableWriteEvidence[] = [];
+  for (const supplemental of input.supplementalRows ?? []) {
+    for (const coverage of supplemental.durableWriteCoverage ?? []) {
+      durableWriteEvidence.push({
+        evidenceSourceId: supplemental.sourceId,
+        turnOrdinal: coverage.turnOrdinal,
+        callId: coverage.callId,
+        toolName: coverage.toolName,
+      });
+    }
+  }
   const result = await planAgentContext({
     ...input.planner,
     sourceRows: bridge.sourceRows,
+    ...(durableWriteEvidence.length > 0 ? { durableWriteEvidence } : {}),
   });
   if (!result.ok) return result;
   return {

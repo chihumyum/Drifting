@@ -57,6 +57,17 @@ function sourceSegment(result: Awaited<ReturnType<typeof planAgentContext>>, sou
 }
 
 describe('provider-neutral Agent context planner', () => {
+  it('does not under-count CJK manuscript text with the provider-neutral estimator', () => {
+    const chinese = '雨夜里，柳青点亮了一盏灯。';
+    const hanCount = [...chinese].filter((character) => /\p{Script=Han}/u.test(character)).length;
+
+    expect(estimateAgentContextTextTokens(chinese)).toBeGreaterThanOrEqual(hanCount);
+    expect(estimateAgentContextTextTokens('plain ascii prose')).toBeLessThan(
+      'plain ascii prose'.length,
+    );
+    expect(estimateAgentContextTextTokens('🙂')).toBeGreaterThanOrEqual(2);
+  });
+
   it('computes the output reserve and ten-percent safety margin exactly', () => {
     expect(
       computeAgentContextBudget({
@@ -136,6 +147,186 @@ describe('provider-neutral Agent context planner', () => {
       pinReason: null,
     });
     expect(result.plan.checkpoint.coverage.discardedSourceIds).toEqual(['thinking-2']);
+  });
+
+  it('keeps writes pinned unless an exact pinned durable evidence row covers the whole pair', async () => {
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user-0', 1, 0, 'user', 'old request'),
+      row(
+        'write-call',
+        2,
+        0,
+        'tool_call',
+        '{"callId":"call-write","name":"rename_node","arguments":{}}',
+        {
+          callId: 'call-write',
+          toolName: 'rename_node',
+          toolAccess: 'write',
+        },
+      ),
+      row(
+        'write-result',
+        3,
+        0,
+        'tool_result',
+        '{"callId":"call-write","name":"rename_node","result":{"ok":true}}',
+        {
+          callId: 'call-write',
+          toolName: 'rename_node',
+          toolAccess: 'write',
+        },
+      ),
+      row('user-1', 4, 1, 'user', 'recent one'),
+      row('assistant-1', 5, 1, 'assistant_narrative', 'one'),
+      row('user-2', 6, 2, 'user', 'recent two'),
+      row('assistant-2', 7, 2, 'assistant_narrative', 'two'),
+      row('review-evidence', 8, 0, 'write_review', '{"reviewStatus":"accepted_effect"}'),
+    ];
+    const base = {
+      contextWindowTokens: 10_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+    };
+
+    const defaultPlan = await planAgentContext(base);
+    const mismatchedPlan = await planAgentContext({
+      ...base,
+      durableWriteEvidence: [
+        {
+          evidenceSourceId: 'review-evidence',
+          turnOrdinal: 0,
+          callId: 'wrong-call',
+          toolName: 'rename_node',
+        },
+      ],
+    });
+    const coveredPlan = await planAgentContext({
+      ...base,
+      durableWriteEvidence: [
+        {
+          evidenceSourceId: 'review-evidence',
+          turnOrdinal: 0,
+          callId: 'call-write',
+          toolName: 'rename_node',
+        },
+      ],
+    });
+
+    expect(sourceSegment(defaultPlan, 'write-call')).toMatchObject({
+      classification: 'pinned',
+      pinReason: 'semantic',
+    });
+    expect(sourceSegment(mismatchedPlan, 'write-call')).toMatchObject({
+      classification: 'pinned',
+      pinReason: 'semantic',
+    });
+    expect(sourceSegment(coveredPlan, 'write-call')).toMatchObject({
+      classification: 'compressible',
+      pinReason: null,
+    });
+    expect(sourceSegment(coveredPlan, 'write-result')).toMatchObject({
+      classification: 'compressible',
+      pinReason: null,
+    });
+    expect(sourceSegment(coveredPlan, 'review-evidence')).toMatchObject({
+      classification: 'pinned',
+      pinReason: 'semantic',
+    });
+  });
+
+  it('lets a pinned canonical task snapshot replace accumulated long-task metadata results', async () => {
+    const taskPairs = Array.from({ length: 24 }, (_, index) => {
+      const callId = `task-step-${index}`;
+      return [
+        row(
+          `task-call-${index}`,
+          2 + index * 2,
+          0,
+          'tool_call',
+          `{"callId":"${callId}","name":"update_task_step","arguments":{"step":${index}}}`,
+          {
+            callId,
+            toolName: 'update_task_step',
+            toolAccess: 'write',
+          },
+        ),
+        row(
+          `task-result-${index}`,
+          3 + index * 2,
+          0,
+          'tool_result',
+          `{"callId":"${callId}","plan":"${'x'.repeat(4_000)}"}`,
+          {
+            callId,
+            toolName: 'update_task_step',
+            toolAccess: 'write',
+          },
+        ),
+      ] as const;
+    }).flat();
+    const taskPlanOrdinal = 2 + taskPairs.length + 6;
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user-0', 1, 0, 'user', 'run the whole-book task'),
+      ...taskPairs,
+      row('assistant-0', 2 + taskPairs.length, 0, 'assistant_narrative', 'slice complete'),
+      row('user-1', 3 + taskPairs.length, 1, 'user', 'continue'),
+      row('assistant-1', 4 + taskPairs.length, 1, 'assistant_narrative', 'continuing'),
+      row('user-2', 5 + taskPairs.length, 2, 'user', 'continue again'),
+      row('assistant-2', 6 + taskPairs.length, 2, 'assistant_narrative', 'continuing again'),
+      row(
+        'task-plan',
+        taskPlanOrdinal,
+        null,
+        'task_plan',
+        '{"taskId":"whole-book","revision":24,"nextStep":25}',
+      ),
+    ];
+    const summary = await createAgentContextSummaryCandidate({
+      summaryId: 'task-command-archive',
+      sourceRows: taskPairs,
+      content:
+        'Twenty-four durable task-step commands are represented by the pinned canonical task plan.',
+    });
+    const base = {
+      contextWindowTokens: 12_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      constraintLedger: [],
+      deterministicSummaries: [summary],
+    };
+    const defaultPlan = await planAgentContext(base);
+    const coveredPlan = await planAgentContext({
+      ...base,
+      durableWriteEvidence: taskPairs
+        .filter((taskRow) => taskRow.kind === 'tool_call')
+        .map((taskRow) => ({
+          evidenceSourceId: 'task-plan',
+          turnOrdinal: taskRow.turnOrdinal!,
+          callId: taskRow.callId!,
+          toolName: taskRow.toolName!,
+        })),
+    });
+
+    expect(defaultPlan).toMatchObject({
+      ok: false,
+      error: { code: 'PINNED_CONTEXT_EXCEEDS_BUDGET' },
+    });
+    expect(coveredPlan.ok).toBe(true);
+    if (!coveredPlan.ok) return;
+    expect(coveredPlan.plan.checkpoint.compaction.stages).toContain('deterministic_summaries');
+    expect(
+      coveredPlan.plan.segments.find(
+        (segment) => segment.type === 'summary' && segment.summaryId === 'task-command-archive',
+      ),
+    ).toBeDefined();
+    expect(sourceSegment(coveredPlan, 'task-plan')).toMatchObject({
+      classification: 'pinned',
+      pinReason: 'semantic',
+    });
   });
 
   it('compacts old ordinary user rows only under an exact verified constraint ledger', async () => {

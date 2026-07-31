@@ -26,6 +26,19 @@ describe('portable runtime primitives', () => {
     expect(() => clonePortableData({ date: new Date() })).toThrow('Non-plain object');
   });
 
+  it('preserves __proto__ as inert data without mutating the clone prototype', () => {
+    const source = JSON.parse(
+      '{"__proto__":{"polluted":true},"constructor":"value"}',
+    ) as Record<string, unknown>;
+    const clone = clonePortableData(source);
+
+    expect(Object.getPrototypeOf(clone)).toBe(Object.prototype);
+    expect(Object.prototype.hasOwnProperty.call(clone, '__proto__')).toBe(true);
+    expect(clone['__proto__']).toEqual({ polluted: true });
+    expect(clone.constructor).toBe('value');
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
+  });
+
   it('generates a UUID with getRandomValues when randomUUID is unavailable', () => {
     const id = createPortableRuntimeId('turn', {
       getRandomValues: (array) => {

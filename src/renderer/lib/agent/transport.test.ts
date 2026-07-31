@@ -54,6 +54,10 @@ describe('General Agent transport boundary', () => {
       ok: false,
       code: GENERAL_AGENT_UNSUPPORTED.code,
     });
+    expect(generalAgentTransport.subscribeJournal(vi.fn())).toMatchObject({
+      ok: false,
+      code: GENERAL_AGENT_UNSUPPORTED.code,
+    });
   });
 
   it('keeps a replaceable sidecar/remote seam', async () => {
@@ -76,6 +80,7 @@ describe('General Agent transport boundary', () => {
       cancelPendingControl: async () => ({ ok: true, value: undefined }),
       abort: async () => ({ ok: true, value: undefined }),
       resetSession: async () => ({ ok: true, value: undefined }),
+      subscribeJournal: () => ({ ok: true, value: () => undefined }),
       subscribeEvents: () => ({ ok: true, value: () => undefined }),
     };
     const restore = installGeneralAgentTransport(transport);

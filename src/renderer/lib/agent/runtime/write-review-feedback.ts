@@ -6,6 +6,12 @@ import type { AgentContextSupplementalPinnedRow } from './context-message-adapte
 
 const MAX_FEEDBACK_ITEMS = 20;
 const MAX_ARGUMENT_CHARS = 240;
+const SETTLED_REVIEW_STATUSES = new Set([
+  'accepted_effect',
+  'reverted',
+  'revert_failed',
+  'revert_unavailable',
+]);
 const PINNED_REVIEW_STATUSES = new Set([
   'pending',
   'accepted',
@@ -17,6 +23,44 @@ const PINNED_REVIEW_STATUSES = new Set([
   'revert_unavailable',
 ]);
 
+function isSettledReviewStatus(status: string): boolean {
+  return SETTLED_REVIEW_STATUSES.has(status);
+}
+
+function writeCoverage(
+  effect: {
+    callId?: string;
+    toolName: string;
+  },
+  turnOrdinal: number,
+) {
+  return typeof effect.callId === 'string' && effect.callId.length > 0
+    ? [
+        {
+          turnOrdinal,
+          callId: effect.callId,
+          toolName: effect.toolName,
+        },
+      ]
+    : [];
+}
+
+async function settledArchiveHash(value: unknown): Promise<string> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) {
+    throw new Error(
+      'Web Crypto SHA-256 is unavailable; settled write-review evidence cannot be archived.',
+    );
+  }
+  const digest = await subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(JSON.stringify(value)) as BufferSource,
+  );
+  return `sha256:${Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')}`;
+}
+
 /**
  * Canonical user-decision feedback appended to the next model prompt.
  *
@@ -26,25 +70,16 @@ const PINNED_REVIEW_STATUSES = new Set([
  */
 export async function buildAgentWriteReviewFeedback(
   sessionId: string,
-  repository: AgentRuntimeWriteEffectRepository =
-    createAgentRuntimeWriteEffectRepository(),
+  repository: AgentRuntimeWriteEffectRepository = createAgentRuntimeWriteEffectRepository(),
 ): Promise<string> {
   if (!sessionId) return '';
   const snapshot = await repository.loadSnapshot(sessionId);
   const effects = new Map(snapshot.effects.map((effect) => [effect.id, effect]));
   const settled = snapshot.reviews
-    .filter((review) =>
-      [
-        'accepted_effect',
-        'reverted',
-        'revert_failed',
-        'revert_unavailable',
-      ].includes(review.status),
-    )
+    .filter((review) => isSettledReviewStatus(review.status))
     .sort(
       (left, right) =>
-        right.updatedAt.localeCompare(left.updatedAt) ||
-        right.id.localeCompare(left.id),
+        right.updatedAt.localeCompare(left.updatedAt) || right.id.localeCompare(left.id),
     )
     .slice(0, MAX_FEEDBACK_ITEMS);
   if (settled.length === 0) return '';
@@ -52,10 +87,7 @@ export async function buildAgentWriteReviewFeedback(
   const lines = settled.flatMap((review) => {
     const effect = effects.get(review.effectId);
     if (!effect) return [];
-    const args = clamp(
-      JSON.stringify(effect.arguments),
-      MAX_ARGUMENT_CHARS,
-    );
+    const args = clamp(JSON.stringify(effect.arguments), MAX_ARGUMENT_CHARS);
     const prefix = `- ${effect.toolName}(${args})`;
     switch (review.status) {
       case 'accepted_effect':
@@ -63,22 +95,15 @@ export async function buildAgentWriteReviewFeedback(
       case 'reverted':
         return [`${prefix} 已被用户拒绝并精确撤销，不要假设该改动仍然存在。`];
       case 'revert_failed':
-        return [
-          `${prefix} 被用户拒绝，但自动撤销失败；重新读取实体后再提出任何后续改动。`,
-        ];
+        return [`${prefix} 被用户拒绝，但自动撤销失败；重新读取实体后再提出任何后续改动。`];
       case 'revert_unavailable':
-        return [
-          `${prefix} 被用户拒绝，但没有安全逆操作；不要重试，先请求用户处理。`,
-        ];
+        return [`${prefix} 被用户拒绝，但没有安全逆操作；不要重试，先请求用户处理。`];
       default:
         return [];
     }
   });
   return lines.length > 0
-    ? [
-        '[Agent write-review decisions since this session began]',
-        ...lines,
-      ].join('\n')
+    ? ['[Agent write-review decisions since this session began]', ...lines].join('\n')
     : '';
 }
 
@@ -93,8 +118,7 @@ export async function buildAgentWriteReviewFeedback(
  */
 export async function loadAgentWriteReviewContextRows(
   sessionId: string,
-  repository: AgentRuntimeWriteEffectRepository =
-    createAgentRuntimeWriteEffectRepository(),
+  repository: AgentRuntimeWriteEffectRepository = createAgentRuntimeWriteEffectRepository(),
 ): Promise<AgentContextSupplementalPinnedRow[]> {
   if (!sessionId) return [];
   const snapshot = await repository.loadSnapshot(sessionId);
@@ -104,50 +128,107 @@ export async function loadAgentWriteReviewContextRows(
     .filter((review) => effects.has(review.effectId))
     .sort(
       (left, right) =>
-        left.createdAt.localeCompare(right.createdAt) ||
-        left.id.localeCompare(right.id),
+        left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
     );
-  const unsettled = eligible.filter((review) =>
-    ['pending', 'accepted', 'rejected', 'revert_started'].includes(
-      review.status,
-    ),
-  );
-  const settled = eligible
-    .filter((review) => !unsettled.includes(review))
-    .slice(-MAX_FEEDBACK_ITEMS);
+  const unsettled = eligible.filter((review) => !isSettledReviewStatus(review.status));
+  const allSettled = eligible.filter((review) => isSettledReviewStatus(review.status));
+  const settled = allSettled.slice(-MAX_FEEDBACK_ITEMS);
+  const archivedSettled = allSettled.slice(0, Math.max(0, allSettled.length - MAX_FEEDBACK_ITEMS));
 
-  return [...settled, ...unsettled]
+  const exactRows: AgentContextSupplementalPinnedRow[] = [...settled, ...unsettled]
     .sort(
       (left, right) =>
-        left.createdAt.localeCompare(right.createdAt) ||
-        left.id.localeCompare(right.id),
+        left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
     )
     .map((review) => {
       const effect = effects.get(review.effectId)!;
+      const turnOrdinal = snapshot.turnOrdinalsById?.[effect.turnId];
+      if (turnOrdinal === undefined || !Number.isSafeInteger(turnOrdinal) || turnOrdinal < 0) {
+        throw new Error(
+          `Write review ${review.id} has no canonical turn ordinal for ${effect.turnId}.`,
+        );
+      }
+      const settledReview = isSettledReviewStatus(review.status);
       return {
         sourceId: `write-review:${review.id}`,
-        turnOrdinal: null,
-        kind: 'write_review',
+        turnOrdinal,
+        kind: 'write_review' as const,
         content: JSON.stringify({
           reviewId: review.id,
           effectId: effect.id,
+          callId: effect.callId,
+          turnOrdinal,
           toolName: effect.toolName,
-          arguments: clamp(
-            JSON.stringify(effect.arguments),
-            MAX_ARGUMENT_CHARS,
-          ),
+          arguments: clamp(JSON.stringify(effect.arguments), MAX_ARGUMENT_CHARS),
           effectPhase: effect.phase,
           reviewStatus: review.status,
           decisionNote: review.decisionNote,
           errorCode: review.errorCode,
           errorMessage: review.errorMessage,
         }),
+        ...(settledReview
+          ? {
+              durableWriteCoverage: writeCoverage(effect, turnOrdinal),
+            }
+          : {}),
       };
     });
+  if (archivedSettled.length === 0) return exactRows;
+
+  const archivedEvidence = archivedSettled.map((review) => {
+    const effect = effects.get(review.effectId)!;
+    const turnOrdinal = snapshot.turnOrdinalsById?.[effect.turnId];
+    if (turnOrdinal === undefined || !Number.isSafeInteger(turnOrdinal) || turnOrdinal < 0) {
+      throw new Error(
+        `Write review ${review.id} has no canonical turn ordinal for ${effect.turnId}.`,
+      );
+    }
+    return {
+      reviewId: review.id,
+      effectId: effect.id,
+      status: review.status,
+      turnOrdinal,
+      callId: effect.callId,
+      toolName: effect.toolName,
+    };
+  });
+  const archiveHash = await settledArchiveHash(archivedEvidence);
+  const statusCounts = archivedEvidence.reduce<Record<string, number>>((counts, evidence) => {
+    counts[evidence.status] = (counts[evidence.status] ?? 0) + 1;
+    return counts;
+  }, {});
+  const latestTurnOrdinal = Math.max(...archivedEvidence.map((evidence) => evidence.turnOrdinal));
+  return [
+    {
+      sourceId: `write-review:${sessionId}:settled-archive`,
+      turnOrdinal: latestTurnOrdinal,
+      kind: 'write_review',
+      content: JSON.stringify({
+        schemaVersion: 1,
+        kind: 'settled_write_review_archive',
+        reviewCount: archivedEvidence.length,
+        statusCounts,
+        throughTurnOrdinal: latestTurnOrdinal,
+        evidenceHash: archiveHash,
+        instruction:
+          'Historical settled writes are represented by current domain state. Re-read affected entities before dependent edits.',
+      }),
+      durableWriteCoverage: archivedEvidence.flatMap((evidence) =>
+        typeof evidence.callId === 'string' && evidence.callId.length > 0
+          ? [
+              {
+                turnOrdinal: evidence.turnOrdinal,
+                callId: evidence.callId,
+                toolName: evidence.toolName,
+              },
+            ]
+          : [],
+      ),
+    },
+    ...exactRows,
+  ];
 }
 
 function clamp(value: string, maxLength: number): string {
-  return value.length <= maxLength
-    ? value
-    : `${value.slice(0, maxLength)}…`;
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength)}…`;
 }

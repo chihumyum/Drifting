@@ -219,4 +219,9 @@ export type AgentRuntimeWriteReviewTransition =
 export interface AgentRuntimeWritePersistenceSnapshot {
   effects: PersistedAgentRuntimeWriteEffect[];
   reviews: PersistedAgentRuntimeWriteReview[];
+  /**
+   * Canonical runtime turn ownership for context projection. Older in-memory
+   * test doubles may omit it, but the SQLite repository always supplies it.
+   */
+  turnOrdinalsById?: Readonly<Record<string, number>>;
 }

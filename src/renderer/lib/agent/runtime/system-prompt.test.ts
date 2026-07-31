@@ -21,7 +21,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(2);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(4);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain(
       'The project id is an opaque identifier, not a title.',
@@ -60,6 +60,31 @@ describe('Drifting General Agent system prompt', () => {
     expect(system).toContain(
       'An empty object schema correctly uses {}; every other call must include all required fields.',
     );
+    expect(system).toContain(
+      'Before update_element, call read_element for that exact element.',
+    );
+    expect(system).toContain(
+      'Before update_project_facts or create_comment, call get_project_brief or get_overview.',
+    );
+  });
+
+  it('requires durable resumable plans for work spanning context windows', () => {
+    const system = prompt({ projectName: 'Book' });
+
+    expect(system).toContain('use the durable task-plan tools');
+    expect(system).toContain('scopeKind=whole_book_chapters');
+    expect(system).toContain('omit steps');
+    expect(system).toContain('scopeKind=explicit_targets');
+    expect(system).toContain('pending durable review');
+    expect(system).toContain('acceptedTargetEvidence=true');
+    expect(system).toContain('Never repeat accepted completed steps');
+    expect(system).toContain(
+      'A token or budget boundary ends only the current execution slice.',
+    );
+    expect(system).toContain(
+      'advance pending work before revisiting blocked review steps',
+    );
+    expect(system).toContain('names begin with mcp__ or plugin__');
   });
 
   it('quotes control characters in an author-controlled project name', () => {

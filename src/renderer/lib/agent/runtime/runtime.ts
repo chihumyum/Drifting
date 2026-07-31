@@ -6,11 +6,7 @@ import {
   AgentRuntimeError,
   publicModelDriverErrorMessage,
 } from './errors';
-import {
-  agentRuntimeEventId,
-  createAgentRuntimeState,
-  reduceAgentRuntimeJournal,
-} from './reducer';
+import { agentRuntimeEventId, createAgentRuntimeState, reduceAgentRuntimeJournal } from './reducer';
 import { clonePortableData } from './portable-data';
 import {
   AgentRuntimeContextPlanningCoordinator,
@@ -47,6 +43,7 @@ import {
   type AgentToolPermissionPolicyRequest,
   type AgentToolResultBlock,
   type AgentToolRuntime,
+  type AgentToolSelectionHints,
   type AgentToolSelectionStrategy,
   type AgentToolValidationResult,
 } from './types';
@@ -122,18 +119,13 @@ function pendingResultPageUpdateFromToolResult(
   } catch {
     return undefined;
   }
-  const candidates = [
-    parsed,
-    isRecord(parsed) ? parsed.result : undefined,
-  ];
+  const candidates = [parsed, isRecord(parsed) ? parsed.result : undefined];
   for (const candidate of candidates) {
     if (!isRecord(candidate) || typeof candidate.truncated !== 'boolean') {
       continue;
     }
     const reread = isRecord(candidate.reread) ? candidate.reread : undefined;
-    const rereadArguments = isRecord(reread?.arguments)
-      ? reread.arguments
-      : undefined;
+    const rereadArguments = isRecord(reread?.arguments) ? reread.arguments : undefined;
     const resultRef =
       typeof candidate.resultRef === 'string'
         ? candidate.resultRef
@@ -144,10 +136,7 @@ function pendingResultPageUpdateFromToolResult(
     if (result.name === RESULT_PAGE_TOOL) {
       return { resultRef, pending: candidate.truncated };
     }
-    if (
-      candidate.truncated === true &&
-      reread?.tool === RESULT_PAGE_TOOL
-    ) {
+    if (candidate.truncated === true && reread?.tool === RESULT_PAGE_TOOL) {
       return { resultRef, pending: true };
     }
   }
@@ -185,14 +174,9 @@ function canonicalizeArguments(
   }
 }
 
-function permissionRevision(
-  value: Record<string, unknown>,
-): string | null {
+function permissionRevision(value: Record<string, unknown>): string | null {
   const revision = value.expectedRevision;
-  if (
-    typeof revision === 'string' ||
-    (typeof revision === 'number' && Number.isFinite(revision))
-  ) {
+  if (typeof revision === 'string' || (typeof revision === 'number' && Number.isFinite(revision))) {
     return String(revision);
   }
   return null;
@@ -202,10 +186,7 @@ function validatePermissionDecision(
   value: AgentToolPermissionPolicyDecision,
 ): AgentToolPermissionPolicyDecision {
   if (value.decision === 'allow') {
-    if (
-      value.scope !== undefined &&
-      value.scope !== 'once'
-    ) {
+    if (value.scope !== undefined && value.scope !== 'once') {
       throw new AgentRuntimeError(
         'INTERNAL_ERROR',
         'Session/project permission grants are not installed; only once is supported',
@@ -229,10 +210,7 @@ function validatePermissionDecision(
     );
   }
   const scopes = value.allowedScopes ?? ['once'];
-  if (
-    scopes.length !== 1 ||
-    scopes[0] !== 'once'
-  ) {
+  if (scopes.length !== 1 || scopes[0] !== 'once') {
     throw new AgentRuntimeError(
       'INTERNAL_ERROR',
       'Session/project permission grants are not installed; only once is supported',
@@ -288,7 +266,9 @@ function validateUsage(usage: AgentRuntimeUsage): void {
   }
 }
 
-function stringifyToolData(data: unknown): { ok: true; text: string } | { ok: false; error: string } {
+function stringifyToolData(
+  data: unknown,
+): { ok: true; text: string } | { ok: false; error: string } {
   if (typeof data === 'string') return { ok: true, text: data };
   if (data === undefined) return { ok: true, text: '' };
   try {
@@ -334,10 +314,7 @@ function modelFailure(message: string): never {
 }
 
 function modelDriverFailure(error: unknown): never {
-  throw new AgentRuntimeError(
-    'MODEL_ERROR',
-    publicModelDriverErrorMessage(error),
-  );
+  throw new AgentRuntimeError('MODEL_ERROR', publicModelDriverErrorMessage(error));
 }
 
 function budget(message: string): never {
@@ -406,8 +383,7 @@ function searchableMessageText(message: AgentModelMessage): string {
   if (message.role === 'tool') {
     return message.content
       .map(
-        (result) =>
-          `tool ${result.ok ? 'success' : 'failure'} ${result.name}: ${result.content}`,
+        (result) => `tool ${result.ok ? 'success' : 'failure'} ${result.name}: ${result.content}`,
       )
       .join('\n');
   }
@@ -458,9 +434,7 @@ export class AgentRuntime {
     this.driver = dependencies.driver;
     this.tools = dependencies.tools ?? emptyToolRuntime;
     this.toolSelector = dependencies.toolSelector;
-    this.contextPlanning = new AgentRuntimeContextPlanningCoordinator(
-      dependencies.contextPlanning,
-    );
+    this.contextPlanning = new AgentRuntimeContextPlanningCoordinator(dependencies.contextPlanning);
     this.permissionPolicy = dependencies.permissionPolicy;
     this.clock = dependencies.clock ?? systemAgentClock;
     this.journal = dependencies.journal;
@@ -473,8 +447,7 @@ export class AgentRuntime {
     const context: AgentRuntimeContext = { route };
     if (
       input.control &&
-      (input.control.sessionId !== input.sessionId ||
-        input.control.turnId !== input.turnId)
+      (input.control.sessionId !== input.sessionId || input.control.turnId !== input.turnId)
     ) {
       throw new AgentRuntimeError(
         'INTERNAL_ERROR',
@@ -506,11 +479,7 @@ export class AgentRuntime {
     );
     const availableDefinitionsByName = groupDefinitions(definitions);
     const toolSearch = input.toolSearch ?? 'off';
-    if (
-      toolSearch !== 'off' &&
-      toolSearch !== 'auto' &&
-      toolSearch !== 'on'
-    ) {
+    if (toolSearch !== 'off' && toolSearch !== 'auto' && toolSearch !== 'on') {
       throw new AgentRuntimeError(
         'INTERNAL_ERROR',
         `Invalid tool search mode "${String(toolSearch)}"`,
@@ -581,10 +550,7 @@ export class AgentRuntime {
       }
       throw new AgentRuntimeAbortError(abortReason(controller.signal));
     };
-    const awaitWithSignal = async <T>(
-      work: PromiseLike<T>,
-      signal: AbortSignal,
-    ): Promise<T> => {
+    const awaitWithSignal = async <T>(work: PromiseLike<T>, signal: AbortSignal): Promise<T> => {
       if (signal.aborted) {
         const reason = signal.reason;
         throw reason instanceof AgentRuntimeError
@@ -619,10 +585,7 @@ export class AgentRuntime {
     };
     const awaitAbortable = <T>(work: PromiseLike<T>): Promise<T> =>
       awaitWithSignal(work, controller.signal);
-    const appendEvent = async (
-      event: AgentRuntimeEvent,
-      cleanup = false,
-    ): Promise<void> => {
+    const appendEvent = async (event: AgentRuntimeEvent, cleanup = false): Promise<void> => {
       const nextSeq = seq + 1;
       const entry = deepFreeze<AgentRuntimeJournalEntry>({
         schemaVersion: AGENT_RUNTIME_SCHEMA_VERSION,
@@ -639,9 +602,7 @@ export class AgentRuntime {
       if (this.journal && !journalDisabled) {
         try {
           await awaitWithSignal(
-            Promise.resolve(
-              this.journal.append(entry, journalController.signal),
-            ),
+            Promise.resolve(this.journal.append(entry, journalController.signal)),
             journalController.signal,
           );
         } catch (error) {
@@ -666,17 +627,11 @@ export class AgentRuntime {
             ? reason
             : new AgentRuntimeAbortError(abortReason(journalController.signal));
         }
-        throw new AgentRuntimeError(
-          'JOURNAL_ERROR',
-          'Agent journal persistence failed',
-        );
+        throw new AgentRuntimeError('JOURNAL_ERROR', 'Agent journal persistence failed');
       }
     };
     let emitTail: Promise<void> = Promise.resolve();
-    const emit = (
-      event: AgentRuntimeEvent,
-      cleanup = false,
-    ): Promise<void> => {
+    const emit = (event: AgentRuntimeEvent, cleanup = false): Promise<void> => {
       const operation = emitTail.then(() => appendEvent(event, cleanup));
       emitTail = operation.then(
         () => undefined,
@@ -791,9 +746,7 @@ export class AgentRuntime {
       };
     };
 
-    const authorizeTool = async (
-      call: MutableToolCall,
-    ): Promise<boolean> => {
+    const authorizeTool = async (call: MutableToolCall): Promise<boolean> => {
       if (!call.definition || !call.validatedArguments || call.result) {
         return false;
       }
@@ -810,6 +763,11 @@ export class AgentRuntime {
         arguments: clonePortableData(call.validatedArguments),
         argumentsHash,
         revision: permissionRevision(call.validatedArguments),
+        ...(call.definition.executionRevision
+          ? {
+              toolDefinitionRevision: call.definition.executionRevision,
+            }
+          : {}),
         allowedScopes: ['once'] as const,
       };
       let decision: AgentToolPermissionPolicyDecision = {
@@ -823,9 +781,7 @@ export class AgentRuntime {
         };
         try {
           decision = validatePermissionDecision(
-            await awaitAbortable(
-              Promise.resolve(this.permissionPolicy.decide(policyRequest)),
-            ),
+            await awaitAbortable(Promise.resolve(this.permissionPolicy.decide(policyRequest))),
           );
         } catch (error) {
           if (error instanceof AgentRuntimeError) throw error;
@@ -847,9 +803,7 @@ export class AgentRuntime {
       const request = deepFreeze({
         ...baseRequest,
         ...(decision.reason ? { reason: decision.reason } : {}),
-        allowedScopes: [
-          ...(decision.allowedScopes ?? ['once']),
-        ],
+        allowedScopes: [...(decision.allowedScopes ?? ['once'])],
       });
       if (!input.control) {
         await emitRuntimeToolResult(
@@ -859,10 +813,7 @@ export class AgentRuntime {
         );
         return false;
       }
-      const resolutionPromise = input.control.waitForPermission(
-        request,
-        controller.signal,
-      );
+      const resolutionPromise = input.control.waitForPermission(request, controller.signal);
       await emit({ type: 'permission_requested', request });
       let resolution;
       try {
@@ -904,18 +855,13 @@ export class AgentRuntime {
         }
         userInputSequence += 1;
         const request = deepFreeze({
-          requestId:
-            requestId ??
-            `${input.turnId}:${call.callId}:user-input:${userInputSequence}`,
+          requestId: requestId ?? `${input.turnId}:${call.callId}:user-input:${userInputSequence}`,
           sessionId: input.sessionId,
           turnId: input.turnId,
           callId: call.callId,
           prompt,
         });
-        const responsePromise = input.control.waitForUserInput(
-          request,
-          controller.signal,
-        );
+        const responsePromise = input.control.waitForUserInput(request, controller.signal);
         await emit({ type: 'user_input_requested', request });
         try {
           const response = await awaitAbortable(responsePromise);
@@ -933,26 +879,32 @@ export class AgentRuntime {
       for (const callId of state.toolOrder) {
         const tool = state.tools[callId];
         if (!tool || tool.status === 'completed') continue;
-        await emit({
-          type: 'tool_result',
-          callId,
-          name: tool.name,
-          ok: false,
-          content: message,
-          source: 'runtime',
-          errorCode,
-        }, true);
+        await emit(
+          {
+            type: 'tool_result',
+            callId,
+            name: tool.name,
+            ok: false,
+            content: message,
+            source: 'runtime',
+            errorCode,
+          },
+          true,
+        );
       }
     };
 
     const closeActiveIteration = async (): Promise<void> => {
       const active = state.activeIteration;
       if (active === null) return;
-      await emit({
-        type: 'model_iteration_completed',
-        iteration: active,
-        stopReason: 'unknown',
-      }, true);
+      await emit(
+        {
+          type: 'model_iteration_completed',
+          iteration: active,
+          stopReason: 'unknown',
+        },
+        true,
+      );
     };
 
     const appendRecoveredToolResults = (): void => {
@@ -992,15 +944,48 @@ export class AgentRuntime {
       if (input.control && state.status !== 'committing') {
         await emit({ type: 'commit_started', outcome }, true);
       }
-      await emit({
-        type: 'turn_finished',
-        outcome,
-        ...(failure?.code ? { failureCode: failure.code } : {}),
-        ...(failure?.message ? { message: failure.message } : {}),
-        usage: state.usage,
-        modelIterations: state.modelIterations,
-        durationMs: durationMs(),
-      }, true);
+      await emit(
+        {
+          type: 'turn_finished',
+          outcome,
+          ...(failure?.code ? { failureCode: failure.code } : {}),
+          ...(failure?.message ? { message: failure.message } : {}),
+          usage: state.usage,
+          modelIterations: state.modelIterations,
+          durationMs: durationMs(),
+        },
+        true,
+      );
+    };
+
+    const planCompletedContextCheckpoint = async (
+      signal: AbortSignal,
+    ): Promise<NonNullable<AgentRuntimeRunResult['completedContextCheckpoint']>> => {
+      if (!lastPlanningSelection) {
+        throw new AgentRuntimeError(
+          'INTERNAL_ERROR',
+          'Resumable turn has no provider context planning state',
+        );
+      }
+      const completedPlan = await this.contextPlanning.plan({
+        purpose: 'completed_turn',
+        sessionId: input.sessionId,
+        turnId: input.turnId,
+        iteration: lastPlanningSelection.iteration,
+        driverId: this.driver.id,
+        ...(input.model ? { model: input.model } : {}),
+        context,
+        ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
+        messages,
+        executableDefinitions: definitions,
+        selectedTools: lastPlanningSelection.tools,
+        requestedOutputTokens: lastPlanningSelection.requestedOutputTokens,
+        signal,
+      });
+      return deepFreeze({
+        canonicalSourceRows: clonePortableData(completedPlan.canonicalSourceRows),
+        providerEnvelope: clonePortableData(completedPlan.envelope),
+      });
     };
 
     const executeOne = async (call: MutableToolCall): Promise<void> => {
@@ -1014,6 +999,9 @@ export class AgentRuntime {
         name: call.name,
         arguments: call.validatedArguments,
         access: call.definition.access,
+        ...(call.definition.executionRevision
+          ? { definitionRevision: call.definition.executionRevision }
+          : {}),
         context,
         signal: controller.signal,
         control: toolControl(call),
@@ -1105,6 +1093,9 @@ export class AgentRuntime {
             name: call.name,
             arguments: call.validatedArguments,
             access: call.definition.access,
+            ...(call.definition.executionRevision
+              ? { definitionRevision: call.definition.executionRevision }
+              : {}),
             context,
             signal: controller.signal,
             control: toolControl(call),
@@ -1120,9 +1111,7 @@ export class AgentRuntime {
             return this.tools.execute(request);
           };
           try {
-            const result = await awaitAbortable(
-              this.scheduler.runRead(request, execute),
-            );
+            const result = await awaitAbortable(this.scheduler.runRead(request, execute));
             return normalizeToolExecution(result, call.definition.access);
           } catch (error) {
             if (controller.signal.aborted) throwIfStopped();
@@ -1167,9 +1156,7 @@ export class AgentRuntime {
 
     const executeTools = async (calls: MutableToolCall[]): Promise<void> => {
       let readBatch: MutableToolCall[] = [];
-      const stopUnstarted = async (
-        startIndex: number,
-      ): Promise<boolean> => {
+      const stopUnstarted = async (startIndex: number): Promise<boolean> => {
         if (!state.stopAfterToolRequested) return false;
         for (let index = startIndex; index < calls.length; index += 1) {
           const pending = calls[index];
@@ -1205,9 +1192,7 @@ export class AgentRuntime {
         if (await stopUnstarted(index + 1)) break;
       }
       if (state.stopAfterToolRequested) {
-        const firstBatched = readBatch.length > 0
-          ? calls.indexOf(readBatch[0])
-          : calls.length;
+        const firstBatched = readBatch.length > 0 ? calls.indexOf(readBatch[0]) : calls.length;
         readBatch = [];
         await stopUnstarted(firstBatched);
       } else {
@@ -1228,8 +1213,7 @@ export class AgentRuntime {
       const remainingOutputTokens = limits.maxOutputTokens - state.usage.outputTokens;
       const remainingTotalTokens = limits.maxTotalTokens - usedTotalTokens;
       const synthesisReserve = synthesisOutputTokenReserve(limits);
-      const hasToolResultsInContext =
-        messages[messages.length - 1]?.role === 'tool';
+      const hasToolResultsInContext = messages[messages.length - 1]?.role === 'tool';
       // When only the protected headroom remains, synthesize now rather than
       // spending another tool round and discovering on the next iteration that
       // no answer budget remains.
@@ -1237,13 +1221,10 @@ export class AgentRuntime {
         hasToolResultsInContext &&
         iteration < limits.maxModelIterations &&
         synthesisReserve > 0 &&
-        (remainingOutputTokens <= synthesisReserve ||
-          remainingTotalTokens <= synthesisReserve);
+        (remainingOutputTokens <= synthesisReserve || remainingTotalTokens <= synthesisReserve);
       const synthesisOnly =
         hasToolResultsInContext &&
-        (forceSynthesisOnly ||
-          reserveForcesSynthesis ||
-          iteration === limits.maxModelIterations);
+        (forceSynthesisOnly || reserveForcesSynthesis || iteration === limits.maxModelIterations);
       if (remainingOutputTokens <= 0 || remainingTotalTokens <= 0) {
         budget('No output token budget remains for another model iteration');
       }
@@ -1252,8 +1233,7 @@ export class AgentRuntime {
       const shouldSearch =
         !synthesisOnly &&
         (toolSearch === 'on' ||
-          (toolSearch === 'auto' &&
-            definitions.length > AGENT_RUNTIME_TOOL_SEARCH_LIMIT));
+          (toolSearch === 'auto' && definitions.length > AGENT_RUNTIME_TOOL_SEARCH_LIMIT));
       let iterationDefinitions = synthesisOnly ? [] : definitions;
       if (shouldSearch) {
         if (!this.toolSelector) {
@@ -1262,19 +1242,39 @@ export class AgentRuntime {
             'Tool search was requested but no selection strategy is installed',
           );
         }
+        let selectionHints: AgentToolSelectionHints = {};
+        if (this.tools.loadSelectionHints) {
+          try {
+            selectionHints = deepFreeze(
+              clonePortableData(
+                await awaitAbortable(
+                  this.tools.loadSelectionHints({
+                    sessionId: input.sessionId,
+                    turnId: input.turnId,
+                    context,
+                    signal: controller.signal,
+                  }),
+                ),
+              ),
+            );
+          } catch {
+            throwIfStopped();
+            throw new AgentRuntimeError(
+              'INTERNAL_ERROR',
+              'The installed tool runtime failed to load selection hints',
+            );
+          }
+        }
         let selectedNames: readonly string[];
         try {
           selectedNames = this.toolSelector.select({
             definitions,
             context,
             iteration,
+            hints: selectionHints,
             query: buildAgentToolSearchQuery(input.prompt, messages),
-            successfulReadNamesInPreviousBatch: [
-              ...successfulReadNamesInPreviousBatch,
-            ],
-            successfulReadNamesSinceLastWrite: [
-              ...successfulReadNamesSinceLastWrite,
-            ],
+            successfulReadNamesInPreviousBatch: [...successfulReadNamesInPreviousBatch],
+            successfulReadNamesSinceLastWrite: [...successfulReadNamesSinceLastWrite],
             pendingResultPage: pendingResultRefs.size > 0,
             limit: AGENT_RUNTIME_TOOL_SEARCH_LIMIT,
           });
@@ -1314,9 +1314,7 @@ export class AgentRuntime {
       // no future tool evidence to synthesize, so reserving half its output
       // budget would strand tokens if the provider stops at max_tokens.
       const protectedSynthesisTokens =
-        iterationDefinitions.length > 0 &&
-        !synthesisOnly &&
-        iteration < limits.maxModelIterations
+        iterationDefinitions.length > 0 && !synthesisOnly && iteration < limits.maxModelIterations
           ? synthesisReserve
           : 0;
       let requestMaxOutputTokens = Math.floor(
@@ -1331,24 +1329,18 @@ export class AgentRuntime {
       // failing before it can respond.
       if (requestMaxOutputTokens <= 0 && !hasToolResultsInContext) {
         requestMaxOutputTokens = Math.floor(
-          Math.min(
-            limits.maxOutputTokensPerIteration,
-            remainingOutputTokens,
-            remainingTotalTokens,
-          ),
+          Math.min(limits.maxOutputTokensPerIteration, remainingOutputTokens, remainingTotalTokens),
         );
       }
       if (requestMaxOutputTokens <= 0) {
         budget('No output token budget remains for another model iteration');
       }
       const definitionsByName = groupDefinitions(iterationDefinitions);
-      const providerTools = iterationDefinitions.map(
-        ({ name, description, inputSchema }) => ({
-          name,
-          description,
-          inputSchema: clonePortableData(inputSchema),
-        }),
-      );
+      const providerTools = iterationDefinitions.map(({ name, description, inputSchema }) => ({
+        name,
+        description,
+        inputSchema: clonePortableData(inputSchema),
+      }));
       const plannedContext = await awaitAbortable(
         this.contextPlanning.plan({
           purpose: 'provider_call',
@@ -1366,9 +1358,7 @@ export class AgentRuntime {
           signal: controller.signal,
         }),
       );
-      lastProviderCallContextEnvelope = deepFreeze(
-        clonePortableData(plannedContext.envelope),
-      );
+      lastProviderCallContextEnvelope = deepFreeze(clonePortableData(plannedContext.envelope));
       lastPlanningSelection = {
         iteration,
         requestedOutputTokens: requestMaxOutputTokens,
@@ -1378,6 +1368,11 @@ export class AgentRuntime {
         type: 'model_iteration_started',
         iteration,
         driverId: this.driver.id,
+      });
+      await emit({
+        type: 'context_planned',
+        iteration,
+        snapshot: plannedContext.contextUsage,
       });
 
       const blocks: AgentAssistantContentBlock[] = [];
@@ -1392,9 +1387,7 @@ export class AgentRuntime {
         iteration,
         ...(input.model ? { model: input.model } : {}),
         ...(input.reasoning ? { reasoning: input.reasoning } : {}),
-        context: deepFreeze(
-          clonePortableData(plannedContext.envelope.providerContext),
-        ),
+        context: deepFreeze(clonePortableData(plannedContext.envelope.providerContext)),
         tools: providerTools.map((tool) => clonePortableData(tool)),
         maxOutputTokens: requestMaxOutputTokens,
         signal: controller.signal,
@@ -1690,8 +1683,7 @@ export class AgentRuntime {
         const openedResultRefs = new Set<string>();
         const completedResultRefs = new Set<string>();
         for (const toolResult of result.toolResults) {
-          const pageUpdate =
-            pendingResultPageUpdateFromToolResult(toolResult);
+          const pageUpdate = pendingResultPageUpdateFromToolResult(toolResult);
           if (pageUpdate?.pending) {
             openedResultRefs.add(pageUpdate.resultRef);
           } else if (pageUpdate) {
@@ -1717,9 +1709,7 @@ export class AgentRuntime {
         }
         successfulReadNamesInPreviousBatch = successfulReadsInThisBatch;
         if (result.toolResults.length > 0) {
-          const failures = result.toolResults.filter(
-            (toolResult) => !toolResult.ok,
-          );
+          const failures = result.toolResults.filter((toolResult) => !toolResult.ok);
           if (failures.length === result.toolResults.length) {
             const signature = JSON.stringify(
               [...new Set(failures.map((failure) => failure.content))].sort(),
@@ -1742,10 +1732,7 @@ export class AgentRuntime {
             repeatedFailureIterations = 0;
           }
         }
-        if (
-          result.toolResults.length > 0 &&
-          state.stopAfterToolRequested
-        ) {
+        if (result.toolResults.length > 0 && state.stopAfterToolRequested) {
           const reason = 'Agent stopped after the current tool completed.';
           await emit({ type: 'cancellation_requested', reason }, true);
           throw new AgentRuntimeAbortError(reason);
@@ -1763,38 +1750,9 @@ export class AgentRuntime {
             continue;
           }
           checkBeforeWork();
-          if (!lastPlanningSelection) {
-            throw new AgentRuntimeError(
-              'INTERNAL_ERROR',
-              'Completed turn has no provider context planning state',
-            );
-          }
-          const completedPlan = await awaitAbortable(
-            this.contextPlanning.plan({
-              purpose: 'completed_turn',
-              sessionId: input.sessionId,
-              turnId: input.turnId,
-              iteration: lastPlanningSelection.iteration,
-              driverId: this.driver.id,
-              ...(input.model ? { model: input.model } : {}),
-              context,
-              ...(input.systemPrompt
-                ? { systemPrompt: input.systemPrompt }
-                : {}),
-              messages,
-              executableDefinitions: definitions,
-              selectedTools: lastPlanningSelection.tools,
-              requestedOutputTokens:
-                lastPlanningSelection.requestedOutputTokens,
-              signal: controller.signal,
-            }),
+          completedContextCheckpoint = await awaitAbortable(
+            planCompletedContextCheckpoint(controller.signal),
           );
-          completedContextCheckpoint = deepFreeze({
-            canonicalSourceRows: clonePortableData(
-              completedPlan.canonicalSourceRows,
-            ),
-            providerEnvelope: clonePortableData(completedPlan.envelope),
-          });
           await finish('completed');
           break;
         }
@@ -1809,32 +1767,46 @@ export class AgentRuntime {
         !deadlineTriggered &&
         (controller.signal.aborted || error instanceof AgentRuntimeAbortError);
       if (
-        (aborted ||
-          state.status === 'waiting_permission' ||
-          state.status === 'waiting_user') &&
+        (aborted || state.status === 'waiting_permission' || state.status === 'waiting_user') &&
         state.status !== 'cancelling' &&
         state.status !== 'committing'
       ) {
         const reason =
-          error instanceof AgentRuntimeAbortError
-            ? error.message
-            : abortReason(controller.signal);
+          error instanceof AgentRuntimeAbortError ? error.message : abortReason(controller.signal);
         await emit({ type: 'cancellation_requested', reason }, true);
       }
       if (!controller.signal.aborted) controller.abort(error);
-      const runtimeError =
-        deadlineTriggered
-          ? deadlineError
-          : error instanceof AgentRuntimeError
-            ? error
-            : null;
+      const runtimeError = deadlineTriggered
+        ? deadlineError
+        : error instanceof AgentRuntimeError
+          ? error
+          : null;
       const code = runtimeError?.code ?? ('INTERNAL_ERROR' as const);
       const message = aborted
         ? abortReason(controller.signal)
-        : runtimeError?.message ?? toErrorMessage(error);
+        : (runtimeError?.message ?? toErrorMessage(error));
       await closeUnfinishedTools(aborted ? 'ABORTED' : code, message);
       await closeActiveIteration();
       appendRecoveredToolResults();
+      if (
+        !aborted &&
+        (code === 'BUDGET_EXCEEDED' || code === 'MAX_MODEL_ITERATIONS') &&
+        lastPlanningSelection
+      ) {
+        try {
+          // The work budget has ended, but checkpoint planning is a bounded
+          // local durability step. It must see recovered tool results and must
+          // not inherit the already-aborted provider signal.
+          completedContextCheckpoint = await planCompletedContextCheckpoint(
+            new AbortController().signal,
+          );
+        } catch {
+          // Some boundaries (for example, a single protected assistant payload
+          // larger than the provider window) cannot form a valid V2 projection.
+          // Persistence retains its existing fail-safe V1 fallback.
+          completedContextCheckpoint = undefined;
+        }
+      }
       if (aborted) {
         await finish('aborted', { message });
       } else if (code === 'BUDGET_EXCEEDED' || code === 'MAX_MODEL_ITERATIONS') {
@@ -1845,9 +1817,7 @@ export class AgentRuntime {
     } finally {
       acceptingControl = false;
       detachControl();
-      input.control?.close(
-        controller.signal.reason ?? new Error('Agent turn finished.'),
-      );
+      input.control?.close(controller.signal.reason ?? new Error('Agent turn finished.'));
       deadlineController.abort('Agent turn finished');
       journalController.abort('Agent turn finished');
       detachParentAbort();
@@ -1858,10 +1828,9 @@ export class AgentRuntime {
       state,
       entries,
       messages,
-      ...(lastProviderCallContextEnvelope
-        ? { lastProviderCallContextEnvelope }
-        : {}),
-      ...(state.status === 'completed' && completedContextCheckpoint
+      ...(lastProviderCallContextEnvelope ? { lastProviderCallContextEnvelope } : {}),
+      ...((state.status === 'completed' || state.status === 'budget_exceeded') &&
+      completedContextCheckpoint
         ? { completedContextCheckpoint }
         : {}),
     };

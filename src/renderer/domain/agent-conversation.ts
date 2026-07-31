@@ -26,8 +26,30 @@ export type AgentChatMessage =
       id: string;
       name: string;
       input?: unknown;
+      /** Raw canonical argument buffer while the provider is still streaming it. */
+      inputText?: string;
+      /** Fine-grained runtime phase shown before the terminal tool result. */
+      phase?: 'arguments' | 'ready' | 'executing';
       status: 'running' | 'ok' | 'error';
       result?: string;
+      /**
+       * Candidate durable soft-review identity returned by a write tool.
+       *
+       * `provenance` is copied from the canonical journal envelope rather than
+       * from tool-result JSON. The Panel still verifies it against the durable
+       * write effect before exposing review actions, so an MCP/tool payload
+       * cannot mint review authority by merely returning a `review` object.
+       */
+      review?: {
+        id: string;
+        status: string;
+        provenance?: {
+          sessionId: string;
+          turnId: string;
+          callId: string;
+          toolName: string;
+        };
+      };
     }
   // The agent's evolving plan — replaced in place as TodoWrite is called.
   | { kind: 'todos'; items: AgentTodoItem[] }

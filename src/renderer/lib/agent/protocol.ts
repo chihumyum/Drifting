@@ -31,6 +31,11 @@ export interface AgentPermissionRequest {
   arguments: Record<string, unknown>;
   argumentsHash: string;
   revision: string | null;
+  /**
+   * Local executable-definition generation. Dynamic tools use this to bind an
+   * approval request to the exact handler/schema shown to the user.
+   */
+  toolDefinitionRevision?: string;
   reason?: string;
   allowedScopes: readonly AgentPermissionScope[];
 }

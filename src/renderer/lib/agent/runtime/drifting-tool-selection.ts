@@ -10,6 +10,36 @@ import type { AgentToolSelectionStrategy } from './types';
 const RESULT_PAGE_TOOL = 'read_tool_result';
 const ASK_USER_TOOL = 'ask_user';
 const OVERVIEW_TOOL = 'get_overview';
+const LONG_TASK_TOOLS = Object.freeze([
+  'read_task_plan',
+  'update_task_plan',
+  'update_task_step',
+] as const);
+const LONG_TASK_CONSTRAINT_TOOL = 'update_task_constraint';
+const LONG_TASK_PROSE_TOOLS = Object.freeze([
+  'read_node',
+  'edit_blocks',
+] as const);
+const MAX_DYNAMIC_TOOLS = 2;
+const MIN_BUILT_IN_TOOL_SLOTS = 2;
+const WRITE_PREREQUISITE_READS: Readonly<
+  Record<string, readonly string[] | undefined>
+> = Object.freeze({
+  rename_node: Object.freeze(['read_node']),
+  set_node_summary: Object.freeze(['read_node']),
+  edit_block: Object.freeze(['read_node']),
+  edit_blocks: Object.freeze(['read_node']),
+  append_paragraph: Object.freeze(['read_node']),
+  insert_blocks: Object.freeze(['read_node']),
+  remove_blocks: Object.freeze(['read_node']),
+  replace_block_range: Object.freeze(['read_node']),
+  create_element_patch: Object.freeze(['get_element_patches']),
+  update_element_patch: Object.freeze(['get_element_patches']),
+  update_element: Object.freeze(['read_element']),
+  update_storyline: Object.freeze(['get_storyline']),
+  update_project_facts: Object.freeze(['get_project_brief']),
+  create_comment: Object.freeze(['get_project_brief']),
+});
 
 const REDUNDANT_DIRECTORY_READS_AFTER_SUCCESS: Readonly<
   Record<string, readonly string[] | undefined>
@@ -249,6 +279,133 @@ function redundantDirectoryReads(
   return redundant;
 }
 
+function needsLongTaskLedger(query: string): boolean {
+  const request = originalRequest(query).normalize('NFKC');
+  return (
+    /^\s*(?:继续|接着|往下)(?:做|完成|处理|润色|修改|写|执行)?/iu.test(
+      request,
+    ) ||
+    /^\s*(?:continue|resume|go on)\b/iu.test(request) ||
+    /整本|整部(?:小说|作品)|全书|逐章|全部章节|所有章节|全部正文|批量.{0,12}(?:章节|正文)|长任务|任务计划|继续.{0,8}任务|恢复.{0,8}任务|未完成.{0,8}任务/iu.test(
+      request,
+    ) ||
+    /\b(?:whole[- ]book|entire (?:book|novel|manuscript)|full manuscript|all chapters?|every chapter|long[- ]running|long task|task plan|resume (?:the )?task|continue (?:the )?task)\b/iu.test(
+      request,
+    )
+  );
+}
+
+function needsLongTaskProseMutation(query: string): boolean {
+  if (!needsLongTaskLedger(query)) return false;
+  const request = originalRequest(query).normalize('NFKC');
+  return (
+    /润色|改写|重写|修订|编辑|修改|校对|优化.{0,8}(?:正文|文风|文字|表达)|续写|扩写|精简/iu.test(
+      request,
+    ) ||
+    /\b(?:polish|rewrite|revise|edit|proofread|copyedit|refine|improve|continue|expand|condense)\b/iu.test(
+      request,
+    )
+  );
+}
+
+function needsLongTaskConstraintTool(query: string): boolean {
+  const request = originalRequest(query).normalize('NFKC');
+  return (
+    /约束|要求|偏好|始终|绝不|不要|必须|保持.{0,8}(?:一致|不变)/iu.test(
+      request,
+    ) ||
+    /\b(?:constraint|requirement|preference|must|never|always|keep .{0,20} consistent)\b/iu.test(
+      request,
+    )
+  );
+}
+
+function lexicalTerms(value: string): readonly string[] {
+  const normalized = value.normalize('NFKC').toLocaleLowerCase('en-US');
+  const terms = new Set<string>();
+  for (const match of normalized.matchAll(/[a-z0-9_]{2,}|[\p{Script=Han}]{2,}/gu)) {
+    const term = match[0];
+    terms.add(term);
+    if (/^[\p{Script=Han}]+$/u.test(term) && term.length > 2) {
+      for (let index = 0; index < term.length - 1; index += 1) {
+        terms.add(term.slice(index, index + 2));
+      }
+    }
+  }
+  return [...terms];
+}
+
+function dynamicToolScore(
+  query: string,
+  definition: {
+    name: string;
+    description: string;
+    inputSchema: object;
+  },
+): number {
+  const request = originalRequest(query)
+    .normalize('NFKC')
+    .toLocaleLowerCase('en-US');
+  const searchable = [
+    definition.name,
+    definition.description,
+    JSON.stringify(definition.inputSchema),
+  ]
+    .join(' ')
+    .normalize('NFKC')
+    .toLocaleLowerCase('en-US');
+  let score = request.includes(definition.name.toLocaleLowerCase('en-US'))
+    ? 1_000
+    : 0;
+  for (const term of lexicalTerms(request)) {
+    if (searchable.includes(term)) {
+      score += term.length >= 4 ? 4 : 1;
+    }
+  }
+  return score;
+}
+
+function dynamicToolSourceKey(name: string): string {
+  if (!name.startsWith('mcp__') && !name.startsWith('plugin__')) {
+    return name;
+  }
+  const firstSeparator = name.indexOf('__');
+  const secondSeparator = name.indexOf('__', firstSeparator + 2);
+  return secondSeparator < 0 ? name : name.slice(0, secondSeparator);
+}
+
+function appendUnique(target: string[], names: readonly string[]): void {
+  for (const name of names) {
+    if (!target.includes(name)) target.push(name);
+  }
+}
+
+function includeWritePrerequisites(
+  selected: readonly string[],
+  executableNames: ReadonlySet<string>,
+  limit: number,
+): readonly string[] {
+  const result: string[] = [];
+  for (const name of selected) {
+    const required = WRITE_PREREQUISITE_READS[name] ?? [];
+    if (required.some((candidate) => !executableNames.has(candidate))) {
+      continue;
+    }
+    const prerequisites = required.filter(
+      (candidate) =>
+        !result.includes(candidate),
+    );
+    if (result.length + prerequisites.length + 1 > limit) {
+      // Never expose a freshness-guarded write without the read that can mint
+      // its expectedRevision. A later iteration can retrieve the pair.
+      continue;
+    }
+    result.push(...prerequisites);
+    if (!result.includes(name)) result.push(name);
+  }
+  return result;
+}
+
 /**
  * Bind Drifting's canonical catalog and product vocabulary to the
  * provider-neutral runtime selection seam.
@@ -260,8 +417,10 @@ function redundantDirectoryReads(
 export function createDriftingToolSelectionStrategy(
   options: CreateDriftingToolSelectionOptions = {},
 ): AgentToolSelectionStrategy {
+  const catalog = options.catalog ?? AGENT_TOOL_CATALOG;
+  const catalogNames = new Set(catalog.map((tool) => tool.name));
   const selector = createToolSelector({
-    catalog: options.catalog ?? AGENT_TOOL_CATALOG,
+    catalog,
     policy: options.policy ?? DRIFTING_RUNTIME_TOOL_SEARCH_POLICY,
     searchMetadata: options.searchMetadata ?? DRIFTING_TOOL_SEARCH_METADATA,
     defaultLimit: 8,
@@ -270,6 +429,13 @@ export function createDriftingToolSelectionStrategy(
   const strategy: AgentToolSelectionStrategy = {
     select(request): readonly string[] {
       const executableNames = new Set(request.definitions.map((definition) => definition.name));
+      const durableLongTask = request.hints.longTask;
+      const activeWholeBookTask =
+        durableLongTask?.status === 'active' &&
+        durableLongTask.scopeKind === 'whole_book_chapters';
+      const rankingQuery = activeWholeBookTask
+        ? `${request.query}\ndurable task objective:\n${durableLongTask.objective}`
+        : request.query;
       if (
         explicitlyRequestsForeignProject(
           request.query,
@@ -290,45 +456,137 @@ export function createDriftingToolSelectionStrategy(
       const previousBatchSuccessfulReads = new Set(
         request.successfulReadNamesInPreviousBatch,
       );
-      const requestedNarrowReads = needsMoreThanNarrowRead(request.query)
-        ? []
-        : explicitNarrowReads(request.query);
+      const requestedNarrowReads = explicitNarrowReads(request.query);
+      const narrowOnly =
+        requestedNarrowReads.length > 0 &&
+        !needsMoreThanNarrowRead(request.query);
       const narrowReads = requestedNarrowReads.filter(
         (name) =>
           executableNames.has(name) &&
           !previousBatchSuccessfulReads.has(name),
       );
-      if (requestedNarrowReads.length > 0) {
-        return narrowReads.slice(0, request.limit);
-      }
       const accumulatedCatalogReads = redundantDirectoryReads(
         request.successfulReadNamesSinceLastWrite,
       );
       const catalogReads = explicitCatalogReads(request.query);
-      if (catalogReads.length > 0 && !needsMoreThanCatalogReads(request.query)) {
-        return catalogReads
-          .filter(
-            (name) =>
-              executableNames.has(name) && !accumulatedCatalogReads.has(name),
+      const catalogOnly =
+        catalogReads.length > 0 && !needsMoreThanCatalogReads(request.query);
+      const catalogCoverage = catalogOnly
+        ? accumulatedCatalogReads
+        : previousBatchRedundantReads;
+      const pinnedCatalogReads = catalogReads.filter(
+        (name) =>
+          executableNames.has(name) && !catalogCoverage.has(name),
+      );
+      const requestedLongTaskTools =
+        activeWholeBookTask || needsLongTaskLedger(request.query)
+        ? needsLongTaskConstraintTool(request.query)
+          ? [...LONG_TASK_TOOLS, LONG_TASK_CONSTRAINT_TOOL]
+          : [...LONG_TASK_TOOLS]
+        : [];
+      const longTaskTools = requestedLongTaskTools.filter((name) =>
+        executableNames.has(name),
+      );
+      const longTaskProseTools =
+        activeWholeBookTask || needsLongTaskProseMutation(request.query)
+        ? LONG_TASK_PROSE_TOOLS.filter((name) =>
+            executableNames.has(name),
           )
-          .slice(0, request.limit);
+        : [];
+      const dynamicDefinitions = request.definitions
+        .filter(
+          (definition) =>
+            (definition.name.startsWith('mcp__') ||
+              definition.name.startsWith('plugin__')) &&
+            !catalogNames.has(definition.name) &&
+            !LONG_TASK_TOOLS.includes(
+              definition.name as (typeof LONG_TASK_TOOLS)[number],
+            ) &&
+            definition.name !== LONG_TASK_CONSTRAINT_TOOL,
+        )
+        .map((definition) => ({
+          definition,
+          score: dynamicToolScore(
+            activeWholeBookTask
+              ? `${originalRequest(request.query)}\n${durableLongTask.objective}`
+              : request.query,
+            definition,
+          ),
+        }))
+        .filter((candidate) => candidate.score > 0)
+        .sort(
+          (left, right) =>
+            right.score - left.score ||
+            left.definition.name.localeCompare(
+              right.definition.name,
+              'en',
+            ),
+        );
+
+      // Preserve the intentionally tiny surface for a genuinely self-contained
+      // directory read. Long-task and runtime-discovered intent make the same
+      // request compound, so those candidates are merged rather than hidden by
+      // this optimization.
+      if (
+        narrowOnly &&
+        longTaskTools.length === 0 &&
+        dynamicDefinitions.length === 0
+      ) {
+        return narrowReads.slice(0, request.limit);
       }
-      const selected: string[] = [];
+      if (
+        catalogOnly &&
+        longTaskTools.length === 0 &&
+        dynamicDefinitions.length === 0
+      ) {
+        return pinnedCatalogReads.slice(0, request.limit);
+      }
+
+      const builtInCandidates: string[] = [];
       if (request.limit > 0 && executableNames.has(ASK_USER_TOOL)) {
-        selected.push(ASK_USER_TOOL);
+        builtInCandidates.push(ASK_USER_TOOL);
       }
-      for (const tool of selector.select(request.query, request.limit)) {
-        if (selected.length >= request.limit) break;
+      appendUnique(builtInCandidates, narrowReads);
+      appendUnique(builtInCandidates, pinnedCatalogReads);
+      appendUnique(builtInCandidates, longTaskTools);
+      appendUnique(builtInCandidates, longTaskProseTools);
+      for (const tool of selector.select(rankingQuery, request.limit)) {
         if (
           !executableNames.has(tool.name) ||
-          selected.includes(tool.name) ||
-          previousBatchRedundantReads.has(tool.name)
+          builtInCandidates.includes(tool.name) ||
+          previousBatchRedundantReads.has(tool.name) ||
+          (catalogOnly && accumulatedCatalogReads.has(tool.name))
         ) {
           continue;
         }
-        selected.push(tool.name);
+        builtInCandidates.push(tool.name);
       }
-      return selected;
+
+      const reservedBuiltInSlots = Math.min(
+        MIN_BUILT_IN_TOOL_SLOTS,
+        builtInCandidates.length,
+        request.limit,
+      );
+      const dynamicBudget = Math.min(
+        MAX_DYNAMIC_TOOLS,
+        Math.max(0, request.limit - reservedBuiltInSlots),
+      );
+      const selectedDynamicTools: string[] = [];
+      const selectedDynamicSources = new Set<string>();
+      for (const { definition } of dynamicDefinitions) {
+        if (selectedDynamicTools.length >= dynamicBudget) break;
+        const sourceKey = dynamicToolSourceKey(definition.name);
+        if (selectedDynamicSources.has(sourceKey)) continue;
+        selectedDynamicSources.add(sourceKey);
+        selectedDynamicTools.push(definition.name);
+      }
+
+      const selectedBuiltIns = includeWritePrerequisites(
+        builtInCandidates,
+        executableNames,
+        Math.max(0, request.limit - selectedDynamicTools.length),
+      );
+      return [...selectedBuiltIns, ...selectedDynamicTools];
     },
   };
   return Object.freeze(strategy);

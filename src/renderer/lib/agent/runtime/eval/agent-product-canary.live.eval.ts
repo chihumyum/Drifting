@@ -119,14 +119,14 @@ describe.skipIf(!LIVE_EVAL_ENABLED)(
           const done = new Promise<void>((resolve) => {
             resolveDone = resolve;
           });
-          const subscription = transport.subscribeEvents((envelope) => {
-            if (envelope.turnId !== turnId) return;
-            transcript = applyEvent(transcript, envelope.event);
-            if (envelope.event.type === 'assistant_delta') {
+          const subscription = transport.subscribeJournal((entry) => {
+            if (entry.turnId !== turnId) return;
+            transcript = applyEvent(transcript, entry);
+            if (entry.event.type === 'text_delta') {
               textDeltaCount += 1;
               streamingSnapshots.push(structuredClone(transcript));
             }
-            if (envelope.event.type === 'done') resolveDone();
+            if (entry.event.type === 'turn_finished') resolveDone();
           });
           if (!subscription.ok) {
             throw new Error(subscription.error);

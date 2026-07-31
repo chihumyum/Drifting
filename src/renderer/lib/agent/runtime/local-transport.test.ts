@@ -5,8 +5,11 @@ import { ManualAgentClock, ScriptedFakeDriver } from './testing';
 import type {
   AgentModelDriver,
   AgentModelRequest,
+  AgentRuntimeJournalEntry,
   AgentToolRuntime,
 } from './types';
+import { AGENT_RUNTIME_DURABLE_COMMIT_FAILURE_MESSAGE } from './types';
+import type { AgentTransportPersistence } from './transport-persistence';
 
 const USAGE = {
   inputTokens: 3,
@@ -16,10 +19,7 @@ const USAGE = {
   costUsd: 0,
 };
 
-async function waitForDone(
-  events: AgentEventEnvelope[],
-  count: number,
-): Promise<void> {
+async function waitForDone(events: AgentEventEnvelope[], count: number): Promise<void> {
   for (let index = 0; index < 100; index += 1) {
     if (events.filter((event) => event.event.type === 'done').length >= count) return;
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -63,13 +63,15 @@ describe('LocalGeneralAgentTransport', () => {
       ],
     });
     const tools: AgentToolRuntime = {
-      listDefinitions: () => [{
-        name: 'write',
-        description: 'write',
-        inputSchema: { type: 'object' },
-        access: 'write',
-        validateInput: (value) => ({ ok: true, value }),
-      }],
+      listDefinitions: () => [
+        {
+          name: 'write',
+          description: 'write',
+          inputSchema: { type: 'object' },
+          access: 'write',
+          validateInput: (value) => ({ ok: true, value }),
+        },
+      ],
       execute: async () => ({ ok: true, data: 'ok' }),
     };
     const transport = new LocalGeneralAgentTransport({
@@ -79,7 +81,9 @@ describe('LocalGeneralAgentTransport', () => {
       createId: (kind) => `${kind}-permission`,
     });
     const events: AgentEventEnvelope[] = [];
+    const journal: AgentRuntimeJournalEntry[] = [];
     transport.subscribeEvents((event) => events.push(event));
+    transport.subscribeJournal((entry) => journal.push(entry));
     await transport.start({
       prompt: 'write',
       turnId: 'turn-permission',
@@ -91,9 +95,7 @@ describe('LocalGeneralAgentTransport', () => {
       }
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
-    const requestEvent = events.find(
-      (event) => event.event.type === 'permission_request',
-    )?.event;
+    const requestEvent = events.find((event) => event.event.type === 'permission_request')?.event;
     if (!requestEvent || requestEvent.type !== 'permission_request') {
       throw new Error('missing permission request');
     }
@@ -122,6 +124,23 @@ describe('LocalGeneralAgentTransport', () => {
       }),
     ).resolves.toEqual({ ok: true, value: undefined });
     await waitForDone(events, 1);
+    expect(journal.map((entry) => entry.event.type)).toEqual(
+      expect.arrayContaining([
+        'tool_call_started',
+        'tool_args_delta',
+        'tool_call_ready',
+        'permission_requested',
+        'permission_resolved',
+        'tool_execution_started',
+        'tool_result',
+        'text_delta',
+        'turn_finished',
+      ]),
+    );
+    expect(journal.find((entry) => entry.event.type === 'tool_args_delta')?.event).toMatchObject({
+      type: 'tool_args_delta',
+      delta: '{"expectedRevision":"rev-1"}',
+    });
     expect(events.map((event) => event.event.type)).toEqual(
       expect.arrayContaining([
         'permission_request',
@@ -294,6 +313,62 @@ describe('LocalGeneralAgentTransport', () => {
     expect(events.filter((event) => event.event.type === 'done')).toHaveLength(1);
     driver.assertExhausted();
     clock.assertIdle();
+  });
+
+  it('fails the live canonical terminal closed when the completed turn cannot commit', async () => {
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: 'draft result' } },
+            { op: 'emit', event: { type: 'usage', usage: USAGE } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const persistence: AgentTransportPersistence = {
+      prepareTurn: async () => ({
+        sessionId: 'session-commit',
+        history: [],
+        recovered: false,
+      }),
+      appendJournal: async () => undefined,
+      commitTurn: async () => {
+        throw new Error('sqlite commit failed');
+      },
+    };
+    const transport = new LocalGeneralAgentTransport({
+      driver,
+      persistence,
+      createId: (kind) => `${kind}-commit`,
+    });
+    const events: AgentEventEnvelope[] = [];
+    const journal: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeEvents((event) => events.push(event));
+    transport.subscribeJournal((entry) => journal.push(entry));
+
+    await expect(
+      transport.start({
+        prompt: 'commit this',
+        turnId: 'turn-commit',
+        route: {
+          kind: 'chat',
+          projectId: 'project-1',
+          conversationId: 'conversation-1',
+        },
+      }),
+    ).resolves.toEqual({ ok: true, value: undefined });
+    await waitForDone(events, 1);
+
+    const terminals = journal.filter((entry) => entry.event.type === 'turn_finished');
+    expect(terminals).toHaveLength(1);
+    expect(terminals[0]?.event).toMatchObject({
+      type: 'turn_finished',
+      outcome: 'failed',
+      failureCode: 'INTERNAL_ERROR',
+      message: AGENT_RUNTIME_DURABLE_COMMIT_FAILURE_MESSAGE,
+    });
   });
 
   it('isolates histories by route and resumes only a known matching session', async () => {

@@ -315,6 +315,180 @@ describe('agent runtime persistence repository against real SQLite', () => {
     });
   });
 
+  it('keeps checkpoint storage linear while retaining old commit idempotency', async () => {
+    const repository = setup();
+    const firstPrompt = message();
+    const firstTurn = turn();
+    await repository.acceptTurn({
+      session: session(),
+      turn: firstTurn,
+      promptMessage: firstPrompt,
+    });
+    const firstAssistant = message({
+      id: 'message-2',
+      ordinal: 1,
+      role: 'assistant',
+      content: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'first' }],
+      },
+      createdAt: '2026-07-30T00:00:02.000Z',
+      completedAt: '2026-07-30T00:00:02.000Z',
+    });
+    const firstCheckpoint = {
+      id: 'checkpoint-1',
+      sessionId: 'session-1',
+      throughTurnOrdinal: 0,
+      messageCount: 2,
+      context: [firstPrompt.content, firstAssistant.content],
+      contextHash: 'sha256:first-context',
+      createdAt: '2026-07-30T00:00:02.000Z',
+    };
+    const firstSettlement = {
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+      messages: [firstAssistant],
+      checkpoint: firstCheckpoint,
+      terminalStatus: 'completed' as const,
+      errorCode: null,
+      errorMessage: null,
+      endedAt: '2026-07-30T00:00:02.000Z',
+    };
+    await repository.commitTurn(firstSettlement);
+
+    const secondPrompt = message({
+      id: 'message-3',
+      turnId: 'turn-2',
+      ordinal: 2,
+      content: { role: 'user', content: 'continue' },
+      createdAt: '2026-07-30T00:00:03.000Z',
+      completedAt: '2026-07-30T00:00:03.000Z',
+    });
+    await repository.acceptTurn({
+      session: session(),
+      turn: turn({
+        id: 'turn-2',
+        ordinal: 1,
+        promptMessageId: secondPrompt.id,
+        acceptedAt: '2026-07-30T00:00:03.000Z',
+        updatedAt: '2026-07-30T00:00:03.000Z',
+      }),
+      promptMessage: secondPrompt,
+    });
+    const secondAssistant = message({
+      id: 'message-4',
+      turnId: 'turn-2',
+      ordinal: 3,
+      role: 'assistant',
+      content: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'second' }],
+      },
+      createdAt: '2026-07-30T00:00:04.000Z',
+      completedAt: '2026-07-30T00:00:04.000Z',
+    });
+    await repository.commitTurn({
+      sessionId: 'session-1',
+      turnId: 'turn-2',
+      messages: [secondAssistant],
+      checkpoint: {
+        id: 'checkpoint-2',
+        sessionId: 'session-1',
+        throughTurnOrdinal: 1,
+        messageCount: 4,
+        context: [
+          firstPrompt.content,
+          firstAssistant.content,
+          secondPrompt.content,
+          secondAssistant.content,
+        ],
+        contextHash: 'sha256:second-context',
+        createdAt: '2026-07-30T00:00:04.000Z',
+      },
+      terminalStatus: 'completed',
+      errorCode: null,
+      errorMessage: null,
+      endedAt: '2026-07-30T00:00:04.000Z',
+    });
+
+    const thirdPrompt = message({
+      id: 'message-5',
+      turnId: 'turn-3',
+      ordinal: 4,
+      content: { role: 'user', content: 'continue again' },
+      createdAt: '2026-07-30T00:00:05.000Z',
+      completedAt: '2026-07-30T00:00:05.000Z',
+    });
+    await repository.acceptTurn({
+      session: session(),
+      turn: turn({
+        id: 'turn-3',
+        ordinal: 2,
+        promptMessageId: thirdPrompt.id,
+        acceptedAt: '2026-07-30T00:00:05.000Z',
+        updatedAt: '2026-07-30T00:00:05.000Z',
+      }),
+      promptMessage: thirdPrompt,
+    });
+    const thirdAssistant = message({
+      id: 'message-6',
+      turnId: 'turn-3',
+      ordinal: 5,
+      role: 'assistant',
+      content: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'third' }],
+      },
+      createdAt: '2026-07-30T00:00:06.000Z',
+      completedAt: '2026-07-30T00:00:06.000Z',
+    });
+    await repository.commitTurn({
+      sessionId: 'session-1',
+      turnId: 'turn-3',
+      messages: [thirdAssistant],
+      checkpoint: {
+        id: 'checkpoint-3',
+        sessionId: 'session-1',
+        throughTurnOrdinal: 2,
+        messageCount: 6,
+        context: [
+          firstPrompt.content,
+          firstAssistant.content,
+          secondPrompt.content,
+          secondAssistant.content,
+          thirdPrompt.content,
+          thirdAssistant.content,
+        ],
+        contextHash: 'sha256:third-context',
+        createdAt: '2026-07-30T00:00:06.000Z',
+      },
+      terminalStatus: 'completed',
+      errorCode: null,
+      errorMessage: null,
+      endedAt: '2026-07-30T00:00:06.000Z',
+    });
+
+    expect(await repository.commitTurn(firstSettlement)).toBe('duplicate');
+    expect((await repository.listCheckpoints('session-1')).map((row) => row.id)).toEqual([
+      'checkpoint-2',
+      'checkpoint-3',
+    ]);
+    expect(
+      gateway?.database
+        .prepare(
+          "SELECT count(*) AS count FROM agent_runtime_checkpoint WHERE json_extract(context_json, '$.format') = 'drifting.agent-runtime-checkpoint-digest'",
+        )
+        .get(),
+    ).toEqual({ count: 1 });
+    expect(
+      gateway?.database
+        .prepare(
+          'SELECT sum(length(context_json)) AS bytes FROM agent_runtime_checkpoint',
+        )
+        .get(),
+    ).toMatchObject({ bytes: expect.any(Number) });
+  });
+
   it('rolls back route ownership failures without orphan rows', async () => {
     const repository = setup();
     await expect(

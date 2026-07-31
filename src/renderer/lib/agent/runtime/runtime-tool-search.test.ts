@@ -151,6 +151,58 @@ describe('AgentRuntime tool search integration', () => {
     }
   });
 
+  it('reloads durable selection hints before every searched iteration', async () => {
+    const definitions = [definition('read_node')];
+    const selections: AgentToolSelectionRequest[] = [];
+    let hintLoad = 0;
+    const tools: AgentToolRuntime = {
+      ...toolRuntime(definitions),
+      loadSelectionHints: vi.fn(async () => {
+        hintLoad += 1;
+        return {
+          longTask: {
+            status:
+              hintLoad === 1
+                ? ('active' as const)
+                : ('blocked' as const),
+            scopeKind: 'whole_book_chapters' as const,
+            objective: '逐章润色整本小说',
+          },
+        };
+      }),
+    };
+    const driver = new RecordingDriver((request) =>
+      request.iteration === 1
+        ? toolCall('read-1', 'read_node')
+        : endTurn(),
+    );
+    const runtime = new AgentRuntime({
+      driver,
+      tools,
+      toolSelector: {
+        select(request) {
+          selections.push(request);
+          return ['read_node'];
+        },
+      },
+    });
+
+    const result = await runtime.runTurn(
+      runInput({ prompt: '继续。', toolSearch: 'on' }),
+    );
+
+    expect(result.state.status).toBe('completed');
+    expect(tools.loadSelectionHints).toHaveBeenCalledTimes(2);
+    expect(
+      selections.map((selection) => selection.hints.longTask?.status),
+    ).toEqual(['active', 'blocked']);
+    expect(selections[0]?.hints.longTask).toEqual({
+      status: 'active',
+      scopeKind: 'whole_book_chapters',
+      objective: '逐章润色整本小说',
+    });
+  });
+
   it('reselects each iteration and rejects a call omitted from that iteration schema', async () => {
     const definitions = [
       definition('read_node'),

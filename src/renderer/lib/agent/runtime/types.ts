@@ -21,6 +21,76 @@ import type { AgentRuntimeControlChannel } from './control-plane';
 
 export const AGENT_RUNTIME_SCHEMA_VERSION = 1 as const;
 export const AGENT_RUNTIME_TOOL_SEARCH_LIMIT = 8 as const;
+export const AGENT_CONTEXT_USAGE_SCHEMA_VERSION = 1 as const;
+
+export const AGENT_CONTEXT_USAGE_CATEGORY_KEYS = [
+  'system_prompt',
+  'user_messages',
+  'assistant_messages',
+  'thinking',
+  'tool_calls',
+  'tool_results',
+  'write_reviews',
+  'write_reverts',
+  'freshness',
+  'task_plan',
+  'task_constraints',
+  'compaction_summaries',
+  'tool_definitions',
+  'provider_overhead',
+] as const;
+
+export type AgentContextUsageCategoryKey =
+  (typeof AGENT_CONTEXT_USAGE_CATEGORY_KEYS)[number];
+
+export interface AgentContextUsageCategory {
+  key: AgentContextUsageCategoryKey;
+  tokens: number;
+  /** Source rows represented by this category; tool definitions count as rows. */
+  sourceCount: number;
+}
+
+export interface AgentContextUsageSnapshot {
+  schemaVersion: typeof AGENT_CONTEXT_USAGE_SCHEMA_VERSION;
+  iteration: number;
+  /** Raw provider context window. The circular indicator uses this denominator. */
+  contextWindowTokens: number;
+  /** Projected system/history/tool-result rows after verified compaction. */
+  projectedSourceTokens: number;
+  /** Tool schemas plus provider framing, not represented by context source rows. */
+  fixedInputTokens: number;
+  /** `projectedSourceTokens + fixedInputTokens`. */
+  estimatedInputTokens: number;
+  reservedOutputTokens: number;
+  /** Headroom at which the planner starts compaction instead of filling the window. */
+  safetyMarginTokens: number;
+  usableSourceBudgetTokens: number;
+  remainingSourceBudgetTokens: number;
+  /** Space left after current input, output reserve, and compaction headroom. */
+  freeTokens: number;
+  categories: AgentContextUsageCategory[];
+  toolDefinitions: Array<{ name: string; estimatedTokens: number }>;
+  pinned: {
+    semanticTokens: number;
+    recentTurnTokens: number;
+    totalTokens: number;
+    sourceCount: number;
+  };
+  compaction: {
+    initialSourceTokens: number;
+    finalSourceTokens: number;
+    savedTokens: number;
+    stages: Array<'drop_discardable' | 'deterministic_summaries' | 'full_compactor'>;
+    summaryCount: number;
+    deterministicSummaryTokens: number;
+    fullCompactorSummaryTokens: number;
+  };
+  coverage: {
+    canonicalSources: number;
+    representedSources: number;
+    discardedSources: number;
+  };
+}
 
 export interface AgentRuntimeUsage {
   /**
@@ -44,6 +114,13 @@ export interface AgentToolDefinition {
   description: string;
   inputSchema: object;
   access: 'read' | 'write';
+  /**
+   * Local-only identity for a concrete executable definition generation.
+   * It is never sent to the model. Dynamic runtimes use it to ensure a tool
+   * cannot be replaced while an approval prompt is waiting and then consume
+   * the stale approval with a different handler/schema.
+   */
+  executionRevision?: string;
   /**
    * Runtime validation is mandatory. `inputSchema` is sent to the model, while
    * this function is the local authority and may also normalize the value.
@@ -99,18 +176,13 @@ export interface AgentToolResultBlock {
   errorCode?: 'UNKNOWN_TOOL';
 }
 
-export const AGENT_RUNTIME_UNKNOWN_TOOL_ERROR_CODE =
-  'UNKNOWN_TOOL' as const;
+export const AGENT_RUNTIME_UNKNOWN_TOOL_ERROR_CODE = 'UNKNOWN_TOOL' as const;
 
-export function agentRuntimeUnknownToolResultContent(
-  toolName: string,
-): string {
+export function agentRuntimeUnknownToolResultContent(toolName: string): string {
   return `Unknown tool "${toolName}"`;
 }
 
-export function isCanonicalAgentRuntimeUnknownToolResult(
-  result: AgentToolResultBlock,
-): boolean {
+export function isCanonicalAgentRuntimeUnknownToolResult(result: AgentToolResultBlock): boolean {
   return (
     result.ok === false &&
     result.source === 'runtime' &&
@@ -184,6 +256,8 @@ export interface AgentToolExecutionRequest {
   name: string;
   arguments: Record<string, unknown>;
   access: AgentToolDefinition['access'];
+  /** Exact local definition generation selected before validation/approval. */
+  definitionRevision?: string;
   context: AgentRuntimeContext;
   signal: AbortSignal;
   control?: {
@@ -191,16 +265,36 @@ export interface AgentToolExecutionRequest {
      * Pause this tool at a canonical safe point until the user answers.
      * A provider-visible elicitation tool should delegate to this primitive.
      */
-    requestUserInput(input: {
-      requestId?: string;
-      prompt: string;
-    }): Promise<string>;
+    requestUserInput(input: { requestId?: string; prompt: string }): Promise<string>;
   };
 }
 
-export type AgentToolExecutionResult =
-  | { ok: true; data: unknown }
-  | { ok: false; error: string };
+export type AgentToolExecutionResult = { ok: true; data: unknown } | { ok: false; error: string };
+
+export interface AgentToolSelectionLongTaskHint {
+  status: 'active' | 'paused' | 'blocked' | 'completed' | 'failed';
+  scopeKind: 'explicit_targets' | 'whole_book_chapters';
+  objective: string;
+}
+
+/**
+ * Small, runtime-owned facts that affect which tools must be provider-visible.
+ *
+ * This is deliberately separate from the provider context envelope: tool
+ * selection runs before context planning, while both surfaces must be derived
+ * from the same durable state instead of guessing continuation intent from a
+ * generic user prompt.
+ */
+export interface AgentToolSelectionHints {
+  longTask?: AgentToolSelectionLongTaskHint;
+}
+
+export interface AgentToolSelectionHintRequest {
+  sessionId: string;
+  turnId: string;
+  context: AgentRuntimeContext;
+  signal: AbortSignal;
+}
 
 /**
  * Policy-filtered tool surface for one runtime invocation.
@@ -211,6 +305,14 @@ export type AgentToolExecutionResult =
 export interface AgentToolRuntime {
   listDefinitions(context: AgentRuntimeContext): readonly AgentToolDefinition[];
   /**
+   * Load durable facts required before provider-facing tool selection. The
+   * runtime reloads these hints for every searched model iteration so a plan
+   * mutated by the preceding tool batch is observed immediately.
+   */
+  loadSelectionHints?(
+    request: AgentToolSelectionHintRequest,
+  ): Promise<AgentToolSelectionHints>;
+  /**
    * Write implementations must check `signal` before entering their mutation
    * phase, make the `(sessionId, turnId, callId)` idempotency key durable, and
    * settle promptly once execution has started. The runtime will not publish a
@@ -219,8 +321,7 @@ export interface AgentToolRuntime {
   execute(request: AgentToolExecutionRequest): Promise<AgentToolExecutionResult>;
 }
 
-export interface AgentToolPermissionPolicyRequest
-  extends AgentPermissionRequest {
+export interface AgentToolPermissionPolicyRequest extends AgentPermissionRequest {
   context: AgentRuntimeContext;
 }
 
@@ -247,9 +348,7 @@ export type AgentToolPermissionPolicyDecision =
 export interface AgentToolPermissionPolicy {
   decide(
     request: AgentToolPermissionPolicyRequest,
-  ):
-    | AgentToolPermissionPolicyDecision
-    | Promise<AgentToolPermissionPolicyDecision>;
+  ): AgentToolPermissionPolicyDecision | Promise<AgentToolPermissionPolicyDecision>;
 }
 
 export type AgentRuntimeToolSearchMode = 'off' | 'auto' | 'on';
@@ -259,6 +358,8 @@ export interface AgentToolSelectionRequest {
   definitions: readonly AgentToolDefinition[];
   context: AgentRuntimeContext;
   iteration: number;
+  /** Durable runtime facts that must not be inferred from a vague prompt. */
+  hints: AgentToolSelectionHints;
   /** Deterministic, bounded query derived from the original request and recent work. */
   query: string;
   /**
@@ -302,14 +403,8 @@ export interface AgentToolSelectionStrategy {
 
 /** Coordinates write effects across concurrently running runtime instances. */
 export interface AgentRuntimeScheduler {
-  runRead<T>(
-    request: AgentToolExecutionRequest,
-    execute: () => Promise<T>,
-  ): Promise<T>;
-  runWrite<T>(
-    request: AgentToolExecutionRequest,
-    execute: () => Promise<T>,
-  ): Promise<T>;
+  runRead<T>(request: AgentToolExecutionRequest, execute: () => Promise<T>): Promise<T>;
+  runWrite<T>(request: AgentToolExecutionRequest, execute: () => Promise<T>): Promise<T>;
 }
 
 export interface AgentRuntimeLimits {
@@ -336,10 +431,7 @@ export interface AgentJournalSink {
    * Persist one immutable entry. Implementations should be atomic/idempotent by
    * eventId and must observe the signal before committing late writes.
    */
-  append(
-    entry: AgentRuntimeJournalEntry,
-    signal?: AbortSignal,
-  ): void | Promise<void>;
+  append(entry: AgentRuntimeJournalEntry, signal?: AbortSignal): void | Promise<void>;
 }
 
 export type AgentRuntimeFailureCode =
@@ -351,12 +443,22 @@ export type AgentRuntimeFailureCode =
   | 'JOURNAL_ERROR'
   | 'INTERNAL_ERROR';
 
+export const AGENT_RUNTIME_DURABLE_COMMIT_FAILURE_MESSAGE =
+  'The Agent turn finished execution but could not be durably committed. Its completed context was not adopted.';
+export const AGENT_RUNTIME_INTERRUPTED_RECOVERY_MESSAGE =
+  'The Agent execution was interrupted before a terminal result was durably recorded.';
+
 export type AgentToolResultSource = 'executor' | 'runtime';
 export type AgentRuntimeOutcome = 'completed' | 'failed' | 'aborted' | 'budget_exceeded';
 
 export type AgentRuntimeEvent =
   | { type: 'turn_started'; prompt: string }
   | { type: 'model_iteration_started'; iteration: number; driverId: string }
+  | {
+      type: 'context_planned';
+      iteration: number;
+      snapshot: AgentContextUsageSnapshot;
+    }
   | { type: 'text_delta'; iteration: number; text: string }
   | { type: 'thinking_delta'; iteration: number; text: string }
   | {
@@ -542,9 +644,10 @@ export interface AgentRuntimeRunResult {
    */
   lastProviderCallContextEnvelope?: AgentContextProviderEnvelopeV2;
   /**
-   * Created only after a successful turn's final assistant message has been
-   * folded back through strict context planning. Persistence may use this as
-   * the complete-turn V2 checkpoint source.
+   * Created after a successful turn, or a resumable budget slice, has folded
+   * every completed assistant/tool message back through strict context
+   * planning. Persistence may use this as the complete-turn V2 checkpoint
+   * source.
    */
   completedContextCheckpoint?: {
     canonicalSourceRows: AgentContextSourceRow[];

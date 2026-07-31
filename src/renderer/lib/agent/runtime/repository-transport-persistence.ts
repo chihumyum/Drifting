@@ -62,7 +62,10 @@ export interface RepositoryAgentTransportPersistenceOptions {
     signal?: AbortSignal,
   ) => Promise<unknown>;
   /** Canonical catalog lookup. Unknown names fail closed before execution. */
-  resolveToolAccess: (name: string) => 'read' | 'write' | undefined;
+  resolveToolAccess: (
+    name: string,
+    projectId: string,
+  ) => 'read' | 'write' | undefined;
 }
 
 /**
@@ -362,8 +365,14 @@ export function createRepositoryAgentTransportPersistence(
           completedAt: input.endedAt,
         }),
       );
+      // A budget boundary is a completed, resumable work slice: every tool
+      // result before the boundary is canonical and must survive into the next
+      // "continue" turn. Failed/aborted turns remain excluded from history.
+      const resumableSlice =
+        input.outcome === 'completed' ||
+        input.outcome === 'budget_exceeded';
       const terminalStatus =
-        input.outcome === 'completed'
+        resumableSlice
           ? 'completed'
           : input.outcome === 'aborted'
             ? 'aborted'
@@ -372,7 +381,7 @@ export function createRepositoryAgentTransportPersistence(
       let checkpoint:
         | Parameters<AgentRuntimePersistenceRepository['createCheckpoint']>[0]
         | undefined;
-      if (terminalStatus === 'completed') {
+      if (resumableSlice) {
         const context = [
           ...providerHistory,
           ...input.turnMessages.map(clonePortableData),
@@ -699,7 +708,10 @@ interface PendingToolProjection {
 async function projectToolLifecycleEvent(
   repository: AgentRuntimePersistenceRepository,
   pending: Map<string, PendingToolProjection>,
-  resolveAccess: (name: string) => 'read' | 'write' | undefined,
+  resolveAccess: (
+    name: string,
+    projectId: string,
+  ) => 'read' | 'write' | undefined,
   entry: AgentRuntimeJournalEntry,
 ): Promise<void> {
   const event = entry.event;
@@ -752,7 +764,14 @@ async function projectToolLifecycleEvent(
     return;
   }
 
-  const catalogAccess = resolveAccess(projection.name);
+  const routeProjectId = entry.route.projectId;
+  if (!routeProjectId) {
+    throw new AgentTransportPersistenceError(
+      'AGENT_ROUTE_REQUIRED',
+      'A durable Agent tool event has no project route.',
+    );
+  }
+  const catalogAccess = resolveAccess(projection.name, routeProjectId);
   if (!catalogAccess) {
     throw new AgentTransportPersistenceError(
       'AGENT_TOOL_NOT_CERTIFIED',
@@ -892,7 +911,10 @@ function hasInterruptedState(snapshot: AgentRuntimeRecoverySnapshot): boolean {
 async function repairInterruptedToolProjections(
   repository: AgentRuntimePersistenceRepository,
   snapshot: AgentRuntimeRecoverySnapshot,
-  resolveAccess: (name: string) => 'read' | 'write' | undefined,
+  resolveAccess: (
+    name: string,
+    projectId: string,
+  ) => 'read' | 'write' | undefined,
 ): Promise<boolean> {
   const projections = new Map<
     string,
@@ -946,14 +968,36 @@ async function repairInterruptedToolProjections(
     ) {
       continue;
     }
-    const catalogAccess = resolveAccess(projection.name);
-    if (!catalogAccess || (projection.access && projection.access !== catalogAccess)) {
+    const persistedAccess = snapshot.toolCalls.find(
+      (toolCall) =>
+        toolCall.sessionId === projection.sessionId &&
+        toolCall.turnId === projection.turnId &&
+        toolCall.callId === projection.callId &&
+        toolCall.name === projection.name,
+    )?.access;
+    projection.access ??= persistedAccess ?? null;
+    const catalogAccess = resolveAccess(
+      projection.name,
+      snapshot.session.projectId,
+    );
+    if (
+      (catalogAccess &&
+        projection.access &&
+        projection.access !== catalogAccess) ||
+      (!catalogAccess && !projection.access)
+    ) {
       throw new AgentTransportPersistenceError(
         'AGENT_TOOL_NOT_CERTIFIED',
         `Agent tool "${projection.name}" is not in the certified catalog.`,
       );
     }
-    projection.access = catalogAccess;
+    projection.access ??= catalogAccess ?? null;
+    if (!projection.access) {
+      throw new AgentTransportPersistenceError(
+        'AGENT_TOOL_NOT_CERTIFIED',
+        `Agent tool "${projection.name}" has no durable access classification.`,
+      );
+    }
     projection.arguments ??= {};
     const result = projection.result;
     const turn = snapshot.turns.find(

@@ -156,6 +156,18 @@ function applyEvent(state: AgentRuntimeState, event: AgentRuntimeEvent, wallTime
       };
     }
 
+    case 'context_planned':
+      assertRunning(state, event);
+      invariant(
+        state.activeIteration === event.iteration,
+        `context snapshot belongs to iteration ${event.iteration}, active iteration is ${String(state.activeIteration)}`,
+      );
+      invariant(
+        event.snapshot.iteration === event.iteration,
+        'context snapshot iteration does not match its journal event',
+      );
+      return state;
+
     case 'text_delta':
       assertRunning(state, event);
       assertActiveIteration(state, event.iteration);

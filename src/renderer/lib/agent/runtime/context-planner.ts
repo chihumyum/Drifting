@@ -25,6 +25,8 @@ const AGENT_CONTEXT_SOURCE_KINDS: ReadonlySet<AgentContextSourceKind> = new Set(
   'write_review',
   'write_revert',
   'freshness',
+  'task_plan',
+  'task_constraints',
 ]);
 
 export type AgentContextClass = 'pinned' | 'compressible' | 'discardable';
@@ -39,7 +41,9 @@ export type AgentContextSourceKind =
   | 'tool_result'
   | 'write_review'
   | 'write_revert'
-  | 'freshness';
+  | 'freshness'
+  | 'task_plan'
+  | 'task_constraints';
 
 export interface AgentContextSourceRow {
   /** Stable canonical row identity. */
@@ -90,6 +94,21 @@ export interface AgentContextConstraintLedgerEntry {
   kind: AgentContextConstraintKind;
 }
 
+/**
+ * Product-verified durable evidence that a pinned supplemental source replaces
+ * one historical write-tool call/result pair for context purposes.
+ *
+ * Supplying this evidence never removes either canonical row. It only makes a
+ * strictly matching pair eligible for verified compaction; the evidence row
+ * itself remains semantic-pinned.
+ */
+export interface AgentContextDurableWriteEvidence {
+  evidenceSourceId: string;
+  turnOrdinal: number;
+  callId: string;
+  toolName: string;
+}
+
 export interface AgentContextFullCompactionRequest {
   /**
    * Contiguous, unpinned source runs that are safe to summarize. A callback
@@ -126,6 +145,11 @@ export interface AgentContextPlannerInput {
    * dialogue becomes eligible for compaction.
    */
   constraintLedger?: readonly AgentContextConstraintLedgerEntry[];
+  /**
+   * Omitted by default. Drifting's product composition may populate this only
+   * from durable settled write reviews or canonical long-task snapshots.
+   */
+  durableWriteEvidence?: readonly AgentContextDurableWriteEvidence[];
   deterministicSummaries?: readonly AgentContextSummaryCandidate[];
   fullCompactor?: AgentContextFullCompactor;
   compactionCircuit?: AgentContextCompactionCircuitBreaker;
@@ -414,10 +438,54 @@ export async function createAgentContextSummaryCandidate(input: {
   };
 }
 
-/** Conservative provider-neutral fallback used before a provider invocation. */
+/**
+ * Conservative provider-neutral fallback used before a provider invocation.
+ *
+ * A raw UTF-8-bytes/4 estimate materially under-counts Chinese manuscript
+ * text: one Han character occupies three UTF-8 bytes but is commonly close to
+ * one model token. Long-form writing is Drifting's primary workload, so count
+ * CJK code points directly while retaining the conventional chars/4 estimate
+ * for ASCII words. Non-ASCII symbols (notably emoji) use a stricter bytes/2
+ * fallback, and JSON/control punctuation is charged separately.
+ *
+ * Provider adapters may still inject an exact tokenizer through
+ * `estimateTokens`; this is the safe multi-provider default.
+ */
 export function estimateAgentContextTextTokens(text: string): number {
   if (text.length === 0) return 0;
-  return Math.max(1, Math.ceil(new TextEncoder().encode(text).byteLength / 4));
+  let asciiWordChars = 0;
+  let asciiPunctuation = 0;
+  let cjkCodePoints = 0;
+  let otherUnicode = '';
+
+  for (const character of text) {
+    const codePoint = character.codePointAt(0)!;
+    if (codePoint <= 0x7f) {
+      if (/[\p{Letter}\p{Number}\s]/u.test(character)) {
+        asciiWordChars += 1;
+      } else {
+        asciiPunctuation += 1;
+      }
+      continue;
+    }
+    if (
+      /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Hangul}/u.test(character)
+    ) {
+      cjkCodePoints += 1;
+      continue;
+    }
+    otherUnicode += character;
+  }
+
+  const otherUnicodeBytes =
+    otherUnicode.length === 0 ? 0 : new TextEncoder().encode(otherUnicode).byteLength;
+  return Math.max(
+    1,
+    Math.ceil(asciiWordChars / 4) +
+      Math.ceil(asciiPunctuation / 2) +
+      cjkCodePoints +
+      Math.ceil(otherUnicodeBytes / 2),
+  );
 }
 
 /**
@@ -445,7 +513,7 @@ export function serializeAgentContextSummaryBudgetPayload(input: {
 
 /** Canonical wire-equivalent payload for pinned supplemental runtime facts. */
 export function serializeAgentContextNoteBudgetPayload(input: {
-  noteKind: 'write_review' | 'write_revert' | 'freshness';
+  noteKind: 'write_review' | 'write_revert' | 'freshness' | 'task_plan' | 'task_constraints';
   sourceId: string;
   turnOrdinal: number | null;
   content: string;
@@ -503,12 +571,15 @@ export function computeAgentContextBudget(input: {
 export function classifyAgentContextSource(
   row: AgentContextSourceRow,
   constraintSourceIds?: ReadonlySet<string>,
+  durablyCoveredWriteSourceIds?: ReadonlySet<string>,
 ): AgentContextClass {
   switch (row.kind) {
     case 'system_policy':
     case 'write_review':
     case 'write_revert':
     case 'freshness':
+    case 'task_plan':
+    case 'task_constraints':
       return 'pinned';
     case 'user':
       return constraintSourceIds === undefined || constraintSourceIds.has(row.sourceId)
@@ -518,7 +589,9 @@ export function classifyAgentContextSource(
       return 'discardable';
     case 'tool_call':
     case 'tool_result':
-      return row.toolAccess === 'write' ? 'pinned' : 'compressible';
+      return row.toolAccess === 'write' && !durablyCoveredWriteSourceIds?.has(row.sourceId)
+        ? 'pinned'
+        : 'compressible';
     case 'assistant_narrative':
       return 'compressible';
   }
@@ -719,7 +792,11 @@ function estimateSourceTokens(
   estimator: AgentContextTokenEstimator,
 ): number {
   const budgetText =
-    row.kind === 'write_review' || row.kind === 'write_revert' || row.kind === 'freshness'
+    row.kind === 'write_review' ||
+    row.kind === 'write_revert' ||
+    row.kind === 'freshness' ||
+    row.kind === 'task_plan' ||
+    row.kind === 'task_constraints'
       ? serializeAgentContextNoteBudgetPayload({
           noteKind: row.kind,
           sourceId: row.sourceId,
@@ -851,6 +928,61 @@ function pairBySourceId(pairs: readonly ToolPair[]): Map<string, ToolPair> {
     output.set(pair.result.sourceId, pair);
   }
   return output;
+}
+
+function durablyCoveredWriteSourceIds(input: {
+  evidence: readonly AgentContextDurableWriteEvidence[] | undefined;
+  sourceById: ReadonlyMap<string, AgentContextSourceRow>;
+  toolPairs: readonly ToolPair[];
+}): Set<string> {
+  const covered = new Set<string>();
+  if (!input.evidence?.length) return covered;
+
+  const pairByKey = new Map(input.toolPairs.map((pair) => [pair.key, pair] as const));
+  for (const evidence of input.evidence) {
+    if (
+      !evidence ||
+      !evidence.evidenceSourceId ||
+      !Number.isSafeInteger(evidence.turnOrdinal) ||
+      evidence.turnOrdinal < 0 ||
+      !evidence.callId ||
+      !evidence.toolName
+    ) {
+      continue;
+    }
+    const evidenceRow = input.sourceById.get(evidence.evidenceSourceId);
+    if (
+      !evidenceRow ||
+      (evidenceRow.kind !== 'write_review' &&
+        evidenceRow.kind !== 'task_plan' &&
+        evidenceRow.kind !== 'task_constraints')
+    ) {
+      continue;
+    }
+    const pair = pairByKey.get(`${evidence.turnOrdinal}:${evidence.callId}`);
+    if (
+      !pair ||
+      pair.call.toolAccess !== 'write' ||
+      pair.result.toolAccess !== 'write' ||
+      pair.call.toolName !== evidence.toolName ||
+      pair.result.toolName !== evidence.toolName
+    ) {
+      continue;
+    }
+    const evidenceMatchesProductSnapshot =
+      evidenceRow.kind === 'write_review'
+        ? evidence.toolName !== 'update_task_plan' &&
+          evidence.toolName !== 'update_task_step' &&
+          evidence.toolName !== 'update_task_constraint'
+        : evidenceRow.kind === 'task_plan'
+          ? evidence.toolName === 'update_task_plan' || evidence.toolName === 'update_task_step'
+          : evidence.toolName === 'update_task_constraint';
+    if (!evidenceMatchesProductSnapshot) continue;
+
+    covered.add(pair.call.sourceId);
+    covered.add(pair.result.sourceId);
+  }
+  return covered;
 }
 
 async function applySummaryBatch(input: {
@@ -1227,10 +1359,15 @@ export async function planAgentContext(
       sourceHashes,
       ledger: input.constraintLedger,
     });
+    const coveredWriteSourceIds = durablyCoveredWriteSourceIds({
+      evidence: input.durableWriteEvidence,
+      sourceById,
+      toolPairs,
+    });
     const classifications = new Map(
       rows.map((row) => [
         row.sourceId,
-        classifyAgentContextSource(row, constraintLedger.sourceIds),
+        classifyAgentContextSource(row, constraintLedger.sourceIds, coveredWriteSourceIds),
       ]),
     );
     const recentTurns = recentTurnOrdinals(rows);

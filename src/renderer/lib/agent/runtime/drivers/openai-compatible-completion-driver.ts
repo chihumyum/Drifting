@@ -550,7 +550,9 @@ function projectPlannedMessages(
           !message.sourceId ||
           (message.noteKind !== 'write_review' &&
             message.noteKind !== 'write_revert' &&
-            message.noteKind !== 'freshness') ||
+            message.noteKind !== 'freshness' &&
+            message.noteKind !== 'task_plan' &&
+            message.noteKind !== 'task_constraints') ||
           (message.turnOrdinal !== null &&
             (!Number.isSafeInteger(message.turnOrdinal) ||
               message.turnOrdinal < 0)) ||

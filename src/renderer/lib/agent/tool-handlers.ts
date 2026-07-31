@@ -125,7 +125,6 @@ import {
   endProseReadCache,
 } from './chapter-prose';
 import { proseDocId, isProseEntityType, type ProseEntityType } from '../yjs-doc-id';
-import { getLiveYDoc } from '../yjs-doc-registry';
 import { eventBus } from '../events';
 import { requestAgentConfirm } from '../../store/agent-confirm-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
@@ -299,21 +298,45 @@ function confirmOptions(ctx: AgentToolContext) {
 function listChapters(ctx: AgentToolContext) {
   const s = useDataStore.getState();
   const nodes = s.bookNodes.filter((n) => n.projectId === ctx.projectId);
+  const chapters = nodes
+    .filter(isChapter)
+    .slice()
+    .sort(
+      (left, right) =>
+        left.bookOrder - right.bookOrder ||
+        left.id.localeCompare(right.id, 'en'),
+    );
+  const drifts = nodes
+    .filter((node) => node.kind === 'drift')
+    .slice()
+    .sort(
+      (left, right) =>
+        (left.narrativeOrder ?? Number.MAX_SAFE_INTEGER) -
+          (right.narrativeOrder ?? Number.MAX_SAFE_INTEGER) ||
+        left.id.localeCompare(right.id, 'en'),
+    );
   const storylineName = (id: string | null) =>
     id ? (s.storylines.find((sl) => sl.id === id)?.name ?? undefined) : undefined;
   return {
     storylines: s.storylines
       .filter((sl) => sl.projectId === ctx.projectId)
+      .slice()
+      .sort(
+        (left, right) =>
+          left.orderKey - right.orderKey ||
+          left.id.localeCompare(right.id, 'en'),
+      )
       .map((sl) => ({ name: sl.name, summary: sl.summary || undefined })),
-    chapters: nodes.filter(isChapter).map((n) => ({
+    chapters: chapters.map((n) => ({
       name: n.title,
       status: n.writingStatus,
       words: n.wordCount,
       storyline: storylineName(s.primaryStorylineByNode[n.id] ?? null),
     })),
-    drifts: nodes
-      .filter((n) => n.kind === 'drift')
-      .map((n) => ({ name: n.title, status: n.writingStatus })),
+    drifts: drifts.map((n) => ({
+      name: n.title,
+      status: n.writingStatus,
+    })),
   };
 }
 
@@ -956,20 +979,17 @@ function getStoryline(ctx: AgentToolContext, storylineId: string) {
 
 /** Full-text search over chapter/drift prose and element bodies, with snippets. */
 /**
- * The entity's CURRENT prose JSON for search — the live editor doc when one is
- * open (the contentJson cache lags the editor's debounce, so search would
- * otherwise miss in-flight text and report block numbers that disagree with
- * read_node), else the cheap cache. Gated on getLiveYDoc so closed entities skip
- * the Yjs rehydrate entirely.
+ * The entity's CURRENT prose JSON for search. Yjs is authoritative even when
+ * the editor is closed; contentJson is only a seed/cache. Searching the cache
+ * directly can miss a durable Agent/user edit and return block ordinals that
+ * disagree with read_node.
  */
 async function proseJsonForSearch(
   entityType: ProseEntityType,
   id: string,
   cacheJson: string,
 ): Promise<string> {
-  return getLiveYDoc(proseDocId(entityType, id))
-    ? getEntityContentJson(entityType, id, cacheJson)
-    : cacheJson;
+  return getEntityContentJson(entityType, id, cacheJson);
 }
 
 async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -984,7 +1004,7 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
 
   const s = useDataStore.getState();
 
-  // Element bodies are in memory — cheap (live doc only when one is open).
+  // Canon prose entities. Search the Yjs truth for closed and open documents.
   for (const e of s.bookElements) {
     if (e.projectId !== ctx.projectId) continue;
     const text = docToPlainText(await proseJsonForSearch('element', e.id, e.contentJson));
@@ -994,8 +1014,48 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
       if (matches.length >= limit) return { matches, truncated: true };
     }
   }
+  for (const storyline of s.storylines) {
+    if (storyline.projectId !== ctx.projectId) continue;
+    const text = docToPlainText(
+      await proseJsonForSearch(
+        'storyline',
+        storyline.id,
+        storyline.contentJson,
+      ),
+    );
+    const idx = text.toLowerCase().indexOf(q);
+    if (idx !== -1) {
+      matches.push({
+        kind: 'storyline',
+        title: storyline.name,
+        snippet: snippetAround(text, idx, q.length),
+      });
+      if (matches.length >= limit) return { matches, truncated: true };
+    }
+  }
+  for (const category of s.bookElementCategories) {
+    if (category.projectId !== ctx.projectId) continue;
+    const text = docToPlainText(
+      await proseJsonForSearch(
+        'category',
+        category.id,
+        category.contentJson,
+      ),
+    );
+    const idx = text.toLowerCase().indexOf(q);
+    if (idx !== -1) {
+      matches.push({
+        kind: 'category',
+        title: category.name,
+        snippet: snippetAround(text, idx, q.length),
+      });
+      if (matches.length >= limit) return { matches, truncated: true };
+    }
+  }
 
-  // Chapter / drift prose — load per node (no FTS index exists).
+  // Chapter / drift prose — hydrate each authoritative document (no FTS index
+  // exists yet). One hit per node is enough for discovery; read_node exposes
+  // the exact current blocks.
   const contentRepo = createBookContentRepository();
   const nodes = s.bookNodes.filter((n) => n.projectId === ctx.projectId);
   for (const n of nodes) {

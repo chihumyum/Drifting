@@ -1,21 +1,20 @@
 /**
  * Agent turn checkpoints — the "revert to snapshot" backbone.
  *
- * Every agent turn that writes anything gets one checkpoint, accumulating the
- * SAME merged AgentBlockChange[] the edit-review store tracks (prose blocks +
- * structured fields, with original oldText preserved across re-edits). Unlike
- * the edit store — whose entries clear as edits are revealed/approved — a
- * checkpoint survives approval, so the user can undo a whole turn (and every
- * turn after it) long after the per-block review ticks are gone.
+ * Legacy Claude-SDK turns may get one checkpoint, accumulating the SAME merged
+ * AgentBlockChange[] the edit-review store tracks (prose blocks + structured
+ * fields, with original oldText preserved across re-edits).
  *
- * Reverting applies each change's INVERSE through the same Yjs/usecase paths a
- * per-block reject uses — see lib/agent/turn-revert.ts. Per-turn diffs compose:
- * applying inverses newest-turn-first walks the document state straight back to
- * the snapshot taken before the target turn ran.
+ * Provider-neutral runtime writes MUST NOT enter this legacy undo trail. Their
+ * canonical authority is the durable write-effect/review ledger, whose inverse
+ * is revision-guarded and whose settlement feeds long-task truth. Replaying
+ * this older best-effort Yjs/usecase inverse after `accepted_effect` would
+ * silently fork manuscript state from that ledger.
  *
  * PERSISTED (localStorage): the agent's edits are durable, so the undo trail
- * for them must survive a reload too. `activeTurn` is session-only — a reload
- * kills any in-flight turn.
+ * for explicitly legacy sessions survives a reload. `activeTurn` is
+ * session-only — a reload kills any in-flight turn. Once a project starts a
+ * provider-neutral turn, its legacy whole-turn trail is sealed fail-closed.
  */
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
@@ -35,6 +34,12 @@ export interface TurnCheckpoint {
   turnId: string;
   convId: string;
   projectId: string;
+  /**
+   * New checkpoints must opt in to the legacy SDK authority explicitly.
+   * Historical rows have no marker and are authorized against the durable
+   * conversation identity at revert time.
+   */
+  revertAuthority?: 'legacy-sdk';
   /** First words of the user prompt that started the turn — the row label. */
   label: string;
   /** Turn start, epoch ms — orders checkpoints and renders the row time. */
@@ -43,21 +48,35 @@ export interface TurnCheckpoint {
   entities: Record<string, CheckpointEntityEdits>;
 }
 
-interface ActiveTurn {
+export interface AgentCheckpointTurn {
   turnId: string;
   convId: string;
   projectId: string;
   label: string;
+  /**
+   * Omitted means provider-neutral runtime. This intentionally makes old/new
+   * callers fail closed unless a legacy SDK path opts in by name.
+   */
+  revertAuthority?: 'legacy-sdk';
 }
 
 interface AgentCheckpointState {
   /** All projects' checkpoints, chronological (oldest first). */
   checkpoints: TurnCheckpoint[];
   /** The in-flight turn writes are attributed to; null when idle. */
-  activeTurn: ActiveTurn | null;
+  activeTurn: AgentCheckpointTurn | null;
+  /**
+   * First provider-neutral turn observed per project. Any such turn makes the
+   * legacy inverse trail unsafe because later canonical writes are not part of
+   * that trail.
+   */
+  providerNeutralProjectBarriers: Record<string, number>;
 
-  /** A turn started — subsequent recordChanges calls land in its checkpoint. */
-  beginTurn: (turn: ActiveTurn) => void;
+  /**
+   * A turn started. Only an explicitly `legacy-sdk` turn becomes active;
+   * provider-neutral turns seal the project and deliberately collect nothing.
+   */
+  beginTurn: (turn: AgentCheckpointTurn) => void;
   /** The turn finished — stop attributing; drop its checkpoint if it never wrote. */
   endTurn: (turnId: string) => void;
   /** Tee of agent-edit-store.record(): fold a write into the active turn. */
@@ -71,8 +90,23 @@ export const useAgentCheckpointStore = create<AgentCheckpointState>()(
     (set, get) => ({
       checkpoints: [],
       activeTurn: null,
+      providerNeutralProjectBarriers: {},
 
-      beginTurn: (turn) => set({ activeTurn: turn }),
+      beginTurn: (turn) => {
+        if (turn.revertAuthority === 'legacy-sdk') {
+          set({ activeTurn: turn });
+          return;
+        }
+        set((state) => ({
+          activeTurn: null,
+          providerNeutralProjectBarriers: state.providerNeutralProjectBarriers[turn.projectId]
+            ? state.providerNeutralProjectBarriers
+            : {
+                ...state.providerNeutralProjectBarriers,
+                [turn.projectId]: Date.now(),
+              },
+        }));
+      },
 
       endTurn: (turnId) => {
         set((s) => ({
@@ -126,7 +160,10 @@ export const useAgentCheckpointStore = create<AgentCheckpointState>()(
       name: 'agent-turn-checkpoints',
       storage: createJSONStorage(() => localStorage),
       // activeTurn is deliberately not persisted — a reload kills the turn.
-      partialize: (s) => ({ checkpoints: s.checkpoints }),
+      partialize: (s) => ({
+        checkpoints: s.checkpoints,
+        providerNeutralProjectBarriers: s.providerNeutralProjectBarriers,
+      }),
     },
   ),
 );
