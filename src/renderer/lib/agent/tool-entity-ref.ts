@@ -254,6 +254,39 @@ export function toolEntityRef(
     const id = resolveEntityId(entityType, raw);
     return id ? { entityType, id, op: 'write', spots: deriveSpots(name, 'write', resultText) } : null;
   }
+  // A comment is its own annotative entity, but the activity surface tracks
+  // structural editor destinations. Attribute an anchored create to that
+  // target; floating project comments intentionally have no entity ref.
+  if (name === 'create_comment') {
+    const raw =
+      typeof args.target === 'string' ? args.target.trim() : '';
+    const kind =
+      typeof args.targetKind === 'string'
+        ? args.targetKind.trim()
+        : '';
+    const entityType: ActivityEntityType | null =
+      kind === 'element'
+        ? 'element'
+        : kind === 'storyline'
+          ? 'storyline'
+          : kind === 'category'
+            ? 'category'
+            : kind === 'node' ||
+                kind === 'chapter' ||
+                kind === 'drift'
+              ? 'node'
+              : null;
+    if (!raw || !entityType) return null;
+    const id = resolveEntityId(entityType, raw);
+    return id
+      ? {
+          entityType,
+          id,
+          op: 'write',
+          spots: { structural: true },
+        }
+      : null;
+  }
   // Patch update/delete carry only a patchId in their ARGS, but return their
   // owning element NAME in the RESULT — surface that as an element write so the
   // cell "M" + 本轮改动 link reflect the change (a soft-delete still modifies the

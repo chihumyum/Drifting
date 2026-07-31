@@ -12,12 +12,20 @@
  * The store + diff are field-agnostic; only the write-back is entity-specific,
  * so the caller supplies thin `writers` bound to its own usecases.
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useAgentEditStore } from '../store/agent-edit-store';
 import { useAgentActivityStore } from '../store/agent-activity-store';
 import { entityKey, type ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import type { AgentBlockChange } from '../lib/agent/block-diff';
 import { applyKvRevert, isFieldChange } from '../lib/agent/field-diff';
+import {
+  acceptDriftingAgentWriteReview,
+  rejectDriftingAgentWriteReview,
+} from '../lib/agent/useDriftingAgentRuntime';
+import {
+  approveDurableAgentReviewsForEntity,
+  rejectDurableAgentReviewsForEntity,
+} from '../lib/agent/durable-review-actions';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('useFieldReview');
@@ -51,6 +59,7 @@ export function useFieldReview(
   values: FieldReviewValues,
   writers: FieldReviewWriters,
 ): EntityFieldReview {
+  const settling = useRef(new Set<string>());
   const entry = useAgentEditStore((s) => (id ? s.pending[entityKey(entityType, id)] : undefined));
   const fieldChanges = useMemo(() => (entry?.changes ?? []).filter(isFieldChange), [entry]);
   const summaryChange = useMemo(
@@ -73,6 +82,51 @@ export function useFieldReview(
   const accept = useCallback(
     (c: AgentBlockChange) => {
       if (!id) return;
+      if (c.reviewId) {
+        const settlementKey = `${entityType}:${id}:${c.blockId}:accept`;
+        if (settling.current.has(settlementKey)) return;
+        settling.current.add(settlementKey);
+        const store = useAgentEditStore.getState();
+        void approveDurableAgentReviewsForEntity({
+          entityType,
+          id,
+          batches: store,
+          acceptReview: acceptDriftingAgentWriteReview,
+          matchesBatch: (batch) =>
+            batch.changes.some(
+              (change) => change.blockId === c.blockId,
+            ),
+          onAllAccepted(reviewIds, batches) {
+            const current = useAgentEditStore.getState();
+            current.resolveReviews([...reviewIds]);
+            for (const batch of batches) {
+              for (const change of batch.changes) {
+                const spot =
+                  change.field?.kind === 'summary'
+                    ? ({ summary: true } as const)
+                    : ({ structural: true } as const);
+                useAgentActivityStore
+                  .getState()
+                  .markSpotSeen(
+                    batch.entityType,
+                    batch.id,
+                    spot,
+                  );
+              }
+            }
+          },
+        })
+          .catch((error) => {
+            log.error(
+              'durable field accept failed, keeping review pending',
+              error,
+            );
+          })
+          .finally(() => {
+            settling.current.delete(settlementKey);
+          });
+        return;
+      }
       useAgentEditStore.getState().resolveBlocks(entityType, id, [c.blockId]);
       // Clear the matching activity dot spot (summary tools mark a summary spot;
       // kv/group writes mark a structural one). No-op if no dot is pending.
@@ -86,6 +140,58 @@ export function useFieldReview(
     (c: AgentBlockChange) => {
       const field = c.field;
       if (!id || !field) return;
+      if (c.reviewId) {
+        const settlementKey = `${entityType}:${id}:${c.blockId}:reject`;
+        if (settling.current.has(settlementKey)) return;
+        settling.current.add(settlementKey);
+        const store = useAgentEditStore.getState();
+        void rejectDurableAgentReviewsForEntity({
+          entityType,
+          id,
+          batches: store,
+          rejectReview: rejectDriftingAgentWriteReview,
+          decisionNote: 'Rejected from field review',
+          matchesBatch: (batch) =>
+            batch.changes.some(
+              (change) => change.blockId === c.blockId,
+            ),
+          onAllReverted(reviewIds, batches) {
+            const current = useAgentEditStore.getState();
+            for (const batch of batches) {
+              for (const change of batch.changes) {
+                current.recordRevert(
+                  projectId,
+                  batch.entityType,
+                  batch.id,
+                  change,
+                );
+                const spot =
+                  change.field?.kind === 'summary'
+                    ? ({ summary: true } as const)
+                    : ({ structural: true } as const);
+                useAgentActivityStore
+                  .getState()
+                  .markSpotSeen(
+                    batch.entityType,
+                    batch.id,
+                    spot,
+                  );
+              }
+            }
+            current.resolveReviews([...reviewIds]);
+          },
+        })
+          .catch((error) => {
+            log.error(
+              'durable field reject failed, keeping review pending',
+              error,
+            );
+          })
+          .finally(() => {
+            settling.current.delete(settlementKey);
+          });
+        return;
+      }
       const apply = async (): Promise<void> => {
         switch (field.kind) {
           case 'summary':

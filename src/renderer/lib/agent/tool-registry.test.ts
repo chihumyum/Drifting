@@ -58,10 +58,21 @@ const P5_ELEMENT_PATCH_WRITE_NAMES = [
   'update_element_patch',
 ] as const;
 
+const P6_ENTITY_WRITE_NAMES = [
+  'update_element',
+  'update_storyline',
+  'update_project_facts',
+  'create_comment',
+] as const;
+
 const CERTIFIED_WRITE_NAMES = [
+  'update_element',
   ...P3_CERTIFIED_WRITE_NAMES,
   ...P5_PROSE_WRITE_NAMES,
+  'update_storyline',
+  'update_project_facts',
   ...P5_ELEMENT_PATCH_WRITE_NAMES,
+  'create_comment',
 ] as const;
 
 function dispatcherNamesFromSource(): string[] {
@@ -177,7 +188,7 @@ describe('canonical Agent tool catalog', () => {
     expect(writes).toHaveLength(34);
     expect(
       writes.filter((tool) => tool.certification === 'unavailable'),
-    ).toHaveLength(24);
+    ).toHaveLength(20);
     expect(
       writes
         .filter((tool) => tool.certification === 'write-certified')
@@ -261,6 +272,24 @@ describe('canonical Agent tool catalog', () => {
           },
         }),
       ).toBe(true);
+    }
+    for (const name of P6_ENTITY_WRITE_NAMES) {
+      const tool = getRegisteredTool(name)!;
+      expect(tool).toMatchObject({
+        approval: 'soft_review',
+        retry: 'inspect_before_retry',
+        revertStrategy: 'exact_inverse',
+        certification: 'write-certified',
+      });
+      expect(tool.certificationNote).toContain(
+        'P6 entity-write certification',
+      );
+      const properties = (
+        tool.parametersSchema as unknown as {
+          properties: Record<string, unknown>;
+        }
+      ).properties;
+      expect(properties.expectedRevision).toBeDefined();
     }
   });
 
@@ -353,7 +382,7 @@ describe('canonical Agent tool catalog', () => {
       ],
     });
 
-    expect(result).toHaveLength(28);
+    expect(result).toHaveLength(32);
     expect(
       result
         .filter((tool) => tool.access === 'write')

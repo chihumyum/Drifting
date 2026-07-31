@@ -58,6 +58,7 @@ import { createDriftingElementPatchWriteStrategy } from './drifting-element-patc
 import type {
   AgentRuntimeElementPatchReceiptRepository,
 } from '../../../sqlite-repo/agent-runtime-element-patch-receipt-repo';
+import { createDriftingEntityWriteStrategy } from './drifting-entity-write-strategy';
 
 export interface PreparedDriftingWriteEffect {
   observedRevision: unknown;
@@ -117,6 +118,13 @@ const proseWriteTools = new Set([
   'replace_block_range',
 ]);
 
+const entityWriteTools = new Set([
+  'create_comment',
+  'update_element',
+  'update_storyline',
+  'update_project_facts',
+] as const);
+
 export interface DriftingWriteStrategyOptions {
   freshness?: AgentRuntimeFreshnessRepository | null;
   elementPatchDb?: DbExecutor;
@@ -164,6 +172,41 @@ export function getDriftingWriteStrategy(
           }
         : {}),
     });
+  }
+  if (
+    entityWriteTools.has(
+      toolName as
+        | 'create_comment'
+        | 'update_element'
+        | 'update_storyline'
+        | 'update_project_facts',
+    ) &&
+    options.freshness
+  ) {
+    return createDriftingEntityWriteStrategy(
+      toolName as
+        | 'create_comment'
+        | 'update_element'
+        | 'update_storyline'
+        | 'update_project_facts',
+      {
+        freshness: options.freshness,
+        ...(options.elementPatchDb ? { db: options.elementPatchDb } : {}),
+        ...(options.now ? { now: options.now } : {}),
+        ...(options.elementPatchPersistSyncMutation
+          ? {
+              persistSyncMutation:
+                options.elementPatchPersistSyncMutation,
+            }
+          : {}),
+        ...(options.elementPatchNotifySyncCommitted
+          ? {
+              notifySyncCommitted:
+                options.elementPatchNotifySyncCommitted,
+            }
+          : {}),
+      },
+    );
   }
   if (!proseWriteTools.has(toolName)) return undefined;
   return proseWriteStrategy(

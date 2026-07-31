@@ -28,6 +28,10 @@ const memoryFixture = vi.hoisted(() => ({
   ],
 }));
 
+const proseTruthFixture = vi.hoisted(() => ({
+  byId: new Map<string, string>(),
+}));
+
 vi.mock('../../../sqlite-repo/content-repo', () => ({
   createBookContentRepository: () => ({
     findByNodeId: async (nodeId: string) =>
@@ -86,7 +90,8 @@ vi.mock('../chapter-prose', async (importOriginal) => {
   return {
     ...actual,
     getChapterContentJson: async () => proseDoc,
-    getEntityContentJson: async () => proseDoc,
+    getEntityContentJson: async (_kind: string, id: string) =>
+      proseTruthFixture.byId.get(id) ?? proseDoc,
     getElementContentJson: async () => proseDoc,
   };
 });
@@ -190,6 +195,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
   let writeCalls: string[];
 
   beforeEach(() => {
+    proseTruthFixture.byId.clear();
     memoryFixture.rows = [
       {
         id: 'memory-1',
@@ -414,6 +420,98 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
     expect(results.read_element).toMatchObject({ name: '柳青' });
     expect(results.list_memory).toMatchObject({
       memories: [expect.objectContaining({ body: '保持克制。' })],
+    });
+  });
+
+  it('searches authoritative closed-document prose instead of stale contentJson caches', async () => {
+    proseTruthFixture.byId.set(
+      'node-1',
+      JSON.stringify({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            attrs: { blockId: 'truth-block' },
+            content: [
+              {
+                type: 'text',
+                text: '只有持久化 Yjs 真相包含 CLOSED_TRUTH_MARKER。',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
+
+    const result = await runtime.execute(
+      request('search_prose', {
+        query: 'CLOSED_TRUTH_MARKER',
+        limit: 10,
+      }),
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        matches: [
+          {
+            kind: 'chapter',
+            title: '第一章',
+            block: 1,
+            snippet: expect.stringContaining('CLOSED_TRUTH_MARKER'),
+          },
+        ],
+      },
+    });
+  });
+
+  it('returns a stable manuscript order even when the hydrated store array is shuffled', async () => {
+    const existing = useDataStore
+      .getState()
+      .bookNodes.find(
+        (node) =>
+          node.kind === 'chapter' && node.projectId === 'project-1',
+      );
+    if (!existing) throw new Error('chapter fixture missing');
+    if (existing.kind !== 'chapter') {
+      throw new Error('chapter fixture has the wrong kind');
+    }
+    useDataStore.setState({
+      bookNodes: [
+        {
+          ...existing,
+          id: 'node-3',
+          title: '第三章',
+          bookOrder: 30,
+        },
+        {
+          ...existing,
+          id: 'node-2',
+          title: '第二章',
+          bookOrder: 20,
+        },
+        {
+          ...existing,
+          id: 'node-1',
+          title: '第一章',
+          bookOrder: 10,
+        },
+      ],
+    });
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
+
+    const result = await runtime.execute(request('list_nodes', {}));
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        chapters: [
+          { name: '第一章' },
+          { name: '第二章' },
+          { name: '第三章' },
+        ],
+      },
     });
   });
 

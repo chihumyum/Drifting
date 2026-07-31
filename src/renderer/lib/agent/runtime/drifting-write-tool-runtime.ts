@@ -19,6 +19,7 @@ import {
 import { canonicalAgentRuntimeJson } from '../../../sqlite-repo/agent-runtime-persistence-repo';
 import { createElementPatchRepository } from '../../../sqlite-repo/element-patch-repo';
 import { useDataStore } from '../../../store/data-store';
+import { useProjectStore } from '../../../store/project-store';
 import {
   getActiveAgentToolContext,
   pendingDeletedPatchIds,
@@ -37,25 +38,15 @@ import {
   type DriftingWriteStrategy,
   type PreparedDriftingWriteEffect,
 } from './drifting-write-strategies';
-import type {
-  YjsProsePersistenceCoordinator,
-} from './yjs-prose-persistence-coordinator';
+import type { YjsProsePersistenceCoordinator } from './yjs-prose-persistence-coordinator';
 import type { DbExecutor } from '../../../lib/db';
-import type {
-  AgentRuntimeElementPatchReceiptRepository,
-} from '../../../sqlite-repo/agent-runtime-element-patch-receipt-repo';
+import type { AgentRuntimeElementPatchReceiptRepository } from '../../../sqlite-repo/agent-runtime-element-patch-receipt-repo';
 import type {
   notifySyncMutationCommitted,
   persistSyncMutationInTransaction,
 } from '../../../services/entity-sync.service';
-import {
-  elementPatchRevision,
-  elementPatchSetRevision,
-} from './element-patch-revision';
-import {
-  isAgentAbort,
-  throwIfAgentAborted,
-} from './errors';
+import { elementPatchRevision, elementPatchSetRevision } from './element-patch-revision';
+import { isAgentAbort, throwIfAgentAborted } from './errors';
 import type {
   AgentRuntimeContext,
   AgentRuntimeRoute,
@@ -120,20 +111,13 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
   private readonly now: () => string;
   private readonly dispatch: typeof runAgentTool;
   private readonly elementPatchDb: DbExecutor | undefined;
-  private readonly autoAcceptReview: (
-    effect: PersistedAgentRuntimeWriteEffect,
-  ) => boolean;
-  private readonly resolveStrategy: (
-    name: string,
-  ) => DriftingWriteStrategy | undefined;
+  private readonly autoAcceptReview: (effect: PersistedAgentRuntimeWriteEffect) => boolean;
+  private readonly resolveStrategy: (name: string) => DriftingWriteStrategy | undefined;
 
   constructor(options: DriftingWriteToolRuntimeOptions = {}) {
-    this.repository =
-      options.repository ?? createAgentRuntimeWriteEffectRepository();
+    this.repository = options.repository ?? createAgentRuntimeWriteEffectRepository();
     this.freshness =
-      options.freshness === undefined
-        ? createAgentRuntimeFreshnessRepository()
-        : options.freshness;
+      options.freshness === undefined ? createAgentRuntimeFreshnessRepository() : options.freshness;
     this.getContext = options.getContext ?? getActiveAgentToolContext;
     this.readRuntime = options.readRuntime ?? new DriftingReadToolRuntime();
     this.now = options.now ?? (() => new Date().toISOString());
@@ -145,37 +129,27 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       ((name) =>
         getDriftingWriteStrategy(name, {
           freshness: this.freshness,
-          ...(options.elementPatchDb
-            ? { elementPatchDb: options.elementPatchDb }
-            : {}),
+          ...(options.elementPatchDb ? { elementPatchDb: options.elementPatchDb } : {}),
           ...(options.elementPatchReceipts
             ? { elementPatchReceipts: options.elementPatchReceipts }
             : {}),
           ...(options.elementPatchPersistSyncMutation
             ? {
-                elementPatchPersistSyncMutation:
-                  options.elementPatchPersistSyncMutation,
+                elementPatchPersistSyncMutation: options.elementPatchPersistSyncMutation,
               }
             : {}),
           ...(options.elementPatchNotifySyncCommitted
             ? {
-                elementPatchNotifySyncCommitted:
-                  options.elementPatchNotifySyncCommitted,
+                elementPatchNotifySyncCommitted: options.elementPatchNotifySyncCommitted,
               }
             : {}),
           now: this.now,
-          ...(options.proseCoordinator
-            ? { proseCoordinator: options.proseCoordinator }
-            : {}),
-          ...(options.readNodeContent
-            ? { readNodeContent: options.readNodeContent }
-            : {}),
+          ...(options.proseCoordinator ? { proseCoordinator: options.proseCoordinator } : {}),
+          ...(options.readNodeContent ? { readNodeContent: options.readNodeContent } : {}),
         }));
   }
 
-  listDefinitions(
-    context: AgentRuntimeContext,
-  ): readonly AgentToolDefinition[] {
+  listDefinitions(context: AgentRuntimeContext): readonly AgentToolDefinition[] {
     const reads = this.readRuntime.listDefinitions(context);
     const writes = listProviderTools({ allowWrite: true })
       .filter((tool) => tool.access === 'write')
@@ -183,9 +157,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     return [...reads, ...writes];
   }
 
-  async execute(
-    request: AgentToolExecutionRequest,
-  ): Promise<AgentToolExecutionResult> {
+  async execute(request: AgentToolExecutionRequest): Promise<AgentToolExecutionResult> {
     if (request.access === 'read') {
       return this.readRuntime.execute(request);
     }
@@ -236,8 +208,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     const active = this.getContext();
     if (!active) throw new Error('Drifting tool context is not mounted');
     const candidates = (await this.repository.listEffects(sessionId)).filter(
-      (effect) =>
-        effect.phase === 'mutation_started' || effect.phase === 'uncertain',
+      (effect) => effect.phase === 'mutation_started' || effect.phase === 'uncertain',
     );
     const result: AgentInterruptedWriteReconciliationResult = {
       inspected: candidates.length,
@@ -248,10 +219,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
 
     for (const effect of candidates) {
       throwIfAgentAborted(signal);
-      if (
-        effect.phase !== 'mutation_started' &&
-        effect.phase !== 'uncertain'
-      ) {
+      if (effect.phase !== 'mutation_started' && effect.phase !== 'uncertain') {
         continue;
       }
       const enteredPhase: 'mutation_started' | 'uncertain' = effect.phase;
@@ -259,15 +227,9 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         const tool = requireReconciliationTool(effect);
         const strategy = this.resolveStrategy(tool.name);
         if (!strategy?.reconcileEnteredEffect) {
-          throw new Error(
-            `Tool "${effect.toolName}" has no certified receipt reconciler`,
-          );
+          throw new Error(`Tool "${effect.toolName}" has no certified receipt reconciler`);
         }
-        const expected = await this.assertReconciliationProvenance(
-          effect,
-          sessionId,
-          active,
-        );
+        const expected = await this.assertReconciliationProvenance(effect, sessionId, active);
         const reconciled = await strategy.reconcileEnteredEffect(
           effect,
           withProvenance(active, effect, signal, expected),
@@ -299,11 +261,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
             at: this.now(),
           })
         ).effect;
-        await this.settleCommittedEffect(
-          committed,
-          tool,
-          reconciled.handlerResult,
-        );
+        await this.settleCommittedEffect(committed, tool, reconciled.handlerResult);
         result.reconciled += 1;
       } catch (error) {
         if (isAgentAbort(error, signal)) throw error;
@@ -314,7 +272,47 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         });
       }
     }
+    await this.reconcileInterruptedReviewStates(sessionId, signal);
     return result;
+  }
+
+  /**
+   * Finish author decisions that were durably recorded before a renderer
+   * crash. `accepted` and `rejected` are safe resumable boundaries. An
+   * already-entered inverse has no universal receipt contract, so
+   * `revert_started` is settled fail-closed instead of replaying a mutation
+   * that may already have happened.
+   */
+  private async reconcileInterruptedReviewStates(
+    sessionId: string,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const reviews = (await this.repository.listReviews(sessionId)).filter(
+      (review) =>
+        review.status === 'accepted' ||
+        review.status === 'rejected' ||
+        review.status === 'revert_started',
+    );
+    for (const review of reviews) {
+      throwIfAgentAborted(signal);
+      if (review.status === 'accepted') {
+        await this.acceptReview(review.id, review.decisionNote);
+        continue;
+      }
+      if (review.status === 'rejected') {
+        await this.rejectReview(review.id, review.decisionNote, signal);
+        continue;
+      }
+      await this.repository.transitionReview({
+        reviewId: review.id,
+        expectedStatus: 'revert_started',
+        nextStatus: 'revert_failed',
+        errorCode: 'WRITE_REVERT_INTERRUPTED',
+        errorMessage:
+          'The renderer stopped after inverse execution began; the inverse was not replayed. Re-read the entity before any further edit.',
+        at: this.now(),
+      });
+    }
   }
 
   async acceptReview(
@@ -475,17 +473,11 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     if (this.freshness && expectedRevision) {
       try {
         if (effect.phase === 'claimed' || effect.phase === 'confirmed') {
-          const observation = await this.validateExpectedRevision(
-            request,
-            expectedRevision,
-          );
+          const observation = await this.validateExpectedRevision(request, expectedRevision);
           writeExpectation = observation;
           await this.attachWriteExpectation(effect, observation);
         } else {
-          writeExpectation = await this.assertDurableWriteExpectation(
-            effect,
-            expectedRevision,
-          );
+          writeExpectation = await this.assertDurableWriteExpectation(effect, expectedRevision);
         }
       } catch (error) {
         if (effect.phase === 'claimed' || effect.phase === 'confirmed') {
@@ -502,22 +494,12 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       }
     }
 
-    const replay = await this.replayDurableOutcome(
-      effect,
-      tool,
-      request,
-      strategy,
-      context,
-    );
+    const replay = await this.replayDurableOutcome(effect, tool, request, strategy, context);
     if (replay) return replay;
 
     let prepared: PreparedDriftingWriteEffect | null = null;
     try {
-      const strategyPrepared = await strategy.prepare(
-        request,
-        context,
-        writeExpectation,
-      );
+      const strategyPrepared = await strategy.prepare(request, context, writeExpectation);
       prepared =
         expectedRevision === null
           ? strategyPrepared
@@ -577,16 +559,8 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         expectedRevision ?? undefined,
       );
       const handlerResult = strategy.applyForward
-        ? await strategy.applyForward(
-            request,
-            executionContext,
-            prepared,
-          )
-        : await this.dispatch(
-            tool.name,
-            request.arguments,
-            executionContext,
-          );
+        ? await strategy.applyForward(request, executionContext, prepared)
+        : await this.dispatch(tool.name, request.arguments, executionContext);
       const committedEffect = await strategy.captureEffect(
         request,
         context,
@@ -637,11 +611,8 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       throw new Error('Agent freshness repository is unavailable');
     }
     const receipt = await this.freshness.getReadReceipt(expected.receiptId);
-    const target = await resolveWriteFreshnessTarget(
-      request,
-      this.elementPatchDb,
-    );
-    assertExpectedReceiptProvenance(receipt, request, target.readToolName);
+    const target = await resolveWriteFreshnessTarget(request, this.elementPatchDb);
+    assertExpectedReceiptProvenance(receipt, request, target.readToolNames);
     const observation = receipt.observations.find(
       (candidate) => candidate.id === expected.observationId,
     );
@@ -722,13 +693,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     if (!this.freshness) return null;
     const durable = await this.freshness.listWriteExpectations(effect.id);
     const expectsProse = isProseWriteTool(effect.toolName);
-    const expectedEntityKind = expectsProse
-      ? 'node_prose'
-      : effect.toolName === 'create_element_patch'
-        ? 'element_patch_set'
-        : effect.toolName === 'update_element_patch'
-          ? 'element_patch'
-          : 'node';
+    const expectedEntityKind = reconciliationFreshnessTarget(effect.toolName).entityKind;
     if (
       durable.length !== 1 ||
       durable[0].id !== writeExpectationId(effect.idempotencyKey) ||
@@ -741,9 +706,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
           !durable[0].expectedStateHash ||
           parseYjsRevision(durable[0].expectedRevision) === null))
     ) {
-      throw new Error(
-        'The durable write effect lost its exact read expectation',
-      );
+      throw new Error('The durable write effect lost its exact read expectation');
     }
     return durable[0];
   }
@@ -785,11 +748,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
                 at: this.now(),
               })
             ).effect;
-            return this.settleCommittedEffect(
-              committed,
-              tool,
-              reconciled.handlerResult,
-            );
+            return this.settleCommittedEffect(committed, tool, reconciled.handlerResult);
           }
         }
         return {
@@ -819,9 +778,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
   ): Promise<AgentToolExecutionResult> {
     const reviewId = writeReviewId(effect.id);
     const review =
-      tool.approval === 'soft_review'
-        ? { id: reviewId, status: 'pending' as const }
-        : null;
+      tool.approval === 'soft_review' ? { id: reviewId, status: 'pending' as const } : null;
     const result: AgentToolExecutionResult = {
       ok: true,
       data: {
@@ -900,15 +857,12 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       effect.sessionId !== sessionId ||
       effect.projectId !== context.projectId ||
       effect.id !== writeEffectId(effect.idempotencyKey) ||
-      effect.toolCallId !==
-        `agent-tool:${effect.sessionId}:${effect.turnId}:${effect.callId}` ||
+      effect.toolCallId !== `agent-tool:${effect.sessionId}:${effect.turnId}:${effect.callId}` ||
       !effect.mutationStartedAt ||
       effect.forward === null ||
       effect.reversibility === null
     ) {
-      throw new Error(
-        'The interrupted write has conflicting durable provenance',
-      );
+      throw new Error('The interrupted write has conflicting durable provenance');
     }
     const arguments_ = requireRecord(
       effect.arguments,
@@ -918,14 +872,10 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     if (
       effect.expectedRevision === null ||
       effect.observedRevision === null ||
-      canonicalAgentRuntimeJson(effect.expectedRevision) !==
-        canonicalAgentRuntimeJson(expected) ||
-      canonicalAgentRuntimeJson(effect.observedRevision) !==
-        canonicalAgentRuntimeJson(expected)
+      canonicalAgentRuntimeJson(effect.expectedRevision) !== canonicalAgentRuntimeJson(expected) ||
+      canonicalAgentRuntimeJson(effect.observedRevision) !== canonicalAgentRuntimeJson(expected)
     ) {
-      throw new Error(
-        'The interrupted write lost its exact expected revision',
-      );
+      throw new Error('The interrupted write lost its exact expected revision');
     }
 
     const expectations = await this.freshness.listWriteExpectations(effect.id);
@@ -949,14 +899,10 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
           !expectation.expectedStateHash ||
           parseYjsRevision(expectation.expectedRevision) === null))
     ) {
-      throw new Error(
-        'The interrupted write lost its exact durable expectation',
-      );
+      throw new Error('The interrupted write lost its exact durable expectation');
     }
 
-    const receipt = await this.freshness.getReadReceipt(
-      expectation.readReceiptId,
-    );
+    const receipt = await this.freshness.getReadReceipt(expectation.readReceiptId);
     const observation = receipt?.observations.find(
       (candidate) => candidate.id === expectation.observationId,
     );
@@ -965,7 +911,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       receipt.id !== `agent-read:${receipt.idempotencyKey}` ||
       receipt.projectId !== effect.projectId ||
       receipt.sessionId !== effect.sessionId ||
-      receipt.toolName !== target.readToolName ||
+      !target.readToolNames.includes(receipt.toolName as FreshnessReadToolName) ||
       receipt.turnId !== expectation.readTurnId ||
       receipt.toolCallId !== expectation.readToolCallId ||
       receipt.toolCallId !==
@@ -976,61 +922,42 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       observation.sessionId !== receipt.sessionId ||
       observation.turnId !== receipt.turnId ||
       observation.toolCallId !== receipt.toolCallId ||
-      observation.id !==
-        `agent-observation:${receipt.idempotencyKey}:${observation.ordinal}` ||
+      observation.id !== `agent-observation:${receipt.idempotencyKey}:${observation.ordinal}` ||
       observation.entityKind !== expectation.entityKind ||
       observation.entityId !== expectation.entityId ||
       observation.revision !== expectation.expectedRevision ||
-      !optionalBytesEqual(
-        observation.stateVector,
-        expectation.expectedStateVector,
-      ) ||
+      !optionalBytesEqual(observation.stateVector, expectation.expectedStateVector) ||
       observation.stateHash !== expectation.expectedStateHash
     ) {
-      throw new Error(
-        'The interrupted write receipt chain has conflicting provenance',
-      );
+      throw new Error('The interrupted write receipt chain has conflicting provenance');
     }
     return expected;
   }
 
-  private requireMatchingContext(
-    runtimeContext: AgentRuntimeContext,
-  ): AgentToolContext {
+  private requireMatchingContext(runtimeContext: AgentRuntimeContext): AgentToolContext {
     const active = this.getContext();
     if (!active) throw new Error('Drifting tool context is not mounted');
-    if (
-      !runtimeContext.route.projectId ||
-      runtimeContext.route.projectId !== active.projectId
-    ) {
+    if (!runtimeContext.route.projectId || runtimeContext.route.projectId !== active.projectId) {
       throw new Error('Agent route does not match the active Drifting project');
     }
     return active;
   }
 
-  private requireEffectContext(
-    effect: PersistedAgentRuntimeWriteEffect,
-  ): AgentToolContext {
+  private requireEffectContext(effect: PersistedAgentRuntimeWriteEffect): AgentToolContext {
     const active = this.getContext();
     if (!active || active.projectId !== effect.projectId) {
-      throw new Error(
-        'The Agent review belongs to a different or unmounted project',
-      );
+      throw new Error('The Agent review belongs to a different or unmounted project');
     }
     return active;
   }
 
-  private async requireReview(
-    reviewId: string,
-  ): Promise<PersistedAgentRuntimeWriteReview> {
+  private async requireReview(reviewId: string): Promise<PersistedAgentRuntimeWriteReview> {
     const review = await this.repository.getReview(reviewId);
     if (!review) throw new Error(`Agent write review "${reviewId}" was not found`);
     return review;
   }
 
-  private async requireEffect(
-    effectId: string,
-  ): Promise<PersistedAgentRuntimeWriteEffect> {
+  private async requireEffect(effectId: string): Promise<PersistedAgentRuntimeWriteEffect> {
     const effect = await this.repository.getEffect(effectId);
     if (!effect) throw new Error(`Agent write effect "${effectId}" was not found`);
     return effect;
@@ -1043,26 +970,21 @@ export function createDriftingWriteToolRuntime(
   return new DriftingWriteToolRuntime(options);
 }
 
-export function resolveDriftingCertifiedToolAccess(
-  name: string,
-): 'read' | 'write' | undefined {
+export function resolveDriftingCertifiedToolAccess(name: string): 'read' | 'write' | undefined {
   if (name === 'read_tool_result' || name === 'ask_user') return 'read';
   const tool = getRegisteredTool(name);
   if (
     !tool ||
     tool.scope !== 'general' ||
     !isCertifiedTool(tool) ||
-    (tool.certification !== 'read-certified' &&
-      tool.certification !== 'write-certified')
+    (tool.certification !== 'read-certified' && tool.certification !== 'write-certified')
   ) {
     return undefined;
   }
   return tool.access;
 }
 
-function requireReconciliationTool(
-  effect: PersistedAgentRuntimeWriteEffect,
-): RegisteredTool {
+function requireReconciliationTool(effect: PersistedAgentRuntimeWriteEffect): RegisteredTool {
   const tool = getRegisteredTool(effect.toolName);
   if (
     !tool ||
@@ -1071,53 +993,74 @@ function requireReconciliationTool(
     tool.certification !== 'write-certified' ||
     !isCertifiedTool(tool)
   ) {
-    throw new Error(
-      `Tool "${effect.toolName}" is not certified for write reconciliation`,
-    );
+    throw new Error(`Tool "${effect.toolName}" is not certified for write reconciliation`);
   }
   return tool;
 }
 
+type FreshnessReadToolName =
+  | 'read_node'
+  | 'get_element_patches'
+  | 'read_element'
+  | 'get_storyline'
+  | 'get_project_brief'
+  | 'get_overview';
+
 function reconciliationFreshnessTarget(toolName: string): {
-  readToolName: 'read_node' | 'get_element_patches';
-  entityKind: 'node' | 'node_prose' | 'element_patch_set' | 'element_patch';
+  readToolNames: readonly FreshnessReadToolName[];
+  entityKind:
+    | 'node'
+    | 'node_prose'
+    | 'element_patch_set'
+    | 'element_patch'
+    | 'element'
+    | 'storyline'
+    | 'project';
 } {
   if (isProseWriteTool(toolName)) {
-    return { readToolName: 'read_node', entityKind: 'node_prose' };
+    return { readToolNames: ['read_node'], entityKind: 'node_prose' };
   }
   if (toolName === 'create_element_patch') {
     return {
-      readToolName: 'get_element_patches',
+      readToolNames: ['get_element_patches'],
       entityKind: 'element_patch_set',
     };
   }
   if (toolName === 'update_element_patch') {
     return {
-      readToolName: 'get_element_patches',
+      readToolNames: ['get_element_patches'],
       entityKind: 'element_patch',
     };
   }
-  return { readToolName: 'read_node', entityKind: 'node' };
+  if (toolName === 'update_element') {
+    return { readToolNames: ['read_element'], entityKind: 'element' };
+  }
+  if (toolName === 'update_storyline') {
+    return {
+      readToolNames: ['get_storyline'],
+      entityKind: 'storyline',
+    };
+  }
+  if (toolName === 'update_project_facts' || toolName === 'create_comment') {
+    return {
+      readToolNames: ['get_project_brief', 'get_overview'],
+      entityKind: 'project',
+    };
+  }
+  return { readToolNames: ['read_node'], entityKind: 'node' };
 }
 
-function requireRecord(
-  value: unknown,
-  message: string,
-): Record<string, unknown> {
+function requireRecord(value: unknown, message: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(message);
   }
   return value as Record<string, unknown>;
 }
 
-function optionalBytesEqual(
-  left: Uint8Array | null,
-  right: Uint8Array | null,
-): boolean {
+function optionalBytesEqual(left: Uint8Array | null, right: Uint8Array | null): boolean {
   if (left === null || right === null) return left === right;
   return (
-    left.byteLength === right.byteLength &&
-    left.every((value, index) => value === right[index])
+    left.byteLength === right.byteLength && left.every((value, index) => value === right[index])
   );
 }
 
@@ -1224,9 +1167,7 @@ function parseExpectedRevision(value: unknown): AgentRuntimeExpectedRevision {
   };
 }
 
-function isDeterministicStaleWriteError(
-  error: unknown,
-): error is Error & {
+function isDeterministicStaleWriteError(error: unknown): error is Error & {
   code: 'STALE_REVISION' | 'STALE_STATE_VECTOR' | 'STALE_STATE_HASH';
 } {
   return (
@@ -1241,16 +1182,16 @@ function isDeterministicStaleWriteError(
 function assertExpectedReceiptProvenance(
   receipt: PersistedAgentRuntimeReadReceipt | null,
   request: Pick<AgentToolExecutionRequest, 'sessionId' | 'context'>,
-  readToolName: 'read_node' | 'get_element_patches',
+  readToolNames: readonly FreshnessReadToolName[],
 ): asserts receipt is PersistedAgentRuntimeReadReceipt {
   if (
     !receipt ||
     receipt.projectId !== request.context.route.projectId ||
     receipt.sessionId !== request.sessionId ||
-    receipt.toolName !== readToolName
+    !readToolNames.includes(receipt.toolName as FreshnessReadToolName)
   ) {
     throw new Error(
-      `expectedRevision must cite a ${readToolName} receipt from this project and session`,
+      `expectedRevision must cite a ${readToolNames.join(' or ')} receipt from this project and session`,
     );
   }
 }
@@ -1266,8 +1207,15 @@ interface WriteFreshnessRequest {
 }
 
 interface WriteFreshnessTarget {
-  readToolName: 'read_node' | 'get_element_patches';
-  entityKind: 'node' | 'node_prose' | 'element_patch_set' | 'element_patch';
+  readToolNames: readonly FreshnessReadToolName[];
+  entityKind:
+    | 'node'
+    | 'node_prose'
+    | 'element_patch_set'
+    | 'element_patch'
+    | 'element'
+    | 'storyline'
+    | 'project';
   entityId: string;
   currentRevision: string;
 }
@@ -1283,16 +1231,12 @@ async function resolveWriteFreshnessTarget(
   if (request.name === 'create_element_patch') {
     const element = resolveProjectElement(projectId, request.arguments.element);
     const pendingDeletes = pendingDeletedPatchIds(element.id);
-    const patches = (await createElementPatchRepository(db).listByElement(
-      element.id,
-    )).filter(
+    const patches = (await createElementPatchRepository(db).listByElement(element.id)).filter(
       (patch) =>
-        patch.projectId === projectId &&
-        !patch.invalidatedAt &&
-        !pendingDeletes.has(patch.id),
+        patch.projectId === projectId && !patch.invalidatedAt && !pendingDeletes.has(patch.id),
     );
     return {
-      readToolName: 'get_element_patches',
+      readToolNames: ['get_element_patches'],
       entityKind: 'element_patch_set',
       entityId: element.id,
       currentRevision: await elementPatchSetRevision(patches),
@@ -1300,37 +1244,60 @@ async function resolveWriteFreshnessTarget(
   }
   if (request.name === 'update_element_patch') {
     const patchId = String(request.arguments.patchId ?? '').trim();
-    const patch = patchId
-      ? await createElementPatchRepository(db).findById(patchId)
-      : null;
+    const patch = patchId ? await createElementPatchRepository(db).findById(patchId) : null;
     if (!patch || patch.projectId !== projectId) {
       throw new Error(`No element patch "${patchId}" exists in this project`);
     }
-    if (
-      patch.invalidatedAt ||
-      pendingDeletedPatchIds(patch.elementId).has(patch.id)
-    ) {
-      throw new Error(
-        `Element patch "${patchId}" is not available for Agent updates`,
-      );
+    if (patch.invalidatedAt || pendingDeletedPatchIds(patch.elementId).has(patch.id)) {
+      throw new Error(`Element patch "${patchId}" is not available for Agent updates`);
     }
     return {
-      readToolName: 'get_element_patches',
+      readToolNames: ['get_element_patches'],
       entityKind: 'element_patch',
       entityId: patch.id,
       currentRevision: await elementPatchRevision(patch),
     };
   }
+  if (request.name === 'update_element') {
+    const element = resolveProjectElement(projectId, request.arguments.element);
+    return {
+      readToolNames: ['read_element'],
+      entityKind: 'element',
+      entityId: element.id,
+      currentRevision: element.updatedAt,
+    };
+  }
+  if (request.name === 'update_storyline') {
+    const storyline = resolveProjectStoryline(projectId, request.arguments.storyline);
+    return {
+      readToolNames: ['get_storyline'],
+      entityKind: 'storyline',
+      entityId: storyline.id,
+      currentRevision: storyline.updatedAt,
+    };
+  }
+  if (request.name === 'update_project_facts' || request.name === 'create_comment') {
+    const project = useProjectStore.getState().currentProject;
+    if (!project || project.id !== projectId) {
+      throw new Error(`${request.name} requires the mounted project brief`);
+    }
+    return {
+      readToolNames: ['get_project_brief', 'get_overview'],
+      entityKind: 'project',
+      entityId: projectId,
+      currentRevision: project.updatedAt,
+    };
+  }
   const node = resolveWriteTargetNode(request);
   return {
-    readToolName: 'read_node',
+    readToolNames: ['read_node'],
     entityKind: isProseWriteTool(request.name) ? 'node_prose' : 'node',
     entityId: node.id,
     // Yjs current version is verified inside the prose strategy/coordinator.
     currentRevision: isProseWriteTool(request.name)
       ? String(
-          (request.arguments.expectedRevision as { revision?: unknown } | undefined)
-            ?.revision ?? '',
+          (request.arguments.expectedRevision as { revision?: unknown } | undefined)?.revision ??
+            '',
         )
       : node.updatedAt,
   };
@@ -1345,8 +1312,7 @@ function resolveProjectElement(projectId: string, value: unknown) {
   const direct = elements.find((element) => element.id === ref);
   if (direct) return direct;
   const matches = elements.filter(
-    (element) =>
-      element.name.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
+    (element) => element.name.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
   );
   if (matches.length !== 1) {
     throw new Error(
@@ -1358,13 +1324,31 @@ function resolveProjectElement(projectId: string, value: unknown) {
   return matches[0]!;
 }
 
+function resolveProjectStoryline(projectId: string, value: unknown) {
+  const ref = String(value ?? '').trim();
+  if (!ref) throw new Error('update_storyline requires a storyline');
+  const storylines = useDataStore
+    .getState()
+    .storylines.filter((storyline) => storyline.projectId === projectId);
+  const direct = storylines.find((storyline) => storyline.id === ref);
+  if (direct) return direct;
+  const matches = storylines.filter(
+    (storyline) => storyline.name.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
+  );
+  if (matches.length !== 1) {
+    throw new Error(
+      matches.length === 0
+        ? `No storyline named "${ref}" exists in this project`
+        : `Storyline reference "${ref}" is ambiguous`,
+    );
+  }
+  return matches[0]!;
+}
+
 function resolveWriteTargetNode(request: WriteFreshnessRequest) {
   const projectId = request.context.route.projectId;
   const ref = String(
-    request.arguments.node ??
-      request.arguments.nodeId ??
-      request.arguments.entity ??
-      '',
+    request.arguments.node ?? request.arguments.nodeId ?? request.arguments.entity ?? '',
   ).trim();
   const kind = String(request.arguments.kind ?? 'node');
   if (kind !== 'node' && kind !== 'chapter' && kind !== 'drift') {
@@ -1373,14 +1357,11 @@ function resolveWriteTargetNode(request: WriteFreshnessRequest) {
   if (!projectId || !ref) {
     throw new Error(`${request.name} requires a project-scoped node`);
   }
-  const nodes = useDataStore
-    .getState()
-    .bookNodes.filter((node) => node.projectId === projectId);
+  const nodes = useDataStore.getState().bookNodes.filter((node) => node.projectId === projectId);
   const direct = nodes.find((node) => node.id === ref);
   if (direct) return direct;
   const matches = nodes.filter(
-    (node) =>
-      node.title.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
+    (node) => node.title.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
   );
   if (matches.length !== 1) {
     throw new Error(
@@ -1413,32 +1394,20 @@ function parseYjsRevision(value: string): number | null {
 }
 
 function persistedExecutionResult(value: unknown): AgentToolExecutionResult {
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    typeof (value as { ok?: unknown }).ok !== 'boolean'
-  ) {
+  if (!value || typeof value !== 'object' || typeof (value as { ok?: unknown }).ok !== 'boolean') {
     throw new Error('The persisted Agent write result is invalid');
   }
   return value as AgentToolExecutionResult;
 }
 
 function persistedHandlerResult(value: unknown): unknown {
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    !('handlerResult' in value)
-  ) {
-    throw new Error(
-      'The committed Agent effect has no replayable handler result',
-    );
+  if (!value || typeof value !== 'object' || !('handlerResult' in value)) {
+    throw new Error('The committed Agent effect has no replayable handler result');
   }
   return (value as { handlerResult: unknown }).handlerResult;
 }
 
-function unresolvedWriteResult(
-  effect: PersistedAgentRuntimeWriteEffect,
-): AgentToolExecutionResult {
+function unresolvedWriteResult(effect: PersistedAgentRuntimeWriteEffect): AgentToolExecutionResult {
   return {
     ok: false,
     error: `Write effect is in non-retryable phase "${effect.phase}"`,

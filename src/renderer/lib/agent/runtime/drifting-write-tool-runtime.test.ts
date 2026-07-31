@@ -9,16 +9,10 @@ import type {
 } from '../../../domain/agent-runtime-write-effect';
 import type { AgentRuntimeWriteEffectRepository } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
 import { useDataStore } from '../../../store/data-store';
-import type {
-  AgentToolContext,
-  AgentWriteApi,
-} from '../tool-handlers';
+import type { AgentToolContext, AgentWriteApi } from '../tool-handlers';
 import type { DriftingWriteStrategy } from './drifting-write-strategies';
 import { DriftingWriteToolRuntime } from './drifting-write-tool-runtime';
-import type {
-  AgentToolExecutionRequest,
-  AgentToolRuntime,
-} from './types';
+import type { AgentToolExecutionRequest, AgentToolRuntime } from './types';
 
 const initialDataState = useDataStore.getState();
 
@@ -62,6 +56,7 @@ describe('DriftingWriteToolRuntime', () => {
         .listDefinitions(request('rename_node', {}).context)
         .map((definition) => definition.name),
     ).toEqual([
+      'update_element',
       'rename_node',
       'set_node_summary',
       'edit_block',
@@ -70,8 +65,11 @@ describe('DriftingWriteToolRuntime', () => {
       'remove_blocks',
       'replace_block_range',
       'insert_blocks',
+      'update_storyline',
+      'update_project_facts',
       'create_element_patch',
       'update_element_patch',
+      'create_comment',
     ]);
 
     const input = request('rename_node', {
@@ -114,9 +112,7 @@ describe('DriftingWriteToolRuntime', () => {
     });
     const result = await runtime.execute(input);
     if (!result.ok) throw new Error(result.error);
-    const reviewId = (
-      result.data as { review: { id: string } }
-    ).review.id;
+    const reviewId = (result.data as { review: { id: string } }).review.id;
 
     const decision = await runtime.rejectReview(reviewId, {
       reason: 'author rejected',
@@ -133,11 +129,9 @@ describe('DriftingWriteToolRuntime', () => {
 
   it('does not overwrite a newer manual edit during review rejection', async () => {
     const repository = memoryRepository();
-    const updateNodeUsecase = vi.fn(
-      async (id: string, updates: { summary?: string }) => {
-        updateNode(id, updates);
-      },
-    );
+    const updateNodeUsecase = vi.fn(async (id: string, updates: { summary?: string }) => {
+      updateNode(id, updates);
+    });
     const runtime = createRuntime(repository, {
       updateNode: updateNodeUsecase,
     });
@@ -159,18 +153,107 @@ describe('DriftingWriteToolRuntime', () => {
     expect(updateNodeUsecase).toHaveBeenCalledOnce();
   });
 
+  it('settles durable accepted/rejected decisions after restart and never replays an ambiguous entered inverse', async () => {
+    const acceptedRepository = memoryRepository();
+    const acceptedRuntime = createRuntime(acceptedRepository, {});
+    const acceptedResult = await acceptedRuntime.execute(
+      request('rename_node', {
+        node: 'Chapter One',
+        title: 'Accepted title',
+      }),
+    );
+    if (!acceptedResult.ok) {
+      throw new Error(acceptedResult.error);
+    }
+    const acceptedReviewId = (acceptedResult.data as { review: { id: string } }).review.id;
+    await acceptedRepository.api.transitionReview({
+      reviewId: acceptedReviewId,
+      expectedStatus: 'pending',
+      nextStatus: 'accepted',
+      decisionNote: 'author accepted before crash',
+      at: iso(20),
+    });
+    await acceptedRuntime.reconcileInterruptedWrites('session-1');
+    expect(acceptedRepository.reviews()[0]).toMatchObject({
+      status: 'accepted_effect',
+      decisionNote: 'author accepted before crash',
+    });
+
+    updateNode('node-1', { title: 'Chapter One' });
+    const rejectedRepository = memoryRepository();
+    const rejectedRename = vi.fn(async (id: string, title: string) => {
+      updateNode(id, { title });
+    });
+    const rejectedRuntime = createRuntime(rejectedRepository, { renameNode: rejectedRename });
+    const rejectedResult = await rejectedRuntime.execute(
+      request('rename_node', {
+        node: 'Chapter One',
+        title: 'Rejected title',
+      }),
+    );
+    if (!rejectedResult.ok) {
+      throw new Error(rejectedResult.error);
+    }
+    const rejectedReviewId = (rejectedResult.data as { review: { id: string } }).review.id;
+    await rejectedRepository.api.transitionReview({
+      reviewId: rejectedReviewId,
+      expectedStatus: 'pending',
+      nextStatus: 'rejected',
+      decisionNote: 'author rejected before crash',
+      at: iso(21),
+    });
+    await rejectedRuntime.reconcileInterruptedWrites('session-1');
+    expect(rejectedRepository.reviews()[0]).toMatchObject({
+      status: 'reverted',
+      decisionNote: 'author rejected before crash',
+    });
+    expect(node().title).toBe('Chapter One');
+    expect(rejectedRename).toHaveBeenCalledTimes(2);
+
+    const enteredRepository = memoryRepository();
+    const enteredRename = vi.fn(async (id: string, title: string) => {
+      updateNode(id, { title });
+    });
+    const enteredRuntime = createRuntime(enteredRepository, { renameNode: enteredRename });
+    const enteredResult = await enteredRuntime.execute(
+      request('rename_node', {
+        node: 'Chapter One',
+        title: 'Ambiguous inverse',
+      }),
+    );
+    if (!enteredResult.ok) {
+      throw new Error(enteredResult.error);
+    }
+    const enteredReviewId = (enteredResult.data as { review: { id: string } }).review.id;
+    await enteredRepository.api.transitionReview({
+      reviewId: enteredReviewId,
+      expectedStatus: 'pending',
+      nextStatus: 'rejected',
+      at: iso(22),
+    });
+    await enteredRepository.api.transitionReview({
+      reviewId: enteredReviewId,
+      expectedStatus: 'rejected',
+      nextStatus: 'revert_started',
+      at: iso(23),
+    });
+    await enteredRuntime.reconcileInterruptedWrites('session-1');
+    expect(enteredRepository.reviews()[0]).toMatchObject({
+      status: 'revert_failed',
+      errorCode: 'WRITE_REVERT_INTERRUPTED',
+    });
+    expect(enteredRename).toHaveBeenCalledOnce();
+    expect(node().title).toBe('Ambiguous inverse');
+  });
+
   it('marks an entered write uncertain and never dispatches it again', async () => {
     const repository = memoryRepository();
     let dispatches = 0;
-    const runtime = createRuntime(
-      repository,
-      {},
-      async (_name, _arguments, _context) => {
-        dispatches += 1;
-        updateNode('node-1', { title: 'Maybe committed' });
-        throw new Error('process boundary lost');
-      },
-    );
+    const runtime = createRuntime(repository, {}, async (_name, _arguments, _context) => {
+      dispatches += 1;
+      updateNode('node-1', { title: 'Maybe committed' });
+      throw new Error('process boundary lost');
+    });
     const input = request('rename_node', {
       node: 'Chapter One',
       title: 'Maybe committed',
@@ -180,9 +263,7 @@ describe('DriftingWriteToolRuntime', () => {
       ok: false,
       error: 'process boundary lost',
     });
-    expect(
-      repository.effect(`agent-write:${input.idempotencyKey}`).phase,
-    ).toBe('uncertain');
+    expect(repository.effect(`agent-write:${input.idempotencyKey}`).phase).toBe('uncertain');
 
     await expect(runtime.execute(input)).resolves.toMatchObject({
       ok: false,
@@ -215,9 +296,7 @@ describe('DriftingWriteToolRuntime', () => {
       ok: false,
       error: 'review insert boundary lost',
     });
-    expect(
-      repository.effect(`agent-write:${input.idempotencyKey}`).phase,
-    ).toBe('result_committed');
+    expect(repository.effect(`agent-write:${input.idempotencyKey}`).phase).toBe('result_committed');
     expect(repository.reviews()).toHaveLength(0);
     expect(renameNode).toHaveBeenCalledOnce();
 
@@ -296,9 +375,7 @@ describe('DriftingWriteToolRuntime', () => {
       ok: false,
       error: 'response lost after prose receipt commit',
     });
-    expect(
-      repository.effect(`agent-write:${input.idempotencyKey}`).phase,
-    ).toBe('uncertain');
+    expect(repository.effect(`agent-write:${input.idempotencyKey}`).phase).toBe('uncertain');
 
     const replay = await runtime.execute(input);
     expect(replay).toMatchObject({
@@ -311,14 +388,10 @@ describe('DriftingWriteToolRuntime', () => {
         review: { status: 'pending' },
       },
     });
-    expect(
-      repository.effect(`agent-write:${input.idempotencyKey}`).phase,
-    ).toBe('result_committed');
+    expect(repository.effect(`agent-write:${input.idempotencyKey}`).phase).toBe('result_committed');
     expect(forwardCalls).toBe(1);
     expect(reconcileCalls).toBe(1);
-    expect(repository.reviews()).toEqual([
-      expect.objectContaining({ status: 'accepted_effect' }),
-    ]);
+    expect(repository.reviews()).toEqual([expect.objectContaining({ status: 'accepted_effect' })]);
   });
 
   it('canonically settles an auto-mode soft review after creating it', async () => {
@@ -326,13 +399,7 @@ describe('DriftingWriteToolRuntime', () => {
     const renameNode = vi.fn(async (id: string, title: string) => {
       updateNode(id, { title });
     });
-    const runtime = createRuntime(
-      repository,
-      { renameNode },
-      undefined,
-      undefined,
-      () => true,
-    );
+    const runtime = createRuntime(repository, { renameNode }, undefined, undefined, () => true);
     const input = request('rename_node', {
       node: 'Chapter One',
       title: 'Auto accepted',
@@ -379,21 +446,14 @@ function createRuntime(
     args: Record<string, unknown>,
     context: AgentToolContext,
   ) => Promise<unknown>,
-  resolveStrategy?: (
-    name: string,
-  ) => DriftingWriteStrategy | undefined,
-  autoAcceptReview?: (
-    effect: PersistedAgentRuntimeWriteEffect,
-  ) => boolean,
+  resolveStrategy?: (name: string) => DriftingWriteStrategy | undefined,
+  autoAcceptReview?: (effect: PersistedAgentRuntimeWriteEffect) => boolean,
 ): DriftingWriteToolRuntime {
   const write = {
     renameNode: async (id: string, title: string) => {
       updateNode(id, { title });
     },
-    updateNode: async (
-      id: string,
-      updates: { summary?: string },
-    ) => {
+    updateNode: async (id: string, updates: { summary?: string }) => {
       updateNode(id, updates);
     },
     ...writeOverrides,
@@ -415,10 +475,7 @@ function createRuntime(
   });
 }
 
-function request(
-  name: string,
-  arguments_: Record<string, unknown>,
-): AgentToolExecutionRequest {
+function request(name: string, arguments_: Record<string, unknown>): AgentToolExecutionRequest {
   return {
     sessionId: 'session-1',
     turnId: 'turn-1',
@@ -479,9 +536,7 @@ function memoryRepository() {
       return effects.get(id) ?? null;
     },
     async listEffects(sessionId: string) {
-      return [...effects.values()].filter(
-        (effect) => effect.sessionId === sessionId,
-      );
+      return [...effects.values()].filter((effect) => effect.sessionId === sessionId);
     },
     async transitionEffect(transition: AgentRuntimeWriteEffectTransition) {
       const current = effects.get(transition.effectId);
@@ -515,9 +570,7 @@ function memoryRepository() {
       return reviews.get(id) ?? null;
     },
     async listReviews(sessionId: string) {
-      return [...reviews.values()].filter(
-        (review) => review.sessionId === sessionId,
-      );
+      return [...reviews.values()].filter((review) => review.sessionId === sessionId);
     },
     async transitionReview(transition: AgentRuntimeWriteReviewTransition) {
       const current = reviews.get(transition.reviewId);
@@ -533,12 +586,8 @@ function memoryRepository() {
     },
     async loadSnapshot(sessionId: string) {
       return {
-        effects: [...effects.values()].filter(
-          (effect) => effect.sessionId === sessionId,
-        ),
-        reviews: [...reviews.values()].filter(
-          (review) => review.sessionId === sessionId,
-        ),
+        effects: [...effects.values()].filter((effect) => effect.sessionId === sessionId),
+        reviews: [...reviews.values()].filter((review) => review.sessionId === sessionId),
       };
     },
   };
@@ -647,23 +696,16 @@ function transitionReview(
   }
 }
 
-function updateNode(
-  id: string,
-  updates: { title?: string; summary?: string },
-): void {
+function updateNode(id: string, updates: { title?: string; summary?: string }): void {
   useDataStore.setState((state) => ({
     bookNodes: state.bookNodes.map((candidate) =>
-      candidate.id === id
-        ? { ...candidate, ...updates, updatedAt: iso(1) }
-        : candidate,
+      candidate.id === id ? { ...candidate, ...updates, updatedAt: iso(1) } : candidate,
     ),
   }));
 }
 
 function node() {
-  const current = useDataStore
-    .getState()
-    .bookNodes.find((candidate) => candidate.id === 'node-1');
+  const current = useDataStore.getState().bookNodes.find((candidate) => candidate.id === 'node-1');
   if (!current) throw new Error('missing fixture node');
   return current;
 }

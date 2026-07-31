@@ -8,6 +8,7 @@ import type {
 } from '../../../domain/agent-runtime-freshness';
 import type { AgentRuntimeResultArtifactQuota } from '../../../domain/agent-runtime-result-artifact';
 import { useDataStore } from '../../../store/data-store';
+import { useProjectStore } from '../../../store/project-store';
 import {
   createAgentRuntimeFreshnessRepository,
   type AgentRuntimeFreshnessRepository,
@@ -327,6 +328,64 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     if (request.name === 'get_element_patches') {
       return this.captureElementPatchObservations(request, active);
     }
+    if (
+      request.name === 'get_project_brief' ||
+      request.name === 'get_overview'
+    ) {
+      const project = useProjectStore.getState().currentProject;
+      return project?.id === active.projectId
+        ? [
+            {
+              id: readObservationId(request, 0),
+              entityKind: 'project',
+              entityId: project.id,
+              revision: project.updatedAt,
+            },
+          ]
+        : [];
+    }
+    if (request.name === 'read_element') {
+      const element = resolveObservedEntity(
+        useDataStore
+          .getState()
+          .bookElements.filter(
+            (candidate) => candidate.projectId === active.projectId,
+          ),
+        request.arguments.element,
+        (candidate) => candidate.name,
+      );
+      return element
+        ? [
+            {
+              id: readObservationId(request, 0),
+              entityKind: 'element',
+              entityId: element.id,
+              revision: element.updatedAt,
+            },
+          ]
+        : [];
+    }
+    if (request.name === 'get_storyline') {
+      const storyline = resolveObservedEntity(
+        useDataStore
+          .getState()
+          .storylines.filter(
+            (candidate) => candidate.projectId === active.projectId,
+          ),
+        request.arguments.storyline,
+        (candidate) => candidate.name,
+      );
+      return storyline
+        ? [
+            {
+              id: readObservationId(request, 0),
+              entityKind: 'storyline',
+              entityId: storyline.id,
+              revision: storyline.updatedAt,
+            },
+          ]
+        : [];
+    }
     if (request.name !== 'read_node') return [];
     const rawKind = typeof request.arguments.kind === 'string' ? request.arguments.kind : 'node';
     if (rawKind !== 'node' && rawKind !== 'chapter' && rawKind !== 'drift') {
@@ -417,6 +476,50 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     projectId: string,
   ): Promise<void> {
     for (const observation of observations) {
+      if (observation.entityKind === 'project') {
+        const current = useProjectStore.getState().currentProject;
+        if (
+          !current ||
+          current.id !== projectId ||
+          current.id !== observation.entityId ||
+          current.updatedAt !== observation.revision
+        ) {
+          throw new Error(
+            'The project changed while it was being read; retry get_overview or get_project_brief before writing',
+          );
+        }
+        continue;
+      }
+      if (observation.entityKind === 'element') {
+        const current = useDataStore
+          .getState()
+          .bookElements.find(
+            (element) =>
+              element.id === observation.entityId &&
+              element.projectId === projectId,
+          );
+        if (!current || current.updatedAt !== observation.revision) {
+          throw new Error(
+            'The element changed while it was being read; retry read_element before writing',
+          );
+        }
+        continue;
+      }
+      if (observation.entityKind === 'storyline') {
+        const current = useDataStore
+          .getState()
+          .storylines.find(
+            (storyline) =>
+              storyline.id === observation.entityId &&
+              storyline.projectId === projectId,
+          );
+        if (!current || current.updatedAt !== observation.revision) {
+          throw new Error(
+            'The storyline changed while it was being read; retry get_storyline before writing',
+          );
+        }
+        continue;
+      }
       if (observation.entityKind === 'node') {
         const current = useDataStore
           .getState()
@@ -673,6 +776,22 @@ function readReceiptId(request: AgentToolExecutionRequest): string {
 
 function readObservationId(request: AgentToolExecutionRequest, ordinal: number): string {
   return `agent-observation:${request.idempotencyKey}:${ordinal}`;
+}
+
+function resolveObservedEntity<T extends { id: string }>(
+  values: readonly T[],
+  rawRef: unknown,
+  label: (value: T) => string,
+): T | null {
+  const ref = typeof rawRef === 'string' ? rawRef.trim() : '';
+  if (!ref) return null;
+  const direct = values.find((value) => value.id === ref);
+  if (direct) return direct;
+  const lowered = ref.toLocaleLowerCase();
+  const matches = values.filter(
+    (value) => label(value).trim().toLocaleLowerCase() === lowered,
+  );
+  return matches.length === 1 ? matches[0]! : null;
 }
 
 function assertReadReceiptProvenance(

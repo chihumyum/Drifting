@@ -434,6 +434,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
         groupName: optionalStr('新分组名'),
         category: optionalStr('新类目名称'),
         facts: optionalFacts('替换元素结构化事实'),
+        expectedRevision,
       },
       { additionalProperties: false },
     ),
@@ -444,6 +445,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['update character', '更新元素'],
+    certification: 'write-certified',
+    certificationNote:
+      'P6 entity-write certification: exact element freshness, atomic element/outbox receipt, crash reconciliation, soft review, and guarded exact inverse.',
   },
   {
     name: 'set_entity_body',
@@ -812,6 +816,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
         name: optionalStr('新名称'),
         summary: optionalStr('新梗概'),
         facts: optionalFacts('按 key 合并的结构化事实'),
+        expectedRevision,
       },
       { additionalProperties: false },
     ),
@@ -822,6 +827,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['edit storyline', '更新故事线'],
+    certification: 'write-certified',
+    certificationNote:
+      'P6 entity-write certification: exact storyline freshness, atomic storyline/outbox receipt, crash reconciliation, soft review, and guarded exact inverse.',
   },
   {
     name: 'create_category',
@@ -860,7 +868,10 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     name: 'update_project_facts',
     description: '按 key 合并更新项目级治理事实，例如文风、POV 与写作约束。',
     parametersSchema: Type.Object(
-      { facts: facts('按 key 合并的项目事实') },
+      {
+        facts: facts('按 key 合并的项目事实'),
+        expectedRevision,
+      },
       { additionalProperties: false },
     ),
     risk: 'high',
@@ -870,6 +881,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['update book facts', '更新项目事实'],
+    certification: 'write-certified',
+    certificationNote:
+      'P6 entity-write certification: exact project freshness, atomic project/outbox receipt, crash reconciliation, soft review, and guarded exact inverse.',
   },
   {
     name: 'remember',
@@ -1018,6 +1032,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
         targetKind: optionalStr('node / element / storyline / ...'),
         target: optionalStr('目标实体名称'),
         targetBlockId: optionalStr('可选正文块 uuid'),
+        expectedRevision,
       },
       { additionalProperties: false },
     ),
@@ -1026,8 +1041,11 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     concurrency: 'exclusive_project',
     approval: 'soft_review',
     retry: 'inspect_before_retry',
-    revertStrategy: 'compensating',
+    revertStrategy: 'exact_inverse',
     aliases: ['add todo', '创建批注', '创建待办'],
+    certification: 'write-certified',
+    certificationNote:
+      'P6 entity-write certification: project freshness, deterministic comment id, atomic comment/outbox receipt, crash reconciliation, and guarded exact delete inverse.',
   },
   {
     name: 'delete_comment',

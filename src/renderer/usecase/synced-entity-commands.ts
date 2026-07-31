@@ -11,15 +11,34 @@ import {
 } from '../sqlite-repo/block-section-repo';
 import type { DbExecutor } from '../lib/db';
 import { encodeBlockHashes, encodeBlockIds, type BlockSection } from '../domain/block-section';
+import { encodeAliases, type BookElement } from '../domain/book-element';
+import type { Comment } from '../domain/comment';
+import type { Project } from '../domain/project';
+import type { Storyline } from '../domain/storyline';
+import {
+  createBookElementSqliteRepository,
+  type ElementUpdateData,
+} from '../sqlite-repo/element-repo';
+import {
+  createStorylineRepository,
+  type UpdateStorylineInput,
+} from '../sqlite-repo/storyline-repo';
+import {
+  createProjectRepository,
+  type ProjectUpdateData,
+} from '../sqlite-repo/project-repo';
+import { createCommentRepository } from '../sqlite-repo/comment-repo';
 import {
   withAtomicSyncTransaction,
   type AtomicSyncWriter,
 } from './sync-helpers';
 
-export type ElementPatchAtomicTransactionRunner = <T>(
+export type EntityAtomicTransactionRunner = <T>(
   projectId: string,
   work: (tx: DbExecutor, sync: AtomicSyncWriter) => Promise<T>,
 ) => Promise<T>;
+export type ElementPatchAtomicTransactionRunner =
+  EntityAtomicTransactionRunner;
 
 function elementPatchPayload(patch: ElementPatch): Record<string, unknown> {
   return {
@@ -67,6 +86,153 @@ function blockSectionUpdatePayload(section: BlockSection): Record<string, unknow
     summary: section.summary,
     source: section.source,
   };
+}
+
+function elementUpdatePayload(element: BookElement): Record<string, unknown> {
+  return {
+    categoryId: element.categoryId,
+    name: element.name,
+    summary: element.summary,
+    contentJson: element.contentJson,
+    kvJson: element.kvJson,
+    aliasesJson: encodeAliases(element.aliases),
+    groupName: element.groupName,
+    portraitAssetId: element.portraitAssetId,
+  };
+}
+
+function storylineUpdatePayload(
+  storyline: Storyline,
+): Record<string, unknown> {
+  return {
+    name: storyline.name,
+    color: storyline.color,
+    summary: storyline.summary,
+    orderKey: storyline.orderKey,
+    contentJson: storyline.contentJson,
+    kvJson: storyline.kvJson,
+    nodeContentTemplateJson: storyline.nodeContentTemplateJson,
+  };
+}
+
+function commentPayload(comment: Comment): Record<string, unknown> {
+  return {
+    id: comment.id,
+    kind: comment.kind,
+    targetKind: comment.targetKind,
+    targetId: comment.targetId,
+    targetBlockId: comment.targetBlockId,
+    anchorJson: comment.anchorJson,
+    authorKind: comment.authorKind,
+    authorId: comment.authorId,
+    authorName: comment.authorName,
+    bodyJson: comment.bodyJson,
+    status: comment.status,
+    priority: comment.priority,
+    source: comment.source,
+    metadataJson: comment.metadataJson,
+    targetBlockIdsJson: comment.targetBlockIdsJson,
+    resolvedAt: comment.resolvedAt,
+  };
+}
+
+export async function updateElementWithSync(
+  projectId: string,
+  id: string,
+  updates: ElementUpdateData,
+  runAtomic: EntityAtomicTransactionRunner = withAtomicSyncTransaction,
+): Promise<BookElement> {
+  return runAtomic(projectId, async (tx, sync) => {
+    const updated = await createBookElementSqliteRepository(
+      projectId,
+      tx,
+    ).update(id, updates);
+    if (!updated || updated.projectId !== projectId) {
+      throw new Error(`Element ${id} not found in project ${projectId}`);
+    }
+    await sync(
+      'element',
+      'update',
+      id,
+      projectId,
+      elementUpdatePayload(updated),
+    );
+    return updated;
+  });
+}
+
+export async function updateStorylineWithSync(
+  projectId: string,
+  id: string,
+  updates: UpdateStorylineInput,
+  runAtomic: EntityAtomicTransactionRunner = withAtomicSyncTransaction,
+): Promise<Storyline> {
+  return runAtomic(projectId, async (tx, sync) => {
+    const updated = await createStorylineRepository(
+      projectId,
+      tx,
+    ).updateStoryline(id, updates);
+    await sync(
+      'storyline',
+      'update',
+      id,
+      projectId,
+      storylineUpdatePayload(updated),
+    );
+    return updated;
+  });
+}
+
+export async function updateProjectWithSync(
+  projectId: string,
+  updates: ProjectUpdateData,
+  runAtomic: EntityAtomicTransactionRunner = withAtomicSyncTransaction,
+): Promise<Project> {
+  return runAtomic(projectId, async (tx, sync) => {
+    const updated = await createProjectRepository(undefined, tx).update(
+      projectId,
+      updates,
+    );
+    if (!updated) throw new Error(`Project ${projectId} not found`);
+    await sync('project', 'update', projectId, projectId, {
+      name: updated.name,
+      summary: updated.summary,
+      kvJson: updated.kvJson,
+      storylineTemplateKvJson: updated.storylineTemplateKvJson,
+    });
+    return updated;
+  });
+}
+
+export async function createCommentWithSync(
+  comment: Comment,
+  runAtomic: EntityAtomicTransactionRunner = withAtomicSyncTransaction,
+): Promise<Comment> {
+  return runAtomic(comment.projectId, async (tx, sync) => {
+    const created = await createCommentRepository(
+      comment.projectId,
+      tx,
+    ).create(comment);
+    await sync(
+      'comment',
+      'create',
+      created.id,
+      created.projectId,
+      commentPayload(created),
+    );
+    return created;
+  });
+}
+
+export async function deleteCommentWithSync(
+  projectId: string,
+  id: string,
+  runAtomic: EntityAtomicTransactionRunner = withAtomicSyncTransaction,
+): Promise<void> {
+  await runAtomic(projectId, async (tx, sync) => {
+    await createCommentRepository(projectId, tx).delete(id);
+    await sync('comment', 'delete', id, projectId);
+  });
 }
 
 export async function createElementPatchWithSync(
