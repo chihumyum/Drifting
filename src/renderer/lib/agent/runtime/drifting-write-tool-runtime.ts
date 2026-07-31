@@ -406,6 +406,19 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         })
       ).review;
     }
+    if (
+      review.status === 'revert_failed' &&
+      review.errorCode === 'WRITE_REVERT_FAILED'
+    ) {
+      review = (
+        await this.repository.transitionReview({
+          reviewId,
+          expectedStatus: 'revert_failed',
+          nextStatus: 'revert_started',
+          at: this.now(),
+        })
+      ).review;
+    }
     if (review.status !== 'revert_started') return { review, effect };
 
     try {

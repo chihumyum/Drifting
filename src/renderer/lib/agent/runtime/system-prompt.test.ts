@@ -21,7 +21,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(4);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(5);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain(
       'The project id is an opaque identifier, not a title.',
@@ -65,6 +65,9 @@ describe('Drifting General Agent system prompt', () => {
     );
     expect(system).toContain(
       'Before update_project_facts or create_comment, call get_project_brief or get_overview.',
+    );
+    expect(system).toContain(
+      'Those markers are not prose content: pass only the raw content text',
     );
   });
 

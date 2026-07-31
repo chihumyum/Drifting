@@ -80,6 +80,105 @@ function originalRequest(query: string): string {
   return recentWork < 0 ? value : value.slice(0, recentWork);
 }
 
+function isToolNameCharacter(value: string | undefined): boolean {
+  return value !== undefined && /[a-z0-9_]/iu.test(value);
+}
+
+function isNegatedToolReference(request: string, index: number): boolean {
+  const clauseStart = Math.max(
+    request.lastIndexOf('\n', index - 1),
+    request.lastIndexOf('。', index - 1),
+    request.lastIndexOf('！', index - 1),
+    request.lastIndexOf('？', index - 1),
+    request.lastIndexOf(';', index - 1),
+    request.lastIndexOf('；', index - 1),
+    request.lastIndexOf(',', index - 1),
+    request.lastIndexOf('，', index - 1),
+  );
+  const prefix = request
+    .slice(Math.max(clauseStart + 1, index - 48), index)
+    .normalize('NFKC')
+    .toLocaleLowerCase('en-US');
+  return (
+    /(?:不要|请勿|禁止|别|无需|不必|不能|不可|不准|避免)\s*(?:再\s*)?(?:(?:实际|继续)\s*)?(?:(?:调用|使用|执行|选择|暴露)\s*)?$/iu.test(
+      prefix,
+    ) ||
+    /\b(?:do not|don't|never|must not|should not)\s+(?:(?:call|use|execute|select|expose)\s+)?$/iu.test(
+      prefix,
+    ) ||
+    /\bwithout\s+(?:calling|using|executing|selecting|exposing)\s+$/iu.test(prefix)
+  );
+}
+
+/**
+ * An author may name the exact runtime tools they expect to be used. Those
+ * canonical names are stronger evidence than fuzzy retrieval and must not be
+ * displaced by description/schema overlap. Names are still intersected with
+ * the already policy-filtered executable set, and explicit negations are
+ * ignored so "do not call get_overview" cannot accidentally expose it.
+ */
+function explicitlyNamedExecutableTools(
+  query: string,
+  executableNames: ReadonlySet<string>,
+): readonly string[] {
+  const request = originalRequest(query).normalize('NFKC');
+  const normalized = request.toLocaleLowerCase('en-US');
+  const matches: Array<{ index: number; name: string }> = [];
+
+  for (const name of executableNames) {
+    if (name.startsWith('mcp__') || name.startsWith('plugin__')) continue;
+    const needle = name.normalize('NFKC').toLocaleLowerCase('en-US');
+    let from = 0;
+    while (from < normalized.length) {
+      const index = normalized.indexOf(needle, from);
+      if (index < 0) break;
+      from = index + needle.length;
+      if (
+        isToolNameCharacter(normalized[index - 1]) ||
+        isToolNameCharacter(normalized[index + needle.length]) ||
+        isNegatedToolReference(request, index)
+      ) {
+        continue;
+      }
+      matches.push({ index, name });
+      break;
+    }
+  }
+
+  matches.sort(
+    (left, right) =>
+      left.index - right.index || left.name.localeCompare(right.name, 'en'),
+  );
+  return matches.map((match) => match.name);
+}
+
+function explicitlyNegatedExecutableTools(
+  query: string,
+  executableNames: ReadonlySet<string>,
+): ReadonlySet<string> {
+  const request = originalRequest(query).normalize('NFKC');
+  const normalized = request.toLocaleLowerCase('en-US');
+  const negated = new Set<string>();
+  for (const name of executableNames) {
+    const needle = name.normalize('NFKC').toLocaleLowerCase('en-US');
+    let from = 0;
+    while (from < normalized.length) {
+      const index = normalized.indexOf(needle, from);
+      if (index < 0) break;
+      from = index + needle.length;
+      if (
+        !isToolNameCharacter(normalized[index - 1]) &&
+        !isToolNameCharacter(normalized[index + needle.length]) &&
+        isNegatedToolReference(request, index)
+      ) {
+        negated.add(name);
+        break;
+      }
+    }
+  }
+  return negated;
+}
+
 function withoutNegatedForeignProjectClauses(request: string): string {
   return request
     .replace(
@@ -279,6 +378,48 @@ function redundantDirectoryReads(
   return redundant;
 }
 
+const LOOKUP_FAILURE_RECOVERY_READS: Readonly<
+  Record<string, readonly string[] | undefined>
+> = Object.freeze({
+  read_node: Object.freeze(['search_project', 'list_nodes', 'list_elements']),
+  read_element: Object.freeze(['search_project', 'list_elements']),
+  get_element_patches: Object.freeze(['search_project', 'list_elements']),
+  get_storyline: Object.freeze(['list_nodes']),
+  read_material: Object.freeze(['list_materials']),
+  read_block: Object.freeze(['read_node']),
+  lookup_block: Object.freeze(['read_node']),
+});
+
+function failedLookupRecovery(
+  query: string,
+  previousBatchHadSuccessfulRead: boolean,
+): { failedTools: ReadonlySet<string>; reads: readonly string[] } {
+  if (previousBatchHadSuccessfulRead) {
+    return { failedTools: new Set(), reads: [] };
+  }
+  const recentSections = query.split('\nrecent work:\n');
+  const recent = recentSections[recentSections.length - 1] ?? '';
+  const failedTools = new Set<string>();
+  const reads: string[] = [];
+  for (const match of recent.matchAll(
+    /tool failure ([a-z0-9_]+): ([^\n]*)/giu,
+  )) {
+    const name = match[1] ?? '';
+    const message = match[2] ?? '';
+    if (
+      !LOOKUP_FAILURE_RECOVERY_READS[name] ||
+      !/(?:\bNo\b.{0,80}\bnamed\b|\bnot found\b|\bdoes not exist\b|不存在|找不到)/iu.test(
+        message,
+      )
+    ) {
+      continue;
+    }
+    failedTools.add(name);
+    appendUnique(reads, LOOKUP_FAILURE_RECOVERY_READS[name] ?? []);
+  }
+  return { failedTools, reads };
+}
+
 function needsLongTaskLedger(query: string): boolean {
   const request = originalRequest(query).normalize('NFKC');
   return (
@@ -425,10 +566,20 @@ export function createDriftingToolSelectionStrategy(
     searchMetadata: options.searchMetadata ?? DRIFTING_TOOL_SEARCH_METADATA,
     defaultLimit: 8,
   });
+  const explicitlyPinnableNames = new Set([
+    ...selector.eligibleTools.map((tool) => tool.name),
+    ASK_USER_TOOL,
+    RESULT_PAGE_TOOL,
+    ...LONG_TASK_TOOLS,
+    LONG_TASK_CONSTRAINT_TOOL,
+  ]);
 
   const strategy: AgentToolSelectionStrategy = {
     select(request): readonly string[] {
       const executableNames = new Set(request.definitions.map((definition) => definition.name));
+      const accessByName = new Map(
+        request.definitions.map((definition) => [definition.name, definition.access]),
+      );
       const durableLongTask = request.hints.longTask;
       const activeWholeBookTask =
         durableLongTask?.status === 'active' &&
@@ -455,6 +606,26 @@ export function createDriftingToolSelectionStrategy(
       );
       const previousBatchSuccessfulReads = new Set(
         request.successfulReadNamesInPreviousBatch,
+      );
+      const lookupRecovery = failedLookupRecovery(
+        request.query,
+        previousBatchSuccessfulReads.size > 0,
+      );
+      const pinnableExecutableNames = new Set(
+        [...executableNames].filter((name) => explicitlyPinnableNames.has(name)),
+      );
+      const explicitlyNamedTools = explicitlyNamedExecutableTools(
+        request.query,
+        pinnableExecutableNames,
+      ).filter(
+        (name) =>
+          !lookupRecovery.failedTools.has(name) &&
+          (accessByName.get(name) === 'write' ||
+            !previousBatchSuccessfulReads.has(name)),
+      );
+      const explicitlyNegatedTools = explicitlyNegatedExecutableTools(
+        request.query,
+        pinnableExecutableNames,
       );
       const requestedNarrowReads = explicitNarrowReads(request.query);
       const narrowOnly =
@@ -529,6 +700,8 @@ export function createDriftingToolSelectionStrategy(
       // this optimization.
       if (
         narrowOnly &&
+        lookupRecovery.reads.length === 0 &&
+        explicitlyNamedTools.length === 0 &&
         longTaskTools.length === 0 &&
         dynamicDefinitions.length === 0
       ) {
@@ -536,6 +709,8 @@ export function createDriftingToolSelectionStrategy(
       }
       if (
         catalogOnly &&
+        lookupRecovery.reads.length === 0 &&
+        explicitlyNamedTools.length === 0 &&
         longTaskTools.length === 0 &&
         dynamicDefinitions.length === 0
       ) {
@@ -543,16 +718,23 @@ export function createDriftingToolSelectionStrategy(
       }
 
       const builtInCandidates: string[] = [];
+      appendUnique(builtInCandidates, explicitlyNamedTools);
       if (request.limit > 0 && executableNames.has(ASK_USER_TOOL)) {
         builtInCandidates.push(ASK_USER_TOOL);
       }
       appendUnique(builtInCandidates, narrowReads);
       appendUnique(builtInCandidates, pinnedCatalogReads);
+      appendUnique(
+        builtInCandidates,
+        lookupRecovery.reads.filter((name) => executableNames.has(name)),
+      );
       appendUnique(builtInCandidates, longTaskTools);
       appendUnique(builtInCandidates, longTaskProseTools);
       for (const tool of selector.select(rankingQuery, request.limit)) {
         if (
           !executableNames.has(tool.name) ||
+          lookupRecovery.failedTools.has(tool.name) ||
+          explicitlyNegatedTools.has(tool.name) ||
           builtInCandidates.includes(tool.name) ||
           previousBatchRedundantReads.has(tool.name) ||
           (catalogOnly && accumulatedCatalogReads.has(tool.name))
@@ -581,8 +763,15 @@ export function createDriftingToolSelectionStrategy(
         selectedDynamicTools.push(definition.name);
       }
 
+      const recoverySafeBuiltInCandidates = builtInCandidates.filter(
+        (name) =>
+          !lookupRecovery.failedTools.has(name) &&
+          !(WRITE_PREREQUISITE_READS[name] ?? []).some((prerequisite) =>
+            lookupRecovery.failedTools.has(prerequisite),
+          ),
+      );
       const selectedBuiltIns = includeWritePrerequisites(
-        builtInCandidates,
+        recoverySafeBuiltInCandidates,
         executableNames,
         Math.max(0, request.limit - selectedDynamicTools.length),
       );

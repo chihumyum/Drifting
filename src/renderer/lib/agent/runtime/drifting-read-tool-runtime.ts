@@ -105,6 +105,12 @@ export interface DriftingReadToolRuntimeOptions {
   maxStoredResults?: number;
   maxStoredChars?: number;
   resultArtifactQuota?: Partial<AgentRuntimeResultArtifactQuota>;
+  /**
+   * Optional upper bound used by tests and the DEV headless bridge to force
+   * real artifact paging with a small fixture. It can only reduce a catalog
+   * budget, never enlarge the production exposure.
+   */
+  resultBudgetCharsCap?: number;
 }
 
 export interface TruncatedAgentToolResult {
@@ -144,6 +150,7 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
   private readonly maxStoredResults: number;
   private readonly maxStoredChars: number;
   private readonly resultArtifactQuota: AgentRuntimeResultArtifactQuota;
+  private readonly resultBudgetCharsCap: number | null;
   private readonly storedResults = new Map<string, StoredReadResult>();
   private storedChars = 0;
 
@@ -168,6 +175,14 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     this.dispatch = options.dispatch ?? runAgentTool;
     this.maxStoredResults = options.maxStoredResults ?? DEFAULT_MAX_STORED_RESULTS;
     this.maxStoredChars = options.maxStoredChars ?? DEFAULT_MAX_STORED_CHARS;
+    if (
+      options.resultBudgetCharsCap !== undefined &&
+      (!Number.isSafeInteger(options.resultBudgetCharsCap) ||
+        options.resultBudgetCharsCap <= 0)
+    ) {
+      throw new Error('resultBudgetCharsCap must be a positive safe integer');
+    }
+    this.resultBudgetCharsCap = options.resultBudgetCharsCap ?? null;
     this.resultArtifactQuota = {
       maxArtifactsPerSession:
         options.resultArtifactQuota?.maxArtifactsPerSession ?? this.maxStoredResults,
@@ -622,7 +637,11 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     data: unknown,
   ): Promise<unknown> {
     const serialized = serializeResult(data);
-    if (serialized.length <= tool.resultBudgetChars) return data;
+    const resultBudgetChars = Math.min(
+      tool.resultBudgetChars,
+      this.resultBudgetCharsCap ?? tool.resultBudgetChars,
+    );
+    if (serialized.length <= resultBudgetChars) return data;
 
     const resultRef = ['agent-result', request.sessionId, request.turnId, request.callId].join(':');
     const projectId = request.context.route.projectId ?? '';
@@ -651,7 +670,7 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
         serialized,
       });
     }
-    const previewLimit = Math.min(tool.resultBudgetChars, 4_000);
+    const previewLimit = Math.min(resultBudgetChars, 4_000);
     const result: TruncatedAgentToolResult = {
       truncated: true,
       resultRef,
@@ -662,7 +681,7 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
         arguments: {
           resultRef,
           offset: previewLimit,
-          limit: Math.min(MAX_RESULT_PAGE_CHARS, tool.resultBudgetChars),
+          limit: Math.min(MAX_RESULT_PAGE_CHARS, resultBudgetChars),
         },
       },
     };

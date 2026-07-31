@@ -818,6 +818,61 @@ describe('agent runtime write-effect persistence against real SQLite', () => {
       settledAt: at(11),
     });
 
+    const retryable = await createClaimedEffect(
+      runtime,
+      writes,
+      'call-retryable-revert',
+    );
+    await completeEffect(writes, retryable.effect.id);
+    const retryableReview = {
+      id: 'review-retryable-revert',
+      effectId: retryable.effect.id,
+      sessionId: retryable.effect.sessionId,
+      turnId: retryable.effect.turnId,
+      toolCallId: retryable.effect.toolCallId,
+      createdAt: at(12),
+    };
+    await writes.createReview(retryableReview);
+    await writes.transitionReview({
+      reviewId: retryableReview.id,
+      expectedStatus: 'pending',
+      nextStatus: 'rejected',
+      at: at(13),
+    });
+    await writes.transitionReview({
+      reviewId: retryableReview.id,
+      expectedStatus: 'rejected',
+      nextStatus: 'revert_started',
+      at: at(14),
+    });
+    await writes.transitionReview({
+      reviewId: retryableReview.id,
+      expectedStatus: 'revert_started',
+      nextStatus: 'revert_failed',
+      errorCode: 'TRANSIENT_CONFLICT',
+      errorMessage: 'retry me',
+      at: at(15),
+    });
+    await writes.transitionReview({
+      reviewId: retryableReview.id,
+      expectedStatus: 'revert_failed',
+      nextStatus: 'revert_started',
+      at: at(16),
+    });
+    expect(await writes.getReview(retryableReview.id)).toMatchObject({
+      status: 'revert_started',
+      errorCode: null,
+      errorMessage: null,
+      settledAt: null,
+    });
+    await writes.transitionReview({
+      reviewId: retryableReview.id,
+      expectedStatus: 'revert_started',
+      nextStatus: 'reverted',
+      revertEffect: { revision: 10, restored: true },
+      at: at(17),
+    });
+
     const irreversible = await createClaimedEffect(
       runtime,
       writes,

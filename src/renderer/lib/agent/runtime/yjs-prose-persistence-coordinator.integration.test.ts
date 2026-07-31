@@ -183,6 +183,20 @@ function createState(blocks: readonly YjsProseBlock[]): Uint8Array {
   }
 }
 
+function createLegacyStateWithoutBlockIds(): Uint8Array {
+  const doc = new Y.Doc({ gc: false });
+  try {
+    const paragraph = new Y.XmlElement('paragraph');
+    const text = new Y.XmlText();
+    text.insert(0, 'legacy prose');
+    paragraph.insert(0, [text]);
+    doc.getXmlFragment('default').insert(0, [paragraph]);
+    return Y.encodeStateAsUpdate(doc);
+  } finally {
+    doc.destroy();
+  }
+}
+
 function queryCount(gateway: NodeSqliteGateway, table: string): number {
   return Number(
     (
@@ -256,6 +270,29 @@ async function prepareAppend(
     ...(base.sourceKind === 'seed'
       ? { seedStateUpdate: base.stateUpdate }
       : {}),
+  });
+}
+
+async function prepareEdit(
+  coordinator: YjsProsePersistenceCoordinator,
+  commandId: string,
+  base: YjsProsePersistenceBase,
+  blockId: string,
+  text: string,
+): Promise<PreparedYjsProsePersistenceCommand> {
+  return coordinator.prepare({
+    docId: base.docId,
+    commandId,
+    expectedBase: {
+      revision: base.revision,
+      stateVector: base.stateVector,
+      stateHash: base.stateHash,
+    },
+    operation: {
+      kind: 'edit',
+      blockId,
+      block: paragraph(blockId, text),
+    },
   });
 }
 
@@ -415,6 +452,46 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
       'agent-b',
     ]);
     hydrated.destroy();
+  });
+
+  it('durably upgrades a closed legacy Yjs document before exposing prose freshness', async () => {
+    const { coordinator, database } = setup();
+    const repo = createYjsRepository(database);
+    await repo.upsertSnapshot(
+      'node-content:node-1',
+      createLegacyStateWithoutBlockIds(),
+    );
+    const revisionBefore = await repo.getRevision('node-content:node-1');
+
+    const first = await coordinator.readBase('node-content:node-1');
+    expect(first.revision).toBe(revisionBefore + 1);
+    expect(queryCount(gateway!, 'yjs_updates')).toBe(1);
+    const firstDoc = new Y.Doc({ gc: false });
+    Y.applyUpdate(firstDoc, first.stateUpdate);
+    const ids = snapshotYjsProseBlocks(firstDoc).map((block) => block.id);
+    firstDoc.destroy();
+    expect(ids).toHaveLength(1);
+    expect(ids[0]).toMatch(/^[0-9a-f-]{36}$/u);
+
+    const second = await coordinator.readBase('node-content:node-1');
+    expect(second.revision).toBe(first.revision);
+    expect(second.stateHash).toBe(first.stateHash);
+    expect(queryCount(gateway!, 'yjs_updates')).toBe(1);
+
+    const command = await prepareAppend(
+      coordinator,
+      'command-after-block-id-upgrade',
+      second,
+      'agent-after-upgrade',
+    );
+    await expect(
+      coordinator.commit({
+        command,
+        direction: 'forward',
+        expectedRevision: second.revision,
+        ...persistenceHooks(),
+      }),
+    ).resolves.toMatchObject({ outcome: 'committed' });
   });
 
   it('applies a committed command to the live Y.Doc with an already-persisted origin and no second append', async () => {
@@ -593,6 +670,134 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     ]);
     restoredDoc.destroy();
     expect(queryCount(gateway!, 'yjs_prose_command_receipt')).toBe(2);
+  });
+
+  it('rebases an inverse over an unrelated durable block edit and preserves both outcomes', async () => {
+    const { coordinator, database } = setup();
+    const repo = createYjsRepository(database);
+    await repo.upsertSnapshot(
+      'node-content:node-1',
+      createState([
+        paragraph('base-a', 'Alpha'),
+        paragraph('base-b', 'Beta'),
+      ]),
+    );
+    const base = await coordinator.readBase('node-content:node-1');
+    const agent = await prepareEdit(
+      coordinator,
+      'command-rebased-agent',
+      base,
+      'base-a',
+      'Agent Alpha',
+    );
+    const agentForward = await coordinator.commit({
+      command: agent,
+      direction: 'forward',
+      expectedRevision: base.revision,
+      ...persistenceHooks(),
+    });
+
+    const afterAgent = await coordinator.readBase('node-content:node-1');
+    const concurrent = await prepareEdit(
+      coordinator,
+      'command-rebased-concurrent',
+      afterAgent,
+      'base-b',
+      'Author Beta',
+    );
+    const concurrentForward = await coordinator.commit({
+      command: concurrent,
+      direction: 'forward',
+      expectedRevision: afterAgent.revision,
+      ...persistenceHooks(),
+    });
+
+    const inverse = await coordinator.commit({
+      command: agent,
+      direction: 'inverse',
+      expectedRevision: agentForward.receipt.committedRevision,
+      ...persistenceHooks(),
+    });
+    expect(inverse.receipt.baseRevision).toBe(
+      concurrentForward.receipt.committedRevision,
+    );
+    expect(inverse.receipt.committedRevision).toBe(
+      concurrentForward.receipt.committedRevision + 1,
+    );
+    expect(inverse.receipt.resultStateHash).not.toBe(base.stateHash);
+
+    const current = await coordinator.readBase('node-content:node-1');
+    const doc = new Y.Doc({ gc: false });
+    Y.applyUpdate(doc, current.stateUpdate);
+    expect(snapshotYjsProseBlocks(doc)).toEqual([
+      paragraph('base-a', 'Alpha'),
+      paragraph('base-b', 'Author Beta'),
+    ]);
+    doc.destroy();
+
+    const duplicate = await coordinator.commit({
+      command: agent,
+      direction: 'inverse',
+      expectedRevision: agentForward.receipt.committedRevision,
+      ...persistenceHooks(),
+    });
+    expect(duplicate.outcome).toBe('duplicate');
+    expect(duplicate.receipt).toEqual(inverse.receipt);
+  });
+
+  it('refuses a rebased inverse after its affected block changed again', async () => {
+    const { coordinator, database } = setup();
+    const repo = createYjsRepository(database);
+    await repo.upsertSnapshot(
+      'node-content:node-1',
+      createState([
+        paragraph('base-a', 'Alpha'),
+        paragraph('base-b', 'Beta'),
+      ]),
+    );
+    const base = await coordinator.readBase('node-content:node-1');
+    const agent = await prepareEdit(
+      coordinator,
+      'command-target-agent',
+      base,
+      'base-a',
+      'Agent Alpha',
+    );
+    const agentForward = await coordinator.commit({
+      command: agent,
+      direction: 'forward',
+      expectedRevision: base.revision,
+      ...persistenceHooks(),
+    });
+    const afterAgent = await coordinator.readBase('node-content:node-1');
+    const author = await prepareEdit(
+      coordinator,
+      'command-target-author',
+      afterAgent,
+      'base-a',
+      'Author Alpha',
+    );
+    const authorForward = await coordinator.commit({
+      command: author,
+      direction: 'forward',
+      expectedRevision: afterAgent.revision,
+      ...persistenceHooks(),
+    });
+
+    await expect(
+      coordinator.commit({
+        command: agent,
+        direction: 'inverse',
+        expectedRevision: agentForward.receipt.committedRevision,
+        ...persistenceHooks(),
+      }),
+    ).rejects.toMatchObject({ code: 'STALE_STATE_HASH' });
+    expect(await repo.getRevision('node-content:node-1')).toBe(
+      authorForward.receipt.committedRevision,
+    );
+    expect(
+      await coordinator.getReceipt(agent.prepared.commandId, 'inverse'),
+    ).toBeNull();
   });
 
   it('fails the SQL revision CAS when another durable Yjs update wins the race', async () => {

@@ -3,10 +3,12 @@ import * as Y from 'yjs';
 
 import { canonicalAgentRuntimeJson } from '../../../sqlite-repo/agent-runtime-persistence-repo';
 import {
+  applyPreparedYjsProseInverseRebased,
   applyPreparedYjsProseUpdate,
   createYjsProseSeedState,
   deserializePreparedYjsProseCommand,
   hashYjsProseState,
+  ensureYjsProseBlockIds,
   prepareYjsProseCommand,
   replaceYjsProseBlocks,
   serializePreparedYjsProseCommand,
@@ -214,6 +216,31 @@ function sourceFor(kind: 'live' | 'closed' | 'seed', doc: Y.Doc, revision: numbe
 }
 
 describe('Yjs prose command', () => {
+  it('assigns deterministic ids to legacy top-level blocks without changing text', async () => {
+    const doc = new Y.Doc({ gc: false });
+    const paragraph = new Y.XmlElement('paragraph');
+    const text = new Y.XmlText();
+    text.insert(0, 'legacy prose');
+    paragraph.insert(0, [text]);
+    doc.getXmlFragment('default').insert(0, [paragraph]);
+
+    const first = await ensureYjsProseBlockIds(doc);
+    expect(first.changed).toBe(true);
+    expect(first.update.byteLength).toBeGreaterThan(0);
+    expect(snapshotYjsProseBlocks(doc)).toEqual([
+      expect.objectContaining({
+        id: expect.stringMatching(/^[0-9a-f-]{36}$/u),
+        type: 'paragraph',
+        content: [{ kind: 'text', text: 'legacy prose' }],
+      }),
+    ]);
+    await expect(ensureYjsProseBlockIds(doc)).resolves.toEqual({
+      changed: false,
+      update: new Uint8Array(),
+    });
+    doc.destroy();
+  });
+
   it('prepares deterministic forward/inverse updates and preserves rich block structure exactly', async () => {
     const source = createDoc(baseBlocks(1));
     const sourceHash = await hashYjsProseState(source);
@@ -365,6 +392,71 @@ describe('Yjs prose command', () => {
     staleVector.destroy();
   });
 
+  it('rebases an inverse across unrelated block edits but rejects a changed target', async () => {
+    const source = createDoc(baseBlocks(14));
+    const sourceBlocks = snapshotYjsProseBlocks(source);
+    const first = await prepareYjsProseCommand({
+      commandId: 'rebase-first',
+      source: { kind: 'live', doc: source, revision: 1 },
+      expectedBase: { revision: 1, stateVector: Y.encodeStateVector(source) },
+      operation: {
+        kind: 'edit',
+        blockId: 'base-14-0',
+        block: richBlock('base-14-0', 700),
+      },
+    });
+
+    const withUnrelatedEdit = cloneDoc(source);
+    await applyPreparedYjsProseUpdate(withUnrelatedEdit, first, 'forward');
+    const unrelated = await prepareYjsProseCommand({
+      commandId: 'rebase-unrelated',
+      source: { kind: 'live', doc: withUnrelatedEdit, revision: 2 },
+      expectedBase: {
+        revision: 2,
+        stateVector: Y.encodeStateVector(withUnrelatedEdit),
+      },
+      operation: {
+        kind: 'edit',
+        blockId: 'base-14-2',
+        block: richBlock('base-14-2', 701),
+      },
+    });
+    await applyPreparedYjsProseUpdate(withUnrelatedEdit, unrelated, 'forward');
+    await applyPreparedYjsProseInverseRebased(withUnrelatedEdit, first);
+    const rebasedBlocks = snapshotYjsProseBlocks(withUnrelatedEdit);
+    expect(rebasedBlocks[0]).toEqual(sourceBlocks[0]);
+    expect(rebasedBlocks[2]).toEqual(richBlock('base-14-2', 701));
+    expect(rebasedBlocks.filter((_, index) => index !== 2)).toEqual(
+      sourceBlocks.filter((_, index) => index !== 2),
+    );
+
+    const withTargetEdit = cloneDoc(source);
+    await applyPreparedYjsProseUpdate(withTargetEdit, first, 'forward');
+    const target = await prepareYjsProseCommand({
+      commandId: 'rebase-target',
+      source: { kind: 'live', doc: withTargetEdit, revision: 2 },
+      expectedBase: {
+        revision: 2,
+        stateVector: Y.encodeStateVector(withTargetEdit),
+      },
+      operation: {
+        kind: 'edit',
+        blockId: 'base-14-0',
+        block: richBlock('base-14-0', 702),
+      },
+    });
+    await applyPreparedYjsProseUpdate(withTargetEdit, target, 'forward');
+    const targetHash = await hashYjsProseState(withTargetEdit);
+    await expect(
+      applyPreparedYjsProseInverseRebased(withTargetEdit, first),
+    ).rejects.toMatchObject({ code: 'STALE_STATE_HASH' });
+    expect(await hashYjsProseState(withTargetEdit)).toBe(targetHash);
+
+    source.destroy();
+    withUnrelatedEdit.destroy();
+    withTargetEdit.destroy();
+  });
+
   it('normalizes live, closed, and seed inputs to the same Yjs command path', async () => {
     const source = createDoc(baseBlocks(5));
     const operation = operationFor(4, snapshotYjsProseBlocks(source));
@@ -432,6 +524,22 @@ describe('Yjs prose command', () => {
           attrs: { level: 2, id: 'existing-id' },
           content: [{ type: 'text', text: 'Beta' }],
         },
+        { type: 'horizontalRule' },
+        {
+          type: 'orderedList',
+          attrs: { start: 1 },
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'Gamma' }],
+                },
+              ],
+            },
+          ],
+        },
       ],
     });
     const first = await createYjsProseSeedState(projection);
@@ -441,7 +549,7 @@ describe('Yjs prose command', () => {
     const seeded = new Y.Doc({ gc: false });
     Y.applyUpdate(seeded, first);
     const blocks = snapshotYjsProseBlocks(seeded);
-    expect(blocks).toHaveLength(2);
+    expect(blocks).toHaveLength(4);
     expect(blocks[0]).toMatchObject({
       type: 'paragraph',
       content: [{ kind: 'text', text: 'Alpha', marks: { bold: {} } }],
@@ -450,6 +558,11 @@ describe('Yjs prose command', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(blocks[1].id).toBe('existing-id');
+    expect(blocks.slice(2).map((block) => block.type)).toEqual([
+      'horizontalRule',
+      'orderedList',
+    ]);
+    expect(blocks.slice(2).every((block) => block.id.length > 0)).toBe(true);
     seeded.destroy();
   });
 

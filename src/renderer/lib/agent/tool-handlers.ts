@@ -440,6 +440,8 @@ function resolveArgsRefs(
   args: Record<string, unknown>,
 ): Record<string, unknown> {
   const out = { ...args };
+  const proseEntityKind =
+    typeof out.kind === 'string' ? normalizeEntityKind(out.kind) : 'node';
   // `node` is the neutral name for chapter|drift (they share one namespace);
   // `chapter` is the chapter-only spelling — both resolve to nodeId. `legacy`
   // marks the pre-rename *Id spellings we still accept for robustness.
@@ -456,6 +458,18 @@ function resolveArgsRefs(
     { ext: 'category', internal: 'categoryId', kind: 'category' },
   ];
   for (const { ext, internal, kind } of map) {
+    // read_node/read_block/lookup_block deliberately use `node` as their
+    // provider-facing neutral entity label for backward compatibility. When
+    // kind selects element/storyline/category, resolving that value through
+    // the node namespace here would fail before resolveProseTarget can apply
+    // the requested namespace.
+    if (
+      ext === 'node' &&
+      typeof out.kind === 'string' &&
+      proseEntityKind !== 'node'
+    ) {
+      continue;
+    }
     const raw = out[ext] ?? out[internal];
     if (typeof raw === 'string' && raw.trim()) out[internal] = resolveRef(ctx, kind, raw);
   }

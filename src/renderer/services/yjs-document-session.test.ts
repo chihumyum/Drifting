@@ -135,6 +135,11 @@ describe('YjsDocumentSessionRegistry', () => {
     await settleFinalClose(firstSession);
 
     expect(repo.upsertSnapshot).toHaveBeenCalledOnce();
+    expect(repo.upsertSnapshot).toHaveBeenCalledWith(
+      'node-content:shared',
+      expect.any(Uint8Array),
+      { advanceRevision: false },
+    );
     const persisted = new Y.Doc();
     Y.applyUpdate(
       persisted,

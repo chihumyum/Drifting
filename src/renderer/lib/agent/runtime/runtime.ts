@@ -1600,11 +1600,11 @@ export class AgentRuntime {
         modelDriverFailure(error);
       } finally {
         if (!iteratorCompleted) {
-          try {
-            await iterator.return?.();
-          } catch {
-            // The runtime signal is authoritative; late provider cleanup is best-effort.
-          }
+          // A provider may ignore AbortSignal and also never settle `return()`.
+          // Terminal publication must not wait for that non-cooperative cleanup:
+          // the runtime signal is authoritative and iterator cleanup is strictly
+          // best-effort once the consumer has stopped reading the stream.
+          void Promise.resolve(iterator.return?.()).catch(() => undefined);
         }
       }
 

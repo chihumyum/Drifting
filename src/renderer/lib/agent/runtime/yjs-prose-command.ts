@@ -352,6 +352,33 @@ function canonicalStringify(value: unknown): string {
   return JSON.stringify(canonicalJsonValue(value, 'value'));
 }
 
+/**
+ * Hash a materialized ProseMirror projection without pretending it can
+ * reproduce Yjs-internal mark identities. y-prosemirror legitimately maps
+ * keys such as `entityLink--<instance>` back to the schema mark
+ * `entityLink`; this hash therefore protects the review projection itself,
+ * while `hashYjsProseState` separately protects canonical CRDT state.
+ */
+export async function hashProseMirrorContentJson(
+  contentJson: string,
+): Promise<string> {
+  let document: unknown;
+  try {
+    document = JSON.parse(contentJson);
+  } catch {
+    return invalidProse('ProseMirror contentJson is not valid JSON.');
+  }
+  if (
+    !document ||
+    typeof document !== 'object' ||
+    Array.isArray(document) ||
+    (document as { type?: unknown }).type !== 'doc'
+  ) {
+    return invalidProse('ProseMirror contentJson must have type "doc".');
+  }
+  return sha256Text(canonicalStringify(document));
+}
+
 function assertNonEmpty(value: unknown, path: string): string {
   if (typeof value !== 'string') invalidCommand(`${path} must be a string.`);
   const normalized = value.trim();
@@ -528,6 +555,59 @@ function snapshotElement(element: Y.XmlElement): YjsProseElementNode {
     type: element.nodeName,
     ...(Object.keys(attrs).length > 0 ? { attrs } : {}),
     ...(content.length > 0 ? { content } : {}),
+  };
+}
+
+export interface EnsuredYjsProseBlockIds {
+  changed: boolean;
+  update: Uint8Array;
+}
+
+/**
+ * Upgrade legacy Yjs prose that predates the block-id extension in place.
+ *
+ * This changes only top-level identity attributes, never prose text or block
+ * structure. IDs are content/index-derived so a closed-document retry chooses
+ * the same values. The caller owns persistence of the returned update.
+ */
+export async function ensureYjsProseBlockIds(
+  doc: Y.Doc,
+): Promise<EnsuredYjsProseBlockIds> {
+  const fragment = doc.getXmlFragment(DEFAULT_FRAGMENT);
+  const seen = new Set<string>();
+  const repairs: Array<{ element: Y.XmlElement; id: string }> = [];
+  for (const [index, child] of fragment.toArray().entries()) {
+    if (!(child instanceof Y.XmlElement)) {
+      invalidProse(`Top-level prose child ${index} is not a Y.XmlElement.`);
+    }
+    const snapshot = snapshotElement(child);
+    const current = snapshot.attrs?.id;
+    if (
+      typeof current === 'string' &&
+      current.trim().length > 0 &&
+      !seen.has(current)
+    ) {
+      seen.add(current);
+      continue;
+    }
+    const id = await deterministicSeedBlockId(index, {
+      type: snapshot.type,
+      ...(snapshot.attrs ? { attrs: snapshot.attrs } : {}),
+      ...(snapshot.content ? { content: snapshot.content } : {}),
+    });
+    repairs.push({ element: child, id });
+    seen.add(id);
+  }
+  if (repairs.length === 0) {
+    return { changed: false, update: new Uint8Array() };
+  }
+  const before = Y.encodeStateVector(doc);
+  doc.transact(() => {
+    for (const repair of repairs) repair.element.setAttribute('id', repair.id);
+  }, 'agent-runtime:block-id-migration');
+  return {
+    changed: true,
+    update: Y.encodeStateAsUpdate(doc, before),
   };
 }
 
@@ -1545,6 +1625,103 @@ export async function applyPreparedYjsProseUpdate(
     throw new YjsProseCommandError(
       'INVERSE_MISMATCH',
       `Applied ${direction} update produced an unexpected prose state.`,
+    );
+  }
+  return resultHash;
+}
+
+function canonicalBlock(block: YjsProseBlock | undefined): string | null {
+  return block === undefined ? null : canonicalStringify(block);
+}
+
+function blockMap(
+  blocks: readonly YjsProseBlock[],
+  path: string,
+): ReadonlyMap<string, YjsProseBlock> {
+  const result = new Map<string, YjsProseBlock>();
+  for (const block of blocks) {
+    if (result.has(block.id)) {
+      throw new YjsProseCommandError(
+        'INVERSE_MISMATCH',
+        `${path} contains duplicate block id "${block.id}".`,
+      );
+    }
+    result.set(block.id, block);
+  }
+  return result;
+}
+
+/**
+ * Apply a verified inverse on top of unrelated newer prose changes.
+ *
+ * A strict state-vector equality check is intentionally insufficient for a
+ * review rejection: the open editor may have persisted schema defaults,
+ * entity-link normalization, or an author edit in another block after the
+ * Agent write. The inverse remains exact while every block it owns still
+ * equals the prepared forward projection. We first replay it on an isolated
+ * clone and prove that every unaffected block (including its relative order)
+ * remains byte-for-byte canonical before touching the supplied document.
+ *
+ * If any affected block changed, this fails closed. The caller must never use
+ * this path for a forward command.
+ */
+export async function applyPreparedYjsProseInverseRebased(
+  doc: Y.Doc,
+  prepared: PreparedYjsProseCommand,
+): Promise<string> {
+  const beforeBlocks = snapshotYjsProseBlocks(doc);
+  const beforeById = blockMap(beforeBlocks, 'Current prose');
+  const forwardById = blockMap(
+    prepared.projection.blocks,
+    'Prepared forward projection',
+  );
+  const affected = new Set(prepared.affectedBlockIds);
+
+  for (const blockId of affected) {
+    if (
+      canonicalBlock(beforeById.get(blockId)) !==
+      canonicalBlock(forwardById.get(blockId))
+    ) {
+      throw new YjsProseCommandError(
+        'STALE_STATE_HASH',
+        `Cannot rebase inverse because affected block "${blockId}" changed after the Agent write.`,
+      );
+    }
+  }
+
+  const validation = createDocFromUpdate(Y.encodeStateAsUpdate(doc));
+  let validatedHash: string;
+  try {
+    Y.applyUpdate(validation, prepared.inverseUpdate, APPLY_INVERSE_ORIGIN);
+    const afterBlocks = snapshotYjsProseBlocks(validation);
+    const unaffectedBefore = beforeBlocks.filter((block) => !affected.has(block.id));
+    const unaffectedAfter = afterBlocks.filter((block) => !affected.has(block.id));
+    if (canonicalStringify(unaffectedAfter) !== canonicalStringify(unaffectedBefore)) {
+      throw new YjsProseCommandError(
+        'INVERSE_MISMATCH',
+        'The rebased inverse would alter prose outside its certified affected blocks.',
+      );
+    }
+
+    const affectedBefore = beforeBlocks.filter((block) => affected.has(block.id));
+    const affectedAfter = afterBlocks.filter((block) => affected.has(block.id));
+    if (canonicalStringify(affectedAfter) === canonicalStringify(affectedBefore)) {
+      throw new YjsProseCommandError(
+        'INVERSE_MISMATCH',
+        'The rebased inverse produced no change in its certified affected blocks.',
+      );
+    }
+    validatedHash = await hashYjsProseState(validation);
+  } finally {
+    validation.destroy();
+  }
+
+  Y.applyUpdate(doc, prepared.inverseUpdate, APPLY_INVERSE_ORIGIN);
+  const resultHash = await hashYjsProseState(doc);
+  if (resultHash !== validatedHash) {
+    throw new YjsProseCommandError(
+      'INVERSE_MISMATCH',
+      'The rebased inverse did not reproduce its isolated validation state.',
     );
   }
   return resultHash;

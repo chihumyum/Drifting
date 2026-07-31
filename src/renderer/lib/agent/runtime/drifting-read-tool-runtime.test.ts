@@ -258,6 +258,38 @@ describe('DriftingReadToolRuntime', () => {
     });
   });
 
+  it('can lower but never enlarge catalog result budgets for DEV paging tests', async () => {
+    const runtime = new DriftingReadToolRuntime({
+      freshness: null,
+      resultBudgetCharsCap: 1_000,
+    });
+    toolHandlerMocks.runAgentTool.mockResolvedValue('x'.repeat(1_001));
+
+    const response = await runtime.execute(executionRequest());
+
+    expect(response).toMatchObject({
+      ok: true,
+      data: {
+        truncated: true,
+        preview: 'x'.repeat(1_000),
+        totalChars: 1_001,
+        reread: {
+          arguments: {
+            offset: 1_000,
+            limit: 1_000,
+          },
+        },
+      },
+    });
+    expect(
+      () =>
+        new DriftingReadToolRuntime({
+          freshness: null,
+          resultBudgetCharsCap: 0,
+        }),
+    ).toThrow('resultBudgetCharsCap must be a positive safe integer');
+  });
+
   it('pages Chinese and emoji by Unicode code points without splitting surrogate pairs', async () => {
     const runtime = new DriftingReadToolRuntime({ freshness: null });
     const oversized = '中😀'.repeat(7_000);
@@ -623,6 +655,15 @@ describe('DriftingReadToolRuntime', () => {
       ...patch,
       id: 'patch-pending-delete',
     };
+    const displayEnrichedPatch = {
+      ...patch,
+      sourceNodeTitle: '第一章',
+      sourceNarrativeOrder: 1,
+      sourceBookOrder: 2,
+    };
+    expect(await elementPatchRevision(displayEnrichedPatch)).toBe(
+      await elementPatchRevision(patch),
+    );
     toolHandlerMocks.pendingDeletedPatchIds.mockReturnValue(
       new Set(['patch-pending-delete']),
     );
@@ -633,7 +674,7 @@ describe('DriftingReadToolRuntime', () => {
       }),
     );
     const readElementPatches = vi.fn(async () => [
-      patch,
+      displayEnrichedPatch,
       invalidatedPatch,
       pendingDeletedPatch,
     ]);

@@ -773,6 +773,9 @@ export function createAgentRuntimeWriteEffectRepository(
               );
             }
             values.revertStartedAt = transition.at;
+            values.settledAt = null;
+            values.errorCode = null;
+            values.errorMessage = null;
             break;
           case 'reverted':
             values.revertEffectJson = canonicalAgentRuntimeJson(

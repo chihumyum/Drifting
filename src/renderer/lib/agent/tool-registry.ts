@@ -548,7 +548,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
         ...proseEntityTarget,
         block: optionalInteger('来自 read_node 的 1-based 段号'),
         blockId: optionalStr('正文块 uuid（与 block 二选一）'),
-        text: str('替换后的完整块文本'),
+        text: str(
+          '替换后的纯内容文本；read_node 显示的 heading「# 」或引用「> 」仅表示块类型，不要复制进 text',
+        ),
       },
       { additionalProperties: false },
     ),
@@ -574,7 +576,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
             {
               block: optionalInteger('1-based 段号'),
               blockId: optionalStr('正文块 uuid'),
-              text: str('替换后的完整文本'),
+              text: str(
+                '替换后的纯内容文本；不要复制 read_node 的「# 」或「> 」块类型前缀',
+              ),
             },
             { additionalProperties: false },
           ),

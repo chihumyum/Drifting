@@ -1,6 +1,6 @@
 import type { AgentStartInput, AgentStartRoute } from '../protocol';
 
-export const DRIFTING_AGENT_PROMPT_VERSION = 4 as const;
+export const DRIFTING_AGENT_PROMPT_VERSION = 5 as const;
 
 function clean(value: string, maxLength: number): string {
   const normalized = value.split('\u0000').join('').trim();
@@ -31,6 +31,7 @@ export function buildDriftingAgentSystemPrompt(
     'Choose the narrowest read that can answer the request. After a successful read provides enough information, answer immediately; do not call the same directory read or a broader overlapping overview merely to confirm it.',
     'All reads and writes must go through those tools so they share renderer use cases, live Yjs prose, sync, checkpoints, and edit review with manual edits.',
     'For prose, prefer stable block-addressed operations. Treat tool results as the current truth.',
+    'read_node prefixes non-paragraph blocks with compact display markers such as "# " for headings and "> " for blockquotes. Those markers are not prose content: pass only the raw content text to edit_block/edit_blocks.',
     'Every successful read returns { result, freshness }. Use result as the tool payload; preserve freshness citations exactly for any dependent write.',
     'Before rename_node or set_node_summary, call read_node for that exact node, then copy freshness.receiptId plus the matching observation id/revision into expectedRevision. Never invent, reuse across nodes, or strip this freshness citation.',
     'Before update_element, call read_element for that exact element. Before update_storyline, call get_storyline for that exact storyline. Before update_project_facts or create_comment, call get_project_brief or get_overview. Copy the matching freshness observation into expectedRevision.',

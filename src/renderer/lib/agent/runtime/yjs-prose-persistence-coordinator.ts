@@ -30,7 +30,9 @@ import {
   type YjsRepository,
 } from '../../../sqlite-repo/yjs-repo';
 import {
+  applyPreparedYjsProseInverseRebased,
   applyPreparedYjsProseUpdate,
+  ensureYjsProseBlockIds,
   hashYjsProseState,
   prepareYjsProseCommand,
   snapshotYjsProseBlocks,
@@ -453,7 +455,7 @@ export class YjsProsePersistenceCoordinator {
       const repo = createYjsRepository(tx);
       const { doc, hasState } = await loadPersistedDoc(repo, docId);
       try {
-        const revision = await repo.getRevision(docId);
+        let revision = await repo.getRevision(docId);
         if (!hasState) {
           if (revision !== 0) {
             throw new YjsProsePersistenceError(
@@ -468,6 +470,18 @@ export class YjsProsePersistenceCoordinator {
             );
           }
           Y.applyUpdate(doc, seedStateUpdate, 'seed');
+        }
+        const blockIdMigration = await ensureYjsProseBlockIds(doc);
+        if (hasState && blockIdMigration.changed) {
+          const appended = await repo.appendUpdateCas(
+            docId,
+            blockIdMigration.update,
+            revision,
+          );
+          revision = appended.revision;
+          await repo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc), {
+            advanceRevision: false,
+          });
         }
         const sourceKind: YjsProseSourceKind = hasState ? 'closed' : 'seed';
         const stateUpdate = Y.encodeStateAsUpdate(doc);
@@ -495,6 +509,8 @@ export class YjsProsePersistenceCoordinator {
   ): Promise<CapturedDocument> {
     for (let attempt = 0; attempt < MAX_LIVE_CAPTURE_ATTEMPTS; attempt += 1) {
       await this.flushLiveDocument(docId);
+      const blockIdMigration = await ensureYjsProseBlockIds(live);
+      if (blockIdMigration.changed) await this.flushLiveDocument(docId);
       const repository = createYjsRepository(this.database());
       const revisionBefore = await repository.getRevision(docId);
       const stateUpdate = Y.encodeStateAsUpdate(live);
@@ -573,7 +589,9 @@ export class YjsProsePersistenceCoordinator {
 
     const repo = createYjsRepository(tx);
     const revision = await repo.getRevision(input.command.base.docId);
-    if (revision !== input.expectedRevision) {
+    const rebasedInverse =
+      input.direction === 'inverse' && revision > input.expectedRevision;
+    if (revision !== input.expectedRevision && !rebasedInverse) {
       throw new YjsDocumentRevisionConflictError(
         input.command.base.docId,
         input.expectedRevision,
@@ -601,30 +619,38 @@ export class YjsProsePersistenceCoordinator {
         input.command.prepared,
         input.direction,
       );
-      if (!bytesEqual(Y.encodeStateVector(doc), expected.stateVector)) {
-        throw new YjsProsePersistenceError(
-          'STALE_STATE_VECTOR',
-          'The durable prose state vector changed before commit.',
-        );
-      }
+      const baseStateVector = Y.encodeStateVector(doc);
       const baseHash = await hashYjsProseState(doc);
-      if (baseHash !== expected.stateHash) {
-        throw new YjsProsePersistenceError(
-          'STALE_STATE_HASH',
-          'The durable prose semantic state changed before commit.',
+      let resultHash: string;
+      if (rebasedInverse) {
+        resultHash = await applyPreparedYjsProseInverseRebased(
+          doc,
+          input.command.prepared,
+        );
+      } else {
+        if (!bytesEqual(baseStateVector, expected.stateVector)) {
+          throw new YjsProsePersistenceError(
+            'STALE_STATE_VECTOR',
+            'The durable prose state vector changed before commit.',
+          );
+        }
+        if (baseHash !== expected.stateHash) {
+          throw new YjsProsePersistenceError(
+            'STALE_STATE_HASH',
+            'The durable prose semantic state changed before commit.',
+          );
+        }
+        resultHash = await applyPreparedYjsProseUpdate(
+          doc,
+          input.command.prepared,
+          input.direction,
         );
       }
-
-      const resultHash = await applyPreparedYjsProseUpdate(
-        doc,
-        input.command.prepared,
-        input.direction,
-      );
       const update = updateFor(input.command.prepared, input.direction);
       const appended = await repo.appendUpdateCas(
         input.command.base.docId,
         update,
-        input.expectedRevision,
+        revision,
       );
       await repo.upsertSnapshot(
         input.command.base.docId,
@@ -639,10 +665,11 @@ export class YjsProsePersistenceCoordinator {
       await input.persistProjection(tx, projection);
       await input.persistOutbox(tx, projection);
 
-      const resultState = resultSemanticState(
+      const preparedResult = resultSemanticState(
         input.command.prepared,
         input.direction,
       );
+      const resultStateVector = Y.encodeStateVector(doc);
       const receipt: YjsProseCommandReceipt = {
         id: receiptId(
           input.command.prepared.commandId,
@@ -652,13 +679,13 @@ export class YjsProsePersistenceCoordinator {
         direction: input.direction,
         docId: input.command.base.docId,
         sourceKind: input.command.base.sourceKind,
-        baseRevision: input.expectedRevision,
+        baseRevision: revision,
         committedRevision: appended.revision,
-        baseStateVector: copyBytes(expected.stateVector),
-        baseStateHash: expected.stateHash,
-        resultStateVector: copyBytes(resultState.stateVector),
-        resultStateHash: resultState.stateHash,
-        updateHash: resultState.updateHash,
+        baseStateVector: copyBytes(baseStateVector),
+        baseStateHash: baseHash,
+        resultStateVector: copyBytes(resultStateVector),
+        resultStateHash: resultHash,
+        updateHash: preparedResult.updateHash,
         updateId: appended.updateId,
         createdAt: this.now(),
       };
@@ -703,17 +730,23 @@ export class YjsProsePersistenceCoordinator {
       input.command.prepared,
       input.direction,
     );
+    const rebasedInverse =
+      input.direction === 'inverse' &&
+      receipt.baseRevision > input.expectedRevision;
+    const exactSemanticReceipt = !rebasedInverse;
     if (
       receipt.docId !== input.command.base.docId ||
       receipt.commandId !== input.command.prepared.commandId ||
       receipt.direction !== input.direction ||
       receipt.sourceKind !== input.command.base.sourceKind ||
-      receipt.baseRevision !== input.expectedRevision ||
-      receipt.baseStateHash !== expected.stateHash ||
-      !bytesEqual(receipt.baseStateVector, expected.stateVector) ||
+      (receipt.baseRevision !== input.expectedRevision && !rebasedInverse) ||
+      receipt.committedRevision !== receipt.baseRevision + 1 ||
       receipt.updateHash !== result.updateHash ||
-      receipt.resultStateHash !== result.stateHash ||
-      !bytesEqual(receipt.resultStateVector, result.stateVector)
+      (exactSemanticReceipt &&
+        (receipt.baseStateHash !== expected.stateHash ||
+          !bytesEqual(receipt.baseStateVector, expected.stateVector) ||
+          receipt.resultStateHash !== result.stateHash ||
+          !bytesEqual(receipt.resultStateVector, result.stateVector)))
     ) {
       throw new YjsProsePersistenceError(
         'RECEIPT_CONFLICT',

@@ -38,7 +38,7 @@ import type {
 import {
   createYjsProseSeedState,
   deserializePreparedYjsProseCommand,
-  hashYjsProseState,
+  hashProseMirrorContentJson,
   snapshotYjsProseBlocks,
   toPortablePreparedYjsProseCommand,
   type PortablePreparedYjsProseCommand,
@@ -359,11 +359,13 @@ interface PersistedProseCommandPayload {
 
 interface PersistedProseReviewSnapshot {
   format: 'drifting.prose-review-snapshot';
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   effectId: string;
   reviewId: string;
   baseContentJson: string;
   baseStateHash: string;
+  /** Present on v2. Hashes the exact semantic PM review baseline. */
+  baseContentHash?: string;
   mode: 'auto' | 'approve';
 }
 
@@ -418,7 +420,7 @@ function proseWriteStrategy(
         operation,
         ...(base.sourceKind === 'seed' ? { seedStateUpdate } : {}),
       });
-      const reviewSnapshot = proseReviewSnapshot(
+      const reviewSnapshot = await proseReviewSnapshot(
         request.idempotencyKey,
         beforeContentJson,
         base.stateHash,
@@ -596,7 +598,10 @@ function proseWriteStrategy(
         forwardReceipt.committedRevision,
       );
       throwIfAgentAborted(signal);
+      const rebased =
+        result.receipt.baseRevision > forwardReceipt.committedRevision;
       if (
+        !rebased &&
         result.receipt.resultStateHash !==
         prepared.durableWatermark.baseStateHash
       ) {
@@ -609,6 +614,7 @@ function proseWriteStrategy(
         commandId: prepared.commandId,
         stateHash: result.receipt.resultStateHash,
         revision: proseRevision(result.receipt.committedRevision),
+        rebased,
         reconciled: result.outcome !== 'committed',
       };
     },
@@ -731,20 +737,21 @@ function assertPersistedProseProvenance(
   resolveEffectProjectNode(effect, payload.nodeId);
 }
 
-function proseReviewSnapshot(
+async function proseReviewSnapshot(
   idempotencyKey: string,
   baseContentJson: string,
   baseStateHash: string,
   mode: 'auto' | 'approve',
-): PersistedProseReviewSnapshot {
+): Promise<PersistedProseReviewSnapshot> {
   const effectId = proseWriteEffectId(idempotencyKey);
   return {
     format: 'drifting.prose-review-snapshot',
-    schemaVersion: 1,
+    schemaVersion: 2,
     effectId,
     reviewId: proseWriteReviewId(effectId),
     baseContentJson,
     baseStateHash,
+    baseContentHash: await hashProseMirrorContentJson(baseContentJson),
     mode,
   };
 }
@@ -761,22 +768,30 @@ async function assertProseReviewSnapshot(
       'The persisted prose review snapshot does not match the command base hash',
     );
   }
-  const seedState = await createYjsProseSeedState(
+  const baseContentHash = await hashProseMirrorContentJson(
     snapshot.baseContentJson,
   );
-  const doc = new Y.Doc({ gc: false });
-  try {
-    Y.applyUpdate(doc, seedState, 'agent-runtime:review-snapshot-verify');
-    if (
-      (await hashYjsProseState(doc)) !== snapshot.baseStateHash ||
-      contentJsonFromState(seedState) !== snapshot.baseContentJson
-    ) {
+  if (snapshot.schemaVersion === 2) {
+    if (snapshot.baseContentHash !== baseContentHash) {
       throw new Error(
         'The persisted prose review snapshot failed canonical verification',
       );
     }
-  } finally {
-    doc.destroy();
+    return;
+  }
+
+  // Compatibility for effects entered before projection hashes were added.
+  // Validate that the legacy PM baseline survives the supported schema
+  // round-trip semantically. Do not demand the same Yjs hash: mark instance
+  // keys and schema default attrs are intentionally normalized by that path.
+  const seedState = await createYjsProseSeedState(snapshot.baseContentJson);
+  if (
+    (await hashProseMirrorContentJson(contentJsonFromState(seedState))) !==
+    baseContentHash
+  ) {
+    throw new Error(
+      'The persisted prose review snapshot failed canonical verification',
+    );
   }
 }
 
@@ -994,13 +1009,15 @@ function blockWithText(block: YjsProseBlock, text: string): YjsProseBlock {
   if (
     block.type === 'bulletList' ||
     block.type === 'orderedList' ||
-    block.type === 'listItem'
+    block.type === 'listItem' ||
+    block.type === 'horizontalRule'
   ) {
     throw new Error(
       `Block "${block.id}" has structural type ${block.type}; use a range replacement instead`,
     );
   }
   if (block.type === 'blockquote') {
+    const contentText = stripRenderedBlockPrefix(block, text);
     const existing = block.content?.find(
       (node) => node.kind === 'element' && node.type === 'paragraph',
     );
@@ -1013,15 +1030,37 @@ function blockWithText(block: YjsProseBlock, text: string): YjsProseBlock {
           ...(existing?.kind === 'element' && existing.attrs
             ? { attrs: existing.attrs }
             : {}),
-          ...(text ? { content: [{ kind: 'text', text }] } : {}),
+          ...(contentText
+            ? { content: [{ kind: 'text', text: contentText }] }
+            : {}),
         },
       ],
     };
   }
+  const contentText = stripRenderedBlockPrefix(block, text);
   return {
     ...block,
-    content: text ? [{ kind: 'text', text }] : [],
+    content: contentText ? [{ kind: 'text', text: contentText }] : [],
   };
+}
+
+/**
+ * `read_node` uses compact Markdown-like prefixes only to expose block type.
+ * They are not part of the Yjs block text. Models commonly copy the rendered
+ * line back verbatim, so normalize the two editable structural types at the
+ * write boundary instead of persisting `# # Heading` / `> > Quote` artifacts.
+ */
+function stripRenderedBlockPrefix(
+  block: YjsProseBlock,
+  text: string,
+): string {
+  if (block.type === 'heading') {
+    return text.replace(/^\s{0,3}#{1,6}[\t ]+/, '');
+  }
+  if (block.type === 'blockquote') {
+    return text.replace(/^\s{0,3}>[\t ]?/, '');
+  }
+  return text;
 }
 
 async function newParagraph(
@@ -1249,18 +1288,10 @@ function parseProsePayload(value: unknown): PersistedProseCommandPayload {
     !reviewSnapshot ||
     typeof reviewSnapshot !== 'object' ||
     Array.isArray(reviewSnapshot) ||
-    !hasExactKeys(reviewSnapshot, [
-      'baseContentJson',
-      'baseStateHash',
-      'effectId',
-      'format',
-      'mode',
-      'reviewId',
-      'schemaVersion',
-    ]) ||
     (reviewSnapshot as { format?: unknown }).format !==
       'drifting.prose-review-snapshot' ||
-    (reviewSnapshot as { schemaVersion?: unknown }).schemaVersion !== 1 ||
+    ((reviewSnapshot as { schemaVersion?: unknown }).schemaVersion !== 1 &&
+      (reviewSnapshot as { schemaVersion?: unknown }).schemaVersion !== 2) ||
     typeof (reviewSnapshot as { effectId?: unknown }).effectId !== 'string' ||
     !(reviewSnapshot as { effectId: string }).effectId.trim() ||
     typeof (reviewSnapshot as { reviewId?: unknown }).reviewId !== 'string' ||
@@ -1274,6 +1305,30 @@ function parseProsePayload(value: unknown): PersistedProseCommandPayload {
         (reviewSnapshot as { baseStateHash?: unknown }).baseStateHash ?? '',
       ),
     )
+  ) {
+    throw new Error('The persisted prose command is invalid');
+  }
+  const schemaVersion = (reviewSnapshot as { schemaVersion: 1 | 2 })
+    .schemaVersion;
+  const expectedKeys = [
+    'baseContentJson',
+    'baseStateHash',
+    'effectId',
+    'format',
+    'mode',
+    'reviewId',
+    'schemaVersion',
+    ...(schemaVersion === 2 ? ['baseContentHash'] : []),
+  ];
+  if (
+    !hasExactKeys(reviewSnapshot, expectedKeys) ||
+    (schemaVersion === 2 &&
+      !/^sha256:[0-9a-f]{64}$/.test(
+        String(
+          (reviewSnapshot as { baseContentHash?: unknown })
+            .baseContentHash ?? '',
+        ),
+      ))
   ) {
     throw new Error('The persisted prose command is invalid');
   }

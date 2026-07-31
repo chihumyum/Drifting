@@ -144,13 +144,24 @@ describe('DriftingWriteToolRuntime', () => {
     if (!result.ok) throw new Error(result.error);
     updateNode('node-1', { summary: 'Newer author summary' });
 
-    const decision = await runtime.rejectReview(
-      (result.data as { review: { id: string } }).review.id,
-    );
+    const reviewId = (result.data as { review: { id: string } }).review.id;
+    const decision = await runtime.rejectReview(reviewId);
 
     expect(decision.review.status).toBe('revert_failed');
     expect(node().summary).toBe('Newer author summary');
     expect(updateNodeUsecase).toHaveBeenCalledOnce();
+
+    // A receipt-backed failure can be retried after the target is restored to
+    // the Agent postimage. The retry must reuse the same durable review.
+    updateNode('node-1', { summary: 'Agent summary' });
+    const retried = await runtime.rejectReview(reviewId);
+    expect(retried.review).toMatchObject({
+      status: 'reverted',
+      errorCode: null,
+      errorMessage: null,
+    });
+    expect(node().summary).toBe('Before');
+    expect(updateNodeUsecase).toHaveBeenCalledTimes(2);
   });
 
   it('settles durable accepted/rejected decisions after restart and never replays an ambiguous entered inverse', async () => {
@@ -244,6 +255,9 @@ describe('DriftingWriteToolRuntime', () => {
     });
     expect(enteredRename).toHaveBeenCalledOnce();
     expect(node().title).toBe('Ambiguous inverse');
+    const interruptedRetry = await enteredRuntime.rejectReview(enteredReviewId);
+    expect(interruptedRetry.review.status).toBe('revert_failed');
+    expect(enteredRename).toHaveBeenCalledOnce();
   });
 
   it('marks an entered write uncertain and never dispatches it again', async () => {
@@ -678,7 +692,13 @@ function transitionReview(
     case 'accepted_effect':
       return { ...base, settledAt: transition.at };
     case 'revert_started':
-      return { ...base, revertStartedAt: transition.at };
+      return {
+        ...base,
+        revertStartedAt: transition.at,
+        settledAt: null,
+        errorCode: null,
+        errorMessage: null,
+      };
     case 'reverted':
       return {
         ...base,

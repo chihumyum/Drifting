@@ -423,6 +423,26 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
     });
   });
 
+  it('resolves the neutral read_node reference in the selected prose-entity namespace', async () => {
+    const runtime = new DriftingReadToolRuntime({
+      freshness: null,
+      readProseBase: async () => stableProseBase,
+    });
+
+    const result = await runtime.execute(
+      request('read_node', {
+        node: '柳青',
+        kind: 'element',
+        prose: true,
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data).toContain('element "柳青"');
+    expect(result.data).toContain('雨夜里');
+  });
+
   it('searches authoritative closed-document prose instead of stale contentJson caches', async () => {
     proseTruthFixture.byId.set(
       'node-1',

@@ -193,6 +193,13 @@ export type AgentRuntimeWriteReviewTransition =
       at: string;
     }
   | {
+      /** Retry a failed, receipt-backed inverse after its transient conflict clears. */
+      reviewId: string;
+      expectedStatus: 'revert_failed';
+      nextStatus: 'revert_started';
+      at: string;
+    }
+  | {
       reviewId: string;
       expectedStatus: 'rejected';
       nextStatus: 'revert_unavailable';

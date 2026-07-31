@@ -9,6 +9,8 @@ import {
   type ScriptedDriverStep,
 } from './testing';
 import type {
+  AgentModelDriver,
+  AgentModelStreamEvent,
   AgentRuntimeJournalEntry,
   AgentRuntimeRunInput,
   AgentRuntimeUsage,
@@ -1136,6 +1138,47 @@ describe('AgentRuntime', () => {
     });
     expect(result.entries.filter((entry) => entry.event.type === 'turn_finished')).toHaveLength(1);
     driver.assertExhausted();
+    clock.assertIdle();
+  });
+
+  it('publishes the duration terminal without awaiting non-cooperative iterator cleanup', async () => {
+    const clock = new ManualAgentClock();
+    let nextCalled = false;
+    let returnCalled = false;
+    const neverNext = new Promise<IteratorResult<AgentModelStreamEvent>>(() => undefined);
+    const neverReturn = new Promise<IteratorResult<AgentModelStreamEvent>>(() => undefined);
+    const driver: AgentModelDriver = {
+      id: 'non-cooperative-provider',
+      stream: () => ({
+        [Symbol.asyncIterator]() {
+          return {
+            next: () => {
+              nextCalled = true;
+              return neverNext;
+            },
+            return: () => {
+              returnCalled = true;
+              return neverReturn;
+            },
+          };
+        },
+      }),
+    };
+    const turn = new AgentRuntime({ driver, clock }).runTurn(
+      input({ limits: { maxDurationMs: 100 } }),
+    );
+
+    await waitUntil(() => nextCalled, 'provider iterator was not entered');
+    clock.advanceBy(100);
+    const result = await turn;
+
+    expect(returnCalled).toBe(true);
+    expect(result.state.terminal).toMatchObject({
+      type: 'turn_finished',
+      outcome: 'budget_exceeded',
+      failureCode: 'BUDGET_EXCEEDED',
+    });
+    expect(result.entries.filter((entry) => entry.event.type === 'turn_finished')).toHaveLength(1);
     clock.assertIdle();
   });
 

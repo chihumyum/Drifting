@@ -117,7 +117,13 @@ const readPlanSchema = Type.Object(
   { additionalProperties: false },
 );
 
-const updatePlanSchema = Type.Union([
+/**
+ * Strict command schema used at the execution boundary.  Keep the discriminated
+ * branches here even though the provider-facing schema below is deliberately a
+ * single object: OpenAI-compatible providers such as DeepSeek reject function
+ * schemas whose root is `anyOf` instead of `type: "object"`.
+ */
+const updatePlanCommandSchema = Type.Union([
   Type.Object(
     {
       operation: Type.Literal('create'),
@@ -186,6 +192,55 @@ const updatePlanSchema = Type.Union([
   ),
 ]);
 
+/**
+ * Provider-compatible projection of {@link updatePlanCommandSchema}.
+ *
+ * Conditional required fields are described by the tool description and then
+ * enforced by the strict command schema before execution.  This avoids making
+ * provider quirks part of the durable command contract while still failing
+ * closed on missing or cross-operation arguments.
+ */
+const updatePlanProviderSchema = Type.Object(
+  {
+    operation: Type.Union([
+      Type.Literal('create'),
+      Type.Literal('append_steps'),
+      Type.Literal('set_objective'),
+      Type.Literal('set_status'),
+    ]),
+    scopeKind: Type.Optional(
+      Type.Union([
+        Type.Literal('explicit_targets'),
+        Type.Literal('whole_book_chapters'),
+      ]),
+    ),
+    objective: Type.Optional(Type.String({ minLength: 1, maxLength: 4_000 })),
+    steps: Type.Optional(
+      Type.Array(stepSeedSchema, {
+        minItems: 1,
+        maxItems: 128,
+      }),
+    ),
+    constraints: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: 2_000 }), {
+        maxItems: 32,
+      }),
+    ),
+    taskId: Type.Optional(Type.String({ minLength: 1, maxLength: 240 })),
+    expectedRevision: Type.Optional(Type.Integer({ minimum: 0 })),
+    status: Type.Optional(
+      Type.Union([
+        Type.Literal('active'),
+        Type.Literal('paused'),
+        Type.Literal('blocked'),
+        Type.Literal('completed'),
+        Type.Literal('failed'),
+      ]),
+    ),
+  },
+  { additionalProperties: false },
+);
+
 const updateStepSchema = Type.Object(
   {
     taskId: Type.String({ minLength: 1, maxLength: 240 }),
@@ -208,7 +263,7 @@ const updateStepSchema = Type.Object(
   { additionalProperties: false },
 );
 
-const updateConstraintSchema = Type.Union([
+const updateConstraintCommandSchema = Type.Union([
   Type.Object(
     {
       operation: Type.Literal('add'),
@@ -241,6 +296,26 @@ const updateConstraintSchema = Type.Union([
     { additionalProperties: false },
   ),
 ]);
+
+const updateConstraintProviderSchema = Type.Object(
+  {
+    operation: Type.Union([
+      Type.Literal('add'),
+      Type.Literal('fulfill'),
+      Type.Literal('supersede'),
+    ]),
+    taskId: Type.String({ minLength: 1, maxLength: 240 }),
+    expectedRevision: Type.Integer({ minimum: 0 }),
+    body: Type.Optional(Type.String({ minLength: 1, maxLength: 2_000 })),
+    constraintId: Type.Optional(
+      Type.String({ minLength: 1, maxLength: 240 }),
+    ),
+    replacementBody: Type.Optional(
+      Type.String({ minLength: 1, maxLength: 2_000 }),
+    ),
+  },
+  { additionalProperties: false },
+);
 
 interface ProviderStepSeed {
   title: string;
@@ -546,10 +621,10 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_LONG_TASK_PLAN_TOOL,
         description:
-          'Create, extend, rename, pause, block, fail, or complete the durable long-task plan. Choose explicit_targets for provider-listed named targets, or whole_book_chapters to let the runtime freeze the current canonical chapter order and generate one step per chapter. Never pass a chapter or drift UUID. Use expectedRevision for every update.',
-        inputSchema: updatePlanSchema,
+          'Create, extend, rename, pause, block, fail, or complete the durable long-task plan. operation=create requires scopeKind and objective; explicit_targets also requires steps, while whole_book_chapters must omit steps so the runtime freezes canonical chapter order. append_steps requires taskId, expectedRevision, and steps. set_objective requires taskId, expectedRevision, and objective. set_status requires taskId, expectedRevision, and status. Never pass a chapter or drift UUID.',
+        inputSchema: updatePlanProviderSchema,
         access: 'write',
-        validateInput: (input) => validation(updatePlanSchema, input),
+        validateInput: (input) => validation(updatePlanCommandSchema, input),
       },
       {
         name: AGENT_LONG_TASK_STEP_TOOL,
@@ -562,11 +637,11 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_LONG_TASK_CONSTRAINT_TOOL,
         description:
-          'Add, fulfill, or supersede an active durable task constraint with CAS. Active constraints remain pinned across context compaction.',
-        inputSchema: updateConstraintSchema,
+          'Add, fulfill, or supersede an active durable task constraint with CAS. All operations require taskId and expectedRevision. add requires body; fulfill requires constraintId; supersede requires constraintId and replacementBody. Active constraints remain pinned across context compaction.',
+        inputSchema: updateConstraintProviderSchema,
         access: 'write',
         validateInput: (input) =>
-          validation(updateConstraintSchema, input),
+          validation(updateConstraintCommandSchema, input),
       },
     ];
   }

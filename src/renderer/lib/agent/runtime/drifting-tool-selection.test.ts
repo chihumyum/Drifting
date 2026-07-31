@@ -73,6 +73,52 @@ describe('Drifting runtime tool selection', () => {
     );
   });
 
+  it('pins every explicitly named executable tool ahead of fuzzy retrieval', () => {
+    const strategy = createDriftingToolSelectionStrategy();
+    const selected = strategy.select(
+      request(
+        '必须依次调用 read_element、get_element_patches、get_storyline、get_entity_relations、where_does_entity_appear，最后再总结。',
+        EXECUTABLE_NAMES,
+      ),
+    );
+
+    expect(selected).toEqual(
+      expect.arrayContaining([
+        'read_element',
+        'get_element_patches',
+        'get_storyline',
+        'get_entity_relations',
+        'where_does_entity_appear',
+      ]),
+    );
+    expect(selected.length).toBeLessThanOrEqual(8);
+  });
+
+  it('does not pin an explicitly negated canonical tool name', () => {
+    const strategy = createDriftingToolSelectionStrategy();
+    const selected = strategy.select(
+      request(
+        '调用 list_nodes 和 list_elements；不要调用 get_overview。',
+        EXECUTABLE_NAMES,
+      ),
+    );
+
+    expect(selected).toEqual(expect.arrayContaining(['list_nodes', 'list_elements']));
+    expect(selected).not.toContain('get_overview');
+  });
+
+  it('does not treat a separate no-write instruction as negating the next read', () => {
+    const strategy = createDriftingToolSelectionStrategy();
+    const selected = strategy.select(
+      request(
+        '只读验收且不要写入：1) read_node(node="07")；2) lookup_block(node="07", ordinal=1)。',
+        EXECUTABLE_NAMES,
+      ),
+    );
+
+    expect(selected).toEqual(expect.arrayContaining(['read_node', 'lookup_block']));
+  });
+
   it.each([
     ['更新角色林默的简介', 'update_element', 'read_element'],
     ['修改主线故事的梗概', 'update_storyline', 'get_storyline'],
@@ -460,6 +506,31 @@ describe('Drifting runtime tool selection', () => {
 
     expect(selected).toContain('list_nodes');
     expect(selected).toContain('read_node');
+  });
+
+  it('replaces a failed exact lookup with directory recovery for one batch', () => {
+    const strategy = createDriftingToolSelectionStrategy();
+    const query = [
+      'original request:',
+      '调用 read_node(node="国家合理性", prose=true)。',
+      'recent work:',
+      'tool read_node',
+      'recent work:',
+      'tool failure read_node: No chapter/drift named "国家合理性"',
+    ].join('\n');
+
+    const recovery = strategy.select(request(query, EXECUTABLE_NAMES));
+    expect(recovery).not.toContain('read_node');
+    expect(recovery).toEqual(
+      expect.arrayContaining(['search_project', 'list_nodes', 'list_elements']),
+    );
+
+    const afterRecoveryRead = strategy.select(
+      request(query, EXECUTABLE_NAMES, {
+        successfulReadNamesInPreviousBatch: ['search_project'],
+      }),
+    );
+    expect(afterRecoveryRead).toContain('read_node');
   });
 
   it('uses the narrow direct-read tool for a specifically named material', () => {

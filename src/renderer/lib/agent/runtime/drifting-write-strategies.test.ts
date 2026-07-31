@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
+import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import type {
   PersistedAgentRuntimeWriteExpectation,
 } from '../../../domain/agent-runtime-freshness';
@@ -315,6 +316,139 @@ describe('Drifting write strategies', () => {
       strategy.prepare(request, context(), expectation),
     ).rejects.toMatchObject({ code: 'STALE_REVISION' });
     expect(harness.preparedCommands).toBe(0);
+    harness.doc.destroy();
+  });
+
+  it('certifies a review baseline when y-prosemirror normalizes mark instance keys', async () => {
+    const harness = await proseHarness({
+      blocks: [
+        {
+          id: 'block-a',
+          type: 'paragraph',
+          attrs: { textAlign: 'left' },
+          content: [
+            {
+              kind: 'text',
+              text: 'Alpha',
+              marks: {
+                'entityLink--wTlwK8yH': {
+                  targetKind: 'element',
+                  targetId: 'element-1',
+                  targetBlockId: null,
+                },
+              },
+            },
+          ],
+        },
+        paragraph('block-b', 'Beta'),
+        paragraph('block-c', 'Gamma'),
+      ],
+    });
+    const expectedRevision = {
+      receiptId: 'receipt-mark-normalization',
+      observationId: 'observation-mark-normalization',
+      revision: `yjs:${harness.base.revision}`,
+    };
+    const request = executionRequest('edit_block', {
+      entity: 'Old title',
+      blockId: 'block-b',
+      text: 'Beta revised',
+      expectedRevision,
+    });
+    const strategy = getDriftingWriteStrategy('edit_block', {
+      proseCoordinator:
+        harness.coordinator as unknown as YjsProsePersistenceCoordinator,
+      readNodeContent: async () => harness.contentJson,
+    })!;
+    const prepared = await strategy.prepare(
+      request,
+      context(),
+      proseExpectation(request, expectedRevision, harness.base),
+    );
+    const result = await strategy.applyForward!(request, context(), prepared);
+
+    await expect(
+      strategy.captureEffect(request, context(), result, prepared),
+    ).resolves.toMatchObject({
+      kind: 'yjs_prose',
+      nodeId: 'node-1',
+    });
+    harness.doc.destroy();
+  });
+
+  it('strips read_node display markers before replacing heading or quote text', async () => {
+    const harness = await proseHarness({
+      blocks: [
+        {
+          id: 'block-a',
+          type: 'heading',
+          attrs: { level: 1, textAlign: 'left' },
+          content: [{ kind: 'text', text: '第一幕' }],
+        },
+        {
+          id: 'block-b',
+          type: 'blockquote',
+          content: [
+            {
+              kind: 'element',
+              type: 'paragraph',
+              content: [{ kind: 'text', text: '引文' }],
+            },
+          ],
+        },
+      ],
+    });
+    const expectedRevision = {
+      receiptId: 'receipt-heading-prefix',
+      observationId: 'observation-heading-prefix',
+      revision: `yjs:${harness.base.revision}`,
+    };
+    const request = executionRequest('edit_blocks', {
+      entity: 'Old title',
+      edits: [
+        { blockId: 'block-a', text: '# 第一幕修订' },
+        { blockId: 'block-b', text: '> 引文修订' },
+      ],
+      expectedRevision,
+    });
+    const strategy = getDriftingWriteStrategy('edit_blocks', {
+      proseCoordinator:
+        harness.coordinator as unknown as YjsProsePersistenceCoordinator,
+      readNodeContent: async () => harness.contentJson,
+    })!;
+    const prepared = await strategy.prepare(
+      request,
+      context(),
+      proseExpectation(request, expectedRevision, harness.base),
+    );
+    const operation = (prepared.forward as {
+      command: PortablePreparedYjsProseCommand;
+    }).command.operation;
+
+    expect(operation).toMatchObject({
+      kind: 'edit_many',
+      edits: [
+        {
+          blockId: 'block-a',
+          block: {
+            type: 'heading',
+            content: [{ kind: 'text', text: '第一幕修订' }],
+          },
+        },
+        {
+          blockId: 'block-b',
+          block: {
+            type: 'blockquote',
+            content: [
+              {
+                kind: 'element',
+                content: [{ kind: 'text', text: '引文修订' }],
+              },
+            ],
+          },
+        },
+      ],
+    });
     harness.doc.destroy();
   });
 
@@ -773,6 +907,7 @@ async function proseHarness(
     crashAfterForwardCommit?: boolean;
     firstText?: string;
     revision?: number;
+    blocks?: readonly YjsProseBlock[];
   } = {},
 ): Promise<{
   doc: Y.Doc;
@@ -786,11 +921,14 @@ async function proseHarness(
   const doc = new Y.Doc({ gc: false });
   doc.clientID = 0x5015;
   const firstText = options.firstText ?? 'Alpha';
-  replaceYjsProseBlocks(doc, [
-    paragraph('block-a', firstText),
-    paragraph('block-b', 'Beta'),
-    paragraph('block-c', 'Gamma'),
-  ]);
+  replaceYjsProseBlocks(
+    doc,
+    options.blocks ?? [
+      paragraph('block-a', firstText),
+      paragraph('block-b', 'Beta'),
+      paragraph('block-c', 'Gamma'),
+    ],
+  );
   const stateUpdate = Y.encodeStateAsUpdate(doc);
   const base: YjsProsePersistenceBase = {
     docId: 'node-content:node-1',
@@ -800,26 +938,9 @@ async function proseHarness(
     stateHash: await hashYjsProseState(doc),
     stateUpdate,
   };
-  const contentJson = JSON.stringify({
-    type: 'doc',
-    content: [
-      {
-        type: 'paragraph',
-        attrs: { id: 'block-a' },
-        content: [{ type: 'text', text: firstText }],
-      },
-      {
-        type: 'paragraph',
-        attrs: { id: 'block-b' },
-        content: [{ type: 'text', text: 'Beta' }],
-      },
-      {
-        type: 'paragraph',
-        attrs: { id: 'block-c' },
-        content: [{ type: 'text', text: 'Gamma' }],
-      },
-    ],
-  });
+  const contentJson = JSON.stringify(
+    yDocToProsemirrorJSON(doc, 'default'),
+  );
   let preparedCommands = 0;
   let committedCommands = 0;
   const receipts = new Map<string, YjsProseCommandReceipt>();

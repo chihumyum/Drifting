@@ -5,15 +5,25 @@ import type { EditorState, Transaction } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import { v7 as uuidv7 } from 'uuid';
 
-// Block-level nodes that can be anchor targets for inline references and patches.
-// Lists themselves (bulletList / orderedList) are containers; the individual
-// listItem is the anchorable unit.
-const BLOCK_TYPES = new Set([
+// Nodes that can be anchor targets for inline references and patches. Lists
+// themselves remain containers; their individual listItem is the anchorable
+// unit used by comments and references.
+const ANCHORABLE_BLOCK_TYPES = new Set([
   'paragraph',
   'heading',
   'blockquote',
   'codeBlock',
   'listItem',
+]);
+
+// Agent prose commands snapshot every top-level ProseMirror child. Container
+// and separator nodes therefore also need durable identity even though they
+// are not valid inline-reference anchors.
+const IDENTIFIED_BLOCK_TYPES = new Set([
+  ...ANCHORABLE_BLOCK_TYPES,
+  'bulletList',
+  'orderedList',
+  'horizontalRule',
 ]);
 
 export const BlockIdPluginKey = new PluginKey('blockId');
@@ -29,7 +39,7 @@ function ensureBlockIds(state: EditorState): Transaction | null {
   const seen = new Set<string>();
 
   state.doc.descendants((node, pos) => {
-    if (!BLOCK_TYPES.has(node.type.name)) return;
+    if (!IDENTIFIED_BLOCK_TYPES.has(node.type.name)) return;
     const currentId = node.attrs.id as string | null | undefined;
     if (currentId && !seen.has(currentId)) {
       seen.add(currentId);
@@ -53,7 +63,7 @@ export const BlockId = Extension.create({
   addGlobalAttributes() {
     return [
       {
-        types: Array.from(BLOCK_TYPES),
+        types: Array.from(IDENTIFIED_BLOCK_TYPES),
         attributes: {
           id: {
             default: null,
@@ -104,5 +114,5 @@ export const BlockId = Extension.create({
 // Exposed so the projection service can introspect which node types are
 // considered anchorable blocks.
 export function isBlockType(typeName: string): boolean {
-  return BLOCK_TYPES.has(typeName);
+  return ANCHORABLE_BLOCK_TYPES.has(typeName);
 }

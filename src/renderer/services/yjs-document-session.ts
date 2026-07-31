@@ -357,7 +357,12 @@ export class YjsDocumentSession {
     // rows that this same Y.Doc successfully replayed or appended before this
     // exact fullState capture was queued.
     const coveredId = this.snapshotCoveredUpdateId;
-    await this.repo.upsertSnapshot(this.docId, fullState);
+    // A snapshot only compacts already-durable CRDT state. Advancing the
+    // semantic revision here makes a no-op flush look like a competing edit
+    // and breaks exact Agent review rollback after the editor is mounted.
+    await this.repo.upsertSnapshot(this.docId, fullState, {
+      advanceRevision: false,
+    });
     this.dependencies.captureSnapshotHistory(this.docId, fullState, reason);
     await this.dependencies.compactUpdatesAfterSnapshot(this.docId, coveredId, this.repo);
   }

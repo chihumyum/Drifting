@@ -21,6 +21,7 @@ import { classifyAgentContextSource } from './context-planner';
 import { createAgentLongTaskSupplementalRowsHook } from './long-task-context';
 import {
   AgentLongTaskToolRuntime,
+  AGENT_LONG_TASK_CONSTRAINT_TOOL,
   AGENT_LONG_TASK_PLAN_TOOL,
   projectAgentLongTaskPlanForProvider,
 } from './long-task-tool-runtime';
@@ -896,6 +897,31 @@ describe('durable Agent long-task runtime', () => {
         },
       })
       .find((candidate) => candidate.name === AGENT_LONG_TASK_PLAN_TOOL)!;
+    expect(definition.inputSchema).toMatchObject({ type: 'object' });
+    expect(
+      (definition.inputSchema as { anyOf?: unknown }).anyOf,
+    ).toBeUndefined();
+    const constraintDefinition = runtime
+      .listDefinitions({
+        route: {
+          kind: 'chat',
+          projectId: PROJECT_ID,
+          conversationId: 'conversation-long-task',
+        },
+      })
+      .find((candidate) => candidate.name === AGENT_LONG_TASK_CONSTRAINT_TOOL)!;
+    expect(constraintDefinition.inputSchema).toMatchObject({ type: 'object' });
+    expect(
+      (constraintDefinition.inputSchema as { anyOf?: unknown }).anyOf,
+    ).toBeUndefined();
+    expect(
+      constraintDefinition.validateInput({
+        operation: 'supersede',
+        taskId: 'task-1',
+        expectedRevision: 0,
+        constraintId: 'constraint-1',
+      }),
+    ).toMatchObject({ ok: false });
     expect(
       definition.validateInput({
         operation: 'create',

@@ -26,7 +26,11 @@ export async function hashElementPatchValue(value: unknown): Promise<string> {
 export async function elementPatchRevision(
   patch: ElementPatch | AgentRuntimeElementPatchSnapshot,
 ): Promise<string> {
-  return `element-patch:${await hashElementPatchValue(patch)}`;
+  // `listByElement` returns a display-enriched PatchWithSourceTitle while
+  // `findById` returns the authored ElementPatch row. Freshness must only hash
+  // the canonical authored fields or an immediate read -> update will look
+  // stale merely because the read shape carried source-title/order helpers.
+  return `element-patch:${await hashElementPatchValue(snapshotElementPatch(patch))}`;
 }
 
 export async function elementPatchSetRevision(
