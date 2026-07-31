@@ -80,16 +80,36 @@ export type AgentEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 /** Extended-thinking mode: 'adaptive' = model decides; 'off' = disabled. */
 export type AgentThinking = 'adaptive' | 'off';
 /**
- * Tool-search mode (SDK ENABLE_TOOL_SEARCH). The ~49 drifting MCP tools cost
- * ~10k tokens of definitions up front; tool search defers them and fetches only
- * the relevant 3–5 per turn.
- *  - 'off':  always load every tool definition (today's behaviour).
- *  - 'auto': SDK default — only kicks in when tool defs exceed ~10% of context;
- *            at 49 tools this rarely fires, so it's effectively 'off' for now.
- *  - 'on':   force on — use this to measure the input-token delta.
- * Needs Sonnet 4+/Opus 4+; not supported on Haiku.
+ * Provider-neutral runtime tool selection.
+ *  - 'off':  expose every currently certified definition.
+ *  - 'auto': select at most the runtime hard limit when the certified catalog
+ *            is larger than that limit.
+ *  - 'on':   always run the same bounded selector.
  */
 export type AgentToolSearch = 'off' | 'auto' | 'on';
+
+/** Product default for a fresh General Agent installation. */
+export const AGENT_TOOL_SEARCH_DEFAULT: AgentToolSearch = 'auto';
+
+/**
+ * Keep an explicit persisted choice, including `off`, while giving new or
+ * pre-setting installs the current product default.
+ */
+export function normalizeAgentToolSearch(value: unknown): AgentToolSearch {
+  return value === 'off' || value === 'auto' || value === 'on'
+    ? value
+    : AGENT_TOOL_SEARCH_DEFAULT;
+}
+
+/** One-time v20 migration: the old default `off` was not product-usable. */
+export function migrateAgentToolSearch(
+  value: unknown,
+  persistedVersion: number,
+): AgentToolSearch {
+  return persistedVersion < 20
+    ? AGENT_TOOL_SEARCH_DEFAULT
+    : normalizeAgentToolSearch(value);
+}
 
 /** Tool-search options for the settings picker. */
 export const AGENT_TOOL_SEARCH_OPTIONS: { value: AgentToolSearch; label: string }[] = [
@@ -517,7 +537,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAgentEffort: (e) => set({ agentEffort: e }),
       agentThinking: 'off',
       setAgentThinking: (t) => set({ agentThinking: t }),
-      agentToolSearch: 'off',
+      agentToolSearch: AGENT_TOOL_SEARCH_DEFAULT,
       setAgentToolSearch: (t) => set({ agentToolSearch: t }),
       agentEditMode: 'auto',
       setAgentEditMode: (m) => set({ agentEditMode: m }),
@@ -602,7 +622,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 19,
+      version: 20,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           appearanceSkin?: 'classic' | 'modern';
@@ -864,6 +884,16 @@ export const useSettingsStore = create<SettingsState>()(
         if (version < 19) {
           next.caretColor = CARET_COLOR_DEFAULT;
         }
+        if (version < 20) {
+          // Earlier General Agent builds persisted `off` as their default, so
+          // merely changing the fresh-store value would leave every existing
+          // installation on the 30-schema path. Migrate once to bounded Auto;
+          // users can explicitly choose Off again after this upgrade.
+          next.agentToolSearch = migrateAgentToolSearch(
+            next.agentToolSearch,
+            version,
+          );
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -872,7 +902,11 @@ export const useSettingsStore = create<SettingsState>()(
       // already-migrated install), so a saved 'hosted' can never silently route to
       // the keyless server. Otherwise preserves the default shallow-merge semantics.
       merge: (persisted, current) => {
-        const merged = { ...current, ...(persisted as Partial<SettingsState>) };
+        const persistedSettings = persisted as Partial<SettingsState> | undefined;
+        const merged = { ...current, ...persistedSettings };
+        merged.agentToolSearch = normalizeAgentToolSearch(
+          persistedSettings?.agentToolSearch,
+        );
         if (APP_CONFIG.BYOK_ONLY) {
           if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';
           if (merged.shadowAiMode === 'hosted') merged.shadowAiMode = 'byok';

@@ -25,10 +25,8 @@ import {
   type CopilotTaskId,
   type DateFormat,
   type AgentAuth,
-  type AgentEffort,
   type AgentToolSearch,
   AGENT_MODEL_OPTIONS,
-  AGENT_EFFORT_OPTIONS,
   AGENT_TOOL_SEARCH_OPTIONS,
   TYPEWRITER_POSITION_MAX,
   TYPEWRITER_POSITION_MIN,
@@ -3976,10 +3974,6 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
   const setAgentAuth = useSettingsStore((s) => s.setAgentAuth);
   const agentModel = useSettingsStore((s) => s.agentModel);
   const setAgentModel = useSettingsStore((s) => s.setAgentModel);
-  const agentEffort = useSettingsStore((s) => s.agentEffort);
-  const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
-  const agentThinking = useSettingsStore((s) => s.agentThinking);
-  const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
   const agentToolSearch = useSettingsStore((s) => s.agentToolSearch);
   const setAgentToolSearch = useSettingsStore((s) => s.setAgentToolSearch);
 
@@ -4052,31 +4046,6 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
                 </option>
               ))}
             </select>
-          }
-        />
-      </div>
-
-      <div className="set-sec">
-        <SecHead title={t('settings.agent.reasoningTitle')} hint="REASONING" />
-        <Row
-          label={t('settings.agent.thinking')}
-          desc={t('settings.agent.thinkingDesc')}
-          control={
-            <Toggle
-              on={agentThinking === 'adaptive'}
-              onChange={(on) => setAgentThinking(on ? 'adaptive' : 'off')}
-            />
-          }
-        />
-        <Row
-          label={t('settings.agent.effort')}
-          desc={t('settings.agent.effortDesc')}
-          control={
-            <Seg<AgentEffort>
-              value={agentEffort}
-              options={AGENT_EFFORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-              onChange={setAgentEffort}
-            />
           }
         />
       </div>

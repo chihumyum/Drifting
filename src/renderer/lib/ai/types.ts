@@ -66,6 +66,14 @@ export interface AICompletionRequest {
    */
   responseFormat?: 'json_object';
   /**
+   * Fail-closed terminal contract for metered agent requests. Providers and
+   * LLMClient must not synthesize missing finish/usage data when requested.
+   */
+  terminalRequirements?: {
+    finishReason?: boolean;
+    usage?: boolean;
+  };
+  /**
    * Tool-choice for a function-calling turn. Absent = the legacy "force the
    * single tool" behavior callStructured relies on (structured-output channel).
    * 'auto' lets the model pick; 'required' forces SOME tool; { force: name }
@@ -107,19 +115,39 @@ export interface AICompletionResponse {
   toolCall?: AIToolCall;
   /** All tool calls this turn (function-calling loop). `toolCall` is `toolCalls[0]`. */
   toolCalls?: AIToolCall[];
+  /** Provider-normalized terminal reason (for example stop/tool_calls/length). */
+  finishReason?: string;
   usage: AIUsage;
   /** Raw provider response — kept for debugging, never relied on by upper layers. */
   raw?: unknown;
 }
 
 /**
- * One streamed chunk from `stream()`. Free-form text only (streaming is for
- * the interactive chat surface, never structured/tool output). `delta` is the
- * INCREMENTAL text for this chunk; `usage` is present only on the terminal
- * chunk, which may carry an empty delta.
+ * One incremental function-call fragment from an OpenAI-compatible stream.
+ * `index` is stable within one provider response and allows parallel calls to
+ * interleave. Every string field is an incremental delta except `id`, which is
+ * the provider-assigned stable call id.
+ */
+export interface AIToolCallDelta {
+  index: number;
+  id?: string;
+  nameDelta?: string;
+  argumentsDelta?: string;
+}
+
+/**
+ * One streamed completion chunk. `delta` is incremental visible text;
+ * `toolCallDeltas` carries incremental function-call ids/names/arguments;
+ * `finishReason` and `usage` normally arrive on the final provider chunks.
+ *
+ * Keeping one provider-neutral stream contract lets interactive text and agent
+ * tool calls share the same request instead of silently falling back to a
+ * completion and revealing the whole answer at once.
  */
 export interface AICompletionChunk {
   delta: string;
+  toolCallDeltas?: AIToolCallDelta[];
+  finishReason?: string;
   usage?: AIUsage;
 }
 

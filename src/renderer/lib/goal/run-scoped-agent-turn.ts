@@ -15,9 +15,9 @@ import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useSettingsStore } from '../../store/settings-store';
 import { useProjectStore } from '../../store/project-store';
 import { resolveWritingLanguage } from '../ai/output-language';
-import { parseKv } from '../../domain/kv';
 import { entityKey } from '../agent/tool-entity-ref';
 import { generalAgentTransport } from '../agent/transport';
+import { buildGeneralAgentProjectContext } from '../agent/product-project-context';
 import { buildEditInstruction } from './edit-prompt';
 import type { AgenticTraceStep } from '../ai/shadow-rules';
 import type { ElementChange, ContradictionSpot, EditTurnResult } from './types';
@@ -64,6 +64,7 @@ export async function runScopedAgentTurn(
   }
   const turnId = uuidv7();
   const key = entityKey('node', chapterId);
+  const projectContext = buildGeneralAgentProjectContext(projectId, project);
 
   // Blocks already pending before this turn — so we report only what THIS turn added.
   const before = new Set(
@@ -143,8 +144,8 @@ export async function runScopedAgentTurn(
     effort: settings.agentEffort,
     thinking: settings.agentThinking,
     toolSearch: settings.agentToolSearch,
+    ...projectContext,
     writingLanguage: projectId ? resolveWritingLanguage(projectId) : undefined,
-    projectFacts: project ? parseKv(project.kvJson) : [],
     newConversation: true,
     turnId,
   });

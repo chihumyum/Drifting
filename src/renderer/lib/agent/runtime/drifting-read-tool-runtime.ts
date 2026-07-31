@@ -42,6 +42,7 @@ import {
   elementPatchRevision,
   elementPatchSetRevision,
 } from './element-patch-revision';
+import { clonePortableData } from './portable-data';
 import type {
   AgentRuntimeContext,
   AgentToolDefinition,
@@ -271,8 +272,9 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     result: unknown,
     observations: readonly CreateAgentRuntimeReadObservation[],
   ): Promise<AgentToolExecutionResult> {
+    const portableResult = clonePortableData(result);
     if (!this.freshness) {
-      return { ok: true, data: result };
+      return { ok: true, data: portableResult };
     }
     const receiptId = readReceiptId(request);
     const providerObservations: AgentRuntimeReadFreshnessObservation[] = observations.map(
@@ -284,7 +286,7 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
       }),
     );
     const envelope: AgentRuntimeReadResult = {
-      result,
+      result: portableResult,
       freshness: {
         receiptId,
         observations: providerObservations,

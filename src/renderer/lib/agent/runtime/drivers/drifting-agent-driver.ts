@@ -28,7 +28,7 @@ export interface DriftingAgentModelDriverOptions {
  * a long-lived provider instance.
  */
 export class DriftingAgentModelDriver implements AgentModelDriver {
-  readonly id = 'drifting-deepseek-completion';
+  readonly id = 'drifting-deepseek-stream';
   readonly capabilities = { reasoning: false } as const;
 
   private readonly createClient: () => Promise<

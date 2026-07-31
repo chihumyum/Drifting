@@ -134,7 +134,7 @@ export async function buildGeneralAgentClient(
   return wrapClient(
     new DeepSeekProvider({
       apiKey: deepseekKey,
-      // P1 uses completion-mode function calling and does not round-trip
+      // The General Agent streams function calls but does not yet round-trip
       // provider reasoning state.
       thinking: false,
     }),

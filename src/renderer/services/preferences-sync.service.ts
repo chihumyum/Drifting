@@ -20,7 +20,12 @@
  */
 import { apiClient } from '../lib/axios-config';
 import { isSyncEnabled } from '../lib/config';
-import { useSettingsStore, COPILOT_TASKS, type CopilotTaskId } from '../store/settings-store';
+import {
+  useSettingsStore,
+  COPILOT_TASKS,
+  normalizeAgentToolSearch,
+  type CopilotTaskId,
+} from '../store/settings-store';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('prefs-sync');
@@ -69,6 +74,7 @@ type SyncableSlice = {
   agentModel: unknown;
   agentEffort: unknown;
   agentThinking: unknown;
+  agentToolSearch: unknown;
   // copilot tasks
   copilotAutoTrigger: unknown;
   copilotMode: unknown;
@@ -112,6 +118,7 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'agentModel',
   'agentEffort',
   'agentThinking',
+  'agentToolSearch',
   'copilotAutoTrigger',
   'copilotMode',
   'copilotTaskConfigs',
@@ -269,6 +276,8 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     agentThinking: (v) => {
       if (v === 'adaptive' || v === 'off') store.setAgentThinking(v);
     },
+    agentToolSearch: (v) =>
+      store.setAgentToolSearch(normalizeAgentToolSearch(v)),
     copilotAutoTrigger: (v) => store.setCopilotAutoTrigger(!!v),
     copilotMode: (v) => store.setCopilotMode(v as never),
     copilotTaskConfigs: (v) => {

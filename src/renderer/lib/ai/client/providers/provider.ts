@@ -26,12 +26,19 @@ export interface LLMProvider {
    */
   readonly supportsTools?: boolean;
 
+  /**
+   * Whether `stream()` preserves tool definitions/history and emits
+   * incremental function-call fragments. `supportsTools` alone only promises
+   * that the universal non-streaming `complete()` path can thread tools.
+   */
+  readonly supportsToolStreaming?: boolean;
+
   complete(request: AICompletionRequest): Promise<AICompletionResponse>;
 
   /**
-   * Stream a free-form text completion as incremental chunks. Optional —
-   * present only on providers with a streaming SDK path. Tools are ignored in
-   * stream mode (streaming is for interactive chat, not structured output).
+   * Stream a completion as incremental chunks. Optional — providers without a
+   * streaming SDK path fall back to `complete()`. Callers must check
+   * `supportsToolStreaming` before using this path for a request with tools.
    */
   stream?(request: AICompletionRequest): AsyncIterable<AICompletionChunk>;
 }

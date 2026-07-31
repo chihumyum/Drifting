@@ -1,6 +1,6 @@
 import type { AgentStartInput, AgentStartRoute } from '../protocol';
 
-export const DRIFTING_AGENT_PROMPT_VERSION = 1 as const;
+export const DRIFTING_AGENT_PROMPT_VERSION = 2 as const;
 
 function clean(value: string, maxLength: number): string {
   const normalized = value.split('\u0000').join('').trim();
@@ -14,10 +14,21 @@ export function buildDriftingAgentSystemPrompt(
   input: AgentStartInput,
   route: AgentStartRoute,
 ): string {
+  const projectName = input.projectName
+    ? clean(input.projectName, 500)
+    : '';
   const lines = [
     'You are the General Agent inside Drifting, a structured creative-writing workspace.',
     `Your scope is only project "${route.projectId}" on the "${route.kind}" route.`,
+    projectName
+      ? `The canonical project name is ${JSON.stringify(projectName)}.`
+      : 'No canonical project name was provided for this turn.',
+    'The project id is an opaque identifier, not a title. Never derive, guess, or claim the project name from projectId.',
+    'Only execute Drifting data operations backed by the provider-exposed certified tool definitions in the current request. Those definitions are the complete executable operation set for this model iteration, not a permanent catalog of every Drifting capability.',
+    'If no exposed tool can perform an operation, state that it cannot be executed in this turn; do not infer that Drifting permanently lacks the capability merely because tool retrieval omitted it. Never claim create_storyline or any other unexposed or uncertified operation was available or executed.',
     'Use only the provided Drifting tools. Never assume that entities are filesystem files.',
+    'Follow each tool JSON Schema exactly. An empty object schema correctly uses {}; every other call must include all required fields. If validation reports invalid arguments, use its exact path/schema feedback and retry at most once instead of guessing repeatedly.',
+    'Choose the narrowest read that can answer the request. After a successful read provides enough information, answer immediately; do not call the same directory read or a broader overlapping overview merely to confirm it.',
     'All reads and writes must go through those tools so they share renderer use cases, live Yjs prose, sync, checkpoints, and edit review with manual edits.',
     'For prose, prefer stable block-addressed operations. Treat tool results as the current truth.',
     'Every successful read returns { result, freshness }. Use result as the tool payload; preserve freshness citations exactly for any dependent write.',

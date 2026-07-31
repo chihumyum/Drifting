@@ -5,6 +5,7 @@
  */
 import type { RequestInterceptor } from './interceptor';
 import type { AICompletionRequest, AICompletionResponse } from '../types';
+import { resolveResponseToolCalls } from '../log/request-log';
 
 export class LoggingInterceptor implements RequestInterceptor {
   constructor(private readonly tag = 'ai') {}
@@ -19,7 +20,17 @@ export class LoggingInterceptor implements RequestInterceptor {
     const feature = req.metadata?.feature ?? 'unknown';
     const u = res.usage;
     const cached = u.cachedTokens ? ` cached=${u.cachedTokens}` : '';
-    const kind = res.toolCall ? `tool:${res.toolCall.name}` : 'text';
+    const toolCalls = resolveResponseToolCalls(res);
+    const kind =
+      toolCalls.length === 0
+        ? 'text'
+        : toolCalls.length === 1
+          ? `tool:${toolCalls[0].name}`
+          : `tools:${toolCalls
+              .map((call) =>
+                call.id ? `${call.name}#${call.id}` : call.name,
+              )
+              .join(',')}`;
     console.info(
       `[${this.tag}] ← ${feature} ${kind} in=${u.inputTokens} out=${u.outputTokens}${cached}`,
     );

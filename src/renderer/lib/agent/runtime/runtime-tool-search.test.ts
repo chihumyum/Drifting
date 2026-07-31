@@ -25,12 +25,15 @@ const USAGE: AgentModelStreamEvent = {
   },
 };
 
-function definition(name: string): AgentToolDefinition {
+function definition(
+  name: string,
+  access: AgentToolDefinition['access'] = 'read',
+): AgentToolDefinition {
   return {
     name,
     description: `tool ${name}`,
     inputSchema: { type: 'object', additionalProperties: false },
-    access: 'read',
+    access,
     validateInput: (value) => ({ ok: true, value }),
   };
 }
@@ -71,6 +74,20 @@ function toolCall(callId: string, name: string): readonly AgentModelStreamEvent[
     { type: 'tool_call_start', callId, name },
     { type: 'tool_args_delta', callId, delta: '{}' },
     { type: 'tool_call_end', callId },
+    USAGE,
+    { type: 'finish', reason: 'tool_use' },
+  ];
+}
+
+function toolCalls(
+  calls: readonly { callId: string; name: string }[],
+): readonly AgentModelStreamEvent[] {
+  return [
+    ...calls.flatMap(({ callId, name }) => [
+      { type: 'tool_call_start' as const, callId, name },
+      { type: 'tool_args_delta' as const, callId, delta: '{}' },
+      { type: 'tool_call_end' as const, callId },
+    ]),
     USAGE,
     { type: 'finish', reason: 'tool_use' },
   ];
@@ -169,6 +186,20 @@ describe('AgentRuntime tool search integration', () => {
 
     expect(selections).toHaveLength(3);
     expect(selections[1]?.query).toContain('search_prose next');
+    expect(selections[1]?.successfulReadNamesSinceLastWrite).toEqual([
+      'read_node',
+    ]);
+    expect(selections[2]?.successfulReadNamesSinceLastWrite).toEqual([
+      'read_node',
+    ]);
+    expect(
+      selections.map(
+        (selection) => selection.successfulReadNamesInPreviousBatch,
+      ),
+    ).toEqual([[], ['read_node'], []]);
+    expect(
+      selections.map((selection) => selection.pendingResultPage),
+    ).toEqual([false, false, false]);
     expect(driver.requests.map((request) => request.tools.map((tool) => tool.name))).toEqual([
       ['read_node'],
       ['search_prose'],
@@ -211,6 +242,206 @@ describe('AgentRuntime tool search integration', () => {
     }
   });
 
+  it('invalidates accumulated successful read coverage after a successful write', async () => {
+    const definitions = [
+      definition('read_node'),
+      definition('rename_node', 'write'),
+      ...Array.from({ length: 7 }, (_, index) => definition(`other_${index}`)),
+    ];
+    const selections: AgentToolSelectionRequest[] = [];
+    const selector: AgentToolSelectionStrategy = {
+      select(request) {
+        selections.push(request);
+        if (request.iteration === 1) return ['read_node'];
+        if (request.iteration === 2) return ['rename_node'];
+        return ['read_node'];
+      },
+    };
+    const driver = new RecordingDriver((request) => {
+      if (request.iteration === 1) return toolCall('read-1', 'read_node');
+      if (request.iteration === 2) return toolCall('write-1', 'rename_node');
+      return endTurn();
+    });
+    const runtime = new AgentRuntime({
+      driver,
+      tools: toolRuntime(definitions),
+      toolSelector: selector,
+    });
+
+    await runtime.runTurn(runInput({ toolSearch: 'auto' }));
+
+    expect(
+      selections.map((selection) => selection.successfulReadNamesSinceLastWrite),
+    ).toEqual([[], ['read_node'], []]);
+    expect(
+      selections.map(
+        (selection) => selection.successfulReadNamesInPreviousBatch,
+      ),
+    ).toEqual([[], ['read_node'], []]);
+  });
+
+  it('opens and closes structured result paging for one resultRef', async () => {
+    const definitions = [
+      definition('list_nodes'),
+      definition('read_tool_result'),
+    ];
+    const execute = vi.fn<AgentToolRuntime['execute']>(async (request) => ({
+      ok: true,
+      data: {
+        result:
+          request.name === 'list_nodes'
+            ? {
+                truncated: true,
+                resultRef: 'agent-result:1',
+                reread: {
+                  tool: 'read_tool_result',
+                  arguments: {
+                    resultRef: 'agent-result:1',
+                    offset: 10,
+                    limit: 10,
+                  },
+                },
+              }
+            : {
+                truncated: false,
+                resultRef: 'agent-result:1',
+                content: 'final page',
+              },
+        freshness: {
+          receiptId: `receipt:${request.callId}`,
+          observations: [],
+        },
+      },
+    }));
+    const selections: AgentToolSelectionRequest[] = [];
+    const selector: AgentToolSelectionStrategy = {
+      select(request) {
+        selections.push(request);
+        if (request.iteration === 1) return ['list_nodes'];
+        if (request.iteration === 2) return ['read_tool_result'];
+        return [];
+      },
+    };
+    const driver = new RecordingDriver((request) => {
+      if (request.iteration === 1) {
+        return toolCall('list-1', 'list_nodes');
+      }
+      if (request.iteration === 2) {
+        return toolCall('page-1', 'read_tool_result');
+      }
+      return endTurn('all pages read');
+    });
+
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime(definitions, execute),
+      toolSelector: selector,
+    }).runTurn(runInput({ toolSearch: 'on' }));
+
+    expect(result.state.status).toBe('completed');
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(
+      selections.map((selection) => selection.pendingResultPage),
+    ).toEqual([false, true, false]);
+    expect(
+      selections.map(
+        (selection) => selection.successfulReadNamesInPreviousBatch,
+      ),
+    ).toEqual([[], ['list_nodes'], ['read_tool_result']]);
+  });
+
+  it.each([
+    {
+      secondIterationCalls: [
+        { callId: 'page-b-open', name: 'read_tool_result' },
+        { callId: 'page-a-done', name: 'read_tool_result' },
+      ],
+    },
+    {
+      secondIterationCalls: [
+        { callId: 'page-a-done', name: 'read_tool_result' },
+        { callId: 'page-b-open', name: 'read_tool_result' },
+      ],
+    },
+  ])(
+    'keeps paging open for every pending resultRef regardless of page call order',
+    async ({ secondIterationCalls }) => {
+      const definitions = [
+        definition('list_nodes'),
+        definition('list_elements'),
+        definition('read_tool_result'),
+      ];
+      const pageByCallId: Record<
+        string,
+        { resultRef: string; truncated: boolean }
+      > = {
+        'initial-a': { resultRef: 'agent-result:a', truncated: true },
+        'initial-b': { resultRef: 'agent-result:b', truncated: true },
+        'page-a-done': { resultRef: 'agent-result:a', truncated: false },
+        'page-b-open': { resultRef: 'agent-result:b', truncated: true },
+        'page-b-done': { resultRef: 'agent-result:b', truncated: false },
+      };
+      const execute = vi.fn<AgentToolRuntime['execute']>(async (request) => {
+        const page = pageByCallId[request.callId];
+        if (!page) throw new Error(`Unexpected call ${request.callId}`);
+        return {
+          ok: true,
+          data: {
+            result: {
+              ...page,
+              ...(page.truncated
+                ? {
+                    reread: {
+                      tool: 'read_tool_result',
+                      arguments: { resultRef: page.resultRef },
+                    },
+                  }
+                : {}),
+            },
+          },
+        };
+      });
+      const selections: AgentToolSelectionRequest[] = [];
+      const selector: AgentToolSelectionStrategy = {
+        select(request) {
+          selections.push(request);
+          return request.iteration === 1
+            ? ['list_nodes', 'list_elements']
+            : ['read_tool_result'];
+        },
+      };
+      const driver = new RecordingDriver((request) => {
+        if (request.iteration === 1) {
+          return toolCalls([
+            { callId: 'initial-a', name: 'list_nodes' },
+            { callId: 'initial-b', name: 'list_elements' },
+          ]);
+        }
+        if (request.iteration === 2) {
+          return toolCalls(secondIterationCalls);
+        }
+        if (request.iteration === 3) {
+          return toolCall('page-b-done', 'read_tool_result');
+        }
+        return endTurn('all result refs complete');
+      });
+
+      const result = await new AgentRuntime({
+        driver,
+        tools: toolRuntime(definitions, execute),
+        toolSelector: selector,
+      }).runTurn(runInput({ toolSearch: 'on' }));
+
+      expect(
+        result.state.status,
+        JSON.stringify(result.state.terminal),
+      ).toBe('completed');
+      expect(
+        selections.map((selection) => selection.pendingResultPage),
+      ).toEqual([false, true, true, false]);
+    },
+  );
+
   it('builds the same bounded query from the original request and four recent non-thinking messages', () => {
     const messages: AgentModelMessage[] = [
       { role: 'assistant', content: [{ type: 'thinking', text: 'secret' }] },
@@ -240,6 +471,7 @@ describe('AgentRuntime tool search integration', () => {
     expect(first).not.toContain('secret');
     expect(first).not.toContain('tool_0');
     expect(first).not.toContain('tool_1');
+    expect(first).toContain('tool success tool_5');
     expect(first).toContain('tool_5');
   });
 

@@ -737,7 +737,13 @@ function snippetAround(text: string, idx: number, len: number): string {
 /** The book's premise / goal / style facts + structure counts — the "面" anchor. */
 function getProjectBrief(ctx: AgentToolContext) {
   const s = useDataStore.getState();
-  const project = useProjectStore.getState().currentProject;
+  const currentProject = useProjectStore.getState().currentProject;
+  // The renderer store may briefly still point at the previous book while a
+  // route switch is hydrating. Structural rows below are project-filtered, so
+  // apply the same boundary to project metadata instead of leaking a stale
+  // book's name, summary, or author facts into this turn.
+  const project =
+    currentProject?.id === ctx.projectId ? currentProject : null;
   const nodes = s.bookNodes.filter((n) => n.projectId === ctx.projectId);
   return {
     name: project?.name ?? '',

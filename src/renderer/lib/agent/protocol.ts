@@ -164,6 +164,8 @@ export interface AgentStartInput {
   effort?: AgentEffortChoice;
   thinking?: AgentThinkingChoice;
   toolSearch?: AgentToolSearchChoice;
+  /** Canonical author-visible project name, never inferred from `projectId`. */
+  projectName?: string;
   writingLanguage?: string;
   projectFacts?: { key: string; value: string }[];
   memories?: { kind: string; body: string }[];

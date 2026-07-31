@@ -43,6 +43,7 @@ describe('DriftingAgentModelDriver', () => {
       supportsTools: true,
       complete: async () => ({
         text: 'ready',
+        finishReason: 'stop',
         usage: { inputTokens: 2, outputTokens: 1 },
       }),
     }));

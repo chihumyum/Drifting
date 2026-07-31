@@ -690,7 +690,7 @@
         }
       },
       "chatModel": "对话模型",
-      "chatModelDesc": "P1 使用 DeepSeek 的 OpenAI-compatible function calling；可选速度优先或质量优先模型。",
+      "chatModelDesc": "使用 DeepSeek 的 OpenAI-compatible function calling；可选速度优先或质量优先模型。",
       "modelOptions": {
         "deepseek-v4-flash": {
           "label": "DeepSeek Flash · 快",
@@ -703,12 +703,12 @@
       },
       "reasoningTitle": "推理参数",
       "thinking": "扩展思考",
-      "thinkingDesc": "P1 的工具调用适配器固定关闭扩展思考，以保证 provider-neutral 历史可重放。",
+      "thinkingDesc": "当前 Agent 工具链固定关闭扩展思考，以保证 provider-neutral 历史可重放。",
       "effort": "思考强度",
       "effortDesc": "扩展思考关闭时不生效。",
       "toolSearchTitle": "工具检索",
-      "toolSearch": "工具检索（实验）",
-      "toolSearchDesc": "按授权策略检索并动态加载少量工具 schema；在 P4 验收前保持关闭。",
+      "toolSearch": "工具检索",
+      "toolSearchDesc": "按授权策略为每轮选择最多 8 个已认证工具 schema。新安装和从旧版升级默认使用“自动”；升级后仍可在这里显式关闭。",
       "toolSearchOptions": {
         "off": "关闭 · 全量加载工具",
         "auto": "自动 · 超阈值才启用",

@@ -171,6 +171,21 @@ function domainSnapshot(): string {
   });
 }
 
+function expectPortableTree(value: unknown, path = '$'): void {
+  expect(value, `${path} must not be undefined`).not.toBeUndefined();
+  if (Array.isArray(value)) {
+    value.forEach((child, index) =>
+      expectPortableTree(child, `${path}[${index}]`),
+    );
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, child] of Object.entries(value)) {
+      expectPortableTree(child, `${path}.${key}`);
+    }
+  }
+}
+
 describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
   let writeCalls: string[];
 
@@ -386,7 +401,10 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
         request(tool.name, validArguments[tool.name] ?? {}),
       );
       expect(result, tool.name).toMatchObject({ ok: true });
-      if (result.ok) results[tool.name] = result.data;
+      if (result.ok) {
+        expectPortableTree(result.data, tool.name);
+        results[tool.name] = result.data;
+      }
     }
 
     expect(writeCalls).toEqual([]);
@@ -397,6 +415,39 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
     expect(results.list_memory).toMatchObject({
       memories: [expect.objectContaining({ body: '保持克制。' })],
     });
+  });
+
+  it('does not disclose stale current-project metadata through brief or overview reads', async () => {
+    useProjectStore.setState({
+      currentProject: {
+        id: 'project-foreign',
+        userId: 'user-foreign',
+        name: 'FOREIGN_PROJECT_NAME',
+        summary: 'FOREIGN_PROJECT_SUMMARY',
+        kvJson: '[{"key":"secret","value":"FOREIGN_PROJECT_FACT"}]',
+        storylineTemplateKvJson: '[]',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    });
+    const runtime = new DriftingReadToolRuntime({
+      freshness: null,
+      readProseBase: async () => stableProseBase,
+    });
+
+    for (const name of ['get_project_brief', 'get_overview'] as const) {
+      const result = await runtime.execute(request(name, {}));
+      expect(result, name).toMatchObject({
+        ok: true,
+        data: {
+          name: '',
+          description: '',
+          facts: [],
+        },
+      });
+      expect(JSON.stringify(result), name).not.toContain('FOREIGN_PROJECT');
+    }
+    expect(writeCalls).toEqual([]);
   });
 
   it('has local schema coverage for normal and invalid arguments on every tool', () => {

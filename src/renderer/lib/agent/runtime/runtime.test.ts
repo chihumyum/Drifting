@@ -460,6 +460,312 @@ describe('AgentRuntime', () => {
     clock.assertIdle();
   });
 
+  it('gives a tool-free direct answer the full output budget', async () => {
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          expectRequest: (request) => {
+            expect(request.tools).toEqual([]);
+            expect(request.maxOutputTokens).toBe(100);
+          },
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: '直接回答。' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(1, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+
+    const result = await new AgentRuntime({ driver }).runTurn(
+      input({
+        limits: {
+          maxModelIterations: 3,
+          maxOutputTokens: 100,
+          maxTotalTokens: 100,
+          maxOutputTokensPerIteration: 100,
+        },
+      }),
+    );
+
+    expect(result.state.status).toBe('completed');
+    expect(result.state.assistantText).toBe('直接回答。');
+    driver.assertExhausted();
+  });
+
+  it('gives a direct answer the full budget when tool search selects no tools', async () => {
+    const select = vi.fn(() => [] as const);
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          expectRequest: (request) => {
+            expect(request.tools).toEqual([]);
+            expect(request.maxOutputTokens).toBe(100);
+          },
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: '无需工具。' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(1, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime(
+        [definition('list_nodes')],
+        vi.fn<AgentToolRuntime['execute']>(),
+      ),
+      toolSelector: { select },
+    }).runTurn(
+      input({
+        toolSearch: 'on',
+        limits: {
+          maxModelIterations: 3,
+          maxOutputTokens: 100,
+          maxTotalTokens: 100,
+          maxOutputTokensPerIteration: 100,
+        },
+      }),
+    );
+
+    expect(select).toHaveBeenCalledOnce();
+    expect(result.state.status).toBe('completed');
+    expect(result.state.assistantText).toBe('无需工具。');
+    driver.assertExhausted();
+  });
+
+  it('reserves the final model iteration for a best-effort answer after tool results', async () => {
+    const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({
+      ok: true,
+      data: { chapters: ['第一章'] },
+    }));
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          expectRequest: {
+            iteration: 1,
+            toolNames: ['list_nodes'],
+          },
+          steps: [
+            ...toolCallSteps('list-1', 'list_nodes', ['{}']),
+            { op: 'emit', event: { type: 'usage', usage: usage(4, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          expectRequest: (request) => {
+            expect(request.iteration).toBe(2);
+            expect(request.tools).toEqual([]);
+            expect(request.messages[request.messages.length - 1]).toMatchObject({
+              role: 'tool',
+              content: [
+                {
+                  callId: 'list-1',
+                  ok: true,
+                },
+              ],
+            });
+          },
+          steps: [
+            {
+              op: 'emit',
+              event: {
+                type: 'text_delta',
+                text: '目前有第一章。',
+              },
+            },
+            { op: 'emit', event: { type: 'usage', usage: usage(5, 3) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime(
+        [definition('list_nodes')],
+        execute,
+      ),
+    }).runTurn(
+      input({
+        limits: { maxModelIterations: 2 },
+      }),
+    );
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(result.state.status).toBe('completed');
+    expect(result.state.assistantText).toContain('目前有第一章');
+    expect(result.state.terminal?.outcome).toBe('completed');
+    driver.assertExhausted();
+  });
+
+  it.each([
+    {
+      name: 'output budget',
+      limits: {
+        maxModelIterations: 3,
+        maxOutputTokens: 6,
+        maxTotalTokens: 100,
+        maxOutputTokensPerIteration: 6,
+      },
+      firstUsage: usage(2, 3),
+      secondUsage: usage(3, 2),
+      expectedFirstMax: 3,
+      expectedSynthesisMax: 3,
+    },
+    {
+      name: 'total token budget',
+      limits: {
+        maxModelIterations: 3,
+        maxOutputTokens: 20,
+        maxTotalTokens: 10,
+        maxOutputTokensPerIteration: 20,
+      },
+      firstUsage: usage(4, 1),
+      secondUsage: usage(3, 2),
+      expectedFirstMax: 5,
+      expectedSynthesisMax: 5,
+    },
+  ])(
+    'protects a synthesis headroom inside the $name',
+    async ({
+      limits,
+      firstUsage,
+      secondUsage,
+      expectedFirstMax,
+      expectedSynthesisMax,
+    }) => {
+      const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({
+        ok: true,
+        data: { chapters: ['第一章'] },
+      }));
+      const driver = new ScriptedFakeDriver({
+        rounds: [
+          {
+            expectRequest: (request) => {
+              expect(request.maxOutputTokens).toBe(expectedFirstMax);
+              expect(request.tools.map((tool) => tool.name)).toEqual([
+                'list_nodes',
+              ]);
+            },
+            steps: [
+              ...toolCallSteps('list-budget', 'list_nodes', ['{}']),
+              { op: 'emit', event: { type: 'usage', usage: firstUsage } },
+              { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+            ],
+          },
+          {
+            expectRequest: (request) => {
+              // Headroom exhaustion triggers synthesis before the nominal
+              // final iteration and exposes no tool surface.
+              expect(request.iteration).toBe(2);
+              expect(request.maxOutputTokens).toBe(expectedSynthesisMax);
+              expect(request.tools).toEqual([]);
+            },
+            steps: [
+              {
+                op: 'emit',
+                event: {
+                  type: 'text_delta',
+                  text: '已根据读取结果完成回答。',
+                },
+              },
+              { op: 'emit', event: { type: 'usage', usage: secondUsage } },
+              { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+            ],
+          },
+        ],
+      });
+
+      const result = await new AgentRuntime({
+        driver,
+        tools: toolRuntime(
+          [definition('list_nodes')],
+          execute,
+        ),
+      }).runTurn(input({ limits }));
+
+      expect(result.state.status).toBe('completed');
+      expect(result.state.modelIterations).toBe(2);
+      expect(result.state.assistantText).toContain('完成回答');
+      driver.assertExhausted();
+    },
+  );
+
+  it('opens a synthesis-only circuit after the same all-failed tool result repeats', async () => {
+    const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({
+      ok: false,
+      error: 'The project read boundary is temporarily unavailable.',
+    }));
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            ...toolCallSteps('read-a', 'read_a', ['{}']),
+            { op: 'emit', event: { type: 'usage', usage: usage(4, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          steps: [
+            ...toolCallSteps('read-b', 'read_b', ['{}']),
+            { op: 'emit', event: { type: 'usage', usage: usage(4, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          expectRequest: (request) => {
+            expect(request.tools).toEqual([]);
+            expect(request.messages.slice(-2)).toEqual([
+              expect.objectContaining({
+                role: 'assistant',
+              }),
+              {
+                role: 'tool',
+                content: [
+                  expect.objectContaining({
+                    callId: 'read-b',
+                    ok: false,
+                    content:
+                      'The project read boundary is temporarily unavailable.',
+                  }),
+                ],
+              },
+            ]);
+          },
+          steps: [
+            {
+              op: 'emit',
+              event: {
+                type: 'text_delta',
+                text: '读取暂时不可用，请稍后重试。',
+              },
+            },
+            { op: 'emit', event: { type: 'usage', usage: usage(5, 4) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime(
+        [definition('read_a'), definition('read_b')],
+        execute,
+      ),
+    }).runTurn(input());
+
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(result.state.status).toBe('completed');
+    expect(result.state.modelIterations).toBe(3);
+    expect(result.state.assistantText).toContain('读取暂时不可用');
+    driver.assertExhausted();
+  });
+
   it('feeds malformed, unknown, and schema-invalid calls back without executing them', async () => {
     const clock = new ManualAgentClock();
     const execute = vi.fn<AgentToolRuntime['execute']>();

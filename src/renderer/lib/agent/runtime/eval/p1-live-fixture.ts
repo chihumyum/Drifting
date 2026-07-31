@@ -324,6 +324,26 @@ function executeFixtureRead(
       return ok(fixture.overview);
     case 'get_project_brief':
       return ok(fixture.brief);
+    case 'list_nodes':
+      return ok({
+        storylines: [
+          {
+            name: fixture.storyline.name,
+            summary: fixture.storyline.summary,
+          },
+        ],
+        chapters: Object.values(fixture.nodes).map((node) => ({
+          name: node.title,
+          status: node.status,
+          words: node.wordCount,
+          storyline: fixture.storyline.chapters.includes(
+            node.title as (typeof fixture.storyline.chapters)[number],
+          )
+            ? fixture.storyline.name
+            : null,
+        })),
+        drifts: [],
+      });
     case 'list_elements':
       return ok(fixture.elements);
     case 'read_element': {

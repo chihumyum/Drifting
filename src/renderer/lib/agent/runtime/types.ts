@@ -261,6 +261,32 @@ export interface AgentToolSelectionRequest {
   iteration: number;
   /** Deterministic, bounded query derived from the original request and recent work. */
   query: string;
+  /**
+   * Canonical names of successful reads from the immediately preceding tool
+   * batch, after discarding reads that happened before a successful write in
+   * that batch.
+   *
+   * This intentionally short-lived signal lets selectors avoid one redundant
+   * confirmation read without turning a tool result into an unversioned cache
+   * for the rest of a long-running turn.
+   */
+  successfulReadNamesInPreviousBatch: readonly string[];
+  /**
+   * Canonical names of successful reads in this turn since the most recent
+   * successful write.
+   *
+   * This accumulated signal is reserved for deterministic, self-contained
+   * catalog requests whose requested read fully answers the original prompt.
+   * Generic retrieval should use `successfulReadNamesInPreviousBatch` instead.
+   * A successful write invalidates the accumulated coverage.
+   */
+  successfulReadNamesSinceLastWrite: readonly string[];
+  /**
+   * True while at least one runtime-owned resultRef still reports
+   * `truncated: true`. A terminal `read_tool_result` page closes only its own
+   * resultRef; this becomes false after every pending resultRef is complete.
+   */
+  pendingResultPage: boolean;
   /** Hard provider-facing cap; selectors must never return more names. */
   limit: number;
 }

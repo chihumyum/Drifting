@@ -1,19 +1,18 @@
 /**
- * Agent panel — the interactive Claude agent, rendered in the right sidebar's
+ * Agent panel — the interactive Drifting agent, rendered in the right sidebar's
  * "agent" tab group. Styled after the VS Code Claude Code plugin: a chat that
  * streams assistant text token-by-token, renders it as markdown, shows the
- * agent's tool calls and extended thinking, keeps a local history of past
- * conversations, and exposes a quick model / effort / thinking switcher under
- * the input.
+ * agent's tool calls, keeps a local history of past conversations, and exposes
+ * a quick model switcher under the input.
  *
  * The conversation state + the agent-event subscription live in a module-level
  * store (useAgentChatStore), so this view survives the panel unmounting on tab
  * switches and streaming keeps flowing while it's not mounted. This component is
  * a thin projection: render + local UI concerns (scroll, history dropdown).
  *
- * Credential mode (BYOK Claude OAuth vs Hosted) and the model / thinking params
- * live in Settings → 模型与 API; the switcher here writes the same store fields.
- * If the agent isn't set up for the chosen mode, we show a hint that opens it.
+ * Credential mode and model selection live in Settings → 模型与 API; the
+ * switcher here writes the same store field. If the agent isn't set up for the
+ * chosen mode, we show a hint that opens it.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
@@ -21,7 +20,6 @@ import { useTranslation } from 'react-i18next';
 import {
   useSettingsStore,
   AGENT_MODEL_OPTIONS,
-  AGENT_EFFORT_OPTIONS,
 } from '../../store/settings-store';
 import {
   useAgentChatStore,
@@ -149,17 +147,14 @@ function ThinkingRow({ msg }: { msg: Extract<ChatMsg, { kind: 'thinking' }> }) {
 
 /**
  * The single composer config control: a quiet summary button that opens an
- * upward menu. The menu adjusts model (a nested option list), extended thinking
- * (inline toggle), and reasoning effort (an inline 5-dot meter) in place.
+ * upward menu. The menu adjusts the active model and edit-review behavior.
+ * Reasoning controls stay hidden until the product driver can replay provider
+ * reasoning state across tool rounds.
  */
 function ComposerConfig() {
   const { t } = useTranslation();
   const agentModel = useSettingsStore((s) => s.agentModel);
   const setAgentModel = useSettingsStore((s) => s.setAgentModel);
-  const agentThinking = useSettingsStore((s) => s.agentThinking);
-  const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
-  const agentEffort = useSettingsStore((s) => s.agentEffort);
-  const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
   const agentEditMode = useSettingsStore((s) => s.agentEditMode);
   const setAgentEditMode = useSettingsStore((s) => s.setAgentEditMode);
 
@@ -175,10 +170,6 @@ function ComposerConfig() {
   const modelShort = t(`settings.agent.modelOptions.${agentModel}.short`, {
     defaultValue: modelOption?.short ?? agentModel,
   });
-  const effortShort =
-    AGENT_EFFORT_OPTIONS.find((e) => e.value === agentEffort)?.short ?? agentEffort;
-  const effortIdx = AGENT_EFFORT_OPTIONS.findIndex((e) => e.value === agentEffort);
-
   const close = () => {
     setOpen(false);
     setView('main');
@@ -235,33 +226,6 @@ function ComposerConfig() {
                     <span className="agt-menu__caret">›</span>
                   </span>
                 </button>
-                <div className="agt-menu__divider" />
-                <div className="agt-menu__sec">{t('agentPanel.config.reasoning')}</div>
-                <div className="agt-menu__row">
-                  <span>{t('agentPanel.config.extendedThinking')}</span>
-                  <Switch
-                    checked={agentThinking === 'adaptive'}
-                    onCheckedChange={(checked) =>
-                      setAgentThinking(checked ? 'adaptive' : 'off')
-                    }
-                  />
-                </div>
-                {agentThinking === 'adaptive' && (
-                  <div className="agt-menu__row">
-                    <span>{t('agentPanel.config.effort', { effort: effortShort })}</span>
-                    <span className="agt-dots">
-                      {AGENT_EFFORT_OPTIONS.map((o, i) => (
-                        <button
-                          key={o.value}
-                          type="button"
-                          title={o.label}
-                          className={'agt-dot' + (i <= effortIdx ? ' agt-dot--on' : '')}
-                          onClick={() => setAgentEffort(o.value)}
-                        />
-                      ))}
-                    </span>
-                  </div>
-                )}
                 <div className="agt-menu__divider" />
                 <div className="agt-menu__sec">{t('agentPanel.config.edits')}</div>
                 <div className="agt-menu__row" title={t('agentPanel.config.reviewEditsTitle')}>

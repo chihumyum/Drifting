@@ -28,7 +28,6 @@ import { useDataStore } from './data-store';
 import { useAgentEditStore, type RevertRecord } from './agent-edit-store';
 import { useAgentCheckpointStore } from './agent-checkpoint-store';
 import type { ActivityEntityType } from '../lib/agent/tool-entity-ref';
-import { parseKv } from '../domain/kv';
 import { resolveWritingLanguage } from '../lib/ai/output-language';
 import { loadActiveMemoryHints } from '../usecase/useAgentMemory';
 import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
@@ -46,6 +45,7 @@ import type {
 import { loadCanonicalAgentTranscript } from '../lib/agent/runtime/recovered-transcript';
 import { buildAgentWriteReviewFeedback } from '../lib/agent/runtime/write-review-feedback';
 import { generalAgentTransport } from '../lib/agent/transport';
+import { buildGeneralAgentProjectContext } from '../lib/agent/product-project-context';
 
 const repo = createAgentConversationRepository();
 
@@ -104,7 +104,18 @@ export function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
       return copy;
     }
     case 'tool_result': {
-      const idx = list.findIndex((m) => m.kind === 'tool' && m.id === ev.id);
+      // Provider call ids are unique within one runtime turn, not necessarily
+      // across the whole persisted conversation. Resolve from the newest card
+      // so a later turn reusing `call_0` cannot overwrite an old completed card
+      // and leave the current one permanently running.
+      let idx = -1;
+      for (let i = list.length - 1; i >= 0; i -= 1) {
+        const message = list[i];
+        if (message?.kind === 'tool' && message.id === ev.id) {
+          idx = i;
+          break;
+        }
+      }
       if (idx === -1) return list;
       const copy = list.slice();
       const t = copy[idx] as Extract<ChatMsg, { kind: 'tool' }>;
@@ -516,7 +527,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     // the agent's system prompt so it honors the author's style/POV/length and
     // writes in the manuscript's language. Empty facts → no style steer.
     const project = useProjectStore.getState().currentProject;
-    const projectFacts = project && project.id === projectId ? parseKv(project.kvJson) : [];
+    const projectContext = buildGeneralAgentProjectContext(projectId, project);
     const writingLanguage = resolveWritingLanguage(projectId);
     // Active agent memories (author-approved standing guidance) — injected into
     // the system prompt so past preferences/vetoes/directives keep steering.
@@ -532,8 +543,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       thinking: settings.agentThinking,
       toolSearch: settings.agentToolSearch,
       resume: run.runtimeSessionId ?? undefined,
+      ...projectContext,
       writingLanguage,
-      projectFacts,
       memories,
       turnId,
     });

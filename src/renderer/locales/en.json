@@ -690,7 +690,7 @@
         }
       },
       "chatModel": "Chat model",
-      "chatModelDesc": "P1 uses DeepSeek OpenAI-compatible function calling. Choose the speed-first or quality-first model.",
+      "chatModelDesc": "Uses DeepSeek OpenAI-compatible function calling. Choose the speed-first or quality-first model.",
       "modelOptions": {
         "deepseek-v4-flash": {
           "label": "DeepSeek Flash · fast",
@@ -703,12 +703,12 @@
       },
       "reasoningTitle": "Reasoning",
       "thinking": "Extended thinking",
-      "thinkingDesc": "P1 keeps extended thinking off so provider-neutral tool history can be replayed safely.",
+      "thinkingDesc": "The current Agent tool chain keeps extended thinking off so provider-neutral history can be replayed safely.",
       "effort": "Thinking effort",
       "effortDesc": "Has no effect while extended thinking is off.",
       "toolSearchTitle": "Tool search",
-      "toolSearch": "Tool search (experimental)",
-      "toolSearchDesc": "Retrieves a small set of schemas after policy filtering. Keep it off until the P4 acceptance gate passes.",
+      "toolSearch": "Tool search",
+      "toolSearchDesc": "Selects at most 8 certified tool schemas per iteration after policy filtering. New installs and upgrades use Auto by default; you can still turn it off here.",
       "toolSearchOptions": {
         "off": "Off · load all tools",
         "auto": "Auto · enable above threshold",

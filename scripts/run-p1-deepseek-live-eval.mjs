@@ -22,8 +22,20 @@ const vitestEntry = path.resolve(
   'vitest',
   'vitest.mjs',
 );
-const evalFile =
-  'src/renderer/lib/agent/runtime/eval/p1-deepseek-live.eval.ts';
+const suite = process.env.DRIFTING_AGENT_LIVE_SUITE ?? 'p1';
+const evalFiles = {
+  p1: 'src/renderer/lib/agent/runtime/eval/p1-deepseek-live.eval.ts',
+  'product-canary':
+    'src/renderer/lib/agent/runtime/eval/agent-product-canary.live.eval.ts',
+};
+const evalFile = evalFiles[suite];
+if (!evalFile) {
+  console.error(
+    'DRIFTING_AGENT_LIVE_SUITE must be "p1" or "product-canary".',
+  );
+  process.exitCode = 1;
+  process.exit();
+}
 
 let envSource;
 try {

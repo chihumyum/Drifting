@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AIError,
+  type AICompletionChunk,
   type AICompletionRequest,
   type AICompletionResponse,
 } from '../../../ai/types';
@@ -31,6 +32,35 @@ class FakeCompletionClient implements AgentCompletionClient {
   async complete(request: AICompletionRequest): Promise<AICompletionResponse> {
     this.requests.push(request);
     return this.run(request);
+  }
+}
+
+class FakeStreamingClient implements AgentCompletionClient {
+  readonly supportsTools = true;
+  readonly requests: AICompletionRequest[] = [];
+  completeCalls = 0;
+
+  constructor(
+    private readonly chunks:
+      | readonly AICompletionChunk[]
+      | ((request: AICompletionRequest) => AsyncIterable<AICompletionChunk>),
+    readonly supportsToolStreaming = true,
+  ) {}
+
+  async complete(): Promise<AICompletionResponse> {
+    this.completeCalls += 1;
+    throw new Error('completion fallback must not run');
+  }
+
+  async *stream(
+    request: AICompletionRequest,
+  ): AsyncIterable<AICompletionChunk> {
+    this.requests.push(request);
+    if (typeof this.chunks === 'function') {
+      yield* this.chunks(request);
+      return;
+    }
+    for (const chunk of this.chunks) yield chunk;
   }
 }
 
@@ -125,6 +155,10 @@ describe('OpenAICompatibleCompletionDriver', () => {
       ],
       maxOutputTokens: 512,
       thinking: false,
+      terminalRequirements: {
+        finishReason: true,
+        usage: true,
+      },
       toolChoice: 'auto',
       signal: input.signal,
       metadata: {
@@ -139,6 +173,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
   it('uses only planned context and labels summaries/notes with runtime provenance', async () => {
     const client = new FakeCompletionClient(() => ({
       text: 'planned answer',
+      finishReason: 'stop',
       usage: { inputTokens: 12, outputTokens: 3 },
     }));
     const driver = new OpenAICompatibleCompletionDriver({
@@ -241,6 +276,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
 
   it('preserves denied call/result topology from a planned projection', async () => {
     const client = new FakeCompletionClient(() => ({
+      finishReason: 'stop',
       usage: { inputTokens: 3, outputTokens: 1 },
     }));
     const driver = new OpenAICompatibleCompletionDriver({
@@ -331,6 +367,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
 
   it('projects assistant blocks and expands tool-result batches into AI messages', async () => {
     const client = new FakeCompletionClient(() => ({
+      finishReason: 'stop',
       usage: { inputTokens: 1, outputTokens: 1 },
     }));
     const driver = new OpenAICompatibleCompletionDriver({
@@ -412,8 +449,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
         { id: 'call-b', name: 'read_element', arguments: { element: 'B' } },
       ],
       usage: { inputTokens: 10, outputTokens: 6 },
-      // Tool presence wins over a conflicting provider stop reason.
-      raw: { choices: [{ finish_reason: 'stop' }] },
+      raw: { choices: [{ finish_reason: 'tool_calls' }] },
     }));
     const driver = new OpenAICompatibleCompletionDriver({
       client,
@@ -454,6 +490,358 @@ describe('OpenAICompatibleCompletionDriver', () => {
     ]);
   });
 
+  it('streams visible text and parallel fragmented tool calls before terminal usage', async () => {
+    const client = new FakeStreamingClient([
+      { delta: '先看' },
+      {
+        delta: '一下。',
+        toolCallDeltas: [
+          {
+            index: 0,
+            id: 'call-a',
+            nameDelta: 'read_',
+          },
+          {
+            index: 1,
+            id: 'call-b',
+            nameDelta: 'search_',
+          },
+        ],
+      },
+      {
+        delta: '',
+        toolCallDeltas: [
+          {
+            index: 0,
+            nameDelta: 'node',
+            argumentsDelta: '{"node":',
+          },
+          {
+            index: 1,
+            nameDelta: 'project',
+            argumentsDelta: '{"query":',
+          },
+        ],
+      },
+      {
+        delta: '',
+        toolCallDeltas: [
+          { index: 1, argumentsDelta: '"遗物"}' },
+          { index: 0, argumentsDelta: '"第一章"}' },
+        ],
+      },
+      { delta: '', finishReason: 'tool_calls' },
+      {
+        delta: '',
+        usage: { inputTokens: 21, outputTokens: 9, cachedTokens: 4 },
+      },
+    ]);
+    const driver = new OpenAICompatibleCompletionDriver({
+      client,
+      defaultModel: 'deepseek-chat',
+    });
+
+    await expect(collect(driver, request())).resolves.toEqual([
+      { type: 'text_delta', text: '先看' },
+      { type: 'text_delta', text: '一下。' },
+      {
+        type: 'tool_call_start',
+        callId: 'call-a',
+        name: 'read_node',
+      },
+      {
+        type: 'tool_args_delta',
+        callId: 'call-a',
+        delta: '{"node":',
+      },
+      {
+        type: 'tool_call_start',
+        callId: 'call-b',
+        name: 'search_project',
+      },
+      {
+        type: 'tool_args_delta',
+        callId: 'call-b',
+        delta: '{"query":',
+      },
+      {
+        type: 'tool_args_delta',
+        callId: 'call-b',
+        delta: '"遗物"}',
+      },
+      {
+        type: 'tool_args_delta',
+        callId: 'call-a',
+        delta: '"第一章"}',
+      },
+      { type: 'tool_call_end', callId: 'call-a' },
+      { type: 'tool_call_end', callId: 'call-b' },
+      {
+        type: 'usage',
+        usage: {
+          inputTokens: 21,
+          outputTokens: 9,
+          cacheReadTokens: 4,
+          cacheWriteTokens: 0,
+          costUsd: 0,
+        },
+      },
+      { type: 'finish', reason: 'tool_use' },
+    ]);
+    expect(client.completeCalls).toBe(0);
+    expect(client.requests).toHaveLength(1);
+    expect(client.requests[0]?.tools?.[0]?.name).toBe('read_node');
+  });
+
+  it('preserves canonical index order when a later parallel call arrives first', async () => {
+    const client = new FakeStreamingClient([
+      {
+        delta: '',
+        toolCallDeltas: [
+          {
+            index: 1,
+            id: 'call-b',
+            nameDelta: 'search_project',
+            argumentsDelta: '{"query":"B"}',
+          },
+        ],
+      },
+      {
+        delta: '',
+        toolCallDeltas: [
+          {
+            index: 0,
+            id: 'call-a',
+            nameDelta: 'read_node',
+            argumentsDelta: '{"node":"A"}',
+          },
+        ],
+      },
+      {
+        delta: '',
+        finishReason: 'tool_calls',
+        usage: { inputTokens: 4, outputTokens: 2 },
+      },
+    ]);
+    const driver = new OpenAICompatibleCompletionDriver({
+      client,
+      defaultModel: 'deepseek-chat',
+    });
+
+    const events = await collect(driver, request());
+    expect(
+      events
+        .filter((event) => event.type === 'tool_call_start')
+        .map((event) => event.callId),
+    ).toEqual(['call-a', 'call-b']);
+    expect(
+      events
+        .filter((event) => event.type === 'tool_call_end')
+        .map((event) => event.callId),
+    ).toEqual(['call-a', 'call-b']);
+  });
+
+  it('delivers the first streamed delta before the provider terminal gate opens', async () => {
+    let releaseTerminal: (() => void) | undefined;
+    const terminal = new Promise<void>((resolve) => {
+      releaseTerminal = resolve;
+    });
+    const firstDeltaSeen = new Promise<void>((resolve) => {
+      const client = new FakeStreamingClient(async function* () {
+        yield { delta: 'first' };
+        await terminal;
+        yield {
+          delta: '',
+          finishReason: 'stop',
+          usage: { inputTokens: 3, outputTokens: 1 },
+        };
+      });
+      const driver = new OpenAICompatibleCompletionDriver({
+        client,
+        defaultModel: 'deepseek-chat',
+      });
+      const iterator = driver.stream(request({ tools: [] }))[Symbol.asyncIterator]();
+      void iterator.next().then((result) => {
+        expect(result.value).toEqual({
+          type: 'text_delta',
+          text: 'first',
+        });
+        resolve();
+        releaseTerminal?.();
+        void iterator.return?.();
+      });
+    });
+
+    await firstDeltaSeen;
+  });
+
+  it('does not strand a second text delta behind a quiet provider terminal', async () => {
+    let releaseTerminal: (() => void) | undefined;
+    const terminal = new Promise<void>((resolve) => {
+      releaseTerminal = resolve;
+    });
+    const client = new FakeStreamingClient(async function* () {
+      yield { delta: 'first' };
+      yield { delta: 'second' };
+      await terminal;
+      yield {
+        delta: '',
+        finishReason: 'stop',
+        usage: { inputTokens: 3, outputTokens: 2 },
+      };
+    });
+    const driver = new OpenAICompatibleCompletionDriver({
+      client,
+      defaultModel: 'deepseek-chat',
+    });
+    const iterator = driver.stream(request({ tools: [] }))[Symbol.asyncIterator]();
+
+    await expect(iterator.next()).resolves.toMatchObject({
+      value: { type: 'text_delta', text: 'first' },
+    });
+    await expect(iterator.next()).resolves.toMatchObject({
+      value: { type: 'text_delta', text: 'second' },
+    });
+    releaseTerminal?.();
+    await iterator.return?.();
+  });
+
+  it('streams synthesis text even when the provider cannot stream tools', async () => {
+    const client = new FakeStreamingClient(
+      [
+        { delta: 'streamed' },
+        {
+          delta: '',
+          finishReason: 'stop',
+          usage: { inputTokens: 2, outputTokens: 1 },
+        },
+      ],
+      false,
+    );
+    const driver = new OpenAICompatibleCompletionDriver({
+      client,
+      defaultModel: 'text-stream-provider',
+    });
+
+    await expect(collect(driver, request({ tools: [] }))).resolves.toEqual([
+      { type: 'text_delta', text: 'streamed' },
+      {
+        type: 'usage',
+        usage: {
+          inputTokens: 2,
+          outputTokens: 1,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          costUsd: 0,
+        },
+      },
+      { type: 'finish', reason: 'end_turn' },
+    ]);
+    expect(client.completeCalls).toBe(0);
+  });
+
+  it('fails closed on incomplete streamed tool identity without using completion fallback', async () => {
+    const client = new FakeStreamingClient([
+      {
+        delta: '',
+        toolCallDeltas: [
+          { index: 0, argumentsDelta: '{"node":"A"}' },
+        ],
+      },
+      {
+        delta: '',
+        finishReason: 'tool_calls',
+        usage: { inputTokens: 1, outputTokens: 1 },
+      },
+    ]);
+    const driver = new OpenAICompatibleCompletionDriver({
+      client,
+      defaultModel: 'deepseek-chat',
+    });
+
+    await expect(collect(driver, request())).rejects.toMatchObject({
+      publicMessage: 'Model provider returned an invalid tool stream.',
+    });
+    expect(client.completeCalls).toBe(0);
+  });
+
+  it.each(['length', 'content_filter'] as const)(
+    'never closes or executes a streamed tool call terminated by %s',
+    async (finishReason) => {
+      const client = new FakeStreamingClient([
+        {
+          delta: '',
+          toolCallDeltas: [
+            {
+              index: 0,
+              id: 'call-a',
+              nameDelta: 'read_node',
+              argumentsDelta: '{"node":"A"}',
+            },
+          ],
+        },
+        {
+          delta: '',
+          finishReason,
+          usage: { inputTokens: 2, outputTokens: 1 },
+        },
+      ]);
+      const driver = new OpenAICompatibleCompletionDriver({
+        client,
+        defaultModel: 'deepseek-chat',
+      });
+      const emitted: AgentModelStreamEvent[] = [];
+
+      await expect(
+        (async () => {
+          for await (const event of driver.stream(request())) emitted.push(event);
+        })(),
+      ).rejects.toBeInstanceOf(AgentModelDriverError);
+      expect(emitted.some((event) => event.type === 'tool_call_end')).toBe(false);
+      expect(emitted.some((event) => event.type === 'finish')).toBe(false);
+    },
+  );
+
+  it('fails a streamed completion that omits finish reason', async () => {
+    const client = new FakeStreamingClient([
+      { delta: 'partial' },
+      {
+        delta: '',
+        usage: { inputTokens: 2, outputTokens: 1 },
+      },
+    ]);
+    const driver = new OpenAICompatibleCompletionDriver({
+      client,
+      defaultModel: 'deepseek-chat',
+    });
+
+    await expect(
+      collect(driver, request({ tools: [] })),
+    ).rejects.toMatchObject({
+      publicMessage: 'Model provider stream ended without a finish reason.',
+    });
+  });
+
+  it('rejects a completion tool call whose provider finish reason is not tool_calls', async () => {
+    const client = new FakeCompletionClient(() => ({
+      toolCall: {
+        id: 'call-a',
+        name: 'read_node',
+        arguments: { node: 'A' },
+      },
+      usage: { inputTokens: 2, outputTokens: 1 },
+      raw: { choices: [{ finish_reason: 'length' }] },
+    }));
+    const driver = new OpenAICompatibleCompletionDriver({
+      client,
+      defaultModel: 'deepseek-chat',
+    });
+
+    await expect(collect(driver, request())).rejects.toMatchObject({
+      publicMessage: 'Model provider returned an invalid tool completion.',
+    });
+  });
+
   it.each([
     ['length', 'max_tokens'],
     ['content_filter', 'content_filter'],
@@ -492,7 +880,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
     ).rejects.toMatchObject({
       name: 'AgentModelDriverError',
       publicMessage:
-        'Reasoning is not supported by the P1 completion driver.',
+        'Reasoning is not supported by the General Agent driver.',
     });
     expect(client.requests).toHaveLength(0);
   });
@@ -616,5 +1004,57 @@ describe('OpenAICompatibleCompletionDriver', () => {
     await expect(collect(driver, request())).rejects.toMatchObject({
       publicMessage: 'Model provider returned invalid tool arguments.',
     });
+  });
+
+  it('rejects every non-JSON completion argument before emitting any tool event', async () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    const invalidArguments: unknown[] = [
+      undefined,
+      null,
+      [],
+      'not-an-object',
+      42,
+      true,
+      { value: 1n },
+      circular,
+      { value: Number.NaN },
+      { value: Number.POSITIVE_INFINITY },
+    ];
+
+    for (const argumentsValue of invalidArguments) {
+      const client = new FakeCompletionClient(() => ({
+        toolCalls: [
+          {
+            id: 'call-valid',
+            name: 'read_node',
+            arguments: { node: 'A' },
+          },
+          {
+            id: 'call-invalid',
+            name: 'read_node',
+            arguments: argumentsValue,
+          },
+        ],
+        finishReason: 'tool_calls',
+        usage: { inputTokens: 1, outputTokens: 1 },
+      }));
+      const driver = new OpenAICompatibleCompletionDriver({
+        client,
+        defaultModel: 'deepseek-chat',
+      });
+      const emitted: AgentModelStreamEvent[] = [];
+
+      await expect(
+        (async () => {
+          for await (const event of driver.stream(request())) {
+            emitted.push(event);
+          }
+        })(),
+      ).rejects.toMatchObject({
+        publicMessage: 'Model provider returned invalid tool arguments.',
+      });
+      expect(emitted).toEqual([]);
+    }
   });
 });

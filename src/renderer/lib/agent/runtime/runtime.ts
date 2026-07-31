@@ -64,6 +64,9 @@ export const DEFAULT_AGENT_RUNTIME_LIMITS: AgentRuntimeLimits = {
   maxToolResultBytes: 128 * 1024,
 };
 
+const RESULT_PAGE_TOOL = 'read_tool_result';
+const MAX_SYNTHESIS_OUTPUT_TOKEN_RESERVE = 2_048;
+
 const emptyToolRuntime: AgentToolRuntime = {
   listDefinitions: () => [],
   execute: async () => ({ ok: false, error: 'No tool runtime is installed' }),
@@ -102,6 +105,53 @@ interface ModelIterationResult {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+interface PendingResultPageUpdate {
+  resultRef: string;
+  pending: boolean;
+}
+
+function pendingResultPageUpdateFromToolResult(
+  result: AgentToolResultBlock,
+): PendingResultPageUpdate | undefined {
+  if (!result.ok || !result.content.trim()) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(result.content);
+  } catch {
+    return undefined;
+  }
+  const candidates = [
+    parsed,
+    isRecord(parsed) ? parsed.result : undefined,
+  ];
+  for (const candidate of candidates) {
+    if (!isRecord(candidate) || typeof candidate.truncated !== 'boolean') {
+      continue;
+    }
+    const reread = isRecord(candidate.reread) ? candidate.reread : undefined;
+    const rereadArguments = isRecord(reread?.arguments)
+      ? reread.arguments
+      : undefined;
+    const resultRef =
+      typeof candidate.resultRef === 'string'
+        ? candidate.resultRef
+        : typeof rereadArguments?.resultRef === 'string'
+          ? rereadArguments.resultRef
+          : undefined;
+    if (!resultRef) continue;
+    if (result.name === RESULT_PAGE_TOOL) {
+      return { resultRef, pending: candidate.truncated };
+    }
+    if (
+      candidate.truncated === true &&
+      reread?.tool === RESULT_PAGE_TOOL
+    ) {
+      return { resultRef, pending: true };
+    }
+  }
+  return undefined;
 }
 
 function cloneMessage(message: AgentModelMessage): AgentModelMessage {
@@ -199,6 +249,20 @@ function mergeLimits(overrides?: Partial<AgentRuntimeLimits>): AgentRuntimeLimit
     }
   }
   return limits;
+}
+
+function synthesisOutputTokenReserve(limits: AgentRuntimeLimits): number {
+  return Math.max(
+    0,
+    Math.floor(
+      Math.min(
+        MAX_SYNTHESIS_OUTPUT_TOKEN_RESERVE,
+        limits.maxOutputTokensPerIteration,
+        limits.maxOutputTokens / 2,
+        limits.maxTotalTokens / 2,
+      ),
+    ),
+  );
 }
 
 function validateUsage(usage: AgentRuntimeUsage): void {
@@ -341,7 +405,10 @@ function searchableMessageText(message: AgentModelMessage): string {
   if (message.role === 'user') return '';
   if (message.role === 'tool') {
     return message.content
-      .map((result) => `${result.name}: ${result.content}`)
+      .map(
+        (result) =>
+          `tool ${result.ok ? 'success' : 'failure'} ${result.name}: ${result.content}`,
+      )
       .join('\n');
   }
   return message.content
@@ -483,6 +550,12 @@ export class AgentRuntime {
     let userInputSequence = 0;
     let steeringSequence = 0;
     let acceptingControl = true;
+    let repeatedFailureSignature: string | null = null;
+    let repeatedFailureIterations = 0;
+    let forceSynthesisOnly = false;
+    const successfulReadNamesSinceLastWrite = new Set<string>();
+    let successfulReadNamesInPreviousBatch = new Set<string>();
+    const pendingResultRefs = new Set<string>();
     let detachControl: () => void = () => undefined;
     let journalDisabled = false;
     let lastProviderCallContextEnvelope:
@@ -1154,21 +1227,34 @@ export class AgentRuntime {
       const usedTotalTokens = state.usage.inputTokens + state.usage.outputTokens;
       const remainingOutputTokens = limits.maxOutputTokens - state.usage.outputTokens;
       const remainingTotalTokens = limits.maxTotalTokens - usedTotalTokens;
-      const requestMaxOutputTokens = Math.floor(
-        Math.min(
-          limits.maxOutputTokensPerIteration,
-          remainingOutputTokens,
-          remainingTotalTokens,
-        ),
-      );
-      if (requestMaxOutputTokens <= 0) {
+      const synthesisReserve = synthesisOutputTokenReserve(limits);
+      const hasToolResultsInContext =
+        messages[messages.length - 1]?.role === 'tool';
+      // When only the protected headroom remains, synthesize now rather than
+      // spending another tool round and discovering on the next iteration that
+      // no answer budget remains.
+      const reserveForcesSynthesis =
+        hasToolResultsInContext &&
+        iteration < limits.maxModelIterations &&
+        synthesisReserve > 0 &&
+        (remainingOutputTokens <= synthesisReserve ||
+          remainingTotalTokens <= synthesisReserve);
+      const synthesisOnly =
+        hasToolResultsInContext &&
+        (forceSynthesisOnly ||
+          reserveForcesSynthesis ||
+          iteration === limits.maxModelIterations);
+      if (remainingOutputTokens <= 0 || remainingTotalTokens <= 0) {
         budget('No output token budget remains for another model iteration');
       }
+      // Tool access is removed for the reserved/final round so the model must
+      // turn the facts already in context into a best-effort author response.
       const shouldSearch =
-        toolSearch === 'on' ||
-        (toolSearch === 'auto' &&
-          definitions.length > AGENT_RUNTIME_TOOL_SEARCH_LIMIT);
-      let iterationDefinitions = definitions;
+        !synthesisOnly &&
+        (toolSearch === 'on' ||
+          (toolSearch === 'auto' &&
+            definitions.length > AGENT_RUNTIME_TOOL_SEARCH_LIMIT));
+      let iterationDefinitions = synthesisOnly ? [] : definitions;
       if (shouldSearch) {
         if (!this.toolSelector) {
           throw new AgentRuntimeError(
@@ -1183,6 +1269,13 @@ export class AgentRuntime {
             context,
             iteration,
             query: buildAgentToolSearchQuery(input.prompt, messages),
+            successfulReadNamesInPreviousBatch: [
+              ...successfulReadNamesInPreviousBatch,
+            ],
+            successfulReadNamesSinceLastWrite: [
+              ...successfulReadNamesSinceLastWrite,
+            ],
+            pendingResultPage: pendingResultRefs.size > 0,
             limit: AGENT_RUNTIME_TOOL_SEARCH_LIMIT,
           });
         } catch {
@@ -1215,6 +1308,38 @@ export class AgentRuntime {
           }
           return definition;
         });
+      }
+      // Protect a separate synthesis round whenever this provider request can
+      // actually start more tool work. A tool-free/direct-answer request has
+      // no future tool evidence to synthesize, so reserving half its output
+      // budget would strand tokens if the provider stops at max_tokens.
+      const protectedSynthesisTokens =
+        iterationDefinitions.length > 0 &&
+        !synthesisOnly &&
+        iteration < limits.maxModelIterations
+          ? synthesisReserve
+          : 0;
+      let requestMaxOutputTokens = Math.floor(
+        Math.min(
+          limits.maxOutputTokensPerIteration,
+          remainingOutputTokens - protectedSynthesisTokens,
+          remainingTotalTokens - protectedSynthesisTokens,
+        ),
+      );
+      // A steered continuation with no tool results may reach the protected
+      // tail after an earlier direct answer. Let it use that tail instead of
+      // failing before it can respond.
+      if (requestMaxOutputTokens <= 0 && !hasToolResultsInContext) {
+        requestMaxOutputTokens = Math.floor(
+          Math.min(
+            limits.maxOutputTokensPerIteration,
+            remainingOutputTokens,
+            remainingTotalTokens,
+          ),
+        );
+      }
+      if (requestMaxOutputTokens <= 0) {
+        budget('No output token budget remains for another model iteration');
       }
       const definitionsByName = groupDefinitions(iterationDefinitions);
       const providerTools = iterationDefinitions.map(
@@ -1483,7 +1608,7 @@ export class AgentRuntime {
       } finally {
         if (!iteratorCompleted) {
           try {
-            void iterator.return?.();
+            await iterator.return?.();
           } catch {
             // The runtime signal is authoritative; late provider cleanup is best-effort.
           }
@@ -1561,6 +1686,62 @@ export class AgentRuntime {
         const iteration = state.modelIterations + 1;
         const result = await runModelIteration(iteration);
         await emitTail;
+        const successfulReadsInThisBatch = new Set<string>();
+        const openedResultRefs = new Set<string>();
+        const completedResultRefs = new Set<string>();
+        for (const toolResult of result.toolResults) {
+          const pageUpdate =
+            pendingResultPageUpdateFromToolResult(toolResult);
+          if (pageUpdate?.pending) {
+            openedResultRefs.add(pageUpdate.resultRef);
+          } else if (pageUpdate) {
+            completedResultRefs.add(pageUpdate.resultRef);
+          }
+          if (!toolResult.ok) continue;
+          const definition = availableDefinitionsByName.get(toolResult.name);
+          if (definition?.access === 'write') {
+            successfulReadsInThisBatch.clear();
+            successfulReadNamesSinceLastWrite.clear();
+          } else if (definition?.access === 'read') {
+            successfulReadsInThisBatch.add(toolResult.name);
+            successfulReadNamesSinceLastWrite.add(toolResult.name);
+          }
+        }
+        for (const resultRef of openedResultRefs) {
+          if (!completedResultRefs.has(resultRef)) {
+            pendingResultRefs.add(resultRef);
+          }
+        }
+        for (const resultRef of completedResultRefs) {
+          pendingResultRefs.delete(resultRef);
+        }
+        successfulReadNamesInPreviousBatch = successfulReadsInThisBatch;
+        if (result.toolResults.length > 0) {
+          const failures = result.toolResults.filter(
+            (toolResult) => !toolResult.ok,
+          );
+          if (failures.length === result.toolResults.length) {
+            const signature = JSON.stringify(
+              [...new Set(failures.map((failure) => failure.content))].sort(),
+            );
+            if (signature === repeatedFailureSignature) {
+              repeatedFailureIterations += 1;
+            } else {
+              repeatedFailureSignature = signature;
+              repeatedFailureIterations = 1;
+            }
+            // One repair/alternative iteration is useful; a third identical
+            // all-failed tool round is not. Remove the tool surface on the next
+            // iteration so the model must explain the limitation or answer
+            // from any facts already present.
+            if (repeatedFailureIterations >= 2) {
+              forceSynthesisOnly = true;
+            }
+          } else {
+            repeatedFailureSignature = null;
+            repeatedFailureIterations = 0;
+          }
+        }
         if (
           result.toolResults.length > 0 &&
           state.stopAfterToolRequested

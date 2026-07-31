@@ -48,8 +48,26 @@ export function formatEntryAsMarkdown(entry: AIRequestLogEntry): string {
     const cached = u.cachedTokens ? ` cached=${u.cachedTokens}` : '';
     lines.push(`- **Tokens**: in=${u.inputTokens} out=${u.outputTokens}${cached}`);
   }
+  if (entry.response?.finishReason) {
+    lines.push(`- **Finish reason**: \`${entry.response.finishReason}\``);
+  }
   if (entry.request.toolNames.length) {
     lines.push(`- **Tools**: ${entry.request.toolNames.join(', ')}`);
+  }
+  const sessionId = entry.request.metadata?.agentSessionId;
+  const turnId = entry.request.metadata?.agentTurnId;
+  const iteration = entry.request.metadata?.agentIteration;
+  if (typeof sessionId === 'string' && sessionId) {
+    lines.push(`- **Agent session**: \`${sessionId}\``);
+  }
+  if (typeof turnId === 'string' && turnId) {
+    lines.push(`- **Agent turn**: \`${turnId}\``);
+  }
+  if (
+    typeof iteration === 'number' &&
+    Number.isSafeInteger(iteration)
+  ) {
+    lines.push(`- **Agent iteration**: ${iteration}`);
   }
   lines.push(`- **Request ID**: \`${entry.id}\``);
   lines.push('');
@@ -65,14 +83,43 @@ export function formatEntryAsMarkdown(entry: AIRequestLogEntry): string {
     const label = entry.request.messages.length > 1 ? ` ${idx + 1}` : '';
     lines.push(`## ${capitalize(msg.role)} message${label}`);
     lines.push('');
+    if (msg.toolCallId) {
+      lines.push(`- **Tool result for**: \`${msg.toolCallId}\``);
+      lines.push('');
+    }
+    if (msg.toolCalls?.length) {
+      lines.push(
+        `- **Assistant tool calls**: ${msg.toolCalls
+          .map((call) =>
+            call.id ? `\`${call.name}#${call.id}\`` : `\`${call.name}\``,
+          )
+          .join(', ')}`,
+      );
+      lines.push('');
+    }
     lines.push(fence('text', msg.content));
     lines.push('');
+    if (msg.toolCalls?.length) {
+      lines.push(fence('json', jsonPretty(msg.toolCalls)));
+      lines.push('');
+    }
   }
 
-  if (entry.response?.toolCall) {
-    lines.push(`## Tool call · \`${entry.response.toolCall.name}\``);
+  const toolCalls = entry.response?.toolCalls?.length
+    ? entry.response.toolCalls
+    : entry.response?.toolCall
+      ? [entry.response.toolCall]
+      : [];
+  for (const [index, toolCall] of toolCalls.entries()) {
+    const ordinal =
+      toolCalls.length > 1 ? ` ${index + 1}/${toolCalls.length}` : '';
+    lines.push(`## Tool call${ordinal} · \`${toolCall.name}\``);
     lines.push('');
-    lines.push(fence('json', jsonPretty(entry.response.toolCall.arguments)));
+    if (toolCall.id) {
+      lines.push(`- **Call ID**: \`${toolCall.id}\``);
+      lines.push('');
+    }
+    lines.push(fence('json', jsonPretty(toolCall.arguments)));
     lines.push('');
   }
 

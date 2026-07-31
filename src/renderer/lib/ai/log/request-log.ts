@@ -8,6 +8,12 @@
  */
 import type { AICompletionRequest, AICompletionResponse } from '../types';
 
+export interface AIRequestLogToolCall {
+  id?: string;
+  name: string;
+  arguments: unknown;
+}
+
 export interface AIRequestLogEntry {
   /** Short uuid-ish id used in filename + console tag. */
   id: string;
@@ -22,14 +28,23 @@ export interface AIRequestLogEntry {
     promptId?: string;
     promptVersion?: number;
     system?: string;
-    messages: { role: string; content: string }[];
+    messages: {
+      role: string;
+      content: string;
+      toolCallId?: string;
+      toolCalls?: AIRequestLogToolCall[];
+    }[];
     toolNames: string[];
     metadata?: Record<string, unknown>;
   };
   /** Filled on success. */
   response?: {
     text?: string;
-    toolCall?: { name: string; arguments: unknown };
+    /** First call compatibility alias for older DevTools consumers. */
+    toolCall?: AIRequestLogToolCall;
+    /** Complete ordered calls for function-calling turns. */
+    toolCalls?: AIRequestLogToolCall[];
+    finishReason?: string;
     usage: { inputTokens: number; outputTokens: number; cachedTokens?: number };
   };
   /** Filled on error. */
@@ -94,20 +109,55 @@ export function snapshotRequest(req: AICompletionRequest): AIRequestLogEntry['re
     promptId: req.metadata?.promptId as string | undefined,
     promptVersion: req.metadata?.promptVersion as number | undefined,
     system: req.system,
-    messages: req.messages.map((m) => ({ role: m.role, content: m.content })),
+    messages: req.messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      ...(message.toolCallId
+        ? { toolCallId: message.toolCallId }
+        : {}),
+      ...(message.toolCalls?.length
+        ? { toolCalls: message.toolCalls.map(snapshotToolCall) }
+        : {}),
+    })),
     toolNames: req.tools?.map((t) => t.name) ?? [],
     metadata: req.metadata,
   };
 }
 
 export function snapshotResponse(res: AICompletionResponse): AIRequestLogEntry['response'] {
+  const toolCalls = resolveResponseToolCalls(res).map(snapshotToolCall);
   return {
     text: res.text,
-    toolCall: res.toolCall ? { name: res.toolCall.name, arguments: res.toolCall.arguments } : undefined,
+    toolCall: toolCalls[0],
+    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+    ...(res.finishReason
+      ? { finishReason: res.finishReason }
+      : {}),
     usage: {
       inputTokens: res.usage.inputTokens,
       outputTokens: res.usage.outputTokens,
       cachedTokens: res.usage.cachedTokens,
     },
+  };
+}
+
+/**
+ * Normalize the modern parallel-call shape and the legacy first-call alias
+ * without emitting the same call twice.
+ */
+export function resolveResponseToolCalls(
+  res: AICompletionResponse,
+): NonNullable<AICompletionResponse['toolCalls']> {
+  if (res.toolCalls?.length) return res.toolCalls;
+  return res.toolCall ? [res.toolCall] : [];
+}
+
+function snapshotToolCall(
+  call: NonNullable<AICompletionResponse['toolCall']>,
+): AIRequestLogToolCall {
+  return {
+    ...(call.id ? { id: call.id } : {}),
+    name: call.name,
+    arguments: call.arguments,
   };
 }

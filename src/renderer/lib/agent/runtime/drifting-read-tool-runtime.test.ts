@@ -4,6 +4,7 @@ import type { CreateAgentRuntimeReadReceipt } from '../../../domain/agent-runtim
 import { AGENT_READ_TOOLS } from '../tool-registry';
 import { useDataStore } from '../../../store/data-store';
 import type { AgentRuntimeFreshnessRepository } from '../../../sqlite-repo/agent-runtime-freshness-repo';
+import { canonicalAgentRuntimeJson } from '../../../sqlite-repo/agent-runtime-persistence-repo';
 import {
   DriftingReadToolRuntime,
   type TruncatedAgentToolResult,
@@ -357,6 +358,68 @@ describe('DriftingReadToolRuntime', () => {
     });
     expect(response.ok ? '' : response.error).not.toContain('secret-token-123');
     expect(response.ok ? '' : response.error).not.toContain('private_credential');
+  });
+
+  it('normalizes optional undefined fields before durable read persistence', async () => {
+    const persistReadReceipt = vi.fn(
+      async (input: CreateAgentRuntimeReadReceipt) => {
+        // Production read receipts use this strict encoder. list_nodes and
+        // get_overview legitimately omit optional fields by returning
+        // `undefined`, which must be normalized before reaching this boundary.
+        canonicalAgentRuntimeJson(input.result);
+        return {
+          outcome: 'inserted' as const,
+          receipt: { ...input, result: input.result },
+        };
+      },
+    );
+    const runtime = new DriftingReadToolRuntime({
+      freshness: {
+        persistReadReceipt,
+        getReadReceipt: vi.fn(async () => null),
+      } as unknown as AgentRuntimeFreshnessRepository,
+      artifacts: null,
+    });
+    toolHandlerMocks.runAgentTool.mockResolvedValue({
+      storylines: [{ name: '主线', summary: undefined }],
+      chapters: [
+        {
+          name: '第一章',
+          status: 'draft',
+          words: 0,
+          storyline: undefined,
+        },
+      ],
+      drifts: [],
+    });
+
+    await expect(
+      runtime.execute(
+        executionRequest({
+          name: 'list_nodes',
+        }),
+      ),
+    ).resolves.toEqual({
+      ok: true,
+      data: {
+        result: {
+          storylines: [{ name: '主线' }],
+          chapters: [
+            {
+              name: '第一章',
+              status: 'draft',
+              words: 0,
+            },
+          ],
+          drifts: [],
+        },
+        freshness: {
+          receiptId: 'agent-read:session-1:turn-1:call-1',
+          observations: [],
+        },
+      },
+    });
+    expect(persistReadReceipt).toHaveBeenCalledOnce();
   });
 
   it('honors abort before dispatch and after an in-flight read resolves', async () => {

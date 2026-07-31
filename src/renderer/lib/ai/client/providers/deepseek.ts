@@ -83,6 +83,7 @@ export class DeepSeekProvider implements LLMProvider {
   // OpenAI-compatible Chat Completions ⇒ full function-calling (tools, auto
   // tool_choice, role:'tool' results, parallel tool_calls).
   readonly supportsTools = true;
+  readonly supportsToolStreaming = true;
   private readonly client: OpenAI;
   private readonly defaultModel: string;
   private readonly thinking: boolean;
@@ -119,62 +120,15 @@ export class DeepSeekProvider implements LLMProvider {
   }
 
   async complete(request: AICompletionRequest): Promise<AICompletionResponse> {
-    const { model, system, messages, tools, maxOutputTokens, temperature, signal } = request;
+    const { model, tools, maxOutputTokens, temperature, signal } = request;
 
     if (signal?.aborted) {
       throw new AIError('aborted', 'Request aborted before send');
     }
 
-    const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-    if (system) {
-      chatMessages.push({ role: 'system', content: system });
-    }
-    for (const m of messages) {
-      if (m.role === 'tool') {
-        // A tool-call RESULT — must reference the originating tool_call id.
-        chatMessages.push({ role: 'tool', tool_call_id: m.toolCallId ?? '', content: m.content });
-      } else if (m.role === 'model') {
-        const asst: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
-          role: 'assistant',
-          // OpenAI wants null content on a pure tool-call turn.
-          content: m.content || (m.toolCalls?.length ? null : ''),
-        };
-        if (m.toolCalls?.length) {
-          asst.tool_calls = m.toolCalls.map((tc) => ({
-            id: tc.id ?? '',
-            type: 'function',
-            function: { name: tc.name, arguments: JSON.stringify(tc.arguments ?? {}) },
-          }));
-        }
-        chatMessages.push(asst);
-      } else {
-        chatMessages.push({ role: 'user', content: m.content });
-      }
-    }
-
-    const chatTools: OpenAI.Chat.ChatCompletionTool[] | undefined = tools?.length
-      ? tools.map((t) => ({
-          type: 'function',
-          function: {
-            name: t.name,
-            description: t.description,
-            parameters: t.parametersSchema as Record<string, unknown>,
-          },
-        }))
-      : undefined;
-
-    // tool_choice: an explicit request.toolChoice drives the FC loop (auto /
-    // required / force-a-named-tool). When absent we keep the legacy "force the
-    // first (single) tool" behavior that callStructured relies on for structured
-    // JSON output.
-    let toolChoice: OpenAI.Chat.ChatCompletionToolChoiceOption | undefined;
-    if (request.toolChoice === 'auto' || request.toolChoice === 'required') {
-      toolChoice = request.toolChoice;
-    } else if (request.toolChoice && typeof request.toolChoice === 'object') {
-      toolChoice = { type: 'function', function: { name: request.toolChoice.force } };
-    } else if (tools && tools.length > 0) {
-      toolChoice = { type: 'function', function: { name: tools[0]!.name } };
-    }
+    const chatMessages = buildChatMessages(request);
+    const chatTools = buildChatTools(tools);
+    const toolChoice = resolveToolChoice(request);
 
     // Body construction — split standard OpenAI fields from DeepSeek
     // extensions. The OpenAI Node SDK doesn't type `thinking` /
@@ -242,55 +196,70 @@ export class DeepSeekProvider implements LLMProvider {
       }
       const toolCall = toolCalls[0];
 
-      const text = !toolCall && typeof message?.content === 'string' ? message.content : undefined;
+      const text =
+        typeof message?.content === 'string' && message.content
+          ? message.content
+          : undefined;
+      const finishReason = choice?.finish_reason ?? undefined;
+      const usage = normalizeDeepSeekUsage(response.usage);
+      if (request.terminalRequirements?.finishReason && !finishReason) {
+        throw new AIError(
+          'parse',
+          'DeepSeek completion ended without a finish reason.',
+        );
+      }
+      if (request.terminalRequirements?.usage && !usage) {
+        throw new AIError(
+          'parse',
+          'DeepSeek completion ended without usage.',
+        );
+      }
 
       return {
         text,
         toolCall,
         toolCalls: toolCalls.length ? toolCalls : undefined,
-        usage: {
-          inputTokens: response.usage?.prompt_tokens ?? 0,
-          outputTokens: response.usage?.completion_tokens ?? 0,
-          // OpenAI doesn't expose cache hits in the same shape — leave undefined.
-          cachedTokens: undefined,
-        },
+        finishReason,
+        usage: usage ?? { inputTokens: 0, outputTokens: 0 },
         raw: response,
       };
     } catch (err) {
-      throw mapDeepSeekError(err);
+      throw mapDeepSeekError(err, signal);
     }
   }
 
   /**
-   * Free-form streaming via the OpenAI SDK's `stream: true` (DeepSeek is
-   * wire-compatible). Yields each chunk's `delta.content`; a terminal
-   * empty-delta chunk carries usage (requested via
-   * `stream_options.include_usage`). Only `content` is surfaced —
-   * `reasoning_content` from thinking mode is intentionally dropped so the
-   * visible answer excludes the model's chain of thought. Tools don't apply.
+   * Full OpenAI-compatible streaming, including parallel function calls.
+   * Visible content and raw tool-argument fragments are forwarded without
+   * waiting for completion. `reasoning_content` remains intentionally private;
+   * the General Agent currently runs with thinking disabled and the substrate
+   * never exposes hidden chain-of-thought.
    */
   async *stream(request: AICompletionRequest): AsyncIterable<AICompletionChunk> {
-    const { model, system, messages, temperature, signal } = request;
+    const {
+      model,
+      tools,
+      maxOutputTokens,
+      temperature,
+      signal,
+    } = request;
 
     if (signal?.aborted) {
       throw new AIError('aborted', 'Request aborted before send');
     }
 
-    const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-    if (system) chatMessages.push({ role: 'system', content: system });
-    for (const m of messages) {
-      chatMessages.push({
-        role: m.role === 'model' ? 'assistant' : 'user',
-        content: m.content,
-      });
-    }
-
     const baseBody: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
       model: resolveModel(model, this.defaultModel),
-      messages: chatMessages,
+      messages: buildChatMessages(request),
+      tools: buildChatTools(tools),
+      tool_choice: resolveToolChoice(request),
+      max_tokens: maxOutputTokens,
       stream: true,
       stream_options: { include_usage: true },
     };
+    if (request.responseFormat === 'json_object') {
+      baseBody.response_format = { type: 'json_object' };
+    }
     const effectiveThinking = request.thinking ?? this.thinking;
     if (!effectiveThinking && typeof temperature === 'number') {
       baseBody.temperature = temperature;
@@ -305,24 +274,208 @@ export class DeepSeekProvider implements LLMProvider {
       );
 
       let usage: AIUsage | undefined;
+      let usageEmitted = false;
+      let finishReason: string | undefined;
+      let finishEmitted = false;
+      const requireUsage =
+        request.terminalRequirements?.usage === true ||
+        Boolean(request.tools?.length);
+      const requireFinishReason =
+        request.terminalRequirements?.finishReason === true ||
+        Boolean(request.tools?.length);
       for await (const chunk of stream) {
         if (signal?.aborted) throw new AIError('aborted', 'Request aborted');
         if (chunk.usage) {
-          usage = {
-            inputTokens: chunk.usage.prompt_tokens ?? 0,
-            outputTokens: chunk.usage.completion_tokens ?? 0,
-            cachedTokens: undefined,
-          };
+          usage = normalizeDeepSeekUsage(chunk.usage);
         }
-        const delta = chunk.choices[0]?.delta?.content ?? '';
-        if (delta) yield { delta };
+        const choice = chunk.choices[0];
+        const delta = choice?.delta?.content ?? '';
+        const toolCallDeltas = (choice?.delta?.tool_calls ?? []).map(
+          (toolCall) => ({
+            index: toolCall.index,
+            ...(toolCall.id ? { id: toolCall.id } : {}),
+            ...(toolCall.function?.name
+              ? { nameDelta: toolCall.function.name }
+              : {}),
+            ...(toolCall.function?.arguments
+              ? { argumentsDelta: toolCall.function.arguments }
+              : {}),
+          }),
+        );
+        const chunkFinishReason =
+          typeof choice?.finish_reason === 'string'
+            ? choice.finish_reason
+            : undefined;
+        if (chunkFinishReason) finishReason = chunkFinishReason;
+
+        if (
+          delta ||
+          toolCallDeltas.length > 0 ||
+          chunkFinishReason ||
+          chunk.usage
+        ) {
+          yield {
+            delta,
+            ...(toolCallDeltas.length ? { toolCallDeltas } : {}),
+            ...(chunkFinishReason
+              ? { finishReason: chunkFinishReason }
+              : {}),
+            ...(usage && chunk.usage ? { usage } : {}),
+          };
+          if (chunkFinishReason) finishEmitted = true;
+          if (usage && chunk.usage) usageEmitted = true;
+        }
       }
 
-      yield { delta: '', usage: usage ?? { inputTokens: 0, outputTokens: 0 } };
+      // Some OpenAI-compatible gateways omit the dedicated usage chunk or end
+      // the iterator immediately after finish_reason. Agent turns must not turn
+      // missing metering into a fake zero (that would bypass runtime budgets),
+      // so tool-bearing streams fail closed. Free-form legacy callers retain a
+      // zero-usage compatibility terminal.
+      if (signal?.aborted) throw new AIError('aborted', 'Request aborted');
+      if (requireUsage && !usageEmitted && !usage) {
+        throw new AIError(
+          'parse',
+          'DeepSeek stream ended without terminal usage.',
+        );
+      }
+      if (
+        requireFinishReason &&
+        !finishEmitted &&
+        !finishReason
+      ) {
+        throw new AIError(
+          'parse',
+          'DeepSeek stream ended without a finish reason.',
+        );
+      }
+      if (!usageEmitted || !finishEmitted) {
+        yield {
+          delta: '',
+          ...(!finishEmitted
+            ? { finishReason: finishReason ?? 'unknown' }
+            : {}),
+          ...(!usageEmitted
+            ? {
+                usage: usage ?? {
+                  inputTokens: 0,
+                  outputTokens: 0,
+                },
+              }
+            : {}),
+        };
+      }
     } catch (err) {
-      throw mapDeepSeekError(err);
+      throw mapDeepSeekError(err, signal);
     }
   }
+}
+
+function normalizeDeepSeekUsage(
+  usage:
+    | {
+        prompt_tokens?: unknown;
+        completion_tokens?: unknown;
+      }
+    | null
+    | undefined,
+): AIUsage | undefined {
+  if (!usage) return undefined;
+  const inputTokens = usage.prompt_tokens;
+  const outputTokens = usage.completion_tokens;
+  if (
+    typeof inputTokens !== 'number' ||
+    !Number.isSafeInteger(inputTokens) ||
+    inputTokens < 0 ||
+    typeof outputTokens !== 'number' ||
+    !Number.isSafeInteger(outputTokens) ||
+    outputTokens < 0
+  ) {
+    throw new AIError('parse', 'DeepSeek returned invalid usage.');
+  }
+  return {
+    inputTokens,
+    outputTokens,
+  };
+}
+
+function buildChatMessages(
+  request: AICompletionRequest,
+): OpenAI.Chat.ChatCompletionMessageParam[] {
+  const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+  if (request.system) {
+    chatMessages.push({ role: 'system', content: request.system });
+  }
+  for (const message of request.messages) {
+    if (message.role === 'tool') {
+      chatMessages.push({
+        role: 'tool',
+        tool_call_id: message.toolCallId ?? '',
+        content: message.content,
+      });
+      continue;
+    }
+    if (message.role === 'model') {
+      const assistant: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
+        role: 'assistant',
+        content:
+          message.content || (message.toolCalls?.length ? null : ''),
+      };
+      if (message.toolCalls?.length) {
+        assistant.tool_calls = message.toolCalls.map((toolCall) => ({
+          id: toolCall.id ?? '',
+          type: 'function',
+          function: {
+            name: toolCall.name,
+            arguments: JSON.stringify(toolCall.arguments ?? {}),
+          },
+        }));
+      }
+      chatMessages.push(assistant);
+      continue;
+    }
+    chatMessages.push({ role: 'user', content: message.content });
+  }
+  return chatMessages;
+}
+
+function buildChatTools(
+  tools: AICompletionRequest['tools'],
+): OpenAI.Chat.ChatCompletionTool[] | undefined {
+  return tools?.length
+    ? tools.map((tool) => ({
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parametersSchema as Record<string, unknown>,
+        },
+      }))
+    : undefined;
+}
+
+function resolveToolChoice(
+  request: AICompletionRequest,
+): OpenAI.Chat.ChatCompletionToolChoiceOption | undefined {
+  if (
+    request.toolChoice === 'auto' ||
+    request.toolChoice === 'required'
+  ) {
+    return request.toolChoice;
+  }
+  if (request.toolChoice && typeof request.toolChoice === 'object') {
+    return {
+      type: 'function',
+      function: { name: request.toolChoice.force },
+    };
+  }
+  if (request.tools?.length) {
+    return {
+      type: 'function',
+      function: { name: request.tools[0]!.name },
+    };
+  }
+  return undefined;
 }
 
 /**
@@ -358,8 +511,17 @@ function tryRepairJsonArgs(raw: string | undefined): unknown {
   }
 }
 
-function mapDeepSeekError(err: unknown): AIError {
+function mapDeepSeekError(
+  err: unknown,
+  signal?: AbortSignal,
+): AIError {
   if (err instanceof AIError) return err;
+  if (signal?.aborted) {
+    return new AIError('aborted', 'Request was aborted', err);
+  }
+  if (err instanceof OpenAI.APIUserAbortError) {
+    return new AIError('aborted', 'Request was aborted', err);
+  }
   if (err instanceof DOMException && err.name === 'AbortError') {
     return new AIError('aborted', 'Request was aborted', err);
   }
