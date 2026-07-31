@@ -1,18 +1,18 @@
 {
   "suite": "p4-agent-runtime-framework",
   "schemaVersion": 1,
-  "nodeVersion": "v24.4.0",
+  "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "e4253dbc16f5d4c06670a21d0331633c6264183a",
+  "gitHead": "bfe2dc035606c41c0488ed3b1b6c1a41cb0a4a81",
   "provider": "not applicable",
   "model": "not applicable",
-  "sourceSetSha256": "sha256:dae43b9d8e4133620632e20bd7d525a4c5a7eab037c98366bc1ffaf96102383c",
+  "sourceSetSha256": "sha256:2f232e66296da9e85e71885ee3da59ba342142098a3909a119bab8a1d2afc841",
   "migration": {
-    "count": 64,
-    "latestIndex": 63,
-    "latestTag": "0063_agent_runtime_freshness",
-    "requiredCount": 64,
-    "requiredLatestTag": "0063_agent_runtime_freshness",
+    "count": 68,
+    "latestIndex": 67,
+    "latestTag": "0067_agent_runtime_long_task",
+    "journalIsSequential": true,
+    "latestMigrationExists": true,
     "passed": true
   },
   "vitest": {
@@ -21,8 +21,8 @@
       "discovered": 16
     },
     "tests": {
-      "total": 135,
-      "passed": 135,
+      "total": 212,
+      "passed": 212,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -43,8 +43,8 @@
         "files": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 14,
-          "passed": 14,
+          "total": 57,
+          "passed": 57,
           "failed": 0,
           "pending": 0
         },
@@ -65,8 +65,8 @@
         "files": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 15,
-          "passed": 15,
+          "total": 20,
+          "passed": 20,
           "failed": 0,
           "pending": 0
         },
@@ -87,8 +87,8 @@
         "files": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 8,
-          "passed": 8,
+          "total": 11,
+          "passed": 11,
           "failed": 0,
           "pending": 0
         },
@@ -98,8 +98,8 @@
         "files": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 33,
-          "passed": 33,
+          "total": 54,
+          "passed": 54,
           "failed": 0,
           "pending": 0
         },
@@ -109,8 +109,8 @@
         "files": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 11,
-          "passed": 11,
+          "total": 14,
+          "passed": 14,
           "failed": 0,
           "pending": 0
         },
@@ -142,8 +142,8 @@
         "files": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 28,
-          "passed": 28,
+          "total": 30,
+          "passed": 30,
           "failed": 0,
           "pending": 0
         },
@@ -176,9 +176,9 @@
         "top3Recall": 0.9866666666666667,
         "top5Recall": 1,
         "safetyTop5Recall": 1,
-        "medianSchemaReduction": 0.7639538509510446,
+        "medianSchemaReduction": 0.8931514324693042,
         "warmedSearches": 10000,
-        "warmedP95Ms": 2.7873749999998836
+        "warmedP95Ms": 2.142541000000165
       }
     },
     "contextPlanning": {
@@ -203,8 +203,8 @@
         "pinnedExactRecall": 1,
         "constraintRecall": 1,
         "completionDrop": 0,
-        "medianTokenReduction": 0.8567518861847443,
-        "p95ContextWindowRatio": 0.2956875
+        "medianTokenReduction": 0.8452073246933156,
+        "p95ContextWindowRatio": 0.3208125
       }
     },
     "contextBridgeAndRuntime": {
@@ -280,7 +280,7 @@
       "set_node_summary"
     ],
     "otherEntityObservations": "empty",
-    "oversizedResultPaging": "bounded in-memory map; durable receipts replay but post-restart continuation paging is not certified",
+    "oversizedResultPaging": "durable SQLite result artifacts support project/session-scoped continuation paging across restart; chunk-bounded storage IO and product GC remain open",
     "checkpointIntegrity": "unkeyed SHA-256 self-consistency, not authenticity against a local attacker who can rewrite payloads and all hashes",
     "manualNativeSmoke": "pending"
   },

@@ -27,16 +27,23 @@ const TEST_GROUPS = {
   ],
   restartRecovery: [
     'src/renderer/lib/agent/runtime/recovery.test.ts',
+    'src/renderer/lib/agent/runtime/local-transport-persistence.test.ts',
     'src/renderer/lib/agent/runtime/repository-transport-persistence.test.ts',
+    'src/renderer/lib/agent/runtime/repository-transport-persistence-v2.integration.test.ts',
     'src/renderer/lib/agent/runtime/drifting-write-recovery.integration.test.ts',
+    'src/renderer/store/agent-checkpoint-store.test.ts',
+    'src/renderer/lib/agent/turn-revert-policy.test.ts',
+    'src/renderer/lib/agent/turn-revert.test.ts',
   ],
   resultArtifactAndContext: [
     'src/renderer/lib/agent/runtime/drifting-read-tool-runtime.test.ts',
     'src/renderer/lib/agent/runtime/drifting-read-tool-runtime.integration.test.ts',
     'src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.integration.test.ts',
+    'src/renderer/lib/agent/runtime/context-message-adapter.test.ts',
     'src/renderer/lib/agent/runtime/drifting-context-compactor.test.ts',
     'src/renderer/lib/agent/runtime/context-planner.test.ts',
     'src/renderer/lib/agent/runtime/runtime-context-planning.test.ts',
+    'src/renderer/sqlite-repo/agent-runtime-persistence-repo.integration.test.ts',
   ],
   yjsProseAndDurableReview: [
     'src/renderer/lib/agent/runtime/yjs-prose-command.test.ts',
@@ -45,11 +52,28 @@ const TEST_GROUPS = {
     'src/renderer/lib/agent/runtime/drifting-write-tool-runtime.test.ts',
     'src/renderer/lib/agent/durable-review-actions.test.ts',
     'src/renderer/lib/agent/runtime/write-review-feedback.test.ts',
+    'src/renderer/lib/agent/runtime/write-review-provenance.test.ts',
   ],
   elementPatchAndCertification: [
     'src/renderer/lib/agent/runtime/drifting-element-patch-write-strategy.integration.test.ts',
     'src/renderer/sqlite-repo/agent-runtime-element-patch-receipt-repo.test.ts',
     'src/renderer/lib/agent/tool-registry.test.ts',
+  ],
+  productCompositionAndEntityWrites: [
+    'src/renderer/lib/agent/runtime/acceptance/p3-product-migrations.integration.test.ts',
+    'src/renderer/lib/agent/runtime/drifting-product-composition.integration.test.ts',
+    'src/renderer/lib/agent/runtime/drifting-entity-write-strategy.integration.test.ts',
+  ],
+  longTaskAndContinuation: [
+    'src/renderer/lib/agent/runtime/long-task-runtime.integration.test.ts',
+    'src/renderer/lib/agent/runtime/recovered-transcript.test.ts',
+  ],
+  dynamicToolAndMcpBase: [
+    'src/renderer/lib/agent/runtime/dynamic-tool-runtime.test.ts',
+    'src/renderer/lib/agent/runtime/portable-data.test.ts',
+    'src/renderer/lib/agent/runtime/drifting-tool-selection.test.ts',
+    'src/renderer/lib/agent/runtime/runtime-tool-search.test.ts',
+    'src/renderer/lib/agent/runtime/system-prompt.test.ts',
   ],
 };
 
@@ -69,6 +93,24 @@ const REQUIRED_MIGRATIONS = [
     tag: '0065_agent_runtime_element_patch_receipt',
     file: 'drizzle/0065_agent_runtime_element_patch_receipt.sql',
     requiredSql: ['agent_runtime_element_patch_receipt'],
+  },
+  {
+    index: 66,
+    tag: '0066_agent_runtime_entity_write_receipt',
+    file: 'drizzle/0066_agent_runtime_entity_write_receipt.sql',
+    requiredSql: ['agent_runtime_entity_write_receipt'],
+  },
+  {
+    index: 67,
+    tag: '0067_agent_runtime_long_task',
+    file: 'drizzle/0067_agent_runtime_long_task.sql',
+    requiredSql: [
+      'agent_runtime_task',
+      'agent_runtime_task_chapter_manifest',
+      'agent_runtime_task_step',
+      'agent_runtime_task_constraint',
+      'agent_runtime_task_command',
+    ],
   },
 ];
 const HASHED_SOURCE_FILES = [
@@ -90,6 +132,10 @@ const CERTIFIED_WRITES = [
   'replace_block_range',
   'create_element_patch',
   'update_element_patch',
+  'create_comment',
+  'update_element',
+  'update_storyline',
+  'update_project_facts',
 ];
 
 function parseOptions(argv) {
@@ -255,17 +301,17 @@ async function readMigrationIdentity() {
     count: entries.length,
     latestIndex: latest?.idx ?? null,
     latestTag: latest?.tag ?? null,
-    requiredCount: 66,
-    requiredLatestTag: '0065_agent_runtime_element_patch_receipt',
+    requiredCount: 68,
+    requiredLatestTag: '0067_agent_runtime_long_task',
     indexesCanonical,
     tagsUnique,
     rustEmbedsDrizzleDirectory,
     files,
     passed:
-      entries.length === 66 &&
-      latest?.idx === 65 &&
+      entries.length === 68 &&
+      latest?.idx === 67 &&
       latest?.tag ===
-        '0065_agent_runtime_element_patch_receipt' &&
+        '0067_agent_runtime_long_task' &&
       indexesCanonical &&
       tagsUnique &&
       rustEmbedsDrizzleDirectory &&
@@ -359,17 +405,23 @@ export async function runP5Acceptance(options = parseOptions([])) {
             permissionScopesImplemented: ['once'],
             askUserPausesAndReturnsProviderVisibleAnswer: true,
             duplicateAskUserReplaysDurableAnswer: true,
+            canonicalJournalDrivesStreamingProjection: true,
             steeringRecordedAsCanonicalInput: true,
             stopAfterCurrentToolPreventsUnstartedWrites: true,
           },
         },
         restartRecovery: {
           machineAsserted: {
+            canonicalJournalCommitsBeforeTerminalAndReplaysAcrossRestart: true,
             pendingControlsRehydrated: true,
             lostExecutionStackNeverClaimedResumable: true,
             recoveredPendingControlCanBeSafelyCancelled: true,
             interruptedYjsReceiptReconciledBeforeSessionResume: true,
             interruptedMutationNotReplayed: true,
+            validBudgetSlicePersistsVerifiedV2Checkpoint: true,
+            providerNeutralTurnsNeverCreateLegacyWholeTurnCheckpoints: true,
+            legacyWholeTurnRevertFailsClosedAfterRuntimeBarrier: true,
+            canonicalRevertUsesDurableGuardedReviewOnly: true,
           },
         },
         resultArtifactAndContext: {
@@ -381,6 +433,7 @@ export async function runP5Acceptance(options = parseOptions([])) {
             proseReadReturnsExactYjsRevisionVectorAndHash: true,
             fullCompactorRunsUnderVerifiedPlanner: true,
             oldAuthorMessagesRemainPinnedWithoutVerifiedPolicy: true,
+            writeHistoryCompactsOnlyWithExactDurableCoverage: true,
           },
         },
         yjsProseAndDurableReview: {
@@ -403,6 +456,7 @@ export async function runP5Acceptance(options = parseOptions([])) {
             rejectRunsGuardedInversesInReverseOrder: true,
             failedSettlementKeepsLocalReviewPending: true,
             autoModeSettlesCanonicalReview: true,
+            reviewControlsRequireExactDurableCallProvenance: true,
           },
         },
         elementPatchAndCertification: {
@@ -420,7 +474,51 @@ export async function runP5Acceptance(options = parseOptions([])) {
             exactInverseIsRestartIdempotent: true,
             staleCrossProjectAndPendingDeletionFailClosed: true,
             createElementCertified: false,
-            updateElementCertified: false,
+            updateElementCertified: true,
+          },
+        },
+        productCompositionAndEntityWrites: {
+          machineAsserted: {
+            productDatabaseRunsAllMigrations: true,
+            rendererUseCasesAndYjsAreCanonicalWritePath: true,
+            entityMutationOutboxAndReceiptShareTransaction: true,
+            createCommentUsesDeterministicIdentity: true,
+            genericDurableReviewSupportsAcceptAndExactReject: true,
+          },
+        },
+        longTaskAndContinuation: {
+          machineAsserted: {
+            durableTaskStepAndConstraintStateMachines: true,
+            exactlyOnceTaskCommandsWithRevisionCas: true,
+            providerTargetsAreNameFirst: true,
+            resolvedIdsNeverReachProviderContext: true,
+            planAndConstraintsPinnedAcrossCompaction: true,
+            budgetBoundaryCommitsAResumableSlice: true,
+            continuationRequiresExplicitAuthorAction: true,
+            completedWriteStepRequiresDurableAcceptedTargetEvidence: true,
+            wholeBookScopeIsProviderExplicit: true,
+            wholeBookManifestIsRendererFrozen: true,
+            wholeBookManifestCoverageIsRevalidatedAtCompletion: true,
+            wholeBookStepsRequireAcceptedYjsProseEvidence: true,
+            frozenChapterIdsStayProviderPrivate: true,
+            renamedAndMissingFrozenChaptersRemainIdentitySafe: true,
+            allSettledStepReviewsRemainQueryableByResultRef: true,
+            acceptedEvidenceIsRevalidatedAgainstTargetAndProvenance: true,
+            activeWholeBookPlanPinsPlanAndProseTools: true,
+            continuationToolSelectionUsesDurablePlanHints: true,
+          },
+        },
+        dynamicToolAndMcpBase: {
+          machineAsserted: {
+            runtimeDiscoveryUsesStableNamespacedNames: true,
+            toolsAreProjectScoped: true,
+            hostClassificationIsMandatory: true,
+            externalWritesCannotRunAutomatically: true,
+            dynamicSchemasAndArgumentsFailClosed: true,
+            executionIsBoundToDefinitionRevision: true,
+            sourceRegistrationAndExecutionAreProjectIsolated: true,
+            portableArgumentsPreservePrototypeSafety: true,
+            toolSelectionIncludesRelevantDynamicTools: true,
           },
         },
       },
@@ -434,11 +532,11 @@ export async function runP5Acceptance(options = parseOptions([])) {
         recoveredWaitingControl:
           'safe cancel/new turn only; a lost JavaScript execution stack is not resumed in place',
         verifiedAuthorConstraintLedger:
-          'not connected in product; without an explicit verified policy, old user rows remain fail-safe pinned',
+          'first goal and explicit author constraints are provenance-bound; active long-task constraints are durable and semantic-pinned',
         certifiedWrites: {
           count: CERTIFIED_WRITES.length,
           catalogCount: 34,
-          uncertifiedNamedGaps: ['create_element', 'update_element'],
+          uncertifiedNamedGaps: ['create_element'],
         },
         liveProviderSmoke: {
           deepSeek: 'not run',
@@ -451,8 +549,11 @@ export async function runP5Acceptance(options = parseOptions([])) {
         deferredRuntimeBreadth: [
           'multi-provider adapter conformance',
           'subagents',
-          'MCP',
+          'unattended long-task auto-looping',
+          'concrete MCP transport/configuration UI',
         ],
+        wholeBookAcceptance:
+          'frozen chapter coverage plus accepted target-matching Yjs prose evidence; literary sufficiency still requires live model and author review',
       },
       passed:
         processPassed &&

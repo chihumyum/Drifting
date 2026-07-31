@@ -3,16 +3,16 @@
   "schemaVersion": 1,
   "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "68751ebeeceb66fdc38553df9dea108cfd5d4c95",
+  "gitHead": "bfe2dc035606c41c0488ed3b1b6c1a41cb0a4a81",
   "provider": "not applicable",
   "model": "not applicable",
-  "sourceSetSha256": "sha256:165439dc71e8e2d7ea246fcaf27ff13f2ef5abaa68c7fbc95018d2c22b4a3a6a",
+  "sourceSetSha256": "sha256:2db46df581b74e4d566e82a49952de2396f2e0b5bce4c4c66bcd559ed637b817",
   "migration": {
-    "count": 66,
-    "latestIndex": 65,
-    "latestTag": "0065_agent_runtime_element_patch_receipt",
-    "requiredCount": 66,
-    "requiredLatestTag": "0065_agent_runtime_element_patch_receipt",
+    "count": 68,
+    "latestIndex": 67,
+    "latestTag": "0067_agent_runtime_long_task",
+    "requiredCount": 68,
+    "requiredLatestTag": "0067_agent_runtime_long_task",
     "indexesCanonical": true,
     "tagsUnique": true,
     "rustEmbedsDrizzleDirectory": true,
@@ -32,18 +32,34 @@
         "exists": true,
         "journalMatches": true,
         "requiredSqlPresent": true
+      },
+      {
+        "index": 66,
+        "tag": "0066_agent_runtime_entity_write_receipt",
+        "file": "drizzle/0066_agent_runtime_entity_write_receipt.sql",
+        "exists": true,
+        "journalMatches": true,
+        "requiredSqlPresent": true
+      },
+      {
+        "index": 67,
+        "tag": "0067_agent_runtime_long_task",
+        "file": "drizzle/0067_agent_runtime_long_task.sql",
+        "exists": true,
+        "journalMatches": true,
+        "requiredSqlPresent": true
       }
     ],
     "passed": true
   },
   "vitest": {
     "files": {
-      "required": 23,
-      "discovered": 23
+      "required": 41,
+      "discovered": 41
     },
     "tests": {
-      "total": 177,
-      "passed": 177,
+      "total": 332,
+      "passed": 332,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -53,41 +69,41 @@
         "files": 5,
         "discoveredFiles": 5,
         "tests": {
-          "total": 37,
-          "passed": 37,
+          "total": 52,
+          "passed": 52,
           "failed": 0,
           "pending": 0
         },
         "passed": true
       },
       "restartRecovery": {
-        "files": 3,
-        "discoveredFiles": 3,
+        "files": 8,
+        "discoveredFiles": 8,
         "tests": {
-          "total": 34,
-          "passed": 34,
+          "total": 50,
+          "passed": 50,
           "failed": 0,
           "pending": 0
         },
         "passed": true
       },
       "resultArtifactAndContext": {
-        "files": 6,
-        "discoveredFiles": 6,
+        "files": 8,
+        "discoveredFiles": 8,
         "tests": {
-          "total": 51,
-          "passed": 51,
+          "total": 74,
+          "passed": 74,
           "failed": 0,
           "pending": 0
         },
         "passed": true
       },
       "yjsProseAndDurableReview": {
-        "files": 6,
-        "discoveredFiles": 6,
+        "files": 7,
+        "discoveredFiles": 7,
         "tests": {
-          "total": 39,
-          "passed": 39,
+          "total": 43,
+          "passed": 43,
           "failed": 0,
           "pending": 0
         },
@@ -99,6 +115,39 @@
         "tests": {
           "total": 16,
           "passed": 16,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "productCompositionAndEntityWrites": {
+        "files": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 9,
+          "passed": 9,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "longTaskAndContinuation": {
+        "files": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 15,
+          "passed": 15,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "dynamicToolAndMcpBase": {
+        "files": 5,
+        "discoveredFiles": 5,
+        "tests": {
+          "total": 73,
+          "passed": 73,
           "failed": 0,
           "pending": 0
         },
@@ -122,17 +171,23 @@
         ],
         "askUserPausesAndReturnsProviderVisibleAnswer": true,
         "duplicateAskUserReplaysDurableAnswer": true,
+        "canonicalJournalDrivesStreamingProjection": true,
         "steeringRecordedAsCanonicalInput": true,
         "stopAfterCurrentToolPreventsUnstartedWrites": true
       }
     },
     "restartRecovery": {
       "machineAsserted": {
+        "canonicalJournalCommitsBeforeTerminalAndReplaysAcrossRestart": true,
         "pendingControlsRehydrated": true,
         "lostExecutionStackNeverClaimedResumable": true,
         "recoveredPendingControlCanBeSafelyCancelled": true,
         "interruptedYjsReceiptReconciledBeforeSessionResume": true,
-        "interruptedMutationNotReplayed": true
+        "interruptedMutationNotReplayed": true,
+        "validBudgetSlicePersistsVerifiedV2Checkpoint": true,
+        "providerNeutralTurnsNeverCreateLegacyWholeTurnCheckpoints": true,
+        "legacyWholeTurnRevertFailsClosedAfterRuntimeBarrier": true,
+        "canonicalRevertUsesDurableGuardedReviewOnly": true
       }
     },
     "resultArtifactAndContext": {
@@ -143,7 +198,8 @@
         "contentHashAndQuotaFailClosed": true,
         "proseReadReturnsExactYjsRevisionVectorAndHash": true,
         "fullCompactorRunsUnderVerifiedPlanner": true,
-        "oldAuthorMessagesRemainPinnedWithoutVerifiedPolicy": true
+        "oldAuthorMessagesRemainPinnedWithoutVerifiedPolicy": true,
+        "writeHistoryCompactsOnlyWithExactDurableCoverage": true
       }
     },
     "yjsProseAndDurableReview": {
@@ -165,14 +221,15 @@
         "approveSettlesCanonicalReview": true,
         "rejectRunsGuardedInversesInReverseOrder": true,
         "failedSettlementKeepsLocalReviewPending": true,
-        "autoModeSettlesCanonicalReview": true
+        "autoModeSettlesCanonicalReview": true,
+        "reviewControlsRequireExactDurableCallProvenance": true
       }
     },
     "elementPatchAndCertification": {
       "certifiedWrites": {
         "totalCatalogWrites": 34,
-        "certified": 10,
-        "unavailable": 24,
+        "certified": 14,
+        "unavailable": 20,
         "names": [
           "rename_node",
           "set_node_summary",
@@ -183,7 +240,11 @@
           "remove_blocks",
           "replace_block_range",
           "create_element_patch",
-          "update_element_patch"
+          "update_element_patch",
+          "create_comment",
+          "update_element",
+          "update_storyline",
+          "update_project_facts"
         ]
       },
       "machineAsserted": {
@@ -194,7 +255,51 @@
         "exactInverseIsRestartIdempotent": true,
         "staleCrossProjectAndPendingDeletionFailClosed": true,
         "createElementCertified": false,
-        "updateElementCertified": false
+        "updateElementCertified": true
+      }
+    },
+    "productCompositionAndEntityWrites": {
+      "machineAsserted": {
+        "productDatabaseRunsAllMigrations": true,
+        "rendererUseCasesAndYjsAreCanonicalWritePath": true,
+        "entityMutationOutboxAndReceiptShareTransaction": true,
+        "createCommentUsesDeterministicIdentity": true,
+        "genericDurableReviewSupportsAcceptAndExactReject": true
+      }
+    },
+    "longTaskAndContinuation": {
+      "machineAsserted": {
+        "durableTaskStepAndConstraintStateMachines": true,
+        "exactlyOnceTaskCommandsWithRevisionCas": true,
+        "providerTargetsAreNameFirst": true,
+        "resolvedIdsNeverReachProviderContext": true,
+        "planAndConstraintsPinnedAcrossCompaction": true,
+        "budgetBoundaryCommitsAResumableSlice": true,
+        "continuationRequiresExplicitAuthorAction": true,
+        "completedWriteStepRequiresDurableAcceptedTargetEvidence": true,
+        "wholeBookScopeIsProviderExplicit": true,
+        "wholeBookManifestIsRendererFrozen": true,
+        "wholeBookManifestCoverageIsRevalidatedAtCompletion": true,
+        "wholeBookStepsRequireAcceptedYjsProseEvidence": true,
+        "frozenChapterIdsStayProviderPrivate": true,
+        "renamedAndMissingFrozenChaptersRemainIdentitySafe": true,
+        "allSettledStepReviewsRemainQueryableByResultRef": true,
+        "acceptedEvidenceIsRevalidatedAgainstTargetAndProvenance": true,
+        "activeWholeBookPlanPinsPlanAndProseTools": true,
+        "continuationToolSelectionUsesDurablePlanHints": true
+      }
+    },
+    "dynamicToolAndMcpBase": {
+      "machineAsserted": {
+        "runtimeDiscoveryUsesStableNamespacedNames": true,
+        "toolsAreProjectScoped": true,
+        "hostClassificationIsMandatory": true,
+        "externalWritesCannotRunAutomatically": true,
+        "dynamicSchemasAndArgumentsFailClosed": true,
+        "executionIsBoundToDefinitionRevision": true,
+        "sourceRegistrationAndExecutionAreProjectIsolated": true,
+        "portableArgumentsPreservePrototypeSafety": true,
+        "toolSelectionIncludesRelevantDynamicTools": true
       }
     }
   },
@@ -211,13 +316,12 @@
       ]
     },
     "recoveredWaitingControl": "safe cancel/new turn only; a lost JavaScript execution stack is not resumed in place",
-    "verifiedAuthorConstraintLedger": "not connected in product; without an explicit verified policy, old user rows remain fail-safe pinned",
+    "verifiedAuthorConstraintLedger": "first goal and explicit author constraints are provenance-bound; active long-task constraints are durable and semantic-pinned",
     "certifiedWrites": {
-      "count": 10,
+      "count": 14,
       "catalogCount": 34,
       "uncertifiedNamedGaps": [
-        "create_element",
-        "update_element"
+        "create_element"
       ]
     },
     "liveProviderSmoke": {
@@ -231,8 +335,10 @@
     "deferredRuntimeBreadth": [
       "multi-provider adapter conformance",
       "subagents",
-      "MCP"
-    ]
+      "unattended long-task auto-looping",
+      "concrete MCP transport/configuration UI"
+    ],
+    "wholeBookAcceptance": "frozen chapter coverage plus accepted target-matching Yjs prose evidence; literary sufficiency still requires live model and author review"
   },
   "passed": true
 }

@@ -1,17 +1,38 @@
-# Explicit Tauri migration boundaries
+# Explicit Tauri platform boundaries
 
 These limitations are surfaced deliberately. None of them silently falls back to plaintext
 storage, stale prose projections, or a fake successful operation.
 
 ## General Agent
 
-The Anthropic General Agent is unavailable. The removed implementation required a desktop-only
-Node/Claude CLI process. The renderer now owns a transport-neutral protocol and reports the stable
-`GENERAL_AGENT_UNSUPPORTED` error.
+General Agent is no longer blocked by the Tauri migration. The app shell installs a
+provider-neutral local runtime in the renderer on desktop, iOS, and Android. The current production
+driver uses the user's DeepSeek BYOK credential from native secure storage; it has no hosted quota
+and does not require the removed desktop Node/Claude CLI process. Tool handlers continue to execute
+through renderer repositories/use cases, and prose mutations pass through the live Yjs document.
 
-Future workaround: implement either a packaged desktop sidecar or an authenticated remote desktop
-runner. BYOK credentials must remain on the executing client, and every prose mutation must still
-pass through the live Yjs document and existing renderer use cases.
+`GENERAL_AGENT_UNSUPPORTED` remains the fail-closed fallback when no transport is installed, but it
+is not the normal product state after the app shell mounts. The `sidecar` and `remote` transport
+kinds remain extension seams, not current prerequisites.
+
+The implemented single-Agent slice is intentionally narrower than Claude Code:
+
+- 14 of 34 write tools are certified; the other 20 are unavailable.
+- only one-turn (`once`) permission grants are implemented
+- a waiting control recovered after a full restart can be displayed and safely cancelled, but the
+  lost JavaScript stack cannot resume in place
+- whole-book plans resume across turns and budget slices, but continuation is an explicit author
+  action rather than an unattended auto-loop; structural acceptance proves exact chapter coverage
+  and accepted writes, not literary quality
+- multi-provider Agent conformance and subagents are not implemented
+- the dynamic MCP/plugin registry and discovery/execution bridge are implemented, but a concrete
+  stdio/Streamable HTTP transport and configuration UI are not
+- native desktop, iOS, and Android Agent UI smoke is still unverified
+
+BYOK credentials must remain on the executing client, and future transports must preserve the same
+renderer-owned mutation and durable-review boundaries. The exact deterministic and manual
+acceptance status lives in
+[`../docs/agent-runtime/acceptance/P5_PROGRESS_REPORT.md`](../docs/agent-runtime/acceptance/P5_PROGRESS_REPORT.md).
 
 ## Android secure storage
 

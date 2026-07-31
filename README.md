@@ -35,6 +35,7 @@ Useful commands:
 ```bash
 pnpm --dir client typecheck
 pnpm --dir client test
+pnpm --dir client eval:agent:p5
 pnpm --dir client tauri:build
 pnpm --dir client tauri:ios:init
 pnpm --dir client tauri:ios:build
@@ -96,10 +97,30 @@ degradation; it must not raise the mobile whole-file memory limit.
 
 ## Current boundary
 
-The Anthropic General Agent is intentionally unavailable in this Tauri migration. Its previous
-runtime required a desktop Node/Claude CLI process. The renderer now exposes a replaceable
-transport for a future desktop sidecar or authenticated remote desktop runner; Copilot and Shadow
-remain client-side and preserve the live-Yjs write path.
+General Agent is available through the provider-neutral local runtime installed by the renderer on
+every Tauri target. It currently uses the user's DeepSeek BYOK credential from native secure
+storage, executes tools through renderer repositories/use cases, and routes prose writes through
+the live Yjs document. It does not require the removed desktop Node/Claude CLI, a sidecar, or a
+remote runner.
+
+The transport seam still supports future `sidecar` or `remote` implementations, but those are
+extension points rather than prerequisites for the current product path. The current single-Agent
+slice freezes the canonical chapter manifest for whole-book tasks, persists plans, steps,
+constraints, and per-step review evidence across budget slices and restarts, and requires an
+accepted target-matching Yjs prose write before a chapter step can complete. Verified context
+compaction keeps canonical history while pinning current progress and active constraints. Durable
+active-plan hints keep plan, chapter-read, and prose-edit tools available even for a generic
+“continue” request. The Agent Panel streams from the canonical journal and offers an explicit
+same-session continuation while a plan is active or after a budget boundary.
+
+This is still not full Claude Code parity: 14 of 34 write tools are certified; the other 20 are
+unavailable. Runtime-discovered MCP/plugin tools now have a project-scoped registry, strict schema
+validation, central permission policy, and a transport-neutral MCP discovery bridge, but no
+concrete stdio/Streamable HTTP connection or configuration UI is shipped. Multi-provider Agent
+conformance, subagents, persistent `session`/`project` permission grants, unattended long-task
+auto-looping, and native UI smoke remain deferred or unverified. See
+[`docs/agent-runtime/acceptance/P5_PROGRESS_REPORT.md`](docs/agent-runtime/acceptance/P5_PROGRESS_REPORT.md)
+for the exact acceptance boundary.
 
 See [`src-tauri/UNSUPPORTED.md`](src-tauri/UNSUPPORTED.md) for the explicit platform limitations.
 

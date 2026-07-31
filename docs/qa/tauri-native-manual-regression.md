@@ -3,7 +3,7 @@
 这份清单用于记录 Drifting Tauri 客户端中只能依赖真实设备、系统浏览器、真实账号或真实云端完成的回归。
 它不替代自动化测试，也不把尚未完成的移动端 UI 适配当作发布验收项。
 
-最后更新：2026-07-22
+最后更新：2026-07-31
 
 基线提交：
 
@@ -13,11 +13,12 @@
 - `81b3b2ee feat(assets): enable native HEIC and AVIF imports`
 - `b8239fc6 fix(assets): resume interrupted native uploads`
 - `d29841bf fix(assets): support signed R2 uploads behind TUN DNS`
+- `19a4e2dc fix(agent): harden tool calls and stream responses`
 
 相关资料：
 
 - [Drifting Core README](../../README.md)
-- [Explicit Tauri migration boundaries](../../src-tauri/UNSUPPORTED.md)
+- [Explicit Tauri platform boundaries](../../src-tauri/UNSUPPORTED.md)
 - [Server production environment example](../../private-service/.env.production.example)
 - [Android secure-storage instrumented test](../../src-tauri/plugins/drifting-secure-storage/android/src/androidTest/java/SecureStorageInstrumentedTest.kt)
 
@@ -68,6 +69,7 @@ OS / API level：
 | OAuth Server           | state、PKCE、HMAC binding、redirect allowlist、过期、一次性兑换、敏感 payload 解析 | 真实 Google、浏览器 cookie、真实 PostgreSQL 竞争、deep link、生产日志 |
 | OAuth renderer         | warm/queued callback、state 不匹配、过期、exchange 失败                            | 冷启动 callback、浏览器取消、断网、系统切换、session 持久化           |
 | 图片 pipeline          | 普通图片、方向、格式嗅探、尺寸/内存上限；macOS ImageIO HEIC/AVIF                   | iOS 真机、Android 系统 codec、照片选择器、R2、两个真实 UI 入口        |
+| General Agent          | P5 聚合覆盖 41 个文件、332 个测试；14 个写工具、冻结全书清单、长任务、compaction、canonical journal | DeepSeek 真调用、桌面/iOS/Android UI、后台恢复、触摸与软键盘          |
 | 构建                   | macOS 测试、iOS/Android Rust 交叉编译、Android APK/Kotlin 编译                     | 安装、权限、后台生命周期、低内存、不同厂商设备                        |
 
 手工回归应集中在右列，不需要重复证明纯函数已经测过的细节。
@@ -214,14 +216,31 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
 
 `drifting://` 仍是未验证 custom scheme。人工回归可以证明流程可用和 PKCE 防重放，但不能消除其他 App 抢占 scheme 的发布风险；公开分发前仍需 iOS Universal Links / Android App Links。
 
-## 7. 图片与 PDF
+## 7. General Agent
+
+- [ ] `AG-01` `P0` 在“设置 → Agent”录入测试 DeepSeek BYOK；密钥写入 native secure storage，重启后连接状态恢复，日志和数据库中没有明文。
+- [ ] `AG-02` `P1` 发起只读任务并检查项目、章节、元素、关系与素材结果；不得跨项目读取，也不得在只读任务中产生写入。
+- [ ] `AG-03` `P1` 执行一个已认证写工具；变更必须进入软审阅，接受后保留，拒绝后通过 guarded inverse 撤销，正文写入仍以 live Yjs 为准。
+- [ ] `AG-04` `P1` 运行中切后台、锁屏、恢复前台并重启 App；已落盘对话和结果仍可读。重启前正在等待的控制可以安全取消，但不得伪装成原 JavaScript 栈已原地恢复。
+- [ ] `AG-05` `P1` 在模型流式响应和工具调用阶段分别断网；界面不得 silent success，恢复后新 turn 可继续，已提交的写入不得重复执行。
+- [ ] `AG-06` `P0` 发起“逐章润色整本小说”任务；Agent 创建 `whole_book_chapters` 持久化计划，步骤数和冻结时的章节数完全一致、顺序一致，且不是由模型手工枚举。运行时仅允许一个 `in_progress` 步骤，并保留用户给出的文风、禁改项和人物语气约束。
+- [ ] `AG-07` `P0` 分别让任务正常结束一个 turn 和触发一次预算上限；只要同一 session 仍有 active plan，Panel 都显示“继续此任务”且不会自动循环。点击后从首个 `in_progress`、否则首个 `pending` 步骤继续，不重复已完成章节；即使发送文本只相当于“继续”，首轮仍能看到计划、`read_node` 和 `edit_blocks`。
+- [ ] `AG-08` `P1` 在长任务中退出并重启 App；文本、thinking、未完成工具参数、工具结果和 terminal 状态按 canonical journal 恢复，计划进度与 active constraints 仍在。
+- [ ] `AG-09` `P1` 分别执行正文、元素、故事线、项目事实和评论写入；工具卡始终显示 durable review 状态，接受或还原后状态同步，目标若已被并发修改则安全报冲突。
+- [ ] `AG-10` `P1` 用足够长的真实对话触发 compaction；续作仍记得原始目标、显式约束、已完成章节和待办章节，不重复写入。记录模型、token、耗时和任何语义遗漏。
+- [ ] `AG-11` `P1` 用至少 22 章的副本执行全书任务，让所有章节先停在 review-blocked，再批量接受；重新继续后最早和最晚的步骤都能读取 `acceptedTargetEvidence=true` 并完成，不受“最近 20 条审核上下文”限制。
+- [ ] `AG-12` `P1` 冻结全书计划后分别新增、改名和删除章节：新增章不进入旧 manifest；改名章沿用冻结 ID 并显示新名称；删除章显示 missing 且任务不能假装完整完成。
+
+当前产品路径是 renderer 内的 provider-neutral local runtime，使用 DeepSeek BYOK，不需要 Node/Claude CLI、sidecar 或 remote runner。当前认证了 14 / 34 个写工具；其余 20 个、multi-provider conformance、subagent、无人值守自动续跑、具体 MCP transport/config UI 不属于“当前功能应通过”的范围，也不能据此宣称完整 Claude Code parity。动态 MCP/plugin 工具的注册、隔离、schema、检索和单次审批基座已有自动化验收，但尚无可供本清单手测的产品连接入口。
+
+## 8. 图片与 PDF
 
 以下用例原则上要在两个入口各执行一次：
 
 1. 素材库导入。
 2. 元素头像上传、替换和删除。
 
-### 7.1 成功路径
+### 8.1 成功路径
 
 - [ ] `IMG-01` `P1` 取消 picker，不新增素材、不改变头像。
 - [ ] `IMG-02` `P0` PNG、JPEG 在 Android、iOS、macOS 成功；PNG 透明区无黑块。
@@ -237,7 +256,7 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
 - [ ] `IMG-12` `P1` 删除头像后重启与第二设备都不再显示。
 - [ ] `IMG-13` `P1` 重复导入同一文件不会互相覆盖。
 
-### 7.2 失败与恢复
+### 8.2 失败与恢复
 
 - [ ] `IMG-F01` `P1` Android 7 HEIC/HEIF、Android 11 AVIF、Windows/Linux HEIC/AVIF 返回 `IMAGE_CODEC_UNAVAILABLE`，不崩溃。
 - [ ] `IMG-F02` `P1` codec 不支持时，素材库 local item 和 app-owned original 仍存在并可通过系统打开；头像不应覆盖旧值。
@@ -252,7 +271,7 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
 
 当前 picker/Rust pipeline 能解码 BMP、TIFF、ICO，但 Server source MIME allowlist 尚未接受这三类，因此完整云端上传不是预期成功路径。真正闭环的 source 格式是 JPEG、PNG、WebP、GIF、HEIC、HEIF、AVIF；BMP/TIFF/ICO 先记录为已知兼容缺口。
 
-## 8. SQLite、Yjs、同步与生命周期
+## 9. SQLite、Yjs、同步与生命周期
 
 - [ ] `DATA-01` `P0` 新安装后创建项目、章节、元素、关系、素材，重启后全部存在。
 - [ ] `DATA-02` `P0` 离线输入唯一正文 canary，等待本地落盘后强杀；离线重开内容逐字一致。
@@ -263,7 +282,7 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
 - [ ] `DATA-07` `P1` 同一账号从第二设备编辑同一章节，最终 Yjs 内容收敛且可继续编辑。
 - [ ] `DATA-08` `P2` 异常退出后重开，SQLite 无损坏提示，关键表和 Yjs snapshot/update 可读。
 
-## 9. 升级、迁移与重装
+## 10. 升级、迁移与重装
 
 - [ ] `UP-01` `P1` macOS 从最后一个 Electron 版本升级到 Tauri；项目 DB、Yjs、素材、session/BYOK 可用。
 - [ ] `UP-02` `P1` Electron source 数据目录保持不动，Tauri 数据通过 integrity check 后启用。
@@ -275,7 +294,7 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
 
 Chromium Local Storage 偏好不自动迁移是已知边界；主题、panel 状态、快捷键、写作统计和 Agent UI 元数据可能重置，不作为当前迁移 blocker。若存在同名 Tauri 数据库冲突，自动迁移会保留 Tauri 副本而不是覆盖或合并，测试前先备份并决定权威副本。
 
-## 10. 发布阻断条件
+## 11. 发布阻断条件
 
 出现以下任一情况，停止发布并建 Issue：
 
@@ -288,15 +307,15 @@ Chromium Local Storage 偏好不自动迁移是已知边界；主题、panel 状
 - 图片方向错误、App OOM、数据库损坏或正文丢失。
 - 失败操作在数据库/云端留下被标记为 ready 的半成品。
 
-## 11. 结果表
+## 12. 结果表
 
 | Test ID | Client/Server build | 日期 | 设备 | OS/API | 安装态 | 素材/账号 | 网络 | 结果 | 实际表现/错误码 | 证据 | Issue |
 | ------- | ------------------- | ---- | ---- | ------ | ------ | --------- | ---- | ---- | --------------- | ---- | ----- |
 |         |                     |      |      |        |        |           |      |      |                 |      |       |
 
-## 12. 不属于这份回归的已知边界
+## 13. 不属于这份回归的已知边界
 
-- General Agent 仍明确 unsupported。
+- General Agent 可用，但仅限当前已认证的 local-runtime 能力；完整 Claude Code parity 和三端真机 UI 验收尚未完成。
 - 旧 Chromium WebView preferences 尚未迁移。
 - `drifting://` 尚未替换为 Universal Links / Android App Links。
 - 完整移动端信息架构、触摸交互和软键盘适配尚未完成。

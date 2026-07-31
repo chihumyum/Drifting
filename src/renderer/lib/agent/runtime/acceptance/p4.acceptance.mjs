@@ -189,16 +189,32 @@ async function readMigrationIdentity() {
   );
   const entries = Array.isArray(journal.entries) ? journal.entries : [];
   const latest = entries.at(-1);
+  const journalIsSequential = entries.every(
+    (entry, index) =>
+      entry?.idx === index &&
+      Number.isSafeInteger(entry?.when) &&
+      typeof entry?.tag === 'string' &&
+      /^[A-Za-z0-9_-]+$/u.test(entry.tag),
+  );
+  const latestMigrationExists =
+    latest?.tag &&
+    (await readFile(
+      path.join(CORE_DIRECTORY, 'drizzle', `${latest.tag}.sql`),
+    ).then(
+      () => true,
+      () => false,
+    ));
   return {
     count: entries.length,
     latestIndex: latest?.idx ?? null,
     latestTag: latest?.tag ?? null,
-    requiredCount: 64,
-    requiredLatestTag: '0063_agent_runtime_freshness',
+    journalIsSequential,
+    latestMigrationExists: Boolean(latestMigrationExists),
     passed:
-      entries.length === 64 &&
-      latest?.idx === 63 &&
-      latest?.tag === '0063_agent_runtime_freshness',
+      entries.length > 0 &&
+      journalIsSequential &&
+      latest?.idx === entries.length - 1 &&
+      Boolean(latestMigrationExists),
   };
 }
 
@@ -442,7 +458,7 @@ export async function runP4Acceptance(options = parseOptions([])) {
         ],
         otherEntityObservations: 'empty',
         oversizedResultPaging:
-          'bounded in-memory map; durable receipts replay but post-restart continuation paging is not certified',
+          'durable SQLite result artifacts support project/session-scoped continuation paging across restart; chunk-bounded storage IO and product GC remain open',
         checkpointIntegrity:
           'unkeyed SHA-256 self-consistency, not authenticity against a local attacker who can rewrite payloads and all hashes',
         manualNativeSmoke: 'pending',
