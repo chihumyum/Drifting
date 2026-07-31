@@ -22,6 +22,8 @@ interface ImportMetaEnv {
   readonly VITE_DRIFTING_AGENT_DEBUG_CONTEXT_WINDOW_TOKENS?: string;
   /** DEV-only read-result cap for forcing durable result paging. */
   readonly VITE_DRIFTING_AGENT_DEBUG_RESULT_BUDGET_CHARS?: string;
+  /** DEV-only turn-slice cap for exercising durable automatic continuation. */
+  readonly VITE_DRIFTING_AGENT_DEBUG_MAX_MODEL_ITERATIONS?: string;
   /**
    * DeepSeek thinking-mode toggle. Set to "enabled" / "1" / "true" / "on"
    * to turn on thinking mode for the DeepSeek provider. Default OFF —

@@ -268,6 +268,7 @@ export function createDriftingAgentProductComposition(
         const writeReviewRows = await loadAgentWriteReviewContextRows(
           input.sessionId,
           repositories.writeEffects,
+          { currentTurnId: input.turnId },
         );
         const longTaskRows = await longTaskSupplementalRows(input);
         return [...writeReviewRows, ...longTaskRows];

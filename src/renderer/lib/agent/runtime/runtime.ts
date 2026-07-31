@@ -63,6 +63,20 @@ export const DEFAULT_AGENT_RUNTIME_LIMITS: AgentRuntimeLimits = {
 
 const RESULT_PAGE_TOOL = 'read_tool_result';
 const MAX_SYNTHESIS_OUTPUT_TOKEN_RESERVE = 2_048;
+export const AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE =
+  'Runtime synthesis boundary: tool execution is disabled for this final response. Do not emit function-call, XML, DSML, or other tool invocation markup, and do not claim an unexecuted call. Summarize only verified results, state unfinished work explicitly, and end with ordinary prose.';
+export const AGENT_SYNTHESIS_DISCARDED_TOOL_TEXT =
+  'This execution slice ended before another tool call could run. The unexecuted invocation was discarded; durable task progress is preserved for continuation.';
+
+function sanitizeAgentSynthesisText(text: string): string {
+  const containsToolMarkup = [
+    /DSML[\s\S]{0,80}(?:tool_calls?|invoke)/i,
+    /<\s*\/?\s*(?:tool_calls?|function_calls?)\b/i,
+    /<\s*invoke\b[^>]*\bname\s*=/i,
+    /["']tool_calls?["']\s*:/i,
+  ].some((pattern) => pattern.test(text));
+  return containsToolMarkup ? AGENT_SYNTHESIS_DISCARDED_TOOL_TEXT : text;
+}
 
 const emptyToolRuntime: AgentToolRuntime = {
   listDefinitions: () => [],
@@ -1341,6 +1355,9 @@ export class AgentRuntime {
         description,
         inputSchema: clonePortableData(inputSchema),
       }));
+      const iterationSystemPrompt = synthesisOnly
+        ? [input.systemPrompt, AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE].filter(Boolean).join('\n\n')
+        : input.systemPrompt;
       const plannedContext = await awaitAbortable(
         this.contextPlanning.plan({
           purpose: 'provider_call',
@@ -1350,7 +1367,7 @@ export class AgentRuntime {
           driverId: this.driver.id,
           ...(input.model ? { model: input.model } : {}),
           context,
-          ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
+          ...(iterationSystemPrompt ? { systemPrompt: iterationSystemPrompt } : {}),
           messages,
           executableDefinitions: definitions,
           selectedTools: providerTools,
@@ -1376,6 +1393,7 @@ export class AgentRuntime {
       });
 
       const blocks: AgentAssistantContentBlock[] = [];
+      let bufferedSynthesisText = '';
       const calls: MutableToolCall[] = [];
       const callsById = new Map<string, MutableToolCall>();
       let finishReason: AgentModelStopReason | null = null;
@@ -1416,8 +1434,15 @@ export class AgentRuntime {
           }
           switch (frame.type) {
             case 'text_delta':
-              appendContentDelta(blocks, 'text', frame.text);
-              await emit({ type: 'text_delta', iteration, text: frame.text });
+              if (synthesisOnly) {
+                // A tool-disabled boundary is buffered so provider-specific
+                // pseudo-call markup can be discarded before it reaches the
+                // canonical journal/UI. Ordinary answer iterations still stream.
+                bufferedSynthesisText += frame.text;
+              } else {
+                appendContentDelta(blocks, 'text', frame.text);
+                await emit({ type: 'text_delta', iteration, text: frame.text });
+              }
               break;
 
             case 'thinking_delta':
@@ -1618,6 +1643,12 @@ export class AgentRuntime {
       }
       if (calls.length === 0 && finishReason === 'tool_use') {
         protocol('Model stopped for tool use without any tool calls');
+      }
+
+      if (synthesisOnly && bufferedSynthesisText) {
+        const synthesisText = sanitizeAgentSynthesisText(bufferedSynthesisText);
+        appendContentDelta(blocks, 'text', synthesisText);
+        await emit({ type: 'text_delta', iteration, text: synthesisText });
       }
 
       await emit({

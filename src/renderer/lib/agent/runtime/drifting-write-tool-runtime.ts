@@ -737,8 +737,10 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         // happen immediately after that transaction and before the separate
         // review insert. Reconcile the deterministic review id on replay
         // instead of returning a result that points at a missing review.
-        await this.ensureCommittedReview(effect, tool);
-        return persistedExecutionResult(effect.result);
+        return withCanonicalReviewStatus(
+          persistedExecutionResult(effect.result),
+          await this.ensureCommittedReview(effect, tool),
+        );
       case 'effect_committed': {
         const handlerResult = persistedHandlerResult(effect.effect);
         return this.settleCommittedEffect(effect, tool, handlerResult);
@@ -814,8 +816,10 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       result,
       at: this.now(),
     });
-    await this.ensureCommittedReview(effect, tool);
-    return result;
+    return withCanonicalReviewStatus(
+      result,
+      await this.ensureCommittedReview(effect, tool),
+    );
   }
 
   private async ensureCommittedReview(
@@ -1411,6 +1415,25 @@ function persistedExecutionResult(value: unknown): AgentToolExecutionResult {
     throw new Error('The persisted Agent write result is invalid');
   }
   return value as AgentToolExecutionResult;
+}
+
+function withCanonicalReviewStatus(
+  result: AgentToolExecutionResult,
+  review: PersistedAgentRuntimeWriteReview | null,
+): AgentToolExecutionResult {
+  if (!review || !result.ok || !result.data || typeof result.data !== 'object') {
+    return result;
+  }
+  return {
+    ...result,
+    data: {
+      ...(result.data as Record<string, unknown>),
+      review: {
+        id: review.id,
+        status: review.status,
+      },
+    },
+  };
 }
 
 function persistedHandlerResult(value: unknown): unknown {

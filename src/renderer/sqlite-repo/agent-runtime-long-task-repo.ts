@@ -297,6 +297,7 @@ function acceptedWriteMatchesStepTarget(input: {
   step: PersistedAgentRuntimeTaskStep;
   effectChapterId: string | null;
   effectArgumentsJson: string;
+  effectForwardJson: string | null;
   effectResultJson: string;
 }): boolean {
   const target = input.step.target;
@@ -308,6 +309,37 @@ function acceptedWriteMatchesStepTarget(input: {
   );
   if (input.effectChapterId && expected.has(stableTaskText(input.effectChapterId))) {
     return true;
+  }
+  const forward = input.effectForwardJson
+    ? writeArguments(input.effectForwardJson)
+    : null;
+  if (forward) {
+    const entityKind =
+      typeof forward.entityKind === 'string'
+        ? stableTaskText(forward.entityKind)
+        : null;
+    const expectedKind = stableTaskText(target.kind);
+    const canonicalTargets: Array<{ kind: string | null; id: unknown }> = [
+      { kind: entityKind, id: forward.entityId },
+      {
+        kind:
+          target.kind === 'chapter' || target.kind === 'drift'
+            ? expectedKind
+            : null,
+        id: forward.nodeId,
+      },
+      { kind: 'chapter', id: forward.chapterId },
+    ];
+    if (
+      canonicalTargets.some(
+        (candidate) =>
+          typeof candidate.id === 'string' &&
+          (candidate.kind === null || candidate.kind === expectedKind) &&
+          expected.has(stableTaskText(candidate.id)),
+      )
+    ) {
+      return true;
+    }
   }
   const result = writeArguments(input.effectResultJson);
   if (
@@ -365,6 +397,7 @@ interface DurableTaskStepReviewRow {
   effectToolName: string;
   effectChapterId: string | null;
   effectArgumentsJson: string;
+  effectForwardJson: string | null;
   effectResultJson: string | null;
   effectResultCommittedAt: string | null;
 }
@@ -426,6 +459,7 @@ function evaluateTaskStepReviewEvidence(input: {
       step: input.step,
       effectChapterId: evidence.effectChapterId,
       effectArgumentsJson: evidence.effectArgumentsJson,
+      effectForwardJson: evidence.effectForwardJson,
       effectResultJson: evidence.effectResultJson ?? '{}',
     });
   const acceptedTargetEvidence =
@@ -592,6 +626,8 @@ export function createAgentRuntimeLongTaskRepository(
             effectChapterId: AgentRuntimeWriteEffectTable.chapterId,
             effectArgumentsJson:
               AgentRuntimeWriteEffectTable.argumentsJson,
+            effectForwardJson:
+              AgentRuntimeWriteEffectTable.forwardJson,
             effectResultJson: AgentRuntimeWriteEffectTable.resultJson,
             effectResultCommittedAt:
               AgentRuntimeWriteEffectTable.resultCommittedAt,
@@ -782,6 +818,12 @@ export function createAgentRuntimeLongTaskRepository(
       evidence,
     });
     if (!reviewEvidence?.acceptedTargetEvidence) {
+      if (reviewEvidence?.outcome === 'pending') {
+        throw new AgentRuntimeLongTaskConflictError(
+          'TASK_WRITE_EVIDENCE_INVALID',
+          `Review "${resultRef}" is still pending. Do not retry completion; call update_task_step with status="blocked", the same taskId/stepId/resultRef, and the current expectedRevision.`,
+        );
+      }
       throw new AgentRuntimeLongTaskConflictError(
         'TASK_WRITE_EVIDENCE_INVALID',
         `Task step "${step.id}" cannot complete without an accepted durable write for its exact target.`,

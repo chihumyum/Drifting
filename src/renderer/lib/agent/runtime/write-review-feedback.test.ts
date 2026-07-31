@@ -137,6 +137,56 @@ describe('Agent write review feedback', () => {
     ).toBeUndefined();
   });
 
+  it('projects failed/current physical turns into canonical context without inventing old tool pairs', async () => {
+    const priorFailedEffect = effect(
+      'effect-prior-failed',
+      'rename_node',
+      { node: '第一章', title: '旧失败轮写入' },
+      'turn-prior-failed',
+    );
+    const currentEffect = effect(
+      'effect-current',
+      'update_project_facts',
+      { facts: [{ key: 'phase', value: 'two' }] },
+      'turn-current',
+    );
+    const repository = {
+      loadSnapshot: async () => ({
+        effects: [priorFailedEffect, currentEffect],
+        reviews: [
+          review('review-prior-failed', priorFailedEffect.id, 'accepted_effect', 1),
+          review('review-current', currentEffect.id, 'accepted_effect', 2),
+        ],
+        turnOrdinalsById: {
+          'turn-prior-failed': 8,
+          'turn-current': 9,
+        },
+        turnContextOrdinalsById: {
+          'turn-prior-failed': 4,
+          'turn-current': 4,
+        },
+        turnHasCanonicalHistoryById: {
+          'turn-prior-failed': false,
+          'turn-current': false,
+        },
+      }),
+    } as unknown as AgentRuntimeWriteEffectRepository;
+
+    const rows = await loadAgentWriteReviewContextRows('session-1', repository, {
+      currentTurnId: 'turn-current',
+    });
+
+    expect(rows.map((row) => row.turnOrdinal)).toEqual([4, 4]);
+    expect(rows[0]?.durableWriteCoverage).toEqual([]);
+    expect(rows[1]?.durableWriteCoverage).toEqual([
+      {
+        turnOrdinal: 4,
+        callId: currentEffect.callId,
+        toolName: currentEffect.toolName,
+      },
+    ]);
+  });
+
   it('makes only the exactly matched settled write pair compressible while keeping both review rows pinned', async () => {
     const settledEffect = effect(
       'effect-settled',

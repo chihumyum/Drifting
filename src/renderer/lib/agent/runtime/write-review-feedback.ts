@@ -33,8 +33,9 @@ function writeCoverage(
     toolName: string;
   },
   turnOrdinal: number,
+  enabled = true,
 ) {
-  return typeof effect.callId === 'string' && effect.callId.length > 0
+  return enabled && typeof effect.callId === 'string' && effect.callId.length > 0
     ? [
         {
           turnOrdinal,
@@ -119,6 +120,7 @@ export async function buildAgentWriteReviewFeedback(
 export async function loadAgentWriteReviewContextRows(
   sessionId: string,
   repository: AgentRuntimeWriteEffectRepository = createAgentRuntimeWriteEffectRepository(),
+  options: { currentTurnId?: string } = {},
 ): Promise<AgentContextSupplementalPinnedRow[]> {
   if (!sessionId) return [];
   const snapshot = await repository.loadSnapshot(sessionId);
@@ -142,13 +144,17 @@ export async function loadAgentWriteReviewContextRows(
     )
     .map((review) => {
       const effect = effects.get(review.effectId)!;
-      const turnOrdinal = snapshot.turnOrdinalsById?.[effect.turnId];
+      const turnOrdinal =
+        snapshot.turnContextOrdinalsById?.[effect.turnId] ??
+        snapshot.turnOrdinalsById?.[effect.turnId];
       if (turnOrdinal === undefined || !Number.isSafeInteger(turnOrdinal) || turnOrdinal < 0) {
         throw new Error(
           `Write review ${review.id} has no canonical turn ordinal for ${effect.turnId}.`,
         );
       }
       const settledReview = isSettledReviewStatus(review.status);
+      const toolPairIsCanonical =
+        snapshot.turnHasCanonicalHistoryById?.[effect.turnId] ?? true;
       return {
         sourceId: `write-review:${review.id}`,
         turnOrdinal,
@@ -168,7 +174,11 @@ export async function loadAgentWriteReviewContextRows(
         }),
         ...(settledReview
           ? {
-              durableWriteCoverage: writeCoverage(effect, turnOrdinal),
+              durableWriteCoverage: writeCoverage(
+                effect,
+                turnOrdinal,
+                toolPairIsCanonical || effect.turnId === options.currentTurnId,
+              ),
             }
           : {}),
       };
@@ -177,7 +187,9 @@ export async function loadAgentWriteReviewContextRows(
 
   const archivedEvidence = archivedSettled.map((review) => {
     const effect = effects.get(review.effectId)!;
-    const turnOrdinal = snapshot.turnOrdinalsById?.[effect.turnId];
+    const turnOrdinal =
+      snapshot.turnContextOrdinalsById?.[effect.turnId] ??
+      snapshot.turnOrdinalsById?.[effect.turnId];
     if (turnOrdinal === undefined || !Number.isSafeInteger(turnOrdinal) || turnOrdinal < 0) {
       throw new Error(
         `Write review ${review.id} has no canonical turn ordinal for ${effect.turnId}.`,
@@ -190,6 +202,8 @@ export async function loadAgentWriteReviewContextRows(
       turnOrdinal,
       callId: effect.callId,
       toolName: effect.toolName,
+      toolPairIsCanonical:
+        snapshot.turnHasCanonicalHistoryById?.[effect.turnId] ?? true,
     };
   });
   const archiveHash = await settledArchiveHash(archivedEvidence);
@@ -214,7 +228,9 @@ export async function loadAgentWriteReviewContextRows(
           'Historical settled writes are represented by current domain state. Re-read affected entities before dependent edits.',
       }),
       durableWriteCoverage: archivedEvidence.flatMap((evidence) =>
-        typeof evidence.callId === 'string' && evidence.callId.length > 0
+        evidence.toolPairIsCanonical &&
+        typeof evidence.callId === 'string' &&
+        evidence.callId.length > 0
           ? [
               {
                 turnOrdinal: evidence.turnOrdinal,

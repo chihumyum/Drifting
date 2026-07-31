@@ -920,15 +920,28 @@ export function createAgentRuntimeWriteEffectRepository(
           .select({
             id: AgentRuntimeTurnTable.id,
             ordinal: AgentRuntimeTurnTable.ordinal,
+            status: AgentRuntimeTurnTable.status,
           })
           .from(AgentRuntimeTurnTable)
-          .where(eq(AgentRuntimeTurnTable.sessionId, sessionId));
+          .where(eq(AgentRuntimeTurnTable.sessionId, sessionId))
+          .orderBy(asc(AgentRuntimeTurnTable.ordinal));
+        let canonicalTurnOrdinal = 0;
+        const turnContextOrdinalsById: Record<string, number> = {};
+        const turnHasCanonicalHistoryById: Record<string, boolean> = {};
+        for (const turn of turns) {
+          turnContextOrdinalsById[turn.id] = canonicalTurnOrdinal;
+          const hasCanonicalHistory = turn.status === 'completed';
+          turnHasCanonicalHistoryById[turn.id] = hasCanonicalHistory;
+          if (hasCanonicalHistory) canonicalTurnOrdinal += 1;
+        }
         return {
           effects,
           reviews,
           turnOrdinalsById: Object.fromEntries(
             turns.map((turn) => [turn.id, turn.ordinal]),
           ),
+          turnContextOrdinalsById,
+          turnHasCanonicalHistoryById,
         };
       });
     },

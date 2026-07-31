@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import { useSettingsStore, AGENT_MODEL_OPTIONS } from '../../store/settings-store';
 import {
   useAgentChatStore,
+  selectAutomaticContinuation,
   selectAgentTaskContinuationReason,
   selectContextUsage,
   selectControlStatus,
@@ -31,15 +32,9 @@ import {
 import { useProjectStore } from '../../store/project-store';
 import { useAgentMemory } from '../../usecase/useAgentMemory';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
-import {
-  useAgentCheckpointStore,
-  type TurnCheckpoint,
-} from '../../store/agent-checkpoint-store';
+import { useAgentCheckpointStore, type TurnCheckpoint } from '../../store/agent-checkpoint-store';
 import { Switch } from '../ui/Switch';
-import {
-  listLegacyRevertableCheckpoints,
-  revertToTurn,
-} from '../../lib/agent/turn-revert';
+import { listLegacyRevertableCheckpoints, revertToTurn } from '../../lib/agent/turn-revert';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
@@ -836,6 +831,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const controlStatus = useAgentChatStore(selectControlStatus);
   const pendingControl = useAgentChatStore(selectPendingControl);
   const continuationReason = useAgentChatStore(selectAgentTaskContinuationReason);
+  const automaticContinuation = useAgentChatStore(selectAutomaticContinuation);
   const contextUsage = useAgentChatStore(selectContextUsage);
   const runningConvId = useAgentChatStore((s) => s.runningConvId);
   const convList = useAgentChatStore((s) => s.convList);
@@ -843,6 +839,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const setPrompt = useAgentChatStore((s) => s.setPrompt);
   const send = useAgentChatStore((s) => s.send);
   const continueTask = useAgentChatStore((s) => s.continueTask);
+  const pauseAutomaticContinuation = useAgentChatStore((s) => s.pauseAutomaticContinuation);
   const respondPermission = useAgentChatStore((s) => s.respondPermission);
   const stopAfterTool = useAgentChatStore((s) => s.stopAfterTool);
   const cancelRecoveredControl = useAgentChatStore((s) => s.cancelRecoveredControl);
@@ -1438,27 +1435,65 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
               }}
             />
           )}
+          {automaticContinuation &&
+            (automaticContinuation.status === 'armed' ||
+              automaticContinuation.status === 'evaluating' ||
+              automaticContinuation.status === 'scheduled') && (
+              <div className="agt-control-card" role="status">
+                <strong>{t('agentPanel.autoContinue.title')}</strong>
+                <span>
+                  {t('agentPanel.autoContinue.body', {
+                    count: automaticContinuation.automaticSlicesStarted,
+                  })}
+                </span>
+                <div className="agt-control-card__actions">
+                  <button
+                    type="button"
+                    className="agt-control-card__deny"
+                    onClick={pauseAutomaticContinuation}
+                  >
+                    {t('agentPanel.autoContinue.pause')}
+                  </button>
+                </div>
+              </div>
+            )}
           {continuationReason && (
             <div className="agt-control-card" role="status">
               <strong>
-                {continuationReason === 'budget_exceeded'
-                  ? t('agentPanel.budget.title', {
-                      defaultValue: '已达到本轮预算上限',
-                    })
-                  : t('agentPanel.longTask.title', {
-                      defaultValue: '任务计划尚未完成',
-                    })}
+                {automaticContinuation?.stopReason === 'waiting_review'
+                  ? t('agentPanel.autoContinue.waitingReviewTitle')
+                  : automaticContinuation?.stopReason === 'no_progress'
+                    ? t('agentPanel.autoContinue.noProgressTitle')
+                  : automaticContinuation?.stopReason === 'slice_limit' ||
+                      automaticContinuation?.stopReason === 'time_limit' ||
+                      automaticContinuation?.stopReason === 'cost_limit'
+                    ? t('agentPanel.autoContinue.safetyTitle')
+                    : continuationReason === 'budget_exceeded'
+                      ? t('agentPanel.budget.title', {
+                          defaultValue: '已达到本轮预算上限',
+                        })
+                      : t('agentPanel.longTask.title', {
+                          defaultValue: '任务计划尚未完成',
+                        })}
               </strong>
               <span>
-                {continuationReason === 'budget_exceeded'
-                  ? t('agentPanel.budget.body', {
-                      defaultValue:
-                        '已完成的进度会保留。你可以手动继续一次，Agent 会先检查当前状态并从未完成部分接着做。',
-                    })
-                  : t('agentPanel.longTask.body', {
-                      defaultValue:
-                        '本轮已正常结束，但同一会话的持久化任务计划仍有未完成内容。你可以继续执行下一步。',
-                    })}
+                {automaticContinuation?.stopReason === 'waiting_review'
+                  ? t('agentPanel.autoContinue.waitingReviewBody')
+                  : automaticContinuation?.stopReason === 'no_progress'
+                    ? t('agentPanel.autoContinue.noProgressBody')
+                  : automaticContinuation?.stopReason === 'slice_limit' ||
+                      automaticContinuation?.stopReason === 'time_limit' ||
+                      automaticContinuation?.stopReason === 'cost_limit'
+                    ? t('agentPanel.autoContinue.safetyBody')
+                    : continuationReason === 'budget_exceeded'
+                      ? t('agentPanel.budget.body', {
+                          defaultValue:
+                            '已完成的进度会保留。继续后，Agent 会检查当前状态并在安全上限内连续处理未完成部分。',
+                        })
+                      : t('agentPanel.longTask.body', {
+                          defaultValue:
+                            '本轮已正常结束，但同一会话的持久化任务计划仍有未完成内容。你可以继续执行下一步。',
+                        })}
               </span>
               <div className="agt-control-card__actions">
                 <button

@@ -399,7 +399,7 @@ describe('DriftingWriteToolRuntime', () => {
           stateHash: 'after',
           revision: 'yjs:1',
         },
-        review: { status: 'pending' },
+        review: { status: 'accepted_effect' },
       },
     });
     expect(repository.effect(`agent-write:${input.idempotencyKey}`).phase).toBe('result_committed');
@@ -423,6 +423,7 @@ describe('DriftingWriteToolRuntime', () => {
       ok: true,
       data: {
         effectId: `agent-write:${input.idempotencyKey}`,
+        review: { status: 'accepted_effect' },
       },
     });
     expect(repository.reviews()).toEqual([
@@ -433,7 +434,10 @@ describe('DriftingWriteToolRuntime', () => {
       }),
     ]);
 
-    await runtime.execute(input);
+    await expect(runtime.execute(input)).resolves.toMatchObject({
+      ok: true,
+      data: { review: { status: 'accepted_effect' } },
+    });
     expect(repository.reviews()).toHaveLength(1);
     expect(repository.reviews()[0]?.status).toBe('accepted_effect');
     expect(renameNode).toHaveBeenCalledOnce();

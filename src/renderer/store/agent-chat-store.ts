@@ -39,7 +39,6 @@ import type {
   AgentChatMessage as ChatMsg,
   AgentConversationSummary,
 } from '../domain/agent-conversation';
-import type { AgentRuntimeTaskStatus } from '../domain/agent-runtime-long-task';
 import type {
   AgentControlStatus,
   AgentPendingControl,
@@ -58,7 +57,17 @@ import {
   findCanonicalAgentChatSessionId,
   loadCanonicalAgentChatProjection,
 } from '../lib/agent/runtime/recovered-transcript';
-import { buildAgentWriteReviewFeedback } from '../lib/agent/runtime/write-review-feedback';
+import {
+  armAgentAutomaticContinuation,
+  beginAutomaticContinuationSlice,
+  createInactiveAgentAutomaticContinuation,
+  decideAgentAutomaticContinuation,
+  markAutomaticContinuationTerminal,
+  observeAgentAutomaticContinuationProgress,
+  summarizeLongTaskPlanForContinuation,
+  type AgentAutomaticContinuationState,
+  type AgentLongTaskPlanContinuationState,
+} from '../lib/agent/runtime/long-task-auto-continuation';
 import { generalAgentTransport } from '../lib/agent/transport';
 import { buildGeneralAgentProjectContext } from '../lib/agent/product-project-context';
 
@@ -145,7 +154,7 @@ const EMPTY_MESSAGES: ChatMsg[] = [];
 export const BUDGET_CONTINUATION_PROMPT =
   '继续完成上一轮因预算上限中断的任务。先检查上一轮已完成的工作和当前项目状态，不要重复已完成的步骤；从尚未完成的部分继续，完成后总结结果。';
 export const ACTIVE_PLAN_CONTINUATION_PROMPT =
-  '继续执行当前持久化任务计划。先读取计划、约束和当前项目状态，不要重复已完成的步骤；从第一个尚未完成的步骤继续，完成后更新计划并总结结果。';
+  '继续执行当前持久化任务计划。先用 read_task_plan 读取计划、约束和当前项目状态，不要重复已完成的步骤；只能用 update_task_step 更新单个步骤状态，update_task_plan 只处理任务级状态。从第一个尚未完成的步骤继续，完成后更新计划并总结结果。';
 
 interface RunTerminalState {
   turnId: string;
@@ -153,10 +162,18 @@ interface RunTerminalState {
   message?: string;
 }
 
-interface RunLongTaskPlanState {
-  sessionId: string;
-  /** `none` is an authoritative checked result, unlike null/unknown. */
-  status: AgentRuntimeTaskStatus | 'none';
+type RunLongTaskPlanState = AgentLongTaskPlanContinuationState;
+
+export type AgentChatSendOrigin =
+  | 'author'
+  | 'author_continuation'
+  | 'automatic_continuation'
+  | 'headless_once'
+  | 'headless_auto';
+
+export interface AgentChatSendOptions {
+  /** Omitted calls come from the visible composer and count as author intent. */
+  origin?: AgentChatSendOrigin;
 }
 
 /**
@@ -180,6 +197,8 @@ interface RunState {
   longTaskPlanState: RunLongTaskPlanState | null;
   /** Latest verified provider-input projection for this conversation. */
   contextUsage: AgentContextUsageSnapshot | null;
+  /** Renderer-lifetime only; never restored into unattended execution. */
+  automaticContinuation: AgentAutomaticContinuationState;
 }
 
 interface AgentChatState {
@@ -207,9 +226,11 @@ interface AgentChatState {
    *  in-flight turn are preserved across the switch. */
   bindProject: (projectId: string) => void;
   refreshList: () => void;
-  send: () => Promise<void>;
-  /** One author-triggered continuation; never loops automatically. */
+  send: (options?: AgentChatSendOptions) => Promise<void>;
+  /** Re-authorize a bounded continuation sequence for the current durable task. */
   continueTask: () => Promise<void>;
+  /** Prevent another automatic slice; the current turn, if any, is left alone. */
+  pauseAutomaticContinuation: () => void;
   respondPermission: (decision: 'allow' | 'deny', scope?: AgentPermissionScope) => Promise<void>;
   stopAfterTool: () => Promise<void>;
   cancelRecoveredControl: () => Promise<void>;
@@ -237,12 +258,23 @@ export const selectPendingControl = (s: AgentChatState): AgentPendingControl | n
   s.activeConvId ? (s.runs[s.activeConvId]?.pendingControl ?? null) : null;
 export const selectContextUsage = (s: AgentChatState): AgentContextUsageSnapshot | null =>
   s.activeConvId ? (s.runs[s.activeConvId]?.contextUsage ?? null) : null;
+export const selectAutomaticContinuation = (
+  s: AgentChatState,
+): AgentAutomaticContinuationState | null =>
+  s.activeConvId ? (s.runs[s.activeConvId]?.automaticContinuation ?? null) : null;
 export type AgentTaskContinuationReason = 'budget_exceeded' | 'active_plan';
 export const selectAgentTaskContinuationReason = (
   s: AgentChatState,
 ): AgentTaskContinuationReason | null => {
   const run = s.activeConvId ? s.runs[s.activeConvId] : undefined;
   if (s.starting || s.runningConvId !== null || run?.pendingControl) return null;
+  if (
+    run?.automaticContinuation?.status === 'armed' ||
+    run?.automaticContinuation?.status === 'evaluating' ||
+    run?.automaticContinuation?.status === 'scheduled'
+  ) {
+    return null;
+  }
   if (
     !run ||
     run.runtimeSessionId === null ||
@@ -269,6 +301,7 @@ export const selectCanContinueAgentTask = (s: AgentChatState): boolean =>
 // route to that conversation even after the user navigates elsewhere. A turn not
 // in this map is foreign (e.g. left over from before a reload) and is ignored.
 const turnConv = new Map<string, string>();
+const automaticContinuationTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export interface AgentConversationLoadToken {
   generation: number;
@@ -326,6 +359,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     }
     conversationLoadGuard.invalidate();
     conversationStartGuard.invalidate();
+    const leavingConvId = get().runningConvId ?? get().activeConvId;
+    if (leavingConvId) {
+      pauseAutomaticContinuationForConversation(leavingConvId, 'author_navigated');
+    }
     // Switching CONVERSATIONS within a project keeps a background turn alive, but
     // switching PROJECTS cannot: the tool bridge (useAgentToolBridge) is bound to
     // the currently-viewed project, so a background turn's tool calls would run
@@ -366,8 +403,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     })();
   },
 
-  send: async () => {
+  send: async (options) => {
     ensureSubscription();
+    const origin = options?.origin ?? 'author';
     const s = get();
     if (s.starting || !s.prompt.trim() || !s.boundProjectId) return;
     const displayedRun = s.activeConvId ? s.runs[s.activeConvId] : undefined;
@@ -410,17 +448,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     try {
       const projectId = s.boundProjectId;
       const text = s.prompt.trim();
-      const runtimeSessionId = s.activeConvId ? s.runs[s.activeConvId]?.runtimeSessionId : null;
-      let canonicalReviewFeedback = '';
-      if (runtimeSessionId) {
-        try {
-          canonicalReviewFeedback = await buildAgentWriteReviewFeedback(runtimeSessionId);
-        } catch {
-          // Review feedback is advisory prompt context. Durable write/revert
-          // enforcement remains in the coordinator even if this read is
-          // temporarily unavailable.
-        }
-      }
+      // Preserve an explicit cancellable startup boundary even when no product
+      // preflight read is needed. New Chat / Load Conversation can invalidate
+      // this intent before the stale prompt is appended to either transcript.
+      await Promise.resolve();
       if (!isCurrentStart()) return;
       const now = new Date().toISOString();
       const settings = useSettingsStore.getState();
@@ -457,6 +488,15 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // Append the user message into this conversation's live run state (seeding a
       // fresh entry if it isn't loaded yet).
       const prevRun = get().runs[cid];
+      cancelAutomaticContinuationTimer(cid);
+      const previousAutomatic =
+        prevRun?.automaticContinuation ?? createInactiveAgentAutomaticContinuation();
+      const automaticContinuation =
+        origin === 'automatic_continuation'
+          ? beginAutomaticContinuationSlice(previousAutomatic)
+          : origin === 'headless_once'
+            ? createInactiveAgentAutomaticContinuation(previousAutomatic.sequenceId + 1)
+            : armAgentAutomaticContinuation(previousAutomatic, Date.now());
       const run: RunState = {
         projectId,
         messages: [...(prevRun?.messages ?? []), { kind: 'user', text }],
@@ -470,6 +510,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         lastTerminal: prevRun?.lastTerminal ?? null,
         longTaskPlanState: prevRun?.longTaskPlanState ?? null,
         contextUsage: prevRun?.contextUsage ?? null,
+        automaticContinuation,
       };
 
       const turnId = uuidv7();
@@ -540,10 +581,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // The visible transcript keeps the original user text; only the provider
       // prompt receives this system context.
       const reverts = useAgentEditStore.getState().drainReverts(projectId);
-      const promptNotes = [
-        ...(reverts.length ? [buildRevertNote(reverts)] : []),
-        ...(canonicalReviewFeedback ? [canonicalReviewFeedback] : []),
-      ];
+      // Durable write-review decisions are first-class pinned context rows in
+      // the product composition. Do not duplicate them into every user prompt;
+      // that legacy path grew long tasks quadratically and blurred authorship.
+      const promptNotes = reverts.length ? [buildRevertNote(reverts)] : [];
       const promptToSend = promptNotes.length ? `${promptNotes.join('\n\n')}\n\n${text}` : text;
 
       const r = await generalAgentTransport
@@ -585,6 +626,14 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
                 [cid]: {
                   ...cur,
                   messages: [...cur.messages, { kind: 'error' as const, text: r.error }],
+                  automaticContinuation:
+                    cur.automaticContinuation.status === 'off'
+                      ? cur.automaticContinuation
+                      : {
+                          ...cur.automaticContinuation,
+                          status: 'paused' as const,
+                          stopReason: 'start_failed' as const,
+                        },
                 },
               }
             : st.runs;
@@ -614,7 +663,12 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       prompt:
         reason === 'budget_exceeded' ? BUDGET_CONTINUATION_PROMPT : ACTIVE_PLAN_CONTINUATION_PROMPT,
     });
-    await get().send();
+    await get().send({ origin: 'author_continuation' });
+  },
+
+  pauseAutomaticContinuation: () => {
+    const convId = get().activeConvId;
+    if (convId) pauseAutomaticContinuationForConversation(convId, 'author_stopped');
   },
 
   respondPermission: async (decision, requestedScope = 'once') => {
@@ -646,6 +700,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   stopAfterTool: async () => {
     const s = get();
     if (!s.runningTurnId || !s.runningConvId) return;
+    pauseAutomaticContinuationForConversation(s.runningConvId, 'author_stopped');
     const response = await generalAgentTransport.stopAfterTool({
       turnId: s.runningTurnId,
     });
@@ -685,10 +740,17 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   },
 
   abort: () => {
+    const s = get();
+    const convId = s.runningConvId ?? s.activeConvId;
+    if (convId) pauseAutomaticContinuationForConversation(convId, 'author_stopped');
     void generalAgentTransport.abort();
   },
 
   newConversation: () => {
+    const activeConvId = get().activeConvId;
+    if (activeConvId) {
+      pauseAutomaticContinuationForConversation(activeConvId, 'author_navigated');
+    }
     conversationLoadGuard.invalidate();
     conversationStartGuard.invalidate();
     void generalAgentTransport.resetSession();
@@ -702,6 +764,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   loadConversation: async (id) => {
     const boundProjectId = get().boundProjectId;
     if (!boundProjectId) return;
+    const previousActiveConvId = get().activeConvId;
+    if (previousActiveConvId && previousActiveConvId !== id) {
+      pauseAutomaticContinuationForConversation(previousActiveConvId, 'author_navigated');
+    }
     conversationStartGuard.invalidate();
     const loadToken = conversationLoadGuard.begin(boundProjectId);
     const isCurrentLoad = (): boolean =>
@@ -765,10 +831,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             projectId: conv.projectId,
             sessionId: runtimeSessionId,
           });
-          longTaskPlanState = {
-            sessionId: runtimeSessionId,
-            status: latestPlan?.task.status ?? 'none',
-          };
+          longTaskPlanState = summarizeLongTaskPlanForContinuation(runtimeSessionId, latestPlan);
         } catch {
           longTaskPlanState = null;
         }
@@ -787,6 +850,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             lastTerminal,
             longTaskPlanState,
             contextUsage,
+            automaticContinuation: createInactiveAgentAutomaticContinuation(),
           },
         },
       }));
@@ -822,6 +886,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   },
 
   deleteConversation: async (id) => {
+    cancelAutomaticContinuationTimer(id);
     conversationLoadGuard.invalidate();
     if (get().runningConvId === id && get().starting) {
       conversationStartGuard.invalidate();
@@ -858,6 +923,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     conversationStartGuard.invalidate();
     const pid = get().boundProjectId;
     if (!pid) return;
+    for (const [convId, run] of Object.entries(get().runs)) {
+      if (run.projectId === pid) cancelAutomaticContinuationTimer(convId);
+    }
     // Abort + clear the in-flight turn (main runs a single query, so abort
     // targets exactly it) — its conversation is about to be deleted too.
     if (get().runningConvId) {
@@ -914,6 +982,160 @@ async function persistConv(convId: string): Promise<void> {
   useAgentChatStore.getState().refreshList();
 }
 
+const AUTOMATIC_CONTINUATION_DELAY_MS = 600;
+
+function cancelAutomaticContinuationTimer(convId: string): void {
+  const timer = automaticContinuationTimers.get(convId);
+  if (!timer) return;
+  clearTimeout(timer);
+  automaticContinuationTimers.delete(convId);
+}
+
+function pauseAutomaticContinuationForConversation(
+  convId: string,
+  reason: AgentAutomaticContinuationState['stopReason'],
+): void {
+  cancelAutomaticContinuationTimer(convId);
+  useAgentChatStore.setState((state) => {
+    const run = state.runs[convId];
+    if (
+      !run ||
+      run.automaticContinuation.status === 'off' ||
+      run.automaticContinuation.status === 'paused'
+    ) {
+      return state;
+    }
+    return {
+      runs: {
+        ...state.runs,
+        [convId]: {
+          ...run,
+          automaticContinuation: {
+            ...run.automaticContinuation,
+            status: 'paused',
+            stopReason: reason,
+          },
+        },
+      },
+    };
+  });
+}
+
+function settleAutomaticContinuationAfterPlanRefresh(convId: string, terminalTurnId: string): void {
+  const state = useAgentChatStore.getState();
+  const run = state.runs[convId];
+  if (
+    !run ||
+    run.lastTerminal?.turnId !== terminalTurnId ||
+    run.automaticContinuation.status !== 'evaluating' ||
+    run.automaticContinuation.terminalTurnId !== terminalTurnId
+  ) {
+    return;
+  }
+  const observedAutomatic = observeAgentAutomaticContinuationProgress(
+    run.automaticContinuation,
+    run.longTaskPlanState,
+  );
+  const decision = decideAgentAutomaticContinuation({
+    automatic: observedAutomatic,
+    plan: run.longTaskPlanState,
+    terminalOutcome: run.lastTerminal.outcome,
+    nowMs: Date.now(),
+  });
+  if (decision.kind === 'stop') {
+    useAgentChatStore.setState((current) => {
+      const currentRun = current.runs[convId];
+      if (
+        !currentRun ||
+        currentRun.automaticContinuation.sequenceId !== run.automaticContinuation.sequenceId ||
+        currentRun.automaticContinuation.terminalTurnId !== terminalTurnId
+      ) {
+        return current;
+      }
+      return {
+        runs: {
+          ...current.runs,
+          [convId]: {
+            ...currentRun,
+            automaticContinuation: {
+              ...observedAutomatic,
+              status: decision.status,
+              stopReason: decision.reason,
+            },
+          },
+        },
+      };
+    });
+    return;
+  }
+
+  if (state.boundProjectId !== run.projectId || state.activeConvId !== convId) {
+    pauseAutomaticContinuationForConversation(convId, 'author_navigated');
+    return;
+  }
+  if (state.prompt.trim()) {
+    pauseAutomaticContinuationForConversation(convId, 'author_input_pending');
+    return;
+  }
+
+  const sequenceId = run.automaticContinuation.sequenceId;
+  useAgentChatStore.setState((current) => {
+    const currentRun = current.runs[convId];
+    if (
+      !currentRun ||
+      currentRun.automaticContinuation.sequenceId !== sequenceId ||
+      currentRun.automaticContinuation.terminalTurnId !== terminalTurnId
+    ) {
+      return current;
+    }
+    return {
+      runs: {
+        ...current.runs,
+        [convId]: {
+          ...currentRun,
+          automaticContinuation: {
+            ...observedAutomatic,
+            status: 'scheduled',
+            stopReason: null,
+          },
+        },
+      },
+    };
+  });
+  cancelAutomaticContinuationTimer(convId);
+  const timer = setTimeout(() => {
+    automaticContinuationTimers.delete(convId);
+    const current = useAgentChatStore.getState();
+    const currentRun = current.runs[convId];
+    if (
+      !currentRun ||
+      currentRun.automaticContinuation.sequenceId !== sequenceId ||
+      currentRun.automaticContinuation.status !== 'scheduled' ||
+      currentRun.automaticContinuation.terminalTurnId !== terminalTurnId
+    ) {
+      return;
+    }
+    if (current.boundProjectId !== currentRun.projectId || current.activeConvId !== convId) {
+      pauseAutomaticContinuationForConversation(convId, 'author_navigated');
+      return;
+    }
+    if (current.prompt.trim()) {
+      pauseAutomaticContinuationForConversation(convId, 'author_input_pending');
+      return;
+    }
+    if (current.starting || current.runningConvId || currentRun.pendingControl) {
+      pauseAutomaticContinuationForConversation(convId, 'author_stopped');
+      return;
+    }
+    useAgentChatStore.setState({ prompt: ACTIVE_PLAN_CONTINUATION_PROMPT });
+    void useAgentChatStore
+      .getState()
+      .send({ origin: 'automatic_continuation' })
+      .catch(() => pauseAutomaticContinuationForConversation(convId, 'start_failed'));
+  }, AUTOMATIC_CONTINUATION_DELAY_MS);
+  automaticContinuationTimers.set(convId, timer);
+}
+
 async function refreshLongTaskPlanState(
   convId: string,
   projectId: string,
@@ -926,10 +1148,7 @@ async function refreshLongTaskPlanState(
       projectId,
       sessionId,
     });
-    planState = {
-      sessionId,
-      status: latestPlan?.task.status ?? 'none',
-    };
+    planState = summarizeLongTaskPlanForContinuation(sessionId, latestPlan);
   } catch {
     // Continuation authority is fail-closed when the durable plan cannot be read.
   }
@@ -948,6 +1167,7 @@ async function refreshLongTaskPlanState(
       },
     };
   });
+  settleAutomaticContinuationAfterPlanRefresh(convId, terminalTurnId);
 }
 
 function handleEvent(entry: AgentRuntimeJournalEntry): void {
@@ -972,6 +1192,7 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
     let pendingControl = run.pendingControl;
     let lastTerminal = run.lastTerminal;
     let longTaskPlanState = run.longTaskPlanState;
+    let automaticContinuation = run.automaticContinuation;
     if (ev.type === 'turn_started' || ev.type === 'model_iteration_started') {
       controlStatus = 'running';
       if (ev.type === 'turn_started') {
@@ -980,6 +1201,13 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
       }
     } else if (ev.type === 'permission_requested') {
       controlStatus = 'waiting_permission';
+      if (automaticContinuation.status !== 'off' && automaticContinuation.status !== 'paused') {
+        automaticContinuation = {
+          ...automaticContinuation,
+          status: 'paused',
+          stopReason: 'waiting_permission',
+        };
+      }
       pendingControl = {
         sessionId: ev.request.sessionId,
         turnId: ev.request.turnId,
@@ -994,6 +1222,13 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
       }
     } else if (ev.type === 'user_input_requested') {
       controlStatus = 'waiting_user';
+      if (automaticContinuation.status !== 'off' && automaticContinuation.status !== 'paused') {
+        automaticContinuation = {
+          ...automaticContinuation,
+          status: 'paused',
+          stopReason: 'waiting_user',
+        };
+      }
       pendingControl = {
         sessionId: ev.request.sessionId,
         turnId: ev.request.turnId,
@@ -1021,6 +1256,10 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
         outcome: ev.outcome,
         ...(ev.message ? { message: ev.message } : {}),
       };
+      automaticContinuation = markAutomaticContinuationTerminal(automaticContinuation, {
+        turnId,
+        costUsd: ev.usage.costUsd,
+      });
     }
     return {
       runs: {
@@ -1037,6 +1276,7 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
           pendingControl,
           lastTerminal,
           longTaskPlanState,
+          automaticContinuation,
           contextUsage: ev.type === 'context_planned' ? ev.snapshot : run.contextUsage,
         },
       },

@@ -31,6 +31,7 @@ interface DebugTurnRequest {
   timeoutMs: number;
   permissionMode: PermissionMode;
   userInputs: string[];
+  autoContinue: boolean;
   editMode?: 'auto' | 'approve';
 }
 
@@ -257,6 +258,7 @@ function parseDebugRequest(value: unknown, projectId: string): DebugRequest {
         ? value.timeoutMs
         : 600_000,
     permissionMode,
+    autoContinue: value.autoContinue === true,
     userInputs: Array.isArray(value.userInputs)
       ? value.userInputs.filter((item): item is string => typeof item === 'string')
       : [],
@@ -384,7 +386,9 @@ async function executeDebugTurn(
       useAgentChatStore.getState().newConversation();
     }
 
-    let turnId: string | null = null;
+    let firstTurnId: string | null = null;
+    let latestTurnId: string | null = null;
+    let conversationId: string | null = request.conversationId ?? null;
     let sessionId: string | null = null;
     let outcome: AgentRuntimeOutcome | null = null;
     let assistantText = '';
@@ -395,6 +399,8 @@ async function executeDebugTurn(
     const toolResults: Array<{ callId: string; name: string; ok: boolean; errorCode?: string }> =
       [];
     const queuedUserInputs = [...request.userInputs];
+    const turnIds: string[] = [];
+    const observedTurnIds = new Set<string>();
     let resolveTerminal!: (entry: AgentRuntimeJournalEntry) => void;
     const terminal = new Promise<AgentRuntimeJournalEntry>((resolve) => {
       resolveTerminal = resolve;
@@ -402,13 +408,29 @@ async function executeDebugTurn(
 
     const subscription = generalAgentTransport.subscribeJournal((entry) => {
       if (entry.route.kind !== 'chat' || entry.route.projectId !== request.projectId) return;
-      if (!turnId) {
+      const routedConversationId = entry.route.conversationId;
+      if (!routedConversationId) return;
+      if (!firstTurnId) {
         const runningTurnId = useAgentChatStore.getState().runningTurnId;
         if (entry.event.type !== 'turn_started' || entry.turnId !== runningTurnId) return;
-        turnId = entry.turnId;
-        sessionId = entry.sessionId;
+        if (conversationId && routedConversationId !== conversationId) return;
+        firstTurnId = entry.turnId;
+        conversationId = routedConversationId;
       }
-      if (entry.turnId !== turnId) return;
+      if (routedConversationId !== conversationId) return;
+      if (entry.event.type === 'turn_started') {
+        const runningTurnId = useAgentChatStore.getState().runningTurnId;
+        if (entry.turnId !== runningTurnId) return;
+        if (!observedTurnIds.has(entry.turnId)) {
+          if (assistantText) assistantText += '\n\n';
+          if (thinkingText) thinkingText += '\n\n';
+          observedTurnIds.add(entry.turnId);
+          turnIds.push(entry.turnId);
+        }
+        latestTurnId = entry.turnId;
+      }
+      if (!observedTurnIds.has(entry.turnId)) return;
+      sessionId = entry.sessionId;
       emitter.emit({ type: 'journal', entry });
       const event = entry.event;
       if (event.type === 'text_delta') assistantText += event.text;
@@ -463,7 +485,9 @@ async function executeDebugTurn(
     emitter.emit({ type: 'bridge_stage', stage: 'starting_turn' });
     await emitter.finish();
     await waitForDebugOperation(
-      useAgentChatStore.getState().send(),
+      useAgentChatStore
+        .getState()
+        .send({ origin: request.autoContinue ? 'headless_auto' : 'headless_once' }),
       remainingDebugTime(deadlineAt, request.timeoutMs),
       bridgeSignal,
       'Agent debug turn startup',
@@ -476,8 +500,8 @@ async function executeDebugTurn(
     });
     emitter.emit({ type: 'bridge_stage', stage: 'turn_started' });
     const startedState = useAgentChatStore.getState();
-    const conversationId = startedState.runningConvId ?? startedState.activeConvId;
-    if (!turnId || !conversationId) {
+    conversationId ??= startedState.runningConvId ?? startedState.activeConvId;
+    if (!firstTurnId || !conversationId) {
       throw new Error('Agent turn failed before the canonical turn_started event');
     }
 
@@ -496,15 +520,27 @@ async function executeDebugTurn(
     // the broker that the renderer is reusable until that synchronous fold has
     // become observable; otherwise an immediate next request can race the UI
     // projection and be rejected as an overlapping turn.
-    await waitForChatStoreTurnRelease(turnId, bridgeSignal);
-    sessionId = terminalEntry.sessionId;
+    await waitForChatStoreTurnRelease(firstTurnId, bridgeSignal);
+    if (request.autoContinue) {
+      await waitForAutomaticContinuationSequence(
+        conversationId,
+        deadlineAt,
+        request.timeoutMs,
+        bridgeSignal,
+      );
+    }
+    sessionId ??= terminalEntry.sessionId;
+    const automaticContinuation =
+      useAgentChatStore.getState().runs[conversationId]?.automaticContinuation ?? null;
     emitter.emit({
       type: 'bridge_completed',
       projectId: request.projectId,
       conversationId,
-      turnId,
+      turnId: latestTurnId ?? firstTurnId,
+      turnIds,
       sessionId,
       outcome: outcome ?? 'failed',
+      automaticContinuation,
       assistantText,
       thinkingText,
       context: latestContext,
@@ -653,6 +689,34 @@ async function waitForChatStoreTurnRelease(turnId: string, signal: AbortSignal):
       throw new Error(`Agent chat store did not release terminal turn ${turnId}`);
     }
     await delay(0, signal);
+  }
+  throw new DOMException('Debug bridge stopped', 'AbortError');
+}
+
+/**
+ * A headless auto-continuation request owns the renderer until the bounded
+ * sequence reaches a stable pause/off state. Journal events remain subscribed
+ * during this wait, so every automatically started slice is observable by the
+ * terminal client rather than escaping as background work.
+ */
+async function waitForAutomaticContinuationSequence(
+  conversationId: string,
+  deadlineAt: number,
+  configuredTimeoutMs: number,
+  signal: AbortSignal,
+): Promise<void> {
+  while (!signal.aborted) {
+    remainingDebugTime(deadlineAt, configuredTimeoutMs);
+    const state = useAgentChatStore.getState();
+    const run = state.runs[conversationId];
+    if (!run) throw new Error(`Agent conversation ${conversationId} disappeared during execution`);
+    const automaticActive =
+      run.automaticContinuation.status === 'armed' ||
+      run.automaticContinuation.status === 'evaluating' ||
+      run.automaticContinuation.status === 'scheduled';
+    const conversationRunning = state.runningConvId === conversationId || state.starting;
+    if (!automaticActive && !conversationRunning) return;
+    await delay(20, signal);
   }
   throw new DOMException('Debug bridge stopped', 'AbortError');
 }

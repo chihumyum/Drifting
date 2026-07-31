@@ -14,6 +14,27 @@ import {
   selectCanContinueAgentTask,
   useAgentChatStore,
 } from './agent-chat-store';
+import {
+  createInactiveAgentAutomaticContinuation,
+  type AgentLongTaskPlanContinuationState,
+} from '../lib/agent/runtime/long-task-auto-continuation';
+
+function continuationPlanState(
+  status: AgentLongTaskPlanContinuationState['status'],
+  sessionId = 'session-1',
+): AgentLongTaskPlanContinuationState {
+  return {
+    sessionId,
+    taskId: status === 'none' ? null : 'task-1',
+    revision: status === 'none' ? null : 1,
+    status,
+    scopeKind: status === 'none' ? null : 'whole_book_chapters',
+    runnableStepCount: status === 'active' ? 1 : 0,
+    waitingReviewStepCount: 0,
+    needsFinalization: false,
+    progressFingerprint: `${sessionId}:${status}`,
+  };
+}
 
 function journal(event: AgentRuntimeEvent, seq = 1): AgentRuntimeJournalEntry {
   return {
@@ -363,10 +384,7 @@ describe('agent chat canonical journal projection', () => {
           projectId: 'project-1',
           messages: [],
           runtimeSessionId: 'session-1',
-          longTaskPlanState: {
-            sessionId: 'session-1',
-            status: 'none',
-          },
+          longTaskPlanState: continuationPlanState('none'),
           seenJournalEventIds: {},
           controlStatus: null,
           pendingControl: null,
@@ -399,10 +417,7 @@ describe('agent chat canonical journal projection', () => {
           ...state.runs,
           'conversation-1': {
             ...state.runs['conversation-1'],
-            longTaskPlanState: {
-              sessionId: 'session-1',
-              status: 'completed',
-            },
+            longTaskPlanState: continuationPlanState('completed'),
           },
         },
       }),
@@ -421,10 +436,7 @@ describe('agent chat canonical journal projection', () => {
           projectId: 'project-1',
           messages: [],
           runtimeSessionId: 'session-1',
-          longTaskPlanState: {
-            sessionId: 'session-1',
-            status: 'active',
-          },
+          longTaskPlanState: continuationPlanState('active'),
           seenJournalEventIds: {},
           controlStatus: null,
           pendingControl: null,
@@ -447,10 +459,7 @@ describe('agent chat canonical journal projection', () => {
           ...state.runs,
           'conversation-1': {
             ...state.runs['conversation-1'],
-            longTaskPlanState: {
-              sessionId: 'different-session',
-              status: 'active',
-            },
+            longTaskPlanState: continuationPlanState('active', 'different-session'),
           },
         },
       }),
@@ -463,10 +472,7 @@ describe('agent chat canonical journal projection', () => {
             ...state.runs,
             'conversation-1': {
               ...state.runs['conversation-1'],
-              longTaskPlanState: {
-                sessionId: 'session-1',
-                status,
-              },
+              longTaskPlanState: continuationPlanState(status),
             },
           },
         }),
@@ -502,11 +508,12 @@ describe('agent chat canonical journal projection', () => {
               runtimeSessionId: 'session-origin',
               seenJournalEventIds: {},
               controlStatus: null,
-            pendingControl: null,
-            lastTerminal: null,
-            longTaskPlanState: null,
-            contextUsage: null,
-          },
+              pendingControl: null,
+              lastTerminal: null,
+              longTaskPlanState: null,
+              contextUsage: null,
+              automaticContinuation: createInactiveAgentAutomaticContinuation(),
+            },
           },
           prompt: 'stale preflight prompt',
           convList: [],

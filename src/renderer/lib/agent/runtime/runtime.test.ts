@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { AgentModelDriverError } from './errors';
 import { AgentRuntimeControlChannel } from './control-plane';
 import { replayAgentRuntimeJournal } from './reducer';
-import { AgentRuntime } from './runtime';
 import {
-  ManualAgentClock,
-  ScriptedFakeDriver,
-  type ScriptedDriverStep,
-} from './testing';
+  AGENT_SYNTHESIS_DISCARDED_TOOL_TEXT,
+  AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE,
+  AgentRuntime,
+} from './runtime';
+import { ManualAgentClock, ScriptedFakeDriver, type ScriptedDriverStep } from './testing';
 import type {
   AgentModelDriver,
   AgentModelStreamEvent,
@@ -20,11 +20,7 @@ import type {
 
 const ROUTE = { kind: 'test', projectId: 'project-1' } as const;
 
-function usage(
-  inputTokens: number,
-  outputTokens: number,
-  costUsd = 0,
-): AgentRuntimeUsage {
+function usage(inputTokens: number, outputTokens: number, costUsd = 0): AgentRuntimeUsage {
   return {
     inputTokens,
     outputTokens,
@@ -34,9 +30,7 @@ function usage(
   };
 }
 
-function input(
-  overrides: Partial<AgentRuntimeRunInput> = {},
-): AgentRuntimeRunInput {
+function input(overrides: Partial<AgentRuntimeRunInput> = {}): AgentRuntimeRunInput {
   return {
     sessionId: 'session-1',
     turnId: 'turn-1',
@@ -90,11 +84,7 @@ function toolCallSteps(
   ];
 }
 
-async function waitUntil(
-  predicate: () => boolean,
-  message: string,
-  turns = 1_000,
-): Promise<void> {
+async function waitUntil(predicate: () => boolean, message: string, turns = 1_000): Promise<void> {
   for (let index = 0; index < turns; index += 1) {
     if (predicate()) return;
     await new Promise<void>((resolve) => {
@@ -115,9 +105,7 @@ describe('AgentRuntime', () => {
       rounds: [
         {
           steps: [
-            ...toolCallSteps('write-1', 'write', [
-              '{"expectedRevision":"rev-1","title":"New"}',
-            ]),
+            ...toolCallSteps('write-1', 'write', ['{"expectedRevision":"rev-1","title":"New"}']),
             { op: 'emit', event: { type: 'usage', usage: usage(4, 2) } },
             { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
           ],
@@ -151,9 +139,7 @@ describe('AgentRuntime', () => {
       'permission request was not journaled',
     );
     expect(execute).not.toHaveBeenCalled();
-    const requested = entries.find(
-      (entry) => entry.event.type === 'permission_requested',
-    )?.event;
+    const requested = entries.find((entry) => entry.event.type === 'permission_requested')?.event;
     if (!requested || requested.type !== 'permission_requested') {
       throw new Error('missing permission request');
     }
@@ -190,22 +176,18 @@ describe('AgentRuntime', () => {
 
     expect(execute).toHaveBeenCalledOnce();
     expect(result.state.status).toBe('completed');
+    expect(result.entries.map((entry) => entry.event.type)).toEqual(
+      expect.arrayContaining([
+        'permission_requested',
+        'permission_resolved',
+        'tool_execution_started',
+        'commit_started',
+      ]),
+    );
     expect(
-      result.entries.map((entry) => entry.event.type),
-    ).toEqual(expect.arrayContaining([
-      'permission_requested',
-      'permission_resolved',
-      'tool_execution_started',
-      'commit_started',
-    ]));
-    expect(
-      result.entries.findIndex(
-        (entry) => entry.event.type === 'permission_resolved',
-      ),
+      result.entries.findIndex((entry) => entry.event.type === 'permission_resolved'),
     ).toBeLessThan(
-      result.entries.findIndex(
-        (entry) => entry.event.type === 'tool_execution_started',
-      ),
+      result.entries.findIndex((entry) => entry.event.type === 'tool_execution_started'),
     );
     expect(replayAgentRuntimeJournal(result.entries)).toEqual(result.state);
     clock.assertIdle();
@@ -227,11 +209,13 @@ describe('AgentRuntime', () => {
             const result = request.messages[request.messages.length - 1];
             expect(result).toMatchObject({
               role: 'tool',
-              content: [{
-                callId: 'write-denied',
-                ok: false,
-                content: 'Permission denied: project policy',
-              }],
+              content: [
+                {
+                  callId: 'write-denied',
+                  ok: false,
+                  content: 'Permission denied: project policy',
+                },
+              ],
             });
           },
           steps: [
@@ -254,9 +238,7 @@ describe('AgentRuntime', () => {
     expect(result.state.status).toBe('completed');
     expect(
       result.entries.find(
-        (entry) =>
-          entry.event.type === 'tool_result' &&
-          entry.event.callId === 'write-denied',
+        (entry) => entry.event.type === 'tool_result' && entry.event.callId === 'write-denied',
       )?.event,
     ).toMatchObject({
       source: 'runtime',
@@ -299,9 +281,7 @@ describe('AgentRuntime', () => {
       () => entries.some((entry) => entry.event.type === 'user_input_requested'),
       'user input request was not journaled',
     );
-    const event = entries.find(
-      (entry) => entry.event.type === 'user_input_requested',
-    )?.event;
+    const event = entries.find((entry) => entry.event.type === 'user_input_requested')?.event;
     if (!event || event.type !== 'user_input_requested') {
       throw new Error('missing user input request');
     }
@@ -317,12 +297,9 @@ describe('AgentRuntime', () => {
 
     expect(execute).toHaveBeenCalledOnce();
     expect(result.state.status).toBe('completed');
-    expect(
-      result.entries.map((entry) => entry.event.type),
-    ).toEqual(expect.arrayContaining([
-      'user_input_requested',
-      'user_input_received',
-    ]));
+    expect(result.entries.map((entry) => entry.event.type)).toEqual(
+      expect.arrayContaining(['user_input_requested', 'user_input_received']),
+    );
   });
 
   it('completes a text-only turn and replays the exact canonical state', async () => {
@@ -386,11 +363,7 @@ describe('AgentRuntime', () => {
       rounds: [
         {
           steps: [
-            ...toolCallSteps('call-1', 'lookup', [
-              '{"query":',
-              '"Alice",',
-              '"limit":"2"}',
-            ]),
+            ...toolCallSteps('call-1', 'lookup', ['{"query":', '"Alice",', '"limit":"2"}']),
             { op: 'emit', event: { type: 'usage', usage: usage(10, 4) } },
             { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
           ],
@@ -469,6 +442,7 @@ describe('AgentRuntime', () => {
           expectRequest: (request) => {
             expect(request.tools).toEqual([]);
             expect(request.maxOutputTokens).toBe(100);
+            expect(request.context.systemPrompt).not.toContain(AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE);
           },
           steps: [
             { op: 'emit', event: { type: 'text_delta', text: '直接回答。' } },
@@ -515,10 +489,7 @@ describe('AgentRuntime', () => {
 
     const result = await new AgentRuntime({
       driver,
-      tools: toolRuntime(
-        [definition('list_nodes')],
-        vi.fn<AgentToolRuntime['execute']>(),
-      ),
+      tools: toolRuntime([definition('list_nodes')], vi.fn<AgentToolRuntime['execute']>()),
       toolSelector: { select },
     }).runTurn(
       input({
@@ -587,10 +558,7 @@ describe('AgentRuntime', () => {
 
     const result = await new AgentRuntime({
       driver,
-      tools: toolRuntime(
-        [definition('list_nodes')],
-        execute,
-      ),
+      tools: toolRuntime([definition('list_nodes')], execute),
     }).runTurn(
       input({
         limits: { maxModelIterations: 2 },
@@ -633,13 +601,7 @@ describe('AgentRuntime', () => {
     },
   ])(
     'protects a synthesis headroom inside the $name',
-    async ({
-      limits,
-      firstUsage,
-      secondUsage,
-      expectedFirstMax,
-      expectedSynthesisMax,
-    }) => {
+    async ({ limits, firstUsage, secondUsage, expectedFirstMax, expectedSynthesisMax }) => {
       const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({
         ok: true,
         data: { chapters: ['第一章'] },
@@ -649,9 +611,7 @@ describe('AgentRuntime', () => {
           {
             expectRequest: (request) => {
               expect(request.maxOutputTokens).toBe(expectedFirstMax);
-              expect(request.tools.map((tool) => tool.name)).toEqual([
-                'list_nodes',
-              ]);
+              expect(request.tools.map((tool) => tool.name)).toEqual(['list_nodes']);
             },
             steps: [
               ...toolCallSteps('list-budget', 'list_nodes', ['{}']),
@@ -666,6 +626,7 @@ describe('AgentRuntime', () => {
               expect(request.iteration).toBe(2);
               expect(request.maxOutputTokens).toBe(expectedSynthesisMax);
               expect(request.tools).toEqual([]);
+              expect(request.context.systemPrompt).toContain(AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE);
             },
             steps: [
               {
@@ -684,10 +645,7 @@ describe('AgentRuntime', () => {
 
       const result = await new AgentRuntime({
         driver,
-        tools: toolRuntime(
-          [definition('list_nodes')],
-          execute,
-        ),
+        tools: toolRuntime([definition('list_nodes')], execute),
       }).runTurn(input({ limits }));
 
       expect(result.state.status).toBe('completed');
@@ -731,8 +689,7 @@ describe('AgentRuntime', () => {
                   expect.objectContaining({
                     callId: 'read-b',
                     ok: false,
-                    content:
-                      'The project read boundary is temporarily unavailable.',
+                    content: 'The project read boundary is temporarily unavailable.',
                   }),
                 ],
               },
@@ -755,16 +712,52 @@ describe('AgentRuntime', () => {
 
     const result = await new AgentRuntime({
       driver,
-      tools: toolRuntime(
-        [definition('read_a'), definition('read_b')],
-        execute,
-      ),
+      tools: toolRuntime([definition('read_a'), definition('read_b')], execute),
     }).runTurn(input());
 
     expect(execute).toHaveBeenCalledTimes(2);
     expect(result.state.status).toBe('completed');
     expect(result.state.modelIterations).toBe(3);
     expect(result.state.assistantText).toContain('读取暂时不可用');
+    driver.assertExhausted();
+  });
+
+  it('discards provider pseudo-tool markup at a synthesis-only boundary', async () => {
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            ...toolCallSteps('read-1', 'read_node', ['{}']),
+            { op: 'emit', event: { type: 'usage', usage: usage(4, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          expectRequest: (request) => {
+            expect(request.tools).toEqual([]);
+            expect(request.context.systemPrompt).toContain(AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE);
+          },
+          steps: [
+            {
+              op: 'emit',
+              event: {
+                type: 'text_delta',
+                text: 'I will continue. <｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="read_node">',
+              },
+            },
+            { op: 'emit', event: { type: 'usage', usage: usage(5, 4) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime([definition('read_node')], async () => ({ ok: true, data: {} })),
+    }).runTurn(input({ limits: { maxModelIterations: 2 } }));
+
+    expect(result.state.assistantText).toContain(AGENT_SYNTHESIS_DISCARDED_TOOL_TEXT);
+    expect(result.state.assistantText).not.toContain('DSML');
     driver.assertExhausted();
   });
 
@@ -808,19 +801,14 @@ describe('AgentRuntime', () => {
     expect(
       result.entries
         .filter(
-          (entry): entry is AgentRuntimeJournalEntry & {
-            event: Extract<
-              AgentRuntimeJournalEntry['event'],
-              { type: 'tool_result' }
-            >;
+          (
+            entry,
+          ): entry is AgentRuntimeJournalEntry & {
+            event: Extract<AgentRuntimeJournalEntry['event'], { type: 'tool_result' }>;
           } => entry.event.type === 'tool_result',
         )
         .map((entry) => entry.event.errorCode),
-    ).toEqual([
-      'MALFORMED_TOOL_ARGUMENTS',
-      'UNKNOWN_TOOL',
-      'INVALID_TOOL_ARGUMENTS',
-    ]);
+    ).toEqual(['MALFORMED_TOOL_ARGUMENTS', 'UNKNOWN_TOOL', 'INVALID_TOOL_ARGUMENTS']);
     expect(driver.calls).toHaveLength(2);
     driver.assertExhausted();
     clock.assertIdle();
@@ -939,10 +927,7 @@ describe('AgentRuntime', () => {
       ),
     }).runTurn(input({ control }));
 
-    await waitUntil(
-      () => started.length === 1,
-      'the first write did not start',
-    );
+    await waitUntil(() => started.length === 1, 'the first write did not start');
     const stop = control.stopAfterTool({ turnId: 'turn-1' });
     releaseFirstWrite();
     const result = await turn;
@@ -957,11 +942,7 @@ describe('AgentRuntime', () => {
             entry.event.type === 'tool_result' &&
             (entry.event.callId === 'b' || entry.event.callId === 'c'),
         )
-        .map((entry) =>
-          entry.event.type === 'tool_result'
-            ? entry.event.errorCode
-            : null,
-        ),
+        .map((entry) => (entry.event.type === 'tool_result' ? entry.event.errorCode : null)),
     ).toEqual(['STOP_AFTER_TOOL', 'STOP_AFTER_TOOL']);
   });
 
@@ -1267,10 +1248,7 @@ describe('AgentRuntime', () => {
     const result = await turn;
 
     expect(result.state.status).toBe('budget_exceeded');
-    expect(result.messages.slice(-2).map((message) => message.role)).toEqual([
-      'assistant',
-      'tool',
-    ]);
+    expect(result.messages.slice(-2).map((message) => message.role)).toEqual(['assistant', 'tool']);
     expect(result.messages[result.messages.length - 1]).toMatchObject({
       role: 'tool',
       content: [
@@ -1427,9 +1405,7 @@ describe('AgentRuntime', () => {
     const canary = 'sk-ant-secret-canary';
     for (const providerError of [
       new Error(`Authorization: Bearer raw-token ${canary}`),
-      new AgentModelDriverError(
-        `Rate limited; Authorization: Bearer public-token; key=${canary}`,
-      ),
+      new AgentModelDriverError(`Rate limited; Authorization: Bearer public-token; key=${canary}`),
     ]) {
       const clock = new ManualAgentClock();
       const driver = new ScriptedFakeDriver({
@@ -1501,9 +1477,7 @@ describe('AgentRuntime', () => {
         }),
       });
 
-      const result = await runtime.runTurn(
-        input({ turnId: `turn-${seed}` }),
-      );
+      const result = await runtime.runTurn(input({ turnId: `turn-${seed}` }));
       expect(received).toEqual(JSON.parse(raw));
       expect(result.state.status).toBe('completed');
       expect(replayAgentRuntimeJournal(result.entries)).toEqual(result.state);

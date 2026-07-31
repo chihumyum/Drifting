@@ -40,8 +40,7 @@ export const AGENT_CONTEXT_USAGE_CATEGORY_KEYS = [
   'provider_overhead',
 ] as const;
 
-export type AgentContextUsageCategoryKey =
-  (typeof AGENT_CONTEXT_USAGE_CATEGORY_KEYS)[number];
+export type AgentContextUsageCategoryKey = (typeof AGENT_CONTEXT_USAGE_CATEGORY_KEYS)[number];
 
 export interface AgentContextUsageCategory {
   key: AgentContextUsageCategoryKey;
@@ -275,6 +274,12 @@ export interface AgentToolSelectionLongTaskHint {
   status: 'active' | 'paused' | 'blocked' | 'completed' | 'failed';
   scopeKind: 'explicit_targets' | 'whole_book_chapters';
   objective: string;
+  /** Provider-safe first in-progress/pending/blocked unit used for tool recall. */
+  nextStep?: {
+    title: string;
+    status: 'pending' | 'in_progress' | 'blocked' | 'completed' | 'failed';
+    target: { kind: string; name: string } | null;
+  };
 }
 
 /**
@@ -309,9 +314,7 @@ export interface AgentToolRuntime {
    * runtime reloads these hints for every searched model iteration so a plan
    * mutated by the preceding tool batch is observed immediately.
    */
-  loadSelectionHints?(
-    request: AgentToolSelectionHintRequest,
-  ): Promise<AgentToolSelectionHints>;
+  loadSelectionHints?(request: AgentToolSelectionHintRequest): Promise<AgentToolSelectionHints>;
   /**
    * Write implementations must check `signal` before entering their mutation
    * phase, make the `(sessionId, turnId, callId)` idempotency key durable, and

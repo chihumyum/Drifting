@@ -30,12 +30,13 @@ no setup click is needed. The bridge starts only after that project's real
 renderer boot has completed. Without it, open the target project once in the
 App as usual.
 
-Two optional DEV-only overrides make boundary cases reproducible without
+Three optional DEV-only overrides make boundary cases reproducible without
 changing production limits:
 
 ```bash
 VITE_DRIFTING_AGENT_DEBUG_CONTEXT_WINDOW_TOKENS=60000 \
 VITE_DRIFTING_AGENT_DEBUG_RESULT_BUDGET_CHARS=5000 \
+VITE_DRIFTING_AGENT_DEBUG_MAX_MODEL_ITERATIONS=2 \
 VITE_DRIFTING_AGENT_DEBUG_URL=http://127.0.0.1:4317 \
 VITE_DRIFTING_AGENT_DEBUG_PROJECT_ID=<project-id> \
 pnpm --dir client tauri:dev
@@ -43,7 +44,9 @@ pnpm --dir client tauri:dev
 
 The context override forces compaction at a smaller window. The result-budget
 override can only lower the normal read-result budget, forcing the same durable
-artifact paging path used by oversized production results. Both are ignored
+artifact paging path used by oversized production results. The iteration
+override forces earlier durable turn slices so automatic continuation can be
+tested without changing its production policy. All three are ignored
 outside Vite DEV or when the loopback debug bridge is disabled.
 
 ```bash
@@ -77,6 +80,7 @@ Useful options:
 --permission deny                   # automatically deny permission requests
 --edit-mode approve                 # keep writes pending for review in this turn
 --answer 'text'                     # queued ask_user answer; repeatable
+--auto-continue                     # follow bounded durable-plan slices to a stable stop
 --timeout-ms 900000
 --prompt-file /absolute/path/prompt.txt
 ```
@@ -116,6 +120,18 @@ mounted Tauri renderer and the configured DeepSeek BYOK provider:
 - a whole-book task froze the exact 21-chapter manifest, persisted 21 pending
   steps plus two author constraints, and recovered the same plan/session after
   renderer restart;
+- a forced multi-slice task recovered after a provider-failed turn without
+  repeating either accepted write, mapped physical failed-turn ordinals back to
+  canonical provider-history ordinals, and completed its two exact-target steps
+  with accepted review evidence at task revision 5;
+- bounded continuation paused after two automatic slices with no durable plan
+  progress, while a progressing plan continued until its durable task reached
+  `completed`;
+- a provider-emitted DSML pseudo-tool call in the tool-disabled synthesis round
+  was discarded before it reached the journal or UI; the runtime reported the
+  unfinished slice in ordinary prose instead;
+- accepted write-review decisions were supplied only through first-class pinned
+  context rows, without duplicating them into subsequent user messages;
 - a forced 60k context run exercised full compaction and the subsequent
   deterministic-summary projection while retaining tool-result facts and the
   author veto;
@@ -123,8 +139,8 @@ mounted Tauri renderer and the configured DeepSeek BYOK provider:
   disconnect cancellation, stale-turn recovery, and startup conversation
   hydration were exercised separately.
 
-The automated gates for the same checkout were `376/376` Agent runtime tests,
-`690/690` full Core tests, TypeScript typecheck, and ESLint with zero errors.
+The automated gates for the same checkout were `385/385` Agent runtime tests,
+`699/699` full Core tests, TypeScript typecheck, and ESLint with zero errors.
 This is runtime/tool coverage, not a substitute for the remaining native UI
 smoke on each target.
 
@@ -139,5 +155,12 @@ smoke on each target.
   valuable projects or use a disposable test draft.
 - A new conversation is used by default. Pass `--conversation` only when testing
   durable resume/context behavior.
+- A headless turn runs exactly one slice by default. `--auto-continue` explicitly
+  authorizes the same bounded continuation used by the Agent panel: at most 32
+  automatic slices, two hours, and USD 2 of provider-reported cumulative cost.
+  Two automatic slices without durable plan progress also pause the sequence.
+  Pending review, permission/user input, failure, navigation, or an explicit
+  stop pauses it immediately. This authorization is renderer-memory-only and
+  is never resumed automatically after an App restart.
 - Stop the broker and the DEV App when finished. No broker or debug service is
   bundled into a release build.

@@ -28,6 +28,7 @@ function parseArgs(argv) {
     else if (arg === '--permission') options.permissionMode = next();
     else if (arg === '--edit-mode') options.editMode = next();
     else if (arg === '--answer') options.userInputs.push(next());
+    else if (arg === '--auto-continue') options.autoContinue = true;
     else if (arg === '--raw') options.raw = true;
     else if (arg === '--help' || arg === '-h') options.help = true;
     else throw new Error(`Unknown option: ${arg}`);
@@ -46,6 +47,7 @@ function usage() {
     '  --permission manual|allow_once|deny',
     '  --edit-mode auto|approve         Override review mode for this turn only',
     '  --answer <text>                  Queued answer for ask_user (repeatable)',
+    '  --auto-continue                  Follow bounded durable-task continuation slices',
     '  --timeout-ms <ms>                1000..3600000 (default 600000)',
     '  --raw                            Print every NDJSON object',
     '  --url <http://127.0.0.1:4317>   Broker URL',
@@ -71,8 +73,23 @@ function printEvent(payload, state) {
     console.log(payload.assistantText || '(empty)');
     console.log(
       `\n[completed] outcome=${payload.outcome} session=${payload.sessionId} ` +
-        `turn=${payload.turnId} conversation=${payload.conversationId}`,
+        `turn=${payload.turnId} slices=${payload.turnIds?.length ?? 1} ` +
+        `conversation=${payload.conversationId}`,
     );
+    if (payload.automaticContinuation) {
+      console.log(
+        `[auto] status=${payload.automaticContinuation.status} ` +
+          `started=${payload.automaticContinuation.automaticSlicesStarted} ` +
+          `reason=${payload.automaticContinuation.stopReason ?? 'none'}`,
+      );
+      if (
+        ['start_failed', 'turn_failed', 'plan_unavailable'].includes(
+          payload.automaticContinuation.stopReason,
+        )
+      ) {
+        state.failed = true;
+      }
+    }
     return;
   }
   if (payload.type === 'bridge_failed' || payload.type === 'broker_error') {
@@ -116,7 +133,12 @@ function printEvent(payload, state) {
         `[turn] ${event.outcome} iterations=${event.modelIterations} ` +
           `duration=${event.durationMs}ms${event.failureCode ? ` code=${event.failureCode}` : ''}`,
       );
-      if (event.outcome !== 'completed') state.failed = true;
+      if (
+        event.outcome !== 'completed' &&
+        !(state.autoContinue && event.outcome === 'budget_exceeded')
+      ) {
+        state.failed = true;
+      }
       break;
     default:
       break;
@@ -153,6 +175,7 @@ async function main() {
       prompt,
       timeoutMs: options.timeoutMs,
       permissionMode: options.permissionMode,
+      autoContinue: options.autoContinue === true,
       ...(options.editMode ? { editMode: options.editMode } : {}),
       userInputs: options.userInputs,
       newConversation: !options.conversationId,
@@ -162,7 +185,11 @@ async function main() {
   if (!response.ok || !response.body) {
     throw new Error(`Broker returned HTTP ${response.status}: ${await response.text()}`);
   }
-  const state = { failed: false, permissionMode: options.permissionMode };
+  const state = {
+    failed: false,
+    permissionMode: options.permissionMode,
+    autoContinue: options.autoContinue === true,
+  };
   const decoder = new TextDecoder();
   let buffered = '';
   for await (const chunk of response.body) {

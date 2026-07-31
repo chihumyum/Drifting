@@ -16,40 +16,31 @@ const LONG_TASK_TOOLS = Object.freeze([
   'update_task_step',
 ] as const);
 const LONG_TASK_CONSTRAINT_TOOL = 'update_task_constraint';
-const LONG_TASK_PROSE_TOOLS = Object.freeze([
-  'read_node',
-  'edit_blocks',
-] as const);
+const LONG_TASK_PROSE_TOOLS = Object.freeze(['read_node', 'edit_blocks'] as const);
 const MAX_DYNAMIC_TOOLS = 2;
 const MIN_BUILT_IN_TOOL_SLOTS = 2;
-const WRITE_PREREQUISITE_READS: Readonly<
-  Record<string, readonly string[] | undefined>
-> = Object.freeze({
-  rename_node: Object.freeze(['read_node']),
-  set_node_summary: Object.freeze(['read_node']),
-  edit_block: Object.freeze(['read_node']),
-  edit_blocks: Object.freeze(['read_node']),
-  append_paragraph: Object.freeze(['read_node']),
-  insert_blocks: Object.freeze(['read_node']),
-  remove_blocks: Object.freeze(['read_node']),
-  replace_block_range: Object.freeze(['read_node']),
-  create_element_patch: Object.freeze(['get_element_patches']),
-  update_element_patch: Object.freeze(['get_element_patches']),
-  update_element: Object.freeze(['read_element']),
-  update_storyline: Object.freeze(['get_storyline']),
-  update_project_facts: Object.freeze(['get_project_brief']),
-  create_comment: Object.freeze(['get_project_brief']),
-});
+const WRITE_PREREQUISITE_READS: Readonly<Record<string, readonly string[] | undefined>> =
+  Object.freeze({
+    rename_node: Object.freeze(['read_node']),
+    set_node_summary: Object.freeze(['read_node']),
+    edit_block: Object.freeze(['read_node']),
+    edit_blocks: Object.freeze(['read_node']),
+    append_paragraph: Object.freeze(['read_node']),
+    insert_blocks: Object.freeze(['read_node']),
+    remove_blocks: Object.freeze(['read_node']),
+    replace_block_range: Object.freeze(['read_node']),
+    create_element_patch: Object.freeze(['get_element_patches']),
+    update_element_patch: Object.freeze(['get_element_patches']),
+    update_element: Object.freeze(['read_element']),
+    update_storyline: Object.freeze(['get_storyline']),
+    update_project_facts: Object.freeze(['get_project_brief']),
+    create_comment: Object.freeze(['get_project_brief']),
+  });
 
 const REDUNDANT_DIRECTORY_READS_AFTER_SUCCESS: Readonly<
   Record<string, readonly string[] | undefined>
 > = Object.freeze({
-  get_overview: Object.freeze([
-    OVERVIEW_TOOL,
-    'get_project_brief',
-    'list_nodes',
-    'list_elements',
-  ]),
+  get_overview: Object.freeze([OVERVIEW_TOOL, 'get_project_brief', 'list_nodes', 'list_elements']),
   // get_overview is a strict superset of get_project_brief. A successful
   // brief therefore suppresses only another brief; a compound request may
   // still need the overview's node and element directories.
@@ -146,8 +137,7 @@ function explicitlyNamedExecutableTools(
   }
 
   matches.sort(
-    (left, right) =>
-      left.index - right.index || left.name.localeCompare(right.name, 'en'),
+    (left, right) => left.index - right.index || left.name.localeCompare(right.name, 'en'),
   );
   return matches.map((match) => match.name);
 }
@@ -230,8 +220,7 @@ function explicitlyReferencesDifferentProject(
     ),
   ];
   return references.some(
-    (match) =>
-      match[1]?.normalize('NFKC').toLocaleLowerCase('en-US') !== currentId,
+    (match) => match[1]?.normalize('NFKC').toLocaleLowerCase('en-US') !== currentId,
   );
 }
 
@@ -246,9 +235,7 @@ function explicitlyRequestsForeignProject(
   query: string,
   currentProjectId: string | undefined,
 ): boolean {
-  const request = withoutNegatedForeignProjectClauses(
-    originalRequest(query).normalize('NFKC'),
-  );
+  const request = withoutNegatedForeignProjectClauses(originalRequest(query).normalize('NFKC'));
   if (explicitlyReferencesDifferentProject(request, currentProjectId)) {
     return true;
   }
@@ -259,9 +246,7 @@ function explicitlyRequestsForeignProject(
     /(?:另一个|其他|别的|非当前)(?:项目|小说|书).{0,20}(?:读取|访问|查看|检索|搜索|介绍|总结|展示|打开|切换到)/iu.test(
       request,
     ) ||
-    /(?:离开|切换离开|切换出).{0,8}(?:当前|本)(?:项目|小说|书)/iu.test(
-      request,
-    ) ||
+    /(?:离开|切换离开|切换出).{0,8}(?:当前|本)(?:项目|小说|书)/iu.test(request) ||
     /(?:忽略|绕过).{0,8}(?:当前|本)(?:项目|小说|书).{0,8}(?:边界|限制|作用域|范围|权限)/iu.test(
       request,
     ) ||
@@ -306,11 +291,7 @@ function explicitCatalogReads(query: string): readonly string[] {
   ) {
     reads.push('list_elements');
   }
-  if (
-    /(?:项目|本书|作品).{0,8}(?:设定纲要|基础设定)|project brief|book premise/iu.test(
-      request,
-    )
-  ) {
+  if (/(?:项目|本书|作品).{0,8}(?:设定纲要|基础设定)|project brief|book premise/iu.test(request)) {
     reads.push('get_project_brief');
   }
   return reads;
@@ -330,9 +311,7 @@ function explicitNarrowReads(query: string): readonly string[] {
   }
   if (
     /(?:读取|查看|打开)素材\s*["“'「『]/iu.test(request) ||
-    /\bread (?:the )?material\s+(?!(?:list|library)\b)\S+/iu.test(
-      request,
-    )
+    /\bread (?:the )?material\s+(?!(?:list|library)\b)\S+/iu.test(request)
   ) {
     return ['read_material'];
   }
@@ -366,9 +345,7 @@ function needsMoreThanCatalogReads(query: string): boolean {
   );
 }
 
-function redundantDirectoryReads(
-  successfulReadNames: readonly string[],
-): ReadonlySet<string> {
+function redundantDirectoryReads(successfulReadNames: readonly string[]): ReadonlySet<string> {
   const redundant = new Set<string>();
   for (const successfulRead of successfulReadNames) {
     for (const name of REDUNDANT_DIRECTORY_READS_AFTER_SUCCESS[successfulRead] ?? []) {
@@ -378,17 +355,16 @@ function redundantDirectoryReads(
   return redundant;
 }
 
-const LOOKUP_FAILURE_RECOVERY_READS: Readonly<
-  Record<string, readonly string[] | undefined>
-> = Object.freeze({
-  read_node: Object.freeze(['search_project', 'list_nodes', 'list_elements']),
-  read_element: Object.freeze(['search_project', 'list_elements']),
-  get_element_patches: Object.freeze(['search_project', 'list_elements']),
-  get_storyline: Object.freeze(['list_nodes']),
-  read_material: Object.freeze(['list_materials']),
-  read_block: Object.freeze(['read_node']),
-  lookup_block: Object.freeze(['read_node']),
-});
+const LOOKUP_FAILURE_RECOVERY_READS: Readonly<Record<string, readonly string[] | undefined>> =
+  Object.freeze({
+    read_node: Object.freeze(['search_project', 'list_nodes', 'list_elements']),
+    read_element: Object.freeze(['search_project', 'list_elements']),
+    get_element_patches: Object.freeze(['search_project', 'list_elements']),
+    get_storyline: Object.freeze(['list_nodes']),
+    read_material: Object.freeze(['list_materials']),
+    read_block: Object.freeze(['read_node']),
+    lookup_block: Object.freeze(['read_node']),
+  });
 
 function failedLookupRecovery(
   query: string,
@@ -401,16 +377,12 @@ function failedLookupRecovery(
   const recent = recentSections[recentSections.length - 1] ?? '';
   const failedTools = new Set<string>();
   const reads: string[] = [];
-  for (const match of recent.matchAll(
-    /tool failure ([a-z0-9_]+): ([^\n]*)/giu,
-  )) {
+  for (const match of recent.matchAll(/tool failure ([a-z0-9_]+): ([^\n]*)/giu)) {
     const name = match[1] ?? '';
     const message = match[2] ?? '';
     if (
       !LOOKUP_FAILURE_RECOVERY_READS[name] ||
-      !/(?:\bNo\b.{0,80}\bnamed\b|\bnot found\b|\bdoes not exist\b|不存在|找不到)/iu.test(
-        message,
-      )
+      !/(?:\bNo\b.{0,80}\bnamed\b|\bnot found\b|\bdoes not exist\b|不存在|找不到)/iu.test(message)
     ) {
       continue;
     }
@@ -423,9 +395,7 @@ function failedLookupRecovery(
 function needsLongTaskLedger(query: string): boolean {
   const request = originalRequest(query).normalize('NFKC');
   return (
-    /^\s*(?:继续|接着|往下)(?:做|完成|处理|润色|修改|写|执行)?/iu.test(
-      request,
-    ) ||
+    /^\s*(?:继续|接着|往下)(?:做|完成|处理|润色|修改|写|执行)?/iu.test(request) ||
     /^\s*(?:continue|resume|go on)\b/iu.test(request) ||
     /整本|整部(?:小说|作品)|全书|逐章|全部章节|所有章节|全部正文|批量.{0,12}(?:章节|正文)|长任务|任务计划|继续.{0,8}任务|恢复.{0,8}任务|未完成.{0,8}任务/iu.test(
       request,
@@ -452,9 +422,7 @@ function needsLongTaskProseMutation(query: string): boolean {
 function needsLongTaskConstraintTool(query: string): boolean {
   const request = originalRequest(query).normalize('NFKC');
   return (
-    /约束|要求|偏好|始终|绝不|不要|必须|保持.{0,8}(?:一致|不变)/iu.test(
-      request,
-    ) ||
+    /约束|要求|偏好|始终|绝不|不要|必须|保持.{0,8}(?:一致|不变)/iu.test(request) ||
     /\b(?:constraint|requirement|preference|must|never|always|keep .{0,20} consistent)\b/iu.test(
       request,
     )
@@ -484,9 +452,7 @@ function dynamicToolScore(
     inputSchema: object;
   },
 ): number {
-  const request = originalRequest(query)
-    .normalize('NFKC')
-    .toLocaleLowerCase('en-US');
+  const request = originalRequest(query).normalize('NFKC').toLocaleLowerCase('en-US');
   const searchable = [
     definition.name,
     definition.description,
@@ -495,9 +461,7 @@ function dynamicToolScore(
     .join(' ')
     .normalize('NFKC')
     .toLocaleLowerCase('en-US');
-  let score = request.includes(definition.name.toLocaleLowerCase('en-US'))
-    ? 1_000
-    : 0;
+  let score = request.includes(definition.name.toLocaleLowerCase('en-US')) ? 1_000 : 0;
   for (const term of lexicalTerms(request)) {
     if (searchable.includes(term)) {
       score += term.length >= 4 ? 4 : 1;
@@ -532,10 +496,7 @@ function includeWritePrerequisites(
     if (required.some((candidate) => !executableNames.has(candidate))) {
       continue;
     }
-    const prerequisites = required.filter(
-      (candidate) =>
-        !result.includes(candidate),
-    );
+    const prerequisites = required.filter((candidate) => !result.includes(candidate));
     if (result.length + prerequisites.length + 1 > limit) {
       // Never expose a freshness-guarded write without the read that can mint
       // its expectedRevision. A later iteration can retrieve the pair.
@@ -581,32 +542,30 @@ export function createDriftingToolSelectionStrategy(
         request.definitions.map((definition) => [definition.name, definition.access]),
       );
       const durableLongTask = request.hints.longTask;
+      const activeLongTask = durableLongTask?.status === 'active';
       const activeWholeBookTask =
-        durableLongTask?.status === 'active' &&
-        durableLongTask.scopeKind === 'whole_book_chapters';
-      const rankingQuery = activeWholeBookTask
-        ? `${request.query}\ndurable task objective:\n${durableLongTask.objective}`
+        activeLongTask && durableLongTask.scopeKind === 'whole_book_chapters';
+      const rankingQuery = activeLongTask
+        ? [
+            request.query,
+            `durable task objective:\n${durableLongTask.objective}`,
+            durableLongTask.nextStep
+              ? `next durable step:\n${durableLongTask.nextStep.title}\ntarget: ${durableLongTask.nextStep.target?.kind ?? 'none'} ${durableLongTask.nextStep.target?.name ?? ''}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('\n')
         : request.query;
-      if (
-        explicitlyRequestsForeignProject(
-          request.query,
-          request.context.route.projectId,
-        )
-      ) {
+      if (explicitlyRequestsForeignProject(request.query, request.context.route.projectId)) {
         return [];
       }
-      if (
-        executableNames.has(RESULT_PAGE_TOOL) &&
-        request.pendingResultPage
-      ) {
+      if (executableNames.has(RESULT_PAGE_TOOL) && request.pendingResultPage) {
         return request.limit > 0 ? [RESULT_PAGE_TOOL] : [];
       }
       const previousBatchRedundantReads = redundantDirectoryReads(
         request.successfulReadNamesInPreviousBatch,
       );
-      const previousBatchSuccessfulReads = new Set(
-        request.successfulReadNamesInPreviousBatch,
-      );
+      const previousBatchSuccessfulReads = new Set(request.successfulReadNamesInPreviousBatch);
       const lookupRecovery = failedLookupRecovery(
         request.query,
         previousBatchSuccessfulReads.size > 0,
@@ -620,66 +579,50 @@ export function createDriftingToolSelectionStrategy(
       ).filter(
         (name) =>
           !lookupRecovery.failedTools.has(name) &&
-          (accessByName.get(name) === 'write' ||
-            !previousBatchSuccessfulReads.has(name)),
+          (accessByName.get(name) === 'write' || !previousBatchSuccessfulReads.has(name)),
       );
       const explicitlyNegatedTools = explicitlyNegatedExecutableTools(
         request.query,
         pinnableExecutableNames,
       );
       const requestedNarrowReads = explicitNarrowReads(request.query);
-      const narrowOnly =
-        requestedNarrowReads.length > 0 &&
-        !needsMoreThanNarrowRead(request.query);
+      const narrowOnly = requestedNarrowReads.length > 0 && !needsMoreThanNarrowRead(request.query);
       const narrowReads = requestedNarrowReads.filter(
-        (name) =>
-          executableNames.has(name) &&
-          !previousBatchSuccessfulReads.has(name),
+        (name) => executableNames.has(name) && !previousBatchSuccessfulReads.has(name),
       );
       const accumulatedCatalogReads = redundantDirectoryReads(
         request.successfulReadNamesSinceLastWrite,
       );
       const catalogReads = explicitCatalogReads(request.query);
-      const catalogOnly =
-        catalogReads.length > 0 && !needsMoreThanCatalogReads(request.query);
-      const catalogCoverage = catalogOnly
-        ? accumulatedCatalogReads
-        : previousBatchRedundantReads;
+      const catalogOnly = catalogReads.length > 0 && !needsMoreThanCatalogReads(request.query);
+      const catalogCoverage = catalogOnly ? accumulatedCatalogReads : previousBatchRedundantReads;
       const pinnedCatalogReads = catalogReads.filter(
-        (name) =>
-          executableNames.has(name) && !catalogCoverage.has(name),
+        (name) => executableNames.has(name) && !catalogCoverage.has(name),
       );
       const requestedLongTaskTools =
-        activeWholeBookTask || needsLongTaskLedger(request.query)
-        ? needsLongTaskConstraintTool(request.query)
-          ? [...LONG_TASK_TOOLS, LONG_TASK_CONSTRAINT_TOOL]
-          : [...LONG_TASK_TOOLS]
-        : [];
-      const longTaskTools = requestedLongTaskTools.filter((name) =>
-        executableNames.has(name),
-      );
+        activeLongTask || needsLongTaskLedger(request.query)
+          ? needsLongTaskConstraintTool(rankingQuery)
+            ? [...LONG_TASK_TOOLS, LONG_TASK_CONSTRAINT_TOOL]
+            : [...LONG_TASK_TOOLS]
+          : [];
+      const longTaskTools = requestedLongTaskTools.filter((name) => executableNames.has(name));
       const longTaskProseTools =
-        activeWholeBookTask || needsLongTaskProseMutation(request.query)
-        ? LONG_TASK_PROSE_TOOLS.filter((name) =>
-            executableNames.has(name),
-          )
-        : [];
+        activeWholeBookTask || needsLongTaskProseMutation(rankingQuery)
+          ? LONG_TASK_PROSE_TOOLS.filter((name) => executableNames.has(name))
+          : [];
       const dynamicDefinitions = request.definitions
         .filter(
           (definition) =>
-            (definition.name.startsWith('mcp__') ||
-              definition.name.startsWith('plugin__')) &&
+            (definition.name.startsWith('mcp__') || definition.name.startsWith('plugin__')) &&
             !catalogNames.has(definition.name) &&
-            !LONG_TASK_TOOLS.includes(
-              definition.name as (typeof LONG_TASK_TOOLS)[number],
-            ) &&
+            !LONG_TASK_TOOLS.includes(definition.name as (typeof LONG_TASK_TOOLS)[number]) &&
             definition.name !== LONG_TASK_CONSTRAINT_TOOL,
         )
         .map((definition) => ({
           definition,
           score: dynamicToolScore(
-            activeWholeBookTask
-              ? `${originalRequest(request.query)}\n${durableLongTask.objective}`
+            activeLongTask
+              ? `${originalRequest(request.query)}\n${durableLongTask.objective}\n${durableLongTask.nextStep?.title ?? ''}`
               : request.query,
             definition,
           ),
@@ -688,10 +631,7 @@ export function createDriftingToolSelectionStrategy(
         .sort(
           (left, right) =>
             right.score - left.score ||
-            left.definition.name.localeCompare(
-              right.definition.name,
-              'en',
-            ),
+            left.definition.name.localeCompare(right.definition.name, 'en'),
         );
 
       // Preserve the intentionally tiny surface for a genuinely self-contained

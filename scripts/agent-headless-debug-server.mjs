@@ -119,6 +119,9 @@ function validateTurnRequest(value) {
   if (value.editMode !== undefined && value.editMode !== 'auto' && value.editMode !== 'approve') {
     throw new Error('editMode must be auto or approve');
   }
+  if (value.autoContinue !== undefined && typeof value.autoContinue !== 'boolean') {
+    throw new Error('autoContinue must be a boolean');
+  }
   return {
     kind: 'turn',
     projectId: value.projectId.trim(),
@@ -129,6 +132,7 @@ function validateTurnRequest(value) {
       : {}),
     timeoutMs: value.timeoutMs ?? 600_000,
     permissionMode: value.permissionMode ?? 'manual',
+    autoContinue: value.autoContinue === true,
     userInputs: value.userInputs ?? [],
     ...(value.editMode === 'auto' || value.editMode === 'approve'
       ? { editMode: value.editMode }

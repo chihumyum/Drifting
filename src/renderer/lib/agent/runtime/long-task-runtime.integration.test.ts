@@ -43,6 +43,7 @@ interface Fixture {
       | 'update_task_plan'
       | 'update_task_step'
       | 'update_task_constraint'
+      | 'update_project_facts'
       | 'edit_block'
       | 'rename_node',
     scope?: {
@@ -295,7 +296,180 @@ async function createAcceptedWriteReview(
   return reviewId;
 }
 
+async function createProjectWriteReview(
+  test: Fixture,
+  settle: boolean,
+): Promise<string> {
+  const provenance = test.nextProvenance('update_project_facts');
+  const repository = createAgentRuntimeWriteEffectRepository(test.gateway.client());
+  const arguments_ = { facts: { evaluation: 'complete' } };
+  test.gateway.database
+    .prepare('UPDATE agent_runtime_tool_call SET arguments_json = ? WHERE id = ?')
+    .run(canonicalAgentRuntimeJson(arguments_), provenance.toolCallId);
+  const effectId = `project-effect:${provenance.callId}`;
+  const effect = (
+    await repository.claimEffect({
+      id: effectId,
+      projectId: provenance.projectId,
+      routeKind: 'chat',
+      conversationId: 'conversation-long-task',
+      goalRunId: null,
+      chapterId: null,
+      sessionId: provenance.sessionId,
+      turnId: provenance.turnId,
+      toolCallId: provenance.toolCallId,
+      callId: provenance.callId,
+      toolName: 'update_project_facts',
+      idempotencyKey: provenance.idempotencyKey,
+      arguments: arguments_,
+      expectedRevision: null,
+      claimedAt: NOW,
+    })
+  ).effect;
+  await repository.transitionEffect({
+    effectId,
+    expectedPhase: 'claimed',
+    nextPhase: 'confirmed',
+    at: NOW,
+  });
+  await repository.transitionEffect({
+    effectId,
+    expectedPhase: 'confirmed',
+    nextPhase: 'mutation_started',
+    observedRevision: null,
+    preimage: { kind: 'project', entityId: PROJECT_ID },
+    forward: {
+      kind: 'entity_write_command',
+      entityKind: 'project',
+      entityId: PROJECT_ID,
+    },
+    inverse: { kind: 'entity_write_command', entityKind: 'project', entityId: PROJECT_ID },
+    reversibility: 'exact',
+    at: NOW,
+  });
+  await repository.transitionEffect({
+    effectId,
+    expectedPhase: 'mutation_started',
+    nextPhase: 'effect_committed',
+    effect: { projectId: PROJECT_ID },
+    at: NOW,
+  });
+  await repository.transitionEffect({
+    effectId,
+    expectedPhase: 'effect_committed',
+    nextPhase: 'result_committed',
+    result: { ok: true, data: { result: { projectId: PROJECT_ID } } },
+    at: NOW,
+  });
+  const reviewId = `project-review:${provenance.callId}`;
+  await repository.createReview({
+    id: reviewId,
+    effectId: effect.id,
+    sessionId: effect.sessionId,
+    turnId: effect.turnId,
+    toolCallId: effect.toolCallId,
+    createdAt: NOW,
+  });
+  if (settle) {
+    await repository.transitionReview({
+      reviewId,
+      expectedStatus: 'pending',
+      nextStatus: 'accepted',
+      decisionNote: 'auto mode',
+      at: NOW,
+    });
+    await repository.transitionReview({
+      reviewId,
+      expectedStatus: 'accepted',
+      nextStatus: 'accepted_effect',
+      at: NOW,
+    });
+  }
+  return reviewId;
+}
+
 describe('durable Agent long-task runtime', () => {
+  it('uses canonical entity-write targets and explains pending review blocking', async () => {
+    const test = await fixture();
+    const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
+      createId: idFactory(),
+    });
+    const command: Extract<
+      AgentRuntimeTaskCommand,
+      { toolName: 'update_task_plan'; operation: 'create' }
+    > = {
+      toolName: 'update_task_plan',
+      operation: 'create',
+      objective: '更新项目写作事实',
+      scopeKind: 'explicit_targets',
+      chapterManifest: [],
+      steps: [
+        {
+          title: '更新项目事实',
+          target: {
+            kind: 'project',
+            name: 'Long task project',
+            resolvedTargetId: PROJECT_ID,
+          },
+        },
+      ],
+      constraints: [],
+    };
+    let plan = (
+      await repository.applyCommand(test.nextProvenance('update_task_plan'), command)
+    ).plan;
+    const step = plan.steps[0]!;
+    plan = (
+      await repository.applyCommand(test.nextProvenance('update_task_step'), {
+        toolName: 'update_task_step',
+        taskId: plan.task.id,
+        expectedRevision: plan.task.revision,
+        stepId: step.id,
+        status: 'in_progress',
+        resultNote: null,
+        resultRef: null,
+      })
+    ).plan;
+
+    const pendingReviewId = await createProjectWriteReview(test, false);
+    await expect(
+      repository.applyCommand(test.nextProvenance('update_task_step'), {
+        toolName: 'update_task_step',
+        taskId: plan.task.id,
+        expectedRevision: plan.task.revision,
+        stepId: step.id,
+        status: 'completed',
+        resultNote: '不应提前完成',
+        resultRef: pendingReviewId,
+      }),
+    ).rejects.toMatchObject({
+      code: 'TASK_WRITE_EVIDENCE_INVALID',
+      message: expect.stringContaining('status="blocked"'),
+    });
+
+    const acceptedReviewId = await createProjectWriteReview(test, true);
+    plan = (
+      await repository.applyCommand(test.nextProvenance('update_task_step'), {
+        toolName: 'update_task_step',
+        taskId: plan.task.id,
+        expectedRevision: plan.task.revision,
+        stepId: step.id,
+        status: 'completed',
+        resultNote: '项目事实已更新',
+        resultRef: acceptedReviewId,
+      })
+    ).plan;
+    expect(plan.steps[0]).toMatchObject({
+      status: 'completed',
+      reviewEvidence: {
+        outcome: 'accepted_target_write',
+        acceptedTargetEvidence: true,
+        toolName: 'update_project_facts',
+      },
+    });
+    await test.gateway.close();
+  });
+
   it('rolls the plan back when its exactly-once receipt cannot commit', async () => {
     const test = await fixture();
     const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
@@ -656,10 +830,7 @@ describe('durable Agent long-task runtime', () => {
       },
       {
         ...wholeBookCommand(),
-        steps: [
-          wholeBookCommand().steps[0]!,
-          wholeBookCommand().steps[0]!,
-        ],
+        steps: [wholeBookCommand().steps[0]!, wholeBookCommand().steps[0]!],
       },
       {
         ...wholeBookCommand(),
@@ -679,20 +850,14 @@ describe('durable Agent long-task runtime', () => {
 
     for (const command of malformedCommands) {
       const test = await fixture();
-      const repository = createAgentRuntimeLongTaskRepository(
-        test.gateway.client(),
-        { createId: idFactory() },
-      );
+      const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
+        createId: idFactory(),
+      });
       await expect(
-        repository.applyCommand(
-          test.nextProvenance('update_task_plan'),
-          command,
-        ),
+        repository.applyCommand(test.nextProvenance('update_task_plan'), command),
       ).rejects.toMatchObject({ code: 'TASK_PLAN_INVALID' });
       expect(
-        test.gateway.database
-          .prepare('SELECT count(*) AS count FROM agent_runtime_task')
-          .get(),
+        test.gateway.database.prepare('SELECT count(*) AS count FROM agent_runtime_task').get(),
       ).toEqual({ count: 0 });
       await test.gateway.close();
     }
@@ -700,15 +865,11 @@ describe('durable Agent long-task runtime', () => {
 
   it('revalidates exact frozen-manifest coverage before whole-book completion', async () => {
     const test = await fixture();
-    const repository = createAgentRuntimeLongTaskRepository(
-      test.gateway.client(),
-      { createId: idFactory() },
-    );
+    const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
+      createId: idFactory(),
+    });
     let plan = (
-      await repository.applyCommand(
-        test.nextProvenance('update_task_plan'),
-        wholeBookCommand(),
-      )
+      await repository.applyCommand(test.nextProvenance('update_task_plan'), wholeBookCommand())
     ).plan;
     expect(plan.task.scopeKind).toBe('whole_book_chapters');
     expect(
@@ -721,18 +882,15 @@ describe('durable Agent long-task runtime', () => {
 
     for (const step of plan.steps) {
       plan = (
-        await repository.applyCommand(
-          test.nextProvenance('update_task_step'),
-          {
-            toolName: 'update_task_step',
-            taskId: plan.task.id,
-            expectedRevision: plan.task.revision,
-            stepId: step.id,
-            status: 'in_progress',
-            resultNote: null,
-            resultRef: null,
-          },
-        )
+        await repository.applyCommand(test.nextProvenance('update_task_step'), {
+          toolName: 'update_task_step',
+          taskId: plan.task.id,
+          expectedRevision: plan.task.revision,
+          stepId: step.id,
+          status: 'in_progress',
+          resultNote: null,
+          resultRef: null,
+        })
       ).plan;
       if (step.ordinal === 0) {
         const wrongToolReviewId = await createAcceptedWriteReview(test, {
@@ -741,34 +899,28 @@ describe('durable Agent long-task runtime', () => {
           toolName: 'rename_node',
         });
         await expect(
-          repository.applyCommand(
-            test.nextProvenance('update_task_step'),
-            {
-              toolName: 'update_task_step',
-              taskId: plan.task.id,
-              expectedRevision: plan.task.revision,
-              stepId: step.id,
-              status: 'completed',
-              resultNote: '仅重命名章节不能证明正文已润色',
-              resultRef: wrongToolReviewId,
-            },
-          ),
+          repository.applyCommand(test.nextProvenance('update_task_step'), {
+            toolName: 'update_task_step',
+            taskId: plan.task.id,
+            expectedRevision: plan.task.revision,
+            stepId: step.id,
+            status: 'completed',
+            resultNote: '仅重命名章节不能证明正文已润色',
+            resultRef: wrongToolReviewId,
+          }),
         ).rejects.toMatchObject({
           code: 'TASK_WRITE_EVIDENCE_INVALID',
         });
         plan = (
-          await repository.applyCommand(
-            test.nextProvenance('update_task_step'),
-            {
-              toolName: 'update_task_step',
-              taskId: plan.task.id,
-              expectedRevision: plan.task.revision,
-              stepId: step.id,
-              status: 'blocked',
-              resultNote: '错误工具证据',
-              resultRef: wrongToolReviewId,
-            },
-          )
+          await repository.applyCommand(test.nextProvenance('update_task_step'), {
+            toolName: 'update_task_step',
+            taskId: plan.task.id,
+            expectedRevision: plan.task.revision,
+            stepId: step.id,
+            status: 'blocked',
+            resultNote: '错误工具证据',
+            resultRef: wrongToolReviewId,
+          })
         ).plan;
         expect(plan.steps[0]?.reviewEvidence).toMatchObject({
           reviewStatus: 'accepted_effect',
@@ -777,40 +929,31 @@ describe('durable Agent long-task runtime', () => {
           toolName: 'rename_node',
         });
         plan = (
-          await repository.applyCommand(
-            test.nextProvenance('update_task_step'),
-            {
-              toolName: 'update_task_step',
-              taskId: plan.task.id,
-              expectedRevision: plan.task.revision,
-              stepId: step.id,
-              status: 'in_progress',
-              resultNote: null,
-              resultRef: null,
-            },
-          )
-        ).plan;
-      }
-      const acceptedReviewId = await createAcceptedWriteReview(test, {
-        chapterId: step.target!.resolvedTargetId!,
-        chapterName:
-          step.ordinal === 0
-            ? '第一章 暴雨之夜'
-            : step.target!.name,
-      });
-      plan = (
-        await repository.applyCommand(
-          test.nextProvenance('update_task_step'),
-          {
+          await repository.applyCommand(test.nextProvenance('update_task_step'), {
             toolName: 'update_task_step',
             taskId: plan.task.id,
             expectedRevision: plan.task.revision,
             stepId: step.id,
-            status: 'completed',
-            resultNote: `完成 ${step.target!.name}`,
-            resultRef: acceptedReviewId,
-          },
-        )
+            status: 'in_progress',
+            resultNote: null,
+            resultRef: null,
+          })
+        ).plan;
+      }
+      const acceptedReviewId = await createAcceptedWriteReview(test, {
+        chapterId: step.target!.resolvedTargetId!,
+        chapterName: step.ordinal === 0 ? '第一章 暴雨之夜' : step.target!.name,
+      });
+      plan = (
+        await repository.applyCommand(test.nextProvenance('update_task_step'), {
+          toolName: 'update_task_step',
+          taskId: plan.task.id,
+          expectedRevision: plan.task.revision,
+          stepId: step.id,
+          status: 'completed',
+          resultNote: `完成 ${step.target!.name}`,
+          resultRef: acceptedReviewId,
+        })
       ).plan;
     }
 
@@ -821,16 +964,13 @@ describe('durable Agent long-task runtime', () => {
       )
       .run(plan.task.id);
     await expect(
-      repository.applyCommand(
-        test.nextProvenance('update_task_plan'),
-        {
-          toolName: 'update_task_plan',
-          operation: 'set_status',
-          taskId: plan.task.id,
-          expectedRevision: plan.task.revision,
-          status: 'completed',
-        },
-      ),
+      repository.applyCommand(test.nextProvenance('update_task_plan'), {
+        toolName: 'update_task_plan',
+        operation: 'set_status',
+        taskId: plan.task.id,
+        expectedRevision: plan.task.revision,
+        status: 'completed',
+      }),
     ).rejects.toMatchObject({ code: 'TASK_PLAN_INVALID' });
 
     test.gateway.database
@@ -846,42 +986,32 @@ describe('durable Agent long-task runtime', () => {
         WHOLE_BOOK_MANIFEST[1].name,
         WHOLE_BOOK_MANIFEST[1].resolvedChapterId,
       );
-    const completed = await repository.applyCommand(
-      test.nextProvenance('update_task_plan'),
-      {
-        toolName: 'update_task_plan',
-        operation: 'set_status',
-        taskId: plan.task.id,
-        expectedRevision: plan.task.revision,
-        status: 'completed',
-      },
-    );
+    const completed = await repository.applyCommand(test.nextProvenance('update_task_plan'), {
+      toolName: 'update_task_plan',
+      operation: 'set_status',
+      taskId: plan.task.id,
+      expectedRevision: plan.task.revision,
+      status: 'completed',
+    });
     expect(completed.plan.task.status).toBe('completed');
     await test.gateway.close();
   });
 
   it('auto-generates and freezes whole-book steps without leaking renderer chapter ids', async () => {
     const test = await fixture();
-    const repository = createAgentRuntimeLongTaskRepository(
-      test.gateway.client(),
-      { createId: idFactory() },
-    );
+    const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
+      createId: idFactory(),
+    });
     const currentManifest: Array<{
       ordinal: number;
       name: string;
       resolvedChapterId: string;
     }> = WHOLE_BOOK_MANIFEST.map((chapter) => ({ ...chapter }));
     const currentNames = new Map<string, string>(
-      WHOLE_BOOK_MANIFEST.map((chapter) => [
-        chapter.resolvedChapterId,
-        chapter.name,
-      ]),
+      WHOLE_BOOK_MANIFEST.map((chapter) => [chapter.resolvedChapterId, chapter.name]),
     );
-    const resolveCurrentChapterName = ({
-      resolvedChapterId,
-    }: {
-      resolvedChapterId: string;
-    }) => currentNames.get(resolvedChapterId) ?? null;
+    const resolveCurrentChapterName = ({ resolvedChapterId }: { resolvedChapterId: string }) =>
+      currentNames.get(resolvedChapterId) ?? null;
     const runtime = new AgentLongTaskToolRuntime({
       repository,
       now: () => NOW,
@@ -898,9 +1028,7 @@ describe('durable Agent long-task runtime', () => {
       })
       .find((candidate) => candidate.name === AGENT_LONG_TASK_PLAN_TOOL)!;
     expect(definition.inputSchema).toMatchObject({ type: 'object' });
-    expect(
-      (definition.inputSchema as { anyOf?: unknown }).anyOf,
-    ).toBeUndefined();
+    expect((definition.inputSchema as { anyOf?: unknown }).anyOf).toBeUndefined();
     const constraintDefinition = runtime
       .listDefinitions({
         route: {
@@ -911,9 +1039,7 @@ describe('durable Agent long-task runtime', () => {
       })
       .find((candidate) => candidate.name === AGENT_LONG_TASK_CONSTRAINT_TOOL)!;
     expect(constraintDefinition.inputSchema).toMatchObject({ type: 'object' });
-    expect(
-      (constraintDefinition.inputSchema as { anyOf?: unknown }).anyOf,
-    ).toBeUndefined();
+    expect((constraintDefinition.inputSchema as { anyOf?: unknown }).anyOf).toBeUndefined();
     expect(
       constraintDefinition.validateInput({
         operation: 'supersede',
@@ -980,6 +1106,14 @@ describe('durable Agent long-task runtime', () => {
         status: 'active',
         scopeKind: 'whole_book_chapters',
         objective: '润色整本书',
+        nextStep: {
+          title: '处理章节：第一章 雨夜',
+          status: 'pending',
+          target: {
+            kind: 'chapter',
+            name: '第一章 雨夜',
+          },
+        },
       },
     });
     currentManifest.push({
@@ -1000,16 +1134,13 @@ describe('durable Agent long-task runtime', () => {
       { ordinal: 1, name: '第二章 来客' },
     ]);
     expect(JSON.stringify(providerProjection)).not.toContain('node-secret-');
-    expect(JSON.stringify(providerProjection)).not.toContain(
-      'resolvedChapterId',
-    );
+    expect(JSON.stringify(providerProjection)).not.toContain('resolvedChapterId');
     expect(JSON.stringify(result)).not.toContain('node-secret-');
     currentNames.set('node-secret-1', '第一章 暴雨之夜');
     currentNames.delete('node-secret-2');
-    const refreshedProjection = projectAgentLongTaskPlanForProvider(
-      frozen!,
-      { resolveCurrentChapterName },
-    );
+    const refreshedProjection = projectAgentLongTaskPlanForProvider(frozen!, {
+      resolveCurrentChapterName,
+    });
     expect(refreshedProjection.steps[0]?.target).toEqual({
       kind: 'chapter',
       name: '第一章 暴雨之夜',
@@ -1021,105 +1152,88 @@ describe('durable Agent long-task runtime', () => {
       availability: 'missing',
     });
     let prioritized = (
-      await repository.applyCommand(
-        test.nextProvenance('update_task_step'),
-        {
-          toolName: 'update_task_step',
-          taskId: frozen!.task.id,
-          expectedRevision: frozen!.task.revision,
-          stepId: frozen!.steps[0]!.id,
-          status: 'in_progress',
-          resultNote: null,
-          resultRef: null,
-        },
-      )
+      await repository.applyCommand(test.nextProvenance('update_task_step'), {
+        toolName: 'update_task_step',
+        taskId: frozen!.task.id,
+        expectedRevision: frozen!.task.revision,
+        stepId: frozen!.steps[0]!.id,
+        status: 'in_progress',
+        resultNote: null,
+        resultRef: null,
+      })
     ).plan;
     prioritized = (
-      await repository.applyCommand(
-        test.nextProvenance('update_task_step'),
-        {
-          toolName: 'update_task_step',
-          taskId: prioritized.task.id,
-          expectedRevision: prioritized.task.revision,
-          stepId: prioritized.steps[0]!.id,
-          status: 'blocked',
-          resultNote: '等待审阅',
-          resultRef: 'pending-review',
-        },
-      )
+      await repository.applyCommand(test.nextProvenance('update_task_step'), {
+        toolName: 'update_task_step',
+        taskId: prioritized.task.id,
+        expectedRevision: prioritized.task.revision,
+        stepId: prioritized.steps[0]!.id,
+        status: 'blocked',
+        resultNote: '等待审阅',
+        resultRef: 'pending-review',
+      })
     ).plan;
-    expect(
-      projectAgentLongTaskPlanForProvider(prioritized).continuation
-        .nextStepId,
-    ).toBe(prioritized.steps[1]!.id);
+    expect(projectAgentLongTaskPlanForProvider(prioritized).continuation.nextStepId).toBe(
+      prioritized.steps[1]!.id,
+    );
     await test.gateway.close();
   });
 
   it('projects accepted target evidence for the oldest of 22 settled chapter reviews', async () => {
     const test = await fixture();
-    const repository = createAgentRuntimeLongTaskRepository(
-      test.gateway.client(),
-      { createId: idFactory() },
-    );
+    const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
+      createId: idFactory(),
+    });
     const manifest = Array.from({ length: 22 }, (_, ordinal) => ({
       ordinal,
       name: `第 ${ordinal + 1} 章`,
       resolvedChapterId: `chapter-internal-${ordinal + 1}`,
     }));
     let plan = (
-      await repository.applyCommand(
-        test.nextProvenance('update_task_plan'),
-        {
-          toolName: 'update_task_plan',
-          operation: 'create',
-          objective: '逐章润色二十二章',
-          scopeKind: 'whole_book_chapters',
-          chapterManifest: manifest,
-          steps: manifest.map((chapter) => ({
-            title: `处理章节：${chapter.name}`,
-            target: {
-              kind: 'chapter',
-              name: chapter.name,
-              resolvedTargetId: chapter.resolvedChapterId,
-            },
-          })),
-          constraints: [],
-        },
-      )
+      await repository.applyCommand(test.nextProvenance('update_task_plan'), {
+        toolName: 'update_task_plan',
+        operation: 'create',
+        objective: '逐章润色二十二章',
+        scopeKind: 'whole_book_chapters',
+        chapterManifest: manifest,
+        steps: manifest.map((chapter) => ({
+          title: `处理章节：${chapter.name}`,
+          target: {
+            kind: 'chapter',
+            name: chapter.name,
+            resolvedTargetId: chapter.resolvedChapterId,
+          },
+        })),
+        constraints: [],
+      })
     ).plan;
 
     for (const originalStep of [...plan.steps]) {
       plan = (
-        await repository.applyCommand(
-          test.nextProvenance('update_task_step'),
-          {
-            toolName: 'update_task_step',
-            taskId: plan.task.id,
-            expectedRevision: plan.task.revision,
-            stepId: originalStep.id,
-            status: 'in_progress',
-            resultNote: null,
-            resultRef: null,
-          },
-        )
+        await repository.applyCommand(test.nextProvenance('update_task_step'), {
+          toolName: 'update_task_step',
+          taskId: plan.task.id,
+          expectedRevision: plan.task.revision,
+          stepId: originalStep.id,
+          status: 'in_progress',
+          resultNote: null,
+          resultRef: null,
+        })
       ).plan;
       const reviewId = await createAcceptedWriteReview(test, {
         chapterId: originalStep.target!.resolvedTargetId!,
         chapterName: originalStep.target!.name,
       });
       plan = (
-        await repository.applyCommand(
-          test.nextProvenance('update_task_step'),
-          {
-            toolName: 'update_task_step',
-            taskId: plan.task.id,
-            expectedRevision: plan.task.revision,
-            stepId: originalStep.id,
-            status: 'blocked',
-            resultNote: '等待 durable review 状态投影',
-            resultRef: reviewId,
-          },
-        )
+        await repository.applyCommand(test.nextProvenance('update_task_step'), {
+          toolName: 'update_task_step',
+          taskId: plan.task.id,
+          expectedRevision: plan.task.revision,
+          stepId: originalStep.id,
+          status: 'blocked',
+          resultNote: '等待 durable review 状态投影',
+          resultRef: reviewId,
+        })
       ).plan;
     }
 
@@ -1138,9 +1252,7 @@ describe('durable Agent long-task runtime', () => {
       reviewStatus: 'accepted_effect',
       acceptedTargetEvidence: true,
     });
-    expect(JSON.stringify(projected)).not.toContain(
-      'chapter-internal-',
-    );
+    expect(JSON.stringify(projected)).not.toContain('chapter-internal-');
 
     const hook = createAgentLongTaskSupplementalRowsHook(repository);
     const rows = await hook({
@@ -1170,24 +1282,18 @@ describe('durable Agent long-task runtime', () => {
         }>;
       };
     };
-    expect(
-      pinnedPlan.stepWindow.steps[0]?.reviewEvidence
-        ?.acceptedTargetEvidence,
-    ).toBe(true);
+    expect(pinnedPlan.stepWindow.steps[0]?.reviewEvidence?.acceptedTargetEvidence).toBe(true);
 
     const oldest = plan.steps[0]!;
-    const completed = await repository.applyCommand(
-      test.nextProvenance('update_task_step'),
-      {
-        toolName: 'update_task_step',
-        taskId: plan.task.id,
-        expectedRevision: plan.task.revision,
-        stepId: oldest.id,
-        status: 'completed',
-        resultNote: '旧审阅证据仍可安全收口',
-        resultRef: oldest.resultRef,
-      },
-    );
+    const completed = await repository.applyCommand(test.nextProvenance('update_task_step'), {
+      toolName: 'update_task_step',
+      taskId: plan.task.id,
+      expectedRevision: plan.task.revision,
+      stepId: oldest.id,
+      status: 'completed',
+      resultNote: '旧审阅证据仍可安全收口',
+      resultRef: oldest.resultRef,
+    });
     expect(completed.plan.steps[0]).toMatchObject({
       status: 'completed',
       reviewEvidence: {

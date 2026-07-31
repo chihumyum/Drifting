@@ -231,4 +231,11 @@ export interface AgentRuntimeWritePersistenceSnapshot {
    * test doubles may omit it, but the SQLite repository always supplies it.
    */
   turnOrdinalsById?: Readonly<Record<string, number>>;
+  /**
+   * Ordinals in canonical provider history. Failed/aborted turns have no model
+   * messages, so their physical runtime ordinals cannot be used directly.
+   */
+  turnContextOrdinalsById?: Readonly<Record<string, number>>;
+  /** Whether the turn's tool pair is present in canonical provider history. */
+  turnHasCanonicalHistoryById?: Readonly<Record<string, boolean>>;
 }
