@@ -1441,6 +1441,59 @@ export const AgentRuntimeElementPatchReceiptTable = sqliteTable(
   ],
 );
 
+/**
+ * Immutable receipt for certified non-prose entity commands. The typed
+ * pre/post images are runtime recovery data, never authored entity metadata.
+ */
+export const AgentRuntimeEntityWriteReceiptTable = sqliteTable(
+  'agent_runtime_entity_write_receipt',
+  {
+    id: text('id').primaryKey(),
+    effectId: text('effect_id')
+      .notNull()
+      .references(() => AgentRuntimeWriteEffectTable.id, {
+        onDelete: 'cascade',
+      }),
+    commandId: text('command_id').notNull(),
+    direction: text('direction').notNull(),
+    projectId: text('project_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    toolName: text('tool_name').notNull(),
+    entityKind: text('entity_kind').notNull(),
+    entityId: text('entity_id').notNull(),
+    expectedRevision: text('expected_revision'),
+    resultRevision: text('result_revision'),
+    preimageJson: text('preimage_json'),
+    preimageHash: text('preimage_hash'),
+    postimageJson: text('postimage_json'),
+    postimageHash: text('postimage_hash'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_entity_write_receipt_command').on(
+      t.commandId,
+      t.direction,
+    ),
+    uniqueIndex('uniq_agent_runtime_entity_write_receipt_effect').on(
+      t.effectId,
+      t.direction,
+    ),
+    index('idx_agent_runtime_entity_write_receipt_entity').on(
+      t.projectId,
+      t.entityKind,
+      t.entityId,
+    ),
+    foreignKey({
+      columns: [t.sessionId, t.projectId],
+      foreignColumns: [
+        AgentRuntimeSessionTable.id,
+        AgentRuntimeSessionTable.projectId,
+      ],
+      name: 'fk_agent_runtime_entity_write_receipt_session_project',
+    }).onDelete('cascade'),
+  ],
+);
+
 export const AgentRuntimeWriteExpectationTable = sqliteTable(
   'agent_runtime_write_expectation',
   {
@@ -1578,6 +1631,241 @@ export const AgentRuntimeCheckpointTable = sqliteTable(
       t.sessionId,
       t.createdAt,
     ),
+  ],
+);
+
+// Durable orchestration for tasks that cross model-budget slices or renderer
+// restarts. These rows never replace authored content; they only track the
+// Agent's explicit objective, progress, and live constraints.
+export const AgentRuntimeTaskTable = sqliteTable(
+  'agent_runtime_task',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    objective: text('objective').notNull(),
+    scopeKind: text('scope_kind').notNull().default('explicit_targets'),
+    status: text('status').notNull().default('active'),
+    revision: integer('revision').notNull().default(0),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    endedAt: text('ended_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_task_scope_identity').on(
+      t.id,
+      t.projectId,
+      t.sessionId,
+    ),
+    uniqueIndex('uniq_agent_runtime_task_open_session')
+      .on(t.projectId, t.sessionId)
+      .where(sql`${t.status} IN ('active', 'paused', 'blocked')`),
+    index('idx_agent_runtime_task_scope_status').on(
+      t.projectId,
+      t.sessionId,
+      t.status,
+      t.updatedAt,
+    ),
+    foreignKey({
+      columns: [t.sessionId, t.projectId],
+      foreignColumns: [
+        AgentRuntimeSessionTable.id,
+        AgentRuntimeSessionTable.projectId,
+      ],
+      name: 'fk_agent_runtime_task_session_project',
+    }).onDelete('cascade'),
+  ],
+);
+
+export const AgentRuntimeTaskChapterManifestTable = sqliteTable(
+  'agent_runtime_task_chapter_manifest',
+  {
+    taskId: text('task_id').notNull(),
+    projectId: text('project_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    name: text('name').notNull(),
+    resolvedChapterId: text('resolved_chapter_id').notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.taskId, t.ordinal],
+      name: 'pk_agent_runtime_task_chapter_manifest',
+    }),
+    uniqueIndex('uniq_agent_runtime_task_manifest_chapter').on(
+      t.taskId,
+      t.resolvedChapterId,
+    ),
+    index('idx_agent_runtime_task_manifest_scope').on(
+      t.projectId,
+      t.sessionId,
+      t.taskId,
+      t.ordinal,
+    ),
+    foreignKey({
+      columns: [t.taskId, t.projectId, t.sessionId],
+      foreignColumns: [
+        AgentRuntimeTaskTable.id,
+        AgentRuntimeTaskTable.projectId,
+        AgentRuntimeTaskTable.sessionId,
+      ],
+      name: 'fk_agent_runtime_task_manifest_scope',
+    }).onDelete('cascade'),
+  ],
+);
+
+export const AgentRuntimeTaskStepTable = sqliteTable(
+  'agent_runtime_task_step',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id').notNull(),
+    projectId: text('project_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    title: text('title').notNull(),
+    targetKind: text('target_kind'),
+    targetName: text('target_name'),
+    resolvedTargetId: text('resolved_target_id'),
+    status: text('status').notNull().default('pending'),
+    resultNote: text('result_note'),
+    resultRef: text('result_ref'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    startedAt: text('started_at'),
+    completedAt: text('completed_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_task_step_ordinal').on(
+      t.taskId,
+      t.ordinal,
+    ),
+    uniqueIndex('uniq_agent_runtime_task_step_scope_identity').on(
+      t.id,
+      t.taskId,
+      t.projectId,
+      t.sessionId,
+    ),
+    uniqueIndex('uniq_agent_runtime_task_step_in_progress')
+      .on(t.taskId)
+      .where(sql`${t.status} = 'in_progress'`),
+    index('idx_agent_runtime_task_step_status').on(
+      t.taskId,
+      t.status,
+      t.ordinal,
+    ),
+    foreignKey({
+      columns: [t.taskId, t.projectId, t.sessionId],
+      foreignColumns: [
+        AgentRuntimeTaskTable.id,
+        AgentRuntimeTaskTable.projectId,
+        AgentRuntimeTaskTable.sessionId,
+      ],
+      name: 'fk_agent_runtime_task_step_scope',
+    }).onDelete('cascade'),
+  ],
+);
+
+export const AgentRuntimeTaskConstraintTable = sqliteTable(
+  'agent_runtime_task_constraint',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id').notNull(),
+    projectId: text('project_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    body: text('body').notNull(),
+    source: text('source').notNull().default('agent'),
+    status: text('status').notNull().default('active'),
+    // The checked-in migration owns the self-FK. Keeping this as a plain
+    // column avoids Drizzle's recursive table type widening.
+    supersededById: text('superseded_by_id'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    settledAt: text('settled_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_task_constraint_scope_identity').on(
+      t.id,
+      t.taskId,
+      t.projectId,
+      t.sessionId,
+    ),
+    index('idx_agent_runtime_task_constraint_status').on(
+      t.taskId,
+      t.status,
+      t.createdAt,
+    ),
+    foreignKey({
+      columns: [t.taskId, t.projectId, t.sessionId],
+      foreignColumns: [
+        AgentRuntimeTaskTable.id,
+        AgentRuntimeTaskTable.projectId,
+        AgentRuntimeTaskTable.sessionId,
+      ],
+      name: 'fk_agent_runtime_task_constraint_scope',
+    }).onDelete('cascade'),
+  ],
+);
+
+export const AgentRuntimeTaskCommandTable = sqliteTable(
+  'agent_runtime_task_command',
+  {
+    idempotencyKey: text('idempotency_key').primaryKey(),
+    projectId: text('project_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    turnId: text('turn_id').notNull(),
+    toolCallId: text('tool_call_id').notNull(),
+    callId: text('call_id').notNull(),
+    toolName: text('tool_name').notNull(),
+    toolAccess: text('tool_access').notNull().default('write'),
+    taskId: text('task_id').notNull(),
+    argumentsHash: text('arguments_hash').notNull(),
+    resultJson: text('result_json').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_runtime_task_command_call').on(
+      t.turnId,
+      t.callId,
+    ),
+    index('idx_agent_runtime_task_command_task').on(t.taskId, t.createdAt),
+    foreignKey({
+      columns: [t.taskId, t.projectId, t.sessionId],
+      foreignColumns: [
+        AgentRuntimeTaskTable.id,
+        AgentRuntimeTaskTable.projectId,
+        AgentRuntimeTaskTable.sessionId,
+      ],
+      name: 'fk_agent_runtime_task_command_scope',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.turnId, t.sessionId],
+      foreignColumns: [
+        AgentRuntimeTurnTable.id,
+        AgentRuntimeTurnTable.sessionId,
+      ],
+      name: 'fk_agent_runtime_task_command_turn_session',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [
+        t.toolCallId,
+        t.sessionId,
+        t.turnId,
+        t.callId,
+        t.idempotencyKey,
+        t.toolAccess,
+        t.toolName,
+      ],
+      foreignColumns: [
+        AgentRuntimeToolCallTable.id,
+        AgentRuntimeToolCallTable.sessionId,
+        AgentRuntimeToolCallTable.turnId,
+        AgentRuntimeToolCallTable.callId,
+        AgentRuntimeToolCallTable.idempotencyKey,
+        AgentRuntimeToolCallTable.access,
+        AgentRuntimeToolCallTable.name,
+      ],
+      name: 'fk_agent_runtime_task_command_tool_provenance',
+    }).onDelete('cascade'),
   ],
 );
 

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 
@@ -40,6 +41,119 @@ function runtimeMigrationSql(): string {
     .join('\n');
 }
 
+interface ProductMigrationJournalEntry {
+  idx: number;
+  when: number;
+  tag: string;
+}
+
+interface ProductMigrationJournal {
+  entries: ProductMigrationJournalEntry[];
+}
+
+function readProductMigrationJournal(): ProductMigrationJournal {
+  const journal = JSON.parse(
+    readFileSync(
+      new URL('meta/_journal.json', DRIZZLE_DIRECTORY),
+      'utf8',
+    ),
+  ) as ProductMigrationJournal;
+  if (!journal || !Array.isArray(journal.entries)) {
+    throw new Error('Product migration journal is invalid.');
+  }
+
+  let previousWhen = -1;
+  journal.entries.forEach((entry, expectedIndex) => {
+    if (entry.idx !== expectedIndex) {
+      throw new Error(
+        `Product migration journal index mismatch: expected ${expectedIndex}, found ${entry.idx}.`,
+      );
+    }
+    if (!/^[A-Za-z0-9_-]+$/u.test(entry.tag)) {
+      throw new Error(`Product migration tag is invalid: ${entry.tag}.`);
+    }
+    if (
+      !Number.isSafeInteger(entry.when) ||
+      entry.when <= previousWhen
+    ) {
+      throw new Error(
+        `Product migration timestamps are not strictly increasing at ${entry.tag}.`,
+      );
+    }
+    previousWhen = entry.when;
+  });
+  return journal;
+}
+
+/**
+ * Mirrors the Rust database gateway instead of concatenating SQL files. This
+ * matters for reopen/idempotency acceptance and catches journal drift in tests.
+ */
+function applyProductMigrations(database: DatabaseSync): number {
+  const journal = readProductMigrationJournal();
+  database.exec('PRAGMA foreign_keys = OFF');
+  database.exec('BEGIN IMMEDIATE');
+  try {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+        id SERIAL PRIMARY KEY,
+        hash text NOT NULL,
+        created_at numeric
+      )
+    `);
+    const lastRow = database
+      .prepare(
+        'SELECT created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1',
+      )
+      .get() as { created_at?: unknown } | undefined;
+    const lastWhen =
+      lastRow?.created_at === undefined || lastRow.created_at === null
+        ? null
+        : Number(lastRow.created_at);
+    const latestEmbedded =
+      journal.entries[journal.entries.length - 1]?.when;
+    if (
+      lastWhen !== null &&
+      latestEmbedded !== undefined &&
+      lastWhen > latestEmbedded
+    ) {
+      throw new Error(
+        `Product database schema is newer than this checkout (${lastWhen} > ${latestEmbedded}).`,
+      );
+    }
+
+    const record = database.prepare(
+      'INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)',
+    );
+    let applied = 0;
+    for (const entry of journal.entries) {
+      if (lastWhen !== null && lastWhen >= entry.when) continue;
+      const bytes = readFileSync(
+        new URL(`${entry.tag}.sql`, DRIZZLE_DIRECTORY),
+      );
+      for (const statement of bytes
+        .toString('utf8')
+        .split('--> statement-breakpoint')) {
+        if (statement.trim()) database.exec(statement);
+      }
+      record.run(
+        createHash('sha256').update(bytes).digest('hex'),
+        entry.when,
+      );
+      applied += 1;
+    }
+    database.exec('COMMIT');
+    return applied;
+  } catch (error) {
+    database.exec('ROLLBACK');
+    throw error;
+  } finally {
+    database.exec('PRAGMA foreign_keys = ON');
+  }
+}
+
+type FileBackedSqliteProfile = 'runtime' | 'product';
+
 /**
  * Node-backed implementation of the same DatabasePlatformApi used by the
  * renderer repositories. It intentionally uses a real file, WAL, FULL sync,
@@ -50,13 +164,24 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
   readonly database: DatabaseSync;
   private activeTransaction: string | null = null;
   private nextTransactionId = 1;
+  private migrationsApplied = 0;
 
   constructor(
     readonly databasePath: string,
     initialize = true,
+    private readonly profile: FileBackedSqliteProfile = 'runtime',
   ) {
     this.database = new DatabaseSync(databasePath);
     if (!initialize) return;
+    if (profile === 'product') {
+      this.database.exec(`
+        PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = FULL;
+        PRAGMA busy_timeout = 5000;
+      `);
+      this.migrationsApplied = applyProductMigrations(this.database);
+      return;
+    }
     this.database.exec(`
       PRAGMA foreign_keys = ON;
       PRAGMA journal_mode = WAL;
@@ -127,7 +252,12 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
     return {
       path: this.databasePath,
       journalMode: 'wal',
-      migrationsApplied: runtimeMigrationSql().length > 0 ? 1 : 0,
+      migrationsApplied:
+        this.profile === 'product'
+          ? this.migrationsApplied
+          : runtimeMigrationSql().length > 0
+            ? 1
+            : 0,
     };
   }
 
@@ -213,5 +343,16 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
         `transaction ${transactionId} does not own the acceptance database`,
       );
     }
+  }
+}
+
+/**
+ * Real product-schema variant used by end-to-end renderer acceptance. Unlike
+ * the narrower P3 receipt fixture, this applies every checked-in migration so
+ * default repositories and renderer dispatchers can run without table mocks.
+ */
+export class ProductFileBackedSqliteGateway extends P3FileBackedSqliteGateway {
+  constructor(databasePath: string, initialize = true) {
+    super(databasePath, initialize, 'product');
   }
 }

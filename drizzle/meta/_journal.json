@@ -463,6 +463,20 @@
       "when": 1785000000000,
       "tag": "0065_agent_runtime_element_patch_receipt",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "6",
+      "when": 1785100000000,
+      "tag": "0066_agent_runtime_entity_write_receipt",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "6",
+      "when": 1785200000000,
+      "tag": "0067_agent_runtime_long_task",
+      "breakpoints": true
     }
   ]
 }
