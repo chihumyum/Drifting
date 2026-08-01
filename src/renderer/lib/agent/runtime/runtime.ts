@@ -41,6 +41,7 @@ import {
   type AgentRuntimeScheduler,
   type AgentRuntimeUsage,
   type AgentToolDefinition,
+  type AgentToolExecutionPresentation,
   type AgentToolExecutionResult,
   type AgentToolPermissionPolicy,
   type AgentToolPermissionPolicyDecision,
@@ -355,10 +356,7 @@ function normalizedFinalResponseBlocks(
   const rawText = textFromAssistantBlocks(blocks);
   if (!rawText.includes(AGENT_FINAL_RESPONSE_MARKER)) return [...blocks];
   const visibleText = stripAgentFinalResponseMarker(rawText);
-  return [
-    ...blocks.filter((block) => block.type !== 'text'),
-    { type: 'text', text: visibleText },
-  ];
+  return [...blocks.filter((block) => block.type !== 'text'), { type: 'text', text: visibleText }];
 }
 
 function protocol(message: string): never {
@@ -382,7 +380,7 @@ function normalizeToolExecution(
   access: AgentToolDefinition['access'],
 ): { ok: boolean; text: string; source: 'executor' | 'runtime'; errorCode?: string } {
   if (!result.ok) return { ok: false, text: result.error, source: 'executor' };
-  const serialized = stringifyToolData(result.data);
+  const serialized = stringifyToolData(result.modelData ?? result.data);
   if (!serialized.ok) {
     return {
       ok: access === 'write',
@@ -1067,6 +1065,7 @@ export class AgentRuntime {
         control: toolControl(call),
       };
       let executionStarted = false;
+      let presentation: AgentToolExecutionPresentation | undefined;
       const execute = async (): Promise<AgentToolExecutionResult> => {
         checkBeforeWork();
         await emit({
@@ -1094,6 +1093,7 @@ export class AgentRuntime {
         } else {
           result = await awaitAbortable(execute());
         }
+        if (result.ok) presentation = result.presentation;
         normalized = normalizeToolExecution(result, call.definition.access);
       } catch (error) {
         if (controller.signal.aborted) throwIfStopped();
@@ -1124,6 +1124,7 @@ export class AgentRuntime {
         content: normalized.text,
         source: normalized.source,
         ...(normalized.errorCode ? { errorCode: normalized.errorCode } : {}),
+        ...(presentation?.review ? { review: presentation.review } : {}),
       });
       call.result = {
         callId: call.callId,
@@ -1520,9 +1521,7 @@ export class AgentRuntime {
                     }
                   } else {
                     bufferedVisibleText += frame.text;
-                    const markerIndex = bufferedVisibleText.indexOf(
-                      AGENT_FINAL_RESPONSE_MARKER,
-                    );
+                    const markerIndex = bufferedVisibleText.indexOf(AGENT_FINAL_RESPONSE_MARKER);
                     if (markerIndex >= 0) {
                       finalResponseMarkerSeen = true;
                       const afterMarker = bufferedVisibleText.slice(
@@ -1748,11 +1747,7 @@ export class AgentRuntime {
         );
         appendContentDelta(blocks, 'text', synthesisText);
         await emit({ type: 'text_delta', iteration, text: synthesisText });
-      } else if (
-        calls.length === 0 &&
-        !finalResponseMarkerSeen &&
-        bufferedVisibleText
-      ) {
+      } else if (calls.length === 0 && !finalResponseMarkerSeen && bufferedVisibleText) {
         // Compatibility fallback for providers or older recovered prompts that
         // do not implement the presentation marker yet. It remains hidden
         // until the provider proves this is a tool-free final response.
@@ -1925,11 +1920,12 @@ export class AgentRuntime {
         await emit({ type: 'cancellation_requested', reason }, true);
       }
       if (!controller.signal.aborted) controller.abort(error);
-      const runtimeError = deadlineTriggered && deadlineError
-        ? deadlineError
-        : error instanceof AgentRuntimeError
-          ? error
-          : null;
+      const runtimeError =
+        deadlineTriggered && deadlineError
+          ? deadlineError
+          : error instanceof AgentRuntimeError
+            ? error
+            : null;
       const code = runtimeError?.code ?? ('INTERNAL_ERROR' as const);
       const message = aborted
         ? abortReason(controller.signal)

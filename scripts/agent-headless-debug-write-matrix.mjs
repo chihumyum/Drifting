@@ -186,6 +186,16 @@ function journalEvents(payloads) {
 
 function parseReviewFromToolResult(event) {
   if (event.type !== 'tool_result' || !event.ok || typeof event.content !== 'string') return null;
+  if (typeof event.review?.id === 'string') {
+    return {
+      id: event.review.id,
+      status: event.review.status,
+      toolName: event.name,
+      callId: event.callId,
+    };
+  }
+  // Backward compatibility for journals written before review presentation
+  // metadata was separated from provider-visible tool content.
   try {
     const content = JSON.parse(event.content);
     if (typeof content.review?.id !== 'string') return null;

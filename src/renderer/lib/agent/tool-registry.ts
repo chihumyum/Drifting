@@ -1234,12 +1234,12 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
     name: 'edit_file',
     description:
-      'Edit one writable file in the virtual project workspace by exact text replacement. Put every independent change to the same file in one call.',
+      'Edit one writable novel-project file by exact text replacement. Replacements may span paragraphs and may insert, delete, merge, or split prose. Put independent changes to the same file in one call.',
     parametersSchema: Type.Object(
       {
         path: Type.String({
           minLength: 1,
-          description: 'Exact virtual path returned by list_files or read_file',
+          description: 'Workspace file path, chapter directory, or unique chapter name',
         }),
         replacements: Type.Array(
           Type.Object(
@@ -1278,7 +1278,7 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
     name: 'list_files',
     description:
-      'List one directory level in the virtual novel workspace. Each entry includes a canonical author-facing name and an internal path. Directory paths can be listed again; file paths can be passed directly to read_file or edit_file.',
+      'List one directory level in the novel workspace. Directory paths can be listed again; file paths can be read or edited directly.',
     parametersSchema: Type.Object(
       {
         path: Type.Optional(
@@ -1302,12 +1302,12 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
     name: 'read_file',
     description:
-      'Read a virtual project file. Large files are paged with offset and limit; continue at nextOffset until truncated is false.',
+      'Read a novel-project file. Passing a chapter directory or unique chapter name reads its manuscript. Passing a collection directory lists it. Large files continue at nextOffset until truncated is false.',
     parametersSchema: Type.Object(
       {
         path: Type.String({
           minLength: 1,
-          description: 'Exact virtual path returned by list_files',
+          description: 'Workspace file path, directory, or unique chapter name',
         }),
         offset: Type.Optional(
           Type.Integer({ minimum: 0, description: 'Unicode character offset' }),

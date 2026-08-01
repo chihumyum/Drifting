@@ -47,6 +47,42 @@ describe('Agent write review feedback', () => {
     await expect(buildAgentWriteReviewFeedback('session-1', repository)).resolves.toBe('');
   });
 
+  it('keeps workspace coordination details out of model-facing review rows', async () => {
+    const repository = {
+      loadSnapshot: async () => ({
+        effects: [
+          effect(
+            'effect-file',
+            'edit_file',
+            {
+              path: '/chapters/12/prose.md',
+              replacements: [{ oldText: 'old', newText: 'new' }],
+              expectedRevision: {
+                receiptId: 'private-receipt',
+                observationId: 'private-observation',
+                revision: 'yjs:42',
+              },
+              __workspaceCommand: {
+                name: 'edit_prose_file',
+                arguments: { nodeId: 'private-node' },
+              },
+            },
+            'turn-file',
+          ),
+        ],
+        reviews: [review('review-file', 'effect-file', 'pending', 1)],
+        turnOrdinalsById: { 'turn-file': 1 },
+      }),
+    } as unknown as AgentRuntimeWriteEffectRepository;
+
+    const rows = await loadAgentWriteReviewContextRows('session-1', repository);
+
+    expect(rows[0]?.content).toContain('/chapters/12/prose.md');
+    expect(rows[0]?.content).not.toMatch(
+      /private-receipt|private-observation|private-node|expectedRevision|workspaceCommand|yjs/i,
+    );
+  });
+
   it('keeps every unsettled decision as a stable first-class pinned row', async () => {
     const repository = {
       loadSnapshot: async () => ({

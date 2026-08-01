@@ -8,10 +8,7 @@ import {
   canonicalAgentRuntimeJson,
   type AgentRuntimePersistenceRepository,
 } from '../../../sqlite-repo/agent-runtime-persistence-repo';
-import {
-  getActiveAgentToolContext,
-  type AgentToolContext,
-} from '../tool-handlers';
+import { getActiveAgentToolContext, type AgentToolContext } from '../tool-handlers';
 import { getRegisteredTool } from '../tool-registry';
 import { isAgentAbort, throwIfAgentAborted } from './errors';
 import { clonePortableData } from './portable-data';
@@ -22,12 +19,13 @@ import type {
   AgentToolExecutionResult,
   AgentToolRuntime,
 } from './types';
+import {
+  applyWorkspaceTextReplacements,
+  parseWorkspaceTextReplacements,
+  type WorkspaceTextReplacement,
+} from './workspace-prose-file';
 
-export const DRIFTING_WORKSPACE_READ_TOOLS = [
-  'list_files',
-  'read_file',
-  'grep',
-] as const;
+export const DRIFTING_WORKSPACE_READ_TOOLS = ['list_files', 'read_file', 'grep'] as const;
 
 export const DRIFTING_WORKSPACE_EDIT_TOOL = 'edit_file' as const;
 
@@ -108,6 +106,7 @@ interface CompactProseBlock {
 
 interface WorkspaceCommand {
   name:
+    | 'edit_prose_file'
     | 'edit_blocks'
     | 'rename_node'
     | 'set_node_summary'
@@ -178,12 +177,15 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     try {
       const projectId = this.requireProject(request.context);
       if (request.name === 'list_files') {
-        return { ok: true, data: this.listFiles(projectId, request.arguments.path) };
+        const data = this.listFiles(projectId, request.arguments.path);
+        return { ok: true, data, modelData: workspaceReadModelData(data) };
       }
       if (request.name === 'read_file') {
-        return { ok: true, data: await this.readFile(projectId, request) };
+        const data = await this.readFile(projectId, request);
+        return { ok: true, data, modelData: workspaceReadModelData(data) };
       }
-      return { ok: true, data: await this.grep(projectId, request) };
+      const data = await this.grep(projectId, request);
+      return { ok: true, data, modelData: workspaceReadModelData(data) };
     } catch (error) {
       if (isAgentAbort(error, request.signal)) throw error;
       return {
@@ -194,18 +196,16 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
   }
 
   /** Convert the public edit_file call into one certified hidden command. */
-  async prepareEditRequest(
-    request: AgentToolExecutionRequest,
-  ): Promise<AgentToolExecutionRequest> {
+  async prepareEditRequest(request: AgentToolExecutionRequest): Promise<AgentToolExecutionRequest> {
     if (request.name !== DRIFTING_WORKSPACE_EDIT_TOOL) return request;
     throwIfAgentAborted(request.signal);
     const projectId = this.requireProject(request.context);
-    const path = resolveWorkspacePath(projectId, request.arguments.path);
-    const entry = requireWorkspaceEntry(projectId, path);
+    const entry = requireWorkspaceFileEntry(projectId, request.arguments.path, true);
+    const path = entry.path;
     if (!entry.writable) {
       throw new Error(`"${path}" is read-only in this version of the workspace`);
     }
-    const replacements = parseReplacements(request.arguments.replacements);
+    const replacements = parseWorkspaceTextReplacements(request.arguments.replacements);
     const prepared = await this.prepareWorkspaceCommand(entry, replacements, request);
     return {
       ...request,
@@ -283,29 +283,29 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       .sort((left, right) => compareWorkspaceListItems(projectId, prefix, left, right));
     return {
       path: prefix,
-      files: items.slice(0, MAX_LISTED_FILES).map(({ path, name, type, writable, description }) => ({
-        path,
-        name,
-        type,
-        writable,
-        description,
-      })),
+      files: items
+        .slice(0, MAX_LISTED_FILES)
+        .map(({ path, name, type, writable, description }) => ({
+          path,
+          name,
+          type,
+          writable,
+          description,
+        })),
       total: items.length,
       truncated: items.length > MAX_LISTED_FILES,
     };
   }
 
   private async readFile(projectId: string, request: AgentToolExecutionRequest) {
-    const path = resolveWorkspacePath(projectId, request.arguments.path);
-    const entry = requireWorkspaceEntry(projectId, path);
+    const resolved = resolveWorkspacePath(projectId, request.arguments.path);
+    const entry =
+      findWorkspaceEntry(projectId, resolved) ?? primaryWorkspaceEntry(projectId, resolved);
+    if (!entry) return this.listFiles(projectId, resolved);
+    const path = entry.path;
     const content = await this.renderEntry(entry, request);
     const offset = boundedInteger(request.arguments.offset, 0, 0, content.length);
-    const limit = boundedInteger(
-      request.arguments.limit,
-      DEFAULT_READ_LIMIT,
-      1,
-      32_000,
-    );
+    const limit = boundedInteger(request.arguments.limit, DEFAULT_READ_LIMIT, 1, 32_000);
     const page = sliceCodePoints(content, offset, limit);
     const nextOffset = Math.min(codePointLength(content), offset + codePointLength(page));
     const totalChars = codePointLength(content);
@@ -327,6 +327,9 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     const prefix = resolveWorkspacePath(projectId, request.arguments.path ?? '/');
     const limit = boundedInteger(request.arguments.limit, 30, 1, 100);
     const entries = buildWorkspaceEntries(projectId);
+    if (!workspacePathExists(entries, prefix)) {
+      throw new Error(`No virtual file or directory exists at "${prefix}"`);
+    }
     const byEntity = new Map<string, WorkspaceEntry>();
     for (const entry of entries) {
       const key = workspaceEntityKey(entry.target);
@@ -377,9 +380,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       query,
       path: prefix,
       matches: matches.slice(0, limit),
-      truncated:
-        matches.length > limit ||
-        recordBoolean(proseRead.value, 'truncated'),
+      truncated: matches.length > limit || recordBoolean(proseRead.value, 'truncated'),
     };
   }
 
@@ -390,7 +391,10 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     const target = entry.target;
     if (target.kind === 'overview') {
       const read = await this.canonicalRead(request, 'get_overview', {}, 'overview');
-      return renderOverview(read.value, buildWorkspaceEntries(this.requireProject(request.context)));
+      return renderOverview(
+        read.value,
+        buildWorkspaceEntries(this.requireProject(request.context)),
+      );
     }
     if (target.kind === 'comments') {
       const read = await this.canonicalRead(request, 'list_comments', {}, 'comments');
@@ -423,7 +427,9 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         prose ? 'node-prose' : 'node-header',
       );
       if (target.kind === 'node_prose') {
-        return compactProseBlocks(read.value).map((block) => block.displayText).join('\n\n');
+        return compactProseBlocks(read.value)
+          .map((block) => block.displayText)
+          .join('\n\n');
       }
       const node = currentNode(target.nodeId, this.requireProject(request.context));
       if (target.kind === 'node_title') return node.title;
@@ -472,7 +478,9 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
           { node: target.storylineName, kind: 'storyline', prose: true },
           'storyline-body',
         );
-        return compactProseBlocks(read.value).map((block) => block.displayText).join('\n\n');
+        return compactProseBlocks(read.value)
+          .map((block) => block.displayText)
+          .join('\n\n');
       }
       const read = await this.canonicalRead(
         request,
@@ -501,14 +509,16 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       'category',
     );
     if (target.kind === 'category_body') {
-      return compactProseBlocks(read.value).map((block) => block.displayText).join('\n\n');
+      return compactProseBlocks(read.value)
+        .map((block) => block.displayText)
+        .join('\n\n');
     }
     return String(read.value ?? '');
   }
 
   private async prepareWorkspaceCommand(
     entry: WorkspaceEntry,
-    replacements: WorkspaceReplacement[],
+    replacements: WorkspaceTextReplacement[],
     request: AgentToolExecutionRequest,
   ): Promise<{ expectedRevision: Record<string, string>; command: WorkspaceCommand }> {
     const target = entry.target;
@@ -520,16 +530,19 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         'edit-source',
       );
       const blocks = compactProseBlocks(read.value);
-      const edits = applyProseReplacements(blocks, replacements);
+      applyWorkspaceTextReplacements(
+        blocks.map((block) => block.displayText).join('\n\n'),
+        replacements,
+      );
       const expectedRevision = expectedRevisionFrom(read, 'node_prose', target.nodeId);
       return {
         expectedRevision,
         command: {
-          name: 'edit_blocks',
+          name: 'edit_prose_file',
           arguments: {
             entity: target.nodeName,
             kind: target.nodeKind,
-            edits,
+            replacements,
             expectedRevision,
           },
         },
@@ -544,7 +557,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       );
       const expectedRevision = expectedRevisionFrom(read, 'node', target.nodeId);
       const current = currentNode(target.nodeId, this.requireProject(request.context));
-      const next = applyTextReplacements(
+      const next = applyWorkspaceTextReplacements(
         target.kind === 'node_summary' ? current.summary : current.title,
         replacements,
       );
@@ -564,9 +577,13 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     }
     if (target.kind === 'project_facts') {
       const read = await this.canonicalRead(request, 'get_project_brief', {}, 'edit-source');
-      const expectedRevision = expectedRevisionFrom(read, 'project', this.requireProject(request.context));
+      const expectedRevision = expectedRevisionFrom(
+        read,
+        'project',
+        this.requireProject(request.context),
+      );
       const current = kvList(asRecord(read.value).facts);
-      const next = parseKvFile(applyTextReplacements(prettyJson(current), replacements));
+      const next = parseKvFile(applyWorkspaceTextReplacements(prettyJson(current), replacements));
       const currentByKey = new Map(current.map((row) => [row.key, row.value]));
       for (const row of current) {
         if (!next.some((candidate) => candidate.key === row.key)) {
@@ -600,26 +617,35 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       };
       switch (target.kind) {
         case 'element_summary':
-          update.summary = applyTextReplacements(String(value.summary ?? ''), replacements);
+          update.summary = applyWorkspaceTextReplacements(
+            String(value.summary ?? ''),
+            replacements,
+          );
           break;
         case 'element_name':
-          update.name = applyTextReplacements(String(value.name ?? ''), replacements);
+          update.name = applyWorkspaceTextReplacements(String(value.name ?? ''), replacements);
           break;
         case 'element_aliases':
           update.aliases = parseStringArrayFile(
-            applyTextReplacements(prettyJson(value.aliases ?? []), replacements),
+            applyWorkspaceTextReplacements(prettyJson(value.aliases ?? []), replacements),
           );
           break;
         case 'element_facts':
           update.facts = parseKvFile(
-            applyTextReplacements(prettyJson(value.facts ?? []), replacements),
+            applyWorkspaceTextReplacements(prettyJson(value.facts ?? []), replacements),
           );
           break;
         case 'element_group':
-          update.groupName = applyTextReplacements(String(value.groupName ?? ''), replacements);
+          update.groupName = applyWorkspaceTextReplacements(
+            String(value.groupName ?? ''),
+            replacements,
+          );
           break;
         case 'element_category':
-          update.category = applyTextReplacements(String(value.category ?? ''), replacements);
+          update.category = applyWorkspaceTextReplacements(
+            String(value.category ?? ''),
+            replacements,
+          );
           break;
         default:
           throw new Error(`"${entry.path}" is read-only in this version of the workspace`);
@@ -644,15 +670,18 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       };
       switch (target.kind) {
         case 'storyline_summary':
-          update.summary = applyTextReplacements(String(value.summary ?? ''), replacements);
+          update.summary = applyWorkspaceTextReplacements(
+            String(value.summary ?? ''),
+            replacements,
+          );
           break;
         case 'storyline_name':
-          update.name = applyTextReplacements(String(value.name ?? ''), replacements);
+          update.name = applyWorkspaceTextReplacements(String(value.name ?? ''), replacements);
           break;
         case 'storyline_facts': {
           const current = kvList(value.facts);
           const next = parseKvFile(
-            applyTextReplacements(prettyJson(current), replacements),
+            applyWorkspaceTextReplacements(prettyJson(current), replacements),
           );
           for (const row of current) {
             if (!next.some((candidate) => candidate.key === row.key)) {
@@ -803,15 +832,14 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
   }
 }
 
-export function workspaceCommandFromArguments(
-  arguments_: unknown,
-): WorkspaceCommand | null {
+export function workspaceCommandFromArguments(arguments_: unknown): WorkspaceCommand | null {
   const record = asRecord(arguments_);
   const raw = record[WORKSPACE_COMMAND_ARGUMENT];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const command = raw as Record<string, unknown>;
   const name = String(command.name ?? '');
   if (
+    name !== 'edit_prose_file' &&
     name !== 'edit_blocks' &&
     name !== 'rename_node' &&
     name !== 'set_node_summary' &&
@@ -821,7 +849,11 @@ export function workspaceCommandFromArguments(
   ) {
     return null;
   }
-  if (!command.arguments || typeof command.arguments !== 'object' || Array.isArray(command.arguments)) {
+  if (
+    !command.arguments ||
+    typeof command.arguments !== 'object' ||
+    Array.isArray(command.arguments)
+  ) {
     return null;
   }
   return {
@@ -882,8 +914,7 @@ function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
     .sort(
       (left, right) =>
         (left.narrativeOrder ?? Number.MAX_SAFE_INTEGER) -
-          (right.narrativeOrder ?? Number.MAX_SAFE_INTEGER) ||
-        left.id.localeCompare(right.id),
+          (right.narrativeOrder ?? Number.MAX_SAFE_INTEGER) || left.id.localeCompare(right.id),
     );
   for (const node of [...chapters, ...drifts]) {
     const base = `/${node.kind === 'chapter' ? 'chapters' : 'drifts'}/${pathSegment(node.title)}`;
@@ -922,7 +953,8 @@ function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
 
   const categoryName = (categoryId: string | null) =>
     categoryId
-      ? state.bookElementCategories.find((category) => category.id === categoryId)?.name ?? '未分类'
+      ? (state.bookElementCategories.find((category) => category.id === categoryId)?.name ??
+        '未分类')
       : '未分类';
   for (const element of state.bookElements.filter((item) => item.projectId === projectId)) {
     const base = `/elements/${pathSegment(categoryName(element.categoryId))}/${pathSegment(element.name)}`;
@@ -1025,7 +1057,9 @@ function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
     );
   }
 
-  for (const category of state.bookElementCategories.filter((item) => item.projectId === projectId)) {
+  for (const category of state.bookElementCategories.filter(
+    (item) => item.projectId === projectId,
+  )) {
     const base = `/categories/${pathSegment(category.name)}`;
     const shared = { categoryId: category.id, categoryName: category.name } as const;
     entries.push(
@@ -1052,7 +1086,8 @@ function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
   }
   for (const item of materials) {
     const title = item.title || '(untitled)';
-    const duplicateSuffix = (materialTitleCounts.get(title) ?? 0) > 1 ? `~${item.id.slice(0, 8)}` : '';
+    const duplicateSuffix =
+      (materialTitleCounts.get(title) ?? 0) > 1 ? `~${item.id.slice(0, 8)}` : '';
     entries.push({
       path: `/materials/${pathSegment(title)}${duplicateSuffix}.${item.kind === 'text' ? 'md' : 'json'}`,
       writable: false,
@@ -1177,9 +1212,7 @@ function describeWorkspaceDirectory(
   path: string,
   descendants: readonly WorkspaceEntry[],
 ): string {
-  const nodeTarget = descendants
-    .map((entry) => entry.target)
-    .find(isNodeTarget);
+  const nodeTarget = descendants.map((entry) => entry.target).find(isNodeTarget);
   if (nodeTarget && (path.startsWith('/chapters/') || path.startsWith('/drifts/'))) {
     const node = currentNode(nodeTarget.nodeId, projectId);
     const summary = compactDescription(node.summary, 220);
@@ -1244,12 +1277,54 @@ function compactDescription(value: string, limit: number): string {
   return compact.length <= limit ? compact : `${compact.slice(0, limit - 1)}…`;
 }
 
-function requireWorkspaceEntry(projectId: string, path: string): WorkspaceEntry {
-  const entry = buildWorkspaceEntries(projectId).find((candidate) => candidate.path === path);
+function findWorkspaceEntry(projectId: string, path: string): WorkspaceEntry | undefined {
+  return buildWorkspaceEntries(projectId).find((candidate) => candidate.path === path);
+}
+
+function requireWorkspaceFileEntry(
+  projectId: string,
+  value: unknown,
+  writable: boolean,
+): WorkspaceEntry {
+  const path = resolveWorkspacePath(projectId, value);
+  const direct = findWorkspaceEntry(projectId, path);
+  const entry = direct ?? primaryWorkspaceEntry(projectId, path, writable);
   if (!entry) {
-    throw new Error(`No virtual file exists at "${path}"; call list_files to refresh the workspace`);
+    throw new Error(`No ${writable ? 'writable ' : ''}file exists at "${path}".`);
   }
   return entry;
+}
+
+function primaryWorkspaceEntry(
+  projectId: string,
+  directory: string,
+  writable = false,
+): WorkspaceEntry | undefined {
+  if (directory === '/') return undefined;
+  const priorities = ['prose.md', 'body.md', 'facts.json', 'summary.md', 'README.md'];
+  const candidates = buildWorkspaceEntries(projectId).filter(
+    (entry) =>
+      pathIsWithin(entry.path, directory) &&
+      entry.path !== directory &&
+      (!writable || entry.writable),
+  );
+  const entityKeys = new Set(
+    candidates
+      .map((entry) => workspaceEntityKey(entry.target))
+      .filter((key): key is string => key !== null),
+  );
+  if (entityKeys.size > 1 || (entityKeys.size === 0 && candidates.length > 1)) {
+    return undefined;
+  }
+  return candidates.sort((left, right) => {
+    const leftName = left.path.split('/').pop() ?? '';
+    const rightName = right.path.split('/').pop() ?? '';
+    const leftPriority = priorities.indexOf(leftName);
+    const rightPriority = priorities.indexOf(rightName);
+    const leftRank = leftPriority < 0 ? priorities.length : leftPriority;
+    const rightRank = rightPriority < 0 ? priorities.length : rightPriority;
+    return leftRank - rightRank || left.path.localeCompare(right.path, 'zh-CN');
+  })[0];
 }
 
 function renderOverview(value: unknown, entries: readonly WorkspaceEntry[]): string {
@@ -1271,7 +1346,7 @@ function renderOverview(value: unknown, entries: readonly WorkspaceEntry[]): str
     '- `/materials/*`: reference material (read-only)',
     '',
     'Use list_files to browse, read_file to inspect, grep to search, and edit_file to change writable files.',
-    'Internal entity ids, Yjs versions, freshness checks, sync, and review are handled by the runtime.',
+    'Chapters behave like ordinary files. Saving, concurrent-edit protection, review, and undo are automatic.',
     '',
     '## Counts',
     '',
@@ -1328,104 +1403,6 @@ function renderMemories(value: unknown): string {
   ]
     .join('\n')
     .trim();
-}
-
-interface WorkspaceReplacement {
-  oldText: string;
-  newText: string;
-  replaceAll: boolean;
-}
-
-function parseReplacements(value: unknown): WorkspaceReplacement[] {
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error('edit_file requires at least one exact replacement');
-  }
-  return value.map((raw, index) => {
-    const row = asRecord(raw);
-    if (typeof row.oldText !== 'string' || row.oldText.length === 0) {
-      throw new Error(`replacements[${index}].oldText must be non-empty`);
-    }
-    if (typeof row.newText !== 'string') {
-      throw new Error(`replacements[${index}].newText must be a string`);
-    }
-    return {
-      oldText: row.oldText,
-      newText: row.newText,
-      replaceAll: row.replaceAll === true,
-    };
-  });
-}
-
-function applyTextReplacements(content: string, replacements: readonly WorkspaceReplacement[]): string {
-  let next = content;
-  for (const replacement of replacements) {
-    const count = countOccurrences(next, replacement.oldText);
-    if (count === 0) {
-      throw new Error(`oldText was not found in the current file: ${previewText(replacement.oldText)}`);
-    }
-    if (!replacement.replaceAll && count !== 1) {
-      throw new Error(
-        `oldText occurs ${count} times; include more surrounding text or set replaceAll=true`,
-      );
-    }
-    next = replacement.replaceAll
-      ? next.split(replacement.oldText).join(replacement.newText)
-      : next.replace(replacement.oldText, replacement.newText);
-  }
-  if (next === content) throw new Error('The replacements do not change the file');
-  return next;
-}
-
-function applyProseReplacements(
-  blocks: readonly CompactProseBlock[],
-  replacements: readonly WorkspaceReplacement[],
-): Array<{ block: number; text: string }> {
-  const displays = blocks.map((block) => block.displayText);
-  const original = [...displays];
-  for (const replacement of replacements) {
-    if (replacement.oldText.includes('\n') || replacement.newText.includes('\n')) {
-      throw new Error(
-        'A prose replacement must stay within one paragraph. Edit paragraphs separately in the same edit_file call.',
-      );
-    }
-    const matches: Array<{ blockIndex: number; count: number }> = [];
-    let total = 0;
-    displays.forEach((text, blockIndex) => {
-      const count = countOccurrences(text, replacement.oldText);
-      if (count > 0) matches.push({ blockIndex, count });
-      total += count;
-    });
-    if (total === 0) {
-      throw new Error(`oldText was not found in the current file: ${previewText(replacement.oldText)}`);
-    }
-    if (!replacement.replaceAll && total !== 1) {
-      throw new Error(
-        `oldText occurs ${total} times; include more surrounding text or set replaceAll=true`,
-      );
-    }
-    for (const match of matches) {
-      displays[match.blockIndex] = replacement.replaceAll
-        ? displays[match.blockIndex]!.split(replacement.oldText).join(replacement.newText)
-        : displays[match.blockIndex]!.replace(replacement.oldText, replacement.newText);
-      if (!replacement.replaceAll) break;
-    }
-  }
-  const edits: Array<{ block: number; text: string }> = [];
-  displays.forEach((display, index) => {
-    if (display === original[index]) return;
-    const block = blocks[index]!;
-    if (block.typePrefix && !display.startsWith(block.typePrefix)) {
-      throw new Error(
-        `Keep the leading ${JSON.stringify(block.typePrefix)} marker when editing this non-paragraph block`,
-      );
-    }
-    edits.push({
-      block: block.block,
-      text: block.typePrefix ? display.slice(block.typePrefix.length) : display,
-    });
-  });
-  if (edits.length === 0) throw new Error('The replacements do not change the file');
-  return edits;
 }
 
 function compactProseBlocks(value: unknown): CompactProseBlock[] {
@@ -1602,11 +1579,48 @@ function normalizeVirtualPath(value: unknown): string {
   return normalized;
 }
 
+function workspaceReadModelData(value: unknown): string {
+  const result = asRecord(value);
+  const path = typeof result.path === 'string' ? result.path : '/';
+  if (Array.isArray(result.files)) {
+    const lines = result.files.flatMap((raw) => {
+      const file = asRecord(raw);
+      if (typeof file.path !== 'string') return [];
+      const shownPath = file.type === 'directory' ? `${file.path}/` : file.path;
+      return [shownPath];
+    });
+    if (result.truncated === true) lines.push('[More entries exist in this directory.]');
+    return [`Directory ${path}`, ...lines].join('\n');
+  }
+  if (typeof result.content === 'string') {
+    const continuation =
+      result.truncated === true && typeof result.nextOffset === 'number'
+        ? `\n\n[File continues at character ${result.nextOffset}.]`
+        : '';
+    return `${path}\n\n${result.content}${continuation}`;
+  }
+  if (Array.isArray(result.matches)) {
+    const query = typeof result.query === 'string' ? result.query : '';
+    const matches = result.matches.flatMap((raw) => {
+      const match = asRecord(raw);
+      if (typeof match.path !== 'string') return [];
+      const line = typeof match.line === 'number' ? `:${match.line}` : '';
+      const snippet = typeof match.snippet === 'string' ? match.snippet : '';
+      return [`${match.path}${line}: ${snippet}`];
+    });
+    if (matches.length === 0) return `No matches for ${JSON.stringify(query)} under ${path}.`;
+    if (result.truncated === true) matches.push('[More matches exist.]');
+    return matches.join('\n');
+  }
+  return prettyJson(value);
+}
+
 function resolveWorkspacePath(projectId: string, value: unknown): string {
   const normalized = normalizeVirtualPath(value);
   if (normalized === '/') return normalized;
+  const entries = buildWorkspaceEntries(projectId);
   const paths = new Set<string>(['/']);
-  for (const entry of buildWorkspaceEntries(projectId)) {
+  for (const entry of entries) {
     paths.add(entry.path);
     const segments = entry.path.split('/').filter(Boolean);
     for (let index = 1; index < segments.length; index += 1) {
@@ -1614,8 +1628,93 @@ function resolveWorkspacePath(projectId: string, value: unknown): string {
     }
   }
   if (paths.has(normalized)) return normalized;
+  const chapterAlias = resolveChapterOrdinalAlias(entries, normalized);
+  if (chapterAlias && paths.has(chapterAlias)) return chapterAlias;
   const suffixMatches = [...paths].filter((path) => path.endsWith(normalized));
   return suffixMatches.length === 1 ? suffixMatches[0]! : normalized;
+}
+
+function workspacePathExists(entries: readonly WorkspaceEntry[], path: string): boolean {
+  if (path === '/') return true;
+  return entries.some((entry) => entry.path === path || entry.path.startsWith(`${path}/`));
+}
+
+function resolveChapterOrdinalAlias(
+  entries: readonly WorkspaceEntry[],
+  normalized: string,
+): string | null {
+  const segments = normalized.split('/').filter(Boolean);
+  const referenceIndex = segments[0] === 'chapters' ? 1 : 0;
+  const reference = segments[referenceIndex];
+  if (!reference) return null;
+  const ordinal = parseChapterOrdinal(decodePathSegment(reference));
+  if (ordinal === null) return null;
+
+  const numericTitleMatches = entries.filter((entry) => {
+    const target = entry.target;
+    if (!isNodeTarget(target) || target.kind !== 'node_prose' || target.nodeKind !== 'chapter') {
+      return false;
+    }
+    const title = target.nodeName.trim();
+    return /^\d+$/.test(title) && Number(title) === ordinal;
+  });
+  const orderMatches = entries.filter((entry) => {
+    const target = entry.target;
+    if (!isNodeTarget(target) || target.kind !== 'node_prose' || target.nodeKind !== 'chapter') {
+      return false;
+    }
+    const node = useDataStore
+      .getState()
+      .bookNodes.find((candidate) => candidate.id === target.nodeId);
+    return node?.bookOrder === ordinal;
+  });
+  const matches = numericTitleMatches.length > 0 ? numericTitleMatches : orderMatches;
+  if (matches.length !== 1) return null;
+  const base = matches[0]!.path.replace(/\/prose\.md$/, '');
+  const remainder = segments.slice(referenceIndex + 1);
+  return remainder.length > 0 ? `${base}/${remainder.join('/')}` : base;
+}
+
+function parseChapterOrdinal(value: string): number | null {
+  const match = /^第?([〇零一二三四五六七八九十百两\d]+)章?$/.exec(value.trim());
+  if (!match) return null;
+  const raw = match[1]!;
+  if (/^\d+$/.test(raw)) {
+    const value = Number(raw);
+    return Number.isSafeInteger(value) && value >= 0 ? value : null;
+  }
+  const digits: Record<string, number> = {
+    〇: 0,
+    零: 0,
+    一: 1,
+    二: 2,
+    两: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+  };
+  if (!/[十百]/.test(raw)) {
+    const joined = [...raw].map((character) => digits[character]).join('');
+    return /^\d+$/.test(joined) ? Number(joined) : null;
+  }
+  let total = 0;
+  let current = 0;
+  for (const character of raw) {
+    if (character === '十' || character === '百') {
+      const unit = character === '十' ? 10 : 100;
+      total += (current || 1) * unit;
+      current = 0;
+      continue;
+    }
+    const digit = digits[character];
+    if (digit === undefined) return null;
+    current = digit;
+  }
+  return total + current;
 }
 
 function pathSegment(value: string): string {
@@ -1701,33 +1800,10 @@ function positiveInteger(value: unknown): number | null {
   return Number.isSafeInteger(number) && number > 0 ? number : null;
 }
 
-function boundedInteger(
-  value: unknown,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
+function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
   const number = Number(value);
   if (!Number.isSafeInteger(number)) return fallback;
   return Math.min(Math.max(number, min), max);
-}
-
-function countOccurrences(haystack: string, needle: string): number {
-  if (!needle) return 0;
-  let count = 0;
-  let offset = 0;
-  while (offset <= haystack.length - needle.length) {
-    const at = haystack.indexOf(needle, offset);
-    if (at < 0) break;
-    count += 1;
-    offset = at + needle.length;
-  }
-  return count;
-}
-
-function previewText(value: string): string {
-  const compact = value.replace(/\s+/g, ' ').trim();
-  return JSON.stringify(compact.length > 120 ? `${compact.slice(0, 120)}…` : compact);
 }
 
 function codePointLength(value: string): number {
@@ -1735,5 +1811,7 @@ function codePointLength(value: string): number {
 }
 
 function sliceCodePoints(value: string, offset: number, limit: number): string {
-  return Array.from(value).slice(offset, offset + limit).join('');
+  return Array.from(value)
+    .slice(offset, offset + limit)
+    .join('');
 }

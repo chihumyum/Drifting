@@ -70,9 +70,7 @@ export interface DriftingWriteToolRuntimeOptions {
   dispatch?: typeof runAgentTool;
   /** Runtime-owned facade expansion performed after public schema validation
    * and permission, but before the durable effect is claimed. */
-  prepareRequest?: (
-    request: AgentToolExecutionRequest,
-  ) => Promise<AgentToolExecutionRequest>;
+  prepareRequest?: (request: AgentToolExecutionRequest) => Promise<AgentToolExecutionRequest>;
   resolveStrategy?: (name: string) => DriftingWriteStrategy | undefined;
   proseCoordinator?: YjsProsePersistenceCoordinator;
   readNodeContent?: (nodeId: string) => Promise<string | null>;
@@ -222,7 +220,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       if (isAgentAbort(error, request.signal)) throw error;
       return {
         ok: false,
-        error: publicWriteError(error),
+        error: workspaceFacade ? publicWorkspaceWriteError(error) : publicWriteError(error),
       };
     }
   }
@@ -439,10 +437,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         })
       ).review;
     }
-    if (
-      review.status === 'revert_failed' &&
-      review.errorCode === 'WRITE_REVERT_FAILED'
-    ) {
+    if (review.status === 'revert_failed' && review.errorCode === 'WRITE_REVERT_FAILED') {
       review = (
         await this.repository.transitionReview({
           reviewId,
@@ -833,9 +828,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     const review =
       tool.approval === 'soft_review' ? { id: reviewId, status: 'pending' as const } : null;
     const visibleResult =
-      tool.name === 'edit_file'
-        ? workspaceVisibleWriteResult(effect)
-        : handlerResult;
+      tool.name === 'edit_file' ? workspaceVisibleWriteResult(effect) : handlerResult;
     const result: AgentToolExecutionResult = {
       ok: true,
       data: {
@@ -850,6 +843,15 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
             }
           : {}),
       },
+      ...(tool.name === 'edit_file'
+        ? {
+            modelData: workspaceModelWriteResult(
+              visibleResult as ReturnType<typeof workspaceVisibleWriteResult>,
+              review?.status ?? null,
+            ),
+          }
+        : {}),
+      ...(review ? { presentation: { review } } : {}),
     };
     await this.repository.transitionEffect({
       effectId: effect.id,
@@ -858,10 +860,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       result,
       at: this.now(),
     });
-    return withCanonicalReviewStatus(
-      result,
-      await this.ensureCommittedReview(effect, tool),
-    );
+    return withCanonicalReviewStatus(result, await this.ensureCommittedReview(effect, tool));
   }
 
   private async ensureCommittedReview(
@@ -1078,7 +1077,10 @@ type FreshnessReadToolName =
   | 'get_project_brief'
   | 'get_overview';
 
-function reconciliationFreshnessTarget(toolName: string, arguments_?: unknown): {
+function reconciliationFreshnessTarget(
+  toolName: string,
+  arguments_?: unknown,
+): {
   readToolNames: readonly FreshnessReadToolName[];
   entityKind:
     | 'node'
@@ -1454,6 +1456,7 @@ function resolveWriteTargetNode(request: WriteFreshnessRequest) {
 }
 
 const PROSE_WRITE_TOOLS = new Set([
+  'edit_prose_file',
   'edit_block',
   'edit_blocks',
   'append_paragraph',
@@ -1484,17 +1487,14 @@ function effectiveWriteCommand(
   return command;
 }
 
-function workspaceVisibleWriteResult(
-  effect: PersistedAgentRuntimeWriteEffect,
-): { path: string; updated: true; replacements: number } {
-  const arguments_ = requireRecord(
-    effect.arguments,
-    'The workspace edit arguments are invalid',
-  );
+function workspaceVisibleWriteResult(effect: PersistedAgentRuntimeWriteEffect): {
+  path: string;
+  updated: true;
+  replacements: number;
+} {
+  const arguments_ = requireRecord(effect.arguments, 'The workspace edit arguments are invalid');
   const path = String(arguments_.path ?? '');
-  const replacements = Array.isArray(arguments_.replacements)
-    ? arguments_.replacements.length
-    : 0;
+  const replacements = Array.isArray(arguments_.replacements) ? arguments_.replacements.length : 0;
   if (!path || replacements <= 0) {
     throw new Error('The workspace edit lost its public result summary');
   }
@@ -1524,6 +1524,21 @@ function withCanonicalReviewStatus(
   }
   return {
     ...result,
+    ...(result.modelData !== undefined && 'result' in (result.data as Record<string, unknown>)
+      ? {
+          modelData: workspaceModelWriteResult(
+            (result.data as { result: ReturnType<typeof workspaceVisibleWriteResult> }).result,
+            review.status,
+          ),
+        }
+      : {}),
+    presentation: {
+      ...(result.presentation ?? {}),
+      review: {
+        id: review.id,
+        status: review.status,
+      },
+    },
     data: {
       ...(result.data as Record<string, unknown>),
       review: {
@@ -1532,6 +1547,15 @@ function withCanonicalReviewStatus(
       },
     },
   };
+}
+
+function workspaceModelWriteResult(
+  result: ReturnType<typeof workspaceVisibleWriteResult>,
+  reviewStatus: string | null,
+): string {
+  const count = `${result.replacements} replacement${result.replacements === 1 ? '' : 's'}`;
+  const review = reviewStatus === 'reverted' ? ' The author later undid this change.' : '';
+  return `Updated ${result.path} (${count}).${review}`;
 }
 
 function persistedHandlerResult(value: unknown): unknown {
@@ -1551,4 +1575,19 @@ function unresolvedWriteResult(effect: PersistedAgentRuntimeWriteEffect): AgentT
 function publicWriteError(error: unknown): string {
   if (error instanceof Error) return error.message;
   return 'Agent write failed';
+}
+
+function publicWorkspaceWriteError(error: unknown): string {
+  const message = publicWriteError(error);
+  if (
+    /\b(?:Yjs|freshness|expectedRevision|revision|state\s*(?:vector|hash)|read_node|receipt)\b/i.test(
+      message,
+    )
+  ) {
+    return 'The file changed while it was being edited. Read the current file and apply the replacement again.';
+  }
+  if (/\b(?:nodeId|entityId|docId|commandId)\b/i.test(message)) {
+    return 'The file could not be saved safely. Read the current file before retrying.';
+  }
+  return message;
 }

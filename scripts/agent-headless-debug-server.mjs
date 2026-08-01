@@ -182,7 +182,11 @@ function summarizeJournalEvent(payload) {
     case 'tool_call_ready':
       return `[tool ->] ${event.name} ${JSON.stringify(event.arguments)}`;
     case 'tool_result':
-      return `[tool <-] ${event.name} ${event.ok ? 'ok' : 'error'} ${String(event.content).slice(0, 240)}`;
+      return (
+        `[tool <-] ${event.name} ${event.ok ? 'ok' : 'error'}` +
+        `${event.review?.id ? ` review=${event.review.id}` : ''} ` +
+        String(event.content).slice(0, 240)
+      );
     case 'context_planned': {
       const snapshot = event.snapshot;
       return (

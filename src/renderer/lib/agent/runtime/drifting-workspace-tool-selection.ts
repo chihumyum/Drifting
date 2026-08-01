@@ -65,12 +65,11 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
       append(result, available, 'grep', limit);
       const patchIntent = mentionsElementPatch(query);
       const commentIntent = mentionsComment(query);
-      if (
-        looksLikeMutation(query) &&
-        !explicitlyReadOnly(query) &&
-        !patchIntent &&
-        !commentIntent
-      ) {
+      // Keep the ordinary workspace capability stable, like Claude Code's
+      // always-available Edit tool. Inferring whether prose is writable from
+      // natural-language verbs is brittle: “insert this, but change nothing
+      // else” used to be misclassified as a read-only request.
+      if (!explicitlyReadOnly(query) && !patchIntent && !commentIntent) {
         append(result, available, WORKSPACE_EDIT, limit);
       }
 
@@ -81,9 +80,7 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
         append(
           result,
           available,
-          /更新|修改|edit|update/i.test(query)
-            ? 'update_element_patch'
-            : 'create_element_patch',
+          /更新|修改|edit|update/i.test(query) ? 'update_element_patch' : 'create_element_patch',
           limit,
         );
       } else if (commentIntent) {
@@ -126,14 +123,8 @@ function looksLikeLongTask(query: string): boolean {
   );
 }
 
-function looksLikeMutation(query: string): boolean {
-  return /润色|改写|修改|编辑|重写|续写|补写|删除|替换|调整|优化|修复|统一|rename|rewrite|edit|revise|polish|change|replace|update|write/i.test(
-    query,
-  );
-}
-
 function explicitlyReadOnly(query: string): boolean {
-  return /只读|(?:不要|别|无需|不需要|禁止|请勿).{0,16}(?:修改|编辑|改写|写入|变更|删除)|(?:do\s+not|don't|without).{0,24}(?:edit|modify|change|write|delete)|read[-\s]?only/i.test(
+  return /只读|仅(?:阅读|分析|查看)|(?:不要|别|无需|不需要|禁止|请勿)(?:修改|编辑|改写|写入|变更|删除)(?:任何|全部|所有)?(?:内容|文件|正文|章节|东西)|(?:do\s+not|don't|without)\s+(?:edit|modify|change|write|delete)\s+(?:anything|any\s+(?:content|file|text))|read[-\s]?only/i.test(
     query,
   );
 }
@@ -169,8 +160,7 @@ function relevantDynamicTools(
   const normalized = query.toLocaleLowerCase();
   return definitions
     .filter(
-      (definition) =>
-        definition.name.startsWith('mcp__') || definition.name.startsWith('plugin__'),
+      (definition) => definition.name.startsWith('mcp__') || definition.name.startsWith('plugin__'),
     )
     .filter((definition) => {
       if (normalized.includes(definition.name.toLocaleLowerCase())) return true;

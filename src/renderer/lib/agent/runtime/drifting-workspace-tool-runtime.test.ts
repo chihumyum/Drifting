@@ -7,11 +7,7 @@ import {
   DriftingWorkspaceToolRuntime,
   workspaceCommandFromArguments,
 } from './drifting-workspace-tool-runtime';
-import type {
-  AgentRuntimeContext,
-  AgentToolExecutionRequest,
-  AgentToolRuntime,
-} from './types';
+import type { AgentRuntimeContext, AgentToolExecutionRequest, AgentToolRuntime } from './types';
 
 const PROJECT_ID = 'workspace-project';
 const NODE_ID = 'workspace-node';
@@ -64,6 +60,11 @@ describe('DriftingWorkspaceToolRuntime', () => {
       },
     });
     expect(JSON.stringify(root)).not.toContain('/chapters/第一章 雨夜/prose.md');
+    expect(root).toMatchObject({
+      ok: true,
+      modelData: expect.stringContaining('Directory /'),
+    });
+    if (root.ok) expect(root.modelData).not.toContain('Element category canon');
 
     const listed = await runtime.execute(request('list_files', { path: '/chapters' }));
     expect(listed).toMatchObject({
@@ -80,10 +81,9 @@ describe('DriftingWorkspaceToolRuntime', () => {
         ]),
       },
     });
+    if (listed.ok) expect(listed.modelData).not.toContain('她在雨夜抵达旧宅。');
 
-    const chapter = await runtime.execute(
-      request('list_files', { path: '第一章 雨夜' }),
-    );
+    const chapter = await runtime.execute(request('list_files', { path: '第一章 雨夜' }));
     expect(chapter).toMatchObject({
       ok: true,
       data: {
@@ -98,9 +98,7 @@ describe('DriftingWorkspaceToolRuntime', () => {
       },
     });
 
-    const read = await runtime.execute(
-      request('read_file', { path: '/chapters/第一章 雨夜/prose.md' }),
-    );
+    const read = await runtime.execute(request('read_file', { path: '第一章 雨夜' }));
     expect(read).toMatchObject({
       ok: true,
       data: {
@@ -112,19 +110,27 @@ describe('DriftingWorkspaceToolRuntime', () => {
     });
     expect(JSON.stringify(read)).not.toContain('receipt');
     expect(JSON.stringify(read)).not.toContain(NODE_ID);
+    expect(read).toMatchObject({
+      ok: true,
+      modelData: '/chapters/第一章 雨夜/prose.md\n\n# 雨落旧宅\n\n她没有回头。',
+    });
   });
 
-  it('turns multiple same-file replacements into one hidden atomic edit_blocks command', async () => {
+  it('turns multiple same-file replacements into one hidden atomic file-edit command', async () => {
     const readRuntime = fakeReadRuntime();
     const runtime = createRuntime(readRuntime);
     const prepared = await runtime.prepareEditRequest(
-      request('edit_file', {
-        path: '/chapters/第一章 雨夜/prose.md',
-        replacements: [
-          { oldText: '雨落旧宅', newText: '暴雨压住旧宅' },
-          { oldText: '她没有回头。', newText: '她停了一瞬，仍没有回头。' },
-        ],
-      }, 'write'),
+      request(
+        'edit_file',
+        {
+          path: '/chapters/第一章 雨夜/prose.md',
+          replacements: [
+            { oldText: '雨落旧宅', newText: '暴雨压住旧宅' },
+            { oldText: '她没有回头。', newText: '她停了一瞬，仍没有回头。' },
+          ],
+        },
+        'write',
+      ),
     );
 
     expect(prepared.arguments.expectedRevision).toEqual({
@@ -133,13 +139,17 @@ describe('DriftingWorkspaceToolRuntime', () => {
       revision: 'yjs:7',
     });
     expect(workspaceCommandFromArguments(prepared.arguments)).toEqual({
-      name: 'edit_blocks',
+      name: 'edit_prose_file',
       arguments: {
         entity: '第一章 雨夜',
         kind: 'chapter',
-        edits: [
-          { block: 1, text: '暴雨压住旧宅' },
-          { block: 2, text: '她停了一瞬，仍没有回头。' },
+        replacements: [
+          { oldText: '雨落旧宅', newText: '暴雨压住旧宅', replaceAll: false },
+          {
+            oldText: '她没有回头。',
+            newText: '她停了一瞬，仍没有回头。',
+            replaceAll: false,
+          },
         ],
         expectedRevision: {
           receiptId: 'read-receipt',
@@ -151,33 +161,69 @@ describe('DriftingWorkspaceToolRuntime', () => {
     expect(readRuntime.execute).toHaveBeenCalledTimes(1);
   });
 
-  it('fails clearly instead of making a lossy cross-paragraph prose rewrite', async () => {
+  it('accepts a cross-paragraph replacement without exposing block handles', async () => {
     const runtime = createRuntime(fakeReadRuntime());
-    await expect(
-      runtime.prepareEditRequest(
-        request(
-          'edit_file',
-          {
-            path: '/chapters/第一章 雨夜/prose.md',
-            replacements: [
-              {
-                oldText: '雨落旧宅\n\n她没有回头。',
-                newText: '新的整段',
-              },
-            ],
-          },
-          'write',
-        ),
+    const prepared = await runtime.prepareEditRequest(
+      request(
+        'edit_file',
+        {
+          path: '/chapters/第一章 雨夜',
+          replacements: [
+            {
+              oldText: '# 雨落旧宅\n\n她没有回头。',
+              newText: '# 暴雨旧宅\n\n她停在门前。\n\n门从里面开了。',
+            },
+          ],
+        },
+        'write',
       ),
-    ).rejects.toThrow('must stay within one paragraph');
+    );
+
+    expect(prepared.arguments.path).toBe('/chapters/第一章 雨夜/prose.md');
+    expect(JSON.stringify(workspaceCommandFromArguments(prepared.arguments))).not.toContain(
+      'block',
+    );
+  });
+
+  it('resolves a natural chapter ordinal to a numeric chapter directory', async () => {
+    const current = useDataStore.getState().bookNodes[0]!;
+    if (current.kind !== 'chapter') throw new Error('Expected chapter fixture');
+    useDataStore.setState({
+      bookNodes: [{ ...current, title: '12', bookOrder: 12 }],
+    });
+    const readRuntime = fakeReadRuntime();
+    const runtime = createRuntime(readRuntime);
+
+    const read = await runtime.execute(request('read_file', { path: '第十二章' }));
+
+    expect(read).toMatchObject({
+      ok: true,
+      data: { path: '/chapters/12/prose.md' },
+    });
+    expect(readRuntime.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'read_node',
+        arguments: { node: '12', prose: true },
+      }),
+    );
+  });
+
+  it('does not turn an invalid grep path into a false negative', async () => {
+    const runtime = createRuntime(fakeReadRuntime());
+
+    await expect(
+      runtime.execute(request('grep', { query: '雨', path: '/missing-chapter' })),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('No virtual file or directory'),
+    });
   });
 });
 
 function createRuntime(readRuntime: AgentToolRuntime) {
   return new DriftingWorkspaceToolRuntime({
     readRuntime,
-    getContext: () =>
-      ({ projectId: PROJECT_ID, write: {} } as unknown as AgentToolContext),
+    getContext: () => ({ projectId: PROJECT_ID, write: {} }) as unknown as AgentToolContext,
   });
 }
 

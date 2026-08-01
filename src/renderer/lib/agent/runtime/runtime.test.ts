@@ -384,6 +384,50 @@ describe('AgentRuntime', () => {
     driver.assertExhausted();
   });
 
+  it('keeps local review authority out of model-visible file tool results', async () => {
+    const reviewId = 'agent-review:private-runtime-evidence';
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            ...toolCallSteps('edit-1', 'edit_file', ['{"path":"/chapters/01"}']),
+            { op: 'emit', event: { type: 'usage', usage: usage(10, 2) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: 'FINAL_RESPONSE:完成。' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(12, 2) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime([definition('edit_file', 'write')], async () => ({
+        ok: true,
+        data: {
+          result: { path: '/chapters/01/prose.md', updated: true },
+          review: { id: reviewId, status: 'pending' },
+        },
+        modelData: 'Updated /chapters/01/prose.md.',
+        presentation: { review: { id: reviewId, status: 'pending' } },
+      })),
+    }).runTurn(input());
+
+    expect(JSON.stringify(driver.calls[1])).toContain('Updated /chapters/01/prose.md.');
+    expect(JSON.stringify(driver.calls[1])).not.toContain(reviewId);
+    const toolResult = result.entries.find((entry) => entry.event.type === 'tool_result');
+    expect(toolResult?.event).toMatchObject({
+      type: 'tool_result',
+      content: 'Updated /chapters/01/prose.md.',
+      review: { id: reviewId, status: 'pending' },
+    });
+    driver.assertExhausted();
+  });
+
   it('assembles fragmented arguments, journals normalized input, and continues after a tool', async () => {
     const clock = new ManualAgentClock();
     const execute = vi.fn<AgentToolRuntime['execute']>(async (request) => ({

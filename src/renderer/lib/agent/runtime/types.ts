@@ -268,7 +268,24 @@ export interface AgentToolExecutionRequest {
   };
 }
 
-export type AgentToolExecutionResult = { ok: true; data: unknown } | { ok: false; error: string };
+export interface AgentToolExecutionPresentation {
+  review?: {
+    id: string;
+    status: string;
+  };
+}
+
+export type AgentToolExecutionResult =
+  | {
+      ok: true;
+      /** Complete runtime result used for persistence and local UI authority. */
+      data: unknown;
+      /** Optional smaller, domain-natural result sent back to the model. */
+      modelData?: unknown;
+      /** Local presentation metadata that must never enter model context. */
+      presentation?: AgentToolExecutionPresentation;
+    }
+  | { ok: false; error: string };
 
 export interface AgentToolSelectionLongTaskHint {
   status: 'active' | 'paused' | 'blocked' | 'completed' | 'failed';
@@ -535,6 +552,10 @@ export type AgentRuntimeEvent =
       content: string;
       source: AgentToolResultSource;
       errorCode?: string;
+      review?: {
+        id: string;
+        status: string;
+      };
     }
   | { type: 'model_usage'; iteration: number; usage: AgentRuntimeUsage }
   | {

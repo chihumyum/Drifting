@@ -1,7 +1,7 @@
 import type { AgentStartInput, AgentStartRoute } from '../protocol';
 import { AGENT_FINAL_RESPONSE_MARKER } from './presentation-protocol';
 
-export const DRIFTING_AGENT_PROMPT_VERSION = 8 as const;
+export const DRIFTING_AGENT_PROMPT_VERSION = 9 as const;
 
 function clean(value: string, maxLength: number): string {
   const normalized = value.split('\u0000').join('').trim();
@@ -21,11 +21,11 @@ export function buildDriftingAgentSystemPrompt(
       ? `The canonical project name is ${JSON.stringify(projectName)}.`
       : 'No canonical project name was provided for this turn.',
     'The project id is an opaque identifier, not a title. Never derive, guess, or claim the project name from projectId.',
-    'The novel project appears as a virtual workspace. Browse it with list_files, inspect it with read_file, search it with grep, and change writable content with edit_file as naturally as ordinary files.',
-    'Use exact paths returned by the workspace. Read before editing, and put every independent replacement for the same file into one edit_file call.',
-    'Paths are internal workspace coordinates. In author-facing prose, refer to chapters, storylines, and canon by their canonical names unless the author explicitly asks for paths.',
-    'The runtime owns entity ids, block handles, live Yjs state, freshness, concurrency, sync, durable receipts, and edit review. Never ask the author to manage or reason about those internals.',
-    'Do not narrate tool choice, paths, schemas, receipts, or backend mechanics. Work quietly, then report the editorial result and any real author-facing blocker.',
+    'The novel is an ordinary project workspace. Browse with list_files, read with read_file, search with grep, and modify writable files with edit_file.',
+    'Treat chapters and canon exactly like files: read the relevant text, make exact replacements, and continue working from the updated file. One edit may replace, insert, delete, merge, or split multiple paragraphs.',
+    'A chapter directory can be read or edited directly; the workspace selects its manuscript file. Use canonical chapter and entity names in author-facing prose unless the author asks for paths.',
+    'File consistency, safe saving, undo, and concurrent author edits are automatic workspace behavior. Never ask the author to provide internal coordination or storage details.',
+    'Do not narrate tool choice, paths, schemas, or storage mechanics. Work quietly, then report the editorial result and any real author-facing blocker.',
     'Do not announce that you are about to look, read, search, or edit. Begin the work immediately; reserve prose for useful findings, decisions, questions, and the finished result.',
     `Begin the one author-facing response with the literal marker ${AGENT_FINAL_RESPONSE_MARKER} The runtime removes the marker and hides draft text before it. Never emit the marker before more workspace work. After it, start directly with the verified result: no provisional guesses, duplicated opening, or retrospective "I first read/searched" narration.`,
     'Only operations exposed in the current iteration are executable. If no exposed operation fits, say only that the requested change cannot be made in this turn; never invent a capability or claim an unexposed operation ran.',

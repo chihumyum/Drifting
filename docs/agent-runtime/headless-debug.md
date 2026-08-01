@@ -110,6 +110,14 @@ mounted Tauri renderer and the configured DeepSeek BYOK provider:
   `list_files`/`read_file`/`grep`/`edit_file`; canonical names stay visible
   while ids, Yjs versions, freshness receipts, and domain write commands stay
   inside the renderer;
+- chapter directories resolve directly to their `prose.md`, including natural
+  ordinal aliases such as `第十二章`; exact file edits can span paragraphs and
+  insert, delete, merge, or split them while the renderer preserves stable
+  block identity and commits one live document transaction internally;
+- provider-visible tool results are plain paths, prose, matches, and natural
+  save confirmations. Structured review authority remains available to the
+  local journal and panel without leaking review ids or synchronization fields
+  back into the model conversation;
 - aggregate model iterations, tool calls, input/output tokens, duration, cost,
   and automatic slices are unlimited by default. The 200k physical context
   window compacts into durable summaries and resumes the same task;
@@ -145,11 +153,16 @@ mounted Tauri renderer and the configured DeepSeek BYOK provider:
   deterministic legacy seed on both paths, so equivalent seeds merge
   idempotently instead of duplicating a chapter; a fresh `雾港纪事` chapter
   edit and review rejection restored the original at Yjs revision 2;
+- a current `雾港纪事` smoke read `/chapters/12` as an ordinary directory and
+  returned the exact opening sentence from plain `prose.md`; directory context
+  was about 2.5k tokens before loading prose. A separate cross-paragraph file
+  edit inserted an independent marker paragraph, created a durable review, and
+  its exact rejection removed the marker again;
 - invalid arguments, tool-call repair, queued `ask_user`, timeout, client
   disconnect cancellation, stale-turn recovery, and startup conversation
   hydration were exercised separately.
 
-The automated gates for the same checkout were `710/710` full Core tests,
+The automated gates for the same checkout were `718/718` full Core tests,
 workspace TypeScript typecheck, and ESLint with zero errors.
 This is runtime/tool coverage, not a substitute for the remaining native UI
 smoke on each target.

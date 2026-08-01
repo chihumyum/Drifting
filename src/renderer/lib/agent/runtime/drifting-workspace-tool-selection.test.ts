@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createDriftingWorkspaceToolSelectionStrategy } from './drifting-workspace-tool-selection';
-import type {
-  AgentToolDefinition,
-  AgentToolSelectionRequest,
-} from './types';
+import type { AgentToolDefinition, AgentToolSelectionRequest } from './types';
 
 const definition = (name: string, access: 'read' | 'write'): AgentToolDefinition => ({
   name,
@@ -35,13 +32,7 @@ describe('Drifting workspace-first tool selection', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
       request('随便找个章节润色一下'),
     );
-    expect(selected).toEqual([
-      'list_files',
-      'read_file',
-      'grep',
-      'edit_file',
-      'ask_user',
-    ]);
+    expect(selected).toEqual(['list_files', 'read_file', 'grep', 'edit_file', 'ask_user']);
     expect(selected).not.toContain('read_node');
     expect(selected).not.toContain('edit_block');
   });
@@ -92,6 +83,13 @@ describe('Drifting workspace-first tool selection', () => {
     expect(selected).not.toContain('edit_file');
     expect(selected).not.toContain('get_overview');
     expect(selected).not.toContain('create_comment');
+  });
+
+  it('keeps edit_file available for a scoped negative instruction', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request('在第十二章开头插入一个独立段落，不要修改其他内容。'),
+    );
+    expect(selected).toContain('edit_file');
   });
 });
 

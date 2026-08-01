@@ -138,7 +138,17 @@ export function applyAgentChatJournalEntry(
         phase: 'executing',
       }));
     case 'tool_result': {
-      const review = reviewFromToolResult(ev.content, entry, ev.callId, ev.name);
+      const review = ev.review
+        ? {
+            ...ev.review,
+            provenance: {
+              sessionId: entry.sessionId,
+              turnId: entry.turnId,
+              callId: ev.callId,
+              toolName: ev.name,
+            },
+          }
+        : reviewFromToolResult(ev.content, entry, ev.callId, ev.name);
       return updateNewestTool(list, ev.callId, (tool) => ({
         ...tool,
         name: ev.name,

@@ -88,7 +88,7 @@ export async function buildAgentWriteReviewFeedback(
   const lines = settled.flatMap((review) => {
     const effect = effects.get(review.effectId);
     if (!effect) return [];
-    const args = clamp(JSON.stringify(effect.arguments), MAX_ARGUMENT_CHARS);
+    const args = modelFacingWriteArguments(effect.arguments);
     const prefix = `- ${effect.toolName}(${args})`;
     switch (review.status) {
       case 'accepted_effect':
@@ -153,8 +153,7 @@ export async function loadAgentWriteReviewContextRows(
         );
       }
       const settledReview = isSettledReviewStatus(review.status);
-      const toolPairIsCanonical =
-        snapshot.turnHasCanonicalHistoryById?.[effect.turnId] ?? true;
+      const toolPairIsCanonical = snapshot.turnHasCanonicalHistoryById?.[effect.turnId] ?? true;
       return {
         sourceId: `write-review:${review.id}`,
         turnOrdinal,
@@ -165,7 +164,7 @@ export async function loadAgentWriteReviewContextRows(
           callId: effect.callId,
           turnOrdinal,
           toolName: effect.toolName,
-          arguments: clamp(JSON.stringify(effect.arguments), MAX_ARGUMENT_CHARS),
+          arguments: modelFacingWriteArguments(effect.arguments),
           effectPhase: effect.phase,
           reviewStatus: review.status,
           decisionNote: review.decisionNote,
@@ -202,8 +201,7 @@ export async function loadAgentWriteReviewContextRows(
       turnOrdinal,
       callId: effect.callId,
       toolName: effect.toolName,
-      toolPairIsCanonical:
-        snapshot.turnHasCanonicalHistoryById?.[effect.turnId] ?? true,
+      toolPairIsCanonical: snapshot.turnHasCanonicalHistoryById?.[effect.turnId] ?? true,
     };
   });
   const archiveHash = await settledArchiveHash(archivedEvidence);
@@ -247,4 +245,26 @@ export async function loadAgentWriteReviewContextRows(
 
 function clamp(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength)}…`;
+}
+
+function modelFacingWriteArguments(value: unknown): string {
+  return clamp(JSON.stringify(stripWriteCoordination(value)), MAX_ARGUMENT_CHARS);
+}
+
+function stripWriteCoordination(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripWriteCoordination);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).flatMap(([key, child]) => {
+      if (
+        key.startsWith('__') ||
+        /^(?:expectedRevision|revision|receiptId|observationId|stateVector|stateHash|nodeId|entityId|docId|commandId)$/i.test(
+          key,
+        )
+      ) {
+        return [];
+      }
+      return [[key, stripWriteCoordination(child)]];
+    }),
+  );
 }

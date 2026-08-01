@@ -61,6 +61,10 @@ import type {
 } from '../../../sqlite-repo/agent-runtime-element-patch-receipt-repo';
 import { createDriftingEntityWriteStrategy } from './drifting-entity-write-strategy';
 import { workspaceCommandFromArguments } from './drifting-workspace-tool-runtime';
+import {
+  parseWorkspaceTextReplacements,
+  planWorkspaceProseFileEdit,
+} from './workspace-prose-file';
 
 export interface PreparedDriftingWriteEffect {
   observedRevision: unknown;
@@ -112,6 +116,7 @@ const nodeFieldStrategies = new Map<string, 'title' | 'summary'>([
 ]);
 
 const proseWriteTools = new Set([
+  'edit_prose_file',
   'edit_block',
   'edit_blocks',
   'append_paragraph',
@@ -920,6 +925,14 @@ async function proseOperation(
   blocks: readonly YjsProseBlock[],
 ): Promise<YjsProseOperation> {
   switch (toolName) {
+    case 'edit_prose_file':
+      return planWorkspaceProseFileEdit({
+        blocks,
+        replacements: parseWorkspaceTextReplacements(
+          request.arguments.replacements,
+        ),
+        idempotencyKey: request.idempotencyKey,
+      });
     case 'edit_block': {
       const block = resolveBlockTarget(blocks, request.arguments);
       return {

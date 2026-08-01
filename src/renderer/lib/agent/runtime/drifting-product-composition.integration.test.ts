@@ -916,7 +916,7 @@ describe.sequential('Drifting Agent product composition', () => {
   it('edits a virtual prose file without model-visible reads or freshness and keeps exact review inverse', async () => {
     const turnId = 'turn-workspace-edit';
     const writeCallId = 'workspace-edit';
-    const replacement = 'After the quiet Agent.';
+    const replacement = 'After the quiet Agent.\n\nA newly inserted paragraph.';
     const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
     const reviewId = `agent-review:${effectId}`;
     harness = await ProductAgentHarness.create([
@@ -934,7 +934,7 @@ describe.sequential('Drifting Agent product composition', () => {
           expect(request.tools.map((tool) => tool.name)).not.toContain('edit_blocks');
         },
         steps: toolCallSteps('workspace-read', 'read_file', {
-          path: `/chapters/${NODE_TITLE}/prose.md`,
+          path: `/chapters/${NODE_TITLE}`,
         }),
       },
       {
@@ -942,12 +942,13 @@ describe.sequential('Drifting Agent product composition', () => {
         expectRequest: (request) => {
           const visibleContext = JSON.stringify(request.context.messages);
           expect(visibleContext).toContain('Before the Agent.');
+          expect(visibleContext).not.toContain('"writable":true');
           expect(visibleContext).not.toContain('read_node');
           expect(visibleContext).not.toContain('receiptId');
           expect(visibleContext).not.toContain('node_prose');
         },
         steps: toolCallSteps(writeCallId, 'edit_file', {
-          path: `/chapters/${NODE_TITLE}/prose.md`,
+          path: `/chapters/${NODE_TITLE}`,
           replacements: [
             {
               oldText: 'Before the Agent.',
@@ -1001,13 +1002,14 @@ describe.sequential('Drifting Agent product composition', () => {
       arguments: {
         path: `/chapters/${NODE_TITLE}/prose.md`,
         __workspaceCommand: {
-          name: 'edit_blocks',
+          name: 'edit_prose_file',
         },
       },
     });
-    expect(
-      (await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson,
-    ).toContain(replacement);
+    const editedContent =
+      (await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson ?? '';
+    expect(editedContent).toContain('After the quiet Agent.');
+    expect(editedContent).toContain('A newly inserted paragraph.');
     expect(
       await harness.composition.repositories.writeEffects.getReview(reviewId),
     ).toMatchObject({ status: 'pending' });
@@ -1026,6 +1028,9 @@ describe.sequential('Drifting Agent product composition', () => {
     expect(providerTranscript).toContain('edit_file');
     expect(providerTranscript).not.toContain('read_node');
     expect(providerTranscript).not.toContain('receiptId');
+    expect(providerTranscript).not.toContain('expectedRevision');
+    expect(providerTranscript).not.toContain('agent-review:');
+    expect(providerTranscript).not.toContain('Yjs');
 
     const rejected = await harness.composition.tools.rejectReview(
       reviewId,

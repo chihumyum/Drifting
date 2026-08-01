@@ -15,7 +15,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(8);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(9);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).not.toContain('The canonical project name is "019f-opaque-project-id"');
@@ -31,22 +31,27 @@ describe('Drifting General Agent system prompt', () => {
   it('presents Drifting as a natural virtual workspace and hides backend mechanics', () => {
     const system = prompt({ projectName: 'Book' });
 
-    expect(system).toContain('The novel project appears as a virtual workspace.');
+    expect(system).toContain('The novel is an ordinary project workspace.');
     expect(system).toContain('list_files');
     expect(system).toContain('read_file');
     expect(system).toContain('grep');
     expect(system).toContain('edit_file');
+    expect(system).toContain('Treat chapters and canon exactly like files');
     expect(system).toContain(
-      'The runtime owns entity ids, block handles, live Yjs state, freshness, concurrency, sync, durable receipts, and edit review.',
+      'One edit may replace, insert, delete, merge, or split multiple paragraphs.',
     );
-    expect(system).toContain('Do not narrate tool choice, paths, schemas, receipts, or backend mechanics.');
+    expect(system).toContain('A chapter directory can be read or edited directly');
+    expect(system).toContain('File consistency, safe saving, undo, and concurrent author edits');
+    expect(system).toContain('Do not narrate tool choice, paths, schemas, or storage mechanics.');
     expect(system).toContain('Do not announce that you are about to look, read, search, or edit.');
-    expect(system).toContain('Paths are internal workspace coordinates.');
     expect(system).toContain('literal marker FINAL_RESPONSE:');
     expect(system).toContain('Never emit the marker before more workspace work.');
     expect(system).toContain('no provisional guesses, duplicated opening');
     expect(system).toContain('Only operations exposed in the current iteration are executable.');
     expect(system).not.toContain('expectedRevision');
+    expect(system).not.toContain('Yjs');
+    expect(system).not.toContain('snapshot');
+    expect(system).not.toContain('receipt');
     expect(system).not.toContain('read_node');
     expect(system).not.toContain('edit_blocks');
   });

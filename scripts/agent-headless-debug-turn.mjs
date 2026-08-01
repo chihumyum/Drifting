@@ -106,7 +106,8 @@ function printEvent(payload, state) {
       break;
     case 'tool_result':
       console.log(
-        `[tool <-] ${event.name} ${event.ok ? 'ok' : 'error'} ${truncate(event.content)}`,
+        `[tool <-] ${event.name} ${event.ok ? 'ok' : 'error'}` +
+          `${event.review?.id ? ` review=${event.review.id}` : ''} ${truncate(event.content)}`,
       );
       break;
     case 'context_planned':
