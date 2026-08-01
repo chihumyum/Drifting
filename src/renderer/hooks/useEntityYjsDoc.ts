@@ -24,6 +24,21 @@ import { useAuthStore } from '../store/auth';
 import { useYjsSync } from './useYjsSync';
 import { makeDocId, type DocKind } from '../lib/yjs-doc-id';
 
+/**
+ * Legacy projection seeding must be byte-stable across every renderer path.
+ * The General Agent can commit the first Yjs update while navigation is also
+ * opening the same chapter. Random Y.Doc client ids would make those two
+ * equivalent seeds merge as two copies of the manuscript.
+ */
+export async function createEntityLegacySeedUpdate(
+  legacyContent: string,
+): Promise<Uint8Array> {
+  const { createYjsProseSeedState } = await import(
+    '../lib/agent/runtime/yjs-prose-command'
+  );
+  return createYjsProseSeedState(legacyContent);
+}
+
 export interface UseEntityYjsDocOptions<K extends DocKind> {
   kind: K;
   entityId: string;
@@ -69,41 +84,10 @@ export function useEntityYjsDoc<K extends DocKind>({
     async (apply: (mutator: (ydoc: Y.Doc) => void) => void) => {
       if (!legacyContent || legacyContent === '{}') return;
       try {
-        const [
-          { getSchema },
-          { prosemirrorJSONToYDoc },
-          Y,
-          StarterKit,
-          Underline,
-          Link,
-          TextAlign,
-          { BlockId },
-          { EntityLink },
-        ] = await Promise.all([
-          import('@tiptap/core'),
-          import('y-prosemirror'),
+        const [Y, update] = await Promise.all([
           import('yjs'),
-          import('@tiptap/starter-kit').then((m) => m.default),
-          import('@tiptap/extension-underline').then((m) => m.default),
-          import('@tiptap/extension-link').then((m) => m.default),
-          import('@tiptap/extension-text-align').then((m) => m.default),
-          import('../lib/extensions/block-id'),
-          import('../lib/extensions/entity-link'),
+          createEntityLegacySeedUpdate(legacyContent),
         ]);
-        // Build a minimal schema that matches the editor's extensions. We
-        // disable underline + link inside StarterKit and re-add them so the
-        // schema isn't built with duplicated mark specs.
-        const schema = getSchema([
-          StarterKit.configure({ underline: false, link: false }),
-          Underline,
-          Link,
-          TextAlign,
-          BlockId,
-          EntityLink,
-        ] as never);
-        const json = JSON.parse(legacyContent);
-        const seeded = prosemirrorJSONToYDoc(schema, json, 'default');
-        const update = Y.encodeStateAsUpdate(seeded);
         apply((targetDoc) => {
           Y.applyUpdate(targetDoc, update);
         });

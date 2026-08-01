@@ -30,13 +30,12 @@ no setup click is needed. The bridge starts only after that project's real
 renderer boot has completed. Without it, open the target project once in the
 App as usual.
 
-Three optional DEV-only overrides make boundary cases reproducible without
-changing production limits:
+Two optional DEV-only overrides make boundary cases reproducible without
+changing production behavior:
 
 ```bash
 VITE_DRIFTING_AGENT_DEBUG_CONTEXT_WINDOW_TOKENS=60000 \
 VITE_DRIFTING_AGENT_DEBUG_RESULT_BUDGET_CHARS=5000 \
-VITE_DRIFTING_AGENT_DEBUG_MAX_MODEL_ITERATIONS=2 \
 VITE_DRIFTING_AGENT_DEBUG_URL=http://127.0.0.1:4317 \
 VITE_DRIFTING_AGENT_DEBUG_PROJECT_ID=<project-id> \
 pnpm --dir client tauri:dev
@@ -44,9 +43,7 @@ pnpm --dir client tauri:dev
 
 The context override forces compaction at a smaller window. The result-budget
 override can only lower the normal read-result budget, forcing the same durable
-artifact paging path used by oversized production results. The iteration
-override forces earlier durable turn slices so automatic continuation can be
-tested without changing its production policy. All three are ignored
+artifact paging path used by oversized production results. Both are ignored
 outside Vite DEV or when the loopback debug bridge is disabled.
 
 ```bash
@@ -80,7 +77,7 @@ Useful options:
 --permission deny                   # automatically deny permission requests
 --edit-mode approve                 # keep writes pending for review in this turn
 --answer 'text'                     # queued ask_user answer; repeatable
---auto-continue                     # follow bounded durable-plan slices to a stable stop
+--auto-continue                     # follow the durable plan until a stable stop
 --timeout-ms 900000
 --prompt-file /absolute/path/prompt.txt
 ```
@@ -109,6 +106,15 @@ curl -N http://127.0.0.1:4317/turn \
 The real `雾港纪事` test project was exercised through this bridge, with the
 mounted Tauri renderer and the configured DeepSeek BYOK provider:
 
+- ordinary model turns now see a shallow virtual workspace with
+  `list_files`/`read_file`/`grep`/`edit_file`; canonical names stay visible
+  while ids, Yjs versions, freshness receipts, and domain write commands stay
+  inside the renderer;
+- aggregate model iterations, tool calls, input/output tokens, duration, cost,
+  and automatic slices are unlimited by default. The 200k physical context
+  window compacts into durable summaries and resumes the same task;
+- final-response framing streams only author-facing prose. Tool-round drafts
+  and the framing marker never enter the panel or canonical journal;
 - all 18 production read tools returned live project data;
 - all 14 provider-exposed certified writes committed in approve mode and their
   durable reviews reverted successfully;
@@ -124,7 +130,7 @@ mounted Tauri renderer and the configured DeepSeek BYOK provider:
   repeating either accepted write, mapped physical failed-turn ordinals back to
   canonical provider-history ordinals, and completed its two exact-target steps
   with accepted review evidence at task revision 5;
-- bounded continuation paused after two automatic slices with no durable plan
+- continuous execution paused after two automatic slices with no durable plan
   progress, while a progressing plan continued until its durable task reached
   `completed`;
 - a provider-emitted DSML pseudo-tool call in the tool-disabled synthesis round
@@ -135,12 +141,16 @@ mounted Tauri renderer and the configured DeepSeek BYOK provider:
 - a forced 60k context run exercised full compaction and the subsequent
   deterministic-summary projection while retaining tool-result facts and the
   author veto;
+- a first Yjs Agent write racing editor navigation now uses the same
+  deterministic legacy seed on both paths, so equivalent seeds merge
+  idempotently instead of duplicating a chapter; a fresh `雾港纪事` chapter
+  edit and review rejection restored the original at Yjs revision 2;
 - invalid arguments, tool-call repair, queued `ask_user`, timeout, client
   disconnect cancellation, stale-turn recovery, and startup conversation
   hydration were exercised separately.
 
-The automated gates for the same checkout were `385/385` Agent runtime tests,
-`699/699` full Core tests, TypeScript typecheck, and ESLint with zero errors.
+The automated gates for the same checkout were `710/710` full Core tests,
+workspace TypeScript typecheck, and ESLint with zero errors.
 This is runtime/tool coverage, not a substitute for the remaining native UI
 smoke on each target.
 
@@ -156,9 +166,9 @@ smoke on each target.
 - A new conversation is used by default. Pass `--conversation` only when testing
   durable resume/context behavior.
 - A headless turn runs exactly one slice by default. `--auto-continue` explicitly
-  authorizes the same bounded continuation used by the Agent panel: at most 32
-  automatic slices, two hours, and USD 2 of provider-reported cumulative cost.
-  Two automatic slices without durable plan progress also pause the sequence.
+  authorizes the same continuous execution used by the Agent panel. There is no
+  aggregate model-round, tool-call, token, duration, cost, or slice quota.
+  Two automatic slices without durable plan progress pause the sequence.
   Pending review, permission/user input, failure, navigation, or an explicit
   stop pauses it immediately. This authorization is renderer-memory-only and
   is never resumed automatically after an App restart.
