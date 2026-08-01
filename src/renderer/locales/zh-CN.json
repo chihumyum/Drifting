@@ -1096,7 +1096,14 @@
       "reviewReverted": "已还原",
       "reviewConflict": "还原冲突",
       "reviewFailed": "无法安全还原：目标已在此后发生变化。",
-      "reviewActionFailed": "审阅操作失败"
+      "reviewActionFailed": "审阅操作失败",
+      "activity": {
+        "list": "浏览 {{path}}",
+        "read": "读取 {{path}}",
+        "search": "搜索“{{query}}”",
+        "edit": "编辑 {{path}}",
+        "manuscript": "正文"
+      }
     },
     "thinking": {
       "streaming": "思考中…",

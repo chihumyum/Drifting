@@ -1096,7 +1096,14 @@
       "reviewReverted": "Restored",
       "reviewConflict": "Restore conflict",
       "reviewFailed": "This change cannot be restored safely because its target changed later.",
-      "reviewActionFailed": "Review action failed"
+      "reviewActionFailed": "Review action failed",
+      "activity": {
+        "list": "Browse {{path}}",
+        "read": "Read {{path}}",
+        "search": "Search “{{query}}”",
+        "edit": "Edit {{path}}",
+        "manuscript": "manuscript"
+      }
     },
     "thinking": {
       "streaming": "Thinking…",

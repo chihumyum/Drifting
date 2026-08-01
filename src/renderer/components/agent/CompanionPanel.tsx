@@ -241,6 +241,38 @@ function ToolReviewRow({
 function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
   const { t } = useTranslation();
   const icon = msg.status === 'running' ? '◌' : msg.status === 'ok' ? '✓' : '✗';
+  const workspaceActivity = useMemo(() => {
+    const input =
+      msg.input && typeof msg.input === 'object' && !Array.isArray(msg.input)
+        ? (msg.input as Record<string, unknown>)
+        : undefined;
+    const path = typeof input?.path === 'string' ? input.path : '';
+    const query = typeof input?.query === 'string' ? input.query : '';
+    switch (msg.name) {
+      case 'list_files':
+        return t('agentPanel.tool.activity.list', {
+          path: path || '/',
+          defaultValue: '浏览 {{path}}',
+        });
+      case 'read_file':
+        return t('agentPanel.tool.activity.read', {
+          path: path || t('agentPanel.tool.activity.manuscript', { defaultValue: '作品' }),
+          defaultValue: '读取 {{path}}',
+        });
+      case 'grep':
+        return t('agentPanel.tool.activity.search', {
+          query,
+          defaultValue: '搜索“{{query}}”',
+        });
+      case 'edit_file':
+        return t('agentPanel.tool.activity.edit', {
+          path: path || t('agentPanel.tool.activity.manuscript', { defaultValue: '正文' }),
+          defaultValue: '编辑 {{path}}',
+        });
+      default:
+        return '';
+    }
+  }, [msg.input, msg.name, t]);
   const inputStr = useMemo(() => {
     if (msg.inputText !== undefined) return msg.inputText;
     if (msg.input == null) return '';
@@ -250,32 +282,44 @@ function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
       return String(msg.input);
     }
   }, [msg.input, msg.inputText]);
-  const hasBody = !!inputStr || !!msg.result;
+  const quietWorkspaceTool = workspaceActivity.length > 0;
+  const visibleInput = quietWorkspaceTool ? '' : inputStr;
+  const visibleResult = quietWorkspaceTool && msg.status !== 'error' ? '' : (msg.result ?? '');
+  const hasBody = !!visibleInput || !!visibleResult;
+  const summary = (
+    <>
+      <span style={{ opacity: 0.7, width: 12, display: 'inline-block' }}>{icon}</span>
+      {quietWorkspaceTool ? (
+        <span style={toolActivity}>{workspaceActivity}</span>
+      ) : (
+        <code style={toolName}>{msg.name}</code>
+      )}
+      {msg.status === 'running' && <span style={{ opacity: 0.5 }}>…</span>}
+    </>
+  );
   return (
-    <div style={toolRow}>
-      <details style={toolDetails}>
-        <summary style={toolSummary}>
-          <span style={{ opacity: 0.7, width: 12, display: 'inline-block' }}>{icon}</span>
-          <code style={toolName}>{msg.name}</code>
-          {msg.status === 'running' && <span style={{ opacity: 0.5 }}>…</span>}
-        </summary>
-        {hasBody && (
+    <div style={quietWorkspaceTool ? quietToolRow : toolRow}>
+      {hasBody ? (
+        <details style={toolDetails}>
+          <summary style={toolSummary}>{summary}</summary>
           <div style={toolBody}>
-            {inputStr && (
+            {visibleInput && (
               <>
                 <div style={toolBodyLabel}>{t('agentPanel.tool.input')}</div>
-                <pre style={toolPre}>{inputStr}</pre>
+                <pre style={toolPre}>{visibleInput}</pre>
               </>
             )}
-            {msg.result && (
+            {visibleResult && (
               <>
                 <div style={toolBodyLabel}>{t('agentPanel.tool.result')}</div>
-                <pre style={toolPre}>{msg.result}</pre>
+                <pre style={toolPre}>{visibleResult}</pre>
               </>
             )}
           </div>
-        )}
-      </details>
+        </details>
+      ) : (
+        <div style={{ ...toolSummary, cursor: 'default' }}>{summary}</div>
+      )}
       {msg.review && (
         <ToolReviewRow
           key={`${msg.review.id}:${msg.review.provenance?.sessionId ?? 'unbound'}:${msg.review.provenance?.turnId ?? 'unbound'}:${msg.review.provenance?.callId ?? 'unbound'}`}
@@ -1907,6 +1951,11 @@ const toolRow: React.CSSProperties = {
   fontSize: 12,
 };
 
+const quietToolRow: React.CSSProperties = {
+  fontSize: 12,
+  color: 'hsl(var(--ink-muted))',
+};
+
 const toolDetails: React.CSSProperties = {
   margin: 0,
 };
@@ -1925,6 +1974,11 @@ const toolName: React.CSSProperties = {
   fontFamily: 'var(--font-mono, ui-monospace, monospace)',
   fontSize: 11.5,
   opacity: 0.9,
+};
+
+const toolActivity: React.CSSProperties = {
+  fontSize: 12,
+  lineHeight: 1.4,
 };
 
 const toolBody: React.CSSProperties = {
