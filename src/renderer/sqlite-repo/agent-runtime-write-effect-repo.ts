@@ -321,6 +321,9 @@ export function createAgentRuntimeWriteEffectRepository(
     async claimEffect(claim) {
       assertRouteShape(claim);
       const argumentsJson = canonicalAgentRuntimeJson(claim.arguments);
+      const toolCallArgumentsJson = canonicalAgentRuntimeJson(
+        claim.toolCallArguments ?? claim.arguments,
+      );
       const expectedRevisionJson = canonicalNullableJson(
         claim.expectedRevision,
       );
@@ -413,7 +416,7 @@ export function createAgentRuntimeWriteEffectRepository(
           (toolCall.status !== 'requested' &&
             toolCall.status !== 'running') ||
           toolCall.idempotencyKey !== claim.idempotencyKey ||
-          toolCall.argumentsJson !== argumentsJson
+          toolCall.argumentsJson !== toolCallArgumentsJson
         ) {
           throw new AgentRuntimeWritePersistenceConflictError(
             'WRITE_PROVENANCE_MISMATCH',

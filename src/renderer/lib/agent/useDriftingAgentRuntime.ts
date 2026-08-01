@@ -19,7 +19,6 @@ function debugPositiveInteger(value: string | undefined): number | undefined {
 function headlessDebugRuntimeOverrides(): {
   contextWindowTokens?: number;
   readResultBudgetCharsCap?: number;
-  limits?: { maxModelIterations: number };
 } {
   if (!import.meta.env.DEV || !import.meta.env.VITE_DRIFTING_AGENT_DEBUG_URL) {
     return {};
@@ -30,13 +29,9 @@ function headlessDebugRuntimeOverrides(): {
   const readResultBudgetCharsCap = debugPositiveInteger(
     import.meta.env.VITE_DRIFTING_AGENT_DEBUG_RESULT_BUDGET_CHARS,
   );
-  const maxModelIterations = debugPositiveInteger(
-    import.meta.env.VITE_DRIFTING_AGENT_DEBUG_MAX_MODEL_ITERATIONS,
-  );
   return {
     ...(contextWindowTokens ? { contextWindowTokens } : {}),
     ...(readResultBudgetCharsCap ? { readResultBudgetCharsCap } : {}),
-    ...(maxModelIterations ? { limits: { maxModelIterations } } : {}),
   };
 }
 

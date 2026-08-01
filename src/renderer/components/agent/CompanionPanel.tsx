@@ -1464,13 +1464,9 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                   ? t('agentPanel.autoContinue.waitingReviewTitle')
                   : automaticContinuation?.stopReason === 'no_progress'
                     ? t('agentPanel.autoContinue.noProgressTitle')
-                  : automaticContinuation?.stopReason === 'slice_limit' ||
-                      automaticContinuation?.stopReason === 'time_limit' ||
-                      automaticContinuation?.stopReason === 'cost_limit'
-                    ? t('agentPanel.autoContinue.safetyTitle')
                     : continuationReason === 'budget_exceeded'
                       ? t('agentPanel.budget.title', {
-                          defaultValue: '已达到本轮预算上限',
+                          defaultValue: '本次上下文需要续接',
                         })
                       : t('agentPanel.longTask.title', {
                           defaultValue: '任务计划尚未完成',
@@ -1481,14 +1477,10 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                   ? t('agentPanel.autoContinue.waitingReviewBody')
                   : automaticContinuation?.stopReason === 'no_progress'
                     ? t('agentPanel.autoContinue.noProgressBody')
-                  : automaticContinuation?.stopReason === 'slice_limit' ||
-                      automaticContinuation?.stopReason === 'time_limit' ||
-                      automaticContinuation?.stopReason === 'cost_limit'
-                    ? t('agentPanel.autoContinue.safetyBody')
                     : continuationReason === 'budget_exceeded'
                       ? t('agentPanel.budget.body', {
                           defaultValue:
-                            '已完成的进度会保留。继续后，Agent 会检查当前状态并在安全上限内连续处理未完成部分。',
+                            '已完成的进度会保留。继续后，Agent 会从持久化状态恢复并接着处理。',
                         })
                       : t('agentPanel.longTask.body', {
                           defaultValue:

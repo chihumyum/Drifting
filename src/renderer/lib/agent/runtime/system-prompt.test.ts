@@ -15,7 +15,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(5);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(8);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).not.toContain('The canonical project name is "019f-opaque-project-id"');
@@ -28,46 +28,41 @@ describe('Drifting General Agent system prompt', () => {
     expect(system).toContain('Never derive, guess, or claim the project name from projectId.');
   });
 
-  it('limits capability claims to the certified tools exposed this iteration', () => {
+  it('presents Drifting as a natural virtual workspace and hides backend mechanics', () => {
     const system = prompt({ projectName: 'Book' });
 
+    expect(system).toContain('The novel project appears as a virtual workspace.');
+    expect(system).toContain('list_files');
+    expect(system).toContain('read_file');
+    expect(system).toContain('grep');
+    expect(system).toContain('edit_file');
     expect(system).toContain(
-      'Only execute Drifting data operations backed by the provider-exposed certified tool definitions in the current request.',
+      'The runtime owns entity ids, block handles, live Yjs state, freshness, concurrency, sync, durable receipts, and edit review.',
     );
-    expect(system).toContain(
-      'Those definitions are the complete executable operation set for this model iteration, not a permanent catalog of every Drifting capability.',
-    );
-    expect(system).toContain(
-      'do not infer that Drifting permanently lacks the capability merely because tool retrieval omitted it.',
-    );
-    expect(system).toContain(
-      'Never claim create_storyline or any other unexposed or uncertified operation was available or executed.',
-    );
-    expect(system).toContain(
-      'An empty object schema correctly uses {}; every other call must include all required fields.',
-    );
-    expect(system).toContain('Before update_element, call read_element for that exact element.');
-    expect(system).toContain(
-      'Before update_project_facts or create_comment, call get_project_brief or get_overview.',
-    );
-    expect(system).toContain('Those markers are not prose content: pass only the raw content text');
+    expect(system).toContain('Do not narrate tool choice, paths, schemas, receipts, or backend mechanics.');
+    expect(system).toContain('Do not announce that you are about to look, read, search, or edit.');
+    expect(system).toContain('Paths are internal workspace coordinates.');
+    expect(system).toContain('literal marker FINAL_RESPONSE:');
+    expect(system).toContain('Never emit the marker before more workspace work.');
+    expect(system).toContain('no provisional guesses, duplicated opening');
+    expect(system).toContain('Only operations exposed in the current iteration are executable.');
+    expect(system).not.toContain('expectedRevision');
+    expect(system).not.toContain('read_node');
+    expect(system).not.toContain('edit_blocks');
   });
 
   it('requires durable resumable plans for work spanning context windows', () => {
     const system = prompt({ projectName: 'Book' });
 
-    expect(system).toContain('use the durable task-plan tools');
+    expect(system).toContain('create a durable task plan');
     expect(system).toContain('scopeKind=whole_book_chapters');
-    expect(system).toContain('omit steps');
+    expect(system).toContain('with omitted steps');
     expect(system).toContain('scopeKind=explicit_targets');
-    expect(system).toContain('review.status=pending');
-    expect(system).toContain('next task call MUST be update_task_step status=blocked');
-    expect(system).toContain('acceptedTargetEvidence=true');
-    expect(system).toContain('Never repeat accepted completed steps');
-    expect(system).toContain('A token or budget boundary ends only the current execution slice.');
-    expect(system).toContain('The product runtime may start another bounded slice');
-    expect(system).toContain('runtime safety caps pause automatic continuation');
-    expect(system).toContain('advance pending work before revisiting blocked review steps');
+    expect(system).toContain('never repeat completed work');
+    expect(system).toContain('resume the first unfinished step after compaction or restart');
+    expect(system).toContain('Those are continuity boundaries, not task completion');
+    expect(system).toContain('block that step with its returned review reference');
+    expect(system).toContain('only after runtime context confirms acceptance');
     expect(system).toContain('names begin with mcp__ or plugin__');
   });
 

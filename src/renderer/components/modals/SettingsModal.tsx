@@ -25,9 +25,7 @@ import {
   type CopilotTaskId,
   type DateFormat,
   type AgentAuth,
-  type AgentToolSearch,
   AGENT_MODEL_OPTIONS,
-  AGENT_TOOL_SEARCH_OPTIONS,
   TYPEWRITER_POSITION_MAX,
   TYPEWRITER_POSITION_MIN,
   type EditorFontSource,
@@ -3974,8 +3972,6 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
   const setAgentAuth = useSettingsStore((s) => s.setAgentAuth);
   const agentModel = useSettingsStore((s) => s.agentModel);
   const setAgentModel = useSettingsStore((s) => s.setAgentModel);
-  const agentToolSearch = useSettingsStore((s) => s.agentToolSearch);
-  const setAgentToolSearch = useSettingsStore((s) => s.setAgentToolSearch);
 
   if (!generalAgentTransport.capability.available) {
     return (
@@ -4046,24 +4042,6 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
                 </option>
               ))}
             </select>
-          }
-        />
-      </div>
-
-      <div className="set-sec">
-        <SecHead title={t('settings.agent.toolSearchTitle')} hint="TOOL SEARCH" />
-        <Row
-          label={t('settings.agent.toolSearch')}
-          desc={t('settings.agent.toolSearchDesc')}
-          control={
-            <Seg<AgentToolSearch>
-              value={agentToolSearch}
-              options={AGENT_TOOL_SEARCH_OPTIONS.map((o) => ({
-                value: o.value,
-                label: t(`settings.agent.toolSearchOptions.${o.value}`, { defaultValue: o.label }),
-              }))}
-              onChange={setAgentToolSearch}
-            />
           }
         />
       </div>

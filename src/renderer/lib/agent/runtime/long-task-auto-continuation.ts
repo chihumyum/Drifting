@@ -5,9 +5,6 @@ import type {
 } from '../../../domain/agent-runtime-long-task';
 import type { AgentRuntimeOutcome } from './types';
 
-export const AGENT_AUTO_CONTINUATION_MAX_SLICES = 32;
-export const AGENT_AUTO_CONTINUATION_MAX_DURATION_MS = 2 * 60 * 60 * 1_000;
-export const AGENT_AUTO_CONTINUATION_MAX_COST_USD = 2;
 export const AGENT_AUTO_CONTINUATION_MAX_STAGNANT_SLICES = 2;
 
 export type AgentAutomaticContinuationStatus =
@@ -26,9 +23,6 @@ export type AgentAutomaticContinuationStopReason =
   | 'no_actionable_work'
   | 'turn_failed'
   | 'plan_unavailable'
-  | 'slice_limit'
-  | 'time_limit'
-  | 'cost_limit'
   | 'author_stopped'
   | 'author_navigated'
   | 'author_input_pending'
@@ -37,9 +31,10 @@ export type AgentAutomaticContinuationStopReason =
   | 'start_failed';
 
 /**
- * Renderer-lifetime authorization for bounded continuation. It is deliberately
- * not persisted: reopening the App never resumes paid or mutating work without
- * a fresh author action.
+ * Renderer-lifetime authorization for continuation. It is deliberately not
+ * persisted: reopening the App never resumes paid or mutating work without a
+ * fresh author action. The author can stop at any time; a progress watchdog
+ * pauses repeated stagnant slices without imposing an arbitrary work quota.
  */
 export interface AgentAutomaticContinuationState {
   sequenceId: number;
@@ -138,8 +133,8 @@ export function markAutomaticContinuationTerminal(
 
 /**
  * Observe only durable-plan progress. Assistant prose and repeated successful
- * reads do not reset the watchdog, so a confused model cannot burn all 32
- * slices while retrying the same invalid operation.
+ * reads do not reset the watchdog, so a confused model cannot keep retrying the
+ * same invalid operation indefinitely.
  */
 export function observeAgentAutomaticContinuationProgress(
   state: AgentAutomaticContinuationState,
@@ -237,7 +232,7 @@ export function decideAgentAutomaticContinuation(input: {
   terminalOutcome: AgentRuntimeOutcome;
   nowMs: number;
 }): AgentAutomaticContinuationDecision {
-  const { automatic, plan, terminalOutcome, nowMs } = input;
+  const { automatic, plan, terminalOutcome } = input;
   if (automatic.status !== 'evaluating') {
     return { kind: 'stop', status: 'off', reason: 'not_applicable' };
   }
@@ -255,18 +250,6 @@ export function decideAgentAutomaticContinuation(input: {
   }
   if (plan.status !== 'active') {
     return { kind: 'stop', status: 'paused', reason: 'task_not_active' };
-  }
-  if (automatic.automaticSlicesStarted >= AGENT_AUTO_CONTINUATION_MAX_SLICES) {
-    return { kind: 'stop', status: 'paused', reason: 'slice_limit' };
-  }
-  if (
-    automatic.startedAtMs === null ||
-    nowMs - automatic.startedAtMs >= AGENT_AUTO_CONTINUATION_MAX_DURATION_MS
-  ) {
-    return { kind: 'stop', status: 'paused', reason: 'time_limit' };
-  }
-  if (automatic.accumulatedCostUsd >= AGENT_AUTO_CONTINUATION_MAX_COST_USD) {
-    return { kind: 'stop', status: 'paused', reason: 'cost_limit' };
   }
   if (plan.waitingReviewStepCount > 0) {
     return { kind: 'stop', status: 'paused', reason: 'waiting_review' };

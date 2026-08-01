@@ -55,6 +55,7 @@ import type {
   AgentToolExecutionResult,
   AgentToolRuntime,
 } from './types';
+import { workspaceCommandFromArguments } from './drifting-workspace-tool-runtime';
 
 export interface DriftingWriteToolRuntimeOptions {
   repository?: AgentRuntimeWriteEffectRepository;
@@ -67,6 +68,11 @@ export interface DriftingWriteToolRuntimeOptions {
   readRuntime?: AgentToolRuntime;
   now?: () => string;
   dispatch?: typeof runAgentTool;
+  /** Runtime-owned facade expansion performed after public schema validation
+   * and permission, but before the durable effect is claimed. */
+  prepareRequest?: (
+    request: AgentToolExecutionRequest,
+  ) => Promise<AgentToolExecutionRequest>;
   resolveStrategy?: (name: string) => DriftingWriteStrategy | undefined;
   proseCoordinator?: YjsProsePersistenceCoordinator;
   readNodeContent?: (nodeId: string) => Promise<string | null>;
@@ -110,6 +116,9 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
   private readonly readRuntime: AgentToolRuntime;
   private readonly now: () => string;
   private readonly dispatch: typeof runAgentTool;
+  private readonly prepareRequest: (
+    request: AgentToolExecutionRequest,
+  ) => Promise<AgentToolExecutionRequest>;
   private readonly elementPatchDb: DbExecutor | undefined;
   private readonly autoAcceptReview: (effect: PersistedAgentRuntimeWriteEffect) => boolean;
   private readonly resolveStrategy: (name: string) => DriftingWriteStrategy | undefined;
@@ -122,6 +131,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     this.readRuntime = options.readRuntime ?? new DriftingReadToolRuntime();
     this.now = options.now ?? (() => new Date().toISOString());
     this.dispatch = options.dispatch ?? runAgentTool;
+    this.prepareRequest = options.prepareRequest ?? (async (request) => request);
     this.elementPatchDb = options.elementPatchDb;
     this.autoAcceptReview = options.autoAcceptReview ?? (() => false);
     this.resolveStrategy =
@@ -146,15 +156,24 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
           now: this.now,
           ...(options.proseCoordinator ? { proseCoordinator: options.proseCoordinator } : {}),
           ...(options.readNodeContent ? { readNodeContent: options.readNodeContent } : {}),
+          dispatch: this.dispatch,
         }));
   }
 
   listDefinitions(context: AgentRuntimeContext): readonly AgentToolDefinition[] {
     const reads = this.readRuntime.listDefinitions(context);
+    const workspaceEdit = getRegisteredTool('edit_file');
+    if (
+      !workspaceEdit ||
+      workspaceEdit.scope !== 'runtime-virtual' ||
+      workspaceEdit.access !== 'write'
+    ) {
+      throw new Error('The edit_file runtime contract is unavailable');
+    }
     const writes = listProviderTools({ allowWrite: true })
       .filter((tool) => tool.access === 'write')
       .map((tool) => writeDefinition(tool));
-    return [...reads, ...writes];
+    return [...reads, writeDefinition(workspaceEdit), ...writes];
   }
 
   async execute(request: AgentToolExecutionRequest): Promise<AgentToolExecutionResult> {
@@ -163,11 +182,15 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     }
     throwIfAgentAborted(request.signal);
     const tool = getRegisteredTool(request.name);
+    const workspaceFacade =
+      tool?.name === 'edit_file' &&
+      tool.scope === 'runtime-virtual' &&
+      tool.certification === 'internal-certified';
     if (
       !tool ||
-      tool.scope !== 'general' ||
+      (tool.scope !== 'general' && !workspaceFacade) ||
       tool.access !== 'write' ||
-      tool.certification !== 'write-certified' ||
+      (tool.certification !== 'write-certified' && !workspaceFacade) ||
       !isCertifiedTool(tool)
     ) {
       return {
@@ -175,16 +198,26 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         error: `Tool "${request.name}" is not write-certified`,
       };
     }
-    const strategy = this.resolveStrategy(tool.name);
-    if (!strategy) {
-      return {
-        ok: false,
-        error: `Tool "${tool.name}" has no certified write strategy`,
-      };
-    }
     try {
-      const context = this.requireMatchingContext(request.context);
-      return await this.executeCertifiedWrite(request, tool, strategy, context);
+      const effectiveRequest = await this.prepareRequest(request);
+      if (effectiveRequest.name !== tool.name) {
+        throw new Error('Runtime request preparation cannot change the public tool name');
+      }
+      const strategy = this.resolveStrategy(tool.name);
+      if (!strategy) {
+        return {
+          ok: false,
+          error: `Tool "${tool.name}" has no certified write strategy`,
+        };
+      }
+      const context = this.requireMatchingContext(effectiveRequest.context);
+      return await this.executeCertifiedWrite(
+        effectiveRequest,
+        tool,
+        strategy,
+        context,
+        request.arguments,
+      );
     } catch (error) {
       if (isAgentAbort(error, request.signal)) throw error;
       return {
@@ -456,6 +489,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     tool: RegisteredTool,
     strategy: DriftingWriteStrategy,
     context: AgentToolContext,
+    toolCallArguments: Record<string, unknown> = request.arguments,
   ): Promise<AgentToolExecutionResult> {
     const route = durableWriteRoute(request.context.route);
     const effectId = writeEffectId(request.idempotencyKey);
@@ -471,6 +505,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       callId: request.callId,
       toolName: tool.name,
       idempotencyKey: request.idempotencyKey,
+      toolCallArguments,
       arguments: request.arguments,
       expectedRevision,
       claimedAt: this.now(),
@@ -629,7 +664,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     const observation = receipt.observations.find(
       (candidate) => candidate.id === expected.observationId,
     );
-    const expectsProse = isProseWriteTool(request.name);
+    const expectsProse = isEffectiveProseWrite(request.name, request.arguments);
     if (
       !observation ||
       observation.receiptId !== expected.receiptId ||
@@ -705,8 +740,11 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
   ): Promise<PersistedAgentRuntimeWriteExpectation | null> {
     if (!this.freshness) return null;
     const durable = await this.freshness.listWriteExpectations(effect.id);
-    const expectsProse = isProseWriteTool(effect.toolName);
-    const expectedEntityKind = reconciliationFreshnessTarget(effect.toolName).entityKind;
+    const expectsProse = isEffectiveProseWrite(effect.toolName, effect.arguments);
+    const expectedEntityKind = reconciliationFreshnessTarget(
+      effect.toolName,
+      effect.arguments,
+    ).entityKind;
     if (
       durable.length !== 1 ||
       durable[0].id !== writeExpectationId(effect.idempotencyKey) ||
@@ -794,11 +832,15 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     const reviewId = writeReviewId(effect.id);
     const review =
       tool.approval === 'soft_review' ? { id: reviewId, status: 'pending' as const } : null;
+    const visibleResult =
+      tool.name === 'edit_file'
+        ? workspaceVisibleWriteResult(effect)
+        : handlerResult;
     const result: AgentToolExecutionResult = {
       ok: true,
       data: {
-        result: handlerResult,
-        effectId: effect.id,
+        result: visibleResult,
+        ...(tool.name === 'edit_file' ? {} : { effectId: effect.id }),
         ...(review
           ? {
               review: {
@@ -897,7 +939,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
 
     const expectations = await this.freshness.listWriteExpectations(effect.id);
     const expectation = expectations[0];
-    const target = reconciliationFreshnessTarget(effect.toolName);
+    const target = reconciliationFreshnessTarget(effect.toolName, effect.arguments);
     if (
       expectations.length !== 1 ||
       !expectation ||
@@ -988,7 +1030,16 @@ export function createDriftingWriteToolRuntime(
 }
 
 export function resolveDriftingCertifiedToolAccess(name: string): 'read' | 'write' | undefined {
-  if (name === 'read_tool_result' || name === 'ask_user') return 'read';
+  if (
+    name === 'read_tool_result' ||
+    name === 'ask_user' ||
+    name === 'list_files' ||
+    name === 'read_file' ||
+    name === 'grep'
+  ) {
+    return 'read';
+  }
+  if (name === 'edit_file') return 'write';
   const tool = getRegisteredTool(name);
   if (
     !tool ||
@@ -1003,11 +1054,15 @@ export function resolveDriftingCertifiedToolAccess(name: string): 'read' | 'writ
 
 function requireReconciliationTool(effect: PersistedAgentRuntimeWriteEffect): RegisteredTool {
   const tool = getRegisteredTool(effect.toolName);
+  const workspaceFacade =
+    tool?.name === 'edit_file' &&
+    tool.scope === 'runtime-virtual' &&
+    tool.certification === 'internal-certified';
   if (
     !tool ||
-    tool.scope !== 'general' ||
+    (tool.scope !== 'general' && !workspaceFacade) ||
     tool.access !== 'write' ||
-    tool.certification !== 'write-certified' ||
+    (tool.certification !== 'write-certified' && !workspaceFacade) ||
     !isCertifiedTool(tool)
   ) {
     throw new Error(`Tool "${effect.toolName}" is not certified for write reconciliation`);
@@ -1023,7 +1078,7 @@ type FreshnessReadToolName =
   | 'get_project_brief'
   | 'get_overview';
 
-function reconciliationFreshnessTarget(toolName: string): {
+function reconciliationFreshnessTarget(toolName: string, arguments_?: unknown): {
   readToolNames: readonly FreshnessReadToolName[];
   entityKind:
     | 'node'
@@ -1034,6 +1089,8 @@ function reconciliationFreshnessTarget(toolName: string): {
     | 'storyline'
     | 'project';
 } {
+  const effective = effectiveWriteCommand(toolName, arguments_);
+  toolName = effective.name;
   if (isProseWriteTool(toolName)) {
     return { readToolNames: ['read_node'], entityKind: 'node_prose' };
   }
@@ -1241,6 +1298,12 @@ async function resolveWriteFreshnessTarget(
   request: WriteFreshnessRequest,
   db?: DbExecutor,
 ): Promise<WriteFreshnessTarget> {
+  const effective = effectiveWriteCommand(request.name, request.arguments);
+  request = {
+    ...request,
+    name: effective.name,
+    arguments: effective.arguments,
+  };
   const projectId = request.context.route.projectId;
   if (!projectId) {
     throw new Error(`${request.name} requires a project-scoped route`);
@@ -1401,6 +1464,41 @@ const PROSE_WRITE_TOOLS = new Set([
 
 function isProseWriteTool(name: string): boolean {
   return PROSE_WRITE_TOOLS.has(name);
+}
+
+function isEffectiveProseWrite(name: string, arguments_: unknown): boolean {
+  return isProseWriteTool(effectiveWriteCommand(name, arguments_).name);
+}
+
+function effectiveWriteCommand(
+  name: string,
+  arguments_: unknown,
+): { name: string; arguments: Record<string, unknown> } {
+  if (name !== 'edit_file') {
+    return { name, arguments: requireRecord(arguments_, 'Write arguments are invalid') };
+  }
+  const command = workspaceCommandFromArguments(arguments_);
+  if (!command) {
+    throw new Error('edit_file has no runtime-prepared workspace command');
+  }
+  return command;
+}
+
+function workspaceVisibleWriteResult(
+  effect: PersistedAgentRuntimeWriteEffect,
+): { path: string; updated: true; replacements: number } {
+  const arguments_ = requireRecord(
+    effect.arguments,
+    'The workspace edit arguments are invalid',
+  );
+  const path = String(arguments_.path ?? '');
+  const replacements = Array.isArray(arguments_.replacements)
+    ? arguments_.replacements.length
+    : 0;
+  if (!path || replacements <= 0) {
+    throw new Error('The workspace edit lost its public result summary');
+  }
+  return { path, updated: true, replacements };
 }
 
 function parseYjsRevision(value: string): number | null {

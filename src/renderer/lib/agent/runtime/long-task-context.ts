@@ -184,7 +184,7 @@ export function createAgentLongTaskSupplementalRowsHook(
           continuation: {
             readTool: 'read_task_plan',
             instruction:
-              'Continue the same task from the first in_progress step, otherwise the first pending step. Revisit blocked review steps only after their status changes. Never repeat completed steps. A budget boundary is a resumable slice, not task completion.',
+              'Continue the same task from the first in_progress step, otherwise the first pending step. Revisit blocked review steps only after their status changes. Never repeat completed steps. Compaction and restart preserve task continuity; continue until the plan is complete or genuinely blocked.',
           },
         }),
       },

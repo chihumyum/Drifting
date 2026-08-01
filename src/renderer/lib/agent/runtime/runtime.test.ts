@@ -7,7 +7,12 @@ import {
   AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE,
   AgentRuntime,
 } from './runtime';
-import { ManualAgentClock, ScriptedFakeDriver, type ScriptedDriverStep } from './testing';
+import {
+  ManualAgentClock,
+  ScriptedFakeDriver,
+  type ScriptedDriverRound,
+  type ScriptedDriverStep,
+} from './testing';
 import type {
   AgentModelDriver,
   AgentModelStreamEvent,
@@ -343,6 +348,42 @@ describe('AgentRuntime', () => {
     clock.assertIdle();
   });
 
+  it('streams only the marked final response and hides draft prose across split chunks', async () => {
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            {
+              op: 'emit',
+              event: {
+                type: 'text_delta',
+                text: 'Private drafting that must stay hidden. FINAL_',
+              },
+            },
+            {
+              op: 'emit',
+              event: { type: 'text_delta', text: 'RESPONSE:\n最终' },
+            },
+            { op: 'emit', event: { type: 'text_delta', text: '答案' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(12, 5) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+
+    const result = await new AgentRuntime({ driver }).runTurn(input());
+    const visibleDeltas = result.entries.flatMap((entry) =>
+      entry.event.type === 'text_delta' ? [entry.event.text] : [],
+    );
+
+    expect(visibleDeltas).toEqual(['最终', '答案']);
+    expect(result.state.assistantText).toBe('最终答案');
+    expect(JSON.stringify(result.entries)).not.toContain('Private drafting');
+    expect(JSON.stringify(result.entries)).not.toContain('FINAL_RESPONSE:');
+    driver.assertExhausted();
+  });
+
   it('assembles fragmented arguments, journals normalized input, and continues after a tool', async () => {
     const clock = new ManualAgentClock();
     const execute = vi.fn<AgentToolRuntime['execute']>(async (request) => ({
@@ -363,6 +404,7 @@ describe('AgentRuntime', () => {
       rounds: [
         {
           steps: [
+            { op: 'emit', event: { type: 'text_delta', text: 'Let me look that up.' } },
             ...toolCallSteps('call-1', 'lookup', ['{"query":', '"Alice",', '"limit":"2"}']),
             { op: 'emit', event: { type: 'usage', usage: usage(10, 4) } },
             { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
@@ -413,6 +455,8 @@ describe('AgentRuntime', () => {
     }).runTurn(input());
 
     expect(result.state.status).toBe('completed');
+    expect(result.state.assistantText).toBe('Found Alice');
+    expect(result.state.assistantText).not.toContain('Let me look');
     expect(result.state.usage).toEqual(usage(30, 7));
     expect(execute).toHaveBeenCalledOnce();
     expect(execute.mock.calls[0][0]).toMatchObject({
@@ -466,6 +510,45 @@ describe('AgentRuntime', () => {
 
     expect(result.state.status).toBe('completed');
     expect(result.state.assistantText).toBe('直接回答。');
+    driver.assertExhausted();
+  });
+
+  it('has no aggregate iteration, tool-call, token, cost, or duration quota by default', async () => {
+    const workRounds: ScriptedDriverRound[] = Array.from({ length: 34 }, (_, index) => ({
+      steps: [
+        ...toolCallSteps(`read-${index}`, 'read', ['{}']),
+        { op: 'emit', event: { type: 'usage', usage: usage(30_000, 1_000, 0.1) } },
+        { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+      ],
+    }));
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        ...workRounds,
+        {
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: '全部完成。' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(1, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({
+      ok: true,
+      data: { inspected: true },
+    }));
+
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime([definition('read')], execute),
+    }).runTurn(input());
+
+    expect(result.state.status).toBe('completed');
+    expect(result.state.modelIterations).toBe(35);
+    expect(execute).toHaveBeenCalledTimes(34);
+    expect(result.state.usage.inputTokens).toBe(1_020_001);
+    expect(result.state.usage.outputTokens).toBe(34_001);
+    expect(result.state.usage.costUsd).toBeCloseTo(3.4);
     driver.assertExhausted();
   });
 

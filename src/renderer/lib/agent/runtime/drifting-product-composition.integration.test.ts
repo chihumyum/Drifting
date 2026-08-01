@@ -247,6 +247,7 @@ class ProductAgentHarness {
     turnId: string,
     prompt: string,
     expectedDoneCount = 1,
+    toolSearch: 'off' | 'auto' | 'on' = 'off',
   ): Promise<void> {
     const started = await this.composition.transport.start({
       prompt,
@@ -256,16 +257,16 @@ class ProductAgentHarness {
         projectId: PROJECT_ID,
         conversationId: CONVERSATION_ID,
       },
-      toolSearch: 'off',
+      toolSearch,
       thinking: 'off',
     });
     expect(started).toEqual({ ok: true, value: undefined });
     await waitForDone(this.events, expectedDoneCount);
     expect(
-      this.events
-        .filter((event) => event.turnId === turnId)
-        .some((event) => event.event.type === 'error'),
-    ).toBe(false);
+      this.events.filter(
+        (event) => event.turnId === turnId && event.event.type === 'error',
+      ),
+    ).toEqual([]);
   }
 
   scalar(sql: string): number {
@@ -909,6 +910,139 @@ describe.sequential('Drifting Agent product composition', () => {
         }),
       ]),
     );
+    harness.driver.assertExhausted();
+  });
+
+  it('edits a virtual prose file without model-visible reads or freshness and keeps exact review inverse', async () => {
+    const turnId = 'turn-workspace-edit';
+    const writeCallId = 'workspace-edit';
+    const replacement = 'After the quiet Agent.';
+    const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
+    const reviewId = `agent-review:${effectId}`;
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'read the virtual manuscript file',
+        expectRequest: (request) => {
+          expect(request.tools.map((tool) => tool.name)).toEqual([
+            'list_files',
+            'read_file',
+            'grep',
+            'edit_file',
+            'ask_user',
+          ]);
+          expect(request.tools.map((tool) => tool.name)).not.toContain('read_node');
+          expect(request.tools.map((tool) => tool.name)).not.toContain('edit_blocks');
+        },
+        steps: toolCallSteps('workspace-read', 'read_file', {
+          path: `/chapters/${NODE_TITLE}/prose.md`,
+        }),
+      },
+      {
+        name: 'edit the virtual manuscript file',
+        expectRequest: (request) => {
+          const visibleContext = JSON.stringify(request.context.messages);
+          expect(visibleContext).toContain('Before the Agent.');
+          expect(visibleContext).not.toContain('read_node');
+          expect(visibleContext).not.toContain('receiptId');
+          expect(visibleContext).not.toContain('node_prose');
+        },
+        steps: toolCallSteps(writeCallId, 'edit_file', {
+          path: `/chapters/${NODE_TITLE}/prose.md`,
+          replacements: [
+            {
+              oldText: 'Before the Agent.',
+              newText: replacement,
+            },
+          ],
+        }),
+      },
+      {
+        name: 'finish virtual workspace edit',
+        steps: finalSteps('I polished the opening line.'),
+      },
+    ]);
+    const seedState = await createYjsProseSeedState(CONTENT_JSON);
+    const initialBase = await harness.composition.proseCoordinator.readBase(
+      DOC_ID,
+      seedState,
+    );
+
+    await harness.runTurn(
+      turnId,
+      'Polish the opening line of Chapter One.',
+      1,
+      'auto',
+    );
+
+    const snapshot =
+      await harness.composition.repositories.runtime.loadRecoverySnapshot(
+        SESSION_ID,
+      );
+    expect(
+      snapshot?.toolCalls.filter((call) => call.callId === writeCallId),
+    ).toEqual([
+      expect.objectContaining({
+        callId: writeCallId,
+        name: 'edit_file',
+        status: 'completed',
+        errorCode: null,
+      }),
+    ]);
+    expect(
+      snapshot?.toolCalls.find(
+        (call) => call.callId === `${writeCallId}:workspace:edit-source`,
+      ),
+    ).toMatchObject({ name: 'read_node', access: 'read', status: 'completed' });
+    expect(
+      await harness.composition.repositories.writeEffects.getEffect(effectId),
+    ).toMatchObject({
+      phase: 'result_committed',
+      toolName: 'edit_file',
+      arguments: {
+        path: `/chapters/${NODE_TITLE}/prose.md`,
+        __workspaceCommand: {
+          name: 'edit_blocks',
+        },
+      },
+    });
+    expect(
+      (await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson,
+    ).toContain(replacement);
+    expect(
+      await harness.composition.repositories.writeEffects.getReview(reviewId),
+    ).toMatchObject({ status: 'pending' });
+    expect(
+      await harness.composition.repositories.freshness.getReadReceipt(
+        `agent-read:${SESSION_ID}:${turnId}:${writeCallId}:workspace:edit-source`,
+      ),
+    ).toMatchObject({
+      toolName: 'read_node',
+      callId: `${writeCallId}:workspace:edit-source`,
+    });
+    const providerTranscript = snapshot?.messages
+      .map((message) => JSON.stringify(message.content))
+      .join('\n');
+    expect(providerTranscript).toContain('read_file');
+    expect(providerTranscript).toContain('edit_file');
+    expect(providerTranscript).not.toContain('read_node');
+    expect(providerTranscript).not.toContain('receiptId');
+
+    const rejected = await harness.composition.tools.rejectReview(
+      reviewId,
+      'Keep the original line.',
+    );
+    expect(rejected.review.status).toBe('reverted');
+    expect(
+      JSON.parse(
+        (await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson ?? '{}',
+      ),
+    ).toEqual(JSON.parse(CONTENT_JSON));
+    expect(
+      await harness.composition.proseCoordinator.readBase(DOC_ID, seedState),
+    ).toMatchObject({
+      revision: 2,
+      stateHash: initialBase.stateHash,
+    });
     harness.driver.assertExhausted();
   });
 

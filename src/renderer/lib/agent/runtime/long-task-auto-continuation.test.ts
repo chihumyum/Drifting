@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentRuntimeTaskPlan } from '../../../domain/agent-runtime-long-task';
 import {
-  AGENT_AUTO_CONTINUATION_MAX_COST_USD,
-  AGENT_AUTO_CONTINUATION_MAX_DURATION_MS,
-  AGENT_AUTO_CONTINUATION_MAX_SLICES,
   AGENT_AUTO_CONTINUATION_MAX_STAGNANT_SLICES,
   armAgentAutomaticContinuation,
   beginAutomaticContinuationSlice,
@@ -59,7 +56,7 @@ function step(
   };
 }
 
-describe('bounded long-task auto continuation', () => {
+describe('long-task auto continuation', () => {
   it('distinguishes runnable work, pending reviews, and finalization', () => {
     const summary = summarizeLongTaskPlanForContinuation(
       'session-1',
@@ -209,7 +206,7 @@ describe('bounded long-task auto continuation', () => {
     });
   });
 
-  it('fails closed on terminal failure, unavailable plans, and every safety cap', () => {
+  it('fails closed on terminal failure and unavailable plans without imposing work quotas', () => {
     const base = markAutomaticContinuationTerminal(armAgentAutomaticContinuation(null, 100), {
       turnId: 'turn-1',
       costUsd: 0,
@@ -244,13 +241,14 @@ describe('bounded long-task auto continuation', () => {
       }),
     ).toEqual({ kind: 'stop', status: 'paused', reason: 'plan_unavailable' });
     expect(
-      decide({ ...base, automaticSlicesStarted: AGENT_AUTO_CONTINUATION_MAX_SLICES }),
-    ).toMatchObject({ reason: 'slice_limit' });
-    expect(decide(base, 100 + AGENT_AUTO_CONTINUATION_MAX_DURATION_MS)).toMatchObject({
-      reason: 'time_limit',
-    });
-    expect(
-      decide({ ...base, accumulatedCostUsd: AGENT_AUTO_CONTINUATION_MAX_COST_USD }),
-    ).toMatchObject({ reason: 'cost_limit' });
+      decide(
+        {
+          ...base,
+          automaticSlicesStarted: 1_000_000,
+          accumulatedCostUsd: 1_000_000,
+        },
+        Number.MAX_SAFE_INTEGER,
+      ),
+    ).toEqual({ kind: 'schedule' });
   });
 });

@@ -533,7 +533,7 @@ export function projectAgentLongTaskPlanForProvider(
     continuation: {
       nextStepId: nextActionableStep(plan)?.id ?? null,
       instruction:
-        'Resume this same task after a budget slice. Continue in_progress first, then pending work; revisit blocked review steps only after their status changes. Never repeat completed steps; stop normally instead of starting an automatic infinite loop.',
+        'Resume this same task after compaction or restart. Continue in_progress first, then pending work; revisit blocked review steps only after their status changes. Never repeat completed steps; continue until the plan is complete or progress is genuinely blocked.',
     },
   };
 }

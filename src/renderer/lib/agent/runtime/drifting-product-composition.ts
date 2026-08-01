@@ -45,7 +45,7 @@ import {
   DynamicAgentToolRegistry,
 } from './dynamic-tool-runtime';
 import { DriftingReadToolRuntime } from './drifting-read-tool-runtime';
-import { createDriftingToolSelectionStrategy } from './drifting-tool-selection';
+import { createDriftingWorkspaceToolSelectionStrategy } from './drifting-workspace-tool-selection';
 import {
   createDriftingWriteToolRuntime,
   resolveDriftingCertifiedToolAccess,
@@ -85,12 +85,10 @@ import {
 } from './yjs-prose-persistence-coordinator';
 import { loadAgentWriteReviewContextRows } from './write-review-feedback';
 import type { GeneralAgentTransport } from '../transport';
+import { DriftingWorkspaceToolRuntime } from './drifting-workspace-tool-runtime';
 
 /** Product-level provider window. Planner defaults stay conservative for reuse. */
 export const DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS = 200_000 as const;
-/** Eight 200k-window iterations may contribute provider-reported input usage. */
-export const DRIFTING_AGENT_MAX_TURN_INPUT_TOKENS = 1_600_000 as const;
-export const DRIFTING_AGENT_MAX_TURN_TOTAL_TOKENS = 1_632_000 as const;
 
 export interface DriftingAgentProductRepositories {
   runtime: AgentRuntimePersistenceRepository;
@@ -128,6 +126,7 @@ export interface DriftingAgentProductComposition {
   tools: DriftingWriteToolRuntime;
   /** Complete model-facing surface: Drifting + long-task + dynamic tools. */
   toolRuntime: AgentToolRuntime;
+  workspaceTools: DriftingWorkspaceToolRuntime;
   longTaskTools: AgentLongTaskToolRuntime;
   dynamicTools: DynamicAgentToolRegistry;
   repositories: DriftingAgentProductRepositories;
@@ -186,11 +185,17 @@ export function createDriftingAgentProductComposition(
     readElementPatches: (elementId) =>
       elementPatchRepository.listByElement(elementId),
   });
+  const workspaceTools = new DriftingWorkspaceToolRuntime({
+    readRuntime: readTools,
+    getContext,
+    persistence: repositories.runtime,
+  });
   const tools = createDriftingWriteToolRuntime({
     repository: repositories.writeEffects,
     freshness: repositories.freshness,
     getContext,
     readRuntime: readTools,
+    prepareRequest: (request) => workspaceTools.prepareEditRequest(request),
     proseCoordinator,
     readNodeContent: async (nodeId) =>
       (await contentRepository.findByNodeId(nodeId))?.contentJson ?? null,
@@ -235,7 +240,7 @@ export function createDriftingAgentProductComposition(
       ],
     });
   const toolRuntime = new CompositeAgentToolRuntime(
-    [tools, longTaskTools],
+    [workspaceTools, tools, longTaskTools],
     dynamicTools,
   );
   const longTaskSupplementalRows =
@@ -246,7 +251,7 @@ export function createDriftingAgentProductComposition(
   const transport = createLocalGeneralAgentTransport({
     driver: options.driver ?? new DriftingAgentModelDriver(),
     tools: toolRuntime,
-    toolSelector: createDriftingToolSelectionStrategy(),
+    toolSelector: createDriftingWorkspaceToolSelectionStrategy(),
     permissionPolicy: createDynamicAwareAgentPermissionPolicy(
       createAgentLongTaskAwarePermissionPolicy(
         createDriftingAgentPermissionPolicy(),
@@ -285,11 +290,7 @@ export function createDriftingAgentProductComposition(
         dynamicTools.resolveAccess(name, projectId),
     }),
     ...(options.journal ? { journal: options.journal } : {}),
-    limits: {
-      maxInputTokens: DRIFTING_AGENT_MAX_TURN_INPUT_TOKENS,
-      maxTotalTokens: DRIFTING_AGENT_MAX_TURN_TOTAL_TOKENS,
-      ...options.limits,
-    },
+    ...(options.limits ? { limits: options.limits } : {}),
     ...(options.createId ? { createId: options.createId } : {}),
     ...(options.authStatus ? { authStatus: options.authStatus } : {}),
   });
@@ -298,6 +299,7 @@ export function createDriftingAgentProductComposition(
     transport,
     tools,
     toolRuntime,
+    workspaceTools,
     longTaskTools,
     dynamicTools,
     repositories,

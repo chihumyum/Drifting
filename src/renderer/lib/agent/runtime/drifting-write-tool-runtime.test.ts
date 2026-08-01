@@ -56,6 +56,7 @@ describe('DriftingWriteToolRuntime', () => {
         .listDefinitions(request('rename_node', {}).context)
         .map((definition) => definition.name),
     ).toEqual([
+      'edit_file',
       'update_element',
       'rename_node',
       'set_node_summary',

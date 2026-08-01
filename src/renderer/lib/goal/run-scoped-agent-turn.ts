@@ -143,7 +143,7 @@ export async function runScopedAgentTurn(
     model: settings.agentModel,
     effort: settings.agentEffort,
     thinking: settings.agentThinking,
-    toolSearch: settings.agentToolSearch,
+    toolSearch: 'on',
     ...projectContext,
     writingLanguage: projectId ? resolveWritingLanguage(projectId) : undefined,
     newConversation: true,

@@ -152,7 +152,7 @@ function buildRevertNote(reverts: RevertRecord[]): string {
  *  re-render on every state change). */
 const EMPTY_MESSAGES: ChatMsg[] = [];
 export const BUDGET_CONTINUATION_PROMPT =
-  '继续完成上一轮因预算上限中断的任务。先检查上一轮已完成的工作和当前项目状态，不要重复已完成的步骤；从尚未完成的部分继续，完成后总结结果。';
+  '继续完成上一轮在上下文边界处续接的任务。先检查上一轮已完成的工作和当前项目状态，不要重复已完成的步骤；从尚未完成的部分继续，完成后总结结果。';
 export const ACTIVE_PLAN_CONTINUATION_PROMPT =
   '继续执行当前持久化任务计划。先用 read_task_plan 读取计划、约束和当前项目状态，不要重复已完成的步骤；只能用 update_task_step 更新单个步骤状态，update_task_plan 只处理任务级状态。从第一个尚未完成的步骤继续，完成后更新计划并总结结果。';
 
@@ -227,7 +227,7 @@ interface AgentChatState {
   bindProject: (projectId: string) => void;
   refreshList: () => void;
   send: (options?: AgentChatSendOptions) => Promise<void>;
-  /** Re-authorize a bounded continuation sequence for the current durable task. */
+  /** Re-authorize continuous execution for the current durable task. */
   continueTask: () => Promise<void>;
   /** Prevent another automatic slice; the current turn, if any, is left alone. */
   pauseAutomaticContinuation: () => void;
@@ -596,7 +596,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           model: settings.agentModel,
           effort: settings.agentEffort,
           thinking: settings.agentThinking,
-          toolSearch: settings.agentToolSearch,
+          // The General Agent always receives the workspace facade selected
+          // for the current task. Exposing the raw domain catalog makes tool
+          // mechanics dominate the conversation and is no longer a user mode.
+          toolSearch: 'on',
           resume: run.runtimeSessionId ?? undefined,
           ...projectContext,
           writingLanguage,

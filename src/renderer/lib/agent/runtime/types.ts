@@ -411,13 +411,16 @@ export interface AgentRuntimeScheduler {
 }
 
 export interface AgentRuntimeLimits {
-  maxModelIterations: number;
-  maxToolCalls: number;
-  maxInputTokens: number;
-  maxOutputTokens: number;
-  maxTotalTokens: number;
-  maxCostUsd: number;
-  maxDurationMs: number;
+  /** Null means the turn continues until completion, cancellation, or a real failure. */
+  maxModelIterations: number | null;
+  maxToolCalls: number | null;
+  /** Aggregate usage limits are optional; the provider context window remains enforced separately. */
+  maxInputTokens: number | null;
+  maxOutputTokens: number | null;
+  maxTotalTokens: number | null;
+  maxCostUsd: number | null;
+  maxDurationMs: number | null;
+  /** Provider calls still need a finite response-size request. This is not a task budget. */
   maxOutputTokensPerIteration: number;
   maxToolArgumentBytes: number;
   maxToolResultBytes: number;

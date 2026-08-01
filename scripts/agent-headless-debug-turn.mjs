@@ -47,7 +47,7 @@ function usage() {
     '  --permission manual|allow_once|deny',
     '  --edit-mode auto|approve         Override review mode for this turn only',
     '  --answer <text>                  Queued answer for ask_user (repeatable)',
-    '  --auto-continue                  Follow bounded durable-task continuation slices',
+    '  --auto-continue                  Follow durable-task steps until a stable stop',
     '  --timeout-ms <ms>                1000..3600000 (default 600000)',
     '  --raw                            Print every NDJSON object',
     '  --url <http://127.0.0.1:4317>   Broker URL',

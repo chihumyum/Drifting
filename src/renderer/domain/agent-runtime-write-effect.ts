@@ -69,6 +69,10 @@ export interface ClaimAgentRuntimeWriteEffect
   callId: string;
   toolName: string;
   idempotencyKey: string;
+  /** Provider-validated arguments recorded on the outer tool lifecycle row.
+   * Runtime facades may persist a richer, deterministic command in
+   * `arguments` while this preserves exact model-call provenance. */
+  toolCallArguments?: unknown;
   arguments: unknown;
   expectedRevision: unknown | null;
   claimedAt: string;

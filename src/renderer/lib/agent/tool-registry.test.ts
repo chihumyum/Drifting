@@ -133,7 +133,7 @@ describe('canonical Agent tool catalog', () => {
       AGENT_TOOL_CATALOG.filter(
         (tool) => tool.scope === 'runtime-virtual',
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(6);
 
     for (const tool of AGENT_TOOL_CATALOG) {
       expect(tool.name).not.toBe('');

@@ -1232,6 +1232,137 @@ const SHADOW_INTERNAL_TOOL_SPECS: InternalToolSpec[] = [
 
 const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
+    name: 'edit_file',
+    description:
+      'Edit one writable file in the virtual project workspace by exact text replacement. Put every independent change to the same file in one call.',
+    parametersSchema: Type.Object(
+      {
+        path: Type.String({
+          minLength: 1,
+          description: 'Exact virtual path returned by list_files or read_file',
+        }),
+        replacements: Type.Array(
+          Type.Object(
+            {
+              oldText: Type.String({
+                minLength: 1,
+                description: 'Exact text currently present in the file',
+              }),
+              newText: Type.String({ description: 'Replacement text; may be empty' }),
+              replaceAll: Type.Optional(
+                Type.Boolean({
+                  description:
+                    'Replace every occurrence instead of requiring exactly one match',
+                }),
+              ),
+            },
+            { additionalProperties: false },
+          ),
+          { minItems: 1, maxItems: 100 },
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    scope: 'runtime-virtual',
+    access: 'write',
+    risk: 'medium',
+    effect: 'prose',
+    concurrency: 'exclusive_entity',
+    approval: 'soft_review',
+    retry: 'inspect_before_retry',
+    revertStrategy: 'exact_inverse',
+    aliases: ['edit workspace file', '修改文件', '编辑小说'],
+    certificationNote:
+      'Runtime-certified facade over independently certified writes: resolves the path, performs the exact dependent read, injects freshness, batches same-file prose changes, and delegates to the durable strategy.',
+  },
+  {
+    name: 'list_files',
+    description:
+      'List one directory level in the virtual novel workspace. Each entry includes a canonical author-facing name and an internal path. Directory paths can be listed again; file paths can be passed directly to read_file or edit_file.',
+    parametersSchema: Type.Object(
+      {
+        path: Type.Optional(
+          Type.String({ description: 'Directory path, default /' }),
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    scope: 'runtime-virtual',
+    access: 'read',
+    risk: 'none',
+    effect: 'none',
+    concurrency: 'parallel',
+    approval: 'automatic',
+    retry: 'safe',
+    revertStrategy: 'not_applicable',
+    certificationNote:
+      'Runtime-certified project-scoped projection of canonical Drifting entities into stable virtual paths; it exposes no host filesystem capability.',
+    resultBudgetChars: 24_000,
+  },
+  {
+    name: 'read_file',
+    description:
+      'Read a virtual project file. Large files are paged with offset and limit; continue at nextOffset until truncated is false.',
+    parametersSchema: Type.Object(
+      {
+        path: Type.String({
+          minLength: 1,
+          description: 'Exact virtual path returned by list_files',
+        }),
+        offset: Type.Optional(
+          Type.Integer({ minimum: 0, description: 'Unicode character offset' }),
+        ),
+        limit: Type.Optional(
+          Type.Integer({
+            minimum: 1,
+            maximum: 32_000,
+            description: 'Maximum characters to return, default 16000',
+          }),
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    scope: 'runtime-virtual',
+    access: 'read',
+    risk: 'none',
+    effect: 'none',
+    concurrency: 'parallel',
+    approval: 'automatic',
+    retry: 'safe',
+    revertStrategy: 'not_applicable',
+    certificationNote:
+      'Runtime-certified path resolver over project-filtered read-certified Drifting tools; internal receipts and entity handles are not provider-visible.',
+    resultBudgetChars: 32_000,
+  },
+  {
+    name: 'grep',
+    description:
+      'Search titles, canon, and live manuscript text across the virtual project workspace. Optionally narrow results to a path prefix.',
+    parametersSchema: Type.Object(
+      {
+        query: Type.String({ minLength: 1, description: 'Text to search for' }),
+        path: Type.Optional(
+          Type.String({ description: 'Optional virtual directory prefix' }),
+        ),
+        limit: Type.Optional(
+          Type.Integer({ minimum: 1, maximum: 100, description: 'Maximum matches' }),
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    scope: 'runtime-virtual',
+    access: 'read',
+    risk: 'none',
+    effect: 'none',
+    concurrency: 'parallel',
+    approval: 'automatic',
+    retry: 'safe',
+    revertStrategy: 'not_applicable',
+    certificationNote:
+      'Runtime-certified search facade over project-filtered metadata and live Yjs prose search; it performs no mutation.',
+    resultBudgetChars: 20_000,
+  },
+  {
     name: 'ask_user',
     description:
       'Pause the current turn and ask the author one focused question when a real author decision is required. Do not use it for facts available through Drifting read tools.',

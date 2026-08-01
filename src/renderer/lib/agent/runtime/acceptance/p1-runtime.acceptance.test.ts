@@ -6,6 +6,7 @@ import {
   type TruncatedAgentToolResult,
 } from '../drifting-read-tool-runtime';
 import { replayAgentRuntimeJournal } from '../reducer';
+import { AGENT_FINAL_RESPONSE_MARKER } from '../presentation-protocol';
 import { AgentRuntime } from '../runtime';
 import { ScriptedFakeDriver, type ScriptedDriverStep } from '../testing';
 import type {
@@ -138,6 +139,7 @@ class TenThousandEventDriver implements AgentModelDriver {
   async *stream(): AsyncIterable<AgentModelStreamEvent> {
     // turn_started + model_iteration_started + context_planned + 9,994 deltas
     // + usage + model_iteration_completed + turn_finished = exactly 10,000 entries.
+    yield { type: 'text_delta', text: AGENT_FINAL_RESPONSE_MARKER };
     for (let index = 0; index < 9_994; index += 1) {
       yield { type: 'text_delta', text: String(index % 10) };
     }

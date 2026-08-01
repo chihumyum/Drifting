@@ -9,6 +9,10 @@ import {
 import { agentRuntimeEventId, createAgentRuntimeState, reduceAgentRuntimeJournal } from './reducer';
 import { clonePortableData } from './portable-data';
 import {
+  AGENT_FINAL_RESPONSE_MARKER,
+  stripAgentFinalResponseMarker,
+} from './presentation-protocol';
+import {
   AgentRuntimeContextPlanningCoordinator,
   type AgentRuntimeContextPlanningOptions,
 } from './runtime-context-planning';
@@ -49,13 +53,13 @@ import {
 } from './types';
 
 export const DEFAULT_AGENT_RUNTIME_LIMITS: AgentRuntimeLimits = {
-  maxModelIterations: 8,
-  maxToolCalls: 32,
-  maxInputTokens: 200_000,
-  maxOutputTokens: 32_000,
-  maxTotalTokens: 232_000,
-  maxCostUsd: 1,
-  maxDurationMs: 5 * 60_000,
+  maxModelIterations: null,
+  maxToolCalls: null,
+  maxInputTokens: null,
+  maxOutputTokens: null,
+  maxTotalTokens: null,
+  maxCostUsd: null,
+  maxDurationMs: null,
   maxOutputTokensPerIteration: 8_192,
   maxToolArgumentBytes: 64 * 1024,
   maxToolResultBytes: 128 * 1024,
@@ -236,6 +240,16 @@ function validatePermissionDecision(
 function mergeLimits(overrides?: Partial<AgentRuntimeLimits>): AgentRuntimeLimits {
   const limits = { ...DEFAULT_AGENT_RUNTIME_LIMITS, ...overrides };
   for (const [name, value] of Object.entries(limits)) {
+    if (value === null) {
+      if (
+        name !== 'maxOutputTokensPerIteration' &&
+        name !== 'maxToolArgumentBytes' &&
+        name !== 'maxToolResultBytes'
+      ) {
+        continue;
+      }
+      throw new AgentRuntimeError('INTERNAL_ERROR', `Invalid runtime limit ${name}=null`);
+    }
     if (!Number.isFinite(value) || value <= 0) {
       throw new AgentRuntimeError('INTERNAL_ERROR', `Invalid runtime limit ${name}=${value}`);
     }
@@ -244,14 +258,23 @@ function mergeLimits(overrides?: Partial<AgentRuntimeLimits>): AgentRuntimeLimit
 }
 
 function synthesisOutputTokenReserve(limits: AgentRuntimeLimits): number {
+  if (
+    limits.maxModelIterations === null &&
+    limits.maxOutputTokens === null &&
+    limits.maxTotalTokens === null
+  ) {
+    return 0;
+  }
+  const aggregateLimits = [limits.maxOutputTokens, limits.maxTotalTokens].filter(
+    (value): value is number => value !== null,
+  );
   return Math.max(
     0,
     Math.floor(
       Math.min(
         MAX_SYNTHESIS_OUTPUT_TOKEN_RESERVE,
         limits.maxOutputTokensPerIteration,
-        limits.maxOutputTokens / 2,
-        limits.maxTotalTokens / 2,
+        ...aggregateLimits.map((value) => value / 2),
       ),
     ),
   );
@@ -317,6 +340,25 @@ function appendContentDelta(
     const block: AgentAssistantThinkingBlock = { type: 'thinking', text: delta };
     blocks.push(block);
   }
+}
+
+function textFromAssistantBlocks(blocks: readonly AgentAssistantContentBlock[]): string {
+  return blocks
+    .filter((block): block is AgentAssistantTextBlock => block.type === 'text')
+    .map((block) => block.text)
+    .join('');
+}
+
+function normalizedFinalResponseBlocks(
+  blocks: readonly AgentAssistantContentBlock[],
+): AgentAssistantContentBlock[] {
+  const rawText = textFromAssistantBlocks(blocks);
+  if (!rawText.includes(AGENT_FINAL_RESPONSE_MARKER)) return [...blocks];
+  const visibleText = stripAgentFinalResponseMarker(rawText);
+  return [
+    ...blocks.filter((block) => block.type !== 'text'),
+    { type: 'text', text: visibleText },
+  ];
 }
 
 function protocol(message: string): never {
@@ -511,22 +553,26 @@ export class AgentRuntime {
     const startedMonoMs = this.clock.monotonicNowMs();
     const deadlineController = new AbortController();
     let deadlineTriggered = false;
-    const deadlineError = new AgentRuntimeError(
-      'BUDGET_EXCEEDED',
-      `maxDurationMs reached: ${limits.maxDurationMs}`,
-    );
-    void this.clock
-      .sleep(limits.maxDurationMs, deadlineController.signal)
-      .then(() => {
-        if (!controller.signal.aborted) {
-          deadlineTriggered = true;
-          controller.abort(deadlineError);
-        }
-        if (!journalController.signal.aborted) {
-          journalController.abort(deadlineError);
-        }
-      })
-      .catch(() => undefined);
+    let deadlineError: AgentRuntimeError | null = null;
+    if (limits.maxDurationMs !== null) {
+      deadlineError = new AgentRuntimeError(
+        'BUDGET_EXCEEDED',
+        `maxDurationMs reached: ${limits.maxDurationMs}`,
+      );
+      const installedDeadlineError = deadlineError;
+      void this.clock
+        .sleep(limits.maxDurationMs, deadlineController.signal)
+        .then(() => {
+          if (!controller.signal.aborted) {
+            deadlineTriggered = true;
+            controller.abort(installedDeadlineError);
+          }
+          if (!journalController.signal.aborted) {
+            journalController.abort(installedDeadlineError);
+          }
+        })
+        .catch(() => undefined);
+    }
     const entries: AgentRuntimeJournalEntry[] = [];
     let seq = 0;
     let totalToolCalls = 0;
@@ -705,23 +751,23 @@ export class AgentRuntime {
     };
 
     const checkDurationBudget = (): void => {
-      if (durationMs() > limits.maxDurationMs) {
+      if (limits.maxDurationMs !== null && durationMs() > limits.maxDurationMs) {
         budget(`maxDurationMs exceeded: ${durationMs()} > ${limits.maxDurationMs}`);
       }
     };
     const checkUsageBudget = (): void => {
       const usage = state.usage;
-      if (usage.inputTokens > limits.maxInputTokens) {
+      if (limits.maxInputTokens !== null && usage.inputTokens > limits.maxInputTokens) {
         budget(`maxInputTokens exceeded: ${usage.inputTokens} > ${limits.maxInputTokens}`);
       }
-      if (usage.outputTokens > limits.maxOutputTokens) {
+      if (limits.maxOutputTokens !== null && usage.outputTokens > limits.maxOutputTokens) {
         budget(`maxOutputTokens exceeded: ${usage.outputTokens} > ${limits.maxOutputTokens}`);
       }
       const totalTokens = usage.inputTokens + usage.outputTokens;
-      if (totalTokens > limits.maxTotalTokens) {
+      if (limits.maxTotalTokens !== null && totalTokens > limits.maxTotalTokens) {
         budget(`maxTotalTokens exceeded: ${totalTokens} > ${limits.maxTotalTokens}`);
       }
-      if (usage.costUsd > limits.maxCostUsd) {
+      if (limits.maxCostUsd !== null && usage.costUsd > limits.maxCostUsd) {
         budget(`maxCostUsd exceeded: ${usage.costUsd} > ${limits.maxCostUsd}`);
       }
     };
@@ -1217,28 +1263,46 @@ export class AgentRuntime {
 
     const runModelIteration = async (iteration: number): Promise<ModelIterationResult> => {
       checkBeforeWork();
-      if (state.modelIterations > 0 && state.usage.inputTokens >= limits.maxInputTokens) {
+      if (
+        state.modelIterations > 0 &&
+        limits.maxInputTokens !== null &&
+        state.usage.inputTokens >= limits.maxInputTokens
+      ) {
         budget('No input token budget remains for another model iteration');
       }
-      if (state.modelIterations > 0 && state.usage.costUsd >= limits.maxCostUsd) {
+      if (
+        state.modelIterations > 0 &&
+        limits.maxCostUsd !== null &&
+        state.usage.costUsd >= limits.maxCostUsd
+      ) {
         budget('No cost budget remains for another model iteration');
       }
       const usedTotalTokens = state.usage.inputTokens + state.usage.outputTokens;
-      const remainingOutputTokens = limits.maxOutputTokens - state.usage.outputTokens;
-      const remainingTotalTokens = limits.maxTotalTokens - usedTotalTokens;
+      const remainingOutputTokens =
+        limits.maxOutputTokens === null
+          ? Number.POSITIVE_INFINITY
+          : limits.maxOutputTokens - state.usage.outputTokens;
+      const remainingTotalTokens =
+        limits.maxTotalTokens === null
+          ? Number.POSITIVE_INFINITY
+          : limits.maxTotalTokens - usedTotalTokens;
       const synthesisReserve = synthesisOutputTokenReserve(limits);
       const hasToolResultsInContext = messages[messages.length - 1]?.role === 'tool';
+      const hasFutureModelIteration =
+        limits.maxModelIterations === null || iteration < limits.maxModelIterations;
+      const isFinalModelIteration =
+        limits.maxModelIterations !== null && iteration === limits.maxModelIterations;
       // When only the protected headroom remains, synthesize now rather than
       // spending another tool round and discovering on the next iteration that
       // no answer budget remains.
       const reserveForcesSynthesis =
         hasToolResultsInContext &&
-        iteration < limits.maxModelIterations &&
+        hasFutureModelIteration &&
         synthesisReserve > 0 &&
         (remainingOutputTokens <= synthesisReserve || remainingTotalTokens <= synthesisReserve);
       const synthesisOnly =
         hasToolResultsInContext &&
-        (forceSynthesisOnly || reserveForcesSynthesis || iteration === limits.maxModelIterations);
+        (forceSynthesisOnly || reserveForcesSynthesis || isFinalModelIteration);
       if (remainingOutputTokens <= 0 || remainingTotalTokens <= 0) {
         budget('No output token budget remains for another model iteration');
       }
@@ -1328,7 +1392,7 @@ export class AgentRuntime {
       // no future tool evidence to synthesize, so reserving half its output
       // budget would strand tokens if the provider stops at max_tokens.
       const protectedSynthesisTokens =
-        iterationDefinitions.length > 0 && !synthesisOnly && iteration < limits.maxModelIterations
+        iterationDefinitions.length > 0 && !synthesisOnly && hasFutureModelIteration
           ? synthesisReserve
           : 0;
       let requestMaxOutputTokens = Math.floor(
@@ -1394,6 +1458,10 @@ export class AgentRuntime {
 
       const blocks: AgentAssistantContentBlock[] = [];
       let bufferedSynthesisText = '';
+      let bufferedVisibleText = '';
+      let finalResponseMarkerSeen = false;
+      let trimFinalResponseLeadingWhitespace = true;
+      let iterationUsesTools = false;
       const calls: MutableToolCall[] = [];
       const callsById = new Map<string, MutableToolCall>();
       let finishReason: AgentModelStopReason | null = null;
@@ -1441,7 +1509,34 @@ export class AgentRuntime {
                 bufferedSynthesisText += frame.text;
               } else {
                 appendContentDelta(blocks, 'text', frame.text);
-                await emit({ type: 'text_delta', iteration, text: frame.text });
+                if (!iterationUsesTools) {
+                  if (finalResponseMarkerSeen) {
+                    const visible = trimFinalResponseLeadingWhitespace
+                      ? frame.text.replace(/^\s+/, '')
+                      : frame.text;
+                    if (visible.length > 0) {
+                      trimFinalResponseLeadingWhitespace = false;
+                      await emit({ type: 'text_delta', iteration, text: visible });
+                    }
+                  } else {
+                    bufferedVisibleText += frame.text;
+                    const markerIndex = bufferedVisibleText.indexOf(
+                      AGENT_FINAL_RESPONSE_MARKER,
+                    );
+                    if (markerIndex >= 0) {
+                      finalResponseMarkerSeen = true;
+                      const afterMarker = bufferedVisibleText.slice(
+                        markerIndex + AGENT_FINAL_RESPONSE_MARKER.length,
+                      );
+                      bufferedVisibleText = '';
+                      const visible = afterMarker.replace(/^\s+/, '');
+                      if (visible.length > 0) {
+                        trimFinalResponseLeadingWhitespace = false;
+                        await emit({ type: 'text_delta', iteration, text: visible });
+                      }
+                    }
+                  }
+                }
               }
               break;
 
@@ -1451,6 +1546,8 @@ export class AgentRuntime {
               break;
 
             case 'tool_call_start': {
+              iterationUsesTools = true;
+              bufferedVisibleText = '';
               if (!frame.callId || !frame.name) {
                 protocol('Provider emitted a tool call without callId/name');
               }
@@ -1459,7 +1556,7 @@ export class AgentRuntime {
               }
               seenToolCallIds.add(frame.callId);
               totalToolCalls += 1;
-              if (totalToolCalls > limits.maxToolCalls) {
+              if (limits.maxToolCalls !== null && totalToolCalls > limits.maxToolCalls) {
                 budget(`maxToolCalls exceeded: ${totalToolCalls} > ${limits.maxToolCalls}`);
               }
               const block: AgentAssistantToolCallBlock = {
@@ -1646,9 +1743,20 @@ export class AgentRuntime {
       }
 
       if (synthesisOnly && bufferedSynthesisText) {
-        const synthesisText = sanitizeAgentSynthesisText(bufferedSynthesisText);
+        const synthesisText = sanitizeAgentSynthesisText(
+          stripAgentFinalResponseMarker(bufferedSynthesisText),
+        );
         appendContentDelta(blocks, 'text', synthesisText);
         await emit({ type: 'text_delta', iteration, text: synthesisText });
+      } else if (
+        calls.length === 0 &&
+        !finalResponseMarkerSeen &&
+        bufferedVisibleText
+      ) {
+        // Compatibility fallback for providers or older recovered prompts that
+        // do not implement the presentation marker yet. It remains hidden
+        // until the provider proves this is a tool-free final response.
+        await emit({ type: 'text_delta', iteration, text: bufferedVisibleText });
       }
 
       await emit({
@@ -1663,7 +1771,14 @@ export class AgentRuntime {
       }
       const assistant: AgentModelMessage = {
         role: 'assistant',
-        content: blocks,
+        // Tool-round narration is neither useful UI nor useful future context.
+        // Keep the provider's tool calls and thinking, but hide "let me read…"
+        // preambles so the workspace feels like direct action rather than a
+        // conversation about operating tools.
+        content:
+          calls.length > 0
+            ? blocks.filter((block) => block.type !== 'text')
+            : normalizedFinalResponseBlocks(blocks),
       };
       messages.push(assistant);
 
@@ -1701,7 +1816,10 @@ export class AgentRuntime {
       await emit({ type: 'turn_started', prompt: input.prompt });
       while (true) {
         checkBeforeWork();
-        if (state.modelIterations >= limits.maxModelIterations) {
+        if (
+          limits.maxModelIterations !== null &&
+          state.modelIterations >= limits.maxModelIterations
+        ) {
           throw new AgentRuntimeError(
             'MAX_MODEL_ITERATIONS',
             `maxModelIterations reached: ${limits.maxModelIterations}`,
@@ -1807,7 +1925,7 @@ export class AgentRuntime {
         await emit({ type: 'cancellation_requested', reason }, true);
       }
       if (!controller.signal.aborted) controller.abort(error);
-      const runtimeError = deadlineTriggered
+      const runtimeError = deadlineTriggered && deadlineError
         ? deadlineError
         : error instanceof AgentRuntimeError
           ? error
@@ -1825,7 +1943,7 @@ export class AgentRuntime {
         lastPlanningSelection
       ) {
         try {
-          // The work budget has ended, but checkpoint planning is a bounded
+          // An explicit execution boundary was reached, but checkpoint planning is a bounded
           // local durability step. It must see recovered tool results and must
           // not inherit the already-aborted provider signal.
           completedContextCheckpoint = await planCompletedContextCheckpoint(

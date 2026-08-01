@@ -1146,24 +1146,24 @@
       "cancelling": "Stopping…"
     },
     "budget": {
-      "title": "Turn budget reached",
-      "body": "Completed progress is preserved. Continue to let the Agent inspect current state and process unfinished work within bounded safety limits.",
+      "title": "This context needs continuation",
+      "body": "Completed progress is preserved. Continue to resume from durable state; the task is not cut off by tool-round or cumulative-token quotas.",
       "continue": "Continue task"
     },
     "longTask": {
       "title": "The task plan is not finished",
-      "body": "This turn completed normally, but the durable plan still has unfinished work. Continue to run subsequent slices within bounded safety limits."
+      "body": "This turn completed normally, but the durable plan still has unfinished work. Continue from its first unfinished step."
     },
     "autoContinue": {
       "title": "Continuing the task",
-      "body": "The Agent will resume unfinished durable-plan steps; {{count}} automatic slice(s) have started. Approval, a question, failure, or a safety limit pauses the run.",
+      "body": "The Agent will resume unfinished durable-plan steps; {{count}} automatic slice(s) have started. Approval, a question, failure, an explicit stop, or repeated lack of progress pauses the run.",
       "pause": "Pause continuous run",
       "waitingReviewTitle": "Waiting for edit review",
       "waitingReviewBody": "Every currently actionable step is waiting for review. Settle the pending edits, then continue this task.",
       "noProgressTitle": "Continuous run made no durable progress",
       "noProgressBody": "The Agent repeated two slices without advancing its durable plan, so the run paused before spending more. Inspect the last tool error, then continue when ready.",
-      "safetyTitle": "Continuous-run safety limit reached",
-      "safetyBody": "Progress is preserved. Review the result and API usage, then continue to authorize a new bounded sequence."
+      "safetyTitle": "Continuous run paused",
+      "safetyBody": "Progress is preserved. Review the current state, then continue when ready."
     },
     "todos": {
       "plan": "Plan"

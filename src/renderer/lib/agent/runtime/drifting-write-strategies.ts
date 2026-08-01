@@ -31,6 +31,7 @@ import { useAgentEditStore } from '../../../store/agent-edit-store';
 import type {
   AgentToolContext,
 } from '../tool-handlers';
+import { runAgentTool } from '../tool-handlers';
 import { throwIfAgentAborted } from './errors';
 import type {
   AgentToolExecutionRequest,
@@ -59,6 +60,7 @@ import type {
   AgentRuntimeElementPatchReceiptRepository,
 } from '../../../sqlite-repo/agent-runtime-element-patch-receipt-repo';
 import { createDriftingEntityWriteStrategy } from './drifting-entity-write-strategy';
+import { workspaceCommandFromArguments } from './drifting-workspace-tool-runtime';
 
 export interface PreparedDriftingWriteEffect {
   observedRevision: unknown;
@@ -134,6 +136,11 @@ export interface DriftingWriteStrategyOptions {
   now?: () => string;
   proseCoordinator?: YjsProsePersistenceCoordinator;
   readNodeContent?: (nodeId: string) => Promise<string | null>;
+  dispatch?: (
+    name: string,
+    arguments_: Record<string, unknown>,
+    context: AgentToolContext,
+  ) => Promise<unknown>;
 }
 
 /**
@@ -145,6 +152,7 @@ export function getDriftingWriteStrategy(
   toolName: string,
   options: DriftingWriteStrategyOptions = {},
 ): DriftingWriteStrategy | undefined {
+  if (toolName === 'edit_file') return workspaceEditStrategy(options);
   const field = nodeFieldStrategies.get(toolName);
   if (field) return nodeFieldStrategy(field);
   if (
@@ -217,6 +225,87 @@ export function getDriftingWriteStrategy(
         (await createBookContentRepository().findByNodeId(nodeId))
           ?.contentJson ?? null),
   );
+}
+
+/**
+ * Keep the virtual file operation as the durable outer effect while delegating
+ * its mutation, receipt reconciliation, and inverse to the already-certified
+ * domain strategy selected during runtime-owned path preparation.
+ */
+function workspaceEditStrategy(
+  options: DriftingWriteStrategyOptions,
+): DriftingWriteStrategy {
+  const resolve = (arguments_: unknown) => {
+    const command = workspaceCommandFromArguments(arguments_);
+    if (!command) {
+      throw new Error('edit_file has no runtime-prepared workspace command');
+    }
+    const strategy = getDriftingWriteStrategy(command.name, options);
+    if (!strategy) {
+      throw new Error(`The workspace command "${command.name}" is not certified`);
+    }
+    return { command, strategy };
+  };
+  const innerRequest = (
+    request: AgentToolExecutionRequest,
+    command: ReturnType<typeof workspaceCommandFromArguments> & {},
+  ): AgentToolExecutionRequest => ({
+    ...request,
+    name: command.name,
+    arguments: command.arguments,
+  });
+  const innerEffect = (
+    effect: PersistedAgentRuntimeWriteEffect,
+    command: ReturnType<typeof workspaceCommandFromArguments> & {},
+  ): PersistedAgentRuntimeWriteEffect => ({
+    ...effect,
+    toolName: command.name,
+    arguments: command.arguments,
+  });
+
+  return {
+    async prepare(request, context, expectation) {
+      const { command, strategy } = resolve(request.arguments);
+      return strategy.prepare(innerRequest(request, command), context, expectation);
+    },
+
+    async applyForward(request, context, prepared) {
+      const { command, strategy } = resolve(request.arguments);
+      const inner = innerRequest(request, command);
+      return strategy.applyForward
+        ? strategy.applyForward(inner, context, prepared)
+        : (options.dispatch ?? runAgentTool)(command.name, command.arguments, context);
+    },
+
+    async captureEffect(request, context, result, prepared) {
+      const { command, strategy } = resolve(request.arguments);
+      return strategy.captureEffect(
+        innerRequest(request, command),
+        context,
+        result,
+        prepared,
+      );
+    },
+
+    async reconcileEnteredEffect(effect, context, signal) {
+      const { command, strategy } = resolve(effect.arguments);
+      if (!strategy.reconcileEnteredEffect) return null;
+      return strategy.reconcileEnteredEffect(
+        innerEffect(effect, command),
+        context,
+        signal,
+      );
+    },
+
+    async applyInverse(effect, context, signal) {
+      const { command, strategy } = resolve(effect.arguments);
+      return strategy.applyInverse(
+        innerEffect(effect, command),
+        context,
+        signal,
+      );
+    },
+  };
 }
 
 function nodeFieldStrategy(field: 'title' | 'summary'): DriftingWriteStrategy {
