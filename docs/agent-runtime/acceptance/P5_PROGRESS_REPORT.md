@@ -1,5 +1,11 @@
 # P5 Progress Report — Drifting creative Agent runtime
 
+> Historical report for the P5 checkout. Its counts, context window and
+> continuation boundary are superseded by
+> [`agent-capabilities.md`](agent-capabilities.md) and
+> [`CURRENT_STATUS.md`](CURRENT_STATUS.md); do not treat the values below as
+> current product claims.
+
 ## Identity
 
 - phase: `P5`

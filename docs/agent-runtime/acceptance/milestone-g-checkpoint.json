@@ -1,0 +1,136 @@
+{
+  "suite": "milestone-g-user-checkpoint-rewind-fork",
+  "schemaVersion": 1,
+  "nodeVersion": "v22.23.1",
+  "platform": "darwin",
+  "gitHead": "76ce19ebd113aa5111737fd9f73de07122932f51",
+  "sourceSetSha256": "sha256:b255f6c7f0e41ab628c06501064518b3f4119159d4b6470e5ce46b6d70f3d045",
+  "evidence": {
+    "sqlite": "real-file-wal-full-product-migrations",
+    "yjs": "real-doc-state-vector-revision-cover-restore",
+    "restart": "database-close-reopen-and-saga-compensation",
+    "concurrency": "post-preview-and-mid-action-author-edit-fail-closed",
+    "networkRequired": false
+  },
+  "vitest": {
+    "files": {
+      "required": 6,
+      "discovered": 6
+    },
+    "tests": {
+      "total": 43,
+      "passed": 43,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0
+    },
+    "groups": {
+      "fileBackedCheckpointAndRewind": {
+        "requiredFiles": 1,
+        "discoveredFiles": 1,
+        "tests": {
+          "total": 5,
+          "passed": 5,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "forkContextAndChatLifecycle": {
+        "requiredFiles": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 16,
+          "passed": 16,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "yjsCommandAndCanonicalRecovery": {
+        "requiredFiles": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 16,
+          "passed": 16,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "generatedCapabilityContract": {
+        "requiredFiles": 1,
+        "discoveredFiles": 1,
+        "tests": {
+          "total": 6,
+          "passed": 6,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      }
+    },
+    "requiredAssertions": {
+      "completeCaptureAndFork": {
+        "requiredName": "captures complete SQLite/Yjs state and creates an idempotent non-destructive fork",
+        "matches": 1,
+        "passed": true
+      },
+      "authorEditProtection": {
+        "requiredName": "refuses missing confirmation and a stale preview before any manuscript write",
+        "matches": 1,
+        "passed": true
+      },
+      "wholeBookRestore": {
+        "requiredName": "restores a whole-book intent by semantic content and forks while preserving its source chat",
+        "matches": 1,
+        "passed": true
+      },
+      "multiEntityCompensation": {
+        "requiredName": "compensates all already-applied entities when a later entity fails",
+        "matches": 1,
+        "passed": true
+      },
+      "restartRecovery": {
+        "requiredName": "recovers an interrupted applying saga after a real SQLite reopen without overwriting later edits",
+        "matches": 1,
+        "passed": true
+      },
+      "forkContext": {
+        "requiredName": "injects complete durable fork context outside the 2k standing-memory clamp",
+        "matches": 1,
+        "passed": true
+      },
+      "capabilityContract": {
+        "requiredName": "publishes the provider-neutral user checkpoint, safe rewind, and fork contract",
+        "matches": 1,
+        "passed": true
+      }
+    },
+    "process": {
+      "exitCode": 0,
+      "signal": null
+    },
+    "passed": true
+  },
+  "typecheck": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "lint": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "capabilities": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "boundaries": {
+    "manuscriptScope": "node/element/storyline/category prose and restorable metadata; deleted structural identities fail closed",
+    "nativeDevices": "Headless acceptance does not claim desktop/iOS/Android interaction or lifecycle acceptance; that remains milestone J."
+  },
+  "passed": true
+}

@@ -1,0 +1,29 @@
+{
+  "suite": "milestone-j-native-build-smoke",
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-02T02:12:27.993Z",
+  "builds": {
+    "iosSimulator": {
+      "command": "tauri ios build --debug --target aarch64-sim --no-sign --archive-only --ci",
+      "artifact": "src-tauri/gen/apple/build/drifting_iOS.xcarchive",
+      "executableBytes": 117375608,
+      "executableSha256": "sha256:14dd5cc5c7edbfd4965c856018c91918200d638905e90c50c580a402b1d016f8"
+    },
+    "androidArm64": {
+      "command": "tauri android build --debug --target aarch64 --apk --ci",
+      "artifact": "src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk",
+      "apkBytes": 222936577,
+      "apkSha256": "sha256:405e7bd75e2819ba8b0205b6470d369ce0e74de4d4d2ba8eb79c5d847c7cba7d"
+    }
+  },
+  "assertions": {
+    "iosArchiveDirectory": true,
+    "iosArm64Executable": true,
+    "iosBundleIdentifier": true,
+    "androidApkFile": true,
+    "androidArm64RustLibrary": true,
+    "androidTauriConfig": true
+  },
+  "interactiveDeviceLaunch": "not-run-by-contract; user-owned visual acceptance",
+  "passed": true
+}

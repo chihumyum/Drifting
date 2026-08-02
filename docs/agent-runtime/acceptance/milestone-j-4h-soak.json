@@ -1,0 +1,161 @@
+{
+  "suite": "milestone-j-real-book-endurance",
+  "schemaVersion": 1,
+  "profile": "4h",
+  "mode": "accelerated-15-minute-workload-equivalent",
+  "sourceSetSha256": "sha256:88dd4aaf099b4cbe85279e0457fec08567e2ac3cd683b57f2bd9a16422675ed7",
+  "targetLogicalHours": 4,
+  "targetEpochs": 16,
+  "completedEpochs": 16,
+  "logicalMinutesCompleted": 240,
+  "wallClockMs": 27739,
+  "maximumResidentBytes": 186744832,
+  "testsPerEpoch": [
+    "src/renderer/lib/agent/runtime/acceptance/milestone-h-writing-intelligence.acceptance.test.ts",
+    "src/renderer/lib/agent/runtime/long-task-auto-continuation.test.ts",
+    "src/renderer/lib/agent/runtime/repository-transport-persistence-v2.integration.test.ts",
+    "src/renderer/lib/agent/runtime/mcp-http.integration.test.ts",
+    "src/renderer/sqlite-repo/agent-extension-repo.integration.test.ts"
+  ],
+  "faultCoverage": [
+    "renderer-process-restart-and-checkpoint-recovery",
+    "lost-commit-acknowledgement-and-corrupt-checkpoint",
+    "automatic-continuation-stop-steer-stagnation",
+    "mcp-http-session-timeout-and-cancellation",
+    "durable-grant-reopen-config-drift-and-concurrency",
+    "real-local-manuscript-read-only-voice-and-citation-oracle"
+  ],
+  "privateProsePersisted": false,
+  "networkRequired": false,
+  "passed": true,
+  "epochs": [
+    {
+      "epoch": 1,
+      "logicalMinute": 15,
+      "durationMs": 1838,
+      "maximumResidentBytes": 186744832,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 2,
+      "logicalMinute": 30,
+      "durationMs": 1714,
+      "maximumResidentBytes": 185450496,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 3,
+      "logicalMinute": 45,
+      "durationMs": 1738,
+      "maximumResidentBytes": 183730176,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 4,
+      "logicalMinute": 60,
+      "durationMs": 1734,
+      "maximumResidentBytes": 183975936,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 5,
+      "logicalMinute": 75,
+      "durationMs": 1711,
+      "maximumResidentBytes": 184107008,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 6,
+      "logicalMinute": 90,
+      "durationMs": 1735,
+      "maximumResidentBytes": 185106432,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 7,
+      "logicalMinute": 105,
+      "durationMs": 1734,
+      "maximumResidentBytes": 183828480,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 8,
+      "logicalMinute": 120,
+      "durationMs": 1706,
+      "maximumResidentBytes": 185286656,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 9,
+      "logicalMinute": 135,
+      "durationMs": 1711,
+      "maximumResidentBytes": 181321728,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 10,
+      "logicalMinute": 150,
+      "durationMs": 1717,
+      "maximumResidentBytes": 184811520,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 11,
+      "logicalMinute": 165,
+      "durationMs": 1744,
+      "maximumResidentBytes": 184074240,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 12,
+      "logicalMinute": 180,
+      "durationMs": 1726,
+      "maximumResidentBytes": 184139776,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 13,
+      "logicalMinute": 195,
+      "durationMs": 1717,
+      "maximumResidentBytes": 184647680,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 14,
+      "logicalMinute": 210,
+      "durationMs": 1736,
+      "maximumResidentBytes": 185253888,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 15,
+      "logicalMinute": 225,
+      "durationMs": 1729,
+      "maximumResidentBytes": 184745984,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 16,
+      "logicalMinute": 240,
+      "durationMs": 1749,
+      "maximumResidentBytes": 184025088,
+      "exitCode": 0,
+      "passed": true
+    }
+  ]
+}

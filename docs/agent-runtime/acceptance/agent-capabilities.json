@@ -1,0 +1,1322 @@
+{
+  "schemaVersion": 8,
+  "source": "drifting-final-product-contract",
+  "product": {
+    "runtimeHost": "tauri-renderer",
+    "providerNeutralProtocol": true,
+    "contextWindowTokens": 200000,
+    "dynamicToolRegistration": "project-scoped-runtime"
+  },
+  "installedModelTools": {
+    "total": 45,
+    "read": 24,
+    "write": 21,
+    "entries": [
+      {
+        "name": "append_paragraph",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "medium",
+        "effect": "prose",
+        "approval": "review_after",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "ask_user",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "runtime-control",
+        "certification": "internal-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "create_comment",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "low",
+        "effect": "annotation",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "create_element_patch",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "medium",
+        "effect": "canon",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "delete_element_patch",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "high",
+        "effect": "canon",
+        "approval": "confirm_before",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "delete_file",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "workspace-facade",
+        "certification": "internal-certified",
+        "risk": "high",
+        "effect": "destructive",
+        "approval": "confirm_before",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "edit_block",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "medium",
+        "effect": "prose",
+        "approval": "review_after",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "edit_blocks",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "medium",
+        "effect": "prose",
+        "approval": "review_after",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "edit_file",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "workspace-facade",
+        "certification": "internal-certified",
+        "risk": "medium",
+        "effect": "prose",
+        "approval": "review_after",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "get_element_patches",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "get_entity_relations",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "get_overview",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "get_project_brief",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "get_storyline",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "grep",
+        "access": "read",
+        "owner": "workspace-runtime",
+        "surface": "workspace-facade",
+        "certification": "internal-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "insert_blocks",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "medium",
+        "effect": "prose",
+        "approval": "review_after",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "list_comments",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "list_elements",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "list_files",
+        "access": "read",
+        "owner": "workspace-runtime",
+        "surface": "workspace-facade",
+        "certification": "internal-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "list_materials",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "list_memory",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "list_nodes",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "lookup_block",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "read_block",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "read_element",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "read_file",
+        "access": "read",
+        "owner": "workspace-runtime",
+        "surface": "workspace-facade",
+        "certification": "internal-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "read_material",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "read_node",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "read_task_plan",
+        "access": "read",
+        "owner": "long-task-runtime",
+        "surface": "long-task-runtime",
+        "certification": "runtime-certified",
+        "risk": "runtime-owned",
+        "effect": "task-state",
+        "approval": "runtime-owned",
+        "revertStrategy": "runtime-owned"
+      },
+      {
+        "name": "read_tool_result",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "runtime-control",
+        "certification": "internal-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "remove_blocks",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "high",
+        "effect": "prose",
+        "approval": "review_after",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "rename_node",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "low",
+        "effect": "canon",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "replace_block_range",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "high",
+        "effect": "prose",
+        "approval": "review_after",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "search_project",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "search_prose",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "set_node_summary",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "low",
+        "effect": "canon",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "update_element",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "medium",
+        "effect": "canon",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "update_element_patch",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "medium",
+        "effect": "canon",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "update_project_facts",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "high",
+        "effect": "canon",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "update_storyline",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "write-certified",
+        "risk": "medium",
+        "effect": "canon",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "update_task_constraint",
+        "access": "write",
+        "owner": "long-task-runtime",
+        "surface": "long-task-runtime",
+        "certification": "runtime-certified",
+        "risk": "runtime-owned",
+        "effect": "task-state",
+        "approval": "runtime-owned",
+        "revertStrategy": "runtime-owned"
+      },
+      {
+        "name": "update_task_plan",
+        "access": "write",
+        "owner": "long-task-runtime",
+        "surface": "long-task-runtime",
+        "certification": "runtime-certified",
+        "risk": "runtime-owned",
+        "effect": "task-state",
+        "approval": "runtime-owned",
+        "revertStrategy": "runtime-owned"
+      },
+      {
+        "name": "update_task_step",
+        "access": "write",
+        "owner": "long-task-runtime",
+        "surface": "long-task-runtime",
+        "certification": "runtime-certified",
+        "risk": "runtime-owned",
+        "effect": "task-state",
+        "approval": "runtime-owned",
+        "revertStrategy": "runtime-owned"
+      },
+      {
+        "name": "where_does_entity_appear",
+        "access": "read",
+        "owner": "drifting-runtime",
+        "surface": "catalog-direct",
+        "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "write_file",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "workspace-facade",
+        "certification": "internal-certified",
+        "risk": "medium",
+        "effect": "canon",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      }
+    ]
+  },
+  "directCatalogWrites": {
+    "total": 34,
+    "certified": 15,
+    "unavailable": 19,
+    "certifiedNames": [
+      "append_paragraph",
+      "create_comment",
+      "create_element_patch",
+      "delete_element_patch",
+      "edit_block",
+      "edit_blocks",
+      "insert_blocks",
+      "remove_blocks",
+      "rename_node",
+      "replace_block_range",
+      "set_node_summary",
+      "update_element",
+      "update_element_patch",
+      "update_project_facts",
+      "update_storyline"
+    ],
+    "unavailableNames": [
+      "add_relation",
+      "create_category",
+      "create_element",
+      "create_node",
+      "create_storyline",
+      "delete_comment",
+      "delete_element",
+      "forget",
+      "link_chapter_to_storyline",
+      "remember",
+      "remove_relation",
+      "set_comment_kind",
+      "set_comment_status",
+      "set_entity_body",
+      "set_primary_storyline",
+      "set_summary",
+      "unlink_chapter_from_storyline",
+      "update_category",
+      "update_relation_kind"
+    ]
+  },
+  "workspaceFacade": {
+    "providerTools": [
+      "list_files",
+      "read_file",
+      "grep",
+      "edit_file",
+      "write_file",
+      "delete_file"
+    ],
+    "hiddenDomainOperations": [
+      "edit_prose_file",
+      "rename_node",
+      "set_node_summary",
+      "update_element",
+      "update_storyline",
+      "update_project_facts",
+      "create_node",
+      "delete_node",
+      "create_element",
+      "delete_element",
+      "create_storyline",
+      "delete_storyline",
+      "create_category",
+      "update_category",
+      "delete_category",
+      "create_comment",
+      "update_comment",
+      "delete_comment",
+      "add_relation",
+      "update_relation_kind",
+      "remove_relation",
+      "set_storyline_membership",
+      "remember",
+      "update_memory",
+      "forget"
+    ]
+  },
+  "domainCrud": {
+    "totalDomains": 9,
+    "closedLifecycleOperations": 43,
+    "entries": [
+      {
+        "domain": "node",
+        "workspacePaths": [
+          "/chapters/<chapter>/**",
+          "/drifts/<drift>/**"
+        ],
+        "operations": {
+          "create": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "create_node"
+            ],
+            "approval": "automatic",
+            "authority": "yjs_sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "list_files",
+              "read_file",
+              "grep"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "yjs_sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "edit_prose_file",
+              "rename_node",
+              "set_node_summary"
+            ],
+            "approval": "automatic_or_inline_review",
+            "authority": "yjs_sqlite"
+          },
+          "delete": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "delete_node"
+            ],
+            "approval": "confirm_before",
+            "authority": "yjs_sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [
+              "create_node",
+              "edit_prose_file",
+              "rename_node",
+              "set_node_summary",
+              "delete_node"
+            ],
+            "approval": "not_applicable",
+            "authority": "yjs_sqlite"
+          }
+        }
+      },
+      {
+        "domain": "element",
+        "workspacePaths": [
+          "/elements/<category>/<element>/**"
+        ],
+        "operations": {
+          "create": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "create_element"
+            ],
+            "approval": "automatic",
+            "authority": "yjs_sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "list_files",
+              "read_file",
+              "grep"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "yjs_sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "edit_prose_file",
+              "update_element"
+            ],
+            "approval": "automatic_or_inline_review",
+            "authority": "yjs_sqlite"
+          },
+          "delete": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "delete_element"
+            ],
+            "approval": "confirm_before",
+            "authority": "yjs_sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [
+              "create_element",
+              "edit_prose_file",
+              "update_element",
+              "delete_element"
+            ],
+            "approval": "not_applicable",
+            "authority": "yjs_sqlite"
+          }
+        }
+      },
+      {
+        "domain": "storyline",
+        "workspacePaths": [
+          "/storylines/<storyline>/**"
+        ],
+        "operations": {
+          "create": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "create_storyline"
+            ],
+            "approval": "automatic",
+            "authority": "yjs_sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "list_files",
+              "read_file",
+              "grep"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "yjs_sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "edit_prose_file",
+              "update_storyline"
+            ],
+            "approval": "automatic_or_inline_review",
+            "authority": "yjs_sqlite"
+          },
+          "delete": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "delete_storyline"
+            ],
+            "approval": "confirm_before",
+            "authority": "yjs_sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [
+              "create_storyline",
+              "edit_prose_file",
+              "update_storyline",
+              "delete_storyline"
+            ],
+            "approval": "not_applicable",
+            "authority": "yjs_sqlite"
+          }
+        }
+      },
+      {
+        "domain": "category",
+        "workspacePaths": [
+          "/categories/<category>/**"
+        ],
+        "operations": {
+          "create": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "create_category"
+            ],
+            "approval": "automatic",
+            "authority": "yjs_sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "list_files",
+              "read_file",
+              "grep"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "yjs_sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "edit_prose_file",
+              "update_category"
+            ],
+            "approval": "automatic_or_inline_review",
+            "authority": "yjs_sqlite"
+          },
+          "delete": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "delete_category"
+            ],
+            "approval": "confirm_before",
+            "authority": "yjs_sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [
+              "create_category",
+              "edit_prose_file",
+              "update_category",
+              "delete_category"
+            ],
+            "approval": "not_applicable",
+            "authority": "yjs_sqlite"
+          }
+        }
+      },
+      {
+        "domain": "comment_todo",
+        "workspacePaths": [
+          "/comments/<commentId>.json"
+        ],
+        "operations": {
+          "create": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "create_comment"
+            ],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "list_files",
+              "read_file"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "update_comment"
+            ],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "delete": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "delete_comment"
+            ],
+            "approval": "confirm_before",
+            "authority": "sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [
+              "create_comment",
+              "update_comment",
+              "delete_comment"
+            ],
+            "approval": "not_applicable",
+            "authority": "sqlite"
+          }
+        }
+      },
+      {
+        "domain": "entity_relation",
+        "workspacePaths": [
+          "/relations/<relationId>.json"
+        ],
+        "operations": {
+          "create": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "add_relation"
+            ],
+            "approval": "confirm_before",
+            "authority": "sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "list_files",
+              "read_file"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "update_relation_kind"
+            ],
+            "approval": "confirm_before",
+            "authority": "sqlite"
+          },
+          "delete": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "remove_relation"
+            ],
+            "approval": "confirm_before",
+            "authority": "sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [
+              "add_relation",
+              "update_relation_kind",
+              "remove_relation"
+            ],
+            "approval": "not_applicable",
+            "authority": "sqlite"
+          }
+        }
+      },
+      {
+        "domain": "storyline_membership",
+        "workspacePaths": [
+          "/storylines/<storyline>/chapters.json"
+        ],
+        "operations": {
+          "create": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "set_storyline_membership"
+            ],
+            "approval": "confirm_before",
+            "authority": "sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "list_files",
+              "read_file"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "set_storyline_membership"
+            ],
+            "approval": "confirm_before",
+            "authority": "sqlite"
+          },
+          "delete": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "set_storyline_membership"
+            ],
+            "approval": "confirm_before",
+            "authority": "sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [
+              "set_storyline_membership"
+            ],
+            "approval": "not_applicable",
+            "authority": "sqlite"
+          }
+        }
+      },
+      {
+        "domain": "agent_memory",
+        "workspacePaths": [
+          "/memory.json",
+          "/memory/<memoryId>.json"
+        ],
+        "operations": {
+          "create": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "remember"
+            ],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "list_files",
+              "read_file"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "update_memory"
+            ],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "delete": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "forget"
+            ],
+            "approval": "confirm_before",
+            "authority": "sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [
+              "remember",
+              "update_memory",
+              "forget"
+            ],
+            "approval": "not_applicable",
+            "authority": "sqlite"
+          }
+        }
+      },
+      {
+        "domain": "project_facts",
+        "workspacePaths": [
+          "/project/facts.json"
+        ],
+        "operations": {
+          "create": {
+            "status": "not_applicable",
+            "providerTools": [],
+            "hiddenCommands": [],
+            "approval": "not_applicable",
+            "authority": "sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "read_file"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "edit_file",
+              "write_file",
+              "delete_file"
+            ],
+            "hiddenCommands": [
+              "update_project_facts"
+            ],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "delete": {
+            "status": "not_applicable",
+            "providerTools": [],
+            "hiddenCommands": [],
+            "approval": "not_applicable",
+            "authority": "sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [
+              "update_project_facts"
+            ],
+            "approval": "not_applicable",
+            "authority": "sqlite"
+          }
+        }
+      }
+    ]
+  },
+  "longTaskTools": [
+    "read_task_plan",
+    "update_task_plan",
+    "update_task_step",
+    "update_task_constraint"
+  ],
+  "longTaskExecution": {
+    "defaultTaskBudgets": "unlimited",
+    "continuationAuthorization": "renderer-lifetime-author-action",
+    "stopBoundary": "after-current-tool",
+    "steeringBoundary": "next-model-iteration-exactly-once",
+    "restartBehavior": "durable-plan-manual-reauthorization",
+    "manifestPolicy": "detect-explicitly-reconcile-before-completion",
+    "completionPolicy": "current-manifest-plus-work-kind-evidence",
+    "automaticContinuationPrompts": "model-visible-transcript-hidden",
+    "stagnantSliceWatchdog": 2
+  },
+  "contextEngineering": {
+    "providerProfile": {
+      "id": "deepseek-v4-flash:drifting-context-v1",
+      "contextWindowTokens": 200000,
+      "maxOutputTokens": 8192,
+      "providerOverheadTokens": 512,
+      "perToolOverheadTokens": 8
+    },
+    "undeclaredProviderWindowTokens": 32768,
+    "compaction": {
+      "summarySchemaVersion": 1,
+      "exactCitationKinds": [
+        "canon_fact",
+        "character_voice",
+        "author_decision",
+        "write_outcome",
+        "task_progress",
+        "unresolved"
+      ],
+      "constraintRetention": "exact-source-hash-witness",
+      "conflictPolicy": "block-write-until-durable-ask-user-confirmation"
+    },
+    "evidenceRetrieval": "weighted-cjk-latin-relevance-with-freshness-provenance",
+    "resultArtifacts": "sqlite-hash-verified-unicode-paging-across-restart"
+  },
+  "userCheckpoint": {
+    "authority": "sqlite-user-checkpoint-plus-live-yjs",
+    "automaticBoundary": "before-agent-tool-execution",
+    "conversationFork": "new-route-with-durable-checkpoint-context",
+    "preview": "durable-one-use-token-plus-all-entity-hash-witness",
+    "overwritePolicy": "explicit-preview-confirmation-only",
+    "concurrencyPolicy": "compare-and-set-before-each-write-and-final-verification",
+    "multiEntityAtomicity": "durable-saga-with-reverse-compensation",
+    "restartRecovery": "compensate-incomplete-with-author-edit-precedence",
+    "proseVerification": "canonical-content-hash-not-yjs-binary-identity",
+    "capturedContext": "conversation-provider-history-long-task-accepted-writes-yjs-revision-state-vector",
+    "manuscriptScope": "node-element-storyline-category-prose-and-restorable-metadata"
+  },
+  "writingIntelligence": {
+    "authoringFocus": "focused-editor-entity-selection-block-and-nearby-prose",
+    "explicitTargetResolution": "product-owned-current-name-alias-to-canonical-entity-set",
+    "ambiguityPolicy": "unresolved-deictic-mutation-blocks-write-and-asks-user",
+    "scopePolicy": "focus-bound-prose-write-fails-closed-outside-exact-span-or-block",
+    "defaultRewritePreservation": "plot-canon-chronology-pov-tense-author-voice",
+    "voiceEvidence": "exact-nearby-prose-plus-diagnostic-style-profile",
+    "canonPolicy": "authored-canon-and-temporal-patch-only",
+    "canonProseGate": "patch-required-prose-mutation-fails-closed-until-new-author-turn",
+    "reviewTaskEvidence": "exact-target-read-plus-structured-cited-review-result",
+    "semanticSummary": "claim-kind-plus-exact-source-citations"
+  },
+  "providerExtensionPlatform": {
+    "certifiedProviders": [
+      {
+        "provider": "deepseek",
+        "models": [
+          "deepseek-v4-flash",
+          "deepseek-v4-pro"
+        ]
+      },
+      {
+        "provider": "anthropic",
+        "models": [
+          "claude-sonnet-5",
+          "claude-haiku-4-5-20251001"
+        ]
+      },
+      {
+        "provider": "openai",
+        "models": [
+          "gpt-4.1",
+          "gpt-4.1-mini"
+        ]
+      }
+    ],
+    "mcpProtocolVersion": "2025-06-18",
+    "transports": [
+      "stdio",
+      "streamable_http"
+    ],
+    "stdioTargets": "desktop-only-native-child-host",
+    "httpTargets": "desktop-ios-android-native-request-host",
+    "configuration": "project-scoped-settings-with-health-reconnect-disable",
+    "secrets": "provider-and-extension-secrets-in-native-keychain",
+    "grants": "exact-project-server-tool-schema-arguments-scope-durable-revocable",
+    "lifecycle": "generation-isolated-no-tool-call-replay-fail-closed"
+  },
+  "nativeEnduranceAcceptance": {
+    "mobileBuilds": "ios-aarch64-simulator-and-android-aarch64-debug",
+    "endurance": "resumable-4h-16-epoch-and-12h-48-epoch-workload-equivalent",
+    "cadence": "15-logical-minutes-per-fresh-process-epoch",
+    "privateProse": "read-only-never-persisted-in-report"
+  },
+  "deferredProductCapabilities": [
+    "native-interactive-device-visual-smoke",
+    "subagent-orchestration"
+  ]
+}

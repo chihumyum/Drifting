@@ -1,0 +1,166 @@
+{
+  "suite": "milestone-c-durable-commit-and-inline-review",
+  "schemaVersion": 1,
+  "nodeVersion": "v22.23.1",
+  "platform": "darwin",
+  "gitHead": "76ce19ebd113aa5111737fd9f73de07122932f51",
+  "sourceSetSha256": "sha256:a02941dc8dad32368ab1fe126b03468c32b4c12cb02646386812ee41e47e07eb",
+  "storageReplay": {
+    "sqlite": "real file-backed SQLite with product migrations and injected transaction faults",
+    "prose": "real Yjs snapshots/updates and guarded block inverses",
+    "localProjection": "Zustand/localStorage state deliberately cleared and rebuilt",
+    "networkRequired": false
+  },
+  "vitest": {
+    "files": {
+      "required": 11,
+      "discovered": 11
+    },
+    "tests": {
+      "total": 67,
+      "passed": 67,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0
+    },
+    "groups": {
+      "turnCommitAndContextAdoption": {
+        "requiredFiles": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 24,
+          "passed": 24,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "writeAndReviewLedger": {
+        "requiredFiles": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 19,
+          "passed": 19,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "fileSqliteAndYjsProduct": {
+        "requiredFiles": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 14,
+          "passed": 14,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "editorProjectionAndAnimation": {
+        "requiredFiles": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      }
+    },
+    "requiredAssertions": {
+      "transientTurnCommitRetry": {
+        "requiredName": "retries an idempotent durable commit before publishing the completed terminal",
+        "matches": 1,
+        "passed": true
+      },
+      "permanentTurnCommitFailClosed": {
+        "requiredName": "fails the live canonical terminal closed when the completed turn cannot commit",
+        "matches": 1,
+        "passed": true
+      },
+      "lostSqliteCommitAcknowledgement": {
+        "requiredName": "adopts one exact history when SQLite committed but the first commit acknowledgement was lost",
+        "matches": 1,
+        "passed": true
+      },
+      "orderedBlockLedger": {
+        "requiredName": "persists ordered block decisions, atomically settles mixed/all-reverted reviews, and upgrades pending legacy rows",
+        "matches": 1,
+        "passed": true
+      },
+      "runtimeBlockRecovery": {
+        "requiredName": "settles prose review blocks durably and retries an entered block inverse during project hydration",
+        "matches": 1,
+        "passed": true
+      },
+      "legacyReviewUpgrade": {
+        "requiredName": "backfills ordered blocks for a pending pre-0071 prose review",
+        "matches": 1,
+        "passed": true
+      },
+      "localProjectionLoss": {
+        "requiredName": "rebuilds a lost inline review from file SQLite and settles mixed blocks against Yjs",
+        "matches": 1,
+        "passed": true
+      },
+      "postYjsSettlementFault": {
+        "requiredName": "recovers when Yjs reverted but the durable block-settlement acknowledgement failed",
+        "matches": 1,
+        "passed": true
+      },
+      "unrelatedAuthorEdit": {
+        "requiredName": "preserves unrelated author edits while reverting only the certified Agent block",
+        "matches": 1,
+        "passed": true
+      },
+      "sameBlockAuthorConflict": {
+        "requiredName": "refuses to overwrite author text changed after the Agent edit",
+        "matches": 1,
+        "passed": true
+      },
+      "yjsPersistenceRetry": {
+        "requiredName": "retries idempotently when Yjs changed but the first persistence acknowledgement failed",
+        "matches": 1,
+        "passed": true
+      },
+      "rejectedAnimationDirection": {
+        "requiredName": "turns every bulk rejection into the visible inverse animation",
+        "matches": 1,
+        "passed": true
+      },
+      "sqliteProjectionWins": {
+        "requiredName": "replaces stale local decisions with the exact SQLite-backed projection",
+        "matches": 1,
+        "passed": true
+      }
+    },
+    "process": {
+      "exitCode": 0,
+      "signal": null
+    },
+    "passed": true
+  },
+  "typecheck": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "lint": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "capabilities": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "boundaries": {
+    "nativeAnimationAppearance": "direction and selection are deterministic; visual smoothness remains user/native acceptance",
+    "deviceRestart": "file/process restart is headless; platform lifecycle acceptance remains milestone J",
+    "providerNetwork": "not required for storage semantics; multi-provider conformance remains milestone I"
+  },
+  "passed": true
+}

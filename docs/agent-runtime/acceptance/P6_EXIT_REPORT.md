@@ -1,5 +1,9 @@
 # P6：产品可用 Agent 闭环验收
 
+> 这是 P6 当时 checkout 的历史验收记录。当前工具数量、context、长任务和待办边界以
+> [`agent-capabilities.md`](agent-capabilities.md) 与
+> [`CURRENT_STATUS.md`](CURRENT_STATUS.md) 为准。
+
 日期：2026-07-31
 
 ## 结论

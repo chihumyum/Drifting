@@ -10,29 +10,18 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const coreDir = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-);
+const coreDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const serverEnvPath = path.resolve(coreDir, '..', 'private service', '.env');
-const vitestEntry = path.resolve(
-  coreDir,
-  '..',
-  'node_modules',
-  'vitest',
-  'vitest.mjs',
-);
+const vitestEntry = path.resolve(coreDir, '..', 'node_modules', 'vitest', 'vitest.mjs');
 const suite = process.env.DRIFTING_AGENT_LIVE_SUITE ?? 'p1';
 const evalFiles = {
   p1: 'src/renderer/lib/agent/runtime/eval/p1-deepseek-live.eval.ts',
-  'product-canary':
-    'src/renderer/lib/agent/runtime/eval/agent-product-canary.live.eval.ts',
+  'product-canary': 'src/renderer/lib/agent/runtime/eval/agent-product-canary.live.eval.ts',
+  'writing-canary': 'src/renderer/lib/agent/runtime/eval/agent-writing-canary.live.eval.ts',
 };
 const evalFile = evalFiles[suite];
 if (!evalFile) {
-  console.error(
-    'DRIFTING_AGENT_LIVE_SUITE must be "p1" or "product-canary".',
-  );
+  console.error('DRIFTING_AGENT_LIVE_SUITE must be "p1", "product-canary", or "writing-canary".');
   process.exitCode = 1;
   process.exit();
 }
@@ -41,18 +30,14 @@ let envSource;
 try {
   envSource = await readFile(serverEnvPath, 'utf8');
 } catch {
-  console.error(
-    'P1 live eval requires private-service/.env (file was not readable).',
-  );
+  console.error('P1 live eval requires private-service/.env (file was not readable).');
   process.exitCode = 1;
   process.exit();
 }
 
 const apiKey = readEnvValue(envSource, 'DEEPSEEK_AI_API_KEY');
 if (!apiKey) {
-  console.error(
-    'P1 live eval requires DEEPSEEK_AI_API_KEY in private-service/.env.',
-  );
+  console.error('P1 live eval requires DEEPSEEK_AI_API_KEY in private-service/.env.');
   process.exitCode = 1;
   process.exit();
 }
@@ -90,16 +75,11 @@ child.once('exit', (code, signal) => {
 
 function readEnvValue(source, name) {
   for (const line of source.split(/\r?\n/u)) {
-    const match = line.match(
-      new RegExp(`^\\s*(?:export\\s+)?${name}\\s*=\\s*(.*)$`, 'u'),
-    );
+    const match = line.match(new RegExp(`^\\s*(?:export\\s+)?${name}\\s*=\\s*(.*)$`, 'u'));
     if (!match) continue;
     const raw = match[1].trim();
     if (!raw) return '';
-    if (
-      (raw.startsWith('"') && raw.endsWith('"')) ||
-      (raw.startsWith("'") && raw.endsWith("'"))
-    ) {
+    if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
       return raw.slice(1, -1);
     }
     return raw.replace(/\s+#.*$/u, '').trim();

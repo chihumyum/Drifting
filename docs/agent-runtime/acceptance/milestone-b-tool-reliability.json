@@ -1,0 +1,157 @@
+{
+  "suite": "milestone-b-agent-tool-reliability",
+  "schemaVersion": 1,
+  "nodeVersion": "v22.23.1",
+  "platform": "darwin",
+  "gitHead": "76ce19ebd113aa5111737fd9f73de07122932f51",
+  "sourceSetSha256": "sha256:bdf21b5a1448688969a79692a80b621861ad827bb08a2c342f435635a5c9c964",
+  "providerReplay": {
+    "kind": "deterministic-captured-wire-shape",
+    "networkRequired": false,
+    "characterChunking": true,
+    "interleavedToolCalls": true
+  },
+  "vitest": {
+    "files": {
+      "required": 8,
+      "discovered": 8
+    },
+    "tests": {
+      "total": 134,
+      "passed": 134,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0
+    },
+    "groups": {
+      "providerStreamAndScheduling": {
+        "requiredFiles": 1,
+        "discoveredFiles": 1,
+        "tests": {
+          "total": 33,
+          "passed": 33,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "searchRepairAliasAndLease": {
+        "requiredFiles": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 27,
+          "passed": 27,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "idempotencyAndRecovery": {
+        "requiredFiles": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 42,
+          "passed": 42,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "compactionContinuity": {
+        "requiredFiles": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 32,
+          "passed": 32,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      }
+    },
+    "requiredAssertions": {
+      "fragmentedArguments": {
+        "requiredName": "assembles fragmented arguments, journals normalized input, and continues after a tool",
+        "matches": 1,
+        "passed": true
+      },
+      "interleavedParallelArguments": {
+        "requiredName": "assembles character-streamed arguments for interleaved parallel tool calls",
+        "matches": 1,
+        "passed": true
+      },
+      "adjacentReadConcurrency": {
+        "requiredName": "runs adjacent reads concurrently while preserving write barriers and result order",
+        "matches": 1,
+        "passed": true
+      },
+      "crossRuntimeWriteSerialization": {
+        "requiredName": "serializes writes across concurrent runtime instances",
+        "matches": 1,
+        "passed": true
+      },
+      "omittedToolRepairLease": {
+        "requiredName": "leases an omitted installed tool into the next iteration for one repair attempt",
+        "matches": 1,
+        "passed": true
+      },
+      "invalidArgumentsRepairLease": {
+        "requiredName": "leases a schema-invalid tool until corrected arguments execute successfully",
+        "matches": 1,
+        "passed": true
+      },
+      "trueUnknownFailClosed": {
+        "requiredName": "does not lease a truly unknown hallucinated tool",
+        "matches": 1,
+        "passed": true
+      },
+      "executableAliasNormalization": {
+        "requiredName": "normalizes an executable legacy dispatcher alias before validation and execution",
+        "matches": 1,
+        "passed": true
+      },
+      "builtInDefinitionLease": {
+        "requiredName": "binds built-in execution to the exact definition leased for the turn",
+        "matches": 1,
+        "passed": true
+      },
+      "durableDuplicateReplay": {
+        "requiredName": "persists one authorized effect and replays duplicates without mutation or post-write review",
+        "matches": 1,
+        "passed": true
+      },
+      "recoveryIdempotency": {
+        "requiredName": "materializes recovery transitions idempotently",
+        "matches": 1,
+        "passed": true
+      },
+      "postCompactionToolContinuity": {
+        "requiredName": "keeps the selected tool executable on the iteration after verified compaction",
+        "matches": 1,
+        "passed": true
+      },
+      "danglingTopologyFailClosed": {
+        "requiredName": "fails closed on dangling canonical tool topology before any compactor runs",
+        "matches": 1,
+        "passed": true
+      }
+    },
+    "process": {
+      "exitCode": 0,
+      "signal": null
+    },
+    "passed": true
+  },
+  "typecheck": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "boundaries": {
+    "liveProviderNetworkCall": "not required; provider conformance belongs to milestone I",
+    "nativeUiSmoke": "not required; native acceptance belongs to milestone J",
+    "retries": "one-iteration schema repair lease; repeated identical all-failed rounds still force honest synthesis",
+    "taskBudgets": "no tool-round or task-token ceiling was added by this milestone"
+  },
+  "passed": true
+}

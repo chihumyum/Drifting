@@ -1,0 +1,417 @@
+{
+  "suite": "milestone-j-real-book-endurance",
+  "schemaVersion": 1,
+  "profile": "12h",
+  "mode": "accelerated-15-minute-workload-equivalent",
+  "sourceSetSha256": "sha256:88dd4aaf099b4cbe85279e0457fec08567e2ac3cd683b57f2bd9a16422675ed7",
+  "targetLogicalHours": 12,
+  "targetEpochs": 48,
+  "completedEpochs": 48,
+  "logicalMinutesCompleted": 720,
+  "wallClockMs": 83681,
+  "maximumResidentBytes": 186138624,
+  "testsPerEpoch": [
+    "src/renderer/lib/agent/runtime/acceptance/milestone-h-writing-intelligence.acceptance.test.ts",
+    "src/renderer/lib/agent/runtime/long-task-auto-continuation.test.ts",
+    "src/renderer/lib/agent/runtime/repository-transport-persistence-v2.integration.test.ts",
+    "src/renderer/lib/agent/runtime/mcp-http.integration.test.ts",
+    "src/renderer/sqlite-repo/agent-extension-repo.integration.test.ts"
+  ],
+  "faultCoverage": [
+    "renderer-process-restart-and-checkpoint-recovery",
+    "lost-commit-acknowledgement-and-corrupt-checkpoint",
+    "automatic-continuation-stop-steer-stagnation",
+    "mcp-http-session-timeout-and-cancellation",
+    "durable-grant-reopen-config-drift-and-concurrency",
+    "real-local-manuscript-read-only-voice-and-citation-oracle"
+  ],
+  "privateProsePersisted": false,
+  "networkRequired": false,
+  "passed": true,
+  "epochs": [
+    {
+      "epoch": 1,
+      "logicalMinute": 15,
+      "durationMs": 1751,
+      "maximumResidentBytes": 184991744,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 2,
+      "logicalMinute": 30,
+      "durationMs": 1719,
+      "maximumResidentBytes": 183959552,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 3,
+      "logicalMinute": 45,
+      "durationMs": 1733,
+      "maximumResidentBytes": 184188928,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 4,
+      "logicalMinute": 60,
+      "durationMs": 1727,
+      "maximumResidentBytes": 185450496,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 5,
+      "logicalMinute": 75,
+      "durationMs": 1735,
+      "maximumResidentBytes": 183713792,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 6,
+      "logicalMinute": 90,
+      "durationMs": 1738,
+      "maximumResidentBytes": 185384960,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 7,
+      "logicalMinute": 105,
+      "durationMs": 1765,
+      "maximumResidentBytes": 183730176,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 8,
+      "logicalMinute": 120,
+      "durationMs": 1736,
+      "maximumResidentBytes": 184991744,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 9,
+      "logicalMinute": 135,
+      "durationMs": 1730,
+      "maximumResidentBytes": 183861248,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 10,
+      "logicalMinute": 150,
+      "durationMs": 1749,
+      "maximumResidentBytes": 184418304,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 11,
+      "logicalMinute": 165,
+      "durationMs": 1779,
+      "maximumResidentBytes": 184254464,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 12,
+      "logicalMinute": 180,
+      "durationMs": 1747,
+      "maximumResidentBytes": 184729600,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 13,
+      "logicalMinute": 195,
+      "durationMs": 1747,
+      "maximumResidentBytes": 184008704,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 14,
+      "logicalMinute": 210,
+      "durationMs": 1759,
+      "maximumResidentBytes": 184467456,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 15,
+      "logicalMinute": 225,
+      "durationMs": 1737,
+      "maximumResidentBytes": 184238080,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 16,
+      "logicalMinute": 240,
+      "durationMs": 1806,
+      "maximumResidentBytes": 184254464,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 17,
+      "logicalMinute": 255,
+      "durationMs": 1728,
+      "maximumResidentBytes": 183975936,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 18,
+      "logicalMinute": 270,
+      "durationMs": 1744,
+      "maximumResidentBytes": 185253888,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 19,
+      "logicalMinute": 285,
+      "durationMs": 1743,
+      "maximumResidentBytes": 185057280,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 20,
+      "logicalMinute": 300,
+      "durationMs": 1739,
+      "maximumResidentBytes": 185040896,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 21,
+      "logicalMinute": 315,
+      "durationMs": 1740,
+      "maximumResidentBytes": 184320000,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 22,
+      "logicalMinute": 330,
+      "durationMs": 1723,
+      "maximumResidentBytes": 183943168,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 23,
+      "logicalMinute": 345,
+      "durationMs": 1742,
+      "maximumResidentBytes": 175734784,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 24,
+      "logicalMinute": 360,
+      "durationMs": 1736,
+      "maximumResidentBytes": 184598528,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 25,
+      "logicalMinute": 375,
+      "durationMs": 1735,
+      "maximumResidentBytes": 184958976,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 26,
+      "logicalMinute": 390,
+      "durationMs": 1768,
+      "maximumResidentBytes": 183730176,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 27,
+      "logicalMinute": 405,
+      "durationMs": 1744,
+      "maximumResidentBytes": 184844288,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 28,
+      "logicalMinute": 420,
+      "durationMs": 1743,
+      "maximumResidentBytes": 184287232,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 29,
+      "logicalMinute": 435,
+      "durationMs": 1727,
+      "maximumResidentBytes": 184745984,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 30,
+      "logicalMinute": 450,
+      "durationMs": 1742,
+      "maximumResidentBytes": 184156160,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 31,
+      "logicalMinute": 465,
+      "durationMs": 1728,
+      "maximumResidentBytes": 184909824,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 32,
+      "logicalMinute": 480,
+      "durationMs": 1726,
+      "maximumResidentBytes": 185270272,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 33,
+      "logicalMinute": 495,
+      "durationMs": 1746,
+      "maximumResidentBytes": 181207040,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 34,
+      "logicalMinute": 510,
+      "durationMs": 1733,
+      "maximumResidentBytes": 185532416,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 35,
+      "logicalMinute": 525,
+      "durationMs": 1751,
+      "maximumResidentBytes": 184385536,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 36,
+      "logicalMinute": 540,
+      "durationMs": 1751,
+      "maximumResidentBytes": 184172544,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 37,
+      "logicalMinute": 555,
+      "durationMs": 1749,
+      "maximumResidentBytes": 181272576,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 38,
+      "logicalMinute": 570,
+      "durationMs": 1763,
+      "maximumResidentBytes": 185712640,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 39,
+      "logicalMinute": 585,
+      "durationMs": 1721,
+      "maximumResidentBytes": 185139200,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 40,
+      "logicalMinute": 600,
+      "durationMs": 1751,
+      "maximumResidentBytes": 185171968,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 41,
+      "logicalMinute": 615,
+      "durationMs": 1740,
+      "maximumResidentBytes": 183844864,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 42,
+      "logicalMinute": 630,
+      "durationMs": 1723,
+      "maximumResidentBytes": 184221696,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 43,
+      "logicalMinute": 645,
+      "durationMs": 1728,
+      "maximumResidentBytes": 184827904,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 44,
+      "logicalMinute": 660,
+      "durationMs": 1787,
+      "maximumResidentBytes": 184811520,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 45,
+      "logicalMinute": 675,
+      "durationMs": 1755,
+      "maximumResidentBytes": 184188928,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 46,
+      "logicalMinute": 690,
+      "durationMs": 1725,
+      "maximumResidentBytes": 184516608,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 47,
+      "logicalMinute": 705,
+      "durationMs": 1765,
+      "maximumResidentBytes": 186138624,
+      "exitCode": 0,
+      "passed": true
+    },
+    {
+      "epoch": 48,
+      "logicalMinute": 720,
+      "durationMs": 1727,
+      "maximumResidentBytes": 185204736,
+      "exitCode": 0,
+      "passed": true
+    }
+  ]
+}

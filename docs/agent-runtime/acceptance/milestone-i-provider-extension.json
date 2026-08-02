@@ -1,0 +1,71 @@
+{
+  "suite": "milestone-i-provider-extension-platform",
+  "schemaVersion": 1,
+  "nodeVersion": "v22.23.1",
+  "platform": "darwin",
+  "sourceSetSha256": "sha256:5eee4fe8d65ed75a29cbf16309b47b2af666503c0963843af0bf7b23f5914d1b",
+  "vitest": {
+    "files": 17,
+    "tests": 142,
+    "passedTests": 142,
+    "groups": {
+      "providers": {
+        "requiredFiles": 5,
+        "discoveredFiles": 5,
+        "tests": 41,
+        "passed": true
+      },
+      "mcpProtocolAndLifecycle": {
+        "requiredFiles": 5,
+        "discoveredFiles": 5,
+        "tests": 28,
+        "passed": true
+      },
+      "durableAuthorityAndProduct": {
+        "requiredFiles": 7,
+        "discoveredFiles": 7,
+        "tests": 73,
+        "passed": true
+      }
+    },
+    "passed": true
+  },
+  "typecheck": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "lint": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "capabilities": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "rustMcpProcessAndSecurity": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "rustCheck": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "evidence": {
+    "providerNetworkRequired": false,
+    "stdio": "real-temporary-node-child-process",
+    "streamableHttp": "real-loopback-http-socket-plus-native-host-contract",
+    "persistence": "real-file-sqlite-reopen-and-concurrency",
+    "paidLiveCanary": "explicit-opt-in-only"
+  },
+  "boundaries": {
+    "stdioMobile": "unsupported-by-contract; Streamable HTTP is the mobile extension transport",
+    "serverInitiatedMcp": "sampling, elicitation, roots, subscriptions, and resource prompts are not exposed",
+    "nativeInteraction": "desktop/iOS/Android UI and endurance evidence remains milestone J"
+  },
+  "passed": true
+}

@@ -1,0 +1,251 @@
+{
+  "suite": "milestone-f-literary-context-engineering",
+  "schemaVersion": 1,
+  "nodeVersion": "v22.23.1",
+  "platform": "darwin",
+  "gitHead": "76ce19ebd113aa5111737fd9f73de07122932f51",
+  "sourceSetSha256": "sha256:cf62d656379509125d5ce9a506811b15ff3660ac3138e2efd8baf10503dd2b2a",
+  "corpusPolicy": {
+    "committedTruth": "distilled fog-harbor golden fixture",
+    "privateProse": "read at test runtime only; machine report stores counts and bytes, never prose",
+    "providerNetworkRequired": false
+  },
+  "metrics": {
+    "fixture": {
+      "oracleCases": 59,
+      "privateCorpusAvailable": true,
+      "privateCorpusFiles": 17,
+      "privateCorpusBytes": 297247
+    },
+    "providerContext": {
+      "profileId": "milestone-f-200k-v1",
+      "contextWindowTokens": 200000,
+      "slices": 3,
+      "compactedSlices": 2,
+      "compactorCalls": 22,
+      "medianTokenReduction": 0.7196034856421961,
+      "maxContextWindowRatio": 0.708925,
+      "finalEstimatedInputTokens": 141785
+    },
+    "retrieval": {
+      "canon_fact": {
+        "hits": 34,
+        "total": 34,
+        "recallAt5": 1
+      },
+      "character_voice": {
+        "hits": 8,
+        "total": 8,
+        "recallAt5": 1
+      },
+      "alias": {
+        "hits": 11,
+        "total": 11,
+        "recallAt5": 1
+      },
+      "writing_rule": {
+        "hits": 2,
+        "total": 2,
+        "recallAt5": 1
+      },
+      "chapter_evidence": {
+        "hits": 4,
+        "total": 4,
+        "recallAt5": 1
+      }
+    },
+    "compactionFidelity": {
+      "evidenceHits": 59,
+      "evidenceTotal": 59,
+      "evidenceRecall": 1,
+      "voiceHits": 8,
+      "voiceTotal": 8,
+      "characterVoiceRecall": 1,
+      "constraintHits": 6,
+      "constraintTotal": 6,
+      "constraintRecall": 1,
+      "retentionWitness": "exact",
+      "sourceCoverage": 1
+    },
+    "restart": {
+      "reusedVerifiedSummaries": true,
+      "evidenceRecall": 1
+    },
+    "faultInjection": {
+      "compactorCallsBeforeCircuitOpened": 1,
+      "retriesAfterCircuitOpened": 0
+    },
+    "completionQuality": {
+      "providerIndependentContextScore": 1,
+      "generatedProseJudgment": "deferred_to_milestone_h"
+    }
+  },
+  "metricGates": {
+    "providerContextWindow": true,
+    "realPrivateBook": true,
+    "retrieval": true,
+    "compaction": true,
+    "fidelity": true,
+    "restart": true,
+    "faultCircuit": true,
+    "providerIndependentCompletion": true
+  },
+  "vitest": {
+    "files": {
+      "required": 12,
+      "discovered": 12
+    },
+    "tests": {
+      "total": 82,
+      "passed": 82,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0
+    },
+    "groups": {
+      "realBookAndLongContext": {
+        "requiredFiles": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 2,
+          "passed": 2,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "providerBudgetAndPlanning": {
+        "requiredFiles": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 38,
+          "passed": 38,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "literaryCompactionAndRetrieval": {
+        "requiredFiles": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 11,
+          "passed": 11,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "durablePagingAndRestart": {
+        "requiredFiles": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "longTaskNoDuplicateWrites": {
+        "requiredFiles": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 21,
+          "passed": 21,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      }
+    },
+    "requiredAssertions": {
+      "longBookContext": {
+        "requiredName": "preserves literary evidence and author constraints across 200k multi-slice compaction, restart, and compactor faults",
+        "matches": 1,
+        "passed": true
+      },
+      "realBookRetrieval": {
+        "requiredName": "recalls canon, voice, aliases, writing rules, and chapter evidence from the real-book fixture",
+        "matches": 1,
+        "passed": true
+      },
+      "providerTarget": {
+        "requiredName": "installs the current default driver at the 200k product target",
+        "matches": 1,
+        "passed": true
+      },
+      "providerCannotBeEnlarged": {
+        "requiredName": "never enlarges a smaller provider declaration",
+        "matches": 1,
+        "passed": true
+      },
+      "undeclaredProviderFallback": {
+        "requiredName": "uses a conservative window for an undeclared custom driver",
+        "matches": 1,
+        "passed": true
+      },
+      "exactCompactorEvidence": {
+        "requiredName": "rejects summaries that omit or forge exact evidence from a tool result",
+        "matches": 1,
+        "passed": true
+      },
+      "mixedChunkGain": {
+        "requiredName": "keeps a no-gain short chunk exact while applying profitable full-compactor chunks",
+        "matches": 1,
+        "passed": true
+      },
+      "constraintConfirmation": {
+        "requiredName": "blocks writes on contradictory author facts until ask_user durably confirms the exact conflict",
+        "matches": 1,
+        "passed": true
+      },
+      "artifactRestart": {
+        "requiredName": "pages exact Unicode content after closing and reopening the repository",
+        "matches": 1,
+        "passed": true
+      },
+      "checkpointRestart": {
+        "requiredName": "commits the final assistant atomically, restarts, verifies nested integrity, and resumes canonical history",
+        "matches": 1,
+        "passed": true
+      },
+      "duplicateWriteReplay": {
+        "requiredName": "persists one authorized effect and replays duplicates without mutation or post-write review",
+        "matches": 1,
+        "passed": true
+      },
+      "longTaskIdempotency": {
+        "requiredName": "uses one crash-safe command transaction with exact replay and CAS",
+        "matches": 1,
+        "passed": true
+      }
+    },
+    "process": {
+      "exitCode": 0,
+      "signal": null
+    },
+    "passed": true
+  },
+  "typecheck": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "lint": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "capabilities": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "boundaries": {
+    "generatedProseQuality": "This gate proves context availability and fidelity, not that every provider writes excellent prose; semantic writing judgment is milestone H.",
+    "providerNetwork": "Provider contracts are bounded and deterministic here; live multi-provider conformance is milestone I.",
+    "nativeDevices": "SQLite process restart is covered headlessly; desktop/iOS/Android lifecycle and endurance are milestone J."
+  },
+  "passed": true
+}

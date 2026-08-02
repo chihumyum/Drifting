@@ -1,5 +1,10 @@
 # General Agent headless debug bridge
 
+The dated acceptance snapshot below is historical evidence. Current capability
+counts and milestone boundaries live in
+[`acceptance/agent-capabilities.md`](acceptance/agent-capabilities.md) and
+[`acceptance/CURRENT_STATUS.md`](acceptance/CURRENT_STATUS.md).
+
 This is a development-only control path for exercising the real renderer-owned
 General Agent without clicking through the Agent panel. It does **not** create a
 second runtime: the mounted App still owns the production composition, current
@@ -10,6 +15,142 @@ The local broker accepts a turn over HTTP, the DEV renderer claims it, and the
 caller receives NDJSON containing every canonical journal entry plus a terminal
 summary. Computer Use remains useful for a final UI smoke; it is no longer the
 main tool/runtime evaluation loop.
+
+For provider-independent tool protocol regression, no App or credential is
+needed:
+
+```bash
+pnpm --dir client eval:agent:tool-reliability
+```
+
+This deterministic gate replays fragmented and interleaved provider events,
+schema repair, unknown tools, aliases, definition drift, concurrent scheduling,
+durable idempotency/recovery and post-compaction tool continuity. It writes the
+machine report to
+[`acceptance/milestone-b-tool-reliability.json`](acceptance/milestone-b-tool-reliability.json).
+Use the live bridge below for product-data and real-provider behavior.
+
+For durable turn/write/review regression, including real file SQLite, Yjs,
+localStorage loss, partial block decisions and injected acknowledgement faults:
+
+```bash
+pnpm --dir client eval:agent:durability
+```
+
+The machine report is written to
+[`acceptance/milestone-c-durable-review.json`](acceptance/milestone-c-durable-review.json),
+and its normative state/fault matrix lives in
+[`durable-commit-review-protocol.md`](durable-commit-review-protocol.md).
+
+For complete node/entity/comment/TODO/relation/storyline-membership/memory CRUD,
+guarded inverse, real file SQLite/Yjs, migration, restart and transaction-fault
+regression:
+
+```bash
+pnpm --dir client eval:agent:crud
+```
+
+The machine report is written to
+[`acceptance/milestone-d-domain-crud.json`](acceptance/milestone-d-domain-crud.json),
+and the natural workspace, authority, trust and approval contract lives in
+[`domain-crud-transaction-protocol.md`](domain-crud-transaction-protocol.md).
+
+For durable whole-book plans, manifest drift/reconciliation, safe Stop, exact
+Steer, renderer reauthorization, invisible continuation prompts, unlimited
+progressing slices, stagnation protection, and restart regression:
+
+```bash
+pnpm --dir client eval:agent:long-task
+```
+
+The machine report is written to
+[`acceptance/milestone-e-long-task.json`](acceptance/milestone-e-long-task.json),
+and the normative execution state machine lives in
+[`long-task-execution-protocol.md`](long-task-execution-protocol.md).
+
+For provider-aware 200k budgeting, real-novel evidence recall, structured
+literary compaction, exact author-constraint retention/confirmation, ranked
+search, artifact paging, multi-slice restart and compactor-fault regression:
+
+```bash
+pnpm --dir client eval:agent:context
+```
+
+The machine report is written to
+[`acceptance/milestone-f-context-engineering.json`](acceptance/milestone-f-context-engineering.json).
+Private manuscript prose is read only inside the test process; the report keeps
+only availability, file count and byte count. The normative contract lives in
+[`context-engineering-protocol.md`](context-engineering-protocol.md).
+
+For provider-neutral user checkpoints, conversation forks, protected
+manuscript restore, idempotent replay, concurrent author-edit refusal and
+restart compensation:
+
+```bash
+pnpm --dir client eval:agent:checkpoint
+```
+
+The gate uses the complete product migration set in a real file SQLite database
+with WAL/FULL durability and real Yjs documents. It writes the machine report
+to
+[`acceptance/milestone-g-checkpoint.json`](acceptance/milestone-g-checkpoint.json),
+and its preview-token, compare-and-set, saga and fork-context contract lives in
+[`checkpoint-rewind-protocol.md`](checkpoint-rewind-protocol.md).
+
+For editor-native intent, exact selection/entity scope, canon fail-closed
+behavior, local-manuscript voice mutations and durable cited whole-book review:
+
+```bash
+pnpm --dir client eval:agent:writing
+```
+
+The deterministic gate needs no App, network or API key. It stores aggregate
+local-corpus metrics but no private prose in
+[`acceptance/milestone-h-writing-intelligence.json`](acceptance/milestone-h-writing-intelligence.json).
+Its normative contract lives in
+[`editor-native-writing-protocol.md`](editor-native-writing-protocol.md).
+
+The optional paid provider canary uses only a synthetic chapter and selection:
+
+```bash
+pnpm --dir client eval:agent:writing:live
+```
+
+It reads `DEEPSEEK_AI_API_KEY` from `private-service/.env` through the isolated
+launcher, verifies read-before-edit and rejects any edit outside the captured
+selection. It is not part of the network-free milestone gate.
+
+For multi-provider wire conformance, concrete MCP stdio/Streamable HTTP,
+generation replacement, durable exact grants, native bridge contracts and
+real-file SQLite restart/fault regression:
+
+```bash
+pnpm --dir client eval:agent:extensions
+```
+
+This gate does not read a credential or make a paid network call. It launches a
+temporary Node MCP child and a loopback HTTP server, verifies the native request
+host contract and writes
+[`acceptance/milestone-i-provider-extension.json`](acceptance/milestone-i-provider-extension.json).
+The security, lifecycle, permission and data-flow rules are normative in
+[`provider-extension-protocol.md`](provider-extension-protocol.md).
+
+To spend one explicit live request against a selected provider, set its key and
+run `DRIFTING_AGENT_LIVE_PROVIDER=<deepseek|anthropic|openai> pnpm --dir
+client eval:agent:extensions:live`. This canary is deliberately separate
+from the network-free exit gate.
+
+Native artifact verification and resumable endurance commands are:
+
+```bash
+pnpm --dir client eval:agent:native:verify
+pnpm --dir client eval:agent:endurance:4h
+pnpm --dir client eval:agent:endurance:12h
+```
+
+See [`native-endurance-acceptance.md`](native-endurance-acceptance.md) for the
+build commands, accelerated logical-time semantics and explicit device/manual
+boundary.
 
 ## Start
 
@@ -174,7 +315,7 @@ smoke on each target.
 - The renderer refuses non-loopback broker URLs, and the bridge module is loaded
   only in Vite DEV when `VITE_DRIFTING_AGENT_DEBUG_URL` is explicitly set.
 - Requests run against the currently opened real project. A write prompt can
-  mutate it and follows the same soft-review policy as the Agent panel. Back up
+  mutate it and follows the same durable inline-review policy as the Agent panel. Back up
   valuable projects or use a disposable test draft.
 - A new conversation is used by default. Pass `--conversation` only when testing
   durable resume/context behavior.
