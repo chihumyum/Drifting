@@ -43,10 +43,67 @@ const TOOL_KIND: Record<
   AgentRuntimeEntityWriteKind
 > = {
   create_comment: 'comment',
+  update_comment: 'comment',
+  delete_comment: 'comment',
+  set_comment_status: 'comment',
+  set_comment_kind: 'comment',
+  create_node: 'node',
+  delete_node: 'node',
+  create_element: 'element',
+  delete_element: 'element',
+  create_storyline: 'storyline',
+  delete_storyline: 'storyline',
+  create_category: 'category',
+  update_category: 'category',
+  delete_category: 'category',
+  add_relation: 'relation',
+  update_relation_kind: 'relation',
+  remove_relation: 'relation',
+  set_storyline_membership: 'storyline_membership',
+  remember: 'memory',
+  update_memory: 'memory',
+  forget: 'memory',
   update_element: 'element',
   update_storyline: 'storyline',
   update_project_facts: 'project',
 };
+
+const CREATE_TOOLS = new Set<AgentRuntimeEntityWriteTool>([
+  'create_comment',
+  'create_node',
+  'create_element',
+  'create_storyline',
+  'create_category',
+  'add_relation',
+  'remember',
+]);
+
+const DELETE_TOOLS = new Set<AgentRuntimeEntityWriteTool>([
+  'delete_comment',
+  'delete_node',
+  'delete_element',
+  'delete_storyline',
+  'delete_category',
+  'remove_relation',
+]);
+
+function effectOwnsReceiptTool(
+  effect: { toolName: string; argumentsJson: string },
+  toolName: AgentRuntimeEntityWriteTool,
+): boolean {
+  if (effect.toolName === toolName) return true;
+  if (
+    effect.toolName !== 'edit_file' &&
+    effect.toolName !== 'write_file' &&
+    effect.toolName !== 'delete_file'
+  ) {
+    return false;
+  }
+  const arguments_ = parseStoredJson(effect.argumentsJson, effect.toolName);
+  if (!isRecord(arguments_)) return false;
+  const command = arguments_.__workspaceCommand;
+  return isRecord(command) && command.name === toolName;
+}
 
 function integrityError(receiptId: string, detail: string): never {
   throw new AgentRuntimeEntityWriteReceiptError(
@@ -101,6 +158,15 @@ function parseSnapshot(
         integrityError(receiptId, 'element snapshot fields are invalid');
       }
       break;
+    case 'node':
+      if (
+        typeof value.value.title !== 'string' ||
+        (value.value.kind !== 'chapter' && value.value.kind !== 'drift') ||
+        typeof value.value.summary !== 'string'
+      ) {
+        integrityError(receiptId, 'node snapshot fields are invalid');
+      }
+      break;
     case 'storyline':
       if (
         typeof value.value.name !== 'string' ||
@@ -126,6 +192,53 @@ function parseSnapshot(
         typeof value.value.authorKind !== 'string'
       ) {
         integrityError(receiptId, 'comment snapshot fields are invalid');
+      }
+      break;
+    case 'category':
+      if (
+        typeof value.value.name !== 'string' ||
+        typeof value.value.contentJson !== 'string' ||
+        typeof value.value.elementTemplateJson !== 'string' ||
+        typeof value.value.elementTemplateKvJson !== 'string'
+      ) {
+        integrityError(receiptId, 'category snapshot fields are invalid');
+      }
+      break;
+    case 'relation':
+      if (
+        typeof value.value.fromKind !== 'string' ||
+        typeof value.value.fromId !== 'string' ||
+        typeof value.value.toKind !== 'string' ||
+        typeof value.value.toId !== 'string'
+      ) {
+        integrityError(receiptId, 'relation snapshot fields are invalid');
+      }
+      break;
+    case 'storyline_membership':
+      if (
+        !Array.isArray(value.value.links) ||
+        !value.value.links.every(
+          (link) =>
+            isRecord(link) &&
+            typeof link.nodeId === 'string' &&
+            Boolean(link.nodeId) &&
+            typeof link.storylineId === 'string' &&
+            Boolean(link.storylineId) &&
+            typeof link.isPrimary === 'boolean',
+        )
+      ) {
+        integrityError(receiptId, 'storyline membership snapshot fields are invalid');
+      }
+      break;
+    case 'memory':
+      if (
+        typeof value.value.kind !== 'string' ||
+        typeof value.value.body !== 'string' ||
+        typeof value.value.source !== 'string' ||
+        typeof value.value.status !== 'string' ||
+        typeof value.value.createdAt !== 'string'
+      ) {
+        integrityError(receiptId, 'memory snapshot fields are invalid');
       }
       break;
   }
@@ -230,6 +343,7 @@ export function createAgentRuntimeEntityWriteReceiptRepository(
         projectId: AgentRuntimeWriteEffectTable.projectId,
         sessionId: AgentRuntimeWriteEffectTable.sessionId,
         toolName: AgentRuntimeWriteEffectTable.toolName,
+        argumentsJson: AgentRuntimeWriteEffectTable.argumentsJson,
         idempotencyKey: AgentRuntimeWriteEffectTable.idempotencyKey,
       })
       .from(AgentRuntimeWriteEffectTable)
@@ -244,7 +358,7 @@ export function createAgentRuntimeEntityWriteReceiptRepository(
       receipt.commandId !== expectedCommandId ||
       effect.projectId !== receipt.projectId ||
       effect.sessionId !== receipt.sessionId ||
-      effect.toolName !== receipt.toolName ||
+      !effectOwnsReceiptTool(effect, receipt.toolName) ||
       TOOL_KIND[receipt.toolName] !== receipt.entityKind
     ) {
       integrityError(receipt.id, 'receipt provenance is inconsistent');
@@ -277,18 +391,21 @@ export function createAgentRuntimeEntityWriteReceiptRepository(
     ) {
       integrityError(receipt.id, 'result revision does not match postimage');
     }
-    if (
-      receipt.direction === 'forward' &&
-      (!receipt.expectedRevision || !receipt.postimage)
-    ) {
-      integrityError(receipt.id, 'forward receipt has no expected/result state');
-    }
-    if (
-      receipt.toolName === 'create_comment' &&
-      receipt.direction === 'forward' &&
-      receipt.preimage !== null
-    ) {
-      integrityError(receipt.id, 'comment create must have an empty preimage');
+    if (receipt.direction === 'forward') {
+      if (!receipt.expectedRevision) {
+        integrityError(receipt.id, 'forward receipt has no expected state');
+      }
+      if (CREATE_TOOLS.has(receipt.toolName)) {
+        if (receipt.preimage !== null || receipt.postimage === null) {
+          integrityError(receipt.id, 'create receipt has invalid before/after state');
+        }
+      } else if (DELETE_TOOLS.has(receipt.toolName)) {
+        if (receipt.preimage === null || receipt.postimage !== null) {
+          integrityError(receipt.id, 'delete receipt has invalid before/after state');
+        }
+      } else if (receipt.preimage === null || receipt.postimage === null) {
+        integrityError(receipt.id, 'update receipt has invalid before/after state');
+      }
     }
     if (receipt.direction === 'inverse') {
       const forward = await getRaw(receipt.commandId, 'forward');

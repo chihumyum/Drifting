@@ -36,6 +36,8 @@ function recordToDomain(record: typeof AgentConversationTable.$inferSelect): Age
     title: record.title,
     sdkSessionId: record.sdkSessionId ?? null,
     runtimeSessionId: record.runtimeSessionId ?? null,
+    forkCheckpointId: record.forkCheckpointId ?? null,
+    parentConversationId: record.parentConversationId ?? null,
     mode: coerceMode(record.mode),
     messages: parseMessages(record.messagesJson),
     createdAt: record.createdAt,
@@ -51,6 +53,8 @@ export interface CreateAgentConversationInput {
   messages: AgentChatMessage[];
   sdkSessionId?: string | null;
   runtimeSessionId?: string | null;
+  forkCheckpointId?: string | null;
+  parentConversationId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,6 +65,8 @@ export interface UpdateAgentConversationInput {
   messages?: AgentChatMessage[];
   sdkSessionId?: string | null;
   runtimeSessionId?: string | null;
+  forkCheckpointId?: string | null;
+  parentConversationId?: string | null;
   updatedAt?: string;
 }
 
@@ -106,6 +112,8 @@ export function createAgentConversationRepository(): AgentConversationRepository
           id: AgentConversationTable.id,
           title: AgentConversationTable.title,
           mode: AgentConversationTable.mode,
+          forkCheckpointId: AgentConversationTable.forkCheckpointId,
+          parentConversationId: AgentConversationTable.parentConversationId,
           updatedAt: AgentConversationTable.updatedAt,
         })
         .from(AgentConversationTable)
@@ -120,6 +128,8 @@ export function createAgentConversationRepository(): AgentConversationRepository
         id: r.id,
         title: r.title,
         mode: coerceMode(r.mode),
+        forkCheckpointId: r.forkCheckpointId ?? null,
+        parentConversationId: r.parentConversationId ?? null,
         updatedAt: r.updatedAt,
       }));
     },
@@ -187,6 +197,8 @@ export function createAgentConversationRepository(): AgentConversationRepository
         messagesJson: JSON.stringify(input.messages),
         sdkSessionId: input.sdkSessionId ?? null,
         runtimeSessionId: input.runtimeSessionId ?? null,
+        forkCheckpointId: input.forkCheckpointId ?? null,
+        parentConversationId: input.parentConversationId ?? null,
         createdAt: input.createdAt,
         updatedAt: input.updatedAt,
       };
@@ -201,6 +213,10 @@ export function createAgentConversationRepository(): AgentConversationRepository
       if (patch.sdkSessionId !== undefined) set.sdkSessionId = patch.sdkSessionId;
       if (patch.runtimeSessionId !== undefined)
         set.runtimeSessionId = patch.runtimeSessionId;
+      if (patch.forkCheckpointId !== undefined)
+        set.forkCheckpointId = patch.forkCheckpointId;
+      if (patch.parentConversationId !== undefined)
+        set.parentConversationId = patch.parentConversationId;
       if (patch.updatedAt !== undefined) set.updatedAt = patch.updatedAt;
       await getDb()
         .update(AgentConversationTable)

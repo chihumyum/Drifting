@@ -51,7 +51,10 @@ interface ElementPatchCommandPayload {
   kind: 'element_patch_command';
   commandId: string;
   effectId: string;
-  toolName: 'create_element_patch' | 'update_element_patch';
+  toolName:
+    | 'create_element_patch'
+    | 'update_element_patch'
+    | 'delete_element_patch';
   projectId: string;
   elementId: string;
   patchId: string;
@@ -162,7 +165,8 @@ function parsePayload(
     typeof value.commandId !== 'string' ||
     typeof value.effectId !== 'string' ||
     (value.toolName !== 'create_element_patch' &&
-      value.toolName !== 'update_element_patch') ||
+      value.toolName !== 'update_element_patch' &&
+      value.toolName !== 'delete_element_patch') ||
     typeof value.projectId !== 'string' ||
     typeof value.elementId !== 'string' ||
     typeof value.patchId !== 'string' ||
@@ -415,10 +419,7 @@ async function assertReceiptIntegrity(
   }
 
   if (receipt.direction === 'forward') {
-    if (
-      receipt.expectedRevision !== payload.expectedRevision ||
-      !postimage
-    ) {
+    if (receipt.expectedRevision !== payload.expectedRevision) {
       integrityError(receipt.id, 'forward receipt has invalid revisions');
     }
     if (receipt.toolName === 'create_element_patch') {
@@ -431,6 +432,9 @@ async function assertReceiptIntegrity(
       ) {
         integrityError(receipt.id, 'create command semantics are invalid');
       }
+      if (!postimage) {
+        integrityError(receipt.id, 'create command lost its postimage');
+      }
       assertCreatePostimage(receipt.id, payload, postimage);
       return;
     }
@@ -439,7 +443,6 @@ async function assertReceiptIntegrity(
       !PATCH_REVISION_PATTERN.test(payload.expectedRevision) ||
       payload.preimage === null ||
       payload.create !== null ||
-      payload.update === null ||
       payload.preimage.id !== receipt.patchId ||
       payload.preimage.projectId !== receipt.projectId ||
       payload.preimage.elementId !== payload.elementId ||
@@ -447,7 +450,16 @@ async function assertReceiptIntegrity(
       payload.expectedRevision !==
         `element-patch:${await hashElementPatchValue(payload.preimage)}`
     ) {
-      integrityError(receipt.id, 'update command preimage is invalid');
+      integrityError(receipt.id, 'patch command preimage is invalid');
+    }
+    if (receipt.toolName === 'delete_element_patch') {
+      if (payload.update !== null || postimage !== null) {
+        integrityError(receipt.id, 'delete command semantics are invalid');
+      }
+      return;
+    }
+    if (payload.update === null || !postimage) {
+      integrityError(receipt.id, 'update command semantics are invalid');
     }
     assertUpdatePostimage(receipt.id, payload, postimage, 'forward');
     return;
@@ -462,7 +474,9 @@ async function assertReceiptIntegrity(
     forwardReceipt.sessionId !== receipt.sessionId ||
     forwardReceipt.toolName !== receipt.toolName ||
     forwardReceipt.patchId !== receipt.patchId ||
-    !forwardReceipt.resultRevision ||
+    (receipt.toolName === 'delete_element_patch'
+      ? forwardReceipt.resultRevision !== null
+      : !forwardReceipt.resultRevision) ||
     receipt.expectedRevision !== forwardReceipt.resultRevision
   ) {
     integrityError(receipt.id, 'inverse receipt is not paired to its forward');
@@ -470,6 +484,18 @@ async function assertReceiptIntegrity(
   if (receipt.toolName === 'create_element_patch') {
     if (postimage !== null) {
       integrityError(receipt.id, 'create inverse must delete its postimage');
+    }
+    return;
+  }
+  if (receipt.toolName === 'delete_element_patch') {
+    if (
+      !postimage ||
+      receipt.expectedRevision !== null ||
+      !payload.preimage ||
+      canonicalAgentRuntimeJson(postimage) !==
+        canonicalAgentRuntimeJson(payload.preimage)
+    ) {
+      integrityError(receipt.id, 'delete inverse must exactly restore its preimage');
     }
     return;
   }
@@ -572,7 +598,8 @@ export function createAgentRuntimeElementPatchReceiptRepository(
     async persist(input) {
       if (
         (input.toolName !== 'create_element_patch' &&
-          input.toolName !== 'update_element_patch') ||
+          input.toolName !== 'update_element_patch' &&
+          input.toolName !== 'delete_element_patch') ||
         (input.direction !== 'forward' && input.direction !== 'inverse')
       ) {
         throw new AgentRuntimeElementPatchReceiptError(

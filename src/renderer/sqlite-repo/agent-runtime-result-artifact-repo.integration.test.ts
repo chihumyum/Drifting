@@ -28,6 +28,7 @@ const MIGRATIONS = [
   new URL('../../../drizzle/0060_agent_runtime_persistence.sql', import.meta.url),
   new URL('../../../drizzle/0061_agent_runtime_write_effect.sql', import.meta.url),
   new URL('../../../drizzle/0064_agent_runtime_result_artifact.sql', import.meta.url),
+  new URL('../../../drizzle/0068_agent_runtime_write_authorization.sql', import.meta.url),
 ];
 
 class ReopenableSqliteGateway implements DatabasePlatformApi {
@@ -338,6 +339,9 @@ describe('durable Agent result artifact repository', () => {
         offset: 3_999,
         nextOffset: 4_006,
         totalChars: 14_000,
+        totalBytes: 49_000,
+        contentHash: truncated.contentHash,
+        createdAt: '2026-07-30T00:00:01.000Z',
         truncated: true,
         content: [...'中😀'.repeat(7_000)].slice(3_999, 4_006).join(''),
         reread: {
@@ -350,6 +354,20 @@ describe('durable Agent result artifact repository', () => {
         },
       },
     });
+    expect(truncated).toMatchObject({
+      totalBytes: 49_000,
+      contentHash: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+    });
+
+    await expect(
+      createAgentRuntimeResultArtifactRepository(createDatabaseClient(gateway!)).readPage({
+        ref: truncated.resultRef,
+        projectId: 'project-1',
+        sessionId: 'session-1',
+        offset: 14_001,
+        limit: 1,
+      }),
+    ).rejects.toThrow('exceeds Agent result');
   });
 
   it('deduplicates blobs and refuses quota overflow without invalidating existing refs', async () => {

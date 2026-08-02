@@ -7,37 +7,33 @@
  * id is never required from the model.
  */
 
-export type AgentRuntimeTaskStatus =
-  | 'active'
-  | 'paused'
-  | 'blocked'
-  | 'completed'
-  | 'failed';
+export type AgentRuntimeTaskStatus = 'active' | 'paused' | 'blocked' | 'completed' | 'failed';
 
 export type AgentRuntimeTaskStepStatus =
   | 'pending'
   | 'in_progress'
   | 'blocked'
   | 'completed'
-  | 'failed';
+  | 'failed'
+  /**
+   * The frozen target no longer belongs to the reconciled whole-book
+   * manifest. It remains as durable audit history and is never silently
+   * counted as authored work.
+   */
+  | 'retired';
 
-export type AgentRuntimeTaskConstraintStatus =
-  | 'active'
-  | 'superseded'
-  | 'fulfilled';
+export type AgentRuntimeTaskConstraintStatus = 'active' | 'superseded' | 'fulfilled';
 
-export type AgentRuntimeTaskConstraintSource =
-  | 'author'
-  | 'agent'
-  | 'runtime';
+export type AgentRuntimeTaskConstraintSource = 'author' | 'agent' | 'runtime';
 
 /**
  * Explicit provider-visible planning boundary. Whole-book coverage must never
  * be inferred from free-form objective text.
  */
-export type AgentRuntimeTaskScopeKind =
-  | 'explicit_targets'
-  | 'whole_book_chapters';
+export type AgentRuntimeTaskScopeKind = 'explicit_targets' | 'whole_book_chapters';
+
+/** Edit tasks prove accepted manuscript effects; review tasks prove exact reads. */
+export type AgentRuntimeTaskWorkKind = 'edit' | 'review';
 
 export type AgentRuntimeTaskTargetKind =
   | 'book'
@@ -46,6 +42,7 @@ export type AgentRuntimeTaskTargetKind =
   | 'drift'
   | 'element'
   | 'storyline'
+  | 'category'
   | 'other';
 
 export interface AgentRuntimeTaskScope {
@@ -57,6 +54,7 @@ export interface PersistedAgentRuntimeTask extends AgentRuntimeTaskScope {
   id: string;
   objective: string;
   scopeKind: AgentRuntimeTaskScopeKind;
+  workKind: AgentRuntimeTaskWorkKind;
   status: AgentRuntimeTaskStatus;
   revision: number;
   createdAt: string;
@@ -64,8 +62,7 @@ export interface PersistedAgentRuntimeTask extends AgentRuntimeTaskScope {
   endedAt: string | null;
 }
 
-export interface PersistedAgentRuntimeTaskChapterManifestEntry
-  extends AgentRuntimeTaskScope {
+export interface PersistedAgentRuntimeTaskChapterManifestEntry extends AgentRuntimeTaskScope {
   taskId: string;
   ordinal: number;
   name: string;
@@ -101,14 +98,72 @@ export interface PersistedAgentRuntimeTaskStep extends AgentRuntimeTaskScope {
    * context window.
    */
   reviewEvidence: AgentRuntimeTaskStepReviewEvidence | null;
+  /** Structured semantic result supplied by the model and verified by Drifting. */
+  reviewResult: AgentRuntimeTaskStepReviewResult | null;
+  /** Product-owned exact-target read proof; never supplied as an opaque model id. */
+  readEvidence: AgentRuntimeTaskStepReadEvidence | null;
   createdAt: string;
   updatedAt: string;
   startedAt: string | null;
   completedAt: string | null;
 }
 
+export type AgentRuntimeTaskReviewClaimKind =
+  | 'event'
+  | 'character_state'
+  | 'canon'
+  | 'voice'
+  | 'timeline'
+  | 'unresolved';
+
+export type AgentRuntimeTaskReviewFindingKind =
+  | 'canon'
+  | 'continuity'
+  | 'voice'
+  | 'pov'
+  | 'pacing'
+  | 'logic'
+  | 'other';
+
+export interface AgentRuntimeTaskReviewCitation {
+  /** Exact non-empty passage copied from the canonical target read. */
+  quote: string;
+  block?: number;
+  path?: string;
+}
+
+export interface AgentRuntimeTaskReviewClaim {
+  kind: AgentRuntimeTaskReviewClaimKind;
+  text: string;
+  citations: AgentRuntimeTaskReviewCitation[];
+}
+
+export interface AgentRuntimeTaskReviewFinding {
+  kind: AgentRuntimeTaskReviewFindingKind;
+  severity: 'info' | 'warning' | 'error';
+  message: string;
+  citations: AgentRuntimeTaskReviewCitation[];
+}
+
+export interface AgentRuntimeTaskStepReviewResult {
+  schemaVersion: 1;
+  verdict: 'pass' | 'findings' | 'blocked';
+  synopsis: string;
+  claims: AgentRuntimeTaskReviewClaim[];
+  findings: AgentRuntimeTaskReviewFinding[];
+}
+
+export interface AgentRuntimeTaskStepReadEvidence {
+  receiptId: string;
+  toolName: string;
+  observedAt: string;
+  exactTargetEvidence: boolean;
+  citationCount: number;
+}
+
 export interface AgentRuntimeTaskStepReviewEvidence {
   reviewStatus:
+    | 'authorized_effect'
     | 'pending'
     | 'accepted'
     | 'rejected'
@@ -118,18 +173,13 @@ export interface AgentRuntimeTaskStepReviewEvidence {
     | 'revert_failed'
     | 'revert_unavailable'
     | 'missing';
-  outcome:
-    | 'pending'
-    | 'accepted_target_write'
-    | 'rejected_or_reverted'
-    | 'invalid';
+  outcome: 'pending' | 'accepted_target_write' | 'rejected_or_reverted' | 'invalid';
   acceptedTargetEvidence: boolean;
   toolName: string | null;
   settledAt: string | null;
 }
 
-export interface PersistedAgentRuntimeTaskConstraint
-  extends AgentRuntimeTaskScope {
+export interface PersistedAgentRuntimeTaskConstraint extends AgentRuntimeTaskScope {
   id: string;
   taskId: string;
   body: string;
@@ -154,6 +204,45 @@ export interface AgentRuntimeTaskChapterManifestSeed {
   resolvedChapterId: string;
 }
 
+export interface AgentRuntimeTaskChapterManifestRename {
+  resolvedChapterId: string;
+  frozenName: string;
+  currentName: string;
+}
+
+export interface AgentRuntimeTaskChapterManifestMove {
+  resolvedChapterId: string;
+  name: string;
+  frozenOrdinal: number;
+  currentOrdinal: number;
+}
+
+/**
+ * Transaction-derived comparison between the persisted whole-book snapshot
+ * and the current active SQLite chapter order. Internal ids never enter the
+ * provider projection, but they are required to distinguish rename/reorder
+ * from delete-and-create.
+ */
+export interface AgentRuntimeTaskChapterManifestState {
+  status: 'not_applicable' | 'current' | 'drifted';
+  frozenCount: number;
+  currentCount: number;
+  current: AgentRuntimeTaskChapterManifestSeed[];
+  added: AgentRuntimeTaskChapterManifestSeed[];
+  missing: PersistedAgentRuntimeTaskChapterManifestEntry[];
+  renamed: AgentRuntimeTaskChapterManifestRename[];
+  reordered: AgentRuntimeTaskChapterManifestMove[];
+}
+
+export interface AgentRuntimeTaskManifestReconciliationResult {
+  addedStepIds: string[];
+  retiredStepIds: string[];
+  reopenedStepIds: string[];
+  retainedCompletedStepIds: string[];
+  renamedChapterCount: number;
+  reorderedChapterCount: number;
+}
+
 export interface AgentRuntimeTaskStepSeed {
   title: string;
   target: AgentRuntimeTaskTarget | null;
@@ -164,8 +253,7 @@ export interface AgentRuntimeTaskConstraintSeed {
   source: AgentRuntimeTaskConstraintSource;
 }
 
-export interface AgentRuntimeTaskCommandProvenance
-  extends AgentRuntimeTaskScope {
+export interface AgentRuntimeTaskCommandProvenance extends AgentRuntimeTaskScope {
   turnId: string;
   callId: string;
   toolCallId: string;
@@ -179,6 +267,8 @@ export type AgentRuntimeTaskPlanCommand =
       operation: 'create';
       objective: string;
       scopeKind: AgentRuntimeTaskScopeKind;
+      /** Defaults to edit for old callers; new providers must choose explicitly. */
+      workKind?: AgentRuntimeTaskWorkKind;
       /**
        * Product-owned snapshot captured at command construction time. It is
        * deliberately absent from provider tool input.
@@ -203,6 +293,12 @@ export type AgentRuntimeTaskPlanCommand =
     }
   | {
       toolName: 'update_task_plan';
+      operation: 'reconcile_manifest';
+      taskId: string;
+      expectedRevision: number;
+    }
+  | {
+      toolName: 'update_task_plan';
       operation: 'set_status';
       taskId: string;
       expectedRevision: number;
@@ -217,6 +313,7 @@ export interface AgentRuntimeTaskStepCommand {
   status: AgentRuntimeTaskStepStatus;
   resultNote: string | null;
   resultRef: string | null;
+  reviewResult?: AgentRuntimeTaskStepReviewResult | null;
 }
 
 export type AgentRuntimeTaskConstraintCommand =
@@ -255,12 +352,10 @@ export interface AgentRuntimeTaskCommandResult {
   plan: AgentRuntimeTaskPlan;
   changedStepId?: string;
   changedConstraintId?: string;
+  manifestReconciliation?: AgentRuntimeTaskManifestReconciliationResult;
 }
 
-const TASK_TRANSITIONS: Record<
-  AgentRuntimeTaskStatus,
-  ReadonlySet<AgentRuntimeTaskStatus>
-> = {
+const TASK_TRANSITIONS: Record<AgentRuntimeTaskStatus, ReadonlySet<AgentRuntimeTaskStatus>> = {
   active: new Set(['active', 'paused', 'blocked', 'completed', 'failed']),
   paused: new Set(['paused', 'active', 'blocked', 'failed']),
   blocked: new Set(['blocked', 'active', 'paused', 'failed']),
@@ -279,6 +374,7 @@ const STEP_TRANSITIONS: Record<
   blocked: new Set(['blocked', 'pending', 'in_progress', 'completed', 'failed']),
   completed: new Set(['completed']),
   failed: new Set(['failed']),
+  retired: new Set(['retired']),
 };
 
 export function canTransitionAgentRuntimeTask(
@@ -295,14 +391,10 @@ export function canTransitionAgentRuntimeTaskStep(
   return STEP_TRANSITIONS[current].has(next);
 }
 
-export function isOpenAgentRuntimeTaskStatus(
-  status: AgentRuntimeTaskStatus,
-): boolean {
+export function isOpenAgentRuntimeTaskStatus(status: AgentRuntimeTaskStatus): boolean {
   return status === 'active' || status === 'paused' || status === 'blocked';
 }
 
-export function isTerminalAgentRuntimeTaskStepStatus(
-  status: AgentRuntimeTaskStepStatus,
-): boolean {
-  return status === 'completed' || status === 'failed';
+export function isTerminalAgentRuntimeTaskStepStatus(status: AgentRuntimeTaskStepStatus): boolean {
+  return status === 'completed' || status === 'failed' || status === 'retired';
 }

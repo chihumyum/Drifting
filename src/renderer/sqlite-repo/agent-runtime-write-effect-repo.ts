@@ -3,10 +3,12 @@ import type {
   AgentRuntimeWriteEffectTransition,
   AgentRuntimeWritePersistenceSnapshot,
   AgentRuntimeWriteReviewTransition,
+  AgentRuntimeWriteReviewBlockTransition,
   ClaimAgentRuntimeWriteEffect,
   CreateAgentRuntimeWriteReview,
   PersistedAgentRuntimeWriteEffect,
   PersistedAgentRuntimeWriteReview,
+  PersistedAgentRuntimeWriteReviewBlock,
 } from '../domain/agent-runtime-write-effect';
 import { getDb, type DbExecutor } from '../lib/db';
 import {
@@ -14,6 +16,7 @@ import {
   AgentRuntimeToolCallTable,
   AgentRuntimeTurnTable,
   AgentRuntimeWriteEffectTable,
+  AgentRuntimeWriteReviewBlockTable,
   AgentRuntimeWriteReviewTable,
 } from '../schema/drizzle';
 import { canonicalAgentRuntimeJson } from './agent-runtime-persistence-repo';
@@ -27,7 +30,8 @@ export class AgentRuntimeWritePersistenceConflictError extends Error {
       | 'INVALID_EFFECT_TRANSITION'
       | 'REVISION_CONFLICT'
       | 'REVIEW_CONFLICT'
-      | 'INVALID_REVIEW_TRANSITION',
+      | 'INVALID_REVIEW_TRANSITION'
+      | 'INVALID_REVIEW_BLOCK_TRANSITION',
     message: string,
   ) {
     super(message);
@@ -45,6 +49,13 @@ export interface WriteEffectPersistenceResult {
 export interface WriteReviewPersistenceResult {
   outcome: WritePersistenceOutcome;
   review: PersistedAgentRuntimeWriteReview;
+}
+
+export interface WriteReviewBlockPersistenceResult {
+  outcome: WritePersistenceOutcome;
+  review: PersistedAgentRuntimeWriteReview;
+  block: PersistedAgentRuntimeWriteReviewBlock;
+  blocks: PersistedAgentRuntimeWriteReviewBlock[];
 }
 
 export interface InterruptedAgentRuntimeWrites {
@@ -67,6 +78,15 @@ export interface AgentRuntimeWriteEffectRepository {
   ): Promise<WriteReviewPersistenceResult>;
   getReview(id: string): Promise<PersistedAgentRuntimeWriteReview | null>;
   listReviews(sessionId: string): Promise<PersistedAgentRuntimeWriteReview[]>;
+  listPendingReviewsForProject(
+    projectId: string,
+  ): Promise<PersistedAgentRuntimeWriteReview[]>;
+  listReviewBlocks(
+    reviewId: string,
+  ): Promise<PersistedAgentRuntimeWriteReviewBlock[]>;
+  transitionReviewBlock(
+    transition: AgentRuntimeWriteReviewBlockTransition,
+  ): Promise<WriteReviewBlockPersistenceResult>;
   transitionReview(
     transition: AgentRuntimeWriteReviewTransition,
   ): Promise<WriteReviewPersistenceResult>;
@@ -111,6 +131,19 @@ function effectToDomain(
     callId: row.callId,
     toolName: row.toolName,
     idempotencyKey: row.idempotencyKey,
+    authorization:
+      row.authorizationKind === null ||
+      row.authorizationArgumentsHash === null ||
+      row.authorizedAt === null
+        ? null
+        : {
+            kind: row.authorizationKind as NonNullable<
+              PersistedAgentRuntimeWriteEffect['authorization']
+            >['kind'],
+            requestId: row.authorizationRequestId ?? null,
+            argumentsHash: row.authorizationArgumentsHash,
+            authorizedAt: row.authorizedAt,
+          },
     phase: row.phase as PersistedAgentRuntimeWriteEffect['phase'],
     arguments: parseJson(row.argumentsJson),
     expectedRevision: parseNullableJson(row.expectedRevisionJson),
@@ -160,6 +193,26 @@ function reviewToDomain(
   };
 }
 
+function reviewBlockToDomain(
+  row: typeof AgentRuntimeWriteReviewBlockTable.$inferSelect,
+): PersistedAgentRuntimeWriteReviewBlock {
+  return {
+    reviewId: row.reviewId,
+    effectId: row.effectId,
+    blockId: row.blockId,
+    ordinal: row.ordinal,
+    status: row.status as PersistedAgentRuntimeWriteReviewBlock['status'],
+    decisionNote: parseNullableJson(row.decisionNoteJson),
+    revertEffect: parseNullableJson(row.revertEffectJson),
+    errorCode: row.errorCode ?? null,
+    errorMessage: row.errorMessage ?? null,
+    createdAt: row.createdAt,
+    revertStartedAt: row.revertStartedAt ?? null,
+    settledAt: row.settledAt ?? null,
+    updatedAt: row.updatedAt,
+  };
+}
+
 function sameJson(a: unknown, b: unknown): boolean {
   return canonicalAgentRuntimeJson(a) === canonicalAgentRuntimeJson(b);
 }
@@ -175,6 +228,19 @@ function assertRouteShape(claim: ClaimAgentRuntimeWriteEffect): void {
     throw new AgentRuntimeWritePersistenceConflictError(
       'WRITE_PROVENANCE_MISMATCH',
       `Write effect ${claim.id} has an invalid ${claim.routeKind} route shape.`,
+    );
+  }
+  const authorization = claim.authorization;
+  const validAuthorization =
+    authorization.argumentsHash.trim().length > 0 &&
+    authorization.authorizedAt.trim().length > 0 &&
+    ((authorization.kind === 'automatic' && authorization.requestId === null) ||
+      (authorization.kind === 'author_approved' &&
+        Boolean(authorization.requestId?.trim())));
+  if (!validAuthorization) {
+    throw new AgentRuntimeWritePersistenceConflictError(
+      'WRITE_PROVENANCE_MISMATCH',
+      `Write effect ${claim.id} has invalid pre-execution authorization.`,
     );
   }
 }
@@ -195,6 +261,10 @@ function sameClaimIdentity(
     effect.callId === claim.callId &&
     effect.toolName === claim.toolName &&
     effect.idempotencyKey === claim.idempotencyKey &&
+    effect.authorization?.kind === claim.authorization.kind &&
+    effect.authorization.requestId === claim.authorization.requestId &&
+    effect.authorization.argumentsHash ===
+      claim.authorization.argumentsHash &&
     sameJson(effect.arguments, claim.arguments) &&
     sameJson(effect.expectedRevision, claim.expectedRevision)
   );
@@ -258,6 +328,30 @@ function sameReviewTransitionResult(
   }
 }
 
+function sameReviewBlockTransitionResult(
+  block: PersistedAgentRuntimeWriteReviewBlock,
+  transition: AgentRuntimeWriteReviewBlockTransition,
+): boolean {
+  if (block.status !== transition.nextStatus) return false;
+  switch (transition.nextStatus) {
+    case 'accepted':
+    case 'revert_started':
+      return sameJson(
+        block.decisionNote,
+        transition.decisionNote === undefined
+          ? null
+          : transition.decisionNote,
+      );
+    case 'reverted':
+      return sameJson(block.revertEffect, transition.revertEffect);
+    case 'revert_failed':
+      return (
+        block.errorCode === transition.errorCode &&
+        block.errorMessage === (transition.errorMessage ?? null)
+      );
+  }
+}
+
 export function createAgentRuntimeWriteEffectRepository(
   dbOverride?: DbExecutor,
 ): AgentRuntimeWriteEffectRepository {
@@ -315,6 +409,88 @@ export function createAgentRuntimeWriteEffectRepository(
         asc(AgentRuntimeWriteReviewTable.id),
       );
     return rows.map(reviewToDomain);
+  };
+
+  const listReviewBlocks = async (
+    reviewId: string,
+    executor: DbExecutor = dbProvider(),
+  ): Promise<PersistedAgentRuntimeWriteReviewBlock[]> => {
+    const rows = await executor
+      .select()
+      .from(AgentRuntimeWriteReviewBlockTable)
+      .where(eq(AgentRuntimeWriteReviewBlockTable.reviewId, reviewId))
+      .orderBy(
+        asc(AgentRuntimeWriteReviewBlockTable.ordinal),
+        asc(AgentRuntimeWriteReviewBlockTable.blockId),
+      );
+    return rows.map(reviewBlockToDomain);
+  };
+
+  const settleReviewFromBlocks = async (
+    review: PersistedAgentRuntimeWriteReview,
+    blocks: readonly PersistedAgentRuntimeWriteReviewBlock[],
+    at: string,
+    executor: DbExecutor,
+  ): Promise<PersistedAgentRuntimeWriteReview> => {
+    if (
+      review.status !== 'pending' ||
+      blocks.length === 0 ||
+      blocks.some(
+        (block) => block.status !== 'accepted' && block.status !== 'reverted',
+      )
+    ) {
+      return review;
+    }
+    const decisions = blocks.map((block) => ({
+      blockId: block.blockId,
+      decision: block.status,
+    }));
+    const allReverted = blocks.every((block) => block.status === 'reverted');
+    const status = allReverted ? 'reverted' : 'accepted_effect';
+    const decisionNote = {
+      schemaVersion: 1,
+      kind: 'block_review',
+      decisions,
+    };
+    await executor
+      .update(AgentRuntimeWriteReviewTable)
+      .set({
+        status,
+        decisionNoteJson: canonicalAgentRuntimeJson(decisionNote),
+        ...(allReverted
+          ? {
+              rejectedAt: at,
+              revertStartedAt:
+                blocks
+                  .map((block) => block.revertStartedAt)
+                  .filter((value): value is string => value !== null)
+                  .sort()[0] ?? at,
+              revertEffectJson: canonicalAgentRuntimeJson({
+                kind: 'block_review_revert',
+                blocks: blocks.map((block) => ({
+                  blockId: block.blockId,
+                  effect: block.revertEffect,
+                })),
+              }),
+            }
+          : { acceptedAt: at }),
+        settledAt: at,
+        updatedAt: at,
+      })
+      .where(
+        and(
+          eq(AgentRuntimeWriteReviewTable.id, review.id),
+          eq(AgentRuntimeWriteReviewTable.status, 'pending'),
+        ),
+      );
+    const settled = await getReview(review.id, executor);
+    if (!settled || settled.status !== status) {
+      throw new AgentRuntimeWritePersistenceConflictError(
+        'INVALID_REVIEW_BLOCK_TRANSITION',
+        `Write review ${review.id} lost its atomic block settlement.`,
+      );
+    }
+    return settled;
   };
 
   return {
@@ -438,6 +614,10 @@ export function createAgentRuntimeWriteEffectRepository(
           toolName: claim.toolName,
           toolAccess: 'write',
           idempotencyKey: claim.idempotencyKey,
+          authorizationKind: claim.authorization.kind,
+          authorizationRequestId: claim.authorization.requestId,
+          authorizationArgumentsHash: claim.authorization.argumentsHash,
+          authorizedAt: claim.authorization.authorizedAt,
           phase: 'claimed',
           argumentsJson,
           expectedRevisionJson,
@@ -646,6 +826,22 @@ export function createAgentRuntimeWriteEffectRepository(
 
     async createReview(review) {
       return dbProvider().transaction(async (tx) => {
+        const requestedBlocks = [...(review.blocks ?? [])];
+        const blockIds = new Set<string>();
+        for (let index = 0; index < requestedBlocks.length; index += 1) {
+          const block = requestedBlocks[index]!;
+          if (
+            !block.blockId.trim() ||
+            blockIds.has(block.blockId) ||
+            block.ordinal !== index
+          ) {
+            throw new AgentRuntimeWritePersistenceConflictError(
+              'REVIEW_CONFLICT',
+              `Write review ${review.id} has invalid durable block order.`,
+            );
+          }
+          blockIds.add(block.blockId);
+        }
         const existingRows = await tx
           .select()
           .from(AgentRuntimeWriteReviewTable)
@@ -667,7 +863,50 @@ export function createAgentRuntimeWriteEffectRepository(
               existing.turnId === review.turnId &&
               existing.toolCallId === review.toolCallId
             ) {
-              return { outcome: 'duplicate' as const, review: existing };
+              let existingBlocks = await listReviewBlocks(review.id, tx);
+              let didBackfillBlocks = false;
+              // Reviews created before migration 0071 have no block rows. A
+              // still-pending review can be upgraded from its immutable effect
+              // exactly once; settled reviews are historical evidence and are
+              // never rewritten.
+              if (
+                existing.status === 'pending' &&
+                existingBlocks.length === 0 &&
+                requestedBlocks.length > 0
+              ) {
+                await tx.insert(AgentRuntimeWriteReviewBlockTable).values(
+                  requestedBlocks.map((block) => ({
+                    reviewId: review.id,
+                    effectId: review.effectId,
+                    blockId: block.blockId,
+                    ordinal: block.ordinal,
+                    status: 'pending',
+                    createdAt: existing.createdAt,
+                    updatedAt: existing.createdAt,
+                  })),
+                );
+                existingBlocks = await listReviewBlocks(review.id, tx);
+                didBackfillBlocks = true;
+              }
+              if (
+                existingBlocks.length !== requestedBlocks.length ||
+                existingBlocks.some(
+                  (block, index) =>
+                    block.blockId !== requestedBlocks[index]?.blockId ||
+                    block.ordinal !== requestedBlocks[index]?.ordinal,
+                )
+              ) {
+                throw new AgentRuntimeWritePersistenceConflictError(
+                  'REVIEW_CONFLICT',
+                  `Write review ${review.id} was replayed with different blocks.`,
+                );
+              }
+              return {
+                outcome: didBackfillBlocks
+                  ? 'updated' as const
+                  : 'duplicate' as const,
+                review: existing,
+              };
             }
           }
           throw new AgentRuntimeWritePersistenceConflictError(
@@ -700,6 +939,19 @@ export function createAgentRuntimeWriteEffectRepository(
           createdAt: review.createdAt,
           updatedAt: review.createdAt,
         });
+        if (requestedBlocks.length > 0) {
+          await tx.insert(AgentRuntimeWriteReviewBlockTable).values(
+            requestedBlocks.map((block) => ({
+              reviewId: review.id,
+              effectId: review.effectId,
+              blockId: block.blockId,
+              ordinal: block.ordinal,
+              status: 'pending',
+              createdAt: review.createdAt,
+              updatedAt: review.createdAt,
+            })),
+          );
+        }
         const inserted = await getReview(review.id, tx);
         if (!inserted) {
           throw new Error(`Write review ${review.id} was not persisted.`);
@@ -710,6 +962,193 @@ export function createAgentRuntimeWriteEffectRepository(
 
     getReview,
     listReviews,
+    async listPendingReviewsForProject(projectId) {
+      const rows = await dbProvider()
+        .select({ review: AgentRuntimeWriteReviewTable })
+        .from(AgentRuntimeWriteReviewTable)
+        .innerJoin(
+          AgentRuntimeWriteEffectTable,
+          eq(
+            AgentRuntimeWriteEffectTable.id,
+            AgentRuntimeWriteReviewTable.effectId,
+          ),
+        )
+        .where(
+          and(
+            eq(AgentRuntimeWriteEffectTable.projectId, projectId),
+            inArray(AgentRuntimeWriteReviewTable.status, [
+              'pending',
+              'accepted',
+              'rejected',
+              'revert_started',
+            ]),
+          ),
+        )
+        .orderBy(
+          asc(AgentRuntimeWriteReviewTable.createdAt),
+          asc(AgentRuntimeWriteReviewTable.id),
+        );
+      return rows.map((row) => reviewToDomain(row.review));
+    },
+    listReviewBlocks,
+
+    async transitionReviewBlock(transition) {
+      return dbProvider().transaction(async (tx) => {
+        let review = await getReview(transition.reviewId, tx);
+        if (!review) {
+          throw new AgentRuntimeWritePersistenceConflictError(
+            'INVALID_REVIEW_BLOCK_TRANSITION',
+            `Write review ${transition.reviewId} does not exist.`,
+          );
+        }
+        const rows = await tx
+          .select()
+          .from(AgentRuntimeWriteReviewBlockTable)
+          .where(
+            and(
+              eq(
+                AgentRuntimeWriteReviewBlockTable.reviewId,
+                transition.reviewId,
+              ),
+              eq(
+                AgentRuntimeWriteReviewBlockTable.blockId,
+                transition.blockId,
+              ),
+            ),
+          )
+          .limit(1);
+        let block = rows[0] ? reviewBlockToDomain(rows[0]) : null;
+        if (!block) {
+          throw new AgentRuntimeWritePersistenceConflictError(
+            'INVALID_REVIEW_BLOCK_TRANSITION',
+            `Write review ${transition.reviewId} has no block ${transition.blockId}.`,
+          );
+        }
+        if (block.status !== transition.expectedStatus) {
+          if (sameReviewBlockTransitionResult(block, transition)) {
+            const blocks = await listReviewBlocks(transition.reviewId, tx);
+            review = await settleReviewFromBlocks(
+              review,
+              blocks,
+              transition.at,
+              tx,
+            );
+            return {
+              outcome: 'duplicate' as const,
+              review,
+              block,
+              blocks,
+            };
+          }
+          throw new AgentRuntimeWritePersistenceConflictError(
+            'INVALID_REVIEW_BLOCK_TRANSITION',
+            `Write review block ${transition.reviewId}/${transition.blockId} expected ${transition.expectedStatus}, found ${block.status}.`,
+          );
+        }
+        if (review.status !== 'pending') {
+          throw new AgentRuntimeWritePersistenceConflictError(
+            'INVALID_REVIEW_BLOCK_TRANSITION',
+            `Settled write review ${transition.reviewId} cannot change block decisions.`,
+          );
+        }
+
+        const values: Partial<
+          typeof AgentRuntimeWriteReviewBlockTable.$inferInsert
+        > = {
+          status: transition.nextStatus,
+          updatedAt: transition.at,
+        };
+        switch (transition.nextStatus) {
+          case 'accepted':
+            values.decisionNoteJson =
+              transition.decisionNote === undefined ||
+              transition.decisionNote === null
+                ? null
+                : canonicalAgentRuntimeJson(transition.decisionNote);
+            values.settledAt = transition.at;
+            break;
+          case 'revert_started':
+            values.decisionNoteJson =
+              transition.decisionNote === undefined ||
+              transition.decisionNote === null
+                ? block.decisionNote === null
+                  ? null
+                  : canonicalAgentRuntimeJson(block.decisionNote)
+                : canonicalAgentRuntimeJson(transition.decisionNote);
+            values.revertStartedAt = transition.at;
+            values.settledAt = null;
+            values.errorCode = null;
+            values.errorMessage = null;
+            break;
+          case 'reverted':
+            values.revertEffectJson = canonicalAgentRuntimeJson(
+              transition.revertEffect,
+            );
+            values.settledAt = transition.at;
+            break;
+          case 'revert_failed':
+            values.errorCode = transition.errorCode;
+            values.errorMessage = transition.errorMessage ?? null;
+            values.settledAt = transition.at;
+            break;
+        }
+        await tx
+          .update(AgentRuntimeWriteReviewBlockTable)
+          .set(values)
+          .where(
+            and(
+              eq(
+                AgentRuntimeWriteReviewBlockTable.reviewId,
+                transition.reviewId,
+              ),
+              eq(
+                AgentRuntimeWriteReviewBlockTable.blockId,
+                transition.blockId,
+              ),
+              eq(
+                AgentRuntimeWriteReviewBlockTable.status,
+                transition.expectedStatus,
+              ),
+            ),
+          );
+        const updatedRows = await tx
+          .select()
+          .from(AgentRuntimeWriteReviewBlockTable)
+          .where(
+            and(
+              eq(
+                AgentRuntimeWriteReviewBlockTable.reviewId,
+                transition.reviewId,
+              ),
+              eq(
+                AgentRuntimeWriteReviewBlockTable.blockId,
+                transition.blockId,
+              ),
+            ),
+          )
+          .limit(1);
+        block = updatedRows[0] ? reviewBlockToDomain(updatedRows[0]) : null;
+        if (!block || block.status !== transition.nextStatus) {
+          throw new AgentRuntimeWritePersistenceConflictError(
+            'INVALID_REVIEW_BLOCK_TRANSITION',
+            `Write review block ${transition.reviewId}/${transition.blockId} lost its compare-and-set transition.`,
+          );
+        }
+        const blocks = await listReviewBlocks(transition.reviewId, tx);
+        review = await settleReviewFromBlocks(
+          review,
+          blocks,
+          transition.at,
+          tx,
+        );
+        return {
+          outcome: 'updated' as const,
+          review,
+          block,
+          blocks,
+        };
+      }, { behavior: 'immediate' });
+    },
 
     async transitionReview(transition) {
       return dbProvider().transaction(async (tx) => {
@@ -735,6 +1174,16 @@ export function createAgentRuntimeWriteEffectRepository(
           throw new AgentRuntimeWritePersistenceConflictError(
             'INVALID_REVIEW_TRANSITION',
             `Write review ${transition.reviewId} lost its committed effect provenance.`,
+          );
+        }
+        const durableBlocks = await listReviewBlocks(
+          transition.reviewId,
+          tx,
+        );
+        if (durableBlocks.length > 0) {
+          throw new AgentRuntimeWritePersistenceConflictError(
+            'INVALID_REVIEW_TRANSITION',
+            `Write review ${transition.reviewId} owns durable blocks and must be settled through block transitions.`,
           );
         }
 

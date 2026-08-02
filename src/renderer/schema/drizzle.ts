@@ -879,6 +879,11 @@ export const AgentConversationTable = sqliteTable(
     mode: text('mode').notNull().default('byok'),
     // Serialized display transcript (AgentChatMessage[] — see domain).
     messagesJson: text('messages_json').notNull().default('[]'),
+    // A fork never resumes the source runtime session because route ownership
+    // would be ambiguous. Instead it keeps the durable user-checkpoint id and
+    // injects that checkpoint's provider-neutral context into the new session.
+    forkCheckpointId: text('fork_checkpoint_id'),
+    parentConversationId: text('parent_conversation_id'),
     deletedAt: text('deleted_at'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
@@ -887,10 +892,8 @@ export const AgentConversationTable = sqliteTable(
     index('idx_agent_conversation_project').on(t.projectId),
     index('idx_agent_conversation_project_updated').on(t.projectId, t.updatedAt),
     index('idx_agent_conversation_deleted_at').on(t.deletedAt),
-    uniqueIndex('uniq_agent_conversation_project_identity').on(
-      t.id,
-      t.projectId,
-    ),
+    index('idx_agent_conversation_fork_checkpoint').on(t.forkCheckpointId),
+    uniqueIndex('uniq_agent_conversation_project_identity').on(t.id, t.projectId),
   ],
 );
 
@@ -905,8 +908,9 @@ export const AgentRuntimeSessionTable = sqliteTable(
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
     routeKind: text('route_kind').notNull(),
-    conversationId: text('conversation_id')
-      .references(() => AgentConversationTable.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id').references(() => AgentConversationTable.id, {
+      onDelete: 'cascade',
+    }),
     goalRunId: text('goal_run_id'),
     chapterId: text('chapter_id'),
     provider: text('provider').notNull(),
@@ -924,10 +928,7 @@ export const AgentRuntimeSessionTable = sqliteTable(
     index('idx_agent_runtime_session_conversation').on(t.conversationId),
     index('idx_agent_runtime_session_goal').on(t.projectId, t.goalRunId),
     index('idx_agent_runtime_session_recovery').on(t.projectId, t.status, t.updatedAt),
-    uniqueIndex('uniq_agent_runtime_session_project_identity').on(
-      t.id,
-      t.projectId,
-    ),
+    uniqueIndex('uniq_agent_runtime_session_project_identity').on(t.id, t.projectId),
   ],
 );
 
@@ -950,10 +951,7 @@ export const AgentRuntimeTurnTable = sqliteTable(
   },
   (t) => [
     uniqueIndex('uniq_agent_runtime_turn_session_ordinal').on(t.sessionId, t.ordinal),
-    uniqueIndex('uniq_agent_runtime_turn_session_identity').on(
-      t.id,
-      t.sessionId,
-    ),
+    uniqueIndex('uniq_agent_runtime_turn_session_identity').on(t.id, t.sessionId),
     index('idx_agent_runtime_turn_session_status').on(t.sessionId, t.status),
   ],
 );
@@ -976,10 +974,7 @@ export const AgentRuntimeMessageTable = sqliteTable(
     completedAt: text('completed_at'),
   },
   (t) => [
-    uniqueIndex('uniq_agent_runtime_message_session_ordinal').on(
-      t.sessionId,
-      t.ordinal,
-    ),
+    uniqueIndex('uniq_agent_runtime_message_session_ordinal').on(t.sessionId, t.ordinal),
     index('idx_agent_runtime_message_turn_ordinal').on(t.turnId, t.ordinal),
   ],
 );
@@ -1030,13 +1025,8 @@ export const AgentRuntimeToolCallTable = sqliteTable(
     completedAt: text('completed_at'),
   },
   (t) => [
-    uniqueIndex('uniq_agent_runtime_tool_call_turn_call').on(
-      t.turnId,
-      t.callId,
-    ),
-    uniqueIndex('uniq_agent_runtime_tool_call_idempotency').on(
-      t.idempotencyKey,
-    ),
+    uniqueIndex('uniq_agent_runtime_tool_call_turn_call').on(t.turnId, t.callId),
+    uniqueIndex('uniq_agent_runtime_tool_call_idempotency').on(t.idempotencyKey),
     uniqueIndex('uniq_agent_runtime_tool_call_write_provenance').on(
       t.id,
       t.sessionId,
@@ -1068,9 +1058,7 @@ export const AgentRuntimeReadReceiptTable = sqliteTable(
   },
   (t) => [
     uniqueIndex('uniq_agent_runtime_read_receipt_tool_call').on(t.toolCallId),
-    uniqueIndex('uniq_agent_runtime_read_receipt_idempotency').on(
-      t.idempotencyKey,
-    ),
+    uniqueIndex('uniq_agent_runtime_read_receipt_idempotency').on(t.idempotencyKey),
     uniqueIndex('uniq_agent_runtime_read_receipt_provenance').on(
       t.id,
       t.projectId,
@@ -1078,24 +1066,15 @@ export const AgentRuntimeReadReceiptTable = sqliteTable(
       t.turnId,
       t.toolCallId,
     ),
-    index('idx_agent_runtime_read_receipt_session_created').on(
-      t.sessionId,
-      t.createdAt,
-    ),
+    index('idx_agent_runtime_read_receipt_session_created').on(t.sessionId, t.createdAt),
     foreignKey({
       columns: [t.sessionId, t.projectId],
-      foreignColumns: [
-        AgentRuntimeSessionTable.id,
-        AgentRuntimeSessionTable.projectId,
-      ],
+      foreignColumns: [AgentRuntimeSessionTable.id, AgentRuntimeSessionTable.projectId],
       name: 'fk_agent_runtime_read_receipt_session_project',
     }).onDelete('cascade'),
     foreignKey({
       columns: [t.turnId, t.sessionId],
-      foreignColumns: [
-        AgentRuntimeTurnTable.id,
-        AgentRuntimeTurnTable.sessionId,
-      ],
+      foreignColumns: [AgentRuntimeTurnTable.id, AgentRuntimeTurnTable.sessionId],
       name: 'fk_agent_runtime_read_receipt_turn_session',
     }).onDelete('cascade'),
     foreignKey({
@@ -1140,10 +1119,7 @@ export const AgentRuntimeReadObservationTable = sqliteTable(
     createdAt: text('created_at').notNull(),
   },
   (t) => [
-    uniqueIndex('uniq_agent_runtime_read_observation_ordinal').on(
-      t.receiptId,
-      t.ordinal,
-    ),
+    uniqueIndex('uniq_agent_runtime_read_observation_ordinal').on(t.receiptId, t.ordinal),
     uniqueIndex('uniq_agent_runtime_read_observation_entity').on(
       t.receiptId,
       t.entityKind,
@@ -1167,13 +1143,7 @@ export const AgentRuntimeReadObservationTable = sqliteTable(
       t.revision,
     ),
     foreignKey({
-      columns: [
-        t.receiptId,
-        t.projectId,
-        t.sessionId,
-        t.turnId,
-        t.toolCallId,
-      ],
+      columns: [t.receiptId, t.projectId, t.sessionId, t.turnId, t.toolCallId],
       foreignColumns: [
         AgentRuntimeReadReceiptTable.id,
         AgentRuntimeReadReceiptTable.projectId,
@@ -1241,18 +1211,12 @@ export const AgentRuntimeResultArtifactTable = sqliteTable(
     index('idx_agent_runtime_result_artifact_content').on(t.contentHash),
     foreignKey({
       columns: [t.sessionId, t.projectId],
-      foreignColumns: [
-        AgentRuntimeSessionTable.id,
-        AgentRuntimeSessionTable.projectId,
-      ],
+      foreignColumns: [AgentRuntimeSessionTable.id, AgentRuntimeSessionTable.projectId],
       name: 'fk_agent_runtime_result_artifact_session_project',
     }).onDelete('cascade'),
     foreignKey({
       columns: [t.turnId, t.sessionId],
-      foreignColumns: [
-        AgentRuntimeTurnTable.id,
-        AgentRuntimeTurnTable.sessionId,
-      ],
+      foreignColumns: [AgentRuntimeTurnTable.id, AgentRuntimeTurnTable.sessionId],
       name: 'fk_agent_runtime_result_artifact_turn_session',
     }).onDelete('cascade'),
     foreignKey({
@@ -1295,6 +1259,14 @@ export const AgentRuntimeWriteEffectTable = sqliteTable(
     toolName: text('tool_name').notNull(),
     toolAccess: text('tool_access').notNull().default('write'),
     idempotencyKey: text('idempotency_key').notNull(),
+    /**
+     * Immutable central authorization recorded before mutation. NULL is
+     * reserved for effects created before this authorization contract existed.
+     */
+    authorizationKind: text('authorization_kind'),
+    authorizationRequestId: text('authorization_request_id'),
+    authorizationArgumentsHash: text('authorization_arguments_hash'),
+    authorizedAt: text('authorized_at'),
     phase: text('phase').notNull().default('claimed'),
     argumentsJson: text('arguments_json').notNull(),
     expectedRevisionJson: text('expected_revision_json'),
@@ -1319,13 +1291,8 @@ export const AgentRuntimeWriteEffectTable = sqliteTable(
   },
   (t) => [
     uniqueIndex('uniq_agent_runtime_write_effect_tool_call').on(t.toolCallId),
-    uniqueIndex('uniq_agent_runtime_write_effect_idempotency').on(
-      t.idempotencyKey,
-    ),
-    uniqueIndex('uniq_agent_runtime_write_effect_turn_call').on(
-      t.turnId,
-      t.callId,
-    ),
+    uniqueIndex('uniq_agent_runtime_write_effect_idempotency').on(t.idempotencyKey),
+    uniqueIndex('uniq_agent_runtime_write_effect_turn_call').on(t.turnId, t.callId),
     uniqueIndex('uniq_agent_runtime_write_effect_provenance').on(
       t.id,
       t.sessionId,
@@ -1339,24 +1306,15 @@ export const AgentRuntimeWriteEffectTable = sqliteTable(
       t.turnId,
       t.toolCallId,
     ),
-    index('idx_agent_runtime_write_effect_session_phase').on(
-      t.sessionId,
-      t.phase,
-    ),
+    index('idx_agent_runtime_write_effect_session_phase').on(t.sessionId, t.phase),
     foreignKey({
       columns: [t.sessionId, t.projectId],
-      foreignColumns: [
-        AgentRuntimeSessionTable.id,
-        AgentRuntimeSessionTable.projectId,
-      ],
+      foreignColumns: [AgentRuntimeSessionTable.id, AgentRuntimeSessionTable.projectId],
       name: 'fk_agent_runtime_write_effect_session_project',
     }).onDelete('cascade'),
     foreignKey({
       columns: [t.turnId, t.sessionId],
-      foreignColumns: [
-        AgentRuntimeTurnTable.id,
-        AgentRuntimeTurnTable.sessionId,
-      ],
+      foreignColumns: [AgentRuntimeTurnTable.id, AgentRuntimeTurnTable.sessionId],
       name: 'fk_agent_runtime_write_effect_turn_session',
     }).onDelete('cascade'),
     foreignKey({
@@ -1382,10 +1340,7 @@ export const AgentRuntimeWriteEffectTable = sqliteTable(
     }).onDelete('cascade'),
     foreignKey({
       columns: [t.conversationId, t.projectId],
-      foreignColumns: [
-        AgentConversationTable.id,
-        AgentConversationTable.projectId,
-      ],
+      foreignColumns: [AgentConversationTable.id, AgentConversationTable.projectId],
       name: 'fk_agent_runtime_write_effect_conversation_project',
     }).onDelete('cascade'),
   ],
@@ -1418,24 +1373,12 @@ export const AgentRuntimeElementPatchReceiptTable = sqliteTable(
     createdAt: text('created_at').notNull(),
   },
   (t) => [
-    uniqueIndex('uniq_agent_runtime_element_patch_receipt_command').on(
-      t.commandId,
-      t.direction,
-    ),
-    uniqueIndex('uniq_agent_runtime_element_patch_receipt_effect').on(
-      t.effectId,
-      t.direction,
-    ),
-    index('idx_agent_runtime_element_patch_receipt_patch').on(
-      t.projectId,
-      t.patchId,
-    ),
+    uniqueIndex('uniq_agent_runtime_element_patch_receipt_command').on(t.commandId, t.direction),
+    uniqueIndex('uniq_agent_runtime_element_patch_receipt_effect').on(t.effectId, t.direction),
+    index('idx_agent_runtime_element_patch_receipt_patch').on(t.projectId, t.patchId),
     foreignKey({
       columns: [t.sessionId, t.projectId],
-      foreignColumns: [
-        AgentRuntimeSessionTable.id,
-        AgentRuntimeSessionTable.projectId,
-      ],
+      foreignColumns: [AgentRuntimeSessionTable.id, AgentRuntimeSessionTable.projectId],
       name: 'fk_agent_runtime_element_patch_receipt_session_project',
     }).onDelete('cascade'),
   ],
@@ -1470,14 +1413,8 @@ export const AgentRuntimeEntityWriteReceiptTable = sqliteTable(
     createdAt: text('created_at').notNull(),
   },
   (t) => [
-    uniqueIndex('uniq_agent_runtime_entity_write_receipt_command').on(
-      t.commandId,
-      t.direction,
-    ),
-    uniqueIndex('uniq_agent_runtime_entity_write_receipt_effect').on(
-      t.effectId,
-      t.direction,
-    ),
+    uniqueIndex('uniq_agent_runtime_entity_write_receipt_command').on(t.commandId, t.direction),
+    uniqueIndex('uniq_agent_runtime_entity_write_receipt_effect').on(t.effectId, t.direction),
     index('idx_agent_runtime_entity_write_receipt_entity').on(
       t.projectId,
       t.entityKind,
@@ -1485,10 +1422,7 @@ export const AgentRuntimeEntityWriteReceiptTable = sqliteTable(
     ),
     foreignKey({
       columns: [t.sessionId, t.projectId],
-      foreignColumns: [
-        AgentRuntimeSessionTable.id,
-        AgentRuntimeSessionTable.projectId,
-      ],
+      foreignColumns: [AgentRuntimeSessionTable.id, AgentRuntimeSessionTable.projectId],
       name: 'fk_agent_runtime_entity_write_receipt_session_project',
     }).onDelete('cascade'),
   ],
@@ -1515,10 +1449,7 @@ export const AgentRuntimeWriteExpectationTable = sqliteTable(
     createdAt: text('created_at').notNull(),
   },
   (t) => [
-    uniqueIndex('uniq_agent_runtime_write_expectation_observation').on(
-      t.effectId,
-      t.observationId,
-    ),
+    uniqueIndex('uniq_agent_runtime_write_expectation_observation').on(t.effectId, t.observationId),
     uniqueIndex('uniq_agent_runtime_write_expectation_entity').on(
       t.effectId,
       t.entityKind,
@@ -1526,13 +1457,7 @@ export const AgentRuntimeWriteExpectationTable = sqliteTable(
     ),
     index('idx_agent_runtime_write_expectation_effect').on(t.effectId),
     foreignKey({
-      columns: [
-        t.effectId,
-        t.projectId,
-        t.sessionId,
-        t.writeTurnId,
-        t.writeToolCallId,
-      ],
+      columns: [t.effectId, t.projectId, t.sessionId, t.writeTurnId, t.writeToolCallId],
       foreignColumns: [
         AgentRuntimeWriteEffectTable.id,
         AgentRuntimeWriteEffectTable.projectId,
@@ -1592,10 +1517,8 @@ export const AgentRuntimeWriteReviewTable = sqliteTable(
   },
   (t) => [
     uniqueIndex('uniq_agent_runtime_write_review_effect').on(t.effectId),
-    index('idx_agent_runtime_write_review_session_status').on(
-      t.sessionId,
-      t.status,
-    ),
+    uniqueIndex('uniq_agent_runtime_write_review_provenance').on(t.id, t.effectId),
+    index('idx_agent_runtime_write_review_session_status').on(t.sessionId, t.status),
     foreignKey({
       columns: [t.effectId, t.sessionId, t.turnId, t.toolCallId],
       foreignColumns: [
@@ -1605,6 +1528,35 @@ export const AgentRuntimeWriteReviewTable = sqliteTable(
         AgentRuntimeWriteEffectTable.toolCallId,
       ],
       name: 'fk_agent_runtime_write_review_effect_provenance',
+    }).onDelete('cascade'),
+  ],
+);
+
+export const AgentRuntimeWriteReviewBlockTable = sqliteTable(
+  'agent_runtime_write_review_block',
+  {
+    reviewId: text('review_id').notNull(),
+    effectId: text('effect_id').notNull(),
+    blockId: text('block_id').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    status: text('status').notNull().default('pending'),
+    decisionNoteJson: text('decision_note_json'),
+    revertEffectJson: text('revert_effect_json'),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    createdAt: text('created_at').notNull(),
+    revertStartedAt: text('revert_started_at'),
+    settledAt: text('settled_at'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.reviewId, t.blockId] }),
+    uniqueIndex('uniq_agent_runtime_write_review_block_ordinal').on(t.reviewId, t.ordinal),
+    index('idx_agent_runtime_write_review_block_status').on(t.reviewId, t.status),
+    foreignKey({
+      columns: [t.reviewId, t.effectId],
+      foreignColumns: [AgentRuntimeWriteReviewTable.id, AgentRuntimeWriteReviewTable.effectId],
+      name: 'fk_agent_runtime_write_review_block_review',
     }).onDelete('cascade'),
   ],
 );
@@ -1623,14 +1575,8 @@ export const AgentRuntimeCheckpointTable = sqliteTable(
     createdAt: text('created_at').notNull(),
   },
   (t) => [
-    uniqueIndex('uniq_agent_runtime_checkpoint_session_turn').on(
-      t.sessionId,
-      t.throughTurnOrdinal,
-    ),
-    index('idx_agent_runtime_checkpoint_session_created').on(
-      t.sessionId,
-      t.createdAt,
-    ),
+    uniqueIndex('uniq_agent_runtime_checkpoint_session_turn').on(t.sessionId, t.throughTurnOrdinal),
+    index('idx_agent_runtime_checkpoint_session_created').on(t.sessionId, t.createdAt),
   ],
 );
 
@@ -1645,6 +1591,7 @@ export const AgentRuntimeTaskTable = sqliteTable(
     sessionId: text('session_id').notNull(),
     objective: text('objective').notNull(),
     scopeKind: text('scope_kind').notNull().default('explicit_targets'),
+    workKind: text('work_kind').notNull().default('edit'),
     status: text('status').notNull().default('active'),
     revision: integer('revision').notNull().default(0),
     createdAt: text('created_at').notNull(),
@@ -1652,11 +1599,7 @@ export const AgentRuntimeTaskTable = sqliteTable(
     endedAt: text('ended_at'),
   },
   (t) => [
-    uniqueIndex('uniq_agent_runtime_task_scope_identity').on(
-      t.id,
-      t.projectId,
-      t.sessionId,
-    ),
+    uniqueIndex('uniq_agent_runtime_task_scope_identity').on(t.id, t.projectId, t.sessionId),
     uniqueIndex('uniq_agent_runtime_task_open_session')
       .on(t.projectId, t.sessionId)
       .where(sql`${t.status} IN ('active', 'paused', 'blocked')`),
@@ -1668,10 +1611,7 @@ export const AgentRuntimeTaskTable = sqliteTable(
     ),
     foreignKey({
       columns: [t.sessionId, t.projectId],
-      foreignColumns: [
-        AgentRuntimeSessionTable.id,
-        AgentRuntimeSessionTable.projectId,
-      ],
+      foreignColumns: [AgentRuntimeSessionTable.id, AgentRuntimeSessionTable.projectId],
       name: 'fk_agent_runtime_task_session_project',
     }).onDelete('cascade'),
   ],
@@ -1692,10 +1632,7 @@ export const AgentRuntimeTaskChapterManifestTable = sqliteTable(
       columns: [t.taskId, t.ordinal],
       name: 'pk_agent_runtime_task_chapter_manifest',
     }),
-    uniqueIndex('uniq_agent_runtime_task_manifest_chapter').on(
-      t.taskId,
-      t.resolvedChapterId,
-    ),
+    uniqueIndex('uniq_agent_runtime_task_manifest_chapter').on(t.taskId, t.resolvedChapterId),
     index('idx_agent_runtime_task_manifest_scope').on(
       t.projectId,
       t.sessionId,
@@ -1729,16 +1666,14 @@ export const AgentRuntimeTaskStepTable = sqliteTable(
     status: text('status').notNull().default('pending'),
     resultNote: text('result_note'),
     resultRef: text('result_ref'),
+    reviewResultJson: text('review_result_json'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
     startedAt: text('started_at'),
     completedAt: text('completed_at'),
   },
   (t) => [
-    uniqueIndex('uniq_agent_runtime_task_step_ordinal').on(
-      t.taskId,
-      t.ordinal,
-    ),
+    uniqueIndex('uniq_agent_runtime_task_step_ordinal').on(t.taskId, t.ordinal),
     uniqueIndex('uniq_agent_runtime_task_step_scope_identity').on(
       t.id,
       t.taskId,
@@ -1748,11 +1683,7 @@ export const AgentRuntimeTaskStepTable = sqliteTable(
     uniqueIndex('uniq_agent_runtime_task_step_in_progress')
       .on(t.taskId)
       .where(sql`${t.status} = 'in_progress'`),
-    index('idx_agent_runtime_task_step_status').on(
-      t.taskId,
-      t.status,
-      t.ordinal,
-    ),
+    index('idx_agent_runtime_task_step_status').on(t.taskId, t.status, t.ordinal),
     foreignKey({
       columns: [t.taskId, t.projectId, t.sessionId],
       foreignColumns: [
@@ -1789,11 +1720,7 @@ export const AgentRuntimeTaskConstraintTable = sqliteTable(
       t.projectId,
       t.sessionId,
     ),
-    index('idx_agent_runtime_task_constraint_status').on(
-      t.taskId,
-      t.status,
-      t.createdAt,
-    ),
+    index('idx_agent_runtime_task_constraint_status').on(t.taskId, t.status, t.createdAt),
     foreignKey({
       columns: [t.taskId, t.projectId, t.sessionId],
       foreignColumns: [
@@ -1823,10 +1750,7 @@ export const AgentRuntimeTaskCommandTable = sqliteTable(
     createdAt: text('created_at').notNull(),
   },
   (t) => [
-    uniqueIndex('uniq_agent_runtime_task_command_call').on(
-      t.turnId,
-      t.callId,
-    ),
+    uniqueIndex('uniq_agent_runtime_task_command_call').on(t.turnId, t.callId),
     index('idx_agent_runtime_task_command_task').on(t.taskId, t.createdAt),
     foreignKey({
       columns: [t.taskId, t.projectId, t.sessionId],
@@ -1839,10 +1763,7 @@ export const AgentRuntimeTaskCommandTable = sqliteTable(
     }).onDelete('cascade'),
     foreignKey({
       columns: [t.turnId, t.sessionId],
-      foreignColumns: [
-        AgentRuntimeTurnTable.id,
-        AgentRuntimeTurnTable.sessionId,
-      ],
+      foreignColumns: [AgentRuntimeTurnTable.id, AgentRuntimeTurnTable.sessionId],
       name: 'fk_agent_runtime_task_command_turn_session',
     }).onDelete('cascade'),
     foreignKey({
@@ -1879,10 +1800,10 @@ export const AgentRuntimeTaskCommandTable = sqliteTable(
 // un-anchored / standing kind.
 //   kind:   'preference' | 'veto' | 'directive'  (reserve 'episode' for session memory)
 //   status: 'pending' | 'active' | 'dismissed'   — ONLY 'active' is ever fed to
-//           an agent/judge; 'pending' awaits the author's soft-approval.
+//           an agent/judge; 'pending' awaits explicit author confirmation.
 //   source: 'author' | 'agent'
-// Local-only for now (no sync helper yet); the shape is sync-ready — projectId +
-// updatedAt + deletedAt soft-delete — for when the outbox/server routes land.
+// Mutating usecases and the Agent runtime persist the row plus sync outbox in
+// one transaction. updatedAt and deletedAt also preserve local provenance.
 export const AgentMemoryTable = sqliteTable(
   'agent_memory',
   {
@@ -1971,6 +1892,227 @@ export const TimelineMarkerTable = sqliteTable(
   ],
 );
 
+// Author-visible Agent checkpoints. These are intentionally independent from
+// AgentRuntimeCheckpointTable: rolling runtime checkpoints may be compacted to
+// a digest, while a user checkpoint must retain its complete conversation and
+// manuscript restore payload until explicit deletion/retention cleanup.
+export const AgentUserCheckpointTable = sqliteTable(
+  'agent_user_checkpoint',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => AgentConversationTable.id, { onDelete: 'cascade' }),
+    runtimeSessionId: text('runtime_session_id'),
+    sourceTurnId: text('source_turn_id'),
+    parentCheckpointId: text('parent_checkpoint_id'),
+    kind: text('kind').notNull().default('automatic'),
+    status: text('status').notNull().default('capturing'),
+    label: text('label').notNull().default(''),
+    pinned: integer('pinned', { mode: 'boolean' }).notNull().default(false),
+    canonicalThroughTurnOrdinal: integer('canonical_through_turn_ordinal').notNull().default(-1),
+    canonicalContextHash: text('canonical_context_hash'),
+    conversationMessagesJson: text('conversation_messages_json').notNull().default('[]'),
+    providerHistoryJson: text('provider_history_json').notNull().default('[]'),
+    longTaskStateJson: text('long_task_state_json'),
+    acceptedWriteEffectIdsJson: text('accepted_write_effect_ids_json').notNull().default('[]'),
+    entityCount: integer('entity_count').notNull().default(0),
+    createdAt: text('created_at').notNull(),
+    finalizedAt: text('finalized_at'),
+    deletedAt: text('deleted_at'),
+  },
+  (t) => [
+    index('idx_agent_user_checkpoint_project_created').on(t.projectId, t.createdAt),
+    index('idx_agent_user_checkpoint_conversation_created').on(t.conversationId, t.createdAt),
+    uniqueIndex('uniq_agent_user_checkpoint_turn_kind').on(
+      t.conversationId,
+      t.sourceTurnId,
+      t.kind,
+    ),
+  ],
+);
+
+export const AgentUserCheckpointEntityTable = sqliteTable(
+  'agent_user_checkpoint_entity',
+  {
+    checkpointId: text('checkpoint_id')
+      .notNull()
+      .references(() => AgentUserCheckpointTable.id, { onDelete: 'cascade' }),
+    ordinal: integer('ordinal').notNull(),
+    projectId: text('project_id').notNull(),
+    entityKind: text('entity_kind').notNull(),
+    entityId: text('entity_id').notNull(),
+    displayName: text('display_name').notNull().default(''),
+    documentId: text('document_id').notNull(),
+    yjsRevision: integer('yjs_revision').notNull(),
+    stateVector: blob('state_vector').notNull(),
+    stateHash: text('state_hash').notNull(),
+    contentHash: text('content_hash').notNull(),
+    stateBlob: blob('state_blob').notNull(),
+    metadataJson: text('metadata_json').notNull(),
+    metadataHash: text('metadata_hash').notNull(),
+    capturedAt: text('captured_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.checkpointId, t.entityKind, t.entityId] }),
+    uniqueIndex('uniq_agent_user_checkpoint_entity_ordinal').on(t.checkpointId, t.ordinal),
+    index('idx_agent_user_checkpoint_entity_project').on(t.projectId, t.entityKind, t.entityId),
+  ],
+);
+
+// A preview is a durable compare-and-set receipt, not a transient modal model.
+// Execution must present the one-use preview token and re-observe every entity
+// hash before the first write. Multi-entity restores use the child rows as a
+// persisted saga and compensate after a process interruption.
+export const AgentUserCheckpointActionTable = sqliteTable(
+  'agent_user_checkpoint_action',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').notNull(),
+    checkpointId: text('checkpoint_id')
+      .notNull()
+      .references(() => AgentUserCheckpointTable.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    status: text('status').notNull().default('previewed'),
+    idempotencyKey: text('idempotency_key').notNull(),
+    previewTokenHash: text('preview_token_hash').notNull(),
+    previewHash: text('preview_hash').notNull(),
+    expiresAt: text('expires_at').notNull(),
+    overwriteConfirmed: integer('overwrite_confirmed', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    targetConversationId: text('target_conversation_id'),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    confirmedAt: text('confirmed_at'),
+    completedAt: text('completed_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_user_checkpoint_action_idempotency').on(t.idempotencyKey),
+    index('idx_agent_user_checkpoint_action_recovery').on(t.projectId, t.status, t.updatedAt),
+  ],
+);
+
+export const AgentUserCheckpointActionEntityTable = sqliteTable(
+  'agent_user_checkpoint_action_entity',
+  {
+    actionId: text('action_id')
+      .notNull()
+      .references(() => AgentUserCheckpointActionTable.id, { onDelete: 'cascade' }),
+    ordinal: integer('ordinal').notNull(),
+    projectId: text('project_id').notNull(),
+    entityKind: text('entity_kind').notNull(),
+    entityId: text('entity_id').notNull(),
+    expectedCurrentRevision: integer('expected_current_revision'),
+    expectedCurrentStateHash: text('expected_current_state_hash').notNull(),
+    expectedCurrentContentHash: text('expected_current_content_hash').notNull(),
+    expectedCurrentMetadataHash: text('expected_current_metadata_hash').notNull(),
+    checkpointStateHash: text('checkpoint_state_hash').notNull(),
+    checkpointContentHash: text('checkpoint_content_hash').notNull(),
+    checkpointMetadataHash: text('checkpoint_metadata_hash').notNull(),
+    beforeRevision: integer('before_revision'),
+    beforeStateVector: blob('before_state_vector'),
+    beforeStateBlob: blob('before_state_blob'),
+    beforeContentHash: text('before_content_hash'),
+    beforeMetadataJson: text('before_metadata_json'),
+    resultStateHash: text('result_state_hash'),
+    status: text('status').notNull().default('pending'),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.actionId, t.entityKind, t.entityId] }),
+    uniqueIndex('uniq_agent_user_checkpoint_action_entity_ordinal').on(t.actionId, t.ordinal),
+    index('idx_agent_user_checkpoint_action_entity_status').on(t.actionId, t.status, t.ordinal),
+  ],
+);
+
+// Device-local MCP configuration. Executable paths, loopback endpoints and
+// extension authority are not authored manuscript state and never enter the
+// sync outbox. Secret header/environment values live in the native keychain;
+// these JSON fields contain only public values or keychain reference names.
+export const AgentMcpServerTable = sqliteTable(
+  'agent_mcp_server',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    transport: text('transport').notNull(),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+    command: text('command'),
+    argsJson: text('args_json').notNull().default('[]'),
+    cwd: text('cwd'),
+    publicEnvJson: text('public_env_json').notNull().default('{}'),
+    secretEnvJson: text('secret_env_json').notNull().default('{}'),
+    url: text('url'),
+    publicHeadersJson: text('public_headers_json').notNull().default('{}'),
+    secretHeadersJson: text('secret_headers_json').notNull().default('{}'),
+    toolPolicyJson: text('tool_policy_json').notNull().default('{}'),
+    configRevision: text('config_revision').notNull(),
+    healthStatus: text('health_status').notNull().default('disabled'),
+    healthMessage: text('health_message').notNull().default(''),
+    serverInfoJson: text('server_info_json').notNull().default('{}'),
+    discoveredToolsJson: text('discovered_tools_json').notNull().default('[]'),
+    lastCheckedAt: text('last_checked_at'),
+    lastConnectedAt: text('last_connected_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_agent_mcp_server_project_name').on(t.projectId, t.name),
+    uniqueIndex('uniq_agent_mcp_server_scope_identity').on(t.id, t.projectId),
+    index('idx_agent_mcp_server_project_enabled').on(t.projectId, t.enabled),
+  ],
+);
+
+// Exact-argument durable authority for dynamic tools. A grant is bound to the
+// project, source/config revision, provider-visible tool, executable definition
+// revision, access class and SHA-256 argument hash. Any drift fails closed.
+export const AgentPermissionGrantTable = sqliteTable(
+  'agent_permission_grant',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id'),
+    scope: text('scope').notNull(),
+    sourceKind: text('source_kind').notNull(),
+    sourceId: text('source_id').notNull(),
+    providerToolName: text('provider_tool_name').notNull(),
+    remoteToolName: text('remote_tool_name').notNull(),
+    access: text('access').notNull(),
+    argumentsHash: text('arguments_hash').notNull(),
+    toolDefinitionRevision: text('tool_definition_revision').notNull(),
+    sourceConfigRevision: text('source_config_revision').notNull(),
+    status: text('status').notNull().default('active'),
+    createdAt: text('created_at').notNull(),
+    lastUsedAt: text('last_used_at'),
+    revokedAt: text('revoked_at'),
+    revokedReason: text('revoked_reason'),
+  },
+  (t) => [
+    index('idx_agent_permission_grant_match').on(
+      t.projectId,
+      t.sourceKind,
+      t.sourceId,
+      t.providerToolName,
+      t.argumentsHash,
+      t.status,
+    ),
+    index('idx_agent_permission_grant_project_status').on(t.projectId, t.status, t.createdAt),
+    index('idx_agent_permission_grant_session').on(t.sessionId, t.status),
+  ],
+);
+
 // Entity snapshot history — the local "time machine" trail. One row per
 // captured save-point of a prose entity (node/element/storyline/category):
 // the full Yjs state, a contentJson preview (stale-OK, for the history UI),
@@ -2056,14 +2198,8 @@ export const YjsProseCommandReceiptTable = sqliteTable(
     createdAt: text('created_at').notNull(),
   },
   (t) => [
-    uniqueIndex('uniq_yjs_prose_command_direction').on(
-      t.commandId,
-      t.direction,
-    ),
-    index('idx_yjs_prose_command_doc_revision').on(
-      t.docId,
-      t.committedRevision,
-    ),
+    uniqueIndex('uniq_yjs_prose_command_direction').on(t.commandId, t.direction),
+    index('idx_yjs_prose_command_doc_revision').on(t.docId, t.committedRevision),
   ],
 );
 

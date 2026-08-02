@@ -199,6 +199,15 @@ export async function restoreEntitySnapshot(snapshotId: string): Promise<void> {
   const repo = createEntitySnapshotRepository();
   const row = await repo.getById(snapshotId);
   if (!row) throw new Error('Snapshot does not exist or may have been cleaned up');
+  await restoreEntitySnapshotPayload(row);
+}
+
+/**
+ * Restore an already-authorized durable payload without first materializing a
+ * disposable entity_snapshot_history row. User-checkpoint restore uses this
+ * entry point after its preview-token CAS and saga receipt are durable.
+ */
+export async function restoreEntitySnapshotPayload(row: EntitySnapshotRow): Promise<void> {
   const ctx = getActiveAgentToolContext();
   if (!ctx) throw new Error('No writable project context is available. Restore inside an open project.');
 

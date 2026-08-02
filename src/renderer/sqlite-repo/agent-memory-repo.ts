@@ -3,10 +3,9 @@
  * guidance that BOTH the General agent and the Shadow review engine read as
  * auxiliary context (see domain/agent-memory.ts for the model + boundaries).
  *
- * Local-only for now: like agent_conversation, not wired to the sync outbox yet.
- * The schema is sync-ready (projectId + updatedAt + deletedAt) for when the
- * outbox/server routes land. Soft-delete via deletedAt keeps a row around for
- * provenance after it's removed.
+ * Mutating usecases and the Agent's certified domain strategy persist a sync
+ * outbox entry in the same transaction. Soft-delete via deletedAt keeps a row
+ * around for provenance after it is removed.
  */
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getDb, type DbExecutor } from '../lib/db';

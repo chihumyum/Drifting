@@ -33,12 +33,10 @@ export type AgentChatMessage =
       status: 'running' | 'ok' | 'error';
       result?: string;
       /**
-       * Candidate durable soft-review identity returned by a write tool.
-       *
-       * `provenance` is copied from the canonical journal envelope rather than
-       * from tool-result JSON. The Panel still verifies it against the durable
-       * write effect before exposing review actions, so an MCP/tool payload
-       * cannot mint review authority by merely returning a `review` object.
+       * Durable editor-review identity returned by a prose write. The chat
+       * panel does not expose settlement controls; this journal projection lets
+       * recovery/context code retain canonical provenance while the editor owns
+       * the inline accept/reject surface.
        */
       review?: {
         id: string;
@@ -85,6 +83,10 @@ export interface AgentConversation {
   sdkSessionId: string | null;
   /** Provider-neutral canonical runtime session used for crash recovery. */
   runtimeSessionId: string | null;
+  /** Durable user checkpoint whose context seeds this non-destructive fork. */
+  forkCheckpointId: string | null;
+  /** Source conversation retained for branch navigation/audit. */
+  parentConversationId: string | null;
   mode: AgentConvMode;
   messages: AgentChatMessage[];
   createdAt: string;
@@ -96,5 +98,7 @@ export interface AgentConversationSummary {
   id: string;
   title: string;
   mode: AgentConvMode;
+  forkCheckpointId?: string | null;
+  parentConversationId?: string | null;
   updatedAt: string;
 }

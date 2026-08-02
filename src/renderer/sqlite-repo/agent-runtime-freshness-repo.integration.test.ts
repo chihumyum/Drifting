@@ -35,6 +35,7 @@ const migrationSql = [
   readMigration('../../../drizzle/0060_agent_runtime_persistence.sql'),
   readMigration('../../../drizzle/0061_agent_runtime_write_effect.sql'),
   readMigration('../../../drizzle/0063_agent_runtime_freshness.sql'),
+  readMigration('../../../drizzle/0068_agent_runtime_write_authorization.sql'),
 ].join('\n');
 
 const HASH_ZERO = `sha256:${'0'.repeat(64)}`;

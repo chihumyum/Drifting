@@ -1,7 +1,9 @@
 /**
- * Canonical persistence contracts for Agent write effects and their soft
- * review. They are provider-neutral and intentionally describe durable local
- * execution boundaries, not provider tool-call messages.
+ * Canonical persistence contracts for Agent write effects and editor review
+ * settlement. New writes cross a provenance-bound authorization gate before an
+ * effect may be claimed. Reviewable prose writes then create a canonical review
+ * after their Yjs mutation commits. These contracts are provider-neutral and
+ * describe durable local execution boundaries, not provider tool-call messages.
  */
 
 export type AgentRuntimeWriteEffectPhase =
@@ -20,6 +22,17 @@ export type AgentRuntimeWriteReversibility =
   | 'irreversible'
   | 'unavailable';
 
+/** Immutable evidence that the central runtime authorized a write before any
+ * renderer usecase, Yjs transaction, SQLite outbox row, or server sync existed. */
+export interface AgentRuntimeWriteAuthorization {
+  kind: 'automatic' | 'author_approved';
+  /** Present only when the author explicitly resolved a permission request. */
+  requestId: string | null;
+  /** SHA-256 of the exact provider-visible, schema-validated arguments. */
+  argumentsHash: string;
+  authorizedAt: string;
+}
+
 export interface AgentRuntimeWriteRouteProvenance {
   projectId: string;
   routeKind: 'chat' | 'goal';
@@ -37,6 +50,8 @@ export interface PersistedAgentRuntimeWriteEffect
   callId: string;
   toolName: string;
   idempotencyKey: string;
+  /** NULL only for effects written before central authorization was introduced. */
+  authorization: AgentRuntimeWriteAuthorization | null;
   phase: AgentRuntimeWriteEffectPhase;
   arguments: unknown;
   expectedRevision: unknown | null;
@@ -69,6 +84,7 @@ export interface ClaimAgentRuntimeWriteEffect
   callId: string;
   toolName: string;
   idempotencyKey: string;
+  authorization: AgentRuntimeWriteAuthorization;
   /** Provider-validated arguments recorded on the outer tool lifecycle row.
    * Runtime facades may persist a richer, deterministic command in
    * `arguments` while this preserves exact model-call provenance. */
@@ -174,7 +190,70 @@ export interface CreateAgentRuntimeWriteReview {
   turnId: string;
   toolCallId: string;
   createdAt: string;
+  /** Exact immutable block order derived from the committed prose effect. */
+  blocks?: readonly {
+    blockId: string;
+    ordinal: number;
+  }[];
 }
+
+export type AgentRuntimeWriteReviewBlockStatus =
+  | 'pending'
+  | 'accepted'
+  | 'revert_started'
+  | 'reverted'
+  | 'revert_failed';
+
+export interface PersistedAgentRuntimeWriteReviewBlock {
+  reviewId: string;
+  effectId: string;
+  blockId: string;
+  ordinal: number;
+  status: AgentRuntimeWriteReviewBlockStatus;
+  decisionNote: unknown | null;
+  revertEffect: unknown | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  revertStartedAt: string | null;
+  settledAt: string | null;
+  updatedAt: string;
+}
+
+export type AgentRuntimeWriteReviewBlockTransition =
+  | {
+      reviewId: string;
+      blockId: string;
+      expectedStatus: 'pending';
+      nextStatus: 'accepted' | 'revert_started';
+      decisionNote?: unknown | null;
+      at: string;
+    }
+  | {
+      reviewId: string;
+      blockId: string;
+      expectedStatus: 'revert_failed';
+      nextStatus: 'revert_started';
+      decisionNote?: unknown | null;
+      at: string;
+    }
+  | {
+      reviewId: string;
+      blockId: string;
+      expectedStatus: 'revert_started';
+      nextStatus: 'reverted';
+      revertEffect: unknown;
+      at: string;
+    }
+  | {
+      reviewId: string;
+      blockId: string;
+      expectedStatus: 'revert_started';
+      nextStatus: 'revert_failed';
+      errorCode: string;
+      errorMessage?: string | null;
+      at: string;
+    };
 
 export type AgentRuntimeWriteReviewTransition =
   | {

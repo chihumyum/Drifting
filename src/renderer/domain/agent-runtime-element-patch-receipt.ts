@@ -3,7 +3,8 @@ import type { ElementPatch } from '../sqlite-repo/element-patch-repo';
 export type AgentRuntimeElementPatchCommandDirection = 'forward' | 'inverse';
 export type AgentRuntimeElementPatchCommandTool =
   | 'create_element_patch'
-  | 'update_element_patch';
+  | 'update_element_patch'
+  | 'delete_element_patch';
 
 /**
  * Exact authored-state snapshot carried by the immutable command receipt.

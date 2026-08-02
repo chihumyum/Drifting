@@ -477,6 +477,69 @@
       "when": 1785200000000,
       "tag": "0067_agent_runtime_long_task",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "6",
+      "when": 1785300000000,
+      "tag": "0068_agent_runtime_write_authorization",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "6",
+      "when": 1785400000000,
+      "tag": "0069_agent_runtime_structural_receipt",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "6",
+      "when": 1785500000000,
+      "tag": "0070_agent_runtime_element_patch_delete",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "6",
+      "when": 1785600000000,
+      "tag": "0071_agent_runtime_review_blocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "6",
+      "when": 1785686400000,
+      "tag": "0072_agent_runtime_domain_crud",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "6",
+      "when": 1785772800000,
+      "tag": "0073_agent_runtime_task_step_retired",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "6",
+      "when": 1785859200000,
+      "tag": "0074_agent_user_checkpoint",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "6",
+      "when": 1785945600000,
+      "tag": "0075_agent_runtime_review_task",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "6",
+      "when": 1786032000000,
+      "tag": "0076_agent_extension_platform",
+      "breakpoints": true
     }
   ]
 }

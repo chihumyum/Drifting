@@ -1295,7 +1295,10 @@ mod tests {
     use sha2::{Digest, Sha256};
     use tempfile::TempDir;
 
-    use super::{DatabaseGateway, DatabaseValue, TransactionBehavior, MIGRATIONS_TABLE};
+    use super::{
+        DatabaseGateway, DatabaseValue, MigrationJournal, TransactionBehavior, DRIZZLE_MIGRATIONS,
+        MIGRATIONS_TABLE,
+    };
 
     const CLIENT_SESSION: &str = "test-renderer-session";
 
@@ -1307,6 +1310,16 @@ mod tests {
 
     fn integer(value: i64) -> DatabaseValue {
         DatabaseValue::Integer(value.to_string())
+    }
+
+    fn embedded_migration_count() -> usize {
+        let journal = DRIZZLE_MIGRATIONS
+            .get_file("meta/_journal.json")
+            .expect("embedded migration journal");
+        serde_json::from_slice::<MigrationJournal>(journal.contents())
+            .expect("valid embedded migration journal")
+            .entries
+            .len()
     }
 
     #[test]
@@ -1547,7 +1560,8 @@ mod tests {
         let first_open = gateway
             .open("migrations.db".into(), CLIENT_SESSION.into(), false)
             .expect("first open");
-        assert_eq!(first_open.migrations_applied, 66);
+        let expected_migrations = embedded_migration_count();
+        assert_eq!(first_open.migrations_applied, expected_migrations);
         assert_eq!(first_open.journal_mode.to_ascii_lowercase(), "wal");
 
         let migration_count = gateway
@@ -1558,7 +1572,10 @@ mod tests {
                 CLIENT_SESSION.into(),
             )
             .expect("migration count");
-        assert_eq!(migration_count.rows, [vec![integer(66)]]);
+        assert_eq!(
+            migration_count.rows,
+            [vec![integer(expected_migrations as i64)]]
+        );
 
         gateway
             .close(CLIENT_SESSION.into())
@@ -1980,7 +1997,7 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("migration count");
-        assert_eq!(migration_count, 66);
+        assert_eq!(migration_count, embedded_migration_count() as i64);
     }
 
     fn application_table_counts(connection: &Connection) -> Vec<(String, i64)> {

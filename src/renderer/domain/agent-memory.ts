@@ -16,7 +16,7 @@ import type { StructuralEntityKind } from './entity-kinds';
 // Reserved: 'episode' (session/episodic recall) is deferred — do NOT emit it yet.
 export type AgentMemoryKind = 'preference' | 'veto' | 'directive';
 
-// pending   — proposed by an agent, awaiting the author's soft-approval. NEVER
+// pending   — proposed by an agent, awaiting explicit author confirmation. NEVER
 //             injected into a prompt while pending (the trust invariant).
 // active    — confirmed; the ONLY status that enters agent/judge context.
 // dismissed — rejected, or retired because a newer memory superseded it.

@@ -433,6 +433,12 @@ export function createAgentRuntimeResultArtifactRepository(
       const row = await selectArtifact(database(), input);
       if (!row) return null;
       const artifact = await verifyArtifactRow(row);
+      if (input.offset > artifact.charCount) {
+        fail(
+          'INVALID_ARTIFACT',
+          `offset ${input.offset} exceeds Agent result "${input.ref}" length ${artifact.charCount}.`,
+        );
+      }
       const content = [...artifact.serialized]
         .slice(input.offset, input.offset + input.limit)
         .join('');
