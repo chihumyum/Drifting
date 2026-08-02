@@ -83,9 +83,9 @@ provider tool call
   tool arguments, results, controls, reviews, and terminal state. An active
   plan or `budget_exceeded` slice exposes one explicit “continue” action on the
   same runtime session and never auto-loops.
-- Provider-neutral turns never enter the legacy whole-turn checkpoint trail.
-  Both the UI and direct API fail closed; canonical undo is exclusively the
-  durable review's revision-guarded inverse.
+- The legacy whole-turn checkpoint trail and its direct API were subsequently
+  removed. Canonical Agent-write undo is the durable review's revision-guarded
+  inverse; manuscript history is the independent entity snapshot system.
 - Runtime-discovered plugin/MCP tools share the central schema, selection,
   project-isolation, and permission path. This is the transport-neutral MCP
   base; no concrete stdio/HTTP connection UI is claimed.

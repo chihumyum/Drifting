@@ -60,9 +60,9 @@ pnpm --dir client eval:agent:long-task
 Result:
 
 - 10 required test files discovered;
-- 100/100 milestone tests passed;
+- 110/110 milestone tests passed;
 - all 13 named invariant assertions matched exactly once;
-- every checked-in product migration through 0073 ran against real file-backed
+- every checked-in product migration through 0077 ran against real file-backed
   SQLite and reopened idempotently;
 - injected command-receipt failure rolled back the complete manifest/step
   reconciliation;

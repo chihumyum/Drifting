@@ -179,8 +179,6 @@ export interface AgentStartInput {
   projectName?: string;
   projectFacts?: { key: string; value: string }[];
   memories?: { kind: string; body: string }[];
-  /** Durable provider-neutral context carried by a user-checkpoint fork. */
-  checkpointContext?: string;
 }
 
 export interface GeneralAgentAuthStatus {

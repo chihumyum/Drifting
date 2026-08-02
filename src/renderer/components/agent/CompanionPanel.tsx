@@ -40,8 +40,6 @@ import {
   selectPendingControl,
   selectRunning,
   selectOtherRunning,
-  selectRuntimeSessionId,
-  selectForkCheckpointId,
 } from '../../store/agent-chat-store';
 import { useProjectStore } from '../../store/project-store';
 import { useAgentMemory } from '../../usecase/useAgentMemory';
@@ -74,7 +72,6 @@ import {
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { AgentContextIndicator } from './AgentContextIndicator';
 import { FieldDiff } from '../editor/FieldReview';
-import { AgentCheckpointMenu } from './AgentCheckpointMenu';
 import '../../../styles/agent-panel.css';
 
 const STREAM_FOLLOW_BOTTOM_THRESHOLD_PX = 16;
@@ -779,8 +776,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const continuationReason = useAgentChatStore(selectAgentTaskContinuationReason);
   const automaticContinuation = useAgentChatStore(selectAutomaticContinuation);
   const contextUsage = useAgentChatStore(selectContextUsage);
-  const runtimeSessionId = useAgentChatStore(selectRuntimeSessionId);
-  const forkCheckpointId = useAgentChatStore(selectForkCheckpointId);
   const runningConvId = useAgentChatStore((s) => s.runningConvId);
   const convList = useAgentChatStore((s) => s.convList);
   const activeConvId = useAgentChatStore((s) => s.activeConvId);
@@ -795,7 +790,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const deleteConversation = useAgentChatStore((s) => s.deleteConversation);
   const renameConversation = useAgentChatStore((s) => s.renameConversation);
   const bindProject = useAgentChatStore((s) => s.bindProject);
-  const refreshConversations = useAgentChatStore((s) => s.refreshList);
 
   const [status, setStatus] = useState<GeneralAgentAuthStatus | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -1075,17 +1069,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
         )}
         <div style={toolbarRight}>
           <AgentContextIndicator snapshot={contextUsage} />
-          <AgentCheckpointMenu
-            projectId={projectId}
-            conversationId={activeConvId}
-            runtimeSessionId={runtimeSessionId}
-            forkCheckpointId={forkCheckpointId}
-            messages={messages}
-            mode={agentAuth === 'hosted' ? 'hosted' : 'byok'}
-            disabled={running || otherRunning || starting}
-            loadConversation={loadConversation}
-            refreshConversations={refreshConversations}
-          />
           <button
             ref={historyTriggerRef}
             type="button"

@@ -23,7 +23,6 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { entityKey, type ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import { mergeBlockChanges, type AgentBlockChange, type AgentFieldRef } from '../lib/agent/block-diff';
-import { useAgentCheckpointStore } from './agent-checkpoint-store';
 
 export type AgentEditMode = 'auto' | 'approve';
 
@@ -159,9 +158,6 @@ export const useAgentEditStore = create<AgentEditState>()(
         // a re-edited block keeps the latest edit's mode (mergeBlockChanges spreads
         // the incoming change).
         const stamped = changes.map((c) => ({ ...c, mode }));
-        // Tee into the running turn's checkpoint (the whole-turn undo trail) —
-        // it outlives this store's entries, which clear on reveal/approve.
-        useAgentCheckpointStore.getState().recordChanges(entityType, id, stamped);
         set((s) => {
           const prev = s.pending[key];
           const merged = prev ? mergeBlockChanges(prev.changes, stamped) : stamped;
@@ -196,9 +192,6 @@ export const useAgentEditStore = create<AgentEditState>()(
           effectId: provenance.effectId,
           reviewId: provenance.reviewId,
         }));
-        useAgentCheckpointStore
-          .getState()
-          .recordChanges(entityType, id, stamped);
         set((state) => {
           // Keep this guard inside the state transition as well as above: the
           // batch map, not merged block contents, is the idempotency authority.

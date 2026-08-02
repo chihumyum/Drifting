@@ -186,8 +186,9 @@ continuation prompts, TypeScript, targeted ESLint, and generated capability
 drift. It writes `acceptance/milestone-e-long-task.json`.
 
 This does not claim native desktop/iOS/Android lifecycle acceptance, live
-multi-provider conformance, literary compaction quality, or a user-facing
-checkpoint/fork UI. Those remain later roadmap milestones.
+multi-provider conformance or literary compaction quality. Agent conversation
+checkpoint/fork UI was subsequently implemented and then removed; long-task
+continuity remains session-local durable runtime state.
 
 Milestone H extends this execution state machine with read-only whole-book QA.
 Run `pnpm --dir client eval:agent:writing` for the cited review,

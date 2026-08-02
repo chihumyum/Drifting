@@ -383,10 +383,8 @@
       "debug_toast_desc": "开启后，主页右下角会浮出 push / pull 事件的小提示，用于排查同步问题。",
       "history": "版本历史",
       "auto_snapshot": "自动快照",
-      "auto_snapshot_desc": "每章节每 5 分钟一份；保留 90 天。",
-      "milestones": "手动里程碑",
-      "milestones_desc": "标记重大稿——永久保留，不计入 90 天。",
-      "view_milestones": "查看",
+      "auto_snapshot_desc": "正文或实体发生变化后约每 15 分钟留存一份；本地保留 30 天，并按时间自动稀疏。",
+      "auto_snapshot_active": "已启用",
       "export": "导出 / 导入",
       "export_all": "导出关系型 Markdown",
       "export_all_desc": "Pre-Alpha 暂只支持关系型 Markdown ZIP；完整数据导出将在后续重构。",
@@ -1205,13 +1203,6 @@
     "todos": {
       "plan": "计划"
     },
-    "revert": {
-      "turns": "已回退 {{count}} 轮",
-      "blocks": "{{count}} 处正文",
-      "fields": "{{count}} 个字段",
-      "partial": "{{summary}}；{{count}} 项无法自动还原",
-      "failed": "回退失败：{{error}}"
-    },
     "setup": {
       "title": "Agent 未连接",
       "hosted": "当前为「托管订阅」模式，但尚未就绪。前往设置登录并开通订阅。",
@@ -1221,41 +1212,9 @@
     },
     "toolbar": {
       "renameTitle": "点击重命名当前对话",
-      "snapshotsTitle": "回退到某一轮 agent 改动之前",
-      "snapshots": "快照 · {{count}}",
       "historyTitle": "历史对话",
       "history": "历史",
       "newTitle": "开始新对话"
-    },
-    "snapshots": {
-      "empty": "暂无可回退的改动快照",
-      "emptyInstruction": "（空指令）",
-      "meta": "{{changes}} 处 / {{entities}} 实体",
-      "revertThisTitle": "撤销这一轮的全部改动",
-      "revertThisAndAfterTitle": "撤销这一轮及其后 {{count}} 轮的全部改动",
-      "reverting": "回退中…",
-      "confirmRevert": "确认回退",
-      "runningTitle": "agent 正在运行，结束后才能回退",
-      "revertBeforeTitle": "回退到这一轮改动之前",
-      "revert": "回退"
-    },
-    "checkpoints": {
-      "title": "检查点与分叉",
-      "hint": "分叉不改正文；恢复必须先预览，并会保留原对话。",
-      "manualLabel": "手动检查点 {{time}}",
-      "saved": "检查点已保存。",
-      "save": "保存当前",
-      "saving": "保存中…",
-      "empty": "发送任务前会自动保存；也可以现在手动保存。",
-      "untitled": "检查点",
-      "entities": "个正文实体",
-      "fork": "分叉",
-      "preview": "预览恢复",
-      "previewMissing": "无法恢复：检查点中的实体已被删除",
-      "previewSummary": "将恢复 {{changed}} 个有变化的实体",
-      "previewGuard": "执行前会再次校验所有 revision/hash；预览后出现的新编辑不会被覆盖。",
-      "restoreAndFork": "确认恢复并分叉",
-      "restoring": "恢复中…"
     },
     "history": {
       "empty": "暂无历史对话",

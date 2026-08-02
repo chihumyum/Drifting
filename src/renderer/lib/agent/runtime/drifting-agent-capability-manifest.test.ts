@@ -20,7 +20,6 @@ import {
   DRIFTING_WORKSPACE_COMMAND_NAMES,
 } from './drifting-workspace-tool-contract';
 import type { AgentModelDriver, AgentRuntimeContext, AgentToolRuntime } from './types';
-import { AGENT_USER_CHECKPOINT_CONTRACT } from './agent-user-checkpoint-contract';
 
 const projectId = 'capability-project';
 const context: AgentRuntimeContext = {
@@ -142,20 +141,10 @@ describe('Drifting Agent capability manifest', () => {
     ]);
   });
 
-  it('publishes the provider-neutral user checkpoint, safe rewind, and fork contract', () => {
+  it('does not publish the removed user checkpoint or conversation-fork surface', () => {
     const manifest = buildDriftingAgentCapabilityManifest();
-    expect(manifest.schemaVersion).toBe(9);
-    expect(manifest.userCheckpoint).toEqual(AGENT_USER_CHECKPOINT_CONTRACT);
-    expect(manifest.userCheckpoint).toMatchObject({
-      automaticBoundary: 'before-agent-tool-execution',
-      overwritePolicy: 'explicit-preview-confirmation-only',
-      multiEntityAtomicity: 'durable-saga-with-reverse-compensation',
-      restartRecovery: 'compensate-incomplete-with-author-edit-precedence',
-      proseVerification: 'canonical-content-hash-not-yjs-binary-identity',
-    });
-    expect(manifest.deferredProductCapabilities).not.toContain(
-      'provider-neutral-user-checkpoint-rewind',
-    );
+    expect(manifest.schemaVersion).toBe(10);
+    expect('userCheckpoint' in manifest).toBe(false);
   });
 
   it('publishes certified providers, concrete MCP transports, and exact durable grants', () => {

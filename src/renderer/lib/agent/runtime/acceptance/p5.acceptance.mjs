@@ -31,9 +31,6 @@ const TEST_GROUPS = {
     'src/renderer/lib/agent/runtime/repository-transport-persistence.test.ts',
     'src/renderer/lib/agent/runtime/repository-transport-persistence-v2.integration.test.ts',
     'src/renderer/lib/agent/runtime/drifting-write-recovery.integration.test.ts',
-    'src/renderer/store/agent-checkpoint-store.test.ts',
-    'src/renderer/lib/agent/turn-revert-policy.test.ts',
-    'src/renderer/lib/agent/turn-revert.test.ts',
   ],
   resultArtifactAndContext: [
     'src/renderer/lib/agent/runtime/drifting-read-tool-runtime.test.ts',
@@ -302,16 +299,16 @@ async function readMigrationIdentity() {
     latestIndex: latest?.idx ?? null,
     latestTag: latest?.tag ?? null,
     requiredCount: 68,
-    requiredLatestTag: '0067_agent_runtime_long_task',
+    requiredThroughIndex: 67,
+    requiredThroughTag: '0067_agent_runtime_long_task',
     indexesCanonical,
     tagsUnique,
     rustEmbedsDrizzleDirectory,
     files,
     passed:
-      entries.length === 68 &&
-      latest?.idx === 67 &&
-      latest?.tag ===
-        '0067_agent_runtime_long_task' &&
+      entries.length >= 68 &&
+      entries[67]?.idx === 67 &&
+      entries[67]?.tag === '0067_agent_runtime_long_task' &&
       indexesCanonical &&
       tagsUnique &&
       rustEmbedsDrizzleDirectory &&
@@ -419,8 +416,7 @@ export async function runP5Acceptance(options = parseOptions([])) {
             interruptedYjsReceiptReconciledBeforeSessionResume: true,
             interruptedMutationNotReplayed: true,
             validBudgetSlicePersistsVerifiedV2Checkpoint: true,
-            providerNeutralTurnsNeverCreateLegacyWholeTurnCheckpoints: true,
-            legacyWholeTurnRevertFailsClosedAfterRuntimeBarrier: true,
+            authorVisibleCheckpointAndConversationForkAbsent: true,
             canonicalRevertUsesDurableGuardedReviewOnly: true,
           },
         },

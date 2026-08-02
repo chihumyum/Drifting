@@ -879,11 +879,6 @@ export const AgentConversationTable = sqliteTable(
     mode: text('mode').notNull().default('byok'),
     // Serialized display transcript (AgentChatMessage[] — see domain).
     messagesJson: text('messages_json').notNull().default('[]'),
-    // A fork never resumes the source runtime session because route ownership
-    // would be ambiguous. Instead it keeps the durable user-checkpoint id and
-    // injects that checkpoint's provider-neutral context into the new session.
-    forkCheckpointId: text('fork_checkpoint_id'),
-    parentConversationId: text('parent_conversation_id'),
     deletedAt: text('deleted_at'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
@@ -892,7 +887,6 @@ export const AgentConversationTable = sqliteTable(
     index('idx_agent_conversation_project').on(t.projectId),
     index('idx_agent_conversation_project_updated').on(t.projectId, t.updatedAt),
     index('idx_agent_conversation_deleted_at').on(t.deletedAt),
-    index('idx_agent_conversation_fork_checkpoint').on(t.forkCheckpointId),
     uniqueIndex('uniq_agent_conversation_project_identity').on(t.id, t.projectId),
   ],
 );
@@ -1889,147 +1883,6 @@ export const TimelineMarkerTable = sqliteTable(
   (t) => [
     index('idx_timeline_marker_project').on(t.projectId),
     index('idx_timeline_marker_drift').on(t.driftNodeId),
-  ],
-);
-
-// Author-visible Agent checkpoints. These are intentionally independent from
-// AgentRuntimeCheckpointTable: rolling runtime checkpoints may be compacted to
-// a digest, while a user checkpoint must retain its complete conversation and
-// manuscript restore payload until explicit deletion/retention cleanup.
-export const AgentUserCheckpointTable = sqliteTable(
-  'agent_user_checkpoint',
-  {
-    id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    conversationId: text('conversation_id')
-      .notNull()
-      .references(() => AgentConversationTable.id, { onDelete: 'cascade' }),
-    runtimeSessionId: text('runtime_session_id'),
-    sourceTurnId: text('source_turn_id'),
-    parentCheckpointId: text('parent_checkpoint_id'),
-    kind: text('kind').notNull().default('automatic'),
-    status: text('status').notNull().default('capturing'),
-    label: text('label').notNull().default(''),
-    pinned: integer('pinned', { mode: 'boolean' }).notNull().default(false),
-    canonicalThroughTurnOrdinal: integer('canonical_through_turn_ordinal').notNull().default(-1),
-    canonicalContextHash: text('canonical_context_hash'),
-    conversationMessagesJson: text('conversation_messages_json').notNull().default('[]'),
-    providerHistoryJson: text('provider_history_json').notNull().default('[]'),
-    longTaskStateJson: text('long_task_state_json'),
-    acceptedWriteEffectIdsJson: text('accepted_write_effect_ids_json').notNull().default('[]'),
-    entityCount: integer('entity_count').notNull().default(0),
-    createdAt: text('created_at').notNull(),
-    finalizedAt: text('finalized_at'),
-    deletedAt: text('deleted_at'),
-  },
-  (t) => [
-    index('idx_agent_user_checkpoint_project_created').on(t.projectId, t.createdAt),
-    index('idx_agent_user_checkpoint_conversation_created').on(t.conversationId, t.createdAt),
-    uniqueIndex('uniq_agent_user_checkpoint_turn_kind').on(
-      t.conversationId,
-      t.sourceTurnId,
-      t.kind,
-    ),
-  ],
-);
-
-export const AgentUserCheckpointEntityTable = sqliteTable(
-  'agent_user_checkpoint_entity',
-  {
-    checkpointId: text('checkpoint_id')
-      .notNull()
-      .references(() => AgentUserCheckpointTable.id, { onDelete: 'cascade' }),
-    ordinal: integer('ordinal').notNull(),
-    projectId: text('project_id').notNull(),
-    entityKind: text('entity_kind').notNull(),
-    entityId: text('entity_id').notNull(),
-    displayName: text('display_name').notNull().default(''),
-    documentId: text('document_id').notNull(),
-    yjsRevision: integer('yjs_revision').notNull(),
-    stateVector: blob('state_vector').notNull(),
-    stateHash: text('state_hash').notNull(),
-    contentHash: text('content_hash').notNull(),
-    stateBlob: blob('state_blob').notNull(),
-    metadataJson: text('metadata_json').notNull(),
-    metadataHash: text('metadata_hash').notNull(),
-    capturedAt: text('captured_at').notNull(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.checkpointId, t.entityKind, t.entityId] }),
-    uniqueIndex('uniq_agent_user_checkpoint_entity_ordinal').on(t.checkpointId, t.ordinal),
-    index('idx_agent_user_checkpoint_entity_project').on(t.projectId, t.entityKind, t.entityId),
-  ],
-);
-
-// A preview is a durable compare-and-set receipt, not a transient modal model.
-// Execution must present the one-use preview token and re-observe every entity
-// hash before the first write. Multi-entity restores use the child rows as a
-// persisted saga and compensate after a process interruption.
-export const AgentUserCheckpointActionTable = sqliteTable(
-  'agent_user_checkpoint_action',
-  {
-    id: text('id').primaryKey(),
-    projectId: text('project_id').notNull(),
-    checkpointId: text('checkpoint_id')
-      .notNull()
-      .references(() => AgentUserCheckpointTable.id, { onDelete: 'cascade' }),
-    kind: text('kind').notNull(),
-    status: text('status').notNull().default('previewed'),
-    idempotencyKey: text('idempotency_key').notNull(),
-    previewTokenHash: text('preview_token_hash').notNull(),
-    previewHash: text('preview_hash').notNull(),
-    expiresAt: text('expires_at').notNull(),
-    overwriteConfirmed: integer('overwrite_confirmed', { mode: 'boolean' })
-      .notNull()
-      .default(false),
-    targetConversationId: text('target_conversation_id'),
-    errorCode: text('error_code'),
-    errorMessage: text('error_message'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-    confirmedAt: text('confirmed_at'),
-    completedAt: text('completed_at'),
-  },
-  (t) => [
-    uniqueIndex('uniq_agent_user_checkpoint_action_idempotency').on(t.idempotencyKey),
-    index('idx_agent_user_checkpoint_action_recovery').on(t.projectId, t.status, t.updatedAt),
-  ],
-);
-
-export const AgentUserCheckpointActionEntityTable = sqliteTable(
-  'agent_user_checkpoint_action_entity',
-  {
-    actionId: text('action_id')
-      .notNull()
-      .references(() => AgentUserCheckpointActionTable.id, { onDelete: 'cascade' }),
-    ordinal: integer('ordinal').notNull(),
-    projectId: text('project_id').notNull(),
-    entityKind: text('entity_kind').notNull(),
-    entityId: text('entity_id').notNull(),
-    expectedCurrentRevision: integer('expected_current_revision'),
-    expectedCurrentStateHash: text('expected_current_state_hash').notNull(),
-    expectedCurrentContentHash: text('expected_current_content_hash').notNull(),
-    expectedCurrentMetadataHash: text('expected_current_metadata_hash').notNull(),
-    checkpointStateHash: text('checkpoint_state_hash').notNull(),
-    checkpointContentHash: text('checkpoint_content_hash').notNull(),
-    checkpointMetadataHash: text('checkpoint_metadata_hash').notNull(),
-    beforeRevision: integer('before_revision'),
-    beforeStateVector: blob('before_state_vector'),
-    beforeStateBlob: blob('before_state_blob'),
-    beforeContentHash: text('before_content_hash'),
-    beforeMetadataJson: text('before_metadata_json'),
-    resultStateHash: text('result_state_hash'),
-    status: text('status').notNull().default('pending'),
-    errorCode: text('error_code'),
-    errorMessage: text('error_message'),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.actionId, t.entityKind, t.entityId] }),
-    uniqueIndex('uniq_agent_user_checkpoint_action_entity_ordinal').on(t.actionId, t.ordinal),
-    index('idx_agent_user_checkpoint_action_entity_status').on(t.actionId, t.status, t.ordinal),
   ],
 );
 

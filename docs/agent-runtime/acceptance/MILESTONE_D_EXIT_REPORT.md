@@ -61,9 +61,9 @@ pnpm --dir client eval:agent:crud
 Result:
 
 - 9 required test files discovered;
-- 50/50 milestone tests passed;
+- 57/57 milestone tests passed;
 - all 17 named invariant assertions matched exactly once;
-- all product migrations, including 0072, ran against real file-backed SQLite;
+- all product migrations through 0077 ran against real file-backed SQLite;
 - real product Yjs coordination covered prose-owning workspace resources;
 - injected transaction failure left no graph, receipt, or outbox partial state;
 - injected lost outer acknowledgement recovered without duplicate memory,

@@ -41,14 +41,14 @@ in [`MILESTONE_C_EXIT_REPORT.md`](MILESTONE_C_EXIT_REPORT.md) and
 Milestone D, domain CRUD closure, is complete. Its normative transaction and
 authority model is in
 [`../domain-crud-transaction-protocol.md`](../domain-crud-transaction-protocol.md).
-The implementation and 50-test file-backed acceptance evidence are recorded in
+The implementation and 57-test file-backed acceptance evidence are recorded in
 [`MILESTONE_D_EXIT_REPORT.md`](MILESTONE_D_EXIT_REPORT.md) and
 [`milestone-d-domain-crud.json`](milestone-d-domain-crud.json).
 
 Milestone E, long-task execution, is complete. Its normative state,
 continuation, author-control and manifest protocol is in
 [`../long-task-execution-protocol.md`](../long-task-execution-protocol.md).
-The implementation and 100-test file-backed/Yjs acceptance evidence are
+The implementation and 110-test file-backed/Yjs acceptance evidence are
 recorded in [`MILESTONE_E_EXIT_REPORT.md`](MILESTONE_E_EXIT_REPORT.md) and
 [`milestone-e-long-task.json`](milestone-e-long-task.json).
 
@@ -60,13 +60,13 @@ The implementation and 79-test real-novel/restart/fault evidence are recorded
 in [`MILESTONE_F_EXIT_REPORT.md`](MILESTONE_F_EXIT_REPORT.md) and
 [`milestone-f-context-engineering.json`](milestone-f-context-engineering.json).
 
-Milestone G, checkpoint and rewind, is complete. Its provider-neutral capture,
-preview-token, compare-and-set restore, compensation and conversation-fork
-contract is in
-[`../checkpoint-rewind-protocol.md`](../checkpoint-rewind-protocol.md). The
-implementation and 43-test real SQLite/Yjs/restart/fault evidence are recorded
-in [`MILESTONE_G_EXIT_REPORT.md`](MILESTONE_G_EXIT_REPORT.md) and
-[`milestone-g-checkpoint.json`](milestone-g-checkpoint.json).
+Milestone G's Agent-specific checkpoint, rewind and conversation-fork product
+surface was removed on 2026-08-02. It duplicated Drifting's entity snapshot
+history, blocked every turn on a whole-workspace capture, and introduced shared
+state that does not belong in independent Agent sessions. The retirement record
+is in [`MILESTONE_G_EXIT_REPORT.md`](MILESTONE_G_EXIT_REPORT.md); the remaining
+snapshot authority is documented in
+[`../entity-snapshot-history.md`](../entity-snapshot-history.md).
 
 The original Milestone H writing harness was retired after a real Drift append
 was rejected by stale editor focus. The replacement gives writing policy to the
@@ -77,7 +77,7 @@ Its contract is in
 implementation and current regression evidence are recorded in
 [`MILESTONE_H_EXIT_REPORT.md`](MILESTONE_H_EXIT_REPORT.md) and
 [`milestone-h-writing-intelligence.json`](milestone-h-writing-intelligence.json):
-6 files, 35/35 tests, plus typecheck, scoped lint and capability drift.
+6 files, 34/34 tests, plus typecheck, scoped lint and capability drift.
 
 Milestone I, provider and extension platform, is complete. Its provider wire,
 MCP transport/security, durable grant and generation-lifecycle contract is in
@@ -131,38 +131,24 @@ The native artifact and 4h/12h resumable soak evidence is recorded in
   includes exact schema/framing/output/safety reserves before I/O.
 - Literary compaction uses source-hash-bound schema-v1 summaries and requires an
   exact citation for every compacted tool result. Goals, author constraints,
-  vetoes and explicit facts remain byte-exact with a retention witness.
-  High-confidence contradictions block every write until `ask_user` durably
-  records the author's answer against the current conflict IDs.
+  vetoes and explicit facts remain byte-exact with a retention witness. The
+  runtime does not infer rule conflicts or block writes; the model follows the
+  current author request and author-owned active guidance.
 - Project/prose search uses weighted mixed CJK/Latin relevance with freshness
   and revision provenance. Oversized results are hash-verified SQLite artifacts
   paged by Unicode code point across restart.
-- A complete provider-neutral user checkpoint is captured before every
-  requested Agent turn; pinned manual checkpoints use the same authoritative
-  SQLite/Yjs path. The toolbar supports preview, pin/delete, conversation-only
-  fork, and explicit manuscript restore plus fork without truncating the source
-  conversation.
-- Manuscript restore is guarded by a one-use 15-minute preview token and
-  all-entity compare-and-set checks. Multi-entity writes use a durable saga;
-  later failure compensates in reverse order, renderer restart continues
-  recovery, and concurrent author edits win instead of being overwritten.
-- Checkpoint manuscript scope is current node/element/storyline/category prose
-  plus entity-time-machine metadata. Deleted captured identities fail closed;
-  structural graph deletion/recreation remains under the domain CRUD review
-  protocol rather than being silently inferred by rewind.
-- Every requested turn binds active editor entity, exact selection/block and
-  nearby prose into immutable provider-neutral writing context. Deictic writes
-  without focus, cross-entity/span mutations, and patch-required canon prose
-  fail before certified execution. The panel surfaces this as semantic writing
-  focus instead of paths or persistence internals.
-- Current entity names and aliases explicitly present in a request resolve to a
-  canonical one-or-many target set. Named cross-entity writing can proceed
-  without pretending one editor pane owns all targets, while substitutions
-  outside that set fail before mutation.
-- Voice-continuity metrics are diagnostic mutation detectors, not autonomous
-  quality judges. Semantic summaries and read-only whole-book QA require exact
-  current-source citations; forged quotes and incomplete page evidence fail
-  transactionally.
+- Agent chats have no author-visible checkpoint, conversation rewind or branch
+  identity. A new chat is an independent flat session; no editor focus or
+  historical checkpoint payload is inherited. Runtime commit records and
+  compaction checkpoints remain internal recovery mechanics, not user branches.
+- Drifting's entity history independently captures changed node, element,
+  storyline and category prose plus restorable metadata, normally no more than
+  once per 15 minutes. Local rows are thinned and retained for 30 days; restore
+  first saves the current state and applies a forward Yjs edit.
+- The author owns writing policy. The product injects no editor focus, target
+  whitelist, style, POV, tense, voice, canon-patch requirement or automatic
+  rule-conflict write gate. Any in-project item exposed by workspace tools may
+  be read or changed when useful to the request.
 - Deterministic DeepSeek/Anthropic/OpenAI conformance is complete. Paid endpoint
   canaries remain explicit opt-in checks rather than a release prerequisite.
   Native desktop/iOS/Android interaction and 4h/12h real-book endurance remain

@@ -14,7 +14,8 @@ Every General Agent turn receives only the writing guidance the author owns:
 - editable project facts/rules from the project's `kvJson`;
 - active long-term Agent rules created by the author or explicitly approved by
   the author;
-- durable task/checkpoint state required to continue the requested work.
+- durable task and runtime recovery state required to continue the requested
+  work.
 
 The product does not derive or inject an editor entity, selection, block,
 nearby prose, target whitelist, style profile, POV, tense, voice, plot rule,
@@ -51,7 +52,8 @@ Removing content policy does not remove data integrity:
 - stable idempotency keys prevent duplicated effects;
 - ordinary prose edits retain inline Review/reveal and exact undo;
 - destructive structural operations retain explicit permission;
-- durable receipts, checkpoints and task state prevent false recovery claims.
+- durable receipts, runtime commit records and task state prevent false
+  recovery claims.
 
 These mechanisms protect data and authorship. They do not decide literary
 content or restrict which in-project entity the model may choose.
@@ -98,4 +100,3 @@ The gate proves:
 - the reported regression can append to a Drift without inheriting a stale
   chapter focus;
 - TypeScript, scoped ESLint and generated capability docs remain synchronized.
-

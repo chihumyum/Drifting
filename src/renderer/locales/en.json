@@ -383,10 +383,8 @@
       "debug_toast_desc": "When on, push / pull event toasts appear in the lower right of the home screen for sync debugging.",
       "history": "Version history",
       "auto_snapshot": "Auto snapshot",
-      "auto_snapshot_desc": "Every 5 minutes per chapter; kept for 90 days.",
-      "milestones": "Manual milestones",
-      "milestones_desc": "Mark a permanent snapshot, not subject to 90-day retention.",
-      "view_milestones": "View",
+      "auto_snapshot_desc": "Captured about every 15 minutes after prose or entity changes; kept locally for 30 days with automatic thinning.",
+      "auto_snapshot_active": "Active",
       "export": "Export / Import",
       "export_all": "Export relational Markdown",
       "export_all_desc": "Pre-Alpha only supports a relational Markdown ZIP. Full data export will return after the export refactor.",
@@ -1205,13 +1203,6 @@
     "todos": {
       "plan": "Plan"
     },
-    "revert": {
-      "turns": "Reverted {{count}} turn(s)",
-      "blocks": "{{count}} prose block(s)",
-      "fields": "{{count}} field(s)",
-      "partial": "{{summary}}; {{count}} item(s) could not be restored automatically",
-      "failed": "Revert failed: {{error}}"
-    },
     "setup": {
       "title": "Agent is not connected",
       "hosted": "Hosted subscription mode is selected, but it is not ready yet. Go to settings to sign in and subscribe.",
@@ -1221,41 +1212,9 @@
     },
     "toolbar": {
       "renameTitle": "Rename the current chat",
-      "snapshotsTitle": "Revert to before a previous agent turn",
-      "snapshots": "Snapshots · {{count}}",
       "historyTitle": "Chat history",
       "history": "History",
       "newTitle": "Start a new chat"
-    },
-    "snapshots": {
-      "empty": "No revertable edit snapshots yet",
-      "emptyInstruction": "(empty instruction)",
-      "meta": "{{changes}} changes / {{entities}} entities",
-      "revertThisTitle": "Undo all edits from this turn",
-      "revertThisAndAfterTitle": "Undo this turn and the {{count}} later turn(s)",
-      "reverting": "Reverting…",
-      "confirmRevert": "Confirm revert",
-      "runningTitle": "The agent is running; revert after it finishes",
-      "revertBeforeTitle": "Revert to before this turn",
-      "revert": "Revert"
-    },
-    "checkpoints": {
-      "title": "Checkpoints and forks",
-      "hint": "Forking does not change prose. Restore always previews first and preserves the source chat.",
-      "manualLabel": "Manual checkpoint {{time}}",
-      "saved": "Checkpoint saved.",
-      "save": "Save current",
-      "saving": "Saving…",
-      "empty": "A checkpoint is saved before each task, or save one now.",
-      "untitled": "Checkpoint",
-      "entities": "prose entities",
-      "fork": "Fork",
-      "preview": "Preview restore",
-      "previewMissing": "Cannot restore: a checkpoint entity was deleted",
-      "previewSummary": "Restore {{changed}} changed entities",
-      "previewGuard": "All revisions and hashes are checked again before execution. Edits made after preview are never overwritten.",
-      "restoreAndFork": "Restore and fork",
-      "restoring": "Restoring…"
     },
     "history": {
       "empty": "No chat history yet",

@@ -1,10 +1,10 @@
 {
   "suite": "milestone-e-durable-long-task-execution",
   "schemaVersion": 1,
-  "nodeVersion": "v22.23.1",
+  "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "76ce19ebd113aa5111737fd9f73de07122932f51",
-  "sourceSetSha256": "sha256:44ddd0c21a47d4e862fe7b75b559c596b9ef9838593d3121cee3beddd29944c6",
+  "gitHead": "c2fe2bfdc53e71d12d336e2a230e12f17f902b00",
+  "sourceSetSha256": "sha256:9c1709e685e859251df8af6315fd1cf0593bcbb4db967131ff6159862f83703f",
   "execution": {
     "defaultTaskBudgets": "unlimited",
     "safeStop": "after-current-tool",
@@ -25,8 +25,8 @@
       "discovered": 10
     },
     "tests": {
-      "total": 100,
-      "passed": 100,
+      "total": 110,
+      "passed": 110,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -36,8 +36,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 12,
-          "passed": 12,
+          "total": 13,
+          "passed": 13,
           "failed": 0,
           "pending": 0
         },
@@ -47,8 +47,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 51,
-          "passed": 51,
+          "total": 53,
+          "passed": 53,
           "failed": 0,
           "pending": 0
         },
@@ -69,8 +69,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 25,
-          "passed": 25,
+          "total": 32,
+          "passed": 32,
           "failed": 0,
           "pending": 0
         },
@@ -167,7 +167,7 @@
   },
   "boundaries": {
     "literaryContextQuality": "long-task continuity is closed; literary compaction and retrieval quality remain milestone F",
-    "checkpointRewind": "durable task history is not yet a user-facing manuscript checkpoint/fork surface; that remains milestone G",
+    "checkpointRewind": "durable task history is session-local runtime recovery; Agent checkpoint/fork is intentionally removed and entity snapshot history owns manuscript recovery",
     "nativeDevices": "renderer and file-process restart are covered headlessly; desktop/iOS/Android lifecycle remains milestone J",
     "providerNetwork": "provider-independent scheduling semantics are covered; live provider conformance remains milestone I"
   },

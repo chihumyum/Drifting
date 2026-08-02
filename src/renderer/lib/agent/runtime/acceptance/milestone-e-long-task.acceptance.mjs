@@ -278,7 +278,7 @@ export async function runMilestoneEAcceptance(options = parseOptions([])) {
         literaryContextQuality:
           'long-task continuity is closed; literary compaction and retrieval quality remain milestone F',
         checkpointRewind:
-          'durable task history is not yet a user-facing manuscript checkpoint/fork surface; that remains milestone G',
+          'durable task history is session-local runtime recovery; Agent checkpoint/fork is intentionally removed and entity snapshot history owns manuscript recovery',
         nativeDevices:
           'renderer and file-process restart are covered headlessly; desktop/iOS/Android lifecycle remains milestone J',
         providerNetwork:

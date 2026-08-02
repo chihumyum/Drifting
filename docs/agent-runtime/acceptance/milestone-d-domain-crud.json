@@ -1,10 +1,10 @@
 {
   "suite": "milestone-d-domain-crud-and-structural-transactions",
   "schemaVersion": 1,
-  "nodeVersion": "v22.23.1",
+  "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "76ce19ebd113aa5111737fd9f73de07122932f51",
-  "sourceSetSha256": "sha256:e7fbd10bb7b785f98adefde0fec83b21f78abec0e7924454fa17c89dd37985c8",
+  "gitHead": "c2fe2bfdc53e71d12d336e2a230e12f17f902b00",
+  "sourceSetSha256": "sha256:219aca1ab6e461061c77ce9afb4cdaa57d74b3edd2e821e7eb83d31a0bf5177d",
   "storageReplay": {
     "sqlite": "real file-backed SQLite with every product migration, CAS guards, receipts, outbox rows, and injected transaction faults",
     "prose": "real product Yjs coordination for prose-owning workspace resources",
@@ -24,8 +24,8 @@
       "discovered": 9
     },
     "tests": {
-      "total": 50,
-      "passed": 50,
+      "total": 57,
+      "passed": 57,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -57,8 +57,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 10,
-          "passed": 10,
+          "total": 11,
+          "passed": 11,
           "failed": 0,
           "pending": 0
         },
@@ -68,8 +68,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 12,
-          "passed": 12,
+          "total": 18,
+          "passed": 18,
           "failed": 0,
           "pending": 0
         },
@@ -185,7 +185,7 @@
     "passed": true
   },
   "boundaries": {
-    "checkpointRewind": "exact per-command inverse is closed; user checkpoints and fork UX remain milestone G",
+    "checkpointRewind": "Agent checkpoint/fork is intentionally removed; exact per-command inverse remains domain-local and entity snapshot history owns manuscript recovery",
     "nativeDevices": "headless product storage is covered; desktop/iOS/Android lifecycle remains milestone J",
     "providerNetwork": "not required for domain semantics; multi-provider conformance remains milestone I",
     "visualReview": "inline review state is covered by milestone C; native visual smoothness remains user/device acceptance"

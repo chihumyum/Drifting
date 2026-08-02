@@ -4407,22 +4407,9 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
           label={t('settings.sync.auto_snapshot')}
           desc={<>{t('settings.sync.auto_snapshot_desc')}</>}
           control={
-            <span title={t('settings.common.not_available_yet')}>
-              <Toggle on={false} onChange={() => undefined} disabled />
+            <span className="set-mono" style={{ color: 'hsl(var(--ink-3))' }}>
+              {t('settings.sync.auto_snapshot_active')}
             </span>
-          }
-        />
-        <Row
-          label={t('settings.sync.milestones')}
-          desc={t('settings.sync.milestones_desc')}
-          control={
-            <button
-              className="set-btn"
-              disabled
-              title={t('settings.common.not_available_yet')}
-            >
-              {t('settings.sync.view_milestones')}
-            </button>
           }
         />
       </div>

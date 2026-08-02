@@ -148,7 +148,7 @@ const notApplicable: DriftingDomainCrudOperationContract = {
  * Executable product lifecycle matrix behind the small filesystem-like model
  * surface. `revert: closed` means the same hidden commands have immutable
  * receipts plus a guarded exact inverse; it does not advertise a second model
- * tool or pre-empt the later user checkpoint/rewind milestone.
+ * tool or an author-visible whole-session rewind surface.
  */
 export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract[] = [
   {

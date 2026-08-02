@@ -1,18 +1,19 @@
 {
   "suite": "p5-drifting-creative-agent-runtime",
   "schemaVersion": 1,
-  "nodeVersion": "v22.23.1",
+  "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "bfe2dc035606c41c0488ed3b1b6c1a41cb0a4a81",
+  "gitHead": "c2fe2bfdc53e71d12d336e2a230e12f17f902b00",
   "provider": "not applicable",
   "model": "not applicable",
-  "sourceSetSha256": "sha256:2db46df581b74e4d566e82a49952de2396f2e0b5bce4c4c66bcd559ed637b817",
+  "sourceSetSha256": "sha256:746bcce9b7b4991a76c21f6bc4c56833387b013092dae0055203c0a44d747728",
   "migration": {
-    "count": 68,
-    "latestIndex": 67,
-    "latestTag": "0067_agent_runtime_long_task",
+    "count": 78,
+    "latestIndex": 77,
+    "latestTag": "0077_remove_agent_user_checkpoint",
     "requiredCount": 68,
-    "requiredLatestTag": "0067_agent_runtime_long_task",
+    "requiredThroughIndex": 67,
+    "requiredThroughTag": "0067_agent_runtime_long_task",
     "indexesCanonical": true,
     "tagsUnique": true,
     "rustEmbedsDrizzleDirectory": true,
@@ -54,12 +55,12 @@
   },
   "vitest": {
     "files": {
-      "required": 41,
-      "discovered": 41
+      "required": 38,
+      "discovered": 38
     },
     "tests": {
-      "total": 332,
-      "passed": 332,
+      "total": 382,
+      "passed": 382,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -69,19 +70,19 @@
         "files": 5,
         "discoveredFiles": 5,
         "tests": {
-          "total": 52,
-          "passed": 52,
+          "total": 65,
+          "passed": 65,
           "failed": 0,
           "pending": 0
         },
         "passed": true
       },
       "restartRecovery": {
-        "files": 8,
-        "discoveredFiles": 8,
+        "files": 5,
+        "discoveredFiles": 5,
         "tests": {
-          "total": 50,
-          "passed": 50,
+          "total": 47,
+          "passed": 47,
           "failed": 0,
           "pending": 0
         },
@@ -91,8 +92,8 @@
         "files": 8,
         "discoveredFiles": 8,
         "tests": {
-          "total": 74,
-          "passed": 74,
+          "total": 80,
+          "passed": 80,
           "failed": 0,
           "pending": 0
         },
@@ -102,14 +103,25 @@
         "files": 7,
         "discoveredFiles": 7,
         "tests": {
-          "total": 43,
-          "passed": 43,
+          "total": 54,
+          "passed": 54,
           "failed": 0,
           "pending": 0
         },
         "passed": true
       },
       "elementPatchAndCertification": {
+        "files": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 17,
+          "passed": 17,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "productCompositionAndEntityWrites": {
         "files": 3,
         "discoveredFiles": 3,
         "tests": {
@@ -120,23 +132,12 @@
         },
         "passed": true
       },
-      "productCompositionAndEntityWrites": {
-        "files": 3,
-        "discoveredFiles": 3,
-        "tests": {
-          "total": 9,
-          "passed": 9,
-          "failed": 0,
-          "pending": 0
-        },
-        "passed": true
-      },
       "longTaskAndContinuation": {
         "files": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 15,
-          "passed": 15,
+          "total": 19,
+          "passed": 19,
           "failed": 0,
           "pending": 0
         },
@@ -146,8 +147,8 @@
         "files": 5,
         "discoveredFiles": 5,
         "tests": {
-          "total": 73,
-          "passed": 73,
+          "total": 84,
+          "passed": 84,
           "failed": 0,
           "pending": 0
         },
@@ -185,8 +186,7 @@
         "interruptedYjsReceiptReconciledBeforeSessionResume": true,
         "interruptedMutationNotReplayed": true,
         "validBudgetSlicePersistsVerifiedV2Checkpoint": true,
-        "providerNeutralTurnsNeverCreateLegacyWholeTurnCheckpoints": true,
-        "legacyWholeTurnRevertFailsClosedAfterRuntimeBarrier": true,
+        "authorVisibleCheckpointAndConversationForkAbsent": true,
         "canonicalRevertUsesDurableGuardedReviewOnly": true
       }
     },

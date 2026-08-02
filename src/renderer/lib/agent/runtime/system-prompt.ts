@@ -67,14 +67,6 @@ export function buildDriftingAgentSystemPrompt(
     lines.push('Author-defined project facts and rules:', ...facts);
   }
 
-  const checkpointContext = input.checkpointContext ? clean(input.checkpointContext, 96_000) : '';
-  if (checkpointContext) {
-    lines.push(
-      'Durable user-checkpoint fork context (historical context only; do not claim its tools were re-executed):',
-      checkpointContext,
-    );
-  }
-
   const memories = (input.memories ?? [])
     .slice(0, 64)
     .map(({ kind, body }) => {

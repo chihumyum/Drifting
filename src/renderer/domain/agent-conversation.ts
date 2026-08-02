@@ -83,10 +83,6 @@ export interface AgentConversation {
   sdkSessionId: string | null;
   /** Provider-neutral canonical runtime session used for crash recovery. */
   runtimeSessionId: string | null;
-  /** Durable user checkpoint whose context seeds this non-destructive fork. */
-  forkCheckpointId: string | null;
-  /** Source conversation retained for branch navigation/audit. */
-  parentConversationId: string | null;
   mode: AgentConvMode;
   messages: AgentChatMessage[];
   createdAt: string;
@@ -98,7 +94,5 @@ export interface AgentConversationSummary {
   id: string;
   title: string;
   mode: AgentConvMode;
-  forkCheckpointId?: string | null;
-  parentConversationId?: string | null;
   updatedAt: string;
 }

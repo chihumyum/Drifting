@@ -37,7 +37,7 @@ contains the project route, not global UI focus.
 - effect idempotency and durable receipts;
 - inline prose Review/reveal and exact inverse;
 - destructive-operation permission;
-- long-task, context compaction and checkpoint continuity.
+- long-task, context compaction and internal runtime-recovery continuity.
 
 These protect data and truthful execution without telling the model how to
 write.
@@ -77,8 +77,8 @@ scope.
 Current result:
 
 - 6/6 required test files discovered;
-- 35/35 tests passed;
+- 34/34 tests passed;
 - all 6 named invariants matched exactly once;
 - TypeScript, scoped ESLint and generated capability drift passed;
 - source-set hash:
-  `sha256:739e64330ea690b7701971dd81c1d107124101d6b7b7294fe7bda7a1902b2cf1`.
+  `sha256:5d40416c168670193542aa6a45d13c836a40ff0b135a1d52bf9e2af952696394`.

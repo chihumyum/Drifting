@@ -97,11 +97,13 @@ errors** and 41 existing warnings.
   decisions remain available. It does not claim that a fake provider writes
   beautiful prose. Ambiguity, edit scope, voice imitation, semantic summaries,
   canon impact and whole-book QA are Milestone H.
-- User-facing manuscript/conversation checkpoint preview, rewind and fork are
-  Milestone G.
+- Agent-specific manuscript/conversation checkpoint preview, rewind and fork
+  were later implemented in Milestone G and subsequently removed in favor of
+  independent entity snapshot history and flat Agent sessions.
 - Live multi-provider conformance and concrete MCP transports/configuration are
   Milestone I.
 - Native desktop/iOS/Android lifecycle plus 4h/12h real-book endurance are
   Milestone J.
 
-Milestone G, checkpoint and rewind, is now active.
+Milestone G's historical checkpoint work is recorded separately; it is no
+longer a current product capability.

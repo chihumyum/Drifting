@@ -112,10 +112,10 @@ Before applying an inverse, the runtime hashes current authoritative state and
 compares it with the forward postimage. If any author or later Agent command
 has changed that state, the inverse fails closed instead of overwriting newer
 work. Reverting a later edit does not erase the fact that the lineage advanced;
-the older command is not treated as a general checkpoint. User-facing
-checkpoint/rewind is implemented by the separate Milestone G
-[`checkpoint-rewind-protocol.md`](checkpoint-rewind-protocol.md), which composes
-these guarded domain boundaries without weakening them.
+the older command is not treated as a general checkpoint. There is no
+Agent-session rewind or conversation branch surface. Author-facing manuscript
+history is the independent entity snapshot system documented in
+[`entity-snapshot-history.md`](entity-snapshot-history.md).
 
 ## 6. Structural resources
 
@@ -226,6 +226,6 @@ pnpm --dir client eval:agent:crud
 The command writes
 `docs/agent-runtime/acceptance/milestone-d-domain-crud.json`. Native visual
 behavior, device lifecycle, networked provider behavior, and user checkpoint
-UX are explicitly outside this Milestone D acceptance. User checkpoint UX is
-covered by Milestone G; native and networked behavior remain assigned to later
-roadmap gates.
+UX are explicitly outside this historical Milestone D acceptance. Agent user
+checkpoints were later implemented and then removed; native and networked
+behavior remain assigned to their own roadmap gates.

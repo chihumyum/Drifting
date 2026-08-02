@@ -29,7 +29,6 @@ import { useProjectStore } from './project-store';
 import { useAgentActivityStore } from './agent-activity-store';
 import { useDataStore } from './data-store';
 import { useAgentEditStore, type RevertRecord } from './agent-edit-store';
-import { useAgentCheckpointStore } from './agent-checkpoint-store';
 import type { ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import { loadActiveMemoryHints } from '../usecase/useAgentMemory';
 import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
@@ -69,10 +68,17 @@ import {
 } from '../lib/agent/runtime/long-task-auto-continuation';
 import { generalAgentTransport } from '../lib/agent/transport';
 import { buildGeneralAgentProjectContext } from '../lib/agent/product-project-context';
-import { getAgentUserCheckpointService } from '../services/agent-user-checkpoint.service';
 
 const repo = createAgentConversationRepository();
 const longTaskRepo = createAgentRuntimeLongTaskRepository();
+
+// The removed legacy whole-turn checkpoint store was localStorage-backed.
+// Retire its persisted payload when the Agent surface first loads.
+try {
+  globalThis.localStorage?.removeItem('agent-turn-checkpoints');
+} catch {
+  // Storage may be unavailable in privacy-restricted webviews.
+}
 
 // ---- transcript reducer (pure) --------------------------------------------
 
@@ -190,8 +196,6 @@ interface RunState {
   messages: ChatMsg[];
   /** Provider-neutral canonical runtime session used for context recovery. */
   runtimeSessionId: string | null;
-  /** User checkpoint that seeds this non-destructive conversation fork. */
-  forkCheckpointId: string | null;
   /** Live/replayed journal entries already folded into this projection. */
   seenJournalEventIds: Record<string, true>;
   controlStatus: AgentControlStatus | null;
@@ -260,10 +264,6 @@ export const selectPendingControl = (s: AgentChatState): AgentPendingControl | n
   s.activeConvId ? (s.runs[s.activeConvId]?.pendingControl ?? null) : null;
 export const selectContextUsage = (s: AgentChatState): AgentContextUsageSnapshot | null =>
   s.activeConvId ? (s.runs[s.activeConvId]?.contextUsage ?? null) : null;
-export const selectRuntimeSessionId = (s: AgentChatState): string | null =>
-  s.activeConvId ? (s.runs[s.activeConvId]?.runtimeSessionId ?? null) : null;
-export const selectForkCheckpointId = (s: AgentChatState): string | null =>
-  s.activeConvId ? (s.runs[s.activeConvId]?.forkCheckpointId ?? null) : null;
 export const selectAutomaticContinuation = (
   s: AgentChatState,
 ): AgentAutomaticContinuationState | null =>
@@ -392,13 +392,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     // this project (persisted pointer + SQLite transcript), so a reload/restart
     // doesn't drop them into an empty "新对话".
     void (async () => {
-      try {
-        await getAgentUserCheckpointService().recoverIncomplete(projectId);
-      } catch (error) {
-        // Recovery is fail-closed and never blocks read-only chat history. The
-        // durable action remains failed/compensating for the checkpoint UI.
-        console.error('[agent] user-checkpoint recovery failed', error);
-      }
       let rows: AgentConversationSummary[] = [];
       try {
         rows = await repo.listByProject(projectId);
@@ -497,8 +490,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             messages: isRuntimeContinuation ? [] : [{ kind: 'user', text }],
             sdkSessionId: null,
             runtimeSessionId: null,
-            forkCheckpointId: null,
-            parentConversationId: null,
             createdAt: now,
             updatedAt: now,
           });
@@ -527,7 +518,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           ? [...(prevRun?.messages ?? [])]
           : [...(prevRun?.messages ?? []), { kind: 'user', text }],
         runtimeSessionId: prevRun?.runtimeSessionId ?? null,
-        forkCheckpointId: prevRun?.forkCheckpointId ?? null,
         seenJournalEventIds: prevRun?.seenJournalEventIds ?? {},
         controlStatus: null,
         pendingControl: null,
@@ -562,7 +552,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       }
       const discardPreparedTurn = (): void => {
         turnConv.delete(turnId);
-        useAgentCheckpointStore.getState().endTurn(turnId);
         set((state) =>
           state.runningTurnId === turnId
             ? {
@@ -576,41 +565,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         discardPreparedTurn();
         return;
       }
-      // Capture the author-visible restore point BEFORE the Agent can execute
-      // any tool for this request. This blocks model startup on the durable
-      // SQLite + Yjs checkpoint instead of racing a post-turn async snapshot.
-      try {
-        await getAgentUserCheckpointService().capture({
-          projectId,
-          conversationId: cid,
-          runtimeSessionId: prevRun?.runtimeSessionId ?? null,
-          sourceTurnId: turnId,
-          label: text.length > 48 ? `${text.slice(0, 48)}…` : text,
-          kind: 'automatic',
-          conversationMessages: prevRun?.messages ?? [],
-          parentCheckpointId: prevRun?.forkCheckpointId ?? null,
-        });
-      } catch (error) {
-        discardPreparedTurn();
-        appendRunError(
-          cid,
-          `无法在执行前创建持久化检查点：${error instanceof Error ? error.message : String(error)}`,
-        );
-        return;
-      }
-      if (!isCurrentStart()) {
-        discardPreparedTurn();
-        return;
-      }
-      // Register the provider-neutral boundary. This deliberately seals the
-      // legacy whole-turn checkpoint trail instead of collecting these writes:
-      // runtime inverses must settle through the canonical durable review ledger.
-      useAgentCheckpointStore.getState().beginTurn({
-        turnId,
-        convId: cid,
-        projectId,
-        label: text.length > 48 ? `${text.slice(0, 48)}…` : text,
-      });
       // Remember this as the project's last-active conversation so it re-opens on
       // next launch.
       useSettingsStore.getState().setLastAgentConv(projectId, cid);
@@ -623,23 +577,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // Active agent memories (author-approved standing guidance) — injected into
       // the system prompt so past preferences/vetoes/directives keep steering.
       const memories = await loadActiveMemoryHints(projectId).catch(() => []);
-      let forkContext: string | null = null;
-      try {
-        forkContext = run.forkCheckpointId
-          ? await getAgentUserCheckpointService().getForkContext(run.forkCheckpointId, projectId)
-          : null;
-      } catch (error) {
-        discardPreparedTurn();
-        appendRunError(
-          cid,
-          `无法读取分叉检查点上下文：${error instanceof Error ? error.message : String(error)}`,
-        );
-        return;
-      }
-      if (!isCurrentStart()) {
-        discardPreparedTurn();
-        return;
-      }
 
       // Drain rejected edits only once all cancellable preflight reads are done.
       // The visible transcript keeps the original user text; only the provider
@@ -668,7 +605,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           resume: run.runtimeSessionId ?? undefined,
           ...projectContext,
           memories,
-          ...(forkContext ? { checkpointContext: forkContext } : {}),
           turnId,
         })
         .catch((error: unknown) => ({
@@ -685,7 +621,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // the canonical journal. So surface this one and clear the in-flight turn.
       if (!r.ok) {
         turnConv.delete(turnId);
-        useAgentCheckpointStore.getState().endTurn(turnId);
         set((st) => {
           const cur = st.runs[cid];
           const runs = cur
@@ -921,7 +856,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             projectId: conv.projectId,
             messages,
             runtimeSessionId,
-            forkCheckpointId: conv.forkCheckpointId,
             seenJournalEventIds,
             controlStatus: null,
             pendingControl: null,
@@ -1391,7 +1325,6 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
       void refreshLongTaskPlanState(convId, run.projectId, entry.sessionId, turnId);
     }
     turnConv.delete(turnId);
-    useAgentCheckpointStore.getState().endTurn(turnId);
     useAgentActivityStore.getState().onTurnEnd();
     useAgentChatStore.setState((s) =>
       s.runningTurnId === turnId ? { runningTurnId: null, runningConvId: null } : s,

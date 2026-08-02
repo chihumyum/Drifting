@@ -40,7 +40,6 @@
     "eval:agent:crud": "node src/renderer/lib/agent/runtime/acceptance/milestone-d-domain-crud.acceptance.mjs --output=docs/agent-runtime/acceptance/milestone-d-domain-crud.json",
     "eval:agent:long-task": "node src/renderer/lib/agent/runtime/acceptance/milestone-e-long-task.acceptance.mjs --output=docs/agent-runtime/acceptance/milestone-e-long-task.json",
     "eval:agent:context": "node src/renderer/lib/agent/runtime/acceptance/milestone-f-context-engineering.acceptance.mjs --output=docs/agent-runtime/acceptance/milestone-f-context-engineering.json",
-    "eval:agent:checkpoint": "node src/renderer/lib/agent/runtime/acceptance/milestone-g-checkpoint.acceptance.mjs --output=docs/agent-runtime/acceptance/milestone-g-checkpoint.json",
     "eval:agent:writing": "node src/renderer/lib/agent/runtime/acceptance/milestone-h-writing-intelligence.acceptance.mjs --output=docs/agent-runtime/acceptance/milestone-h-writing-intelligence.json",
     "eval:agent:writing:live": "cross-env DRIFTING_AGENT_LIVE_SUITE=writing-canary node scripts/run-p1-deepseek-live-eval.mjs",
     "eval:agent:extensions": "node src/renderer/lib/agent/runtime/acceptance/milestone-i-provider-extension.acceptance.mjs --output=docs/agent-runtime/acceptance/milestone-i-provider-extension.json",

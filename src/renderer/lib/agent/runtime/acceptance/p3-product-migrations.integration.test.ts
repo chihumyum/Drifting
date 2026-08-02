@@ -63,10 +63,24 @@ describe('product file-backed migration acceptance', () => {
     expect(
       first.database
         .prepare(
-          "SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name IN ('book_node', 'node_content', 'yjs_updates', 'agent_runtime_write_effect')",
+          "SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name IN ('book_node', 'node_content', 'yjs_updates', 'agent_runtime_write_effect', 'entity_snapshot_history')",
         )
         .get(),
-    ).toEqual({ count: 4 });
+    ).toEqual({ count: 5 });
+    expect(
+      first.database
+        .prepare(
+          "SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name LIKE 'agent_user_checkpoint%'",
+        )
+        .get(),
+    ).toEqual({ count: 0 });
+    const conversationColumns = first.database
+      .prepare("PRAGMA table_info('agent_conversation')")
+      .all() as Array<{ name: string }>;
+    expect(conversationColumns.map((column) => column.name)).not.toContain('fork_checkpoint_id');
+    expect(conversationColumns.map((column) => column.name)).not.toContain(
+      'parent_conversation_id',
+    );
     await first.close();
 
     const reopened = new ProductFileBackedSqliteGateway(databasePath);

@@ -320,7 +320,7 @@ export async function runMilestoneDAcceptance(options = parseOptions([])) {
       capabilities,
       boundaries: {
         checkpointRewind:
-          'exact per-command inverse is closed; user checkpoints and fork UX remain milestone G',
+          'Agent checkpoint/fork is intentionally removed; exact per-command inverse remains domain-local and entity snapshot history owns manuscript recovery',
         nativeDevices:
           'headless product storage is covered; desktop/iOS/Android lifecycle remains milestone J',
         providerNetwork:

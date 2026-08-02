@@ -31,8 +31,8 @@ machine-checked against, the final product composition whenever possible.
 | D   | Domain CRUD closure             | Storyline membership, comments/TODOs, relations, memory and guarded structural transactions have complete create/read/update/delete/revert paths.    | Completed   |
 | E   | Long-task execution             | Durable plans can continue, pause, steer, survive restart and finalize without repeating accepted work or silently skipping manifest changes.        | Completed   |
 | F   | Context engineering             | Provider-aware budgeting, literary compaction evaluation, constraint confirmation, evidence retrieval and artifact paging pass long-book acceptance. | Completed   |
-| G   | Checkpoint and rewind           | Users can preview and safely rewind manuscript state, conversation state, or fork from a durable checkpoint without overwriting later author edits.  | Completed   |
-| H   | Writing intelligence            | Ambiguous intent, edit scope, author voice, canon impact, semantic summaries and whole-book QA are measured on real writing fixtures.                | Completed   |
+| G   | Agent checkpoint and fork       | Retired: rely on entity snapshot history for manuscript recovery and keep conversations as independent flat sessions.                              | Removed     |
+| H   | Author-owned writing policy     | No hidden writing defaults, editor-focus binding, content-scope guard or canon gate; author rules are ordinary editable project data.               | Completed   |
 | I   | Provider and extension platform | Provider conformance plus concrete MCP transports/configuration, durable grants and extension lifecycle are shipped and isolated.                    | Completed   |
 | J   | Native and endurance acceptance | Desktop/iOS/Android smoke, network/restart/concurrency faults and 4h/12h real-book endurance gates are recorded.                                     | Completed   |
 

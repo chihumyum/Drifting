@@ -127,20 +127,6 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 - Evidence retrieval: `weighted-cjk-latin-relevance-with-freshness-provenance`
 - Result artifacts: `sqlite-hash-verified-unicode-paging-across-restart`
 
-## User checkpoint and rewind contract
-
-- Authority: `sqlite-user-checkpoint-plus-live-yjs`
-- Automatic boundary: `before-agent-tool-execution`
-- Conversation fork: `new-route-with-durable-checkpoint-context`
-- Preview: `durable-one-use-token-plus-all-entity-hash-witness`
-- Overwrite policy: `explicit-preview-confirmation-only`
-- Concurrency policy: `compare-and-set-before-each-write-and-final-verification`
-- Multi-entity atomicity: `durable-saga-with-reverse-compensation`
-- Restart recovery: `compensate-incomplete-with-author-edit-precedence`
-- Prose verification: `canonical-content-hash-not-yjs-binary-identity`
-- Captured context: `conversation-provider-history-long-task-accepted-writes-yjs-revision-state-vector`
-- Manuscript scope: `node-element-storyline-category-prose-and-restorable-metadata`
-
 ## Author-owned writing policy
 
 - Product writing defaults: `none`

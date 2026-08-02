@@ -523,7 +523,6 @@ describe('agent chat canonical journal projection', () => {
               projectId: 'project-intent',
               messages: [],
               runtimeSessionId: 'session-origin',
-              forkCheckpointId: null,
               seenJournalEventIds: {},
               controlStatus: null,
               pendingControl: null,

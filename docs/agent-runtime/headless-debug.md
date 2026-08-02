@@ -82,23 +82,13 @@ Private manuscript prose is read only inside the test process; the report keeps
 only availability, file count and byte count. The normative contract lives in
 [`context-engineering-protocol.md`](context-engineering-protocol.md).
 
-For provider-neutral user checkpoints, conversation forks, protected
-manuscript restore, idempotent replay, concurrent author-edit refusal and
-restart compensation:
+The Agent-specific checkpoint/fork gate was retired. Product migrations now
+assert that its tables and branch columns are absent while entity snapshot
+history remains. See
+[`entity-snapshot-history.md`](entity-snapshot-history.md).
 
-```bash
-pnpm --dir client eval:agent:checkpoint
-```
-
-The gate uses the complete product migration set in a real file SQLite database
-with WAL/FULL durability and real Yjs documents. It writes the machine report
-to
-[`acceptance/milestone-g-checkpoint.json`](acceptance/milestone-g-checkpoint.json),
-and its preview-token, compare-and-set, saga and fork-context contract lives in
-[`checkpoint-rewind-protocol.md`](checkpoint-rewind-protocol.md).
-
-For editor-native intent, exact selection/entity scope, canon fail-closed
-behavior, local-manuscript voice mutations and durable cited whole-book review:
+For the author-owned writing-policy boundary, arbitrary in-project entity
+writes and stale-editor-focus regression:
 
 ```bash
 pnpm --dir client eval:agent:writing
@@ -108,17 +98,18 @@ The deterministic gate needs no App, network or API key. It stores aggregate
 local-corpus metrics but no private prose in
 [`acceptance/milestone-h-writing-intelligence.json`](acceptance/milestone-h-writing-intelligence.json).
 Its normative contract lives in
-[`editor-native-writing-protocol.md`](editor-native-writing-protocol.md).
+[`author-owned-writing-policy.md`](author-owned-writing-policy.md).
 
-The optional paid provider canary uses only a synthetic chapter and selection:
+The optional paid provider canary uses only a synthetic chapter and an explicit
+author instruction:
 
 ```bash
 pnpm --dir client eval:agent:writing:live
 ```
 
 It reads `DEEPSEEK_AI_API_KEY` from `private-service/.env` through the isolated
-launcher, verifies read-before-edit and rejects any edit outside the captured
-selection. It is not part of the network-free milestone gate.
+launcher and verifies read-before-edit plus the requested mutation. It is not
+part of the network-free milestone gate.
 
 For multi-provider wire conformance, concrete MCP stdio/Streamable HTTP,
 generation replacement, durable exact grants, native bridge contracts and
