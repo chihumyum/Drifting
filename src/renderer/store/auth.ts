@@ -71,6 +71,7 @@ interface AuthState {
 type CoreAuthState = Pick<AuthState, 'isAuthenticated' | 'session' | 'user'>;
 
 let sessionExpirationInFlight: Promise<void> | null = null;
+let sessionCheckInFlight: Promise<void> | null = null;
 
 // Older builds persisted Better Auth's full session object here. That object
 // includes `session.token`, so retaining it would bypass the native credential
@@ -340,57 +341,70 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   // 检查 session 状态
-  checkSession: async () => {
-    if (!isAuthRequired()) {
-      set(getLocalAuthState());
-      return;
-    }
+  checkSession: () => {
+    // Protected/PublicRoute mount effects are intentionally probed twice by
+    // React Strict Mode in development. They must observe one auth/database
+    // bootstrap instead of racing two reset -> open transitions.
+    if (sessionCheckInFlight) return sessionCheckInFlight;
 
-    try {
-      const result = await authClient.getSession();
-      const session = result.data || null;
-      const sessionUser = session?.user as User | undefined;
+    const operation = (async () => {
+      if (!isAuthRequired()) {
+        set(getLocalAuthState());
+        return;
+      }
 
-      if (session && sessionUser?.id) {
-        const currentUserId = get().user?.id;
-        if (currentUserId !== sessionUser.id) {
-          if (currentUserId) {
-            const { quiesceApplicationForDatabaseSwitch } =
-              await import('../lib/persistence-lifecycle');
-            // The in-memory bearer token now represents sessionUser, so
-            // only finish old-DB local durability; never remote-push the
-            // outgoing account under the incoming identity.
-            await quiesceApplicationForDatabaseSwitch(
-              () => set({ isAuthenticated: false, session: null, user: null }),
-              { flushRemote: false },
-            );
-          } else {
-            await flushInactiveDatabaseBeforeSwitch();
+      try {
+        const result = await authClient.getSession();
+        const session = result.data || null;
+        const sessionUser = session?.user as User | undefined;
+
+        if (session && sessionUser?.id) {
+          const currentUserId = get().user?.id;
+          if (currentUserId !== sessionUser.id) {
+            if (currentUserId) {
+              const { quiesceApplicationForDatabaseSwitch } =
+                await import('../lib/persistence-lifecycle');
+              // The in-memory bearer token now represents sessionUser, so
+              // only finish old-DB local durability; never remote-push the
+              // outgoing account under the incoming identity.
+              await quiesceApplicationForDatabaseSwitch(
+                () => set({ isAuthenticated: false, session: null, user: null }),
+                { flushRemote: false },
+              );
+            } else {
+              await flushInactiveDatabaseBeforeSwitch();
+            }
+            await resetDatabase();
+            await initDatabase(sessionUser.id);
+            events.emit('db:ready');
           }
-          await resetDatabase();
-          await initDatabase(sessionUser.id);
-          events.emit('db:ready');
+          set({
+            isAuthenticated: true,
+            session,
+            user: sessionUser,
+          });
+        } else {
+          set({
+            isAuthenticated: false,
+            session: null,
+            user: null,
+          });
         }
-        set({
-          isAuthenticated: true,
-          session,
-          user: sessionUser,
-        });
-      } else {
+      } catch (error) {
+        log.error('[Auth] Failed to check session:', error);
         set({
           isAuthenticated: false,
           session: null,
           user: null,
         });
       }
-    } catch (error) {
-      log.error('[Auth] Failed to check session:', error);
-      set({
-        isAuthenticated: false,
-        session: null,
-        user: null,
-      });
-    }
+    })();
+
+    const inFlight = operation.finally(() => {
+      if (sessionCheckInFlight === inFlight) sessionCheckInFlight = null;
+    });
+    sessionCheckInFlight = inFlight;
+    return inFlight;
   },
 
   // 初始化认证状态

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   order: [] as string[],
   signOut: vi.fn(),
+  getSession: vi.fn(),
   clearSessionToken: vi.fn(),
   invalidateSessionToken: vi.fn(),
   flushSessionTokenStorage: vi.fn(),
@@ -15,7 +16,9 @@ const mocks = vi.hoisted(() => ({
   stopPreferencesSync: vi.fn(),
 }));
 
-vi.mock('../lib/auth-client', () => ({ authClient: { signOut: mocks.signOut } }));
+vi.mock('../lib/auth-client', () => ({
+  authClient: { signOut: mocks.signOut, getSession: mocks.getSession },
+}));
 vi.mock('../lib/session-token', () => ({
   clearSessionToken: mocks.clearSessionToken,
   invalidateSessionToken: mocks.invalidateSessionToken,
@@ -320,5 +323,46 @@ describe('auth store persistence', () => {
     expect(mocks.quiesceAfterCredentialLoss).not.toHaveBeenCalled();
     expect(mocks.resetDatabase).not.toHaveBeenCalled();
     expect(mocks.initDatabase).not.toHaveBeenCalled();
+  });
+
+  it('coalesces concurrent session checks into one database bootstrap', async () => {
+    vi.stubGlobal('localStorage', createMemoryStorage());
+    let resolveSession!: (value: unknown) => void;
+    mocks.getSession.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSession = resolve;
+        }),
+    );
+    const { useAuthStore } = await import('./auth');
+
+    const first = useAuthStore.getState().checkSession();
+    const second = useAuthStore.getState().checkSession();
+
+    expect(second).toBe(first);
+    expect(mocks.getSession).toHaveBeenCalledOnce();
+    resolveSession({
+      data: {
+        user: {
+          id: 'bootstrap-user',
+          email: 'writer@example.com',
+          name: 'Writer',
+          emailVerified: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      },
+      error: null,
+    });
+    await Promise.all([first, second]);
+
+    expect(mocks.flushLocal).toHaveBeenCalledOnce();
+    expect(mocks.resetDatabase).toHaveBeenCalledOnce();
+    expect(mocks.initDatabase).toHaveBeenCalledOnce();
+    expect(mocks.initDatabase).toHaveBeenCalledWith('bootstrap-user');
+    expect(useAuthStore.getState()).toMatchObject({
+      isAuthenticated: true,
+      user: { id: 'bootstrap-user' },
+    });
   });
 });

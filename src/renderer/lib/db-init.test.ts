@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DatabasePlatformApi } from '../platform/database';
 
-function fakeDatabase(open: DatabasePlatformApi['open']): DatabasePlatformApi {
+function fakeDatabase(
+  open: DatabasePlatformApi['open'],
+  close: DatabasePlatformApi['close'] = async () => {},
+): DatabasePlatformApi {
   return {
     open,
     async execute() {
@@ -18,7 +21,7 @@ function fakeDatabase(open: DatabasePlatformApi['open']): DatabasePlatformApi {
     async checkpoint() {
       return { busy: 0, logFrames: 0, checkpointedFrames: 0 };
     },
-    async close() {},
+    close,
   };
 }
 
@@ -80,6 +83,63 @@ describe('renderer database session initialization', () => {
       recoverStaleTransaction: true,
     });
     expect(open).toHaveBeenNthCalledWith(2, 'user_drifting.db', {
+      recoverStaleTransaction: false,
+    });
+
+    await database.resetDatabase();
+  });
+
+  it('coalesces concurrent resets into one native close', async () => {
+    let releaseClose!: () => void;
+    const closeGate = new Promise<void>((resolve) => {
+      releaseClose = resolve;
+    });
+    const open = vi.fn<DatabasePlatformApi['open']>(async () => ({
+      path: '/tmp/drifting.db',
+      journalMode: 'wal',
+      migrationsApplied: 0,
+    }));
+    const close = vi.fn<DatabasePlatformApi['close']>(() => closeGate);
+    const database = await loadDatabaseModule(fakeDatabase(open, close));
+    await database.initDatabase('user');
+
+    const first = database.resetDatabase();
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+    const second = database.resetDatabase();
+
+    expect(second).toBe(first);
+    expect(close).toHaveBeenCalledOnce();
+    releaseClose();
+    await Promise.all([first, second]);
+  });
+
+  it('waits for an in-flight reset before reopening the requested database', async () => {
+    let releaseClose!: () => void;
+    const closeGate = new Promise<void>((resolve) => {
+      releaseClose = resolve;
+    });
+    const open = vi.fn<DatabasePlatformApi['open']>(async () => ({
+      path: '/tmp/drifting.db',
+      journalMode: 'wal',
+      migrationsApplied: 0,
+    }));
+    const database = await loadDatabaseModule(
+      fakeDatabase(
+        open,
+        vi.fn<DatabasePlatformApi['close']>(() => closeGate),
+      ),
+    );
+    await database.initDatabase('user');
+
+    const reset = database.resetDatabase();
+    const reopen = database.initDatabase('user');
+    await Promise.resolve();
+    expect(open).toHaveBeenCalledOnce();
+
+    releaseClose();
+    await Promise.all([reset, reopen]);
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(open).toHaveBeenLastCalledWith('user_drifting.db', {
       recoverStaleTransaction: false,
     });
 

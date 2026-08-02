@@ -21,6 +21,7 @@ interface TransactionScheduler {
 
 let dbInitialized = false;
 let initPromise: Promise<void> | null = null;
+let resetPromise: Promise<void> | null = null;
 let currentDbName: string | null = null;
 let db: DrizzleDatabase;
 let recoverStaleTransactionOnNextOpen = true;
@@ -229,6 +230,15 @@ export function getDbName(userIdOrDbName: string): string {
 /** Open or switch the native database, then expose the shared Drizzle client. */
 export async function initDatabase(userId: string): Promise<void> {
   const targetDbName = getDbName(userId);
+
+  // A native close may already be draining transactions while the renderer
+  // starts another repository read. Never trust the old in-memory ready flag
+  // until that close has completed; reopen the requested database afterwards.
+  if (resetPromise) {
+    await resetPromise;
+    return initDatabase(userId);
+  }
+
   if (dbInitialized && currentDbName === targetDbName) return;
 
   if (initPromise) {
@@ -277,25 +287,37 @@ export async function checkpointDatabase(): Promise<DatabaseCheckpointResult | n
 }
 
 /** Drain transactions, checkpoint/close the native connection, and clear the singleton. */
-export async function resetDatabase(): Promise<void> {
-  if (initPromise) {
-    try {
-      await initPromise;
-    } catch {
-      // A failed open leaves no connection to close.
-    }
-  }
-  if (!dbInitialized) return;
+export function resetDatabase(): Promise<void> {
+  // React Strict Mode and concurrent auth callers can request the same reset.
+  // One native close owns the transition; every caller waits for its result.
+  if (resetPromise) return resetPromise;
 
-  const closingClient = db;
-  try {
-    await drainTransactions(closingClient);
-    await databasePlatform.close();
-  } catch (error) {
-    log.error('[DB] Error closing database:', error);
-    throw error;
-  } finally {
-    dbInitialized = false;
-    currentDbName = null;
-  }
+  const operation = (async () => {
+    if (initPromise) {
+      try {
+        await initPromise;
+      } catch {
+        // A failed open leaves no connection to close.
+      }
+    }
+    if (!dbInitialized) return;
+
+    const closingClient = db;
+    try {
+      await drainTransactions(closingClient);
+      await databasePlatform.close();
+    } catch (error) {
+      log.error('[DB] Error closing database:', error);
+      throw error;
+    } finally {
+      dbInitialized = false;
+      currentDbName = null;
+    }
+  })();
+
+  const tracked = operation.finally(() => {
+    if (resetPromise === tracked) resetPromise = null;
+  });
+  resetPromise = tracked;
+  return tracked;
 }
