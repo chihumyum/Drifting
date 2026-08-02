@@ -14,10 +14,23 @@
  * switcher here writes the same store field. If the agent isn't set up for the
  * chosen mode, we show a hint that opens it.
  */
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
-import { useSettingsStore, AGENT_MODEL_OPTIONS } from '../../store/settings-store';
+import {
+  useSettingsStore,
+  AGENT_PROVIDER_OPTIONS,
+  agentProviderOption,
+  type AgentProviderId,
+} from '../../store/settings-store';
 import {
   useAgentChatStore,
   selectAutomaticContinuation,
@@ -28,13 +41,13 @@ import {
   selectPendingControl,
   selectRunning,
   selectOtherRunning,
+  selectRuntimeSessionId,
+  selectForkCheckpointId,
 } from '../../store/agent-chat-store';
 import { useProjectStore } from '../../store/project-store';
 import { useAgentMemory } from '../../usecase/useAgentMemory';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
-import { useAgentCheckpointStore, type TurnCheckpoint } from '../../store/agent-checkpoint-store';
 import { Switch } from '../ui/Switch';
-import { listLegacyRevertableCheckpoints, revertToTurn } from '../../lib/agent/turn-revert';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
@@ -51,22 +64,64 @@ import type {
   GeneralAgentAuthStatus,
 } from '../../lib/agent/protocol';
 import { generalAgentTransport } from '../../lib/agent/transport';
-import {
-  acceptDriftingAgentWriteReview,
-  getDriftingAgentWriteReview,
-  rejectDriftingAgentWriteReview,
-  subscribeDriftingAgentWriteReviewStatus,
-} from '../../lib/agent/useDriftingAgentRuntime';
-import { useAgentEditStore } from '../../store/agent-edit-store';
 import type {
   AgentChatMessage as ChatMsg,
   AgentConversationSummary,
 } from '../../domain/agent-conversation';
+import {
+  describeAgentToolActivity,
+  shouldDisplayAgentToolActivity,
+} from '../../lib/agent/agent-tool-activity';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { AgentContextIndicator } from './AgentContextIndicator';
+import { FieldDiff } from '../editor/FieldReview';
+import { AgentCheckpointMenu } from './AgentCheckpointMenu';
+import { useUiStore } from '../../store/ui-store';
+import { getActiveAgentAuthoringFocus } from '../../lib/agent/product-authoring-focus';
+import {
+  getEditorSelectionMemoryRevision,
+  subscribeEditorSelectionMemory,
+} from '../../lib/editor-selection-memory';
 import '../../../styles/agent-panel.css';
 
 const STREAM_FOLLOW_BOTTOM_THRESHOLD_PX = 16;
+
+function AgentAuthoringScopeChip({ projectId }: { projectId: string }) {
+  const { t } = useTranslation();
+  useUiStore((state) => state.tabsByProject[projectId]);
+  useDataStore((state) => state.bookNodes);
+  useDataStore((state) => state.bookElements);
+  useDataStore((state) => state.storylines);
+  useDataStore((state) => state.bookElementCategories);
+  useSyncExternalStore(
+    subscribeEditorSelectionMemory,
+    getEditorSelectionMemoryRevision,
+    getEditorSelectionMemoryRevision,
+  );
+  const focus = getActiveAgentAuthoringFocus(projectId);
+  if (!focus) return null;
+  const mode =
+    focus.mode === 'selection'
+      ? t('agentPanel.composer.scopeSelection')
+      : focus.mode === 'block'
+        ? t('agentPanel.composer.scopeBlock')
+        : t('agentPanel.composer.scopeEntity');
+  return (
+    <div
+      className="agt-composer__scope"
+      title={t('agentPanel.composer.scopeTitle')}
+      aria-label={t('agentPanel.composer.scopeAria', {
+        name: focus.entity.name,
+        mode,
+      })}
+    >
+      <span className="agt-composer__scope-label">{t('agentPanel.composer.scopeLabel')}</span>
+      <span className="agt-composer__scope-name">{focus.entity.name}</span>
+      <span aria-hidden="true">·</span>
+      <span>{mode}</span>
+    </div>
+  );
+}
 
 function relTime(iso: string): string {
   try {
@@ -92,187 +147,16 @@ function mdToHtml(text: string): string {
 
 // ---- Components ------------------------------------------------------------
 
-function ToolReviewRow({
-  review,
-}: {
-  review: NonNullable<Extract<ChatMsg, { kind: 'tool' }>['review']>;
-}) {
-  const { t } = useTranslation();
-  const projectId = useProjectStore((state) => state.currentProject?.id ?? '');
-  const [status, setStatus] = useState(review.status);
-  const [settling, setSettling] = useState<'accept' | 'reject' | null>(null);
-  const [error, setError] = useState('');
-  const [verified, setVerified] = useState(false);
-  const provenance = review.provenance;
-
-  useEffect(() => {
-    if (!provenance) return undefined;
-    let active = true;
-    void getDriftingAgentWriteReview(review.id, provenance)
-      .then((current) => {
-        if (!active || !current) return;
-        setStatus(current.status);
-        setVerified(true);
-      })
-      .catch(() => {
-        // Review authority is fail-closed: a transient durable read failure
-        // hides actions rather than trusting tool-result JSON.
-      });
-    const unsubscribe = subscribeDriftingAgentWriteReviewStatus((event) => {
-      if (event.reviewId === review.id) setStatus(event.status);
-    });
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [provenance, review.id]);
-
-  const settleLocalBatch = useCallback(
-    (decision: 'accept' | 'reject') => {
-      const store = useAgentEditStore.getState();
-      const batch = store.reviewBatches[review.id];
-      if (!batch) return;
-      if (decision === 'reject' && projectId) {
-        for (const change of batch.changes) {
-          store.recordRevert(projectId, batch.entityType, batch.id, change);
-        }
-      }
-      store.resolveReviews([review.id]);
-    },
-    [projectId, review.id],
-  );
-
-  const decide = useCallback(
-    async (decision: 'accept' | 'reject') => {
-      if (settling) return;
-      setSettling(decision);
-      setError('');
-      try {
-        const result =
-          decision === 'accept'
-            ? await acceptDriftingAgentWriteReview(review.id)
-            : await rejectDriftingAgentWriteReview(review.id, 'Rejected from the Agent panel');
-        setStatus(result.review.status);
-        if (result.review.status === 'accepted_effect' || result.review.status === 'reverted') {
-          settleLocalBatch(decision);
-        }
-        if (result.review.status === 'revert_failed') {
-          setError(
-            t('agentPanel.tool.reviewFailed', {
-              defaultValue: '无法安全还原：目标已在此后发生变化。',
-            }),
-          );
-        }
-      } catch (cause) {
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : t('agentPanel.tool.reviewActionFailed', {
-                defaultValue: '审阅操作失败',
-              }),
-        );
-      } finally {
-        setSettling(null);
-      }
-    },
-    [review.id, settleLocalBatch, settling, t],
-  );
-
-  const pending = status === 'pending';
-  const statusLabel =
-    status === 'accepted_effect'
-      ? t('agentPanel.tool.reviewAccepted', {
-          defaultValue: '已接受',
-        })
-      : status === 'reverted'
-        ? t('agentPanel.tool.reviewReverted', {
-            defaultValue: '已还原',
-          })
-        : status === 'revert_failed'
-          ? t('agentPanel.tool.reviewConflict', {
-              defaultValue: '还原冲突',
-            })
-          : t('agentPanel.tool.reviewStatus', {
-              status,
-              defaultValue: '审阅 · {{status}}',
-            });
-
-  if (!verified) return null;
-
-  return (
-    <div style={toolReviewRow}>
-      <span style={toolReviewStatus}>{statusLabel}</span>
-      {pending && (
-        <span style={toolReviewActions}>
-          <button
-            type="button"
-            style={toolReviewButton}
-            disabled={settling !== null}
-            onClick={() => void decide('reject')}
-          >
-            {settling === 'reject'
-              ? '…'
-              : t('agentPanel.tool.rejectReview', {
-                  defaultValue: '还原',
-                })}
-          </button>
-          <button
-            type="button"
-            style={{
-              ...toolReviewButton,
-              ...toolReviewAcceptButton,
-            }}
-            disabled={settling !== null}
-            onClick={() => void decide('accept')}
-          >
-            {settling === 'accept'
-              ? '…'
-              : t('agentPanel.tool.acceptReview', {
-                  defaultValue: '接受',
-                })}
-          </button>
-        </span>
-      )}
-      {error && <span style={toolReviewError}>{error}</span>}
-    </div>
-  );
-}
-
 function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const icon = msg.status === 'running' ? '◌' : msg.status === 'ok' ? '✓' : '✗';
-  const workspaceActivity = useMemo(() => {
-    const input =
-      msg.input && typeof msg.input === 'object' && !Array.isArray(msg.input)
-        ? (msg.input as Record<string, unknown>)
-        : undefined;
-    const path = typeof input?.path === 'string' ? input.path : '';
-    const query = typeof input?.query === 'string' ? input.query : '';
-    switch (msg.name) {
-      case 'list_files':
-        return t('agentPanel.tool.activity.list', {
-          path: path || '/',
-          defaultValue: '浏览 {{path}}',
-        });
-      case 'read_file':
-        return t('agentPanel.tool.activity.read', {
-          path: path || t('agentPanel.tool.activity.manuscript', { defaultValue: '作品' }),
-          defaultValue: '读取 {{path}}',
-        });
-      case 'grep':
-        return t('agentPanel.tool.activity.search', {
-          query,
-          defaultValue: '搜索“{{query}}”',
-        });
-      case 'edit_file':
-        return t('agentPanel.tool.activity.edit', {
-          path: path || t('agentPanel.tool.activity.manuscript', { defaultValue: '正文' }),
-          defaultValue: '编辑 {{path}}',
-        });
-      default:
-        return '';
-    }
-  }, [msg.input, msg.name, t]);
+  const semanticActivity = useMemo(
+    () =>
+      msg.phase === 'arguments' && msg.input === undefined
+        ? ''
+        : (describeAgentToolActivity(msg.name, msg.input, i18n.language) ?? ''),
+    [i18n.language, msg.input, msg.name, msg.phase],
+  );
   const inputStr = useMemo(() => {
     if (msg.inputText !== undefined) return msg.inputText;
     if (msg.input == null) return '';
@@ -282,15 +166,27 @@ function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
       return String(msg.input);
     }
   }, [msg.input, msg.inputText]);
-  const quietWorkspaceTool = workspaceActivity.length > 0;
-  const visibleInput = quietWorkspaceTool ? '' : inputStr;
-  const visibleResult = quietWorkspaceTool && msg.status !== 'error' ? '' : (msg.result ?? '');
+  const semanticTool = semanticActivity.length > 0;
+  const visibleInput = semanticTool ? '' : inputStr;
+  const visibleResult = semanticTool && msg.status !== 'error' ? '' : (msg.result ?? '');
   const hasBody = !!visibleInput || !!visibleResult;
+  // `tool_call_started` intentionally has no arguments yet. Showing a semantic
+  // label at that point can only guess (for example list_files defaults to `/`),
+  // then visibly rename itself once the real JSON arrives. Wait for ready/error;
+  // the author sees one truthful action a moment later instead of a placeholder.
+  if (
+    !shouldDisplayAgentToolActivity({
+      phase: msg.phase,
+      toolInput: msg.input,
+      status: msg.status,
+    })
+  )
+    return null;
   const summary = (
     <>
       <span style={{ opacity: 0.7, width: 12, display: 'inline-block' }}>{icon}</span>
-      {quietWorkspaceTool ? (
-        <span style={toolActivity}>{workspaceActivity}</span>
+      {semanticTool ? (
+        <span style={toolActivity}>{semanticActivity}</span>
       ) : (
         <code style={toolName}>{msg.name}</code>
       )}
@@ -298,7 +194,7 @@ function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
     </>
   );
   return (
-    <div style={quietWorkspaceTool ? quietToolRow : toolRow}>
+    <div style={semanticTool ? quietToolRow : toolRow}>
       {hasBody ? (
         <details style={toolDetails}>
           <summary style={toolSummary}>{summary}</summary>
@@ -319,12 +215,6 @@ function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
         </details>
       ) : (
         <div style={{ ...toolSummary, cursor: 'default' }}>{summary}</div>
-      )}
-      {msg.review && (
-        <ToolReviewRow
-          key={`${msg.review.id}:${msg.review.provenance?.sessionId ?? 'unbound'}:${msg.review.provenance?.turnId ?? 'unbound'}:${msg.review.provenance?.callId ?? 'unbound'}`}
-          review={msg.review}
-        />
       )}
     </div>
   );
@@ -363,6 +253,8 @@ function ThinkingRow({ msg }: { msg: Extract<ChatMsg, { kind: 'thinking' }> }) {
  */
 function ComposerConfig() {
   const { t } = useTranslation();
+  const agentProvider = useSettingsStore((s) => s.agentProvider);
+  const setAgentProvider = useSettingsStore((s) => s.setAgentProvider);
   const agentModel = useSettingsStore((s) => s.agentModel);
   const setAgentModel = useSettingsStore((s) => s.setAgentModel);
   const agentEditMode = useSettingsStore((s) => s.agentEditMode);
@@ -376,7 +268,8 @@ function ComposerConfig() {
   const [view, setView] = useState<'main' | 'model' | 'memory'>('main');
   const triggerRef = useRef<HTMLButtonElement>(null);
 
-  const modelOption = AGENT_MODEL_OPTIONS.find((m) => m.value === agentModel);
+  const modelOptions = agentProviderOption(agentProvider).models;
+  const modelOption = modelOptions.find((m) => m.value === agentModel);
   const modelShort = t(`settings.agent.modelOptions.${agentModel}.short`, {
     defaultValue: modelOption?.short ?? agentModel,
   });
@@ -468,23 +361,36 @@ function ComposerConfig() {
             <button type="button" className="agt-menu__back" onClick={() => setView('main')}>
               ‹ {t('agentPanel.config.model')}
             </button>
-            {AGENT_MODEL_OPTIONS.map((m) => (
-              <button
-                type="button"
-                key={m.value}
-                className={
-                  'agt-menu__opt' + (m.value === agentModel ? ' agt-menu__opt--active' : '')
-                }
-                onClick={() => {
-                  setAgentModel(m.value);
-                  setView('main');
-                }}
-              >
-                <span>
-                  {t(`settings.agent.modelOptions.${m.value}.label`, { defaultValue: m.label })}
-                </span>
-                {m.value === agentModel && <span className="agt-menu__check">●</span>}
-              </button>
+            {AGENT_PROVIDER_OPTIONS.map((provider) => (
+              <div key={provider.value}>
+                <div className="agt-menu__sec">{provider.label}</div>
+                {provider.models.map((m) => (
+                  <button
+                    type="button"
+                    key={m.value}
+                    className={
+                      'agt-menu__opt' +
+                      (provider.value === agentProvider && m.value === agentModel
+                        ? ' agt-menu__opt--active'
+                        : '')
+                    }
+                    onClick={() => {
+                      setAgentProvider(provider.value as AgentProviderId);
+                      setAgentModel(m.value);
+                      setView('main');
+                    }}
+                  >
+                    <span>
+                      {t(`settings.agent.modelOptions.${m.value}.label`, {
+                        defaultValue: m.label,
+                      })}
+                    </span>
+                    {provider.value === agentProvider && m.value === agentModel && (
+                      <span className="agt-menu__check">●</span>
+                    )}
+                  </button>
+                ))}
+              </div>
             ))}
           </>
         ) : (
@@ -754,7 +660,7 @@ function RuntimeControlCard({
   onPermission: (decision: 'allow' | 'deny', scope?: AgentPermissionScope) => void;
   onCancelRecovered: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   if (pending.requiresContinuation) {
     return (
       <div className="agt-control-card" role="status">
@@ -771,6 +677,11 @@ function RuntimeControlCard({
 
   const permission = pending.permissionRequest;
   if (pending.status === 'waiting_permission' && permission) {
+    const activity = describeAgentToolActivity(
+      permission.toolName,
+      permission.arguments,
+      i18n.language,
+    );
     let argumentsText = '{}';
     try {
       argumentsText = JSON.stringify(permission.arguments, null, 2);
@@ -781,9 +692,16 @@ function RuntimeControlCard({
       <div className="agt-control-card" role="alertdialog">
         <strong>{t('agentPanel.control.permissionTitle')}</strong>
         <span>
-          <code>{permission.toolName}</code>
-          {permission.reason ? ` · ${permission.reason}` : ''}
+          {activity ?? <code>{permission.toolName}</code>}
+          {activity
+            ? ` · ${t('agentPanel.control.destructiveHint', {
+                defaultValue: '这项操作会改变作品结构，需要你先确认',
+              })}`
+            : permission.reason
+              ? ` · ${permission.reason}`
+              : ''}
         </span>
+        <EditFilePermissionPreview arguments_={permission.arguments} />
         <details>
           <summary>{t('agentPanel.control.arguments')}</summary>
           <pre>{argumentsText}</pre>
@@ -818,6 +736,34 @@ function RuntimeControlCard({
     );
   }
   return null;
+}
+
+function EditFilePermissionPreview({ arguments_ }: { arguments_: Record<string, unknown> }) {
+  const { t } = useTranslation();
+  const path = typeof arguments_.path === 'string' ? arguments_.path : '';
+  const replacements = Array.isArray(arguments_.replacements)
+    ? arguments_.replacements.flatMap((value) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+        const row = value as Record<string, unknown>;
+        return typeof row.oldText === 'string' && typeof row.newText === 'string'
+          ? [{ oldText: row.oldText, newText: row.newText, replaceAll: row.replaceAll === true }]
+          : [];
+      })
+    : [];
+  if (!path || replacements.length === 0) return null;
+  return (
+    <div className="agt-permission-edit">
+      <div className="agt-permission-edit__path">
+        {t('agentPanel.control.editPreview')} <code>{path}</code>
+      </div>
+      {replacements.map((replacement, index) => (
+        <div key={`${index}:${replacement.oldText}`} className="agt-permission-edit__diff">
+          <FieldDiff oldText={replacement.oldText} newText={replacement.newText} />
+          {replacement.replaceAll && <small>{t('agentPanel.control.replaceAll')}</small>}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function TodoList({ items }: { items: Extract<ChatMsg, { kind: 'todos' }>['items'] }) {
@@ -877,48 +823,28 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const continuationReason = useAgentChatStore(selectAgentTaskContinuationReason);
   const automaticContinuation = useAgentChatStore(selectAutomaticContinuation);
   const contextUsage = useAgentChatStore(selectContextUsage);
+  const runtimeSessionId = useAgentChatStore(selectRuntimeSessionId);
+  const forkCheckpointId = useAgentChatStore(selectForkCheckpointId);
   const runningConvId = useAgentChatStore((s) => s.runningConvId);
   const convList = useAgentChatStore((s) => s.convList);
   const activeConvId = useAgentChatStore((s) => s.activeConvId);
   const setPrompt = useAgentChatStore((s) => s.setPrompt);
   const send = useAgentChatStore((s) => s.send);
   const continueTask = useAgentChatStore((s) => s.continueTask);
-  const pauseAutomaticContinuation = useAgentChatStore((s) => s.pauseAutomaticContinuation);
   const respondPermission = useAgentChatStore((s) => s.respondPermission);
   const stopAfterTool = useAgentChatStore((s) => s.stopAfterTool);
   const cancelRecoveredControl = useAgentChatStore((s) => s.cancelRecoveredControl);
-  const abort = useAgentChatStore((s) => s.abort);
   const newConversation = useAgentChatStore((s) => s.newConversation);
   const loadConversation = useAgentChatStore((s) => s.loadConversation);
   const deleteConversation = useAgentChatStore((s) => s.deleteConversation);
   const renameConversation = useAgentChatStore((s) => s.renameConversation);
   const bindProject = useAgentChatStore((s) => s.bindProject);
+  const refreshConversations = useAgentChatStore((s) => s.refreshList);
 
   const [status, setStatus] = useState<GeneralAgentAuthStatus | null>(null);
   const [showHistory, setShowHistory] = useState(false);
-  // Turn-checkpoint list (回退到某轮之前) + its two-step confirm / busy state.
-  const [showSnapshots, setShowSnapshots] = useState(false);
-  const [confirmTurnId, setConfirmTurnId] = useState<string | null>(null);
-  const [reverting, setReverting] = useState(false);
-  const [revertNote, setRevertNote] = useState<string | null>(null);
-  const allCheckpoints = useAgentCheckpointStore((s) => s.checkpoints);
-  const providerNeutralCheckpointBarrier = useAgentCheckpointStore(
-    (state) => state.providerNeutralProjectBarriers[projectId] ?? null,
-  );
-  const [legacyCheckpointState, setLegacyCheckpointState] = useState<{
-    projectId: string;
-    source: readonly TurnCheckpoint[];
-    checkpoints: TurnCheckpoint[];
-  }>({ projectId, source: allCheckpoints, checkpoints: [] });
-  const checkpoints =
-    !providerNeutralCheckpointBarrier &&
-    legacyCheckpointState.projectId === projectId &&
-    legacyCheckpointState.source === allCheckpoints
-      ? legacyCheckpointState.checkpoints
-      : [];
   const [atBottom, setAtBottom] = useState(true);
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
-  const snapshotsTriggerRef = useRef<HTMLButtonElement>(null);
   // Inline rename: the header edits the active conversation; a history row edits
   // whichever entry is `editingItemId`.
   const [editingHeaderId, setEditingHeaderId] = useState<string | null>(null);
@@ -969,40 +895,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   useEffect(() => {
     bindProject(projectId);
   }, [projectId, bindProject]);
-
-  // The old whole-turn inverse is a legacy SDK compatibility surface only.
-  // Resolve its authority from durable conversation identity before rendering
-  // the toolbar; provider-neutral checkpoints never get a clickable path.
-  useEffect(() => {
-    let active = true;
-    if (providerNeutralCheckpointBarrier) {
-      return () => {
-        active = false;
-      };
-    }
-    void listLegacyRevertableCheckpoints(projectId)
-      .then((rows) => {
-        if (!active) return;
-        setLegacyCheckpointState({
-          projectId,
-          source: allCheckpoints,
-          checkpoints: [...rows].reverse(),
-        });
-      })
-      .catch(() => {
-        if (!active) return;
-        // Revert authority is fail-closed when its durable identity cannot be
-        // loaded. Do not retain rows authorized by an earlier request.
-        setLegacyCheckpointState({
-          projectId,
-          source: allCheckpoints,
-          checkpoints: [],
-        });
-      });
-    return () => {
-      active = false;
-    };
-  }, [allCheckpoints, projectId, providerNeutralCheckpointBarrier]);
 
   // Auto-follow the stream only while pinned to the bottom.
   useEffect(() => {
@@ -1072,6 +964,10 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   // for the "switch to the running conversation" banner.
   const runningConv = otherRunning ? (convList.find((c) => c.id === runningConvId) ?? null) : null;
   const editingHeader = editingHeaderId !== null && editingHeaderId === activeConvId;
+  const automaticContinuationActive =
+    automaticContinuation?.status === 'armed' ||
+    automaticContinuation?.status === 'evaluating' ||
+    automaticContinuation?.status === 'scheduled';
 
   // Show a "思考中…" placeholder whenever the agent is running but nothing is
   // actively streaming — i.e. the dead-air gaps (right after send, and between a
@@ -1114,40 +1010,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
       useAgentActivityStore.getState().clearTouched(ref.entityType, ref.id);
     },
     [openEntity],
-  );
-
-  // Revert the manuscript to the state before this turn (and every later turn)
-  // ran. Disabled while any turn is in flight — reverting under a writing agent
-  // would race its edits.
-  const handleRevert = useCallback(
-    async (turnId: string) => {
-      setReverting(true);
-      setRevertNote(null);
-      try {
-        const r = await revertToTurn(projectId, turnId);
-        const parts = [t('agentPanel.revert.turns', { count: r.turns })];
-        if (r.blocks) parts.push(t('agentPanel.revert.blocks', { count: r.blocks }));
-        if (r.fields) parts.push(t('agentPanel.revert.fields', { count: r.fields }));
-        setRevertNote(
-          r.skipped.length
-            ? t('agentPanel.revert.partial', {
-                summary: parts.join(' · '),
-                count: r.skipped.length,
-              })
-            : parts.join(' · '),
-        );
-      } catch (err) {
-        setRevertNote(
-          t('agentPanel.revert.failed', {
-            error: err instanceof Error ? err.message : String(err),
-          }),
-        );
-      } finally {
-        setReverting(false);
-        setConfirmTurnId(null);
-      }
-    },
-    [projectId, t],
   );
 
   const beginHeaderRename = useCallback(() => {
@@ -1257,30 +1119,23 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
         )}
         <div style={toolbarRight}>
           <AgentContextIndicator snapshot={contextUsage} />
-          {checkpoints.length > 0 && (
-            <button
-              ref={snapshotsTriggerRef}
-              type="button"
-              style={ghostBtn}
-              onClick={() => {
-                setShowSnapshots((s) => !s);
-                setShowHistory(false);
-                setConfirmTurnId(null);
-              }}
-              title={t('agentPanel.toolbar.snapshotsTitle')}
-              aria-expanded={showSnapshots}
-              aria-haspopup="dialog"
-            >
-              ↺ {t('agentPanel.toolbar.snapshots', { count: checkpoints.length })}
-            </button>
-          )}
+          <AgentCheckpointMenu
+            projectId={projectId}
+            conversationId={activeConvId}
+            runtimeSessionId={runtimeSessionId}
+            forkCheckpointId={forkCheckpointId}
+            messages={messages}
+            mode={agentAuth === 'hosted' ? 'hosted' : 'byok'}
+            disabled={running || otherRunning || starting}
+            loadConversation={loadConversation}
+            refreshConversations={refreshConversations}
+          />
           <button
             ref={historyTriggerRef}
             type="button"
             style={ghostBtn}
             onClick={() => {
               setShowHistory((s) => !s);
-              setShowSnapshots(false);
             }}
             title={t('agentPanel.toolbar.historyTitle')}
             aria-expanded={showHistory}
@@ -1299,97 +1154,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           </button>
         </div>
       </div>
-
-      <AnchoredPopover
-        anchorRef={snapshotsTriggerRef}
-        open={showSnapshots && checkpoints.length > 0}
-        onClose={() => {
-          setShowSnapshots(false);
-          setConfirmTurnId(null);
-        }}
-        placement="bottom-end"
-        role="dialog"
-        ariaLabel={t('agentPanel.toolbar.snapshotsTitle')}
-        maxHeight={280}
-        style={historyPanel}
-        autoFocus={false}
-        restoreFocus={false}
-      >
-        {revertNote && (
-          <div style={{ padding: '8px 12px', fontSize: 11.5, color: 'hsl(var(--ink-2))' }}>
-            {revertNote}
-          </div>
-        )}
-        {checkpoints.length === 0 ? (
-          <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>
-            {t('agentPanel.snapshots.empty')}
-          </div>
-        ) : (
-          checkpoints.map((cp, i) => {
-            const entityCount = Object.keys(cp.entities).length;
-            const changeCount = Object.values(cp.entities).reduce(
-              (n, e) => n + e.changes.length,
-              0,
-            );
-            const confirming = confirmTurnId === cp.turnId;
-            return (
-              <div key={cp.turnId} style={historyItem}>
-                <span style={historyTitle} title={cp.label}>
-                  {cp.label || t('agentPanel.snapshots.emptyInstruction')}
-                </span>
-                <span style={historyTime}>
-                  {relTime(new Date(cp.ts).toISOString())} ·{' '}
-                  {t('agentPanel.snapshots.meta', {
-                    changes: changeCount,
-                    entities: entityCount,
-                  })}
-                </span>
-                {confirming ? (
-                  <>
-                    <button
-                      type="button"
-                      style={{ ...historyAct, color: 'hsl(var(--accent))' }}
-                      disabled={reverting}
-                      title={
-                        i === 0
-                          ? t('agentPanel.snapshots.revertThisTitle')
-                          : t('agentPanel.snapshots.revertThisAndAfterTitle', { count: i })
-                      }
-                      onClick={() => void handleRevert(cp.turnId)}
-                    >
-                      {reverting
-                        ? t('agentPanel.snapshots.reverting')
-                        : t('agentPanel.snapshots.confirmRevert')}
-                    </button>
-                    <button
-                      type="button"
-                      style={historyAct}
-                      disabled={reverting}
-                      onClick={() => setConfirmTurnId(null)}
-                    >
-                      {t('common.cancel')}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    style={historyAct}
-                    disabled={reverting || running || otherRunning}
-                    title={
-                      running || otherRunning
-                        ? t('agentPanel.snapshots.runningTitle')
-                        : t('agentPanel.snapshots.revertBeforeTitle')
-                    }
-                    onClick={() => setConfirmTurnId(cp.turnId)}
-                  >
-                    ↺ {t('agentPanel.snapshots.revert')}
-                  </button>
-                )}
-              </div>
-            );
-          })
-        )}
-      </AnchoredPopover>
 
       <AnchoredPopover
         anchorRef={historyTriggerRef}
@@ -1479,28 +1243,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
               }}
             />
           )}
-          {automaticContinuation &&
-            (automaticContinuation.status === 'armed' ||
-              automaticContinuation.status === 'evaluating' ||
-              automaticContinuation.status === 'scheduled') && (
-              <div className="agt-control-card" role="status">
-                <strong>{t('agentPanel.autoContinue.title')}</strong>
-                <span>
-                  {t('agentPanel.autoContinue.body', {
-                    count: automaticContinuation.automaticSlicesStarted,
-                  })}
-                </span>
-                <div className="agt-control-card__actions">
-                  <button
-                    type="button"
-                    className="agt-control-card__deny"
-                    onClick={pauseAutomaticContinuation}
-                  >
-                    {t('agentPanel.autoContinue.pause')}
-                  </button>
-                </div>
-              </div>
-            )}
           {continuationReason && (
             <div className="agt-control-card" role="status">
               <strong>
@@ -1593,6 +1335,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           </button>
         )}
         <div className="agt-composer">
+          {!running && !starting && <AgentAuthoringScopeChip projectId={projectId} />}
           <textarea
             ref={taRef}
             className="agt-composer__text"
@@ -1622,7 +1365,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           <div className="agt-composer__bar">
             <ComposerConfig />
             <div className="agt-composer__spacer" />
-            {running ? (
+            {running || automaticContinuationActive ? (
               <>
                 <button
                   type="button"
@@ -1631,33 +1374,27 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                   disabled={starting}
                   title={t('agentPanel.composer.stopAfterToolTitle')}
                 >
-                  {t('agentPanel.composer.stopAfterTool')}
-                </button>
-                <button
-                  type="button"
-                  className="agt-send agt-send--stop"
-                  onClick={abort}
-                  disabled={starting}
-                  title={t('agentPanel.composer.abortTitle')}
-                >
                   {t('agentPanel.composer.stop')}
                 </button>
-                <button
-                  type="button"
-                  className="agt-send"
-                  onClick={handleSend}
-                  disabled={
-                    !prompt.trim() ||
-                    starting ||
-                    controlStatus === 'waiting_permission' ||
-                    controlStatus === 'cancelling' ||
-                    controlStatus === 'committing'
-                  }
-                >
-                  {pendingControl?.status === 'waiting_user'
-                    ? t('agentPanel.composer.answer')
-                    : t('agentPanel.composer.steer')}
-                </button>
+                {running && (
+                  <button
+                    type="button"
+                    className="agt-send"
+                    onClick={handleSend}
+                    disabled={
+                      !prompt.trim() ||
+                      starting ||
+                      controlStatus === 'waiting_permission' ||
+                      controlStatus === 'cancelling' ||
+                      controlStatus === 'committing'
+                    }
+                    title={t('agentPanel.composer.steerTitle')}
+                  >
+                    {pendingControl?.status === 'waiting_user'
+                      ? t('agentPanel.composer.answer')
+                      : t('agentPanel.composer.steer')}
+                  </button>
+                )}
               </>
             ) : otherRunning ? (
               <button
@@ -1984,51 +1721,6 @@ const toolActivity: React.CSSProperties = {
 const toolBody: React.CSSProperties = {
   borderTop: '1px solid hsl(var(--rule))',
   padding: '6px 8px',
-};
-
-const toolReviewRow: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  gap: 6,
-  borderTop: '1px solid hsl(var(--rule))',
-  padding: '6px 8px',
-  background: 'hsl(var(--accent) / 0.06)',
-};
-
-const toolReviewStatus: React.CSSProperties = {
-  flex: 1,
-  minWidth: 80,
-  fontSize: 11,
-  opacity: 0.72,
-};
-
-const toolReviewActions: React.CSSProperties = {
-  display: 'flex',
-  gap: 5,
-};
-
-const toolReviewButton: React.CSSProperties = {
-  border: '1px solid hsl(var(--rule))',
-  borderRadius: 5,
-  background: 'hsl(var(--paper))',
-  color: 'inherit',
-  cursor: 'pointer',
-  font: 'inherit',
-  fontSize: 11,
-  lineHeight: 1.4,
-  padding: '2px 7px',
-};
-
-const toolReviewAcceptButton: React.CSSProperties = {
-  borderColor: 'hsl(var(--accent) / 0.45)',
-  background: 'hsl(var(--accent) / 0.12)',
-};
-
-const toolReviewError: React.CSSProperties = {
-  width: '100%',
-  color: 'hsl(0 65% 52%)',
-  fontSize: 10.5,
 };
 
 const toolBodyLabel: React.CSSProperties = {

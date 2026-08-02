@@ -10,19 +10,23 @@ import {
 import { createPortal, flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Check, X } from 'lucide-react';
-import { useAgentEditStore } from '../../store/agent-edit-store';
+import {
+  useAgentEditStore,
+  type AgentEditReviewBatch,
+} from '../../store/agent-edit-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { entityKey, type ActivityEntityType } from '../../lib/agent/tool-entity-ref';
 import { diffTokens, type AgentBlockChange } from '../../lib/agent/block-diff';
 import { revertEntityBlock } from '../../lib/agent/chapter-prose';
 import {
-  acceptDriftingAgentWriteReview,
-  rejectDriftingAgentWriteReview,
+  acceptDriftingAgentWriteReviewBlock,
+  rejectDriftingAgentWriteReviewBlock,
 } from '../../lib/agent/useDriftingAgentRuntime';
+import type { AgentWriteReviewBlockDecisionResult } from '../../lib/agent/runtime/drifting-write-tool-runtime';
 import {
-  approveDurableAgentReview,
-  rejectDurableAgentReviewsForEntity,
-} from '../../lib/agent/durable-review-actions';
+  agentEditAnimationKey,
+  bulkAgentEditRevealChanges,
+} from './agent-edit-animation';
 
 /**
  * Agent prose-edit reveal layer (#3 / #4). Renders OVER the manuscript (a fixed
@@ -44,8 +48,9 @@ import {
  *                  Scrollbar ticks still show (BOTH modes) so pending edits stay
  *                  findable in a long chapter — see EditorScrollMarkers.
  *
- * The live GLOBAL `agentEditMode` governs behavior (the toggle is authoritative):
- * switching to auto auto-applies pending edits, switching to approve surfaces ✓/✗.
+ * `agentEditMode` is stamped onto each durable batch when the write is prepared.
+ * Changing the toggle affects future edits only, so an already-visible approval
+ * cannot silently turn into auto mode midway through review.
  *
  * Durable runtime changes settle their canonical review before this layer clears
  * presentation state. Only legacy changes without reviewId may still use the old
@@ -76,7 +81,7 @@ const ANCHOR_GRACE_MS = 4500;
 // than the viewport, whose visible fraction OF ITSELF can never reach 35%.
 const REVEAL_RATIO = 0.35;
 
-const keyOf = (c: AgentBlockChange): string => `${c.op}:${c.blockId}`;
+const keyOf = agentEditAnimationKey;
 const sel = (blockId: string): string => `[data-block-id="${CSS.escape(blockId)}"]`;
 
 /** The DOM element a change hangs on: the block itself, or — for a deletion —
@@ -357,11 +362,13 @@ function RevealOverlay({
 function ApproveControl({
   scrollEl,
   change,
+  busy,
   onApprove,
   onReject,
 }: {
   scrollEl: HTMLElement;
   change: AgentBlockChange;
+  busy: boolean;
   onApprove: () => void;
   onReject: () => void;
 }) {
@@ -430,17 +437,110 @@ function ApproveControl({
       style={{ position: 'absolute', top: 0, left: 0, visibility: 'hidden' }}
     >
       <span className="agent-approve__tag">{label}</span>
-      <button type="button" className="agent-approve__btn agent-approve__btn--ok" title={t('fieldReview.acceptTitle')} onClick={onApprove}>
+      <button type="button" className="agent-approve__btn agent-approve__btn--ok" title={t('fieldReview.acceptTitle')} disabled={busy} onClick={onApprove}>
         <Check size={13} />
       </button>
-      <button type="button" className="agent-approve__btn agent-approve__btn--no" title={t('fieldReview.rejectTitle')} onClick={onReject}>
+      <button type="button" className="agent-approve__btn agent-approve__btn--no" title={t('fieldReview.rejectTitle')} disabled={busy} onClick={onReject}>
         <X size={13} />
       </button>
     </div>
   );
 }
 
+function ReviewAllControl({
+  scrollEl,
+  count,
+  busy,
+  onApproveAll,
+  onRejectAll,
+}: {
+  scrollEl: HTMLElement;
+  count: number;
+  busy: boolean;
+  onApproveAll: () => void;
+  onRejectAll: () => void;
+}) {
+  const { t } = useTranslation();
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    const place = () => {
+      const rect = scrollEl.getBoundingClientRect();
+      node.style.top = `${rect.top + 12}px`;
+      node.style.left = `${Math.max(rect.left + 12, rect.right - node.offsetWidth - 16)}px`;
+    };
+    place();
+    window.addEventListener('resize', place);
+    const observer = new ResizeObserver(place);
+    observer.observe(scrollEl);
+    observer.observe(node);
+    return () => {
+      window.removeEventListener('resize', place);
+      observer.disconnect();
+    };
+  }, [scrollEl]);
+
+  return (
+    <div ref={ref} className="agent-review-all" role="group" aria-label={t('agentEditAnimator.reviewAll')}>
+      <span className="agent-review-all__count">
+        {t('agentEditAnimator.pendingCount', { count })}
+      </span>
+      <button type="button" disabled={busy} onClick={onRejectAll}>
+        {t('agentEditAnimator.rejectAll')}
+      </button>
+      <button type="button" className="agent-review-all__accept" disabled={busy} onClick={onApproveAll}>
+        {t('agentEditAnimator.acceptAll')}
+      </button>
+    </div>
+  );
+}
+
 const EMPTY: AgentBlockChange[] = [];
+
+function unresolvedBatchChanges(batch: AgentEditReviewBatch): AgentBlockChange[] {
+  return batch.changes.filter(
+    (change) => !batch.blockDecisions?.[change.blockId],
+  );
+}
+
+function matchingReviewBatches(
+  state: ReturnType<typeof useAgentEditStore.getState>,
+  entityType: ActivityEntityType,
+  id: string,
+): AgentEditReviewBatch[] {
+  return state.reviewOrder
+    .map((reviewId) => state.reviewBatches[reviewId])
+    .filter(
+      (batch): batch is AgentEditReviewBatch =>
+        Boolean(
+          batch &&
+            batch.entityType === entityType &&
+            batch.id === id &&
+            unresolvedBatchChanges(batch).some(
+              (change) => (change.mode ?? 'approve') === 'approve',
+            ),
+        ),
+    );
+}
+
+function syncDurableBlockDecisions(
+  result: AgentWriteReviewBlockDecisionResult,
+): boolean {
+  const decisions: Record<string, 'accepted' | 'reverted'> = {};
+  for (const block of result.blocks) {
+    if (block.status === 'accepted' || block.status === 'reverted') {
+      decisions[block.blockId] = block.status;
+    }
+  }
+  const state = useAgentEditStore.getState();
+  state.syncReviewBlockDecisions(result.review.id, decisions);
+  const settled =
+    result.review.status === 'accepted_effect' ||
+    result.review.status === 'reverted';
+  if (settled) state.resolveReviews([result.review.id]);
+  return settled;
+}
 
 export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: AgentEditAnimatorProps) {
   // Each change carries its OWN mode (stamped at record time), so the global
@@ -465,11 +565,31 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   // Auto mode: every change currently playing its reveal, keyed. CONCURRENT —
   // each fires the moment it enters the viewport, not serially. Held as captured
   // change data so an overlay still finishes after its change resolves out of the
-  // store. Approve commit (one-off) lives in `committing`.
+  // store. Approve/reject commits live in `committing`, also concurrently.
   const [revealing, setRevealing] = useState<Map<string, AgentBlockChange>>(() => new Map());
-  const [committing, setCommitting] = useState<AgentBlockChange | null>(null);
+  const [committing, setCommitting] = useState<Map<string, AgentBlockChange>>(
+    () => new Map(),
+  );
+  const [bulkBusy, setBulkBusy] = useState(false);
   const layerRef = useRef<HTMLDivElement>(null);
   const settlingRef = useRef(new Set<string>());
+
+  const markBlockSeen = useCallback(
+    (change: AgentBlockChange) => {
+      if (!id) return;
+      useAgentActivityStore
+        .getState()
+        .markSpotSeen(entityType, id, { block: change.blockId });
+    },
+    [entityType, id],
+  );
+
+  const markBatchSeen = useCallback(
+    (batch: AgentEditReviewBatch) => {
+      for (const change of batch.changes) markBlockSeen(change);
+    },
+    [markBlockSeen],
+  );
 
   // Live heights (keyed) of the deletion overlays currently revealing, reported
   // by each RevealOverlay — used to STACK a run of deletions that share one
@@ -531,6 +651,26 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
     });
   }, []);
 
+  const startCommitting = useCallback((nextChanges: readonly AgentBlockChange[]) => {
+    setCommitting((previous) => {
+      const next = new Map(previous);
+      for (const change of nextChanges) {
+        next.set(keyOf(change), change);
+      }
+      return next;
+    });
+  }, []);
+
+  const stopCommitting = useCallback((change: AgentBlockChange) => {
+    setCommitting((previous) => {
+      const key = keyOf(change);
+      if (!previous.has(key)) return previous;
+      const next = new Map(previous);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
   const resolve = useCallback(
     (c: AgentBlockChange) => {
       if (!id) return;
@@ -568,6 +708,212 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
     },
     [entityType, id],
   );
+
+  const approveOne = useCallback(
+    (change: AgentBlockChange) => {
+      if (!id) return;
+      if (!change.reviewId) {
+        if (change.op !== 'deleted') resolve(change);
+        startCommitting([change]);
+        return;
+      }
+      const reviewId = change.reviewId;
+      const settlementKey = `${reviewId}:${change.blockId}:accept`;
+      if (settlingRef.current.has(settlementKey)) return;
+      const state = useAgentEditStore.getState();
+      const batch = state.reviewBatches[reviewId];
+      if (!batch) return;
+      settlingRef.current.add(settlementKey);
+      void acceptDriftingAgentWriteReviewBlock(
+        reviewId,
+        change.blockId,
+        'Accepted block from editor review',
+      )
+        .then((result) => {
+          if (result.block.status !== 'accepted') {
+            throw new Error(
+              `Agent review block ${reviewId}/${change.blockId} did not accept (status: ${result.block.status})`,
+            );
+          }
+          flushSync(() => startCommitting([change]));
+          const settled = syncDurableBlockDecisions(result);
+          markBlockSeen(change);
+          if (settled) markBatchSeen(batch);
+        })
+        .catch((error) => {
+          console.error(
+            '[agent] approve block: durable review failed, keeping block pending',
+            error,
+          );
+        })
+        .finally(() => {
+          settlingRef.current.delete(settlementKey);
+        });
+    },
+    [id, markBatchSeen, markBlockSeen, resolve, startCommitting],
+  );
+
+  const rejectOne = useCallback(
+    (change: AgentBlockChange) => {
+      if (!id) return;
+      if (!change.reviewId) {
+        void revertEntityBlock(entityType, id, change)
+          .then(() => {
+            resolve(change);
+            useAgentEditStore
+              .getState()
+              .recordRevert(projectId, entityType, id, change);
+          })
+          .catch((error) => {
+            console.error('[agent] reject: revert failed, keeping edit pending', error);
+          });
+        return;
+      }
+
+      const reviewId = change.reviewId;
+      const settlementKey = `${reviewId}:${change.blockId}:reject`;
+      if (settlingRef.current.has(settlementKey)) return;
+      const initial = useAgentEditStore.getState();
+      const batch = initial.reviewBatches[reviewId];
+      if (!batch) return;
+      settlingRef.current.add(settlementKey);
+
+      const settle = async () => {
+        const result = await rejectDriftingAgentWriteReviewBlock(
+          reviewId,
+          change.blockId,
+          'Rejected block from editor review',
+        );
+        if (result.block.status !== 'reverted') {
+          throw new Error(
+            `Agent review block ${reviewId}/${change.blockId} did not revert (status: ${result.block.status})`,
+          );
+        }
+        const reverted = bulkAgentEditRevealChanges([change], 'reverted');
+        flushSync(() => startCommitting(reverted));
+        const current = useAgentEditStore.getState();
+        current.recordRevert(projectId, entityType, id, change);
+        const reviewSettled = syncDurableBlockDecisions(result);
+        markBlockSeen(change);
+        if (reviewSettled) {
+          markBatchSeen(batch);
+        }
+      };
+
+      void settle()
+        .catch((error) => {
+          console.error(
+            '[agent] reject block: guarded inverse failed, keeping block pending',
+            error,
+          );
+        })
+        .finally(() => {
+          settlingRef.current.delete(settlementKey);
+        });
+    },
+    [
+      entityType,
+      id,
+      markBatchSeen,
+      markBlockSeen,
+      projectId,
+      resolve,
+      startCommitting,
+    ],
+  );
+
+  const approveAll = useCallback(() => {
+    if (!id || bulkBusy) return;
+    const state = useAgentEditStore.getState();
+    const batches = matchingReviewBatches(state, entityType, id);
+    if (batches.length === 0) return;
+    setBulkBusy(true);
+    void (async () => {
+      for (const batch of batches) {
+        for (const change of unresolvedBatchChanges(batch)) {
+          const result = await acceptDriftingAgentWriteReviewBlock(
+            batch.reviewId,
+            change.blockId,
+            'Accepted all from editor review',
+          );
+          if (result.block.status !== 'accepted') {
+            throw new Error(
+              `Agent review block ${batch.reviewId}/${change.blockId} did not accept (status: ${result.block.status})`,
+            );
+          }
+          // Start the reveal before the SQLite-backed projection removes the
+          // in-editor diff anchor. Each completed block is projected at once so
+          // a later failure cannot visually resurrect already-durable decisions.
+          flushSync(() => startCommitting([change]));
+          const settled = syncDurableBlockDecisions(result);
+          markBlockSeen(change);
+          if (settled) markBatchSeen(batch);
+        }
+      }
+    })()
+      .catch((error) => {
+        console.error(
+          '[agent] approve all: durable review failed, keeping unresolved blocks pending',
+          error,
+        );
+      })
+      .finally(() => setBulkBusy(false));
+  }, [bulkBusy, entityType, id, markBatchSeen, markBlockSeen, startCommitting]);
+
+  const rejectAll = useCallback(() => {
+    if (!id || bulkBusy) return;
+    const state = useAgentEditStore.getState();
+    const batches = matchingReviewBatches(state, entityType, id);
+    if (batches.length === 0) return;
+    setBulkBusy(true);
+    const settle = async () => {
+      // Newest effects are reverted first so overlapping edits unwind in the
+      // same order as a stack. Every block owns a durable `revert_started`
+      // checkpoint before the guarded Yjs inverse runs.
+      for (const batch of [...batches].reverse()) {
+        const rejected = [...unresolvedBatchChanges(batch)].reverse();
+        for (const change of rejected) {
+          const result = await rejectDriftingAgentWriteReviewBlock(
+            batch.reviewId,
+            change.blockId,
+            'Rejected all from editor review',
+          );
+          if (result.block.status !== 'reverted') {
+            throw new Error(
+              `Agent review block ${batch.reviewId}/${change.blockId} did not revert (status: ${result.block.status})`,
+            );
+          }
+          flushSync(() =>
+            startCommitting(
+              bulkAgentEditRevealChanges([change], 'reverted'),
+            ),
+          );
+          const current = useAgentEditStore.getState();
+          current.recordRevert(projectId, entityType, id, change);
+          const reviewSettled = syncDurableBlockDecisions(result);
+          markBlockSeen(change);
+          if (reviewSettled) markBatchSeen(batch);
+        }
+      }
+    };
+
+    void settle()
+      .catch((error) => {
+        console.error(
+          '[agent] reject all: durable inverse failed, keeping unresolved blocks pending',
+          error,
+        );
+      })
+      .finally(() => setBulkBusy(false));
+  }, [
+    bulkBusy,
+    entityType,
+    id,
+    markBatchSeen,
+    markBlockSeen,
+    projectId,
+    startCommitting,
+  ]);
 
   // Auto mode: as each pending block comes into view, fire its reveal —
   // concurrently, so every change on screen animates at once. Driven by a RECT
@@ -647,7 +993,10 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   // anchored to a block scrolled near the bottom doesn't spill over the
   // BottomTimeline (or above the toolbar). Recomputed on layout change only —
   // scrollEl's own rect doesn't move while the content scrolls inside it.
-  const hasLayer = !!scrollEl && !!id && (changes.length > 0 || !!committing || revealing.size > 0);
+  const hasLayer =
+    !!scrollEl &&
+    !!id &&
+    (changes.length > 0 || committing.size > 0 || revealing.size > 0);
   useEffect(() => {
     if (!hasLayer || !scrollEl) return undefined;
     const layer = layerRef.current;
@@ -725,139 +1074,46 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
           typewriter commit over it; ✗ reverts via Yjs. Per-change, so approve and
           auto changes can coexist on the same entity. */}
       {approveChanges.map((c) => (
-          <ApproveControl
-            key={keyOf(c)}
-            scrollEl={scrollEl}
-            change={c}
-            onApprove={() => {
-              if (c.reviewId) {
-                if (settlingRef.current.has(c.reviewId)) return;
-                settlingRef.current.add(c.reviewId);
-                void approveDurableAgentReview(
-                  c.reviewId,
-                  acceptDriftingAgentWriteReview,
-                  () => {
-                    // Mount the commit overlay before removing the in-place
-                    // durable batch, especially for deleted-block ghosts.
-                    flushSync(() => setCommitting(c));
-                    const store = useAgentEditStore.getState();
-                    const batch = store.reviewBatches[c.reviewId!];
-                    store.resolveReviews([c.reviewId!]);
-                    for (const change of batch?.changes ?? [c]) {
-                      useAgentActivityStore
-                        .getState()
-                        .markSpotSeen(entityType, id, {
-                          block: change.blockId,
-                        });
-                    }
-                  },
-                )
-                  .catch((error) => {
-                    console.error(
-                      '[agent] approve: durable review failed, keeping edit pending',
-                      error,
-                    );
-                  })
-                  .finally(() => {
-                    settlingRef.current.delete(c.reviewId!);
-                  });
-                return;
-              }
-              // changed / new: the real (post-edit) block already holds the space,
-              // so clear the in-place decoration now and play the commit reveal over
-              // it. DELETION: the struck placeholder IS the decoration — keep it
-              // until the erase reveal finishes (resolve in the commit's onDone)
-              // so blocks below don't jump up and overlap the animation.
-              if (c.op !== 'deleted') resolve(c);
-              setCommitting(c);
-            }}
-            onReject={() => {
-              if (c.reviewId) {
-                const settlementKey = `${entityType}:${id}:reject`;
-                if (settlingRef.current.has(settlementKey)) return;
-                settlingRef.current.add(settlementKey);
-                const store = useAgentEditStore.getState();
-                void rejectDurableAgentReviewsForEntity({
-                  entityType,
-                  id,
-                  batches: store,
-                  rejectReview: rejectDriftingAgentWriteReview,
-                  decisionNote: 'Rejected from editor review',
-                  onAllReverted(reviewIds, batches) {
-                    const current = useAgentEditStore.getState();
-                    // Feedback is emitted only after every canonical guarded
-                    // inverse succeeded; a partial failure leaves all batches.
-                    for (const batch of batches) {
-                      for (const change of batch.changes) {
-                        current.recordRevert(
-                          projectId,
-                          batch.entityType,
-                          batch.id,
-                          change,
-                        );
-                        useAgentActivityStore
-                          .getState()
-                          .markSpotSeen(batch.entityType, batch.id, {
-                            block: change.blockId,
-                          });
-                      }
-                    }
-                    current.resolveReviews([...reviewIds]);
-                  },
-                })
-                  .catch((error) => {
-                    console.error(
-                      '[agent] reject: durable inverse failed, keeping review stack pending',
-                      error,
-                    );
-                  })
-                  .finally(() => {
-                    settlingRef.current.delete(settlementKey);
-                  });
-                return;
-              }
-              // Only clear the review marker once the undo ACTUALLY applies. If
-              // the revert throws (block id moved, doc unregistered), the agent's
-              // text is still in the doc — so keep the block flagged (the ✓/✗
-              // control stays, the user can retry) instead of silently looking
-              // reverted while the edit secretly remains.
-              void revertEntityBlock(entityType, id, c)
-                .then(() => {
-                  resolve(c);
-                  // Tell the agent on its next turn that this edit was undone — it
-                  // ran bypassPermissions and otherwise believes the edit stuck.
-                  // Queue ONLY on a successful revert (mirrors keeping the block
-                  // pending when the revert throws).
-                  useAgentEditStore.getState().recordRevert(projectId, entityType, id, c);
-                })
-                .catch((err) => {
-                  console.error('[agent] reject: revert failed, keeping edit pending', err);
-                });
-            }}
-          />
-        ))}
+        <ApproveControl
+          key={keyOf(c)}
+          scrollEl={scrollEl}
+          change={c}
+          busy={bulkBusy || committing.size > 0}
+          onApprove={() => approveOne(c)}
+          onReject={() => rejectOne(c)}
+        />
+      ))}
+      {approveChanges.length > 0 && (
+        <ReviewAllControl
+          scrollEl={scrollEl}
+          count={approveChanges.length}
+          busy={bulkBusy || committing.size > 0}
+          onApproveAll={approveAll}
+          onRejectAll={rejectAll}
+        />
+      )}
       {/* The approved block's one-off commit reveal (occludes it, plays, fades).
           For a DELETION the pending change was kept (placeholder held the space) —
           resolve it now that the erase animation is done, so the collapse happens
           AFTER the reveal, not before it. */}
-      {committing && (
+      {[...committing.values()].map((change) => (
         <RevealOverlay
-          key={`commit:${keyOf(committing)}`}
+          key={`commit:${keyOf(change)}`}
           scrollEl={scrollEl}
-          change={committing}
+          change={change}
           onDone={() => {
-            if (committing.op === 'deleted') {
-              resolve(committing);
+            if (change.op === 'deleted') {
+              resolve(change);
               // flushSync: unmount the occluder synchronously with the (synchronous)
               // ghost removal, so neither the struck ghost nor an empty box ever
               // paints alone — kills both the flash and the residual flicker.
-              flushSync(() => setCommitting(null));
+              flushSync(() => stopCommitting(change));
             } else {
-              setCommitting(null);
+              stopCommitting(change);
             }
           }}
         />
-      )}
+      ))}
     </div>,
     document.body,
   );

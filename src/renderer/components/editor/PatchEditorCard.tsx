@@ -122,7 +122,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   }, [patch.id, projectId, onDelete]);
 
   // Agent-created patch awaiting review (keep / discard). The agent's create
-  // already landed (soft-approval); this just surfaces it. Resolves out of the
+  // already landed (write-first inline review); this just surfaces it. Resolves out of the
   // edit store on ✓/✗ (or auto-settle). See agent-edit-review.
   const cardRef = useRef<HTMLDivElement>(null);
   const patchChange = useAgentEditStore((s) => {

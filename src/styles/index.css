@@ -2194,6 +2194,58 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   background: hsl(var(--story-1) / 0.18);
   color: hsl(var(--story-1));
 }
+.agent-approve__btn:disabled {
+  cursor: wait;
+  opacity: 0.45;
+}
+
+.agent-review-all {
+  position: fixed;
+  z-index: 63;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 9px;
+  background: hsl(var(--surface) / 0.96);
+  box-shadow: 0 4px 14px hsl(0 0% 0% / 0.14);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+.agent-review-all__count {
+  padding: 0 5px;
+  color: hsl(var(--ink-3));
+  font-size: 11px;
+  white-space: nowrap;
+}
+.agent-review-all button {
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.agent-review-all button:hover:not(:disabled) {
+  background: hsl(var(--story-1) / 0.12);
+  color: hsl(var(--story-1));
+}
+.agent-review-all .agent-review-all__accept {
+  background: hsl(var(--story-3) / 0.15);
+  color: hsl(var(--story-3));
+}
+.agent-review-all .agent-review-all__accept:hover:not(:disabled) {
+  background: hsl(var(--story-3) / 0.23);
+  color: hsl(var(--story-3));
+}
+.agent-review-all button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
 
 /* ============================================================
    Agent-edit IN-PLACE diff (#3 approve mode) — real editor decorations, so the

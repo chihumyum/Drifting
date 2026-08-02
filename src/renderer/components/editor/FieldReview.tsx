@@ -1,6 +1,6 @@
 /**
  * In-page review affordance for the agent's NON-PROSE field edits (summary / kv /
- * template kv). The agent's write already landed in the store (soft-approval,
+ * template kv). The agent's write already landed in the store (write-first inline review,
  * like prose); this surfaces it for the user, and is rendered INSTEAD of the
  * field's own control while a change is pending (so the diff and the applied
  * result are never both on screen — the control returns once the change resolves).

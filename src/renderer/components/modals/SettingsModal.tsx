@@ -25,7 +25,9 @@ import {
   type CopilotTaskId,
   type DateFormat,
   type AgentAuth,
-  AGENT_MODEL_OPTIONS,
+  AGENT_PROVIDER_OPTIONS,
+  agentProviderOption,
+  type AgentProviderId,
   TYPEWRITER_POSITION_MAX,
   TYPEWRITER_POSITION_MIN,
   type EditorFontSource,
@@ -73,6 +75,7 @@ import {
   removeImportedProseFont,
   type ImportedProseFontMetadata,
 } from '../../lib/prose-fonts';
+import { AgentExtensionsSettings } from '../agent/AgentExtensionsSettings';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -327,6 +330,7 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
           />
           <AgentPanel
             open={isOpen}
+            credentialsActive={active === 'agent'}
             registerRef={(el) => (panelRefs.current.agent = el ?? undefined)}
           />
           <KeysPanel registerRef={(el) => (panelRefs.current.keys = el ?? undefined)} />
@@ -2443,7 +2447,15 @@ function GroupHead({ label, hint, desc }: { label: string; hint?: string; desc?:
 }
 
 /** Credential status for the installed General Agent transport. */
-function AgentAuthRow({ auth }: { auth: AgentAuth }) {
+function AgentAuthRow({
+  auth,
+  provider,
+  credentialsActive,
+}: {
+  auth: AgentAuth;
+  provider: AgentProviderId;
+  credentialsActive: boolean;
+}) {
   const { t } = useTranslation();
   const api = generalAgentTransport;
   const [status, setStatus] = useState<{
@@ -2459,10 +2471,10 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
   const [keyStored, setKeyStored] = useState<string | null>(null);
   const [keyEditing, setKeyEditing] = useState(false);
   const [keyDraft, setKeyDraft] = useState('');
-  const usesSharedDeepSeekKey = api.capability.kind === 'local';
+  const usesProviderKey = api.capability.kind === 'local';
 
   const refresh = useCallback(() => {
-    if (!api.capability.available) return;
+    if (!credentialsActive || !api.capability.available) return;
     void api
       .authStatus()
       .then((result) => {
@@ -2475,22 +2487,30 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
       .catch(() =>
         setStatus({ byokConnected: false, apiKeyConnected: false, hostedAvailable: false }),
       );
-  }, [api]);
+  }, [api, credentialsActive]);
   useEffect(() => {
     refresh();
   }, [refresh]);
   useEffect(() => {
+    if (!credentialsActive) return;
     let cancelled = false;
-    const read = usesSharedDeepSeekKey
-      ? byokKeychain.get('deepseek')
-      : agentApiKeychain.get();
-    void read.then((v) => {
-      if (!cancelled) setKeyStored(v);
+    queueMicrotask(() => {
+      if (!cancelled) setKeyStored(null);
     });
+    const read = usesProviderKey
+      ? byokKeychain.get(provider)
+      : agentApiKeychain.get();
+    void read
+      .then((v) => {
+        if (!cancelled) setKeyStored(v);
+      })
+      .catch(() => {
+        if (!cancelled) setKeyStored(null);
+      });
     return () => {
       cancelled = true;
     };
-  }, [usesSharedDeepSeekKey]);
+  }, [credentialsActive, provider, usesProviderKey]);
 
   if (!api.capability.available) {
     return (
@@ -2539,11 +2559,11 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
   const saveKey = async () => {
     const v = keyDraft.trim();
     if (!v) {
-      if (usesSharedDeepSeekKey) await byokKeychain.clear('deepseek');
+      if (usesProviderKey) await byokKeychain.clear(provider);
       else await agentApiKeychain.clear();
       setKeyStored(null);
     } else {
-      if (usesSharedDeepSeekKey) await byokKeychain.set('deepseek', v);
+      if (usesProviderKey) await byokKeychain.set(provider, v);
       else await agentApiKeychain.set(v);
       setKeyStored(v);
     }
@@ -2553,7 +2573,7 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
     events.emit('agent:auth-changed');
   };
   const clearKey = async () => {
-    if (usesSharedDeepSeekKey) await byokKeychain.clear('deepseek');
+    if (usesProviderKey) await byokKeychain.clear(provider);
     else await agentApiKeychain.clear();
     setKeyStored(null);
     refresh();
@@ -2587,12 +2607,12 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
     );
   }
 
-  if (auth === 'apikey' || usesSharedDeepSeekKey) {
+  if (auth === 'apikey' || usesProviderKey) {
     const hasKey = !!keyStored;
     return (
       <div className="set-sec">
         <SecHead
-          title={usesSharedDeepSeekKey ? 'DeepSeek API Key' : 'Anthropic API Key'}
+          title={`${agentProviderOption(provider).label} API Key`}
           hint="PAY-AS-YOU-GO"
         />
         {keyEditing ? (
@@ -2603,7 +2623,7 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
               style={{ minWidth: 320 }}
               value={keyDraft}
               onChange={(e) => setKeyDraft(e.target.value)}
-              placeholder={usesSharedDeepSeekKey ? 'sk-...' : 'sk-ant-...'}
+              placeholder={provider === 'anthropic' ? 'sk-ant-...' : 'sk-...'}
               autoFocus
             />
             <div style={{ display: 'flex', gap: 6 }}>
@@ -3966,10 +3986,20 @@ const AGENT_AUTH_OPTIONS: { value: Exclude<AgentAuth, 'hosted'>; kickerKey: stri
   { value: 'apikey', kickerKey: 'settings.agent.auth.apikey.kicker' },
 ];
 
-function AgentPanel({ open, registerRef }: { open: boolean; registerRef: RegisterRef }) {
+function AgentPanel({
+  open,
+  credentialsActive,
+  registerRef,
+}: {
+  open: boolean;
+  credentialsActive: boolean;
+  registerRef: RegisterRef;
+}) {
   const { t } = useTranslation();
   const agentAuth = useSettingsStore((s) => s.agentAuth);
   const setAgentAuth = useSettingsStore((s) => s.setAgentAuth);
+  const agentProvider = useSettingsStore((s) => s.agentProvider);
+  const setAgentProvider = useSettingsStore((s) => s.setAgentProvider);
   const agentModel = useSettingsStore((s) => s.agentModel);
   const setAgentModel = useSettingsStore((s) => s.setAgentModel);
 
@@ -4007,6 +4037,23 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
       <div className="set-sec">
         <SecHead title={t('settings.ai.routing')} hint="YOUR CREDENTIALS" />
         <p className="set-row__desc">{t('settings.ai.preAlphaAgentCredentials')}</p>
+        <Row
+          label="Provider"
+          desc="The provider and model are captured when a turn starts."
+          control={
+            <select
+              className="set-input"
+              value={agentProvider}
+              onChange={(event) => setAgentProvider(event.target.value as AgentProviderId)}
+            >
+              {AGENT_PROVIDER_OPTIONS.map((provider) => (
+                <option key={provider.value} value={provider.value}>
+                  {provider.label}
+                </option>
+              ))}
+            </select>
+          }
+        />
         <div className="set-tiers">
           {AGENT_AUTH_OPTIONS.map((option) => (
             <button
@@ -4022,7 +4069,11 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
         </div>
       </div>
 
-      <AgentAuthRow auth={agentAuth} />
+      <AgentAuthRow
+        auth={agentAuth}
+        provider={agentProvider}
+        credentialsActive={credentialsActive}
+      />
 
       <div className="set-sec">
         <SecHead title={t('settings.ai.modelTitle')} hint="MODEL" />
@@ -4036,7 +4087,7 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
               value={agentModel}
               onChange={(e) => setAgentModel(e.target.value)}
             >
-              {AGENT_MODEL_OPTIONS.map((m) => (
+              {agentProviderOption(agentProvider).models.map((m) => (
                 <option key={m.value} value={m.value}>
                   {t(`settings.agent.modelOptions.${m.value}.label`, { defaultValue: m.label })}
                 </option>
@@ -4047,6 +4098,8 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
       </div>
 
       <AgentMemorySection open={open} />
+
+      <AgentExtensionsSettings open={open} />
 
       <AgentUsageSection open={open} />
     </section>

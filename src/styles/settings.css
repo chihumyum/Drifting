@@ -1789,3 +1789,140 @@ html[data-platform-target='mobile'] .set-overlay {
     width: 100%;
   }
 }
+
+/* Agent extension platform */
+.set-agent-ext__servers,
+.set-agent-ext__grants,
+.set-agent-ext__tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.set-agent-ext__server,
+.set-agent-ext__form {
+  padding: 12px;
+  border: 1px solid hsl(var(--line));
+  border-radius: 8px;
+  background: hsl(var(--paper-deep) / 0.48);
+}
+
+.set-agent-ext__server-head,
+.set-agent-ext__actions,
+.set-agent-ext__grant,
+.set-agent-ext__tool {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.set-agent-ext__name,
+.set-agent-ext__form-title {
+  color: hsl(var(--ink-1));
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.set-agent-ext__meta,
+.set-agent-ext__message,
+.set-agent-ext__tool small,
+.set-agent-ext__grant small,
+.set-agent-ext__form small {
+  display: block;
+  color: hsl(var(--ink-4));
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.set-agent-ext__message {
+  margin: 7px 0 10px;
+}
+
+.set-agent-ext__actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.set-agent-ext__health {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: hsl(var(--paper-deep));
+  color: hsl(var(--ink-4));
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.set-agent-ext__health--healthy {
+  background: hsl(145 35% 92%);
+  color: hsl(145 45% 30%);
+}
+
+.set-agent-ext__health--failed {
+  background: hsl(var(--accent) / 0.1);
+  color: hsl(var(--accent));
+}
+
+.set-agent-ext__health--connecting,
+.set-agent-ext__health--degraded {
+  background: hsl(40 60% 91%);
+  color: hsl(36 55% 32%);
+}
+
+.set-agent-ext__tools {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid hsl(var(--line));
+}
+
+.set-agent-ext__tool > span,
+.set-agent-ext__grant > span {
+  min-width: 0;
+}
+
+.set-agent-ext__tool strong,
+.set-agent-ext__grant strong {
+  display: block;
+  overflow: hidden;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-agent-ext__tool .set-input {
+  min-width: 132px;
+}
+
+.set-agent-ext__form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.set-agent-ext__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: hsl(var(--ink-3));
+  font-size: 11px;
+}
+
+.set-agent-ext__form textarea {
+  height: auto;
+  resize: vertical;
+}
+
+.set-agent-ext__empty,
+.set-agent-ext__error {
+  padding: 12px;
+  color: hsl(var(--ink-4));
+  font-size: 12px;
+}
+
+.set-agent-ext__error {
+  color: hsl(var(--accent));
+}

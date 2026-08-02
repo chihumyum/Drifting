@@ -489,7 +489,7 @@
       "byokTitle": "自带密钥 · BYOK",
       "modelTitle": "模型",
       "preAlphaByokOnly": "Pre-Alpha 不提供任何托管模型或 Drifting 额度。所有 AI 调用都必须使用你自己的 API Key，并计入对应服务商的费用与额度。",
-      "preAlphaAgentCredentials": "General Agent 当前使用你自己的 DeepSeek API Key，与 Copilot 共用本机 Keychain 条目；不经过 Drifting 托管额度。",
+      "preAlphaAgentCredentials": "General Agent 使用你所选 provider 的 BYOK API Key；每个 provider 的密钥分别保存在本机 Keychain，不经过 Drifting 托管额度。",
       "hostedByokOnlyTitle": "托管暂不可用 · 测试版仅支持自带 Key",
       "disabledSuffix": " · 暂不可用"
     },
@@ -515,11 +515,11 @@
       "hostedSignedOutDesc": "托管 Agent 需要先登录 Drifting 账号（在「账户」中登录）。",
       "hostedAvailable": "● 可用",
       "hostedUnavailable": "○ 未就绪",
-      "pasteApiKey": "粘贴 DeepSeek API Key（sk-…）：",
+      "pasteApiKey": "粘贴所选 provider 的 API Key：",
       "filled": "已填写",
       "notFilled": "未填写",
-      "apiKeyFilledDesc": "Agent 将使用与 Copilot 共用的 DeepSeek API Key。密钥仅存于本机 Keychain。",
-      "apiKeyEmptyDesc": "填入 DeepSeek API Key 后，Agent 可在本机执行只读工具循环。",
+      "apiKeyFilledDesc": "Agent 将使用所选 provider 的 API Key。密钥仅存于本机 Keychain。",
+      "apiKeyEmptyDesc": "填入所选 provider 的 API Key 后，Agent 即可执行任务。",
       "enterKey": "填入 Key",
       "oauthTitle": "Claude 账号 · OAuth",
       "connected": "已连接",
@@ -669,9 +669,9 @@
       "unavailableTitle": "General Agent 运行时未安装",
       "unavailableStatus": "当前 transport 不可用",
       "unavailableReason": "本窗口没有安装可用的 Agent model driver 或工具运行时。",
-      "unavailableFuture": "重新打开项目；若问题持续，请检查应用版本与 DeepSeek Key。",
+      "unavailableFuture": "重新打开项目；若问题持续，请检查应用版本与所选 provider 的 API Key。",
       "credentialPrivacy": "凭据仅存于本机，不上传服务器。",
-      "hostedDisabledTitle": "托管暂不可用 · 测试版使用你自己的 DeepSeek Key",
+      "hostedDisabledTitle": "托管暂不可用 · 测试版使用你自己的 provider API Key",
       "auth": {
         "oauth": {
           "kicker": "CLAUDE 账号",
@@ -679,9 +679,9 @@
           "desc": "用你的 Claude 账号（Max/Pro）登录（OAuth），直连 Anthropic，不计入托管额度。"
         },
         "apikey": {
-          "kicker": "DEEPSEEK · BYOK",
-          "name": "DeepSeek Key",
-          "desc": "与 Copilot 共用 DeepSeek API Key；密钥只存于本机 Keychain。"
+          "kicker": "PROVIDER · BYOK",
+          "name": "自带 API Key",
+          "desc": "使用当前选择的 provider API Key；密钥只存于本机 Keychain。"
         },
         "hosted": {
           "kicker": "HOSTED",
@@ -690,7 +690,7 @@
         }
       },
       "chatModel": "对话模型",
-      "chatModelDesc": "使用 DeepSeek 的 OpenAI-compatible function calling；可选速度优先或质量优先模型。",
+      "chatModelDesc": "模型列表随 provider 切换；provider 与模型在每轮开始时冻结。",
       "modelOptions": {
         "deepseek-v4-flash": {
           "label": "DeepSeek Flash · 快",
@@ -713,6 +713,42 @@
         "off": "关闭 · 全量加载工具",
         "auto": "自动 · 超阈值才启用",
         "on": "开启 · 强制工具检索"
+      },
+      "extensions": {
+        "title": "MCP 扩展",
+        "desc": "把外部工具接入当前项目。stdio 仅桌面可用；Streamable HTTP 可跨桌面与移动端。未知工具默认按写操作逐次询问。",
+        "add": "添加服务器",
+        "addTitle": "添加 MCP 服务器",
+        "editTitle": "编辑 MCP 服务器",
+        "empty": "当前项目还没有 MCP 服务器。",
+        "noProject": "打开一个项目后配置 MCP。",
+        "loadFailed": "无法读取 MCP 配置。",
+        "name": "名称",
+        "transport": "传输方式",
+        "command": "可执行文件绝对路径",
+        "args": "参数（每行一个）",
+        "cwd": "工作目录绝对路径（可选）",
+        "url": "MCP Endpoint",
+        "publicEnv": "公开环境变量（每行 NAME=value）",
+        "publicHeaders": "公开 Header（每行 NAME=value）",
+        "secretEnv": "私密环境变量（每行 NAME=value）",
+        "secretHeaders": "私密 Header（每行 NAME=value）",
+        "secretHint": "私密值只写入系统 Keychain。编辑时保留空值代表沿用现有密钥。",
+        "reconnect": "重连",
+        "enable": "启用",
+        "disable": "停用",
+        "notChecked": "尚未连接",
+        "deleteConfirm": "删除 MCP 服务器“{{name}}”？它的持续授权也会被撤销。",
+        "grantsTitle": "持续授权",
+        "grantsDesc": "这里只列出精确绑定到项目、服务器配置、工具 schema 与参数哈希的授权。",
+        "noGrants": "没有持续授权。",
+        "revoke": "撤销",
+        "policy": {
+          "autoRead": "只读 · 自动",
+          "askRead": "只读 · 询问",
+          "askWrite": "写入 · 询问",
+          "disabled": "禁用"
+        }
       }
     },
 
@@ -1030,7 +1066,7 @@
     "unavailable": "Agent 不可用。",
     "unavailableTitle": "General Agent 运行时未安装",
     "unavailableReason": "本窗口没有安装可用的 Agent model driver 或工具运行时。",
-    "unavailableFuture": "重新打开项目；若问题持续，请检查应用版本与 DeepSeek Key。",
+    "unavailableFuture": "重新打开项目；若问题持续，请检查应用版本与所选 provider 的 API Key。",
     "checking": "检查中…",
     "common": {
       "none": "无"
@@ -1088,22 +1124,7 @@
     },
     "tool": {
       "input": "输入",
-      "result": "结果",
-      "reviewStatus": "审阅 · {{status}}",
-      "acceptReview": "接受",
-      "rejectReview": "还原",
-      "reviewAccepted": "已接受",
-      "reviewReverted": "已还原",
-      "reviewConflict": "还原冲突",
-      "reviewFailed": "无法安全还原：目标已在此后发生变化。",
-      "reviewActionFailed": "审阅操作失败",
-      "activity": {
-        "list": "浏览 {{path}}",
-        "read": "读取 {{path}}",
-        "search": "搜索“{{query}}”",
-        "edit": "编辑 {{path}}",
-        "manuscript": "正文"
-      }
+      "result": "结果"
     },
     "thinking": {
       "streaming": "思考中…",
@@ -1118,8 +1139,8 @@
       "extendedThinking": "扩展思考",
       "effort": "强度 · {{effort}}",
       "edits": "改动",
-      "reviewEdits": "审阅改动",
-      "reviewEditsTitle": "开启后，agent 对正文的每处改动都进入审阅，由你逐块确认或还原；关闭则自动应用并以动画揭示。",
+      "reviewEdits": "正文改动需审阅",
+      "reviewEditsTitle": "开启后，Agent 会直接把正文改动写入编辑器，并在原文位置展示彩色 diff 与接受/拒绝按钮；关闭后，改动会自动播放 reveal 动画并完成。删除实体、调整关系等结构性操作始终会在执行前单独确认。",
       "memory": "记忆",
       "memoryTitle": "agent 记住的偏好 / 否决 / 指令；会注入到后续对话与 Shadow 审阅。",
       "manageMemory": "管理记忆",
@@ -1162,9 +1183,6 @@
       "body": "本轮已正常结束，但同一会话的持久化任务计划仍有未完成内容。继续后会从第一个未完成步骤接着执行。"
     },
     "autoContinue": {
-      "title": "正在连续执行任务",
-      "body": "Agent 会从持久化计划的未完成步骤继续；已自动续跑 {{count}} 个切片。遇到审批、提问、失败、用户停止或连续无进展时会暂停。",
-      "pause": "暂停连续执行",
       "waitingReviewTitle": "等待编辑审批",
       "waitingReviewBody": "当前可执行步骤都在等待审批。处理待审改动后，再继续此任务。",
       "noProgressTitle": "连续执行未产生持久化进展",
@@ -1185,8 +1203,8 @@
     "setup": {
       "title": "Agent 未连接",
       "hosted": "当前为「托管订阅」模式，但尚未就绪。前往设置登录并开通订阅。",
-      "apiKey": "尚未填写 DeepSeek API Key。前往设置填入与 Copilot 共用的 Key。",
-      "byok": "尚未填写 DeepSeek API Key。前往设置完成本机 BYOK 配置。",
+      "apiKey": "尚未填写所选 provider 的 API Key。前往设置完成 BYOK 配置。",
+      "byok": "尚未填写所选 provider 的 API Key。前往设置完成 BYOK 配置。",
       "openSettings": "前往设置"
     },
     "toolbar": {
@@ -1209,6 +1227,24 @@
       "revertBeforeTitle": "回退到这一轮改动之前",
       "revert": "回退"
     },
+    "checkpoints": {
+      "title": "检查点与分叉",
+      "hint": "分叉不改正文；恢复必须先预览，并会保留原对话。",
+      "manualLabel": "手动检查点 {{time}}",
+      "saved": "检查点已保存。",
+      "save": "保存当前",
+      "saving": "保存中…",
+      "empty": "发送任务前会自动保存；也可以现在手动保存。",
+      "untitled": "检查点",
+      "entities": "个正文实体",
+      "fork": "分叉",
+      "preview": "预览恢复",
+      "previewMissing": "无法恢复：检查点中的实体已被删除",
+      "previewSummary": "将恢复 {{changed}} 个有变化的实体",
+      "previewGuard": "执行前会再次校验所有 revision/hash；预览后出现的新编辑不会被覆盖。",
+      "restoreAndFork": "确认恢复并分叉",
+      "restoring": "恢复中…"
+    },
     "history": {
       "empty": "暂无历史对话",
       "untitled": "未命名",
@@ -1228,7 +1264,10 @@
     },
     "control": {
       "permissionTitle": "Agent 请求执行操作",
+      "destructiveHint": "这项操作会改变作品结构，需要你先确认",
       "arguments": "查看完整参数",
+      "editPreview": "批准后写入",
+      "replaceAll": "替换全部匹配项",
       "deny": "拒绝",
       "allow": {
         "once": "仅这一次",
@@ -1245,11 +1284,16 @@
       "placeholder": "询问 Agent…（Cmd/Ctrl+Enter）",
       "steerPlaceholder": "补充或纠正正在执行的任务…",
       "answerPlaceholder": "回答 Agent 的问题…",
+      "scopeLabel": "“这里”指向",
+      "scopeSelection": "已选文字",
+      "scopeBlock": "当前段落",
+      "scopeEntity": "当前正文",
+      "scopeTitle": "当你说“这里 / 这段 / 本章”时，Agent 会以这个编辑位置为准；明确点名其他条目时，以你的文字为准。",
+      "scopeAria": "Agent 写作上下文：{{name}}，{{mode}}",
       "stop": "停止",
-      "abortTitle": "立即请求取消；已进入提交的事务会先安全收敛",
-      "stopAfterTool": "做完当前工具后停",
-      "stopAfterToolTitle": "让 Agent 在当前工具安全结束后停止",
+      "stopAfterToolTitle": "让当前工具安全结束后停止本轮，并停止自动续跑",
       "steer": "补充",
+      "steerTitle": "把补充或纠正加入当前任务，在当前操作结束后交给 Agent 处理",
       "answer": "回答",
       "send": "发送"
     }
@@ -2452,6 +2496,10 @@
     "rejectTitle": "拒绝并还原"
   },
   "agentEditAnimator": {
+    "reviewAll": "Agent 正文改动批量审阅",
+    "pendingCount": "{{count}} 处待审",
+    "acceptAll": "全部接受",
+    "rejectAll": "全部拒绝",
     "op": {
       "new": "新增",
       "deleted": "删除",

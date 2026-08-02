@@ -489,7 +489,7 @@
       "byokTitle": "Bring your own key · BYOK",
       "modelTitle": "Model",
       "preAlphaByokOnly": "Pre-Alpha provides no hosted model or Drifting AI quota. Every AI call requires your own API key and uses that provider's billing and quota.",
-      "preAlphaAgentCredentials": "General Agent currently uses your own DeepSeek API key, shared with Copilot in the local Keychain. It does not use Drifting-hosted quota.",
+      "preAlphaAgentCredentials": "General Agent uses the BYOK API key for your selected provider. Each provider key is stored separately in the local Keychain and does not use Drifting-hosted quota.",
       "hostedByokOnlyTitle": "Hosted is unavailable · beta only supports BYOK",
       "disabledSuffix": " · Unavailable"
     },
@@ -515,11 +515,11 @@
       "hostedSignedOutDesc": "Hosted Agent requires signing in to a Drifting account in Account.",
       "hostedAvailable": "● Available",
       "hostedUnavailable": "○ Not ready",
-      "pasteApiKey": "Paste DeepSeek API Key (sk-…):",
+      "pasteApiKey": "Paste the selected provider API key:",
       "filled": "Filled",
       "notFilled": "Not filled",
-      "apiKeyFilledDesc": "Agent uses the DeepSeek API key shared with Copilot. The key stays in the local Keychain.",
-      "apiKeyEmptyDesc": "Add a DeepSeek API key to enable the local read-only agent loop.",
+      "apiKeyFilledDesc": "Agent uses the selected provider API key. The key stays in the local Keychain.",
+      "apiKeyEmptyDesc": "Add an API key for the selected provider to enable Agent tasks.",
       "enterKey": "Enter key",
       "oauthTitle": "Claude account · OAuth",
       "connected": "Connected",
@@ -669,9 +669,9 @@
       "unavailableTitle": "General Agent runtime is not installed",
       "unavailableStatus": "No active transport",
       "unavailableReason": "This window has no usable Agent model driver or tool runtime.",
-      "unavailableFuture": "Reopen the project. If this persists, check the app version and DeepSeek key.",
+      "unavailableFuture": "Reopen the project. If this persists, check the app version and the selected provider API key.",
       "credentialPrivacy": "Credentials stay local and are not uploaded.",
-      "hostedDisabledTitle": "Hosted is unavailable · beta uses your own DeepSeek key",
+      "hostedDisabledTitle": "Hosted is unavailable · beta uses your own provider API key",
       "auth": {
         "oauth": {
           "kicker": "CLAUDE ACCOUNT",
@@ -679,9 +679,9 @@
           "desc": "Sign in with your Claude account (Max/Pro) via OAuth and call Anthropic directly without hosted quota."
         },
         "apikey": {
-          "kicker": "DEEPSEEK · BYOK",
-          "name": "DeepSeek Key",
-          "desc": "Share Copilot's DeepSeek API key; it stays only in the local Keychain."
+          "kicker": "PROVIDER · BYOK",
+          "name": "Own API key",
+          "desc": "Use the currently selected provider API key; it stays only in the local Keychain."
         },
         "hosted": {
           "kicker": "HOSTED",
@@ -690,7 +690,7 @@
         }
       },
       "chatModel": "Chat model",
-      "chatModelDesc": "Uses DeepSeek OpenAI-compatible function calling. Choose the speed-first or quality-first model.",
+      "chatModelDesc": "The model list follows the provider; provider and model are frozen when each turn starts.",
       "modelOptions": {
         "deepseek-v4-flash": {
           "label": "DeepSeek Flash · fast",
@@ -713,6 +713,42 @@
         "off": "Off · load all tools",
         "auto": "Auto · enable above threshold",
         "on": "On · force tool search"
+      },
+      "extensions": {
+        "title": "MCP extensions",
+        "desc": "Connect external tools to this project. stdio is desktop-only; Streamable HTTP works across desktop and mobile. Unknown tools default to write + ask.",
+        "add": "Add server",
+        "addTitle": "Add MCP server",
+        "editTitle": "Edit MCP server",
+        "empty": "This project has no MCP servers.",
+        "noProject": "Open a project to configure MCP.",
+        "loadFailed": "MCP configuration could not be loaded.",
+        "name": "Name",
+        "transport": "Transport",
+        "command": "Absolute executable path",
+        "args": "Arguments (one per line)",
+        "cwd": "Absolute working directory (optional)",
+        "url": "MCP endpoint",
+        "publicEnv": "Public environment (NAME=value per line)",
+        "publicHeaders": "Public headers (NAME=value per line)",
+        "secretEnv": "Secret environment (NAME=value per line)",
+        "secretHeaders": "Secret headers (NAME=value per line)",
+        "secretHint": "Secret values are written only to the system Keychain. Leave an existing value blank to keep it.",
+        "reconnect": "Reconnect",
+        "enable": "Enable",
+        "disable": "Disable",
+        "notChecked": "Not connected yet",
+        "deleteConfirm": "Delete MCP server “{{name}}”? Its durable grants will also be revoked.",
+        "grantsTitle": "Durable grants",
+        "grantsDesc": "Each grant is exactly bound to its project, server config, tool schema, and argument hash.",
+        "noGrants": "No durable grants.",
+        "revoke": "Revoke",
+        "policy": {
+          "autoRead": "Read · automatic",
+          "askRead": "Read · ask",
+          "askWrite": "Write · ask",
+          "disabled": "Disabled"
+        }
       }
     },
 
@@ -1030,7 +1066,7 @@
     "unavailable": "Agent is unavailable.",
     "unavailableTitle": "General Agent runtime is not installed",
     "unavailableReason": "This window has no usable Agent model driver or tool runtime.",
-    "unavailableFuture": "Reopen the project. If this persists, check the app version and DeepSeek key.",
+    "unavailableFuture": "Reopen the project. If this persists, check the app version and the selected provider API key.",
     "checking": "Checking…",
     "common": {
       "none": "None"
@@ -1088,22 +1124,7 @@
     },
     "tool": {
       "input": "Input",
-      "result": "Result",
-      "reviewStatus": "Review · {{status}}",
-      "acceptReview": "Accept",
-      "rejectReview": "Restore",
-      "reviewAccepted": "Accepted",
-      "reviewReverted": "Restored",
-      "reviewConflict": "Restore conflict",
-      "reviewFailed": "This change cannot be restored safely because its target changed later.",
-      "reviewActionFailed": "Review action failed",
-      "activity": {
-        "list": "Browse {{path}}",
-        "read": "Read {{path}}",
-        "search": "Search “{{query}}”",
-        "edit": "Edit {{path}}",
-        "manuscript": "manuscript"
-      }
+      "result": "Result"
     },
     "thinking": {
       "streaming": "Thinking…",
@@ -1118,8 +1139,8 @@
       "extendedThinking": "Extended thinking",
       "effort": "Effort · {{effort}}",
       "edits": "Edits",
-      "reviewEdits": "Review edits",
-      "reviewEditsTitle": "When enabled, every prose edit enters review for block-by-block approval or restore. When disabled, edits apply automatically and reveal with animation.",
+      "reviewEdits": "Review prose edits",
+      "reviewEditsTitle": "When enabled, Agent writes prose into the editor and shows the colored diff with accept/reject controls in place. When disabled, the edit completes through the reveal animation automatically. Destructive structural actions such as deleting entities or changing relationships always ask before execution.",
       "memory": "Memory",
       "memoryTitle": "Preferences / vetoes / directives remembered by the agent and injected into later chats and Shadow reviews.",
       "manageMemory": "Manage memory",
@@ -1162,9 +1183,6 @@
       "body": "This turn completed normally, but the durable plan still has unfinished work. Continue from its first unfinished step."
     },
     "autoContinue": {
-      "title": "Continuing the task",
-      "body": "The Agent will resume unfinished durable-plan steps; {{count}} automatic slice(s) have started. Approval, a question, failure, an explicit stop, or repeated lack of progress pauses the run.",
-      "pause": "Pause continuous run",
       "waitingReviewTitle": "Waiting for edit review",
       "waitingReviewBody": "Every currently actionable step is waiting for review. Settle the pending edits, then continue this task.",
       "noProgressTitle": "Continuous run made no durable progress",
@@ -1185,8 +1203,8 @@
     "setup": {
       "title": "Agent is not connected",
       "hosted": "Hosted subscription mode is selected, but it is not ready yet. Go to settings to sign in and subscribe.",
-      "apiKey": "No DeepSeek API key is saved. Open settings and add the key shared with Copilot.",
-      "byok": "No DeepSeek API key is saved. Open settings to finish local BYOK setup.",
+      "apiKey": "No API key is saved for the selected provider. Open settings to finish BYOK setup.",
+      "byok": "No API key is saved for the selected provider. Open settings to finish BYOK setup.",
       "openSettings": "Open settings"
     },
     "toolbar": {
@@ -1209,6 +1227,24 @@
       "revertBeforeTitle": "Revert to before this turn",
       "revert": "Revert"
     },
+    "checkpoints": {
+      "title": "Checkpoints and forks",
+      "hint": "Forking does not change prose. Restore always previews first and preserves the source chat.",
+      "manualLabel": "Manual checkpoint {{time}}",
+      "saved": "Checkpoint saved.",
+      "save": "Save current",
+      "saving": "Saving…",
+      "empty": "A checkpoint is saved before each task, or save one now.",
+      "untitled": "Checkpoint",
+      "entities": "prose entities",
+      "fork": "Fork",
+      "preview": "Preview restore",
+      "previewMissing": "Cannot restore: a checkpoint entity was deleted",
+      "previewSummary": "Restore {{changed}} changed entities",
+      "previewGuard": "All revisions and hashes are checked again before execution. Edits made after preview are never overwritten.",
+      "restoreAndFork": "Restore and fork",
+      "restoring": "Restoring…"
+    },
     "history": {
       "empty": "No chat history yet",
       "untitled": "Untitled",
@@ -1228,7 +1264,10 @@
     },
     "control": {
       "permissionTitle": "Agent requests an action",
+      "destructiveHint": "This changes the story structure and needs your confirmation",
       "arguments": "View full arguments",
+      "editPreview": "Write after approval",
+      "replaceAll": "Replace every match",
       "deny": "Deny",
       "allow": {
         "once": "Allow once",
@@ -1245,11 +1284,16 @@
       "placeholder": "Ask the agent… (Cmd/Ctrl+Enter)",
       "steerPlaceholder": "Add to or correct the running task…",
       "answerPlaceholder": "Answer the agent's question…",
+      "scopeLabel": "“Here” means",
+      "scopeSelection": "selected text",
+      "scopeBlock": "current paragraph",
+      "scopeEntity": "current manuscript",
+      "scopeTitle": "When you say here, this passage, or this chapter, the agent uses this editor focus. An explicitly named target in your request still takes precedence.",
+      "scopeAria": "Agent writing context: {{name}}, {{mode}}",
       "stop": "Stop",
-      "abortTitle": "Request cancellation now; a transaction already committing will settle safely first",
-      "stopAfterTool": "Stop after tool",
-      "stopAfterToolTitle": "Stop after the current tool reaches a safe boundary",
+      "stopAfterToolTitle": "Stop this turn after the current tool reaches a safe boundary, and disable automatic continuation",
       "steer": "Steer",
+      "steerTitle": "Add or correct instructions for the running task after the current operation finishes",
       "answer": "Answer",
       "send": "Send"
     }
@@ -2452,6 +2496,10 @@
     "rejectTitle": "Reject and restore"
   },
   "agentEditAnimator": {
+    "reviewAll": "Review all Agent prose edits",
+    "pendingCount": "{{count}} pending",
+    "acceptAll": "Accept all",
+    "rejectAll": "Reject all",
     "op": {
       "new": "Add",
       "deleted": "Delete",
