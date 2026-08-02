@@ -109,6 +109,9 @@ export interface AgentReasoningOptions {
   effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 }
 
+/** Provider-neutral function/tool selection for one model iteration. */
+export type AgentModelToolChoice = 'auto' | 'required' | { force: string };
+
 export interface AgentToolDefinition {
   name: string;
   description: string;
@@ -204,6 +207,8 @@ export interface AgentModelRequest {
   provider?: string;
   model?: string;
   reasoning?: AgentReasoningOptions;
+  /** Runtime-selected policy for this exact iteration. */
+  toolChoice?: AgentModelToolChoice;
   /**
    * The only model-visible conversation context. The runtime has already
    * verified and budgeted this projection for this exact provider invocation.
@@ -262,6 +267,12 @@ export interface AgentModelDriver {
 export type AgentRuntimeRoute =
   | { kind: 'chat'; projectId: string; conversationId?: string }
   | { kind: 'goal'; projectId: string; goalRunId?: string; chapterId?: string }
+  | {
+      kind: 'shadow';
+      projectId: string;
+      chapterId?: string;
+      operation: 'review' | 'evolve-critic' | 'evolve-edit' | 'eval';
+    }
   | { kind: 'test'; projectId?: string };
 
 export interface AgentRuntimeContext {
@@ -533,7 +544,12 @@ export type AgentToolResultSource = 'executor' | 'runtime';
 export type AgentRuntimeOutcome = 'completed' | 'failed' | 'aborted' | 'budget_exceeded';
 
 export type AgentRuntimeEvent =
-  | { type: 'turn_started'; prompt: string; promptSource?: AgentPromptSource }
+  | {
+      type: 'turn_started';
+      prompt: string;
+      promptSource?: AgentPromptSource;
+      completionTool?: string;
+    }
   | { type: 'model_iteration_started'; iteration: number; driverId: string }
   | {
       type: 'context_planned';
@@ -622,6 +638,11 @@ export type AgentRuntimeEvent =
       stopReason: AgentModelStopReason;
     }
   | {
+      type: 'completion_tool_accepted';
+      callId: string;
+      name: string;
+    }
+  | {
       type: 'turn_finished';
       outcome: AgentRuntimeOutcome;
       failureCode?: AgentRuntimeFailureCode;
@@ -689,6 +710,8 @@ export interface AgentRuntimeState {
   modelIterations: number;
   modelIterationsWithUsage: number;
   lastStopReason: AgentModelStopReason | null;
+  completionToolName: string | null;
+  completionToolCallId: string | null;
   assistantText: string;
   thinkingText: string;
   toolOrder: string[];
@@ -710,8 +733,20 @@ export interface AgentRuntimeRunInput {
   promptSource?: AgentPromptSource;
   provider?: string;
   model?: string;
+  contextMode?: 'standard' | 'max';
   systemPrompt?: string;
   reasoning?: AgentReasoningOptions;
+  /**
+   * Structured-output completion boundary. A successful call to this tool ends
+   * the turn without an extra prose synthesis round. Before the final iteration
+   * the runtime keeps nudging instead of accepting an unstructured text answer.
+   */
+  completionTool?: {
+    name: string;
+    forceOnFinalIteration?: boolean;
+    disableReasoningWhenForced?: boolean;
+    reminder?: string;
+  };
   toolSearch?: AgentRuntimeToolSearchMode;
   history?: readonly AgentModelMessage[];
   limits?: Partial<AgentRuntimeLimits>;
@@ -724,6 +759,12 @@ export interface AgentRuntimeRunResult {
   state: AgentRuntimeState;
   entries: AgentRuntimeJournalEntry[];
   messages: AgentModelMessage[];
+  completionTool?: {
+    callId: string;
+    name: string;
+    arguments: Record<string, unknown>;
+    result: AgentToolResultBlock;
+  };
   /**
    * Verified context used immediately before the most recent provider call.
    * It intentionally excludes assistant/tool output produced by that call and

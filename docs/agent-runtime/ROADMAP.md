@@ -35,6 +35,7 @@ machine-checked against, the final product composition whenever possible.
 | H   | Author-owned writing policy     | No hidden writing defaults, editor-focus binding, content-scope guard or canon gate; author rules are ordinary editable project data.               | Completed   |
 | I   | Provider and extension platform | Provider conformance plus concrete MCP transports/configuration, durable grants and extension lifecycle are shipped and isolated.                    | Completed   |
 | J   | Native and endurance acceptance | Desktop/iOS/Android smoke, network/restart/concurrency faults and 4h/12h real-book endurance gates are recorded.                                     | Completed   |
+| K   | Long-task reliability and Max context | Oversized same-turn history compacts without terminal failure, malformed compactor output degrades safely, Max uses declared 1M models, and one durable checklist governs future acceptance. | Completed   |
 
 Milestones are executed in this order unless a discovered correctness bug makes
 an earlier invariant unsafe. Subagents are intentionally not a blocker for the
@@ -67,3 +68,4 @@ hand into every historical report.
 - H: [`acceptance/MILESTONE_H_EXIT_REPORT.md`](acceptance/MILESTONE_H_EXIT_REPORT.md)
 - I: [`acceptance/MILESTONE_I_EXIT_REPORT.md`](acceptance/MILESTONE_I_EXIT_REPORT.md)
 - J: [`acceptance/MILESTONE_J_EXIT_REPORT.md`](acceptance/MILESTONE_J_EXIT_REPORT.md)
+- K: [`acceptance/MILESTONE_K_EXIT_REPORT.md`](acceptance/MILESTONE_K_EXIT_REPORT.md)

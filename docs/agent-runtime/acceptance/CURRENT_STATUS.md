@@ -12,6 +12,8 @@ used as the current capability inventory.
 - Generated human inventory: [`agent-capabilities.md`](agent-capabilities.md)
 - Ordered work and milestone rules: [`../ROADMAP.md`](../ROADMAP.md)
 - Headless product workflow: [`../headless-debug.md`](../headless-debug.md)
+- Durable functional checklist:
+  [`GENERAL_AGENT_FUNCTIONAL_CHECKLIST.md`](GENERAL_AGENT_FUNCTIONAL_CHECKLIST.md)
 
 Run the drift gate after changing a tool, strategy, product composition,
 context window, capability boundary, or Agent documentation:
@@ -82,7 +84,7 @@ implementation and current regression evidence are recorded in
 Milestone I, provider and extension platform, is complete. Its provider wire,
 MCP transport/security, durable grant and generation-lifecycle contract is in
 [`../provider-extension-protocol.md`](../provider-extension-protocol.md). The
-implementation and 143-test deterministic acceptance are recorded in
+implementation and 162-test deterministic acceptance are recorded in
 [`MILESTONE_I_EXIT_REPORT.md`](MILESTONE_I_EXIT_REPORT.md) and
 [`milestone-i-provider-extension.json`](milestone-i-provider-extension.json).
 
@@ -91,6 +93,26 @@ scope. Its build-vs-interaction and accelerated-vs-wall-clock evidence contract
 is in [`../native-endurance-acceptance.md`](../native-endurance-acceptance.md).
 The native artifact and 4h/12h resumable soak evidence is recorded in
 [`MILESTONE_J_EXIT_REPORT.md`](MILESTONE_J_EXIT_REPORT.md).
+
+Milestone K, long-task reliability and Max context, is complete for its E0-E3
+Standard-context scope. Same-turn tool history can compact in bounded
+topology-safe chunks, malformed compactor output degrades safely, and Max
+requests an explicitly declared window up to 1M. The implementation, automated
+evidence, real mounted-renderer 60k/200k canaries and remaining E4/paid-1M
+boundary are recorded in
+[`MILESTONE_K_EXIT_REPORT.md`](MILESTONE_K_EXIT_REPORT.md) and
+[`GENERAL_AGENT_ACCEPTANCE_RUN_2026-08-02.md`](GENERAL_AGENT_ACCEPTANCE_RUN_2026-08-02.md).
+
+The 2026-08-02 paid-write stress extension exercised the same runtime through a
+mounted Tauri renderer on disposable copies of `雾港纪事`. The final compound
+author workflow completed 36/36 tool calls with zero failures while creating
+and rereading a drift, two independently summarized entities, three relations,
+a comment and a TODO; direct SQLite comparison found no unrelated chapter or
+Yjs mutation. Earlier failures in creation guidance, canonical result paths,
+stable edit-tool visibility, literal occurrence search, category resolution,
+typed summary initialization and persisted word counts were fixed before that
+pass. This is E3 evidence; E4 interaction, paid 1M, concurrent General Agent
+sessions and the exact historical three-turn write sequence remain open.
 
 ## Current product boundary
 
@@ -125,15 +147,21 @@ The native artifact and 4h/12h resumable soak evidence is recorded in
   exactly once at the next model boundary, and requires fresh author action
   after renderer restart. Runtime continuation prompts stay in model history
   but out of the author transcript.
-- The default General Agent driver declares a 200,000-token context window and
-  8,192-token output ceiling. Smaller declarations are never enlarged;
-  undeclared custom drivers fall back to 32,768 tokens. Every provider call
-  includes exact schema/framing/output/safety reserves before I/O.
+- Standard mode caps the selected model at 200,000 context tokens. The composer
+  Max toggle requests the model's explicit declaration up to 1,000,000 tokens;
+  smaller declarations are never enlarged and undeclared custom drivers fall
+  back to 32,768 tokens. Provider/model/context mode are captured per turn, and
+  every provider call includes exact schema/framing/output/safety reserves.
 - Literary compaction uses source-hash-bound schema-v1 summaries and requires an
-  exact citation for every compacted tool result. Goals, author constraints,
-  vetoes and explicit facts remain byte-exact with a retention witness. The
-  runtime does not infer rule conflicts or block writes; the model follows the
-  current author request and author-owned active guidance.
+  exact citation for every compacted write result. Read results may be omitted
+  and re-read. Recent exact context is topology-safe and capped at 64,000
+  tokens, same-turn sequential tool batches can be chunked, compaction follows
+  the captured provider/model, reclaims at least half the planned input when
+  eligible history permits, then stops before needless old-history calls; and
+  malformed structured output degrades to a non-factual deterministic summary
+  instead of killing the task. Goals, the
+  current request, author constraints, vetoes and explicit facts remain
+  byte-exact with a retention witness.
 - Project/prose search uses weighted mixed CJK/Latin relevance with freshness
   and revision provenance. Oversized results are hash-verified SQLite artifacts
   paged by Unicode code point across restart.
@@ -149,10 +177,14 @@ The native artifact and 4h/12h resumable soak evidence is recorded in
   whitelist, style, POV, tense, voice, canon-patch requirement or automatic
   rule-conflict write gate. Any in-project item exposed by workspace tools may
   be read or changed when useful to the request.
-- Deterministic DeepSeek/Anthropic/OpenAI conformance is complete. Paid endpoint
-  canaries remain explicit opt-in checks rather than a release prerequisite.
-  Native desktop/iOS/Android interaction and 4h/12h real-book endurance remain
-  Milestone J.
+- Deterministic DeepSeek/Anthropic/OpenAI conformance is complete. OpenAI's
+  certified catalog is GPT-5.6 Sol/Terra/Luna on Responses; model profiles
+  drive the Settings and composer thinking/effort controls. Active reasoning
+  tool loops replay DeepSeek `reasoning_content`, Anthropic signed thinking
+  blocks, or OpenAI encrypted response items exactly, while portable canonical
+  history remains provider-neutral. Paid endpoint canaries remain explicit
+  opt-in checks rather than a release prerequisite. Native desktop/iOS/Android
+  interaction and 4h/12h real-book endurance remain Milestone J.
 - Tool calls use one frozen installed definition set, built-in and dynamic
   execution revisions, executable-only alias normalization, strict completed
   JSON validation, and a one-iteration schema repair lease for installed tools.

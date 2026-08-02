@@ -10,6 +10,7 @@ import type {
   AgentModelMessage,
   AgentModelRequest,
   AgentModelStreamEvent,
+  AgentModelToolChoice,
   AgentReasoningOptions,
 } from '../types';
 
@@ -32,6 +33,7 @@ export interface AgentModelRequestSnapshot {
    */
   readonly systemPrompt?: string;
   readonly reasoning?: AgentReasoningOptions;
+  readonly toolChoice?: AgentModelToolChoice;
   readonly messages: readonly AgentModelMessage[];
   readonly tools: readonly AgentToolDefinitionSnapshot[];
   readonly maxOutputTokens: number;
@@ -46,6 +48,7 @@ export interface ScriptedRequestExpectation {
   readonly context?: AgentContextProviderProjection;
   readonly systemPrompt?: string;
   readonly reasoning?: AgentReasoningOptions;
+  readonly toolChoice?: AgentModelToolChoice;
   readonly messages?: readonly AgentModelMessage[];
   readonly tools?: readonly AgentToolDefinitionSnapshot[];
   readonly toolNames?: readonly string[];
@@ -171,6 +174,7 @@ function snapshotRequest(request: AgentModelRequest): AgentModelRequestSnapshot 
     context,
     systemPrompt: context.systemPrompt,
     ...(request.reasoning ? { reasoning: cloneData(request.reasoning) } : {}),
+    ...(request.toolChoice ? { toolChoice: cloneData(request.toolChoice) } : {}),
     messages: directModelMessages,
     tools: request.tools.map((tool) => ({
       name: tool.name,
@@ -432,6 +436,7 @@ export class ScriptedFakeDriver implements AgentModelDriver {
       'context',
       'systemPrompt',
       'reasoning',
+      'toolChoice',
       'messages',
       'tools',
       'maxOutputTokens',

@@ -18,7 +18,12 @@ export interface AgentTodoItem {
 }
 
 export type AgentChatMessage =
-  | { kind: 'user'; text: string }
+  | {
+      kind: 'user';
+      text: string;
+      /** ISO timestamp captured when the author prompt entered the transcript. */
+      at?: string;
+    }
   | { kind: 'assistant'; text: string; streaming?: boolean }
   | { kind: 'thinking'; text: string; streaming?: boolean }
   | {

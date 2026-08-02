@@ -27,8 +27,13 @@ accepted or recovered. There is no unplanned provider-history fallback.
 
 ## 2. Provider-aware budget
 
-The default Drifting driver declares
-`deepseek-v4-flash:drifting-context-v1`:
+The standard product mode caps a declared provider window at 200,000 tokens.
+Max mode requests the provider's declared window up to 1,000,000 tokens. It
+never invents support: a 200k declaration remains 200k, and an unknown custom
+driver remains on the conservative fallback. Context mode, provider and model
+are captured when the author submits the turn and cannot change midway.
+
+The default DeepSeek driver declares:
 
 | Field | Value |
 | --- | ---: |
@@ -37,10 +42,10 @@ The default Drifting driver declares
 | Provider framing reserve | 512 tokens |
 | Per selected tool reserve | 8 tokens |
 
-A driver declaration is authoritative. Product configuration may reduce its
-window, but must never enlarge it. A custom driver with no declaration receives
-the conservative 32,768-token fallback; only an explicit DEV/test override may
-choose another value.
+A driver declaration is authoritative. Product configuration and Standard/Max
+mode may reduce its window, but must never enlarge it. A custom driver with no
+declaration receives the conservative 32,768-token fallback; only an explicit
+DEV/test override may choose another value.
 
 For every provider call, the planner charges:
 
@@ -59,7 +64,8 @@ tokenizer.
 
 ## 3. Protected author truth
 
-The product classifier promotes only directly stated user rows into one of:
+The product classifier promotes the initial session goal, current author
+request and directly stated durable guidance into one of:
 
 - `session_goal`;
 - `author_instruction`;
@@ -89,9 +95,18 @@ internal conflict-ID protocol.
 
 ## 5. Literary compaction
 
-The full compactor receives only contiguous, unpinned eligible runs and never
-splits a read tool call from its result. Each bounded chunk must return one
-forced structured call with schema version 1:
+Small histories keep the latest two turns byte-exact. That convenience is not
+an unbounded pin: recent compressible context is capped at 64,000 tokens. If a
+current turn is larger, the planner walks backward over the smallest
+tool-topology-safe units. The current author request stays independently
+semantic-pinned, so an oversized read batch can be compacted without losing the
+instruction that caused it.
+
+The full compactor receives only contiguous, unpinned eligible runs. Chunks may
+split inside one turn at the smallest boundary that does not separate a tool
+call from its result; overlapping parallel call/result intervals remain one
+unit. Each bounded chunk asks for one forced structured call with schema
+version 1:
 
 - synopsis;
 - exact evidence citations;
@@ -100,10 +115,27 @@ forced structured call with schema version 1:
 - next actions.
 
 Evidence kinds are `canon_fact`, `character_voice`, `author_decision`,
-`write_outcome`, `task_progress` and `unresolved`. Every compacted tool result
-must have at least one citation containing its canonical source ID and a short
-byte-exact quote. Unknown IDs, forged quotes, missing tool-result citations,
-duplicate citations and unsupported fields fail closed.
+`write_outcome`, `task_progress` and `unresolved`. Every compacted write-tool
+result must have a citation containing its canonical source ID and a short
+byte-exact quote. Exploratory read results may be omitted and fetched again;
+facts retained from them still need exact evidence. Unknown IDs, forged quotes,
+missing write-result citations, duplicate citations and unsupported fields are
+rejected.
+
+Compaction reuses the turn's captured provider/model instead of silently
+routing through DeepSeek. If the provider cannot return the structure, returns
+truncated JSON or otherwise fails one chunk, Drifting substitutes a
+deterministic non-factual fallback. It retains exact write-result evidence and
+instructs the Agent to re-read current workspace state; a single malformed
+summary therefore degrades recall but does not terminate a progressing task.
+Cancellation and timeout still stop compaction immediately.
+
+The compactor targets the larger of (a) current overage plus
+two-percent/2,048-token headroom and (b) 50% of the planned input. This prevents
+a progressing long task from compacting again immediately after one more tool
+batch. It stops once that target is met rather than paying for every remaining
+historical chunk; if eligible history is smaller, it applies every profitable
+chunk and lets the planner enforce the final budget.
 
 The planner independently verifies source coverage, source hash, contiguity,
 tool topology and token gain. A valid short tail whose summary provenance would
@@ -167,7 +199,8 @@ The required gates are:
 - median token reduction at least 50%;
 - maximum planned context ratio at most 90%;
 - verified summary reuse after restart with no redundant compactor call;
-- one failed compactor call and zero retries after its circuit opens;
+- topology-safe same-turn chunking, provider-aligned compaction and deterministic
+  malformed-output fallback;
 - SQLite artifact paging and V2 checkpoint recovery across process restart;
 - idempotent write/task receipts with zero duplicate mutations;
 - typecheck, scoped lint and generated capability drift gate.

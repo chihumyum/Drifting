@@ -143,6 +143,7 @@ export class LegacyAgentEventProjector {
       case 'context_planned':
       case 'model_usage':
       case 'model_iteration_completed':
+      case 'completion_tool_accepted':
         return [];
     }
   }

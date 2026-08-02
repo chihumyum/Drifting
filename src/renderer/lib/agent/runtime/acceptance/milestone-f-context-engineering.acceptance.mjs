@@ -70,7 +70,13 @@ const REQUIRED_ASSERTIONS = {
   providerTarget: 'installs the current default driver at the 200k product target',
   providerCannotBeEnlarged: 'never enlarges a smaller provider declaration',
   undeclaredProviderFallback: 'uses a conservative window for an undeclared custom driver',
-  exactCompactorEvidence: 'rejects summaries that omit or forge exact evidence from a tool result',
+  safeCompactorFallback:
+    'replaces summaries that omit or forge write evidence with the safe fallback',
+  sameTurnOversize: 'compacts older tool batches inside one oversized current turn',
+  sameTurnChunking:
+    'chunks inside one turn at tool-topology boundaries without splitting a pair',
+  boundedCompactorCalls: 'stops after enough chunk gain instead of compacting all history',
+  maxContextMode: 'lets Max request 1M while still capping to the provider declaration',
   mixedChunkGain:
     'keeps a no-gain short chunk exact while applying profitable full-compactor chunks',
   artifactRestart: 'pages exact Unicode content after closing and reopening the repository',

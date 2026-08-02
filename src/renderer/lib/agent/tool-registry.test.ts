@@ -92,6 +92,27 @@ function dispatcherNamesFromSource(): string[] {
 }
 
 describe('canonical Agent tool catalog', () => {
+  it('teaches the filesystem facade one-write creation forms without sampling existing data', () => {
+    const tool = getRegisteredTool('write_file');
+    expect(tool?.description).toContain('/drifts/<title>/prose.md');
+    expect(tool?.description).toContain('灵感, 漂移, inspiration, and drift always mean a drift node');
+    expect(tool?.description).toContain('/elements/<category>/<name>/body.md');
+    expect(tool?.description).toContain('/comments/<descriptive-name>.json');
+    expect(tool?.description).toContain('/relations/<descriptive-name>.json');
+    expect(tool?.description).toContain('never pre-create them');
+    expect(tool?.description).toContain('a clearly labeled 摘要 or Summary section');
+    expect(tool?.description).toContain('initializes the independent summary field');
+    expect(tool?.description).toContain('势力 -> 势力与组织');
+    expect(tool?.description).toContain('separate A-to-C and B-to-C files');
+    expect(tool?.description).toContain('list /elements once and reuse a suitable existing category');
+    expect(tool?.description).toContain('Never put creation and writes that reference the new resource');
+    expect(tool?.description).toContain('do not inspect unrelated existing resources');
+  });
+
+  it('documents literal occurrence counts for narrow workspace grep', () => {
+    expect(getRegisteredTool('grep')?.description).toContain('exact occurrence count');
+  });
+
   it('covers every runAgentTool handler exactly once, including the deprecated alias', () => {
     const dispatcherNames = dispatcherNamesFromSource();
     const catalogDispatchNames = AGENT_TOOL_CATALOG.filter(
@@ -180,6 +201,13 @@ describe('canonical Agent tool catalog', () => {
       );
     }
     expect(AGENT_READ_TOOLS).toHaveLength(18);
+  });
+
+  it('keeps whole-file prose replacement on the inline-review path', () => {
+    expect(getRegisteredTool('write_file')).toMatchObject({
+      approval: 'review_after',
+      revertStrategy: 'exact_inverse',
+    });
   });
 
   it('certifies only writes with durable receipts and exact guarded inverses', () => {

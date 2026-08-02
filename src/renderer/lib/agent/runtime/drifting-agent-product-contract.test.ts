@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   DRIFTING_AGENT_CONTEXT_PROFILE,
   DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS,
+  DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS,
   DRIFTING_AGENT_UNDECLARED_PROVIDER_CONTEXT_WINDOW_TOKENS,
+  requestedDriftingAgentContextWindowTokens,
   resolveDriftingAgentContextProfile,
 } from './drifting-agent-product-contract';
 
@@ -39,6 +41,29 @@ describe('Drifting Agent provider context contract', () => {
       maxOutputTokens: 4_096,
       providerOverheadTokens: 700,
       perToolOverheadTokens: 10,
+      source: 'driver',
+    });
+  });
+
+  it('lets Max request 1M while still capping to the provider declaration', () => {
+    expect(requestedDriftingAgentContextWindowTokens('standard')).toBe(200_000);
+    expect(requestedDriftingAgentContextWindowTokens('max')).toBe(
+      DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS,
+    );
+    expect(
+      resolveDriftingAgentContextProfile({
+        declared: {
+          id: 'one-million-provider-v1',
+          contextWindowTokens: 1_000_000,
+          maxOutputTokens: 32_768,
+          providerOverheadTokens: 640,
+          perToolOverheadTokens: 8,
+        },
+        requestedContextWindowTokens: requestedDriftingAgentContextWindowTokens('max'),
+      }),
+    ).toMatchObject({
+      id: 'one-million-provider-v1',
+      contextWindowTokens: 1_000_000,
       source: 'driver',
     });
   });

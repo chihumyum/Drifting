@@ -143,7 +143,11 @@ describe('Drifting Agent capability manifest', () => {
 
   it('does not publish the removed user checkpoint or conversation-fork surface', () => {
     const manifest = buildDriftingAgentCapabilityManifest();
-    expect(manifest.schemaVersion).toBe(10);
+    expect(manifest.schemaVersion).toBe(12);
+    expect(manifest.product).toMatchObject({
+      contextWindowTokens: 200_000,
+      maxContextWindowTokens: 1_000_000,
+    });
     expect('userCheckpoint' in manifest).toBe(false);
   });
 
@@ -153,6 +157,18 @@ describe('Drifting Agent capability manifest', () => {
       'deepseek',
       'anthropic',
       'openai',
+    ]);
+    expect(
+      platform.certifiedProviders.find((item) => item.provider === 'openai')?.models,
+    ).toEqual([
+      expect.objectContaining({
+        id: 'gpt-5.6-sol',
+        wireContract: 'gpt-5.6-sol:responses-v1',
+        thinkingModes: ['off', 'adaptive'],
+        efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+      }),
+      expect.objectContaining({ id: 'gpt-5.6-terra' }),
+      expect.objectContaining({ id: 'gpt-5.6-luna' }),
     ]);
     expect(platform).toMatchObject({
       mcpProtocolVersion: '2025-06-18',

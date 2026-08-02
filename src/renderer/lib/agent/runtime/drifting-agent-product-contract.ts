@@ -2,6 +2,7 @@ import type { AgentModelContextProfile } from './types';
 
 /** Pure product constants consumed by runtime and capability tooling. */
 export const DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS = 200_000 as const;
+export const DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS = 1_000_000 as const;
 export const DRIFTING_AGENT_UNDECLARED_PROVIDER_CONTEXT_WINDOW_TOKENS = 32_768 as const;
 
 /**
@@ -19,6 +20,16 @@ export const DRIFTING_AGENT_CONTEXT_PROFILE = Object.freeze({
 
 export interface ResolvedDriftingAgentContextProfile extends AgentModelContextProfile {
   source: 'driver' | 'explicit_override' | 'conservative_fallback';
+}
+
+export type DriftingAgentContextMode = 'standard' | 'max';
+
+export function requestedDriftingAgentContextWindowTokens(
+  mode: DriftingAgentContextMode | undefined,
+): number {
+  return mode === 'max'
+    ? DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS
+    : DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS;
 }
 
 function positive(value: number, label: string): number {

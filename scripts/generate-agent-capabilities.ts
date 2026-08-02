@@ -97,7 +97,8 @@ function renderMarkdown(manifest: ReturnType<typeof buildDriftingAgentCapability
     `| Workspace hidden domain operations | ${manifest.workspaceFacade.hiddenDomainOperations.length} |`,
     `| Domain lifecycle contracts | ${manifest.domainCrud.totalDomains} |`,
     `| Closed domain lifecycle operations | ${manifest.domainCrud.closedLifecycleOperations} |`,
-    `| Context window | ${manifest.product.contextWindowTokens.toLocaleString('en-US')} tokens |`,
+    `| Standard context window | ${manifest.product.contextWindowTokens.toLocaleString('en-US')} tokens |`,
+    `| Max context request | ${manifest.product.maxContextWindowTokens.toLocaleString('en-US')} tokens |`,
     '',
     'The direct catalog count deliberately does not describe the complete user-facing',
     'write surface. The workspace facade exposes fewer natural verbs while routing',
@@ -174,7 +175,17 @@ function renderMarkdown(manifest: ReturnType<typeof buildDriftingAgentCapability
     '## Provider and extension platform',
     '',
     `- Certified providers: ${manifest.providerExtensionPlatform.certifiedProviders
-      .map((provider) => `\`${provider.provider}\` (${codeList(provider.models)})`)
+      .map((provider) => `\`${provider.provider}\` (${codeList(provider.models.map((model) => model.id))})`)
+      .join('; ')}`,
+    `- Provider reasoning profiles: ${manifest.providerExtensionPlatform.certifiedProviders
+      .flatMap((provider) =>
+        provider.models.map(
+          (model) =>
+            `\`${model.id}\` thinking=${codeList(model.thinkingModes)} effort=${
+              model.efforts.length ? codeList(model.efforts) : '`unsupported`'
+            } wire=\`${model.wireContract}\``,
+        ),
+      )
       .join('; ')}`,
     `- MCP protocol: \`${manifest.providerExtensionPlatform.mcpProtocolVersion}\``,
     `- MCP transports: ${codeList(manifest.providerExtensionPlatform.transports)}`,

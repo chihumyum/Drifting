@@ -73,7 +73,9 @@ type SyncableSlice = {
   shadowByokModel: unknown;
   shadowAutoRun: unknown;
   agentAuth: unknown;
+  agentProvider: unknown;
   agentModel: unknown;
+  agentMaxContext: unknown;
   agentEffort: unknown;
   agentThinking: unknown;
   agentToolSearch: unknown;
@@ -119,7 +121,9 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'shadowByokModel',
   'shadowAutoRun',
   'agentAuth',
+  'agentProvider',
   'agentModel',
+  'agentMaxContext',
   'agentEffort',
   'agentThinking',
   'agentToolSearch',
@@ -260,7 +264,7 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
       if (v === 'lite' || v === 'standard' || v === 'pro') store.setShadowTier(v);
     },
     shadowByokProvider: (v) => {
-      if (v === 'deepseek' || v === 'anthropic' || v === 'openai' || v === 'google') {
+      if (v === 'deepseek' || v === 'anthropic' || v === 'openai') {
         store.setShadowByokProvider(v);
       }
     },
@@ -271,9 +275,15 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     agentAuth: (v) => {
       if (v === 'hosted' || v === 'oauth' || v === 'apikey') store.setAgentAuth(v);
     },
+    agentProvider: (v) => {
+      if (v === 'deepseek' || v === 'anthropic' || v === 'openai') {
+        store.setAgentProvider(v);
+      }
+    },
     agentModel: (v) => {
       if (typeof v === 'string' && v) store.setAgentModel(v);
     },
+    agentMaxContext: (v) => store.setAgentMaxContext(v === true),
     agentEffort: (v) => {
       if (v === 'low' || v === 'medium' || v === 'high' || v === 'xhigh' || v === 'max') {
         store.setAgentEffort(v);
@@ -330,7 +340,16 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     unsubscribeStore = null;
   }
   try {
-    for (const entry of entries) {
+    const orderedEntries = [...entries].sort((left, right) => {
+      const priority = (key: string) =>
+        key === 'agentProvider' || key === 'shadowByokProvider'
+          ? 0
+          : key === 'agentModel' || key === 'shadowByokModel'
+            ? 1
+            : 2;
+      return priority(left.key) - priority(right.key);
+    });
+    for (const entry of orderedEntries) {
       const setter = setterByKey[entry.key];
       if (setter) setter(entry.value);
     }

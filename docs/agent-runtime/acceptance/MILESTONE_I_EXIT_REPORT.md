@@ -7,11 +7,16 @@ Status: **complete**
 ## Delivered
 
 - General Agent turns freeze a certified DeepSeek, Anthropic or OpenAI
-  provider/model pair. Native Anthropic Messages and OpenAI/DeepSeek Chat
-  Completions adapters converge on the same fragmented tool-call, usage,
-  finish, error and cancellation contract.
-- Provider selection and model catalogs are exposed in Settings; every
-  provider uses its own lazily-read native Keychain credential.
+  provider/model/thinking/effort tuple. Native Anthropic Messages, OpenAI
+  Responses and DeepSeek Chat Completions adapters converge on the same
+  reasoning/text/tool-call, usage, finish, error and cancellation contract.
+- OpenAI exposes GPT-5.6 Sol/Terra/Luna. Settings and the composer expose only
+  each model's certified thinking/effort values; hydration and provider/model
+  switches normalize stale combinations.
+- Reasoning tool loops retain provider-opaque replay state only for the active
+  turn: DeepSeek `reasoning_content`, Anthropic signed thinking blocks, and
+  OpenAI encrypted Responses output items. Missing replay state fails closed.
+  Every provider still uses its own lazily-read native Keychain credential.
 - MCP `2025-06-18` initialization, bounded paged tool discovery, strict schema
   projection, tool calls, ping and session lifecycle are implemented.
 - Desktop stdio runs through a bounded native child-process host. Streamable
@@ -39,15 +44,21 @@ Machine evidence is in
 
 `pnpm --dir client eval:agent:extensions` passed:
 
-- 17 Vitest files, 143/143 tests;
-- provider conformance: 41 tests;
+- 19 Vitest files, 162/162 tests;
+- provider conformance: 57 tests;
 - MCP protocol/lifecycle: 28 tests;
-- durable authority/product composition: 74 tests;
+- durable authority/product composition: 77 tests;
 - TypeScript typecheck, scoped ESLint and generated capability drift gate;
 - Rust MCP tests and `cargo check`;
 - a real temporary Node stdio child, real loopback HTTP socket and real
   file-backed SQLite reopen/concurrency path;
 - no network credential and no paid provider request.
+
+The 2026-08-02 GPT-5.6/reasoning refresh adds deterministic Responses,
+DeepSeek-thinking and Anthropic-signed-replay fixtures plus model-profile/store
+coverage. The generated schema-v12 capability inventory records each model's
+wire contract, thinking modes and effort levels. The paid canary remains
+opt-in.
 
 Full Core regression also passed: **141 files, 886/886 tests**. Full native Rust
 regression passed **47/47** after replacing a stale hard-coded migration count

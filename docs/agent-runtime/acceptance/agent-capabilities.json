@@ -1,10 +1,11 @@
 {
-  "schemaVersion": 10,
+  "schemaVersion": 12,
   "source": "drifting-final-product-contract",
   "product": {
     "runtimeHost": "tauri-renderer",
     "providerNeutralProtocol": true,
     "contextWindowTokens": 200000,
+    "maxContextWindowTokens": 1000000,
     "dynamicToolRegistration": "project-scoped-runtime"
   },
   "installedModelTools": {
@@ -504,7 +505,7 @@
         "certification": "internal-certified",
         "risk": "medium",
         "effect": "canon",
-        "approval": "automatic",
+        "approval": "review_after",
         "revertStrategy": "exact_inverse"
       }
     ]
@@ -1263,22 +1264,108 @@
       {
         "provider": "deepseek",
         "models": [
-          "deepseek-v4-flash",
-          "deepseek-v4-pro"
+          {
+            "id": "deepseek-v4-flash",
+            "wireContract": "deepseek-v4-flash:agent-v2",
+            "thinkingModes": [
+              "off",
+              "adaptive"
+            ],
+            "efforts": [
+              "high",
+              "max"
+            ]
+          },
+          {
+            "id": "deepseek-v4-pro",
+            "wireContract": "deepseek-v4-pro:agent-v2",
+            "thinkingModes": [
+              "off",
+              "adaptive"
+            ],
+            "efforts": [
+              "high",
+              "max"
+            ]
+          }
         ]
       },
       {
         "provider": "anthropic",
         "models": [
-          "claude-sonnet-5",
-          "claude-haiku-4-5-20251001"
+          {
+            "id": "claude-sonnet-5",
+            "wireContract": "claude-sonnet-5:messages-v1",
+            "thinkingModes": [
+              "off",
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "id": "claude-haiku-4-5-20251001",
+            "wireContract": "claude-haiku-4-5-20251001:messages-v1",
+            "thinkingModes": [
+              "off"
+            ],
+            "efforts": []
+          }
         ]
       },
       {
         "provider": "openai",
         "models": [
-          "gpt-4.1",
-          "gpt-4.1-mini"
+          {
+            "id": "gpt-5.6-sol",
+            "wireContract": "gpt-5.6-sol:responses-v1",
+            "thinkingModes": [
+              "off",
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "id": "gpt-5.6-terra",
+            "wireContract": "gpt-5.6-terra:responses-v1",
+            "thinkingModes": [
+              "off",
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          {
+            "id": "gpt-5.6-luna",
+            "wireContract": "gpt-5.6-luna:responses-v1",
+            "thinkingModes": [
+              "off",
+              "adaptive"
+            ],
+            "efforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
         ]
       }
     ],

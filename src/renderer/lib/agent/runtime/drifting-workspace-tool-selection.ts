@@ -16,7 +16,7 @@ const WORKSPACE_WRITE = 'write_file';
 const WORKSPACE_DELETE = 'delete_file';
 const ASK_USER = 'ask_user';
 const RESULT_PAGE = 'read_tool_result';
-const MAX_VISIBLE_TOOLS = 6;
+const MAX_VISIBLE_TOOLS = 8;
 
 /**
  * Product selector for the filesystem-like workspace facade.
@@ -51,9 +51,12 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
         append(result, available, 'list_files', limit);
         append(result, available, 'read_file', limit);
         if (deleteIntent) append(result, available, WORKSPACE_DELETE, limit);
-        if (createIntent || wholeFileWriteIntent) {
-          append(result, available, WORKSPACE_WRITE, limit);
-        }
+        // Keep the ordinary workspace verbs stable throughout an active task.
+        // A later step may discover that it needs a new summary/resource or a
+        // focused correction even when those verbs were absent from the
+        // original wording.
+        append(result, available, WORKSPACE_WRITE, limit);
+        append(result, available, 'grep', limit);
         append(result, available, WORKSPACE_EDIT, limit);
         return result;
       }
@@ -73,17 +76,15 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
       append(result, available, 'read_file', limit);
       const patchIntent = mentionsElementPatch(query);
       const commentIntent = mentionsComment(query);
-      const ordinaryWorkspaceMutation =
-        !explicitlyReadOnly(query) && !patchIntent && !commentIntent;
+      const readOnly = explicitlyReadOnly(query);
+      const ordinaryWorkspaceMutation = !readOnly && !patchIntent;
       // Keep both file mutation verbs stable for an ordinary edit. After
       // reading a document, providers commonly choose a whole-file write even
       // when the author only said “改一下内容”; hiding write_file in that later
       // iteration turns a valid model action into UNKNOWN_TOOL.
       if (
-        createIntent ||
-        wholeFileWriteIntent ||
-        commentIntent ||
-        ordinaryWorkspaceMutation
+        !readOnly &&
+        (createIntent || wholeFileWriteIntent || commentIntent || ordinaryWorkspaceMutation)
       ) {
         append(result, available, WORKSPACE_WRITE, limit);
       }
@@ -108,7 +109,7 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
             ? 'delete_element_patch'
             : createIntent
               ? 'create_element_patch'
-              : /更新|修改|edit|update/i.test(query)
+              : mentionsUpdate(query)
                 ? 'update_element_patch'
                 : 'create_element_patch',
           limit,
@@ -172,7 +173,10 @@ function mentionsComment(query: string): boolean {
 
 function mentionsCreate(query: string): boolean {
   return /新建|创建|新增|添加|建立|写一(?:个|条|篇)|new\s+(?:chapter|drift|node|element|entity|storyline|category|comment|todo|relation)|create|add\s+(?:a\s+)?(?:comment|todo|relation)/i.test(
-    query,
+    withoutNegatedMutationClause(
+      query,
+      '新建|创建|新增|添加|建立|create|add|new',
+    ),
   );
 }
 
@@ -183,7 +187,36 @@ function mentionsWholeFileWrite(query: string): boolean {
 }
 
 function mentionsDelete(query: string): boolean {
-  return /删除|移除|清除|删掉|delete|remove/i.test(query);
+  return /删除|移除|清除|删掉|delete|remove/i.test(
+    withoutNegatedMutationClause(query, '删除|移除|清除|删掉|delete|remove'),
+  );
+}
+
+function mentionsUpdate(query: string): boolean {
+  return /更新|修改|改成|改为|改动|变更|调整|追加|替换|重命名|补充|续写|edit|update|change|append|replace|rename/i.test(
+    withoutNegatedMutationClause(
+      query,
+      '更新|修改|改成|改为|改动|变更|调整|追加|替换|重命名|补充|续写|edit|update|change|append|replace|rename',
+    ),
+  );
+}
+
+function withoutNegatedMutationClause(query: string, verbs: string): string {
+  return query
+    .replace(
+      new RegExp(
+        `(?:不要|别|不得|禁止|请勿|无需|不需要)\\s*(?:再)?(?:${verbs})[^\uff0c\u3002\uff1b;\\n]*`,
+        'gi',
+      ),
+      '',
+    )
+    .replace(
+      new RegExp(
+        `(?:do\\s+not|don't|without)\\s+(?:${verbs})[^,.?;\\n]*`,
+        'gi',
+      ),
+      '',
+    );
 }
 
 function append(

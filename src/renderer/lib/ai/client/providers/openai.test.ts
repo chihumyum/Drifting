@@ -4,7 +4,7 @@ import type { AICompletionChunk, AICompletionRequest } from '../../types';
 import { OpenAIProvider } from './openai';
 
 const streamRequest: AICompletionRequest = {
-  model: 'gpt-4.1',
+  model: 'gpt-5.6-sol',
   system: 'Use certified tools.',
   messages: [
     { role: 'user', content: 'Inspect.' },
@@ -124,7 +124,8 @@ describe('OpenAI provider conformance', () => {
       },
     ]);
     expect(requests[0]).toMatchObject({
-      model: 'gpt-4.1',
+      model: 'gpt-5.6-sol',
+      reasoning_effort: 'none',
       max_completion_tokens: 256,
       stream: true,
       stream_options: { include_usage: true },
@@ -177,7 +178,7 @@ function chunk(overrides: Record<string, unknown>): Record<string, unknown> {
     id: 'chatcmpl-test',
     object: 'chat.completion.chunk',
     created: 0,
-    model: 'gpt-4.1',
+    model: 'gpt-5.6-sol',
     ...overrides,
   };
 }

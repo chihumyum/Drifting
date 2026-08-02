@@ -170,6 +170,20 @@
   font-size: 12px;
   min-width: 0;
 }
+.agt-menu__select {
+  max-width: 112px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 5px;
+  background: hsl(var(--paper-1));
+  color: hsl(var(--ink-2));
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 22px 3px 6px;
+}
+.agt-menu__select:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
 .agt-menu__caret {
   font-family: var(--font-mono);
   font-size: 10px;

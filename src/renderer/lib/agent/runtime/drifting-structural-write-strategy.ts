@@ -32,6 +32,7 @@ import { stringifyKv, type KvEntry } from '../../../domain/kv';
 import type { Storyline } from '../../../domain/storyline';
 import { makeUniqueStorylineName } from '../../../domain/storyline';
 import { getDb, type DbExecutor, type DbTransaction } from '../../../lib/db';
+import { countWordsInPmJson } from '../../word-count';
 import {
   notifySyncMutationCommitted,
   persistSyncMutationInTransaction,
@@ -294,6 +295,7 @@ async function preparePayload(
     const timestamp = now();
     if (toolName === 'create_node') {
       const kind = request.arguments.kind === 'chapter' ? 'chapter' : 'drift';
+      const contentJson = createPlainCommentDoc(String(request.arguments.body ?? ''));
       const nodes = await createBookNodeSqliteRepository(projectId, db).findAll();
       const title = makeUniqueNodeTitle(
         requiredString(request.arguments.title, 'create_node requires title'),
@@ -319,7 +321,7 @@ async function preparePayload(
         narrativeOrder: kind === 'drift' ? maxOrder + 1 : null,
         driftGroupId: null,
         position: { x: 0, y: 0 },
-        wordCount: 0,
+        wordCount: countWordsInPmJson(contentJson),
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -344,7 +346,7 @@ async function preparePayload(
         mutation: {
           kind: 'create_node',
           value,
-          contentJson: createPlainCommentDoc(String(request.arguments.body ?? '')),
+          contentJson,
         },
       };
     }
@@ -1351,11 +1353,12 @@ function resolveStoryline(projectId: string, value: unknown) {
 }
 
 function resolveCategory(projectId: string, value: unknown) {
+  const categories = useDataStore
+    .getState()
+    .bookElementCategories.filter((item) => item.projectId === projectId);
   try {
     return resolveNamed(
-      useDataStore
-        .getState()
-        .bookElementCategories.filter((item) => item.projectId === projectId),
+      categories,
       value,
       (item) => item.name,
       'category',
@@ -1363,6 +1366,15 @@ function resolveCategory(projectId: string, value: unknown) {
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('No category named')) {
       const reference = requiredString(value, 'category reference is required');
+      const normalizedReference = normalizedName(reference);
+      const containedMatches = categories.filter((category) => {
+        const candidate = normalizedName(category.name);
+        return (
+          candidate.includes(normalizedReference) ||
+          normalizedReference.includes(candidate)
+        );
+      });
+      if (containedMatches.length === 1) return containedMatches[0]!;
       throw new Error(
         `${error.message}. Create it first with write_file at ` +
           `"/categories/${reference}/body.md", then retry the same element path.`,
@@ -1742,5 +1754,9 @@ function requiredString(value: unknown, message: string): string {
 }
 
 function sameName(left: string, right: string): boolean {
-  return left.trim().normalize('NFKC').toLocaleLowerCase() === right.trim().normalize('NFKC').toLocaleLowerCase();
+  return normalizedName(left) === normalizedName(right);
+}
+
+function normalizedName(value: string): string {
+  return value.trim().normalize('NFKC').toLocaleLowerCase();
 }

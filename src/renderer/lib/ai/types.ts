@@ -21,6 +21,7 @@ export type GoogleModel =
   | (string & {});
 
 export type AIFeatureId = string;
+export type AIReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface AIMessage {
   // 'tool' carries a tool-call RESULT back to the model (function-calling loop);
@@ -31,6 +32,8 @@ export interface AIMessage {
   toolCallId?: string;
   /** For role 'model': the tool calls the assistant emitted this turn. */
   toolCalls?: AIToolCall[];
+  /** Provider-native reasoning replay text for the same active tool loop. */
+  reasoningContent?: string;
 }
 
 /**
@@ -58,6 +61,8 @@ export interface AICompletionRequest {
    * ignored by the rest. Used by inline-ask to force reasoning on.
    */
   thinking?: boolean;
+  /** Provider-normalized reasoning effort for this request. */
+  reasoningEffort?: AIReasoningEffort;
   /**
    * DeepSeek JSON Output mode (`response_format: { type: 'json_object' }`). The model
    * returns a valid JSON string as message CONTENT (no tool call). Unlike forced
@@ -111,6 +116,8 @@ export interface AIUsage {
 export interface AICompletionResponse {
   /** Free-text content, when the model didn't (or wasn't forced to) call a tool. */
   text?: string;
+  /** Stream-safe reasoning summary/content exposed by the provider. */
+  thinking?: string;
   /** First tool call, if any. We force ANY-mode with a single allowed tool for structured output. */
   toolCall?: AIToolCall;
   /** All tool calls this turn (function-calling loop). `toolCall` is `toolCalls[0]`. */
@@ -146,6 +153,7 @@ export interface AIToolCallDelta {
  */
 export interface AICompletionChunk {
   delta: string;
+  thinkingDelta?: string;
   toolCallDeltas?: AIToolCallDelta[];
   finishReason?: string;
   usage?: AIUsage;

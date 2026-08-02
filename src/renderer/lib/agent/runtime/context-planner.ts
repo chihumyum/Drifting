@@ -15,6 +15,7 @@ const SAFETY_MARGIN_RATIO = 0.1;
 const DEFAULT_COMPACTION_TIMEOUT_MS = 8_000;
 const SOURCE_SEGMENT_OVERHEAD_TOKENS = 6;
 const SUMMARY_SEGMENT_OVERHEAD_TOKENS = 8;
+const MAX_RECENT_EXACT_TOKENS = 64_000;
 const AGENT_CONTEXT_SOURCE_KINDS: ReadonlySet<AgentContextSourceKind> = new Set([
   'system_policy',
   'user',
@@ -118,6 +119,11 @@ export interface AgentContextFullCompactionRequest {
   eligibleRuns: readonly (readonly AgentContextSourceRow[])[];
   currentEstimatedTokens: number;
   usableInputBudgetTokens: number;
+  /** Optional runtime route used by product compactors to reuse the active provider. */
+  sessionId?: string;
+  turnId?: string;
+  provider?: string;
+  model?: string;
   signal: AbortSignal;
 }
 
@@ -141,8 +147,8 @@ export interface AgentContextPlannerInput {
   /**
    * `undefined` preserves the P4 fail-safe and pins every user row. Supplying a
    * verified ledger (including an empty one) upgrades to P5 policy: only listed
-   * constraints and the latest two turns stay exact, while old ordinary user
-   * dialogue becomes eligible for compaction.
+   * constraints and a bounded recent, tool-topology-safe suffix stay exact,
+   * while old ordinary user dialogue becomes eligible for compaction.
    */
   constraintLedger?: readonly AgentContextConstraintLedgerEntry[];
   /**
@@ -764,6 +770,38 @@ function toolKey(row: AgentContextSourceRow): string {
   return `${row.turnOrdinal}:${row.callId}`;
 }
 
+/**
+ * Split ordered canonical rows at the smallest boundaries that never separate
+ * a tool call from its result. Parallel calls whose call/result intervals
+ * overlap intentionally form one atomic unit; sequential calls do not.
+ */
+export function groupAgentContextRowsByToolTopology(
+  rows: readonly AgentContextSourceRow[],
+): AgentContextSourceRow[][] {
+  const ordered = orderedRows(rows);
+  const resultIndexes = new Map<string, number>();
+  for (const [index, row] of ordered.entries()) {
+    if (row.kind === 'tool_result') resultIndexes.set(toolKey(row), index);
+  }
+
+  const units: AgentContextSourceRow[][] = [];
+  let start = 0;
+  let openThrough = -1;
+  for (let index = 0; index < ordered.length; index += 1) {
+    const row = ordered[index]!;
+    if (row.kind === 'tool_call') {
+      openThrough = Math.max(openThrough, resultIndexes.get(toolKey(row)) ?? index);
+    }
+    if (index >= openThrough) {
+      units.push(ordered.slice(start, index + 1));
+      start = index + 1;
+      openThrough = -1;
+    }
+  }
+  if (start < ordered.length) units.push(ordered.slice(start));
+  return units;
+}
+
 function validateCanonicalToolTopology(rows: readonly AgentContextSourceRow[]): ToolPair[] {
   const calls = new Map<string, AgentContextSourceRow>();
   const results = new Map<string, AgentContextSourceRow>();
@@ -841,24 +879,57 @@ function projectionTokens(segments: readonly AgentContextProjectionSegment[]): n
   return segments.reduce((total, segment) => total + segment.estimatedTokens, 0);
 }
 
-function recentTurnOrdinals(rows: readonly AgentContextSourceRow[]): Set<number> {
+function latestTwoTurnOrdinals(rows: readonly AgentContextSourceRow[]): Set<number> {
   const turns = [
     ...new Set(rows.map((row) => row.turnOrdinal).filter((turn): turn is number => turn !== null)),
   ].sort((left, right) => right - left);
   return new Set(turns.slice(0, 2));
 }
 
+function recentExactSourceIds(input: {
+  rows: readonly AgentContextSourceRow[];
+  classifications: ReadonlyMap<string, AgentContextClass>;
+  estimator: AgentContextTokenEstimator;
+  availableTokens: number;
+}): Set<string> {
+  if (input.availableTokens <= 0) return new Set();
+  const recentTurns = latestTwoTurnOrdinals(input.rows);
+  const candidates = input.rows.filter(
+    (row) =>
+      row.turnOrdinal !== null &&
+      recentTurns.has(row.turnOrdinal) &&
+      input.classifications.get(row.sourceId) === 'compressible',
+  );
+  const cap = Math.min(MAX_RECENT_EXACT_TOKENS, input.availableTokens);
+  const candidateTokens = candidates.reduce(
+    (total, row) => total + estimateSourceTokens(row, input.estimator),
+    0,
+  );
+  if (candidateTokens <= cap) return new Set(candidates.map((row) => row.sourceId));
+
+  const selected = new Set<string>();
+  let selectedTokens = 0;
+  const units = groupAgentContextRowsByToolTopology(candidates);
+  for (let index = units.length - 1; index >= 0; index -= 1) {
+    const unit = units[index]!;
+    const unitTokens = unit.reduce(
+      (total, row) => total + estimateSourceTokens(row, input.estimator),
+      0,
+    );
+    if (selectedTokens + unitTokens > cap) break;
+    for (const row of unit) selected.add(row.sourceId);
+    selectedTokens += unitTokens;
+  }
+  return selected;
+}
+
 function sourcePinReason(
   row: AgentContextSourceRow,
   classification: AgentContextClass,
-  recentTurns: ReadonlySet<number>,
+  recentSourceIds: ReadonlySet<string>,
 ): AgentContextSourceSegment['pinReason'] {
   if (classification === 'pinned') return 'semantic';
-  if (
-    classification === 'compressible' &&
-    row.turnOrdinal !== null &&
-    recentTurns.has(row.turnOrdinal)
-  ) {
+  if (classification === 'compressible' && recentSourceIds.has(row.sourceId)) {
     return 'recent_turn';
   }
   return null;
@@ -867,7 +938,7 @@ function sourcePinReason(
 function initialProjection(
   rows: readonly AgentContextSourceRow[],
   classifications: ReadonlyMap<string, AgentContextClass>,
-  recentTurns: ReadonlySet<number>,
+  recentSourceIds: ReadonlySet<string>,
   sourceHashes: ReadonlyMap<string, string>,
   estimator: AgentContextTokenEstimator,
 ): WorkingProjection {
@@ -881,7 +952,7 @@ function initialProjection(
       type: 'source',
       row: cloneSourceRow(row),
       classification,
-      pinReason: sourcePinReason(row, classification, recentTurns),
+      pinReason: sourcePinReason(row, classification, recentSourceIds),
       sourceHash: sourceHashes.get(row.sourceId)!,
       estimatedTokens: estimateSourceTokens(row, estimator),
     });
@@ -922,11 +993,11 @@ function candidateSourceRows(
 function summaryIsProtected(
   rows: readonly AgentContextSourceRow[],
   classifications: ReadonlyMap<string, AgentContextClass>,
-  recentTurns: ReadonlySet<number>,
+  recentSourceIds: ReadonlySet<string>,
 ): boolean {
   return rows.some((row) => {
     const classification = classifications.get(row.sourceId)!;
-    return sourcePinReason(row, classification, recentTurns) !== null;
+    return sourcePinReason(row, classification, recentSourceIds) !== null;
   });
 }
 
@@ -1000,7 +1071,7 @@ async function applySummaryBatch(input: {
   projection: WorkingProjection;
   sourceById: ReadonlyMap<string, AgentContextSourceRow>;
   classifications: ReadonlyMap<string, AgentContextClass>;
-  recentTurns: ReadonlySet<number>;
+  recentSourceIds: ReadonlySet<string>;
   toolPairBySourceId: ReadonlyMap<string, ToolPair>;
   estimator: AgentContextTokenEstimator;
   protectedPolicy: 'skip' | 'reject';
@@ -1027,7 +1098,7 @@ async function applySummaryBatch(input: {
 
   for (const candidate of orderedCandidates) {
     const sourceRows = candidateSourceRows(candidate, input.sourceById);
-    if (summaryIsProtected(sourceRows, input.classifications, input.recentTurns)) {
+    if (summaryIsProtected(sourceRows, input.classifications, input.recentSourceIds)) {
       if (input.protectedPolicy === 'skip') continue;
       throw new PlannerFailure(
         'INVALID_SUMMARY',
@@ -1233,7 +1304,7 @@ async function validateFinalProjection(input: {
   rows: readonly AgentContextSourceRow[];
   projection: WorkingProjection;
   classifications: ReadonlyMap<string, AgentContextClass>;
-  recentTurns: ReadonlySet<number>;
+  recentSourceIds: ReadonlySet<string>;
   sourceHashes: ReadonlyMap<string, string>;
   toolPairs: readonly ToolPair[];
 }): Promise<{
@@ -1275,7 +1346,7 @@ async function validateFinalProjection(input: {
   const discardedRows: AgentContextSourceRow[] = [];
   for (const row of input.rows) {
     const classification = input.classifications.get(row.sourceId)!;
-    const pinReason = sourcePinReason(row, classification, input.recentTurns);
+    const pinReason = sourcePinReason(row, classification, input.recentSourceIds);
     if (pinReason !== null) pinnedRows.push(row);
     const representation = input.projection.coverage.get(row.sourceId);
     if (classification === 'discardable') {
@@ -1385,25 +1456,49 @@ export async function planAgentContext(
         classifyAgentContextSource(row, constraintLedger.sourceIds, coveredWriteSourceIds),
       ]),
     );
-    const recentTurns = recentTurnOrdinals(rows);
     const initialTokens = rows.reduce(
       (total, row) => total + estimateSourceTokens(row, estimator),
       0,
     );
+    const noRecentSourceIds = new Set<string>();
+    const semanticTokens = rows.reduce((total, row) => {
+      const classification = classifications.get(row.sourceId)!;
+      return sourcePinReason(row, classification, noRecentSourceIds) === null
+        ? total
+        : total + estimateSourceTokens(row, estimator);
+    }, 0);
+    if (semanticTokens > budget.usableInputBudgetTokens) {
+      throw new PlannerFailure(
+        'PINNED_CONTEXT_EXCEEDS_BUDGET',
+        `Pinned semantic context needs ${semanticTokens} tokens, above the ${budget.usableInputBudgetTokens}-token usable budget.`,
+      );
+    }
+    const recentSourceIds = recentExactSourceIds({
+      rows,
+      classifications,
+      estimator,
+      availableTokens: budget.usableInputBudgetTokens - semanticTokens,
+    });
     const protectedTokens = rows.reduce((total, row) => {
       const classification = classifications.get(row.sourceId)!;
-      return sourcePinReason(row, classification, recentTurns) === null
+      return sourcePinReason(row, classification, recentSourceIds) === null
         ? total
         : total + estimateSourceTokens(row, estimator);
     }, 0);
     if (protectedTokens > budget.usableInputBudgetTokens) {
       throw new PlannerFailure(
         'PINNED_CONTEXT_EXCEEDS_BUDGET',
-        `Pinned and recent exact context needs ${protectedTokens} tokens, above the ${budget.usableInputBudgetTokens}-token usable budget.`,
+        `Pinned and bounded recent exact context needs ${protectedTokens} tokens, above the ${budget.usableInputBudgetTokens}-token usable budget.`,
       );
     }
 
-    let projection = initialProjection(rows, classifications, recentTurns, sourceHashes, estimator);
+    let projection = initialProjection(
+      rows,
+      classifications,
+      recentSourceIds,
+      sourceHashes,
+      estimator,
+    );
     const stages: AgentContextCheckpointV2['compaction']['stages'] = [];
     if (rows.some((row) => classifications.get(row.sourceId) === 'discardable')) {
       stages.push('drop_discardable');
@@ -1420,7 +1515,7 @@ export async function planAgentContext(
         projection,
         sourceById,
         classifications,
-        recentTurns,
+        recentSourceIds,
         toolPairBySourceId: pairBySourceId(toolPairs),
         estimator,
         protectedPolicy: 'skip',
@@ -1486,7 +1581,7 @@ export async function planAgentContext(
           projection,
           sourceById,
           classifications,
-          recentTurns,
+          recentSourceIds,
           toolPairBySourceId: pairBySourceId(toolPairs),
           estimator,
           protectedPolicy: 'reject',
@@ -1527,7 +1622,7 @@ export async function planAgentContext(
       rows,
       projection,
       classifications,
-      recentTurns,
+      recentSourceIds,
       sourceHashes,
       toolPairs,
     });

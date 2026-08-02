@@ -14,20 +14,15 @@
  * switcher here writes the same store field. If the agent isn't set up for the
  * chosen mode, we show a hint that opens it.
  */
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import {
   useSettingsStore,
   AGENT_PROVIDER_OPTIONS,
   agentProviderOption,
+  resolveAgentProviderReasoningProfile,
+  type AgentEffort,
   type AgentProviderId,
 } from '../../store/settings-store';
 import {
@@ -71,6 +66,7 @@ import {
 } from '../../lib/agent/agent-tool-activity';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { AgentContextIndicator } from './AgentContextIndicator';
+import { DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS } from '../../lib/agent/runtime/drifting-agent-product-contract';
 import { FieldDiff } from '../editor/FieldReview';
 import '../../../styles/agent-panel.css';
 
@@ -86,6 +82,24 @@ function relTime(iso: string): string {
   } catch {
     return '';
   }
+}
+
+function messageTime(iso: string | undefined): { short: string; full: string } | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  const sameYear = date.getFullYear() === now.getFullYear();
+  const clock = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const short = sameDay
+    ? clock
+    : `${date.toLocaleDateString([], {
+        year: sameYear ? undefined : 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      })} ${clock}`;
+  return { short, full: date.toLocaleString() };
 }
 
 // ---- Markdown (escape raw HTML first, so model output can't inject tags) ----
@@ -200,9 +214,8 @@ function ThinkingRow({ msg }: { msg: Extract<ChatMsg, { kind: 'thinking' }> }) {
 
 /**
  * The single composer config control: a quiet summary button that opens an
- * upward menu. The menu adjusts the active model and edit-review behavior.
- * Reasoning controls stay hidden until the product driver can replay provider
- * reasoning state across tool rounds.
+ * upward menu. The menu adjusts the active model, provider-aware reasoning,
+ * context budget and edit-review behavior.
  */
 function ComposerConfig() {
   const { t } = useTranslation();
@@ -210,6 +223,12 @@ function ComposerConfig() {
   const setAgentProvider = useSettingsStore((s) => s.setAgentProvider);
   const agentModel = useSettingsStore((s) => s.agentModel);
   const setAgentModel = useSettingsStore((s) => s.setAgentModel);
+  const agentThinking = useSettingsStore((s) => s.agentThinking);
+  const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
+  const agentEffort = useSettingsStore((s) => s.agentEffort);
+  const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
+  const agentMaxContext = useSettingsStore((s) => s.agentMaxContext);
+  const setAgentMaxContext = useSettingsStore((s) => s.setAgentMaxContext);
   const agentEditMode = useSettingsStore((s) => s.agentEditMode);
   const setAgentEditMode = useSettingsStore((s) => s.setAgentEditMode);
 
@@ -223,6 +242,10 @@ function ComposerConfig() {
 
   const modelOptions = agentProviderOption(agentProvider).models;
   const modelOption = modelOptions.find((m) => m.value === agentModel);
+  const reasoningProfile = resolveAgentProviderReasoningProfile(agentProvider, agentModel);
+  const supportsThinking = reasoningProfile.thinkingModes.includes('adaptive');
+  const supportsMaxContext =
+    (modelOption?.context.contextWindowTokens ?? 0) >= DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS;
   const modelShort = t(`settings.agent.modelOptions.${agentModel}.short`, {
     defaultValue: modelOption?.short ?? agentModel,
   });
@@ -282,6 +305,58 @@ function ComposerConfig() {
                 <span className="agt-menu__caret">›</span>
               </span>
             </button>
+            <div
+              className="agt-menu__row"
+              title={
+                supportsMaxContext
+                  ? t('agentPanel.config.maxContextTitle')
+                  : t('agentPanel.config.maxContextUnavailable')
+              }
+            >
+              <span>{t('agentPanel.config.maxContext')}</span>
+              <Switch
+                checked={supportsMaxContext && agentMaxContext}
+                disabled={!supportsMaxContext}
+                onCheckedChange={setAgentMaxContext}
+              />
+            </div>
+            <div className="agt-menu__divider" />
+            <div className="agt-menu__sec">{t('agentPanel.config.reasoning')}</div>
+            <div
+              className="agt-menu__row"
+              title={
+                supportsThinking
+                  ? t('agentPanel.config.extendedThinkingTitle')
+                  : t('agentPanel.config.reasoningUnavailable')
+              }
+            >
+              <span>{t('agentPanel.config.extendedThinking')}</span>
+              <Switch
+                checked={agentThinking === 'adaptive'}
+                disabled={!supportsThinking}
+                onCheckedChange={(checked) => setAgentThinking(checked ? 'adaptive' : 'off')}
+              />
+            </div>
+            <label className="agt-menu__row">
+              <span>{t('agentPanel.config.effortLabel')}</span>
+              <select
+                className="agt-menu__select"
+                value={agentEffort}
+                disabled={reasoningProfile.efforts.length === 0}
+                onChange={(event) => setAgentEffort(event.target.value as AgentEffort)}
+                aria-label={t('agentPanel.config.effortLabel')}
+              >
+                {reasoningProfile.efforts.length === 0 ? (
+                  <option value={agentEffort}>{t('agentPanel.config.notSupported')}</option>
+                ) : (
+                  reasoningProfile.efforts.map((effort) => (
+                    <option key={effort} value={effort}>
+                      {t(`settings.agent.effortOptions.${effort}`)}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
             <div className="agt-menu__divider" />
             <div className="agt-menu__sec">{t('agentPanel.config.edits')}</div>
             <div className="agt-menu__row" title={t('agentPanel.config.reviewEditsTitle')}>
@@ -438,9 +513,13 @@ function fmtCost(usd: number): string {
   return `$${usd.toFixed(usd > 0 && usd < 0.01 ? 4 : 2)}`;
 }
 
-/** Compact duration: 850 → "850ms", 4200 → "4.2s". */
+/** Compact duration: 850 → "850ms", 4200 → "4.2s", 92000 → "1m 32s". */
 function fmtMs(ms: number): string {
-  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 }
 
 /**
@@ -459,6 +538,7 @@ function UsageRow({ msg }: { msg: Extract<ChatMsg, { kind: 'usage' }> }) {
   const { t } = useTranslation();
   const inTok = msg.inputTokens + msg.cacheReadTokens + msg.cacheCreationTokens;
   const hasTiming = msg.durationMs != null;
+  const hasUsage = inTok > 0 || msg.outputTokens > 0 || msg.costUsd > 0 || msg.turns > 0;
   const localMs =
     msg.durationMs != null && msg.durationApiMs != null
       ? Math.max(0, msg.durationMs - msg.durationApiMs)
@@ -476,24 +556,47 @@ function UsageRow({ msg }: { msg: Extract<ChatMsg, { kind: 'usage' }> }) {
       turns: msg.turns,
     })}` +
     (msg.costUsd > 0 ? ` · ${fmtCost(msg.costUsd)}` : '') +
-    (hasTiming
+    (hasTiming && msg.durationApiMs != null && localMs != null
       ? `\n${t('agentPanel.usage.timingDetail', {
           total: msg.durationMs,
           api: msg.durationApiMs,
           local: localMs,
         })}` + `\n${t('agentPanel.usage.timingHint')}`
-      : '');
+      : hasTiming
+        ? `\n${t('agentPanel.usage.workDetail', { duration: fmtMs(msg.durationMs!) })}`
+        : '');
+  const details = [
+    hasTiming ? t('agentPanel.usage.workedFor', { duration: fmtMs(msg.durationMs!) }) : null,
+    hasUsage ? `↑${fmtTokens(inTok)} ↓${fmtTokens(msg.outputTokens)}` : null,
+    msg.costUsd > 0 ? fmtCost(msg.costUsd) : null,
+    msg.turns > 0 ? t('agentPanel.usage.turnsShort', { count: msg.turns }) : null,
+    msg.cacheReadTokens > 0 ? `⚡${fmtTokens(msg.cacheReadTokens)}` : null,
+  ].filter((part): part is string => Boolean(part));
   return (
     <div style={usageRow} title={title}>
-      ↑{fmtTokens(inTok)} ↓{fmtTokens(msg.outputTokens)}
-      {msg.costUsd > 0 ? ` · ${fmtCost(msg.costUsd)}` : ''}
-      {hasTiming ? ` · ⏱${fmtMs(msg.durationMs!)}` : ''}
-      {hasTiming && msg.durationApiMs != null ? ` (api ${fmtMs(msg.durationApiMs)})` : ''}
-      {msg.turns > 0 ? ` · ${t('agentPanel.usage.turnsShort', { count: msg.turns })}` : ''}
-      {msg.cacheReadTokens > 0 ? ` · ⚡${fmtTokens(msg.cacheReadTokens)}` : ''}
+      {details.join(' · ')}
     </div>
   );
 }
+
+const UserBubble = memo(function UserBubble({ msg }: { msg: Extract<ChatMsg, { kind: 'user' }> }) {
+  const { t } = useTranslation();
+  const timestamp = messageTime(msg.at);
+  return (
+    <div style={userMessage}>
+      <div style={userBubble}>{msg.text}</div>
+      {timestamp ? (
+        <time
+          dateTime={msg.at}
+          title={t('agentPanel.usage.sentAt', { time: timestamp.full })}
+          style={userTimestamp}
+        >
+          {timestamp.short}
+        </time>
+      ) : null}
+    </div>
+  );
+});
 
 const ENTITY_GLYPH: Record<ActivityEntityType, string> = {
   node: '§',
@@ -584,7 +687,7 @@ const MessageView = memo(function MessageView({ msg }: { msg: ChatMsg }) {
     case 'user':
       return (
         <div style={userRow}>
-          <div style={userBubble}>{msg.text}</div>
+          <UserBubble msg={msg} />
         </div>
       );
     case 'thinking':
@@ -1540,14 +1643,29 @@ const userRow: React.CSSProperties = {
   justifyContent: 'flex-end',
 };
 
+const userMessage: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-end',
+  gap: 3,
+  maxWidth: '85%',
+};
+
 const userBubble: React.CSSProperties = {
   background: 'hsl(var(--accent) / 0.14)',
   border: '1px solid hsl(var(--accent) / 0.25)',
   borderRadius: 8,
   padding: '6px 10px',
-  maxWidth: '85%',
+  maxWidth: '100%',
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
+};
+
+const userTimestamp: React.CSSProperties = {
+  padding: '0 2px',
+  color: 'hsl(var(--ink-muted))',
+  fontSize: 10.5,
+  fontVariantNumeric: 'tabular-nums',
 };
 
 const assistantBubble: React.CSSProperties = {

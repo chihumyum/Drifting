@@ -6,7 +6,7 @@
  * wire translation, and function calls. This adapter deliberately does
  * not inspect provider errors or expose their messages. It only:
  *   - projects canonical AgentModelMessage blocks into AIMessage,
- *   - forces thinking off until reasoning-state replay is installed,
+ *   - preserves DeepSeek reasoning_content inside the active tool loop,
  *   - forwards true text/tool deltas when the provider supports them,
  *   - retains a completion-to-stream compatibility path for older providers.
  */
@@ -48,6 +48,8 @@ export interface OpenAICompatibleCompletionDriverOptions {
   id?: string;
   /** Existing AI interceptor attribution key. */
   feature?: string;
+  /** Enables the certified DeepSeek thinking/replay wire contract. */
+  reasoningMode?: 'disabled' | 'deepseek';
 }
 
 const DEFAULT_DRIVER_ID = 'openai-compatible-completion';
@@ -55,23 +57,34 @@ const DEFAULT_FEATURE = 'general-agent';
 
 export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
   readonly id: string;
-  readonly capabilities = { reasoning: false } as const;
+  readonly capabilities: { readonly reasoning: boolean };
 
   private readonly client: AgentCompletionClient;
   private readonly defaultModel: string;
   private readonly feature: string;
+  private readonly reasoningMode: 'disabled' | 'deepseek';
+  private readonly reasoningReplayByCallId = new Map<string, string>();
 
   constructor(options: OpenAICompatibleCompletionDriverOptions) {
     this.client = options.client;
     this.defaultModel = requireNonEmpty(options.defaultModel, 'defaultModel');
     this.id = requireNonEmpty(options.id ?? DEFAULT_DRIVER_ID, 'id');
     this.feature = requireNonEmpty(options.feature ?? DEFAULT_FEATURE, 'feature');
+    this.reasoningMode = options.reasoningMode ?? 'disabled';
+    this.capabilities = { reasoning: this.reasoningMode === 'deepseek' };
   }
 
   async *stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
-    if (request.reasoning?.enabled) {
+    const reasoningEnabled = request.reasoning?.enabled === true;
+    if (reasoningEnabled && this.reasoningMode !== 'deepseek') {
       throw new AgentModelDriverError(
         'Reasoning is not supported by the General Agent driver.',
+      );
+    }
+    if (reasoningEnabled && request.iteration > 1) {
+      assertActiveReasoningReplay(
+        request.context,
+        this.reasoningReplayByCallId,
       );
     }
     if (request.tools.length > 0 && !this.client.supportsTools) {
@@ -83,21 +96,27 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
     const completionRequest: AICompletionRequest = {
       model: request.model ?? this.defaultModel,
       system: requirePlannedSystem(request.context.systemPrompt),
-      messages: projectPlannedMessages(request.context),
+      messages: projectPlannedMessages(
+        request.context,
+        this.reasoningMode,
+        reasoningEnabled ? this.reasoningReplayByCallId : undefined,
+      ),
       tools: request.tools.map((tool) => ({
         name: tool.name,
         description: tool.description,
         parametersSchema: tool.inputSchema,
       })),
       maxOutputTokens: request.maxOutputTokens,
-      // The General Agent does not round-trip provider reasoning state.
-      thinking: false,
+      thinking: reasoningEnabled,
+      ...(request.reasoning?.effort
+        ? { reasoningEffort: request.reasoning.effort }
+        : {}),
       terminalRequirements: {
         finishReason: true,
         usage: true,
       },
       ...(request.tools.length > 0
-        ? { toolChoice: 'auto' as const }
+        ? { toolChoice: request.toolChoice ?? ('auto' as const) }
         : {}),
       signal: request.signal,
       metadata: {
@@ -114,7 +133,14 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
         this.client.supportsToolStreaming === true)
     ) {
       try {
-        yield* streamCompletion(this.client, completionRequest);
+        yield* streamCompletion(
+          this.client,
+          completionRequest,
+          reasoningEnabled
+            ? (callIds, reasoningContent) =>
+                this.rememberReasoningReplay(callIds, reasoningContent)
+            : undefined,
+        );
       } catch (error) {
         throw safeCompletionError(error);
       }
@@ -136,6 +162,15 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
     }));
     const stopReason = inferStopReason(response, toolCalls.length > 0);
     const normalizedUsage = normalizeUsage(response);
+    if (reasoningEnabled && response.thinking) {
+      yield { type: 'thinking_delta', text: response.thinking };
+    }
+    if (reasoningEnabled && toolCalls.length > 0) {
+      this.rememberReasoningReplay(
+        projectedToolCalls.map((call) => call.callId),
+        requireProviderField(response.thinking, 'reasoning content'),
+      );
+    }
     if (response.text) {
       yield { type: 'text_delta', text: response.text };
     }
@@ -157,6 +192,14 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
       reason: stopReason,
     };
   }
+
+  private rememberReasoningReplay(
+    callIds: readonly string[],
+    reasoningContent: string,
+  ): void {
+    const exact = requireProviderField(reasoningContent, 'reasoning content');
+    for (const callId of callIds) this.reasoningReplayByCallId.set(callId, exact);
+  }
 }
 
 interface StreamingToolCall {
@@ -177,7 +220,8 @@ type StreamInput =
 
 function hasNonTextPayload(chunk: AICompletionChunk): boolean {
   return Boolean(
-    chunk.toolCallDeltas?.length ||
+    chunk.thinkingDelta ||
+      chunk.toolCallDeltas?.length ||
       chunk.finishReason ||
       chunk.usage,
   );
@@ -292,6 +336,10 @@ async function* coalesceVisibleText(
 async function* streamCompletion(
   client: AgentCompletionClient,
   request: AICompletionRequest,
+  rememberReasoningReplay?: (
+    callIds: readonly string[],
+    reasoningContent: string,
+  ) => void,
 ): AsyncIterable<AgentModelStreamEvent> {
   if (!client.stream) {
     throw new AgentModelDriverError(
@@ -304,6 +352,7 @@ async function* streamCompletion(
   let nextToolStartIndex = 0;
   let usage: AIUsage | undefined;
   let providerFinishReason: string | undefined;
+  let reasoningContent = '';
 
   for await (const chunk of coalesceVisibleText(client.stream(request))) {
     if (providerFinishReason && hasStreamPayload(chunk)) {
@@ -312,6 +361,10 @@ async function* streamCompletion(
 
     if (chunk.delta) {
       yield { type: 'text_delta', text: chunk.delta };
+    }
+    if (chunk.thinkingDelta) {
+      reasoningContent += chunk.thinkingDelta;
+      yield { type: 'thinking_delta', text: chunk.thinkingDelta };
     }
 
     if (chunk.toolCallDeltas?.length) {
@@ -430,6 +483,12 @@ async function* streamCompletion(
     );
   }
   const normalizedUsage = normalizeStreamUsage(usage);
+  if (orderedCalls.length > 0 && rememberReasoningReplay) {
+    rememberReasoningReplay(
+      orderedCalls.map((call) => call.id!),
+      reasoningContent,
+    );
+  }
   for (const call of orderedCalls) {
     const callId = call.id;
     if (!callId) throw invalidToolStream();
@@ -462,6 +521,7 @@ async function* streamCompletion(
 function hasStreamPayload(chunk: AICompletionChunk): boolean {
   return Boolean(
     chunk.delta ||
+      chunk.thinkingDelta ||
       chunk.toolCallDeltas?.length ||
       chunk.finishReason,
   );
@@ -514,13 +574,21 @@ function inferStreamStopReason(
 
 function projectPlannedMessages(
   context: AgentModelRequest['context'],
+  reasoningMode: 'disabled' | 'deepseek' = 'disabled',
+  reasoningReplayByCallId?: ReadonlyMap<string, string>,
 ): AIMessage[] {
   const projected: AIMessage[] = [];
   for (const message of context.messages) {
     switch (message.type) {
       case 'model_message':
         requireSourceIds(message.sourceIds, 'canonical model context');
-        projected.push(...projectMessages([message.message]));
+        projected.push(
+          ...projectMessages(
+            [message.message],
+            reasoningMode,
+            reasoningReplayByCallId,
+          ),
+        );
         break;
       case 'context_summary':
         requireSourceIds(message.sourceIds, 'context summary');
@@ -579,7 +647,11 @@ function projectPlannedMessages(
   return projected;
 }
 
-function projectMessages(messages: readonly AgentModelMessage[]): AIMessage[] {
+function projectMessages(
+  messages: readonly AgentModelMessage[],
+  reasoningMode: 'disabled' | 'deepseek' = 'disabled',
+  reasoningReplayByCallId?: ReadonlyMap<string, string>,
+): AIMessage[] {
   const projected: AIMessage[] = [];
   for (const message of messages) {
     if (message.role === 'user') {
@@ -599,17 +671,14 @@ function projectMessages(messages: readonly AgentModelMessage[]): AIMessage[] {
 
     let content = '';
     const toolCalls: AIToolCall[] = [];
+    let hasReasoningHistory = false;
     for (const block of message.content) {
       switch (block.type) {
         case 'text':
           content += block.text;
           break;
         case 'thinking':
-          if (block.text) {
-            throw new AgentModelDriverError(
-              'Reasoning history cannot be replayed by the General Agent driver.',
-            );
-          }
+          hasReasoningHistory ||= Boolean(block.text);
           break;
         case 'tool_call':
           toolCalls.push({
@@ -620,13 +689,71 @@ function projectMessages(messages: readonly AgentModelMessage[]): AIMessage[] {
           break;
       }
     }
+    if (hasReasoningHistory && reasoningMode === 'disabled') {
+      throw new AgentModelDriverError(
+        'Reasoning history cannot be replayed by the General Agent driver.',
+      );
+    }
+    const replay = resolveSharedReasoningReplay(
+      toolCalls,
+      reasoningReplayByCallId,
+    );
     projected.push({
       role: 'model',
       content,
       ...(toolCalls.length > 0 ? { toolCalls } : {}),
+      ...(replay !== undefined ? { reasoningContent: replay } : {}),
     });
   }
   return projected;
+}
+
+function resolveSharedReasoningReplay(
+  toolCalls: readonly AIToolCall[],
+  replayByCallId?: ReadonlyMap<string, string>,
+): string | undefined {
+  if (!replayByCallId || toolCalls.length === 0) return undefined;
+  const values = toolCalls.flatMap((call) => {
+    const value = call.id ? replayByCallId.get(call.id) : undefined;
+    return value === undefined ? [] : [value];
+  });
+  if (values.length === 0) return undefined;
+  if (
+    values.length !== toolCalls.length ||
+    values.some((value) => value !== values[0])
+  ) {
+    throw new AgentModelDriverError(
+      'DeepSeek reasoning replay state is incomplete for the active tool loop.',
+    );
+  }
+  return values[0];
+}
+
+function assertActiveReasoningReplay(
+  context: AgentModelRequest['context'],
+  replayByCallId: ReadonlyMap<string, string>,
+): void {
+  let activeCallIds: string[] = [];
+  for (const entry of context.messages) {
+    if (entry.type !== 'model_message') continue;
+    if (entry.message.role === 'user') {
+      activeCallIds = [];
+      continue;
+    }
+    if (entry.message.role !== 'assistant') continue;
+    const callIds = entry.message.content.flatMap((block) =>
+      block.type === 'tool_call' ? [block.callId] : [],
+    );
+    if (callIds.length > 0) activeCallIds = callIds;
+  }
+  if (
+    activeCallIds.length === 0 ||
+    activeCallIds.some((callId) => !replayByCallId.has(callId))
+  ) {
+    throw new AgentModelDriverError(
+      'DeepSeek reasoning replay state is unavailable for the active tool loop.',
+    );
+  }
 }
 
 function requirePlannedSystem(systemPrompt: string): string {

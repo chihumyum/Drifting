@@ -92,7 +92,11 @@ describe('DriftingWorkspaceToolRuntime', () => {
         ]),
       },
     });
-    if (listed.ok) expect(listed.modelData).not.toContain('她在雨夜抵达旧宅。');
+    if (listed.ok) {
+      expect(listed.modelData).not.toContain('她在雨夜抵达旧宅。');
+      expect(listed.modelData).toContain('/chapters/<title>/prose.md');
+      expect(listed.modelData).toContain('title.txt and meta.json are generated automatically');
+    }
 
     const chapter = await runtime.execute(request('list_files', { path: '第一章 雨夜' }));
     expect(chapter).toMatchObject({
@@ -116,6 +120,7 @@ describe('DriftingWorkspaceToolRuntime', () => {
         path: '/chapters/第一章 雨夜/prose.md',
         name: '第一章 雨夜正文',
         content: '# 雨落旧宅\n\n她没有回头。',
+        wordCount: 18,
         truncated: false,
       },
     });
@@ -123,7 +128,8 @@ describe('DriftingWorkspaceToolRuntime', () => {
     expect(JSON.stringify(read)).not.toContain(NODE_ID);
     expect(read).toMatchObject({
       ok: true,
-      modelData: '/chapters/第一章 雨夜/prose.md\n\n# 雨落旧宅\n\n她没有回头。',
+      modelData:
+        '/chapters/第一章 雨夜/prose.md\nWord count: 18\n\n# 雨落旧宅\n\n她没有回头。',
     });
   });
 
@@ -167,7 +173,43 @@ describe('DriftingWorkspaceToolRuntime', () => {
     ).resolves.toMatchObject({
       ok: true,
       data: { path: '/elements/空分类', files: [], total: 0, truncated: false },
+      modelData: expect.stringContaining('/elements/<category>/<name>/body.md'),
     });
+  });
+
+  it('publishes exact comment and relation creation forms without schema archaeology', async () => {
+    const runtime = createRuntime(fakeReadRuntime());
+
+    const comments = await runtime.execute(request('list_files', { path: '/comments' }));
+    expect(comments).toMatchObject({
+      ok: true,
+      modelData: expect.stringContaining('/comments/<descriptive-name>.json'),
+    });
+    if (comments.ok) {
+      expect(comments.modelData).toContain('"kind":"todo"');
+      expect(comments.modelData).toContain('"targetKind":"node"');
+    }
+
+    const relations = await runtime.execute(request('list_files', { path: '/relations' }));
+    expect(relations).toMatchObject({
+      ok: true,
+      modelData: expect.stringContaining('/relations/<descriptive-name>.json'),
+    });
+    if (relations.ok) {
+      expect(relations.modelData).toContain('"fromKind":"element"');
+      expect(relations.modelData).toContain('"kind":"隶属"');
+      expect(relations.modelData).toContain('separate A-to-C and B-to-C files');
+      expect(relations.modelData).toContain('Wait until every referenced resource creation has succeeded');
+    }
+
+    const elements = await runtime.execute(request('list_files', { path: '/elements' }));
+    expect(elements).toMatchObject({
+      ok: true,
+      modelData: expect.stringContaining('reuse the closest existing category'),
+    });
+    if (elements.ok) {
+      expect(elements.modelData).toContain('灵感 or 漂移 belong under /drifts');
+    }
   });
 
   it('turns multiple same-file replacements into one hidden atomic file-edit command', async () => {
@@ -298,6 +340,35 @@ describe('DriftingWorkspaceToolRuntime', () => {
     ).resolves.toMatchObject({
       ok: false,
       error: expect.stringContaining('No virtual file or directory'),
+    });
+  });
+
+  it('reports exact literal occurrence counts for one file or entity directory', async () => {
+    const runtime = createRuntime(
+      fakeReadRuntime('1\t# 回归\n2\t旧标记与旧标记。\n3\t新标记。'),
+    );
+
+    const found = await runtime.execute(
+      request('grep', { query: '旧标记', path: '/chapters/第一章 雨夜' }),
+    );
+    expect(found).toMatchObject({
+      ok: true,
+      data: {
+        path: '/chapters/第一章 雨夜/prose.md',
+        total: 2,
+        exact: true,
+        matches: [{}, {}],
+      },
+      modelData: expect.stringContaining('Exact literal occurrences: 2'),
+    });
+
+    const missing = await runtime.execute(
+      request('grep', { query: '不存在', path: '/chapters/第一章 雨夜/prose.md' }),
+    );
+    expect(missing).toMatchObject({
+      ok: true,
+      data: { total: 0, exact: true, matches: [] },
+      modelData: expect.stringContaining('Exact literal occurrences: 0'),
     });
   });
 

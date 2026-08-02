@@ -101,6 +101,37 @@ function endTurn(text = 'final answer'): readonly AgentModelStreamEvent[] {
 }
 
 describe('AgentRuntime context planning integration', () => {
+  it('captures Max context mode into every planning boundary for the turn', async () => {
+    const hookModes: Array<'standard' | 'max' | undefined> = [];
+    const driver = new RecordingDriver(() => endTurn());
+    const runtime = new AgentRuntime({
+      driver,
+      tools: toolRuntime([]),
+      contextPlanning: {
+        resolveProviderProfile: (input) => {
+          hookModes.push(input.contextMode);
+          return {
+            id: input.contextMode === 'max' ? 'test-max-1m' : 'test-standard-200k',
+            contextWindowTokens: input.contextMode === 'max' ? 1_000_000 : 200_000,
+            maxOutputTokens: 8_192,
+            providerOverheadTokens: 512,
+            perToolOverheadTokens: 8,
+          };
+        },
+      },
+    });
+
+    const result = await runtime.runTurn(runInput({ contextMode: 'max' }));
+
+    expect(result.state.status).toBe('completed');
+    expect(hookModes).toEqual(['max', 'max']);
+    const planned = result.entries.find((entry) => entry.event.type === 'context_planned');
+    expect(planned?.event).toMatchObject({
+      type: 'context_planned',
+      snapshot: { contextWindowTokens: 1_000_000 },
+    });
+  });
+
   it('plans every provider iteration with exact selected schemas and creates a complete final checkpoint', async () => {
     const definitions = Array.from({ length: 10 }, (_, index) =>
       definition(`tool_${index}`, 'x'.repeat(index * 40)),

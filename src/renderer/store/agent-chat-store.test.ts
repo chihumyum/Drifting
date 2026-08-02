@@ -301,7 +301,11 @@ describe('agent chat canonical journal projection', () => {
 
     expect(steered).toEqual([
       { kind: 'assistant', text: 'working', streaming: false },
-      { kind: 'user', text: 'Keep the ending ambiguous.' },
+      {
+        kind: 'user',
+        text: 'Keep the ending ambiguous.',
+        at: new Date(1_700_000_000_001).toISOString(),
+      },
     ]);
 
     expect(
@@ -321,7 +325,14 @@ describe('agent chat canonical journal projection', () => {
           2,
         ),
       ),
-    ).toEqual([...steered, { kind: 'user', text: 'Choose the quieter version.' }]);
+    ).toEqual([
+      ...steered,
+      {
+        kind: 'user',
+        text: 'Choose the quieter version.',
+        at: new Date(1_700_000_000_002).toISOString(),
+      },
+    ]);
   });
 
   it('keeps permission state out of transcript and derives usage/error from turn_finished', () => {
@@ -374,6 +385,39 @@ describe('agent chat canonical journal projection', () => {
         at: new Date(1_700_000_000_002).toISOString(),
       },
       { kind: 'error', text: 'provider failed' },
+    ]);
+  });
+
+  it('records work duration for a terminal turn even when token usage is zero', () => {
+    const terminal = applyEvent(
+      [],
+      journal({
+        type: 'turn_finished',
+        outcome: 'aborted',
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          costUsd: 0,
+        },
+        modelIterations: 0,
+        durationMs: 180,
+      }),
+    );
+
+    expect(terminal).toEqual([
+      {
+        kind: 'usage',
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        costUsd: 0,
+        turns: 0,
+        durationMs: 180,
+        at: new Date(1_700_000_000_001).toISOString(),
+      },
     ]);
   });
 

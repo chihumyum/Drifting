@@ -160,7 +160,7 @@ const EMPTY_MESSAGES: ChatMsg[] = [];
 export const BUDGET_CONTINUATION_PROMPT =
   '继续完成上一轮在上下文边界处续接的任务。先检查上一轮已完成的工作和当前项目状态，不要重复已完成的步骤；从尚未完成的部分继续，完成后总结结果。';
 export const ACTIVE_PLAN_CONTINUATION_PROMPT =
-  '继续执行当前持久化任务计划。先用 read_task_plan 读取计划、约束和当前项目状态，不要重复已完成的步骤；只能用 update_task_step 更新单个步骤状态，update_task_plan 只处理任务级状态。从第一个尚未完成的步骤继续，完成后更新计划并总结结果。';
+  '继续执行当前持久化任务计划。先用 read_task_plan 读取计划、约束和当前项目状态，不要重复已完成的步骤；只能用 update_task_step 更新单个步骤状态，update_task_plan 只处理任务级状态。从第一个尚未完成的步骤继续。如果所有步骤已经完成且任务仍为 active，必须先用 update_task_plan 的 set_status 将任务设为 completed，再给最终总结；不要只口头宣布完成。';
 
 interface RunTerminalState {
   turnId: string;
@@ -487,7 +487,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             projectId,
             title: deriveTitle(text),
             mode: convMode,
-            messages: isRuntimeContinuation ? [] : [{ kind: 'user', text }],
+            messages: isRuntimeContinuation ? [] : [{ kind: 'user', text, at: now }],
             sdkSessionId: null,
             runtimeSessionId: null,
             createdAt: now,
@@ -516,7 +516,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         projectId,
         messages: isRuntimeContinuation
           ? [...(prevRun?.messages ?? [])]
-          : [...(prevRun?.messages ?? []), { kind: 'user', text }],
+          : [...(prevRun?.messages ?? []), { kind: 'user', text, at: now }],
         runtimeSessionId: prevRun?.runtimeSessionId ?? null,
         seenJournalEventIds: prevRun?.seenJournalEventIds ?? {},
         controlStatus: null,
@@ -596,6 +596,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           mode: auth,
           provider: settings.agentProvider,
           model: settings.agentModel,
+          contextMode: settings.agentMaxContext ? 'max' : 'standard',
           effort: settings.agentEffort,
           thinking: settings.agentThinking,
           // The General Agent always receives the workspace facade selected

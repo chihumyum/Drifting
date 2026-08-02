@@ -133,6 +133,11 @@ and reads that provider's BYOK credential lazily from native secure storage. It 
 through renderer repositories/use cases and routes prose writes through the live Yjs document. It
 does not require the removed desktop Node/Claude CLI, a sidecar, or a remote runner.
 
+The same turn boundary freezes model-aware thinking and reasoning effort. OpenAI offers the
+GPT-5.6 Sol/Terra/Luna family through the Responses API; DeepSeek and Anthropic retain their native
+thinking state only across the active tool loop. Unsupported model/provider combinations are
+disabled in Settings and normalized again at hydration and request boundaries.
+
 The transport seam still supports future `sidecar` or `remote` implementations, but those are
 extension points rather than prerequisites for the current product path. The current single-Agent
 slice freezes the canonical chapter manifest for whole-book tasks, persists plans, steps,
@@ -142,7 +147,9 @@ plus fully cited structured review result. Verified context
 compaction keeps canonical history while pinning current progress and active constraints. Durable
 active-plan hints keep plan, chapter-read, and prose-edit tools available even for a generic
 “continue” request. The Agent Panel streams from the canonical journal and offers an explicit
-same-session continuation while a plan is active or after a budget boundary.
+same-session continuation while a plan is active or after a budget boundary. Each visible author
+message records its send time, and every terminal Agent turn records its wall-clock work duration;
+canonical recovery restores both after a restart.
 
 The model-facing virtual workspace remains an internal navigation abstraction. The panel renders
 those calls as novel-domain activity (for example, reading a chapter or inspecting an element),

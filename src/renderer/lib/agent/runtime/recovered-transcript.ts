@@ -32,6 +32,7 @@ export interface CanonicalAgentChatProjection {
 
 interface CachedVisibleUserBundle {
   text: string;
+  at?: string;
   /**
    * Only an immediately-following cached error belongs to a user prompt that
    * never reached the canonical runtime. Assistant/tool rows remain excluded:
@@ -53,7 +54,7 @@ function cachedVisibleUserBundles(
       if (adjacent?.kind !== 'error') break;
       notices.push(adjacent);
     }
-    bundles.push({ text: message.text, notices });
+    bundles.push({ text: message.text, ...(message.at ? { at: message.at } : {}), notices });
   }
   return bundles;
 }
@@ -103,11 +104,15 @@ export async function loadCanonicalAgentChatProjection(
   const appendVisibleUser = (bundle: CachedVisibleUserBundle): void => {
     messages = [
       ...finalizeAgentChatStreaming(messages),
-      { kind: 'user', text: bundle.text },
+      { kind: 'user', text: bundle.text, ...(bundle.at ? { at: bundle.at } : {}) },
       ...bundle.notices,
     ];
   };
-  const takeVisibleUser = (canonicalText: string, allowHiddenPrefix: boolean): string => {
+  const takeVisibleUser = (
+    canonicalText: string,
+    allowHiddenPrefix: boolean,
+    fallbackAt?: string,
+  ): Pick<Extract<AgentChatMessage, { kind: 'user' }>, 'text' | 'at'> => {
     const matchesCanonical = (visible: CachedVisibleUserBundle, index: number): boolean =>
       index >= visibleUserIndex &&
       (visible.text === canonicalText ||
@@ -122,7 +127,9 @@ export async function loadCanonicalAgentChatProjection(
       cleanMatchIndex >= 0
         ? cleanMatchIndex
         : visibleUsers.findIndex((visible, index) => matchesCanonical(visible, index));
-    if (matchIndex === -1) return canonicalText;
+    if (matchIndex === -1) {
+      return { text: canonicalText, ...(fallbackAt ? { at: fallbackAt } : {}) };
+    }
     // User prompts accepted by the Panel can exist without a canonical turn
     // when provider/persistence preflight fails. Preserve those rows in their
     // original position instead of consuming one as the next turn's prompt.
@@ -130,7 +137,9 @@ export async function loadCanonicalAgentChatProjection(
       appendVisibleUser(visibleUsers[index]!);
     }
     visibleUserIndex = matchIndex + 1;
-    return visibleUsers[matchIndex]!.text;
+    const matched = visibleUsers[matchIndex]!;
+    const at = matched.at ?? fallbackAt;
+    return { text: matched.text, ...(at ? { at } : {}) };
   };
   const eventsByTurn = new Map<string, AgentRuntimeRecoverySnapshot['events']>();
   for (const event of snapshot.events) {
@@ -147,7 +156,8 @@ export async function loadCanonicalAgentChatProjection(
     const turnMessageStart = messages.length;
     const recoveredTurn = recovered.turns.find((candidate) => candidate.turnId === turn.id);
     const rows = eventsByTurn.get(turn.id) ?? [];
-    const prompt = turn.promptMessageId ? messageById.get(turn.promptMessageId)?.content : null;
+    const promptRow = turn.promptMessageId ? messageById.get(turn.promptMessageId) : undefined;
+    const prompt = promptRow?.content ?? null;
     let insertedPrompt = false;
     let hasTerminal = false;
     for (const row of rows) {
@@ -162,8 +172,12 @@ export async function loadCanonicalAgentChatProjection(
           continue;
         }
         const canonicalPrompt = typeof prompt === 'string' ? prompt : entry.event.prompt;
-        const visiblePrompt = takeVisibleUser(canonicalPrompt, true);
-        messages = [...finalizeAgentChatStreaming(messages), { kind: 'user', text: visiblePrompt }];
+        const visiblePrompt = takeVisibleUser(
+          canonicalPrompt,
+          true,
+          promptRow?.createdAt ?? new Date(entry.wallTimeMs).toISOString(),
+        );
+        messages = [...finalizeAgentChatStreaming(messages), { kind: 'user', ...visiblePrompt }];
         insertedPrompt = true;
         continue;
       }
@@ -178,9 +192,10 @@ export async function loadCanonicalAgentChatProjection(
       );
     }
     if (!insertedPrompt) {
-      const visiblePrompt = typeof prompt === 'string' ? takeVisibleUser(prompt, true) : null;
+      const visiblePrompt =
+        typeof prompt === 'string' ? takeVisibleUser(prompt, true, promptRow?.createdAt) : null;
       if (visiblePrompt) {
-        messages = [...finalizeAgentChatStreaming(messages), { kind: 'user', text: visiblePrompt }];
+        messages = [...finalizeAgentChatStreaming(messages), { kind: 'user', ...visiblePrompt }];
       }
     }
     // A recovered renderer has no live provider iterator even if the final

@@ -691,7 +691,13 @@ function evaluateTaskStepReviewEvidence(input: {
         'missing'
       >)
     : 'missing';
-  const startedAt = input.step.startedAt;
+  // A model may perform the exact target write before it emits the purely
+  // orchestration-level `in_progress` transition.  Binding evidence to that
+  // transition made a valid, post-plan write unusable and forced the provider
+  // to service bookkeeping in a brittle order.  The step creation boundary is
+  // the durable anti-replay boundary: it rejects pre-plan effects while still
+  // accepting an authorized exact-target write made at any later point.
+  const evidenceBoundaryAt = input.step.createdAt;
   const provenanceValid =
     evidence.reviewId === input.step.resultRef &&
     evidence.reviewSessionId === input.scope.sessionId &&
@@ -702,11 +708,10 @@ function evaluateTaskStepReviewEvidence(input: {
     evidence.effectPhase === 'result_committed' &&
     evidence.effectResultJson !== null &&
     evidence.effectResultCommittedAt !== null &&
-    startedAt !== null &&
-    evidence.effectResultCommittedAt >= startedAt &&
-    evidence.reviewCreatedAt >= startedAt &&
-    evidence.reviewUpdatedAt >= startedAt &&
-    (evidence.reviewSettledAt === null || evidence.reviewSettledAt >= startedAt) &&
+    evidence.effectResultCommittedAt >= evidenceBoundaryAt &&
+    evidence.reviewCreatedAt >= evidenceBoundaryAt &&
+    evidence.reviewUpdatedAt >= evidenceBoundaryAt &&
+    (evidence.reviewSettledAt === null || evidence.reviewSettledAt >= evidenceBoundaryAt) &&
     (input.scopeKind !== 'whole_book_chapters' ||
       WHOLE_BOOK_PROSE_MUTATION_TOOLS.has(evidence.effectToolName)) &&
     acceptedWriteMatchesStepTarget({
@@ -720,8 +725,7 @@ function evaluateTaskStepReviewEvidence(input: {
     provenanceValid &&
     (reviewStatus === 'accepted_effect' || reviewStatus === 'authorized_effect') &&
     evidence.reviewSettledAt !== null &&
-    startedAt !== null &&
-    evidence.reviewSettledAt >= startedAt;
+    evidence.reviewSettledAt >= evidenceBoundaryAt;
   let outcome: AgentRuntimeTaskStepReviewEvidence['outcome'];
   if (!provenanceValid || reviewStatus === 'missing') {
     outcome = 'invalid';
@@ -1950,6 +1954,16 @@ export function createAgentRuntimeLongTaskRepository(
                   'reviewResult is only valid when completing a review task step.',
                 );
               }
+              const finalizesExplicitTask =
+                command.status === 'completed' &&
+                plan.task.status === 'active' &&
+                plan.task.scopeKind === 'explicit_targets' &&
+                plan.steps.every(
+                  (candidate) =>
+                    candidate.id === step.id ||
+                    candidate.status === 'completed' ||
+                    candidate.status === 'retired',
+                );
               await tx
                 .update(AgentRuntimeTaskStepTable)
                 .set({
@@ -1978,7 +1992,18 @@ export function createAgentRuntimeLongTaskRepository(
                     eq(AgentRuntimeTaskStepTable.sessionId, scope.sessionId),
                   ),
                 );
-              await bumpRevision(tx, taskId, command.expectedRevision, at);
+              await bumpRevision(
+                tx,
+                taskId,
+                command.expectedRevision,
+                at,
+                finalizesExplicitTask
+                  ? {
+                      status: 'completed',
+                      endedAt: at,
+                    }
+                  : {},
+              );
               changedStepId = command.stepId;
             } else {
               assertMutableRevision(plan, command.expectedRevision);

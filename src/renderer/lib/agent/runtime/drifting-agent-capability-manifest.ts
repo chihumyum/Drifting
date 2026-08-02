@@ -11,6 +11,7 @@ import type {
 import {
   DRIFTING_AGENT_CONTEXT_PROFILE,
   DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS,
+  DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS,
   DRIFTING_AGENT_UNDECLARED_PROVIDER_CONTEXT_WINDOW_TOKENS,
 } from './drifting-agent-product-contract';
 import {
@@ -31,7 +32,7 @@ import { AGENT_AUTHOR_CONTROL_CONTRACT } from './system-prompt';
 import { AGENT_PROVIDER_OPTIONS } from './agent-provider-contract';
 import { DRIFTING_MCP_PROTOCOL_VERSION } from './mcp-transport';
 
-export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 10 as const;
+export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 12 as const;
 
 export type DriftingAgentToolOwner = 'workspace-runtime' | 'drifting-runtime' | 'long-task-runtime';
 
@@ -60,6 +61,7 @@ export interface DriftingAgentCapabilityManifest {
     runtimeHost: 'tauri-renderer';
     providerNeutralProtocol: true;
     contextWindowTokens: number;
+    maxContextWindowTokens: number;
     dynamicToolRegistration: 'project-scoped-runtime';
   };
   installedModelTools: {
@@ -100,7 +102,15 @@ export interface DriftingAgentCapabilityManifest {
   };
   authorControl: typeof AGENT_AUTHOR_CONTROL_CONTRACT;
   providerExtensionPlatform: {
-    certifiedProviders: Array<{ provider: string; models: string[] }>;
+    certifiedProviders: Array<{
+      provider: string;
+      models: Array<{
+        id: string;
+        wireContract: string;
+        thinkingModes: string[];
+        efforts: string[];
+      }>;
+    }>;
     mcpProtocolVersion: string;
     transports: readonly ['stdio', 'streamable_http'];
     stdioTargets: 'desktop-only-native-child-host';
@@ -221,6 +231,7 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
       runtimeHost: 'tauri-renderer',
       providerNeutralProtocol: true,
       contextWindowTokens: DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS,
+      maxContextWindowTokens: DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS,
       dynamicToolRegistration: 'project-scoped-runtime',
     },
     installedModelTools: {
@@ -269,7 +280,12 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
     providerExtensionPlatform: {
       certifiedProviders: AGENT_PROVIDER_OPTIONS.map((provider) => ({
         provider: provider.value,
-        models: provider.models.map((model) => model.value),
+        models: provider.models.map((model) => ({
+          id: model.value,
+          wireContract: model.context.id,
+          thinkingModes: [...model.reasoning.thinkingModes],
+          efforts: [...model.reasoning.efforts],
+        })),
       })),
       mcpProtocolVersion: DRIFTING_MCP_PROTOCOL_VERSION,
       transports: ['stdio', 'streamable_http'],

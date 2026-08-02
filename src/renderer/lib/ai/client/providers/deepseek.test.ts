@@ -328,6 +328,60 @@ describe('DeepSeekProvider.stream', () => {
     ]);
   });
 
+  it('uses the current thinking wire shape and preserves reasoning_content for tool replay', async () => {
+    const { requests } = installSseFetch([
+      completionChunk({
+        choices: [
+          {
+            index: 0,
+            delta: { reasoning_content: 'continue checking' },
+            finish_reason: null,
+          },
+        ],
+      }),
+      completionChunk({
+        choices: [{ index: 0, delta: { content: 'done' }, finish_reason: 'stop' }],
+      }),
+      completionChunk({
+        choices: [],
+        usage: { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13 },
+      }),
+      '[DONE]',
+    ]);
+    const provider = new DeepSeekProvider({
+      apiKey: 'test-key',
+      baseURL: 'https://deepseek.test/v1',
+    });
+    const messages = streamRequest.messages.map((message, index) =>
+      index === 1
+        ? { ...message, reasoningContent: 'inspect the manuscript' }
+        : message,
+    );
+
+    const chunks = await collect(
+      provider.stream({
+        ...streamRequest,
+        messages,
+        thinking: true,
+        reasoningEffort: 'max',
+      }),
+    );
+
+    expect(requests[0]?.body).toMatchObject({
+      thinking: { type: 'enabled' },
+      reasoning_effort: 'max',
+    });
+    expect(requests[0]?.body).not.toHaveProperty('tool_choice');
+    expect((requests[0]?.body.messages as Record<string, unknown>[])[2]).toMatchObject({
+      role: 'assistant',
+      reasoning_content: 'inspect the manuscript',
+    });
+    expect(chunks[0]).toEqual({
+      delta: '',
+      thinkingDelta: 'continue checking',
+    });
+  });
+
   it('rejects an already-aborted stream without sending or yielding a successful terminal chunk', async () => {
     const { fetchMock } = installSseFetch(['[DONE]']);
     const controller = new AbortController();

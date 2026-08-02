@@ -55,6 +55,32 @@ function sse(events: readonly Record<string, unknown>[]): string {
 describe('Anthropic Messages Agent driver', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('maps a forced completion tool to Anthropic tool_choice', async () => {
+    let body: Record<string, unknown> | undefined;
+    const driver = new AnthropicMessagesAgentDriver({
+      apiKey: 'test',
+      fetch: async (_input, init) => {
+        body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return new Response(
+          sse([
+            { type: 'message_start', message: { usage: { input_tokens: 1 } } },
+            {
+              type: 'message_delta',
+              delta: { stop_reason: 'end_turn' },
+              usage: { output_tokens: 1 },
+            },
+            { type: 'message_stop' },
+          ]),
+          { status: 200 },
+        );
+      },
+    });
+
+    await collect(driver, request({ toolChoice: { force: 'search' } }));
+
+    expect(body?.tool_choice).toEqual({ type: 'tool', name: 'search' });
+  });
+
   it('projects the model request and normalizes fragmented tool use, usage and finish', async () => {
     let captured: Record<string, unknown> | null = null;
     const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
@@ -192,5 +218,174 @@ describe('Anthropic Messages Agent driver', () => {
       'cancelled',
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sends adaptive effort and replays signed thinking blocks across a tool round', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    let call = 0;
+    const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      call += 1;
+      return new Response(
+        call === 1
+          ? sse([
+              { type: 'message_start', message: { usage: { input_tokens: 10 } } },
+              {
+                type: 'content_block_start',
+                index: 0,
+                content_block: { type: 'thinking', thinking: '', signature: '' },
+              },
+              {
+                type: 'content_block_delta',
+                index: 0,
+                delta: { type: 'thinking_delta', thinking: 'Check the index.' },
+              },
+              {
+                type: 'content_block_delta',
+                index: 0,
+                delta: { type: 'signature_delta', signature: 'signed-thinking' },
+              },
+              { type: 'content_block_stop', index: 0 },
+              {
+                type: 'content_block_start',
+                index: 1,
+                content_block: {
+                  type: 'tool_use',
+                  id: 'tool-thinking-1',
+                  name: 'search',
+                  input: {},
+                },
+              },
+              {
+                type: 'content_block_delta',
+                index: 1,
+                delta: { type: 'input_json_delta', partial_json: '{"query":"rain"}' },
+              },
+              { type: 'content_block_stop', index: 1 },
+              {
+                type: 'message_delta',
+                delta: { stop_reason: 'tool_use' },
+                usage: { output_tokens: 8 },
+              },
+              { type: 'message_stop' },
+            ])
+          : sse([
+              { type: 'message_start', message: { usage: { input_tokens: 15 } } },
+              {
+                type: 'content_block_start',
+                index: 0,
+                content_block: { type: 'text' },
+              },
+              {
+                type: 'content_block_delta',
+                index: 0,
+                delta: { type: 'text_delta', text: 'Found it.' },
+              },
+              { type: 'content_block_stop', index: 0 },
+              {
+                type: 'message_delta',
+                delta: { stop_reason: 'end_turn' },
+                usage: { output_tokens: 4 },
+              },
+              { type: 'message_stop' },
+            ]),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+      );
+    });
+    const driver = new AnthropicMessagesAgentDriver({
+      apiKey: 'test',
+      fetch: fetchMock,
+    });
+
+    const first = await collect(
+      driver,
+      request({ reasoning: { enabled: true, effort: 'xhigh' } }),
+    );
+    expect(first).toContainEqual({ type: 'thinking_delta', text: 'Check the index.' });
+
+    await collect(
+      driver,
+      request({
+        iteration: 2,
+        reasoning: { enabled: true, effort: 'xhigh' },
+        context: {
+          systemPrompt: 'Use only certified tools.',
+          messages: [
+            {
+              type: 'model_message',
+              sourceIds: ['message/user/1'],
+              message: { role: 'user', content: 'Search rain.' },
+            },
+            {
+              type: 'model_message',
+              sourceIds: ['message/assistant/1'],
+              message: {
+                role: 'assistant',
+                content: [
+                  { type: 'thinking', text: 'Check the index.' },
+                  {
+                    type: 'tool_call',
+                    callId: 'tool-thinking-1',
+                    name: 'search',
+                    arguments: { query: 'rain' },
+                    rawArguments: '{"query":"rain"}',
+                  },
+                ],
+              },
+            },
+            {
+              type: 'model_message',
+              sourceIds: ['message/tool/1'],
+              message: {
+                role: 'tool',
+                content: [
+                  {
+                    callId: 'tool-thinking-1',
+                    name: 'search',
+                    ok: true,
+                    content: '{"matches":[]}',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(bodies[0]).toMatchObject({
+      thinking: { type: 'adaptive', display: 'summarized' },
+      output_config: { effort: 'xhigh' },
+    });
+    expect(bodies[1]?.messages).toEqual([
+      { role: 'user', content: 'Search rain.' },
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'thinking',
+            thinking: 'Check the index.',
+            signature: 'signed-thinking',
+          },
+          {
+            type: 'tool_use',
+            id: 'tool-thinking-1',
+            name: 'search',
+            input: { query: 'rain' },
+          },
+        ],
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'tool-thinking-1',
+            content: '{"matches":[]}',
+            is_error: false,
+          },
+        ],
+      },
+    ]);
   });
 });

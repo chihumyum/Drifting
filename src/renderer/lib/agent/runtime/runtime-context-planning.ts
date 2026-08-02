@@ -47,6 +47,7 @@ export interface AgentRuntimeContextPlanningHookInput {
   driverId: string;
   provider?: string;
   model?: string;
+  contextMode?: 'standard' | 'max';
   context: AgentRuntimeContext;
   systemPrompt: string;
   messages: readonly AgentModelMessage[];
@@ -128,6 +129,7 @@ export interface AgentRuntimeContextPlanningRequest {
   driverId: string;
   provider?: string;
   model?: string;
+  contextMode?: 'standard' | 'max';
   context: AgentRuntimeContext;
   systemPrompt?: string;
   messages: readonly AgentModelMessage[];
@@ -253,9 +255,10 @@ export const identifyExplicitAgentUserConstraints: AgentRuntimeUserConstraintPol
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
     const firstGoal = index === 0;
+    const latestRequest = index === candidates.length - 1;
     const explicit = EXPLICIT_USER_CONSTRAINT.test(candidate.content);
     const explicitFact = EXPLICIT_AUTHOR_FACT.test(candidate.content);
-    if (!firstGoal && !explicit && !explicitFact) continue;
+    if (!firstGoal && !latestRequest && !explicit && !explicitFact) continue;
     const kind: AgentRuntimeUserConstraintDecision['kind'] = firstGoal
       ? 'session_goal'
       : EXPLICIT_USER_VETO.test(candidate.content)
@@ -432,6 +435,7 @@ export class AgentRuntimeContextPlanningCoordinator {
       driverId: request.driverId,
       ...(request.provider ? { provider: request.provider } : {}),
       ...(request.model ? { model: request.model } : {}),
+      ...(request.contextMode ? { contextMode: request.contextMode } : {}),
       context: request.context,
       systemPrompt,
       messages: request.messages,
@@ -555,7 +559,18 @@ export class AgentRuntimeContextPlanningCoordinator {
           fixedInputTokens,
           ...(constraintLedger ? { constraintLedger } : {}),
           ...(deterministicSummaries ? { deterministicSummaries } : {}),
-          ...(this.options.fullCompactor ? { fullCompactor: this.options.fullCompactor } : {}),
+          ...(this.options.fullCompactor
+            ? {
+                fullCompactor: (compactionRequest) =>
+                  this.options.fullCompactor!({
+                    ...compactionRequest,
+                    sessionId: hookInput.sessionId,
+                    turnId: hookInput.turnId,
+                    ...(hookInput.provider ? { provider: hookInput.provider } : {}),
+                    ...(hookInput.model ? { model: hookInput.model } : {}),
+                  }),
+              }
+            : {}),
           compactionCircuit: circuit,
           ...(this.options.compactionTimeoutMs
             ? { compactionTimeoutMs: this.options.compactionTimeoutMs }

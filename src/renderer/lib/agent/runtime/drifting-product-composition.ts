@@ -83,7 +83,10 @@ import {
 import { loadAgentWriteReviewContextRows } from './write-review-feedback';
 import type { GeneralAgentTransport } from '../transport';
 import { DriftingWorkspaceToolRuntime } from './drifting-workspace-tool-runtime';
-import { resolveDriftingAgentContextProfile } from './drifting-agent-product-contract';
+import {
+  requestedDriftingAgentContextWindowTokens,
+  resolveDriftingAgentContextProfile,
+} from './drifting-agent-product-contract';
 import { resolveAgentProviderContextProfile } from './agent-provider-contract';
 import { loadStorylineMembershipSnapshot } from './domain-crud-revision';
 import { createDurableDynamicPermissionAuthority } from './durable-permission-authority';
@@ -302,12 +305,12 @@ export function createDriftingAgentProductComposition(
       resolveProviderProfile: (input) =>
         resolveDriftingAgentContextProfile({
           declared: resolveAgentProviderContextProfile(input.provider, input.model),
-          ...(options.contextWindowTokens !== undefined
-            ? { requestedContextWindowTokens: options.contextWindowTokens }
-            : {}),
+          requestedContextWindowTokens:
+            options.contextWindowTokens ??
+            requestedDriftingAgentContextWindowTokens(input.contextMode),
         }),
       compactionTimeoutMs: 60_000,
-      fullCompactor: createDriftingContextCompactor(),
+      fullCompactor: createDriftingContextCompactor({ driver }),
       userConstraintPolicy: identifyExplicitAgentUserConstraints,
       deterministicSummaries: createDurableAgentContextSummaryHook(repositories.runtime),
       supplementalRows: async (input) => {

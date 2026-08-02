@@ -15,6 +15,7 @@ function parseArgs(argv) {
     };
     if (arg === '--project') options.projectId = next();
     else if (arg === '--review') options.reviewId = next();
+    else if (arg === '--block') options.blockId = next();
     else if (arg === '--decision') options.decision = next();
     else if (arg === '--note') options.note = next();
     else if (arg === '--url') options.url = next();
@@ -27,9 +28,10 @@ function parseArgs(argv) {
 function usage() {
   return [
     'Usage:',
-    '  pnpm agent:debug:review -- --project <id> --review <id> --decision accept|reject',
+    '  pnpm agent:debug:review -- --project <id> --review <id> [--block <block-id>] --decision accept|reject',
     '',
     'Options:',
+    '  --block <block-id>  Settle one review block instead of every pending block',
     '  --note <text>',
     '  --url <http://127.0.0.1:4317>',
   ].join('\n');
@@ -53,6 +55,7 @@ async function main() {
     body: JSON.stringify({
       projectId: options.projectId,
       reviewId: options.reviewId,
+      ...(options.blockId ? { blockId: options.blockId } : {}),
       decision: options.decision,
       ...(options.note ? { note: options.note } : {}),
     }),
@@ -75,7 +78,9 @@ async function main() {
         } else if (payload.type === 'bridge_failed') {
           throw new Error(payload.error);
         } else if (payload.type === 'bridge_completed') {
-          console.log(`[completed] review=${payload.reviewId} status=${payload.status}`);
+          console.log(
+            `[completed] review=${payload.reviewId}${payload.blockId ? ` block=${payload.blockId}` : ''} status=${payload.status}`,
+          );
         }
       }
       newline = buffered.indexOf('\n');

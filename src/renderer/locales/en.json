@@ -472,7 +472,7 @@
       "kicker": "ABOUT",
       "title": "Drifting",
       "sub": "The ultimate writing experience",
-      "cnName": "缀浮",
+      "cnName": "灵感",
       "version": "Version",
       "channel": "Channel",
       "channelDev": "Development",
@@ -709,13 +709,47 @@
         "deepseek-v4-pro": {
           "label": "DeepSeek Pro · steady",
           "short": "Pro"
+        },
+        "claude-sonnet-5": {
+          "label": "Claude Sonnet 5 · balanced",
+          "short": "Sonnet 5"
+        },
+        "claude-haiku-4-5-20251001": {
+          "label": "Claude Haiku 4.5 · fast",
+          "short": "Haiku 4.5"
+        },
+        "gpt-5.6-sol": {
+          "label": "GPT-5.6 Sol · frontier",
+          "short": "5.6 Sol"
+        },
+        "gpt-5.6-terra": {
+          "label": "GPT-5.6 Terra · balanced",
+          "short": "5.6 Terra"
+        },
+        "gpt-5.6-luna": {
+          "label": "GPT-5.6 Luna · efficient",
+          "short": "5.6 Luna"
         }
       },
       "reasoningTitle": "Reasoning",
       "thinking": "Extended thinking",
-      "thinkingDesc": "The current Agent tool chain keeps extended thinking off so provider-neutral history can be replayed safely.",
+      "thinkingDesc": "Uses the selected provider's native reasoning mode and preserves its opaque tool-loop replay state for the active turn.",
+      "thinkingUnavailable": "This model does not expose a certified thinking mode.",
       "effort": "Thinking effort",
-      "effortDesc": "Has no effect while extended thinking is off.",
+      "effortDesc": "Available effort levels follow the selected provider and model; the value is frozen when a turn starts.",
+      "effortUnavailable": "This model does not expose a certified effort control.",
+      "notSupported": "Not supported",
+      "thinkingOptions": {
+        "off": "Off",
+        "adaptive": "Adaptive"
+      },
+      "effortOptions": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "xhigh": "Extra high",
+        "max": "Max"
+      },
       "toolSearchTitle": "Tool search",
       "toolSearch": "Tool search",
       "toolSearchDesc": "Selects at most 8 certified tool schemas per iteration after policy filtering. New installs and upgrades use Auto by default; you can still turn it off here.",
@@ -1145,9 +1179,16 @@
       "aria": "Model and reasoning settings",
       "model": "Model",
       "switchModel": "Switch model",
+      "maxContext": "Max · 1M context",
+      "maxContextTitle": "Use the selected model's declared context window up to 1M tokens. Off uses the standard 200k window. Applies to newly submitted turns only.",
+      "maxContextUnavailable": "The selected model does not support a 1M-token context window.",
       "reasoning": "Reasoning",
       "extendedThinking": "Extended thinking",
+      "extendedThinkingTitle": "Use the selected provider's certified native reasoning mode. Applies to newly submitted turns only.",
+      "reasoningUnavailable": "The selected model does not expose a certified thinking mode.",
       "effort": "Effort · {{effort}}",
+      "effortLabel": "Effort",
+      "notSupported": "Not supported",
       "edits": "Edits",
       "reviewEdits": "Review prose edits",
       "reviewEditsTitle": "When enabled, Agent writes prose into the editor and shows the colored diff with accept/reject controls in place. When disabled, the edit completes through the reveal animation automatically. Destructive structural actions such as deleting entities or changing relationships always ask before execution.",
@@ -1168,6 +1209,9 @@
       "outputTurns": "Output {{output}} · turns {{turns}}",
       "timingDetail": "Total {{total}}ms · API {{api}}ms · local {{local}}ms",
       "timingHint": "(total≈API means model-side latency; high cache read with near-zero cache write means the prefix is cached and each turn is dominated by output/thinking)",
+      "workedFor": "Agent worked {{duration}}",
+      "workDetail": "Agent worked for {{duration}} this turn",
+      "sentAt": "Sent at {{time}}",
       "turnsShort": "{{count}} turns",
       "sessionTitle": "Total tokens / cost / tool calls in this session",
       "session": "Session",
@@ -1382,7 +1426,7 @@
     }
   },
   "auth": {
-    "brand": { "cn": "缀浮" },
+    "brand": { "cn": "灵感" },
     "signIn": "Sign in",
     "signUp": "Sign up",
     "signInShort": "SIGN IN",

@@ -1,10 +1,10 @@
 {
   "suite": "milestone-f-literary-context-engineering",
   "schemaVersion": 1,
-  "nodeVersion": "v24.4.0",
+  "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "eba3d0ed889fb999ce6781f22f8b70e98fe5ac41",
-  "sourceSetSha256": "sha256:2c3da6bb5d6415209f42ab1b33426714458721f002aada146e927caaa4ad9b90",
+  "gitHead": "63fa6e9a6c3a165f2aa15d21af6eb1a8f51099dc",
+  "sourceSetSha256": "sha256:f1affb8099cdea3faf4c08aca5d4ae1accddae7ac85038dab7072f01cb9b34e9",
   "corpusPolicy": {
     "committedTruth": "distilled fog-harbor golden fixture",
     "privateProse": "read at test runtime only; machine report stores counts and bytes, never prose",
@@ -22,10 +22,10 @@
       "contextWindowTokens": 200000,
       "slices": 3,
       "compactedSlices": 2,
-      "compactorCalls": 22,
-      "medianTokenReduction": 0.7196034856421961,
-      "maxContextWindowRatio": 0.708925,
-      "finalEstimatedInputTokens": 141785
+      "compactorCalls": 30,
+      "medianTokenReduction": 0.60030777719009,
+      "maxContextWindowRatio": 0.60715,
+      "finalEstimatedInputTokens": 107332
     },
     "retrieval": {
       "canon_fact": {
@@ -61,8 +61,8 @@
       "voiceHits": 8,
       "voiceTotal": 8,
       "characterVoiceRecall": 1,
-      "constraintHits": 6,
-      "constraintTotal": 6,
+      "constraintHits": 7,
+      "constraintTotal": 7,
       "constraintRecall": 1,
       "retentionWitness": "exact",
       "sourceCoverage": 1
@@ -96,8 +96,8 @@
       "discovered": 11
     },
     "tests": {
-      "total": 79,
-      "passed": 79,
+      "total": 84,
+      "passed": 84,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -118,8 +118,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 37,
-          "passed": 37,
+          "total": 40,
+          "passed": 40,
           "failed": 0,
           "pending": 0
         },
@@ -129,8 +129,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 8,
-          "passed": 8,
+          "total": 10,
+          "passed": 10,
           "failed": 0,
           "pending": 0
         },
@@ -185,8 +185,28 @@
         "matches": 1,
         "passed": true
       },
-      "exactCompactorEvidence": {
-        "requiredName": "rejects summaries that omit or forge exact evidence from a tool result",
+      "safeCompactorFallback": {
+        "requiredName": "replaces summaries that omit or forge write evidence with the safe fallback",
+        "matches": 1,
+        "passed": true
+      },
+      "sameTurnOversize": {
+        "requiredName": "compacts older tool batches inside one oversized current turn",
+        "matches": 1,
+        "passed": true
+      },
+      "sameTurnChunking": {
+        "requiredName": "chunks inside one turn at tool-topology boundaries without splitting a pair",
+        "matches": 1,
+        "passed": true
+      },
+      "boundedCompactorCalls": {
+        "requiredName": "stops after enough chunk gain instead of compacting all history",
+        "matches": 1,
+        "passed": true
+      },
+      "maxContextMode": {
+        "requiredName": "lets Max request 1M while still capping to the provider declaration",
         "matches": 1,
         "passed": true
       },

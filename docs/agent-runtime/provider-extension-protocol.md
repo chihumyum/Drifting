@@ -5,12 +5,26 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
 
 ## 1. Provider boundary
 
-- A turn freezes one certified `provider` and one model from that provider's
-  catalog. Settings changes affect the next turn only; a model id can never be
+- A turn freezes one certified `provider`, model, thinking mode and reasoning
+  effort from that model's capability profile. Settings changes affect the
+  next turn only; a model id or unsupported reasoning value can never be
   silently routed through another provider.
-- DeepSeek and OpenAI use their respective Chat Completions adapters. Anthropic
-  uses the native Messages streaming adapter. All three project into the same
-  `text_delta`, complete tool-call arguments, usage and terminal-finish events.
+- DeepSeek uses Chat Completions with native `thinking` and top-level
+  `reasoning_effort`. During a thinking tool round, Drifting omits
+  `tool_choice` and replays the exact `reasoning_content` on the next iteration.
+- Anthropic uses native Messages streaming. Sonnet 5 exposes adaptive thinking
+  plus `low` through `max` effort; its signed thinking/redacted-thinking blocks
+  are retained verbatim only for the active tool loop. Haiku 4.5 exposes no
+  certified thinking/effort controls in the current catalog.
+- OpenAI is the GPT-5.6 family (`gpt-5.6-sol`, `gpt-5.6-terra`,
+  `gpt-5.6-luna`) on the Responses API. Thinking-off maps to reasoning effort
+  `none`; thinking-on maps to the selected `low` through `max` effort. Requests
+  use `store: false`, request encrypted reasoning content, and replay the exact
+  response output items only inside the active tool loop.
+- All three adapters project into the same `thinking_delta`, `text_delta`,
+  complete tool-call arguments, usage and terminal-finish events. Provider
+  opaque replay state never becomes portable canonical conversation history;
+  missing active-turn replay state fails closed.
 - Fragmented and parallel tool calls are assembled by stable call index/id.
   Missing usage, missing terminal finish, malformed arguments, authentication,
   rate limit and abort behavior are normalized before the runtime adopts
@@ -87,7 +101,8 @@ can revoke each grant explicitly.
 
 ## 6. Product and data flow
 
-1. Settings freezes provider/model for a requested turn and reads its Keychain
+1. Settings normalizes provider/model/thinking/effort against the certified
+   model profile, freezes all four for a requested turn and reads its Keychain
    key lazily.
 2. Project activation reads MCP configuration/grants from device-local SQLite,
    resolves only referenced secrets from Keychain and registers healthy tools.
@@ -131,3 +146,7 @@ DRIFTING_AGENT_LIVE_PROVIDER=anthropic ANTHROPIC_API_KEY=... \
 Use the matching `DEEPSEEK_AI_API_KEY`, `ANTHROPIC_API_KEY`, or
 `OPENAI_API_KEY`; an optional `DRIFTING_AGENT_LIVE_MODEL` overrides the first
 certified model. The launcher never runs from the deterministic gate.
+
+Authoritative upstream contracts: [OpenAI latest model guidance](https://developers.openai.com/api/docs/guides/latest-model),
+[DeepSeek thinking mode](https://api-docs.deepseek.com/guides/thinking_mode), and
+[Anthropic adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking).

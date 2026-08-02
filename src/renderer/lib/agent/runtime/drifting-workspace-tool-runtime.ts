@@ -306,10 +306,22 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       pathIsWithin(entry.path, prefix),
     );
     if (entries.length === 0 && isEmptyElementCategoryDirectory(projectId, prefix)) {
-      return { path: prefix, files: [], total: 0, truncated: false };
+      return {
+        path: prefix,
+        files: [],
+        total: 0,
+        truncated: false,
+        creationGuide: workspaceDirectoryCreationGuide(prefix),
+      };
     }
     if (entries.length === 0 && isVirtualWorkspaceRoot(prefix) && prefix !== '/elements') {
-      return { path: prefix, files: [], total: 0, truncated: false };
+      return {
+        path: prefix,
+        files: [],
+        total: 0,
+        truncated: false,
+        creationGuide: workspaceDirectoryCreationGuide(prefix),
+      };
     }
     if (entries.length === 0 && prefix !== '/elements') {
       throw new Error(`No virtual directory exists at "${prefix}"`);
@@ -403,6 +415,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         })),
       total: items.length,
       truncated: items.length > MAX_LISTED_FILES,
+      creationGuide: workspaceDirectoryCreationGuide(prefix),
     };
   }
 
@@ -420,6 +433,10 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     const page = sliceCodePoints(content, offset, limit);
     const nextOffset = Math.min(codePointLength(content), offset + codePointLength(page));
     const totalChars = codePointLength(content);
+    const wordCount =
+      entry.target.kind === 'node_prose'
+        ? currentNode(entry.target.nodeId, projectId).wordCount
+        : null;
     return {
       path,
       name: workspaceEntryDisplayName(entry),
@@ -429,6 +446,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       nextOffset,
       totalChars,
       truncated: nextOffset < totalChars,
+      ...(wordCount !== null ? { wordCount } : {}),
     };
   }
 
@@ -440,6 +458,42 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     const entries = buildWorkspaceEntries(projectId);
     if (!workspacePathExists(projectId, entries, prefix)) {
       throw new Error(`No virtual file or directory exists at "${prefix}"`);
+    }
+    const literalEntry =
+      entries.find((entry) => entry.path === prefix) ??
+      primaryWorkspaceEntry(projectId, prefix);
+    if (literalEntry) {
+      const content = await this.renderEntry(literalEntry, request);
+      const occurrences: Array<{
+        path: string;
+        name: string;
+        line: number;
+        snippet: string;
+      }> = [];
+      let cursor = 0;
+      while (cursor <= content.length) {
+        const index = content.indexOf(query, cursor);
+        if (index < 0) break;
+        const lineStart = content.lastIndexOf('\n', index - 1) + 1;
+        const nextBreak = content.indexOf('\n', index + query.length);
+        const lineEnd = nextBreak < 0 ? content.length : nextBreak;
+        occurrences.push({
+          path: literalEntry.path,
+          name: workspaceEntryDisplayName(literalEntry),
+          line: content.slice(0, index).split('\n').length,
+          snippet: compactDescription(content.slice(lineStart, lineEnd), 500),
+        });
+        cursor = index + query.length;
+      }
+      return {
+        query,
+        path: literalEntry.path,
+        matches: occurrences.slice(0, limit),
+        total: occurrences.length,
+        exact: true,
+        truncated: occurrences.length > limit,
+        ranking: 'literal-file-v1',
+      };
     }
     const byEntity = new Map<string, WorkspaceEntry>();
     for (const entry of entries) {
@@ -515,6 +569,8 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       query,
       path: prefix,
       matches: matches.slice(0, limit),
+      total: matches.length,
+      exact: false,
       truncated: matches.length > limit || recordBoolean(proseRead.value, 'truncated'),
       ranking: 'drifting-evidence-v1',
     };
@@ -1208,6 +1264,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       };
     }
     if (segments[0] === 'elements' && file === 'body.md' && segments.length === 4) {
+      const summary = initialStructuredSummary(content);
       return {
         expectedRevision,
         command: {
@@ -1216,17 +1273,24 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
             category: segments[1],
             name: segments[2],
             body: content,
+            ...(summary ? { summary } : {}),
             expectedRevision,
           },
         },
       };
     }
     if (segments[0] === 'storylines' && file === 'body.md' && segments.length === 3) {
+      const summary = initialStructuredSummary(content);
       return {
         expectedRevision,
         command: {
           name: 'create_storyline',
-          arguments: { name: segments[1], body: content, expectedRevision },
+          arguments: {
+            name: segments[1],
+            body: content,
+            ...(summary ? { summary } : {}),
+            expectedRevision,
+          },
         },
       };
     }
@@ -2389,14 +2453,21 @@ function workspaceReadModelData(value: unknown): string {
       return [shownPath];
     });
     if (result.truncated === true) lines.push('[More entries exist in this directory.]');
+    if (typeof result.creationGuide === 'string' && result.creationGuide.trim()) {
+      lines.push('', 'Creation guide:', result.creationGuide.trim());
+    }
     return [`Directory ${path}`, ...lines].join('\n');
   }
   if (typeof result.content === 'string') {
+    const wordCount =
+      typeof result.wordCount === 'number' && Number.isFinite(result.wordCount)
+        ? `\nWord count: ${result.wordCount}`
+        : '';
     const continuation =
       result.truncated === true && typeof result.nextOffset === 'number'
         ? `\n\n[File continues at character ${result.nextOffset}.]`
         : '';
-    return `${path}\n\n${result.content}${continuation}`;
+    return `${path}${wordCount}\n\n${result.content}${continuation}`;
   }
   if (Array.isArray(result.matches)) {
     const query = typeof result.query === 'string' ? result.query : '';
@@ -2407,11 +2478,65 @@ function workspaceReadModelData(value: unknown): string {
       const snippet = typeof match.snippet === 'string' ? match.snippet : '';
       return [`${match.path}${line}: ${snippet}`];
     });
-    if (matches.length === 0) return `No matches for ${JSON.stringify(query)} under ${path}.`;
+    const total =
+      typeof result.total === 'number' && Number.isFinite(result.total)
+        ? Math.max(0, Math.trunc(result.total))
+        : matches.length;
+    const header =
+      result.exact === true
+        ? `Exact literal occurrences: ${total}`
+        : `Search matches: ${total}`;
+    if (matches.length === 0) {
+      return `${header}\nNo matches for ${JSON.stringify(query)} under ${path}.`;
+    }
     if (result.truncated === true) matches.push('[More matches exist.]');
-    return matches.join('\n');
+    return [header, ...matches].join('\n');
   }
   return prettyJson(value);
+}
+
+function workspaceDirectoryCreationGuide(path: string): string | null {
+  if (path === '/') {
+    return 'List the relevant parent directory before creating an unfamiliar resource; its listing gives the exact one-write creation form.';
+  }
+  if (path === '/chapters' || path === '/drifts') {
+    const root = path === '/chapters' ? 'chapters' : 'drifts';
+    return (
+      `Create one resource with one write_file to /${root}/<title>/prose.md containing its complete initial prose. ` +
+      'title.txt and meta.json are generated automatically; do not create or rewrite them. If the author requests a summary, write summary.md after creation.'
+    );
+  }
+  if (path === '/elements' || path.startsWith('/elements/')) {
+    return (
+      'Elements are canon entities such as people, places, organizations, and objects. Author terms 灵感 or 漂移 belong under /drifts, never an /elements/灵感 category unless explicitly requested. Create one element with one write_file to /elements/<category>/<name>/body.md containing its complete initial profile. ' +
+      'If the author did not name a category, list /elements once and reuse the closest existing category; create a new category only when no suitable one exists. ' +
+      'name.txt, category.txt, and meta.json are generated automatically; do not create or rewrite them. A clearly labeled 摘要 or Summary section inside the initial body.md initializes the separate summary field in the same transaction; otherwise write summary.md separately when requested. aliases.json, facts.json, and group.txt are optional.'
+    );
+  }
+  if (path === '/storylines' || path === '/categories') {
+    const root = path === '/storylines' ? 'storylines' : 'categories';
+    return (
+      `Create one resource with one write_file to /${root}/<name>/body.md. ` +
+      'Generated identity and metadata files do not need a separate write.'
+    );
+  }
+  if (path === '/comments') {
+    return (
+      'Create exactly one JSON file per note or TODO at /comments/<descriptive-name>.json with ' +
+      '{"body":"核对时间线","kind":"todo","targetKind":"node","target":"灰港失踪案"}. ' +
+      'Use kind "note" for an author note. The placeholder path is not an existing file; choose a descriptive filename and do not read other comments to infer this schema.'
+    );
+  }
+  if (path === '/relations') {
+    return (
+      'Create exactly one JSON file per relationship at /relations/<descriptive-name>.json with ' +
+      '{"fromKind":"element","from":"伊莱","toKind":"element","to":"灰潮档案局","kind":"隶属"}. ' +
+      'Use exact entity names. One file creates one edge: "both A and B relate to C" requires separate A-to-C and B-to-C files, in addition to any requested A-to-B edge. ' +
+      'Wait until every referenced resource creation has succeeded before issuing relation writes; do not put them in the same tool-call batch. ' +
+      'The placeholder path is not an existing file; choose a descriptive filename and do not read other relations to infer this schema.'
+    );
+  }
+  return null;
 }
 
 function resolveWorkspacePath(projectId: string, value: unknown): string {
@@ -2482,6 +2607,24 @@ function entityReadReference(
     kind === 'category'
     ? entityDisplayName(state, kind, id)
     : id;
+}
+
+function initialStructuredSummary(markdown: string): string | null {
+  const lines = markdown.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n');
+  for (let index = 0; index < lines.length; index += 1) {
+    const heading = /^\s{0,3}(#{1,6})\s+(摘要|summary)\s*#*\s*$/iu.exec(lines[index] ?? '');
+    if (!heading) continue;
+    const level = heading[1]?.length ?? 6;
+    const collected: string[] = [];
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const next = /^\s{0,3}(#{1,6})\s+/u.exec(lines[cursor] ?? '');
+      if (next && (next[1]?.length ?? 6) <= level) break;
+      collected.push(lines[cursor] ?? '');
+    }
+    const summary = collected.join('\n').trim();
+    return summary || null;
+  }
+  return null;
 }
 
 function parseJsonObjectFile(value: string, path: string): Record<string, unknown> {

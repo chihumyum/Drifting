@@ -17,6 +17,7 @@ import type {
 import { clonePortableData } from './portable-data';
 import {
   createAgentRuntimeCheckpointContextV2,
+  createAgentRuntimeCheckpointContextV3,
   hashAgentRuntimeCheckpointContext,
   hashAgentRuntimeCheckpointPayload,
   recoverAgentRuntimeSnapshot,
@@ -51,8 +52,10 @@ export interface AgentRuntimeRecoveryCodec {
  * planner segments, manifests, and provider projection all witness one another.
  * That is valuable for restart verification, but a long tool-heavy turn can
  * make the single SQLite text parameter much larger than the history itself.
- * Keep renderer-to-native commits bounded; an oversized, already-verified V2
- * payload falls back to the exact hashed V1 history and is replanned next turn.
+ * Keep renderer-to-native commits bounded. An oversized, already-verified V2
+ * payload stores exact history plus its compact summary candidates in a slim
+ * V3 envelope, so restart does not pay for or risk repeating compaction. If no
+ * summary exists, exact hashed V1 history remains the smallest representation.
  */
 export const MAX_INLINE_AGENT_RUNTIME_V2_CHECKPOINT_BYTES = 512 * 1024;
 
@@ -483,9 +486,31 @@ export function createRepositoryAgentTransportPersistence(
             serializedByteLength(verifiedV2) <=
               MAX_INLINE_AGENT_RUNTIME_V2_CHECKPOINT_BYTES,
         );
+        const durableSummaries = input.contextCheckpointV2
+          ? input.contextCheckpointV2.providerEnvelope.plannerCheckpoint.projection.segments.flatMap(
+              (segment) =>
+                segment.type === 'summary'
+                  ? [
+                      {
+                        summaryId: segment.summaryId,
+                        sourceIds: [...segment.sourceIds],
+                        sourceHash: segment.sourceHash,
+                        content: segment.content,
+                      },
+                    ]
+                  : [],
+            )
+          : [];
+        const compactV3 =
+          !useV2 && durableSummaries.length > 0
+            ? createAgentRuntimeCheckpointContextV3({
+                canonicalHistory: context,
+                durableSummaries,
+              })
+            : null;
         const durableContext = useV2
           ? verifiedV2!
-          : context.map(clonePortableData);
+          : compactV3 ?? context.map(clonePortableData);
         throwIfAborted(signal);
         checkpoint = {
           id: runtimeCheckpointId(input.sessionId, turn.ordinal),
@@ -493,7 +518,7 @@ export function createRepositoryAgentTransportPersistence(
           throughTurnOrdinal: turn.ordinal,
           messageCount: context.length,
           context: durableContext,
-          contextHash: useV2
+          contextHash: useV2 || compactV3
             ? await hashAgentRuntimeCheckpointPayload(durableContext)
             : await recovery.hashCheckpointContext(context),
           createdAt: input.endedAt,

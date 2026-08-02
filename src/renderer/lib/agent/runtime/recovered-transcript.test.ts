@@ -220,6 +220,7 @@ describe('canonical Agent chat recovery projection', () => {
     expect(projection?.latestContextUsage).toEqual(contextUsageSnapshot());
     expect(projection?.messages).toEqual(
       expect.arrayContaining([
+        { kind: 'user', text: 'do the whole task', at: '2026-07-31T00:00:00.000Z' },
         expect.objectContaining({
           kind: 'assistant',
           text: 'partial progress',
@@ -235,9 +236,7 @@ describe('canonical Agent chat recovery projection', () => {
 
   it('keeps runtime continuation prompts in model history but out of the visible transcript', async () => {
     const persisted = snapshot();
-    const started = persisted.events.find(
-      (event) => event.eventType === 'turn_started',
-    )!;
+    const started = persisted.events.find((event) => event.eventType === 'turn_started')!;
     started.payload = {
       route,
       event: {
@@ -251,16 +250,9 @@ describe('canonical Agent chat recovery projection', () => {
       content: 'continue the durable plan',
     };
 
-    const projection = await loadCanonicalAgentChatProjection(
-      'session-1',
-      repository(persisted),
-    );
-    expect(projection?.messages.some((message) => message.kind === 'user')).toBe(
-      false,
-    );
-    expect(JSON.stringify(projection?.messages)).not.toContain(
-      'continue the durable plan',
-    );
+    const projection = await loadCanonicalAgentChatProjection('session-1', repository(persisted));
+    expect(projection?.messages.some((message) => message.kind === 'user')).toBe(false);
+    expect(JSON.stringify(projection?.messages)).not.toContain('continue the durable plan');
     expect(projection?.messages).toContainEqual(
       expect.objectContaining({ kind: 'assistant', text: 'partial progress' }),
     );
@@ -269,11 +261,19 @@ describe('canonical Agent chat recovery projection', () => {
   it('fails closed partial canonical thinking/tool arguments after an interrupted restart', async () => {
     const persisted = interruptedSnapshot();
     const projection = await loadCanonicalAgentChatProjection('session-1', repository(persisted), [
-      { kind: 'user', text: 'Read the visible chapter.' },
+      {
+        kind: 'user',
+        text: 'Read the visible chapter.',
+        at: '2026-07-30T12:34:00.000Z',
+      },
     ]);
 
     expect(projection?.messages).toEqual([
-      { kind: 'user', text: 'Read the visible chapter.' },
+      {
+        kind: 'user',
+        text: 'Read the visible chapter.',
+        at: '2026-07-30T12:34:00.000Z',
+      },
       { kind: 'thinking', text: 'checking context', streaming: false },
       {
         kind: 'tool',
@@ -312,7 +312,7 @@ describe('canonical Agent chat recovery projection', () => {
     expect(projection?.messages.slice(0, 3)).toEqual([
       { kind: 'user', text: 'prompt whose preflight failed' },
       { kind: 'error', text: 'Provider credential was unavailable.' },
-      { kind: 'user', text: 'do the whole task' },
+      { kind: 'user', text: 'do the whole task', at: '2026-07-31T00:00:00.000Z' },
     ]);
     expect(JSON.stringify(projection?.messages)).not.toContain('stale cached assistant text');
     expect(JSON.stringify(projection?.messages)).not.toContain('untrusted_cached_tool');
@@ -329,7 +329,7 @@ describe('canonical Agent chat recovery projection', () => {
     expect(projection?.messages.slice(0, 3)).toEqual([
       { kind: 'user', text: 'do the whole task' },
       { kind: 'error', text: 'Provider preflight failed.' },
-      { kind: 'user', text: 'do the whole task' },
+      { kind: 'user', text: 'do the whole task', at: '2026-07-31T00:00:00.000Z' },
     ]);
   });
 

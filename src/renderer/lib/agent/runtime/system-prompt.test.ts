@@ -15,7 +15,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(13);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(17);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).not.toContain('The canonical project name is "019f-opaque-project-id"');
@@ -32,6 +32,8 @@ describe('Drifting General Agent system prompt', () => {
     const system = prompt({ projectName: 'Book' });
 
     expect(system).toContain('The novel is an ordinary project workspace.');
+    expect(system).toContain('灵感, 漂移, inspiration, and drift mean a drift node');
+    expect(system).toContain('Never create an element category named 灵感');
     expect(system).toContain('list_files');
     expect(system).toContain('read_file');
     expect(system).toContain('grep');
@@ -80,6 +82,13 @@ describe('Drifting General Agent system prompt', () => {
     const system = prompt({ projectName: 'Book' });
 
     expect(system).toContain('create a durable task plan');
+    expect(system).toContain('explicit private checklist');
+    expect(system).toContain('a partial set is not complete');
+    expect(system).toContain('body.md and summary.md are not aliases');
+    expect(system).toContain('a clearly labeled 摘要 or Summary section');
+    expect(system).toContain('fields evolve independently');
+    expect(system).toContain('Never put a resource creation and a write that refers to that new resource');
+    expect(system).toContain('list /elements once and reuse the closest existing category');
     expect(system).toContain('scopeKind=whole_book_chapters');
     expect(system).toContain('with omitted steps');
     expect(system).toContain('scopeKind=explicit_targets');

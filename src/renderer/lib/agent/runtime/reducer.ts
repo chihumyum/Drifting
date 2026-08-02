@@ -75,6 +75,9 @@ function sameRoute(a: AgentRuntimeRoute, b: AgentRuntimeRoute): boolean {
       a.chapterId === b.chapterId
     );
   }
+  if (a.kind === 'shadow' && b.kind === 'shadow') {
+    return a.chapterId === b.chapterId && a.operation === b.operation;
+  }
   return a.kind === 'test' && b.kind === 'test';
 }
 
@@ -124,11 +127,16 @@ function applyEvent(state: AgentRuntimeState, event: AgentRuntimeEvent, wallTime
   switch (event.type) {
     case 'turn_started':
       invariant(state.status === 'idle', 'turn_started must be the first event');
+      invariant(
+        event.completionTool === undefined || event.completionTool.trim().length > 0,
+        'completion tool name must not be empty',
+      );
       return {
         ...state,
         status: 'running' as const,
         prompt: event.prompt,
         startedAtMs: wallTimeMs,
+        completionToolName: event.completionTool ?? null,
       };
 
     case 'model_iteration_started': {
@@ -142,7 +150,8 @@ function applyEvent(state: AgentRuntimeState, event: AgentRuntimeEvent, wallTime
         invariant(
           state.lastStopReason === 'tool_use' ||
             (state.lastStopReason === 'end_turn' &&
-              state.appliedSteeringSinceIteration),
+              (state.appliedSteeringSinceIteration ||
+                (state.completionToolName !== null && state.completionToolCallId === null))),
           `cannot continue after ${String(state.lastStopReason)}`,
         );
       }
@@ -448,6 +457,19 @@ function applyEvent(state: AgentRuntimeState, event: AgentRuntimeEvent, wallTime
       };
     }
 
+    case 'completion_tool_accepted': {
+      assertRunning(state, event);
+      invariant(state.activeIteration === null, 'completion tool accepted during model iteration');
+      invariant(state.completionToolName !== null, 'turn has no completion tool contract');
+      invariant(event.name === state.completionToolName, 'completion tool name mismatch');
+      invariant(state.completionToolCallId === null, 'completion tool already accepted');
+      invariant(state.lastStopReason === 'tool_use', 'completion tool requires tool_use stop');
+      const tool = state.tools[event.callId];
+      invariant(tool?.name === event.name, 'completion tool call is unknown');
+      invariant(tool.status === 'completed' && tool.result?.ok === true, 'completion tool failed');
+      return { ...state, completionToolCallId: event.callId };
+    }
+
     case 'turn_finished': {
       invariant(
         state.status === 'committing' ||
@@ -471,7 +493,14 @@ function applyEvent(state: AgentRuntimeState, event: AgentRuntimeEvent, wallTime
           state.modelIterationsWithUsage === state.modelIterations,
           'completed turn has a model iteration without usage',
         );
-        invariant(state.lastStopReason === 'end_turn', 'completed turn requires end_turn');
+        if (state.completionToolName !== null) {
+          invariant(
+            state.completionToolCallId !== null && state.lastStopReason === 'tool_use',
+            'structured turn requires an accepted completion tool',
+          );
+        } else {
+          invariant(state.lastStopReason === 'end_turn', 'completed turn requires end_turn');
+        }
       } else if (event.outcome === 'aborted') {
         invariant(!event.failureCode, 'aborted turn cannot carry a failure code');
       } else {
@@ -510,6 +539,8 @@ export function createAgentRuntimeState(
     modelIterations: 0,
     modelIterationsWithUsage: 0,
     lastStopReason: null,
+    completionToolName: null,
+    completionToolCallId: null,
     assistantText: '',
     thinkingText: '',
     toolOrder: [],

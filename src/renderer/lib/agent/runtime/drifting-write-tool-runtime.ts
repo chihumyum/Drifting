@@ -1729,6 +1729,9 @@ function durableWriteRoute(route: AgentRuntimeRoute) {
   if (route.kind === 'test' || !route.projectId) {
     throw new Error('A durable Agent write requires a project route');
   }
+  if (route.kind === 'shadow') {
+    throw new Error('Shadow workloads must use their explicit bounded tool profile');
+  }
   if (route.kind === 'chat') {
     if (!route.conversationId) {
       throw new Error('A durable Agent write requires a conversation');
@@ -2279,11 +2282,14 @@ function workspaceVisibleWriteResult(
   handlerResult?: unknown,
 ): {
   path: string;
+  requestedPath?: string;
   updated: true;
   replacements?: number;
   operation?: 'created' | 'updated' | 'deleted';
   guidance?: string;
   canonicalPath?: string;
+  wordCount?: number;
+  summaryInitialized?: true;
 } {
   const arguments_ = requireRecord(effect.arguments, 'The workspace write arguments are invalid');
   const path = String(arguments_.path ?? '');
@@ -2301,18 +2307,83 @@ function workspaceVisibleWriteResult(
     const entityId =
       recordString(handlerResult, 'entityId') ??
       recordString(handlerResult, 'commentId');
+    const state = useDataStore.getState();
     const categoryPath = /^\/categories\/(.+)\/body\.md$/u.exec(path);
+    const nodeId =
+      recordString(handlerResult, 'nodeId') ??
+      (recordString(handlerResult, 'entityType') === 'node'
+        ? recordString(handlerResult, 'entityId')
+        : null);
+    const wordCount =
+      nodeId && (command?.name === 'create_node' || command?.name === 'edit_prose_file')
+        ? (state.bookNodes.find((node) => node.id === nodeId && node.projectId === effect.projectId)
+            ?.wordCount ?? null)
+        : null;
+    const createdEntityPath = (() => {
+      if (!created || !entityId) return null;
+      if (command?.name === 'create_node') {
+        const node = state.bookNodes.find(
+          (item) => item.id === entityId && item.projectId === effect.projectId,
+        );
+        return node
+          ? `/${node.kind === 'chapter' ? 'chapters' : 'drifts'}/${workspaceResultPathSegment(node.title)}/prose.md`
+          : null;
+      }
+      if (command?.name === 'create_element') {
+        const element = state.bookElements.find(
+          (item) => item.id === entityId && item.projectId === effect.projectId,
+        );
+        const category = element
+          ? state.bookElementCategories.find(
+              (item) => item.id === element.categoryId && item.projectId === effect.projectId,
+            )
+          : null;
+        return element && category
+          ? `/elements/${workspaceResultPathSegment(category.name)}/${workspaceResultPathSegment(element.name)}/body.md`
+          : null;
+      }
+      if (command?.name === 'create_storyline') {
+        const storyline = state.storylines.find(
+          (item) => item.id === entityId && item.projectId === effect.projectId,
+        );
+        return storyline
+          ? `/storylines/${workspaceResultPathSegment(storyline.name)}/body.md`
+          : null;
+      }
+      if (command?.name === 'create_category') {
+        const category = state.bookElementCategories.find(
+          (item) => item.id === entityId && item.projectId === effect.projectId,
+        );
+        return category
+          ? `/categories/${workspaceResultPathSegment(category.name)}/body.md`
+          : null;
+      }
+      return null;
+    })();
+    const canonicalCandidate =
+      entityId && command?.name === 'remember'
+        ? `/memory/${workspaceResultPathSegment(entityId)}.json`
+        : entityId && command?.name === 'create_comment'
+          ? `/comments/${workspaceResultPathSegment(entityId)}.json`
+          : entityId && command?.name === 'add_relation'
+            ? `/relations/${workspaceResultPathSegment(entityId)}.json`
+            : createdEntityPath;
+    const canonicalPath = canonicalCandidate && canonicalCandidate !== path
+      ? canonicalCandidate
+      : null;
     return {
-      path,
+      // The path field is the resumable file identity. ID-backed resources are
+      // created through a descriptive request alias, but all later reads and
+      // mutations must use the canonical path returned by the database.
+      path: canonicalPath ?? path,
+      ...(canonicalPath ? { requestedPath: path } : {}),
       updated: true,
       operation: created ? 'created' : 'updated',
-      ...(entityId && command?.name === 'remember'
-        ? { canonicalPath: `/memory/${workspaceResultPathSegment(entityId)}.json` }
-        : entityId && command?.name === 'create_comment'
-          ? { canonicalPath: `/comments/${workspaceResultPathSegment(entityId)}.json` }
-          : entityId && command?.name === 'add_relation'
-            ? { canonicalPath: `/relations/${workspaceResultPathSegment(entityId)}.json` }
-            : {}),
+      ...(wordCount !== null ? { wordCount } : {}),
+      ...(created && typeof command?.arguments.summary === 'string' && command.arguments.summary.trim()
+        ? { summaryInitialized: true as const }
+        : {}),
+      ...(canonicalPath ? { canonicalPath } : {}),
       ...(command?.name === 'create_category' && categoryPath
         ? {
             guidance:
@@ -2391,10 +2462,13 @@ function workspaceModelWriteResult(
   return {
     updated: true as const,
     path: result.path,
+    ...(result.requestedPath ? { requestedPath: result.requestedPath } : {}),
     ...(result.replacements !== undefined ? { replacements: result.replacements } : {}),
     ...(result.operation ? { operation: result.operation } : {}),
     ...(result.guidance ? { guidance: result.guidance } : {}),
     ...(result.canonicalPath ? { canonicalPath: result.canonicalPath } : {}),
+    ...(result.wordCount !== undefined ? { wordCount: result.wordCount } : {}),
+    ...(result.summaryInitialized ? { summaryInitialized: true as const } : {}),
     writeRef,
     ...(reviewStatus ? { reviewStatus } : {}),
   };

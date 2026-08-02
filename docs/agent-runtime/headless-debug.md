@@ -16,6 +16,12 @@ caller receives NDJSON containing every canonical journal entry plus a terminal
 summary. Computer Use remains useful for a final UI smoke; it is no longer the
 main tool/runtime evaluation loop.
 
+If Vite reloads or the mounted renderer disconnects during a turn, the broker
+fails that lease immediately and frees the worker. It must not leave an
+`active` debug request until the original 10/15-minute deadline. The runtime's
+SQLite recovery path remains responsible for reconciling the interrupted turn
+when that conversation is resumed.
+
 For provider-independent tool protocol regression, no App or credential is
 needed:
 
@@ -68,8 +74,8 @@ The machine report is written to
 and the normative execution state machine lives in
 [`long-task-execution-protocol.md`](long-task-execution-protocol.md).
 
-For provider-aware 200k budgeting, real-novel evidence recall, structured
-literary compaction, exact author-constraint retention/confirmation, ranked
+For provider-aware Standard 200k/Max 1M budgeting, bounded same-turn literary
+compaction, malformed-output fallback, exact author-constraint retention, ranked
 search, artifact paging, multi-slice restart and compactor-fault regression:
 
 ```bash
@@ -168,6 +174,7 @@ changing production behavior:
 ```bash
 VITE_DRIFTING_AGENT_DEBUG_CONTEXT_WINDOW_TOKENS=60000 \
 VITE_DRIFTING_AGENT_DEBUG_RESULT_BUDGET_CHARS=5000 \
+VITE_DRIFTING_AGENT_DEBUG_DISABLE_HMR=1 \
 VITE_DRIFTING_AGENT_DEBUG_URL=http://127.0.0.1:4317 \
 VITE_DRIFTING_AGENT_DEBUG_PROJECT_ID=<project-id> \
 pnpm --dir client tauri:dev
@@ -175,8 +182,11 @@ pnpm --dir client tauri:dev
 
 The context override forces compaction at a smaller window. The result-budget
 override can only lower the normal read-result budget, forcing the same durable
-artifact paging path used by oversized production results. Both are ignored
-outside Vite DEV or when the loopback debug bridge is disabled.
+artifact paging path used by oversized production results. The HMR override
+keeps the mounted renderer fixed during a long canary so an unrelated source
+save cannot reload the page and invalidate the run. The context and result
+overrides are ignored outside Vite DEV or when the loopback debug bridge is
+disabled; the HMR override affects only this local Vite process.
 
 ```bash
 pnpm --dir client agent:debug:turn -- \
@@ -194,12 +204,18 @@ After copying the active SQLite database, run every provider-exposed write
 through the real renderer and immediately reject its durable review:
 
 ```bash
-pnpm --dir client agent:debug:writes -- --project <project-id>
+pnpm --dir client agent:debug:writes -- \
+  --project <project-id> \
+  --disposable-db
 ```
 
 Use `--list` or repeated `--only <scenario-id>` flags while diagnosing one
-tool. The matrix stops if a committed write cannot be reverted; keep the
-pre-run database copy until the final domain readback has passed.
+tool. `--disposable-db` is a mandatory operator acknowledgement: first launch
+the mounted App against an explicit copy of the SQLite project database, never
+the primary App database. The matrix uses a run-unique marker, accepts
+semantically equivalent workspace mutations, and stops if a committed write
+cannot be reverted; keep the pre-run database copy until the final domain
+readback has passed.
 
 Useful options:
 
@@ -221,9 +237,13 @@ the exact Yjs inverse on reject):
 pnpm --dir client agent:debug:review -- \
   --project synthetic-project-0001 \
   --review 'agent-review:agent-write:…' \
+  --block 'block-id' \
   --decision reject \
   --note 'headless inverse smoke'
 ```
+
+Omit `--block` to settle every still-pending block. Supplying it settles only
+that block through the same compare-and-set path used by the editor badge.
 
 The raw endpoint is also curl-friendly:
 
@@ -298,6 +318,36 @@ The automated gates for the same checkout were `718/718` full Core tests,
 workspace TypeScript typecheck, and ESLint with zero errors.
 This is runtime/tool coverage, not a substitute for the remaining native UI
 smoke on each target.
+
+## Paid write stress extension (2026-08-02)
+
+The bridge was subsequently run against disposable copies of the current
+`雾港纪事` SQLite database with the configured paid DeepSeek route. The primary
+database SHA-256 was checked before and after every mutation campaign, before
+the normal App was reopened. A later SQLite checkpoint may legitimately change
+the physical file hash, so named artifact and row-level comparisons remain the
+final isolation check.
+
+- The certified write matrix passed all 14/14 scenarios, including block and
+  range prose edits, structural/entity/storyline/fact/comment writes, patches
+  and rename. Mixed block review accepted one block and rejected another; the
+  final Yjs readback retained only the accepted marker.
+- A real five-chapter task crossed the Standard 200k compaction boundary,
+  persisted nine summaries, resumed from a roughly 315 KB V3 checkpoint, and
+  reused those summaries after a 3.285-second cold reopen without another
+  provider compaction call.
+- The final compound author workflow created one 1,966-character inspiration
+  draft, two typed entities with independent summaries, exactly three
+  relations, one comment and one TODO, then reread the package through
+  canonical paths. It completed seven model iterations and 36/36 tool calls in
+  67.368 seconds with no failed call.
+- Direct SQLite comparison against the primary fixture found zero chapter-row,
+  Yjs-update, snapshot or revision differences. This is E3 mounted-renderer
+  evidence, not E4 visual/editor interaction evidence.
+
+After the final fixes, the full Core baseline was 136 files / 897 tests;
+typecheck passed; lint reported zero errors and 41 pre-existing warnings; the
+generated capability drift gate passed 9/9 acceptance groups.
 
 ## Safety and fidelity
 

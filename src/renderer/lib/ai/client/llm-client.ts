@@ -45,6 +45,11 @@ export class LLMClient {
     return this.provider.supportsTools === true;
   }
 
+  /** Stable provider capability id; callers must not infer wire behavior from model names. */
+  get providerId(): string {
+    return this.provider.id;
+  }
+
   /** Whether the provider's stream preserves the full function-calling loop. */
   get supportsToolStreaming(): boolean {
     return (

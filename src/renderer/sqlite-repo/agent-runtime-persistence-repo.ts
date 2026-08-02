@@ -411,9 +411,14 @@ function checkpointCanonicalMessageCount(context: unknown): number | null {
     typeof context !== 'object' ||
     context === null ||
     !('schemaVersion' in context) ||
-    context.schemaVersion !== 2 ||
     !('format' in context) ||
-    context.format !== 'drifting.agent-runtime-checkpoint-context' ||
+    !(
+      (context.schemaVersion === 2 &&
+        context.format === 'drifting.agent-runtime-checkpoint-context') ||
+      (context.schemaVersion === 3 &&
+        context.format ===
+          'drifting.agent-runtime-checkpoint-context-with-summaries')
+    ) ||
     !('canonicalHistory' in context) ||
     !Array.isArray(context.canonicalHistory)
   ) {

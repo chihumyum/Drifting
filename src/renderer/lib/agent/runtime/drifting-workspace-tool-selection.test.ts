@@ -82,6 +82,8 @@ describe('Drifting workspace-first tool selection', () => {
       'update_task_step',
       'list_files',
       'read_file',
+      'write_file',
+      'grep',
       'edit_file',
     ]);
   });
@@ -141,6 +143,29 @@ describe('Drifting workspace-first tool selection', () => {
     expect(selected).not.toContain('create_comment');
   });
 
+  it('keeps edit_file visible for a compound create plus comment task', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request(
+        '创建一条灵感和两个实体，添加关系、批注与待办；不要修改任何现有章节。完成后回读并修正发现的问题。',
+      ),
+    );
+    expect(selected).toEqual([
+      'list_files',
+      'read_file',
+      'write_file',
+      'grep',
+      'edit_file',
+      'ask_user',
+    ]);
+  });
+
+  it('does not expose mutation verbs for read-only comment analysis', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request('只阅读并分析现有批注，不要修改任何内容。'),
+    );
+    expect(selected).toEqual(['list_files', 'read_file', 'grep', 'ask_user']);
+  });
+
   it('recalls the certified delete tool for an explicit element-patch deletion', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
       request('删除柳青的这条元素补丁'),
@@ -158,6 +183,25 @@ describe('Drifting workspace-first tool selection', () => {
     expect(selected).toContain('get_element_patches');
     expect(selected).toContain('create_element_patch');
     expect(selected).not.toContain('update_element_patch');
+  });
+
+  it('treats appending to an existing patch title as an update', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request(
+        '读取 Grey Banker 的元素补丁，选择第一条，在原标题末尾追加一个标记。不要创建替代实体。',
+      ),
+    );
+    expect(selected).toContain('get_element_patches');
+    expect(selected).toContain('update_element_patch');
+    expect(selected).not.toContain('create_element_patch');
+  });
+
+  it('does not recall destructive tools from a negated mutation', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request('修改柳青的元素补丁，不要删除任何补丁。'),
+    );
+    expect(selected).toContain('update_element_patch');
+    expect(selected).not.toContain('delete_element_patch');
   });
 });
 

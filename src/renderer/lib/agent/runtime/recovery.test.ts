@@ -7,6 +7,7 @@ import {
   AgentRuntimeRecoveryCorruptionError,
   applyAgentRuntimeRecoveryPlan,
   createAgentRuntimeCheckpointContextV2,
+  createAgentRuntimeCheckpointContextV3,
   hashAgentRuntimeCheckpointContext,
   hashAgentRuntimeCheckpointPayload,
   recoverAgentRuntimeSnapshot,
@@ -319,10 +320,7 @@ function addCompletedSecondTurn(
 ): AgentRuntimeRecoverySnapshot {
   const secondTurnId = 'turn-2';
   const secondRoute = ROUTE;
-  const secondEvent = (
-    seq: number,
-    runtimeEvent: AgentRuntimeEvent,
-  ): PersistedAgentRuntimeEvent =>
+  const secondEvent = (seq: number, runtimeEvent: AgentRuntimeEvent): PersistedAgentRuntimeEvent =>
     event(seq, runtimeEvent, {
       turnId: secondTurnId,
       eventId: `${secondTurnId}:${String(seq).padStart(8, '0')}`,
@@ -414,9 +412,7 @@ function addCompletedSecondTurn(
 }
 
 function failureCode(error: unknown): string | undefined {
-  return error instanceof AgentRuntimeRecoveryCorruptionError
-    ? error.code
-    : undefined;
+  return error instanceof AgentRuntimeRecoveryCorruptionError ? error.code : undefined;
 }
 
 async function completeV2Context(
@@ -425,8 +421,7 @@ async function completeV2Context(
   const planned = await planAgentModelContext({
     systemPrompt: 'Drifting canonical agent policy.',
     messages: history,
-    resolveToolAccess: (name) =>
-      name === 'search_project' ? 'read' : undefined,
+    resolveToolAccess: (name) => (name === 'search_project' ? 'read' : undefined),
     planner: {
       contextWindowTokens: 20_000,
       requestedOutputTokens: 1_000,
@@ -479,9 +474,7 @@ function deniedHistory(): AgentModelMessage[] {
   ];
 }
 
-function snapshotWithHistory(
-  history: readonly AgentModelMessage[],
-): AgentRuntimeRecoverySnapshot {
+function snapshotWithHistory(history: readonly AgentModelMessage[]): AgentRuntimeRecoverySnapshot {
   const snapshot = completeSnapshot();
   snapshot.messages = snapshot.messages.map((row, index) => ({
     ...row,
@@ -547,33 +540,35 @@ describe('Agent runtime canonical recovery', () => {
         },
       }),
     ];
-    snapshot.toolCalls = [{
-      ...snapshot.toolCalls[0],
-      name: 'rename_node',
-      access: 'write',
-      status: 'requested',
-      arguments: argumentsValue,
-      result: null,
-      startedAt: null,
-      completedAt: null,
-    }];
+    snapshot.toolCalls = [
+      {
+        ...snapshot.toolCalls[0],
+        name: 'rename_node',
+        access: 'write',
+        status: 'requested',
+        arguments: argumentsValue,
+        result: null,
+        startedAt: null,
+        completedAt: null,
+      },
+    ];
 
     const recovered = await recoverAgentRuntimeSnapshot(snapshot);
 
-    expect(recovered.pendingControls).toEqual([{
-      sessionId: SESSION_ID,
-      turnId: TURN_ID,
-      status: 'waiting_permission',
-      permissionRequest: expect.objectContaining({
-        requestId: 'permission-1',
-        argumentsHash,
-        toolDefinitionRevision: 'dynamic:7:abcdef12',
-      }),
-      requiresContinuation: true,
-    }]);
-    expect(recovered.turns[0]?.journalState?.status).toBe(
-      'waiting_permission',
-    );
+    expect(recovered.pendingControls).toEqual([
+      {
+        sessionId: SESSION_ID,
+        turnId: TURN_ID,
+        status: 'waiting_permission',
+        permissionRequest: expect.objectContaining({
+          requestId: 'permission-1',
+          argumentsHash,
+          toolDefinitionRevision: 'dynamic:7:abcdef12',
+        }),
+        requiresContinuation: true,
+      },
+    ]);
+    expect(recovered.turns[0]?.journalState?.status).toBe('waiting_permission');
     expect(recovered.turns[0]?.recoveredStatus).toBe('interrupted');
   });
 
@@ -662,13 +657,44 @@ describe('Agent runtime canonical recovery', () => {
     const result = await recoverAgentRuntimeSnapshot(snapshot);
     expect(result.checkpointId).toBe('checkpoint-v2');
     expect(result.providerHistory).toEqual(context);
-    expect(
-      durableContext.canonicalHistory[
-        durableContext.canonicalHistory.length - 1
-      ],
-    ).toEqual({
+    expect(durableContext.canonicalHistory[durableContext.canonicalHistory.length - 1]).toEqual({
       role: 'assistant',
       content: [{ type: 'text', text: 'Alice appears once.' }],
+    });
+  });
+
+  it('recovers exact history and restart summaries from a compact V3 checkpoint', async () => {
+    const snapshot = completeSnapshot();
+    const context = completeMessages().map((row) => ({
+      role: row.role,
+      content: row.content,
+    })) as AgentModelMessage[];
+    const durableContext = createAgentRuntimeCheckpointContextV3({
+      canonicalHistory: context,
+      durableSummaries: [
+        {
+          summaryId: 'summary-before-restart',
+          sourceIds: ['model/turn/0/assistant/0'],
+          sourceHash: `sha256:${'a'.repeat(64)}`,
+          content: 'Earlier activity was compacted and remains available.',
+        },
+      ],
+    });
+    snapshot.checkpoints = [
+      {
+        id: 'checkpoint-v3',
+        sessionId: SESSION_ID,
+        throughTurnOrdinal: 0,
+        messageCount: context.length,
+        context: durableContext,
+        contextHash: await hashAgentRuntimeCheckpointPayload(durableContext),
+        createdAt: NOW,
+      },
+    ];
+
+    await expect(recoverAgentRuntimeSnapshot(snapshot)).resolves.toMatchObject({
+      checkpointId: 'checkpoint-v3',
+      providerHistory: context,
     });
   });
 
@@ -678,10 +704,7 @@ describe('Agent runtime canonical recovery', () => {
     const durableContext = await completeV2Context(history);
     expect(
       durableContext.canonicalSourceRows
-        .filter(
-          (row) =>
-            row.kind === 'tool_call' || row.kind === 'tool_result',
-        )
+        .filter((row) => row.kind === 'tool_call' || row.kind === 'tool_result')
         .map((row) => row.toolAccess),
     ).toEqual(['denied', 'denied']);
     snapshot.checkpoints = [
@@ -691,15 +714,12 @@ describe('Agent runtime canonical recovery', () => {
         throughTurnOrdinal: 0,
         messageCount: history.length,
         context: durableContext,
-        contextHash:
-          await hashAgentRuntimeCheckpointPayload(durableContext),
+        contextHash: await hashAgentRuntimeCheckpointPayload(durableContext),
         createdAt: NOW,
       },
     ];
 
-    await expect(
-      recoverAgentRuntimeSnapshot(snapshot),
-    ).resolves.toMatchObject({
+    await expect(recoverAgentRuntimeSnapshot(snapshot)).resolves.toMatchObject({
       checkpointId: 'checkpoint-v2-denied',
       providerHistory: history,
     });
@@ -720,9 +740,7 @@ describe('Agent runtime canonical recovery', () => {
       },
     ];
 
-    await expect(
-      recoverAgentRuntimeSnapshot(snapshot),
-    ).resolves.toMatchObject({
+    await expect(recoverAgentRuntimeSnapshot(snapshot)).resolves.toMatchObject({
       checkpointId: 'checkpoint-p2-denied',
       providerHistory: history,
     });
@@ -732,8 +750,7 @@ describe('Agent runtime canonical recovery', () => {
     {
       label: 'canonical history',
       mutate: (context: AgentRuntimeCheckpointContextV2) => {
-        const message =
-          context.canonicalHistory[context.canonicalHistory.length - 1];
+        const message = context.canonicalHistory[context.canonicalHistory.length - 1];
         if (message?.role !== 'assistant') throw new Error('fixture drift');
         message.content[0] = { type: 'text', text: 'tampered answer' };
       },
@@ -759,8 +776,7 @@ describe('Agent runtime canonical recovery', () => {
     {
       label: 'provider projection',
       mutate: (context: AgentRuntimeCheckpointContextV2) => {
-        context.providerEnvelope.providerContext.systemPrompt =
-          'tampered provider policy';
+        context.providerEnvelope.providerContext.systemPrompt = 'tampered provider policy';
       },
     },
     {
@@ -832,7 +848,7 @@ describe('Agent runtime canonical recovery', () => {
     const result = await recoverAgentRuntimeSnapshot(snapshot);
 
     expect(result.providerHistory).toEqual([]);
-    expect(result.transcript).toEqual([{ kind: 'user', text: 'Find Alice.' }]);
+    expect(result.transcript).toEqual([{ kind: 'user', text: 'Find Alice.', at: NOW }]);
     expect(result.plan).toMatchObject({
       session: {
         id: SESSION_ID,
@@ -872,24 +888,19 @@ describe('Agent runtime canonical recovery', () => {
       snapshot.toolCalls = [];
 
       const result = await recoverAgentRuntimeSnapshot(snapshot);
-      expect(
-        result.providerHistory,
-        `journal prefix length ${length}`,
-      ).toEqual([]);
-      expect(
-        result.turns[0]?.recoveredStatus,
-        `journal prefix length ${length}`,
-      ).toBe('interrupted');
+      expect(result.providerHistory, `journal prefix length ${length}`).toEqual([]);
+      expect(result.turns[0]?.recoveredStatus, `journal prefix length ${length}`).toBe(
+        'interrupted',
+      );
       expect(result.transcript[0], `journal prefix length ${length}`).toEqual({
         kind: 'user',
         text: 'Find Alice.',
+        at: NOW,
       });
       expect(
         result.transcript.filter(
           (message) =>
-            message.kind === 'assistant' ||
-            message.kind === 'thinking' ||
-            message.kind === 'tool',
+            message.kind === 'assistant' || message.kind === 'thinking' || message.kind === 'tool',
         ),
         `journal prefix length ${length}`,
       ).toEqual([]);
@@ -924,6 +935,7 @@ describe('Agent runtime canonical recovery', () => {
     expect(result.transcript).toContainEqual({
       kind: 'user',
       text: 'Find Alice.',
+      at: NOW,
     });
   });
 
@@ -973,8 +985,7 @@ describe('Agent runtime canonical recovery', () => {
           callId: 'call-1',
           name: 'search_project',
           ok: false,
-          content:
-            'Tool execution was interrupted before a durable result was recorded.',
+          content: 'Tool execution was interrupted before a durable result was recorded.',
         },
       ],
     });
@@ -1031,9 +1042,7 @@ describe('Agent runtime canonical recovery', () => {
       turns: [{ ...snapshot.turns[0], status: 'completed' as const }],
     };
 
-    expect(() =>
-      applyAgentRuntimeRecoveryPlan(concurrentlyChanged, result.plan),
-    ).toThrowError(
+    expect(() => applyAgentRuntimeRecoveryPlan(concurrentlyChanged, result.plan)).toThrowError(
       expect.objectContaining({ code: 'STALE_RECOVERY_PLAN' }),
     );
   });

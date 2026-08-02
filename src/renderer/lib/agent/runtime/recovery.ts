@@ -9,9 +9,7 @@ import type {
   PersistedAgentRuntimeEvent,
   PersistedAgentRuntimeMessage,
 } from '../../../domain/agent-runtime-persistence';
-import {
-  replayAgentRuntimeJournal,
-} from './reducer';
+import { replayAgentRuntimeJournal } from './reducer';
 import {
   agentModelMessagesToContextSources,
   rebuildAgentContextProviderProjection,
@@ -19,6 +17,7 @@ import {
   type AgentContextSupplementalPinnedRow,
 } from './context-message-adapter';
 import type {
+  AgentContextSummaryCandidate,
   AgentContextSourceKind,
   AgentContextSourceRow,
 } from './context-planner';
@@ -57,6 +56,9 @@ export type AgentRuntimeRecoveryCorruptionCode =
 export const AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_VERSION = 2 as const;
 export const AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_FORMAT =
   'drifting.agent-runtime-checkpoint-context' as const;
+export const AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_VERSION = 3 as const;
+export const AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_FORMAT =
+  'drifting.agent-runtime-checkpoint-context-with-summaries' as const;
 
 /**
  * Durable P4 checkpoint payload.
@@ -74,6 +76,20 @@ export interface AgentRuntimeCheckpointContextV2 {
   canonicalHistory: AgentModelMessage[];
   canonicalSourceRows: AgentContextSourceRow[];
   providerEnvelope: AgentContextProviderEnvelopeV2;
+}
+
+/**
+ * Compact durable checkpoint used when the fully witnessed V2 envelope would
+ * make the renderer-to-native commit needlessly large. Canonical history is
+ * still exact and independently reconciled against normalized message rows.
+ * Summary candidates are hash-bound by the checkpoint and are revalidated
+ * against the next turn's canonical source rows before replacing history.
+ */
+export interface AgentRuntimeCheckpointContextV3 {
+  schemaVersion: typeof AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_VERSION;
+  format: typeof AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_FORMAT;
+  canonicalHistory: AgentModelMessage[];
+  durableSummaries: AgentContextSummaryCandidate[];
 }
 
 export class AgentRuntimeRecoveryCorruptionError extends Error {
@@ -105,7 +121,11 @@ export type AgentRuntimeRecoveryRepair =
     };
 
 export interface AgentRuntimeStatusTransition<
-  T extends AgentRuntimeSessionStatus | AgentRuntimeTurnStatus | AgentRuntimeToolCallStatus | string,
+  T extends
+    | AgentRuntimeSessionStatus
+    | AgentRuntimeTurnStatus
+    | AgentRuntimeToolCallStatus
+    | string,
 > {
   id: string;
   from: T;
@@ -149,11 +169,7 @@ function corruption(
   message: string,
   cause?: unknown,
 ): never {
-  throw new AgentRuntimeRecoveryCorruptionError(
-    code,
-    message,
-    cause,
-  );
+  throw new AgentRuntimeRecoveryCorruptionError(code, message, cause);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -182,16 +198,8 @@ function assertIsoTimestamp(
   }
 }
 
-function toCanonicalJsonValue(
-  value: unknown,
-  path: string,
-  seen = new Set<object>(),
-): JsonValue {
-  if (
-    value === null ||
-    typeof value === 'string' ||
-    typeof value === 'boolean'
-  ) {
+function toCanonicalJsonValue(value: unknown, path: string, seen = new Set<object>()): JsonValue {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
     return value;
   }
   if (typeof value === 'number') {
@@ -209,9 +217,7 @@ function toCanonicalJsonValue(
   seen.add(value);
   try {
     if (Array.isArray(value)) {
-      return value.map((item, index) =>
-        toCanonicalJsonValue(item, `${path}[${index}]`, seen),
-      );
+      return value.map((item, index) => toCanonicalJsonValue(item, `${path}[${index}]`, seen));
     }
     const output: Record<string, JsonValue> = {};
     for (const key of Object.keys(value).sort()) {
@@ -232,9 +238,7 @@ function canonicalRecoveryJson(value: unknown): string {
 }
 
 function bytesToHex(bytes: ArrayBuffer): string {
-  return [...new Uint8Array(bytes)]
-    .map((value) => value.toString(16).padStart(2, '0'))
-    .join('');
+  return [...new Uint8Array(bytes)].map((value) => value.toString(16).padStart(2, '0')).join('');
 }
 
 /**
@@ -250,9 +254,7 @@ export async function hashAgentRuntimeCheckpointContext(
 }
 
 /** Hash any supported durable checkpoint payload with canonical JSON. */
-export async function hashAgentRuntimeCheckpointPayload(
-  payload: unknown,
-): Promise<string> {
+export async function hashAgentRuntimeCheckpointPayload(payload: unknown): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) {
     corruption(
@@ -269,10 +271,7 @@ function sameJson(left: unknown, right: unknown): boolean {
   return canonicalRecoveryJson(left) === canonicalRecoveryJson(right);
 }
 
-function parseAssistantBlock(
-  value: unknown,
-  path: string,
-): AgentAssistantContentBlock {
+function parseAssistantBlock(value: unknown, path: string): AgentAssistantContentBlock {
   if (!isRecord(value) || typeof value.type !== 'string') {
     corruption('INVALID_MESSAGE', `${path} is not an assistant content block.`);
   }
@@ -298,19 +297,16 @@ function parseAssistantBlock(
     corruption('INVALID_MESSAGE', `${path}.rawArguments is not JSON.`, error);
   }
   if (!isRecord(raw) || !sameJson(raw, value.arguments)) {
-    corruption(
-      'INVALID_MESSAGE',
-      `${path}.rawArguments does not match normalized arguments.`,
-    );
+    corruption('INVALID_MESSAGE', `${path}.rawArguments does not match normalized arguments.`);
   }
   return {
     type: 'tool_call',
     callId: value.callId,
     name: value.name,
-    arguments: toCanonicalJsonValue(
-      value.arguments,
-      `${path}.arguments`,
-    ) as Record<string, unknown>,
+    arguments: toCanonicalJsonValue(value.arguments, `${path}.arguments`) as Record<
+      string,
+      unknown
+    >,
     rawArguments: value.rawArguments,
   };
 }
@@ -327,8 +323,7 @@ function parseToolResult(value: unknown, path: string): AgentToolResultBlock {
   }
   if (
     (value.source !== undefined && value.source !== 'runtime') ||
-    (value.errorCode !== undefined &&
-      value.errorCode !== 'UNKNOWN_TOOL') ||
+    (value.errorCode !== undefined && value.errorCode !== 'UNKNOWN_TOOL') ||
     Object.keys(value).some(
       (key) =>
         key !== 'callId' &&
@@ -339,10 +334,7 @@ function parseToolResult(value: unknown, path: string): AgentToolResultBlock {
         key !== 'errorCode',
     )
   ) {
-    corruption(
-      'INVALID_MESSAGE',
-      `${path} has invalid tool-result provenance.`,
-    );
+    corruption('INVALID_MESSAGE', `${path} has invalid tool-result provenance.`);
   }
   const result: AgentToolResultBlock = {
     callId: value.callId,
@@ -354,10 +346,7 @@ function parseToolResult(value: unknown, path: string): AgentToolResultBlock {
     result.source = value.source as 'runtime';
     result.errorCode = value.errorCode as 'UNKNOWN_TOOL';
     if (!isCanonicalAgentRuntimeUnknownToolResult(result)) {
-      corruption(
-        'INVALID_MESSAGE',
-        `${path} has forged runtime-denial provenance.`,
-      );
+      corruption('INVALID_MESSAGE', `${path} has forged runtime-denial provenance.`);
     }
   }
   return result;
@@ -386,16 +375,12 @@ function parseModelMessageContent(
   if (role === 'assistant') {
     return {
       role: 'assistant',
-      content: content.map((block, index) =>
-        parseAssistantBlock(block, `${path}[${index}]`),
-      ),
+      content: content.map((block, index) => parseAssistantBlock(block, `${path}[${index}]`)),
     };
   }
   return {
     role: 'tool',
-    content: content.map((result, index) =>
-      parseToolResult(result, `${path}[${index}]`),
-    ),
+    content: content.map((result, index) => parseToolResult(result, `${path}[${index}]`)),
   };
 }
 
@@ -412,16 +397,9 @@ function parseCheckpointMessages(
   }
   return value.map((message, index) => {
     if (!isRecord(message) || typeof message.role !== 'string') {
-      corruption(
-        'INVALID_CHECKPOINT',
-        `Checkpoint "${checkpointId}" message ${index} is invalid.`,
-      );
+      corruption('INVALID_CHECKPOINT', `Checkpoint "${checkpointId}" message ${index} is invalid.`);
     }
-    if (
-      message.role !== 'user' &&
-      message.role !== 'assistant' &&
-      message.role !== 'tool'
-    ) {
+    if (message.role !== 'user' && message.role !== 'assistant' && message.role !== 'tool') {
       corruption(
         'INVALID_CHECKPOINT',
         `Checkpoint "${checkpointId}" message ${index} has an unsupported role.`,
@@ -433,10 +411,7 @@ function parseCheckpointMessages(
       `${path}[${index}].content`,
     );
     if (!parsed) {
-      corruption(
-        'INVALID_CHECKPOINT',
-        `Checkpoint "${checkpointId}" contains a system message.`,
-      );
+      corruption('INVALID_CHECKPOINT', `Checkpoint "${checkpointId}" contains a system message.`);
     }
     return parsed;
   });
@@ -461,22 +436,17 @@ function parseCheckpointSourceRow(
   checkpointId: string,
   index: number,
 ): AgentContextSourceRow {
-  const path =
-    `checkpoint[${checkpointId}].context.canonicalSourceRows[${index}]`;
+  const path = `checkpoint[${checkpointId}].context.canonicalSourceRows[${index}]`;
   if (
     !isRecord(value) ||
     !isNonEmptyString(value.sourceId) ||
     !isNonNegativeInteger(value.ordinal) ||
-    (value.turnOrdinal !== null &&
-      !isNonNegativeInteger(value.turnOrdinal)) ||
+    (value.turnOrdinal !== null && !isNonNegativeInteger(value.turnOrdinal)) ||
     typeof value.kind !== 'string' ||
     !CONTEXT_SOURCE_KINDS.has(value.kind as AgentContextSourceKind) ||
     typeof value.content !== 'string'
   ) {
-    corruption(
-      'INVALID_CHECKPOINT',
-      `${path} is not a canonical context source row.`,
-    );
+    corruption('INVALID_CHECKPOINT', `${path} is not a canonical context source row.`);
   }
   const isTool = value.kind === 'tool_call' || value.kind === 'tool_result';
   if (
@@ -486,19 +456,11 @@ function parseCheckpointSourceRow(
         (value.toolAccess !== 'read' &&
           value.toolAccess !== 'write' &&
           value.toolAccess !== 'denied')
-      : value.callId !== undefined ||
-        value.toolName !== undefined ||
-        value.toolAccess !== undefined
+      : value.callId !== undefined || value.toolName !== undefined || value.toolAccess !== undefined
   ) {
-    corruption(
-      'INVALID_CHECKPOINT',
-      `${path} has invalid tool metadata.`,
-    );
+    corruption('INVALID_CHECKPOINT', `${path} has invalid tool metadata.`);
   }
-  return toCanonicalJsonValue(
-    value,
-    path,
-  ) as unknown as AgentContextSourceRow;
+  return toCanonicalJsonValue(value, path) as unknown as AgentContextSourceRow;
 }
 
 function deriveCheckpointBridgeInput(
@@ -535,32 +497,63 @@ function deriveCheckpointBridgeInput(
     toolAccess.set(row.toolName!, row.toolAccess!);
   }
 
-  const supplementalRows = rows.flatMap(
-    (row): AgentContextSupplementalPinnedRow[] => {
-      if (
-        row.kind !== 'write_review' &&
-        row.kind !== 'write_revert' &&
-        row.kind !== 'freshness' &&
-        row.kind !== 'task_plan' &&
-        row.kind !== 'task_constraints'
-      ) {
-        return [];
-      }
-      return [
-        {
-          sourceId: row.sourceId,
-          turnOrdinal: row.turnOrdinal,
-          kind: row.kind,
-          content: row.content,
-        },
-      ];
-    },
-  );
+  const supplementalRows = rows.flatMap((row): AgentContextSupplementalPinnedRow[] => {
+    if (
+      row.kind !== 'write_review' &&
+      row.kind !== 'write_revert' &&
+      row.kind !== 'freshness' &&
+      row.kind !== 'task_plan' &&
+      row.kind !== 'task_constraints'
+    ) {
+      return [];
+    }
+    return [
+      {
+        sourceId: row.sourceId,
+        turnOrdinal: row.turnOrdinal,
+        kind: row.kind,
+        content: row.content,
+      },
+    ];
+  });
   return {
     systemPrompt: systems[0].content,
     supplementalRows,
     resolveToolAccess: (toolName) => toolAccess.get(toolName),
   };
+}
+
+function parseCheckpointSummaryCandidate(
+  value: unknown,
+  checkpointId: string,
+  index: number,
+): AgentContextSummaryCandidate {
+  const path = `checkpoint[${checkpointId}].context.durableSummaries[${index}]`;
+  if (!isRecord(value)) {
+    corruption('INVALID_CHECKPOINT', `${path} is not an object.`);
+  }
+  if (
+    !isNonEmptyString(value.summaryId) ||
+    !Array.isArray(value.sourceIds) ||
+    value.sourceIds.length === 0 ||
+    value.sourceIds.some((sourceId) => !isNonEmptyString(sourceId)) ||
+    new Set(value.sourceIds).size !== value.sourceIds.length ||
+    typeof value.sourceHash !== 'string' ||
+    !/^sha256:[0-9a-f]{64}$/.test(value.sourceHash) ||
+    !isNonEmptyString(value.content)
+  ) {
+    corruption('INVALID_CHECKPOINT', `${path} is invalid.`);
+  }
+  const candidate: AgentContextSummaryCandidate = {
+    summaryId: value.summaryId,
+    sourceIds: [...value.sourceIds] as string[],
+    sourceHash: value.sourceHash,
+    content: value.content,
+  };
+  if (!sameJson(value, candidate)) {
+    corruption('INVALID_CHECKPOINT', `${path} contains non-canonical or unsupported fields.`);
+  }
+  return candidate;
 }
 
 async function parseCheckpointContextV2(
@@ -585,10 +578,7 @@ async function parseCheckpointContextV2(
     `checkpoint[${checkpointId}].context.canonicalHistory`,
   );
   if (!Array.isArray(value.canonicalSourceRows)) {
-    corruption(
-      'INVALID_CHECKPOINT',
-      `Checkpoint "${checkpointId}" has no canonical source rows.`,
-    );
+    corruption('INVALID_CHECKPOINT', `Checkpoint "${checkpointId}" has no canonical source rows.`);
   }
   const canonicalSourceRows = value.canonicalSourceRows.map((row, index) =>
     parseCheckpointSourceRow(row, checkpointId, index),
@@ -612,10 +602,7 @@ async function parseCheckpointContextV2(
   }
 
   try {
-    const bridgeInput = deriveCheckpointBridgeInput(
-      canonicalSourceRows,
-      checkpointId,
-    );
+    const bridgeInput = deriveCheckpointBridgeInput(canonicalSourceRows, checkpointId);
     const rebuiltBridge = agentModelMessagesToContextSources({
       ...bridgeInput,
       messages: context,
@@ -643,12 +630,59 @@ async function parseCheckpointContextV2(
   return { context, payload };
 }
 
-async function parseCheckpointContext(
-  checkpoint: PersistedAgentRuntimeCheckpoint,
-): Promise<{
+function parseCheckpointContextV3(
+  value: Record<string, unknown>,
+  checkpointId: string,
+): {
+  context: AgentModelMessage[];
+  payload: AgentRuntimeCheckpointContextV3;
+} {
+  if (
+    value.schemaVersion !== AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_VERSION ||
+    value.format !== AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_FORMAT
+  ) {
+    corruption(
+      'INVALID_CHECKPOINT',
+      `Checkpoint "${checkpointId}" has an unsupported compact context envelope.`,
+    );
+  }
+  const context = parseCheckpointMessages(
+    value.canonicalHistory,
+    checkpointId,
+    `checkpoint[${checkpointId}].context.canonicalHistory`,
+  );
+  if (!Array.isArray(value.durableSummaries) || value.durableSummaries.length === 0) {
+    corruption(
+      'INVALID_CHECKPOINT',
+      `Checkpoint "${checkpointId}" has no durable context summaries.`,
+    );
+  }
+  const durableSummaries = value.durableSummaries.map((summary, index) =>
+    parseCheckpointSummaryCandidate(summary, checkpointId, index),
+  );
+  const summaryIds = durableSummaries.map((summary) => summary.summaryId);
+  if (new Set(summaryIds).size !== summaryIds.length) {
+    corruption('INVALID_CHECKPOINT', `Checkpoint "${checkpointId}" repeats a durable summary id.`);
+  }
+  const payload: AgentRuntimeCheckpointContextV3 = {
+    schemaVersion: AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_VERSION,
+    format: AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_FORMAT,
+    canonicalHistory: context,
+    durableSummaries,
+  };
+  if (!sameJson(value, payload)) {
+    corruption(
+      'INVALID_CHECKPOINT',
+      `Checkpoint "${checkpointId}" contains non-canonical V3 fields.`,
+    );
+  }
+  return { context, payload };
+}
+
+async function parseCheckpointContext(checkpoint: PersistedAgentRuntimeCheckpoint): Promise<{
   context: AgentModelMessage[];
   hashPayload: unknown;
-  version: 1 | 2;
+  version: 1 | 2 | 3;
 }> {
   if (Array.isArray(checkpoint.context)) {
     const context = parseCheckpointMessages(
@@ -664,10 +698,18 @@ async function parseCheckpointContext(
       `Checkpoint "${checkpoint.id}" context is not a supported durable payload.`,
     );
   }
-  const parsed = await parseCheckpointContextV2(
-    checkpoint.context,
-    checkpoint.id,
-  );
+  if (
+    checkpoint.context.schemaVersion === AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_VERSION &&
+    checkpoint.context.format === AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_FORMAT
+  ) {
+    const parsed = parseCheckpointContextV3(checkpoint.context, checkpoint.id);
+    return {
+      context: parsed.context,
+      hashPayload: parsed.payload,
+      version: 3,
+    };
+  }
+  const parsed = await parseCheckpointContextV2(checkpoint.context, checkpoint.id);
   return {
     context: parsed.context,
     hashPayload: parsed.payload,
@@ -696,14 +738,29 @@ export async function createAgentRuntimeCheckpointContextV2(input: {
     },
     'checkpoint.context',
   ) as unknown as Record<string, unknown>;
-  return (
-    await parseCheckpointContextV2(candidate, 'pending-v2-checkpoint')
-  ).payload;
+  return (await parseCheckpointContextV2(candidate, 'pending-v2-checkpoint')).payload;
+}
+
+export function createAgentRuntimeCheckpointContextV3(input: {
+  canonicalHistory: readonly AgentModelMessage[];
+  durableSummaries: readonly AgentContextSummaryCandidate[];
+}): AgentRuntimeCheckpointContextV3 {
+  const candidate = toCanonicalJsonValue(
+    {
+      schemaVersion: AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_VERSION,
+      format: AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_FORMAT,
+      canonicalHistory: input.canonicalHistory,
+      durableSummaries: input.durableSummaries,
+    },
+    'checkpoint.context',
+  ) as unknown as Record<string, unknown>;
+  return parseCheckpointContextV3(candidate, 'pending-v3-checkpoint').payload;
 }
 
 interface ScopedModelMessage {
   turnId: string | null;
   message: AgentModelMessage;
+  createdAt?: string;
 }
 
 interface RepairResult {
@@ -714,10 +771,7 @@ interface RepairResult {
 function repairToolPairs(input: readonly ScopedModelMessage[]): RepairResult {
   const messages: ScopedModelMessage[] = [];
   const repairs: AgentRuntimeRecoveryRepair[] = [];
-  const pending = new Map<
-    string,
-    { turnId: string | null; name: string }
-  >();
+  const pending = new Map<string, { turnId: string | null; name: string }>();
 
   const closePending = (): void => {
     if (pending.size === 0) return;
@@ -801,12 +855,7 @@ function uniqueRepairs(
 ): AgentRuntimeRecoveryRepair[] {
   const seen = new Set<string>();
   return repairs.filter((repair) => {
-    const key = [
-      repair.type,
-      repair.turnId ?? '',
-      repair.callId,
-      repair.name,
-    ].join('\u0000');
+    const key = [repair.type, repair.turnId ?? '', repair.callId, repair.name].join('\u0000');
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -817,8 +866,8 @@ function sortAndValidateMessageRows(
   rows: readonly PersistedAgentRuntimeMessage[],
   requireContiguous: boolean,
 ): PersistedAgentRuntimeMessage[] {
-  const sorted = [...rows].sort((left, right) =>
-    left.ordinal - right.ordinal || left.id.localeCompare(right.id),
+  const sorted = [...rows].sort(
+    (left, right) => left.ordinal - right.ordinal || left.id.localeCompare(right.id),
   );
   const ids = new Set<string>();
   const ordinals = new Set<number>();
@@ -854,11 +903,7 @@ function extractCompleteScopedMessages(
   const scoped = sortAndValidateMessageRows(rows, false)
     .filter((row) => row.status === 'complete')
     .map((row): ScopedModelMessage | null => {
-      const message = parseModelMessageContent(
-        row.role,
-        row.content,
-        `message[${row.id}].content`,
-      );
+      const message = parseModelMessageContent(row.role, row.content, `message[${row.id}].content`);
       return message ? { turnId: row.turnId, message } : null;
     })
     .filter((item): item is ScopedModelMessage => item !== null);
@@ -899,22 +944,13 @@ function parseUsage(value: unknown, path: string): AgentRuntimeUsage {
   if (!isRecord(value)) {
     corruption('EVENT_PAYLOAD_INVALID', `${path} must be a usage object.`);
   }
-  const fields = [
-    'inputTokens',
-    'outputTokens',
-    'cacheReadTokens',
-    'cacheWriteTokens',
-  ] as const;
+  const fields = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'] as const;
   for (const field of fields) {
     if (!isNonNegativeInteger(value[field])) {
       corruption('EVENT_PAYLOAD_INVALID', `${path}.${field} is invalid.`);
     }
   }
-  if (
-    typeof value.costUsd !== 'number' ||
-    !Number.isFinite(value.costUsd) ||
-    value.costUsd < 0
-  ) {
+  if (typeof value.costUsd !== 'number' || !Number.isFinite(value.costUsd) || value.costUsd < 0) {
     corruption('EVENT_PAYLOAD_INVALID', `${path}.costUsd is invalid.`);
   }
   return {
@@ -942,16 +978,28 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
       ) {
         corruption('EVENT_PAYLOAD_INVALID', `${path}.promptSource is invalid.`);
       }
+      if (value.completionTool !== undefined && !isNonEmptyString(value.completionTool)) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path}.completionTool is invalid.`);
+      }
       return {
         type: 'turn_started',
         prompt: value.prompt,
         ...(value.promptSource
           ? {
-              promptSource: value.promptSource as
-                | 'author'
-                | 'runtime_continuation',
+              promptSource: value.promptSource as 'author' | 'runtime_continuation',
             }
           : {}),
+        ...(value.completionTool ? { completionTool: value.completionTool } : {}),
+      };
+
+    case 'completion_tool_accepted':
+      if (!isNonEmptyString(value.callId) || !isNonEmptyString(value.name)) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid completion tool.`);
+      }
+      return {
+        type: 'completion_tool_accepted',
+        callId: value.callId,
+        name: value.name,
       };
 
     case 'model_iteration_started':
@@ -1042,10 +1090,10 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
         iteration: value.iteration,
         callId: value.callId,
         name: value.name,
-        arguments: toCanonicalJsonValue(
-          value.arguments,
-          `${path}.arguments`,
-        ) as Record<string, unknown>,
+        arguments: toCanonicalJsonValue(value.arguments, `${path}.arguments`) as Record<
+          string,
+          unknown
+        >,
         rawArguments: value.rawArguments,
       };
 
@@ -1083,8 +1131,7 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
         !Array.isArray(request.allowedScopes) ||
         request.allowedScopes.length === 0 ||
         request.allowedScopes.some(
-          (scope) =>
-            scope !== 'once' && scope !== 'session' && scope !== 'project',
+          (scope) => scope !== 'once' && scope !== 'session' && scope !== 'project',
         ) ||
         (request.reason !== undefined && typeof request.reason !== 'string')
       ) {
@@ -1099,16 +1146,15 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
           callId: request.callId,
           toolName: request.toolName,
           access: request.access,
-          arguments: toCanonicalJsonValue(
-            request.arguments,
-            `${path}.request.arguments`,
-          ) as Record<string, unknown>,
+          arguments: toCanonicalJsonValue(request.arguments, `${path}.request.arguments`) as Record<
+            string,
+            unknown
+          >,
           argumentsHash: request.argumentsHash,
           revision: request.revision,
           ...(request.toolDefinitionRevision
             ? {
-                toolDefinitionRevision:
-                  request.toolDefinitionRevision,
+                toolDefinitionRevision: request.toolDefinitionRevision,
               }
             : {}),
           ...(request.reason ? { reason: request.reason } : {}),
@@ -1127,15 +1173,12 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
         !isNonEmptyString(resolution.callId) ||
         typeof resolution.argumentsHash !== 'string' ||
         !/^sha256:[0-9a-f]{64}$/.test(resolution.argumentsHash) ||
-        (resolution.revision !== null &&
-          typeof resolution.revision !== 'string') ||
-        (resolution.decision !== 'allow' &&
-          resolution.decision !== 'deny') ||
+        (resolution.revision !== null && typeof resolution.revision !== 'string') ||
+        (resolution.decision !== 'allow' && resolution.decision !== 'deny') ||
         (resolution.scope !== 'once' &&
           resolution.scope !== 'session' &&
           resolution.scope !== 'project') ||
-        (resolution.reason !== undefined &&
-          typeof resolution.reason !== 'string')
+        (resolution.reason !== undefined && typeof resolution.reason !== 'string')
       ) {
         corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid permission resolution.`);
       }
@@ -1235,10 +1278,7 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
       }
       return {
         type: 'commit_started',
-        outcome: value.outcome as Extract<
-          AgentRuntimeEvent,
-          { type: 'commit_started' }
-        >['outcome'],
+        outcome: value.outcome as Extract<AgentRuntimeEvent, { type: 'commit_started' }>['outcome'],
       };
     }
 
@@ -1308,10 +1348,7 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
       }
       return {
         type: 'turn_finished',
-        outcome: value.outcome as Extract<
-          AgentRuntimeEvent,
-          { type: 'turn_finished' }
-        >['outcome'],
+        outcome: value.outcome as Extract<AgentRuntimeEvent, { type: 'turn_finished' }>['outcome'],
         ...(value.failureCode
           ? {
               failureCode: value.failureCode as Extract<
@@ -1343,17 +1380,14 @@ function parseStoredRoute(value: unknown, path: string): AgentRuntimeRoute {
   if (value.kind === 'chat') {
     if (
       !isNonEmptyString(value.projectId) ||
-      (value.conversationId !== undefined &&
-        !isNonEmptyString(value.conversationId))
+      (value.conversationId !== undefined && !isNonEmptyString(value.conversationId))
     ) {
       corruption('EVENT_PAYLOAD_INVALID', `${path} has invalid chat fields.`);
     }
     return {
       kind: 'chat',
       projectId: value.projectId,
-      ...(value.conversationId
-        ? { conversationId: value.conversationId }
-        : {}),
+      ...(value.conversationId ? { conversationId: value.conversationId } : {}),
     };
   }
   if (value.kind === 'goal') {
@@ -1371,6 +1405,25 @@ function parseStoredRoute(value: unknown, path: string): AgentRuntimeRoute {
       ...(value.chapterId ? { chapterId: value.chapterId } : {}),
     };
   }
+  if (value.kind === 'shadow') {
+    const operation = value.operation;
+    if (
+      !isNonEmptyString(value.projectId) ||
+      (value.chapterId !== undefined && !isNonEmptyString(value.chapterId)) ||
+      (operation !== 'review' &&
+        operation !== 'evolve-critic' &&
+        operation !== 'evolve-edit' &&
+        operation !== 'eval')
+    ) {
+      corruption('EVENT_PAYLOAD_INVALID', `${path} has invalid shadow fields.`);
+    }
+    return {
+      kind: 'shadow',
+      projectId: value.projectId,
+      operation,
+      ...(value.chapterId ? { chapterId: value.chapterId } : {}),
+    };
+  }
   corruption('EVENT_PAYLOAD_INVALID', `${path}.kind is unsupported.`);
 }
 
@@ -1378,30 +1431,17 @@ function parsePersistedEvent(
   row: PersistedAgentRuntimeEvent,
   route: AgentRuntimeRoute,
 ): AgentRuntimeJournalEntry {
-  if (
-    !isRecord(row.payload) ||
-    !('route' in row.payload) ||
-    !('event' in row.payload)
-  ) {
+  if (!isRecord(row.payload) || !('route' in row.payload) || !('event' in row.payload)) {
     corruption(
       'EVENT_PAYLOAD_INVALID',
       `Event "${row.eventId}" payload must contain route and event.`,
     );
   }
-  const storedRoute = parseStoredRoute(
-    row.payload.route,
-    `event[${row.eventId}].payload.route`,
-  );
+  const storedRoute = parseStoredRoute(row.payload.route, `event[${row.eventId}].payload.route`);
   if (!sameRoute(storedRoute, route)) {
-    corruption(
-      'EVENT_PAYLOAD_INVALID',
-      `Event "${row.eventId}" route does not match its session.`,
-    );
+    corruption('EVENT_PAYLOAD_INVALID', `Event "${row.eventId}" route does not match its session.`);
   }
-  const event = parseRuntimeEvent(
-    row.payload.event,
-    `event[${row.eventId}].payload.event`,
-  );
+  const event = parseRuntimeEvent(row.payload.event, `event[${row.eventId}].payload.event`);
   if (row.eventType !== event.type) {
     corruption(
       'EVENT_PAYLOAD_INVALID',
@@ -1440,9 +1480,7 @@ function buildTranscript(
   for (const recovered of turns) {
     const turnRows = rows.filter((row) => row.turnId === recovered.turnId);
     const visibleRows = turnRows.filter(
-      (row) =>
-        row.status === 'complete' ||
-        (row.role === 'user' && row.status === 'accepted'),
+      (row) => row.status === 'complete' || (row.role === 'user' && row.status === 'accepted'),
     );
     const scoped = visibleRows
       .map((row): ScopedModelMessage | null => {
@@ -1451,7 +1489,7 @@ function buildTranscript(
           row.content,
           `message[${row.id}].content`,
         );
-        return message ? { turnId: row.turnId, message } : null;
+        return message ? { turnId: row.turnId, message, createdAt: row.createdAt } : null;
       })
       .filter((item): item is ScopedModelMessage => item !== null);
     const repaired = repairToolPairs(scoped);
@@ -1461,7 +1499,11 @@ function buildTranscript(
     for (const item of repaired.messages) {
       const message = item.message;
       if (message.role === 'user') {
-        transcript.push({ kind: 'user', text: message.content });
+        transcript.push({
+          kind: 'user',
+          text: message.content,
+          ...(item.createdAt ? { at: item.createdAt } : {}),
+        });
         continue;
       }
       if (message.role === 'assistant') {
@@ -1499,30 +1541,20 @@ function buildTranscript(
     const journalState = recovered.journalState;
     const terminal = journalState?.terminal;
     if (!terminal) continue;
-    const hasUsage =
-      terminal.usage.inputTokens > 0 ||
-      terminal.usage.outputTokens > 0 ||
-      terminal.usage.costUsd > 0;
-    if (hasUsage) {
-      transcript.push({
-        kind: 'usage',
-        inputTokens: terminal.usage.inputTokens,
-        outputTokens: terminal.usage.outputTokens,
-        cacheReadTokens: terminal.usage.cacheReadTokens,
-        cacheCreationTokens: terminal.usage.cacheWriteTokens,
-        costUsd: terminal.usage.costUsd,
-        turns: terminal.modelIterations,
-        durationMs: terminal.durationMs,
-        durationApiMs: terminal.durationMs,
-        ...(journalState.endedAtMs === null
-          ? {}
-          : { at: new Date(journalState.endedAtMs).toISOString() }),
-      });
-    }
-    if (
-      terminal.outcome !== 'completed' &&
-      terminal.outcome !== 'aborted'
-    ) {
+    transcript.push({
+      kind: 'usage',
+      inputTokens: terminal.usage.inputTokens,
+      outputTokens: terminal.usage.outputTokens,
+      cacheReadTokens: terminal.usage.cacheReadTokens,
+      cacheCreationTokens: terminal.usage.cacheWriteTokens,
+      costUsd: terminal.usage.costUsd,
+      turns: terminal.modelIterations,
+      durationMs: terminal.durationMs,
+      ...(journalState.endedAtMs === null
+        ? {}
+        : { at: new Date(journalState.endedAtMs).toISOString() }),
+    });
+    if (terminal.outcome !== 'completed' && terminal.outcome !== 'aborted') {
       transcript.push({
         kind: 'error',
         text: terminal.message ?? `Agent turn ${terminal.outcome}`,
@@ -1571,8 +1603,8 @@ function validateTurns(snapshot: AgentRuntimeRecoverySnapshot) {
     'failed',
     'aborted',
   ];
-  const sorted = [...snapshot.turns].sort((left, right) =>
-    left.ordinal - right.ordinal || left.id.localeCompare(right.id),
+  const sorted = [...snapshot.turns].sort(
+    (left, right) => left.ordinal - right.ordinal || left.id.localeCompare(right.id),
   );
   const ids = new Set<string>();
   for (let index = 0; index < sorted.length; index += 1) {
@@ -1633,16 +1665,9 @@ function validateMessages(
     }
     assertIsoTimestamp(row.createdAt, `message[${row.id}].createdAt`, 'INVALID_MESSAGE');
     if (row.completedAt !== null) {
-      assertIsoTimestamp(
-        row.completedAt,
-        `message[${row.id}].completedAt`,
-        'INVALID_MESSAGE',
-      );
+      assertIsoTimestamp(row.completedAt, `message[${row.id}].completedAt`, 'INVALID_MESSAGE');
     }
-    if (
-      row.status === 'complete' ||
-      (row.role === 'user' && row.status === 'accepted')
-    ) {
+    if (row.status === 'complete' || (row.role === 'user' && row.status === 'accepted')) {
       parseModelMessageContent(row.role, row.content, `message[${row.id}].content`);
     }
   }
@@ -1712,14 +1737,9 @@ function replayTurns(
         }
       }
       const entries = rows.map((row) => parsePersistedEvent(row, route));
-      const terminalCount = entries.filter(
-        (entry) => entry.event.type === 'turn_finished',
-      ).length;
+      const terminalCount = entries.filter((entry) => entry.event.type === 'turn_finished').length;
       if (terminalCount > 1) {
-        corruption(
-          'EVENT_SEQUENCE_INVALID',
-          `Turn "${turn.id}" has more than one terminal event.`,
-        );
+        corruption('EVENT_SEQUENCE_INVALID', `Turn "${turn.id}" has more than one terminal event.`);
       }
       try {
         journalState = replayAgentRuntimeJournal(entries);
@@ -1747,9 +1767,7 @@ function replayTurns(
     let recoveredStatus = turn.status;
     if (terminalStatus) {
       const persistedTerminal =
-        turn.status === 'completed' ||
-        turn.status === 'failed' ||
-        turn.status === 'aborted';
+        turn.status === 'completed' || turn.status === 'failed' || turn.status === 'aborted';
       if (persistedTerminal && turn.status !== terminalStatus) {
         corruption(
           'TURN_STATUS_CONFLICT',
@@ -1770,11 +1788,7 @@ function replayTurns(
         });
       }
     } else {
-      if (
-        turn.status === 'completed' ||
-        turn.status === 'failed' ||
-        turn.status === 'aborted'
-      ) {
+      if (turn.status === 'completed' || turn.status === 'failed' || turn.status === 'aborted') {
         corruption(
           'TURN_STATUS_CONFLICT',
           `Terminal turn "${turn.id}" has no terminal journal event.`,
@@ -1830,14 +1844,9 @@ function validateToolCalls(
       !isNonEmptyString(call.name) ||
       callKeys.has(callKey) ||
       (call.access !== 'read' && call.access !== 'write') ||
-      ![
-        'requested',
-        'running',
-        'completed',
-        'failed',
-        'interrupted',
-        'uncertain',
-      ].includes(call.status)
+      !['requested', 'running', 'completed', 'failed', 'interrupted', 'uncertain'].includes(
+        call.status,
+      )
     ) {
       corruption('DUPLICATE_ID', `Agent tool-call projection "${call.id}" is duplicated.`);
     }
@@ -1851,10 +1860,7 @@ function validateToolCalls(
     }
     if (!interruptedTurns.has(call.turnId)) continue;
     if (call.status !== 'requested' && call.status !== 'running') continue;
-    const next =
-      call.status === 'running' && call.access === 'write'
-        ? 'uncertain'
-        : 'interrupted';
+    const next = call.status === 'running' && call.access === 'write' ? 'uncertain' : 'interrupted';
     transitions.push({
       id: call.id,
       from: call.status,
@@ -1910,9 +1916,7 @@ async function validateCheckpoints(
           `Checkpoint "${checkpoint.id}" messageCount does not match its context.`,
         );
       }
-      const actualHash = await hashAgentRuntimeCheckpointPayload(
-        parsedContext.hashPayload,
-      );
+      const actualHash = await hashAgentRuntimeCheckpointPayload(parsedContext.hashPayload);
       if (checkpoint.contextHash !== actualHash) {
         corruption(
           'CHECKPOINT_HASH_MISMATCH',
@@ -1926,13 +1930,7 @@ async function validateCheckpoints(
         return ordinal !== undefined && ordinal <= checkpoint.throughTurnOrdinal;
       });
       const throughMessages = throughRows
-        .map((row) =>
-          parseModelMessageContent(
-            row.role,
-            row.content,
-            `message[${row.id}].content`,
-          ),
-        )
+        .map((row) => parseModelMessageContent(row.role, row.content, `message[${row.id}].content`))
         .filter((message): message is AgentModelMessage => message !== null);
       if (!sameJson(throughMessages, context)) {
         corruption(
@@ -1960,9 +1958,7 @@ function buildRecoveryPlan(
   toolCalls: AgentRuntimeStatusTransition<AgentRuntimeToolCallStatus>[],
 ): AgentRuntimeRecoveryPlan {
   const interruptedTurnIds = new Set(
-    turns
-      .filter((turn) => turn.recoveredStatus === 'interrupted')
-      .map((turn) => turn.turnId),
+    turns.filter((turn) => turn.recoveredStatus === 'interrupted').map((turn) => turn.turnId),
   );
   const messages: AgentRuntimeStatusTransition<string>[] = snapshot.messages
     .filter(
@@ -1986,10 +1982,7 @@ function buildRecoveryPlan(
       snapshot.session.status === 'failed' ||
       snapshot.session.status === 'aborted'
     ) {
-      corruption(
-        'TURN_STATUS_CONFLICT',
-        'A terminal Agent session contains an interrupted turn.',
-      );
+      corruption('TURN_STATUS_CONFLICT', 'A terminal Agent session contains an interrupted turn.');
     }
     if (snapshot.session.status !== 'interrupted') {
       session = {
@@ -2041,30 +2034,20 @@ export async function recoverAgentRuntimeSnapshot(
       message.turnId !== null &&
       completedTurnIds.has(message.turnId),
   );
-  const checkpoint = await validateCheckpoints(
-    snapshot,
-    completeRows,
-    turnOrdinalById,
-  );
+  const checkpoint = await validateCheckpoints(snapshot, completeRows, turnOrdinalById);
 
   const deltaRows = checkpoint.checkpoint
     ? completeRows.filter((row) => {
         if (row.turnId === null) return false;
         const ordinal = turnOrdinalById.get(row.turnId);
-        return (
-          ordinal !== undefined &&
-          ordinal > checkpoint.checkpoint!.throughTurnOrdinal
-        );
+        return ordinal !== undefined && ordinal > checkpoint.checkpoint!.throughTurnOrdinal;
       })
     : completeRows;
   const delta = extractCompleteScopedMessages(deltaRows);
   const checkpointScope = checkpoint.context.map(
     (message): ScopedModelMessage => ({ turnId: null, message }),
   );
-  const combined = repairToolPairs([
-    ...checkpointScope,
-    ...delta.messages,
-  ]);
+  const combined = repairToolPairs([...checkpointScope, ...delta.messages]);
   const transcript = buildTranscript(replayed.turns, messages);
   const toolCallTransitions = validateToolCalls(snapshot, replayed.turns);
   const plan = buildRecoveryPlan(
@@ -2078,32 +2061,32 @@ export async function recoverAgentRuntimeSnapshot(
     providerHistory: combined.messages.map((item) => item.message),
     transcript: transcript.transcript,
     turns: replayed.turns,
-    repairs: uniqueRepairs([
-      ...delta.repairs,
-      ...combined.repairs,
-      ...transcript.repairs,
-    ]),
+    repairs: uniqueRepairs([...delta.repairs, ...combined.repairs, ...transcript.repairs]),
     plan,
     checkpointId: checkpoint.checkpoint?.id ?? null,
     pendingControls: replayed.turns.flatMap((turn): AgentPendingControl[] => {
       const state = turn.journalState;
       if (state?.status === 'waiting_permission' && state.pendingPermission) {
-        return [{
-          sessionId: snapshot.session.id,
-          turnId: turn.turnId,
-          status: 'waiting_permission',
-          permissionRequest: cloneRecoveryValue(state.pendingPermission),
-          requiresContinuation: true,
-        }];
+        return [
+          {
+            sessionId: snapshot.session.id,
+            turnId: turn.turnId,
+            status: 'waiting_permission',
+            permissionRequest: cloneRecoveryValue(state.pendingPermission),
+            requiresContinuation: true,
+          },
+        ];
       }
       if (state?.status === 'waiting_user' && state.pendingUserInput) {
-        return [{
-          sessionId: snapshot.session.id,
-          turnId: turn.turnId,
-          status: 'waiting_user',
-          userInputRequest: cloneRecoveryValue(state.pendingUserInput),
-          requiresContinuation: true,
-        }];
+        return [
+          {
+            sessionId: snapshot.session.id,
+            turnId: turn.turnId,
+            status: 'waiting_user',
+            userInputRequest: cloneRecoveryValue(state.pendingUserInput),
+            requiresContinuation: true,
+          },
+        ];
       }
       return [];
     }),
@@ -2121,10 +2104,7 @@ function applyTransition<T extends { id: string; status: string }>(
   const byId = new Map<string, AgentRuntimeStatusTransition<string>>();
   for (const transition of transitions) {
     if (byId.has(transition.id)) {
-      corruption(
-        'STALE_RECOVERY_PLAN',
-        `Recovery plan repeats target "${transition.id}".`,
-      );
+      corruption('STALE_RECOVERY_PLAN', `Recovery plan repeats target "${transition.id}".`);
     }
     byId.set(transition.id, transition);
   }
@@ -2160,19 +2140,14 @@ export function applyAgentRuntimeRecoveryPlan(
 ): AgentRuntimeRecoverySnapshot {
   let session = snapshot.session;
   if (plan.session) {
-    if (
-      session.status !== plan.session.from &&
-      session.status !== plan.session.to
-    ) {
+    if (session.status !== plan.session.from && session.status !== plan.session.to) {
       corruption(
         'STALE_RECOVERY_PLAN',
         `Recovery session changed from "${plan.session.from}" to "${session.status}".`,
       );
     }
     session =
-      session.status === plan.session.to
-        ? session
-        : { ...session, status: plan.session.to };
+      session.status === plan.session.to ? session : { ...session, status: plan.session.to };
   }
   return {
     ...snapshot,

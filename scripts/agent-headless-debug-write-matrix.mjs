@@ -3,116 +3,111 @@
 const DEFAULT_URL = 'http://127.0.0.1:4317';
 const DEFAULT_TIMEOUT_MS = 240_000;
 const PROJECT_TEST_NODE = 'agent wrote this';
-const MARKER = '[AGENT-HEADLESS-EVAL]';
+const MARKER = `[AGENT-HEADLESS-EVAL:${Date.now().toString(36)}]`;
 
-const CERTIFIED_WRITES = new Set([
-  'rename_node',
-  'set_node_summary',
-  'edit_block',
-  'edit_blocks',
-  'append_paragraph',
-  'insert_blocks',
-  'remove_blocks',
-  'replace_block_range',
+const PROVIDER_WRITES = new Set([
+  'edit_file',
+  'write_file',
+  'delete_file',
   'create_element_patch',
   'update_element_patch',
-  'update_element',
-  'update_storyline',
-  'update_project_facts',
-  'create_comment',
+  'delete_element_patch',
 ]);
+const FILE_MUTATION_TOOLS = ['edit_file', 'write_file'];
 
 const COMMON = [
-  '这是真实 renderer 写入验收。',
-  '只允许调用下面指定的读取工具和指定写工具；指定写工具必须恰好成功一次。',
-  '写入会进入待审批状态并由测试器立即 reject 回滚。',
-  '不要调用任何其他写工具，不要伪造 freshness，必须逐字段复制读取结果中的 freshness 引用。',
+  '这是隔离数据库副本上的真实 renderer 写入验收。',
+  '先读取目标的当前内容，再执行恰好一次指定改动。',
+  '只改明确指定的内容，不要创建替代实体，不要解释内部存储或协调机制。',
 ].join('');
 
 const SCENARIOS = [
   {
-    id: 'rename-node',
-    write: 'rename_node',
-    read: 'read_node',
-    prompt: `${COMMON} 先调用 read_node(node="${PROJECT_TEST_NODE}", prose=false)，复制 entityKind=node 的 observation 为 expectedRevision；然后调用 rename_node，把标题改为 "${PROJECT_TEST_NODE} ${MARKER}"。`,
-  },
-  {
     id: 'set-node-summary',
-    write: 'set_node_summary',
-    read: 'read_node',
-    prompt: `${COMMON} 先调用 read_node(node="${PROJECT_TEST_NODE}", prose=false)，复制 entityKind=node 的 observation 为 expectedRevision；然后调用 set_node_summary，把 summary 设为 "${MARKER} temporary summary"。`,
+    write: 'write_file',
+    read: 'read_file',
+    prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」的 summary.md，然后把该文件的完整内容替换为「${MARKER} temporary summary」。`,
   },
   {
     id: 'edit-block',
-    write: 'edit_block',
-    read: 'read_node',
-    prompt: `${COMMON} 先调用 read_node(node="${PROJECT_TEST_NODE}", prose=true)，复制 entityKind=node_prose 的 observation 为 expectedRevision；然后调用 edit_block(entity="${PROJECT_TEST_NODE}", block=1)，保留第1段原文并在末尾追加 " ${MARKER}"。`,
+    write: 'edit_file',
+    read: 'read_file',
+    prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，仅在第1段末尾追加「 ${MARKER}」，其余原文不变。`,
   },
   {
     id: 'edit-blocks',
-    write: 'edit_blocks',
-    read: 'read_node',
-    prompt: `${COMMON} 先调用 read_node(node="${PROJECT_TEST_NODE}", prose=true)，复制 entityKind=node_prose 的 observation 为 expectedRevision；然后调用 edit_blocks(entity="${PROJECT_TEST_NODE}")，原子修改第1、2段，分别保留原文并在末尾追加 " ${MARKER} one" 与 " ${MARKER} two"。`,
+    write: 'edit_file',
+    read: 'read_file',
+    prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，在同一次改动中分别于第1段和第2段末尾追加「 ${MARKER} one」与「 ${MARKER} two」，其余原文不变。`,
   },
   {
     id: 'append-paragraph',
-    write: 'append_paragraph',
-    read: 'read_node',
-    prompt: `${COMMON} 先调用 read_node(node="${PROJECT_TEST_NODE}", prose=true)，复制 entityKind=node_prose 的 observation 为 expectedRevision；然后调用 append_paragraph(entity="${PROJECT_TEST_NODE}", text="${MARKER} appended paragraph")。`,
+    write: 'edit_file',
+    read: 'read_file',
+    prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，在末尾追加一个新段落，内容恰好为「${MARKER} appended paragraph」。`,
   },
   {
     id: 'insert-blocks',
-    write: 'insert_blocks',
-    read: 'read_node',
-    prompt: `${COMMON} 先调用 read_node(node="${PROJECT_TEST_NODE}", prose=true)，复制 entityKind=node_prose 的 observation 为 expectedRevision；然后调用 insert_blocks(entity="${PROJECT_TEST_NODE}", afterBlock=1, blocks=["${MARKER} inserted one","${MARKER} inserted two"])。`,
+    write: 'edit_file',
+    read: 'read_file',
+    prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，在第1段后依次插入两个新段落「${MARKER} inserted one」和「${MARKER} inserted two」，其余原文不变。`,
   },
   {
     id: 'remove-blocks',
-    write: 'remove_blocks',
-    read: 'read_node',
-    prompt: `${COMMON} 先调用 read_node(node="${PROJECT_TEST_NODE}", prose=true)，确认至少有3段并复制 entityKind=node_prose 的 observation 为 expectedRevision；然后调用 remove_blocks(entity="${PROJECT_TEST_NODE}", blockNumbers=[3])。`,
+    write: 'edit_file',
+    read: 'read_file',
+    prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，删除第3段，保留其他段落及其顺序。`,
   },
   {
     id: 'replace-block-range',
-    write: 'replace_block_range',
-    read: 'read_node',
-    prompt: `${COMMON} 先调用 read_node(node="${PROJECT_TEST_NODE}", prose=true)，确认至少有3段并复制 entityKind=node_prose 的 observation 为 expectedRevision；然后调用 replace_block_range(entity="${PROJECT_TEST_NODE}", fromBlock=2, toBlock=3, blocks=["${MARKER} range one","${MARKER} range two"])。`,
+    write: 'edit_file',
+    read: 'read_file',
+    prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，把第2至第3段整体替换为两个段落「${MARKER} range one」和「${MARKER} range two」，第1段不变。`,
   },
   {
     id: 'create-element-patch',
     write: 'create_element_patch',
     read: 'get_element_patches',
-    prompt: `${COMMON} 先调用 get_element_patches(element="Grey Banker")，复制 entityKind=element_patch_set 的 observation 为 expectedRevision；然后调用 create_element_patch(element="Grey Banker", title="${MARKER} temporary patch", body="temporary", sourceChapter="01")。`,
+    prompt: `${COMMON} 请读取人物「Grey Banker」现有的元素补丁，然后为它新增一个标题为「${MARKER} temporary patch」、正文为「temporary」、来源章节为「01」的元素补丁。`,
   },
   {
     id: 'update-element-patch',
     write: 'update_element_patch',
     read: 'get_element_patches',
-    prompt: `${COMMON} 先调用 get_element_patches(element="Grey Banker")，选择返回的第一条 patch，并复制该 patch 对应 entityKind=element_patch 的 observation 为 expectedRevision；然后调用 update_element_patch，保留原 title 并在末尾追加 " ${MARKER}"。patchId 必须来自读取结果。`,
+    prompt: `${COMMON} 请读取人物「Grey Banker」现有的元素补丁，选择第一条，把它的标题在保留原文的基础上追加「 ${MARKER}」。`,
   },
   {
     id: 'update-element',
-    write: 'update_element',
-    read: 'read_element',
-    prompt: `${COMMON} 先调用 read_element(element="Grey Banker")，复制 entityKind=element 的 observation 为 expectedRevision；然后调用 update_element，只修改 summary，保留原 summary 并在末尾追加 " ${MARKER}"。`,
+    write: ['edit_file', 'write_file'],
+    read: 'read_file',
+    prompt: `${COMMON} 请读取 /elements/人物/Grey Banker/summary.md，只在现有摘要末尾追加「 ${MARKER}」，其他文件不变。`,
   },
   {
     id: 'update-storyline',
-    write: 'update_storyline',
-    read: 'get_storyline',
-    prompt: `${COMMON} 先调用 get_storyline(storyline="Mortals")，复制 entityKind=storyline 的 observation 为 expectedRevision；然后调用 update_storyline，只修改 summary，保留原 summary 并在末尾追加 " ${MARKER}"。`,
+    write: ['edit_file', 'write_file'],
+    read: 'read_file',
+    prompt: `${COMMON} 请读取 /storylines/Mortals/summary.md，只在现有摘要末尾追加「 ${MARKER}」，其他文件不变。`,
   },
   {
     id: 'update-project-facts',
-    write: 'update_project_facts',
-    read: 'get_project_brief',
-    prompt: `${COMMON} 先调用 get_project_brief，复制 entityKind=project 的 observation 为 expectedRevision；然后调用 update_project_facts(facts=[{key:"__agent_headless_eval__",value:"${MARKER}"}])。`,
+    write: 'edit_file',
+    read: 'read_file',
+    prompt: `${COMMON} 请读取 /project/facts.json，新增一个键「__agent_headless_eval__」，值为「${MARKER}」，保留所有已有事实。`,
   },
   {
     id: 'create-comment',
-    write: 'create_comment',
-    read: 'get_project_brief',
-    prompt: `${COMMON} 先调用 get_project_brief，复制 entityKind=project 的 observation 为 expectedRevision；然后调用 create_comment(body="${MARKER} temporary comment", kind="note", targetKind="node", target="${PROJECT_TEST_NODE}")。`,
+    write: 'write_file',
+    read: 'list_files',
+    prompt: `${COMMON} 请先浏览 /comments，然后创建一条指向章节「${PROJECT_TEST_NODE}」的 note 批注，正文为「${MARKER} temporary comment」。`,
+  },
+  // Keep rename last because metadata writes are automatic rather than inline
+  // editor reviews. The changed path must not invalidate later scenarios in
+  // the disposable database.
+  {
+    id: 'rename-node',
+    write: 'write_file',
+    read: 'read_file',
+    prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」的 title.txt，然后把标题改为「${PROJECT_TEST_NODE} ${MARKER}」。`,
   },
 ];
 
@@ -121,6 +116,7 @@ function parseArgs(argv) {
     url: process.env.DRIFTING_AGENT_DEBUG_URL || DEFAULT_URL,
     timeoutMs: DEFAULT_TIMEOUT_MS,
     only: [],
+    disposableDb: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -135,6 +131,7 @@ function parseArgs(argv) {
     else if (arg === '--url') options.url = next();
     else if (arg === '--timeout-ms') options.timeoutMs = Number(next());
     else if (arg === '--only') options.only.push(next());
+    else if (arg === '--disposable-db') options.disposableDb = true;
     else if (arg === '--list') options.list = true;
     else if (arg === '--help' || arg === '-h') options.help = true;
     else throw new Error(`Unknown option: ${arg}`);
@@ -145,9 +142,11 @@ function parseArgs(argv) {
 function usage() {
   return [
     'Usage:',
-    '  pnpm agent:debug:writes -- --project <id> [--only <scenario>]',
+    '  pnpm agent:debug:writes -- --project <id> --disposable-db [--only <scenario>]',
     '',
-    'Every successful write is created in approve mode and immediately rejected.',
+    'Required safety flag: --disposable-db. Never point this command at the primary App database.',
+    'Inline prose reviews are immediately rejected. Automatic and confirm-before',
+    'structured writes remain only in the disposable database and are removed with it.',
     'Use --list to print scenario ids.',
   ].join('\n');
 }
@@ -242,6 +241,14 @@ async function runScenario(options, scenario) {
   const calls = events.filter((event) => event.type === 'tool_call_ready');
   const results = events.filter((event) => event.type === 'tool_result');
   const reviews = results.map(parseReviewFromToolResult).filter(Boolean);
+  const declaredWriteNames = Array.isArray(scenario.write) ? scenario.write : [scenario.write];
+  const expectedWriteNames = declaredWriteNames.some((name) =>
+    FILE_MUTATION_TOOLS.includes(name),
+  )
+    ? FILE_MUTATION_TOOLS
+    : declaredWriteNames;
+  let successfulWriteResult = null;
+  let reviewWasReverted = false;
   let primaryError = null;
   try {
     const bridgeFailure = payloads.find((payload) => payload.type === 'bridge_failed');
@@ -250,35 +257,39 @@ async function runScenario(options, scenario) {
     if (!completed || completed.outcome !== 'completed') {
       throw new Error(`turn outcome=${completed?.outcome ?? 'missing'}`);
     }
-    const expectedCalls = calls.filter((call) => call.name === scenario.write);
+    const expectedCalls = calls.filter((call) => expectedWriteNames.includes(call.name));
     if (expectedCalls.length < 1 || expectedCalls.length > 2) {
       throw new Error(
-        `${scenario.write} call count=${expectedCalls.length}, expected 1 or one schema-correction retry`,
+        `${expectedWriteNames.join('/')} call count=${expectedCalls.length}, expected 1 or one schema-correction retry`,
       );
     }
     if (!calls.some((call) => call.name === scenario.read)) {
       throw new Error(`missing prerequisite read ${scenario.read}`);
     }
     const unexpectedWrites = calls
-      .filter((call) => CERTIFIED_WRITES.has(call.name) && call.name !== scenario.write)
+      .filter((call) => PROVIDER_WRITES.has(call.name) && !expectedWriteNames.includes(call.name))
       .map((call) => call.name);
     if (unexpectedWrites.length) {
       throw new Error(`unexpected writes: ${unexpectedWrites.join(', ')}`);
     }
-    const writeResults = results.filter((event) => event.name === scenario.write);
+    const writeResults = results.filter((event) => expectedWriteNames.includes(event.name));
     const successfulWriteResults = writeResults.filter((event) => event.ok);
     if (successfulWriteResults.length !== 1) {
       throw new Error(
-        `${scenario.write} successful result count=${successfulWriteResults.length}, expected 1; ` +
+        `${expectedWriteNames.join('/')} successful result count=${successfulWriteResults.length}, expected 1; ` +
           `results=${writeResults.map((result) => `${result.ok ? 'ok' : 'error'}:${result.content}`).join(' | ') || 'missing'}`,
       );
     }
+    successfulWriteResult = successfulWriteResults[0];
     const pendingReviews = reviews.filter(
-      (review) => review.toolName === scenario.write && review.status === 'pending',
+      (review) => expectedWriteNames.includes(review.toolName) && review.status === 'pending',
     );
     const successfulCallId = successfulWriteResults[0].callId;
-    if (pendingReviews.length !== 1 || pendingReviews[0].callId !== successfulCallId) {
-      throw new Error(`${scenario.write} did not create one pending review`);
+    if (
+      pendingReviews.length > 1 ||
+      (pendingReviews.length === 1 && pendingReviews[0].callId !== successfulCallId)
+    ) {
+      throw new Error(`${scenario.write} created an invalid pending review set`);
     }
   } catch (error) {
     primaryError = error;
@@ -288,6 +299,7 @@ async function runScenario(options, scenario) {
   for (const review of [...reviews].reverse()) {
     try {
       await rejectReview(options, review);
+      reviewWasReverted = true;
     } catch (error) {
       rollbackError ??= error;
     }
@@ -298,7 +310,12 @@ async function runScenario(options, scenario) {
     );
   }
   if (primaryError) throw new Error(`${scenario.id}: ${primaryError.message}`);
-  console.log(`[PASS] ${scenario.id} -> ${scenario.write} -> reverted`);
+  if (!successfulWriteResult) throw new Error(`${scenario.id}: successful write result missing`);
+  console.log(
+    reviewWasReverted
+      ? `[PASS] ${scenario.id} -> ${successfulWriteResult.name} -> review reverted`
+      : `[PASS] ${scenario.id} -> ${successfulWriteResult.name} -> automatic/confirmed in disposable DB`,
+  );
 }
 
 async function main() {
@@ -312,6 +329,11 @@ async function main() {
     return;
   }
   if (!options.projectId) throw new Error('--project is required');
+  if (!options.disposableDb) {
+    throw new Error(
+      '--disposable-db is required because structured workspace writes may not create an inline review',
+    );
+  }
   if (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs < 1_000) {
     throw new Error('--timeout-ms must be an integer >= 1000');
   }

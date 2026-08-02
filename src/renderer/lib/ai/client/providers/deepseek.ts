@@ -17,9 +17,8 @@
  * Thinking mode (deepseek-v4-flash / -pro default to thinking-on):
  *   - Default on/off comes from provider config; a single request can override
  *     it via `request.thinking` (inline-ask forces reasoning on this way)
- *   - Sent as `{ thinking: { type: 'enabled' | 'disabled', reasoning_effort } }`
- *     — per the DeepSeek API `reasoning_effort` is NESTED inside `thinking`,
- *     NOT a top-level body field
+ *   - Sent as `{ thinking: { type: 'enabled' | 'disabled' }, reasoning_effort }`
+ *     — `reasoning_effort` is a top-level request field
  *   - When enabled, temperature/top_p/penalty params are silently ignored by
  *     DeepSeek (per their docs), so we omit them to keep wire traffic clean
  *
@@ -27,9 +26,9 @@
  * composes with callStructured's forced tool_choice (this was NOT true on older
  * versions — an earlier note here claimed thinking ⊥ forced tool_choice; that's
  * outdated). One caveat (multi-round only): in a thinking turn that performs a tool
- * call, the assistant's `reasoning_content` MUST be passed back in subsequent
- * requests of that turn or the API 400s. callStructured is single-shot (force one
- * tool, read its args, stop) so there's no follow-up turn and nothing to pass back.
+ * call, the assistant's `reasoning_content` MUST be passed back exactly in
+ * subsequent requests of that turn or the API 400s. Thinking mode also rejects
+ * `tool_choice`, so native thinking requests let the model choose among tools.
  *
  * Model substitution: prompts hardcode Gemini model ids (`gemini-3.5-flash`)
  * because they were written before multi-provider support. When DeepSeek is
@@ -106,17 +105,23 @@ export class DeepSeekProvider implements LLMProvider {
 
   /**
    * DeepSeek's thinking-mode extension (untyped by the OpenAI SDK). Per the
-   * API, `reasoning_effort` lives INSIDE the `thinking` object; when thinking
-   * is on we default the effort to 'high' if none was configured.
+   * API, `reasoning_effort` is a sibling of `thinking`; when thinking is on
+   * we default the effort to 'high' if none was configured.
    */
-  private thinkingExtension(thinkingOn: boolean): Record<string, unknown> {
-    const thinking: Record<string, unknown> = {
-      type: thinkingOn ? 'enabled' : 'disabled',
+  private thinkingExtension(
+    thinkingOn: boolean,
+    requestedEffort?: AICompletionRequest['reasoningEffort'],
+  ): Record<string, unknown> {
+    return {
+      thinking: { type: thinkingOn ? 'enabled' : 'disabled' },
+      ...(thinkingOn
+        ? {
+            reasoning_effort: normalizeDeepSeekReasoningEffort(
+              requestedEffort ?? this.reasoningEffort ?? 'high',
+            ),
+          }
+        : {}),
     };
-    if (thinkingOn) {
-      thinking.reasoning_effort = this.reasoningEffort ?? 'high';
-    }
-    return { thinking };
   }
 
   async complete(request: AICompletionRequest): Promise<AICompletionResponse> {
@@ -128,7 +133,8 @@ export class DeepSeekProvider implements LLMProvider {
 
     const chatMessages = buildChatMessages(request);
     const chatTools = buildChatTools(tools);
-    const toolChoice = resolveToolChoice(request);
+    const effectiveThinking = request.thinking ?? this.thinking;
+    const toolChoice = effectiveThinking ? undefined : resolveToolChoice(request);
 
     // Body construction — split standard OpenAI fields from DeepSeek
     // extensions. The OpenAI Node SDK doesn't type `thinking` /
@@ -147,12 +153,14 @@ export class DeepSeekProvider implements LLMProvider {
     }
     // Per DeepSeek docs: thinking mode silently ignores temperature/top_p/
     // presence_penalty/frequency_penalty. Omit them to keep the wire clean.
-    const effectiveThinking = request.thinking ?? this.thinking;
     if (!effectiveThinking && typeof temperature === 'number') {
       baseBody.temperature = temperature;
     }
 
-    const deepseekExtensions = this.thinkingExtension(effectiveThinking);
+    const deepseekExtensions = this.thinkingExtension(
+      effectiveThinking,
+      request.reasoningEffort,
+    );
 
     try {
       const response = await this.client.chat.completions.create(
@@ -200,6 +208,8 @@ export class DeepSeekProvider implements LLMProvider {
         typeof message?.content === 'string' && message.content
           ? message.content
           : undefined;
+      const thinking = (message as { reasoning_content?: unknown } | undefined)
+        ?.reasoning_content;
       const finishReason = choice?.finish_reason ?? undefined;
       const usage = normalizeDeepSeekUsage(response.usage);
       if (request.terminalRequirements?.finishReason && !finishReason) {
@@ -217,6 +227,7 @@ export class DeepSeekProvider implements LLMProvider {
 
       return {
         text,
+        ...(typeof thinking === 'string' && thinking ? { thinking } : {}),
         toolCall,
         toolCalls: toolCalls.length ? toolCalls : undefined,
         finishReason,
@@ -230,10 +241,9 @@ export class DeepSeekProvider implements LLMProvider {
 
   /**
    * Full OpenAI-compatible streaming, including parallel function calls.
-   * Visible content and raw tool-argument fragments are forwarded without
-   * waiting for completion. `reasoning_content` remains intentionally private;
-   * the General Agent currently runs with thinking disabled and the substrate
-   * never exposes hidden chain-of-thought.
+   * Visible content, provider reasoning content and raw tool-argument fragments
+   * are forwarded without waiting for completion. The Agent adapter retains the
+   * exact reasoning text only for active-turn tool replay.
    */
   async *stream(request: AICompletionRequest): AsyncIterable<AICompletionChunk> {
     const {
@@ -248,11 +258,12 @@ export class DeepSeekProvider implements LLMProvider {
       throw new AIError('aborted', 'Request aborted before send');
     }
 
+    const effectiveThinking = request.thinking ?? this.thinking;
     const baseBody: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
       model: resolveModel(model, this.defaultModel),
       messages: buildChatMessages(request),
       tools: buildChatTools(tools),
-      tool_choice: resolveToolChoice(request),
+      tool_choice: effectiveThinking ? undefined : resolveToolChoice(request),
       max_tokens: maxOutputTokens,
       stream: true,
       stream_options: { include_usage: true },
@@ -260,12 +271,14 @@ export class DeepSeekProvider implements LLMProvider {
     if (request.responseFormat === 'json_object') {
       baseBody.response_format = { type: 'json_object' };
     }
-    const effectiveThinking = request.thinking ?? this.thinking;
     if (!effectiveThinking && typeof temperature === 'number') {
       baseBody.temperature = temperature;
     }
 
-    const deepseekExtensions = this.thinkingExtension(effectiveThinking);
+    const deepseekExtensions = this.thinkingExtension(
+      effectiveThinking,
+      request.reasoningEffort,
+    );
 
     try {
       const stream = await this.client.chat.completions.create(
@@ -290,6 +303,9 @@ export class DeepSeekProvider implements LLMProvider {
         }
         const choice = chunk.choices[0];
         const delta = choice?.delta?.content ?? '';
+        const thinkingDelta = (
+          choice?.delta as { reasoning_content?: unknown } | undefined
+        )?.reasoning_content;
         const toolCallDeltas = (choice?.delta?.tool_calls ?? []).map(
           (toolCall) => ({
             index: toolCall.index,
@@ -310,12 +326,16 @@ export class DeepSeekProvider implements LLMProvider {
 
         if (
           delta ||
+          (typeof thinkingDelta === 'string' && thinkingDelta) ||
           toolCallDeltas.length > 0 ||
           chunkFinishReason ||
           chunk.usage
         ) {
           yield {
             delta,
+            ...(typeof thinkingDelta === 'string' && thinkingDelta
+              ? { thinkingDelta }
+              : {}),
             ...(toolCallDeltas.length ? { toolCallDeltas } : {}),
             ...(chunkFinishReason
               ? { finishReason: chunkFinishReason }
@@ -421,6 +441,13 @@ function buildChatMessages(
         content:
           message.content || (message.toolCalls?.length ? null : ''),
       };
+      if (message.reasoningContent !== undefined) {
+        (
+          assistant as OpenAI.Chat.ChatCompletionAssistantMessageParam & {
+            reasoning_content: string;
+          }
+        ).reasoning_content = message.reasoningContent;
+      }
       if (message.toolCalls?.length) {
         assistant.tool_calls = message.toolCalls.map((toolCall) => ({
           id: toolCall.id ?? '',
@@ -437,6 +464,12 @@ function buildChatMessages(
     chatMessages.push({ role: 'user', content: message.content });
   }
   return chatMessages;
+}
+
+function normalizeDeepSeekReasoningEffort(
+  effort: NonNullable<AICompletionRequest['reasoningEffort']>,
+): DeepSeekReasoningEffort {
+  return effort === 'max' || effort === 'xhigh' ? 'max' : 'high';
 }
 
 function buildChatTools(

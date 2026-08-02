@@ -200,8 +200,12 @@ describe.skipIf(!LIVE_EVAL_ENABLED)(
           for (const pattern of canary.answerPatterns) {
             expect(assistantText, canary.id).toMatch(pattern);
           }
+          // A short provider response may legally arrive as one visible chunk.
+          // The contract is that the runtime projects text before turn_finished,
+          // not that the upstream transport splits it into an arbitrary minimum
+          // number of network chunks.
           expect(textDeltaCount, `${canary.id} streamed text`).toBeGreaterThan(
-            1,
+            0,
           );
           expect(
             streamingSnapshots[0]?.some(

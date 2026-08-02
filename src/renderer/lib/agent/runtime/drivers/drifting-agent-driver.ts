@@ -10,6 +10,7 @@ import { AgentModelDriverError } from '../errors';
 import type {
   AgentModelDriver,
   AgentModelRequest,
+  AgentModelStopReason,
   AgentModelStreamEvent,
 } from '../types';
 import {
@@ -24,6 +25,7 @@ import {
   type AgentProviderId,
 } from '../agent-provider-contract';
 import { AnthropicMessagesAgentDriver } from './anthropic-messages-driver';
+import { OpenAIResponsesAgentDriver } from './openai-responses-driver';
 
 export interface DriftingAgentModelDriverOptions {
   createClient?: () => Promise<AgentCompletionClient | LLMClient>;
@@ -35,17 +37,18 @@ export interface DriftingAgentModelDriverOptions {
 }
 
 /**
- * Lazy product driver for P1.
+ * Lazy product provider router.
  *
  * Credentials are resolved only when the user starts a turn, never while the
  * app boots. A fresh client is built for each turn so replacing or clearing a
- * Keychain entry takes effect immediately and an old secret is not retained by
- * a long-lived provider instance.
+ * Keychain entry takes effect immediately. The same instance is retained only
+ * across that turn's tool iterations so opaque provider reasoning state can be
+ * replayed exactly.
  */
 export class DriftingAgentModelDriver implements AgentModelDriver {
   readonly id = 'drifting-provider-router';
   readonly capabilities = {
-    reasoning: false,
+    reasoning: true,
     context: DRIFTING_AGENT_CONTEXT_PROFILE,
   } as const;
 
@@ -55,6 +58,15 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
   private readonly defaultModel: string;
   private readonly createProviderDriver?: DriftingAgentModelDriverOptions['createProviderDriver'];
   private readonly legacyClientOverride: boolean;
+  private readonly activeTurnDrivers = new Map<
+    string,
+    {
+      provider: AgentProviderId;
+      model: string;
+      reasoningKey: string;
+      driver: AgentModelDriver;
+    }
+  >();
 
   constructor(options: DriftingAgentModelDriverOptions = {}) {
     this.createClient = options.createClient ?? defaultCreateClient;
@@ -83,49 +95,75 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
       );
     }
 
-    if (this.createProviderDriver) {
-      let selected: AgentModelDriver;
-      try {
-        selected = await this.createProviderDriver(provider, model);
-      } catch (error) {
-        throw clientInitializationError(error, provider);
-      }
-      yield* selected.stream({ ...request, provider, model });
-      return;
+    const cacheKey = `${request.sessionId}\u0000${request.turnId}`;
+    const reasoningKey = `${request.reasoning?.enabled === true}:${
+      request.reasoning?.effort ?? ''
+    }`;
+    const cached = this.activeTurnDrivers.get(cacheKey);
+    if (
+      cached &&
+      (cached.provider !== provider ||
+        cached.model !== model ||
+        cached.reasoningKey !== reasoningKey)
+    ) {
+      throw new AgentModelDriverError(
+        'The Agent provider, model and reasoning options cannot change inside an active turn.',
+      );
+    }
+    const selected = cached?.driver ?? (await this.createSelectedDriver(provider, model));
+    if (!cached) {
+      this.activeTurnDrivers.set(cacheKey, {
+        provider,
+        model,
+        reasoningKey,
+        driver: selected,
+      });
     }
 
-    if (!this.hasLegacyClientOverride() && provider === 'anthropic') {
-      let apiKey: string;
-      try {
-        apiKey = await createCredentialChain().getApiKey('anthropic');
-      } catch (error) {
-        throw clientInitializationError(error, provider);
-      }
-      const selected = new AnthropicMessagesAgentDriver({ apiKey, defaultModel: model });
-      yield* selected.stream({ ...request, provider, model });
-      return;
-    }
-
-    let client: AgentCompletionClient | LLMClient;
+    let stopReason: AgentModelStopReason | undefined;
     try {
-      client = this.hasLegacyClientOverride()
+      for await (const event of selected.stream({ ...request, provider, model })) {
+        if (event.type === 'finish') stopReason = event.reason;
+        yield event;
+      }
+    } finally {
+      if (stopReason !== 'tool_use') this.activeTurnDrivers.delete(cacheKey);
+    }
+  }
+
+  private async createSelectedDriver(
+    provider: AgentProviderId,
+    model: string,
+  ): Promise<AgentModelDriver> {
+    try {
+      if (this.createProviderDriver) {
+        return await this.createProviderDriver(provider, model);
+      }
+      if (!this.hasLegacyClientOverride() && provider === 'anthropic') {
+        const apiKey = await createCredentialChain().getApiKey('anthropic');
+        return new AnthropicMessagesAgentDriver({ apiKey, defaultModel: model });
+      }
+      if (!this.hasLegacyClientOverride() && provider === 'openai') {
+        const apiKey = await createCredentialChain().getApiKey('openai');
+        return new OpenAIResponsesAgentDriver({ apiKey, defaultModel: model });
+      }
+      const client: AgentCompletionClient | LLMClient = this.hasLegacyClientOverride()
         ? await this.createClient()
         : await buildGeneralAgentClient({
             logTag: 'general-agent',
             provider,
             model,
           });
+      return new OpenAICompatibleCompletionDriver({
+        client,
+        defaultModel: model,
+        id: `${this.id}:${provider}`,
+        feature: 'general-agent',
+        reasoningMode: provider === 'deepseek' ? 'deepseek' : 'disabled',
+      });
     } catch (error) {
       throw clientInitializationError(error, provider);
     }
-
-    const delegate = new OpenAICompatibleCompletionDriver({
-      client,
-      defaultModel: model,
-      id: `${this.id}:${provider}`,
-      feature: 'general-agent',
-    });
-    yield* delegate.stream({ ...request, provider, model });
   }
 
   private hasLegacyClientOverride(): boolean {

@@ -10,7 +10,9 @@ import { useAgentChatStore } from '../../../store/agent-chat-store';
 import { useSettingsStore } from '../../../store/settings-store';
 import {
   acceptDriftingAgentWriteReview,
+  acceptDriftingAgentWriteReviewBlock,
   rejectDriftingAgentWriteReview,
+  rejectDriftingAgentWriteReviewBlock,
 } from '../useDriftingAgentRuntime';
 
 const EVENT_BATCH_DELAY_MS = 24;
@@ -40,6 +42,7 @@ interface DebugReviewRequest {
   requestId: string;
   projectId: string;
   reviewId: string;
+  blockId?: string;
   decision: 'accept' | 'reject';
   note?: string;
   timeoutMs: number;
@@ -234,6 +237,9 @@ function parseDebugRequest(value: unknown, projectId: string): DebugRequest {
       requestId: value.requestId,
       projectId,
       reviewId: value.reviewId,
+      ...(typeof value.blockId === 'string' && value.blockId.trim()
+        ? { blockId: value.blockId.trim() }
+        : {}),
       decision: value.decision,
       ...(typeof value.note === 'string' ? { note: value.note } : {}),
       timeoutMs: 120_000,
@@ -288,14 +294,26 @@ async function executeDebugReview(
     if (useAgentChatStore.getState().runningConvId) {
       throw new Error('A review cannot settle while an Agent turn is running');
     }
-    const result =
-      request.decision === 'accept'
-        ? await acceptDriftingAgentWriteReview(request.reviewId)
-        : await rejectDriftingAgentWriteReview(
+    const note = request.note ? { note: request.note } : undefined;
+    const result = request.blockId
+      ? request.decision === 'accept'
+        ? await acceptDriftingAgentWriteReviewBlock(
             request.reviewId,
-            request.note ? { note: request.note } : undefined,
+            request.blockId,
+            note,
+          )
+        : await rejectDriftingAgentWriteReviewBlock(
+            request.reviewId,
+            request.blockId,
+            note,
             signal,
-          );
+          )
+      : request.decision === 'accept'
+        ? await acceptDriftingAgentWriteReview(request.reviewId, note)
+        : await rejectDriftingAgentWriteReview(request.reviewId, note, signal);
+    const blockResult = request.blockId
+      ? (result as Awaited<ReturnType<typeof acceptDriftingAgentWriteReviewBlock>>)
+      : null;
     emitter.emit({
       type: 'review_result',
       result: {
@@ -315,6 +333,20 @@ async function executeDebugReview(
           phase: result.effect.phase,
           toolName: result.effect.toolName,
         },
+        ...(blockResult
+          ? {
+              block: {
+                reviewId: blockResult.block.reviewId,
+                blockId: blockResult.block.blockId,
+                ordinal: blockResult.block.ordinal,
+                status: blockResult.block.status,
+                decisionNote: blockResult.block.decisionNote,
+                settledAt: blockResult.block.settledAt,
+                errorCode: blockResult.block.errorCode,
+                errorMessage: blockResult.block.errorMessage,
+              },
+            }
+          : {}),
       },
     });
     emitter.emit({
@@ -322,6 +354,7 @@ async function executeDebugReview(
       projectId: request.projectId,
       operation: 'review',
       reviewId: result.review.id,
+      ...(request.blockId ? { blockId: request.blockId } : {}),
       status: result.review.status,
     });
     await emitter.finish();

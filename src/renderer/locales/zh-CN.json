@@ -470,9 +470,9 @@
 
     "about": {
       "kicker": "关于 · ABOUT",
-      "title": "Drifting · 缀浮",
+      "title": "Drifting · 灵感",
       "sub": "终极写作体验",
-      "cnName": "缀浮",
+      "cnName": "灵感",
       "version": "版本",
       "channel": "通道",
       "channelDev": "开发",
@@ -709,13 +709,47 @@
         "deepseek-v4-pro": {
           "label": "DeepSeek Pro · 稳",
           "short": "Pro"
+        },
+        "claude-sonnet-5": {
+          "label": "Claude Sonnet 5 · 均衡",
+          "short": "Sonnet 5"
+        },
+        "claude-haiku-4-5-20251001": {
+          "label": "Claude Haiku 4.5 · 快",
+          "short": "Haiku 4.5"
+        },
+        "gpt-5.6-sol": {
+          "label": "GPT-5.6 Sol · 旗舰",
+          "short": "5.6 Sol"
+        },
+        "gpt-5.6-terra": {
+          "label": "GPT-5.6 Terra · 均衡",
+          "short": "5.6 Terra"
+        },
+        "gpt-5.6-luna": {
+          "label": "GPT-5.6 Luna · 高效",
+          "short": "5.6 Luna"
         }
       },
       "reasoningTitle": "推理参数",
       "thinking": "扩展思考",
-      "thinkingDesc": "当前 Agent 工具链固定关闭扩展思考，以保证 provider-neutral 历史可重放。",
+      "thinkingDesc": "使用所选 provider 的原生推理模式，并在当前轮工具循环中安全保留 provider 的不透明重放状态。",
+      "thinkingUnavailable": "当前模型没有已认证的 thinking 模式。",
       "effort": "思考强度",
-      "effortDesc": "扩展思考关闭时不生效。",
+      "effortDesc": "可选档位由 provider 与模型决定；每轮开始时冻结本轮取值。",
+      "effortUnavailable": "当前模型没有已认证的推理强度控制。",
+      "notSupported": "不支持",
+      "thinkingOptions": {
+        "off": "关闭",
+        "adaptive": "自适应"
+      },
+      "effortOptions": {
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "xhigh": "超高",
+        "max": "最大"
+      },
       "toolSearchTitle": "工具检索",
       "toolSearch": "工具检索",
       "toolSearchDesc": "按授权策略为每轮选择最多 8 个已认证工具 schema。新安装和从旧版升级默认使用“自动”；升级后仍可在这里显式关闭。",
@@ -1145,9 +1179,16 @@
       "aria": "模型与推理设置",
       "model": "模型",
       "switchModel": "切换模型",
+      "maxContext": "Max · 1M 上下文",
+      "maxContextTitle": "开启后使用当前模型声明的完整上下文窗口，最高 100 万 token；关闭时使用 20 万 token 标准窗口。只影响新提交的轮次。",
+      "maxContextUnavailable": "当前模型不支持 100 万 token 上下文。",
       "reasoning": "推理",
       "extendedThinking": "扩展思考",
+      "extendedThinkingTitle": "使用所选 provider 已认证的原生推理模式；只影响新提交的轮次。",
+      "reasoningUnavailable": "当前模型没有已认证的 thinking 模式。",
       "effort": "强度 · {{effort}}",
+      "effortLabel": "推理强度",
+      "notSupported": "不支持",
       "edits": "改动",
       "reviewEdits": "正文改动需审阅",
       "reviewEditsTitle": "开启后，Agent 会直接把正文改动写入编辑器，并在原文位置展示彩色 diff 与接受/拒绝按钮；关闭后，改动会自动播放 reveal 动画并完成。删除实体、调整关系等结构性操作始终会在执行前单独确认。",
@@ -1168,6 +1209,9 @@
       "outputTurns": "输出 {{output}} · 轮次 {{turns}}",
       "timingDetail": "总耗时 {{total}}ms · API {{api}}ms · 本地 {{local}}ms",
       "timingHint": "（总≈API → 慢在模型侧；缓存读高且缓存写≈0 → 前缀已缓存，每轮成本在输出/思考）",
+      "workedFor": "Agent 工作 {{duration}}",
+      "workDetail": "Agent 本轮工作 {{duration}}",
+      "sentAt": "发送于 {{time}}",
       "turnsShort": "{{count}}轮",
       "sessionTitle": "本会话累计 token / 费用 / 工具调用次数",
       "session": "本会话",
@@ -1382,7 +1426,7 @@
     }
   },
   "auth": {
-    "brand": { "cn": "缀浮" },
+    "brand": { "cn": "灵感" },
     "signIn": "登录",
     "signUp": "注册",
     "signInShort": "登录",

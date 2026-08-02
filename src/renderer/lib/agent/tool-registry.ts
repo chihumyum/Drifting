@@ -1208,13 +1208,13 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
     name: 'write_file',
     description:
-      'Create a novel-project resource by writing its first file, or replace the complete contents of an existing structured file. Use edit_file for focused changes to existing prose.',
+      'Create or completely replace one novel-workspace file. Author terms 灵感, 漂移, inspiration, and drift always mean a drift node at /drifts/<title>/prose.md, not an /elements/灵感 category. Create each new structured resource with exactly one primary write: a chapter/drift at /chapters/<title>/prose.md or /drifts/<title>/prose.md; an element at /elements/<category>/<name>/body.md; a storyline/category at its body.md. The runtime generates title.txt, name.txt, category.txt, and meta.json, so never pre-create them. For a new element or storyline, a clearly labeled 摘要 or Summary section inside body.md initializes the independent summary field in the same transaction; without such a section, make a second write to summary.md when the author requests a summary. When element category is not author-specified, list /elements once and reuse a suitable existing category instead of inventing a near-duplicate. A unique contained category name such as 势力 -> 势力与组织 is normalized automatically. Create a note/TODO at /comments/<descriptive-name>.json with {"body":"...","kind":"note|todo","targetKind":"node|element|storyline|category","target":"exact name"}; create a relation at /relations/<descriptive-name>.json with {"fromKind":"...","from":"exact name","toKind":"...","to":"exact name","kind":"label"}. One relation JSON creates exactly one edge: "both A and B relate to C" requires separate A-to-C and B-to-C files in addition to any A-to-B edge. Never put creation and writes that reference the new resource in the same tool-call batch; wait for creation success before summaries, comments, or relations. These schemas are authoritative; do not inspect unrelated existing resources merely to infer their format. Use edit_file for focused changes to existing prose.',
     parametersSchema: Type.Object(
       {
         path: Type.String({
           minLength: 1,
           description:
-            'Workspace path such as /drifts/标题/prose.md, /elements/类目/名称/body.md, /comments/name.json, or /relations/name.json',
+            'Exact workspace file path. For a new resource, write its prose.md, body.md, or one comments/relations JSON file directly; do not write generated metadata files first.',
         }),
         content: Type.String({
           description: 'Complete UTF-8 file contents. JSON files require valid JSON.',
@@ -1227,7 +1227,11 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     risk: 'medium',
     effect: 'canon',
     concurrency: 'exclusive_project',
-    approval: 'automatic',
+    // The facade is path-sensitive. Structured creates/metadata writes stay
+    // automatic because they do not produce a prose review snapshot, while a
+    // whole-file replacement of existing prose must enter the same inline
+    // editor review path as edit_file.
+    approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['create workspace file', '新建内容', '创建小说实体'],
@@ -1320,7 +1324,7 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
     name: 'grep',
     description:
-      'Search titles, canon, and live manuscript text across the virtual project workspace. Optionally narrow results to a path prefix.',
+      'Search titles, canon, and live manuscript text across the virtual project workspace. Optionally narrow results to a path prefix. When path resolves to one file or one entity directory, search is literal and reports the exact occurrence count for verification.',
     parametersSchema: Type.Object(
       {
         query: Type.String({ minLength: 1, description: 'Text to search for' }),

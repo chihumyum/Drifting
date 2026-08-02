@@ -96,10 +96,9 @@ function boundedStringList(
  * bytes. A source hash proves coverage; these citations additionally prove
  * that every retained evidence quote really existed before compaction.
  *
- * Every tool result must contribute at least one citation. Tool results are
- * where current manuscript/canon state entered the conversation, so allowing
- * a free-form summary to silently omit all of one result would make a long-book
- * checkpoint topologically valid but semantically hollow.
+ * Every write-tool result must contribute at least one citation. Read results
+ * may be deliberately omitted so long tasks can re-read current workspace
+ * state instead of carrying a citation for every exploratory lookup forever.
  */
 export function validateDriftingLiteraryContextSummary(input: {
   value: unknown;
@@ -157,10 +156,13 @@ export function validateDriftingLiteraryContextSummary(input: {
   });
 
   const uncitedToolResult = input.sourceRows.find(
-    (row) => row.kind === 'tool_result' && !citedToolResults.has(row.sourceId),
+    (row) =>
+      row.kind === 'tool_result' &&
+      row.toolAccess === 'write' &&
+      !citedToolResults.has(row.sourceId),
   );
   if (uncitedToolResult) {
-    fail(`Tool result "${uncitedToolResult.sourceId}" has no exact evidence citation.`);
+    fail(`Write tool result "${uncitedToolResult.sourceId}" has no exact evidence citation.`);
   }
 
   return {

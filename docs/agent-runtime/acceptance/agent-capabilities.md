@@ -18,7 +18,8 @@ Runtime-discovered project MCP/plugin tools are additional and generation-bound.
 | Workspace hidden domain operations | 25 |
 | Domain lifecycle contracts | 9 |
 | Closed domain lifecycle operations | 43 |
-| Context window | 200,000 tokens |
+| Standard context window | 200,000 tokens |
+| Max context request | 1,000,000 tokens |
 
 The direct catalog count deliberately does not describe the complete user-facing
 write surface. The workspace facade exposes fewer natural verbs while routing
@@ -140,7 +141,8 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 
 ## Provider and extension platform
 
-- Certified providers: `deepseek` (`deepseek-v4-flash`, `deepseek-v4-pro`); `anthropic` (`claude-sonnet-5`, `claude-haiku-4-5-20251001`); `openai` (`gpt-4.1`, `gpt-4.1-mini`)
+- Certified providers: `deepseek` (`deepseek-v4-flash`, `deepseek-v4-pro`); `anthropic` (`claude-sonnet-5`, `claude-haiku-4-5-20251001`); `openai` (`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`)
+- Provider reasoning profiles: `deepseek-v4-flash` thinking=`off`, `adaptive` effort=`high`, `max` wire=`deepseek-v4-flash:agent-v2`; `deepseek-v4-pro` thinking=`off`, `adaptive` effort=`high`, `max` wire=`deepseek-v4-pro:agent-v2`; `claude-sonnet-5` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`claude-sonnet-5:messages-v1`; `claude-haiku-4-5-20251001` thinking=`off` effort=`unsupported` wire=`claude-haiku-4-5-20251001:messages-v1`; `gpt-5.6-sol` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-sol:responses-v1`; `gpt-5.6-terra` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-terra:responses-v1`; `gpt-5.6-luna` thinking=`off`, `adaptive` effort=`low`, `medium`, `high`, `xhigh`, `max` wire=`gpt-5.6-luna:responses-v1`
 - MCP protocol: `2025-06-18`
 - MCP transports: `stdio`, `streamable_http`
 - Stdio targets: `desktop-only-native-child-host`

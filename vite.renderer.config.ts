@@ -7,6 +7,8 @@ const EMBEDDED_SECRET_PATTERN = /^VITE_.*(?:API_KEY|SECRET|TOKEN)$/;
 // https://vitejs.dev/config
 export default defineConfig(({ command }) => {
   const isBuild = command === 'build';
+  const disableAgentDebugHmr =
+    process.env.VITE_DRIFTING_AGENT_DEBUG_DISABLE_HMR === '1';
 
   if (isBuild) {
     if (!process.env.VITE_API_BASE_URL) {
@@ -40,7 +42,10 @@ export default defineConfig(({ command }) => {
       // Avoid clashing with private service (http://localhost:3000)
       port: 5173,
       strictPort: true,
-      hmr: true,
+      // A mounted-renderer long-task canary must not be invalidated by an
+      // unrelated source save. This override is only consumed by Vite's local
+      // dev server; ordinary development keeps HMR enabled.
+      hmr: !disableAgentDebugHmr,
     },
     build: {
       rollupOptions: {

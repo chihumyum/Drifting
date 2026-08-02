@@ -1,5 +1,9 @@
 import type { AgentModelContextProfile } from './types';
-import type { AgentProviderChoice } from '../protocol';
+import type {
+  AgentEffortChoice,
+  AgentProviderChoice,
+  AgentThinkingChoice,
+} from '../protocol';
 
 /** Providers whose BYOK wire contract is certified for the General Agent. */
 export type AgentProviderId = AgentProviderChoice;
@@ -9,6 +13,14 @@ export interface AgentProviderModelOption {
   label: string;
   short: string;
   context: Readonly<AgentModelContextProfile>;
+  reasoning: Readonly<AgentModelReasoningProfile>;
+}
+
+export interface AgentModelReasoningProfile {
+  thinkingModes: readonly AgentThinkingChoice[];
+  efforts: readonly AgentEffortChoice[];
+  defaultThinking: AgentThinkingChoice;
+  defaultEffort: AgentEffortChoice;
 }
 
 export interface AgentProviderOption {
@@ -31,6 +43,29 @@ const profile = (
     perToolOverheadTokens: 8,
   });
 
+const reasoningProfile = (
+  thinkingModes: readonly AgentThinkingChoice[],
+  efforts: readonly AgentEffortChoice[],
+  defaultThinking: AgentThinkingChoice = 'off',
+  defaultEffort: AgentEffortChoice = 'high',
+): Readonly<AgentModelReasoningProfile> =>
+  Object.freeze({
+    thinkingModes: Object.freeze([...thinkingModes]),
+    efforts: Object.freeze([...efforts]),
+    defaultThinking,
+    defaultEffort,
+  });
+
+const ADAPTIVE_REASONING = reasoningProfile(
+  ['off', 'adaptive'],
+  ['low', 'medium', 'high', 'xhigh', 'max'],
+);
+const DEEPSEEK_REASONING = reasoningProfile(
+  ['off', 'adaptive'],
+  ['high', 'max'],
+);
+const NO_REASONING = reasoningProfile(['off'], []);
+
 /**
  * Product-certified model catalog.
  *
@@ -48,12 +83,14 @@ export const AGENT_PROVIDER_OPTIONS: readonly AgentProviderOption[] = Object.fre
         label: 'DeepSeek Flash · fast',
         short: 'DeepSeek Flash',
         context: profile('deepseek-v4-flash:agent-v2', 200_000, 8_192, 512),
+        reasoning: DEEPSEEK_REASONING,
       },
       {
         value: 'deepseek-v4-pro',
         label: 'DeepSeek Pro · steady',
         short: 'DeepSeek Pro',
         context: profile('deepseek-v4-pro:agent-v2', 200_000, 8_192, 512),
+        reasoning: DEEPSEEK_REASONING,
       },
     ]),
   },
@@ -66,12 +103,14 @@ export const AGENT_PROVIDER_OPTIONS: readonly AgentProviderOption[] = Object.fre
         label: 'Claude Sonnet 5 · balanced',
         short: 'Sonnet 5',
         context: profile('claude-sonnet-5:messages-v1', 1_000_000, 128_000, 768),
+        reasoning: ADAPTIVE_REASONING,
       },
       {
         value: 'claude-haiku-4-5-20251001',
         label: 'Claude Haiku 4.5 · fast',
         short: 'Haiku 4.5',
         context: profile('claude-haiku-4-5-20251001:messages-v1', 200_000, 64_000, 768),
+        reasoning: NO_REASONING,
       },
     ]),
   },
@@ -80,16 +119,25 @@ export const AGENT_PROVIDER_OPTIONS: readonly AgentProviderOption[] = Object.fre
     label: 'OpenAI',
     models: Object.freeze([
       {
-        value: 'gpt-4.1',
-        label: 'GPT-4.1 · capable',
-        short: 'GPT-4.1',
-        context: profile('gpt-4.1:chat-completions-v1', 1_000_000, 32_768, 640),
+        value: 'gpt-5.6-sol',
+        label: 'GPT-5.6 Sol · frontier',
+        short: '5.6 Sol',
+        context: profile('gpt-5.6-sol:responses-v1', 1_050_000, 128_000, 640),
+        reasoning: ADAPTIVE_REASONING,
       },
       {
-        value: 'gpt-4.1-mini',
-        label: 'GPT-4.1 mini · fast',
-        short: 'GPT-4.1 mini',
-        context: profile('gpt-4.1-mini:chat-completions-v1', 1_000_000, 32_768, 640),
+        value: 'gpt-5.6-terra',
+        label: 'GPT-5.6 Terra · balanced',
+        short: '5.6 Terra',
+        context: profile('gpt-5.6-terra:responses-v1', 1_050_000, 128_000, 640),
+        reasoning: ADAPTIVE_REASONING,
+      },
+      {
+        value: 'gpt-5.6-luna',
+        label: 'GPT-5.6 Luna · efficient',
+        short: '5.6 Luna',
+        context: profile('gpt-5.6-luna:responses-v1', 1_050_000, 128_000, 640),
+        reasoning: ADAPTIVE_REASONING,
       },
     ]),
   },
@@ -128,6 +176,39 @@ export function resolveAgentProviderContextProfile(
   const option = agentProviderOption(provider);
   const model = normalizeAgentProviderModel(provider, modelValue);
   return option.models.find((candidate) => candidate.value === model)!.context;
+}
+
+export function resolveAgentProviderReasoningProfile(
+  providerValue: unknown,
+  modelValue: unknown,
+): Readonly<AgentModelReasoningProfile> {
+  const provider = normalizeAgentProvider(providerValue);
+  const option = agentProviderOption(provider);
+  const model = normalizeAgentProviderModel(provider, modelValue);
+  return option.models.find((candidate) => candidate.value === model)!.reasoning;
+}
+
+export function normalizeAgentProviderThinking(
+  providerValue: unknown,
+  modelValue: unknown,
+  value: unknown,
+): AgentThinkingChoice {
+  const reasoning = resolveAgentProviderReasoningProfile(providerValue, modelValue);
+  return reasoning.thinkingModes.includes(value as AgentThinkingChoice)
+    ? (value as AgentThinkingChoice)
+    : reasoning.defaultThinking;
+}
+
+export function normalizeAgentProviderEffort(
+  providerValue: unknown,
+  modelValue: unknown,
+  value: unknown,
+): AgentEffortChoice {
+  const reasoning = resolveAgentProviderReasoningProfile(providerValue, modelValue);
+  if (reasoning.efforts.length === 0) return reasoning.defaultEffort;
+  return reasoning.efforts.includes(value as AgentEffortChoice)
+    ? (value as AgentEffortChoice)
+    : reasoning.defaultEffort;
 }
 
 export function isAgentProviderId(value: unknown): value is AgentProviderId {

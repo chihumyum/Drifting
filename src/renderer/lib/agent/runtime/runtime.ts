@@ -121,6 +121,7 @@ interface ModelIterationResult {
   toolResults: AgentToolResultBlock[];
   repairToolNames: readonly string[];
   stopReason: AgentModelStopReason;
+  completionTool?: NonNullable<AgentRuntimeRunResult['completionTool']>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -549,6 +550,16 @@ export class AgentRuntime {
       }),
     );
     const availableDefinitionsByName = groupDefinitions(definitions);
+    const completionToolName = input.completionTool?.name.trim();
+    if (input.completionTool && !completionToolName) {
+      throw new AgentRuntimeError('INTERNAL_ERROR', 'Completion tool name must not be empty');
+    }
+    if (completionToolName && !availableDefinitionsByName.has(completionToolName)) {
+      throw new AgentRuntimeError(
+        'INTERNAL_ERROR',
+        `Completion tool "${completionToolName}" is not installed`,
+      );
+    }
     const toolSearch = input.toolSearch ?? 'off';
     if (toolSearch !== 'off' && toolSearch !== 'auto' && toolSearch !== 'on') {
       throw new AgentRuntimeError(
@@ -608,6 +619,9 @@ export class AgentRuntime {
       | undefined;
     let completedContextCheckpoint:
       | NonNullable<AgentRuntimeRunResult['completedContextCheckpoint']>
+      | undefined;
+    let completedTool:
+      | NonNullable<AgentRuntimeRunResult['completionTool']>
       | undefined;
     let lastPlanningSelection:
       | {
@@ -1096,6 +1110,7 @@ export class AgentRuntime {
         driverId: this.driver.id,
         ...(input.provider ? { provider: input.provider } : {}),
         ...(input.model ? { model: input.model } : {}),
+        ...(input.contextMode ? { contextMode: input.contextMode } : {}),
         context,
         ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
         messages,
@@ -1367,8 +1382,14 @@ export class AgentRuntime {
         hasFutureModelIteration &&
         synthesisReserve > 0 &&
         (remainingOutputTokens <= synthesisReserve || remainingTotalTokens <= synthesisReserve);
+      const forceCompletionTool = Boolean(
+        completionToolName &&
+          isFinalModelIteration &&
+          input.completionTool?.forceOnFinalIteration !== false,
+      );
       const synthesisOnly =
         hasToolResultsInContext &&
+        !forceCompletionTool &&
         (forceSynthesisOnly || reserveForcesSynthesis || isFinalModelIteration);
       if (remainingOutputTokens <= 0 || remainingTotalTokens <= 0) {
         budget('No output token budget remains for another model iteration');
@@ -1478,6 +1499,9 @@ export class AgentRuntime {
           return definition;
         });
       }
+      if (forceCompletionTool) {
+        iterationDefinitions = [availableDefinitionsByName.get(completionToolName!)!];
+      }
       // Protect a separate synthesis round whenever this provider request can
       // actually start more tool work. A tool-free/direct-answer request has
       // no future tool evidence to synthesize, so reserving half its output
@@ -1522,6 +1546,7 @@ export class AgentRuntime {
           driverId: this.driver.id,
           ...(input.provider ? { provider: input.provider } : {}),
           ...(input.model ? { model: input.model } : {}),
+          ...(input.contextMode ? { contextMode: input.contextMode } : {}),
           context,
           ...(iterationSystemPrompt ? { systemPrompt: iterationSystemPrompt } : {}),
           messages,
@@ -1565,7 +1590,18 @@ export class AgentRuntime {
         iteration,
         ...(input.provider ? { provider: input.provider } : {}),
         ...(input.model ? { model: input.model } : {}),
-        ...(input.reasoning ? { reasoning: input.reasoning } : {}),
+        ...(forceCompletionTool && input.completionTool?.disableReasoningWhenForced !== false
+          ? { reasoning: { enabled: false } }
+          : input.reasoning
+            ? { reasoning: input.reasoning }
+            : {}),
+        ...(providerTools.length > 0
+          ? {
+              toolChoice: forceCompletionTool
+                ? ({ force: completionToolName! } as const)
+                : ('auto' as const),
+            }
+          : {}),
         context: deepFreeze(clonePortableData(plannedContext.envelope.providerContext)),
         tools: providerTools.map((tool) => clonePortableData(tool)),
         maxOutputTokens: requestMaxOutputTokens,
@@ -1925,6 +1961,15 @@ export class AgentRuntime {
       if (toolResults.length > 0) {
         messages.push({ role: 'tool', content: toolResults });
       }
+      const successfulCompletionCalls = completionToolName
+        ? calls.filter(
+            (call) => call.name === completionToolName && call.result?.ok === true,
+          )
+        : [];
+      if (successfulCompletionCalls.length > 1) {
+        protocol(`Model called completion tool "${completionToolName}" more than once`);
+      }
+      const completionCall = successfulCompletionCalls[0];
       return {
         assistant,
         toolResults,
@@ -1932,6 +1977,16 @@ export class AgentRuntime {
           ...new Set(calls.filter((call) => call.repairRequested).map((call) => call.name)),
         ],
         stopReason: finishReason,
+        ...(completionCall?.validatedArguments && completionCall.result
+          ? {
+              completionTool: {
+                callId: completionCall.callId,
+                name: completionCall.name,
+                arguments: clonePortableData(completionCall.validatedArguments),
+                result: clonePortableData(completionCall.result),
+              },
+            }
+          : {}),
       };
     };
 
@@ -1940,6 +1995,7 @@ export class AgentRuntime {
         type: 'turn_started',
         prompt: input.prompt,
         ...(input.promptSource ? { promptSource: input.promptSource } : {}),
+        ...(completionToolName ? { completionTool: completionToolName } : {}),
       });
       while (true) {
         checkBeforeWork();
@@ -2001,7 +2057,7 @@ export class AgentRuntime {
             // all-failed tool round is not. Remove the tool surface on the next
             // iteration so the model must explain the limitation or answer
             // from any facts already present.
-            if (repeatedFailureIterations >= 2) {
+            if (repeatedFailureIterations >= 2 && !completionToolName) {
               forceSynthesisOnly = true;
             }
           } else {
@@ -2014,11 +2070,36 @@ export class AgentRuntime {
           await emit({ type: 'cancellation_requested', reason }, true);
           throw new AgentRuntimeAbortError(reason);
         }
+        if (result.completionTool) {
+          completedTool = result.completionTool;
+          await emit({
+            type: 'completion_tool_accepted',
+            callId: result.completionTool.callId,
+            name: result.completionTool.name,
+          });
+          acceptingControl = false;
+          await emitTail;
+          checkBeforeWork();
+          completedContextCheckpoint = await awaitAbortable(
+            planCompletedContextCheckpoint(controller.signal),
+          );
+          await finish('completed');
+          break;
+        }
         if (result.toolResults.length > 0) {
           await applyPendingSteering();
           continue;
         }
         if (result.toolResults.length === 0) {
+          if (completionToolName) {
+            messages.push({
+              role: 'user',
+              content:
+                input.completionTool?.reminder?.trim() ||
+                `This turn is not complete. Call "${completionToolName}" to submit the structured result.`,
+            });
+            continue;
+          }
           acceptingControl = false;
           await emitTail;
           const appliedSteering = await applyPendingSteering();
@@ -2106,6 +2187,7 @@ export class AgentRuntime {
       state,
       entries,
       messages,
+      ...(completedTool ? { completionTool: completedTool } : {}),
       ...(lastProviderCallContextEnvelope ? { lastProviderCallContextEnvelope } : {}),
       ...((state.status === 'completed' || state.status === 'budget_exceeded') &&
       completedContextCheckpoint

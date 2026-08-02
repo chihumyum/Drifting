@@ -31,19 +31,23 @@ export class OpenAIProvider implements LLMProvider {
       ...(config.baseURL ? { baseURL: config.baseURL } : {}),
       dangerouslyAllowBrowser: true,
     });
-    this.defaultModel = config.defaultModel ?? 'gpt-4.1';
+    this.defaultModel = config.defaultModel ?? 'gpt-5.6-sol';
   }
 
   async complete(request: AICompletionRequest): Promise<AICompletionResponse> {
     assertNotAborted(request.signal);
+    const model = request.model || this.defaultModel;
     try {
       const response = await this.client.chat.completions.create(
         {
-          model: request.model || this.defaultModel,
+          model,
           messages: buildMessages(request),
           tools: buildTools(request),
           tool_choice: buildToolChoice(request),
           max_completion_tokens: request.maxOutputTokens,
+          ...(model.startsWith('gpt-5.6')
+            ? { reasoning_effort: 'none' as const }
+            : {}),
           ...(typeof request.temperature === 'number'
             ? { temperature: request.temperature }
             : {}),
@@ -77,14 +81,18 @@ export class OpenAIProvider implements LLMProvider {
 
   async *stream(request: AICompletionRequest): AsyncIterable<AICompletionChunk> {
     assertNotAborted(request.signal);
+    const model = request.model || this.defaultModel;
     try {
       const stream = await this.client.chat.completions.create(
         {
-          model: request.model || this.defaultModel,
+          model,
           messages: buildMessages(request),
           tools: buildTools(request),
           tool_choice: buildToolChoice(request),
           max_completion_tokens: request.maxOutputTokens,
+          ...(model.startsWith('gpt-5.6')
+            ? { reasoning_effort: 'none' as const }
+            : {}),
           stream: true,
           stream_options: { include_usage: true },
           ...(typeof request.temperature === 'number'

@@ -13,7 +13,6 @@
 import { LLMClient } from './llm-client';
 import { GoogleAIStudioProvider } from './providers/google';
 import { DeepSeekProvider } from './providers/deepseek';
-import { OpenAIProvider } from './providers/openai';
 import { ServerProxyProvider } from './providers/server-proxy';
 import { BYOKCredentialsProvider } from '../credentials/byok';
 import { EnvCredentialsProvider } from '../credentials/env';
@@ -96,30 +95,28 @@ function wrapClient(provider: LLMProvider, logTag: string): LLMClient {
 /**
  * Shadow-only client factory — per-MODE routing instead of the global transport
  * flag. hosted (+server reachable) → ServerProxyProvider (server-side key +
- * metering, routes any model incl. Sonnet); byok → direct DeepSeek/Google from the
- * renderer credentials chain. buildDefaultLLMClient (Copilot/dev) is left untouched.
+ * metering, routes any model incl. Sonnet); byok → the same certified direct
+ * DeepSeek client used by General Agent. buildDefaultLLMClient (Copilot/dev) is
+ * left untouched because its one-shot Google fallback is not a multi-turn Agent
+ * Runtime contract.
  */
 export async function buildShadowClient(
   options: BuildDefaultLLMClientOptions = {},
 ): Promise<LLMClient> {
-  const provider = shadowRoutesViaProxy()
-    ? new ServerProxyProvider()
-    : await pickProvider(
-        new ChainCredentialsProvider([
-          new EnvCredentialsProvider(),
-          new BYOKCredentialsProvider(),
-        ]),
-      );
-  return wrapClient(provider, options.logTag ?? 'shadow');
+  if (shadowRoutesViaProxy()) {
+    return wrapClient(new ServerProxyProvider(), options.logTag ?? 'shadow');
+  }
+  return buildDirectDeepSeekClient(options, 'Shadow');
 }
 
 /**
  * General Agent P1 client.
  *
  * The Agent is a renderer-local runtime and must keep BYOK credentials on the
- * device. It therefore never follows the global proxy build flag. P1 is
- * deliberately DeepSeek-only; adding more providers later is an adapter
- * decision rather than a change to the Agent runtime or tool contracts.
+ * device. It therefore never follows the global proxy build flag. This
+ * compatibility factory is DeepSeek-only. Anthropic and OpenAI use their
+ * native Messages/Responses Agent drivers so provider reasoning state can be
+ * replayed exactly across tool rounds.
  */
 export async function buildGeneralAgentClient(
   options: BuildDefaultLLMClientOptions = {},
@@ -129,33 +126,37 @@ export async function buildGeneralAgentClient(
     new BYOKCredentialsProvider(),
   ]);
   const provider = options.provider ?? 'deepseek';
-  if (provider === 'anthropic') {
+  if (provider !== 'deepseek') {
     throw new AIError(
       'invalid-input',
-      'Anthropic uses the native Messages Agent driver, not the OpenAI-compatible client.',
+      `${provider} uses a native Agent driver, not the OpenAI-compatible client.`,
     );
   }
-  const apiKey = await tryGetKey(credentials, provider);
+  return buildDirectDeepSeekClient(options, 'General Agent', credentials);
+}
+
+async function buildDirectDeepSeekClient(
+  options: BuildDefaultLLMClientOptions,
+  featureLabel: 'Shadow' | 'General Agent',
+  credentials = new ChainCredentialsProvider([
+    new EnvCredentialsProvider(),
+    new BYOKCredentialsProvider(),
+  ]),
+): Promise<LLMClient> {
+  const apiKey = await tryGetKey(credentials, 'deepseek');
   if (!apiKey) {
     throw new AIError(
       'auth',
-      `No ${provider} key is configured for General Agent. Add one in Settings → Models & API.`,
+      `No deepseek key is configured for ${featureLabel}. Add one in Settings → Models & API.`,
     );
   }
   return wrapClient(
-    provider === 'openai'
-      ? new OpenAIProvider({
-          apiKey,
-          ...(options.model ? { defaultModel: options.model } : {}),
-        })
-      : new DeepSeekProvider({
-          apiKey,
-          ...(options.model ? { defaultModel: options.model } : {}),
-          // The General Agent streams function calls but does not yet round-trip
-          // provider reasoning state.
-          thinking: false,
-        }),
-    options.logTag ?? 'general-agent',
+    new DeepSeekProvider({
+      apiKey,
+      ...(options.model ? { defaultModel: options.model } : {}),
+      thinking: false,
+    }),
+    options.logTag ?? (featureLabel === 'Shadow' ? 'shadow' : 'general-agent'),
   );
 }
 

@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import { LLMClient } from '../../../ai/client/llm-client';
 import { DeepSeekProvider } from '../../../ai/client/providers/deepseek';
-import { OpenAIProvider } from '../../../ai/client/providers/openai';
 import type { AgentProviderId } from '../agent-provider-contract';
 import { agentProviderOption } from '../agent-provider-contract';
 import { AnthropicMessagesAgentDriver } from '../drivers/anthropic-messages-driver';
 import { OpenAICompatibleCompletionDriver } from '../drivers/openai-compatible-completion-driver';
+import { OpenAIResponsesAgentDriver } from '../drivers/openai-responses-driver';
 import type { AgentModelDriver, AgentModelRequest, AgentModelStreamEvent } from '../types';
 
 const enabled = process.env.DRIFTING_AGENT_PROVIDER_CANARY === '1';
@@ -80,15 +80,15 @@ function requiredKey(id: AgentProviderId): string {
 
 function makeDriver(id: AgentProviderId, model: string, apiKey: string): AgentModelDriver {
   if (id === 'anthropic') return new AnthropicMessagesAgentDriver({ apiKey, defaultModel: model });
+  if (id === 'openai') return new OpenAIResponsesAgentDriver({ apiKey, defaultModel: model });
   const client = new LLMClient(
-    id === 'openai'
-      ? new OpenAIProvider({ apiKey, defaultModel: model })
-      : new DeepSeekProvider({ apiKey, defaultModel: model, thinking: false }),
+    new DeepSeekProvider({ apiKey, defaultModel: model, thinking: false }),
   );
   return new OpenAICompatibleCompletionDriver({
     client,
     defaultModel: model,
     id: `${id}-live-canary`,
     feature: 'general-agent',
+    reasoningMode: 'deepseek',
   });
 }

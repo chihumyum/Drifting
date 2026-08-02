@@ -1128,6 +1128,58 @@ describe.sequential('Drifting Agent product composition', () => {
     harness.driver.assertExhausted();
   });
 
+  it('routes whole-file prose replacement through the inline editor review', async () => {
+    const turnId = 'turn-workspace-whole-prose-review';
+    const writeCallId = 'workspace-whole-prose-write';
+    const replacement = 'Before the Agent, revised.\n\nA second reviewed paragraph.';
+    const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
+    const reviewId = `agent-review:${effectId}`;
+    useSettingsStore.getState().setAgentEditMode('approve');
+    setAgentEditModeOverride('approve');
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'read prose before whole-file replacement',
+        steps: toolCallSteps('workspace-whole-prose-read', 'read_file', {
+          path: `/chapters/${NODE_TITLE}/prose.md`,
+        }),
+      },
+      {
+        name: 'replace the complete prose file',
+        steps: toolCallSteps(writeCallId, 'write_file', {
+          path: `/chapters/${NODE_TITLE}/prose.md`,
+          content: replacement,
+        }),
+      },
+      {
+        name: 'finish whole-file prose replacement',
+        steps: finalSteps('The complete chapter replacement is ready for review.'),
+      },
+    ]);
+
+    await harness.runTurn(turnId, 'Rewrite the complete prose of Chapter One.', 1, 'auto');
+
+    expect((await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson).toContain(
+      'A second reviewed paragraph.',
+    );
+    expect(await harness.composition.repositories.writeEffects.getEffect(effectId)).toMatchObject({
+      phase: 'result_committed',
+      toolName: 'write_file',
+      authorization: { kind: 'automatic', requestId: null },
+    });
+    expect(await harness.composition.repositories.writeEffects.getReview(reviewId)).toMatchObject({
+      effectId,
+      status: 'pending',
+    });
+    expect(useAgentEditStore.getState().reviewBatches[reviewId]).toMatchObject({
+      effectId,
+      reviewId,
+      entityType: 'node',
+      id: NODE_ID,
+    });
+    expect(harness.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(1);
+    harness.driver.assertExhausted();
+  });
+
   it('lets workspace writes target any project entity without a content-scope gate', async () => {
     const turnId = 'turn-workspace-generic-prose';
     harness = await ProductAgentHarness.create([

@@ -95,7 +95,7 @@ describe('DriftingAgentModelDriver', () => {
   it.each([
     ['deepseek', 'deepseek-v4-pro'],
     ['anthropic', 'claude-haiku-4-5-20251001'],
-    ['openai', 'gpt-4.1-mini'],
+    ['openai', 'gpt-5.6-terra'],
   ] as const)('routes %s with an immutable provider/model pair', async (provider, model) => {
     const createProviderDriver = vi.fn(async () => ({
       id: `fixture-${provider}`,
@@ -128,11 +128,47 @@ describe('DriftingAgentModelDriver', () => {
       const stream = driver.stream({
         ...request(),
         provider: 'anthropic',
-        model: 'gpt-4.1',
+        model: 'gpt-5.6-sol',
       });
       await stream[Symbol.asyncIterator]().next();
     };
     await expect(run()).rejects.toThrow('does not belong');
     expect(createProviderDriver).not.toHaveBeenCalled();
+  });
+
+  it('reuses one provider driver across tool iterations and releases it at turn end', async () => {
+    const createProviderDriver = vi.fn(async () => ({
+      id: 'fixture-deepseek',
+      capabilities: { reasoning: true },
+      async *stream(input: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
+        yield {
+          type: 'usage',
+          usage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            costUsd: 0,
+          },
+        };
+        yield {
+          type: 'finish',
+          reason: input.iteration === 1 ? 'tool_use' : 'end_turn',
+        };
+      },
+    }));
+    const driver = new DriftingAgentModelDriver({ createProviderDriver });
+    const run = async (iteration: number) => {
+      const events: AgentModelStreamEvent[] = [];
+      for await (const event of driver.stream({ ...request(), iteration })) {
+        events.push(event);
+      }
+      return events;
+    };
+
+    await run(1);
+    await run(2);
+    await run(1);
+    expect(createProviderDriver).toHaveBeenCalledTimes(2);
   });
 });

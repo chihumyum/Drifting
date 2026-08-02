@@ -9,6 +9,7 @@ import migrationJournal from '../../../../../drizzle/meta/_journal.json';
 
 import type { DbClient } from '../../../lib/db';
 import { createDatabaseClient } from '../../../lib/db';
+import { countWords } from '../../word-count';
 import {
   AgentConversationTable,
   BookNodeTable,
@@ -79,6 +80,71 @@ describe('workspace domain CRUD transactions', () => {
     useDataStore.setState(initialDataState, true);
     useProjectStore.setState(initialProjectState, true);
     await fixture.close();
+  });
+
+  it('materializes the prose word count when a new chapter or drift is created', async () => {
+    const prose = '# 灰港\n\n潮声越过旧码头。The tide turns twice.';
+    const created = await fixture.write('node-create-with-prose', 'write_file', {
+      path: '/drifts/灰港/prose.md',
+      content: prose,
+    });
+
+    expect(created).toMatchObject({
+      ok: true,
+      data: {
+        result: {
+          path: '/drifts/灰港/prose.md',
+          operation: 'created',
+          wordCount: countWords(prose),
+        },
+      },
+      modelData: { wordCount: countWords(prose) },
+    });
+    expect(
+      fixture.scalar("SELECT word_count FROM book_node WHERE title = '灰港' AND deleted_at IS NULL"),
+    ).toBe(countWords(prose));
+  });
+
+  it('normalizes a unique contained category and seeds a separate summary from initial body', async () => {
+    await fixture.write('create-organization-category', 'write_file', {
+      path: '/categories/势力与组织/body.md',
+      content: '组织与势力。',
+    });
+
+    const created = await fixture.write('create-organization-with-summary', 'write_file', {
+      path: '/elements/势力/灰潮档案局/body.md',
+      content: '## 摘要\n\n负责灰港旧档。\n\n## 详细资料\n\n保管船籍与潮汐记录。',
+    });
+
+    expect(created).toMatchObject({
+      ok: true,
+      data: {
+        result: {
+          path: '/elements/势力与组织/灰潮档案局/body.md',
+          requestedPath: '/elements/势力/灰潮档案局/body.md',
+          canonicalPath: '/elements/势力与组织/灰潮档案局/body.md',
+          operation: 'created',
+          summaryInitialized: true,
+        },
+      },
+      modelData: {
+        path: '/elements/势力与组织/灰潮档案局/body.md',
+        summaryInitialized: true,
+      },
+    });
+    const category = useDataStore
+      .getState()
+      .bookElementCategories.find((item) => item.name === '势力与组织');
+    expect(category).toBeDefined();
+    expect(useDataStore.getState().bookElements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: '灰潮档案局',
+          categoryId: category?.id,
+          summary: '负责灰港旧档。',
+        }),
+      ]),
+    );
   });
 
   it('atomically replaces the complete storyline graph and restores the exact preimage', async () => {
@@ -593,6 +659,8 @@ describe('workspace domain CRUD transactions', () => {
       ok: true,
       data: {
         result: {
+          path: expect.stringMatching(/^\/comments\/.+\.json$/u),
+          requestedPath: '/comments/new.json',
           canonicalPath: expect.stringMatching(/^\/comments\/.+\.json$/u),
         },
       },
@@ -657,6 +725,8 @@ describe('workspace domain CRUD transactions', () => {
       ok: true,
       data: {
         result: {
+          path: expect.stringMatching(/^\/relations\/.+\.json$/u),
+          requestedPath: '/relations/new.json',
           canonicalPath: expect.stringMatching(/^\/relations\/.+\.json$/u),
         },
       },

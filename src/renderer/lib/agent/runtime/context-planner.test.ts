@@ -11,6 +11,7 @@ import {
   planAgentContext,
   serializeAgentContextNoteBudgetPayload,
   serializeAgentContextSummaryBudgetPayload,
+  type AgentContextFullCompactionRequest,
   type AgentContextSourceRow,
 } from './context-planner';
 
@@ -147,6 +148,60 @@ describe('provider-neutral Agent context planner', () => {
       pinReason: null,
     });
     expect(result.plan.checkpoint.coverage.discardedSourceIds).toEqual(['thinking-2']);
+  });
+
+  it('compacts older tool batches inside one oversized current turn', async () => {
+    const rows: AgentContextSourceRow[] = [
+      row('system', 0, null, 'system_policy', 'POLICY'),
+      row('user-0', 1, 0, 'user', 'Inspect a large project.'),
+    ];
+    for (let index = 0; index < 3; index += 1) {
+      rows.push(
+        row(`call-${index}`, rows.length, 0, 'tool_call', `{"path":"/${index}"}`, {
+          callId: `call-${index}`,
+          toolName: 'read_node',
+          toolAccess: 'read',
+        }),
+        row(
+          `result-${index}`,
+          rows.length + 1,
+          0,
+          'tool_result',
+          `{"ok":true,"content":"${'x'.repeat(160_000)}"}`,
+          {
+            callId: `call-${index}`,
+            toolName: 'read_node',
+            toolAccess: 'read',
+          },
+        ),
+      );
+    }
+    const fullCompactor = vi.fn(async ({ eligibleRuns }: AgentContextFullCompactionRequest) =>
+      await Promise.all(
+        eligibleRuns.map((sourceRows, index) =>
+          createAgentContextSummaryCandidate({
+            summaryId: `same-turn-${index}`,
+            sourceRows,
+            content: 'Earlier reads were completed; re-read current state when needed.',
+          }),
+        ),
+      ),
+    );
+
+    const result = await planAgentContext({
+      contextWindowTokens: 100_000,
+      requestedOutputTokens: 4_096,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      fullCompactor,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(fullCompactor).toHaveBeenCalledOnce();
+    expect(fullCompactor.mock.calls[0]![0].eligibleRuns.flat().map((source) => source.sourceId))
+      .toEqual(['call-0', 'result-0', 'call-1', 'result-1']);
+    expect(sourceSegment(result, 'call-2')).toMatchObject({ pinReason: 'recent_turn' });
+    expect(sourceSegment(result, 'result-2')).toMatchObject({ pinReason: 'recent_turn' });
   });
 
   it('keeps writes pinned unless an exact pinned durable evidence row covers the whole pair', async () => {

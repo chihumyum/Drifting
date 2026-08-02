@@ -27,6 +27,8 @@ import {
   type AgentAuth,
   AGENT_PROVIDER_OPTIONS,
   agentProviderOption,
+  resolveAgentProviderReasoningProfile,
+  type AgentEffort,
   type AgentProviderId,
   TYPEWRITER_POSITION_MAX,
   TYPEWRITER_POSITION_MIN,
@@ -4076,6 +4078,15 @@ function AgentPanel({
   const setAgentProvider = useSettingsStore((s) => s.setAgentProvider);
   const agentModel = useSettingsStore((s) => s.agentModel);
   const setAgentModel = useSettingsStore((s) => s.setAgentModel);
+  const agentThinking = useSettingsStore((s) => s.agentThinking);
+  const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
+  const agentEffort = useSettingsStore((s) => s.agentEffort);
+  const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
+  const reasoningProfile = resolveAgentProviderReasoningProfile(
+    agentProvider,
+    agentModel,
+  );
+  const supportsThinking = reasoningProfile.thinkingModes.includes('adaptive');
 
   if (!generalAgentTransport.capability.available) {
     return (
@@ -4166,6 +4177,60 @@ function AgentPanel({
                   {t(`settings.agent.modelOptions.${m.value}.label`, { defaultValue: m.label })}
                 </option>
               ))}
+            </select>
+          }
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title={t('settings.agent.reasoningTitle')} hint="REASONING" />
+        <Row
+          label={t('settings.agent.thinking')}
+          desc={
+            supportsThinking
+              ? t('settings.agent.thinkingDesc')
+              : t('settings.agent.thinkingUnavailable')
+          }
+          control={
+            <select
+              className="set-input"
+              value={agentThinking}
+              disabled={!supportsThinking}
+              onChange={(event) =>
+                setAgentThinking(event.target.value === 'adaptive' ? 'adaptive' : 'off')
+              }
+            >
+              {reasoningProfile.thinkingModes.map((mode) => (
+                <option key={mode} value={mode}>
+                  {t(`settings.agent.thinkingOptions.${mode}`)}
+                </option>
+              ))}
+            </select>
+          }
+        />
+        <Row
+          label={t('settings.agent.effort')}
+          desc={
+            reasoningProfile.efforts.length > 0
+              ? t('settings.agent.effortDesc')
+              : t('settings.agent.effortUnavailable')
+          }
+          control={
+            <select
+              className="set-input"
+              value={agentEffort}
+              disabled={reasoningProfile.efforts.length === 0}
+              onChange={(event) => setAgentEffort(event.target.value as AgentEffort)}
+            >
+              {reasoningProfile.efforts.length === 0 ? (
+                <option value={agentEffort}>{t('settings.agent.notSupported')}</option>
+              ) : (
+                reasoningProfile.efforts.map((effort) => (
+                  <option key={effort} value={effort}>
+                    {t(`settings.agent.effortOptions.${effort}`)}
+                  </option>
+                ))
+              )}
             </select>
           }
         />

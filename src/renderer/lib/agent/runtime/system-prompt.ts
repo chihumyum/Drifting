@@ -1,7 +1,7 @@
 import type { AgentStartInput, AgentStartRoute } from '../protocol';
 import { AGENT_FINAL_RESPONSE_MARKER } from './presentation-protocol';
 
-export const DRIFTING_AGENT_PROMPT_VERSION = 13 as const;
+export const DRIFTING_AGENT_PROMPT_VERSION = 17 as const;
 
 /** Product contract: Drifting supplies mechanics; the author owns writing policy. */
 export const AGENT_AUTHOR_CONTROL_CONTRACT = {
@@ -34,7 +34,11 @@ export function buildDriftingAgentSystemPrompt(
       : 'No canonical project name was provided for this turn.',
     'The project id is an opaque identifier, not a title. Never derive, guess, or claim the project name from projectId.',
     'The novel is an ordinary project workspace. Browse with list_files, read with read_file, search with grep, make focused changes with edit_file, create resources with write_file, and remove complete resources with delete_file.',
+    'In author-facing language, 灵感, 漂移, inspiration, and drift mean a drift node at /drifts/<title>/prose.md. Never create an element category named 灵感 for such a request unless the author explicitly asks for an element or category.',
     'Treat project content exactly like files: read the relevant text, make exact replacements, and continue working from the updated file. One edit may replace, insert, delete, merge, or split multiple paragraphs.',
+    'Structured workspace files are distinct authored fields. In particular, body.md and summary.md are not aliases. On new element or storyline creation, a clearly labeled 摘要 or Summary section in body.md initializes the separate summary field transactionally; otherwise write summary.md separately. After creation the fields evolve independently. Verify the summary field before claiming it exists.',
+    'Writes may depend on resources created by earlier writes. Never put a resource creation and a write that refers to that new resource in the same tool-call batch: wait for the creation result, then issue summaries, relations, comments, or other dependent writes. Likewise, wait for a new category to exist before creating an element inside it.',
+    'When the author asks for an element but does not name its category, list /elements once and reuse the closest existing category. Create a new category only when no suitable category exists; do not invent a near-duplicate category name.',
     'A chapter directory can be read or edited directly; the workspace selects its manuscript file. Use canonical chapter and entity names in author-facing prose unless the author asks for paths.',
     'File consistency, safe saving, undo, and concurrent author edits are automatic workspace behavior. Never ask the author to provide internal coordination or storage details.',
     'Any readable or writable workspace item may be operated on when useful. Editor focus, selection, the previously opened chapter, and inferred literary conventions are not permission boundaries.',
@@ -45,6 +49,7 @@ export function buildDriftingAgentSystemPrompt(
     `Begin the one author-facing response with the literal marker ${AGENT_FINAL_RESPONSE_MARKER} The runtime removes the marker and hides draft text before it. Never emit the marker before more workspace work. After it, start directly with the verified result: no provisional guesses, duplicated opening, or retrospective "I first read/searched" narration.`,
     'Only operations exposed in the current iteration are executable. If no exposed operation fits, say only that the requested change cannot be made in this turn; never invent a capability or claim an unexposed operation ran.',
     'Choose the narrowest useful read. Once current content is sufficient, act or answer instead of rereading overlapping directories for confirmation.',
+    'For a request with several separately verifiable deliverables, keep an explicit private checklist and finish every item before the final marker. Treat every member of "both", "each", "all", "两者", "分别", or "每个" as its own deliverable. Before claiming completion, compare the created or changed artifacts against that checklist; a partial set is not complete.',
     'For work spanning many chapters or context windows, inspect the workspace and create a durable task plan before editing. Use scopeKind=whole_book_chapters with omitted steps for the whole book; use scopeKind=explicit_targets only for a narrower named set. Record every explicit author constraint.',
     'For a durable plan, move one step through in_progress to completed, never repeat completed work, and resume the first unfinished step after compaction or restart. Those are continuity boundaries, not task completion: continue until the work is complete, the author stops it, progress genuinely stalls, or author input is required. If an edit awaits author review, block that step with its returned review reference and continue independent pending work; complete it only after runtime context confirms acceptance.',
     'If a whole-book plan reports chapterManifestState.status=drifted, explicitly reconcile_manifest before finalization. Reconciliation adds new chapters, updates renamed/reordered chapters, and preserves removed chapters as retired audit history; retired does not mean the chapter was edited. Never claim whole-book completion while manifest drift remains.',

@@ -156,11 +156,18 @@ function validateReviewRequest(value) {
   if (value.note !== undefined && typeof value.note !== 'string') {
     throw new Error('note must be a string');
   }
+  if (
+    value.blockId !== undefined &&
+    (typeof value.blockId !== 'string' || value.blockId.trim() === '')
+  ) {
+    throw new Error('blockId must be a non-empty string');
+  }
   return {
     kind: 'review',
     projectId: value.projectId.trim(),
     reviewId: value.reviewId.trim(),
     decision: value.decision,
+    ...(typeof value.blockId === 'string' ? { blockId: value.blockId.trim() } : {}),
     ...(value.note?.trim() ? { note: value.note.trim() } : {}),
     timeoutMs: 120_000,
   };
@@ -330,7 +337,24 @@ function startBroker({ host, port }) {
         console.log(`[agent-debug] renderer connected project=${projectId}`);
         response.on('close', () => {
           workers.delete(worker);
+          const requestId = worker.activeRequestId;
+          const job = requestId ? jobs.get(requestId) : null;
+          if (job?.state === 'active') {
+            job.state = 'failed';
+            writeNdjson(job.response, {
+              type: 'bridge_failed',
+              requestId,
+              error: 'The mounted renderer disconnected during the debug turn',
+            });
+            if (!job.response.writableEnded) job.response.end();
+            jobs.delete(requestId);
+            const queuedIndex = queued.findIndex((candidate) => candidate.id === requestId);
+            if (queuedIndex >= 0) queued.splice(queuedIndex, 1);
+          }
+          worker.busy = false;
+          worker.activeRequestId = null;
           console.log(`[agent-debug] renderer disconnected project=${projectId}`);
+          dispatchQueued();
         });
         dispatchQueued();
         return;

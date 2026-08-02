@@ -57,6 +57,7 @@ describe('preferences sync', () => {
     api.post.mockReset();
     useSettingsStore.setState({
       agentToolSearch: 'off',
+      agentMaxContext: false,
       entityLinkColorMode: 'contextual',
       entityLinkKindColors: { ...DEFAULT_ENTITY_LINK_KIND_COLORS },
     });
@@ -86,6 +87,26 @@ describe('preferences sync', () => {
     await startPreferencesSync();
 
     expect(useSettingsStore.getState().agentToolSearch).toBe('on');
+  });
+
+  it('applies provider before model and restores the Max context preference', async () => {
+    api.get.mockResolvedValue({
+      data: {
+        entries: [
+          { key: 'agentModel', value: 'gpt-5.6-terra', updatedAt: '2026-08-02T00:00:00.000Z' },
+          { key: 'agentMaxContext', value: true, updatedAt: '2026-08-02T00:00:00.000Z' },
+          { key: 'agentProvider', value: 'openai', updatedAt: '2026-08-02T00:00:00.000Z' },
+        ],
+      },
+    });
+
+    await startPreferencesSync();
+
+    expect(useSettingsStore.getState()).toMatchObject({
+      agentProvider: 'openai',
+      agentModel: 'gpt-5.6-terra',
+      agentMaxContext: true,
+    });
   });
 
   it('falls back to the safe product default for a malformed server value', async () => {

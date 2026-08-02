@@ -7,7 +7,10 @@ import type {
   AgentModelStreamEvent,
   AgentRuntimeUsage,
 } from '../types';
-import { resolveAgentProviderContextProfile } from '../agent-provider-contract';
+import {
+  resolveAgentProviderContextProfile,
+  resolveAgentProviderReasoningProfile,
+} from '../agent-provider-contract';
 
 type FetchLike = typeof fetch;
 
@@ -19,15 +22,22 @@ export interface AnthropicMessagesAgentDriverOptions {
 }
 
 interface AnthropicBlockState {
-  type: 'text' | 'thinking' | 'tool_use';
+  type: 'text' | 'thinking' | 'redacted_thinking' | 'tool_use';
   callId?: string;
+  thinking?: string;
+  signature?: string;
+  data?: string;
 }
+
+type AnthropicReasoningReplayBlock =
+  | { type: 'thinking'; thinking: string; signature: string }
+  | { type: 'redacted_thinking'; data: string };
 
 /** Native Anthropic Messages adapter; no Claude Agent SDK or Node host needed. */
 export class AnthropicMessagesAgentDriver implements AgentModelDriver {
   readonly id = 'anthropic-messages-stream';
   readonly capabilities = {
-    reasoning: false,
+    reasoning: true,
     context: resolveAgentProviderContextProfile('anthropic', 'claude-sonnet-5'),
   } as const;
 
@@ -35,6 +45,10 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
   private readonly defaultModel: string;
   private readonly endpoint: string;
   private readonly fetchImpl: FetchLike;
+  private readonly reasoningReplayByCallId = new Map<
+    string,
+    readonly AnthropicReasoningReplayBlock[]
+  >();
 
   constructor(options: AnthropicMessagesAgentDriverOptions) {
     if (!options.apiKey.trim()) throw new Error('Anthropic API key is empty');
@@ -46,6 +60,31 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
 
   async *stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
     if (request.signal.aborted) throw abortError();
+    const model = request.model || this.defaultModel;
+    const reasoningProfile = resolveAgentProviderReasoningProfile(
+      'anthropic',
+      model,
+    );
+    const reasoningEnabled = request.reasoning?.enabled === true;
+    if (
+      reasoningEnabled &&
+      !reasoningProfile.thinkingModes.includes('adaptive')
+    ) {
+      throw new AgentModelDriverError(
+        'The selected Anthropic model does not support certified thinking.',
+      );
+    }
+    if (reasoningEnabled && request.iteration > 1) {
+      assertActiveAnthropicReplay(
+        request.context,
+        this.reasoningReplayByCallId,
+      );
+    }
+    const effort = reasoningProfile.efforts.includes(
+      request.reasoning?.effort ?? reasoningProfile.defaultEffort,
+    )
+      ? request.reasoning?.effort ?? reasoningProfile.defaultEffort
+      : reasoningProfile.defaultEffort;
     let response: Response;
     try {
       response = await this.fetchImpl(this.endpoint, {
@@ -58,11 +97,20 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: request.model || this.defaultModel,
+          model,
           max_tokens: request.maxOutputTokens,
           stream: true,
           system: request.context.systemPrompt,
-          messages: projectAnthropicMessages(request.context.messages),
+          messages: projectAnthropicMessages(
+            request.context.messages,
+            reasoningEnabled ? this.reasoningReplayByCallId : undefined,
+          ),
+          ...(reasoningEnabled
+            ? { thinking: { type: 'adaptive', display: 'summarized' } }
+            : {}),
+          ...(reasoningProfile.efforts.length > 0
+            ? { output_config: { effort } }
+            : {}),
           ...(request.tools.length
             ? {
                 tools: request.tools.map((tool) => ({
@@ -70,7 +118,7 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
                   description: tool.description,
                   input_schema: tool.inputSchema,
                 })),
-                tool_choice: { type: 'auto' },
+                tool_choice: anthropicToolChoice(request.toolChoice),
               }
             : {}),
         }),
@@ -99,6 +147,8 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
     let finishReason: AgentModelStopReason | null = null;
     let messageStarted = false;
     let messageStopped = false;
+    const reasoningReplay: AnthropicReasoningReplayBlock[] = [];
+    const responseToolCallIds: string[] = [];
 
     for await (const event of parseSseJson(response, request.signal)) {
       const type = stringField(event, 'type');
@@ -122,12 +172,24 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
         if (blocks.has(index)) throw invalidStream();
         const content = recordField(event, 'content_block');
         const blockType = stringField(content, 'type');
-        if (blockType === 'text' || blockType === 'thinking') {
+        if (blockType === 'text') {
           blocks.set(index, { type: blockType });
+        } else if (blockType === 'thinking') {
+          blocks.set(index, {
+            type: 'thinking',
+            thinking: typeof content.thinking === 'string' ? content.thinking : '',
+            signature: typeof content.signature === 'string' ? content.signature : '',
+          });
+        } else if (blockType === 'redacted_thinking') {
+          blocks.set(index, {
+            type: 'redacted_thinking',
+            data: nonBlankString(content.data, 'redacted thinking data'),
+          });
         } else if (blockType === 'tool_use') {
           const callId = nonBlankString(content.id, 'tool call id');
           const name = nonBlankString(content.name, 'tool name');
           blocks.set(index, { type: 'tool_use', callId });
+          responseToolCallIds.push(callId);
           yield { type: 'tool_call_start', callId, name };
           const initialInput = content.input;
           if (
@@ -160,13 +222,17 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
           if (text) yield { type: 'text_delta', text };
         } else if (deltaType === 'thinking_delta' && block.type === 'thinking') {
           const thinking = typeof delta.thinking === 'string' ? delta.thinking : '';
+          block.thinking = (block.thinking ?? '') + thinking;
           if (thinking) yield { type: 'thinking_delta', text: thinking };
         } else if (deltaType === 'input_json_delta' && block.type === 'tool_use') {
           const partial = typeof delta.partial_json === 'string' ? delta.partial_json : '';
           if (partial) {
             yield { type: 'tool_args_delta', callId: block.callId!, delta: partial };
           }
-        } else if (deltaType !== 'signature_delta') {
+        } else if (deltaType === 'signature_delta' && block.type === 'thinking') {
+          const signature = typeof delta.signature === 'string' ? delta.signature : '';
+          block.signature = (block.signature ?? '') + signature;
+        } else {
           throw invalidStream();
         }
         continue;
@@ -178,6 +244,17 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
         blocks.delete(index);
         if (block.type === 'tool_use') {
           yield { type: 'tool_call_end', callId: block.callId! };
+        } else if (block.type === 'thinking') {
+          reasoningReplay.push({
+            type: 'thinking',
+            thinking: block.thinking ?? '',
+            signature: nonBlankString(block.signature, 'thinking signature'),
+          });
+        } else if (block.type === 'redacted_thinking') {
+          reasoningReplay.push({
+            type: 'redacted_thinking',
+            data: nonBlankString(block.data, 'redacted thinking data'),
+          });
         }
         continue;
       }
@@ -216,9 +293,23 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
       cacheWriteTokens,
       costUsd: 0,
     };
+    if (reasoningEnabled && finishReason === 'tool_use') {
+      const exact = reasoningReplay.map((block) => ({ ...block }));
+      for (const callId of responseToolCallIds) {
+        this.reasoningReplayByCallId.set(callId, exact);
+      }
+    }
     yield { type: 'usage', usage };
     yield { type: 'finish', reason: finishReason };
   }
+}
+
+function anthropicToolChoice(
+  choice: AgentModelRequest['toolChoice'],
+): { type: 'auto' | 'any' } | { type: 'tool'; name: string } {
+  if (choice === 'required') return { type: 'any' };
+  if (choice && typeof choice === 'object') return { type: 'tool', name: choice.force };
+  return { type: 'auto' };
 }
 
 type AnthropicMessage = {
@@ -228,11 +319,17 @@ type AnthropicMessage = {
 
 function projectAnthropicMessages(
   messages: AgentModelRequest['context']['messages'],
+  reasoningReplayByCallId?: ReadonlyMap<
+    string,
+    readonly AnthropicReasoningReplayBlock[]
+  >,
 ): AnthropicMessage[] {
   const projected: AnthropicMessage[] = [];
   for (const entry of messages) {
     if (entry.type === 'model_message') {
-      projected.push(...projectCanonicalMessage(entry.message));
+      projected.push(
+        ...projectCanonicalMessage(entry.message, reasoningReplayByCallId),
+      );
     } else if (entry.type === 'context_summary') {
       projected.push({
         role: 'user',
@@ -266,7 +363,13 @@ function projectAnthropicMessages(
   return projected;
 }
 
-function projectCanonicalMessage(message: AgentModelMessage): AnthropicMessage[] {
+function projectCanonicalMessage(
+  message: AgentModelMessage,
+  reasoningReplayByCallId?: ReadonlyMap<
+    string,
+    readonly AnthropicReasoningReplayBlock[]
+  >,
+): AnthropicMessage[] {
   if (message.role === 'user') return [{ role: 'user', content: message.content }];
   if (message.role === 'tool') {
     return [
@@ -282,6 +385,14 @@ function projectCanonicalMessage(message: AgentModelMessage): AnthropicMessage[]
     ];
   }
   const content: Array<Record<string, unknown>> = [];
+  const toolCallIds = message.content.flatMap((block) =>
+    block.type === 'tool_call' ? [block.callId] : [],
+  );
+  const reasoningReplay = resolveSharedAnthropicReplay(
+    toolCallIds,
+    reasoningReplayByCallId,
+  );
+  if (reasoningReplay) content.push(...reasoningReplay.map((block) => ({ ...block })));
   for (const block of message.content) {
     if (block.type === 'text' && block.text) {
       content.push({ type: 'text', text: block.text });
@@ -292,13 +403,63 @@ function projectCanonicalMessage(message: AgentModelMessage): AnthropicMessage[]
         name: block.name,
         input: block.arguments,
       });
-    } else if (block.type === 'thinking' && block.text) {
-      throw new AgentModelDriverError(
-        'Reasoning history cannot be replayed by the Anthropic adapter.',
-      );
     }
   }
   return [{ role: 'assistant', content }];
+}
+
+function resolveSharedAnthropicReplay(
+  callIds: readonly string[],
+  replayByCallId?: ReadonlyMap<
+    string,
+    readonly AnthropicReasoningReplayBlock[]
+  >,
+): readonly AnthropicReasoningReplayBlock[] | undefined {
+  if (!replayByCallId || callIds.length === 0) return undefined;
+  const values = callIds.flatMap((callId) => {
+    const value = replayByCallId.get(callId);
+    return value === undefined ? [] : [value];
+  });
+  if (values.length === 0) return undefined;
+  if (
+    values.length !== callIds.length ||
+    values.some((value) => value !== values[0])
+  ) {
+    throw new AgentModelDriverError(
+      'Anthropic reasoning replay state is incomplete for the active tool loop.',
+    );
+  }
+  return values[0];
+}
+
+function assertActiveAnthropicReplay(
+  context: AgentModelRequest['context'],
+  replayByCallId: ReadonlyMap<
+    string,
+    readonly AnthropicReasoningReplayBlock[]
+  >,
+): void {
+  let activeCallIds: string[] = [];
+  for (const entry of context.messages) {
+    if (entry.type !== 'model_message') continue;
+    if (entry.message.role === 'user') {
+      activeCallIds = [];
+      continue;
+    }
+    if (entry.message.role !== 'assistant') continue;
+    const callIds = entry.message.content.flatMap((block) =>
+      block.type === 'tool_call' ? [block.callId] : [],
+    );
+    if (callIds.length > 0) activeCallIds = callIds;
+  }
+  if (
+    activeCallIds.length === 0 ||
+    activeCallIds.some((callId) => !replayByCallId.has(callId))
+  ) {
+    throw new AgentModelDriverError(
+      'Anthropic reasoning replay state is unavailable for the active tool loop.',
+    );
+  }
 }
 
 async function* parseSseJson(

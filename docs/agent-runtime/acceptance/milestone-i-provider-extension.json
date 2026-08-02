@@ -3,16 +3,16 @@
   "schemaVersion": 1,
   "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "sourceSetSha256": "sha256:b53bd2deff5cf66938eaf0bf923772b726013b36f66b4795d28d898aadfba4cd",
+  "sourceSetSha256": "sha256:1b612948e8f531ff2c0b23e3aa7d54f255dba4a558f562d683420bdab4b1440e",
   "vitest": {
-    "files": 17,
-    "tests": 143,
-    "passedTests": 143,
+    "files": 19,
+    "tests": 162,
+    "passedTests": 162,
     "groups": {
       "providers": {
-        "requiredFiles": 5,
-        "discoveredFiles": 5,
-        "tests": 41,
+        "requiredFiles": 7,
+        "discoveredFiles": 7,
+        "tests": 57,
         "passed": true
       },
       "mcpProtocolAndLifecycle": {
@@ -24,7 +24,7 @@
       "durableAuthorityAndProduct": {
         "requiredFiles": 7,
         "discoveredFiles": 7,
-        "tests": 74,
+        "tests": 77,
         "passed": true
       }
     },

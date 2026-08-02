@@ -761,6 +761,59 @@ describe('durable Agent long-task runtime', () => {
         toolName: 'update_project_facts',
       },
     });
+    expect(plan.task.status).toBe('completed');
+    await expect(
+      repository.getOpenPlan({ projectId: PROJECT_ID, sessionId: SESSION_ID }),
+    ).resolves.toBeNull();
+    await test.gateway.close();
+  });
+
+  it('accepts an exact target write made after step creation but before in-progress bookkeeping', async () => {
+    const test = await fixture();
+    const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
+      createId: idFactory(),
+    });
+    let plan = (
+      await repository.applyCommand(test.nextProvenance('update_task_plan'), createCommand())
+    ).plan;
+    const step = plan.steps[0]!;
+    const reviewId = await createAcceptedWriteReview(test, {
+      chapterId: step.target!.resolvedTargetId!,
+      chapterName: step.target!.name,
+    });
+
+    plan = (
+      await repository.applyCommand(test.nextProvenance('update_task_step'), {
+        toolName: 'update_task_step',
+        taskId: plan.task.id,
+        expectedRevision: plan.task.revision,
+        stepId: step.id,
+        status: 'in_progress',
+        resultNote: null,
+        resultRef: null,
+      })
+    ).plan;
+    test.gateway.database
+      .prepare('UPDATE agent_runtime_task_step SET started_at = ? WHERE id = ?')
+      .run('2026-08-01T00:00:00.000Z', step.id);
+
+    const completed = await repository.applyCommand(test.nextProvenance('update_task_step'), {
+      toolName: 'update_task_step',
+      taskId: plan.task.id,
+      expectedRevision: plan.task.revision,
+      stepId: step.id,
+      status: 'completed',
+      resultNote: '正文先完成，随后补记步骤状态',
+      resultRef: reviewId,
+    });
+    expect(completed.plan.steps[0]).toMatchObject({
+      status: 'completed',
+      resultRef: reviewId,
+      reviewEvidence: {
+        acceptedTargetEvidence: true,
+        outcome: 'accepted_target_write',
+      },
+    });
     await test.gateway.close();
   });
 

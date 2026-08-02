@@ -141,6 +141,7 @@ export async function runScopedAgentTurn(
     mode: settings.agentAuth,
     provider: settings.agentProvider,
     model: settings.agentModel,
+    contextMode: settings.agentMaxContext ? 'max' : 'standard',
     effort: settings.agentEffort,
     thinking: settings.agentThinking,
     toolSearch: 'on',

@@ -5,8 +5,11 @@ import {
   AGENT_PROVIDER_OPTIONS,
   DEFAULT_AGENT_PROVIDER,
   agentProviderOption,
+  normalizeAgentProviderEffort,
   normalizeAgentProvider,
   normalizeAgentProviderModel,
+  normalizeAgentProviderThinking,
+  resolveAgentProviderReasoningProfile,
   type AgentProviderId,
 } from '../lib/agent/runtime/agent-provider-contract';
 import { APP_CONFIG } from '../lib/config';
@@ -156,7 +159,11 @@ export type EvolveEditorEngine = 'agent-sdk' | 'shadow-fc';
  */
 /** @deprecated Prefer `agentProviderOption(provider).models`. */
 export const AGENT_MODEL_OPTIONS = AGENT_PROVIDER_OPTIONS.flatMap((provider) => provider.models);
-export { AGENT_PROVIDER_OPTIONS, agentProviderOption };
+export {
+  AGENT_PROVIDER_OPTIONS,
+  agentProviderOption,
+  resolveAgentProviderReasoningProfile,
+};
 export type { AgentProviderId };
 
 /** Effort levels for the pickers, with compact labels. */
@@ -309,16 +316,14 @@ interface SettingsState {
   setCopilotByokModel: (m: string) => void;
 
   // Shadow (影) provider config — governs BOTH chapter-CI review and element-arc
-  // derivation. Independent of Copilot (deliberately its own slice, not a shared
-  // field). Same shape as Copilot: hosted tier OR BYOK provider+model. The hosted
-  // tier maps to a concrete model in lib/shadow/model-routing.ts (低 flash / 中 pro
-  // / 高 sonnet); 高 (Sonnet) is server-routed (needs the hosted proxy).
+  // derivation. Credentials are shared globally through `byok.<provider>`, while
+  // this slice stores only Shadow's independent provider/model routing choice.
   shadowAiMode: AiMode;
   setShadowAiMode: (m: AiMode) => void;
   shadowTier: ModelTier;
   setShadowTier: (t: ModelTier) => void;
-  shadowByokProvider: BYOKProvider;
-  setShadowByokProvider: (p: BYOKProvider) => void;
+  shadowByokProvider: AgentProviderId;
+  setShadowByokProvider: (p: AgentProviderId) => void;
   shadowByokModel: string;
   setShadowByokModel: (m: string) => void;
   // When on, marking a chapter「已完成」auto-runs a shadow review first
@@ -340,6 +345,9 @@ interface SettingsState {
   setAgentProvider: (provider: AgentProviderId) => void;
   agentModel: AgentModel;
   setAgentModel: (m: AgentModel) => void;
+  /** Requests the selected model's declared context window, capped at 1M. */
+  agentMaxContext: boolean;
+  setAgentMaxContext: (on: boolean) => void;
   agentEffort: AgentEffort;
   setAgentEffort: (e: AgentEffort) => void;
   agentThinking: AgentThinking;
@@ -548,10 +556,9 @@ export const useSettingsStore = create<SettingsState>()(
       setCopilotByokProvider: (p) => set({ copilotByokProvider: p }),
       copilotByokModel: '',
       setCopilotByokModel: (m) => set({ copilotByokModel: m }),
-      // Shadow defaults: hosted + 中档 (DeepSeek-Pro). Pro is the sensible default
-      // for a quality-sensitive consistency judge / arc derive (steadier reasoning,
-      // far fewer JSON-format failures than flash). Dial down to 低 for flash, or
-      // switch to BYOK to pin your own model.
+      // Shadow has its own route but uses the same provider credentials as every
+      // other AI surface. Provider changes atomically select a certified model so
+      // a synced stale model id can never be sent to the wrong endpoint.
       shadowAiMode: 'byok',
       setShadowAiMode: () => set({ shadowAiMode: 'byok' }),
       shadowTier: 'standard',
@@ -559,29 +566,85 @@ export const useSettingsStore = create<SettingsState>()(
       shadowAutoRun: true,
       setShadowAutoRun: (on) => set({ shadowAutoRun: on }),
       shadowByokProvider: 'deepseek',
-      setShadowByokProvider: (p) => set({ shadowByokProvider: p }),
+      setShadowByokProvider: (provider) =>
+        set((state) => {
+          const shadowByokProvider = normalizeAgentProvider(provider);
+          return {
+            shadowByokProvider,
+            shadowByokModel: normalizeAgentProviderModel(
+              shadowByokProvider,
+              state.shadowByokModel,
+            ),
+          };
+        }),
       shadowByokModel: 'deepseek-v4-flash',
-      setShadowByokModel: (m) => set({ shadowByokModel: m }),
+      setShadowByokModel: (m) =>
+        set((state) => ({
+          shadowByokModel: normalizeAgentProviderModel(state.shadowByokProvider, m),
+        })),
       agentAuth: 'apikey',
       setAgentAuth: (auth) => set({ agentAuth: auth === 'hosted' ? 'apikey' : auth }),
       agentProvider: DEFAULT_AGENT_PROVIDER,
       setAgentProvider: (provider) =>
         set((state) => {
           const normalizedProvider = normalizeAgentProvider(provider);
+          const normalizedModel = normalizeAgentProviderModel(
+            normalizedProvider,
+            state.agentModel,
+          );
           return {
             agentProvider: normalizedProvider,
-            agentModel: normalizeAgentProviderModel(normalizedProvider, state.agentModel),
+            agentModel: normalizedModel,
+            agentThinking: normalizeAgentProviderThinking(
+              normalizedProvider,
+              normalizedModel,
+              state.agentThinking,
+            ),
+            agentEffort: normalizeAgentProviderEffort(
+              normalizedProvider,
+              normalizedModel,
+              state.agentEffort,
+            ),
           };
         }),
       agentModel: 'deepseek-v4-flash',
       setAgentModel: (m) =>
-        set((state) => ({
-          agentModel: normalizeAgentProviderModel(state.agentProvider, m),
-        })),
+        set((state) => {
+          const agentModel = normalizeAgentProviderModel(state.agentProvider, m);
+          return {
+            agentModel,
+            agentThinking: normalizeAgentProviderThinking(
+              state.agentProvider,
+              agentModel,
+              state.agentThinking,
+            ),
+            agentEffort: normalizeAgentProviderEffort(
+              state.agentProvider,
+              agentModel,
+              state.agentEffort,
+            ),
+          };
+        }),
+      agentMaxContext: false,
+      setAgentMaxContext: (on) => set({ agentMaxContext: on }),
       agentEffort: 'high',
-      setAgentEffort: (e) => set({ agentEffort: e }),
+      setAgentEffort: (e) =>
+        set((state) => ({
+          agentEffort: normalizeAgentProviderEffort(
+            state.agentProvider,
+            state.agentModel,
+            e,
+          ),
+        })),
       agentThinking: 'off',
-      setAgentThinking: (t) => set({ agentThinking: t }),
+      setAgentThinking: (t) =>
+        set((state) => ({
+          agentThinking: normalizeAgentProviderThinking(
+            state.agentProvider,
+            state.agentModel,
+            t,
+          ),
+        })),
       agentToolSearch: AGENT_TOOL_SEARCH_DEFAULT,
       setAgentToolSearch: (t) => set({ agentToolSearch: t }),
       agentEditMode: 'auto',
@@ -667,7 +730,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 22,
+      version: 25,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           appearanceSkin?: 'classic' | 'modern';
@@ -948,6 +1011,33 @@ export const useSettingsStore = create<SettingsState>()(
           next.agentProvider = provider;
           next.agentModel = normalizeAgentProviderModel(provider, next.agentModel);
         }
+        if (version < 23) {
+          next.agentMaxContext = false;
+        }
+        if (version < 24) {
+          const provider = normalizeAgentProvider(next.agentProvider);
+          const model = normalizeAgentProviderModel(provider, next.agentModel);
+          next.agentProvider = provider;
+          next.agentModel = model;
+          next.agentThinking = normalizeAgentProviderThinking(
+            provider,
+            model,
+            next.agentThinking,
+          );
+          next.agentEffort = normalizeAgentProviderEffort(
+            provider,
+            model,
+            next.agentEffort,
+          );
+        }
+        if (version < 25) {
+          const provider = normalizeAgentProvider(next.shadowByokProvider);
+          next.shadowByokProvider = provider;
+          next.shadowByokModel = normalizeAgentProviderModel(
+            provider,
+            next.shadowByokModel,
+          );
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -958,11 +1048,27 @@ export const useSettingsStore = create<SettingsState>()(
       merge: (persisted, current) => {
         const persistedSettings = persisted as Partial<SettingsState> | undefined;
         const merged = { ...current, ...persistedSettings };
+        merged.shadowByokProvider = normalizeAgentProvider(merged.shadowByokProvider);
+        merged.shadowByokModel = normalizeAgentProviderModel(
+          merged.shadowByokProvider,
+          merged.shadowByokModel,
+        );
         merged.agentProvider = normalizeAgentProvider(merged.agentProvider);
         merged.agentModel = normalizeAgentProviderModel(
           merged.agentProvider,
           merged.agentModel,
         );
+        merged.agentThinking = normalizeAgentProviderThinking(
+          merged.agentProvider,
+          merged.agentModel,
+          merged.agentThinking,
+        );
+        merged.agentEffort = normalizeAgentProviderEffort(
+          merged.agentProvider,
+          merged.agentModel,
+          merged.agentEffort,
+        );
+        merged.agentMaxContext = merged.agentMaxContext === true;
         merged.agentToolSearch = normalizeAgentToolSearch(
           persistedSettings?.agentToolSearch,
         );

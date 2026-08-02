@@ -114,6 +114,22 @@ async function collect(
 }
 
 describe('OpenAICompatibleCompletionDriver', () => {
+  it('forwards a forced completion-tool choice to the provider contract', async () => {
+    const client = new FakeCompletionClient(() => ({
+      text: 'fallback',
+      finishReason: 'stop',
+      usage: { inputTokens: 1, outputTokens: 1 },
+    }));
+    const driver = new OpenAICompatibleCompletionDriver({
+      client,
+      defaultModel: 'deepseek-chat',
+    });
+
+    await collect(driver, request({ toolChoice: { force: 'read_node' } }));
+
+    expect(client.requests[0]?.toolChoice).toEqual({ force: 'read_node' });
+  });
+
   it('projects the required verified context into the completion request', async () => {
     const client = new FakeCompletionClient(() => ({
       text: 'answer',
@@ -883,6 +899,105 @@ describe('OpenAICompatibleCompletionDriver', () => {
         'Reasoning is not supported by the General Agent driver.',
     });
     expect(client.requests).toHaveLength(0);
+  });
+
+  it('preserves DeepSeek reasoning_content across active-turn tool iterations', async () => {
+    let call = 0;
+    const client = new FakeStreamingClient((_request) =>
+      (async function* (): AsyncIterable<AICompletionChunk> {
+        call += 1;
+        if (call === 1) {
+          yield { delta: '', thinkingDelta: 'inspect first' };
+          yield {
+            delta: '',
+            toolCallDeltas: [
+              {
+                index: 0,
+                id: 'call-thinking',
+                nameDelta: 'read_node',
+                argumentsDelta: '{"node":"A"}',
+              },
+            ],
+          };
+          yield { delta: '', finishReason: 'tool_calls' };
+          yield { delta: '', usage: { inputTokens: 5, outputTokens: 3 } };
+          return;
+        }
+        yield { delta: 'done' };
+        yield { delta: '', finishReason: 'stop' };
+        yield { delta: '', usage: { inputTokens: 8, outputTokens: 2 } };
+      })(),
+    );
+    const driver = new OpenAICompatibleCompletionDriver({
+      client,
+      defaultModel: 'deepseek-v4-pro',
+      reasoningMode: 'deepseek',
+    });
+
+    const first = await collect(
+      driver,
+      request({ reasoning: { enabled: true, effort: 'max' } }),
+    );
+    expect(first).toContainEqual({ type: 'thinking_delta', text: 'inspect first' });
+    expect(client.requests[0]).toMatchObject({
+      thinking: true,
+      reasoningEffort: 'max',
+    });
+
+    await collect(
+      driver,
+      request({
+        iteration: 2,
+        reasoning: { enabled: true, effort: 'max' },
+        context: modelContext([
+          { role: 'user', content: 'hello' },
+          {
+            role: 'assistant',
+            content: [
+              { type: 'thinking', text: 'inspect first' },
+              {
+                type: 'tool_call',
+                callId: 'call-thinking',
+                name: 'read_node',
+                arguments: { node: 'A' },
+                rawArguments: '{"node":"A"}',
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            content: [
+              {
+                callId: 'call-thinking',
+                name: 'read_node',
+                ok: true,
+                content: '{"title":"A"}',
+              },
+            ],
+          },
+        ]),
+      }),
+    );
+    expect(client.requests[1]?.messages).toEqual([
+      { role: 'user', content: 'hello' },
+      {
+        role: 'model',
+        content: '',
+        reasoningContent: 'inspect first',
+        toolCalls: [
+          {
+            id: 'call-thinking',
+            name: 'read_node',
+            arguments: { node: 'A' },
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        toolCallId: 'call-thinking',
+        content: '{"title":"A"}',
+      },
+    ]);
   });
 
   it('rejects non-empty reasoning history on the P1 path', async () => {

@@ -158,37 +158,37 @@ export function applyAgentChatJournalEntry(
       }));
     }
     case 'steering_received':
-      return [...finalizeAgentChatStreaming(list), { kind: 'user', text: ev.text }];
+      return [
+        ...finalizeAgentChatStreaming(list),
+        { kind: 'user', text: ev.text, at: new Date(entry.wallTimeMs).toISOString() },
+      ];
     case 'user_input_received':
-      return [...finalizeAgentChatStreaming(list), { kind: 'user', text: ev.response.text }];
+      return [
+        ...finalizeAgentChatStreaming(list),
+        {
+          kind: 'user',
+          text: ev.response.text,
+          at: new Date(entry.wallTimeMs).toISOString(),
+        },
+      ];
     case 'model_iteration_completed':
     case 'commit_started':
       return finalizeAgentChatStreaming(list);
     case 'turn_finished': {
-      let next = finalizeAgentChatStreaming(list);
-      const usage = ev.usage;
-      if (
-        usage.inputTokens ||
-        usage.outputTokens ||
-        usage.cacheReadTokens ||
-        usage.cacheWriteTokens ||
-        usage.costUsd
-      ) {
-        next = [
-          ...next,
-          {
-            kind: 'usage',
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-            cacheReadTokens: usage.cacheReadTokens,
-            cacheCreationTokens: usage.cacheWriteTokens,
-            costUsd: usage.costUsd,
-            turns: ev.modelIterations,
-            durationMs: ev.durationMs,
-            at: new Date(entry.wallTimeMs).toISOString(),
-          },
-        ];
-      }
+      let next: AgentChatMessage[] = [
+        ...finalizeAgentChatStreaming(list),
+        {
+          kind: 'usage',
+          inputTokens: ev.usage.inputTokens,
+          outputTokens: ev.usage.outputTokens,
+          cacheReadTokens: ev.usage.cacheReadTokens,
+          cacheCreationTokens: ev.usage.cacheWriteTokens,
+          costUsd: ev.usage.costUsd,
+          turns: ev.modelIterations,
+          durationMs: ev.durationMs,
+          at: new Date(entry.wallTimeMs).toISOString(),
+        },
+      ];
       if (ev.outcome !== 'completed' && ev.outcome !== 'aborted') {
         next = [
           ...next,
@@ -210,6 +210,7 @@ export function applyAgentChatJournalEntry(
     case 'stop_after_tool_requested':
     case 'cancellation_requested':
     case 'model_usage':
+    case 'completion_tool_accepted':
       return list;
   }
 }
