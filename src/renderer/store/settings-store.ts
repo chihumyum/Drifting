@@ -912,6 +912,11 @@ export const useSettingsStore = create<SettingsState>()(
             version,
           );
         }
+        if (version < 22) {
+          const provider = normalizeAgentProvider(next.agentProvider);
+          next.agentProvider = provider;
+          next.agentModel = normalizeAgentProviderModel(provider, next.agentModel);
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
