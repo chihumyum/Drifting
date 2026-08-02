@@ -42,6 +42,12 @@ category, group, aliases and key/value facts; Storyline counts, words and facts;
 and Category element count and color. Patch links do not open a hover card until
 patch data is available in the same store boundary.
 
+Chapter storyline metadata is hydrated from local `node_storyline_link` rows,
+including `is_primary`, before the renderer becomes ready. The card and timeline
+views share the same resolver: use the declared primary while it remains a member,
+then fall back to the first hydrated membership. Offline startup therefore does
+not mislabel an affiliated chapter as unaffiliated while network sync is pending.
+
 ## Acceptance
 
 Machine-checkable coverage lives in:
@@ -50,6 +56,7 @@ Machine-checkable coverage lives in:
 - `src/renderer/lib/extensions/entity-link.test.ts`
 - `src/renderer/components/ui/entity-hover-card-model.test.ts`
 - `src/renderer/components/ui/entity-hover-card-position.test.ts`
+- `src/renderer/domain/node-storyline-state.test.ts`
 
 Run the focused checks with:
 
@@ -58,7 +65,8 @@ pnpm --dir client exec vitest run \
   src/renderer/lib/entity-link-appearance.test.ts \
   src/renderer/lib/extensions/entity-link.test.ts \
   src/renderer/components/ui/entity-hover-card-model.test.ts \
-  src/renderer/components/ui/entity-hover-card-position.test.ts
+  src/renderer/components/ui/entity-hover-card-position.test.ts \
+  src/renderer/domain/node-storyline-state.test.ts
 pnpm typecheck
 ```
 

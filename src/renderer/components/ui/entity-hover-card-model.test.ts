@@ -62,6 +62,29 @@ describe('buildEntityHoverCardContent', () => {
     });
   });
 
+  it('uses hydrated membership while the primary lookup is unavailable', () => {
+    const content = buildEntityHoverCardContent(
+      { kind: 'node', id: 'chapter-1' },
+      store({
+        bookNodes: [
+          {
+            id: 'chapter-1',
+            kind: 'chapter',
+            summary: '',
+            writingStatus: 'draft',
+            wordCount: 10,
+          },
+        ],
+        storylines: [{ id: 'story-1', name: 'Main Arc', color: '#5570A7' }],
+        nodeStorylineMapping: { 'chapter-1': ['story-1'] },
+        primaryStorylineByNode: {},
+      }),
+      t,
+    );
+
+    expect(content?.meta[2]).toEqual({ text: 'Main Arc', color: '#5570A7' });
+  });
+
   it('builds element metadata without reading its prose body', () => {
     const content = buildEntityHoverCardContent(
       { kind: 'element', id: 'element-1' },

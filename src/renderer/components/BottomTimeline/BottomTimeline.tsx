@@ -5,6 +5,7 @@ import { useStoryline } from '../../usecase/useStoryline';
 import { useBookNode } from '../../usecase/useBookNode';
 import type { Storyline } from '../../domain/storyline';
 import { isChapter, isDrift } from '../../domain/book-node';
+import { resolvePrimaryStorylineId } from '../../domain/node-storyline-state';
 import { spreadTimelineNodes } from '../../domain/timeline-spread';
 import { useAuthStore } from '../../store/auth';
 import { EntityHoverCard } from '../ui/EntityHoverCard';
@@ -356,11 +357,11 @@ export function BottomTimeline() {
   // primary from the link table (via the store), falling back to the first
   // storyline in the membership list when no primary is set.
   const primaryStorylineId = useCallback(
-    (node: { id: string; storylines: Storyline[] }) => {
-      const declared = primaryStorylineByNode[node.id] ?? null;
-      if (declared && node.storylines.some((sl) => sl.id === declared)) return declared;
-      return node.storylines[0]?.id ?? null;
-    },
+    (node: { id: string; storylines: Storyline[] }) =>
+      resolvePrimaryStorylineId(
+        primaryStorylineByNode[node.id],
+        node.storylines.map((storyline) => storyline.id),
+      ),
     [primaryStorylineByNode],
   );
 

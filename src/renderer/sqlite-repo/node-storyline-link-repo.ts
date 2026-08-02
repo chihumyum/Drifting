@@ -2,6 +2,7 @@ import { getDb, type DbExecutor } from '../lib/db';
 import { BookNodeTable, NodeStorylineLinkTable, StorylineTable } from '../schema/drizzle';
 import { eq, asc, and, inArray } from 'drizzle-orm';
 import type { Storyline } from '../domain/storyline';
+import type { NodeStorylineLinkState } from '../domain/node-storyline-state';
 
 export interface NodeStorylineLinkRepository {
   addNodeToStoryline(
@@ -12,6 +13,7 @@ export interface NodeStorylineLinkRepository {
   removeNodeFromStoryline(nodeId: string, storylineId: string): Promise<void>;
   getStorylinesByNode(nodeId: string): Promise<Storyline[]>;
   getStorylinesByNodeIds(nodeIds: string[]): Promise<Record<string, Storyline[]>>;
+  getStorylineLinksByNodeIds(nodeIds: string[]): Promise<NodeStorylineLinkState[]>;
   getNodeIdsByStoryline(storylineId: string): Promise<string[]>;
   setNodeStorylines(
     nodeId: string,
@@ -247,6 +249,28 @@ export function createNodeStorylineLinkRepository(
     return grouped;
   };
 
+  const getStorylineLinksByNodeIds = async (
+    nodeIds: string[],
+  ): Promise<NodeStorylineLinkState[]> => {
+    if (nodeIds.length === 0) return [];
+
+    return dbProvider()
+      .select({
+        nodeId: NodeStorylineLinkTable.nodeId,
+        storylineId: NodeStorylineLinkTable.storylineId,
+        isPrimary: NodeStorylineLinkTable.isPrimary,
+      })
+      .from(NodeStorylineLinkTable)
+      .innerJoin(StorylineTable, eq(StorylineTable.id, NodeStorylineLinkTable.storylineId))
+      .where(
+        and(
+          inArray(NodeStorylineLinkTable.nodeId, nodeIds),
+          eq(StorylineTable.projectId, projectId),
+        ),
+      )
+      .orderBy(asc(StorylineTable.orderKey), asc(StorylineTable.id));
+  };
+
   const getNodeIdsByStoryline = async (storylineId: string): Promise<string[]> => {
     await ensureStorylineInProject(storylineId);
 
@@ -305,6 +329,7 @@ export function createNodeStorylineLinkRepository(
     removeNodeFromStoryline,
     getStorylinesByNode,
     getStorylinesByNodeIds,
+    getStorylineLinksByNodeIds,
     getNodeIdsByStoryline,
     setNodeStorylines,
     setPrimaryStoryline,

@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import type { StructuralEntityKind } from '../../domain/entity-kinds';
 import { isChapter } from '../../domain/book-node';
 import { parseKv } from '../../domain/kv';
+import { resolvePrimaryStorylineId } from '../../domain/node-storyline-state';
 import { useDataStore } from '../../store/data-store';
 
 export const HOVER_PREVIEW_DELAY_MS = 220;
@@ -70,7 +71,11 @@ export function buildEntityHoverCardContent(
       { text: t('nodeEditor.meta.words', { count: node.wordCount.toLocaleString() }) },
     ];
     if (isChapter(node)) {
-      const storylineId = state.primaryStorylineByNode[node.id] ?? null;
+      const storylineIds = state.nodeStorylineMapping[node.id] ?? [];
+      const storylineId = resolvePrimaryStorylineId(
+        state.primaryStorylineByNode[node.id],
+        storylineIds,
+      );
       const storyline = storylineId
         ? state.storylines.find((candidate) => candidate.id === storylineId)
         : null;
@@ -78,7 +83,7 @@ export function buildEntityHoverCardContent(
         text: storyline?.name ?? t('nodeEditor.empty.noStoryline'),
         color: storyline?.color,
       });
-      const storylineCount = state.nodeStorylineMapping[node.id]?.length ?? 0;
+      const storylineCount = storylineIds.length;
       if (storylineCount > 1) {
         meta.push({ text: t('nodeEditor.meta.storylines', { count: storylineCount }) });
       }

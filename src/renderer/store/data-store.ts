@@ -58,6 +58,10 @@ interface DataState {
   addNodeToStorylineMapping: (storylineId: string, nodeId: string) => void;
   removeNodeFromStorylineMapping: (storylineId: string, nodeId: string) => void;
   setNodeStorylinesMapping: (nodeId: string, storylineIds: string[]) => void;
+  setNodeStorylineState: (
+    storylineNodeMapping: Record<string, string[]>,
+    primaryStorylineByNode: Record<string, string | null>,
+  ) => void;
   setPrimaryStorylineByNode: (mapping: Record<string, string | null>) => void;
   setNodePrimaryStoryline: (nodeId: string, storylineId: string | null) => void;
 
@@ -225,6 +229,12 @@ export const useDataStore = create<DataState>((set) => ({
     set({
       storylineNodeMapping: mapping,
       nodeStorylineMapping: deriveNodeStorylineMapping(mapping),
+    }),
+  setNodeStorylineState: (storylineNodeMapping, primaryStorylineByNode) =>
+    set({
+      storylineNodeMapping,
+      nodeStorylineMapping: deriveNodeStorylineMapping(storylineNodeMapping),
+      primaryStorylineByNode,
     }),
   addNodeToStorylineMapping: (storylineId, nodeId) =>
     set((state) => {

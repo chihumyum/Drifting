@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import type { Storyline } from '../domain/storyline';
 import { makeUniqueStorylineName } from '../domain/storyline';
+import { deriveNodeStorylineState } from '../domain/node-storyline-state';
 import { createStorylineRepository } from '../sqlite-repo/storyline-repo';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo';
 import { useDataStore } from '../store/data-store';
@@ -109,6 +110,16 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     useDataStore.getState().setStorylineNodeMapping(mapping);
   }, []);
 
+  const setNodeStorylineState = useCallback(
+    (
+      storylineNodeMapping: Record<string, string[]>,
+      primaryStorylineByNode: Record<string, string | null>,
+    ) => {
+      useDataStore.getState().setNodeStorylineState(storylineNodeMapping, primaryStorylineByNode);
+    },
+    [],
+  );
+
   const cloneStorylineNodeMapping = useCallback((mapping: Record<string, string[]>) => {
     return Object.fromEntries(Object.entries(mapping).map(([key, value]) => [key, value.slice()]));
   }, []);
@@ -130,19 +141,13 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     await ensureDb();
     const nodeIds = useDataStore.getState().bookNodes.map((n) => n.id);
     if (nodeIds.length === 0) {
-      setStorylineNodeMappingState({});
+      setNodeStorylineState({}, {});
       return;
     }
-    const grouped = await linkRepo.getStorylinesByNodeIds(nodeIds);
-    const forward: Record<string, string[]> = {};
-    Object.entries(grouped).forEach(([nodeId, storylines]) => {
-      storylines.forEach((sl) => {
-        const arr = forward[sl.id] || [];
-        if (!arr.includes(nodeId)) forward[sl.id] = [...arr, nodeId];
-      });
-    });
-    setStorylineNodeMappingState(forward);
-  }, [linkRepo, ensureDb, setStorylineNodeMappingState]);
+    const links = await linkRepo.getStorylineLinksByNodeIds(nodeIds);
+    const { storylineNodeMapping, primaryStorylineByNode } = deriveNodeStorylineState(links);
+    setNodeStorylineState(storylineNodeMapping, primaryStorylineByNode);
+  }, [linkRepo, ensureDb, setNodeStorylineState]);
 
   const createStoryline = useCallback(
     async (input: CreateStorylineInput): Promise<Storyline> => {
