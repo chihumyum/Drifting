@@ -1355,15 +1355,6 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
           description:
             'One focused question for the author, including the choice or missing decision that blocks progress',
         }),
-        constraintConflictIds: Type.Optional(
-          Type.Array(Type.String({ minLength: 1, maxLength: 1_000 }), {
-            minItems: 1,
-            maxItems: 32,
-            uniqueItems: true,
-            description:
-              'Exact conflictId values from the pinned context_constraint_confirmation_required note. Include only when this answer resolves those contradictions.',
-          }),
-        ),
       },
       { additionalProperties: false },
     ),

@@ -1,5 +1,10 @@
 # Milestone F exit report: literary context engineering
 
+> Supersession note, 2026-08-02: the historical automatic contradiction
+> detector and write gate described below were removed by the author-owned
+> writing-policy replacement. Exact author rules are still retained across
+> compaction, but the model—not a product regex guard—resolves them.
+
 Status: **Completed**
 Date: 2026-08-02
 
@@ -9,8 +14,8 @@ The General Agent now has a provider-aware 200k context pipeline for long-form
 writing rather than a static UI number. Canonical history is planned and
 verified for every provider call; author truth remains exact across compaction;
 long-book evidence can be retrieved semantically; oversized reads survive
-restart; and unresolved high-confidence contradictions stop writes until the
-author answers.
+restart; and exact author-authored rules survive compaction without becoming a
+product-level write gate.
 
 The normative contract is
 [`../context-engineering-protocol.md`](../context-engineering-protocol.md). The
@@ -54,9 +59,9 @@ pnpm --dir client eval:agent:context
 
 Result:
 
-- 12/12 required files discovered;
-- 82/82 milestone tests passed;
-- all 12 named invariant assertions matched exactly once;
+- 11/11 required files discovered;
+- 79/79 milestone tests passed;
+- all 11 named invariant assertions matched exactly once;
 - TypeScript, targeted ESLint and generated capability drift checks passed;
 - the local `雾港纪事` fixture was present: 17 Markdown files and 297,247
   bytes; no private prose was written to the report;
@@ -74,7 +79,7 @@ Result:
 - write-effect and long-task command replays produced no duplicate mutation.
 
 The report's source-set hash is
-`sha256:cf62d656379509125d5ce9a506811b15ff3660ac3138e2efd8baf10503dd2b2a`.
+`sha256:2c3da6bb5d6415209f42ab1b33426714458721f002aada146e927caaa4ad9b90`.
 
 Full Core regression after the implementation:
 

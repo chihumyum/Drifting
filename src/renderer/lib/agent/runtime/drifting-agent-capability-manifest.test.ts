@@ -127,7 +127,7 @@ describe('Drifting Agent capability manifest', () => {
       compaction: {
         summarySchemaVersion: 1,
         constraintRetention: 'exact-source-hash-witness',
-        conflictPolicy: 'block-write-until-durable-ask-user-confirmation',
+        conflictPolicy: 'no-runtime-write-gate-model-follows-current-author-guidance',
       },
       evidenceRetrieval: 'weighted-cjk-latin-relevance-with-freshness-provenance',
       resultArtifacts: 'sqlite-hash-verified-unicode-paging-across-restart',
@@ -144,7 +144,7 @@ describe('Drifting Agent capability manifest', () => {
 
   it('publishes the provider-neutral user checkpoint, safe rewind, and fork contract', () => {
     const manifest = buildDriftingAgentCapabilityManifest();
-    expect(manifest.schemaVersion).toBe(8);
+    expect(manifest.schemaVersion).toBe(9);
     expect(manifest.userCheckpoint).toEqual(AGENT_USER_CHECKPOINT_CONTRACT);
     expect(manifest.userCheckpoint).toMatchObject({
       automaticBoundary: 'before-agent-tool-execution',
@@ -188,17 +188,16 @@ describe('Drifting Agent capability manifest', () => {
     );
   });
 
-  it('publishes editor-native writing scope, canon, voice, and review evidence', () => {
-    const writing = buildDriftingAgentCapabilityManifest().writingIntelligence;
-    expect(writing).toMatchObject({
-      authoringFocus: 'focused-editor-entity-selection-block-and-nearby-prose',
-      explicitTargetResolution: 'product-owned-current-name-alias-to-canonical-entity-set',
-      ambiguityPolicy: 'unresolved-deictic-mutation-blocks-write-and-asks-user',
-      scopePolicy: 'focus-bound-prose-write-fails-closed-outside-exact-span-or-block',
-      canonPolicy: 'authored-canon-and-temporal-patch-only',
-      canonProseGate: 'patch-required-prose-mutation-fails-closed-until-new-author-turn',
-      reviewTaskEvidence: 'exact-target-read-plus-structured-cited-review-result',
-      semanticSummary: 'claim-kind-plus-exact-source-citations',
+  it('publishes author-owned writing policy without product content guards', () => {
+    expect(buildDriftingAgentCapabilityManifest().authorControl).toEqual({
+      productWritingDefaults: 'none',
+      editorContextInjection: 'disabled',
+      contentMutationScopeGuard: 'disabled',
+      canonPatchGate: 'disabled',
+      projectRules: 'author-editable-project-facts',
+      standingGuidance: 'author-created-or-author-approved-active-memory',
+      guidanceLifecycle: 'author-editable-and-deletable',
+      executionSafety: 'data-integrity-review-and-destructive-confirmation-only',
     });
   });
 

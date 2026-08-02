@@ -9,22 +9,15 @@ import { fileURLToPath } from 'node:url';
 const CORE_DIRECTORY = fileURLToPath(new URL('../../../../../../', import.meta.url));
 
 const TEST_GROUPS = {
-  literaryOracleAndMutations: [
+  authorPolicy: [
     'src/renderer/lib/agent/runtime/acceptance/milestone-h-writing-intelligence.acceptance.test.ts',
-  ],
-  editorFocusAndScope: [
-    'src/renderer/lib/editor-selection-memory.test.ts',
-    'src/renderer/lib/agent/product-authoring-focus.test.ts',
-    'src/renderer/lib/agent/runtime/writing-intelligence.test.ts',
-    'src/renderer/lib/agent/runtime/writing-scope-guard.test.ts',
-  ],
-  providerAndProductContext: [
     'src/renderer/lib/agent/runtime/system-prompt.test.ts',
-    'src/renderer/lib/agent/runtime/local-transport.test.ts',
-    'src/renderer/lib/agent/runtime/drifting-product-composition.integration.test.ts',
-    'src/renderer/store/agent-chat-store.test.ts',
+    'src/renderer/lib/agent/product-project-context.test.ts',
   ],
-  durableReadOnlyReview: ['src/renderer/lib/agent/runtime/long-task-runtime.integration.test.ts'],
+  guidanceLifecycle: ['src/renderer/usecase/useAgentMemory.test.ts'],
+  unrestrictedWorkspace: [
+    'src/renderer/lib/agent/runtime/drifting-product-composition.integration.test.ts',
+  ],
   generatedCapabilityContract: [
     'src/renderer/lib/agent/runtime/drifting-agent-capability-manifest.test.ts',
   ],
@@ -33,47 +26,33 @@ const TEST_FILES = [...new Set(Object.values(TEST_GROUPS).flat())];
 const LINT_FILES = [
   'scripts/generate-agent-capabilities.ts',
   'src/renderer/components/agent/CompanionPanel.tsx',
-  'src/renderer/domain/agent-runtime-long-task.ts',
-  'src/renderer/lib/agent/product-authoring-focus.ts',
+  'src/renderer/lib/agent/product-project-context.ts',
   'src/renderer/lib/agent/protocol.ts',
   'src/renderer/lib/agent/runtime/acceptance/milestone-h-writing-intelligence.acceptance.test.ts',
   'src/renderer/lib/agent/runtime/drifting-agent-capability-manifest.ts',
+  'src/renderer/lib/agent/runtime/drifting-product-composition.ts',
   'src/renderer/lib/agent/runtime/local-transport.ts',
-  'src/renderer/lib/agent/runtime/long-task-tool-contract.ts',
-  'src/renderer/lib/agent/runtime/long-task-tool-runtime.ts',
   'src/renderer/lib/agent/runtime/runtime.ts',
   'src/renderer/lib/agent/runtime/system-prompt.ts',
   'src/renderer/lib/agent/runtime/types.ts',
-  'src/renderer/lib/agent/runtime/writing-intelligence.ts',
-  'src/renderer/lib/agent/runtime/writing-quality.ts',
-  'src/renderer/lib/agent/runtime/writing-scope-guard.ts',
-  'src/renderer/lib/editor-selection-memory.ts',
-  'src/renderer/sqlite-repo/agent-runtime-long-task-repo.ts',
+  'src/renderer/lib/goal/run-scoped-agent-turn.ts',
   'src/renderer/store/agent-chat-store.ts',
+  'src/renderer/usecase/useAgentMemory.ts',
   ...TEST_FILES,
 ];
 const HASHED_SOURCE_FILES = [
+  'docs/agent-runtime/author-owned-writing-policy.md',
   'docs/agent-runtime/editor-native-writing-protocol.md',
-  'drizzle/0075_agent_runtime_review_task.sql',
   'src/renderer/lib/agent/runtime/acceptance/milestone-h-writing-intelligence.acceptance.mjs',
   ...LINT_FILES,
 ];
 const REQUIRED_ASSERTIONS = {
-  intentOracle: 'classifies author intent and scope against a deterministic ambiguity oracle',
-  providerContext:
-    'injects exact focus, author voice, canon impact, and work-kind policy into provider context',
-  voiceMutation:
-    'detects voice-flattening mutations on synthetic and local manuscript samples without leaking prose',
-  citationMutation: 'accepts exact semantic citations and rejects every forged citation mutation',
-  editorSelection: 'captures an exact span, stable block identity, and nearby voice context',
-  namedTargetResolution: 'resolves current names and aliases into canonical explicit prose targets',
-  crossEntityGuard: 'rejects edits to another entity and text outside the selection',
-  namedTargetGuard:
-    'allows explicitly named entities without editor focus and rejects a substituted target',
-  canonGuard: 'fails closed when an explicit canon evolution tries to write prose directly',
-  durableReview:
-    'completes review work from exact cited reads, rejects forged quotes, and survives restart',
-  capabilityContract: 'publishes editor-native writing scope, canon, voice, and review evidence',
+  noProductWritingHarness: 'removes product-derived editor focus and default literary rules',
+  authorOwnedPromptRules: 'injects only author-owned project facts and approved standing guidance',
+  editableProjectRules: 'keeps project rules as ordinary author-editable project data',
+  capabilityContract: 'publishes no hidden writing defaults or content mutation guards',
+  arbitraryEntityWrite: 'lets workspace writes target any project entity without a content-scope gate',
+  staleFocusRegression: 'appends to the requested drift without inheriting a stale chapter focus',
 };
 
 function parseOptions(argv) {
@@ -88,15 +67,11 @@ function parseOptions(argv) {
   return options;
 }
 
-function runCommand(command, args, extraEnv = {}) {
+function runCommand(command, args) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: CORE_DIRECTORY,
-      env: {
-        ...process.env,
-        DRIFTING_AGENT_ACCEPTANCE_VERBOSE: '1',
-        ...extraEnv,
-      },
+      env: { ...process.env, DRIFTING_AGENT_ACCEPTANCE_VERBOSE: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -169,44 +144,24 @@ function processGate(execution) {
   };
 }
 
-function metricGate(metrics) {
-  const privateCorpusAvailable = metrics.fixture?.privateCorpusAvailable === true;
-  const thresholds = {
-    intentAccuracy: metrics.intent?.accuracy === 1,
-    identicalVoiceBaseline: metrics.voice?.identicalMedian === 1,
-    voiceMutationDetection: metrics.voice?.mutationDetectionRate >= 0.95,
-    privateCorpusCoverage:
-      !privateCorpusAvailable ||
-      (metrics.voice?.privateSamples >= 12 && metrics.fixture?.privateCorpusFiles >= 12),
-    exactCitationAcceptance: metrics.citations?.exactAccepted === metrics.citations?.exactCases,
-    forgedCitationRejection: metrics.citations?.forgedRejectionRate === 1,
-  };
-  return {
-    thresholds,
-    passed: Object.values(thresholds).every(Boolean),
-  };
-}
-
 export async function runMilestoneHAcceptance(options = parseOptions([])) {
-  const directory = await mkdtemp(path.join(tmpdir(), 'drifting-agent-milestone-h-'));
+  const directory = await mkdtemp(path.join(tmpdir(), 'drifting-agent-milestone-h-author-control-'));
   try {
     const reportPath = path.join(directory, 'vitest.json');
-    const metricsPath = path.join(directory, 'writing-metrics.json');
-    const vitestExecution = await runCommand(
-      'pnpm',
-      ['exec', 'vitest', 'run', ...TEST_FILES, '--reporter=json', `--outputFile=${reportPath}`],
-      { DRIFTING_AGENT_MILESTONE_H_METRICS_PATH: metricsPath },
-    );
+    const vitestExecution = await runCommand('pnpm', [
+      'exec',
+      'vitest',
+      'run',
+      ...TEST_FILES,
+      '--reporter=json',
+      `--outputFile=${reportPath}`,
+    ]);
     let report;
-    let metrics;
     try {
-      [report, metrics] = await Promise.all([
-        readFile(reportPath, 'utf8').then(JSON.parse),
-        readFile(metricsPath, 'utf8').then(JSON.parse),
-      ]);
+      report = JSON.parse(await readFile(reportPath, 'utf8'));
     } catch (error) {
       throw new Error(
-        `Milestone H did not produce readable Vitest and metric reports.\n${vitestExecution.stderr || vitestExecution.stdout}\n${error instanceof Error ? error.message : String(error)}`,
+        `Milestone H replacement did not produce a readable Vitest report.\n${vitestExecution.stderr || vitestExecution.stdout}\n${error instanceof Error ? error.message : String(error)}`,
       );
     }
     const [typecheckExecution, lintExecution, capabilityExecution] = await Promise.all([
@@ -231,7 +186,6 @@ export async function runMilestoneHAcceptance(options = parseOptions([])) {
     const groups = Object.fromEntries(
       Object.entries(TEST_GROUPS).map(([name, files]) => [name, summarizeGroup(report, files)]),
     );
-    const metricsGate = metricGate(metrics);
     const vitestPassed =
       vitestExecution.code === 0 &&
       vitestExecution.signal === null &&
@@ -242,22 +196,21 @@ export async function runMilestoneHAcceptance(options = parseOptions([])) {
     const lint = processGate(lintExecution);
     const capabilities = processGate(capabilityExecution);
     const summary = {
-      suite: 'milestone-h-editor-native-writing-intelligence',
-      schemaVersion: 1,
+      suite: 'milestone-h-author-owned-writing-policy',
+      schemaVersion: 2,
       nodeVersion: process.version,
       platform: process.platform,
       gitHead: await gitHead(),
       sourceSetSha256: await hashSourceSet(HASHED_SOURCE_FILES),
       evidence: {
-        intentOracle: '25-curated-chinese-and-english-author-requests',
-        literaryFixture: metrics.fixture?.privateCorpusAvailable
-          ? 'synthetic-plus-local-private-read-only-corpus'
-          : 'synthetic-corpus-private-fixture-unavailable',
-        privateProsePersisted: false,
-        durableReview: 'real-file-sqlite-exact-read-receipt-forgery-restart',
+        productWritingDefaults: 'none',
+        editorContextInjected: false,
+        contentMutationScopeGuard: false,
+        canonPatchGate: false,
+        authorRuleSources: ['projectFacts', 'activeAuthorMemory', 'currentAuthorRequest'],
+        dataIntegrityGuardsRetained: ['projectIsolation', 'Yjs', 'CAS', 'review', 'destructiveApproval'],
         networkRequired: false,
       },
-      metrics: { ...metrics, gate: metricsGate },
       vitest: {
         files: {
           required: TEST_FILES.length,
@@ -280,19 +233,12 @@ export async function runMilestoneHAcceptance(options = parseOptions([])) {
       lint,
       capabilities,
       boundaries: {
-        voiceScore:
-          'Diagnostic mutation detector, not an autonomous literary-quality verdict or permission to overwrite prose.',
-        liveProvider:
-          'Deterministic provider-wire/runtime acceptance is required; paid live-provider canary is optional and separately reported.',
-        nativeDevices:
-          'Headless acceptance does not claim desktop/iOS/Android interaction or endurance acceptance; that remains milestone J.',
+        writingPolicy:
+          'Drifting supplies workspace mechanics only; the current request and author-owned project rules control writing behavior.',
+        retainedSafety:
+          'Project isolation, concurrency checks, durable review, and destructive-operation approval protect data rather than prescribe prose.',
       },
-      passed:
-        vitestPassed &&
-        metricsGate.passed &&
-        typecheck.passed &&
-        lint.passed &&
-        capabilities.passed,
+      passed: vitestPassed && typecheck.passed && lint.passed && capabilities.passed,
     };
     if (options.output) {
       await mkdir(path.dirname(options.output), { recursive: true });
@@ -308,6 +254,7 @@ export async function runMilestoneHAcceptance(options = parseOptions([])) {
         .filter(Boolean)
         .join('\n');
       if (diagnostics) process.stderr.write(diagnostics);
+      throw new Error('Milestone H author-control acceptance failed.');
     }
     return summary;
   } finally {
@@ -315,14 +262,14 @@ export async function runMilestoneHAcceptance(options = parseOptions([])) {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  runMilestoneHAcceptance(parseOptions(process.argv.slice(2)))
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const options = parseOptions(process.argv.slice(2));
+  runMilestoneHAcceptance(options)
     .then((summary) => {
       process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
-      if (!summary.passed) process.exitCode = 1;
     })
     .catch((error) => {
-      process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
+      process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
       process.exitCode = 1;
     });
 }

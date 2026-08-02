@@ -765,19 +765,19 @@
     },
 
     "agentMemory": {
-      "title": "记忆",
-      "desc": "Agent 保存的长期指引——写作偏好、已否决的提案、对内容的指令。会注入到后续对话，并供 Shadow 审阅参考；只有「生效」的条目才起作用。Agent 在对话里记下的会出现在这里，你也可以手动新增。",
+      "title": "Agent 规则",
+      "desc": "由你掌控的长期规则。这里生效的偏好、指令和否决会原样注入后续对话；你可以随时新增或删除。Agent 提议的规则必须先由你批准，产品不会额外添加隐藏的写作规范。",
       "kind": {
         "preference": "偏好",
         "directive": "指令",
         "veto": "否决"
       },
-      "placeholder": "手动新增一条记忆……",
+      "placeholder": "新增一条项目规则……",
       "add": "添加",
-      "empty": "暂无记忆。",
+      "empty": "暂无长期规则。",
       "pending": "待批准",
       "approve": "批准",
-      "deleteConfirm": "删除这条记忆？将不再影响后续对话与审阅。"
+      "deleteConfirm": "删除这条规则？它将不再影响后续对话与审阅。"
     },
 
     "agentUsage": {
@@ -1153,10 +1153,10 @@
       "edits": "改动",
       "reviewEdits": "正文改动需审阅",
       "reviewEditsTitle": "开启后，Agent 会直接把正文改动写入编辑器，并在原文位置展示彩色 diff 与接受/拒绝按钮；关闭后，改动会自动播放 reveal 动画并完成。删除实体、调整关系等结构性操作始终会在执行前单独确认。",
-      "memory": "记忆",
-      "memoryTitle": "agent 记住的偏好 / 否决 / 指令；会注入到后续对话与 Shadow 审阅。",
-      "manageMemory": "管理记忆",
-      "noMemory": "暂无记忆",
+      "memory": "规则",
+      "memoryTitle": "由你管理的长期偏好 / 指令 / 否决；只有生效条目会注入后续对话。",
+      "manageMemory": "管理规则",
+      "noMemory": "暂无规则",
       "approveMemory": "批准（开始生效）"
     },
     "memoryKind": {
@@ -1296,12 +1296,6 @@
       "placeholder": "询问 Agent…（Cmd/Ctrl+Enter）",
       "steerPlaceholder": "补充或纠正正在执行的任务…",
       "answerPlaceholder": "回答 Agent 的问题…",
-      "scopeLabel": "“这里”指向",
-      "scopeSelection": "已选文字",
-      "scopeBlock": "当前段落",
-      "scopeEntity": "当前正文",
-      "scopeTitle": "当你说“这里 / 这段 / 本章”时，Agent 会以这个编辑位置为准；明确点名其他条目时，以你的文字为准。",
-      "scopeAria": "Agent 写作上下文：{{name}}，{{mode}}",
       "stop": "停止",
       "stopAfterToolTitle": "让当前工具安全结束后停止本轮，并停止自动续跑",
       "steer": "补充",

@@ -53,10 +53,10 @@ recorded in [`MILESTONE_E_EXIT_REPORT.md`](MILESTONE_E_EXIT_REPORT.md) and
 [`milestone-e-long-task.json`](milestone-e-long-task.json).
 
 Milestone F, context engineering, is complete. Its provider budget, canonical
-evidence, structured compaction, constraint-confirmation, retrieval and
+evidence, structured compaction, exact author-rule retention, retrieval and
 artifact protocol is in
 [`../context-engineering-protocol.md`](../context-engineering-protocol.md).
-The implementation and 82-test real-novel/restart/fault evidence are recorded
+The implementation and 79-test real-novel/restart/fault evidence are recorded
 in [`MILESTONE_F_EXIT_REPORT.md`](MILESTONE_F_EXIT_REPORT.md) and
 [`milestone-f-context-engineering.json`](milestone-f-context-engineering.json).
 
@@ -68,12 +68,16 @@ implementation and 43-test real SQLite/Yjs/restart/fault evidence are recorded
 in [`MILESTONE_G_EXIT_REPORT.md`](MILESTONE_G_EXIT_REPORT.md) and
 [`milestone-g-checkpoint.json`](milestone-g-checkpoint.json).
 
-Milestone H, writing intelligence, is complete. Its immutable editor-focus,
-scope/canon fail-closed, author-voice evidence and cited review contract is in
-[`../editor-native-writing-protocol.md`](../editor-native-writing-protocol.md).
-The implementation and 75-test deterministic/local-manuscript acceptance are
-recorded in [`MILESTONE_H_EXIT_REPORT.md`](MILESTONE_H_EXIT_REPORT.md) and
-[`milestone-h-writing-intelligence.json`](milestone-h-writing-intelligence.json).
+The original Milestone H writing harness was retired after a real Drift append
+was rejected by stale editor focus. The replacement gives writing policy to the
+author: no editor-focus injection, deictic binding, product writing defaults,
+content scope guard, canon-patch gate or automatic rule-conflict write gate.
+Its contract is in
+[`../author-owned-writing-policy.md`](../author-owned-writing-policy.md). The
+implementation and current regression evidence are recorded in
+[`MILESTONE_H_EXIT_REPORT.md`](MILESTONE_H_EXIT_REPORT.md) and
+[`milestone-h-writing-intelligence.json`](milestone-h-writing-intelligence.json):
+6 files, 35/35 tests, plus typecheck, scoped lint and capability drift.
 
 Milestone I, provider and extension platform, is complete. Its provider wire,
 MCP transport/security, durable grant and generation-lifecycle contract is in

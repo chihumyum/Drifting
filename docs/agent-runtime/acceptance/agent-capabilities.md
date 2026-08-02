@@ -123,7 +123,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 - Literary summary schema: v1
 - Exact citation kinds: `canon_fact`, `character_voice`, `author_decision`, `write_outcome`, `task_progress`, `unresolved`
 - Constraint retention: `exact-source-hash-witness`
-- Constraint conflict policy: `block-write-until-durable-ask-user-confirmation`
+- Constraint conflict policy: `no-runtime-write-gate-model-follows-current-author-guidance`
 - Evidence retrieval: `weighted-cjk-latin-relevance-with-freshness-provenance`
 - Result artifacts: `sqlite-hash-verified-unicode-paging-across-restart`
 
@@ -141,18 +141,16 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 - Captured context: `conversation-provider-history-long-task-accepted-writes-yjs-revision-state-vector`
 - Manuscript scope: `node-element-storyline-category-prose-and-restorable-metadata`
 
-## Editor-native writing intelligence
+## Author-owned writing policy
 
-- Authoring focus: `focused-editor-entity-selection-block-and-nearby-prose`
-- Explicit target resolution: `product-owned-current-name-alias-to-canonical-entity-set`
-- Ambiguity policy: `unresolved-deictic-mutation-blocks-write-and-asks-user`
-- Scope policy: `focus-bound-prose-write-fails-closed-outside-exact-span-or-block`
-- Default rewrite preservation: `plot-canon-chronology-pov-tense-author-voice`
-- Voice evidence: `exact-nearby-prose-plus-diagnostic-style-profile`
-- Canon policy: `authored-canon-and-temporal-patch-only`
-- Canon prose gate: `patch-required-prose-mutation-fails-closed-until-new-author-turn`
-- Review-task evidence: `exact-target-read-plus-structured-cited-review-result`
-- Semantic summary: `claim-kind-plus-exact-source-citations`
+- Product writing defaults: `none`
+- Editor context injection: `disabled`
+- Content mutation scope guard: `disabled`
+- Canon patch gate: `disabled`
+- Project rules: `author-editable-project-facts`
+- Standing guidance: `author-created-or-author-approved-active-memory`
+- Guidance lifecycle: `author-editable-and-deletable`
+- Execution safety: `data-integrity-review-and-destructive-confirmation-only`
 
 ## Provider and extension platform
 

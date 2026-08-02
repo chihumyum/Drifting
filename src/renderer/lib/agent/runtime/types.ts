@@ -19,7 +19,6 @@ import type {
   AgentUserInputRequest,
 } from '../protocol';
 import type { AgentRuntimeControlChannel } from './control-plane';
-import type { AgentWritingTurnContext } from './writing-intelligence';
 
 export const AGENT_RUNTIME_SCHEMA_VERSION = 1 as const;
 export const AGENT_RUNTIME_TOOL_SEARCH_LIMIT = 8 as const;
@@ -267,8 +266,6 @@ export type AgentRuntimeRoute =
 
 export interface AgentRuntimeContext {
   route: AgentRuntimeRoute;
-  /** Immutable product-derived authoring scope for this turn. */
-  writing?: AgentWritingTurnContext;
 }
 
 export interface AgentToolExecutionRequest {
@@ -709,7 +706,6 @@ export interface AgentRuntimeRunInput {
   sessionId: string;
   turnId: string;
   route: AgentRuntimeRoute;
-  writingContext?: AgentWritingTurnContext;
   prompt: string;
   promptSource?: AgentPromptSource;
   provider?: string;

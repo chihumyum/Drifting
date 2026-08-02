@@ -28,11 +28,11 @@ import {
   AGENT_LONG_TASK_TOOL_CONTRACTS,
 } from './long-task-tool-contract';
 import { AGENT_USER_CHECKPOINT_CONTRACT } from './agent-user-checkpoint-contract';
-import { AGENT_WRITING_INTELLIGENCE_CONTRACT } from './writing-intelligence';
+import { AGENT_AUTHOR_CONTROL_CONTRACT } from './system-prompt';
 import { AGENT_PROVIDER_OPTIONS } from './agent-provider-contract';
 import { DRIFTING_MCP_PROTOCOL_VERSION } from './mcp-transport';
 
-export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 8 as const;
+export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 9 as const;
 
 export type DriftingAgentToolOwner = 'workspace-runtime' | 'drifting-runtime' | 'long-task-runtime';
 
@@ -94,13 +94,13 @@ export interface DriftingAgentCapabilityManifest {
       summarySchemaVersion: number;
       exactCitationKinds: readonly string[];
       constraintRetention: 'exact-source-hash-witness';
-      conflictPolicy: 'block-write-until-durable-ask-user-confirmation';
+      conflictPolicy: 'no-runtime-write-gate-model-follows-current-author-guidance';
     };
     evidenceRetrieval: 'weighted-cjk-latin-relevance-with-freshness-provenance';
     resultArtifacts: 'sqlite-hash-verified-unicode-paging-across-restart';
   };
   userCheckpoint: typeof AGENT_USER_CHECKPOINT_CONTRACT;
-  writingIntelligence: typeof AGENT_WRITING_INTELLIGENCE_CONTRACT;
+  authorControl: typeof AGENT_AUTHOR_CONTROL_CONTRACT;
   providerExtensionPlatform: {
     certifiedProviders: Array<{ provider: string; models: string[] }>;
     mcpProtocolVersion: string;
@@ -262,13 +262,13 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
         summarySchemaVersion: DRIFTING_LITERARY_CONTEXT_SUMMARY_VERSION,
         exactCitationKinds: DRIFTING_LITERARY_EVIDENCE_KINDS,
         constraintRetention: 'exact-source-hash-witness',
-        conflictPolicy: 'block-write-until-durable-ask-user-confirmation',
+        conflictPolicy: 'no-runtime-write-gate-model-follows-current-author-guidance',
       },
       evidenceRetrieval: 'weighted-cjk-latin-relevance-with-freshness-provenance',
       resultArtifacts: 'sqlite-hash-verified-unicode-paging-across-restart',
     },
     userCheckpoint: AGENT_USER_CHECKPOINT_CONTRACT,
-    writingIntelligence: AGENT_WRITING_INTELLIGENCE_CONTRACT,
+    authorControl: AGENT_AUTHOR_CONTROL_CONTRACT,
     providerExtensionPlatform: {
       certifiedProviders: AGENT_PROVIDER_OPTIONS.map((provider) => ({
         provider: provider.value,

@@ -21,7 +21,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
 } from 'react';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
@@ -76,52 +75,9 @@ import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { AgentContextIndicator } from './AgentContextIndicator';
 import { FieldDiff } from '../editor/FieldReview';
 import { AgentCheckpointMenu } from './AgentCheckpointMenu';
-import { useUiStore } from '../../store/ui-store';
-import { getActiveAgentAuthoringFocus } from '../../lib/agent/product-authoring-focus';
-import {
-  getEditorSelectionMemoryRevision,
-  subscribeEditorSelectionMemory,
-} from '../../lib/editor-selection-memory';
 import '../../../styles/agent-panel.css';
 
 const STREAM_FOLLOW_BOTTOM_THRESHOLD_PX = 16;
-
-function AgentAuthoringScopeChip({ projectId }: { projectId: string }) {
-  const { t } = useTranslation();
-  useUiStore((state) => state.tabsByProject[projectId]);
-  useDataStore((state) => state.bookNodes);
-  useDataStore((state) => state.bookElements);
-  useDataStore((state) => state.storylines);
-  useDataStore((state) => state.bookElementCategories);
-  useSyncExternalStore(
-    subscribeEditorSelectionMemory,
-    getEditorSelectionMemoryRevision,
-    getEditorSelectionMemoryRevision,
-  );
-  const focus = getActiveAgentAuthoringFocus(projectId);
-  if (!focus) return null;
-  const mode =
-    focus.mode === 'selection'
-      ? t('agentPanel.composer.scopeSelection')
-      : focus.mode === 'block'
-        ? t('agentPanel.composer.scopeBlock')
-        : t('agentPanel.composer.scopeEntity');
-  return (
-    <div
-      className="agt-composer__scope"
-      title={t('agentPanel.composer.scopeTitle')}
-      aria-label={t('agentPanel.composer.scopeAria', {
-        name: focus.entity.name,
-        mode,
-      })}
-    >
-      <span className="agt-composer__scope-label">{t('agentPanel.composer.scopeLabel')}</span>
-      <span className="agt-composer__scope-name">{focus.entity.name}</span>
-      <span aria-hidden="true">·</span>
-      <span>{mode}</span>
-    </div>
-  );
-}
 
 function relTime(iso: string): string {
   try {
@@ -1335,7 +1291,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           </button>
         )}
         <div className="agt-composer">
-          {!running && !starting && <AgentAuthoringScopeChip projectId={projectId} />}
           <textarea
             ref={taRef}
             className="agt-composer__text"

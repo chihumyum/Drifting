@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "source": "drifting-final-product-contract",
   "product": {
     "runtimeHost": "tauri-renderer",
@@ -1243,7 +1243,7 @@
         "unresolved"
       ],
       "constraintRetention": "exact-source-hash-witness",
-      "conflictPolicy": "block-write-until-durable-ask-user-confirmation"
+      "conflictPolicy": "no-runtime-write-gate-model-follows-current-author-guidance"
     },
     "evidenceRetrieval": "weighted-cjk-latin-relevance-with-freshness-provenance",
     "resultArtifacts": "sqlite-hash-verified-unicode-paging-across-restart"
@@ -1261,17 +1261,15 @@
     "capturedContext": "conversation-provider-history-long-task-accepted-writes-yjs-revision-state-vector",
     "manuscriptScope": "node-element-storyline-category-prose-and-restorable-metadata"
   },
-  "writingIntelligence": {
-    "authoringFocus": "focused-editor-entity-selection-block-and-nearby-prose",
-    "explicitTargetResolution": "product-owned-current-name-alias-to-canonical-entity-set",
-    "ambiguityPolicy": "unresolved-deictic-mutation-blocks-write-and-asks-user",
-    "scopePolicy": "focus-bound-prose-write-fails-closed-outside-exact-span-or-block",
-    "defaultRewritePreservation": "plot-canon-chronology-pov-tense-author-voice",
-    "voiceEvidence": "exact-nearby-prose-plus-diagnostic-style-profile",
-    "canonPolicy": "authored-canon-and-temporal-patch-only",
-    "canonProseGate": "patch-required-prose-mutation-fails-closed-until-new-author-turn",
-    "reviewTaskEvidence": "exact-target-read-plus-structured-cited-review-result",
-    "semanticSummary": "claim-kind-plus-exact-source-citations"
+  "authorControl": {
+    "productWritingDefaults": "none",
+    "editorContextInjection": "disabled",
+    "contentMutationScopeGuard": "disabled",
+    "canonPatchGate": "disabled",
+    "projectRules": "author-editable-project-facts",
+    "standingGuidance": "author-created-or-author-approved-active-memory",
+    "guidanceLifecycle": "author-editable-and-deletable",
+    "executionSafety": "data-integrity-review-and-destructive-confirmation-only"
   },
   "providerExtensionPlatform": {
     "certifiedProviders": [

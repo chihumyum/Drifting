@@ -439,7 +439,7 @@ describe('LocalGeneralAgentTransport', () => {
           expectRequest: (request) => {
             expect(request.messages).toEqual([{ role: 'user', content: 'A1' }]);
             expect(request.systemPrompt).toContain('only project "project-a"');
-            expect(request.systemPrompt).toContain('Chinese');
+            expect(request.systemPrompt).not.toContain('Write manuscript-facing content in');
             expect(request.systemPrompt).toContain('POV: first person');
             expect(request.systemPrompt).toContain('[ruling] keep the ending');
           },
@@ -477,7 +477,6 @@ describe('LocalGeneralAgentTransport', () => {
       prompt: 'A1',
       turnId: 'turn-a1',
       route: { kind: 'chat', projectId: 'project-a', conversationId: 'conversation-a' },
-      writingLanguage: 'Chinese',
       projectFacts: [{ key: 'POV', value: 'first person' }],
       memories: [{ kind: 'ruling', body: 'keep the ending' }],
     });

@@ -8,7 +8,6 @@ import {
 import { createAgentContextSummaryCandidate, type AgentContextSourceRow } from './context-planner';
 import {
   DEFAULT_AGENT_RUNTIME_SYSTEM_POLICY,
-  identifyExplicitAgentUserConstraints,
   type AgentRuntimeContextPlanningHookInput,
 } from './runtime-context-planning';
 import { AgentRuntime } from './runtime';
@@ -97,111 +96,11 @@ function toolCall(callId: string, name: string): readonly AgentModelStreamEvent[
   ];
 }
 
-function toolCallWithArguments(
-  callId: string,
-  name: string,
-  args: Record<string, unknown>,
-): readonly AgentModelStreamEvent[] {
-  return [
-    { type: 'tool_call_start', callId, name },
-    { type: 'tool_args_delta', callId, delta: JSON.stringify(args) },
-    { type: 'tool_call_end', callId },
-    USAGE,
-    { type: 'finish', reason: 'tool_use' },
-  ];
-}
-
 function endTurn(text = 'final answer'): readonly AgentModelStreamEvent[] {
   return [{ type: 'text_delta', text }, USAGE, { type: 'finish', reason: 'end_turn' }];
 }
 
 describe('AgentRuntime context planning integration', () => {
-  it('blocks writes on contradictory author facts until ask_user durably confirms the exact conflict', async () => {
-    const write = { ...definition('write_scene'), access: 'write' as const };
-    const ask = definition('ask_user');
-    const execute = vi.fn<AgentToolRuntime['execute']>(async (request) => {
-      if (request.name === 'ask_user') {
-        return {
-          ok: true,
-          data: {
-            answer: '以蓝色为准。',
-            confirmedConstraintConflictIds: request.arguments.constraintConflictIds,
-          },
-        };
-      }
-      return { ok: true, data: { written: true } };
-    });
-    const conflictNotesByIteration: string[][] = [];
-    const driver = new RecordingDriver((request) => {
-      const notes = request.context.messages.flatMap((message) =>
-        message.type === 'context_note' &&
-        message.noteKind === 'task_constraints' &&
-        message.content.includes('context_constraint_confirmation_required')
-          ? [message]
-          : [],
-      );
-      conflictNotesByIteration.push(notes.map((note) => note.content));
-      if (request.iteration === 1) {
-        return toolCallWithArguments('write-blocked', 'write_scene', {});
-      }
-      if (request.iteration === 2) {
-        const payload = JSON.parse(notes[0]!.content) as {
-          conflicts: Array<{ conflictId: string }>;
-        };
-        return toolCallWithArguments('confirm-conflict', 'ask_user', {
-          prompt: '米拉的瞳色有绿色和蓝色两种设定，本次修改以哪一个为准？',
-          constraintConflictIds: payload.conflicts.map((conflict) => conflict.conflictId),
-        });
-      }
-      if (request.iteration === 3) {
-        return toolCallWithArguments('write-confirmed', 'write_scene', {});
-      }
-      return endTurn('已按确认后的蓝色设定完成。');
-    });
-    const result = await new AgentRuntime({
-      driver,
-      tools: toolRuntime([write, ask], execute),
-      contextPlanning: {
-        userConstraintPolicy: identifyExplicitAgentUserConstraints,
-      },
-    }).runTurn(
-      runInput({
-        prompt: '继续完成这处改写。',
-        history: [
-          { role: 'user', content: '润色这一章，但不要自行改变作者设定。' },
-          { role: 'assistant', content: [{ type: 'text', text: '明白。' }] },
-          { role: 'user', content: '米拉的眼睛是绿色。' },
-          { role: 'assistant', content: [{ type: 'text', text: '已记录。' }] },
-          { role: 'user', content: '米拉的眼睛是蓝色。' },
-        ],
-      }),
-    );
-
-    expect(result.state.status, JSON.stringify(result.state.terminal)).toBe('completed');
-    expect(execute.mock.calls.map(([request]) => request.name)).toEqual([
-      'ask_user',
-      'write_scene',
-    ]);
-    expect(
-      result.entries.find(
-        (entry) => entry.event.type === 'tool_result' && entry.event.callId === 'write-blocked',
-      )?.event,
-    ).toMatchObject({
-      ok: false,
-      source: 'runtime',
-      errorCode: 'CONTEXT_CONSTRAINT_CONFIRMATION_REQUIRED',
-    });
-    expect(conflictNotesByIteration.slice(0, 2).every((notes) => notes.length === 1)).toBe(true);
-    expect(conflictNotesByIteration.slice(2).every((notes) => notes.length === 0)).toBe(true);
-    expect(
-      result.completedContextCheckpoint?.providerEnvelope.providerContext.messages.some(
-        (message) =>
-          message.type === 'context_note' &&
-          message.content.includes('context_constraint_confirmation_required'),
-      ),
-    ).toBe(false);
-  });
-
   it('plans every provider iteration with exact selected schemas and creates a complete final checkpoint', async () => {
     const definitions = Array.from({ length: 10 }, (_, index) =>
       definition(`tool_${index}`, 'x'.repeat(index * 40)),

@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { LLMClient } from '../../../ai/client/llm-client';
 import { DeepSeekProvider } from '../../../ai/client/providers/deepseek';
-import { buildAgentWritingTurnContext, type AgentAuthoringFocus } from '../writing-intelligence';
-import { assertAgentWritingScope } from '../writing-scope-guard';
 import { DriftingAgentModelDriver } from '../drivers/drifting-agent-driver';
 import { createLocalGeneralAgentTransport } from '../local-transport';
 import type {
@@ -20,16 +18,6 @@ const DEFAULT_MODEL = 'deepseek-v4-flash';
 const PROJECT_ID = 'writing-canary-project';
 const PATH = '/chapters/雨夜/prose.md';
 const SELECTED_TEXT = '她把伞靠在门边，没有回头。';
-
-const focus: AgentAuthoringFocus = {
-  projectId: PROJECT_ID,
-  entity: { kind: 'chapter', id: 'chapter-rain', name: '雨夜', path: PATH },
-  mode: 'selection',
-  selectedText: SELECTED_TEXT,
-  selectedBlocks: [{ id: 'block-2', ordinal: 2, text: SELECTED_TEXT }],
-  contextBefore: ['雨压得很低。'],
-  contextAfter: ['楼上的钟响了一次。'],
-};
 
 class WritingCanaryTools implements AgentToolRuntime {
   text = `雨压得很低。\n\n${SELECTED_TEXT}\n\n楼上的钟响了一次。`;
@@ -82,21 +70,6 @@ class WritingCanaryTools implements AgentToolRuntime {
     if (!this.read) return { ok: false, error: 'READ_REQUIRED_BEFORE_EDIT' };
     const replacements = request.arguments.replacements;
     if (!Array.isArray(replacements)) return { ok: false, error: 'INVALID_REPLACEMENTS' };
-    const preparedRequest: AgentToolExecutionRequest = {
-      ...request,
-      arguments: {
-        ...request.arguments,
-        __workspaceCommand: {
-          name: 'edit_prose_file',
-          arguments: { kind: 'chapter', entity: '雨夜', replacements },
-        },
-      },
-    };
-    try {
-      assertAgentWritingScope(preparedRequest);
-    } catch (error) {
-      return { ok: false, error: error instanceof Error ? error.message : String(error) };
-    }
     for (const replacement of replacements) {
       if (!replacement || typeof replacement !== 'object') {
         return { ok: false, error: 'INVALID_REPLACEMENT' };
@@ -131,9 +104,9 @@ function definition(
   };
 }
 
-describe.skipIf(!LIVE_EVAL_ENABLED)('DeepSeek editor-native writing canary', () => {
+describe.skipIf(!LIVE_EVAL_ENABLED)('DeepSeek author-directed writing canary', () => {
   it(
-    'reads first and edits only the exact selected prose span',
+    'follows an explicit author rule without a product-imposed writing scope',
     async () => {
       const apiKey = process.env.DEEPSEEK_AI_API_KEY;
       if (!apiKey) {
@@ -181,7 +154,6 @@ describe.skipIf(!LIVE_EVAL_ENABLED)('DeepSeek editor-native writing canary', () 
         turnId,
         route: { kind: 'chat', projectId: PROJECT_ID, conversationId: 'writing-canary' },
         prompt,
-        writingContext: buildAgentWritingTurnContext(prompt, focus),
         projectName: '写作 canary',
         model,
         thinking: 'off',

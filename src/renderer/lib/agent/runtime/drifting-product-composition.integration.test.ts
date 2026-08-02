@@ -41,11 +41,6 @@ import {
 } from './drifting-product-composition';
 import { getDriftingWriteStrategy } from './drifting-write-strategies';
 import { ScriptedFakeDriver, type ScriptedDriverRound, type ScriptedDriverStep } from './testing';
-import {
-  buildAgentWritingTurnContext,
-  type AgentAuthoringFocus,
-  type AgentWritingTurnContext,
-} from './writing-intelligence';
 import type { AgentToolExecutionRequest } from './types';
 import { createYjsProseSeedState } from './yjs-prose-command';
 
@@ -72,6 +67,7 @@ const USER_ID = 'product-agent-user';
 const CONVERSATION_ID = 'product-agent-conversation';
 const SESSION_ID = 'session-product-agent';
 const NODE_ID = 'product-agent-node';
+const DRIFT_ID = 'product-agent-drift';
 const OTHER_NODE_ID = 'product-agent-foreign-node';
 const CATEGORY_ID = 'product-agent-category';
 const ELEMENT_ID = 'product-agent-element';
@@ -79,6 +75,7 @@ const STORYLINE_ID = 'product-agent-storyline';
 const PATCH_ID = 'product-agent-patch';
 const LIBRARY_ITEM_ID = 'product-agent-library-item';
 const NODE_TITLE = 'Chapter One';
+const DRIFT_TITLE = '灵感碎片';
 const INITIAL_SUMMARY = 'Original summary.';
 const INITIAL_REVISION = '2026-07-31T00:00:00.000Z';
 const DOC_ID = `node-content:${NODE_ID}`;
@@ -92,24 +89,6 @@ const CONTENT_JSON = JSON.stringify({
     },
   ],
 });
-const chapterFocus: AgentAuthoringFocus = {
-  projectId: PROJECT_ID,
-  entity: {
-    kind: 'chapter',
-    id: NODE_ID,
-    name: NODE_TITLE,
-    path: `/chapters/${NODE_TITLE}/prose.md`,
-  },
-  mode: 'selection',
-  selectedText: 'Before the Agent.',
-  selectedBlocks: [{ id: 'opening-block', ordinal: 0, text: 'Before the Agent.' }],
-  contextBefore: [],
-  contextAfter: [],
-};
-
-function focusedChapterWritingContext(prompt: string): AgentWritingTurnContext {
-  return buildAgentWritingTurnContext(prompt, chapterFocus);
-}
 const proseJson = (id: string, text: string) =>
   JSON.stringify({
     type: 'doc',
@@ -278,7 +257,6 @@ class ProductAgentHarness {
     prompt: string,
     expectedDoneCount = 1,
     toolSearch: 'off' | 'auto' | 'on' = 'off',
-    writingContext?: AgentWritingTurnContext,
   ): Promise<void> {
     const started = await this.composition.transport.start({
       prompt,
@@ -290,7 +268,6 @@ class ProductAgentHarness {
       },
       toolSearch,
       thinking: 'off',
-      ...(writingContext ? { writingContext } : {}),
     });
     expect(started).toEqual({ ok: true, value: undefined });
     await waitForDone(this.events, expectedDoneCount);
@@ -780,8 +757,7 @@ describe.sequential('Drifting Agent product composition', () => {
         steps: finalSteps('The two paragraph changes are ready in the editor.'),
       },
     ]);
-    const prompt = 'Rewrite the opening and add one paragraph.';
-    await harness.runTurn(turnId, prompt, 1, 'auto', focusedChapterWritingContext(prompt));
+    await harness.runTurn(turnId, 'Rewrite the opening and add one paragraph.', 1, 'auto');
 
     const blocks = await harness.composition.repositories.writeEffects.listReviewBlocks(reviewId);
     expect(blocks).toHaveLength(2);
@@ -1092,8 +1068,7 @@ describe.sequential('Drifting Agent product composition', () => {
         steps: finalSteps('I polished the opening line.'),
       },
     ]);
-    const prompt = 'Polish the opening line of Chapter One.';
-    await harness.runTurn(turnId, prompt, 1, 'auto', focusedChapterWritingContext(prompt));
+    await harness.runTurn(turnId, 'Polish the opening line of Chapter One.', 1, 'auto');
 
     const snapshot =
       await harness.composition.repositories.runtime.loadRecoverySnapshot(SESSION_ID);
@@ -1153,7 +1128,7 @@ describe.sequential('Drifting Agent product composition', () => {
     harness.driver.assertExhausted();
   });
 
-  it('edits element, storyline, and category prose against their own Yjs baselines', async () => {
+  it('lets workspace writes target any project entity without a content-scope gate', async () => {
     const turnId = 'turn-workspace-generic-prose';
     harness = await ProductAgentHarness.create([
       {
@@ -1198,42 +1173,12 @@ describe.sequential('Drifting Agent product composition', () => {
       },
     ]);
 
-    const prompt = 'Update Fixture Element, Fixture Storyline, and the People category bodies.';
-    const writingContext = buildAgentWritingTurnContext(
-      prompt,
-      null,
-      ['Fixture Element', 'Fixture Storyline', 'People'],
-      [
-        {
-          entity: {
-            kind: 'element',
-            id: ELEMENT_ID,
-            name: 'Fixture Element',
-            path: '/elements/People/Fixture Element/body.md',
-          },
-          terms: ['Fixture Element'],
-        },
-        {
-          entity: {
-            kind: 'storyline',
-            id: STORYLINE_ID,
-            name: 'Fixture Storyline',
-            path: '/storylines/Fixture Storyline/body.md',
-          },
-          terms: ['Fixture Storyline'],
-        },
-        {
-          entity: {
-            kind: 'category',
-            id: CATEGORY_ID,
-            name: 'People',
-            path: '/categories/People/body.md',
-          },
-          terms: ['People'],
-        },
-      ],
+    await harness.runTurn(
+      turnId,
+      'Update Fixture Element, Fixture Storyline, and the People category bodies.',
+      1,
+      'auto',
     );
-    await harness.runTurn(turnId, prompt, 1, 'auto', writingContext);
 
     expect(
       String(
@@ -1271,6 +1216,62 @@ describe.sequential('Drifting Agent product composition', () => {
          WHERE turn_id = '${turnId}' AND phase IN ('failed', 'uncertain')`,
       ),
     ).toBe(0);
+    harness.driver.assertExhausted();
+  });
+
+  it('appends to the requested drift without inheriting a stale chapter focus', async () => {
+    const turnId = 'turn-unscoped-drift-append';
+    const original = '（以上各片段为随抄群像，归线未定，暂存待用。）';
+    const appended = '火盆边的老人抬起眼睛，听见远处传来潮水一样的钟声。';
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'read the requested drift',
+        steps: toolCallSteps('read-drift', 'read_file', {
+          path: `/drifts/${DRIFT_TITLE}/prose.md`,
+        }),
+      },
+      {
+        name: 'append to the requested drift',
+        steps: toolCallSteps('edit-drift', 'edit_file', {
+          path: `/drifts/${DRIFT_TITLE}/prose.md`,
+          replacements: [{ oldText: original, newText: `${original}\n\n${appended}` }],
+        }),
+      },
+      {
+        name: 'finish drift append',
+        steps: finalSteps('已追加到灵感碎片。'),
+      },
+    ]);
+    const drift: BookNode = {
+      id: DRIFT_ID,
+      projectId: PROJECT_ID,
+      kind: 'drift',
+      title: DRIFT_TITLE,
+      summary: '',
+      bookOrder: null,
+      narrativeOrder: null,
+      driftGroupId: null,
+      writingStatus: 'drifting',
+      position: { x: 0, y: 0 },
+      wordCount: 0,
+      createdAt: INITIAL_REVISION,
+      updatedAt: INITIAL_REVISION,
+    };
+    await harness.nodeRepository.create(drift);
+    await harness.contentRepository.create({
+      nodeId: DRIFT_ID,
+      contentJson: proseJson('drift-opening', original),
+    });
+    useDataStore.setState((state) => ({ bookNodes: [...state.bookNodes, drift] }));
+
+    await harness.runTurn(turnId, '写一段内容追加在这个灵感后面。', 1, 'auto');
+
+    expect((await harness.contentRepository.findByNodeId(DRIFT_ID))?.contentJson).toContain(appended);
+    expect(
+      harness.events.filter(
+        (event) => event.turnId === turnId && event.event.type === 'tool_result' && !event.event.ok,
+      ),
+    ).toEqual([]);
     harness.driver.assertExhausted();
   });
 

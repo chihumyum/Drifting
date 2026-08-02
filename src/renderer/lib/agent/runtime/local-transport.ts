@@ -30,7 +30,6 @@ import type {
 } from './types';
 import { AGENT_RUNTIME_DURABLE_COMMIT_FAILURE_MESSAGE } from './types';
 import { clonePortableData } from './portable-data';
-import { buildAgentWritingTurnContext } from './writing-intelligence';
 import type {
   AgentTransportCommitTurnInput,
   AgentTransportPersistence,
@@ -323,8 +322,6 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     this.lastSessionId = session.id;
     const control = new AgentRuntimeControlChannel(session.id, turnId);
     active.control = control;
-    const writingContext = input.writingContext ?? buildAgentWritingTurnContext(input.prompt, null);
-
     const projector = new LegacyAgentEventProjector(session.id);
     let terminalEvents: AgentEventEnvelope['event'][] = [];
     let terminalEntry: AgentRuntimeJournalEntry | null = null;
@@ -367,11 +364,10 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         sessionId: session.id,
         turnId,
         route,
-        writingContext,
         prompt: input.prompt,
         ...(input.promptSource ? { promptSource: input.promptSource } : {}),
         ...(input.provider ? { provider: input.provider } : {}),
-        systemPrompt: buildDriftingAgentSystemPrompt({ ...input, writingContext }, route),
+        systemPrompt: buildDriftingAgentSystemPrompt(input, route),
         ...(input.model ? { model: input.model } : {}),
         reasoning: !this.supportsReasoning
           ? { enabled: false }

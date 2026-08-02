@@ -83,7 +83,6 @@ import {
 import { loadAgentWriteReviewContextRows } from './write-review-feedback';
 import type { GeneralAgentTransport } from '../transport';
 import { DriftingWorkspaceToolRuntime } from './drifting-workspace-tool-runtime';
-import { assertAgentWritingScope } from './writing-scope-guard';
 import { resolveDriftingAgentContextProfile } from './drifting-agent-product-contract';
 import { resolveAgentProviderContextProfile } from './agent-provider-contract';
 import { loadStorylineMembershipSnapshot } from './domain-crud-revision';
@@ -247,11 +246,7 @@ export function createDriftingAgentProductComposition(
     freshness: repositories.freshness,
     getContext,
     readRuntime: readTools,
-    prepareRequest: async (request) => {
-      const prepared = await workspaceTools.prepareWriteRequest(request);
-      assertAgentWritingScope(prepared);
-      return prepared;
-    },
+    prepareRequest: (request) => workspaceTools.prepareWriteRequest(request),
     proseCoordinator,
     readNodeContent: async (nodeId) =>
       (await contentRepository.findByNodeId(nodeId))?.contentJson ?? null,

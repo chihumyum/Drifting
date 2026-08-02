@@ -241,17 +241,7 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
         if (!tool || tool.scope !== 'runtime-virtual') {
           throw new Error('The ask_user runtime contract is unavailable');
         }
-        const confirmedConstraintConflictIds = Array.isArray(
-          request.arguments.constraintConflictIds,
-        )
-          ? request.arguments.constraintConflictIds.filter(
-              (value): value is string => typeof value === 'string' && value.length > 0,
-            )
-          : [];
-        return this.budgetResult(request, tool, {
-          answer,
-          ...(confirmedConstraintConflictIds.length > 0 ? { confirmedConstraintConflictIds } : {}),
-        });
+        return this.budgetResult(request, tool, { answer });
       }, []);
     }
 

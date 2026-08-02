@@ -1,106 +1,70 @@
 {
-  "suite": "milestone-h-editor-native-writing-intelligence",
-  "schemaVersion": 1,
-  "nodeVersion": "v22.23.1",
+  "suite": "milestone-h-author-owned-writing-policy",
+  "schemaVersion": 2,
+  "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "76ce19ebd113aa5111737fd9f73de07122932f51",
-  "sourceSetSha256": "sha256:26fc85d54b01b6619e28ebeac1218c3d930ffc57a5afe00b95e79a63b57b4b6e",
+  "gitHead": "eba3d0ed889fb999ce6781f22f8b70e98fe5ac41",
+  "sourceSetSha256": "sha256:739e64330ea690b7701971dd81c1d107124101d6b7b7294fe7bda7a1902b2cf1",
   "evidence": {
-    "intentOracle": "25-curated-chinese-and-english-author-requests",
-    "literaryFixture": "synthetic-plus-local-private-read-only-corpus",
-    "privateProsePersisted": false,
-    "durableReview": "real-file-sqlite-exact-read-receipt-forgery-restart",
+    "productWritingDefaults": "none",
+    "editorContextInjected": false,
+    "contentMutationScopeGuard": false,
+    "canonPatchGate": false,
+    "authorRuleSources": [
+      "projectFacts",
+      "activeAuthorMemory",
+      "currentAuthorRequest"
+    ],
+    "dataIntegrityGuardsRetained": [
+      "projectIsolation",
+      "Yjs",
+      "CAS",
+      "review",
+      "destructiveApproval"
+    ],
     "networkRequired": false
-  },
-  "metrics": {
-    "intent": {
-      "cases": 25,
-      "passed": 25,
-      "accuracy": 1
-    },
-    "voice": {
-      "samples": 19,
-      "privateSamples": 16,
-      "identicalMedian": 1,
-      "mutatedMedian": 0.2416,
-      "mutationDetectionRate": 1
-    },
-    "citations": {
-      "exactCases": 1,
-      "exactAccepted": 1,
-      "forgedCases": 12,
-      "forgedRejected": 12,
-      "forgedRejectionRate": 1
-    },
-    "fixture": {
-      "privateCorpusAvailable": true,
-      "privateCorpusFiles": 17,
-      "privateCorpusBytes": 297247
-    },
-    "gate": {
-      "thresholds": {
-        "intentAccuracy": true,
-        "identicalVoiceBaseline": true,
-        "voiceMutationDetection": true,
-        "privateCorpusCoverage": true,
-        "exactCitationAcceptance": true,
-        "forgedCitationRejection": true
-      },
-      "passed": true
-    }
   },
   "vitest": {
     "files": {
-      "required": 11,
-      "discovered": 11
+      "required": 6,
+      "discovered": 6
     },
     "tests": {
-      "total": 75,
-      "passed": 75,
+      "total": 35,
+      "passed": 35,
       "failed": 0,
       "pending": 0,
       "todo": 0
     },
     "groups": {
-      "literaryOracleAndMutations": {
+      "authorPolicy": {
+        "requiredFiles": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 13,
+          "passed": 13,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
+      "guidanceLifecycle": {
         "requiredFiles": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 4,
-          "passed": 4,
+          "total": 3,
+          "passed": 3,
           "failed": 0,
           "pending": 0
         },
         "passed": true
       },
-      "editorFocusAndScope": {
-        "requiredFiles": 4,
-        "discoveredFiles": 4,
-        "tests": {
-          "total": 17,
-          "passed": 17,
-          "failed": 0,
-          "pending": 0
-        },
-        "passed": true
-      },
-      "providerAndProductContext": {
-        "requiredFiles": 4,
-        "discoveredFiles": 4,
-        "tests": {
-          "total": 35,
-          "passed": 35,
-          "failed": 0,
-          "pending": 0
-        },
-        "passed": true
-      },
-      "durableReadOnlyReview": {
+      "unrestrictedWorkspace": {
         "requiredFiles": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 12,
-          "passed": 12,
+          "total": 10,
+          "passed": 10,
           "failed": 0,
           "pending": 0
         },
@@ -110,8 +74,8 @@
         "requiredFiles": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 7,
-          "passed": 7,
+          "total": 9,
+          "passed": 9,
           "failed": 0,
           "pending": 0
         },
@@ -119,58 +83,33 @@
       }
     },
     "requiredAssertions": {
-      "intentOracle": {
-        "requiredName": "classifies author intent and scope against a deterministic ambiguity oracle",
+      "noProductWritingHarness": {
+        "requiredName": "removes product-derived editor focus and default literary rules",
         "matches": 1,
         "passed": true
       },
-      "providerContext": {
-        "requiredName": "injects exact focus, author voice, canon impact, and work-kind policy into provider context",
+      "authorOwnedPromptRules": {
+        "requiredName": "injects only author-owned project facts and approved standing guidance",
         "matches": 1,
         "passed": true
       },
-      "voiceMutation": {
-        "requiredName": "detects voice-flattening mutations on synthetic and local manuscript samples without leaking prose",
-        "matches": 1,
-        "passed": true
-      },
-      "citationMutation": {
-        "requiredName": "accepts exact semantic citations and rejects every forged citation mutation",
-        "matches": 1,
-        "passed": true
-      },
-      "editorSelection": {
-        "requiredName": "captures an exact span, stable block identity, and nearby voice context",
-        "matches": 1,
-        "passed": true
-      },
-      "namedTargetResolution": {
-        "requiredName": "resolves current names and aliases into canonical explicit prose targets",
-        "matches": 1,
-        "passed": true
-      },
-      "crossEntityGuard": {
-        "requiredName": "rejects edits to another entity and text outside the selection",
-        "matches": 1,
-        "passed": true
-      },
-      "namedTargetGuard": {
-        "requiredName": "allows explicitly named entities without editor focus and rejects a substituted target",
-        "matches": 1,
-        "passed": true
-      },
-      "canonGuard": {
-        "requiredName": "fails closed when an explicit canon evolution tries to write prose directly",
-        "matches": 1,
-        "passed": true
-      },
-      "durableReview": {
-        "requiredName": "completes review work from exact cited reads, rejects forged quotes, and survives restart",
+      "editableProjectRules": {
+        "requiredName": "keeps project rules as ordinary author-editable project data",
         "matches": 1,
         "passed": true
       },
       "capabilityContract": {
-        "requiredName": "publishes editor-native writing scope, canon, voice, and review evidence",
+        "requiredName": "publishes no hidden writing defaults or content mutation guards",
+        "matches": 1,
+        "passed": true
+      },
+      "arbitraryEntityWrite": {
+        "requiredName": "lets workspace writes target any project entity without a content-scope gate",
+        "matches": 1,
+        "passed": true
+      },
+      "staleFocusRegression": {
+        "requiredName": "appends to the requested drift without inheriting a stale chapter focus",
         "matches": 1,
         "passed": true
       }
@@ -197,9 +136,8 @@
     "passed": true
   },
   "boundaries": {
-    "voiceScore": "Diagnostic mutation detector, not an autonomous literary-quality verdict or permission to overwrite prose.",
-    "liveProvider": "Deterministic provider-wire/runtime acceptance is required; paid live-provider canary is optional and separately reported.",
-    "nativeDevices": "Headless acceptance does not claim desktop/iOS/Android interaction or endurance acceptance; that remains milestone J."
+    "writingPolicy": "Drifting supplies workspace mechanics only; the current request and author-owned project rules control writing behavior.",
+    "retainedSafety": "Project isolation, concurrency checks, durable review, and destructive-operation approval protect data rather than prescribe prose."
   },
   "passed": true
 }

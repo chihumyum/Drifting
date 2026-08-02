@@ -765,19 +765,19 @@
     },
 
     "agentMemory": {
-      "title": "Memory",
-      "desc": "Long-term instructions saved by Agent: writing preferences, vetoed proposals, and content directives. They are injected into future chats and available to Shadow review; only active entries take effect. Memories Agent records in chat appear here, and you can add your own manually.",
+      "title": "Agent rules",
+      "desc": "Long-term rules controlled by you. Active preferences, directives, and vetoes are injected verbatim into future chats; you can add or delete them at any time. Rules proposed by Agent require your approval, and the product adds no hidden writing policy.",
       "kind": {
         "preference": "Preference",
         "directive": "Directive",
         "veto": "Veto"
       },
-      "placeholder": "Add a memory manually…",
+      "placeholder": "Add a project rule…",
       "add": "Add",
-      "empty": "No memories yet.",
+      "empty": "No long-term rules yet.",
       "pending": "Pending approval",
       "approve": "Approve",
-      "deleteConfirm": "Delete this memory? It will no longer affect future chats or reviews."
+      "deleteConfirm": "Delete this rule? It will no longer affect future chats or reviews."
     },
 
     "agentUsage": {
@@ -1153,10 +1153,10 @@
       "edits": "Edits",
       "reviewEdits": "Review prose edits",
       "reviewEditsTitle": "When enabled, Agent writes prose into the editor and shows the colored diff with accept/reject controls in place. When disabled, the edit completes through the reveal animation automatically. Destructive structural actions such as deleting entities or changing relationships always ask before execution.",
-      "memory": "Memory",
-      "memoryTitle": "Preferences / vetoes / directives remembered by the agent and injected into later chats and Shadow reviews.",
-      "manageMemory": "Manage memory",
-      "noMemory": "No memory yet",
+      "memory": "Rules",
+      "memoryTitle": "Long-term preferences / directives / vetoes controlled by you; only active entries are injected into later chats.",
+      "manageMemory": "Manage rules",
+      "noMemory": "No rules yet",
       "approveMemory": "Approve (start using)"
     },
     "memoryKind": {
@@ -1296,12 +1296,6 @@
       "placeholder": "Ask the agent… (Cmd/Ctrl+Enter)",
       "steerPlaceholder": "Add to or correct the running task…",
       "answerPlaceholder": "Answer the agent's question…",
-      "scopeLabel": "“Here” means",
-      "scopeSelection": "selected text",
-      "scopeBlock": "current paragraph",
-      "scopeEntity": "current manuscript",
-      "scopeTitle": "When you say here, this passage, or this chapter, the agent uses this editor focus. An explicitly named target in your request still takes precedence.",
-      "scopeAria": "Agent writing context: {{name}}, {{mode}}",
       "stop": "Stop",
       "stopAfterToolTitle": "Stop this turn after the current tool reaches a safe boundary, and disable automatic continuation",
       "steer": "Steer",

@@ -159,30 +159,6 @@ describe('DriftingReadToolRuntime', () => {
     expect(toolHandlerMocks.runAgentTool).not.toHaveBeenCalled();
   });
 
-  it('echoes confirmed constraint conflict ids into the durable ask_user result', async () => {
-    const requestUserInput = vi.fn(async () => '以蓝色为准');
-    const runtime = new DriftingReadToolRuntime({ freshness: null });
-
-    await expect(
-      runtime.execute(
-        executionRequest({
-          name: 'ask_user',
-          arguments: {
-            prompt: '瞳色以哪个设定为准？',
-            constraintConflictIds: ['context-conflict:fact:a:b'],
-          },
-          control: { requestUserInput },
-        }),
-      ),
-    ).resolves.toEqual({
-      ok: true,
-      data: {
-        answer: '以蓝色为准',
-        confirmedConstraintConflictIds: ['context-conflict:fact:a:b'],
-      },
-    });
-  });
-
   it('replays a durable ask_user answer without asking the author twice', async () => {
     const requestUserInput = vi.fn(async () => '第一次答案');
     const persisted = new Map<string, CreateAgentRuntimeReadReceipt>();

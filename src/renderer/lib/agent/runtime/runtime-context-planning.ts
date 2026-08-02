@@ -16,11 +16,6 @@ import {
   type AgentContextSummaryCandidate,
   type AgentContextTokenEstimator,
 } from './context-planner';
-import {
-  confirmedAgentContextConstraintConflictIds,
-  detectAgentContextConstraintConflicts,
-  type AgentContextConstraintConflict,
-} from './context-constraint-conflicts';
 import { createAgentContextUsageSnapshot } from './context-usage';
 import { AgentRuntimeError } from './errors';
 import type {
@@ -150,8 +145,6 @@ export interface AgentRuntimeVerifiedContextPlan {
   canonicalSourceRows: import('./context-planner').AgentContextSourceRow[];
   /** Content-free projection of the exact verified provider input. */
   contextUsage: AgentContextUsageSnapshot;
-  /** Unresolved, source-bound contradictions that block every write tool. */
-  constraintConflicts: AgentContextConstraintConflict[];
 }
 
 const BUDGET_FAILURES = new Set([
@@ -278,24 +271,6 @@ export const identifyExplicitAgentUserConstraints: AgentRuntimeUserConstraintPol
   }
   return decisions;
 };
-
-function conflictSupplementalRow(
-  turnId: string,
-  conflicts: readonly AgentContextConstraintConflict[],
-): AgentContextSupplementalPinnedRow {
-  return {
-    sourceId: `runtime:context-constraint-conflicts:${turnId}`,
-    turnOrdinal: null,
-    kind: 'task_constraints',
-    content: JSON.stringify({
-      schemaVersion: 1,
-      kind: 'context_constraint_confirmation_required',
-      instruction:
-        'Before any write, call ask_user once with a focused author-facing question and every relevant conflictId in constraintConflictIds. Do not guess which instruction or fact wins.',
-      conflicts: conflicts.map((conflict) => ({ ...conflict })),
-    }),
-  };
-}
 
 async function resolveConstraintLedger(input: {
   hookInput: AgentRuntimeContextPlanningHookInput;
@@ -560,26 +535,7 @@ export class AgentRuntimeContextPlanningCoordinator {
         );
       }
     }
-    const allConstraintConflicts =
-      canonicalBridgeForConstraints && constraintLedger
-        ? detectAgentContextConstraintConflicts({
-            sourceRows: canonicalBridgeForConstraints.sourceRows,
-            ledger: constraintLedger,
-          })
-        : [];
-    const confirmedConflictIds = canonicalBridgeForConstraints
-      ? confirmedAgentContextConstraintConflictIds(canonicalBridgeForConstraints.sourceRows)
-      : new Set<string>();
-    const constraintConflicts = allConstraintConflicts.filter(
-      (conflict) => !confirmedConflictIds.has(conflict.conflictId),
-    );
-    const supplementalRows =
-      constraintConflicts.length > 0
-        ? [
-            ...(baseSupplementalRows ?? []),
-            conflictSupplementalRow(request.turnId, constraintConflicts),
-          ]
-        : baseSupplementalRows;
+    const supplementalRows = baseSupplementalRows;
     const fixedInputTokens = estimateAgentContextFixedInputTokens({
       tools: request.selectedTools,
       providerOverheadTokens: providerProfile.providerOverheadTokens,
@@ -663,7 +619,6 @@ export class AgentRuntimeContextPlanningCoordinator {
         ...row,
       })),
       contextUsage,
-      constraintConflicts: constraintConflicts.map((conflict) => ({ ...conflict })),
     };
   }
 

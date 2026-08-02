@@ -14,7 +14,6 @@ import { v7 as uuidv7 } from 'uuid';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useSettingsStore } from '../../store/settings-store';
 import { useProjectStore } from '../../store/project-store';
-import { resolveWritingLanguage } from '../ai/output-language';
 import { entityKey } from '../agent/tool-entity-ref';
 import { generalAgentTransport } from '../agent/transport';
 import { buildGeneralAgentProjectContext } from '../agent/product-project-context';
@@ -146,7 +145,6 @@ export async function runScopedAgentTurn(
     thinking: settings.agentThinking,
     toolSearch: 'on',
     ...projectContext,
-    writingLanguage: projectId ? resolveWritingLanguage(projectId) : undefined,
     newConversation: true,
     turnId,
   });

@@ -75,28 +75,17 @@ write-revert notes are also semantic-pinned.
 The classifier is intentionally conservative. It is not permission to infer
 unstated preferences or manufacture canon.
 
-## 4. Contradictory constraints
+## 4. Author-owned constraints
 
-Provider-free detection handles only high-confidence contradictions:
+Explicit author instructions, vetoes and facts remain exact, source-hash-bound
+rows across compaction. The runtime does not infer a product writing policy
+from them and does not block writes through an automatic contradiction gate.
 
-- two author facts assign different values to the same subject/key;
-- an author instruction and veto target the same lexical action.
-
-An explicit later correction such as “更正” or “以此为准” resolves the older
-fact without another interruption. Otherwise the runtime adds a pinned
-`context_constraint_confirmation_required` note with stable conflict IDs.
-
-This is a runtime safety boundary, not prompt advice:
-
-1. every write tool is rejected with
-   `CONTEXT_CONSTRAINT_CONFIRMATION_REQUIRED`;
-2. the Agent must call `ask_user` with a focused question and the exact current
-   `constraintConflictIds`;
-3. stale or invented IDs are rejected;
-4. the author's non-blank answer and confirmed IDs are persisted in the
-   canonical `ask_user` tool result;
-5. the next context plan recomputes conflicts from canonical history and only
-   then unlocks writes.
+The current author request and current active project rules are presented to
+the model, which resolves precedence through normal reasoning. It may use
+`ask_user` only when a real author decision remains ambiguous. A later explicit
+correction naturally supersedes older conversational guidance without an
+internal conflict-ID protocol.
 
 ## 5. Literary compaction
 

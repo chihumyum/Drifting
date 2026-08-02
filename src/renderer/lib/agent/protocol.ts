@@ -6,8 +6,6 @@
  * this protocol without reintroducing a renderer -> shell dependency.
  */
 
-import type { AgentWritingTurnContext } from './runtime/writing-intelligence';
-
 export interface AgentTodoItem {
   content: string;
   status: 'pending' | 'in_progress' | 'completed';
@@ -179,13 +177,10 @@ export interface AgentStartInput {
   toolSearch?: AgentToolSearchChoice;
   /** Canonical author-visible project name, never inferred from `projectId`. */
   projectName?: string;
-  writingLanguage?: string;
   projectFacts?: { key: string; value: string }[];
   memories?: { kind: string; body: string }[];
   /** Durable provider-neutral context carried by a user-checkpoint fork. */
   checkpointContext?: string;
-  /** Product-derived active editor focus and immutable writing-intent contract. */
-  writingContext?: AgentWritingTurnContext;
 }
 
 export interface GeneralAgentAuthStatus {

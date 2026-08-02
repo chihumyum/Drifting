@@ -15,7 +15,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(12);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(13);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).not.toContain('The canonical project name is "019f-opaque-project-id"');
@@ -36,7 +36,7 @@ describe('Drifting General Agent system prompt', () => {
     expect(system).toContain('read_file');
     expect(system).toContain('grep');
     expect(system).toContain('edit_file');
-    expect(system).toContain('Treat chapters and canon exactly like files');
+    expect(system).toContain('Treat project content exactly like files');
     expect(system).toContain(
       'One edit may replace, insert, delete, merge, or split multiple paragraphs.',
     );
@@ -54,6 +54,26 @@ describe('Drifting General Agent system prompt', () => {
     expect(system).not.toContain('receipt');
     expect(system).not.toContain('read_node');
     expect(system).not.toContain('edit_blocks');
+  });
+
+  it('leaves writing policy to the author and injects only author-owned rules', () => {
+    const system = prompt({
+      projectFacts: [{ key: '叙述规则', value: '允许自由切换视角' }],
+      memories: [{ kind: 'directive', body: '本项目可以主动重构时间线。' }],
+    });
+
+    expect(system).toContain('Author-defined project facts and rules:');
+    expect(system).toContain('- 叙述规则: 允许自由切换视角');
+    expect(system).toContain('Author-approved standing guidance:');
+    expect(system).toContain('- [directive] 本项目可以主动重构时间线。');
+    expect(system).toContain('Editor focus, selection, the previously opened chapter');
+    expect(system).toContain('Do not invent project-wide style, plot, canon, POV, tense');
+    expect(system).toContain('Never ask the author to add an entity to an internal writing scope.');
+    expect(system).not.toContain('Authoring-intent contract');
+    expect(system).not.toContain('Current editor focus');
+    expect(system).not.toContain('Preserve unless the author explicitly overrides it');
+    expect(system).not.toContain('sanctioned patch');
+    expect(system).not.toContain('Local voice witness');
   });
 
   it('requires durable resumable plans for work spanning context windows', () => {

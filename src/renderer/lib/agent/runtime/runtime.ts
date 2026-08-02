@@ -515,13 +515,7 @@ export class AgentRuntime {
   async runTurn(input: AgentRuntimeRunInput): Promise<AgentRuntimeRunResult> {
     const limits = mergeLimits(input.limits);
     const route = deepFreeze(clonePortableData(input.route));
-    const writing = input.writingContext
-      ? deepFreeze(clonePortableData(input.writingContext))
-      : undefined;
-    const context: AgentRuntimeContext = {
-      route,
-      ...(writing ? { writing } : {}),
-    };
+    const context: AgentRuntimeContext = { route };
     if (
       input.control &&
       (input.control.sessionId !== input.sessionId || input.control.turnId !== input.turnId)
@@ -603,7 +597,6 @@ export class AgentRuntime {
     let repeatedFailureSignature: string | null = null;
     let repeatedFailureIterations = 0;
     let forceSynthesisOnly = false;
-    let unresolvedContextConstraintConflictIds = new Set<string>();
     const successfulReadNamesSinceLastWrite = new Set<string>();
     let successfulReadNamesInPreviousBatch = new Set<string>();
     let repairToolNamesForNextIteration = new Set<string>();
@@ -833,33 +826,6 @@ export class AgentRuntime {
 
     const authorizeTool = async (call: MutableToolCall): Promise<boolean> => {
       if (!call.definition || !call.validatedArguments || call.result) {
-        return false;
-      }
-      if (
-        call.name === 'ask_user' &&
-        Array.isArray(call.validatedArguments.constraintConflictIds)
-      ) {
-        const invalidConflictIds = call.validatedArguments.constraintConflictIds.filter(
-          (value) =>
-            typeof value !== 'string' || !unresolvedContextConstraintConflictIds.has(value),
-        );
-        if (invalidConflictIds.length > 0) {
-          await emitRuntimeToolResult(
-            call,
-            'ask_user contained stale or unknown context constraint conflict ids. Re-read the pinned task_constraints note and retry with its exact conflictId values.',
-            'INVALID_CONTEXT_CONSTRAINT_CONFIRMATION',
-            true,
-          );
-          return false;
-        }
-      }
-      if (call.definition.access === 'write' && unresolvedContextConstraintConflictIds.size > 0) {
-        await emitRuntimeToolResult(
-          call,
-          `Write blocked because ${unresolvedContextConstraintConflictIds.size} author constraint conflict(s) still require confirmation. Call ask_user with the exact conflictId values from the pinned task_constraints note before retrying this write.`,
-          'CONTEXT_CONSTRAINT_CONFIRMATION_REQUIRED',
-          true,
-        );
         return false;
       }
       const argumentsHash = await awaitAbortable(
@@ -1564,9 +1530,6 @@ export class AgentRuntime {
           requestedOutputTokens: requestMaxOutputTokens,
           signal: controller.signal,
         }),
-      );
-      unresolvedContextConstraintConflictIds = new Set(
-        plannedContext.constraintConflicts.map((conflict) => conflict.conflictId),
       );
       lastProviderCallContextEnvelope = deepFreeze(clonePortableData(plannedContext.envelope));
       lastPlanningSelection = {

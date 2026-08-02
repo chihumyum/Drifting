@@ -21,7 +21,6 @@ const TEST_GROUPS = {
   literaryCompactionAndRetrieval: [
     'src/renderer/lib/agent/runtime/drifting-context-compactor.test.ts',
     'src/renderer/lib/agent/runtime/context-evidence-retrieval.test.ts',
-    'src/renderer/lib/agent/runtime/context-constraint-conflicts.test.ts',
   ],
   durablePagingAndRestart: [
     'src/renderer/sqlite-repo/agent-runtime-result-artifact-repo.integration.test.ts',
@@ -41,7 +40,6 @@ const LINT_FILES = [
   'src/renderer/lib/agent/runtime/acceptance/milestone-f-context-engineering.acceptance.test.ts',
   'src/renderer/lib/agent/runtime/acceptance/milestone-f-literary-context.acceptance.test.ts',
   'src/renderer/lib/agent/runtime/acceptance/milestone-f-literary-fixture.ts',
-  'src/renderer/lib/agent/runtime/context-constraint-conflicts.ts',
   'src/renderer/lib/agent/runtime/context-evidence-retrieval.ts',
   'src/renderer/lib/agent/runtime/context-message-adapter.ts',
   'src/renderer/lib/agent/runtime/context-planner.ts',
@@ -75,8 +73,6 @@ const REQUIRED_ASSERTIONS = {
   exactCompactorEvidence: 'rejects summaries that omit or forge exact evidence from a tool result',
   mixedChunkGain:
     'keeps a no-gain short chunk exact while applying profitable full-compactor chunks',
-  constraintConfirmation:
-    'blocks writes on contradictory author facts until ask_user durably confirms the exact conflict',
   artifactRestart: 'pages exact Unicode content after closing and reopening the repository',
   checkpointRestart:
     'commits the final assistant atomically, restarts, verifies nested integrity, and resumes canonical history',

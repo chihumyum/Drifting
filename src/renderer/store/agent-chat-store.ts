@@ -31,7 +31,6 @@ import { useDataStore } from './data-store';
 import { useAgentEditStore, type RevertRecord } from './agent-edit-store';
 import { useAgentCheckpointStore } from './agent-checkpoint-store';
 import type { ActivityEntityType } from '../lib/agent/tool-entity-ref';
-import { resolveWritingLanguage } from '../lib/ai/output-language';
 import { loadActiveMemoryHints } from '../usecase/useAgentMemory';
 import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
 import { createAgentRuntimeLongTaskRepository } from '../sqlite-repo/agent-runtime-long-task-repo';
@@ -71,7 +70,6 @@ import {
 import { generalAgentTransport } from '../lib/agent/transport';
 import { buildGeneralAgentProjectContext } from '../lib/agent/product-project-context';
 import { getAgentUserCheckpointService } from '../services/agent-user-checkpoint.service';
-import { buildProductAgentWritingContext } from '../lib/agent/product-authoring-focus';
 
 const repo = createAgentConversationRepository();
 const longTaskRepo = createAgentRuntimeLongTaskRepository();
@@ -618,12 +616,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       useSettingsStore.getState().setLastAgentConv(projectId, cid);
       get().refreshList();
 
-      // Project writing preferences (KV facts) + writing language, injected into
-      // the agent's system prompt so it honors the author's style/POV/length and
-      // writes in the manuscript's language. Empty facts → no style steer.
+      // Author-owned project facts/rules are injected verbatim. The product does
+      // not derive style, POV, target scope, or other writing policy here.
       const project = useProjectStore.getState().currentProject;
       const projectContext = buildGeneralAgentProjectContext(projectId, project);
-      const writingLanguage = resolveWritingLanguage(projectId);
       // Active agent memories (author-approved standing guidance) — injected into
       // the system prompt so past preferences/vetoes/directives keep steering.
       const memories = await loadActiveMemoryHints(projectId).catch(() => []);
@@ -654,11 +650,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // that legacy path grew long tasks quadratically and blurred authorship.
       const promptNotes = reverts.length ? [buildRevertNote(reverts)] : [];
       const promptToSend = promptNotes.length ? `${promptNotes.join('\n\n')}\n\n${text}` : text;
-      // Bind deictic author language ("这里" / "选中内容" / "本章") to the
-      // active editor before the model starts. Revert notes are runtime context,
-      // so intent classification must use the author's original text.
-      const writingContext = buildProductAgentWritingContext(projectId, text);
-
       const r = await generalAgentTransport
         .start({
           prompt: promptToSend,
@@ -676,9 +667,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           toolSearch: 'on',
           resume: run.runtimeSessionId ?? undefined,
           ...projectContext,
-          writingLanguage,
           memories,
-          writingContext,
           ...(forkContext ? { checkpointContext: forkContext } : {}),
           turnId,
         })

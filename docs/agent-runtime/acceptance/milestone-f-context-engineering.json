@@ -1,10 +1,10 @@
 {
   "suite": "milestone-f-literary-context-engineering",
   "schemaVersion": 1,
-  "nodeVersion": "v22.23.1",
+  "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "76ce19ebd113aa5111737fd9f73de07122932f51",
-  "sourceSetSha256": "sha256:cf62d656379509125d5ce9a506811b15ff3660ac3138e2efd8baf10503dd2b2a",
+  "gitHead": "eba3d0ed889fb999ce6781f22f8b70e98fe5ac41",
+  "sourceSetSha256": "sha256:2c3da6bb5d6415209f42ab1b33426714458721f002aada146e927caaa4ad9b90",
   "corpusPolicy": {
     "committedTruth": "distilled fog-harbor golden fixture",
     "privateProse": "read at test runtime only; machine report stores counts and bytes, never prose",
@@ -92,12 +92,12 @@
   },
   "vitest": {
     "files": {
-      "required": 12,
-      "discovered": 12
+      "required": 11,
+      "discovered": 11
     },
     "tests": {
-      "total": 82,
-      "passed": 82,
+      "total": 79,
+      "passed": 79,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -118,19 +118,19 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 38,
-          "passed": 38,
+          "total": 37,
+          "passed": 37,
           "failed": 0,
           "pending": 0
         },
         "passed": true
       },
       "literaryCompactionAndRetrieval": {
-        "requiredFiles": 3,
-        "discoveredFiles": 3,
+        "requiredFiles": 2,
+        "discoveredFiles": 2,
         "tests": {
-          "total": 11,
-          "passed": 11,
+          "total": 8,
+          "passed": 8,
           "failed": 0,
           "pending": 0
         },
@@ -151,8 +151,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 21,
-          "passed": 21,
+          "total": 22,
+          "passed": 22,
           "failed": 0,
           "pending": 0
         },
@@ -192,11 +192,6 @@
       },
       "mixedChunkGain": {
         "requiredName": "keeps a no-gain short chunk exact while applying profitable full-compactor chunks",
-        "matches": 1,
-        "passed": true
-      },
-      "constraintConfirmation": {
-        "requiredName": "blocks writes on contradictory author facts until ask_user durably confirms the exact conflict",
         "matches": 1,
         "passed": true
       },
