@@ -213,7 +213,10 @@ function renderMarkdown(manifest: ReturnType<typeof buildDriftingAgentCapability
     ...manifest.deferredProductCapabilities.map((capability) => `- \`${capability}\``),
     '',
   ];
-  return `${lines.join('\n')}\n`;
+  // `lines` deliberately ends with one empty item, so join already emits the
+  // canonical single trailing newline. Appending another one would create a
+  // blank line at EOF and make `git diff --check` reject generated evidence.
+  return lines.join('\n');
 }
 async function main(): Promise<void> {
   const manifest = buildDriftingAgentCapabilityManifest();

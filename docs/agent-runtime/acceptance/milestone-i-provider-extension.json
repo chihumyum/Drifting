@@ -3,11 +3,11 @@
   "schemaVersion": 1,
   "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "sourceSetSha256": "sha256:5eee4fe8d65ed75a29cbf16309b47b2af666503c0963843af0bf7b23f5914d1b",
+  "sourceSetSha256": "sha256:b53bd2deff5cf66938eaf0bf923772b726013b36f66b4795d28d898aadfba4cd",
   "vitest": {
     "files": 17,
-    "tests": 142,
-    "passedTests": 142,
+    "tests": 143,
+    "passedTests": 143,
     "groups": {
       "providers": {
         "requiredFiles": 5,
@@ -24,7 +24,7 @@
       "durableAuthorityAndProduct": {
         "requiredFiles": 7,
         "discoveredFiles": 7,
-        "tests": 73,
+        "tests": 74,
         "passed": true
       }
     },
