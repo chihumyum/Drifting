@@ -327,6 +327,7 @@ describe('LocalGeneralAgentTransport', () => {
         },
       ],
     });
+    let commitAttempts = 0;
     const persistence: AgentTransportPersistence = {
       prepareTurn: async () => ({
         sessionId: 'session-commit',
@@ -335,6 +336,7 @@ describe('LocalGeneralAgentTransport', () => {
       }),
       appendJournal: async () => undefined,
       commitTurn: async () => {
+        commitAttempts += 1;
         throw new Error('sqlite commit failed');
       },
     };
@@ -368,6 +370,59 @@ describe('LocalGeneralAgentTransport', () => {
       outcome: 'failed',
       failureCode: 'INTERNAL_ERROR',
       message: AGENT_RUNTIME_DURABLE_COMMIT_FAILURE_MESSAGE,
+    });
+    expect(commitAttempts).toBe(3);
+  });
+
+  it('retries an idempotent durable commit before publishing the completed terminal', async () => {
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: 'durable result' } },
+            { op: 'emit', event: { type: 'usage', usage: USAGE } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    let commitAttempts = 0;
+    const persistence: AgentTransportPersistence = {
+      prepareTurn: async () => ({
+        sessionId: 'session-retry',
+        history: [],
+        recovered: false,
+      }),
+      appendJournal: async () => undefined,
+      commitTurn: async () => {
+        commitAttempts += 1;
+        if (commitAttempts === 1) throw new Error('lost commit response');
+      },
+    };
+    const transport = new LocalGeneralAgentTransport({
+      driver,
+      persistence,
+      createId: (kind) => `${kind}-retry`,
+    });
+    const events: AgentEventEnvelope[] = [];
+    const journal: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeEvents((event) => events.push(event));
+    transport.subscribeJournal((entry) => journal.push(entry));
+
+    await expect(
+      transport.start({
+        prompt: 'retry commit',
+        turnId: 'turn-retry',
+        projectId: 'project-1',
+      }),
+    ).resolves.toEqual({ ok: true, value: undefined });
+    await waitForDone(events, 1);
+
+    expect(commitAttempts).toBe(2);
+    expect(events.some((entry) => entry.event.type === 'error')).toBe(false);
+    expect(journal[journal.length - 1]?.event).toMatchObject({
+      type: 'turn_finished',
+      outcome: 'completed',
     });
   });
 

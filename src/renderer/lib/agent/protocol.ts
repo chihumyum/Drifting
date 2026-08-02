@@ -6,6 +6,8 @@
  * this protocol without reintroducing a renderer -> shell dependency.
  */
 
+import type { AgentWritingTurnContext } from './runtime/writing-intelligence';
+
 export interface AgentTodoItem {
   content: string;
   status: 'pending' | 'in_progress' | 'completed';
@@ -146,10 +148,12 @@ export interface AgentEventEnvelope {
 }
 
 export type AgentMode = 'oauth' | 'apikey' | 'hosted';
+export type AgentProviderChoice = 'deepseek' | 'anthropic' | 'openai';
 export type AgentModelChoice = string;
 export type AgentEffortChoice = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type AgentThinkingChoice = 'adaptive' | 'off';
 export type AgentToolSearchChoice = 'off' | 'auto' | 'on';
+export type AgentPromptSource = 'author' | 'runtime_continuation';
 
 export type AgentStartRoute =
   | { kind: 'chat'; projectId: string; conversationId?: string }
@@ -157,11 +161,15 @@ export type AgentStartRoute =
 
 export interface AgentStartInput {
   prompt: string;
+  /** Runtime continuation prompts steer the model but are not author messages. */
+  promptSource?: AgentPromptSource;
   /** Canonical destination for runtime events and tool execution. */
   route?: AgentStartRoute;
   /** Legacy compatibility field. Prefer `route.projectId` in new transports. */
   projectId?: string;
   mode?: AgentMode;
+  /** Immutable provider route captured when the author submits this turn. */
+  provider?: AgentProviderChoice;
   newConversation?: boolean;
   resume?: string;
   turnId?: string;
@@ -174,6 +182,10 @@ export interface AgentStartInput {
   writingLanguage?: string;
   projectFacts?: { key: string; value: string }[];
   memories?: { kind: string; body: string }[];
+  /** Durable provider-neutral context carried by a user-checkpoint fork. */
+  checkpointContext?: string;
+  /** Product-derived active editor focus and immutable writing-intent contract. */
+  writingContext?: AgentWritingTurnContext;
 }
 
 export interface GeneralAgentAuthStatus {

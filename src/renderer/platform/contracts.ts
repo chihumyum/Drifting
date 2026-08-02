@@ -32,6 +32,7 @@ export interface NativePlatformCapabilities {
   externalUrlOpener: boolean;
   generalAgent: boolean;
   generalAgentUnavailableReason: string;
+  mcpStdio: boolean;
   secureStorage?: boolean;
   materialFiles?: boolean;
   assetCache?: boolean;
@@ -58,6 +59,7 @@ export interface PlatformCapabilities extends NativePlatformCapabilities {
     assetCache: ContractAvailability;
     aiLog: ContractAvailability;
     oauth: ContractAvailability;
+    mcpStdio: ContractAvailability;
     generalAgent: ContractAvailability;
   };
 }
@@ -171,6 +173,60 @@ export type AssetCacheDeleteResult = { ok: true } | { ok: false; error: string }
 
 export type AILogWriteResult = { ok: true; filePath: string } | { ok: false; error: string };
 
+export interface McpStdioStartInput {
+  processId: string;
+  command: string;
+  args: string[];
+  cwd: string | null;
+  /** Public environment only. Secret values are resolved from Keychain first. */
+  env: Record<string, string>;
+  configRevision: string;
+}
+
+export interface McpStdioStartResult {
+  processId: string;
+  pid: number;
+}
+
+export interface McpStdioRequestInput {
+  processId: string;
+  requestId: string;
+  /** One complete JSON-RPC object. Newlines are rejected by the native host. */
+  message: string;
+  timeoutMs: number;
+}
+
+export interface McpStdioNotifyInput {
+  processId: string;
+  /** A complete JSON-RPC notification with no id. */
+  message: string;
+}
+
+export interface McpStdioStatusResult {
+  processId: string;
+  running: boolean;
+  pid: number | null;
+  configRevision: string | null;
+  fatalError: string | null;
+  stderrLines: string[];
+}
+
+export interface McpHttpRequestInput {
+  /** Transport-unique cancellation identity; not the JSON-RPC authority id. */
+  requestId: string;
+  url: string;
+  method: 'POST' | 'DELETE';
+  headers: Record<string, string>;
+  body: string | null;
+  timeoutMs: number;
+}
+
+export interface McpHttpResponseResult {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
 export interface TauriCommandContract {
   app_get_info: { args: undefined; result: AppInfo };
   app_get_path: { args: { name: string }; result: string };
@@ -262,6 +318,25 @@ export interface TauriCommandContract {
   };
   ai_log_open_dir: { args: undefined; result: string };
   ai_log_get_dir: { args: undefined; result: string };
+  mcp_stdio_start: {
+    args: { input: McpStdioStartInput };
+    result: McpStdioStartResult;
+  };
+  mcp_stdio_request: {
+    args: { input: McpStdioRequestInput };
+    result: string;
+  };
+  mcp_stdio_notify: { args: { input: McpStdioNotifyInput }; result: void };
+  mcp_stdio_stop: { args: { processId: string }; result: boolean };
+  mcp_stdio_status: {
+    args: { processId: string };
+    result: McpStdioStatusResult;
+  };
+  mcp_http_request: {
+    args: { input: McpHttpRequestInput };
+    result: McpHttpResponseResult;
+  };
+  mcp_http_cancel: { args: { requestId: string }; result: boolean };
 }
 
 export interface TauriEventContract {

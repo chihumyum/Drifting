@@ -10,10 +10,7 @@ import {
   type TruncatedAgentToolResult,
 } from './drifting-read-tool-runtime';
 import type { AgentRuntimeContext, AgentToolExecutionRequest } from './types';
-import {
-  elementPatchRevision,
-  elementPatchSetRevision,
-} from './element-patch-revision';
+import { elementPatchRevision, elementPatchSetRevision } from './element-patch-revision';
 
 const toolHandlerMocks = vi.hoisted(() => ({
   getActiveAgentToolContext: vi.fn(),
@@ -73,9 +70,7 @@ describe('DriftingReadToolRuntime', () => {
     const runtime = new DriftingReadToolRuntime({ freshness: null });
     const definitions = runtime.listDefinitions(runtimeContext());
     const catalogDefinitions = definitions.filter(
-      (definition) =>
-        definition.name !== 'read_tool_result' &&
-        definition.name !== 'ask_user',
+      (definition) => definition.name !== 'read_tool_result' && definition.name !== 'ask_user',
     );
 
     expect(catalogDefinitions.map((definition) => definition.name)).toEqual(
@@ -134,9 +129,7 @@ describe('DriftingReadToolRuntime', () => {
     expect(readResult?.validateInput({ resultRef: 'ref', limit: 16_001 })).toEqual(
       expect.objectContaining({ ok: false }),
     );
-    expect(askUser?.validateInput({ prompt: '' })).toEqual(
-      expect.objectContaining({ ok: false }),
-    );
+    expect(askUser?.validateInput({ prompt: '' })).toEqual(expect.objectContaining({ ok: false }));
     expect(askUser?.validateInput({ prompt: 'Which ending do you prefer?' })).toEqual({
       ok: true,
       value: { prompt: 'Which ending do you prefer?' },
@@ -164,6 +157,30 @@ describe('DriftingReadToolRuntime', () => {
       prompt: '这一章要明确揭示真相吗？',
     });
     expect(toolHandlerMocks.runAgentTool).not.toHaveBeenCalled();
+  });
+
+  it('echoes confirmed constraint conflict ids into the durable ask_user result', async () => {
+    const requestUserInput = vi.fn(async () => '以蓝色为准');
+    const runtime = new DriftingReadToolRuntime({ freshness: null });
+
+    await expect(
+      runtime.execute(
+        executionRequest({
+          name: 'ask_user',
+          arguments: {
+            prompt: '瞳色以哪个设定为准？',
+            constraintConflictIds: ['context-conflict:fact:a:b'],
+          },
+          control: { requestUserInput },
+        }),
+      ),
+    ).resolves.toEqual({
+      ok: true,
+      data: {
+        answer: '以蓝色为准',
+        confirmedConstraintConflictIds: ['context-conflict:fact:a:b'],
+      },
+    });
   });
 
   it('replays a durable ask_user answer without asking the author twice', async () => {
@@ -393,18 +410,16 @@ describe('DriftingReadToolRuntime', () => {
   });
 
   it('normalizes optional undefined fields before durable read persistence', async () => {
-    const persistReadReceipt = vi.fn(
-      async (input: CreateAgentRuntimeReadReceipt) => {
-        // Production read receipts use this strict encoder. list_nodes and
-        // get_overview legitimately omit optional fields by returning
-        // `undefined`, which must be normalized before reaching this boundary.
-        canonicalAgentRuntimeJson(input.result);
-        return {
-          outcome: 'inserted' as const,
-          receipt: { ...input, result: input.result },
-        };
-      },
-    );
+    const persistReadReceipt = vi.fn(async (input: CreateAgentRuntimeReadReceipt) => {
+      // Production read receipts use this strict encoder. list_nodes and
+      // get_overview legitimately omit optional fields by returning
+      // `undefined`, which must be normalized before reaching this boundary.
+      canonicalAgentRuntimeJson(input.result);
+      return {
+        outcome: 'inserted' as const,
+        receipt: { ...input, result: input.result },
+      };
+    });
     const runtime = new DriftingReadToolRuntime({
       freshness: {
         persistReadReceipt,
@@ -664,15 +679,11 @@ describe('DriftingReadToolRuntime', () => {
     expect(await elementPatchRevision(displayEnrichedPatch)).toBe(
       await elementPatchRevision(patch),
     );
-    toolHandlerMocks.pendingDeletedPatchIds.mockReturnValue(
-      new Set(['patch-pending-delete']),
-    );
-    const persistReadReceipt = vi.fn(
-      async (input: CreateAgentRuntimeReadReceipt) => ({
-        outcome: 'inserted' as const,
-        receipt: { result: input.result },
-      }),
-    );
+    toolHandlerMocks.pendingDeletedPatchIds.mockReturnValue(new Set(['patch-pending-delete']));
+    const persistReadReceipt = vi.fn(async (input: CreateAgentRuntimeReadReceipt) => ({
+      outcome: 'inserted' as const,
+      receipt: { result: input.result },
+    }));
     const readElementPatches = vi.fn(async () => [
       displayEnrichedPatch,
       invalidatedPatch,

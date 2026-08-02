@@ -170,6 +170,7 @@ function normalizeCapabilities(
     // every Tauri target that can run this renderer has the same contract.
     generalAgent: true,
     generalAgentUnavailableReason: '',
+    mcpStdio: native.mcpStdio === true,
     featureStatus: {
       secureStorage: advertised(native.secureStorage),
       materialFiles: advertised(native.materialFiles),
@@ -179,6 +180,7 @@ function normalizeCapabilities(
         native.oauth === undefined && native.deepLinks && native.externalUrlOpener
           ? 'available'
           : advertised(native.oauth),
+      mcpStdio: advertised(native.mcpStdio),
       generalAgent: 'available',
     },
   };
@@ -512,5 +514,18 @@ export const tauriPlatform: PlatformApi = {
     write: (filename, content) => invokeContract('ai_log_write', { filename, content }),
     openDir: () => invokeContract('ai_log_open_dir', undefined),
     getDir: () => invokeContract('ai_log_get_dir', undefined),
+  },
+
+  mcpStdio: {
+    start: (input) => invokeContract('mcp_stdio_start', { input }),
+    request: (input) => invokeContract('mcp_stdio_request', { input }),
+    notify: (input) => invokeContract('mcp_stdio_notify', { input }),
+    stop: (processId) => invokeContract('mcp_stdio_stop', { processId }),
+    status: (processId) => invokeContract('mcp_stdio_status', { processId }),
+  },
+
+  mcpHttp: {
+    request: (input) => invokeContract('mcp_http_request', { input }),
+    cancel: (requestId) => invokeContract('mcp_http_cancel', { requestId }),
   },
 };

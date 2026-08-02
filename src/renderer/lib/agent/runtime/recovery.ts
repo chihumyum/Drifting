@@ -935,7 +935,24 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
       if (typeof value.prompt !== 'string') {
         corruption('EVENT_PAYLOAD_INVALID', `${path}.prompt is invalid.`);
       }
-      return { type: 'turn_started', prompt: value.prompt };
+      if (
+        value.promptSource !== undefined &&
+        value.promptSource !== 'author' &&
+        value.promptSource !== 'runtime_continuation'
+      ) {
+        corruption('EVENT_PAYLOAD_INVALID', `${path}.promptSource is invalid.`);
+      }
+      return {
+        type: 'turn_started',
+        prompt: value.prompt,
+        ...(value.promptSource
+          ? {
+              promptSource: value.promptSource as
+                | 'author'
+                | 'runtime_continuation',
+            }
+          : {}),
+      };
 
     case 'model_iteration_started':
       if (!isPositiveInteger(value.iteration) || !isNonEmptyString(value.driverId)) {

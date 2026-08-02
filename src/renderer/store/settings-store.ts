@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { BYOKProvider } from '../lib/byok-keychain';
+import {
+  AGENT_PROVIDER_OPTIONS,
+  DEFAULT_AGENT_PROVIDER,
+  agentProviderOption,
+  normalizeAgentProvider,
+  normalizeAgentProviderModel,
+  type AgentProviderId,
+} from '../lib/agent/runtime/agent-provider-contract';
 import { APP_CONFIG } from '../lib/config';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -118,12 +126,12 @@ export const AGENT_TOOL_SEARCH_OPTIONS: { value: AgentToolSearch; label: string 
   { value: 'on', label: 'On · force tool search' },
 ];
 /**
- * How the agent's prose edits surface in the editor:
- *  - 'auto':    edits apply silently; the editor shows colored scrollbar ticks
- *               and plays a reveal animation as each changed block scrolls in.
- *  - 'approve': each changed block gets inline accept/reject — approving plays
- *               the reveal animation, rejecting undoes the block via Yjs.
- * The change always lands in the doc first either way (soft approval).
+ * How committed General Agent prose edits surface in the editor:
+ *  - 'auto':    play the colored reveal and settle the visual batch.
+ *  - 'approve': keep the inline diff and accept/reject badge; rejection runs the
+ *               canonical guarded inverse.
+ * This does not grant structural authority. Destructive graph/entity operations
+ * keep their independent confirm-before permission policy.
  */
 export type AgentEditMode = 'auto' | 'approve';
 
@@ -137,18 +145,10 @@ export type EvolveEditorEngine = 'agent-sdk' | 'shadow-fc';
  * `short` is the compact label for the narrow in-panel picker. Tier aliases
  * track the latest of each family; pinned ids name an exact version.
  */
-export const AGENT_MODEL_OPTIONS: { value: string; label: string; short: string }[] = [
-  {
-    value: 'deepseek-v4-flash',
-    label: 'DeepSeek Flash · fast',
-    short: 'Flash',
-  },
-  {
-    value: 'deepseek-v4-pro',
-    label: 'DeepSeek Pro · steady',
-    short: 'Pro',
-  },
-];
+/** @deprecated Prefer `agentProviderOption(provider).models`. */
+export const AGENT_MODEL_OPTIONS = AGENT_PROVIDER_OPTIONS.flatMap((provider) => provider.models);
+export { AGENT_PROVIDER_OPTIONS, agentProviderOption };
+export type { AgentProviderId };
 
 /** Effort levels for the pickers, with compact labels. */
 export const AGENT_EFFORT_OPTIONS: { value: AgentEffort; label: string; short: string }[] = [
@@ -320,7 +320,10 @@ interface SettingsState {
   // Anthropic API key (kept in the keychain). See AgentAuth.
   agentAuth: AgentAuth;
   setAgentAuth: (a: AgentAuth) => void;
-  // General Agent (Claude Agent SDK) generation params — passed into query().
+  // Provider/model are captured into each turn before provider I/O. Changing a
+  // setting never reroutes an already-running turn.
+  agentProvider: AgentProviderId;
+  setAgentProvider: (provider: AgentProviderId) => void;
   agentModel: AgentModel;
   setAgentModel: (m: AgentModel) => void;
   agentEffort: AgentEffort;
@@ -330,7 +333,10 @@ interface SettingsState {
   // Tool-search mode (ENABLE_TOOL_SEARCH). See AgentToolSearch.
   agentToolSearch: AgentToolSearch;
   setAgentToolSearch: (t: AgentToolSearch) => void;
-  // How the agent's prose edits surface (auto reveal vs manual approve). See AgentEditMode.
+  // How committed Agent prose edits surface in the editor: `auto` plays the
+  // colored reveal and settles, while `approve` keeps an inline diff/badge whose
+  // rejection calls the canonical guarded inverse. Destructive structural
+  // permissions are independent and always handled before execution.
   agentEditMode: AgentEditMode;
   setAgentEditMode: (m: AgentEditMode) => void;
   // /goal evolve's OWN edit-surface mode (it's a Shadow-module op, not the general
@@ -531,8 +537,20 @@ export const useSettingsStore = create<SettingsState>()(
       setShadowByokModel: (m) => set({ shadowByokModel: m }),
       agentAuth: 'apikey',
       setAgentAuth: (auth) => set({ agentAuth: auth === 'hosted' ? 'apikey' : auth }),
+      agentProvider: DEFAULT_AGENT_PROVIDER,
+      setAgentProvider: (provider) =>
+        set((state) => {
+          const normalizedProvider = normalizeAgentProvider(provider);
+          return {
+            agentProvider: normalizedProvider,
+            agentModel: normalizeAgentProviderModel(normalizedProvider, state.agentModel),
+          };
+        }),
       agentModel: 'deepseek-v4-flash',
-      setAgentModel: (m) => set({ agentModel: m }),
+      setAgentModel: (m) =>
+        set((state) => ({
+          agentModel: normalizeAgentProviderModel(state.agentProvider, m),
+        })),
       agentEffort: 'high',
       setAgentEffort: (e) => set({ agentEffort: e }),
       agentThinking: 'off',
@@ -622,7 +640,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 20,
+      version: 22,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           appearanceSkin?: 'classic' | 'modern';
@@ -904,6 +922,11 @@ export const useSettingsStore = create<SettingsState>()(
       merge: (persisted, current) => {
         const persistedSettings = persisted as Partial<SettingsState> | undefined;
         const merged = { ...current, ...persistedSettings };
+        merged.agentProvider = normalizeAgentProvider(merged.agentProvider);
+        merged.agentModel = normalizeAgentProviderModel(
+          merged.agentProvider,
+          merged.agentModel,
+        );
         merged.agentToolSearch = normalizeAgentToolSearch(
           persistedSettings?.agentToolSearch,
         );

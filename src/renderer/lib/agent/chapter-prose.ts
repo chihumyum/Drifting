@@ -502,9 +502,10 @@ async function persistBody(
 
 /**
  * Apply a prose edit to ANY prose entity through its Yjs document, keeping the
- * contentJson cache in sync (chapters also keep wordCount) and seeding the
- * prose-edit review state. See {@link writeProseDoc}. This is the ONE place the
- * heterogeneous per-entity cache dispatch + the edit-store record() live.
+ * contentJson cache in sync (chapters also keep wordCount). Shadow/legacy
+ * callers without runtime provenance still seed the visual edit surface.
+ * General Agent calls are already hard-authorized before this function and
+ * must not create a second post-write approval state.
  */
 export async function writeEntityProse(
   ctx: AgentToolContext,
@@ -522,10 +523,9 @@ export async function writeEntityProse(
 
   await persistBody(ctx, entityType, id, contentJson);
 
-  // Seed the prose-edit review state synchronously — before the tool result
-  // round-trips back to the agent — so the colored ticks / reveal animation /
-  // approve cards are ready the instant the edit lands (#3/#4).
-  if (changes.length) {
+  // Only Shadow/legacy callers use post-write visual staging. The General
+  // Agent's durable provenance proves it crossed the pre-execution gate.
+  if (!ctx.provenance && changes.length) {
     useAgentEditStore
       .getState()
       .record(entityType, id, changes, effectiveAgentEditMode());
@@ -677,27 +677,99 @@ export async function writeElementProse(
  * else a transient doc rehydrated from SQLite.
  */
 const REVERT_ORIGIN = 'agent-revert';
+
+function blockTextInFrag(frag: Y.XmlFragment, blockId: string): string | null {
+  const index = blockIndexInFrag(frag, blockId);
+  if (index < 0) return null;
+  const block = frag.toArray()[index];
+  if (!(block instanceof Y.XmlElement)) {
+    throw new Error(`Block "${blockId}" is not an element`);
+  }
+  const textOf = (node: unknown): string => {
+    if (node instanceof Y.XmlText) return node.toString();
+    if (node instanceof Y.XmlElement || node instanceof Y.XmlFragment) {
+      return node.toArray().map((child) => textOf(child)).join('');
+    }
+    return '';
+  };
+  return textOf(block);
+}
+
+/**
+ * Guard a block-level review inverse against author edits made after the Agent
+ * write. Returning false means the exact inverse is already present, which
+ * makes a retry after a renderer/database failure idempotent.
+ */
+function applyGuardedBlockRevert(
+  frag: Y.XmlFragment,
+  change: AgentBlockChange,
+): boolean {
+  const currentText = blockTextInFrag(frag, change.blockId);
+  if (change.op === 'changed') {
+    if (currentText === change.oldText) return false;
+    if (currentText !== change.newText) {
+      throw new Error(
+        `Block "${change.blockId}" changed after the Agent edit; refusing to overwrite author text`,
+      );
+    }
+    yReplaceBlockText(frag, { blockId: change.blockId }, change.oldText);
+    relinkBlockMentions(frag, [change.blockId]);
+    return true;
+  }
+  if (change.op === 'new') {
+    if (currentText === null) return false;
+    if (currentText !== change.newText) {
+      throw new Error(
+        `New Agent block "${change.blockId}" changed after insertion; refusing to remove author text`,
+      );
+    }
+    yRemoveBlocks(frag, [change.blockId]);
+    return true;
+  }
+  if (currentText === change.oldText) return false;
+  if (currentText !== null) {
+    throw new Error(
+      `Deleted Agent block "${change.blockId}" was recreated with different text`,
+    );
+  }
+  yInsertBlockWithId(frag, change.afterPrevId, change.blockId, change.oldText);
+  relinkBlockMentions(frag, [change.blockId]);
+  return true;
+}
+
 export async function revertEntityBlock(
   entityType: ProseEntityType,
   id: string,
   change: AgentBlockChange,
+  context?: AgentToolContext,
 ): Promise<void> {
   const docId = proseDocId(entityType, id);
-  const mutate = (frag: Y.XmlFragment) => {
-    if (change.op === 'changed') {
-      yReplaceBlockText(frag, { blockId: change.blockId }, change.oldText);
-    } else if (change.op === 'new') {
-      yRemoveBlocks(frag, [change.blockId]);
-    } else {
-      // Restore the deleted block under its old anchor, keeping its original id.
-      yInsertBlockWithId(frag, change.afterPrevId, change.blockId, change.oldText);
-    }
+  const persistProjection = async (doc: Y.Doc): Promise<void> => {
+    if (!context) return;
+    const { yDocToProsemirrorJSON } = await import('y-prosemirror');
+    await persistBody(
+      context,
+      entityType,
+      id,
+      JSON.stringify(yDocToProsemirrorJSON(doc, 'default')),
+    );
   };
 
   const live = getLiveYDoc(docId);
   if (live) {
-    // The live editor's own update/sync handlers persist + push it.
-    live.transact(() => mutate(live.getXmlFragment('default')), REVERT_ORIGIN);
+    // The live editor's own update/sync handlers persist + push it. Do not
+    // settle the durable block review until that asynchronous local queue has
+    // acknowledged the inverse, otherwise a reload can retain text whose badge
+    // already disappeared.
+    live.transact(
+      () => applyGuardedBlockRevert(live.getXmlFragment('default'), change),
+      REVERT_ORIGIN,
+    );
+    await flushOpenYjsDocument(docId);
+    // Await the ordinary materialized projection too. If this acknowledgement
+    // fails after Yjs committed, the durable block stays retryable and the next
+    // guarded pass observes the preimage then repairs only the projection.
+    await persistProjection(live);
     return;
   }
 
@@ -713,12 +785,23 @@ export async function revertEntityBlock(
         if (origin === REVERT_ORIGIN) diff.push(new Uint8Array(u));
       };
       doc.on('update', onUpdate);
-      doc.transact(() => mutate(doc.getXmlFragment('default')), REVERT_ORIGIN);
+      doc.transact(
+        () => applyGuardedBlockRevert(doc.getXmlFragment('default'), change),
+        REVERT_ORIGIN,
+      );
       doc.off('update', onUpdate);
       for (const u of diff) await yrepo.appendUpdate(docId, u);
-      await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc));
+      if (diff.length > 0) {
+        const coveredId = await yrepo.maxUpdateId(docId);
+        const fullState = Y.encodeStateAsUpdate(doc);
+        await yrepo.upsertSnapshot(docId, fullState);
+        await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
+      }
+      await persistProjection(doc);
     } finally {
       doc.destroy();
     }
+    return;
   }
+  throw new Error(`Prose document "${docId}" is unavailable for block review`);
 }

@@ -44,6 +44,7 @@ function request(
     successfulReadNamesInPreviousBatch: state.successfulReadNamesInPreviousBatch ?? [],
     successfulReadNamesSinceLastWrite: state.successfulReadNamesSinceLastWrite ?? [],
     pendingResultPage: state.pendingResultPage ?? false,
+    repairToolNames: [],
     limit: 8,
   };
 }

@@ -960,6 +960,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "fontdb",
+ "futures-util",
  "image",
  "include_dir",
  "keyring",

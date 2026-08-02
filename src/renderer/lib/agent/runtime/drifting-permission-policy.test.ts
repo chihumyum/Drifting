@@ -16,7 +16,7 @@ function tool(
     risk: 'medium',
     effect: 'prose',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     reversible: true,
@@ -49,13 +49,27 @@ function request(
 }
 
 describe('Drifting Agent permission policy', () => {
-  it('allows certified exact soft-review writes', async () => {
+  it('allows review-after prose writes without pausing the chat runtime', async () => {
     const policy = createDriftingAgentPermissionPolicy({
       resolveTool: () => tool(),
     });
     await expect(policy.decide(request())).resolves.toEqual({
       decision: 'allow',
       scope: 'once',
+    });
+  });
+
+  it('denies review-after writes that cannot be reverted after inspection', async () => {
+    const policy = createDriftingAgentPermissionPolicy({
+      resolveTool: () =>
+        tool({
+          approval: 'review_after',
+          revertStrategy: 'not_applicable',
+          reversible: false,
+        }),
+    });
+    await expect(policy.decide(request())).resolves.toMatchObject({
+      decision: 'deny',
     });
   });
 
@@ -98,6 +112,58 @@ describe('Drifting Agent permission policy', () => {
       decision: 'ask',
       allowedScopes: ['once'],
     });
+  });
+
+  it('asks before a workspace facade changes relations or storyline membership', async () => {
+    const policy = createDriftingAgentPermissionPolicy({
+      resolveTool: () =>
+        tool({
+          name: 'write_file',
+          scope: 'runtime-virtual',
+          certification: 'internal-certified',
+        }),
+    });
+    await expect(
+      policy.decide(
+        request({
+          toolName: 'write_file',
+          arguments: {
+            path: '/relations/new.json',
+            content: '{}',
+          },
+        }),
+      ),
+    ).resolves.toMatchObject({
+      decision: 'ask',
+      allowedScopes: ['once'],
+    });
+
+    await expect(
+      policy.decide(
+        request({
+          toolName: 'write_file',
+          arguments: {
+            path: '/storylines/Main/chapters.json',
+            content: '[]',
+          },
+        }),
+      ),
+    ).resolves.toMatchObject({
+      decision: 'ask',
+      allowedScopes: ['once'],
+    });
+
+    await expect(
+      policy.decide(
+        request({
+          toolName: 'write_file',
+          arguments: {
+            path: '/drifts/new/prose.md',
+            content: 'text',
+          },
+        }),
+      ),
+    ).resolves.toEqual({ decision: 'allow', scope: 'once' });
   });
 
   it('denies unknown, uncertified, and access-mismatched tools', async () => {

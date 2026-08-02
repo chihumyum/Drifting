@@ -1,24 +1,23 @@
 /**
- * Agent prose-edit review state (#3 / #4).
+ * Agent/Shadow prose-edit presentation state (#3 / #4).
  *
- * When the agent edits a chapter's prose, the change already landed in the live
- * Yjs doc (soft-approval model — the agent's own re-reads stay consistent). This
- * store remembers, per node, WHICH blocks changed and their before/after text,
- * so the editor can:
+ * General Agent prose writes enter this store only after their Yjs mutation,
+ * durable effect result, and canonical SQLite review have committed. The store
+ * is therefore a rebuildable editor projection, never review authority or prose
+ * truth. It remembers per entity which blocks changed and their before/after
+ * text, so the editor can:
  *   - auto mode:    show colored scrollbar ticks (new/changed/deleted) and play a
  *                   per-block reveal animation when the block scrolls into view;
  *                   the tick + the panel "M" clear only once that animation runs.
  *   - approve mode: show inline accept/reject controls; approving plays the same
  *                   animation, rejecting undoes the block via Yjs.
  *
- * Keyed `${entityType}:${id}` like the activity store. Seeded synchronously from
- * the renderer write path (chapter-prose), so it's populated the instant the edit
- * applies — before the tool result round-trips back through main.
+ * Keyed `${entityType}:${id}` like the activity store. Shadow renderer paths
+ * may still seed local-only batches synchronously when their edit applies.
  *
- * PERSISTED to localStorage: the prose edit itself is already durable (Yjs), so
- * if this review state were session-only, a reload would drop the pending markers
- * while the applied text stayed — i.e. silently accepting unreviewed edits. The
- * data is plain JSON (no Sets), so it round-trips cleanly.
+ * PERSISTED to localStorage so pending editor presentation survives a reload.
+ * The v1 migration retires batches from the previously removed review protocol;
+ * SQLite reconciliation remains authoritative for all new durable batches.
  */
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
@@ -48,7 +47,13 @@ export interface AgentEditReviewBatch {
    * Agent runtime's guarded inverse; it must never locally replay old text.
    */
   changes: AgentBlockChange[];
+  /** Per-block author decisions made before the effect-level review settles.
+   * The original changes stay intact for audit/retry; visual projection only
+   * includes blocks not present in this map. */
+  blockDecisions?: Record<string, AgentBlockReviewDecision>;
 }
+
+export type AgentBlockReviewDecision = 'accepted' | 'reverted';
 
 /**
  * A block edit the user REJECTED (approve-mode ✗) and that was successfully
@@ -113,6 +118,11 @@ interface AgentEditState {
    * batches. Idempotent for duplicate settlement notifications.
    */
   resolveReviews: (reviewIds: string[]) => void;
+  /** Replace the rebuildable local block projection with SQLite authority. */
+  syncReviewBlockDecisions: (
+    reviewId: string,
+    decisions: Readonly<Record<string, AgentBlockReviewDecision>>,
+  ) => void;
   /** A block's reveal animation finished (auto) or it was approved/rejected
    *  (approve) — drop it; the entity clears once nothing is left. */
   resolveBlocks: (entityType: ActivityEntityType, id: string, blockIds: string[]) => void;
@@ -209,6 +219,7 @@ export const useAgentEditStore = create<AgentEditState>()(
                 entityType,
                 id,
                 changes: stamped,
+                blockDecisions: {},
               },
             },
             reviewOrder: [...state.reviewOrder, provenance.reviewId],
@@ -248,6 +259,42 @@ export const useAgentEditStore = create<AgentEditState>()(
               state.pending,
               reviewBatches,
               reviewOrder,
+            ),
+          };
+        });
+      },
+
+      syncReviewBlockDecisions: (reviewId, decisions) => {
+        set((state) => {
+          const batch = state.reviewBatches[reviewId];
+          if (!batch) return state;
+          const known = new Set(batch.changes.map((change) => change.blockId));
+          const canonical = Object.fromEntries(
+            Object.entries(decisions).filter(
+              ([blockId, decision]) =>
+                known.has(blockId) &&
+                (decision === 'accepted' || decision === 'reverted'),
+            ),
+          ) as Record<string, AgentBlockReviewDecision>;
+          if (
+            JSON.stringify(batch.blockDecisions ?? {}) ===
+            JSON.stringify(canonical)
+          ) {
+            return state;
+          }
+          const reviewBatches = {
+            ...state.reviewBatches,
+            [reviewId]: {
+              ...batch,
+              blockDecisions: canonical,
+            },
+          };
+          return {
+            reviewBatches,
+            pending: rebuildVisualPending(
+              state.pending,
+              reviewBatches,
+              state.reviewOrder,
             ),
           };
         });
@@ -313,6 +360,11 @@ export const useAgentEditStore = create<AgentEditState>()(
     {
       name: 'agent-edit-pending',
       storage: createJSONStorage(() => localStorage),
+      version: 1,
+      migrate: (persistedState, version) =>
+        version < 1
+          ? retireLegacyAgentReviewPersistence(persistedState)
+          : persistedState,
       // Only the data — methods come from the initializer on every load. Reverts
       // persist too, so a reject survives a reload before the next turn drains it.
       partialize: (s) => ({
@@ -325,6 +377,97 @@ export const useAgentEditStore = create<AgentEditState>()(
     },
   ),
 );
+
+/**
+ * Retire review batches created by the superseded pre-v1 protocol at hydration
+ * time. Changes without a reviewId belong to Shadow/legacy staging and remain.
+ * Retired ids are remembered so a delayed old receipt cannot recreate them.
+ */
+export function retireLegacyAgentReviewPersistence(
+  persistedState: unknown,
+): unknown {
+  if (!isRecord(persistedState)) return persistedState;
+
+  const state = persistedState as Partial<
+    Pick<
+      AgentEditState,
+      | 'pending'
+      | 'pendingReverts'
+      | 'reviewBatches'
+      | 'reviewOrder'
+      | 'settledReviewIds'
+    >
+  >;
+  const retiredReviewIds = new Set<string>();
+
+  if (Array.isArray(state.reviewOrder)) {
+    for (const reviewId of state.reviewOrder) {
+      if (typeof reviewId === 'string' && reviewId.length > 0) {
+        retiredReviewIds.add(reviewId);
+      }
+    }
+  }
+  if (isRecord(state.reviewBatches)) {
+    for (const [reviewId, rawBatch] of Object.entries(state.reviewBatches)) {
+      if (reviewId.length > 0) retiredReviewIds.add(reviewId);
+      if (
+        isRecord(rawBatch) &&
+        typeof rawBatch.reviewId === 'string' &&
+        rawBatch.reviewId.length > 0
+      ) {
+        retiredReviewIds.add(rawBatch.reviewId);
+      }
+    }
+  }
+
+  const pending: Record<string, PendingEntityEdits> = {};
+  if (isRecord(state.pending)) {
+    for (const [key, rawEntry] of Object.entries(state.pending)) {
+      if (!isRecord(rawEntry) || !Array.isArray(rawEntry.changes)) continue;
+      const changes = rawEntry.changes.filter((rawChange): rawChange is AgentBlockChange => {
+        if (!isRecord(rawChange)) return false;
+        if (typeof rawChange.reviewId === 'string' && rawChange.reviewId.length > 0) {
+          retiredReviewIds.add(rawChange.reviewId);
+          return false;
+        }
+        return true;
+      });
+      if (
+        changes.length > 0 &&
+        typeof rawEntry.entityType === 'string' &&
+        typeof rawEntry.id === 'string'
+      ) {
+        pending[key] = {
+          entityType: rawEntry.entityType as ActivityEntityType,
+          id: rawEntry.id,
+          changes,
+        };
+      }
+    }
+  }
+
+  const settledReviewIds: Record<string, true> = {};
+  if (isRecord(state.settledReviewIds)) {
+    for (const [reviewId, settled] of Object.entries(state.settledReviewIds)) {
+      if (settled === true) settledReviewIds[reviewId] = true;
+    }
+  }
+  for (const reviewId of retiredReviewIds) {
+    settledReviewIds[reviewId] = true;
+  }
+
+  return {
+    ...state,
+    pending,
+    reviewBatches: {},
+    reviewOrder: [],
+    settledReviewIds,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
 
 function rebuildVisualPending(
   previous: Record<string, PendingEntityEdits>,
@@ -343,12 +486,16 @@ function rebuildVisualPending(
     if (!batch) continue;
     const key = entityKey(batch.entityType, batch.id);
     const previousEntry = rebuilt[key];
+    const unresolved = batch.changes.filter(
+      (change) => !batch.blockDecisions?.[change.blockId],
+    );
+    if (unresolved.length === 0) continue;
     rebuilt[key] = {
       entityType: batch.entityType,
       id: batch.id,
       changes: previousEntry
-        ? mergeBlockChanges(previousEntry.changes, batch.changes)
-        : [...batch.changes],
+        ? mergeBlockChanges(previousEntry.changes, unresolved)
+        : [...unresolved],
     };
   }
   return rebuilt;

@@ -452,7 +452,7 @@ describe('Drifting write strategies', () => {
     harness.doc.destroy();
   });
 
-  it('bridges a committed prose diff into the visible review store and reconciles the exact durable receipt', async () => {
+  it('commits a prose diff without post-write UI state and reconciles the exact durable receipt', async () => {
     const harness = await proseHarness();
     const expectedRevision = {
       receiptId: 'receipt-visible-review',
@@ -481,16 +481,7 @@ describe('Drifting write strategies', () => {
       context(),
       prepared,
     );
-    expect(
-      useAgentEditStore.getState().pending['node:node-1']?.changes,
-    ).toEqual([
-      expect.objectContaining({
-        blockId: 'block-a',
-        op: 'changed',
-        oldText: 'Alpha',
-        newText: 'Edited alpha',
-      }),
-    ]);
+    expect(useAgentEditStore.getState().pending).toEqual({});
 
     const committedEffect = await strategy.captureEffect(
       request,
@@ -530,7 +521,7 @@ describe('Drifting write strategies', () => {
     harness.doc.destroy();
   });
 
-  it('rebuilds the visible review once after a crash between the Yjs commit and review recording', async () => {
+  it('reconciles a crash after the Yjs commit without rebuilding removed review UI', async () => {
     const harness = await proseHarness({ crashAfterForwardCommit: true });
     const expectedRevision = {
       receiptId: 'receipt-crash-window',
@@ -608,30 +599,15 @@ describe('Drifting write strategies', () => {
     );
 
     expect(second).toEqual(first);
-    expect(useAgentEditStore.getState().reviewOrder).toEqual([
-      `agent-review:agent-write:${request.idempotencyKey}`,
-    ]);
-    expect(
-      Object.keys(useAgentEditStore.getState().reviewBatches),
-    ).toHaveLength(1);
-    expect(
-      useAgentEditStore.getState().pending['node:node-1']?.changes,
-    ).toEqual([
-      expect.objectContaining({
-        blockId: 'block-a',
-        op: 'changed',
-        oldText: 'Alpha',
-        newText: 'Crash-safe alpha',
-        effectId: `agent-write:${request.idempotencyKey}`,
-        reviewId: `agent-review:agent-write:${request.idempotencyKey}`,
-      }),
-    ]);
+    expect(useAgentEditStore.getState().reviewOrder).toEqual([]);
+    expect(useAgentEditStore.getState().reviewBatches).toEqual({});
+    expect(useAgentEditStore.getState().pending).toEqual({});
     expect(harness.committedCommands).toBe(1);
     expect(harness.receipts).toBe(1);
     harness.doc.destroy();
   });
 
-  it('keeps ordered per-effect review batches when two effects touch one block and the older effect replays', async () => {
+  it('keeps the removed review store empty when two effects touch one block and replay', async () => {
     const firstHarness = await proseHarness({
       firstText: 'A',
       revision: 7,
@@ -703,46 +679,9 @@ describe('Drifting write strategies', () => {
     );
 
     const firstEffectId = `agent-write:${firstRequest.idempotencyKey}`;
-    const firstReviewId = `agent-review:${firstEffectId}`;
-    const secondEffectId = `agent-write:${secondRequest.idempotencyKey}`;
-    const secondReviewId = `agent-review:${secondEffectId}`;
-    expect(useAgentEditStore.getState()).toMatchObject({
-      reviewOrder: [firstReviewId, secondReviewId],
-      reviewBatches: {
-        [firstReviewId]: {
-          effectId: firstEffectId,
-          changes: [
-            expect.objectContaining({
-              blockId: 'block-a',
-              oldText: 'A',
-              newText: 'B',
-            }),
-          ],
-        },
-        [secondReviewId]: {
-          effectId: secondEffectId,
-          changes: [
-            expect.objectContaining({
-              blockId: 'block-a',
-              oldText: 'B',
-              newText: 'C',
-            }),
-          ],
-        },
-      },
-      pending: {
-        'node:node-1': {
-          changes: [
-            expect.objectContaining({
-              blockId: 'block-a',
-              oldText: 'A',
-              newText: 'C',
-              reviewId: secondReviewId,
-            }),
-          ],
-        },
-      },
-    });
+    expect(useAgentEditStore.getState().reviewOrder).toEqual([]);
+    expect(useAgentEditStore.getState().reviewBatches).toEqual({});
+    expect(useAgentEditStore.getState().pending).toEqual({});
 
     const beforeReplay = useAgentEditStore.getState();
     const firstEffect: PersistedAgentRuntimeWriteEffect = {
@@ -766,15 +705,8 @@ describe('Drifting write strategies', () => {
       committedEffect: { reconciled: true },
     });
 
-    expect(useAgentEditStore.getState().reviewOrder).toEqual([
-      firstReviewId,
-      secondReviewId,
-    ]);
-    expect(
-      useAgentEditStore.getState().pending['node:node-1']?.changes,
-    ).toEqual(
-      beforeReplay.pending['node:node-1']?.changes,
-    );
+    expect(useAgentEditStore.getState().reviewOrder).toEqual([]);
+    expect(useAgentEditStore.getState().pending).toEqual(beforeReplay.pending);
     expect(firstHarness.committedCommands).toBe(1);
     expect(secondHarness.committedCommands).toBe(1);
     firstHarness.doc.destroy();
@@ -870,6 +802,12 @@ function persistedEffect(
     callId: 'call-1',
     toolName: 'rename_node',
     idempotencyKey: 'session-1:turn-1:call-1',
+    authorization: {
+      kind: 'automatic',
+      requestId: null,
+      argumentsHash: 'sha256:test-arguments',
+      authorizedAt: '2026-01-01T00:00:00.000Z',
+    },
     phase: 'result_committed',
     arguments: {},
     expectedRevision: null,

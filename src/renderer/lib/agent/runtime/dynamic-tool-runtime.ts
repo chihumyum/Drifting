@@ -47,6 +47,8 @@ export interface DynamicAgentToolSource {
   sourceKind: DynamicAgentToolSourceKind;
   /** Dynamic tools are project-bound; global authority is not implemented. */
   projectId: string;
+  /** Stable local configuration fingerprint; changing it invalidates grants. */
+  sourceRevision?: string;
   tools: readonly DynamicAgentToolSpec[];
 }
 
@@ -58,6 +60,9 @@ export interface RegisteredDynamicAgentTool {
   providerName: string;
   access: 'read' | 'write';
   approval: DynamicAgentToolApproval;
+  sourceRevision: string;
+  /** Stable schema/policy identity used by durable permission grants. */
+  authorityRevision: string;
   definitionRevision: string;
 }
 
@@ -89,6 +94,18 @@ export interface DynamicAgentToolRegistryOptions {
   maxSources?: number;
   maxToolsPerSource?: number;
   maxVisibleToolsPerProject?: number;
+}
+
+export interface DynamicAgentPermissionGrantAuthority {
+  findGrant(
+    request: AgentToolPermissionPolicyRequest,
+    descriptor: RegisteredDynamicAgentTool,
+  ): Promise<{ grantId: string; scope: 'session' | 'project' } | null>;
+  recordGrant(
+    request: AgentToolPermissionPolicyRequest,
+    resolution: import('../protocol').AgentPermissionResolutionInput,
+    descriptor: RegisteredDynamicAgentTool,
+  ): Promise<{ authorityId: string }>;
 }
 
 const DEFAULT_MAX_DYNAMIC_SOURCES = 128;
@@ -134,6 +151,11 @@ export class DynamicAgentToolRegistry implements AgentToolRuntime {
   registerSource(source: DynamicAgentToolSource): DynamicAgentToolSourceHandle {
     const sourceId = requireNonBlank(source.sourceId, 'sourceId', 200);
     const projectId = requireNonBlank(source.projectId, 'projectId', 200);
+    const sourceRevision = requireNonBlank(
+      source.sourceRevision ?? 'ephemeral-v1',
+      'sourceRevision',
+      200,
+    );
     if (source.sourceKind !== 'mcp' && source.sourceKind !== 'plugin') {
       throw new Error(`Unsupported dynamic Agent tool source "${String(source.sourceKind)}"`);
     }
@@ -205,6 +227,17 @@ export class DynamicAgentToolRegistry implements AgentToolRuntime {
         remoteName,
         generation,
       });
+      const authorityRevision = dynamicAgentToolAuthorityRevision({
+        sourceKind: source.sourceKind,
+        projectId,
+        sourceId,
+        sourceRevision,
+        remoteName,
+        description,
+        inputSchema,
+        access: spec.access,
+        approval: spec.approval,
+      });
       const definition: AgentToolDefinition = {
         name: providerName,
         description,
@@ -222,6 +255,8 @@ export class DynamicAgentToolRegistry implements AgentToolRuntime {
         providerName,
         access: spec.access,
         approval: spec.approval,
+        sourceRevision,
+        authorityRevision,
         definitionRevision,
         definition,
         execute: spec.execute,
@@ -317,6 +352,8 @@ export class DynamicAgentToolRegistry implements AgentToolRuntime {
       providerName: record.providerName,
       access: record.access,
       approval: record.approval,
+      sourceRevision: record.sourceRevision,
+      authorityRevision: record.authorityRevision,
       definitionRevision: record.definitionRevision,
     };
   }
@@ -446,7 +483,7 @@ export class CompositeAgentToolRuntime implements AgentToolRuntime {
   listDefinitions(context: AgentRuntimeContext): readonly AgentToolDefinition[] {
     const builtIn: AgentToolDefinition[] = [];
     const names = new Set<string>();
-    for (const runtime of this.builtIns) {
+    for (const [ownerIndex, runtime] of this.builtIns.entries()) {
       for (const definition of runtime.listDefinitions(context)) {
         if (names.has(definition.name)) {
           throw new Error(
@@ -454,7 +491,7 @@ export class CompositeAgentToolRuntime implements AgentToolRuntime {
           );
         }
         names.add(definition.name);
-        builtIn.push(definition);
+        builtIn.push(bindBuiltInDefinition(ownerIndex, definition));
       }
     }
     const dynamic = this.dynamic.listDefinitions(context);
@@ -467,6 +504,32 @@ export class CompositeAgentToolRuntime implements AgentToolRuntime {
       names.add(definition.name);
     }
     return [...builtIn, ...dynamic];
+  }
+
+  resolveCanonicalName(
+    name: string,
+    context: AgentRuntimeContext,
+  ): string | undefined {
+    if (this.dynamic.describe(name, context)) return name;
+    const exactOwners = this.builtIns.filter((runtime) =>
+      runtime.listDefinitions(context).some((definition) => definition.name === name),
+    );
+    if (exactOwners.length === 1) return name;
+    if (exactOwners.length > 1) return undefined;
+
+    const resolved = new Set<string>();
+    for (const runtime of this.builtIns) {
+      const canonical = runtime.resolveCanonicalName?.(name, context);
+      if (!canonical) continue;
+      if (
+        runtime
+          .listDefinitions(context)
+          .some((definition) => definition.name === canonical)
+      ) {
+        resolved.add(canonical);
+      }
+    }
+    return resolved.size === 1 ? [...resolved][0] : undefined;
   }
 
   async loadSelectionHints(
@@ -495,24 +558,62 @@ export class CompositeAgentToolRuntime implements AgentToolRuntime {
     if (this.dynamic.describe(request.name, request.context)) {
       return this.dynamic.execute(request);
     }
-    const runtime = this.builtIns.find((candidate) =>
-      candidate
+    for (const [ownerIndex, runtime] of this.builtIns.entries()) {
+      const definition = runtime
         .listDefinitions(request.context)
-        .some((definition) => definition.name === request.name),
-    );
-    return runtime
-      ? runtime.execute(request)
-      : Promise.resolve({
+        .find((candidate) => candidate.name === request.name);
+      if (!definition) continue;
+      const currentRevision = bindBuiltInDefinition(
+        ownerIndex,
+        definition,
+      ).executionRevision;
+      if (
+        request.definitionRevision &&
+        request.definitionRevision !== currentRevision
+      ) {
+        return Promise.resolve({
+          ok: false,
+          error: `Tool "${request.name}" definition changed before execution`,
+        });
+      }
+      if (request.access !== definition.access) {
+        return Promise.resolve({
+          ok: false,
+          error: `Tool "${request.name}" access changed before execution`,
+        });
+      }
+      return runtime.execute(request);
+    }
+    return Promise.resolve({
           ok: false,
           error: `Tool "${request.name}" is unavailable in this runtime`,
         });
   }
 }
 
+function bindBuiltInDefinition(
+  ownerIndex: number,
+  definition: AgentToolDefinition,
+): AgentToolDefinition {
+  const identity = JSON.stringify({
+    ownerIndex,
+    name: definition.name,
+    access: definition.access,
+    description: definition.description,
+    inputSchema: definition.inputSchema,
+    innerRevision: definition.executionRevision ?? null,
+  });
+  return {
+    ...definition,
+    executionRevision: `builtin:${ownerIndex}:${fnv1a32(identity)}`,
+  };
+}
+
 /** Add fail-closed external-tool approval to the existing product policy. */
 export function createDynamicAwareAgentPermissionPolicy(
   builtIn: AgentToolPermissionPolicy,
   dynamic: DynamicAgentToolRegistry,
+  authority?: DynamicAgentPermissionGrantAuthority,
 ): AgentToolPermissionPolicy {
   return {
     async decide(
@@ -542,13 +643,42 @@ export function createDynamicAwareAgentPermissionPolicy(
         };
       }
       if (descriptor.approval === 'ask') {
+        const grant = authority
+          ? await authority.findGrant(request, descriptor)
+          : null;
+        if (grant) {
+          return {
+            decision: 'allow',
+            scope: grant.scope,
+            grantId: grant.grantId,
+          };
+        }
         return {
           decision: 'ask',
           reason: `${descriptor.sourceKind.toUpperCase()} source "${descriptor.sourceId}" requests ${descriptor.access} access.`,
-          allowedScopes: ['once'],
+          allowedScopes: authority
+            ? ['once', 'session', 'project']
+            : ['once'],
         };
       }
       return { decision: 'allow', scope: 'once' };
+    },
+    async recordResolution(request, resolution) {
+      const descriptor = dynamic.describe(request.toolName, request.context);
+      if (!descriptor) {
+        return builtIn.recordResolution?.(request, resolution);
+      }
+      if (resolution.scope === 'once') return;
+      if (!authority) {
+        throw new Error('Durable dynamic permission authority is unavailable');
+      }
+      if (
+        descriptor.definitionRevision !== request.toolDefinitionRevision ||
+        descriptor.access !== request.access
+      ) {
+        throw new Error('Dynamic tool changed while durable permission was pending');
+      }
+      return authority.recordGrant(request, resolution, descriptor);
     },
   };
 }
@@ -590,6 +720,31 @@ function dynamicAgentToolExecutionRevision(input: {
     String(input.generation),
   ].join('\u0000');
   return `dynamic:${input.generation}:${fnv1a32(identity)}`;
+}
+
+function dynamicAgentToolAuthorityRevision(input: {
+  sourceKind: DynamicAgentToolSourceKind;
+  projectId: string;
+  sourceId: string;
+  sourceRevision: string;
+  remoteName: string;
+  description: string;
+  inputSchema: object;
+  access: 'read' | 'write';
+  approval: DynamicAgentToolApproval;
+}): string {
+  const identity = JSON.stringify({
+    sourceKind: input.sourceKind,
+    projectId: input.projectId,
+    sourceId: input.sourceId,
+    sourceRevision: input.sourceRevision,
+    remoteName: input.remoteName,
+    description: input.description,
+    inputSchema: input.inputSchema,
+    access: input.access,
+    approval: input.approval,
+  });
+  return `authority:${fnv1a32(identity)}`;
 }
 
 function slug(value: string, limit: number): string {

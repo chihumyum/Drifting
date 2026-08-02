@@ -12,9 +12,11 @@ import type {
 
 const WORKSPACE_CORE = ['list_files', 'read_file', 'grep'] as const;
 const WORKSPACE_EDIT = 'edit_file';
+const WORKSPACE_WRITE = 'write_file';
+const WORKSPACE_DELETE = 'delete_file';
 const ASK_USER = 'ask_user';
 const RESULT_PAGE = 'read_tool_result';
-const MAX_VISIBLE_TOOLS = 5;
+const MAX_VISIBLE_TOOLS = 6;
 
 /**
  * Product selector for the filesystem-like workspace facade.
@@ -38,6 +40,9 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
       const query = intentQuery(request);
       const activeTask = request.hints.longTask?.status === 'active';
       const needsPlan = activeTask || looksLikeLongTask(query);
+      const createIntent = mentionsCreate(query);
+      const wholeFileWriteIntent = mentionsWholeFileWrite(query);
+      const deleteIntent = mentionsDelete(query);
       const result: string[] = [];
 
       if (activeTask) {
@@ -45,6 +50,10 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
         append(result, available, AGENT_LONG_TASK_STEP_TOOL, limit);
         append(result, available, 'list_files', limit);
         append(result, available, 'read_file', limit);
+        if (deleteIntent) append(result, available, WORKSPACE_DELETE, limit);
+        if (createIntent || wholeFileWriteIntent) {
+          append(result, available, WORKSPACE_WRITE, limit);
+        }
         append(result, available, WORKSPACE_EDIT, limit);
         return result;
       }
@@ -62,14 +71,29 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
 
       append(result, available, 'list_files', limit);
       append(result, available, 'read_file', limit);
-      append(result, available, 'grep', limit);
       const patchIntent = mentionsElementPatch(query);
       const commentIntent = mentionsComment(query);
+      const ordinaryWorkspaceMutation =
+        !explicitlyReadOnly(query) && !patchIntent && !commentIntent;
+      // Keep both file mutation verbs stable for an ordinary edit. After
+      // reading a document, providers commonly choose a whole-file write even
+      // when the author only said “改一下内容”; hiding write_file in that later
+      // iteration turns a valid model action into UNKNOWN_TOOL.
+      if (
+        createIntent ||
+        wholeFileWriteIntent ||
+        commentIntent ||
+        ordinaryWorkspaceMutation
+      ) {
+        append(result, available, WORKSPACE_WRITE, limit);
+      }
+      if (deleteIntent) append(result, available, WORKSPACE_DELETE, limit);
+      append(result, available, 'grep', limit);
       // Keep the ordinary workspace capability stable, like Claude Code's
       // always-available Edit tool. Inferring whether prose is writable from
       // natural-language verbs is brittle: “insert this, but change nothing
       // else” used to be misclassified as a read-only request.
-      if (!explicitlyReadOnly(query) && !patchIntent && !commentIntent) {
+      if (ordinaryWorkspaceMutation) {
         append(result, available, WORKSPACE_EDIT, limit);
       }
 
@@ -80,12 +104,15 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
         append(
           result,
           available,
-          /更新|修改|edit|update/i.test(query) ? 'update_element_patch' : 'create_element_patch',
+          deleteIntent
+            ? 'delete_element_patch'
+            : createIntent
+              ? 'create_element_patch'
+              : /更新|修改|edit|update/i.test(query)
+                ? 'update_element_patch'
+                : 'create_element_patch',
           limit,
         );
-      } else if (commentIntent) {
-        append(result, available, 'get_overview', limit);
-        append(result, available, 'create_comment', limit);
       }
 
       for (const definition of relevantDynamicTools(query, request.definitions)) {
@@ -141,6 +168,22 @@ function mentionsElementPatch(query: string): boolean {
 
 function mentionsComment(query: string): boolean {
   return /批注|评论|待办|todo|comment/i.test(query);
+}
+
+function mentionsCreate(query: string): boolean {
+  return /新建|创建|新增|添加|建立|写一(?:个|条|篇)|new\s+(?:chapter|drift|node|element|entity|storyline|category|comment|todo|relation)|create|add\s+(?:a\s+)?(?:comment|todo|relation)/i.test(
+    query,
+  );
+}
+
+function mentionsWholeFileWrite(query: string): boolean {
+  return /\bwrite_file\b|完整内容|整(?:个)?文件|全文替换|whole[-\s]?file|replace\s+(?:the\s+)?(?:whole|entire)\s+(?:file|contents?)/i.test(
+    query,
+  );
+}
+
+function mentionsDelete(query: string): boolean {
+  return /删除|移除|清除|删掉|delete|remove/i.test(query);
 }
 
 function append(

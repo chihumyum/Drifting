@@ -22,6 +22,7 @@ function plan(
       sessionId: 'session-1',
       objective: 'Polish the whole book.',
       scopeKind: 'whole_book_chapters',
+      workKind: 'edit',
       status,
       revision: 1,
       createdAt: '2026-08-01T00:00:00.000Z',
@@ -53,6 +54,8 @@ function step(
     startedAt: null,
     completedAt: null,
     ...input,
+    reviewResult: input.reviewResult ?? null,
+    readEvidence: input.readEvidence ?? null,
   };
 }
 
@@ -99,6 +102,16 @@ describe('long-task auto continuation', () => {
       summarizeLongTaskPlanForContinuation(
         'session-1',
         plan([step({ id: 'done', status: 'completed' })]),
+        {
+          status: 'current',
+          frozenCount: 0,
+          currentCount: 0,
+          current: [],
+          added: [],
+          missing: [],
+          renamed: [],
+          reordered: [],
+        },
       ).needsFinalization,
     ).toBe(true);
   });
@@ -125,7 +138,7 @@ describe('long-task auto continuation', () => {
     });
   });
 
-  it('schedules unfinished durable work and pauses for review-only work', () => {
+  it('continues independent runnable work while another step awaits review and pauses for review-only work', () => {
     const automatic = markAutomaticContinuationTerminal(armAgentAutomaticContinuation(null, 100), {
       turnId: 'turn-1',
       costUsd: 0.01,
@@ -155,6 +168,66 @@ describe('long-task auto continuation', () => {
         nowMs: 200,
       }),
     ).toEqual({ kind: 'stop', status: 'paused', reason: 'waiting_review' });
+
+    expect(
+      decideAgentAutomaticContinuation({
+        automatic,
+        plan: {
+          ...basePlan,
+          runnableStepCount: 1,
+          waitingReviewStepCount: 1,
+        },
+        terminalOutcome: 'completed',
+        nowMs: 200,
+      }),
+    ).toEqual({ kind: 'schedule' });
+  });
+
+  it('does not mistake a metadata-only revision bump for task progress', () => {
+    const originalPlan = plan([step({ id: 'pending', status: 'pending' })]);
+    const original = summarizeLongTaskPlanForContinuation('session-1', originalPlan);
+    const bumped = summarizeLongTaskPlanForContinuation('session-1', {
+      ...originalPlan,
+      task: { ...originalPlan.task, revision: 999 },
+    });
+    expect(bumped.progressFingerprint).toBe(original.progressFingerprint);
+  });
+
+  it('schedules explicit manifest reconciliation and treats retired audit steps as terminal', () => {
+    const taskPlan = plan([
+      step({ id: 'done', status: 'completed' }),
+      step({ id: 'historical', status: 'retired' }),
+    ]);
+    const current = summarizeLongTaskPlanForContinuation('session-1', taskPlan, {
+      status: 'current',
+      frozenCount: 1,
+      currentCount: 1,
+      current: [{ ordinal: 0, name: '第一章', resolvedChapterId: 'chapter-1' }],
+      added: [],
+      missing: [],
+      renamed: [],
+      reordered: [],
+    });
+    expect(current.needsFinalization).toBe(true);
+
+    const drifted = {
+      ...current,
+      needsFinalization: false,
+      manifestStatus: 'drifted' as const,
+      needsManifestReconciliation: true,
+    };
+    const automatic = markAutomaticContinuationTerminal(armAgentAutomaticContinuation(null, 100), {
+      turnId: 'turn-1',
+      costUsd: 0,
+    });
+    expect(
+      decideAgentAutomaticContinuation({
+        automatic,
+        plan: drifted,
+        terminalOutcome: 'completed',
+        nowMs: 200,
+      }),
+    ).toEqual({ kind: 'schedule' });
   });
 
   it('pauses after two automatic slices make no durable-plan progress', () => {
@@ -162,10 +235,10 @@ describe('long-task auto continuation', () => {
       'session-1',
       plan([step({ id: 'pending', status: 'pending' })]),
     );
-    let automatic = markAutomaticContinuationTerminal(
-      armAgentAutomaticContinuation(null, 100),
-      { turnId: 'turn-author', costUsd: 0 },
-    );
+    let automatic = markAutomaticContinuationTerminal(armAgentAutomaticContinuation(null, 100), {
+      turnId: 'turn-author',
+      costUsd: 0,
+    });
     automatic = observeAgentAutomaticContinuationProgress(automatic, planState);
     expect(automatic.stagnantSliceCount).toBe(0);
 
@@ -181,9 +254,7 @@ describe('long-task auto continuation', () => {
       costUsd: 0,
     });
     automatic = observeAgentAutomaticContinuationProgress(automatic, planState);
-    expect(automatic.stagnantSliceCount).toBe(
-      AGENT_AUTO_CONTINUATION_MAX_STAGNANT_SLICES,
-    );
+    expect(automatic.stagnantSliceCount).toBe(AGENT_AUTO_CONTINUATION_MAX_STAGNANT_SLICES);
     expect(
       decideAgentAutomaticContinuation({
         automatic,

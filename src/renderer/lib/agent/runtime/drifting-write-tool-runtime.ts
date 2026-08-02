@@ -2,6 +2,7 @@ import { Value } from '@sinclair/typebox/value';
 import type {
   PersistedAgentRuntimeWriteEffect,
   PersistedAgentRuntimeWriteReview,
+  PersistedAgentRuntimeWriteReviewBlock,
 } from '../../../domain/agent-runtime-write-effect';
 import type {
   AgentRuntimeExpectedRevision,
@@ -18,6 +19,7 @@ import {
 } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
 import { canonicalAgentRuntimeJson } from '../../../sqlite-repo/agent-runtime-persistence-repo';
 import { createElementPatchRepository } from '../../../sqlite-repo/element-patch-repo';
+import { createAgentMemoryRepository } from '../../../sqlite-repo/agent-memory-repo';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
 import {
@@ -39,7 +41,7 @@ import {
   type PreparedDriftingWriteEffect,
 } from './drifting-write-strategies';
 import type { YjsProsePersistenceCoordinator } from './yjs-prose-persistence-coordinator';
-import type { DbExecutor } from '../../../lib/db';
+import { getDb, type DbExecutor } from '../../../lib/db';
 import type { AgentRuntimeElementPatchReceiptRepository } from '../../../sqlite-repo/agent-runtime-element-patch-receipt-repo';
 import type {
   notifySyncMutationCommitted,
@@ -55,7 +57,17 @@ import type {
   AgentToolExecutionResult,
   AgentToolRuntime,
 } from './types';
-import { workspaceCommandFromArguments } from './drifting-workspace-tool-runtime';
+import {
+  DRIFTING_WORKSPACE_DELETE_TOOL,
+  DRIFTING_WORKSPACE_EDIT_TOOL,
+  DRIFTING_WORKSPACE_WRITE_TOOL,
+  workspaceCommandFromArguments,
+} from './drifting-workspace-tool-runtime';
+import { hashAgentPermissionArguments } from './control-plane';
+import {
+  agentMemorySetRevision,
+  loadStorylineMembershipSnapshot,
+} from './domain-crud-revision';
 
 export interface DriftingWriteToolRuntimeOptions {
   repository?: AgentRuntimeWriteEffectRepository;
@@ -78,15 +90,17 @@ export interface DriftingWriteToolRuntimeOptions {
   elementPatchReceipts?: AgentRuntimeElementPatchReceiptRepository;
   elementPatchPersistSyncMutation?: typeof persistSyncMutationInTransaction;
   elementPatchNotifySyncCommitted?: typeof notifySyncMutationCommitted;
-  /** Product-owned frozen review mode lookup. When true, the canonical soft
-   * review is immediately advanced through accepted -> accepted_effect; local
-   * reveal animation remains a presentation concern. */
-  autoAcceptReview?: (effect: PersistedAgentRuntimeWriteEffect) => boolean;
 }
 
 export interface AgentWriteReviewDecisionResult {
   review: PersistedAgentRuntimeWriteReview;
   effect: PersistedAgentRuntimeWriteEffect;
+}
+
+export interface AgentWriteReviewBlockDecisionResult
+  extends AgentWriteReviewDecisionResult {
+  block: PersistedAgentRuntimeWriteReviewBlock;
+  blocks: readonly PersistedAgentRuntimeWriteReviewBlock[];
 }
 
 export interface AgentInterruptedWriteReconciliationResult {
@@ -118,7 +132,6 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     request: AgentToolExecutionRequest,
   ) => Promise<AgentToolExecutionRequest>;
   private readonly elementPatchDb: DbExecutor | undefined;
-  private readonly autoAcceptReview: (effect: PersistedAgentRuntimeWriteEffect) => boolean;
   private readonly resolveStrategy: (name: string) => DriftingWriteStrategy | undefined;
 
   constructor(options: DriftingWriteToolRuntimeOptions = {}) {
@@ -131,7 +144,6 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     this.dispatch = options.dispatch ?? runAgentTool;
     this.prepareRequest = options.prepareRequest ?? (async (request) => request);
     this.elementPatchDb = options.elementPatchDb;
-    this.autoAcceptReview = options.autoAcceptReview ?? (() => false);
     this.resolveStrategy =
       options.resolveStrategy ??
       ((name) =>
@@ -160,18 +172,40 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
 
   listDefinitions(context: AgentRuntimeContext): readonly AgentToolDefinition[] {
     const reads = this.readRuntime.listDefinitions(context);
-    const workspaceEdit = getRegisteredTool('edit_file');
-    if (
-      !workspaceEdit ||
-      workspaceEdit.scope !== 'runtime-virtual' ||
-      workspaceEdit.access !== 'write'
-    ) {
-      throw new Error('The edit_file runtime contract is unavailable');
-    }
+    const workspaceWrites = [
+      DRIFTING_WORKSPACE_EDIT_TOOL,
+      DRIFTING_WORKSPACE_WRITE_TOOL,
+      DRIFTING_WORKSPACE_DELETE_TOOL,
+    ].map((name) => {
+      const tool = getRegisteredTool(name);
+      if (!isWorkspaceWriteFacade(tool)) {
+        throw new Error(`The ${name} runtime contract is unavailable`);
+      }
+      return writeDefinition(tool);
+    });
     const writes = listProviderTools({ allowWrite: true })
       .filter((tool) => tool.access === 'write')
       .map((tool) => writeDefinition(tool));
-    return [...reads, writeDefinition(workspaceEdit), ...writes];
+    return [...reads, ...workspaceWrites, ...writes];
+  }
+
+  resolveCanonicalName(
+    name: string,
+    context: AgentRuntimeContext,
+  ): string | undefined {
+    const direct = this.listDefinitions(context).find(
+      (definition) => definition.name === name,
+    );
+    if (direct) return direct.name;
+    const delegated = this.readRuntime.resolveCanonicalName?.(name, context);
+    if (delegated) return delegated;
+    const registered = getRegisteredTool(name);
+    if (!registered || registered.name === name) return undefined;
+    return this.listDefinitions(context).some(
+      (definition) => definition.name === registered.name,
+    )
+      ? registered.name
+      : undefined;
   }
 
   async execute(request: AgentToolExecutionRequest): Promise<AgentToolExecutionResult> {
@@ -180,10 +214,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     }
     throwIfAgentAborted(request.signal);
     const tool = getRegisteredTool(request.name);
-    const workspaceFacade =
-      tool?.name === 'edit_file' &&
-      tool.scope === 'runtime-virtual' &&
-      tool.certification === 'internal-certified';
+    const workspaceFacade = isWorkspaceWriteFacade(tool);
     if (
       !tool ||
       (tool.scope !== 'general' && !workspaceFacade) ||
@@ -238,7 +269,8 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     throwIfAgentAborted(signal);
     const active = this.getContext();
     if (!active) throw new Error('Drifting tool context is not mounted');
-    const candidates = (await this.repository.listEffects(sessionId)).filter(
+    const effects = await this.repository.listEffects(sessionId);
+    const candidates = effects.filter(
       (effect) => effect.phase === 'mutation_started' || effect.phase === 'uncertain',
     );
     const result: AgentInterruptedWriteReconciliationResult = {
@@ -292,7 +324,13 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
             at: this.now(),
           })
         ).effect;
-        await this.settleCommittedEffect(committed, tool, reconciled.handlerResult);
+        await this.settleCommittedEffect(
+          committed,
+          tool,
+          reconciled.handlerResult,
+          strategy,
+          active,
+        );
         result.reconciled += 1;
       } catch (error) {
         if (isAgentAbort(error, signal)) throw error;
@@ -303,8 +341,155 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         });
       }
     }
+    await this.reconcileCommittedEditorReviews(effects, active);
+    await this.reconcileInterruptedReviewBlocks(sessionId, signal);
     await this.reconcileInterruptedReviewStates(sessionId, signal);
     return result;
+  }
+
+  /** Rebuild pending editor reviews from SQLite even when localStorage vanished. */
+  async reconcileProjectReviews(
+    projectId: string,
+    signal: AbortSignal = new AbortController().signal,
+  ): Promise<{ projected: number; unresolved: number }> {
+    const context = this.getContext();
+    if (!context || context.projectId !== projectId) {
+      throw new Error('The Agent review project is not mounted');
+    }
+    const result = { projected: 0, unresolved: 0 };
+    const reviews = await this.repository.listPendingReviewsForProject(projectId);
+    for (const candidate of reviews) {
+      try {
+        throwIfAgentAborted(signal);
+        if (candidate.status === 'accepted') {
+          await this.acceptReview(candidate.id, candidate.decisionNote);
+          continue;
+        }
+        if (candidate.status === 'rejected') {
+          await this.rejectReview(
+            candidate.id,
+            candidate.decisionNote,
+            signal,
+          );
+          continue;
+        }
+        if (candidate.status === 'revert_started') {
+          await this.repository.transitionReview({
+            reviewId: candidate.id,
+            expectedStatus: 'revert_started',
+            nextStatus: 'revert_failed',
+            errorCode: 'WRITE_REVERT_INTERRUPTED',
+            errorMessage:
+              'The renderer stopped after inverse execution began; the inverse was not replayed. Re-read the entity before any further edit.',
+            at: this.now(),
+          });
+          continue;
+        }
+        if (candidate.status !== 'pending') continue;
+        const effect = await this.requireEffect(candidate.effectId);
+        const strategy = this.resolveStrategy(effect.toolName);
+        if (strategy?.reviewBlocks) {
+          await this.ensureCommittedReview(
+            effect,
+            'approve',
+            strategy,
+            context,
+          );
+        }
+        const blocks = await this.repository.listReviewBlocks(candidate.id);
+        for (const block of blocks) {
+          if (
+            block.status !== 'revert_started' &&
+            block.status !== 'revert_failed'
+          ) {
+            continue;
+          }
+          await this.rejectReviewBlock(
+            candidate.id,
+            block.blockId,
+            block.decisionNote,
+            signal,
+          );
+        }
+        const review = await this.requireReview(candidate.id);
+        if (review.status !== 'pending') continue;
+        if (!strategy?.projectReview) continue;
+        await this.projectCommittedReview(effect, strategy, context);
+        result.projected += 1;
+      } catch (error) {
+        if (isAgentAbort(error, signal)) throw error;
+        result.unresolved += 1;
+        console.warn(
+          `[agent] project review ${candidate.id} could not be rebuilt`,
+          error,
+        );
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Close the small, intentional transaction seam between result commit and
+   * review-row creation. Automatic reviews are settled but not visually replayed
+   * after restart; a pending approve-mode review is projected back into the
+   * editor only after its canonical row has been recovered.
+   */
+  private async reconcileCommittedEditorReviews(
+    effects: readonly PersistedAgentRuntimeWriteEffect[],
+    context: AgentToolContext,
+  ): Promise<void> {
+    const committed = effects.filter(
+      (effect) => effect.phase === 'result_committed' && effect.authorization,
+    );
+    for (const effect of committed) {
+      try {
+        const tool = requireReconciliationTool(effect);
+        const descriptor = activeEditorReview(effect, tool);
+        if (!descriptor) continue;
+        const strategy = this.resolveStrategy(tool.name);
+        const review = await this.ensureCommittedReview(
+          effect,
+          descriptor.mode,
+          strategy,
+          context,
+        );
+        if (review.status !== 'pending') continue;
+        await this.projectCommittedReview(effect, strategy, context);
+      } catch (error) {
+        console.warn(
+          `[agent] committed editor review ${effect.id} could not be recovered`,
+          error,
+        );
+      }
+    }
+  }
+
+  /** Resume only idempotent, guarded paragraph inverses. */
+  private async reconcileInterruptedReviewBlocks(
+    sessionId: string,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const reviews = (await this.repository.listReviews(sessionId)).filter(
+      (review) => review.status === 'pending',
+    );
+    for (const review of reviews) {
+      const blocks = await this.repository.listReviewBlocks(review.id);
+      for (const block of blocks) {
+        if (
+          block.status !== 'revert_started' &&
+          block.status !== 'revert_failed'
+        ) {
+          continue;
+        }
+        throwIfAgentAborted(signal);
+        await this.rejectReviewBlock(
+          review.id,
+          block.blockId,
+          block.decisionNote,
+          signal,
+        );
+      }
+    }
   }
 
   /**
@@ -350,10 +535,36 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     reviewId: string,
     decisionNote: unknown = null,
   ): Promise<AgentWriteReviewDecisionResult> {
-    const review = await this.requireReview(reviewId);
+    let review = await this.requireReview(reviewId);
     const effect = await this.requireEffect(review.effectId);
     const context = this.requireEffectContext(effect);
-    void context;
+    const strategy = this.resolveStrategy(effect.toolName);
+    if (review.status === 'pending' && strategy?.reviewBlocks) {
+      review = await this.ensureCommittedReview(
+        effect,
+        'approve',
+        strategy,
+        context,
+      );
+    }
+    const blocks = await this.repository.listReviewBlocks(reviewId);
+    if (blocks.length > 0) {
+      for (const block of blocks) {
+        if (block.status === 'accepted' || block.status === 'reverted') continue;
+        if (block.status !== 'pending') {
+          throw new Error(
+            `Agent review block ${reviewId}/${block.blockId} cannot be accepted from ${block.status}`,
+          );
+        }
+        const result = await this.acceptReviewBlock(
+          reviewId,
+          block.blockId,
+          decisionNote,
+        );
+        review = result.review;
+      }
+      return { review: await this.requireReview(reviewId), effect };
+    }
     const accepted =
       review.status === 'pending'
         ? (
@@ -380,6 +591,117 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     return { review: settled, effect };
   }
 
+  async acceptReviewBlock(
+    reviewId: string,
+    blockId: string,
+    decisionNote: unknown = null,
+  ): Promise<AgentWriteReviewBlockDecisionResult> {
+    let review = await this.requireReview(reviewId);
+    const effect = await this.requireEffect(review.effectId);
+    this.requireEffectContext(effect);
+    let blocks = await this.repository.listReviewBlocks(reviewId);
+    let block = requireReviewBlock(reviewId, blockId, blocks);
+    if (block.status === 'pending') {
+      const result = await this.repository.transitionReviewBlock({
+        reviewId,
+        blockId,
+        expectedStatus: 'pending',
+        nextStatus: 'accepted',
+        decisionNote,
+        at: this.now(),
+      });
+      review = result.review;
+      block = result.block;
+      blocks = result.blocks;
+    } else if (block.status !== 'accepted') {
+      throw new Error(
+        `Agent review block ${reviewId}/${blockId} cannot be accepted from ${block.status}`,
+      );
+    }
+    return { review, effect, block, blocks };
+  }
+
+  async rejectReviewBlock(
+    reviewId: string,
+    blockId: string,
+    decisionNote: unknown = null,
+    signal: AbortSignal = new AbortController().signal,
+  ): Promise<AgentWriteReviewBlockDecisionResult> {
+    let review = await this.requireReview(reviewId);
+    const effect = await this.requireEffect(review.effectId);
+    const context = this.requireEffectContext(effect);
+    const strategy = this.resolveStrategy(effect.toolName);
+    if (!strategy?.applyReviewBlockInverse) {
+      throw new Error(
+        `Agent review ${reviewId} has no certified block inverse`,
+      );
+    }
+    let blocks = await this.repository.listReviewBlocks(reviewId);
+    let block = requireReviewBlock(reviewId, blockId, blocks);
+    if (block.status === 'reverted') {
+      return { review, effect, block, blocks };
+    }
+    if (block.status === 'pending' || block.status === 'revert_failed') {
+      const result = await this.repository.transitionReviewBlock({
+        reviewId,
+        blockId,
+        expectedStatus: block.status,
+        nextStatus: 'revert_started',
+        decisionNote,
+        at: this.now(),
+      });
+      review = result.review;
+      block = result.block;
+      blocks = result.blocks;
+    }
+    if (block.status !== 'revert_started') {
+      throw new Error(
+        `Agent review block ${reviewId}/${blockId} cannot be reverted from ${block.status}`,
+      );
+    }
+    try {
+      throwIfAgentAborted(signal);
+      const revertEffect = await strategy.applyReviewBlockInverse(
+        effect,
+        blockId,
+        withProvenance(context, effect, signal),
+        signal,
+      );
+      throwIfAgentAborted(signal);
+      const result = await this.repository.transitionReviewBlock({
+        reviewId,
+        blockId,
+        expectedStatus: 'revert_started',
+        nextStatus: 'reverted',
+        revertEffect,
+        at: this.now(),
+      });
+      return {
+        review: result.review,
+        effect,
+        block: result.block,
+        blocks: result.blocks,
+      };
+    } catch (error) {
+      if (isAgentAbort(error, signal)) throw error;
+      const result = await this.repository.transitionReviewBlock({
+        reviewId,
+        blockId,
+        expectedStatus: 'revert_started',
+        nextStatus: 'revert_failed',
+        errorCode: 'WRITE_BLOCK_REVERT_FAILED',
+        errorMessage: publicWriteError(error),
+        at: this.now(),
+      });
+      return {
+        review: result.review,
+        effect,
+        block: result.block,
+        blocks: result.blocks,
+      };
+    }
+  }
+
   async rejectReview(
     reviewId: string,
     decisionNote: unknown = null,
@@ -389,6 +711,31 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     const effect = await this.requireEffect(review.effectId);
     const context = this.requireEffectContext(effect);
     const strategy = this.resolveStrategy(effect.toolName);
+    if (review.status === 'pending' && strategy?.reviewBlocks) {
+      review = await this.ensureCommittedReview(
+        effect,
+        'approve',
+        strategy,
+        context,
+      );
+    }
+    const blocks = await this.repository.listReviewBlocks(reviewId);
+    if (blocks.length > 0) {
+      for (const block of [...blocks].reverse()) {
+        if (block.status === 'accepted' || block.status === 'reverted') continue;
+        const result = await this.rejectReviewBlock(
+          reviewId,
+          block.blockId,
+          decisionNote,
+          signal,
+        );
+        if (result.block.status !== 'reverted') {
+          return { review: result.review, effect };
+        }
+        review = result.review;
+      }
+      return { review: await this.requireReview(reviewId), effect };
+    }
     if (!strategy || !effect.inverse || effect.reversibility !== 'exact') {
       if (review.status === 'pending') {
         review = (
@@ -488,6 +835,12 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
   ): Promise<AgentToolExecutionResult> {
     const route = durableWriteRoute(request.context.route);
     const effectId = writeEffectId(request.idempotencyKey);
+    const authorizedAt = this.now();
+    const authorization = await requireWriteAuthorization(
+      request,
+      toolCallArguments,
+      authorizedAt,
+    );
     const expectedRevision = this.freshness
       ? parseExpectedRevision(request.arguments.expectedRevision)
       : null;
@@ -500,10 +853,11 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       callId: request.callId,
       toolName: tool.name,
       idempotencyKey: request.idempotencyKey,
+      authorization,
       toolCallArguments,
       arguments: request.arguments,
       expectedRevision,
-      claimedAt: this.now(),
+      claimedAt: authorizedAt,
     });
     let effect = claimed.effect;
     let writeExpectation: PersistedAgentRuntimeWriteExpectation | null = null;
@@ -619,7 +973,13 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
           at: this.now(),
         })
       ).effect;
-      return this.settleCommittedEffect(effect, tool, handlerResult);
+      return this.settleCommittedEffect(
+        effect,
+        tool,
+        handlerResult,
+        strategy,
+        context,
+      );
     } catch (error) {
       if (effect.phase === 'mutation_started') {
         if (isDeterministicStaleWriteError(error)) {
@@ -669,7 +1029,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     ) {
       throw new Error(
         expectsProse
-          ? 'expectedRevision does not match a node_prose observation from read_node(prose=true)'
+          ? `expectedRevision does not match the requested ${target.entityKind} observation from a prose read`
           : `expectedRevision does not match the requested ${target.entityKind} observation`,
       );
     }
@@ -765,18 +1125,36 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     context?: AgentToolContext,
   ): Promise<AgentToolExecutionResult | null> {
     switch (effect.phase) {
-      case 'result_committed':
-        // The result row is the effect's canonical commit point. A crash can
-        // happen immediately after that transaction and before the separate
-        // review insert. Reconcile the deterministic review id on replay
-        // instead of returning a result that points at a missing review.
+      case 'result_committed': {
+        if (effect.authorization) {
+          const result = persistedExecutionResult(effect.result);
+          const descriptor = activeEditorReview(effect, tool);
+          if (!descriptor) return result;
+          const review = await this.ensureCommittedReview(
+            effect,
+            descriptor.mode,
+            strategy,
+            context,
+          );
+          await this.projectCommittedReview(effect, strategy, context);
+          return withCanonicalReviewStatus(result, review);
+        }
+        // Compatibility for effects created before central authorization. A
+        // crash could leave their deterministic review row missing.
         return withCanonicalReviewStatus(
           persistedExecutionResult(effect.result),
-          await this.ensureCommittedReview(effect, tool),
+          await this.ensureLegacyCommittedReview(effect),
         );
+      }
       case 'effect_committed': {
         const handlerResult = persistedHandlerResult(effect.effect);
-        return this.settleCommittedEffect(effect, tool, handlerResult);
+        return this.settleCommittedEffect(
+          effect,
+          tool,
+          handlerResult,
+          strategy,
+          context,
+        );
       }
       case 'mutation_started':
       case 'uncertain': {
@@ -796,7 +1174,13 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
                 at: this.now(),
               })
             ).effect;
-            return this.settleCommittedEffect(committed, tool, reconciled.handlerResult);
+            return this.settleCommittedEffect(
+              committed,
+              tool,
+              reconciled.handlerResult,
+              strategy,
+              context,
+            );
           }
         }
         return {
@@ -823,35 +1207,46 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     effect: PersistedAgentRuntimeWriteEffect,
     tool: RegisteredTool,
     handlerResult: unknown,
+    strategy?: DriftingWriteStrategy,
+    context?: AgentToolContext,
   ): Promise<AgentToolExecutionResult> {
-    const reviewId = writeReviewId(effect.id);
-    const review =
-      tool.approval === 'soft_review' ? { id: reviewId, status: 'pending' as const } : null;
+    if (!effect.authorization) {
+      return this.settleLegacyCommittedEffect(effect, tool, handlerResult);
+    }
+    const descriptor = activeEditorReview(effect, tool);
+    const reviewId = descriptor?.id ?? null;
     const visibleResult =
-      tool.name === 'edit_file' ? workspaceVisibleWriteResult(effect) : handlerResult;
+      workspaceFacadeName(tool.name)
+        ? workspaceVisibleWriteResult(effect, handlerResult)
+        : handlerResult;
     const result: AgentToolExecutionResult = {
       ok: true,
       data: {
         result: visibleResult,
-        ...(tool.name === 'edit_file' ? {} : { effectId: effect.id }),
-        ...(review
-          ? {
-              review: {
-                id: review.id,
-                status: review.status,
-              },
-            }
+        writeRef: reviewId ?? effect.id,
+        ...(workspaceFacadeName(tool.name) ? {} : { effectId: effect.id }),
+        authorization: { kind: effect.authorization.kind },
+        ...(reviewId
+          ? { review: { id: reviewId, status: 'pending' } }
           : {}),
       },
-      ...(tool.name === 'edit_file'
+      ...(workspaceFacadeName(tool.name)
         ? {
             modelData: workspaceModelWriteResult(
               visibleResult as ReturnType<typeof workspaceVisibleWriteResult>,
-              review?.status ?? null,
+              effect.id,
             ),
           }
+        : descriptor
+          ? {
+              // The model only needs a stable success reference. Review IDs,
+              // Yjs hashes, and editor presentation are renderer concerns.
+              modelData: { updated: true, writeRef: effect.id },
+            }
+          : {}),
+      ...(reviewId
+        ? { presentation: { review: { id: reviewId, status: 'pending' } } }
         : {}),
-      ...(review ? { presentation: { review } } : {}),
     };
     await this.repository.transitionEffect({
       effectId: effect.id,
@@ -860,14 +1255,83 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       result,
       at: this.now(),
     });
-    return withCanonicalReviewStatus(result, await this.ensureCommittedReview(effect, tool));
+    if (descriptor) {
+      // The repository intentionally requires a result-committed effect before
+      // it will create the review row. Projection remains last, so the badge
+      // can never race a missing review even if the renderer crashes here.
+      const review = await this.ensureCommittedReview(
+        effect,
+        descriptor.mode,
+        strategy,
+        context,
+      );
+      await this.projectCommittedReview(effect, strategy, context);
+      return withCanonicalReviewStatus(result, review);
+    }
+    return result;
+  }
+
+  private async settleLegacyCommittedEffect(
+    effect: PersistedAgentRuntimeWriteEffect,
+    tool: RegisteredTool,
+    handlerResult: unknown,
+  ): Promise<AgentToolExecutionResult> {
+    const reviewId = writeReviewId(effect.id);
+    const visibleResult =
+      workspaceFacadeName(tool.name)
+        ? workspaceVisibleWriteResult(effect, handlerResult)
+        : handlerResult;
+    const result: AgentToolExecutionResult = {
+      ok: true,
+      data: {
+        result: visibleResult,
+        writeRef: reviewId,
+        ...(workspaceFacadeName(tool.name) ? {} : { effectId: effect.id }),
+        review: { id: reviewId, status: 'pending' },
+      },
+      ...(workspaceFacadeName(tool.name)
+        ? {
+            modelData: workspaceModelWriteResult(
+              visibleResult as ReturnType<typeof workspaceVisibleWriteResult>,
+              reviewId,
+              'pending',
+            ),
+          }
+        : {}),
+      presentation: { review: { id: reviewId, status: 'pending' } },
+    };
+    await this.repository.transitionEffect({
+      effectId: effect.id,
+      expectedPhase: 'effect_committed',
+      nextPhase: 'result_committed',
+      result,
+      at: this.now(),
+    });
+    return withCanonicalReviewStatus(
+      result,
+      await this.ensureLegacyCommittedReview(effect),
+    );
+  }
+
+  private async ensureLegacyCommittedReview(
+    effect: PersistedAgentRuntimeWriteEffect,
+  ): Promise<PersistedAgentRuntimeWriteReview> {
+    return this.ensureCommittedReview(
+      effect,
+      legacyEffectReviewMode(effect.forward) ?? 'approve',
+    );
   }
 
   private async ensureCommittedReview(
     effect: PersistedAgentRuntimeWriteEffect,
-    tool: RegisteredTool,
-  ): Promise<PersistedAgentRuntimeWriteReview | null> {
-    if (tool.approval !== 'soft_review') return null;
+    mode: 'auto' | 'approve',
+    strategy?: DriftingWriteStrategy,
+    context?: AgentToolContext,
+  ): Promise<PersistedAgentRuntimeWriteReview> {
+    const blocks =
+      mode === 'approve' && strategy?.reviewBlocks && context
+        ? await strategy.reviewBlocks(effect, context)
+        : [];
     let review = (
       await this.repository.createReview({
         id: writeReviewId(effect.id),
@@ -876,9 +1340,10 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         turnId: effect.turnId,
         toolCallId: effect.toolCallId,
         createdAt: this.now(),
+        ...(blocks.length > 0 ? { blocks } : {}),
       })
     ).review;
-    if (!this.autoAcceptReview(effect)) return review;
+    if (mode !== 'auto') return review;
     if (review.status === 'pending') {
       review = (
         await this.repository.transitionReview({
@@ -901,6 +1366,32 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       ).review;
     }
     return review;
+  }
+
+  private async projectCommittedReview(
+    effect: PersistedAgentRuntimeWriteEffect,
+    strategy?: DriftingWriteStrategy,
+    context?: AgentToolContext,
+  ): Promise<void> {
+    if (!strategy?.projectReview || !context) return;
+    try {
+      const blocks = await this.repository.listReviewBlocks(
+        writeReviewId(effect.id),
+      );
+      const decisions = Object.fromEntries(
+        blocks.flatMap((block) =>
+          block.status === 'accepted' || block.status === 'reverted'
+            ? [[block.blockId, block.status] as const]
+            : [],
+        ),
+      );
+      await strategy.projectReview(effect, context, decisions);
+    } catch (error) {
+      console.warn(
+        '[agent] durable prose review could not be projected into the editor',
+        error,
+      );
+    }
   }
 
   private async assertReconciliationProvenance(
@@ -952,7 +1443,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       expectation.observationId !== expected.observationId ||
       expectation.expectedRevision !== expected.revision ||
       expectation.entityKind !== target.entityKind ||
-      (target.entityKind === 'node_prose' &&
+      (isProseFreshnessKind(target.entityKind) &&
         (!expectation.expectedStateVector ||
           !expectation.expectedStateHash ||
           parseYjsRevision(expectation.expectedRevision) === null))
@@ -1038,7 +1529,7 @@ export function resolveDriftingCertifiedToolAccess(name: string): 'read' | 'writ
   ) {
     return 'read';
   }
-  if (name === 'edit_file') return 'write';
+  if (workspaceFacadeName(name)) return 'write';
   const tool = getRegisteredTool(name);
   if (
     !tool ||
@@ -1051,12 +1542,30 @@ export function resolveDriftingCertifiedToolAccess(name: string): 'read' | 'writ
   return tool.access;
 }
 
+function workspaceFacadeName(name: string): boolean {
+  return (
+    name === DRIFTING_WORKSPACE_EDIT_TOOL ||
+    name === DRIFTING_WORKSPACE_WRITE_TOOL ||
+    name === DRIFTING_WORKSPACE_DELETE_TOOL
+  );
+}
+
+function isWorkspaceWriteFacade(
+  tool: RegisteredTool | null | undefined,
+): tool is RegisteredTool {
+  return Boolean(
+    tool &&
+      workspaceFacadeName(tool.name) &&
+      tool.scope === 'runtime-virtual' &&
+      tool.access === 'write' &&
+      tool.certification === 'internal-certified' &&
+      isCertifiedTool(tool),
+  );
+}
+
 function requireReconciliationTool(effect: PersistedAgentRuntimeWriteEffect): RegisteredTool {
   const tool = getRegisteredTool(effect.toolName);
-  const workspaceFacade =
-    tool?.name === 'edit_file' &&
-    tool.scope === 'runtime-virtual' &&
-    tool.certification === 'internal-certified';
+  const workspaceFacade = isWorkspaceWriteFacade(tool);
   if (
     !tool ||
     (tool.scope !== 'general' && !workspaceFacade) ||
@@ -1075,26 +1584,43 @@ type FreshnessReadToolName =
   | 'read_element'
   | 'get_storyline'
   | 'get_project_brief'
-  | 'get_overview';
+  | 'get_overview'
+  | 'list_comments'
+  | 'list_memory'
+  | 'get_entity_relations';
+
+type FreshnessEntityKind =
+  | 'node'
+  | 'node_prose'
+  | 'element_prose'
+  | 'storyline_prose'
+  | 'category_prose'
+  | 'element_patch_set'
+  | 'element_patch'
+  | 'element'
+  | 'storyline'
+  | 'category'
+  | 'comment'
+  | 'relation'
+  | 'storyline_membership'
+  | 'memory_set'
+  | 'memory'
+  | 'project';
 
 function reconciliationFreshnessTarget(
   toolName: string,
   arguments_?: unknown,
 ): {
   readToolNames: readonly FreshnessReadToolName[];
-  entityKind:
-    | 'node'
-    | 'node_prose'
-    | 'element_patch_set'
-    | 'element_patch'
-    | 'element'
-    | 'storyline'
-    | 'project';
+  entityKind: FreshnessEntityKind;
 } {
   const effective = effectiveWriteCommand(toolName, arguments_);
   toolName = effective.name;
   if (isProseWriteTool(toolName)) {
-    return { readToolNames: ['read_node'], entityKind: 'node_prose' };
+    return {
+      readToolNames: proseReadToolNames(effective.arguments),
+      entityKind: proseFreshnessEntityKind(effective.arguments),
+    };
   }
   if (toolName === 'create_element_patch') {
     return {
@@ -1102,7 +1628,10 @@ function reconciliationFreshnessTarget(
       entityKind: 'element_patch_set',
     };
   }
-  if (toolName === 'update_element_patch') {
+  if (
+    toolName === 'update_element_patch' ||
+    toolName === 'delete_element_patch'
+  ) {
     return {
       readToolNames: ['get_element_patches'],
       entityKind: 'element_patch',
@@ -1117,11 +1646,46 @@ function reconciliationFreshnessTarget(
       entityKind: 'storyline',
     };
   }
-  if (toolName === 'update_project_facts' || toolName === 'create_comment') {
+  if (toolName === 'set_storyline_membership') {
+    return {
+      readToolNames: ['get_storyline'],
+      entityKind: 'storyline_membership',
+    };
+  }
+  if (toolName === 'remember') {
+    return { readToolNames: ['list_memory'], entityKind: 'memory_set' };
+  }
+  if (toolName === 'update_memory' || toolName === 'forget') {
+    return { readToolNames: ['list_memory'], entityKind: 'memory' };
+  }
+  if (PROJECT_FRESHNESS_WRITE_TOOLS.has(toolName)) {
     return {
       readToolNames: ['get_project_brief', 'get_overview'],
       entityKind: 'project',
     };
+  }
+  if (toolName === 'delete_element') {
+    return { readToolNames: ['read_element'], entityKind: 'element' };
+  }
+  if (toolName === 'delete_storyline') {
+    return { readToolNames: ['get_storyline'], entityKind: 'storyline' };
+  }
+  if (
+    toolName === 'update_category' ||
+    toolName === 'delete_category'
+  ) {
+    return { readToolNames: ['read_node'], entityKind: 'category' };
+  }
+  if (
+    toolName === 'update_comment' ||
+    toolName === 'delete_comment' ||
+    toolName === 'set_comment_status' ||
+    toolName === 'set_comment_kind'
+  ) {
+    return { readToolNames: ['list_comments'], entityKind: 'comment' };
+  }
+  if (toolName === 'update_relation_kind' || toolName === 'remove_relation') {
+    return { readToolNames: ['get_entity_relations'], entityKind: 'relation' };
   }
   return { readToolNames: ['read_node'], entityKind: 'node' };
 }
@@ -1188,6 +1752,38 @@ function durableWriteRoute(route: AgentRuntimeRoute) {
 
 function runtimeToolCallId(request: AgentToolExecutionRequest): string {
   return `agent-tool:${request.sessionId}:${request.turnId}:${request.callId}`;
+}
+
+async function requireWriteAuthorization(
+  request: AgentToolExecutionRequest,
+  publicArguments: Record<string, unknown>,
+  authorizedAt: string,
+) {
+  const authorization = request.authorization;
+  if (!authorization) {
+    throw new Error(
+      'Certified writes require pre-execution authorization from the central runtime',
+    );
+  }
+  const argumentsHash = await hashAgentPermissionArguments(publicArguments);
+  if (authorization.argumentsHash !== argumentsHash) {
+    throw new Error(
+      'The approved write arguments changed before the mutation boundary',
+    );
+  }
+  if (
+    (authorization.kind === 'automatic' && authorization.requestId !== null) ||
+    (authorization.kind === 'author_approved' &&
+      !authorization.requestId?.trim())
+  ) {
+    throw new Error('The write authorization has invalid permission provenance');
+  }
+  return {
+    kind: authorization.kind,
+    requestId: authorization.requestId,
+    argumentsHash,
+    authorizedAt,
+  };
 }
 
 function writeEffectId(idempotencyKey: string): string {
@@ -1284,14 +1880,7 @@ interface WriteFreshnessRequest {
 
 interface WriteFreshnessTarget {
   readToolNames: readonly FreshnessReadToolName[];
-  entityKind:
-    | 'node'
-    | 'node_prose'
-    | 'element_patch_set'
-    | 'element_patch'
-    | 'element'
-    | 'storyline'
-    | 'project';
+  entityKind: FreshnessEntityKind;
   entityId: string;
   currentRevision: string;
 }
@@ -1324,14 +1913,17 @@ async function resolveWriteFreshnessTarget(
       currentRevision: await elementPatchSetRevision(patches),
     };
   }
-  if (request.name === 'update_element_patch') {
+  if (
+    request.name === 'update_element_patch' ||
+    request.name === 'delete_element_patch'
+  ) {
     const patchId = String(request.arguments.patchId ?? '').trim();
     const patch = patchId ? await createElementPatchRepository(db).findById(patchId) : null;
     if (!patch || patch.projectId !== projectId) {
       throw new Error(`No element patch "${patchId}" exists in this project`);
     }
     if (patch.invalidatedAt || pendingDeletedPatchIds(patch.elementId).has(patch.id)) {
-      throw new Error(`Element patch "${patchId}" is not available for Agent updates`);
+      throw new Error(`Element patch "${patchId}" is not available for Agent changes`);
     }
     return {
       readToolNames: ['get_element_patches'],
@@ -1358,7 +1950,51 @@ async function resolveWriteFreshnessTarget(
       currentRevision: storyline.updatedAt,
     };
   }
-  if (request.name === 'update_project_facts' || request.name === 'create_comment') {
+  if (request.name === 'set_storyline_membership') {
+    const storyline = resolveProjectStoryline(
+      projectId,
+      request.arguments.storyline,
+    );
+    const snapshot = await loadStorylineMembershipSnapshot(
+      db ?? getDb(),
+      projectId,
+      storyline.id,
+    );
+    return {
+      readToolNames: ['get_storyline'],
+      entityKind: 'storyline_membership',
+      entityId: storyline.id,
+      currentRevision: snapshot.updatedAt,
+    };
+  }
+  if (request.name === 'remember') {
+    const memories = await createAgentMemoryRepository(
+      projectId,
+      db,
+    ).findAll();
+    return {
+      readToolNames: ['list_memory'],
+      entityKind: 'memory_set',
+      entityId: projectId,
+      currentRevision: await agentMemorySetRevision(memories),
+    };
+  }
+  if (request.name === 'update_memory' || request.name === 'forget') {
+    const memoryId = String(request.arguments.memoryId ?? '').trim();
+    const memory = memoryId
+      ? await createAgentMemoryRepository(projectId, db).findById(memoryId)
+      : null;
+    if (!memory || memory.deletedAt) {
+      throw new Error(`No live memory "${memoryId}" exists in this project`);
+    }
+    return {
+      readToolNames: ['list_memory'],
+      entityKind: 'memory',
+      entityId: memory.id,
+      currentRevision: memory.updatedAt,
+    };
+  }
+  if (PROJECT_FRESHNESS_WRITE_TOOLS.has(request.name)) {
     const project = useProjectStore.getState().currentProject;
     if (!project || project.id !== projectId) {
       throw new Error(`${request.name} requires the mounted project brief`);
@@ -1370,18 +2006,74 @@ async function resolveWriteFreshnessTarget(
       currentRevision: project.updatedAt,
     };
   }
+  if (request.name === 'delete_element') {
+    const element = resolveProjectElement(projectId, request.arguments.element);
+    return {
+      readToolNames: ['read_element'],
+      entityKind: 'element',
+      entityId: element.id,
+      currentRevision: element.updatedAt,
+    };
+  }
+  if (request.name === 'delete_storyline') {
+    const storyline = resolveProjectStoryline(projectId, request.arguments.storyline);
+    return {
+      readToolNames: ['get_storyline'],
+      entityKind: 'storyline',
+      entityId: storyline.id,
+      currentRevision: storyline.updatedAt,
+    };
+  }
+  if (request.name === 'update_category' || request.name === 'delete_category') {
+    const category = resolveProjectCategory(projectId, request.arguments.category);
+    return {
+      readToolNames: ['read_node'],
+      entityKind: 'category',
+      entityId: category.id,
+      currentRevision: category.updatedAt,
+    };
+  }
+  if (
+    request.name === 'update_comment' ||
+    request.name === 'delete_comment' ||
+    request.name === 'set_comment_status' ||
+    request.name === 'set_comment_kind'
+  ) {
+    const comment = resolveProjectComment(projectId, request.arguments.commentId);
+    return {
+      readToolNames: ['list_comments'],
+      entityKind: 'comment',
+      entityId: comment.id,
+      currentRevision: comment.updatedAt,
+    };
+  }
+  if (request.name === 'update_relation_kind' || request.name === 'remove_relation') {
+    const relation = resolveProjectRelation(projectId, request.arguments.relationId);
+    return {
+      readToolNames: ['get_entity_relations'],
+      entityKind: 'relation',
+      entityId: relation.id,
+      currentRevision: relation.updatedAt,
+    };
+  }
+  if (isProseWriteTool(request.name)) {
+    const entity = resolveWriteTargetProseEntity(request);
+    return {
+      readToolNames: proseReadToolNames(request.arguments),
+      entityKind: proseFreshnessEntityKind(request.arguments),
+      entityId: entity.id,
+      // The Yjs current version is verified inside the prose strategy/coordinator.
+      currentRevision: String(
+        (request.arguments.expectedRevision as { revision?: unknown } | undefined)?.revision ?? '',
+      ),
+    };
+  }
   const node = resolveWriteTargetNode(request);
   return {
     readToolNames: ['read_node'],
-    entityKind: isProseWriteTool(request.name) ? 'node_prose' : 'node',
+    entityKind: 'node',
     entityId: node.id,
-    // Yjs current version is verified inside the prose strategy/coordinator.
-    currentRevision: isProseWriteTool(request.name)
-      ? String(
-          (request.arguments.expectedRevision as { revision?: unknown } | undefined)?.revision ??
-            '',
-        )
-      : node.updatedAt,
+    currentRevision: node.updatedAt,
   };
 }
 
@@ -1427,6 +2119,61 @@ function resolveProjectStoryline(projectId: string, value: unknown) {
   return matches[0]!;
 }
 
+function resolveProjectCategory(projectId: string, value: unknown) {
+  const ref = String(value ?? '').trim();
+  if (!ref) throw new Error('A category reference is required');
+  const categories = useDataStore
+    .getState()
+    .bookElementCategories.filter((category) => category.projectId === projectId);
+  const direct = categories.find((category) => category.id === ref);
+  if (direct) return direct;
+  const matches = categories.filter(
+    (category) => category.name.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
+  );
+  if (matches.length !== 1) {
+    throw new Error(
+      matches.length === 0
+        ? `No category named "${ref}" exists in this project`
+        : `Category reference "${ref}" is ambiguous`,
+    );
+  }
+  return matches[0]!;
+}
+
+function resolveProjectComment(projectId: string, value: unknown) {
+  const id = String(value ?? '').trim();
+  const comment = useDataStore
+    .getState()
+    .comments.find((candidate) => candidate.projectId === projectId && candidate.id === id);
+  if (!comment) throw new Error(`No comment "${id}" exists in this project`);
+  return comment;
+}
+
+function resolveProjectRelation(projectId: string, value: unknown) {
+  const id = String(value ?? '').trim();
+  const relation = useDataStore
+    .getState()
+    .entityRelations.find(
+      (candidate) => candidate.projectId === projectId && candidate.id === id,
+    );
+  if (!relation) throw new Error(`No relation "${id}" exists in this project`);
+  return relation;
+}
+
+function resolveWriteTargetProseEntity(request: WriteFreshnessRequest) {
+  const projectId = request.context.route.projectId;
+  if (!projectId) throw new Error(`${request.name} requires a project-scoped entity`);
+  const ref =
+    request.arguments.entity ??
+    request.arguments.node ??
+    request.arguments.nodeId;
+  const kind = String(request.arguments.kind ?? 'node');
+  if (kind === 'element') return resolveProjectElement(projectId, ref);
+  if (kind === 'storyline') return resolveProjectStoryline(projectId, ref);
+  if (kind === 'category') return resolveProjectCategory(projectId, ref);
+  return resolveWriteTargetNode(request);
+}
+
 function resolveWriteTargetNode(request: WriteFreshnessRequest) {
   const projectId = request.context.route.projectId;
   const ref = String(
@@ -1465,6 +2212,16 @@ const PROSE_WRITE_TOOLS = new Set([
   'replace_block_range',
 ]);
 
+const PROJECT_FRESHNESS_WRITE_TOOLS = new Set([
+  'update_project_facts',
+  'create_comment',
+  'create_node',
+  'create_element',
+  'create_storyline',
+  'create_category',
+  'add_relation',
+]);
+
 function isProseWriteTool(name: string): boolean {
   return PROSE_WRITE_TOOLS.has(name);
 }
@@ -1473,29 +2230,100 @@ function isEffectiveProseWrite(name: string, arguments_: unknown): boolean {
   return isProseWriteTool(effectiveWriteCommand(name, arguments_).name);
 }
 
+function proseFreshnessEntityKind(
+  arguments_: Record<string, unknown>,
+): Extract<
+  FreshnessEntityKind,
+  'node_prose' | 'element_prose' | 'storyline_prose' | 'category_prose'
+> {
+  const kind = String(arguments_.kind ?? 'node');
+  if (kind === 'element') return 'element_prose';
+  if (kind === 'storyline') return 'storyline_prose';
+  if (kind === 'category') return 'category_prose';
+  return 'node_prose';
+}
+
+function proseReadToolNames(
+  arguments_: Record<string, unknown>,
+): readonly FreshnessReadToolName[] {
+  return String(arguments_.kind ?? 'node') === 'element'
+    ? ['read_element', 'read_node']
+    : ['read_node'];
+}
+
+function isProseFreshnessKind(kind: FreshnessEntityKind): boolean {
+  return (
+    kind === 'node_prose' ||
+    kind === 'element_prose' ||
+    kind === 'storyline_prose' ||
+    kind === 'category_prose'
+  );
+}
+
 function effectiveWriteCommand(
   name: string,
   arguments_: unknown,
 ): { name: string; arguments: Record<string, unknown> } {
-  if (name !== 'edit_file') {
+  if (!workspaceFacadeName(name)) {
     return { name, arguments: requireRecord(arguments_, 'Write arguments are invalid') };
   }
   const command = workspaceCommandFromArguments(arguments_);
   if (!command) {
-    throw new Error('edit_file has no runtime-prepared workspace command');
+    throw new Error(`${name} has no runtime-prepared workspace command`);
   }
   return command;
 }
 
-function workspaceVisibleWriteResult(effect: PersistedAgentRuntimeWriteEffect): {
+function workspaceVisibleWriteResult(
+  effect: PersistedAgentRuntimeWriteEffect,
+  handlerResult?: unknown,
+): {
   path: string;
   updated: true;
-  replacements: number;
+  replacements?: number;
+  operation?: 'created' | 'updated' | 'deleted';
+  guidance?: string;
+  canonicalPath?: string;
 } {
-  const arguments_ = requireRecord(effect.arguments, 'The workspace edit arguments are invalid');
+  const arguments_ = requireRecord(effect.arguments, 'The workspace write arguments are invalid');
   const path = String(arguments_.path ?? '');
+  if (!path) throw new Error('The workspace write lost its public path');
+  if (effect.toolName === DRIFTING_WORKSPACE_DELETE_TOOL) {
+    return { path, updated: true, operation: 'deleted' };
+  }
+  if (effect.toolName === DRIFTING_WORKSPACE_WRITE_TOOL) {
+    const command = workspaceCommandFromArguments(arguments_);
+    const created = Boolean(
+      command?.name.startsWith('create_') ||
+        command?.name === 'add_relation' ||
+        command?.name === 'remember',
+    );
+    const entityId =
+      recordString(handlerResult, 'entityId') ??
+      recordString(handlerResult, 'commentId');
+    const categoryPath = /^\/categories\/(.+)\/body\.md$/u.exec(path);
+    return {
+      path,
+      updated: true,
+      operation: created ? 'created' : 'updated',
+      ...(entityId && command?.name === 'remember'
+        ? { canonicalPath: `/memory/${workspaceResultPathSegment(entityId)}.json` }
+        : entityId && command?.name === 'create_comment'
+          ? { canonicalPath: `/comments/${workspaceResultPathSegment(entityId)}.json` }
+          : entityId && command?.name === 'add_relation'
+            ? { canonicalPath: `/relations/${workspaceResultPathSegment(entityId)}.json` }
+            : {}),
+      ...(command?.name === 'create_category' && categoryPath
+        ? {
+            guidance:
+              `The category now exists. Create an element in it by writing ` +
+              `"/elements/${categoryPath[1]}/<element-name>/body.md" directly.`,
+          }
+        : {}),
+    };
+  }
   const replacements = Array.isArray(arguments_.replacements) ? arguments_.replacements.length : 0;
-  if (!path || replacements <= 0) {
+  if (replacements <= 0) {
     throw new Error('The workspace edit lost its public result summary');
   }
   return { path, updated: true, replacements };
@@ -1522,12 +2350,17 @@ function withCanonicalReviewStatus(
   if (!review || !result.ok || !result.data || typeof result.data !== 'object') {
     return result;
   }
+  const data = result.data as Record<string, unknown>;
+  const centrallyAuthorized = 'authorization' in data;
   return {
     ...result,
-    ...(result.modelData !== undefined && 'result' in (result.data as Record<string, unknown>)
+    ...(result.modelData !== undefined &&
+    'result' in data &&
+    !centrallyAuthorized
       ? {
           modelData: workspaceModelWriteResult(
-            (result.data as { result: ReturnType<typeof workspaceVisibleWriteResult> }).result,
+            (data as { result: ReturnType<typeof workspaceVisibleWriteResult> }).result,
+            review.id,
             review.status,
           ),
         }
@@ -1541,6 +2374,7 @@ function withCanonicalReviewStatus(
     },
     data: {
       ...(result.data as Record<string, unknown>),
+      writeRef: review.id,
       review: {
         id: review.id,
         status: review.status,
@@ -1551,11 +2385,95 @@ function withCanonicalReviewStatus(
 
 function workspaceModelWriteResult(
   result: ReturnType<typeof workspaceVisibleWriteResult>,
-  reviewStatus: string | null,
-): string {
-  const count = `${result.replacements} replacement${result.replacements === 1 ? '' : 's'}`;
-  const review = reviewStatus === 'reverted' ? ' The author later undid this change.' : '';
-  return `Updated ${result.path} (${count}).${review}`;
+  writeRef: string,
+  reviewStatus?: string,
+) {
+  return {
+    updated: true as const,
+    path: result.path,
+    ...(result.replacements !== undefined ? { replacements: result.replacements } : {}),
+    ...(result.operation ? { operation: result.operation } : {}),
+    ...(result.guidance ? { guidance: result.guidance } : {}),
+    ...(result.canonicalPath ? { canonicalPath: result.canonicalPath } : {}),
+    writeRef,
+    ...(reviewStatus ? { reviewStatus } : {}),
+  };
+}
+
+function workspaceResultPathSegment(value: string): string {
+  return value
+    .trim()
+    .replaceAll('%', '%25')
+    .replaceAll('/', '%2F')
+    .replaceAll('\\', '%5C');
+}
+
+function recordString(value: unknown, key: string): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const candidate = (value as Record<string, unknown>)[key];
+  return typeof candidate === 'string' && candidate.trim()
+    ? candidate.trim()
+    : null;
+}
+
+function activeEditorReview(
+  effect: PersistedAgentRuntimeWriteEffect,
+  tool: RegisteredTool,
+): { id: string; mode: 'auto' | 'approve' } | null {
+  if (tool.approval !== 'review_after') return null;
+  if (
+    !effect.forward ||
+    typeof effect.forward !== 'object' ||
+    Array.isArray(effect.forward) ||
+    (effect.forward as { kind?: unknown }).kind !== 'yjs_prose'
+  ) {
+    // `edit_file` is a facade over several independently certified writes.
+    // Only its Yjs prose expansion has an editor block-diff surface; title,
+    // summary, and other non-prose writes complete without a fake chat review.
+    return null;
+  }
+  const reviewSnapshot = (effect.forward as { reviewSnapshot?: unknown })
+    .reviewSnapshot;
+  if (
+    !reviewSnapshot ||
+    typeof reviewSnapshot !== 'object' ||
+    Array.isArray(reviewSnapshot) ||
+    (reviewSnapshot as { effectId?: unknown }).effectId !== effect.id ||
+    (reviewSnapshot as { reviewId?: unknown }).reviewId !==
+      writeReviewId(effect.id) ||
+    ((reviewSnapshot as { mode?: unknown }).mode !== 'auto' &&
+      (reviewSnapshot as { mode?: unknown }).mode !== 'approve')
+  ) {
+    throw new Error('The committed prose write lost its editor-review provenance');
+  }
+  return {
+    id: writeReviewId(effect.id),
+    mode: (reviewSnapshot as { mode: 'auto' | 'approve' }).mode,
+  };
+}
+
+function legacyEffectReviewMode(value: unknown): 'auto' | 'approve' | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const snapshot = (value as { reviewSnapshot?: unknown }).reviewSnapshot;
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    return null;
+  }
+  const mode = (snapshot as { mode?: unknown }).mode;
+  return mode === 'auto' || mode === 'approve' ? mode : null;
+}
+
+function requireReviewBlock(
+  reviewId: string,
+  blockId: string,
+  blocks: readonly PersistedAgentRuntimeWriteReviewBlock[],
+): PersistedAgentRuntimeWriteReviewBlock {
+  const block = blocks.find((candidate) => candidate.blockId === blockId);
+  if (!block) {
+    throw new Error(
+      `Agent review ${reviewId} has no durable block "${blockId}"`,
+    );
+  }
+  return block;
 }
 
 function persistedHandlerResult(value: unknown): unknown {

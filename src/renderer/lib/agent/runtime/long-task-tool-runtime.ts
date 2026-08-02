@@ -3,8 +3,10 @@ import { Value } from '@sinclair/typebox/value';
 import type {
   AgentRuntimeTaskCommand,
   AgentRuntimeTaskChapterManifestSeed,
+  AgentRuntimeTaskChapterManifestState,
   AgentRuntimeTaskPlan,
   AgentRuntimeTaskStepSeed,
+  AgentRuntimeTaskStepReviewResult,
   AgentRuntimeTaskStepStatus,
   AgentRuntimeTaskTargetKind,
 } from '../../../domain/agent-runtime-long-task';
@@ -24,22 +26,21 @@ import type {
   AgentToolSelectionHintRequest,
   AgentToolSelectionHints,
 } from './types';
+import {
+  AGENT_LONG_TASK_CONSTRAINT_TOOL,
+  AGENT_LONG_TASK_PLAN_TOOL,
+  AGENT_LONG_TASK_READ_TOOL,
+  AGENT_LONG_TASK_STEP_TOOL,
+  resolveAgentLongTaskToolAccess,
+} from './long-task-tool-contract';
 
-export const AGENT_LONG_TASK_READ_TOOL = 'read_task_plan' as const;
-export const AGENT_LONG_TASK_PLAN_TOOL = 'update_task_plan' as const;
-export const AGENT_LONG_TASK_STEP_TOOL = 'update_task_step' as const;
-export const AGENT_LONG_TASK_CONSTRAINT_TOOL = 'update_task_constraint' as const;
-
-const LONG_TASK_TOOL_ACCESS = new Map<string, 'read' | 'write'>([
-  [AGENT_LONG_TASK_READ_TOOL, 'read'],
-  [AGENT_LONG_TASK_PLAN_TOOL, 'write'],
-  [AGENT_LONG_TASK_STEP_TOOL, 'write'],
-  [AGENT_LONG_TASK_CONSTRAINT_TOOL, 'write'],
-]);
-
-export function resolveAgentLongTaskToolAccess(name: string): 'read' | 'write' | undefined {
-  return LONG_TASK_TOOL_ACCESS.get(name);
-}
+export {
+  AGENT_LONG_TASK_CONSTRAINT_TOOL,
+  AGENT_LONG_TASK_PLAN_TOOL,
+  AGENT_LONG_TASK_READ_TOOL,
+  AGENT_LONG_TASK_STEP_TOOL,
+  resolveAgentLongTaskToolAccess,
+} from './long-task-tool-contract';
 
 /**
  * Long-task writes mutate runtime orchestration metadata, not authored novel
@@ -72,6 +73,7 @@ const TARGET_KINDS = [
   'drift',
   'element',
   'storyline',
+  'category',
   'other',
 ] as const satisfies readonly AgentRuntimeTaskTargetKind[];
 
@@ -90,6 +92,8 @@ const targetSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+
+const workKindSchema = Type.Union([Type.Literal('edit'), Type.Literal('review')]);
 
 const stepSeedSchema = Type.Object(
   {
@@ -120,6 +124,7 @@ const updatePlanCommandSchema = Type.Union([
       operation: Type.Literal('create'),
       scopeKind: Type.Literal('explicit_targets'),
       objective: Type.String({ minLength: 1, maxLength: 4_000 }),
+      workKind: Type.Optional(workKindSchema),
       steps: Type.Array(stepSeedSchema, {
         minItems: 1,
         maxItems: 128,
@@ -137,6 +142,7 @@ const updatePlanCommandSchema = Type.Union([
       operation: Type.Literal('create'),
       scopeKind: Type.Literal('whole_book_chapters'),
       objective: Type.String({ minLength: 1, maxLength: 4_000 }),
+      workKind: Type.Optional(workKindSchema),
       constraints: Type.Optional(
         Type.Array(Type.String({ minLength: 1, maxLength: 2_000 }), {
           maxItems: 32,
@@ -163,6 +169,14 @@ const updatePlanCommandSchema = Type.Union([
       taskId: Type.String({ minLength: 1, maxLength: 240 }),
       expectedRevision: Type.Integer({ minimum: 0 }),
       objective: Type.String({ minLength: 1, maxLength: 4_000 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      operation: Type.Literal('reconcile_manifest'),
+      taskId: Type.String({ minLength: 1, maxLength: 240 }),
+      expectedRevision: Type.Integer({ minimum: 0 }),
     },
     { additionalProperties: false },
   ),
@@ -197,12 +211,14 @@ const updatePlanProviderSchema = Type.Object(
       Type.Literal('create'),
       Type.Literal('append_steps'),
       Type.Literal('set_objective'),
+      Type.Literal('reconcile_manifest'),
       Type.Literal('set_status'),
     ]),
     scopeKind: Type.Optional(
       Type.Union([Type.Literal('explicit_targets'), Type.Literal('whole_book_chapters')]),
     ),
     objective: Type.Optional(Type.String({ minLength: 1, maxLength: 4_000 })),
+    workKind: Type.Optional(workKindSchema),
     steps: Type.Optional(
       Type.Array(stepSeedSchema, {
         minItems: 1,
@@ -229,6 +245,66 @@ const updatePlanProviderSchema = Type.Object(
   { additionalProperties: false },
 );
 
+const citationSchema = Type.Object(
+  {
+    quote: Type.String({ minLength: 1, maxLength: 2_000 }),
+    block: Type.Optional(Type.Integer({ minimum: 1 })),
+    path: Type.Optional(Type.String({ maxLength: 1_000 })),
+  },
+  { additionalProperties: false },
+);
+
+const reviewResultSchema = Type.Object(
+  {
+    schemaVersion: Type.Literal(1),
+    verdict: Type.Union([Type.Literal('pass'), Type.Literal('findings'), Type.Literal('blocked')]),
+    synopsis: Type.String({ minLength: 1, maxLength: 8_000 }),
+    claims: Type.Array(
+      Type.Object(
+        {
+          kind: Type.Union([
+            Type.Literal('event'),
+            Type.Literal('character_state'),
+            Type.Literal('canon'),
+            Type.Literal('voice'),
+            Type.Literal('timeline'),
+            Type.Literal('unresolved'),
+          ]),
+          text: Type.String({ minLength: 1, maxLength: 4_000 }),
+          citations: Type.Array(citationSchema, { minItems: 1, maxItems: 16 }),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 128 },
+    ),
+    findings: Type.Array(
+      Type.Object(
+        {
+          kind: Type.Union([
+            Type.Literal('canon'),
+            Type.Literal('continuity'),
+            Type.Literal('voice'),
+            Type.Literal('pov'),
+            Type.Literal('pacing'),
+            Type.Literal('logic'),
+            Type.Literal('other'),
+          ]),
+          severity: Type.Union([
+            Type.Literal('info'),
+            Type.Literal('warning'),
+            Type.Literal('error'),
+          ]),
+          message: Type.String({ minLength: 1, maxLength: 4_000 }),
+          citations: Type.Array(citationSchema, { minItems: 1, maxItems: 16 }),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 128 },
+    ),
+  },
+  { additionalProperties: false },
+);
+
 const updateStepSchema = Type.Object(
   {
     taskId: Type.String({ minLength: 1, maxLength: 240 }),
@@ -239,6 +315,7 @@ const updateStepSchema = Type.Object(
     resultRef: Type.Optional(
       Type.Union([Type.String({ minLength: 1, maxLength: 500 }), Type.Null()]),
     ),
+    reviewResult: Type.Optional(Type.Union([reviewResultSchema, Type.Null()])),
   },
   { additionalProperties: false },
 );
@@ -306,6 +383,7 @@ type UpdatePlanInput =
       operation: 'create';
       scopeKind: 'explicit_targets';
       objective: string;
+      workKind?: 'edit' | 'review';
       steps: ProviderStepSeed[];
       constraints?: string[];
     }
@@ -313,6 +391,7 @@ type UpdatePlanInput =
       operation: 'create';
       scopeKind: 'whole_book_chapters';
       objective: string;
+      workKind?: 'edit' | 'review';
       constraints?: string[];
     }
   | {
@@ -326,6 +405,11 @@ type UpdatePlanInput =
       taskId: string;
       expectedRevision: number;
       objective: string;
+    }
+  | {
+      operation: 'reconcile_manifest';
+      taskId: string;
+      expectedRevision: number;
     }
   | {
       operation: 'set_status';
@@ -427,6 +511,7 @@ function progress(plan: AgentRuntimeTaskPlan) {
     blocked: 0,
     completed: 0,
     failed: 0,
+    retired: 0,
   };
   for (const step of plan.steps) {
     if (step.status === 'in_progress') counts.inProgress += 1;
@@ -439,12 +524,43 @@ function progress(plan: AgentRuntimeTaskPlan) {
 }
 
 function nextActionableStep(plan: AgentRuntimeTaskPlan) {
+  const reviewSettledBlocked = plan.steps.find(
+    (step) =>
+      step.status === 'blocked' &&
+      step.reviewEvidence !== null &&
+      step.reviewEvidence.outcome !== 'pending' &&
+      step.reviewEvidence.reviewStatus !== 'missing' &&
+      step.reviewEvidence.reviewStatus !== 'revert_started',
+  );
   return (
     plan.steps.find((step) => step.status === 'in_progress') ??
     plan.steps.find((step) => step.status === 'pending') ??
-    plan.steps.find((step) => step.status === 'blocked') ??
+    reviewSettledBlocked ??
     null
   );
+}
+
+function projectManifestStateForProvider(state: AgentRuntimeTaskChapterManifestState) {
+  return {
+    status: state.status,
+    frozenCount: state.frozenCount,
+    currentCount: state.currentCount,
+    added: state.added.map(({ ordinal, name }) => ({ ordinal, name })),
+    missing: state.missing.map(({ ordinal, name }) => ({ ordinal, name })),
+    renamed: state.renamed.map(({ frozenName, currentName }) => ({
+      frozenName,
+      currentName,
+    })),
+    reordered: state.reordered.map(({ name, frozenOrdinal, currentOrdinal }) => ({
+      name,
+      frozenOrdinal,
+      currentOrdinal,
+    })),
+    instruction:
+      state.status === 'drifted'
+        ? 'The book changed after this whole-book task was frozen. Call update_task_plan with operation=reconcile_manifest, taskId, and the current expectedRevision before claiming completion.'
+        : null,
+  };
 }
 
 /**
@@ -456,6 +572,7 @@ export function projectAgentLongTaskPlanForProvider(
   options: {
     offset?: number;
     limit?: number;
+    manifestState?: AgentRuntimeTaskChapterManifestState;
     resolveCurrentChapterName?: (input: AgentLongTaskCurrentChapterNameInput) => string | null;
   } = {},
 ) {
@@ -496,14 +613,17 @@ export function projectAgentLongTaskPlanForProvider(
       resultNote: step.resultNote,
       resultRef: step.resultRef,
       reviewEvidence: step.reviewEvidence,
+      reviewResult: step.reviewResult,
+      readEvidence: step.readEvidence,
     };
   });
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     task: {
       taskId: plan.task.id,
       objective: plan.task.objective,
       scopeKind: plan.task.scopeKind,
+      workKind: plan.task.workKind,
       status: plan.task.status,
       revision: plan.task.revision,
     },
@@ -514,6 +634,9 @@ export function projectAgentLongTaskPlanForProvider(
         ...projectChapterName(chapter.resolvedChapterId, chapter.name),
       })),
     },
+    chapterManifestState: options.manifestState
+      ? projectManifestStateForProvider(options.manifestState)
+      : null,
     progress: progress(plan),
     steps,
     activeConstraints: plan.constraints
@@ -570,7 +693,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_LONG_TASK_PLAN_TOOL,
         description:
-          'Task-level operations only: create, extend, rename, pause, block, fail, or complete the durable long-task plan. NEVER change an individual step with this tool; update_task_step is the only step-status tool. operation=create requires scopeKind and objective; explicit_targets also requires steps, while whole_book_chapters must omit steps so the runtime freezes canonical chapter order. append_steps requires taskId, expectedRevision, and steps. set_objective requires taskId, expectedRevision, and objective. set_status requires taskId, expectedRevision, and status. Never pass a chapter or drift UUID.',
+          'Task-level operations only: create, extend, rename, reconcile a changed whole-book chapter manifest, pause, block, fail, or complete the durable long-task plan. NEVER change an individual step with this tool; update_task_step is the only step-status tool. operation=create requires scopeKind, objective, and an explicit workKind: edit proves accepted writes; review proves exact source reads without manufacturing edits. explicit_targets also requires steps, while whole_book_chapters must omit steps so the runtime freezes canonical chapter order. append_steps requires taskId, expectedRevision, and steps. set_objective requires taskId, expectedRevision, and objective. reconcile_manifest requires taskId and expectedRevision and is mandatory when read_task_plan reports chapterManifestState.status=drifted. set_status requires taskId, expectedRevision, and status. Never pass a chapter or drift UUID.',
         inputSchema: updatePlanProviderSchema,
         access: 'write',
         validateInput: (input) => validation(updatePlanCommandSchema, input),
@@ -578,7 +701,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_LONG_TASK_STEP_TOOL,
         description:
-          'The only tool for changing an individual durable step status. Advance exactly one step with taskId, expectedRevision, stepId, status, and optional resultNote/resultRef; there is no set_step_status operation on update_task_plan. Only one step may be in_progress. If a write result says review.status=pending, the next task call MUST set this step to blocked with that review id in resultRef; never retry completed. Complete it only when the plan projects reviewEvidence.reviewStatus=accepted_effect and acceptedTargetEvidence=true.',
+          'The only tool for changing an individual durable step status. Advance exactly one step with taskId, expectedRevision, stepId, status; there is no set_step_status operation on update_task_plan. Only one step may be in_progress. For workKind=edit, copy writeRef from the successful write result into resultRef and complete only with accepted target evidence. For workKind=review, first read the exact target, then complete with structured reviewResult and omit resultRef: Drifting binds the verified read receipt itself. Every review claim/finding needs an exact source quote.',
         inputSchema: updateStepSchema,
         access: 'write',
         validateInput: (input) => validation(updateStepSchema, input),
@@ -611,6 +734,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
           longTask: {
             status: plan.task.status,
             scopeKind: plan.task.scopeKind,
+            workKind: plan.task.workKind,
             objective: plan.task.objective,
             ...(nextStep
               ? {
@@ -680,11 +804,13 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
             },
           };
         }
+        const manifestState = await this.repository.getChapterManifestState(scope, plan.task.id);
         return {
           ok: true,
           data: projectAgentLongTaskPlanForProvider(plan, {
             offset: input.offset ?? 0,
             limit: input.limit ?? 32,
+            manifestState,
             ...(this.resolveCurrentChapterName
               ? {
                   resolveCurrentChapterName: this.resolveCurrentChapterName,
@@ -708,6 +834,10 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
         },
         command,
       );
+      const manifestState = await this.repository.getChapterManifestState(
+        scope,
+        result.plan.task.id,
+      );
       // Do not observe abort after commit: the write is durable and must return
       // its committed result to the runtime scheduler.
       return {
@@ -715,6 +845,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
         data: {
           replayed: result.outcome === 'duplicate',
           ...projectAgentLongTaskPlanForProvider(result.plan, {
+            manifestState,
             ...(this.resolveCurrentChapterName
               ? {
                   resolveCurrentChapterName: this.resolveCurrentChapterName,
@@ -726,6 +857,9 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
             ? {
                 changedConstraintId: result.changedConstraintId,
               }
+            : {}),
+          ...(result.manifestReconciliation
+            ? { manifestReconciliation: result.manifestReconciliation }
             : {}),
         },
       };
@@ -822,9 +956,10 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
             operation: 'create',
             objective: input.objective.trim(),
             scopeKind: input.scopeKind,
+            workKind: input.workKind ?? 'edit',
             chapterManifest,
             steps: chapterManifest.map((chapter) => ({
-              title: `处理章节：${chapter.name}`,
+              title: `${(input.workKind ?? 'edit') === 'review' ? '检查' : '处理'}章节：${chapter.name}`,
               target: {
                 kind: 'chapter',
                 name: chapter.name,
@@ -842,6 +977,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
           operation: 'create',
           objective: input.objective.trim(),
           scopeKind: input.scopeKind,
+          workKind: input.workKind ?? 'edit',
           chapterManifest: [],
           steps: await this.resolveSteps(projectId, input.steps),
           constraints: (input.constraints ?? []).map((body) => ({
@@ -868,6 +1004,14 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
           objective: input.objective.trim(),
         };
       }
+      if (input.operation === 'reconcile_manifest') {
+        return {
+          toolName: AGENT_LONG_TASK_PLAN_TOOL,
+          operation: 'reconcile_manifest',
+          taskId: input.taskId,
+          expectedRevision: input.expectedRevision,
+        };
+      }
       return {
         toolName: AGENT_LONG_TASK_PLAN_TOOL,
         operation: 'set_status',
@@ -885,6 +1029,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
         status: AgentRuntimeTaskStepStatus;
         resultNote?: string | null;
         resultRef?: string | null;
+        reviewResult?: AgentRuntimeTaskStepReviewResult | null;
       };
       return {
         toolName: AGENT_LONG_TASK_STEP_TOOL,
@@ -894,6 +1039,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
         status: input.status,
         resultNote: typeof input.resultNote === 'string' ? input.resultNote.trim() : null,
         resultRef: typeof input.resultRef === 'string' ? input.resultRef.trim() : null,
+        reviewResult: input.reviewResult ?? null,
       };
     }
 

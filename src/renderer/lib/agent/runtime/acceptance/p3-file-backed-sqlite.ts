@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 
-import { createDatabaseClient, type DbExecutor } from '../../../db';
+import { createDatabaseClient, type DbClient } from '../../../db';
 import type {
   DatabaseCheckpointResult,
   DatabaseExecuteResult,
@@ -17,8 +17,9 @@ const DRIZZLE_DIRECTORY = new URL('../../../../../../drizzle/', import.meta.url)
 
 /**
  * Apply the product migrations that own Agent runtime/write receipts plus any
- * later Yjs runtime migration. The optional scan keeps this acceptance helper
- * compatible with a concurrently-added 0062 without coupling it to a filename.
+ * later Yjs/runtime migrations. The scan deliberately has no upper bound: a
+ * new Agent-owned table must enter the file-backed acceptance fixture in the
+ * same milestone instead of silently testing an older schema.
  */
 function runtimeMigrationSql(): string {
   return readdirSync(DRIZZLE_DIRECTORY)
@@ -27,8 +28,11 @@ function runtimeMigrationSql(): string {
       return (
         Number.isInteger(sequence) &&
         sequence >= 60 &&
-        sequence <= 69 &&
-        (name.includes('agent_runtime') || name.includes('yjs'))
+        (
+          name.includes('agent_runtime') ||
+          name.includes('agent_extension') ||
+          name.includes('yjs')
+        )
       );
     })
     .sort()
@@ -165,6 +169,12 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
   private activeTransaction: string | null = null;
   private nextTransactionId = 1;
   private migrationsApplied = 0;
+  private nextExecuteFault:
+    | {
+        matches: (sql: string, parameters: readonly unknown[]) => boolean;
+        error: Error;
+      }
+    | null = null;
 
   constructor(
     readonly databasePath: string,
@@ -244,7 +254,7 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
     `);
   }
 
-  client(): DbExecutor {
+  client(): DbClient {
     return createDatabaseClient(this);
   }
 
@@ -267,6 +277,11 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
     transactionId?: string,
   ): Promise<DatabaseExecuteResult> {
     this.assertTransaction(transactionId);
+    if (this.nextExecuteFault?.matches(sql, parameters)) {
+      const { error } = this.nextExecuteFault;
+      this.nextExecuteFault = null;
+      throw error;
+    }
     const result = this.database
       .prepare(sql)
       .run(...(parameters as SQLInputValue[]));
@@ -328,6 +343,14 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
 
   async close(): Promise<void> {
     this.database.close();
+  }
+
+  /** One-shot deterministic fault used only by headless transaction tests. */
+  failNextExecute(
+    matches: (sql: string, parameters: readonly unknown[]) => boolean,
+    message = 'injected acceptance execute failure',
+  ): void {
+    this.nextExecuteFault = { matches, error: new Error(message) };
   }
 
   private assertTransaction(transactionId?: string): void {

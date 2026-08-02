@@ -27,6 +27,25 @@ function isSettledReviewStatus(status: string): boolean {
   return SETTLED_REVIEW_STATUSES.has(status);
 }
 
+function blockReviewDecisionCounts(
+  note: unknown,
+): { accepted: number; reverted: number } | null {
+  if (!note || typeof note !== 'object' || Array.isArray(note)) return null;
+  const record = note as Record<string, unknown>;
+  if (record.kind !== 'block_review' || record.schemaVersion !== 1) return null;
+  if (!Array.isArray(record.decisions)) return null;
+  let accepted = 0;
+  let reverted = 0;
+  for (const item of record.decisions) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    const decision = (item as Record<string, unknown>).decision;
+    if (decision === 'accepted') accepted += 1;
+    else if (decision === 'reverted') reverted += 1;
+    else return null;
+  }
+  return accepted + reverted > 0 ? { accepted, reverted } : null;
+}
+
 function writeCoverage(
   effect: {
     callId?: string;
@@ -92,7 +111,19 @@ export async function buildAgentWriteReviewFeedback(
     const prefix = `- ${effect.toolName}(${args})`;
     switch (review.status) {
       case 'accepted_effect':
-        return [`${prefix} 已被用户接受，继续把该结果视为当前事实。`];
+        {
+          const blockDecisions = blockReviewDecisionCounts(review.decisionNote);
+          if (blockDecisions?.reverted) {
+            return [
+              `${prefix} 已逐段审阅：接受 ${blockDecisions.accepted} 处、还原 ${blockDecisions.reverted} 处；以当前正文为准，继续编辑前先重新读取。`,
+            ];
+          }
+        }
+        return [
+          review.decisionNote === 'auto mode'
+            ? `${prefix} 已按自动编辑模式完成，继续把该结果视为当前事实。`
+            : `${prefix} 已被用户接受，继续把该结果视为当前事实。`,
+        ];
       case 'reverted':
         return [`${prefix} 已被用户拒绝并精确撤销，不要假设该改动仍然存在。`];
       case 'revert_failed':

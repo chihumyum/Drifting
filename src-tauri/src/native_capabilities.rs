@@ -1407,6 +1407,58 @@ fn http_client_builder() -> ClientBuilder {
         )
 }
 
+/// Native HTTP client for an explicitly author-configured MCP endpoint.
+///
+/// Hosted servers must use HTTPS and pass the same DNS rebinding/private-IP
+/// checks as URL metadata. Loopback HTTP is allowed for a local author-owned
+/// server. Redirects and environment proxies are always disabled so authority
+/// cannot silently move to another origin.
+pub(crate) fn mcp_http_client(value: &str, timeout: Duration) -> Result<(Client, Url), String> {
+    if value.is_empty() || value.len() > URL_LIMIT {
+        return Err("MCP HTTP URL is invalid".into());
+    }
+    let url = Url::parse(value).map_err(|_| "MCP HTTP URL is invalid".to_string())?;
+    if url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.fragment().is_some()
+    {
+        return Err("MCP HTTP URL is invalid".into());
+    }
+    let host = url
+        .host_str()
+        .expect("host presence checked above")
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    let loopback = host == "localhost"
+        || host
+            .parse::<IpAddr>()
+            .is_ok_and(|address| address.is_loopback());
+    let builder = if loopback {
+        if !matches!(url.scheme(), "http" | "https") {
+            return Err("MCP loopback URL must use HTTP or HTTPS".into());
+        }
+        Client::builder()
+            .connect_timeout(HTTP_CONNECT_TIMEOUT)
+            .no_proxy()
+            .referer(false)
+            .redirect(Policy::none())
+    } else {
+        if url.scheme() != "https" {
+            return Err("Hosted MCP HTTP URL must use HTTPS".into());
+        }
+        validate_http_url_target(&url).map_err(|_| "MCP HTTP destination is not allowed")?;
+        http_client_builder().redirect(Policy::none())
+    };
+    let client = builder
+        .timeout(timeout)
+        .build()
+        .map_err(|_| "MCP HTTP client could not be initialized".to_string())?;
+    Ok((client, url))
+}
+
 fn url_metadata_http_client() -> Result<Client, String> {
     http_client_builder()
         .timeout(URL_METADATA_TOTAL_TIMEOUT)

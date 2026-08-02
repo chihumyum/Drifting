@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -61,7 +62,7 @@ describe('certified entity write runtime', () => {
     await fixture.close();
   });
 
-  it('commits all four domain writes with one outbox and typed receipt each, then applies guarded exact inverses', async () => {
+  it('commits all four domain writes with one outbox and typed receipt each without post-write reviews', async () => {
     const elementToken = await fixture.persistRead(
       'read-element',
       'read_element',
@@ -135,10 +136,12 @@ describe('certified entity write runtime', () => {
       },
     );
 
-    expect(element.ok && element.review.status).toBe('pending');
-    expect(storyline.ok && storyline.review.status).toBe('pending');
-    expect(project.ok && project.review.status).toBe('pending');
-    expect(comment.ok && comment.review.status).toBe('pending');
+    for (const result of [element, storyline, project, comment]) {
+      expect(result).toMatchObject({
+        ok: true,
+        authorization: { kind: 'automatic' },
+      });
+    }
     expect(
       (await fixture.element()).summary,
     ).toBe('Agent 新简介');
@@ -161,28 +164,12 @@ describe('certified entity write runtime', () => {
       4,
     );
 
-    for (const result of [comment, project, storyline, element]) {
-      if (!result.ok) throw new Error(result.error);
-      const rejected = await fixture
-        .runtime()
-        .rejectReview(result.review.id);
-      if (rejected.review.status !== 'reverted') {
-        throw new Error(JSON.stringify(rejected.review));
-      }
-    }
-
-    expect((await fixture.comments())).toHaveLength(0);
-    expect((await fixture.project()).kvJson).toBe('[]');
-    expect((await fixture.storyline()).summary).toBe('旧梗概');
-    expect((await fixture.element()).summary).toBe('旧简介');
     expect(
       fixture.scalar(
         "SELECT count(*) FROM agent_runtime_entity_write_receipt WHERE direction = 'inverse'",
       ),
-    ).toBe(4);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(
-      8,
-    );
+    ).toBe(0);
+    expect(fixture.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(0);
   });
 
   it('reconciles a post-commit process death from the immutable receipt without duplicating a comment or outbox row', async () => {
@@ -235,7 +222,8 @@ describe('certified entity write runtime', () => {
     expect(recovered).toMatchObject({
       ok: true,
       data: {
-        review: { status: 'pending' },
+        writeRef: `agent-write:${request.idempotencyKey}`,
+        authorization: { kind: 'automatic' },
         result: { ok: true },
       },
     });
@@ -356,7 +344,7 @@ describe('certified entity write runtime', () => {
     );
   });
 
-  it('guards inverse by both revision and postimage hash, and revalidates comment targets inside the mutation transaction', async () => {
+  it('keeps hard-authorized writes final and revalidates comment targets inside the mutation transaction', async () => {
     const elementToken = await fixture.persistRead(
       'read-hash',
       'read_element',
@@ -379,11 +367,8 @@ describe('certified entity write runtime', () => {
         "UPDATE element SET summary = '同 revision 篡改' WHERE id = 'element-1'",
       )
       .run();
-    const conflict = await fixture
-      .runtime()
-      .rejectReview(written.review.id);
-    expect(conflict.review.status).toBe('revert_failed');
     expect((await fixture.element()).summary).toBe('同 revision 篡改');
+    expect(fixture.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(0);
 
     const project = await fixture.project();
     const commentToken = await fixture.persistRead(
@@ -655,16 +640,24 @@ class EntityWriteFixture {
     arguments_: Record<string, unknown>,
   ): Promise<
     | { ok: false; error: string }
-    | { ok: true; review: { id: string; status: string } }
+    | {
+        ok: true;
+        writeRef: string;
+        authorization: { kind: 'automatic' | 'author_approved' };
+      }
   > {
     const request = this.writeRequest(callId, name, arguments_);
     this.seedToolCall(request);
     const result = await this.runtime().execute(request);
     if (!result.ok) return result;
+    const data = result.data as {
+      writeRef: string;
+      authorization: { kind: 'automatic' | 'author_approved' };
+    };
     return {
       ok: true,
-      review: (result.data as { review: { id: string; status: string } })
-        .review,
+      writeRef: data.writeRef,
+      authorization: data.authorization,
     };
   }
 
@@ -728,6 +721,7 @@ class EntityWriteFixture {
       name,
       arguments: arguments_,
       access: 'write',
+      authorization: automaticAuthorization(arguments_),
       context: runtimeContext(),
       control: {
         requestUserInput: async () => {
@@ -872,6 +866,16 @@ function runtimeContext(): AgentRuntimeContext {
 
 function runtimeToolCallId(request: AgentToolExecutionRequest): string {
   return `agent-tool:${request.sessionId}:${request.turnId}:${request.callId}`;
+}
+
+function automaticAuthorization(arguments_: Record<string, unknown>) {
+  return {
+    kind: 'automatic' as const,
+    requestId: null,
+    argumentsHash: `sha256:${createHash('sha256')
+      .update(canonicalAgentRuntimeJson(arguments_))
+      .digest('hex')}`,
+  };
 }
 
 function observationId(

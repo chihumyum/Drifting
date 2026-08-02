@@ -2,15 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   AgentRuntimeWriteEffectTransition,
   AgentRuntimeWriteReviewTransition,
+  AgentRuntimeWriteReviewBlockTransition,
   ClaimAgentRuntimeWriteEffect,
   CreateAgentRuntimeWriteReview,
   PersistedAgentRuntimeWriteEffect,
   PersistedAgentRuntimeWriteReview,
+  PersistedAgentRuntimeWriteReviewBlock,
 } from '../../../domain/agent-runtime-write-effect';
 import type { AgentRuntimeWriteEffectRepository } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
 import { useDataStore } from '../../../store/data-store';
 import type { AgentToolContext, AgentWriteApi } from '../tool-handlers';
 import type { DriftingWriteStrategy } from './drifting-write-strategies';
+import { hashAgentPermissionArguments } from './control-plane';
 import { DriftingWriteToolRuntime } from './drifting-write-tool-runtime';
 import type { AgentToolExecutionRequest, AgentToolRuntime } from './types';
 
@@ -44,7 +47,7 @@ afterEach(() => {
 });
 
 describe('DriftingWriteToolRuntime', () => {
-  it('exposes only certified writes, persists one effect, and replays duplicates without mutation', async () => {
+  it('persists one authorized effect and replays duplicates without mutation or post-write review', async () => {
     const repository = memoryRepository();
     const renameNode = vi.fn(async (id: string, title: string) => {
       updateNode(id, { title });
@@ -57,6 +60,8 @@ describe('DriftingWriteToolRuntime', () => {
         .map((definition) => definition.name),
     ).toEqual([
       'edit_file',
+      'write_file',
+      'delete_file',
       'update_element',
       'rename_node',
       'set_node_summary',
@@ -70,10 +75,11 @@ describe('DriftingWriteToolRuntime', () => {
       'update_project_facts',
       'create_element_patch',
       'update_element_patch',
+      'delete_element_patch',
       'create_comment',
     ]);
 
-    const input = request('rename_node', {
+    const input = await authorizedRequest('rename_node', {
       node: 'Chapter One',
       title: 'Opening',
     });
@@ -82,7 +88,8 @@ describe('DriftingWriteToolRuntime', () => {
       ok: true,
       data: {
         effectId: `agent-write:${input.idempotencyKey}`,
-        review: { status: 'pending' },
+        writeRef: `agent-write:${input.idempotencyKey}`,
+        authorization: { kind: 'automatic' },
       },
     });
     expect(node().title).toBe('Opening');
@@ -93,172 +100,78 @@ describe('DriftingWriteToolRuntime', () => {
       phase: 'result_committed',
       preimage: { field: 'title', value: 'Chapter One' },
       reversibility: 'exact',
+      authorization: {
+        kind: 'automatic',
+        requestId: null,
+        argumentsHash: input.authorization?.argumentsHash,
+      },
     });
-    expect(repository.reviews()).toHaveLength(1);
+    expect(repository.reviews()).toHaveLength(0);
 
     const replay = await runtime.execute(input);
     expect(replay).toEqual(first);
     expect(renameNode).toHaveBeenCalledOnce();
   });
 
-  it('rejects a soft review through the same usecase and stores the exact inverse receipt', async () => {
+  it('persists provenance for an author-approved write', async () => {
     const repository = memoryRepository();
     const renameNode = vi.fn(async (id: string, title: string) => {
       updateNode(id, { title });
     });
     const runtime = createRuntime(repository, { renameNode });
-    const input = request('rename_node', {
+    const input = await authorizedRequest(
+      'rename_node',
+      {
+      node: 'Chapter One',
+      title: 'Opening',
+      },
+      'author_approved',
+    );
+
+    await expect(runtime.execute(input)).resolves.toMatchObject({
+      ok: true,
+      data: { authorization: { kind: 'author_approved' } },
+    });
+    expect(repository.effect(`agent-write:${input.idempotencyKey}`)).toMatchObject({
+      authorization: {
+        kind: 'author_approved',
+        requestId: 'turn-1:call-rename_node:permission',
+        argumentsHash: input.authorization?.argumentsHash,
+      },
+    });
+    expect(repository.reviews()).toEqual([]);
+    expect(renameNode).toHaveBeenCalledOnce();
+  });
+
+  it('rejects missing or argument-mismatched authorization before claiming an effect', async () => {
+    const repository = memoryRepository();
+    const renameNode = vi.fn(async (id: string, title: string) => {
+      updateNode(id, { title });
+    });
+    const runtime = createRuntime(repository, { renameNode });
+    const missing = request('rename_node', {
       node: 'Chapter One',
       title: 'Opening',
     });
-    const result = await runtime.execute(input);
-    if (!result.ok) throw new Error(result.error);
-    const reviewId = (result.data as { review: { id: string } }).review.id;
+    const mismatched = {
+      ...(await authorizedRequest('rename_node', missing.arguments)),
+      authorization: {
+        kind: 'automatic' as const,
+        requestId: null,
+        argumentsHash: `sha256:${'0'.repeat(64)}`,
+      },
+    };
 
-    const decision = await runtime.rejectReview(reviewId, {
-      reason: 'author rejected',
+    await expect(runtime.execute(missing)).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('pre-execution authorization'),
     });
-
-    expect(decision.review.status).toBe('reverted');
-    expect(decision.review.revertEffect).toMatchObject({
-      field: 'title',
-      value: 'Chapter One',
+    await expect(runtime.execute(mismatched)).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('approved write arguments changed'),
     });
-    expect(node().title).toBe('Chapter One');
-    expect(renameNode).toHaveBeenCalledTimes(2);
-  });
-
-  it('does not overwrite a newer manual edit during review rejection', async () => {
-    const repository = memoryRepository();
-    const updateNodeUsecase = vi.fn(async (id: string, updates: { summary?: string }) => {
-      updateNode(id, updates);
-    });
-    const runtime = createRuntime(repository, {
-      updateNode: updateNodeUsecase,
-    });
-    const result = await runtime.execute(
-      request('set_node_summary', {
-        node: 'Chapter One',
-        summary: 'Agent summary',
-      }),
-    );
-    if (!result.ok) throw new Error(result.error);
-    updateNode('node-1', { summary: 'Newer author summary' });
-
-    const reviewId = (result.data as { review: { id: string } }).review.id;
-    const decision = await runtime.rejectReview(reviewId);
-
-    expect(decision.review.status).toBe('revert_failed');
-    expect(node().summary).toBe('Newer author summary');
-    expect(updateNodeUsecase).toHaveBeenCalledOnce();
-
-    // A receipt-backed failure can be retried after the target is restored to
-    // the Agent postimage. The retry must reuse the same durable review.
-    updateNode('node-1', { summary: 'Agent summary' });
-    const retried = await runtime.rejectReview(reviewId);
-    expect(retried.review).toMatchObject({
-      status: 'reverted',
-      errorCode: null,
-      errorMessage: null,
-    });
-    expect(node().summary).toBe('Before');
-    expect(updateNodeUsecase).toHaveBeenCalledTimes(2);
-  });
-
-  it('settles durable accepted/rejected decisions after restart and never replays an ambiguous entered inverse', async () => {
-    const acceptedRepository = memoryRepository();
-    const acceptedRuntime = createRuntime(acceptedRepository, {});
-    const acceptedResult = await acceptedRuntime.execute(
-      request('rename_node', {
-        node: 'Chapter One',
-        title: 'Accepted title',
-      }),
-    );
-    if (!acceptedResult.ok) {
-      throw new Error(acceptedResult.error);
-    }
-    const acceptedReviewId = (acceptedResult.data as { review: { id: string } }).review.id;
-    await acceptedRepository.api.transitionReview({
-      reviewId: acceptedReviewId,
-      expectedStatus: 'pending',
-      nextStatus: 'accepted',
-      decisionNote: 'author accepted before crash',
-      at: iso(20),
-    });
-    await acceptedRuntime.reconcileInterruptedWrites('session-1');
-    expect(acceptedRepository.reviews()[0]).toMatchObject({
-      status: 'accepted_effect',
-      decisionNote: 'author accepted before crash',
-    });
-
-    updateNode('node-1', { title: 'Chapter One' });
-    const rejectedRepository = memoryRepository();
-    const rejectedRename = vi.fn(async (id: string, title: string) => {
-      updateNode(id, { title });
-    });
-    const rejectedRuntime = createRuntime(rejectedRepository, { renameNode: rejectedRename });
-    const rejectedResult = await rejectedRuntime.execute(
-      request('rename_node', {
-        node: 'Chapter One',
-        title: 'Rejected title',
-      }),
-    );
-    if (!rejectedResult.ok) {
-      throw new Error(rejectedResult.error);
-    }
-    const rejectedReviewId = (rejectedResult.data as { review: { id: string } }).review.id;
-    await rejectedRepository.api.transitionReview({
-      reviewId: rejectedReviewId,
-      expectedStatus: 'pending',
-      nextStatus: 'rejected',
-      decisionNote: 'author rejected before crash',
-      at: iso(21),
-    });
-    await rejectedRuntime.reconcileInterruptedWrites('session-1');
-    expect(rejectedRepository.reviews()[0]).toMatchObject({
-      status: 'reverted',
-      decisionNote: 'author rejected before crash',
-    });
-    expect(node().title).toBe('Chapter One');
-    expect(rejectedRename).toHaveBeenCalledTimes(2);
-
-    const enteredRepository = memoryRepository();
-    const enteredRename = vi.fn(async (id: string, title: string) => {
-      updateNode(id, { title });
-    });
-    const enteredRuntime = createRuntime(enteredRepository, { renameNode: enteredRename });
-    const enteredResult = await enteredRuntime.execute(
-      request('rename_node', {
-        node: 'Chapter One',
-        title: 'Ambiguous inverse',
-      }),
-    );
-    if (!enteredResult.ok) {
-      throw new Error(enteredResult.error);
-    }
-    const enteredReviewId = (enteredResult.data as { review: { id: string } }).review.id;
-    await enteredRepository.api.transitionReview({
-      reviewId: enteredReviewId,
-      expectedStatus: 'pending',
-      nextStatus: 'rejected',
-      at: iso(22),
-    });
-    await enteredRepository.api.transitionReview({
-      reviewId: enteredReviewId,
-      expectedStatus: 'rejected',
-      nextStatus: 'revert_started',
-      at: iso(23),
-    });
-    await enteredRuntime.reconcileInterruptedWrites('session-1');
-    expect(enteredRepository.reviews()[0]).toMatchObject({
-      status: 'revert_failed',
-      errorCode: 'WRITE_REVERT_INTERRUPTED',
-    });
-    expect(enteredRename).toHaveBeenCalledOnce();
-    expect(node().title).toBe('Ambiguous inverse');
-    const interruptedRetry = await enteredRuntime.rejectReview(enteredReviewId);
-    expect(interruptedRetry.review.status).toBe('revert_failed');
-    expect(enteredRename).toHaveBeenCalledOnce();
+    expect(repository.allEffects()).toEqual([]);
+    expect(renameNode).not.toHaveBeenCalled();
   });
 
   it('marks an entered write uncertain and never dispatches it again', async () => {
@@ -269,7 +182,7 @@ describe('DriftingWriteToolRuntime', () => {
       updateNode('node-1', { title: 'Maybe committed' });
       throw new Error('process boundary lost');
     });
-    const input = request('rename_node', {
+    const input = await authorizedRequest('rename_node', {
       node: 'Chapter One',
       title: 'Maybe committed',
     });
@@ -287,45 +200,97 @@ describe('DriftingWriteToolRuntime', () => {
     expect(dispatches).toBe(1);
   });
 
-  it('reconciles a review after result commit without replaying the mutation', async () => {
+  it('does not touch the legacy review repository for newly authorized writes', async () => {
     const repository = memoryRepository();
-    const createReview = repository.api.createReview.bind(repository.api);
-    let failReviewInsert = true;
-    repository.api.createReview = async (input) => {
-      if (failReviewInsert) {
-        failReviewInsert = false;
-        throw new Error('review insert boundary lost');
-      }
-      return createReview(input);
-    };
+    repository.api.createReview = vi.fn(async () => {
+      throw new Error('legacy review repository must not be called');
+    });
     const renameNode = vi.fn(async (id: string, title: string) => {
       updateNode(id, { title });
     });
     const runtime = createRuntime(repository, { renameNode });
-    const input = request('rename_node', {
+    const input = await authorizedRequest('rename_node', {
       node: 'Chapter One',
       title: 'Opening',
     });
 
-    await expect(runtime.execute(input)).resolves.toEqual({
-      ok: false,
-      error: 'review insert boundary lost',
-    });
+    await expect(runtime.execute(input)).resolves.toMatchObject({ ok: true });
     expect(repository.effect(`agent-write:${input.idempotencyKey}`).phase).toBe('result_committed');
     expect(repository.reviews()).toHaveLength(0);
     expect(renameNode).toHaveBeenCalledOnce();
+    expect(repository.api.createReview).not.toHaveBeenCalled();
+  });
+
+  it('recovers a missing approve-mode review before rebuilding editor UI', async () => {
+    const repository = memoryRepository();
+    const createReview = repository.api.createReview.bind(repository.api);
+    let failReviewCreation = true;
+    repository.api.createReview = vi.fn(async (input) => {
+      if (failReviewCreation) {
+        failReviewCreation = false;
+        throw new Error('review storage unavailable');
+      }
+      return createReview(input);
+    });
+    const projectReview = vi.fn(async () => undefined);
+    const strategy: DriftingWriteStrategy = {
+      prepare: async (writeRequest) => {
+        const effectId = `agent-write:${writeRequest.idempotencyKey}`;
+        const payload = {
+          kind: 'yjs_prose' as const,
+          reviewSnapshot: {
+            effectId,
+            reviewId: `agent-review:${effectId}`,
+            mode: 'approve' as const,
+          },
+        };
+        return {
+          observedRevision: null,
+          preimage: { stateHash: 'before' },
+          forward: payload,
+          inverse: payload,
+          reversibility: 'exact',
+        };
+      },
+      applyForward: async () => ({ ok: true, revision: 'yjs:1' }),
+      captureEffect: async (_request, _context, result) => ({
+        kind: 'yjs_prose',
+        handlerResult: result,
+      }),
+      projectReview,
+      applyInverse: async () => ({ ok: true }),
+    };
+    const runtime = createRuntime(repository, {}, undefined, () => strategy);
+    const input = await authorizedRequest('edit_block', {
+      entity: 'Chapter One',
+      block: 1,
+      text: 'Changed',
+    });
+    const effectId = `agent-write:${input.idempotencyKey}`;
+    const reviewId = `agent-review:${effectId}`;
 
     await expect(runtime.execute(input)).resolves.toMatchObject({
-      ok: true,
-      data: {
-        review: {
-          id: `agent-review:agent-write:${input.idempotencyKey}`,
-          status: 'pending',
-        },
-      },
+      ok: false,
+      error: 'review storage unavailable',
     });
-    expect(repository.reviews()).toHaveLength(1);
-    expect(renameNode).toHaveBeenCalledOnce();
+    expect(repository.effect(effectId).phase).toBe('result_committed');
+    expect(repository.reviews()).toEqual([]);
+    expect(projectReview).not.toHaveBeenCalled();
+
+    await expect(runtime.reconcileInterruptedWrites('session-1')).resolves.toEqual({
+      inspected: 0,
+      reconciled: 0,
+      unresolved: 0,
+      issues: [],
+    });
+    expect(repository.reviews()).toEqual([
+      expect.objectContaining({
+        id: reviewId,
+        effectId,
+        status: 'pending',
+      }),
+    ]);
+    expect(projectReview).toHaveBeenCalledOnce();
   });
 
   it('reconciles an entered prose write from its durable receipt without replaying mutation', async () => {
@@ -373,14 +338,8 @@ describe('DriftingWriteToolRuntime', () => {
       },
       applyInverse: async () => ({ ok: true }),
     };
-    const runtime = createRuntime(
-      repository,
-      {},
-      undefined,
-      () => strategy,
-      () => true,
-    );
-    const input = request('edit_block', {
+    const runtime = createRuntime(repository, {}, undefined, () => strategy);
+    const input = await authorizedRequest('edit_block', {
       entity: 'Chapter One',
       block: 1,
       text: 'Changed',
@@ -400,48 +359,168 @@ describe('DriftingWriteToolRuntime', () => {
           stateHash: 'after',
           revision: 'yjs:1',
         },
-        review: { status: 'accepted_effect' },
+        writeRef: `agent-write:${input.idempotencyKey}`,
+        authorization: { kind: 'automatic' },
       },
     });
     expect(repository.effect(`agent-write:${input.idempotencyKey}`).phase).toBe('result_committed');
     expect(forwardCalls).toBe(1);
     expect(reconcileCalls).toBe(1);
-    expect(repository.reviews()).toEqual([expect.objectContaining({ status: 'accepted_effect' })]);
+    expect(repository.reviews()).toEqual([]);
   });
 
-  it('canonically settles an auto-mode soft review after creating it', async () => {
+  it('settles prose review blocks durably and retries an entered block inverse during project hydration', async () => {
     const repository = memoryRepository();
-    const renameNode = vi.fn(async (id: string, title: string) => {
-      updateNode(id, { title });
+    const applyReviewBlockInverse = vi.fn(
+      async (_effect, blockId: string) => ({ restoredBlock: blockId }),
+    );
+    const projectReview = vi.fn(async () => undefined);
+    const strategy: DriftingWriteStrategy = {
+      prepare: async (writeRequest) => {
+        const effectId = `agent-write:${writeRequest.idempotencyKey}`;
+        const payload = {
+          kind: 'yjs_prose' as const,
+          reviewSnapshot: {
+            effectId,
+            reviewId: `agent-review:${effectId}`,
+            mode: 'approve' as const,
+          },
+        };
+        return {
+          observedRevision: null,
+          preimage: { stateHash: 'before' },
+          forward: payload,
+          inverse: payload,
+          reversibility: 'exact',
+        };
+      },
+      applyForward: async () => ({ ok: true, revision: 'yjs:1' }),
+      captureEffect: async (_request, _context, result) => ({
+        kind: 'yjs_prose',
+        handlerResult: result,
+      }),
+      reviewBlocks: async () => [
+        { blockId: 'paragraph-a', ordinal: 0 },
+        { blockId: 'paragraph-b', ordinal: 1 },
+      ],
+      applyReviewBlockInverse,
+      projectReview,
+      applyInverse: async () => ({ ok: true }),
+    };
+    const runtime = createRuntime(repository, {}, undefined, () => strategy);
+    const input = await authorizedRequest('edit_block', {
+      entity: 'Chapter One',
+      block: 1,
+      text: 'Changed',
     });
-    const runtime = createRuntime(repository, { renameNode }, undefined, undefined, () => true);
-    const input = request('rename_node', {
-      node: 'Chapter One',
-      title: 'Auto accepted',
-    });
+    const effectId = `agent-write:${input.idempotencyKey}`;
+    const reviewId = `agent-review:${effectId}`;
 
     await expect(runtime.execute(input)).resolves.toMatchObject({
       ok: true,
-      data: {
-        effectId: `agent-write:${input.idempotencyKey}`,
-        review: { status: 'accepted_effect' },
-      },
+      presentation: { review: { id: reviewId, status: 'pending' } },
     });
-    expect(repository.reviews()).toEqual([
-      expect.objectContaining({
-        id: `agent-review:agent-write:${input.idempotencyKey}`,
-        status: 'accepted_effect',
-        decisionNote: 'auto mode',
-      }),
+    expect(repository.reviewBlocks(reviewId)).toMatchObject([
+      { blockId: 'paragraph-a', status: 'pending' },
+      { blockId: 'paragraph-b', status: 'pending' },
     ]);
 
-    await expect(runtime.execute(input)).resolves.toMatchObject({
-      ok: true,
-      data: { review: { status: 'accepted_effect' } },
+    await repository.api.transitionReviewBlock({
+      reviewId,
+      blockId: 'paragraph-b',
+      expectedStatus: 'pending',
+      nextStatus: 'revert_started',
+      decisionNote: 'reject after restart',
+      at: iso(20),
     });
-    expect(repository.reviews()).toHaveLength(1);
-    expect(repository.reviews()[0]?.status).toBe('accepted_effect');
-    expect(renameNode).toHaveBeenCalledOnce();
+    await expect(runtime.reconcileProjectReviews('project-1')).resolves.toEqual({
+      projected: 1,
+      unresolved: 0,
+    });
+    expect(applyReviewBlockInverse).toHaveBeenCalledOnce();
+    expect(repository.reviewBlocks(reviewId)).toMatchObject([
+      { blockId: 'paragraph-a', status: 'pending' },
+      { blockId: 'paragraph-b', status: 'reverted' },
+    ]);
+    expect(projectReview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: effectId }),
+      expect.objectContaining({ projectId: 'project-1' }),
+      { 'paragraph-b': 'reverted' },
+    );
+
+    const settled = await runtime.acceptReviewBlock(
+      reviewId,
+      'paragraph-a',
+      'accept remaining block',
+    );
+    expect(settled).toMatchObject({
+      review: { status: 'accepted_effect' },
+      block: { status: 'accepted' },
+    });
+    expect(repository.reviews()[0]).toMatchObject({
+      status: 'accepted_effect',
+      decisionNote: {
+        kind: 'block_review',
+        decisions: [
+          { blockId: 'paragraph-a', decision: 'accepted' },
+          { blockId: 'paragraph-b', decision: 'reverted' },
+        ],
+      },
+    });
+  });
+
+  it('backfills ordered blocks for a pending pre-0071 prose review', async () => {
+    const repository = memoryRepository();
+    let exposeBlocks = false;
+    const projectReview = vi.fn(async () => undefined);
+    const strategy: DriftingWriteStrategy = {
+      prepare: async (writeRequest) => {
+        const effectId = `agent-write:${writeRequest.idempotencyKey}`;
+        const payload = {
+          kind: 'yjs_prose' as const,
+          reviewSnapshot: {
+            effectId,
+            reviewId: `agent-review:${effectId}`,
+            mode: 'approve' as const,
+          },
+        };
+        return {
+          observedRevision: null,
+          preimage: { stateHash: 'before' },
+          forward: payload,
+          inverse: payload,
+          reversibility: 'exact',
+        };
+      },
+      applyForward: async () => ({ ok: true, revision: 'yjs:1' }),
+      captureEffect: async (_request, _context, result) => ({
+        kind: 'yjs_prose',
+        handlerResult: result,
+      }),
+      reviewBlocks: async () =>
+        exposeBlocks ? [{ blockId: 'legacy-paragraph', ordinal: 0 }] : [],
+      applyReviewBlockInverse: async () => ({ restored: true }),
+      projectReview,
+      applyInverse: async () => ({ ok: true }),
+    };
+    const runtime = createRuntime(repository, {}, undefined, () => strategy);
+    const input = await authorizedRequest('edit_block', {
+      entity: 'Chapter One',
+      block: 1,
+      text: 'Changed',
+    });
+    const reviewId = `agent-review:agent-write:${input.idempotencyKey}`;
+    await runtime.execute(input);
+    expect(repository.reviewBlocks(reviewId)).toEqual([]);
+
+    exposeBlocks = true;
+    await expect(runtime.reconcileProjectReviews('project-1')).resolves.toEqual({
+      projected: 1,
+      unresolved: 0,
+    });
+    expect(repository.reviewBlocks(reviewId)).toMatchObject([
+      { blockId: 'legacy-paragraph', ordinal: 0, status: 'pending' },
+    ]);
   });
 
   it('fails closed on an unavailable write before claiming an effect', async () => {
@@ -466,7 +545,6 @@ function createRuntime(
     context: AgentToolContext,
   ) => Promise<unknown>,
   resolveStrategy?: (name: string) => DriftingWriteStrategy | undefined,
-  autoAcceptReview?: (effect: PersistedAgentRuntimeWriteEffect) => boolean,
 ): DriftingWriteToolRuntime {
   const write = {
     renameNode: async (id: string, title: string) => {
@@ -490,7 +568,6 @@ function createRuntime(
     now: incrementingClock(),
     ...(dispatch ? { dispatch } : {}),
     ...(resolveStrategy ? { resolveStrategy } : {}),
-    ...(autoAcceptReview ? { autoAcceptReview } : {}),
   });
 }
 
@@ -519,9 +596,26 @@ function request(name: string, arguments_: Record<string, unknown>): AgentToolEx
   };
 }
 
+async function authorizedRequest(
+  name: string,
+  arguments_: Record<string, unknown>,
+  kind: 'automatic' | 'author_approved' = 'automatic',
+): Promise<AgentToolExecutionRequest> {
+  const base = request(name, arguments_);
+  return {
+    ...base,
+    authorization: {
+      kind,
+      requestId: kind === 'author_approved' ? `${base.turnId}:${base.callId}:permission` : null,
+      argumentsHash: await hashAgentPermissionArguments(arguments_),
+    },
+  };
+}
+
 function memoryRepository() {
   const effects = new Map<string, PersistedAgentRuntimeWriteEffect>();
   const reviews = new Map<string, PersistedAgentRuntimeWriteReview>();
+  const reviewBlocks = new Map<string, PersistedAgentRuntimeWriteReviewBlock>();
 
   const api: AgentRuntimeWriteEffectRepository = {
     async claimEffect(claim: ClaimAgentRuntimeWriteEffect) {
@@ -568,7 +662,36 @@ function memoryRepository() {
     },
     async createReview(input: CreateAgentRuntimeWriteReview) {
       const existing = reviews.get(input.id);
-      if (existing) return { outcome: 'duplicate' as const, review: existing };
+      if (existing) {
+        const existingBlocks = [...reviewBlocks.values()].filter(
+          (block) => block.reviewId === input.id,
+        );
+        if (
+          existing.status === 'pending' &&
+          existingBlocks.length === 0 &&
+          (input.blocks?.length ?? 0) > 0
+        ) {
+          for (const block of input.blocks ?? []) {
+            reviewBlocks.set(`${input.id}\u0000${block.blockId}`, {
+              reviewId: input.id,
+              effectId: input.effectId,
+              blockId: block.blockId,
+              ordinal: block.ordinal,
+              status: 'pending',
+              decisionNote: null,
+              revertEffect: null,
+              errorCode: null,
+              errorMessage: null,
+              createdAt: existing.createdAt,
+              revertStartedAt: null,
+              settledAt: null,
+              updatedAt: existing.createdAt,
+            });
+          }
+          return { outcome: 'updated' as const, review: existing };
+        }
+        return { outcome: 'duplicate' as const, review: existing };
+      }
       const review: PersistedAgentRuntimeWriteReview = {
         ...input,
         status: 'pending',
@@ -583,6 +706,23 @@ function memoryRepository() {
         updatedAt: input.createdAt,
       };
       reviews.set(review.id, review);
+      for (const block of input.blocks ?? []) {
+        reviewBlocks.set(`${input.id}\u0000${block.blockId}`, {
+          reviewId: input.id,
+          effectId: input.effectId,
+          blockId: block.blockId,
+          ordinal: block.ordinal,
+          status: 'pending',
+          decisionNote: null,
+          revertEffect: null,
+          errorCode: null,
+          errorMessage: null,
+          createdAt: input.createdAt,
+          revertStartedAt: null,
+          settledAt: null,
+          updatedAt: input.createdAt,
+        });
+      }
       return { outcome: 'inserted' as const, review };
     },
     async getReview(id: string) {
@@ -590,6 +730,66 @@ function memoryRepository() {
     },
     async listReviews(sessionId: string) {
       return [...reviews.values()].filter((review) => review.sessionId === sessionId);
+    },
+    async listPendingReviewsForProject(projectId: string) {
+      return [...reviews.values()].filter((review) => {
+        const effect = effects.get(review.effectId);
+        return effect?.projectId === projectId && review.status === 'pending';
+      });
+    },
+    async listReviewBlocks(reviewId: string) {
+      return [...reviewBlocks.values()]
+        .filter((block) => block.reviewId === reviewId)
+        .sort((left, right) => left.ordinal - right.ordinal);
+    },
+    async transitionReviewBlock(
+      transition: AgentRuntimeWriteReviewBlockTransition,
+    ) {
+      const key = `${transition.reviewId}\u0000${transition.blockId}`;
+      const current = reviewBlocks.get(key);
+      const review = reviews.get(transition.reviewId);
+      if (!current || !review || current.status !== transition.expectedStatus) {
+        throw new Error('invalid test review block transition');
+      }
+      const next = transitionReviewBlock(current, transition);
+      reviewBlocks.set(key, next);
+      const blocks = [...reviewBlocks.values()]
+        .filter((block) => block.reviewId === transition.reviewId)
+        .sort((left, right) => left.ordinal - right.ordinal);
+      let settledReview = review;
+      if (
+        blocks.length > 0 &&
+        blocks.every(
+          (block) => block.status === 'accepted' || block.status === 'reverted',
+        )
+      ) {
+        const allReverted = blocks.every(
+          (block) => block.status === 'reverted',
+        );
+        settledReview = {
+          ...review,
+          status: allReverted ? 'reverted' : 'accepted_effect',
+          decisionNote: {
+            schemaVersion: 1,
+            kind: 'block_review',
+            decisions: blocks.map((block) => ({
+              blockId: block.blockId,
+              decision: block.status,
+            })),
+          },
+          acceptedAt: allReverted ? review.acceptedAt : transition.at,
+          rejectedAt: allReverted ? transition.at : review.rejectedAt,
+          settledAt: transition.at,
+          updatedAt: transition.at,
+        };
+        reviews.set(settledReview.id, settledReview);
+      }
+      return {
+        outcome: 'updated' as const,
+        review: settledReview,
+        block: next,
+        blocks,
+      };
     },
     async transitionReview(transition: AgentRuntimeWriteReviewTransition) {
       const current = reviews.get(transition.reviewId);
@@ -620,6 +820,10 @@ function memoryRepository() {
     },
     allEffects: () => [...effects.values()],
     reviews: () => [...reviews.values()],
+    reviewBlocks: (reviewId: string) =>
+      [...reviewBlocks.values()]
+        .filter((block) => block.reviewId === reviewId)
+        .sort((left, right) => left.ordinal - right.ordinal),
   };
 }
 
@@ -717,6 +921,45 @@ function transitionReview(
         settledAt: transition.at,
         errorCode: transition.errorCode,
         errorMessage: transition.errorMessage ?? null,
+      };
+  }
+}
+
+function transitionReviewBlock(
+  current: PersistedAgentRuntimeWriteReviewBlock,
+  transition: AgentRuntimeWriteReviewBlockTransition,
+): PersistedAgentRuntimeWriteReviewBlock {
+  const base = {
+    ...current,
+    status: transition.nextStatus,
+    updatedAt: transition.at,
+  };
+  switch (transition.nextStatus) {
+    case 'accepted':
+      return {
+        ...base,
+        decisionNote: transition.decisionNote ?? null,
+        settledAt: transition.at,
+      };
+    case 'revert_started':
+      return {
+        ...base,
+        decisionNote: transition.decisionNote ?? current.decisionNote,
+        revertStartedAt: transition.at,
+        settledAt: null,
+      };
+    case 'reverted':
+      return {
+        ...base,
+        revertEffect: transition.revertEffect,
+        settledAt: transition.at,
+      };
+    case 'revert_failed':
+      return {
+        ...base,
+        errorCode: transition.errorCode,
+        errorMessage: transition.errorMessage ?? null,
+        settledAt: transition.at,
       };
   }
 }

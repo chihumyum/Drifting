@@ -8,6 +8,7 @@ import {
   type AgentContextSourceRow,
 } from './context-planner';
 import { createDriftingContextCompactor } from './drifting-context-compactor';
+import { parseDriftingLiteraryContextSummary } from './literary-context-summary';
 
 function row(
   sourceId: string,
@@ -37,12 +38,26 @@ function row(
   };
 }
 
-function response(summary: string): AICompletionResponse {
+function response(
+  summary: string,
+  evidence: Array<{
+    sourceId: string;
+    kind: 'canon_fact' | 'character_voice';
+    claim: string;
+    quote: string;
+  }> = [],
+): AICompletionResponse {
   return {
     toolCall: {
       id: 'summary-call',
       name: 'submit_context_summary',
-      arguments: { summary },
+      arguments: {
+        summary,
+        evidence,
+        decisions: [],
+        unresolved: [],
+        nextActions: [],
+      },
     },
     usage: { inputTokens: 10, outputTokens: 5 },
   };
@@ -70,7 +85,17 @@ describe('Drifting context compactor', () => {
       ),
     ];
     const complete = vi.fn(async (_request: AICompletionRequest) =>
-      response('Alice moved to the lighthouse; read_node confirmed the current chapter.'),
+      response(
+        'Alice moved to the lighthouse; read_node confirmed the current chapter.',
+        [
+          {
+            sourceId: 'read-result-1',
+            kind: 'canon_fact',
+            claim: 'The current chapter read succeeded.',
+            quote: '"ok":true',
+          },
+        ],
+      ),
     );
     const compactor = createDriftingContextCompactor({
       createClient: async () => ({ supportsTools: true, complete }),
@@ -87,8 +112,17 @@ describe('Drifting context compactor', () => {
     expect(summaries[0]).toMatchObject({
       sourceIds: rows.map((candidate) => candidate.sourceId),
       sourceHash: await hashAgentContextSourceRows(rows),
-      content:
+    });
+    expect(parseDriftingLiteraryContextSummary(summaries[0]!.content)).toMatchObject({
+      synopsis:
         'Alice moved to the lighthouse; read_node confirmed the current chapter.',
+      evidence: [
+        {
+          sourceId: 'read-result-1',
+          kind: 'canon_fact',
+          quote: '"ok":true',
+        },
+      ],
     });
     expect(summaries[0].summaryId).toMatch(/^drifting-summary:[0-9a-f]{16}:0$/);
     const request = complete.mock.calls[0][0];
@@ -125,7 +159,23 @@ describe('Drifting context compactor', () => {
         supportsTools: true,
         complete: async (request) => {
           requests.push(request);
-          return response(`summary-${requests.length}`);
+          const payload = JSON.parse(
+            String(request.messages[0]?.content ?? '{}'),
+          ) as { rows?: Array<{ sourceId: string; kind: string; content: string }> };
+          const toolResult = payload.rows?.find((candidate) => candidate.kind === 'tool_result');
+          return response(
+            `summary-${requests.length}`,
+            toolResult
+              ? [
+                  {
+                    sourceId: toolResult.sourceId,
+                    kind: 'canon_fact',
+                    claim: 'The read result remains available.',
+                    quote: toolResult.content.slice(0, 16),
+                  },
+                ]
+              : [],
+          );
         },
       }),
     });
@@ -177,6 +227,64 @@ describe('Drifting context compactor', () => {
         signal: new AbortController().signal,
       }),
     ).rejects.toThrow('no summary tool call');
+  });
+
+  it('rejects summaries that omit or forge exact evidence from a tool result', async () => {
+    const rows = [
+      row(
+        'call-1',
+        0,
+        0,
+        'tool_call',
+        '{"query":"harbor"}',
+        { callId: 'c1', toolName: 'read_node', toolAccess: 'read' },
+      ),
+      row(
+        'result-1',
+        1,
+        0,
+        'tool_result',
+        '{"location":"South Harbor"}',
+        { callId: 'c1', toolName: 'read_node', toolAccess: 'read' },
+      ),
+    ];
+    const omitted = createDriftingContextCompactor({
+      createClient: async () => ({
+        supportsTools: true,
+        complete: async () => response('The harbor was inspected.'),
+      }),
+    });
+    await expect(
+      omitted({
+        eligibleRuns: [rows],
+        currentEstimatedTokens: 100,
+        usableInputBudgetTokens: 50,
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow('has no exact evidence citation');
+
+    const forged = createDriftingContextCompactor({
+      createClient: async () => ({
+        supportsTools: true,
+        complete: async () =>
+          response('The harbor was inspected.', [
+            {
+              sourceId: 'result-1',
+              kind: 'canon_fact',
+              claim: 'The location is North Harbor.',
+              quote: 'North Harbor',
+            },
+          ]),
+      }),
+    });
+    await expect(
+      forged({
+        eligibleRuns: [rows],
+        currentEstimatedTokens: 100,
+        usableInputBudgetTokens: 50,
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow('quote is not byte-exact');
   });
 
   it('does not create a client after cancellation', async () => {

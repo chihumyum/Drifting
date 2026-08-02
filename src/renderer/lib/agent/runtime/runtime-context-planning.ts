@@ -16,6 +16,11 @@ import {
   type AgentContextSummaryCandidate,
   type AgentContextTokenEstimator,
 } from './context-planner';
+import {
+  confirmedAgentContextConstraintConflictIds,
+  detectAgentContextConstraintConflicts,
+  type AgentContextConstraintConflict,
+} from './context-constraint-conflicts';
 import { createAgentContextUsageSnapshot } from './context-usage';
 import { AgentRuntimeError } from './errors';
 import type {
@@ -45,6 +50,7 @@ export interface AgentRuntimeContextPlanningHookInput {
   turnId: string;
   iteration: number;
   driverId: string;
+  provider?: string;
   model?: string;
   context: AgentRuntimeContext;
   systemPrompt: string;
@@ -78,6 +84,10 @@ type MaybePromise<T> = T | Promise<T>;
 export interface AgentRuntimeContextPlanningOptions {
   /** Provider-neutral verified input window, never inferred from a model id. */
   contextWindowTokens?: number;
+  /** Stable identity of the driver-declared budget contract. */
+  providerProfileId?: string;
+  /** Provider-declared response ceiling for one invocation. */
+  providerMaxOutputTokens?: number;
   /** Provider framing not represented by messages or tool schemas. */
   providerOverheadTokens?: number;
   /** Conservative framing charged once per selected tool schema. */
@@ -109,6 +119,10 @@ export interface AgentRuntimeContextPlanningOptions {
    * model form the epoch. Returning a new id deliberately resets the circuit.
    */
   resolveProviderEpoch?: (input: AgentRuntimeContextPlanningHookInput) => string;
+  /** Exact provider/model budget captured for this turn before provider I/O. */
+  resolveProviderProfile?: (
+    input: AgentRuntimeContextPlanningHookInput,
+  ) => import('./types').AgentModelContextProfile;
 }
 
 export interface AgentRuntimeContextPlanningRequest {
@@ -117,6 +131,7 @@ export interface AgentRuntimeContextPlanningRequest {
   turnId: string;
   iteration: number;
   driverId: string;
+  provider?: string;
   model?: string;
   context: AgentRuntimeContext;
   systemPrompt?: string;
@@ -135,6 +150,8 @@ export interface AgentRuntimeVerifiedContextPlan {
   canonicalSourceRows: import('./context-planner').AgentContextSourceRow[];
   /** Content-free projection of the exact verified provider input. */
   contextUsage: AgentContextUsageSnapshot;
+  /** Unresolved, source-bound contradictions that block every write tool. */
+  constraintConflicts: AgentContextConstraintConflict[];
 }
 
 const BUDGET_FAILURES = new Set([
@@ -225,6 +242,8 @@ const EXPLICIT_USER_CONSTRAINT =
   /(?:必须|务必|不得|禁止|不要|别再?|不能|始终|永远|绝不|只允许|请勿|记住|约束|要求|偏好|不希望|拒绝|\bmust\b|\bmust not\b|\bdo not\b|\bdon't\b|\bnever\b|\balways\b|\bonly\b|\bforbid\b|\brequire\b|\bconstraint\b|\bremember\b|\bprefer\b|\bavoid\b)/iu;
 const EXPLICIT_USER_VETO =
   /(?:不得|禁止|不要|别再?|不能|绝不|请勿|不希望|拒绝|\bmust not\b|\bdo not\b|\bdon't\b|\bnever\b|\bforbid\b|\bavoid\b)/iu;
+const EXPLICIT_AUTHOR_FACT =
+  /(?:更正|纠正|修正|以此为准|此前说错了|(?:的)?(?:年龄|身份|姓名|名字|眼睛|瞳色|发色|能力限制|能力|关系|性格|视角|时态|称呼|地点|时间)(?:必须)?(?:是|为|改为|设为|应该是|应为)|\b(?:is|are|was|were|means|equals)\b)/iu;
 
 /**
  * Conservative product classifier for directly stated author constraints.
@@ -242,12 +261,15 @@ export const identifyExplicitAgentUserConstraints: AgentRuntimeUserConstraintPol
     const candidate = candidates[index];
     const firstGoal = index === 0;
     const explicit = EXPLICIT_USER_CONSTRAINT.test(candidate.content);
-    if (!firstGoal && !explicit) continue;
+    const explicitFact = EXPLICIT_AUTHOR_FACT.test(candidate.content);
+    if (!firstGoal && !explicit && !explicitFact) continue;
     const kind: AgentRuntimeUserConstraintDecision['kind'] = firstGoal
       ? 'session_goal'
       : EXPLICIT_USER_VETO.test(candidate.content)
         ? 'author_veto'
-        : 'author_instruction';
+        : explicitFact
+          ? 'author_fact'
+          : 'author_instruction';
     decisions.push({
       constraintId: `runtime-constraint:${kind}:${candidate.sourceId}`,
       sourceId: candidate.sourceId,
@@ -256,6 +278,24 @@ export const identifyExplicitAgentUserConstraints: AgentRuntimeUserConstraintPol
   }
   return decisions;
 };
+
+function conflictSupplementalRow(
+  turnId: string,
+  conflicts: readonly AgentContextConstraintConflict[],
+): AgentContextSupplementalPinnedRow {
+  return {
+    sourceId: `runtime:context-constraint-conflicts:${turnId}`,
+    turnOrdinal: null,
+    kind: 'task_constraints',
+    content: JSON.stringify({
+      schemaVersion: 1,
+      kind: 'context_constraint_confirmation_required',
+      instruction:
+        'Before any write, call ask_user once with a focused author-facing question and every relevant conflictId in constraintConflictIds. Do not guess which instruction or fact wins.',
+      conflicts: conflicts.map((conflict) => ({ ...conflict })),
+    }),
+  };
+}
 
 async function resolveConstraintLedger(input: {
   hookInput: AgentRuntimeContextPlanningHookInput;
@@ -343,6 +383,8 @@ export class AgentRuntimeContextPlanningCoordinator {
     Pick<
       AgentRuntimeContextPlanningOptions,
       | 'contextWindowTokens'
+      | 'providerProfileId'
+      | 'providerMaxOutputTokens'
       | 'providerOverheadTokens'
       | 'perToolOverheadTokens'
       | 'fallbackSystemPrompt'
@@ -351,6 +393,8 @@ export class AgentRuntimeContextPlanningCoordinator {
     Omit<
       AgentRuntimeContextPlanningOptions,
       | 'contextWindowTokens'
+      | 'providerProfileId'
+      | 'providerMaxOutputTokens'
       | 'providerOverheadTokens'
       | 'perToolOverheadTokens'
       | 'fallbackSystemPrompt'
@@ -362,10 +406,7 @@ export class AgentRuntimeContextPlanningCoordinator {
    * keyed by session + provider epoch; every reuse still passes the planner's
    * source-id/hash/contiguity checks against current canonical history.
    */
-  private readonly verifiedSummaries = new Map<
-    string,
-    AgentContextSummaryCandidate[]
-  >();
+  private readonly verifiedSummaries = new Map<string, AgentContextSummaryCandidate[]>();
 
   constructor(options: AgentRuntimeContextPlanningOptions = {}) {
     this.options = {
@@ -373,6 +414,13 @@ export class AgentRuntimeContextPlanningCoordinator {
       contextWindowTokens: requirePositiveSafeInteger(
         options.contextWindowTokens ?? DEFAULT_AGENT_CONTEXT_WINDOW_TOKENS,
         'contextWindowTokens',
+      ),
+      providerProfileId: options.providerProfileId?.trim() || 'provider-neutral-fallback-v1',
+      providerMaxOutputTokens: requirePositiveSafeInteger(
+        options.providerMaxOutputTokens ??
+          options.contextWindowTokens ??
+          DEFAULT_AGENT_CONTEXT_WINDOW_TOKENS,
+        'providerMaxOutputTokens',
       ),
       providerOverheadTokens: requireNonNegativeSafeInteger(
         options.providerOverheadTokens ?? DEFAULT_AGENT_CONTEXT_PROVIDER_OVERHEAD_TOKENS,
@@ -407,6 +455,7 @@ export class AgentRuntimeContextPlanningCoordinator {
       turnId: request.turnId,
       iteration: request.iteration,
       driverId: request.driverId,
+      ...(request.provider ? { provider: request.provider } : {}),
       ...(request.model ? { model: request.model } : {}),
       context: request.context,
       systemPrompt,
@@ -414,15 +463,61 @@ export class AgentRuntimeContextPlanningCoordinator {
       tools: request.selectedTools,
       signal: request.signal,
     };
+    let selectedProfile: import('./types').AgentModelContextProfile | undefined;
+    try {
+      selectedProfile = this.options.resolveProviderProfile?.(hookInput);
+    } catch {
+      throw new AgentRuntimeError('INTERNAL_ERROR', 'Provider profile resolver failed');
+    }
+    const providerProfile = selectedProfile
+      ? {
+          id: selectedProfile.id.trim(),
+          contextWindowTokens: requirePositiveSafeInteger(
+            selectedProfile.contextWindowTokens,
+            'resolvedProviderProfile.contextWindowTokens',
+          ),
+          maxOutputTokens: requirePositiveSafeInteger(
+            selectedProfile.maxOutputTokens,
+            'resolvedProviderProfile.maxOutputTokens',
+          ),
+          providerOverheadTokens: requireNonNegativeSafeInteger(
+            selectedProfile.providerOverheadTokens,
+            'resolvedProviderProfile.providerOverheadTokens',
+          ),
+          perToolOverheadTokens: requireNonNegativeSafeInteger(
+            selectedProfile.perToolOverheadTokens,
+            'resolvedProviderProfile.perToolOverheadTokens',
+          ),
+        }
+      : {
+          id: this.options.providerProfileId,
+          contextWindowTokens: this.options.contextWindowTokens,
+          maxOutputTokens: this.options.providerMaxOutputTokens,
+          providerOverheadTokens: this.options.providerOverheadTokens,
+          perToolOverheadTokens: this.options.perToolOverheadTokens,
+        };
+    if (!providerProfile.id) {
+      throw new AgentRuntimeError('INTERNAL_ERROR', 'Resolved provider profile has an empty id');
+    }
+    if (request.requestedOutputTokens > providerProfile.maxOutputTokens) {
+      throw new AgentRuntimeError(
+        'BUDGET_EXCEEDED',
+        `Provider context profile "${providerProfile.id}" allows at most ${providerProfile.maxOutputTokens} output tokens, but this invocation requested ${request.requestedOutputTokens}`,
+      );
+    }
     const providerEpoch = this.resolveProviderEpoch(hookInput);
-    const circuitKey = JSON.stringify([request.sessionId, providerEpoch]);
+    const circuitKey = JSON.stringify([
+      request.sessionId,
+      providerEpoch,
+      providerProfile.id,
+    ]);
     let circuit = this.circuits.get(circuitKey);
     if (!circuit) {
       circuit = new AgentContextCompactionCircuitBreaker();
       this.circuits.set(circuitKey, circuit);
     }
 
-    const supplementalRows = await resolveHook(
+    const baseSupplementalRows = await resolveHook(
       this.options.supplementalRows,
       hookInput,
       'Supplemental',
@@ -437,21 +532,22 @@ export class AgentRuntimeContextPlanningCoordinator {
       this.verifiedSummaries.get(circuitKey),
     );
     const accessResolver = buildAccessResolver(request.executableDefinitions);
-    let constraintLedger:
-      | AgentContextConstraintLedgerEntry[]
+    let canonicalBridgeForConstraints:
+      | ReturnType<typeof agentModelMessagesToContextSources>
       | undefined;
+    let constraintLedger: AgentContextConstraintLedgerEntry[] | undefined;
     if (this.options.userConstraintPolicy) {
       try {
-        const canonicalBridge = agentModelMessagesToContextSources({
+        canonicalBridgeForConstraints = agentModelMessagesToContextSources({
           systemPrompt,
           messages: request.messages,
           resolveToolAccess: accessResolver,
-          ...(supplementalRows ? { supplementalRows } : {}),
+          ...(baseSupplementalRows ? { supplementalRows: baseSupplementalRows } : {}),
         });
         constraintLedger = await resolveConstraintLedger({
           hookInput,
-          sourceRows: canonicalBridge.sourceRows,
-          sourceBindings: canonicalBridge.bindings,
+          sourceRows: canonicalBridgeForConstraints.sourceRows,
+          sourceBindings: canonicalBridgeForConstraints.bindings,
           policy: this.options.userConstraintPolicy,
         });
       } catch (error) {
@@ -464,10 +560,30 @@ export class AgentRuntimeContextPlanningCoordinator {
         );
       }
     }
+    const allConstraintConflicts =
+      canonicalBridgeForConstraints && constraintLedger
+        ? detectAgentContextConstraintConflicts({
+            sourceRows: canonicalBridgeForConstraints.sourceRows,
+            ledger: constraintLedger,
+          })
+        : [];
+    const confirmedConflictIds = canonicalBridgeForConstraints
+      ? confirmedAgentContextConstraintConflictIds(canonicalBridgeForConstraints.sourceRows)
+      : new Set<string>();
+    const constraintConflicts = allConstraintConflicts.filter(
+      (conflict) => !confirmedConflictIds.has(conflict.conflictId),
+    );
+    const supplementalRows =
+      constraintConflicts.length > 0
+        ? [
+            ...(baseSupplementalRows ?? []),
+            conflictSupplementalRow(request.turnId, constraintConflicts),
+          ]
+        : baseSupplementalRows;
     const fixedInputTokens = estimateAgentContextFixedInputTokens({
       tools: request.selectedTools,
-      providerOverheadTokens: this.options.providerOverheadTokens,
-      perToolOverheadTokens: this.options.perToolOverheadTokens,
+      providerOverheadTokens: providerProfile.providerOverheadTokens,
+      perToolOverheadTokens: providerProfile.perToolOverheadTokens,
       ...(this.options.estimateTokens ? { estimateTokens: this.options.estimateTokens } : {}),
     });
     let planned: Awaited<ReturnType<typeof planAgentModelContext>>;
@@ -478,7 +594,7 @@ export class AgentRuntimeContextPlanningCoordinator {
         resolveToolAccess: accessResolver,
         ...(supplementalRows ? { supplementalRows } : {}),
         planner: {
-          contextWindowTokens: this.options.contextWindowTokens,
+          contextWindowTokens: providerProfile.contextWindowTokens,
           requestedOutputTokens: request.requestedOutputTokens,
           fixedInputTokens,
           ...(constraintLedger ? { constraintLedger } : {}),
@@ -516,20 +632,19 @@ export class AgentRuntimeContextPlanningCoordinator {
         }`,
       );
     }
-    const plannedSummaries =
-      planned.envelope.plannerCheckpoint.projection.segments.flatMap(
-        (segment): AgentContextSummaryCandidate[] =>
-          segment.type === 'summary'
-            ? [
-                {
-                  summaryId: segment.summaryId,
-                  sourceIds: [...segment.sourceIds],
-                  sourceHash: segment.sourceHash,
-                  content: segment.content,
-                },
-              ]
-            : [],
-      );
+    const plannedSummaries = planned.envelope.plannerCheckpoint.projection.segments.flatMap(
+      (segment): AgentContextSummaryCandidate[] =>
+        segment.type === 'summary'
+          ? [
+              {
+                summaryId: segment.summaryId,
+                sourceIds: [...segment.sourceIds],
+                sourceHash: segment.sourceHash,
+                content: segment.content,
+              },
+            ]
+          : [],
+    );
     if (plannedSummaries.length > 0) {
       this.verifiedSummaries.set(circuitKey, plannedSummaries);
     }
@@ -537,8 +652,8 @@ export class AgentRuntimeContextPlanningCoordinator {
       iteration: request.iteration,
       envelope: planned.envelope,
       selectedTools: request.selectedTools,
-      providerOverheadTokens: this.options.providerOverheadTokens,
-      perToolOverheadTokens: this.options.perToolOverheadTokens,
+      providerOverheadTokens: providerProfile.providerOverheadTokens,
+      perToolOverheadTokens: providerProfile.perToolOverheadTokens,
       ...(this.options.estimateTokens ? { estimateTokens: this.options.estimateTokens } : {}),
     });
     return {
@@ -548,6 +663,7 @@ export class AgentRuntimeContextPlanningCoordinator {
         ...row,
       })),
       contextUsage,
+      constraintConflicts: constraintConflicts.map((conflict) => ({ ...conflict })),
     };
   }
 
@@ -556,7 +672,7 @@ export class AgentRuntimeContextPlanningCoordinator {
     try {
       epoch =
         this.options.resolveProviderEpoch?.(input) ??
-        JSON.stringify([input.driverId, input.model ?? null]);
+        JSON.stringify([input.driverId, input.provider ?? null, input.model ?? null]);
     } catch {
       throw new AgentRuntimeError('INTERNAL_ERROR', 'Provider epoch resolver failed');
     }
@@ -579,8 +695,7 @@ function mergeSummaryCandidates(
       prior &&
       (prior.sourceHash !== candidate.sourceHash ||
         prior.content !== candidate.content ||
-        JSON.stringify(prior.sourceIds) !==
-          JSON.stringify(candidate.sourceIds))
+        JSON.stringify(prior.sourceIds) !== JSON.stringify(candidate.sourceIds))
     ) {
       throw new AgentRuntimeError(
         'PROTOCOL_VIOLATION',

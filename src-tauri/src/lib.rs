@@ -6,6 +6,8 @@ mod commands;
 mod data_migration;
 mod database;
 mod image_pipeline;
+mod mcp_http;
+mod mcp_stdio;
 mod native_capabilities;
 mod secure_storage;
 mod state;
@@ -105,6 +107,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(DeepLinkQueue::default())
         .manage(close_coordinator)
+        .manage(mcp_http::McpHttpState::default())
+        .manage(mcp_stdio::McpStdioState::default())
         .invoke_handler(tauri::generate_handler![
             commands::app_get_info,
             commands::app_get_path,
@@ -118,6 +122,13 @@ pub fn run() {
             commands::deep_link_take_pending,
             commands::lifecycle_get_status,
             commands::lifecycle_complete_flush,
+            mcp_http::mcp_http_request,
+            mcp_http::mcp_http_cancel,
+            mcp_stdio::mcp_stdio_start,
+            mcp_stdio::mcp_stdio_request,
+            mcp_stdio::mcp_stdio_notify,
+            mcp_stdio::mcp_stdio_stop,
+            mcp_stdio::mcp_stdio_status,
             system_fonts::typography_list_system_fonts,
             secure_storage::keychain_get,
             secure_storage::keychain_set,

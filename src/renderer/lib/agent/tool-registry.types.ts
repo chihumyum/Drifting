@@ -38,7 +38,7 @@ export type AgentToolConcurrency =
 
 export type AgentToolApproval =
   | 'automatic'
-  | 'soft_review'
+  | 'review_after'
   | 'confirm_before';
 
 export type AgentToolRetry = 'safe' | 'never' | 'inspect_before_retry';

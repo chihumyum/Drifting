@@ -8,6 +8,7 @@ import {
 import { createAgentContextSummaryCandidate, type AgentContextSourceRow } from './context-planner';
 import {
   DEFAULT_AGENT_RUNTIME_SYSTEM_POLICY,
+  identifyExplicitAgentUserConstraints,
   type AgentRuntimeContextPlanningHookInput,
 } from './runtime-context-planning';
 import { AgentRuntime } from './runtime';
@@ -49,10 +50,16 @@ function definition(name: string, schemaPadding = ''): AgentToolDefinition {
   };
 }
 
-function toolRuntime(definitions: readonly AgentToolDefinition[]): AgentToolRuntime {
+function toolRuntime(
+  definitions: readonly AgentToolDefinition[],
+  execute: AgentToolRuntime['execute'] = async () => ({
+    ok: true,
+    data: { value: 'read result' },
+  }),
+): AgentToolRuntime {
   return {
     listDefinitions: () => definitions,
-    execute: async () => ({ ok: true, data: { value: 'read result' } }),
+    execute,
   };
 }
 
@@ -90,11 +97,111 @@ function toolCall(callId: string, name: string): readonly AgentModelStreamEvent[
   ];
 }
 
+function toolCallWithArguments(
+  callId: string,
+  name: string,
+  args: Record<string, unknown>,
+): readonly AgentModelStreamEvent[] {
+  return [
+    { type: 'tool_call_start', callId, name },
+    { type: 'tool_args_delta', callId, delta: JSON.stringify(args) },
+    { type: 'tool_call_end', callId },
+    USAGE,
+    { type: 'finish', reason: 'tool_use' },
+  ];
+}
+
 function endTurn(text = 'final answer'): readonly AgentModelStreamEvent[] {
   return [{ type: 'text_delta', text }, USAGE, { type: 'finish', reason: 'end_turn' }];
 }
 
 describe('AgentRuntime context planning integration', () => {
+  it('blocks writes on contradictory author facts until ask_user durably confirms the exact conflict', async () => {
+    const write = { ...definition('write_scene'), access: 'write' as const };
+    const ask = definition('ask_user');
+    const execute = vi.fn<AgentToolRuntime['execute']>(async (request) => {
+      if (request.name === 'ask_user') {
+        return {
+          ok: true,
+          data: {
+            answer: '以蓝色为准。',
+            confirmedConstraintConflictIds: request.arguments.constraintConflictIds,
+          },
+        };
+      }
+      return { ok: true, data: { written: true } };
+    });
+    const conflictNotesByIteration: string[][] = [];
+    const driver = new RecordingDriver((request) => {
+      const notes = request.context.messages.flatMap((message) =>
+        message.type === 'context_note' &&
+        message.noteKind === 'task_constraints' &&
+        message.content.includes('context_constraint_confirmation_required')
+          ? [message]
+          : [],
+      );
+      conflictNotesByIteration.push(notes.map((note) => note.content));
+      if (request.iteration === 1) {
+        return toolCallWithArguments('write-blocked', 'write_scene', {});
+      }
+      if (request.iteration === 2) {
+        const payload = JSON.parse(notes[0]!.content) as {
+          conflicts: Array<{ conflictId: string }>;
+        };
+        return toolCallWithArguments('confirm-conflict', 'ask_user', {
+          prompt: '米拉的瞳色有绿色和蓝色两种设定，本次修改以哪一个为准？',
+          constraintConflictIds: payload.conflicts.map((conflict) => conflict.conflictId),
+        });
+      }
+      if (request.iteration === 3) {
+        return toolCallWithArguments('write-confirmed', 'write_scene', {});
+      }
+      return endTurn('已按确认后的蓝色设定完成。');
+    });
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime([write, ask], execute),
+      contextPlanning: {
+        userConstraintPolicy: identifyExplicitAgentUserConstraints,
+      },
+    }).runTurn(
+      runInput({
+        prompt: '继续完成这处改写。',
+        history: [
+          { role: 'user', content: '润色这一章，但不要自行改变作者设定。' },
+          { role: 'assistant', content: [{ type: 'text', text: '明白。' }] },
+          { role: 'user', content: '米拉的眼睛是绿色。' },
+          { role: 'assistant', content: [{ type: 'text', text: '已记录。' }] },
+          { role: 'user', content: '米拉的眼睛是蓝色。' },
+        ],
+      }),
+    );
+
+    expect(result.state.status, JSON.stringify(result.state.terminal)).toBe('completed');
+    expect(execute.mock.calls.map(([request]) => request.name)).toEqual([
+      'ask_user',
+      'write_scene',
+    ]);
+    expect(
+      result.entries.find(
+        (entry) => entry.event.type === 'tool_result' && entry.event.callId === 'write-blocked',
+      )?.event,
+    ).toMatchObject({
+      ok: false,
+      source: 'runtime',
+      errorCode: 'CONTEXT_CONSTRAINT_CONFIRMATION_REQUIRED',
+    });
+    expect(conflictNotesByIteration.slice(0, 2).every((notes) => notes.length === 1)).toBe(true);
+    expect(conflictNotesByIteration.slice(2).every((notes) => notes.length === 0)).toBe(true);
+    expect(
+      result.completedContextCheckpoint?.providerEnvelope.providerContext.messages.some(
+        (message) =>
+          message.type === 'context_note' &&
+          message.content.includes('context_constraint_confirmation_required'),
+      ),
+    ).toBe(false);
+  });
+
   it('plans every provider iteration with exact selected schemas and creates a complete final checkpoint', async () => {
     const definitions = Array.from({ length: 10 }, (_, index) =>
       definition(`tool_${index}`, 'x'.repeat(index * 40)),
@@ -154,9 +261,7 @@ describe('AgentRuntime context planning integration', () => {
       ['tool_9'],
     ]);
 
-    const contextEntries = result.entries.filter(
-      (entry) => entry.event.type === 'context_planned',
-    );
+    const contextEntries = result.entries.filter((entry) => entry.event.type === 'context_planned');
     expect(contextEntries).toHaveLength(driver.requests.length);
     expect(
       contextEntries.map((entry) =>
@@ -187,10 +292,7 @@ describe('AgentRuntime context planning integration', () => {
         contextWindowTokens: 200_000,
       });
       expect(
-        contextEvent.snapshot.categories.reduce(
-          (total, category) => total + category.tokens,
-          0,
-        ),
+        contextEvent.snapshot.categories.reduce((total, category) => total + category.tokens, 0),
       ).toBe(contextEvent.snapshot.estimatedInputTokens);
       expect(
         contextEvent.snapshot.estimatedInputTokens +
@@ -362,6 +464,29 @@ describe('AgentRuntime context planning integration', () => {
     expect(driver.requests).toHaveLength(0);
     expect(result.lastProviderCallContextEnvelope).toBeUndefined();
     expect(result.completedContextCheckpoint).toBeUndefined();
+  });
+
+  it('rejects an invocation above the driver-declared output ceiling before provider I/O', async () => {
+    const driver = new RecordingDriver(() => endTurn());
+    const result = await new AgentRuntime({
+      driver,
+      contextPlanning: {
+        contextWindowTokens: 200_000,
+        providerProfileId: 'fixture-provider:small-output-v1',
+        providerMaxOutputTokens: 256,
+      },
+    }).runTurn(
+      runInput({
+        limits: { maxOutputTokensPerIteration: 512 },
+      }),
+    );
+
+    expect(result.state.status).toBe('budget_exceeded');
+    expect(result.state.terminal).toMatchObject({
+      failureCode: 'BUDGET_EXCEEDED',
+    });
+    expect(result.state.terminal?.message).toContain('fixture-provider:small-output-v1');
+    expect(driver.requests).toHaveLength(0);
   });
 
   it('does not expose canonical history bypass fields to a provider driver', async () => {
@@ -596,6 +721,11 @@ describe('AgentRuntime context planning integration', () => {
       (entry) => entry.kind === 'author_veto',
     );
     expect(vetoEntry).toBeDefined();
+    expect(checkpoint.constraintLedger.retentionWitness).toMatchObject({
+      status: 'exact',
+      sourceIds: expect.arrayContaining([vetoEntry!.sourceId]),
+      sourceHash: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+    });
     expect(
       checkpoint.projection.segments.find(
         (segment) => segment.type === 'source' && segment.row.sourceId === vetoEntry?.sourceId,
@@ -613,6 +743,78 @@ describe('AgentRuntime context planning integration', () => {
         envelope: tampered,
       }),
     ).rejects.toThrow('envelope hash drifted');
+  });
+
+  it('keeps the selected tool executable on the iteration after verified compaction', async () => {
+    const history: AgentModelMessage[] = [
+      { role: 'user', content: 'Preserve the first-person voice.' },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: `old analysis ${'detail '.repeat(4_000)}` }],
+      },
+      { role: 'user', content: 'Inspect the next chapter.' },
+      { role: 'assistant', content: [{ type: 'text', text: 'I will inspect it.' }] },
+    ];
+    const compact = vi.fn(
+      async ({ eligibleRuns }: { eligibleRuns: readonly (readonly AgentContextSourceRow[])[] }) =>
+        Promise.all(
+          eligibleRuns.map((sourceRows, index) =>
+            createAgentContextSummaryCandidate({
+              summaryId: `tool-continuity-${index}`,
+              sourceRows,
+              content: 'Verified compact history for the inspected manuscript.',
+            }),
+          ),
+        ),
+    );
+    const definitions = [
+      definition('read_node'),
+      ...Array.from({ length: 9 }, (_, index) => definition(`other_${index}`)),
+    ];
+    const driver = new RecordingDriver((request) =>
+      request.iteration === 1 ? toolCall('read-before-compact', 'read_node') : endTurn(),
+    );
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime(definitions),
+      toolSelector: { select: () => ['read_node'] },
+      contextPlanning: {
+        contextWindowTokens: 8_000,
+        providerOverheadTokens: 0,
+        perToolOverheadTokens: 0,
+        userConstraintPolicy: ({ candidates }) =>
+          candidates.slice(0, 1).map((candidate) => ({
+            constraintId: `voice:${candidate.sourceId}`,
+            sourceId: candidate.sourceId,
+            kind: 'author_veto' as const,
+          })),
+        fullCompactor: compact,
+      },
+    }).runTurn(
+      runInput({
+        history,
+        toolSearch: 'on',
+        limits: { maxOutputTokensPerIteration: 512 },
+      }),
+    );
+
+    expect(result.state.status, JSON.stringify(result.state.terminal)).toBe('completed');
+    expect(compact).toHaveBeenCalled();
+    expect(driver.requests).toHaveLength(2);
+    expect(driver.requests.map((request) => request.tools.map((tool) => tool.name))).toEqual([
+      ['read_node'],
+      ['read_node'],
+    ]);
+    expect(
+      result.entries.some(
+        (entry) =>
+          entry.event.type === 'context_planned' &&
+          entry.event.snapshot.compaction.stages.includes('full_compactor'),
+      ),
+    ).toBe(true);
+    expect(result.lastProviderCallContextEnvelope?.plannerCheckpoint.compaction.stages).toContain(
+      'deterministic_summaries',
+    );
   });
 
   it('reuses a verified full-compaction summary across later plans in the same provider epoch', async () => {

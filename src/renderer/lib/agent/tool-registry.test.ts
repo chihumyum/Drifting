@@ -56,6 +56,7 @@ const P5_PROSE_WRITE_NAMES = [
 const P5_ELEMENT_PATCH_WRITE_NAMES = [
   'create_element_patch',
   'update_element_patch',
+  'delete_element_patch',
 ] as const;
 
 const P6_ENTITY_WRITE_NAMES = [
@@ -133,7 +134,7 @@ describe('canonical Agent tool catalog', () => {
       AGENT_TOOL_CATALOG.filter(
         (tool) => tool.scope === 'runtime-virtual',
       ),
-    ).toHaveLength(6);
+    ).toHaveLength(8);
 
     for (const tool of AGENT_TOOL_CATALOG) {
       expect(tool.name).not.toBe('');
@@ -188,7 +189,7 @@ describe('canonical Agent tool catalog', () => {
     expect(writes).toHaveLength(34);
     expect(
       writes.filter((tool) => tool.certification === 'unavailable'),
-    ).toHaveLength(20);
+    ).toHaveLength(19);
     expect(
       writes
         .filter((tool) => tool.certification === 'write-certified')
@@ -197,7 +198,7 @@ describe('canonical Agent tool catalog', () => {
     for (const name of P3_CERTIFIED_WRITE_NAMES) {
       const tool = getRegisteredTool(name);
       expect(tool).toMatchObject({
-        approval: 'soft_review',
+        approval: 'automatic',
         retry: 'inspect_before_retry',
         revertStrategy: 'exact_inverse',
         certification: 'write-certified',
@@ -228,7 +229,7 @@ describe('canonical Agent tool catalog', () => {
       const tool = getRegisteredTool(name)!;
       expect(tool).toMatchObject({
         effect: 'prose',
-        approval: 'soft_review',
+        approval: 'review_after',
         revertStrategy: 'exact_inverse',
         certification: 'write-certified',
       });
@@ -249,22 +250,22 @@ describe('canonical Agent tool catalog', () => {
     for (const name of P5_ELEMENT_PATCH_WRITE_NAMES) {
       const tool = getRegisteredTool(name)!;
       expect(tool).toMatchObject({
-        approval: 'soft_review',
+        approval: name === 'delete_element_patch' ? 'confirm_before' : 'automatic',
         revertStrategy: 'exact_inverse',
         certification: 'write-certified',
       });
+      const mutationArguments =
+        name === 'create_element_patch'
+          ? { element: '柳青', body: '立场发生变化' }
+          : name === 'update_element_patch'
+            ? { patchId: 'patch-1', title: '新的演化标题' }
+            : { patchId: 'patch-1' };
       expect(
-        Value.Check(tool.parametersSchema, {
-          ...(name === 'create_element_patch'
-            ? { element: '柳青', body: '立场发生变化' }
-            : { patchId: 'patch-1', title: '新的演化标题' }),
-        }),
+        Value.Check(tool.parametersSchema, mutationArguments),
       ).toBe(false);
       expect(
         Value.Check(tool.parametersSchema, {
-          ...(name === 'create_element_patch'
-            ? { element: '柳青', body: '立场发生变化' }
-            : { patchId: 'patch-1', title: '新的演化标题' }),
+          ...mutationArguments,
           expectedRevision: {
             receiptId: 'agent-read:session:turn:call',
             observationId: 'agent-observation:session:turn:call:0',
@@ -276,7 +277,7 @@ describe('canonical Agent tool catalog', () => {
     for (const name of P6_ENTITY_WRITE_NAMES) {
       const tool = getRegisteredTool(name)!;
       expect(tool).toMatchObject({
-        approval: 'soft_review',
+        approval: 'automatic',
         retry: 'inspect_before_retry',
         revertStrategy: 'exact_inverse',
         certification: 'write-certified',
@@ -333,7 +334,13 @@ describe('canonical Agent tool catalog', () => {
     for (const tool of writes) {
       if (tool.certification === 'write-certified') {
         expect(tool.revertStrategy).toBe('exact_inverse');
-        expect(tool.approval).toBe('soft_review');
+        expect(['automatic', 'review_after', 'confirm_before']).toContain(tool.approval);
+        if (tool.approval === 'review_after') {
+          expect(P5_PROSE_WRITE_NAMES).toContain(tool.name);
+        }
+        if (tool.approval === 'confirm_before') {
+          expect(tool.name).toBe('delete_element_patch');
+        }
       } else {
         expect(tool.certification).toBe('unavailable');
         expect(tool.certificationNote).toContain('unavailable');
@@ -382,7 +389,7 @@ describe('canonical Agent tool catalog', () => {
       ],
     });
 
-    expect(result).toHaveLength(32);
+    expect(result).toHaveLength(33);
     expect(
       result
         .filter((tool) => tool.access === 'write')

@@ -91,4 +91,48 @@ describe('DriftingAgentModelDriver', () => {
     expect(message).not.toContain('sk-live-secret');
     expect(message).not.toContain('provider.invalid');
   });
+
+  it.each([
+    ['deepseek', 'deepseek-v4-pro'],
+    ['anthropic', 'claude-haiku-4-5-20251001'],
+    ['openai', 'gpt-4.1-mini'],
+  ] as const)('routes %s with an immutable provider/model pair', async (provider, model) => {
+    const createProviderDriver = vi.fn(async () => ({
+      id: `fixture-${provider}`,
+      async *stream(input: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
+        yield { type: 'text_delta', text: `${String(input.provider)}:${String(input.model)}` };
+        yield {
+          type: 'usage',
+          usage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            costUsd: 0,
+          },
+        };
+        yield { type: 'finish', reason: 'end_turn' };
+      },
+    }));
+    const driver = new DriftingAgentModelDriver({ createProviderDriver });
+    const events: AgentModelStreamEvent[] = [];
+    for await (const event of driver.stream({ ...request(), provider, model })) events.push(event);
+    expect(createProviderDriver).toHaveBeenCalledWith(provider, model);
+    expect(events[0]).toEqual({ type: 'text_delta', text: `${provider}:${model}` });
+  });
+
+  it('rejects a model from another provider before constructing a client', async () => {
+    const createProviderDriver = vi.fn();
+    const driver = new DriftingAgentModelDriver({ createProviderDriver });
+    const run = async () => {
+      const stream = driver.stream({
+        ...request(),
+        provider: 'anthropic',
+        model: 'gpt-4.1',
+      });
+      await stream[Symbol.asyncIterator]().next();
+    };
+    await expect(run()).rejects.toThrow('does not belong');
+    expect(createProviderDriver).not.toHaveBeenCalled();
+  });
 });

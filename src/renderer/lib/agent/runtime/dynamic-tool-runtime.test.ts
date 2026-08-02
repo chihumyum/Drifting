@@ -250,6 +250,69 @@ describe('dynamic Agent tool registry', () => {
     ).toBe('read');
   });
 
+  it('binds built-in execution to the exact definition leased for the turn', async () => {
+    let description = 'read v1';
+    const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({
+      ok: true,
+      data: 'should not execute',
+    }));
+    const builtIn: AgentToolRuntime = {
+      listDefinitions: () => [
+        {
+          name: 'read_node',
+          description,
+          inputSchema: { type: 'object', additionalProperties: false },
+          access: 'read',
+          validateInput: (value) => ({ ok: true, value }),
+        },
+      ],
+      execute,
+    };
+    const composite = new CompositeAgentToolRuntime(
+      builtIn,
+      new DynamicAgentToolRegistry(),
+    );
+    const leased = composite.listDefinitions(projectA)[0]!;
+
+    description = 'read v2';
+
+    await expect(
+      composite.execute(
+        request('read_node', projectA, {}, leased.executionRevision),
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: 'Tool "read_node" definition changed before execution',
+    });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('resolves only a built-in executable alias owned by the same runtime', () => {
+    const builtIn: AgentToolRuntime = {
+      listDefinitions: () => [
+        {
+          name: 'set_entity_body',
+          description: 'write',
+          inputSchema: { type: 'object' },
+          access: 'write',
+          validateInput: (value) => ({ ok: true, value }),
+        },
+      ],
+      resolveCanonicalName: (name) =>
+        name === 'set_element_body' ? 'set_entity_body' : undefined,
+      execute: async () => ({ ok: true, data: null }),
+    };
+    const composite = new CompositeAgentToolRuntime(
+      builtIn,
+      new DynamicAgentToolRegistry(),
+    );
+
+    expect(
+      composite.resolveCanonicalName('set_element_body', projectA),
+    ).toBe('set_entity_body');
+    expect(composite.resolveCanonicalName('human label', projectA)).toBeUndefined();
+  });
+
   it('forwards one built-in durable selection hint through the composite', async () => {
     const withoutHints: AgentToolRuntime = {
       listDefinitions: () => [],

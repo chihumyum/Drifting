@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -23,6 +24,7 @@ import { useAgentEditStore } from '../../../store/agent-edit-store';
 import { useDataStore } from '../../../store/data-store';
 import type { AgentToolContext } from '../tool-handlers';
 import { DriftingWriteToolRuntime } from './drifting-write-tool-runtime';
+import { getDriftingWriteStrategy } from './drifting-write-strategies';
 import {
   elementPatchRevision,
   elementPatchSetRevision,
@@ -108,7 +110,8 @@ describe('certified element patch runtime', () => {
     expect(recovered).toMatchObject({
       ok: true,
       data: {
-        review: { status: 'pending' },
+        writeRef: `agent-write:${request.idempotencyKey}`,
+        authorization: { kind: 'automatic' },
         result: { ok: true, title: '立场转变' },
       },
     });
@@ -121,7 +124,7 @@ describe('certified element patch runtime', () => {
     ).toBe(1);
   });
 
-  it('updates with patch CAS and rejects through an exact, restart-idempotent inverse', async () => {
+  it('updates with patch CAS and creates no post-write review or inverse', async () => {
     const patch = await fixture.insertPatch('patch-1', '旧标题', '旧正文');
     const token = await fixture.persistPatchRead(
       'read-update',
@@ -142,34 +145,114 @@ describe('certified element patch runtime', () => {
     const written = await runtime.execute(request);
     expect(written).toMatchObject({
       ok: true,
-      data: { review: { status: 'pending' } },
+      data: {
+        writeRef: `agent-write:${request.idempotencyKey}`,
+        authorization: { kind: 'automatic' },
+      },
     });
     expect((await fixture.patch(patch.id))?.title).toBe('新标题');
+    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(
+      fixture.scalar(
+        "SELECT count(*) FROM agent_runtime_element_patch_receipt WHERE direction = 'inverse'",
+      ),
+    ).toBe(0);
+    expect(fixture.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(0);
+    expect(await fixture.runtime().execute(request)).toEqual(written);
+    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
 
-    const reviewId = (
-      written.ok
-        ? (written.data as { review: { id: string } }).review.id
-        : ''
+  });
+
+  it('hard-deletes an approved patch with an immutable null-postimage receipt', async () => {
+    const patch = await fixture.insertPatch('patch-delete', '待删除', '正文');
+    const token = await fixture.persistPatchRead(
+      'read-delete',
+      'element-1',
+      [patch],
+      SESSION_ID,
+      PROJECT_ID,
+      patch.id,
     );
-    const rejected = await runtime.rejectReview(reviewId);
-    expect(rejected.review.status).toBe('reverted');
-    expect(await fixture.patch(patch.id)).toMatchObject({
-      title: '旧标题',
-      contentJson: expect.stringContaining('旧正文'),
+    const request = fixture.writeRequest('delete-1', 'delete_element_patch', {
+      patchId: patch.id,
+      expectedRevision: token,
     });
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(2);
+    fixture.seedToolCall(request);
+
+    const written = await fixture.runtime().execute(request);
+
+    expect(written).toMatchObject({
+      ok: true,
+      data: {
+        authorization: { kind: 'author_approved' },
+        result: { ok: true, patchId: patch.id },
+      },
+    });
+    expect(await fixture.patch(patch.id)).toBeNull();
+    expect(
+      fixture.rows(
+        "SELECT tool_name, direction, result_revision, postimage_json " +
+          "FROM agent_runtime_element_patch_receipt",
+      ),
+    ).toEqual([
+      {
+        tool_name: 'delete_element_patch',
+        direction: 'forward',
+        result_revision: null,
+        postimage_json: null,
+      },
+    ]);
+    expect(
+      fixture.rows(
+        "SELECT entity_type, mutation_type, entity_id FROM local_sync_mutation",
+      ),
+    ).toEqual([
+      {
+        entity_type: 'elementPatch',
+        mutation_type: 'delete',
+        entity_id: patch.id,
+      },
+    ]);
+    expect(await fixture.runtime().execute(request)).toEqual(written);
+    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+
+    const effect = await createAgentRuntimeWriteEffectRepository(
+      fixture.client,
+    ).getEffect(`agent-write:${request.idempotencyKey}`);
+    if (!effect) throw new Error('Missing certified delete effect');
+    const strategy = getDriftingWriteStrategy('delete_element_patch', {
+      freshness: fixture.freshness,
+      elementPatchDb: fixture.client,
+      elementPatchReceipts: createAgentRuntimeElementPatchReceiptRepository(
+        fixture.client,
+      ),
+      elementPatchNotifySyncCommitted: () => {},
+    });
+    if (!strategy) throw new Error('Missing certified delete strategy');
+    await expect(
+      strategy.applyInverse(
+        effect,
+        { projectId: PROJECT_ID, write: {} as AgentToolContext['write'] },
+        request.signal,
+      ),
+    ).resolves.toMatchObject({
+      kind: 'element_patch_revert',
+      patchId: patch.id,
+    });
+    expect(await fixture.patch(patch.id)).toMatchObject({
+      id: patch.id,
+      title: patch.title,
+      contentJson: patch.contentJson,
+      updatedAt: patch.updatedAt,
+    });
     expect(
       fixture.scalar(
         "SELECT count(*) FROM agent_runtime_element_patch_receipt WHERE direction = 'inverse'",
       ),
     ).toBe(1);
-
-    const replay = await fixture.runtime().rejectReview(reviewId);
-    expect(replay.review.status).toBe('reverted');
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(2);
   });
 
-  it('fails closed for stale patch content, cross-project receipts, and reject conflicts', async () => {
+  it('fails closed for stale patch content and cross-project receipts', async () => {
     const patch = await fixture.insertPatch('patch-race', '初始', '正文');
     const stale = await fixture.persistPatchRead(
       'read-stale',
@@ -240,13 +323,11 @@ describe('certified element patch runtime', () => {
     const runtime = fixture.runtime();
     const result = await runtime.execute(update);
     if (!result.ok) throw new Error(result.error);
-    const reviewId = (result.data as { review: { id: string } }).review.id;
     await createElementPatchRepository(fixture.client).update(patch.id, {
       title: '作者最终标题',
     });
-    const conflict = await runtime.rejectReview(reviewId);
-    expect(conflict.review.status).toBe('revert_failed');
     expect((await fixture.patch(patch.id))?.title).toBe('作者最终标题');
+    expect(fixture.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(0);
   });
 
   it('does not update or build on a patch that is pending author deletion', async () => {
@@ -301,7 +382,7 @@ describe('certified element patch runtime', () => {
     fixture.seedToolCall(update);
     await expect(fixture.runtime().execute(update)).resolves.toMatchObject({
       ok: false,
-      error: expect.stringContaining('not available for Agent updates'),
+      error: expect.stringContaining('not available for Agent changes'),
     });
 
     const create = fixture.writeRequest(
@@ -322,7 +403,7 @@ describe('certified element patch runtime', () => {
     expect(fixture.scalar('SELECT count(*) FROM element_patch')).toBe(1);
   });
 
-  it('settles an inverse receipt as reverted even when post-commit notification throws and cancellation arrives', async () => {
+  it('does not schedule an inverse after a hard-authorized patch update', async () => {
     const patch = await fixture.insertPatch('patch-post-commit', '旧标题', '旧正文');
     const token = await fixture.persistPatchRead(
       'read-post-commit',
@@ -342,35 +423,23 @@ describe('certified element patch runtime', () => {
       },
     );
     fixture.seedToolCall(request);
-    const controller = new AbortController();
     let notifications = 0;
     const runtime = fixture.runtime(undefined, () => {
       notifications += 1;
-      if (notifications === 2) {
-        controller.abort('cancel arrived after inverse commit');
-        throw new Error('simulated post-commit notifier failure');
-      }
     });
     const written = await runtime.execute(request);
     if (!written.ok) throw new Error(written.error);
-    const reviewId = (written.data as { review: { id: string } }).review.id;
-
-    const rejected = await runtime.rejectReview(
-      reviewId,
-      'author rejected',
-      controller.signal,
-    );
-
-    expect(rejected.review.status).toBe('reverted');
-    expect((await fixture.patch(patch.id))?.title).toBe('旧标题');
+    expect(written).toMatchObject({
+      data: { authorization: { kind: 'automatic' } },
+    });
+    expect((await fixture.patch(patch.id))?.title).toBe('Agent 标题');
+    expect(notifications).toBe(1);
     expect(
       fixture.scalar(
         "SELECT count(*) FROM agent_runtime_element_patch_receipt WHERE direction = 'inverse'",
       ),
-    ).toBe(1);
-    expect((await runtime.rejectReview(reviewId)).review.status).toBe(
-      'reverted',
-    );
+    ).toBe(0);
+    expect(fixture.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(0);
   });
 });
 
@@ -424,6 +493,20 @@ class ElementPatchFixture {
         order_key INTEGER DEFAULT 0 NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
+      );
+      CREATE TABLE comment (
+        id TEXT PRIMARY KEY NOT NULL,
+        project_id TEXT NOT NULL,
+        target_kind TEXT,
+        target_id TEXT
+      );
+      CREATE TABLE entity_relation (
+        id TEXT PRIMARY KEY NOT NULL,
+        project_id TEXT NOT NULL,
+        from_kind TEXT NOT NULL,
+        from_id TEXT NOT NULL,
+        to_kind TEXT NOT NULL,
+        to_id TEXT NOT NULL
       );
       CREATE TABLE local_sync_mutation (
         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -634,7 +717,10 @@ class ElementPatchFixture {
 
   writeRequest(
     callId: string,
-    name: 'create_element_patch' | 'update_element_patch',
+    name:
+      | 'create_element_patch'
+      | 'update_element_patch'
+      | 'delete_element_patch',
     arguments_: Record<string, unknown>,
   ): AgentToolExecutionRequest {
     return {
@@ -645,6 +731,10 @@ class ElementPatchFixture {
       name,
       arguments: arguments_,
       access: 'write',
+      authorization:
+        name === 'delete_element_patch'
+          ? authorApprovedAuthorization(callId, arguments_)
+          : automaticAuthorization(arguments_),
       context: runtimeContext(),
       control: {
         requestUserInput: async () => {
@@ -739,6 +829,10 @@ class ElementPatchFixture {
     return Number(Object.values(row)[0] ?? 0);
   }
 
+  rows(sql: string): Record<string, unknown>[] {
+    return this.gateway.database.prepare(sql).all() as Record<string, unknown>[];
+  }
+
   async close(): Promise<void> {
     await this.gateway.close();
     await rm(this.directory, { recursive: true, force: true });
@@ -762,6 +856,27 @@ function runtimeContext(): AgentRuntimeContext {
 
 function runtimeToolCallId(request: AgentToolExecutionRequest): string {
   return `agent-tool:${request.sessionId}:${request.turnId}:${request.callId}`;
+}
+
+function automaticAuthorization(arguments_: Record<string, unknown>) {
+  return {
+    kind: 'automatic' as const,
+    requestId: null,
+    argumentsHash: `sha256:${createHash('sha256')
+      .update(canonicalAgentRuntimeJson(arguments_))
+      .digest('hex')}`,
+  };
+}
+
+function authorApprovedAuthorization(
+  callId: string,
+  arguments_: Record<string, unknown>,
+) {
+  return {
+    ...automaticAuthorization(arguments_),
+    kind: 'author_approved' as const,
+    requestId: `permission:${callId}`,
+  };
 }
 
 function observationId(

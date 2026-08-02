@@ -132,6 +132,10 @@ import { effectiveAgentEditMode } from './agent-edit-mode';
 import type { AgentBlockChange } from './block-diff';
 import { entityKey, type ActivityEntityType } from './tool-entity-ref';
 import { summaryFieldChange, kvFieldChanges, patchFieldChange, fieldBlockId } from './field-diff';
+import {
+  rankAgentContextEvidence,
+  type AgentContextEvidenceDocument,
+} from './runtime/context-evidence-retrieval';
 
 /**
  * Merge facts into an existing kv list by key (upsert). Unlike update_element's
@@ -149,18 +153,17 @@ function mergeKv(existingJson: string | null | undefined, updates: KvEntry[]): s
 }
 
 /**
- * Seed the edit-review store with the agent's NON-PROSE field edits (summary /
- * kv / template kv), so they surface for review exactly like prose edits do
- * (soft-approval: the write already landed; this just records what changed).
- * Stamps the current global mode so auto/approve is frozen per-change. No-op
- * when nothing actually changed.
+ * Seed the legacy/Shadow edit surface with NON-PROSE field edits. General Agent
+ * writes carry durable provenance and are hard-authorized before dispatch, so
+ * they must never create a second post-write approval control here.
  */
 function recordFieldChanges(
+  ctx: AgentToolContext,
   entityType: ActivityEntityType,
   id: string,
   changes: AgentBlockChange[],
 ): void {
-  if (changes.length === 0) return;
+  if (ctx.provenance || changes.length === 0) return;
   useAgentEditStore.getState().record(entityType, id, changes, effectiveAgentEditMode());
 }
 
@@ -648,27 +651,90 @@ async function readElement(ctx: AgentToolContext, elementId: string) {
 }
 
 function searchProject(ctx: AgentToolContext, query: string) {
-  const q = query.trim().toLowerCase();
-  // `label` is the project-unique name — pass it straight back as the entity
-  // ref (no long id emitted).
-  const matches: Array<{ kind: string; label: string }> = [];
-  if (!q) return { matches };
-
   const s = useDataStore.getState();
+  const documents: AgentContextEvidenceDocument[] = [];
   for (const n of s.bookNodes) {
     if (n.projectId !== ctx.projectId) continue;
-    if (n.title.toLowerCase().includes(q)) matches.push({ kind: n.kind, label: n.title });
+    documents.push({
+      evidenceId: `${n.kind}:${n.id}`,
+      kind: n.kind,
+      title: n.title,
+      updatedAt: n.updatedAt,
+      revision: n.updatedAt,
+      ordinal: n.kind === 'chapter' ? n.bookOrder : n.narrativeOrder ?? Number.MAX_SAFE_INTEGER,
+      fields: [
+        { kind: 'title', text: n.title },
+        ...(n.summary ? [{ kind: 'summary' as const, text: n.summary }] : []),
+      ],
+    });
   }
   for (const e of s.bookElements) {
     if (e.projectId !== ctx.projectId) continue;
-    const hay = [e.name, e.summary, ...e.aliases].join(' ').toLowerCase();
-    if (hay.includes(q)) matches.push({ kind: 'element', label: e.name });
+    documents.push({
+      evidenceId: `element:${e.id}`,
+      kind: 'element',
+      title: e.name,
+      updatedAt: e.updatedAt,
+      revision: e.updatedAt,
+      fields: [
+        { kind: 'title', text: e.name },
+        ...e.aliases.map((alias) => ({ kind: 'alias' as const, text: alias })),
+        ...(e.summary ? [{ kind: 'summary' as const, text: e.summary }] : []),
+        ...parseKv(e.kvJson).map(({ key, value }) => ({
+          kind: 'fact' as const,
+          text: `${key}: ${value}`,
+        })),
+      ],
+    });
   }
   for (const sl of s.storylines) {
     if (sl.projectId !== ctx.projectId) continue;
-    if (sl.name.toLowerCase().includes(q)) matches.push({ kind: 'storyline', label: sl.name });
+    documents.push({
+      evidenceId: `storyline:${sl.id}`,
+      kind: 'storyline',
+      title: sl.name,
+      updatedAt: sl.updatedAt,
+      revision: sl.updatedAt,
+      ordinal: sl.orderKey,
+      fields: [
+        { kind: 'title', text: sl.name },
+        ...(sl.summary ? [{ kind: 'summary' as const, text: sl.summary }] : []),
+        ...parseKv(sl.kvJson).map(({ key, value }) => ({
+          kind: 'fact' as const,
+          text: `${key}: ${value}`,
+        })),
+      ],
+    });
   }
-  return { matches };
+  for (const category of s.bookElementCategories) {
+    if (category.projectId !== ctx.projectId) continue;
+    documents.push({
+      evidenceId: `category:${category.id}`,
+      kind: 'category',
+      title: category.name,
+      updatedAt: category.updatedAt,
+      revision: category.updatedAt,
+      fields: [
+        { kind: 'title', text: category.name },
+        ...parseKv(category.elementTemplateKvJson).map(({ key, value }) => ({
+          kind: 'fact' as const,
+          text: `${key}: ${value}`,
+        })),
+      ],
+    });
+  }
+  const matches = rankAgentContextEvidence({ query, documents, limit: 100 }).map(
+    (match) => ({
+      kind: match.kind,
+      label: match.title,
+      snippet: match.snippet,
+      score: match.score,
+      matchedTerms: match.matchedTerms,
+      matchedIn: match.matchedField,
+      freshness: match.freshness,
+    }),
+  );
+  return { matches, ranking: 'drifting-evidence-v1' };
 }
 
 // ---- Materials (素材库 library items) ---------------------------------------
@@ -762,13 +828,6 @@ function entityLabel(s: DataState, kind: string, id: string): string {
     default:
       return id;
   }
-}
-
-function snippetAround(text: string, idx: number, len: number): string {
-  const start = Math.max(0, idx - 40);
-  const end = Math.min(text.length, idx + len + 40);
-  const core = text.slice(start, end).replace(/\s+/g, ' ').trim();
-  return `${start > 0 ? '…' : ''}${core}${end < text.length ? '…' : ''}`;
 }
 
 /** The book's premise / goal / style facts + structure counts — the "面" anchor. */
@@ -1007,26 +1066,25 @@ async function proseJsonForSearch(
 }
 
 async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const q = String(args.query ?? '')
-    .trim()
-    .toLowerCase();
+  const query = String(args.query ?? '').trim();
   const limit = Math.min(Math.max(Number(args.limit) || 30, 1), 100);
-  // title is the project-unique name — the agent passes it straight back as the
-  // nodeId/elementId arg, so no long id is emitted here.
-  const matches: Array<{ kind: string; title: string; block?: number; snippet: string }> = [];
-  if (!q) return { matches };
+  if (!query) return { matches: [] };
 
   const s = useDataStore.getState();
+  const documents: AgentContextEvidenceDocument[] = [];
 
   // Canon prose entities. Search the Yjs truth for closed and open documents.
   for (const e of s.bookElements) {
     if (e.projectId !== ctx.projectId) continue;
     const text = docToPlainText(await proseJsonForSearch('element', e.id, e.contentJson));
-    const idx = text.toLowerCase().indexOf(q);
-    if (idx !== -1) {
-      matches.push({ kind: 'element', title: e.name, snippet: snippetAround(text, idx, q.length) });
-      if (matches.length >= limit) return { matches, truncated: true };
-    }
+    documents.push({
+      evidenceId: `element-prose:${e.id}`,
+      kind: 'element',
+      title: e.name,
+      updatedAt: e.updatedAt,
+      revision: e.updatedAt,
+      fields: [{ kind: 'prose', text }],
+    });
   }
   for (const storyline of s.storylines) {
     if (storyline.projectId !== ctx.projectId) continue;
@@ -1037,15 +1095,15 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
         storyline.contentJson,
       ),
     );
-    const idx = text.toLowerCase().indexOf(q);
-    if (idx !== -1) {
-      matches.push({
-        kind: 'storyline',
-        title: storyline.name,
-        snippet: snippetAround(text, idx, q.length),
-      });
-      if (matches.length >= limit) return { matches, truncated: true };
-    }
+    documents.push({
+      evidenceId: `storyline-prose:${storyline.id}`,
+      kind: 'storyline',
+      title: storyline.name,
+      updatedAt: storyline.updatedAt,
+      revision: storyline.updatedAt,
+      ordinal: storyline.orderKey,
+      fields: [{ kind: 'prose', text }],
+    });
   }
   for (const category of s.bookElementCategories) {
     if (category.projectId !== ctx.projectId) continue;
@@ -1056,15 +1114,14 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
         category.contentJson,
       ),
     );
-    const idx = text.toLowerCase().indexOf(q);
-    if (idx !== -1) {
-      matches.push({
-        kind: 'category',
-        title: category.name,
-        snippet: snippetAround(text, idx, q.length),
-      });
-      if (matches.length >= limit) return { matches, truncated: true };
-    }
+    documents.push({
+      evidenceId: `category-prose:${category.id}`,
+      kind: 'category',
+      title: category.name,
+      updatedAt: category.updatedAt,
+      revision: category.updatedAt,
+      fields: [{ kind: 'prose', text }],
+    });
   }
 
   // Chapter / drift prose — hydrate each authoritative document (no FTS index
@@ -1076,22 +1133,34 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
     const content = await contentRepo.findByNodeId(n.id);
     if (!content) continue;
     const blocks = docToBlocks(await proseJsonForSearch('node', n.id, content.contentJson));
-    for (let i = 0; i < blocks.length; i++) {
-      const b = blocks[i];
-      const idx = b.text.toLowerCase().indexOf(q);
-      if (idx !== -1) {
-        matches.push({
-          kind: n.kind,
-          title: n.title,
-          block: i + 1,
-          snippet: snippetAround(b.text, idx, q.length),
-        });
-        if (matches.length >= limit) return { matches, truncated: true };
-        break; // one hit per chapter is enough for discovery — agent can read_node for the rest
-      }
-    }
+    documents.push({
+      evidenceId: `${n.kind}-prose:${n.id}`,
+      kind: n.kind,
+      title: n.title,
+      updatedAt: n.updatedAt,
+      revision: content.updatedAt ?? n.updatedAt,
+      ordinal: n.kind === 'chapter' ? n.bookOrder : n.narrativeOrder ?? Number.MAX_SAFE_INTEGER,
+      fields: blocks.map((block, index) => ({
+        kind: 'prose' as const,
+        text: block.text,
+        block: index + 1,
+      })),
+    });
   }
-  return { matches };
+  const ranked = rankAgentContextEvidence({ query, documents, limit: limit + 1 });
+  return {
+    matches: ranked.slice(0, limit).map((match) => ({
+      kind: match.kind,
+      title: match.title,
+      ...(match.block ? { block: match.block } : {}),
+      snippet: match.snippet,
+      score: match.score,
+      matchedTerms: match.matchedTerms,
+      freshness: match.freshness,
+    })),
+    truncated: ranked.length > limit,
+    ranking: 'drifting-evidence-v1',
+  };
 }
 
 /** An element's accepted state-change patches across chapters (its evolution). */
@@ -1229,7 +1298,7 @@ async function updateElement(ctx: AgentToolContext, args: Record<string, unknown
   if (updates.kvJson !== undefined) {
     changes.push(...kvFieldChanges('kv', before?.kvJson, updates.kvJson));
   }
-  recordFieldChanges('element', id, changes);
+  recordFieldChanges(ctx, 'element', id, changes);
   return { ok: true, element: entityLabel(useDataStore.getState(), 'element', id) };
 }
 
@@ -1739,7 +1808,7 @@ async function updateStorylineTool(ctx: AgentToolContext, args: Record<string, u
   if (input.kvJson !== undefined) {
     changes.push(...kvFieldChanges('kv', before?.kvJson, input.kvJson));
   }
-  recordFieldChanges('storyline', id, changes);
+  recordFieldChanges(ctx, 'storyline', id, changes);
   return { ok: true, storyline: entityLabel(useDataStore.getState(), 'storyline', id) };
 }
 
@@ -1780,6 +1849,7 @@ async function updateCategoryTemplate(ctx: AgentToolContext, args: Record<string
   const elementTemplateKvJson = mergeKv(cat.elementTemplateKvJson, facts);
   await ctx.write.updateCategory(id, { elementTemplateKvJson });
   recordFieldChanges(
+    ctx,
     'category',
     id,
     kvFieldChanges('templatekv', cat.elementTemplateKvJson, elementTemplateKvJson),
@@ -1867,7 +1937,7 @@ async function setSummary(ctx: AgentToolContext, args: Record<string, unknown>) 
   }
   if (entityType) {
     const c = summaryFieldChange(beforeSummary, summary);
-    if (c) recordFieldChanges(entityType, targetId, [c]);
+    if (c) recordFieldChanges(ctx, entityType, targetId, [c]);
   }
   const nk = normalizeEntityKind(targetKind) ?? targetKind;
   return { ok: true, targetKind, target: entityLabel(useDataStore.getState(), nk, targetId) };
@@ -1886,9 +1956,9 @@ async function createElementPatch(ctx: AgentToolContext, args: Record<string, un
   // sourceChapter (a node NAME) was resolved to sourceNodeId by resolveArgsRefs.
   if (typeof args.sourceNodeId === 'string') input.sourceNodeId = args.sourceNodeId;
   const created = await createElementPatchWithSync(input);
-  // Surface the new patch for card-level review (keep / discard) — soft-approval,
+  // Surface the new patch for card-level review (keep / discard) — write-first review,
   // same as the other non-prose edits. Marks `patch:<id>` pending on the element.
-  recordFieldChanges('element', elementId, [patchFieldChange(created.id, created.title)]);
+  recordFieldChanges(ctx, 'element', elementId, [patchFieldChange(created.id, created.title)]);
   // Tell the open element editor's PatchesSection to reload (it has no store
   // subscription — it only refreshes on its own actions + this event).
   eventBus.emit('element:patches-changed', { elementId });
@@ -1916,7 +1986,7 @@ async function updateElementPatch(ctx: AgentToolContext, args: Record<string, un
   if (updates.title !== undefined || updates.contentJson !== undefined) {
     const stash = JSON.stringify({ title: before.title, contentJson: before.contentJson });
     const label = updated.title?.trim() ? updated.title : '补丁';
-    recordFieldChanges('element', updated.elementId, [
+    recordFieldChanges(ctx, 'element', updated.elementId, [
       {
         blockId: fieldBlockId('patch', patchId),
         op: 'changed',
@@ -1935,7 +2005,7 @@ async function updateElementPatch(ctx: AgentToolContext, args: Record<string, un
   };
 }
 
-async function deleteElementPatch(_ctx: AgentToolContext, args: Record<string, unknown>) {
+async function deleteElementPatch(ctx: AgentToolContext, args: Record<string, unknown>) {
   const patchId = String(args.patchId ?? '');
   if (!patchId) throw new Error('delete_element_patch requires patchId');
   const existing = await createElementPatchRepository().findById(patchId);
@@ -1948,7 +2018,7 @@ async function deleteElementPatch(_ctx: AgentToolContext, args: Record<string, u
   // move THAT off the full-screen overlay into a non-blocking in-chat prompt that
   // flashes the agent tab while it blocks — see agent-confirm-store.)
   const title = existing.title?.trim() ? existing.title : '补丁';
-  recordFieldChanges('element', existing.elementId, [
+  recordFieldChanges(ctx, 'element', existing.elementId, [
     {
       blockId: fieldBlockId('patch', patchId),
       op: 'deleted',
@@ -2108,11 +2178,15 @@ async function listMemoryTool(ctx: AgentToolContext, _args: Record<string, unkno
         memoryId: m.id,
         kind: m.kind,
         status: m.status,
+        source: m.source,
         body: m.body,
+        targetKind: m.targetKind ?? undefined,
         target:
           m.targetKind && m.targetId
             ? (entityLabel(s, m.targetKind, m.targetId) ?? m.targetId)
             : undefined,
+        targetBlockId: m.targetBlockId ?? undefined,
+        supersedesId: m.supersedesId ?? undefined,
       })),
   };
 }
@@ -2890,7 +2964,7 @@ const EVOLVE_FINISH_TOOL: AITool = {
 
 // Runs on the SHADOW provider (no Anthropic dependency). Mirrors runEvolveCriticBatch's
 // loop, but the tools WRITE: the model calls edit_block/edit_blocks (dispatched through
-// runAgentTool → live Yjs + soft-approval, recorded with shadowEditMode via the override)
+// runAgentTool → live Yjs + pending inline review, recorded with shadowEditMode via the override)
 // and finish_edits to stop. Returns the block ids it changed.
 export async function runShadowEditBatch(
   ctx: AgentToolContext,

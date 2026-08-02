@@ -24,12 +24,22 @@ import {
   parseWorkspaceTextReplacements,
   type WorkspaceTextReplacement,
 } from './workspace-prose-file';
+import {
+  DRIFTING_WORKSPACE_DELETE_TOOL,
+  DRIFTING_WORKSPACE_EDIT_TOOL,
+  DRIFTING_WORKSPACE_READ_TOOLS,
+  DRIFTING_WORKSPACE_WRITE_TOOL,
+  isDriftingWorkspaceCommandName,
+  type DriftingWorkspaceCommandName,
+  type DriftingWorkspaceReadToolName,
+} from './drifting-workspace-tool-contract';
 
-export const DRIFTING_WORKSPACE_READ_TOOLS = ['list_files', 'read_file', 'grep'] as const;
-
-export const DRIFTING_WORKSPACE_EDIT_TOOL = 'edit_file' as const;
-
-type WorkspaceReadToolName = (typeof DRIFTING_WORKSPACE_READ_TOOLS)[number];
+export {
+  DRIFTING_WORKSPACE_DELETE_TOOL,
+  DRIFTING_WORKSPACE_EDIT_TOOL,
+  DRIFTING_WORKSPACE_READ_TOOLS,
+  DRIFTING_WORKSPACE_WRITE_TOOL,
+} from './drifting-workspace-tool-contract';
 
 type WorkspaceTarget =
   | { kind: 'overview' }
@@ -71,7 +81,15 @@ type WorkspaceTarget =
     }
   | { kind: 'material'; materialId: string; materialTitle: string }
   | { kind: 'comments' }
-  | { kind: 'memory' };
+  | { kind: 'comment'; commentId: string }
+  | {
+      kind: 'relation';
+      relationId: string;
+      fromKind: string;
+      fromId: string;
+    }
+  | { kind: 'memory_collection' }
+  | { kind: 'memory'; memoryId: string };
 
 interface WorkspaceEntry {
   path: string;
@@ -105,14 +123,7 @@ interface CompactProseBlock {
 }
 
 interface WorkspaceCommand {
-  name:
-    | 'edit_prose_file'
-    | 'edit_blocks'
-    | 'rename_node'
-    | 'set_node_summary'
-    | 'update_element'
-    | 'update_storyline'
-    | 'update_project_facts';
+  name: DriftingWorkspaceCommandName;
   arguments: Record<string, unknown>;
 }
 
@@ -170,14 +181,18 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         error: `Workspace read runtime denied write tool "${request.name}"`,
       };
     }
-    if (!DRIFTING_WORKSPACE_READ_TOOLS.includes(request.name as WorkspaceReadToolName)) {
+    if (
+      !DRIFTING_WORKSPACE_READ_TOOLS.includes(
+        request.name as DriftingWorkspaceReadToolName,
+      )
+    ) {
       return { ok: false, error: `Unknown workspace read tool "${request.name}"` };
     }
 
     try {
       const projectId = this.requireProject(request.context);
       if (request.name === 'list_files') {
-        const data = this.listFiles(projectId, request.arguments.path);
+        const data = await this.listFiles(projectId, request.arguments.path, request);
         return { ok: true, data, modelData: workspaceReadModelData(data) };
       }
       if (request.name === 'read_file') {
@@ -195,11 +210,49 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     }
   }
 
-  /** Convert the public edit_file call into one certified hidden command. */
-  async prepareEditRequest(request: AgentToolExecutionRequest): Promise<AgentToolExecutionRequest> {
-    if (request.name !== DRIFTING_WORKSPACE_EDIT_TOOL) return request;
+  /** Convert a public workspace mutation into one certified hidden command. */
+  async prepareWriteRequest(request: AgentToolExecutionRequest): Promise<AgentToolExecutionRequest> {
+    if (
+      request.name !== DRIFTING_WORKSPACE_EDIT_TOOL &&
+      request.name !== DRIFTING_WORKSPACE_WRITE_TOOL &&
+      request.name !== DRIFTING_WORKSPACE_DELETE_TOOL
+    ) {
+      return request;
+    }
     throwIfAgentAborted(request.signal);
     const projectId = this.requireProject(request.context);
+    if (request.name === DRIFTING_WORKSPACE_WRITE_TOOL) {
+      const path = normalizeVirtualPath(request.arguments.path);
+      const content = String(request.arguments.content ?? '');
+      const resolvedPath = resolveWorkspacePath(projectId, path);
+      const existing =
+        findWorkspaceEntry(projectId, resolvedPath) ??
+        (await this.resolveDynamicMemoryEntry(projectId, resolvedPath, request));
+      const prepared = existing
+        ? await this.prepareWholeFileCommand(existing, content, request)
+        : await this.prepareCreateCommand(path, content, request);
+      return {
+        ...request,
+        arguments: {
+          path,
+          content,
+          expectedRevision: prepared.expectedRevision,
+          [WORKSPACE_COMMAND_ARGUMENT]: prepared.command,
+        },
+      };
+    }
+    if (request.name === DRIFTING_WORKSPACE_DELETE_TOOL) {
+      const path = resolveWorkspacePath(projectId, request.arguments.path);
+      const prepared = await this.prepareDeleteCommand(path, request);
+      return {
+        ...request,
+        arguments: {
+          path,
+          expectedRevision: prepared.expectedRevision,
+          [WORKSPACE_COMMAND_ARGUMENT]: prepared.command,
+        },
+      };
+    }
     const entry = requireWorkspaceFileEntry(projectId, request.arguments.path, true);
     const path = entry.path;
     if (!entry.writable) {
@@ -218,12 +271,47 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     };
   }
 
-  private listFiles(projectId: string, rawPrefix: unknown) {
+  /** @deprecated compatibility for older product composition/tests. */
+  async prepareEditRequest(request: AgentToolExecutionRequest): Promise<AgentToolExecutionRequest> {
+    return this.prepareWriteRequest(request);
+  }
+
+  private async listFiles(
+    projectId: string,
+    rawPrefix: unknown,
+    request: AgentToolExecutionRequest,
+  ) {
     const prefix = resolveWorkspacePath(projectId, rawPrefix ?? '/');
+    if (prefix === '/memory') {
+      const read = await this.canonicalRead(request, 'list_memory', {}, 'memory-directory');
+      const memories = recordArray(read.value, 'memories');
+      return {
+        path: prefix,
+        files: memories.map((memory) => {
+          const memoryId = String(memory.memoryId ?? '');
+          return {
+            path: `/memory/${pathSegment(memoryId)}.json`,
+            name: String(memory.body ?? '').slice(0, 80) || '写作指南',
+            type: 'file' as const,
+            writable:
+              memory.source === 'agent' && memory.status === 'pending',
+            description: `${String(memory.kind ?? 'preference')} · ${String(memory.status ?? 'pending')}`,
+          };
+        }),
+        total: memories.length,
+        truncated: false,
+      };
+    }
     const entries = buildWorkspaceEntries(projectId).filter((entry) =>
       pathIsWithin(entry.path, prefix),
     );
-    if (entries.length === 0) {
+    if (entries.length === 0 && isEmptyElementCategoryDirectory(projectId, prefix)) {
+      return { path: prefix, files: [], total: 0, truncated: false };
+    }
+    if (entries.length === 0 && isVirtualWorkspaceRoot(prefix) && prefix !== '/elements') {
+      return { path: prefix, files: [], total: 0, truncated: false };
+    }
+    if (entries.length === 0 && prefix !== '/elements') {
       throw new Error(`No virtual directory exists at "${prefix}"`);
     }
 
@@ -270,13 +358,34 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       }
     }
 
+    if (prefix === '/elements') {
+      for (const category of useDataStore
+        .getState()
+        .bookElementCategories.filter((item) => item.projectId === projectId)) {
+        const childPath = `/elements/${pathSegment(category.name)}`;
+        if (children.has(childPath)) continue;
+        children.set(childPath, {
+          path: childPath,
+          name: category.name,
+          type: 'directory',
+          writable: true,
+          description:
+            `Empty element category. Create an element by writing ` +
+            `${childPath}/<element-name>/body.md directly.`,
+          descendants: [],
+        });
+      }
+    }
+
     const items = [...children.values()]
       .map((item) =>
         item.type === 'directory'
           ? {
               ...item,
               name: workspaceDirectoryDisplayName(item.path, item.descendants ?? []),
-              description: describeWorkspaceDirectory(projectId, item.path, item.descendants ?? []),
+              description:
+                item.description ||
+                describeWorkspaceDirectory(projectId, item.path, item.descendants ?? []),
             }
           : item,
       )
@@ -300,8 +409,10 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
   private async readFile(projectId: string, request: AgentToolExecutionRequest) {
     const resolved = resolveWorkspacePath(projectId, request.arguments.path);
     const entry =
-      findWorkspaceEntry(projectId, resolved) ?? primaryWorkspaceEntry(projectId, resolved);
-    if (!entry) return this.listFiles(projectId, resolved);
+      findWorkspaceEntry(projectId, resolved) ??
+      (await this.resolveDynamicMemoryEntry(projectId, resolved, request)) ??
+      primaryWorkspaceEntry(projectId, resolved);
+    if (!entry) return this.listFiles(projectId, resolved, request);
     const path = entry.path;
     const content = await this.renderEntry(entry, request);
     const offset = boundedInteger(request.arguments.offset, 0, 0, content.length);
@@ -327,7 +438,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     const prefix = resolveWorkspacePath(projectId, request.arguments.path ?? '/');
     const limit = boundedInteger(request.arguments.limit, 30, 1, 100);
     const entries = buildWorkspaceEntries(projectId);
-    if (!workspacePathExists(entries, prefix)) {
+    if (!workspacePathExists(projectId, entries, prefix)) {
       throw new Error(`No virtual file or directory exists at "${prefix}"`);
     }
     const byEntity = new Map<string, WorkspaceEntry>();
@@ -342,7 +453,15 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       this.canonicalRead(request, 'search_project', { query }, 'grep-meta'),
       this.canonicalRead(request, 'search_prose', { query, limit }, 'grep-prose'),
     ]);
-    const matches: Array<{ path: string; name: string; line?: number; snippet: string }> = [];
+    const matches: Array<{
+      path: string;
+      name: string;
+      line?: number;
+      snippet: string;
+      score: number;
+      matchedTerms: string[];
+      freshness: unknown;
+    }> = [];
     const seen = new Set<string>();
     for (const match of recordArray(metadataRead.value, 'matches')) {
       const kind = String(match.kind ?? '');
@@ -355,7 +474,12 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       matches.push({
         path: entry.path,
         name: workspaceEntryDisplayName(entry),
-        snippet: title,
+        snippet: String(match.snippet ?? title),
+        score: Number(match.score ?? 0),
+        matchedTerms: Array.isArray(match.matchedTerms)
+          ? match.matchedTerms.filter((term): term is string => typeof term === 'string')
+          : [],
+        freshness: match.freshness ?? null,
       });
     }
     for (const match of recordArray(proseRead.value, 'matches')) {
@@ -373,14 +497,54 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         name: workspaceEntryDisplayName(entry),
         ...(line ? { line } : {}),
         snippet,
+        score: Number(match.score ?? 0),
+        matchedTerms: Array.isArray(match.matchedTerms)
+          ? match.matchedTerms.filter((term): term is string => typeof term === 'string')
+          : [],
+        freshness: match.freshness ?? null,
       });
-      if (matches.length >= limit) break;
     }
+    matches.sort(
+      (left, right) =>
+        right.score - left.score ||
+        right.matchedTerms.length - left.matchedTerms.length ||
+        left.path.localeCompare(right.path, 'en') ||
+        (left.line ?? 0) - (right.line ?? 0),
+    );
     return {
       query,
       path: prefix,
       matches: matches.slice(0, limit),
       truncated: matches.length > limit || recordBoolean(proseRead.value, 'truncated'),
+      ranking: 'drifting-evidence-v1',
+    };
+  }
+
+  private async resolveDynamicMemoryEntry(
+    projectId: string,
+    path: string,
+    request: AgentToolExecutionRequest,
+  ): Promise<WorkspaceEntry | null> {
+    if (request.context.route.projectId !== projectId) return null;
+    const match = /^\/memory\/([^/]+)\.json$/u.exec(path);
+    if (!match) return null;
+    const memoryId = decodePathSegment(match[1] ?? '');
+    if (!memoryId) return null;
+    const read = await this.canonicalRead(
+      request,
+      'list_memory',
+      {},
+      'memory-entry',
+    );
+    const memory = recordArray(read.value, 'memories').find(
+      (candidate) => String(candidate.memoryId ?? '') === memoryId,
+    );
+    if (!memory) return null;
+    return {
+      path: `/memory/${pathSegment(memoryId)}.json`,
+      writable: memory.source === 'agent' && memory.status === 'pending',
+      description: `${String(memory.kind ?? 'preference')} · ${String(memory.status ?? 'pending')}`,
+      target: { kind: 'memory', memoryId },
     };
   }
 
@@ -400,9 +564,50 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       const read = await this.canonicalRead(request, 'list_comments', {}, 'comments');
       return renderComments(read.value);
     }
-    if (target.kind === 'memory') {
+    if (target.kind === 'comment') {
+      const read = await this.canonicalRead(request, 'list_comments', {}, 'comment');
+      const comment = recordArray(read.value, 'comments').find(
+        (candidate) => String(candidate.id ?? '') === target.commentId,
+      );
+      if (!comment) throw new Error('The comment moved or was deleted');
+      return prettyJson(comment);
+    }
+    if (target.kind === 'relation') {
+      const state = useDataStore.getState();
+      const read = await this.canonicalRead(
+        request,
+        'get_entity_relations',
+        {
+          kind: target.fromKind,
+          name: entityReadReference(state, target.fromKind, target.fromId),
+        },
+        'relation',
+      );
+      const relation = state.entityRelations.find(
+        (candidate) =>
+          candidate.id === target.relationId && candidate.projectId === this.requireProject(request.context),
+      );
+      if (!relation) throw new Error('The relation moved or was deleted');
+      void read;
+      return prettyJson({
+        fromKind: relation.fromKind,
+        from: entityDisplayName(state, relation.fromKind, relation.fromId),
+        toKind: relation.toKind,
+        to: entityDisplayName(state, relation.toKind, relation.toId),
+        kind: relation.kind,
+      });
+    }
+    if (target.kind === 'memory_collection') {
       const read = await this.canonicalRead(request, 'list_memory', {}, 'memory');
       return renderMemories(read.value);
+    }
+    if (target.kind === 'memory') {
+      const read = await this.canonicalRead(request, 'list_memory', {}, 'memory-item');
+      const memory = recordArray(read.value, 'memories').find(
+        (candidate) => String(candidate.memoryId ?? '') === target.memoryId,
+      );
+      if (!memory) throw new Error('The writing guidance moved or was deleted');
+      return renderMemoryFile(memory);
     }
     if (target.kind === 'material') {
       const read = await this.canonicalRead(
@@ -513,7 +718,18 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         .map((block) => block.displayText)
         .join('\n\n');
     }
-    return String(read.value ?? '');
+    const category = useDataStore
+      .getState()
+      .bookElementCategories.find(
+        (candidate) =>
+          candidate.id === target.categoryId &&
+          candidate.projectId === this.requireProject(request.context),
+      );
+    if (!category) throw new Error('The category moved or was deleted');
+    return prettyJson({
+      name: category.name,
+      templateFacts: parseKv(category.elementTemplateKvJson),
+    });
   }
 
   private async prepareWorkspaceCommand(
@@ -521,12 +737,20 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     replacements: WorkspaceTextReplacement[],
     request: AgentToolExecutionRequest,
   ): Promise<{ expectedRevision: Record<string, string>; command: WorkspaceCommand }> {
+    if (!entry.writable) {
+      throw new Error(`"${entry.path}" is read-only in this version of the workspace`);
+    }
     const target = entry.target;
-    if (target.kind === 'node_prose') {
+    const proseTarget = workspaceProseTarget(target);
+    if (proseTarget) {
       const read = await this.canonicalRead(
         request,
         'read_node',
-        { node: target.nodeName, prose: true },
+        {
+          node: proseTarget.name,
+          kind: proseTarget.entityType === 'node' ? proseTarget.nodeKind : proseTarget.entityType,
+          prose: true,
+        },
         'edit-source',
       );
       const blocks = compactProseBlocks(read.value);
@@ -534,14 +758,21 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         blocks.map((block) => block.displayText).join('\n\n'),
         replacements,
       );
-      const expectedRevision = expectedRevisionFrom(read, 'node_prose', target.nodeId);
+      const expectedRevision = expectedRevisionFrom(
+        read,
+        `${proseTarget.entityType}_prose`,
+        proseTarget.id,
+      );
       return {
         expectedRevision,
         command: {
           name: 'edit_prose_file',
           arguments: {
-            entity: target.nodeName,
-            kind: target.nodeKind,
+            entity: proseTarget.name,
+            kind:
+              proseTarget.entityType === 'node'
+                ? proseTarget.nodeKind
+                : proseTarget.entityType,
             replacements,
             expectedRevision,
           },
@@ -662,7 +893,13 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         { storyline: target.storylineName },
         'edit-source',
       );
-      const expectedRevision = expectedRevisionFrom(read, 'storyline', target.storylineId);
+      const expectedRevision = expectedRevisionFrom(
+        read,
+        target.kind === 'storyline_chapters'
+          ? 'storyline_membership'
+          : 'storyline',
+        target.storylineId,
+      );
       const value = asRecord(read.value);
       const update: Record<string, unknown> = {
         storyline: target.storylineName,
@@ -694,6 +931,26 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
           update.facts = next.filter((row) => currentByKey.get(row.key) !== row.value);
           break;
         }
+        case 'storyline_chapters': {
+          const chapters = parseJsonArrayFile(
+            applyWorkspaceTextReplacements(
+              prettyJson(value.chapters ?? []),
+              replacements,
+            ),
+            entry.path,
+          );
+          return {
+            expectedRevision,
+            command: {
+              name: 'set_storyline_membership',
+              arguments: {
+                storyline: target.storylineName,
+                chapters,
+                expectedRevision,
+              },
+            },
+          };
+        }
         default:
           throw new Error(`"${entry.path}" is read-only in this version of the workspace`);
       }
@@ -703,6 +960,432 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       };
     }
     throw new Error(`"${entry.path}" is read-only in this version of the workspace`);
+  }
+
+  private async prepareWholeFileCommand(
+    entry: WorkspaceEntry,
+    content: string,
+    request: AgentToolExecutionRequest,
+  ): Promise<{ expectedRevision: Record<string, string>; command: WorkspaceCommand }> {
+    if (!entry.writable) {
+      throw new Error(`"${entry.path}" is read-only in this version of the workspace`);
+    }
+    const target = entry.target;
+    const proseTarget = workspaceProseTarget(target);
+    if (proseTarget) {
+      const read = await this.canonicalRead(
+        request,
+        'read_node',
+        {
+          node: proseTarget.name,
+          kind:
+            proseTarget.entityType === 'node'
+              ? proseTarget.nodeKind
+              : proseTarget.entityType,
+          prose: true,
+        },
+        'write-prose',
+      );
+      const current = compactProseBlocks(read.value)
+        .map((block) => block.displayText)
+        .join('\n\n');
+      if (current === content) {
+        throw new Error(`"${entry.path}" already has the requested contents`);
+      }
+      const expectedRevision = expectedRevisionFrom(
+        read,
+        `${proseTarget.entityType}_prose`,
+        proseTarget.id,
+      );
+      return {
+        expectedRevision,
+        command: {
+          name: 'edit_prose_file',
+          arguments: {
+            entity: proseTarget.name,
+            kind:
+              proseTarget.entityType === 'node'
+                ? proseTarget.nodeKind
+                : proseTarget.entityType,
+            content,
+            expectedRevision,
+          },
+        },
+      };
+    }
+    if (target.kind === 'comment') {
+      const read = await this.canonicalRead(request, 'list_comments', {}, 'write-comment');
+      const expectedRevision = expectedRevisionFrom(read, 'comment', target.commentId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'update_comment',
+          arguments: {
+            commentId: target.commentId,
+            ...parseJsonObjectFile(content, entry.path),
+            expectedRevision,
+          },
+        },
+      };
+    }
+    if (target.kind === 'relation') {
+      const state = useDataStore.getState();
+      const read = await this.canonicalRead(
+        request,
+        'get_entity_relations',
+        {
+          kind: target.fromKind,
+          name: entityReadReference(state, target.fromKind, target.fromId),
+        },
+        'write-relation',
+      );
+      const expectedRevision = expectedRevisionFrom(read, 'relation', target.relationId);
+      const value = parseJsonObjectFile(content, entry.path);
+      return {
+        expectedRevision,
+        command: {
+          name: 'update_relation_kind',
+          arguments: {
+            relationId: target.relationId,
+            kind: typeof value.kind === 'string' ? value.kind : null,
+            expectedRevision,
+          },
+        },
+      };
+    }
+    if (target.kind === 'memory') {
+      const read = await this.canonicalRead(request, 'list_memory', {}, 'write-memory');
+      const expectedRevision = expectedRevisionFrom(read, 'memory', target.memoryId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'update_memory',
+          arguments: {
+            memoryId: target.memoryId,
+            ...parseJsonObjectFile(content, entry.path),
+            expectedRevision,
+          },
+        },
+      };
+    }
+    if (target.kind === 'category_meta') {
+      const read = await this.canonicalRead(
+        request,
+        'read_node',
+        { node: target.categoryName, kind: 'category', prose: false },
+        'write-category',
+      );
+      const expectedRevision = expectedRevisionFrom(read, 'category', target.categoryId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'update_category',
+          arguments: {
+            category: target.categoryName,
+            ...parseJsonObjectFile(content, entry.path),
+            expectedRevision,
+          },
+        },
+      };
+    }
+    const current = await this.renderEntry(entry, request);
+    if (!current) {
+      return this.prepareEmptyScalarFileCommand(entry, content, request);
+    }
+    return this.prepareWorkspaceCommand(
+      entry,
+      [{ oldText: current, newText: content, replaceAll: false }],
+      request,
+    );
+  }
+
+  private async prepareEmptyScalarFileCommand(
+    entry: WorkspaceEntry,
+    content: string,
+    request: AgentToolExecutionRequest,
+  ): Promise<{ expectedRevision: Record<string, string>; command: WorkspaceCommand }> {
+    if (!content) throw new Error(`"${entry.path}" already has the requested contents`);
+    const target = entry.target;
+    if (target.kind === 'node_summary') {
+      const read = await this.canonicalRead(
+        request,
+        'read_node',
+        { node: target.nodeName, prose: false },
+        'write-empty-summary',
+      );
+      const expectedRevision = expectedRevisionFrom(read, 'node', target.nodeId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'set_node_summary',
+          arguments: { node: target.nodeName, summary: content, expectedRevision },
+        },
+      };
+    }
+    if (target.kind === 'element_summary' || target.kind === 'element_group') {
+      const read = await this.canonicalRead(
+        request,
+        'read_element',
+        { element: target.elementName },
+        'write-empty-element-field',
+      );
+      const expectedRevision = expectedRevisionFrom(read, 'element', target.elementId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'update_element',
+          arguments: {
+            element: target.elementName,
+            ...(target.kind === 'element_summary'
+              ? { summary: content }
+              : { groupName: content }),
+            expectedRevision,
+          },
+        },
+      };
+    }
+    if (target.kind === 'storyline_summary') {
+      const read = await this.canonicalRead(
+        request,
+        'get_storyline',
+        { storyline: target.storylineName },
+        'write-empty-storyline-summary',
+      );
+      const expectedRevision = expectedRevisionFrom(read, 'storyline', target.storylineId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'update_storyline',
+          arguments: {
+            storyline: target.storylineName,
+            summary: content,
+            expectedRevision,
+          },
+        },
+      };
+    }
+    throw new Error(`"${entry.path}" cannot be initialized with write_file`);
+  }
+
+  private async prepareCreateCommand(
+    path: string,
+    content: string,
+    request: AgentToolExecutionRequest,
+  ): Promise<{ expectedRevision: Record<string, string>; command: WorkspaceCommand }> {
+    const projectId = this.requireProject(request.context);
+    const segments = path.split('/').filter(Boolean).map(decodePathSegment);
+    const file = segments[segments.length - 1] ?? '';
+    if (segments[0] === 'memory' && file.endsWith('.json') && segments.length === 2) {
+      const read = await this.canonicalRead(request, 'list_memory', {}, 'create-memory');
+      const expectedRevision = expectedRevisionFrom(read, 'memory_set', projectId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'remember',
+          arguments: {
+            ...parseJsonObjectFile(content, path),
+            expectedRevision,
+          },
+        },
+      };
+    }
+    const read = await this.canonicalRead(request, 'get_project_brief', {}, 'create-source');
+    const expectedRevision = expectedRevisionFrom(read, 'project', projectId);
+    if ((segments[0] === 'chapters' || segments[0] === 'drifts') && file === 'prose.md') {
+      const title = segments[1]?.trim();
+      if (!title || segments.length !== 3) throw new Error('Invalid chapter/drift creation path');
+      return {
+        expectedRevision,
+        command: {
+          name: 'create_node',
+          arguments: {
+            kind: segments[0] === 'chapters' ? 'chapter' : 'drift',
+            title,
+            body: content,
+            expectedRevision,
+          },
+        },
+      };
+    }
+    if (segments[0] === 'elements' && file === 'body.md' && segments.length === 4) {
+      return {
+        expectedRevision,
+        command: {
+          name: 'create_element',
+          arguments: {
+            category: segments[1],
+            name: segments[2],
+            body: content,
+            expectedRevision,
+          },
+        },
+      };
+    }
+    if (segments[0] === 'storylines' && file === 'body.md' && segments.length === 3) {
+      return {
+        expectedRevision,
+        command: {
+          name: 'create_storyline',
+          arguments: { name: segments[1], body: content, expectedRevision },
+        },
+      };
+    }
+    if (segments[0] === 'categories' && file === 'body.md' && segments.length === 3) {
+      return {
+        expectedRevision,
+        command: {
+          name: 'create_category',
+          arguments: { name: segments[1], body: content, expectedRevision },
+        },
+      };
+    }
+    if (segments[0] === 'comments' && file.endsWith('.json') && segments.length === 2) {
+      return {
+        expectedRevision,
+        command: {
+          name: 'create_comment',
+          arguments: { ...parseJsonObjectFile(content, path), expectedRevision },
+        },
+      };
+    }
+    if (segments[0] === 'relations' && file.endsWith('.json') && segments.length === 2) {
+      return {
+        expectedRevision,
+        command: {
+          name: 'add_relation',
+          arguments: { ...parseJsonObjectFile(content, path), expectedRevision },
+        },
+      };
+    }
+    throw new Error(
+      'Unsupported creation path. Create prose.md/body.md under chapters, drifts, elements, storylines, or categories; comments, relations, and memory use one JSON file.',
+    );
+  }
+
+  private async prepareDeleteCommand(
+    path: string,
+    request: AgentToolExecutionRequest,
+  ): Promise<{ expectedRevision: Record<string, string>; command: WorkspaceCommand }> {
+    const projectId = this.requireProject(request.context);
+    const entry =
+      findWorkspaceEntry(projectId, path) ??
+      (await this.resolveDynamicMemoryEntry(projectId, path, request)) ??
+      primaryWorkspaceEntry(projectId, path, false);
+    if (!entry) throw new Error(`No deletable resource exists at "${path}"`);
+    const target = entry.target;
+    const completeResource = completeStructuralResourcePath(projectId, target);
+    if (completeResource && path !== completeResource) {
+      throw new Error(
+        `"${path}" is one field of an authored resource. Delete "${completeResource}" only when the complete resource should be removed.`,
+      );
+    }
+    if (isNodeTarget(target)) {
+      const read = await this.canonicalRead(
+        request,
+        'read_node',
+        { node: target.nodeName, prose: false },
+        'delete-node',
+      );
+      const expectedRevision = expectedRevisionFrom(read, 'node', target.nodeId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'delete_node',
+          arguments: { node: target.nodeName, expectedRevision },
+        },
+      };
+    }
+    if (isElementTarget(target)) {
+      const read = await this.canonicalRead(
+        request,
+        'read_element',
+        { element: target.elementName },
+        'delete-element',
+      );
+      const expectedRevision = expectedRevisionFrom(read, 'element', target.elementId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'delete_element',
+          arguments: { element: target.elementName, expectedRevision },
+        },
+      };
+    }
+    if (isStorylineTarget(target)) {
+      const read = await this.canonicalRead(
+        request,
+        'get_storyline',
+        { storyline: target.storylineName },
+        'delete-storyline',
+      );
+      const expectedRevision = expectedRevisionFrom(read, 'storyline', target.storylineId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'delete_storyline',
+          arguments: { storyline: target.storylineName, expectedRevision },
+        },
+      };
+    }
+    if (isCategoryTarget(target)) {
+      const read = await this.canonicalRead(
+        request,
+        'read_node',
+        { node: target.categoryName, kind: 'category', prose: false },
+        'delete-category',
+      );
+      const expectedRevision = expectedRevisionFrom(read, 'category', target.categoryId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'delete_category',
+          arguments: { category: target.categoryName, expectedRevision },
+        },
+      };
+    }
+    if (target.kind === 'comment') {
+      const read = await this.canonicalRead(request, 'list_comments', {}, 'delete-comment');
+      const expectedRevision = expectedRevisionFrom(read, 'comment', target.commentId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'delete_comment',
+          arguments: { commentId: target.commentId, expectedRevision },
+        },
+      };
+    }
+    if (target.kind === 'relation') {
+      const state = useDataStore.getState();
+      const read = await this.canonicalRead(
+        request,
+        'get_entity_relations',
+        {
+          kind: target.fromKind,
+          name: entityReadReference(state, target.fromKind, target.fromId),
+        },
+        'delete-relation',
+      );
+      const expectedRevision = expectedRevisionFrom(read, 'relation', target.relationId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'remove_relation',
+          arguments: { relationId: target.relationId, expectedRevision },
+        },
+      };
+    }
+    if (target.kind === 'memory') {
+      const read = await this.canonicalRead(request, 'list_memory', {}, 'delete-memory');
+      const expectedRevision = expectedRevisionFrom(read, 'memory', target.memoryId);
+      return {
+        expectedRevision,
+        command: {
+          name: 'forget',
+          arguments: { memoryId: target.memoryId, expectedRevision },
+        },
+      };
+    }
+    throw new Error(`"${path}" is not a complete deletable resource`);
   }
 
   private async canonicalRead(
@@ -832,23 +1515,47 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
   }
 }
 
+function completeStructuralResourcePath(
+  projectId: string,
+  target: WorkspaceTarget,
+): string | null {
+  if (isNodeTarget(target)) {
+    return `/${target.nodeKind === 'chapter' ? 'chapters' : 'drifts'}/${pathSegment(target.nodeName)}`;
+  }
+  if (isElementTarget(target)) {
+    const state = useDataStore.getState();
+    const element = state.bookElements.find(
+      (candidate) =>
+        candidate.id === target.elementId && candidate.projectId === projectId,
+    );
+    const category = element?.categoryId
+      ? state.bookElementCategories.find(
+          (candidate) =>
+            candidate.id === element.categoryId &&
+            candidate.projectId === projectId,
+        )
+      : null;
+    if (!element || !category) {
+      throw new Error('The element category moved or was deleted');
+    }
+    return `/elements/${pathSegment(category.name)}/${pathSegment(target.elementName)}`;
+  }
+  if (isStorylineTarget(target)) {
+    return `/storylines/${pathSegment(target.storylineName)}`;
+  }
+  if (isCategoryTarget(target)) {
+    return `/categories/${pathSegment(target.categoryName)}`;
+  }
+  return null;
+}
+
 export function workspaceCommandFromArguments(arguments_: unknown): WorkspaceCommand | null {
   const record = asRecord(arguments_);
   const raw = record[WORKSPACE_COMMAND_ARGUMENT];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const command = raw as Record<string, unknown>;
   const name = String(command.name ?? '');
-  if (
-    name !== 'edit_prose_file' &&
-    name !== 'edit_blocks' &&
-    name !== 'rename_node' &&
-    name !== 'set_node_summary' &&
-    name !== 'update_element' &&
-    name !== 'update_storyline' &&
-    name !== 'update_project_facts'
-  ) {
-    return null;
-  }
+  if (!isDriftingWorkspaceCommandName(name)) return null;
   if (
     !command.arguments ||
     typeof command.arguments !== 'object' ||
@@ -862,7 +1569,9 @@ export function workspaceCommandFromArguments(arguments_: unknown): WorkspaceCom
   };
 }
 
-function workspaceDefinition(name: WorkspaceReadToolName): AgentToolDefinition {
+function workspaceDefinition(
+  name: DriftingWorkspaceReadToolName,
+): AgentToolDefinition {
   const tool = getRegisteredTool(name);
   if (!tool || tool.scope !== 'runtime-virtual' || tool.access !== 'read') {
     throw new Error(`Workspace tool contract "${name}" is unavailable`);
@@ -962,8 +1671,8 @@ function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
     entries.push(
       {
         path: `${base}/body.md`,
-        writable: false,
-        description: 'Long-form element canon (read-only until body writes are certified)',
+        writable: true,
+        description: 'Live long-form element canon',
         target: { kind: 'element_body', ...shared },
       },
       {
@@ -1020,8 +1729,8 @@ function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
     entries.push(
       {
         path: `${base}/body.md`,
-        writable: false,
-        description: 'Long-form storyline canon (read-only until body writes are certified)',
+        writable: true,
+        description: 'Live long-form storyline canon',
         target: { kind: 'storyline_body', ...shared },
       },
       {
@@ -1044,8 +1753,8 @@ function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
       },
       {
         path: `${base}/chapters.json`,
-        writable: false,
-        description: 'Member chapters in reading order',
+        writable: true,
+        description: 'Member chapters and primary-storyline flags in reading order',
         target: { kind: 'storyline_chapters', ...shared },
       },
       {
@@ -1065,13 +1774,13 @@ function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
     entries.push(
       {
         path: `${base}/body.md`,
-        writable: false,
-        description: 'Long-form category canon',
+        writable: true,
+        description: 'Live long-form category canon',
         target: { kind: 'category_body', ...shared },
       },
       {
         path: `${base}/meta.json`,
-        writable: false,
+        writable: true,
         description: 'Category metadata',
         target: { kind: 'category_meta', ...shared },
       },
@@ -1106,10 +1815,33 @@ function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
     {
       path: '/memory.json',
       writable: false,
-      description: 'Author-approved standing guidance',
-      target: { kind: 'memory' },
+      description: 'Standing guidance index; individual proposals live under /memory',
+      target: { kind: 'memory_collection' },
     },
   );
+  for (const comment of state.comments.filter((item) => item.projectId === projectId)) {
+    entries.push({
+      path: `/comments/${pathSegment(comment.id)}.json`,
+      writable: true,
+      description: `${comment.kind} · ${comment.status}`,
+      target: { kind: 'comment', commentId: comment.id },
+    });
+  }
+  for (const relation of state.entityRelations.filter(
+    (item) => item.projectId === projectId,
+  )) {
+    entries.push({
+      path: `/relations/${pathSegment(relation.id)}.json`,
+      writable: true,
+      description: relation.kind || 'related',
+      target: {
+        kind: 'relation',
+        relationId: relation.id,
+        fromKind: relation.fromKind,
+        fromId: relation.fromId,
+      },
+    });
+  }
   return entries.sort((left, right) => left.path.localeCompare(right.path, 'zh-CN'));
 }
 
@@ -1164,8 +1896,14 @@ function workspaceEntryDisplayName(entry: WorkspaceEntry): string {
       return target.materialTitle;
     case 'comments':
       return '编辑批注';
-    case 'memory':
+    case 'comment':
+      return '批注';
+    case 'relation':
+      return '实体关系';
+    case 'memory_collection':
       return '长期写作指南';
+    case 'memory':
+      return `写作指南 ${target.memoryId.slice(0, 8)}`;
   }
 }
 
@@ -1181,6 +1919,9 @@ function workspaceDirectoryDisplayName(
     '/categories': '元素分类',
     '/materials': '参考素材',
     '/project': '项目设定',
+    '/comments': '编辑批注',
+    '/relations': '实体关系',
+    '/memory': '长期写作指南',
   };
   if (rootNames[path]) return rootNames[path];
 
@@ -1239,6 +1980,8 @@ function describeWorkspaceDirectory(
     '/categories': 'Element category canon',
     '/materials': 'Reference materials',
     '/project': 'Book-level facts and constraints',
+    '/comments': 'Editorial comments and TODOs',
+    '/relations': 'Curated relationships between story entities',
   };
   const label = labels[path] ?? 'Directory';
   return entityCount > 0 ? `${label} · ${entityCount} items` : label;
@@ -1341,11 +2084,14 @@ function renderOverview(value: unknown, entries: readonly WorkspaceEntry[]): str
     '- `/chapters/*/prose.md`: live manuscript; exact replacements are writable',
     '- `/drifts/*/prose.md`: live drift notes; exact replacements are writable',
     '- `/elements/*/*`: character, setting, and object canon',
+    '- Create a new category at `/categories/<category>/body.md`, then create its elements at `/elements/<category>/<element>/body.md`; an empty category is still a valid directory',
     '- `/storylines/*`: storyline canon and chapter membership',
+    '- `/comments/*.json`: editorial notes and TODOs',
+    '- `/relations/*.json`: curated entity relationships',
     '- `/project/facts.json`: book-level constraints',
     '- `/materials/*`: reference material (read-only)',
     '',
-    'Use list_files to browse, read_file to inspect, grep to search, and edit_file to change writable files.',
+    'Use list_files to browse, read_file to inspect, grep to search, edit_file for focused changes, write_file to create resources, and delete_file to remove a complete resource.',
     'Chapters behave like ordinary files. Saving, concurrent-edit protection, review, and undo are automatic.',
     '',
     '## Counts',
@@ -1403,6 +2149,17 @@ function renderMemories(value: unknown): string {
   ]
     .join('\n')
     .trim();
+}
+
+function renderMemoryFile(memory: Record<string, unknown>): string {
+  return prettyJson({
+    kind: memory.kind,
+    body: memory.body,
+    targetKind: memory.targetKind ?? null,
+    target: memory.target ?? null,
+    targetBlockId: memory.targetBlockId ?? null,
+    supersedesId: memory.supersedesId ?? null,
+  });
 }
 
 function compactProseBlocks(value: unknown): CompactProseBlock[] {
@@ -1556,6 +2313,48 @@ function isCategoryTarget(
   return 'categoryId' in target;
 }
 
+type WorkspaceProseTarget =
+  | {
+      entityType: 'node';
+      id: string;
+      name: string;
+      nodeKind: 'chapter' | 'drift';
+    }
+  | {
+      entityType: 'element' | 'storyline' | 'category';
+      id: string;
+      name: string;
+    };
+
+function workspaceProseTarget(target: WorkspaceTarget): WorkspaceProseTarget | null {
+  if (target.kind === 'node_prose') {
+    return {
+      entityType: 'node',
+      id: target.nodeId,
+      name: target.nodeName,
+      nodeKind: target.nodeKind,
+    };
+  }
+  if (target.kind === 'element_body') {
+    return { entityType: 'element', id: target.elementId, name: target.elementName };
+  }
+  if (target.kind === 'storyline_body') {
+    return {
+      entityType: 'storyline',
+      id: target.storylineId,
+      name: target.storylineName,
+    };
+  }
+  if (target.kind === 'category_body') {
+    return {
+      entityType: 'category',
+      id: target.categoryId,
+      name: target.categoryName,
+    };
+  }
+  return null;
+}
+
 function proseLikeTarget(target: WorkspaceTarget): boolean {
   return (
     target.kind === 'node_prose' ||
@@ -1634,9 +2433,109 @@ function resolveWorkspacePath(projectId: string, value: unknown): string {
   return suffixMatches.length === 1 ? suffixMatches[0]! : normalized;
 }
 
-function workspacePathExists(entries: readonly WorkspaceEntry[], path: string): boolean {
+const VIRTUAL_WORKSPACE_ROOTS = new Set([
+  '/chapters',
+  '/drifts',
+  '/elements',
+  '/storylines',
+  '/categories',
+  '/materials',
+  '/project',
+  '/comments',
+  '/relations',
+]);
+
+function isVirtualWorkspaceRoot(path: string): boolean {
+  return VIRTUAL_WORKSPACE_ROOTS.has(path);
+}
+
+function entityDisplayName(
+  state: ReturnType<typeof useDataStore.getState>,
+  kind: string,
+  id: string,
+): string {
+  if (kind === 'node') return state.bookNodes.find((item) => item.id === id)?.title ?? id;
+  if (kind === 'element') {
+    return state.bookElements.find((item) => item.id === id)?.name ?? id;
+  }
+  if (kind === 'storyline') {
+    return state.storylines.find((item) => item.id === id)?.name ?? id;
+  }
+  if (kind === 'category') {
+    return state.bookElementCategories.find((item) => item.id === id)?.name ?? id;
+  }
+  if (kind === 'library_item') {
+    return state.libraryItems.find((item) => item.id === id)?.title || id;
+  }
+  if (kind === 'comment') return `批注 ${id.slice(0, 8)}`;
+  return id;
+}
+
+function entityReadReference(
+  state: ReturnType<typeof useDataStore.getState>,
+  kind: string,
+  id: string,
+): string {
+  return kind === 'node' ||
+    kind === 'element' ||
+    kind === 'storyline' ||
+    kind === 'category'
+    ? entityDisplayName(state, kind, id)
+    : id;
+}
+
+function parseJsonObjectFile(value: string, path: string): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch (cause) {
+    throw new Error(
+      `"${path}" must contain valid JSON: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`"${path}" must contain one JSON object`);
+  }
+  return parsed as Record<string, unknown>;
+}
+
+function parseJsonArrayFile(value: string, path: string): unknown[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch (cause) {
+    throw new Error(
+      `"${path}" must contain valid JSON: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error(`"${path}" must contain one JSON array`);
+  }
+  return parsed;
+}
+
+function workspacePathExists(
+  projectId: string,
+  entries: readonly WorkspaceEntry[],
+  path: string,
+): boolean {
   if (path === '/') return true;
-  return entries.some((entry) => entry.path === path || entry.path.startsWith(`${path}/`));
+  return (
+    isEmptyElementCategoryDirectory(projectId, path) ||
+    entries.some((entry) => entry.path === path || entry.path.startsWith(`${path}/`))
+  );
+}
+
+function isEmptyElementCategoryDirectory(projectId: string, path: string): boolean {
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length !== 2 || segments[0] !== 'elements') return false;
+  return useDataStore
+    .getState()
+    .bookElementCategories.some(
+      (category) =>
+        category.projectId === projectId &&
+        pathSegment(category.name) === segments[1],
+    );
 }
 
 function resolveChapterOrdinalAlias(

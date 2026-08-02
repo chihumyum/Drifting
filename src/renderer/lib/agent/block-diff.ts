@@ -53,11 +53,8 @@ export interface AgentBlockChange {
    * switching to approve. Absent on freshly-diffed changes (stamped on record).
    */
   mode?: 'auto' | 'approve';
-  /**
-   * Durable General Agent write provenance. Present on changes rebuilt by the
-   * runtime's receipt-reconciliation path so the review UI can settle the
-   * canonical soft-approval row instead of inventing a second review identity.
-   */
+  /** Durable General Agent write provenance used to bind the rebuildable editor
+   * projection to its canonical SQLite effect/review rows. */
   effectId?: string;
   reviewId?: string;
   /**

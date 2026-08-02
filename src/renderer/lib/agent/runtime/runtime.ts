@@ -41,6 +41,7 @@ import {
   type AgentRuntimeScheduler,
   type AgentRuntimeUsage,
   type AgentToolDefinition,
+  type AgentToolExecutionAuthorization,
   type AgentToolExecutionPresentation,
   type AgentToolExecutionResult,
   type AgentToolPermissionPolicy,
@@ -106,16 +107,19 @@ interface MutableToolCall {
   rawArguments: string;
   argumentBytes: number;
   argumentsTooLarge: boolean;
+  repairRequested: boolean;
   ended: boolean;
   block: AgentAssistantToolCallBlock;
   definition?: AgentToolDefinition;
   validatedArguments?: Record<string, unknown>;
+  authorization?: AgentToolExecutionAuthorization;
   result?: AgentToolResultBlock;
 }
 
 interface ModelIterationResult {
   assistant: AgentModelMessage;
   toolResults: AgentToolResultBlock[];
+  repairToolNames: readonly string[];
   stopReason: AgentModelStopReason;
 }
 
@@ -205,11 +209,19 @@ function validatePermissionDecision(
   value: AgentToolPermissionPolicyDecision,
 ): AgentToolPermissionPolicyDecision {
   if (value.decision === 'allow') {
-    if (value.scope !== undefined && value.scope !== 'once') {
+    if (
+      value.scope !== undefined &&
+      value.scope !== 'once' &&
+      value.scope !== 'session' &&
+      value.scope !== 'project'
+    ) {
       throw new AgentRuntimeError(
         'INTERNAL_ERROR',
-        'Session/project permission grants are not installed; only once is supported',
+        'Permission policy returned an invalid allow scope',
       );
+    }
+    if (value.grantId !== undefined && !value.grantId.trim()) {
+      throw new AgentRuntimeError('INTERNAL_ERROR', 'Permission policy returned an empty grant id');
     }
     return value;
   }
@@ -229,10 +241,15 @@ function validatePermissionDecision(
     );
   }
   const scopes = value.allowedScopes ?? ['once'];
-  if (scopes.length !== 1 || scopes[0] !== 'once') {
+  if (
+    scopes.length === 0 ||
+    scopes.length > 3 ||
+    new Set(scopes).size !== scopes.length ||
+    scopes.some((scope) => scope !== 'once' && scope !== 'session' && scope !== 'project')
+  ) {
     throw new AgentRuntimeError(
       'INTERNAL_ERROR',
-      'Session/project permission grants are not installed; only once is supported',
+      'Permission policy returned invalid permission scopes',
     );
   }
   return { ...value, allowedScopes: [...scopes] };
@@ -498,7 +515,13 @@ export class AgentRuntime {
   async runTurn(input: AgentRuntimeRunInput): Promise<AgentRuntimeRunResult> {
     const limits = mergeLimits(input.limits);
     const route = deepFreeze(clonePortableData(input.route));
-    const context: AgentRuntimeContext = { route };
+    const writing = input.writingContext
+      ? deepFreeze(clonePortableData(input.writingContext))
+      : undefined;
+    const context: AgentRuntimeContext = {
+      route,
+      ...(writing ? { writing } : {}),
+    };
     if (
       input.control &&
       (input.control.sessionId !== input.sessionId || input.control.turnId !== input.turnId)
@@ -580,8 +603,10 @@ export class AgentRuntime {
     let repeatedFailureSignature: string | null = null;
     let repeatedFailureIterations = 0;
     let forceSynthesisOnly = false;
+    let unresolvedContextConstraintConflictIds = new Set<string>();
     const successfulReadNamesSinceLastWrite = new Set<string>();
     let successfulReadNamesInPreviousBatch = new Set<string>();
+    let repairToolNamesForNextIteration = new Set<string>();
     const pendingResultRefs = new Set<string>();
     let detachControl: () => void = () => undefined;
     let journalDisabled = false;
@@ -779,8 +804,10 @@ export class AgentRuntime {
       call: MutableToolCall,
       content: string,
       errorCode: string,
+      repairable = false,
     ): Promise<void> => {
       if (call.result) return;
+      call.repairRequested = repairable;
       await emit({
         type: 'tool_result',
         callId: call.callId,
@@ -806,6 +833,33 @@ export class AgentRuntime {
 
     const authorizeTool = async (call: MutableToolCall): Promise<boolean> => {
       if (!call.definition || !call.validatedArguments || call.result) {
+        return false;
+      }
+      if (
+        call.name === 'ask_user' &&
+        Array.isArray(call.validatedArguments.constraintConflictIds)
+      ) {
+        const invalidConflictIds = call.validatedArguments.constraintConflictIds.filter(
+          (value) =>
+            typeof value !== 'string' || !unresolvedContextConstraintConflictIds.has(value),
+        );
+        if (invalidConflictIds.length > 0) {
+          await emitRuntimeToolResult(
+            call,
+            'ask_user contained stale or unknown context constraint conflict ids. Re-read the pinned task_constraints note and retry with its exact conflictId values.',
+            'INVALID_CONTEXT_CONSTRAINT_CONFIRMATION',
+            true,
+          );
+          return false;
+        }
+      }
+      if (call.definition.access === 'write' && unresolvedContextConstraintConflictIds.size > 0) {
+        await emitRuntimeToolResult(
+          call,
+          `Write blocked because ${unresolvedContextConstraintConflictIds.size} author constraint conflict(s) still require confirmation. Call ask_user with the exact conflictId values from the pinned task_constraints note before retrying this write.`,
+          'CONTEXT_CONSTRAINT_CONFIRMATION_REQUIRED',
+          true,
+        );
         return false;
       }
       const argumentsHash = await awaitAbortable(
@@ -849,7 +903,14 @@ export class AgentRuntime {
           );
         }
       }
-      if (decision.decision === 'allow') return true;
+      if (decision.decision === 'allow') {
+        call.authorization = {
+          kind: decision.grantId ? 'author_approved' : 'automatic',
+          requestId: decision.grantId ?? null,
+          argumentsHash,
+        };
+        return true;
+      }
       if (decision.decision === 'deny') {
         await emitRuntimeToolResult(
           call,
@@ -863,6 +924,15 @@ export class AgentRuntime {
         ...(decision.reason ? { reason: decision.reason } : {}),
         allowedScopes: [...(decision.allowedScopes ?? ['once'])],
       });
+      if (
+        request.allowedScopes.some((scope) => scope !== 'once') &&
+        !this.permissionPolicy?.recordResolution
+      ) {
+        throw new AgentRuntimeError(
+          'INTERNAL_ERROR',
+          'Permission policy advertised a durable scope without an authority store',
+        );
+      }
       if (!input.control) {
         await emitRuntimeToolResult(
           call,
@@ -874,15 +944,42 @@ export class AgentRuntime {
       const resolutionPromise = input.control.waitForPermission(request, controller.signal);
       await emit({ type: 'permission_requested', request });
       let resolution;
+      let authorityId: string | null = null;
       try {
         resolution = await awaitAbortable(resolutionPromise);
+        if (
+          resolution.decision === 'allow' &&
+          resolution.scope !== 'once' &&
+          this.permissionPolicy?.recordResolution
+        ) {
+          const recorded = await awaitAbortable(
+            Promise.resolve(this.permissionPolicy.recordResolution(
+              { ...request, context },
+              resolution,
+            )),
+          );
+          authorityId = recorded?.authorityId ?? null;
+          if (!authorityId) {
+            throw new AgentRuntimeError(
+              'INTERNAL_ERROR',
+              'Durable permission authority did not return its persisted id',
+            );
+          }
+        }
         await emit({ type: 'permission_resolved', resolution });
         input.control.acknowledgePermission(resolution.requestId);
       } catch (error) {
         input.control.acknowledgePermission(request.requestId);
         throw error;
       }
-      if (resolution.decision === 'allow') return true;
+      if (resolution.decision === 'allow') {
+        call.authorization = {
+          kind: 'author_approved',
+          requestId: authorityId ?? resolution.requestId,
+          argumentsHash,
+        };
+        return true;
+      }
       await emitRuntimeToolResult(
         call,
         `Permission denied${resolution.reason ? `: ${resolution.reason}` : '.'}`,
@@ -1031,6 +1128,7 @@ export class AgentRuntime {
         turnId: input.turnId,
         iteration: lastPlanningSelection.iteration,
         driverId: this.driver.id,
+        ...(input.provider ? { provider: input.provider } : {}),
         ...(input.model ? { model: input.model } : {}),
         context,
         ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
@@ -1057,6 +1155,7 @@ export class AgentRuntime {
         name: call.name,
         arguments: call.validatedArguments,
         access: call.definition.access,
+        ...(call.authorization ? { authorization: call.authorization } : {}),
         ...(call.definition.executionRevision
           ? { definitionRevision: call.definition.executionRevision }
           : {}),
@@ -1154,6 +1253,7 @@ export class AgentRuntime {
             name: call.name,
             arguments: call.validatedArguments,
             access: call.definition.access,
+            ...(call.authorization ? { authorization: call.authorization } : {}),
             ...(call.definition.executionRevision
               ? { definitionRevision: call.definition.executionRevision }
               : {}),
@@ -1344,6 +1444,9 @@ export class AgentRuntime {
             );
           }
         }
+        const repairToolNames = [...repairToolNamesForNextIteration].filter((name) =>
+          availableDefinitionsByName.has(name),
+        );
         let selectedNames: readonly string[];
         try {
           selectedNames = this.toolSelector.select({
@@ -1355,6 +1458,7 @@ export class AgentRuntime {
             successfulReadNamesInPreviousBatch: [...successfulReadNamesInPreviousBatch],
             successfulReadNamesSinceLastWrite: [...successfulReadNamesSinceLastWrite],
             pendingResultPage: pendingResultRefs.size > 0,
+            repairToolNames,
             limit: AGENT_RUNTIME_TOOL_SEARCH_LIMIT,
           });
         } catch {
@@ -1369,8 +1473,28 @@ export class AgentRuntime {
             `Tool selection exceeded the ${AGENT_RUNTIME_TOOL_SEARCH_LIMIT}-tool limit`,
           );
         }
+        const requested = new Set<string>();
+        for (const name of selectedNames) {
+          if (requested.has(name)) {
+            throw new AgentRuntimeError(
+              'INTERNAL_ERROR',
+              `Tool selection returned duplicate name "${name}"`,
+            );
+          }
+          requested.add(name);
+          if (!availableDefinitionsByName.has(name)) {
+            throw new AgentRuntimeError(
+              'INTERNAL_ERROR',
+              `Tool selection returned unavailable name "${name}"`,
+            );
+          }
+        }
+        const leasedNames = [
+          ...repairToolNames,
+          ...selectedNames.filter((name) => !repairToolNames.includes(name)),
+        ].slice(0, AGENT_RUNTIME_TOOL_SEARCH_LIMIT);
         const selected = new Set<string>();
-        iterationDefinitions = selectedNames.map((name) => {
+        iterationDefinitions = leasedNames.map((name) => {
           if (selected.has(name)) {
             throw new AgentRuntimeError(
               'INTERNAL_ERROR',
@@ -1430,6 +1554,7 @@ export class AgentRuntime {
           turnId: input.turnId,
           iteration,
           driverId: this.driver.id,
+          ...(input.provider ? { provider: input.provider } : {}),
           ...(input.model ? { model: input.model } : {}),
           context,
           ...(iterationSystemPrompt ? { systemPrompt: iterationSystemPrompt } : {}),
@@ -1439,6 +1564,9 @@ export class AgentRuntime {
           requestedOutputTokens: requestMaxOutputTokens,
           signal: controller.signal,
         }),
+      );
+      unresolvedContextConstraintConflictIds = new Set(
+        plannedContext.constraintConflicts.map((conflict) => conflict.conflictId),
       );
       lastProviderCallContextEnvelope = deepFreeze(clonePortableData(plannedContext.envelope));
       lastPlanningSelection = {
@@ -1472,6 +1600,7 @@ export class AgentRuntime {
         sessionId: input.sessionId,
         turnId: input.turnId,
         iteration,
+        ...(input.provider ? { provider: input.provider } : {}),
         ...(input.model ? { model: input.model } : {}),
         ...(input.reasoning ? { reasoning: input.reasoning } : {}),
         context: deepFreeze(clonePortableData(plannedContext.envelope.providerContext)),
@@ -1558,20 +1687,37 @@ export class AgentRuntime {
               if (limits.maxToolCalls !== null && totalToolCalls > limits.maxToolCalls) {
                 budget(`maxToolCalls exceeded: ${totalToolCalls} > ${limits.maxToolCalls}`);
               }
+              let canonicalName = frame.name;
+              try {
+                canonicalName =
+                  this.tools.resolveCanonicalName?.(frame.name, context) ?? frame.name;
+              } catch {
+                throw new AgentRuntimeError(
+                  'INTERNAL_ERROR',
+                  'The installed tool runtime failed to resolve a canonical tool name',
+                );
+              }
+              if (!canonicalName.trim()) {
+                throw new AgentRuntimeError(
+                  'INTERNAL_ERROR',
+                  'The installed tool runtime returned an empty canonical tool name',
+                );
+              }
               const block: AgentAssistantToolCallBlock = {
                 type: 'tool_call',
                 callId: frame.callId,
-                name: frame.name,
+                name: canonicalName,
                 arguments: {},
                 rawArguments: '',
               };
               const call: MutableToolCall = {
                 callId: frame.callId,
-                name: frame.name,
+                name: canonicalName,
                 iteration,
                 rawArguments: '',
                 argumentBytes: 0,
                 argumentsTooLarge: false,
+                repairRequested: false,
                 ended: false,
                 block,
               };
@@ -1599,12 +1745,6 @@ export class AgentRuntime {
               }
               call.rawArguments += frame.delta;
               call.block.rawArguments = call.rawArguments;
-              await emit({
-                type: 'tool_args_delta',
-                iteration,
-                callId: call.callId,
-                delta: frame.delta,
-              });
               break;
             }
 
@@ -1613,11 +1753,27 @@ export class AgentRuntime {
               if (!call) protocol(`End for unknown tool call "${frame.callId}"`);
               if (call.ended) protocol(`Duplicate end for tool call "${frame.callId}"`);
               call.ended = true;
+              // Provider adapters commonly stream JSON one or two characters at
+              // a time. Persisting every fragment made a normal long read turn
+              // produce thousands of journal rows, even though neither recovery
+              // nor the product UI needs partial JSON. Emit the exact raw payload
+              // once, immediately before ready/error, so replay stays lossless
+              // while the UI can wait for the real semantic action instead of
+              // flashing a guessed placeholder.
+              if (!call.argumentsTooLarge && call.rawArguments.length > 0) {
+                await emit({
+                  type: 'tool_args_delta',
+                  iteration,
+                  callId: call.callId,
+                  delta: call.rawArguments,
+                });
+              }
               if (call.argumentsTooLarge) {
                 await emitRuntimeToolResult(
                   call,
                   `Tool arguments exceeded ${limits.maxToolArgumentBytes} bytes`,
                   'TOOL_ARGUMENTS_TOO_LARGE',
+                  availableDefinitionsByName.has(call.name),
                 );
                 break;
               }
@@ -1629,6 +1785,7 @@ export class AgentRuntime {
                   call,
                   `Malformed JSON arguments: ${toErrorMessage(error)}`,
                   'MALFORMED_TOOL_ARGUMENTS',
+                  availableDefinitionsByName.has(call.name),
                 );
                 break;
               }
@@ -1637,6 +1794,7 @@ export class AgentRuntime {
                   call,
                   'Tool arguments must be a JSON object',
                   'INVALID_TOOL_ARGUMENT_SHAPE',
+                  availableDefinitionsByName.has(call.name),
                 );
                 break;
               }
@@ -1646,6 +1804,7 @@ export class AgentRuntime {
                   call,
                   agentRuntimeUnknownToolResultContent(call.name),
                   AGENT_RUNTIME_UNKNOWN_TOOL_ERROR_CODE,
+                  availableDefinitionsByName.has(call.name),
                 );
                 break;
               }
@@ -1666,6 +1825,7 @@ export class AgentRuntime {
                   call,
                   `Invalid arguments for "${call.name}": ${validated.error}`,
                   'INVALID_TOOL_ARGUMENTS',
+                  true,
                 );
                 break;
               }
@@ -1675,6 +1835,7 @@ export class AgentRuntime {
                   call,
                   `Invalid normalized arguments for "${call.name}": ${canonical.error}`,
                   'INVALID_NORMALIZED_TOOL_ARGUMENTS',
+                  true,
                 );
                 break;
               }
@@ -1683,6 +1844,7 @@ export class AgentRuntime {
                   call,
                   `Normalized tool arguments exceeded ${limits.maxToolArgumentBytes} bytes`,
                   'TOOL_ARGUMENTS_TOO_LARGE',
+                  true,
                 );
                 break;
               }
@@ -1803,12 +1965,19 @@ export class AgentRuntime {
       return {
         assistant,
         toolResults,
+        repairToolNames: [
+          ...new Set(calls.filter((call) => call.repairRequested).map((call) => call.name)),
+        ],
         stopReason: finishReason,
       };
     };
 
     try {
-      await emit({ type: 'turn_started', prompt: input.prompt });
+      await emit({
+        type: 'turn_started',
+        prompt: input.prompt,
+        ...(input.promptSource ? { promptSource: input.promptSource } : {}),
+      });
       while (true) {
         checkBeforeWork();
         if (
@@ -1823,6 +1992,7 @@ export class AgentRuntime {
         const iteration = state.modelIterations + 1;
         const result = await runModelIteration(iteration);
         await emitTail;
+        repairToolNamesForNextIteration = new Set(result.repairToolNames);
         const successfulReadsInThisBatch = new Set<string>();
         const openedResultRefs = new Set<string>();
         const completedResultRefs = new Set<string>();

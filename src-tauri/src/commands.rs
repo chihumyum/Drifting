@@ -27,6 +27,7 @@ pub struct PlatformCapabilities {
     asset_cache: bool,
     ai_log: bool,
     oauth: bool,
+    mcp_stdio: bool,
     image_codecs: ImageCodecCapabilities,
     general_agent: bool,
     general_agent_unavailable_reason: &'static str,
@@ -96,6 +97,9 @@ pub fn platform_capabilities() -> PlatformCapabilities {
         asset_cache: true,
         ai_log: true,
         oauth: true,
+        // Streamable HTTP is renderer-owned on every target. The native stdio
+        // process host is deliberately desktop-only.
+        mcp_stdio: cfg!(desktop),
         image_codecs: ImageCodecCapabilities {
             rust: &["jpeg", "png", "gif", "webp", "bmp", "ico", "tiff"],
             native_system: if cfg!(any(

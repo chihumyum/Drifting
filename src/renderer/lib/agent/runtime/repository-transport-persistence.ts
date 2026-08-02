@@ -46,6 +46,20 @@ export interface AgentRuntimeRecoveryCodec {
   ): Promise<string>;
 }
 
+/**
+ * V2 is intentionally redundant: canonical history, canonical source rows,
+ * planner segments, manifests, and provider projection all witness one another.
+ * That is valuable for restart verification, but a long tool-heavy turn can
+ * make the single SQLite text parameter much larger than the history itself.
+ * Keep renderer-to-native commits bounded; an oversized, already-verified V2
+ * payload falls back to the exact hashed V1 history and is replanned next turn.
+ */
+export const MAX_INLINE_AGENT_RUNTIME_V2_CHECKPOINT_BYTES = 512 * 1024;
+
+function serializedByteLength(value: unknown): number {
+  return new TextEncoder().encode(canonicalAgentRuntimeJson(value)).byteLength;
+}
+
 export interface RepositoryAgentTransportPersistenceOptions {
   repository?: AgentRuntimePersistenceRepository;
   writeEffects?: Pick<
@@ -378,6 +392,60 @@ export function createRepositoryAgentTransportPersistence(
             ? 'aborted'
             : 'failed';
 
+      // `repository.commitTurn` is atomic, but a renderer/native boundary can
+      // lose the success response after SQLite committed. A transport retry
+      // then observes an already-settled turn. Verify the exact logical input
+      // against durable rows and acknowledge it instead of rebuilding ordinals
+      // from the now-longer history (which would duplicate the turn).
+      if (
+        turn.status === 'completed' ||
+        turn.status === 'failed' ||
+        turn.status === 'aborted'
+      ) {
+        const persistedCompletion = snapshot.messages
+          .filter(
+            (message) =>
+              message.turnId === input.turnId &&
+              message.id !== turn.promptMessageId,
+          )
+          .sort((left, right) => left.ordinal - right.ordinal);
+        const sameCompletion =
+          persistedCompletion.length === completionMessages.length &&
+          persistedCompletion.every((message, index) => {
+            const expected = completionMessages[index];
+            return Boolean(
+              expected &&
+                message.id === runtimeMessageId(input.turnId, index + 1) &&
+                message.role === expected.role &&
+                message.status === 'complete' &&
+                canonicalAgentRuntimeJson(message.content) ===
+                  canonicalAgentRuntimeJson(expected.content) &&
+                message.createdAt === input.endedAt &&
+                message.completedAt === input.endedAt,
+            );
+          });
+        const hasCheckpoint = snapshot.checkpoints.some(
+          (candidate) =>
+            candidate.sessionId === input.sessionId &&
+            candidate.throughTurnOrdinal === turn.ordinal,
+        );
+        if (
+          turn.status !== terminalStatus ||
+          turn.endedAt !== input.endedAt ||
+          turn.errorCode !== input.errorCode ||
+          turn.errorMessage !== input.errorMessage ||
+          !sameCompletion ||
+          (resumableSlice && !hasCheckpoint) ||
+          (!resumableSlice && hasCheckpoint)
+        ) {
+          throw new AgentTransportPersistenceError(
+            'AGENT_PERSISTENCE_CONFLICT',
+            'The settled Agent turn does not match the retried durable commit.',
+          );
+        }
+        return;
+      }
+
       let checkpoint:
         | Parameters<AgentRuntimePersistenceRepository['createCheckpoint']>[0]
         | undefined;
@@ -386,14 +454,37 @@ export function createRepositoryAgentTransportPersistence(
           ...providerHistory,
           ...input.turnMessages.map(clonePortableData),
         ];
-        const durableContext = input.contextCheckpointV2
-          ? await createAgentRuntimeCheckpointContextV2({
+        let verifiedV2: Awaited<
+          ReturnType<typeof createAgentRuntimeCheckpointContextV2>
+        > | null = null;
+        if (input.contextCheckpointV2) {
+          try {
+            verifiedV2 = await createAgentRuntimeCheckpointContextV2({
               canonicalHistory: context,
               canonicalSourceRows:
                 input.contextCheckpointV2.canonicalSourceRows,
               providerEnvelope:
                 input.contextCheckpointV2.providerEnvelope,
-            })
+            });
+          } catch (cause) {
+            // V2 is a redundant planner/projection witness, not the source of
+            // truth. The exact canonical history below is independently hashed
+            // and fully recoverable, so a stale/mismatched V2 projection must
+            // not strand an otherwise completed turn after its tools committed.
+            // Keep the diagnostic local; recovery will re-plan V1 next turn.
+            console.warn(
+              '[agent] checkpoint V2 verification failed; retaining exact V1 history',
+              cause,
+            );
+          }
+        }
+        const useV2 = Boolean(
+          verifiedV2 &&
+            serializedByteLength(verifiedV2) <=
+              MAX_INLINE_AGENT_RUNTIME_V2_CHECKPOINT_BYTES,
+        );
+        const durableContext = useV2
+          ? verifiedV2!
           : context.map(clonePortableData);
         throwIfAborted(signal);
         checkpoint = {
@@ -402,7 +493,7 @@ export function createRepositoryAgentTransportPersistence(
           throughTurnOrdinal: turn.ordinal,
           messageCount: context.length,
           context: durableContext,
-          contextHash: input.contextCheckpointV2
+          contextHash: useV2
             ? await hashAgentRuntimeCheckpointPayload(durableContext)
             : await recovery.hashCheckpointContext(context),
           createdAt: input.endedAt,

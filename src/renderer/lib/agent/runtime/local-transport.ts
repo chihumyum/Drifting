@@ -30,7 +30,11 @@ import type {
 } from './types';
 import { AGENT_RUNTIME_DURABLE_COMMIT_FAILURE_MESSAGE } from './types';
 import { clonePortableData } from './portable-data';
-import type { AgentTransportPersistence } from './transport-persistence';
+import { buildAgentWritingTurnContext } from './writing-intelligence';
+import type {
+  AgentTransportCommitTurnInput,
+  AgentTransportPersistence,
+} from './transport-persistence';
 
 export type RuntimeIdKind = 'session' | 'turn';
 
@@ -66,10 +70,37 @@ interface LocalSessionState {
 }
 
 class AgentTransportCommitError extends Error {
-  constructor() {
+  readonly originalCause: unknown;
+
+  constructor(cause?: unknown) {
     super('The Agent turn could not be durably committed.');
     this.name = 'AgentTransportCommitError';
+    this.originalCause = cause;
   }
+}
+
+const DURABLE_TURN_COMMIT_ATTEMPTS = 3;
+
+async function commitTurnIdempotently(
+  persistence: AgentTransportPersistence,
+  input: AgentTransportCommitTurnInput,
+): Promise<void> {
+  let failure: unknown;
+  for (let attempt = 0; attempt < DURABLE_TURN_COMMIT_ATTEMPTS; attempt += 1) {
+    try {
+      await persistence.commitTurn(input);
+      return;
+    } catch (cause) {
+      failure = cause;
+      // Yield once so an ambiguous renderer/native response or a short SQLite
+      // contention window can settle. The repository adapter verifies an
+      // already-committed turn byte-for-byte, making this retry idempotent.
+      if (attempt + 1 < DURABLE_TURN_COMMIT_ATTEMPTS) {
+        await Promise.resolve();
+      }
+    }
+  }
+  throw failure;
 }
 
 function transportError<T = void>(code: string, error: string): GeneralAgentResult<T> {
@@ -257,7 +288,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
             ...(input.resume ? { resumeSessionId: input.resume } : {}),
             newConversation: input.newConversation === true,
             route,
-            provider: this.driverId,
+            provider: input.provider ?? this.driverId,
             model: input.model ?? null,
             turnId,
             prompt: input.prompt,
@@ -292,6 +323,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     this.lastSessionId = session.id;
     const control = new AgentRuntimeControlChannel(session.id, turnId);
     active.control = control;
+    const writingContext = input.writingContext ?? buildAgentWritingTurnContext(input.prompt, null);
 
     const projector = new LegacyAgentEventProjector(session.id);
     let terminalEvents: AgentEventEnvelope['event'][] = [];
@@ -335,8 +367,11 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         sessionId: session.id,
         turnId,
         route,
+        writingContext,
         prompt: input.prompt,
-        systemPrompt: buildDriftingAgentSystemPrompt(input, route),
+        ...(input.promptSource ? { promptSource: input.promptSource } : {}),
+        ...(input.provider ? { provider: input.provider } : {}),
+        systemPrompt: buildDriftingAgentSystemPrompt({ ...input, writingContext }, route),
         ...(input.model ? { model: input.model } : {}),
         reasoning: !this.supportsReasoning
           ? { enabled: false }
@@ -358,7 +393,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
             if (result.state.status === 'completed' && !result.completedContextCheckpoint) {
               throw new AgentTransportCommitError();
             }
-            await this.persistence.commitTurn({
+            await commitTurnIdempotently(this.persistence, {
               sessionId: session.id,
               turnId,
               turnMessages: result.messages.slice(priorHistoryLength).map(clonePortableData),
@@ -372,8 +407,14 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
               errorMessage: result.state.terminal?.message ?? null,
               endedAt: this.nowIso(),
             });
-          } catch {
-            throw new AgentTransportCommitError();
+          } catch (cause) {
+            // Keep the raw persistence/checkpoint cause out of the transcript,
+            // but retain it in the local developer console. Previously every
+            // failure collapsed to the same public sentence, which made a
+            // successful write followed by a failed context commit impossible
+            // to distinguish from a database conflict.
+            console.error('[agent] durable turn commit failed', cause);
+            throw new AgentTransportCommitError(cause);
           }
           session.history = result.messages.map(clonePortableData);
         } else if (result.state.modelIterations > 0) {

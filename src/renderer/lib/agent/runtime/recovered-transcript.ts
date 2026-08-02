@@ -157,6 +157,10 @@ export async function loadCanonicalAgentChatProjection(
       }
       if (entry.event.type === 'turn_finished') hasTerminal = true;
       if (entry.event.type === 'turn_started') {
+        if (entry.event.promptSource === 'runtime_continuation') {
+          insertedPrompt = true;
+          continue;
+        }
         const canonicalPrompt = typeof prompt === 'string' ? prompt : entry.event.prompt;
         const visiblePrompt = takeVisibleUser(canonicalPrompt, true);
         messages = [...finalizeAgentChatStreaming(messages), { kind: 'user', text: visiblePrompt }];

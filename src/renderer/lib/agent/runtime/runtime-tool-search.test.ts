@@ -70,9 +70,17 @@ function endTurn(text = 'done'): readonly AgentModelStreamEvent[] {
 }
 
 function toolCall(callId: string, name: string): readonly AgentModelStreamEvent[] {
+  return toolCallWithArguments(callId, name, '{}');
+}
+
+function toolCallWithArguments(
+  callId: string,
+  name: string,
+  argumentsJson: string,
+): readonly AgentModelStreamEvent[] {
   return [
     { type: 'tool_call_start', callId, name },
-    { type: 'tool_args_delta', callId, delta: '{}' },
+    { type: 'tool_args_delta', callId, delta: argumentsJson },
     { type: 'tool_call_end', callId },
     USAGE,
     { type: 'finish', reason: 'tool_use' },
@@ -203,7 +211,7 @@ describe('AgentRuntime tool search integration', () => {
     });
   });
 
-  it('reselects each iteration and rejects a call omitted from that iteration schema', async () => {
+  it('leases an omitted installed tool into the next iteration for one repair attempt', async () => {
     const definitions = [
       definition('read_node'),
       definition('search_prose'),
@@ -226,6 +234,7 @@ describe('AgentRuntime tool search integration', () => {
     const driver = new RecordingDriver((request) => {
       if (request.iteration === 1) return toolCall('call-1', 'read_node');
       if (request.iteration === 2) return toolCall('call-2', 'read_node');
+      if (request.iteration === 3) return toolCall('call-3', 'read_node');
       return endTurn();
     });
     const runtime = new AgentRuntime({
@@ -236,35 +245,184 @@ describe('AgentRuntime tool search integration', () => {
 
     const result = await runtime.runTurn(runInput({ toolSearch: 'auto' }));
 
-    expect(selections).toHaveLength(3);
+    expect(selections).toHaveLength(4);
     expect(selections[1]?.query).toContain('search_prose next');
     expect(selections[1]?.successfulReadNamesSinceLastWrite).toEqual([
       'read_node',
     ]);
-    expect(selections[2]?.successfulReadNamesSinceLastWrite).toEqual([
-      'read_node',
-    ]);
+    expect(selections[2]?.successfulReadNamesSinceLastWrite).toEqual(['read_node']);
+    expect(selections[3]?.successfulReadNamesSinceLastWrite).toEqual(['read_node']);
     expect(
       selections.map(
         (selection) => selection.successfulReadNamesInPreviousBatch,
       ),
-    ).toEqual([[], ['read_node'], []]);
+    ).toEqual([[], ['read_node'], [], ['read_node']]);
     expect(
       selections.map((selection) => selection.pendingResultPage),
-    ).toEqual([false, false, false]);
+    ).toEqual([false, false, false, false]);
+    expect(selections.map((selection) => selection.repairToolNames)).toEqual([
+      [],
+      [],
+      ['read_node'],
+      [],
+    ]);
     expect(driver.requests.map((request) => request.tools.map((tool) => tool.name))).toEqual([
       ['read_node'],
       ['search_prose'],
+      ['read_node', 'search_prose'],
       ['search_prose'],
     ]);
-    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(2);
     expect(execute.mock.calls[0]?.[0].name).toBe('read_node');
+    expect(execute.mock.calls[1]?.[0].name).toBe('read_node');
     expect(
       result.entries.some(
         (entry) =>
           entry.event.type === 'tool_result' &&
           entry.event.callId === 'call-2' &&
           entry.event.errorCode === 'UNKNOWN_TOOL',
+      ),
+    ).toBe(true);
+    expect(result.state.status).toBe('completed');
+  });
+
+  it('leases a schema-invalid tool until corrected arguments execute successfully', async () => {
+    const requiredRead: AgentToolDefinition = {
+      ...definition('read_node'),
+      inputSchema: {
+        type: 'object',
+        properties: { path: { type: 'string' } },
+        required: ['path'],
+        additionalProperties: false,
+      },
+      validateInput: (value) =>
+        typeof value.path === 'string' && value.path.length > 0
+          ? { ok: true, value }
+          : { ok: false, error: 'path is required' },
+    };
+    const definitions = [
+      requiredRead,
+      definition('search_prose'),
+      ...Array.from({ length: 7 }, (_, index) => definition(`other_${index}`)),
+    ];
+    const selections: AgentToolSelectionRequest[] = [];
+    const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({
+      ok: true,
+      data: 'chapter',
+    }));
+    const driver = new RecordingDriver((request) => {
+      if (request.iteration === 1) return toolCall('invalid', 'read_node');
+      if (request.iteration === 2) {
+        return toolCallWithArguments(
+          'repaired',
+          'read_node',
+          '{"path":"/chapters/00/prose.md"}',
+        );
+      }
+      return endTurn();
+    });
+    const runtime = new AgentRuntime({
+      driver,
+      tools: toolRuntime(definitions, execute),
+      toolSelector: {
+        select(request) {
+          selections.push(request);
+          return request.iteration === 1 ? ['read_node'] : ['search_prose'];
+        },
+      },
+    });
+
+    const result = await runtime.runTurn(runInput({ toolSearch: 'auto' }));
+
+    expect(result.state.status).toBe('completed');
+    expect(selections.map((selection) => selection.repairToolNames)).toEqual([
+      [],
+      ['read_node'],
+      [],
+    ]);
+    expect(driver.requests[1]?.tools.map((tool) => tool.name)).toEqual([
+      'read_node',
+      'search_prose',
+    ]);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute.mock.calls[0]?.[0]).toMatchObject({
+      name: 'read_node',
+      arguments: { path: '/chapters/00/prose.md' },
+    });
+  });
+
+  it('does not lease a truly unknown hallucinated tool', async () => {
+    const definitions = [
+      definition('search_prose'),
+      ...Array.from({ length: 8 }, (_, index) => definition(`other_${index}`)),
+    ];
+    const selections: AgentToolSelectionRequest[] = [];
+    const driver = new RecordingDriver((request) =>
+      request.iteration === 1
+        ? toolCall('unknown', 'delete_the_universe')
+        : endTurn(),
+    );
+    const runtime = new AgentRuntime({
+      driver,
+      tools: toolRuntime(definitions),
+      toolSelector: {
+        select(request) {
+          selections.push(request);
+          return ['search_prose'];
+        },
+      },
+    });
+
+    const result = await runtime.runTurn(runInput({ toolSearch: 'auto' }));
+
+    expect(result.state.status).toBe('completed');
+    expect(selections.map((selection) => selection.repairToolNames)).toEqual([
+      [],
+      [],
+    ]);
+    expect(driver.requests.map((request) => request.tools.map((tool) => tool.name))).toEqual([
+      ['search_prose'],
+      ['search_prose'],
+    ]);
+  });
+
+  it('normalizes an executable legacy dispatcher alias before validation and execution', async () => {
+    const definitions = [
+      definition('read_node'),
+      ...Array.from({ length: 8 }, (_, index) => definition(`other_${index}`)),
+    ];
+    const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({
+      ok: true,
+      data: 'ok',
+    }));
+    const tools: AgentToolRuntime = {
+      listDefinitions: () => definitions,
+      resolveCanonicalName: (name) =>
+        name === 'legacy_read_node' ? 'read_node' : undefined,
+      execute,
+    };
+    const driver = new RecordingDriver((request) =>
+      request.iteration === 1
+        ? toolCall('legacy', 'legacy_read_node')
+        : endTurn(),
+    );
+    const runtime = new AgentRuntime({
+      driver,
+      tools,
+      toolSelector: { select: () => ['read_node'] },
+    });
+
+    const result = await runtime.runTurn(runInput({ toolSearch: 'auto' }));
+
+    expect(result.state.status).toBe('completed');
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'read_node' }),
+    );
+    expect(
+      result.entries.some(
+        (entry) =>
+          entry.event.type === 'tool_call_started' &&
+          entry.event.name === 'read_node',
       ),
     ).toBe(true);
   });

@@ -5,7 +5,7 @@
  * contradiction spots, then harvests what it changed from the agent-edit-store.
  * The turnId is NOT registered with the chat store, so the chat UI ignores this
  * stream. Edits land in live Yjs via the agent's prose tools and stage as pending
- * (soft-approval) for the final human gate — nothing auto-commits.
+ * (pending inline review) for the final human gate — nothing auto-accepts.
  *
  * Reserved for a future General Agent transport. The current Tauri build reports
  * that capability as unavailable and uses runShadowEditTurn instead.
@@ -140,6 +140,7 @@ export async function runScopedAgentTurn(
     route: { kind: 'goal', projectId, chapterId },
     projectId,
     mode: settings.agentAuth,
+    provider: settings.agentProvider,
     model: settings.agentModel,
     effort: settings.agentEffort,
     thinking: settings.agentThinking,

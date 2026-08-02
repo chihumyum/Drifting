@@ -411,6 +411,11 @@ describe('provider-neutral Agent context planner', () => {
         row: { content: constraint.content },
       });
       expect(valid.plan.checkpoint.constraintLedger.entries).toEqual(ledger);
+      expect(valid.plan.checkpoint.constraintLedger.retentionWitness).toEqual({
+        status: 'exact',
+        sourceIds: [constraint.sourceId],
+        sourceHash: await hashAgentContextSourceRows([constraint]),
+      });
     }
     expect(stale).toMatchObject({
       ok: false,
@@ -770,6 +775,49 @@ describe('provider-neutral Agent context planner', () => {
       ok: false,
       error: { code: 'COMPACTOR_NO_GAIN' },
       diagnostics: { circuitState: { state: 'open' } },
+    });
+  });
+
+  it('keeps a no-gain short chunk exact while applying profitable full-compactor chunks', async () => {
+    const rows = [
+      row('system', 0, null, 'system_policy', 'POLICY'),
+      row('user-0', 1, 0, 'user', 'goal'),
+      row('assistant-0', 2, 0, 'assistant_narrative', 'old history '.repeat(6_000)),
+      row('user-1', 3, 1, 'user', 'next'),
+      row('assistant-1', 4, 1, 'assistant_narrative', 'tiny old tail'),
+      row('user-2', 5, 2, 'user', 'recent one'),
+      row('assistant-2', 6, 2, 'assistant_narrative', 'recent answer one'),
+      row('user-3', 7, 3, 'user', 'recent two'),
+      row('assistant-3', 8, 3, 'assistant_narrative', 'recent answer two'),
+    ];
+
+    const result = await planAgentContext({
+      contextWindowTokens: 10_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      fullCompactor: async ({ eligibleRuns }) =>
+        await Promise.all(
+          eligibleRuns.map((sourceRows, index) =>
+            createAgentContextSummaryCandidate({
+              summaryId: `mixed-gain-${index}`,
+              sourceRows,
+              content: index === 0 ? 'profitable summary' : 'no gain metadata tail',
+            }),
+          ),
+        ),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(
+      result.plan.segments.some(
+        (segment) => segment.type === 'summary' && segment.summaryId === 'mixed-gain-0',
+      ),
+    ).toBe(true);
+    expect(sourceSegment(result, 'assistant-1')).toMatchObject({
+      type: 'source',
+      row: { content: 'tiny old tail' },
     });
   });
 

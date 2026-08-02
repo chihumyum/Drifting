@@ -17,8 +17,8 @@ export interface DriftingAgentPermissionPolicyOptions {
  * Product authorization policy derived from the canonical tool registry.
  *
  * Certification decides whether a tool can execute at all. Approval metadata
- * then decides whether a certified call can proceed automatically, land under
- * soft review, or must pause before the dispatcher. A model-provided tool name
+ * then decides whether a certified call can proceed automatically or must
+ * pause before the dispatcher. A model-provided tool name
  * or risk claim can never expand this policy.
  */
 export function createDriftingAgentPermissionPolicy(
@@ -44,6 +44,18 @@ export function createDriftingAgentPermissionPolicy(
         return { decision: 'allow', scope: 'once' };
       }
 
+      // The provider sees a small filesystem-like facade, but author approval
+      // follows the domain operation behind the path. Creating or relabelling
+      // a curated entity relation is graph authorship and must pause before it
+      // mutates, just like deleting the relation through delete_file.
+      if (isWorkspaceGuardedGraphMutation(request)) {
+        return {
+          decision: 'ask',
+          reason: 'Changing an authored story-graph relationship requires author approval before execution.',
+          allowedScopes: ['once'],
+        };
+      }
+
       if (
         tool.revertStrategy === 'irreversible' ||
         tool.revertStrategy === 'unavailable'
@@ -64,11 +76,18 @@ export function createDriftingAgentPermissionPolicy(
           allowedScopes: ['once'],
         };
       }
-      if (
-        tool.approval === 'soft_review' &&
-        (tool.revertStrategy === 'exact_inverse' ||
-          tool.revertStrategy === 'compensating')
-      ) {
+      if (tool.approval === 'review_after') {
+        if (
+          tool.revertStrategy !== 'exact_inverse' &&
+          tool.revertStrategy !== 'compensating'
+        ) {
+          return {
+            decision: 'deny',
+            reason: `Tool "${tool.name}" has no valid editor-review policy.`,
+          };
+        }
+        // The mutation is allowed now. Its exact inverse and author-facing diff
+        // are settled after the write inside the target editor, never in chat.
         return { decision: 'allow', scope: 'once' };
       }
       if (tool.approval === 'automatic') {
@@ -80,4 +99,20 @@ export function createDriftingAgentPermissionPolicy(
       };
     },
   };
+}
+
+function isWorkspaceGuardedGraphMutation(
+  request: AgentToolPermissionPolicyRequest,
+): boolean {
+  if (request.toolName !== 'write_file' && request.toolName !== 'edit_file') {
+    return false;
+  }
+  const path = request.arguments.path;
+  if (typeof path !== 'string') return false;
+  const normalized = `/${path.trim()}`.replace(/\/{2,}/g, '/').replace(/\/$/u, '');
+  return (
+    normalized === '/relations' ||
+    normalized.startsWith('/relations/') ||
+    /^\/storylines\/[^/]+\/chapters\.json$/u.test(normalized)
+  );
 }

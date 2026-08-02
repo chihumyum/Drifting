@@ -17,7 +17,10 @@ import type {
   TransactionBehavior,
 } from '../../../platform/database';
 import { createDatabaseClient } from '../../../lib/db';
-import { createAgentRuntimePersistenceRepository } from '../../../sqlite-repo/agent-runtime-persistence-repo';
+import {
+  createAgentRuntimePersistenceRepository,
+  type AgentRuntimePersistenceRepository,
+} from '../../../sqlite-repo/agent-runtime-persistence-repo';
 import { planAgentModelContext } from './context-message-adapter';
 import {
   AgentRuntimeRecoveryCorruptionError,
@@ -26,7 +29,10 @@ import {
   recoverAgentRuntimeSnapshot,
   type AgentRuntimeCheckpointContextV2,
 } from './recovery';
-import { createRepositoryAgentTransportPersistence } from './repository-transport-persistence';
+import {
+  createRepositoryAgentTransportPersistence,
+  MAX_INLINE_AGENT_RUNTIME_V2_CHECKPOINT_BYTES,
+} from './repository-transport-persistence';
 import {
   agentRuntimeUnknownToolResultContent,
   type AgentModelMessage,
@@ -459,6 +465,91 @@ describe('file-backed Agent V2 context recovery', () => {
     directory = undefined;
   });
 
+  it('adopts one exact history when SQLite committed but the first commit acknowledgement was lost', async () => {
+    directory = mkdtempSync(join(tmpdir(), 'drifting-agent-lost-commit-ack-'));
+    const databasePath = join(directory, 'runtime.sqlite');
+    gateway = new FileSqliteGateway(databasePath, true);
+    const durableRepository = createAgentRuntimePersistenceRepository(
+      createDatabaseClient(gateway),
+    );
+    let loseAcknowledgement = true;
+    const repository = {
+      ...durableRepository,
+      async commitTurn(
+        input: Parameters<AgentRuntimePersistenceRepository['commitTurn']>[0],
+      ) {
+        const outcome = await durableRepository.commitTurn(input);
+        if (loseAcknowledgement) {
+          loseAcknowledgement = false;
+          throw new Error('commit acknowledgement lost after SQLite COMMIT');
+        }
+        return outcome;
+      },
+    } satisfies AgentRuntimePersistenceRepository;
+    const persistence = createRepositoryAgentTransportPersistence({
+      repository,
+      resolveToolAccess: () => undefined,
+    });
+
+    await persistence.prepareTurn({
+      candidateSessionId: 'session-lost-ack',
+      newConversation: true,
+      route: ROUTE,
+      provider: 'test-provider',
+      model: 'test-model',
+      turnId: 'turn-lost-ack',
+      prompt: 'Persist the final answer.',
+      acceptedAt: NOW,
+    });
+    for (const [index, event] of completeJournal().entries()) {
+      const seq = index + 1;
+      await persistence.appendJournal({
+        schemaVersion: 1,
+        sessionId: 'session-lost-ack',
+        turnId: 'turn-lost-ack',
+        route: ROUTE,
+        seq,
+        eventId: `turn-lost-ack:${String(seq).padStart(8, '0')}`,
+        wallTimeMs: Date.parse(NOW) + seq,
+        event,
+      });
+    }
+    const commit = {
+      sessionId: 'session-lost-ack',
+      turnId: 'turn-lost-ack',
+      turnMessages: HISTORY,
+      outcome: 'completed' as const,
+      errorCode: null,
+      errorMessage: null,
+      endedAt: ENDED,
+    };
+
+    await expect(persistence.commitTurn(commit)).rejects.toThrow(
+      'commit acknowledgement lost',
+    );
+    await expect(persistence.commitTurn(commit)).resolves.toBeUndefined();
+
+    const snapshot = await durableRepository.loadRecoverySnapshot(
+      'session-lost-ack',
+    );
+    expect(snapshot?.turns).toEqual([
+      expect.objectContaining({
+        id: 'turn-lost-ack',
+        status: 'completed',
+      }),
+    ]);
+    expect(
+      snapshot?.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+    ).toEqual(HISTORY);
+    if (!snapshot) throw new Error('lost-ack snapshot disappeared');
+    await expect(recoverAgentRuntimeSnapshot(snapshot)).resolves.toMatchObject({
+      providerHistory: HISTORY,
+    });
+  });
+
   it('commits the final assistant atomically, restarts, verifies nested integrity, and resumes canonical history', async () => {
     directory = mkdtempSync(join(tmpdir(), 'drifting-agent-v2-'));
     const databasePath = join(directory, 'runtime.sqlite');
@@ -494,37 +585,6 @@ describe('file-backed Agent V2 context recovery', () => {
         event,
       });
     }
-    const prematurePlan = await planAgentModelContext({
-      systemPrompt: 'Drifting durable policy.',
-      messages: HISTORY.slice(0, 1),
-      resolveToolAccess: () => undefined,
-      planner: {
-        contextWindowTokens: 20_000,
-        requestedOutputTokens: 1_000,
-        fixedInputTokens: 100,
-      },
-    });
-    expect(prematurePlan.ok).toBe(true);
-    if (!prematurePlan.ok) return;
-    await expect(
-      firstPersistence.commitTurn({
-        sessionId: 'session-v2',
-        turnId: 'turn-v2',
-        turnMessages: HISTORY,
-        contextCheckpointV2: {
-          canonicalSourceRows: prematurePlan.bridge.sourceRows,
-          providerEnvelope: prematurePlan.envelope,
-        },
-        outcome: 'completed',
-        errorCode: null,
-        errorMessage: null,
-        endedAt: ENDED,
-      }),
-    ).rejects.toMatchObject({ code: 'INVALID_CHECKPOINT' });
-    expect(
-      (await firstRepository.getTurn('turn-v2'))?.status,
-    ).toBe('running');
-
     const planned = await planAgentModelContext({
       systemPrompt: 'Drifting durable policy.',
       messages: HISTORY,
@@ -724,6 +784,191 @@ describe('file-backed Agent V2 context recovery', () => {
       sessionId: 'session-v2',
       history: HISTORY,
       recovered: false,
+    });
+  });
+
+  it('falls back to exact hashed V1 history when a stale V2 projection cannot prove the completed turn', async () => {
+    directory = mkdtempSync(join(tmpdir(), 'drifting-agent-v2-stale-'));
+    gateway = new FileSqliteGateway(join(directory, 'runtime.sqlite'), true);
+    const repository = createAgentRuntimePersistenceRepository(
+      createDatabaseClient(gateway),
+    );
+    const persistence = createRepositoryAgentTransportPersistence({
+      repository,
+      resolveToolAccess: () => undefined,
+    });
+
+    await persistence.prepareTurn({
+      candidateSessionId: 'session-v2-stale',
+      newConversation: true,
+      route: ROUTE,
+      provider: 'test-provider',
+      model: 'test-model',
+      turnId: 'turn-v2-stale',
+      prompt: 'Persist the final answer.',
+      acceptedAt: NOW,
+    });
+    for (const [index, event] of completeJournal().entries()) {
+      const seq = index + 1;
+      await persistence.appendJournal({
+        schemaVersion: 1,
+        sessionId: 'session-v2-stale',
+        turnId: 'turn-v2-stale',
+        route: ROUTE,
+        seq,
+        eventId: `turn-v2-stale:${String(seq).padStart(8, '0')}`,
+        wallTimeMs: Date.parse(NOW) + seq,
+        event,
+      });
+    }
+    const stale = await planAgentModelContext({
+      systemPrompt: 'Drifting durable policy.',
+      messages: HISTORY.slice(0, 1),
+      resolveToolAccess: () => undefined,
+      planner: {
+        contextWindowTokens: 20_000,
+        requestedOutputTokens: 1_000,
+        fixedInputTokens: 100,
+      },
+    });
+    expect(stale.ok).toBe(true);
+    if (!stale.ok) return;
+
+    await expect(
+      persistence.commitTurn({
+        sessionId: 'session-v2-stale',
+        turnId: 'turn-v2-stale',
+        turnMessages: HISTORY,
+        contextCheckpointV2: {
+          canonicalSourceRows: stale.bridge.sourceRows,
+          providerEnvelope: stale.envelope,
+        },
+        outcome: 'completed',
+        errorCode: null,
+        errorMessage: null,
+        endedAt: ENDED,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect((await repository.getTurn('turn-v2-stale'))?.status).toBe('completed');
+    const snapshot = await repository.loadRecoverySnapshot('session-v2-stale');
+    expect(snapshot?.checkpoints[0]).toMatchObject({
+      throughTurnOrdinal: 0,
+      messageCount: 2,
+      context: HISTORY,
+    });
+    if (!snapshot) throw new Error('fallback lost the session');
+    await expect(recoverAgentRuntimeSnapshot(snapshot)).resolves.toMatchObject({
+      providerHistory: HISTORY,
+      checkpointId: 'agent-checkpoint:session-v2-stale:0',
+    });
+  });
+
+  it('falls back to exact hashed history after validating an oversized V2 checkpoint', async () => {
+    directory = mkdtempSync(join(tmpdir(), 'drifting-agent-v2-large-'));
+    gateway = new FileSqliteGateway(join(directory, 'runtime.sqlite'), true);
+    const repository = createAgentRuntimePersistenceRepository(
+      createDatabaseClient(gateway),
+    );
+    const persistence = createRepositoryAgentTransportPersistence({
+      repository,
+      resolveToolAccess: () => undefined,
+    });
+    const largeText = 'x'.repeat(MAX_INLINE_AGENT_RUNTIME_V2_CHECKPOINT_BYTES);
+    const largeHistory: AgentModelMessage[] = [
+      { role: 'user', content: 'Keep the completed long turn durable.' },
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: largeText,
+          },
+        ],
+      },
+    ];
+
+    await persistence.prepareTurn({
+      candidateSessionId: 'session-v2-large',
+      newConversation: true,
+      route: ROUTE,
+      provider: 'test-provider',
+      model: 'test-model',
+      turnId: 'turn-v2-large',
+      prompt: 'Keep the completed long turn durable.',
+      acceptedAt: NOW,
+    });
+    const journal: AgentRuntimeEvent[] = [
+      {
+        type: 'turn_started',
+        prompt: 'Keep the completed long turn durable.',
+      },
+      {
+        type: 'model_iteration_started',
+        iteration: 1,
+        driverId: 'test-provider',
+      },
+      { type: 'text_delta', iteration: 1, text: largeText },
+      { type: 'model_usage', iteration: 1, usage: USAGE },
+      {
+        type: 'model_iteration_completed',
+        iteration: 1,
+        stopReason: 'end_turn',
+      },
+      {
+        type: 'turn_finished',
+        outcome: 'completed',
+        usage: USAGE,
+        modelIterations: 1,
+        durationMs: 1_000,
+      },
+    ];
+    for (const [index, event] of journal.entries()) {
+      const seq = index + 1;
+      await persistence.appendJournal({
+        schemaVersion: 1,
+        sessionId: 'session-v2-large',
+        turnId: 'turn-v2-large',
+        route: ROUTE,
+        seq,
+        eventId: `turn-v2-large:${String(seq).padStart(8, '0')}`,
+        wallTimeMs: Date.parse(NOW) + seq,
+        event,
+      });
+    }
+    const planned = await planAgentModelContext({
+      systemPrompt: 'Drifting durable policy.',
+      messages: largeHistory,
+      resolveToolAccess: () => undefined,
+      planner: {
+        contextWindowTokens: 3_000_000,
+        requestedOutputTokens: 1_000,
+        fixedInputTokens: 100,
+      },
+    });
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+
+    await persistence.commitTurn({
+      sessionId: 'session-v2-large',
+      turnId: 'turn-v2-large',
+      turnMessages: largeHistory,
+      contextCheckpointV2: {
+        canonicalSourceRows: planned.bridge.sourceRows,
+        providerEnvelope: planned.envelope,
+      },
+      outcome: 'completed',
+      errorCode: null,
+      errorMessage: null,
+      endedAt: ENDED,
+    });
+
+    const snapshot = await repository.loadRecoverySnapshot('session-v2-large');
+    expect(snapshot?.checkpoints[0]?.context).toEqual(largeHistory);
+    if (!snapshot) throw new Error('oversized checkpoint lost the session');
+    await expect(recoverAgentRuntimeSnapshot(snapshot)).resolves.toMatchObject({
+      providerHistory: largeHistory,
+      checkpointId: 'agent-checkpoint:session-v2-large:0',
     });
   });
 

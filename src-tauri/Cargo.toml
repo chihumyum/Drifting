@@ -17,6 +17,7 @@ tauri-build = { version = "2.6.3", features = [] }
 base64 = "0.22"
 include_dir = "0.7.4"
 image = { version = "=0.25.4", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff", "webp"] }
+futures-util = "0.3"
 regex = "1"
 reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "rustls-tls", "stream"] }
 rusqlite = { version = "0.32.1", features = ["backup", "bundled"] }

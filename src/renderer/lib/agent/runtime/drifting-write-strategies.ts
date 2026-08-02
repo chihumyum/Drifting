@@ -13,13 +13,17 @@ import type {
   AgentRuntimeWriteReversibility,
 } from '../../../domain/agent-runtime-write-effect';
 import type { DbTransaction } from '../../../lib/db';
-import type { DbExecutor } from '../../../lib/db';
+import { getDb, type DbExecutor } from '../../../lib/db';
 import { countWordsInPmJson } from '../../word-count';
-import { proseDocId } from '../../yjs-doc-id';
-import { computeBlockChanges } from '../block-diff';
+import { proseDocId, type ProseEntityType } from '../../yjs-doc-id';
+import { computeBlockChanges, type AgentBlockChange } from '../block-diff';
+import { revertEntityBlock } from '../chapter-prose';
 import { effectiveAgentEditMode } from '../agent-edit-mode';
 import {
+  BookElementTable,
   BookNodeTable,
+  ElementCategoryTable,
+  StorylineTable,
 } from '../../../schema/drizzle';
 import {
   notifySyncMutationCommitted,
@@ -60,11 +64,27 @@ import type {
   AgentRuntimeElementPatchReceiptRepository,
 } from '../../../sqlite-repo/agent-runtime-element-patch-receipt-repo';
 import { createDriftingEntityWriteStrategy } from './drifting-entity-write-strategy';
-import { workspaceCommandFromArguments } from './drifting-workspace-tool-runtime';
+import {
+  createDriftingStructuralWriteStrategy,
+  DRIFTING_STRUCTURAL_WRITE_TOOLS,
+  type DriftingStructuralWriteTool,
+} from './drifting-structural-write-strategy';
+import {
+  DRIFTING_WORKSPACE_DELETE_TOOL,
+  DRIFTING_WORKSPACE_EDIT_TOOL,
+  DRIFTING_WORKSPACE_WRITE_TOOL,
+  workspaceCommandFromArguments,
+} from './drifting-workspace-tool-runtime';
 import {
   parseWorkspaceTextReplacements,
   planWorkspaceProseFileEdit,
+  planWorkspaceProseFileWrite,
 } from './workspace-prose-file';
+import {
+  createDriftingDomainCrudWriteStrategy,
+  DRIFTING_DOMAIN_CRUD_WRITE_TOOLS,
+  type DriftingDomainCrudWriteTool,
+} from './drifting-domain-crud-write-strategy';
 
 export interface PreparedDriftingWriteEffect {
   observedRevision: unknown;
@@ -103,6 +123,30 @@ export interface DriftingWriteStrategy {
     context: AgentToolContext,
     signal: AbortSignal,
   ): Promise<{ handlerResult: unknown; committedEffect: unknown } | null>;
+  /**
+   * Rebuild the editor-only review/reveal projection after the canonical review
+   * row and result receipt exist. It must never mutate domain state.
+   */
+  projectReview?(
+    effect: PersistedAgentRuntimeWriteEffect,
+    context: AgentToolContext,
+    blockDecisions?: Readonly<Record<string, 'accepted' | 'reverted'>>,
+  ): Promise<void> | void;
+  /** Immutable paragraph identities represented by this review batch. */
+  reviewBlocks?(
+    effect: PersistedAgentRuntimeWriteEffect,
+    context: AgentToolContext,
+  ): Promise<readonly { blockId: string; ordinal: number }[]>;
+  /**
+   * Apply one guarded paragraph inverse. This operation must be idempotent so a
+   * durable `revert_started` row can resume after renderer interruption.
+   */
+  applyReviewBlockInverse?(
+    effect: PersistedAgentRuntimeWriteEffect,
+    blockId: string,
+    context: AgentToolContext,
+    signal: AbortSignal,
+  ): Promise<unknown>;
   applyInverse(
     effect: PersistedAgentRuntimeWriteEffect,
     context: AgentToolContext,
@@ -132,6 +176,9 @@ const entityWriteTools = new Set([
   'update_project_facts',
 ] as const);
 
+const structuralWriteTools = new Set<string>(DRIFTING_STRUCTURAL_WRITE_TOOLS);
+const domainCrudWriteTools = new Set<string>(DRIFTING_DOMAIN_CRUD_WRITE_TOOLS);
+
 export interface DriftingWriteStrategyOptions {
   freshness?: AgentRuntimeFreshnessRepository | null;
   elementPatchDb?: DbExecutor;
@@ -157,12 +204,51 @@ export function getDriftingWriteStrategy(
   toolName: string,
   options: DriftingWriteStrategyOptions = {},
 ): DriftingWriteStrategy | undefined {
-  if (toolName === 'edit_file') return workspaceEditStrategy(options);
+  if (
+    toolName === DRIFTING_WORKSPACE_EDIT_TOOL ||
+    toolName === DRIFTING_WORKSPACE_WRITE_TOOL ||
+    toolName === DRIFTING_WORKSPACE_DELETE_TOOL
+  ) {
+    return workspaceEditStrategy(options);
+  }
+  if (structuralWriteTools.has(toolName) && options.freshness) {
+    return createDriftingStructuralWriteStrategy(
+      toolName as DriftingStructuralWriteTool,
+      {
+        freshness: options.freshness,
+        ...(options.elementPatchDb ? { db: options.elementPatchDb } : {}),
+        ...(options.now ? { now: options.now } : {}),
+        ...(options.elementPatchPersistSyncMutation
+          ? { persistSyncMutation: options.elementPatchPersistSyncMutation }
+          : {}),
+        ...(options.elementPatchNotifySyncCommitted
+          ? { notifySyncCommitted: options.elementPatchNotifySyncCommitted }
+          : {}),
+      },
+    );
+  }
+  if (domainCrudWriteTools.has(toolName) && options.freshness) {
+    return createDriftingDomainCrudWriteStrategy(
+      toolName as DriftingDomainCrudWriteTool,
+      {
+        freshness: options.freshness,
+        db: options.elementPatchDb ?? getDb(),
+        ...(options.now ? { now: options.now } : {}),
+        ...(options.elementPatchPersistSyncMutation
+          ? { persistSyncMutation: options.elementPatchPersistSyncMutation }
+          : {}),
+        ...(options.elementPatchNotifySyncCommitted
+          ? { notifySyncCommitted: options.elementPatchNotifySyncCommitted }
+          : {}),
+      },
+    );
+  }
   const field = nodeFieldStrategies.get(toolName);
   if (field) return nodeFieldStrategy(field);
   if (
     (toolName === 'create_element_patch' ||
-      toolName === 'update_element_patch') &&
+      toolName === 'update_element_patch' ||
+      toolName === 'delete_element_patch') &&
     options.freshness
   ) {
     return createDriftingElementPatchWriteStrategy(toolName, {
@@ -243,7 +329,7 @@ function workspaceEditStrategy(
   const resolve = (arguments_: unknown) => {
     const command = workspaceCommandFromArguments(arguments_);
     if (!command) {
-      throw new Error('edit_file has no runtime-prepared workspace command');
+      throw new Error('The workspace write has no runtime-prepared command');
     }
     const strategy = getDriftingWriteStrategy(command.name, options);
     if (!strategy) {
@@ -297,6 +383,37 @@ function workspaceEditStrategy(
       if (!strategy.reconcileEnteredEffect) return null;
       return strategy.reconcileEnteredEffect(
         innerEffect(effect, command),
+        context,
+        signal,
+      );
+    },
+
+    async projectReview(effect, context, blockDecisions) {
+      const { command, strategy } = resolve(effect.arguments);
+      await strategy.projectReview?.(
+        innerEffect(effect, command),
+        context,
+        blockDecisions,
+      );
+    },
+
+    async reviewBlocks(effect, context) {
+      const { command, strategy } = resolve(effect.arguments);
+      return strategy.reviewBlocks
+        ? strategy.reviewBlocks(innerEffect(effect, command), context)
+        : [];
+    },
+
+    async applyReviewBlockInverse(effect, blockId, context, signal) {
+      const { command, strategy } = resolve(effect.arguments);
+      if (!strategy.applyReviewBlockInverse) {
+        throw new Error(
+          `Tool "${command.name}" has no block-review inverse`,
+        );
+      }
+      return strategy.applyReviewBlockInverse(
+        innerEffect(effect, command),
+        blockId,
         context,
         signal,
       );
@@ -435,6 +552,8 @@ function nodeFieldStrategy(field: 'title' | 'summary'): DriftingWriteStrategy {
 interface ProseExecution {
   command: PreparedYjsProsePersistenceCommand;
   nodeId: string;
+  /** Omitted for legacy/node commands so existing durable payloads stay valid. */
+  entityType?: ProseEntityType;
   projectId: string;
   beforeContentJson: string;
 }
@@ -442,6 +561,8 @@ interface ProseExecution {
 interface PersistedProseCommandPayload {
   kind: 'yjs_prose';
   nodeId: string;
+  /** Omitted means the legacy `node` body. */
+  entityType?: ProseEntityType;
   docId: string;
   command: PortablePreparedYjsProseCommand;
   /**
@@ -480,20 +601,24 @@ function proseWriteStrategy(
   return {
     async prepare(request, _context, expectation) {
       throwIfAgentAborted(request.signal);
-      const node = resolveProjectNode(request);
+      const entity = resolveProjectProseEntity(request);
       const proseExpectation = requireProseExpectation(
         expectation,
         request,
-        node.id,
+        entity.id,
+        entity.entityType,
       );
-      const contentJson = await readNodeContent(node.id);
+      const contentJson =
+        entity.entityType === 'node'
+          ? await readNodeContent(entity.id)
+          : readProjectedProseContent(entity.entityType, entity.id);
       if (contentJson === null) {
-        throw new Error(`Node content for ${node.id} was not found`);
+        throw new Error(`${entity.entityType} content for ${entity.id} was not found`);
       }
       const seedStateUpdate = await createYjsProseSeedState(
         contentJson,
       );
-      const docId = proseDocId('node', node.id);
+      const docId = proseDocId(entity.entityType, entity.id);
       const base = await coordinator.readBase(docId, seedStateUpdate);
       assertProseBaseMatchesExpectation(base, proseExpectation);
       const baseBlocks = blocksFromState(base.stateUpdate);
@@ -522,7 +647,8 @@ function proseWriteStrategy(
       );
       const payload: PersistedProseCommandPayload = {
         kind: 'yjs_prose',
-        nodeId: node.id,
+        nodeId: entity.id,
+        ...(entity.entityType === 'node' ? {} : { entityType: entity.entityType }),
         docId,
         command: toPortablePreparedYjsProseCommand(command.prepared),
         reviewSnapshot,
@@ -530,14 +656,14 @@ function proseWriteStrategy(
       return {
         observedRevision: {
           kind: 'yjs_prose_revision',
-          nodeId: node.id,
+          nodeId: entity.id,
           docId,
           revision: proseRevision(base.revision),
           stateHash: base.stateHash,
         },
         preimage: {
           kind: 'yjs_prose_state',
-          nodeId: node.id,
+          nodeId: entity.id,
           docId,
           revision: proseRevision(base.revision),
           stateHash: base.stateHash,
@@ -548,8 +674,9 @@ function proseWriteStrategy(
         reversibility: 'exact',
         execution: {
           command,
-          nodeId: node.id,
-          projectId: node.projectId,
+          nodeId: entity.id,
+          ...(entity.entityType === 'node' ? {} : { entityType: entity.entityType }),
+          projectId: entity.projectId,
           beforeContentJson,
         } satisfies ProseExecution,
       };
@@ -563,12 +690,6 @@ function proseWriteStrategy(
         execution,
         'forward',
         execution.command.base.revision,
-      );
-      recordVisibleProseReview(
-        execution.nodeId,
-        execution.beforeContentJson,
-        result.projection.contentJson,
-        parseProsePayload(prepared.forward).reviewSnapshot,
       );
       throwIfAgentAborted(request.signal);
       return proseHandlerResult(execution.nodeId, result);
@@ -628,12 +749,6 @@ function proseWriteStrategy(
         payload.reviewSnapshot,
         prepared,
       );
-      recordVisibleProseReview(
-        payload.nodeId,
-        payload.reviewSnapshot.baseContentJson,
-        prepared.projection.contentJson,
-        payload.reviewSnapshot,
-      );
       const handlerResult: ProseHandlerResult = {
         ok: true,
         nodeId: payload.nodeId,
@@ -658,13 +773,61 @@ function proseWriteStrategy(
       };
     },
 
+    async projectReview(effect, _context, blockDecisions) {
+      const { payload, changes } =
+        await verifiedProseReviewChanges(effect);
+      recordVisibleProseReview(
+        prosePayloadEntityType(payload),
+        payload.nodeId,
+        changes,
+        payload.reviewSnapshot,
+        blockDecisions,
+      );
+    },
+
+    async reviewBlocks(effect) {
+      const { changes } = await verifiedProseReviewChanges(effect);
+      return changes.map((change, ordinal) => ({
+        blockId: change.blockId,
+        ordinal,
+      }));
+    },
+
+    async applyReviewBlockInverse(effect, blockId, context, signal) {
+      throwIfAgentAborted(signal);
+      const { payload, changes } = await verifiedProseReviewChanges(effect);
+      const change = changes.find((candidate) => candidate.blockId === blockId);
+      if (!change) {
+        throw new Error(
+          `The durable prose review has no block "${blockId}"`,
+        );
+      }
+      await revertEntityBlock(
+        prosePayloadEntityType(payload),
+        payload.nodeId,
+        change,
+        context,
+      );
+      throwIfAgentAborted(signal);
+      return {
+        kind: 'yjs_prose_block_revert',
+        reviewId: payload.reviewSnapshot.reviewId,
+        blockId,
+      };
+    },
+
     async applyInverse(effect, _context, signal) {
       throwIfAgentAborted(signal);
       const payload = parseProsePayload(effect.inverse);
       assertPersistedProseProvenance(effect, payload);
       if (
-        payload.nodeId !== resolveEffectProjectNode(effect, payload.nodeId).id ||
-        payload.docId !== proseDocId('node', payload.nodeId)
+        payload.nodeId !==
+          resolveEffectProjectProseEntity(
+            effect,
+            prosePayloadEntityType(payload),
+            payload.nodeId,
+          ).id ||
+        payload.docId !== proseDocId(prosePayloadEntityType(payload), payload.nodeId)
       ) {
         throw new Error('The persisted prose inverse targets the wrong node');
       }
@@ -685,6 +848,9 @@ function proseWriteStrategy(
         {
           command,
           nodeId: payload.nodeId,
+          ...(prosePayloadEntityType(payload) === 'node'
+            ? {}
+            : { entityType: prosePayloadEntityType(payload) }),
           projectId: effect.projectId,
           beforeContentJson: prepared.projection.contentJson,
         },
@@ -718,15 +884,16 @@ function proseWriteStrategy(
 function requireProseExpectation(
   expectation: PersistedAgentRuntimeWriteExpectation | null | undefined,
   request: AgentToolExecutionRequest,
-  nodeId: string,
+  entityId: string,
+  entityType: ProseEntityType,
 ): PersistedAgentRuntimeWriteExpectation & {
   expectedStateVector: Uint8Array;
   expectedStateHash: string;
 } {
   if (
     !expectation ||
-    expectation.entityKind !== 'node_prose' ||
-    expectation.entityId !== nodeId ||
+    expectation.entityKind !== `${entityType}_prose` ||
+    expectation.entityId !== entityId ||
     expectation.expectedRevision !==
       (request.arguments.expectedRevision as { revision?: unknown } | undefined)
         ?.revision ||
@@ -761,7 +928,7 @@ function assertProseBaseMatchesExpectation(
     expectation.expectedStateHash !== base.stateHash
   ) {
     const error = new Error(
-      'The chapter prose changed after read_node; read it again before writing',
+      'The entity prose changed after read_node; read it again before writing',
     ) as Error & { code: string };
     error.code = 'STALE_REVISION';
     throw error;
@@ -789,25 +956,51 @@ function contentJsonFromState(stateUpdate: Uint8Array): string {
 }
 
 function recordVisibleProseReview(
-  nodeId: string,
-  beforeContentJson: string,
-  afterContentJson: string,
+  entityType: ProseEntityType,
+  entityId: string,
+  changes: readonly AgentBlockChange[],
   provenance: Pick<
     PersistedProseReviewSnapshot,
     'effectId' | 'reviewId' | 'mode'
   >,
+  blockDecisions?: Readonly<Record<string, 'accepted' | 'reverted'>>,
 ): void {
   const editState = useAgentEditStore.getState();
   if (editState.reviewBatches[provenance.reviewId]) return;
-  const changes = computeBlockChanges(beforeContentJson, afterContentJson);
   if (changes.length === 0) return;
   editState.recordReview(
-    'node',
-    nodeId,
-    changes,
+    entityType,
+    entityId,
+    [...changes],
     provenance.mode,
     provenance,
   );
+  if (blockDecisions) {
+    useAgentEditStore
+      .getState()
+      .syncReviewBlockDecisions(provenance.reviewId, blockDecisions);
+  }
+}
+
+async function verifiedProseReviewChanges(
+  effect: PersistedAgentRuntimeWriteEffect,
+): Promise<{
+  payload: PersistedProseCommandPayload;
+  prepared: PreparedYjsProseCommand;
+  changes: AgentBlockChange[];
+}> {
+  const payload = parseProsePayload(effect.forward);
+  assertPersistedProseProvenance(effect, payload);
+  const prepared = await deserializePreparedYjsProseCommand(payload.command);
+  await assertProseReviewSnapshot(payload.reviewSnapshot, prepared);
+  return {
+    payload,
+    prepared,
+    changes: computeBlockChanges(
+      payload.reviewSnapshot.baseContentJson,
+      prepared.projection.contentJson,
+    ),
+  };
 }
 
 function assertPersistedProseProvenance(
@@ -817,7 +1010,7 @@ function assertPersistedProseProvenance(
   if (
     !proseWriteTools.has(effect.toolName) ||
     payload.command.commandId !== proseCommandId(effect.idempotencyKey) ||
-    payload.docId !== proseDocId('node', payload.nodeId) ||
+    payload.docId !== proseDocId(prosePayloadEntityType(payload), payload.nodeId) ||
     payload.reviewSnapshot.effectId !== effect.id ||
     payload.reviewSnapshot.effectId !==
       proseWriteEffectId(effect.idempotencyKey) ||
@@ -828,7 +1021,11 @@ function assertPersistedProseProvenance(
       'The durable prose receipt does not match the entered write provenance',
     );
   }
-  resolveEffectProjectNode(effect, payload.nodeId);
+  resolveEffectProjectProseEntity(
+    effect,
+    prosePayloadEntityType(payload),
+    payload.nodeId,
+  );
 }
 
 async function proseReviewSnapshot(
@@ -926,13 +1123,19 @@ async function proseOperation(
 ): Promise<YjsProseOperation> {
   switch (toolName) {
     case 'edit_prose_file':
-      return planWorkspaceProseFileEdit({
-        blocks,
-        replacements: parseWorkspaceTextReplacements(
-          request.arguments.replacements,
-        ),
-        idempotencyKey: request.idempotencyKey,
-      });
+      return typeof request.arguments.content === 'string'
+        ? planWorkspaceProseFileWrite({
+            blocks,
+            content: request.arguments.content,
+            idempotencyKey: request.idempotencyKey,
+          })
+        : planWorkspaceProseFileEdit({
+            blocks,
+            replacements: parseWorkspaceTextReplacements(
+              request.arguments.replacements,
+            ),
+            idempotencyKey: request.idempotencyKey,
+          });
     case 'edit_block': {
       const block = resolveBlockTarget(blocks, request.arguments);
       return {
@@ -1231,12 +1434,14 @@ async function commitProseCommand(
   direction: 'forward' | 'inverse',
   expectedRevision: number,
 ): Promise<YjsProseCommitResult> {
+  const entityType = proseExecutionEntityType(execution);
   let projectedNode:
     | {
         wordCount: number;
         updatedAt: string;
       }
     | undefined;
+  let projectedUpdatedAt: string | undefined;
   let outboxPersisted = false;
   const committedAt = new Date().toISOString();
   const result = await coordinator.commit({
@@ -1244,41 +1449,52 @@ async function commitProseCommand(
     direction,
     expectedRevision,
     async persistProjection(tx, projection) {
-      const content = await createBookContentRepository(tx).updateByNodeId(
-        execution.nodeId,
-        {
-          contentJson: projection.contentJson,
-          updatedAt: committedAt,
-        },
-      );
-      if (!content) {
-        throw new Error(`Node content for ${execution.nodeId} was not found`);
-      }
-      const wordCount = countWordsInPmJson(projection.contentJson);
-      const rows = await tx
-        .update(BookNodeTable)
-        .set({ wordCount, updatedAt: committedAt })
-        .where(
-          and(
-            eq(BookNodeTable.id, execution.nodeId),
-            eq(BookNodeTable.projectId, execution.projectId),
-            isNull(BookNodeTable.deletedAt),
-          ),
-        )
-        .returning({
-          wordCount: BookNodeTable.wordCount,
-          updatedAt: BookNodeTable.updatedAt,
-        });
-      if (rows.length !== 1) {
-        throw new Error(
-          `Book node ${execution.nodeId} no longer exists in project ${execution.projectId}`,
+      if (entityType === 'node') {
+        const content = await createBookContentRepository(tx).updateByNodeId(
+          execution.nodeId,
+          {
+            contentJson: projection.contentJson,
+            updatedAt: committedAt,
+          },
         );
+        if (!content) {
+          throw new Error(`Node content for ${execution.nodeId} was not found`);
+        }
+        const wordCount = countWordsInPmJson(projection.contentJson);
+        const rows = await tx
+          .update(BookNodeTable)
+          .set({ wordCount, updatedAt: committedAt })
+          .where(
+            and(
+              eq(BookNodeTable.id, execution.nodeId),
+              eq(BookNodeTable.projectId, execution.projectId),
+              isNull(BookNodeTable.deletedAt),
+            ),
+          )
+          .returning({
+            wordCount: BookNodeTable.wordCount,
+            updatedAt: BookNodeTable.updatedAt,
+          });
+        if (rows.length !== 1) {
+          throw new Error(
+            `Book node ${execution.nodeId} no longer exists in project ${execution.projectId}`,
+          );
+        }
+        projectedNode = rows[0];
+        return;
       }
-      projectedNode = rows[0];
+      projectedUpdatedAt = await persistStructuredProseProjection(
+        tx,
+        entityType,
+        execution.nodeId,
+        execution.projectId,
+        projection.contentJson,
+        committedAt,
+      );
     },
     async persistOutbox(tx, projection) {
       outboxPersisted =
-        (await persistNodeProseOutbox(
+        (await persistProseOutbox(
           tx as DbTransaction,
           execution,
           projection,
@@ -1300,17 +1516,39 @@ async function commitProseCommand(
           : node,
       ),
     }));
+  } else if (projectedUpdatedAt) {
+    if (entityType === 'node') {
+      throw new Error('A node prose projection lost its node metadata result');
+    }
+    projectStructuredProse(
+      entityType,
+      execution.nodeId,
+      execution.projectId,
+      result.projection.contentJson,
+      projectedUpdatedAt,
+    );
   }
   return result;
 }
 
-async function persistNodeProseOutbox(
+async function persistProseOutbox(
   tx: DbTransaction,
   execution: ProseExecution,
   projection: YjsProseProjectionPayload,
   committedAt: string,
 ): Promise<boolean> {
+  const entityType = proseExecutionEntityType(execution);
   const timestamp = Date.parse(committedAt);
+  if (entityType !== 'node') {
+    return persistSyncMutationInTransaction(tx, {
+      entityType: entityType === 'category' ? 'elementCategory' : entityType,
+      mutationType: 'update',
+      entityId: execution.nodeId,
+      projectId: execution.projectId,
+      payload: { contentJson: projection.contentJson },
+      timestamp,
+    });
+  }
   const contentPersisted = await persistSyncMutationInTransaction(tx, {
     entityType: 'nodeContent',
     mutationType: 'update',
@@ -1328,6 +1566,93 @@ async function persistNodeProseOutbox(
     timestamp,
   });
   return contentPersisted || nodePersisted;
+}
+
+async function persistStructuredProseProjection(
+  tx: DbExecutor,
+  entityType: Exclude<ProseEntityType, 'node'>,
+  entityId: string,
+  projectId: string,
+  contentJson: string,
+  updatedAt: string,
+): Promise<string> {
+  if (entityType === 'element') {
+    const rows = await tx
+      .update(BookElementTable)
+      .set({ contentJson, updatedAt })
+      .where(
+        and(
+          eq(BookElementTable.id, entityId),
+          eq(BookElementTable.projectId, projectId),
+          isNull(BookElementTable.deletedAt),
+        ),
+      )
+      .returning({ updatedAt: BookElementTable.updatedAt });
+    if (rows.length === 1) return rows[0]!.updatedAt;
+  } else if (entityType === 'storyline') {
+    const rows = await tx
+      .update(StorylineTable)
+      .set({ contentJson, updatedAt })
+      .where(
+        and(
+          eq(StorylineTable.id, entityId),
+          eq(StorylineTable.projectId, projectId),
+          isNull(StorylineTable.deletedAt),
+        ),
+      )
+      .returning({ updatedAt: StorylineTable.updatedAt });
+    if (rows.length === 1) return rows[0]!.updatedAt;
+  } else {
+    const rows = await tx
+      .update(ElementCategoryTable)
+      .set({ contentJson, updatedAt })
+      .where(
+        and(
+          eq(ElementCategoryTable.id, entityId),
+          eq(ElementCategoryTable.projectId, projectId),
+          isNull(ElementCategoryTable.deletedAt),
+        ),
+      )
+      .returning({ updatedAt: ElementCategoryTable.updatedAt });
+    if (rows.length === 1) return rows[0]!.updatedAt;
+  }
+  throw new Error(`${entityType} ${entityId} no longer exists in project ${projectId}`);
+}
+
+function projectStructuredProse(
+  entityType: Exclude<ProseEntityType, 'node'>,
+  entityId: string,
+  projectId: string,
+  contentJson: string,
+  updatedAt: string,
+): void {
+  useDataStore.setState((state) => {
+    if (entityType === 'element') {
+      return {
+        bookElements: state.bookElements.map((entity) =>
+          entity.id === entityId && entity.projectId === projectId
+            ? { ...entity, contentJson, updatedAt }
+            : entity,
+        ),
+      };
+    }
+    if (entityType === 'storyline') {
+      return {
+        storylines: state.storylines.map((entity) =>
+          entity.id === entityId && entity.projectId === projectId
+            ? { ...entity, contentJson, updatedAt }
+            : entity,
+        ),
+      };
+    }
+    return {
+      bookElementCategories: state.bookElementCategories.map((entity) =>
+        entity.id === entityId && entity.projectId === projectId
+          ? { ...entity, contentJson, updatedAt }
+          : entity,
+      ),
+    };
+  });
 }
 
 function proseHandlerResult(
@@ -1359,6 +1684,10 @@ function parseProseHandlerResult(value: unknown): ProseHandlerResult {
 }
 
 function parseProseExecution(value: unknown): ProseExecution {
+  const entityType =
+    value && typeof value === 'object'
+      ? (value as { entityType?: unknown }).entityType
+      : undefined;
   if (
     !value ||
     typeof value !== 'object' ||
@@ -1366,7 +1695,8 @@ function parseProseExecution(value: unknown): ProseExecution {
     typeof (value as { nodeId?: unknown }).nodeId !== 'string' ||
     typeof (value as { projectId?: unknown }).projectId !== 'string' ||
     typeof (value as { beforeContentJson?: unknown }).beforeContentJson !==
-      'string'
+      'string' ||
+    (entityType !== undefined && !isProseEntityTypeValue(entityType))
   ) {
     throw new Error('The prepared prose execution capability is missing');
   }
@@ -1378,12 +1708,17 @@ function parseProsePayload(value: unknown): PersistedProseCommandPayload {
     value && typeof value === 'object'
       ? (value as { reviewSnapshot?: unknown }).reviewSnapshot
       : null;
+  const entityType =
+    value && typeof value === 'object'
+      ? (value as { entityType?: unknown }).entityType
+      : undefined;
   if (
     !value ||
     typeof value !== 'object' ||
     (value as { kind?: unknown }).kind !== 'yjs_prose' ||
     typeof (value as { nodeId?: unknown }).nodeId !== 'string' ||
     typeof (value as { docId?: unknown }).docId !== 'string' ||
+    (entityType !== undefined && !isProseEntityTypeValue(entityType)) ||
     !(value as { command?: unknown }).command ||
     typeof (value as { command?: { commandId?: unknown } }).command
       ?.commandId !== 'string' ||
@@ -1471,21 +1806,53 @@ function restorePersistenceCommand(
   };
 }
 
-function resolveEffectProjectNode(
+function resolveEffectProjectProseEntity(
   effect: PersistedAgentRuntimeWriteEffect,
-  nodeId: string,
+  entityType: ProseEntityType,
+  entityId: string,
 ) {
-  const node = useDataStore
-    .getState()
-    .bookNodes.find(
-      (candidate) =>
-        candidate.id === nodeId &&
-        candidate.projectId === effect.projectId,
-    );
-  if (!node) {
-    throw new Error('The node for this prose review no longer exists');
+  const state = useDataStore.getState();
+  const entity =
+    entityType === 'node'
+      ? state.bookNodes.find(
+          (candidate) =>
+            candidate.id === entityId && candidate.projectId === effect.projectId,
+        )
+      : entityType === 'element'
+        ? state.bookElements.find(
+            (candidate) =>
+              candidate.id === entityId && candidate.projectId === effect.projectId,
+          )
+        : entityType === 'storyline'
+          ? state.storylines.find(
+              (candidate) =>
+                candidate.id === entityId && candidate.projectId === effect.projectId,
+            )
+          : state.bookElementCategories.find(
+              (candidate) =>
+                candidate.id === entityId && candidate.projectId === effect.projectId,
+            );
+  if (!entity) {
+    throw new Error(`The ${entityType} for this prose review no longer exists`);
   }
-  return node;
+  return entity;
+}
+
+function proseExecutionEntityType(execution: ProseExecution): ProseEntityType {
+  return execution.entityType ?? 'node';
+}
+
+function prosePayloadEntityType(payload: PersistedProseCommandPayload): ProseEntityType {
+  return payload.entityType ?? 'node';
+}
+
+function isProseEntityTypeValue(value: unknown): value is ProseEntityType {
+  return (
+    value === 'node' ||
+    value === 'element' ||
+    value === 'storyline' ||
+    value === 'category'
+  );
 }
 
 function proseCommandId(idempotencyKey: string): string {
@@ -1515,6 +1882,73 @@ function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   return (
     left.byteLength === right.byteLength &&
     left.every((value, index) => value === right[index])
+  );
+}
+
+function resolveProjectProseEntity(request: AgentToolExecutionRequest): {
+  id: string;
+  projectId: string;
+  entityType: ProseEntityType;
+} {
+  const projectId = request.context.route.projectId;
+  const entityType = String(request.arguments.kind ?? 'node');
+  if (
+    !projectId ||
+    (entityType !== 'node' &&
+      entityType !== 'chapter' &&
+      entityType !== 'drift' &&
+      entityType !== 'element' &&
+      entityType !== 'storyline' &&
+      entityType !== 'category')
+  ) {
+    throw new Error(`${request.name} requires a project-scoped prose entity`);
+  }
+  if (entityType === 'node' || entityType === 'chapter' || entityType === 'drift') {
+    const node = resolveProjectNode(request);
+    return { id: node.id, projectId: node.projectId, entityType: 'node' };
+  }
+  const ref = String(
+    request.arguments.entity ?? request.arguments.node ?? '',
+  ).trim();
+  if (!ref) throw new Error(`${request.name} requires an entity name`);
+  const state = useDataStore.getState();
+  const candidates =
+    entityType === 'element'
+      ? state.bookElements.filter((entity) => entity.projectId === projectId)
+      : entityType === 'storyline'
+        ? state.storylines.filter((entity) => entity.projectId === projectId)
+        : state.bookElementCategories.filter((entity) => entity.projectId === projectId);
+  const label = (entity: (typeof candidates)[number]) => entity.name;
+  const direct = candidates.find((entity) => entity.id === ref);
+  const normalized = ref.toLocaleLowerCase();
+  const matches = direct
+    ? [direct]
+    : candidates.filter(
+        (entity) => label(entity).trim().toLocaleLowerCase() === normalized,
+      );
+  if (matches.length !== 1) {
+    throw new Error(
+      matches.length === 0
+        ? `No ${entityType} named "${ref}" exists in this project`
+        : `${entityType} reference "${ref}" is ambiguous`,
+    );
+  }
+  return { id: matches[0]!.id, projectId, entityType };
+}
+
+function readProjectedProseContent(
+  entityType: Exclude<ProseEntityType, 'node'>,
+  entityId: string,
+): string | null {
+  const state = useDataStore.getState();
+  if (entityType === 'element') {
+    return state.bookElements.find((entity) => entity.id === entityId)?.contentJson ?? null;
+  }
+  if (entityType === 'storyline') {
+    return state.storylines.find((entity) => entity.id === entityId)?.contentJson ?? null;
+  }
+  return (
+    state.bookElementCategories.find((entity) => entity.id === entityId)?.contentJson ?? null
   );
 }
 

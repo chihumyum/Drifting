@@ -47,6 +47,29 @@ describe('Agent write review feedback', () => {
     await expect(buildAgentWriteReviewFeedback('session-1', repository)).resolves.toBe('');
   });
 
+  it('tells the next turn to re-read after a mixed block-by-block decision', async () => {
+    const repository = {
+      loadSnapshot: async () => ({
+        effects: [effect('effect-mixed', 'edit_file', { path: '/chapters/01/prose.md' })],
+        reviews: [
+          review('review-mixed', 'effect-mixed', 'accepted_effect', 1, {
+            schemaVersion: 1,
+            kind: 'block_review',
+            decisions: [
+              { blockId: 'a', decision: 'accepted' },
+              { blockId: 'b', decision: 'reverted' },
+            ],
+          }),
+        ],
+      }),
+    } as unknown as AgentRuntimeWriteEffectRepository;
+
+    const feedback = await buildAgentWriteReviewFeedback('session-1', repository);
+
+    expect(feedback).toContain('接受 1 处、还原 1 处');
+    expect(feedback).toContain('继续编辑前先重新读取');
+  });
+
   it('keeps workspace coordination details out of model-facing review rows', async () => {
     const repository = {
       loadSnapshot: async () => ({
@@ -366,11 +389,18 @@ function effect(
   };
 }
 
-function review(id: string, effectId: string, status: string, tick: number) {
+function review(
+  id: string,
+  effectId: string,
+  status: string,
+  tick: number,
+  decisionNote: unknown = null,
+) {
   return {
     id,
     effectId,
     status,
+    decisionNote,
     createdAt: `2026-07-30T00:00:${String(tick).padStart(2, '0')}.000Z`,
     updatedAt: `2026-07-30T00:00:0${tick}.000Z`,
   } as never;

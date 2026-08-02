@@ -142,6 +142,12 @@ describe('interrupted Agent write product recovery', () => {
         callId: WRITE_CALL_ID,
         toolName: request.name,
         idempotencyKey: WRITE_IDEMPOTENCY_KEY,
+        authorization: {
+          kind: 'automatic',
+          requestId: null,
+          argumentsHash: 'sha256:test-arguments',
+          authorizedAt: AT,
+        },
         arguments: request.arguments,
         expectedRevision: expected,
         claimedAt: AT,
@@ -272,14 +278,22 @@ describe('interrupted Agent write product recovery', () => {
         unresolved: 0,
         issues: [],
       });
-      expect((await restartedEffects.getEffect(effectId))?.phase).toBe(
-        'result_committed',
-      );
+      expect(await restartedEffects.getEffect(effectId)).toMatchObject({
+        phase: 'result_committed',
+        authorization: { kind: 'automatic', requestId: null },
+        result: {
+          ok: true,
+          data: {
+            writeRef: `agent-review:${effectId}`,
+            authorization: { kind: 'automatic' },
+          },
+        },
+      });
       expect(
         await restartedEffects.getReview(`agent-review:${effectId}`),
       ).toMatchObject({
         effectId,
-        status: 'pending',
+        status: 'accepted_effect',
       });
       expect(receiptCount(gateway)).toBe(1);
     } finally {

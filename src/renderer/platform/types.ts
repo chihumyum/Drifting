@@ -10,6 +10,13 @@ import type {
   FilePickerKind,
   ImageVariantResult,
   InspectImageResult,
+  McpStdioRequestInput,
+  McpStdioNotifyInput,
+  McpStdioStartInput,
+  McpStdioStartResult,
+  McpStdioStatusResult,
+  McpHttpRequestInput,
+  McpHttpResponseResult,
   OpenResult,
   PickFileResult,
   PlatformCapabilities,
@@ -160,6 +167,19 @@ export interface AILogPlatformApi {
   getDir(): Promise<string>;
 }
 
+export interface McpStdioPlatformApi {
+  start(input: McpStdioStartInput): Promise<McpStdioStartResult>;
+  request(input: McpStdioRequestInput): Promise<string>;
+  notify(input: McpStdioNotifyInput): Promise<void>;
+  stop(processId: string): Promise<boolean>;
+  status(processId: string): Promise<McpStdioStatusResult>;
+}
+
+export interface McpHttpPlatformApi {
+  request(input: McpHttpRequestInput): Promise<McpHttpResponseResult>;
+  cancel(requestId: string): Promise<boolean>;
+}
+
 export interface PlatformApi {
   readonly app: AppPlatformApi;
   readonly window: WindowPlatformApi;
@@ -170,4 +190,6 @@ export interface PlatformApi {
   readonly material: MaterialPlatformApi;
   readonly assetCache: AssetCachePlatformApi;
   readonly aiLog: AILogPlatformApi;
+  readonly mcpStdio: McpStdioPlatformApi;
+  readonly mcpHttp: McpHttpPlatformApi;
 }

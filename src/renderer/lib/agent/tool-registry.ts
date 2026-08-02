@@ -42,22 +42,18 @@ const DEFAULT_RESULT_BUDGET_CHARS = 12_000;
 
 const noArgs = Type.Object({}, { additionalProperties: false });
 const str = (description: string) => Type.String({ description });
-const optionalStr = (description: string) =>
-  Type.Optional(Type.String({ description }));
+const optionalStr = (description: string) => Type.Optional(Type.String({ description }));
 const optionalInteger = (description: string) =>
   Type.Optional(Type.Integer({ minimum: 1, description }));
 const expectedRevision = Type.Object(
   {
     receiptId: str('最近一次依赖读取返回的 freshness.receiptId'),
-    observationId: str(
-      '同一次读取返回的目标实体 freshness observation id',
-    ),
+    observationId: str('同一次读取返回的目标实体 freshness observation id'),
     revision: str('同一 observation 返回的精确 revision；不得自行生成'),
   },
   {
     additionalProperties: false,
-    description:
-      '必须逐字段复制最近一次目标实体读取的 freshness 引用',
+    description: '必须逐字段复制最近一次目标实体读取的 freshness 引用',
   },
 );
 
@@ -68,24 +64,14 @@ const fact = Type.Object(
   },
   { additionalProperties: false },
 );
-const facts = (description: string) =>
-  Type.Array(fact, { minItems: 1, description });
-const optionalFacts = (description: string) =>
-  Type.Optional(Type.Array(fact, { description }));
+const facts = (description: string) => Type.Array(fact, { minItems: 1, description });
+const optionalFacts = (description: string) => Type.Optional(Type.Array(fact, { description }));
 
 const proseEntityTarget = {
   kind: Type.Optional(
-    Type.Union(
-      [
-        Type.Literal('node'),
-        Type.Literal('chapter'),
-        Type.Literal('drift'),
-      ],
-      {
-        description:
-          'P5 已认证的正文写入仅支持 node/chapter/drift；默认 node',
-      },
-    ),
+    Type.Union([Type.Literal('node'), Type.Literal('chapter'), Type.Literal('drift')], {
+      description: 'P5 已认证的正文写入仅支持 node/chapter/drift；默认 node',
+    }),
   ),
   entity: str('章节或 drift 的项目内唯一名称'),
   expectedRevision,
@@ -141,8 +127,7 @@ function registerReadTool(spec: ReadToolSpec): RegisteredTool {
     retry: 'safe',
     revertStrategy: 'not_applicable',
     reversible: true,
-    resultBudgetChars:
-      spec.resultBudgetChars ?? DEFAULT_RESULT_BUDGET_CHARS,
+    resultBudgetChars: spec.resultBudgetChars ?? DEFAULT_RESULT_BUDGET_CHARS,
     certification: 'read-certified',
     certificationNote:
       spec.certificationNote ??
@@ -152,17 +137,14 @@ function registerReadTool(spec: ReadToolSpec): RegisteredTool {
   };
 }
 
-function registerWriteTool(
-  spec: ClassifiedToolSpec,
-): RegisteredTool {
+function registerWriteTool(spec: ClassifiedToolSpec): RegisteredTool {
   return {
     ...spec,
     version: CATALOG_VERSION,
     scope: 'general',
     access: 'write',
     reversible: reversibleFrom(spec.revertStrategy),
-    resultBudgetChars:
-      spec.resultBudgetChars ?? DEFAULT_RESULT_BUDGET_CHARS,
+    resultBudgetChars: spec.resultBudgetChars ?? DEFAULT_RESULT_BUDGET_CHARS,
     certification: spec.certification ?? 'unavailable',
     certificationNote:
       spec.certificationNote ??
@@ -177,8 +159,7 @@ function registerInternalTool(spec: InternalToolSpec): RegisteredTool {
     ...spec,
     version: CATALOG_VERSION,
     reversible: reversibleFrom(spec.revertStrategy),
-    resultBudgetChars:
-      spec.resultBudgetChars ?? DEFAULT_RESULT_BUDGET_CHARS,
+    resultBudgetChars: spec.resultBudgetChars ?? DEFAULT_RESULT_BUDGET_CHARS,
     certification: 'internal-certified',
     aliases: spec.aliases ?? [],
     handlerAliases: spec.handlerAliases ?? [],
@@ -192,23 +173,20 @@ function registerInternalTool(spec: InternalToolSpec): RegisteredTool {
 const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   {
     name: 'get_overview',
-    description:
-      '一次返回项目设定纲要、故事线、章节/drift 与元素目录。开始全书任务时优先调用。',
+    description: '一次返回项目设定纲要、故事线、章节/drift 与元素目录。开始全书任务时优先调用。',
     parametersSchema: noArgs,
     aliases: ['overview', '项目概览', '全书概览'],
     resultBudgetChars: 24_000,
   },
   {
     name: 'get_project_brief',
-    description:
-      '本书设定纲要：项目名、简介、作者的 key/value 事实与结构计数。',
+    description: '本书设定纲要：项目名、简介、作者的 key/value 事实与结构计数。',
     parametersSchema: noArgs,
     aliases: ['project brief', '项目设定'],
   },
   {
     name: 'list_nodes',
-    description:
-      '按名字列出项目故事线、章节与 drift。章节包含状态、字数和主故事线。',
+    description: '按名字列出项目故事线、章节与 drift。章节包含状态、字数和主故事线。',
     parametersSchema: noArgs,
     aliases: ['nodes', 'chapters', '章节列表', '漂流列表'],
     resultBudgetChars: 20_000,
@@ -217,30 +195,21 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'list_elements',
-    description:
-      '按名字列出项目的元素类目与元素（角色/设定/物件）：name · category · summary。',
+    description: '按名字列出项目的元素类目与元素（角色/设定/物件）：name · category · summary。',
     parametersSchema: noArgs,
     aliases: ['elements', '角色列表', '元素列表'],
     resultBudgetChars: 20_000,
   },
   {
     name: 'read_element',
-    description:
-      '读一个元素（角色/设定/物件）：名称、简介、别名、分组、类目、KV 事实与正文。',
-    parametersSchema: Type.Object(
-      { element: str('元素名称') },
-      { additionalProperties: false },
-    ),
+    description: '读一个元素（角色/设定/物件）：名称、简介、别名、分组、类目、KV 事实与正文。',
+    parametersSchema: Type.Object({ element: str('元素名称') }, { additionalProperties: false }),
     aliases: ['element detail', '读取角色', '读取元素'],
   },
   {
     name: 'get_element_patches',
-    description:
-      '读取一个元素跨章被接受的状态变更，每条带来源章节与正文。',
-    parametersSchema: Type.Object(
-      { element: str('元素名称') },
-      { additionalProperties: false },
-    ),
+    description: '读取一个元素跨章被接受的状态变更，每条带来源章节与正文。',
+    parametersSchema: Type.Object({ element: str('元素名称') }, { additionalProperties: false }),
     aliases: ['element evolution', '角色演变', '元素补丁'],
   },
   {
@@ -250,9 +219,7 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
     parametersSchema: Type.Object(
       {
         node: str('章节/drift 名；配合 kind 时也可传其他正文实体名'),
-        kind: Type.Optional(
-          str('element / storyline / category；省略表示章节或 drift'),
-        ),
+        kind: Type.Optional(str('element / storyline / category；省略表示章节或 drift')),
         prose: Type.Optional(
           Type.Boolean({
             description: '是否包含正文（默认 true）；false 只返回表头',
@@ -271,9 +238,7 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
     parametersSchema: Type.Object(
       {
         node: str('章节/drift 名；配合 kind 时也可传其他正文实体名'),
-        kind: Type.Optional(
-          str('element / storyline / category；省略表示章节或 drift'),
-        ),
+        kind: Type.Optional(str('element / storyline / category；省略表示章节或 drift')),
         blockId: str('正文块 uuid'),
       },
       { additionalProperties: false },
@@ -284,14 +249,11 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'lookup_block',
-    description:
-      '按 1-based 段号和/或文本片段查找正文块的稳定 blockId；不会修改或补写 blockId。',
+    description: '按 1-based 段号和/或文本片段查找正文块的稳定 blockId；不会修改或补写 blockId。',
     parametersSchema: Type.Object(
       {
         node: str('章节/drift 名；配合 kind 时也可传其他正文实体名'),
-        kind: Type.Optional(
-          str('element / storyline / category；省略表示章节或 drift'),
-        ),
+        kind: Type.Optional(str('element / storyline / category；省略表示章节或 drift')),
         ordinal: optionalInteger('来自 read_node 的 1-based 段号'),
         contains: optionalStr('段落文本的大小写不敏感子串'),
       },
@@ -303,18 +265,13 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'get_storyline',
-    description:
-      '读取一条故事线的梗概、KV 事实，以及按阅读顺序排列的成员章节。',
-    parametersSchema: Type.Object(
-      { storyline: str('故事线名') },
-      { additionalProperties: false },
-    ),
+    description: '读取一条故事线的梗概、KV 事实，以及按阅读顺序排列的成员章节。',
+    parametersSchema: Type.Object({ storyline: str('故事线名') }, { additionalProperties: false }),
     aliases: ['storyline detail', '故事线'],
   },
   {
     name: 'get_entity_relations',
-    description:
-      '列出触及某实体的策展关系边（出向与入向），用于走作者定义的故事图谱。',
+    description: '列出触及某实体的策展关系边（出向与入向），用于走作者定义的故事图谱。',
     parametersSchema: Type.Object(
       {
         kind: str('实体类型 element/node/storyline/category/...'),
@@ -326,8 +283,7 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'where_does_entity_appear',
-    description:
-      '找一个结构实体在哪些章节/drift 正文里被提及，按来源分组返回计数与片段。',
+    description: '找一个结构实体在哪些章节/drift 正文里被提及，按来源分组返回计数与片段。',
     parametersSchema: Type.Object(
       {
         kind: str('目标类型 element/node/storyline/category/patch'),
@@ -340,8 +296,7 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'search_prose',
-    description:
-      '在章节/drift 正文与元素正文里做大小写不敏感全文检索。',
+    description: '在章节/drift 正文与元素正文里做大小写不敏感全文检索。',
     parametersSchema: Type.Object(
       {
         query: str('要在正文中查找的文本'),
@@ -360,28 +315,19 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'search_project',
-    description:
-      '跨章节/drift 标题、元素名/简介/别名与故事线名做快速元数据检索，不搜索正文。',
-    parametersSchema: Type.Object(
-      { query: str('要检索的文本') },
-      { additionalProperties: false },
-    ),
+    description: '跨章节/drift 标题、元素名/简介/别名与故事线名做快速元数据检索，不搜索正文。',
+    parametersSchema: Type.Object({ query: str('要检索的文本') }, { additionalProperties: false }),
     aliases: ['project search', '项目搜索'],
   },
   {
     name: 'list_comments',
-    description:
-      '列出项目批注、TODO 与作者标记，可按实体、状态或 onlyTodos 过滤。',
+    description: '列出项目批注、TODO 与作者标记，可按实体、状态或 onlyTodos 过滤。',
     parametersSchema: Type.Object(
       {
-        kind: Type.Optional(
-          str('可选实体类型：node/element/storyline/category'),
-        ),
+        kind: Type.Optional(str('可选实体类型：node/element/storyline/category')),
         entity: Type.Optional(str('可选实体名称；与 kind 配合')),
         status: Type.Optional(str('可选状态：open/resolved/converted')),
-        onlyTodos: Type.Optional(
-          Type.Boolean({ description: '只返回 TODO' }),
-        ),
+        onlyTodos: Type.Optional(Type.Boolean({ description: '只返回 TODO' })),
       },
       { additionalProperties: false },
     ),
@@ -390,23 +336,20 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'list_memory',
-    description:
-      '列出本项目仍有效或待确认的 Agent 记忆，包括偏好、否决和长期指令。',
+    description: '列出本项目仍有效或待确认的 Agent 记忆，包括偏好、否决和长期指令。',
     parametersSchema: noArgs,
     aliases: ['memories', '记忆', '长期指令'],
   },
   {
     name: 'list_materials',
-    description:
-      '按标题列出项目素材库：title · kind · source；text 素材附 chars。',
+    description: '按标题列出项目素材库：title · kind · source；text 素材附 chars。',
     parametersSchema: noArgs,
     aliases: ['materials', '素材库'],
     resultBudgetChars: 20_000,
   },
   {
     name: 'read_material',
-    description:
-      '按标题读取一个素材。text 返回全文，image/pdf/url 返回元数据。',
+    description: '按标题读取一个素材。text 返回全文，image/pdf/url 返回元数据。',
     parametersSchema: Type.Object(
       { material: str('素材标题（来自 list_materials）') },
       { additionalProperties: false },
@@ -423,8 +366,7 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
 const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   {
     name: 'update_element',
-    description:
-      '更新元素名称、简介、别名、分组、类目或结构化事实；只修改提供的字段。',
+    description: '更新元素名称、简介、别名、分组、类目或结构化事实；只修改提供的字段。',
     parametersSchema: Type.Object(
       {
         element: str('元素名称'),
@@ -441,18 +383,17 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'canon',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['update character', '更新元素'],
     certification: 'write-certified',
     certificationNote:
-      'P6 entity-write certification: exact element freshness, atomic element/outbox receipt, crash reconciliation, soft review, and guarded exact inverse.',
+      'P6 entity-write certification: hard pre-execution authorization, exact element freshness, atomic element/outbox receipt, crash reconciliation, and guarded exact inverse.',
   },
   {
     name: 'set_entity_body',
-    description:
-      '整体替换元素、故事线或类目的长正文；章节/drift 必须使用 block 工具。',
+    description: '整体替换元素、故事线或类目的长正文；章节/drift 必须使用 block 工具。',
     parametersSchema: Type.Object(
       {
         kind: str('element | storyline | category'),
@@ -464,14 +405,10 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'high',
     effect: 'prose',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
-    aliases: [
-      'set_element_body',
-      'set element body',
-      '整体替换实体正文',
-    ],
+    aliases: ['set_element_body', 'set element body', '整体替换实体正文'],
     handlerAliases: ['set_element_body'],
   },
   {
@@ -490,7 +427,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'canon',
     concurrency: 'exclusive_project',
-    approval: 'soft_review',
+    approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'compensating',
     aliases: ['create character', '创建元素'],
@@ -509,13 +446,13 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'low',
     effect: 'canon',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['rename chapter', '重命名章节'],
     certification: 'write-certified',
     certificationNote:
-      'P3 exact field-write certification: durable idempotency/effect receipt, renderer rename usecase, soft review, and guarded exact inverse.',
+      'P3 exact field-write certification: hard pre-execution authorization, durable idempotency/effect receipt, renderer rename usecase, and guarded exact inverse.',
   },
   {
     name: 'set_node_summary',
@@ -531,18 +468,17 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'low',
     effect: 'canon',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['set chapter summary', '设置章节梗概'],
     certification: 'write-certified',
     certificationNote:
-      'P3 exact field-write certification: durable idempotency/effect receipt, renderer update usecase, soft review, and guarded exact inverse.',
+      'P3 exact field-write certification: hard pre-execution authorization, durable idempotency/effect receipt, renderer update usecase, and guarded exact inverse.',
   },
   {
     name: 'edit_block',
-    description:
-      '原位替换一个正文块的文本，可按 read_node 段号或稳定 blockId 定位。',
+    description: '原位替换一个正文块的文本，可按 read_node 段号或稳定 blockId 定位。',
     parametersSchema: Type.Object(
       {
         ...proseEntityTarget,
@@ -557,13 +493,13 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'prose',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['replace paragraph', '改写段落'],
     certification: 'write-certified',
     certificationNote:
-      'P5 Yjs prose certification: exact read freshness, deterministic command, atomic Yjs/projection/outbox receipt, soft review, and guarded semantic inverse.',
+      'P5 Yjs prose certification: hard pre-execution authorization, exact read freshness, deterministic command, atomic Yjs/projection/outbox receipt, and guarded semantic inverse.',
   },
   {
     name: 'edit_blocks',
@@ -576,9 +512,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
             {
               block: optionalInteger('1-based 段号'),
               blockId: optionalStr('正文块 uuid'),
-              text: str(
-                '替换后的纯内容文本；不要复制 read_node 的「# 」或「> 」块类型前缀',
-              ),
+              text: str('替换后的纯内容文本；不要复制 read_node 的「# 」或「> 」块类型前缀'),
             },
             { additionalProperties: false },
           ),
@@ -590,7 +524,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'prose',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['replace paragraphs', '批量改写段落'],
@@ -608,7 +542,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'prose',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['append prose', '追加段落'],
@@ -622,9 +556,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     parametersSchema: Type.Object(
       {
         ...proseEntityTarget,
-        blockNumbers: Type.Optional(
-          Type.Array(Type.Integer({ minimum: 1 })),
-        ),
+        blockNumbers: Type.Optional(Type.Array(Type.Integer({ minimum: 1 }))),
         blockIds: Type.Optional(Type.Array(Type.String())),
       },
       { additionalProperties: false },
@@ -632,7 +564,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'high',
     effect: 'prose',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'review_after',
     retry: 'never',
     revertStrategy: 'exact_inverse',
     aliases: ['delete paragraphs', '删除段落'],
@@ -657,7 +589,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'high',
     effect: 'prose',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'review_after',
     retry: 'never',
     revertStrategy: 'exact_inverse',
     aliases: ['replace prose range', '替换段落区间'],
@@ -680,7 +612,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'prose',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['insert paragraphs', '插入段落'],
@@ -701,7 +633,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'graph',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'confirm_before',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['link storyline', '章节加入故事线'],
@@ -719,7 +651,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'graph',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'confirm_before',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['unlink storyline', '章节移出故事线'],
@@ -737,7 +669,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'graph',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'confirm_before',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['primary storyline', '设置主故事线'],
@@ -758,7 +690,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'graph',
     concurrency: 'exclusive_project',
-    approval: 'soft_review',
+    approval: 'confirm_before',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['create relation', '添加关系'],
@@ -773,7 +705,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'high',
     effect: 'graph',
     concurrency: 'exclusive_project',
-    approval: 'soft_review',
+    approval: 'confirm_before',
     retry: 'never',
     revertStrategy: 'exact_inverse',
     aliases: ['delete relation', '删除关系'],
@@ -791,7 +723,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'low',
     effect: 'graph',
     concurrency: 'exclusive_project',
-    approval: 'soft_review',
+    approval: 'confirm_before',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['relabel relation', '修改关系类型'],
@@ -806,7 +738,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'canon',
     concurrency: 'exclusive_project',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'compensating',
     aliases: ['new storyline', '创建故事线'],
@@ -827,25 +759,22 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'canon',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['edit storyline', '更新故事线'],
     certification: 'write-certified',
     certificationNote:
-      'P6 entity-write certification: exact storyline freshness, atomic storyline/outbox receipt, crash reconciliation, soft review, and guarded exact inverse.',
+      'P6 entity-write certification: hard pre-execution authorization, exact storyline freshness, atomic storyline/outbox receipt, crash reconciliation, and guarded exact inverse.',
   },
   {
     name: 'create_category',
     description: '创建一个元素类目。',
-    parametersSchema: Type.Object(
-      { name: optionalStr('类目名') },
-      { additionalProperties: false },
-    ),
+    parametersSchema: Type.Object({ name: optionalStr('类目名') }, { additionalProperties: false }),
     risk: 'medium',
     effect: 'canon',
     concurrency: 'exclusive_project',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'compensating',
     aliases: ['new category', '创建类目'],
@@ -863,7 +792,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'canon',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['update category template', '更新类目模板'],
@@ -881,18 +810,17 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'high',
     effect: 'canon',
     concurrency: 'exclusive_project',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['update book facts', '更新项目事实'],
     certification: 'write-certified',
     certificationNote:
-      'P6 entity-write certification: exact project freshness, atomic project/outbox receipt, crash reconciliation, soft review, and guarded exact inverse.',
+      'P6 entity-write certification: hard pre-execution authorization, exact project freshness, atomic project/outbox receipt, crash reconciliation, and guarded exact inverse.',
   },
   {
     name: 'remember',
-    description:
-      '保存作者级长期偏好、否决或指令；故事事实应写入 canon 而不是记忆。',
+    description: '保存作者级长期偏好、否决或指令；故事事实应写入 canon 而不是记忆。',
     parametersSchema: Type.Object(
       {
         kind: str('preference | veto | directive'),
@@ -906,7 +834,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'memory',
     concurrency: 'exclusive_project',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['save memory', '记住'],
@@ -940,7 +868,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'high',
     effect: 'canon',
     concurrency: 'exclusive_project',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'compensating',
     aliases: ['create chapter', '创建章节', '创建漂流'],
@@ -959,7 +887,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'low',
     effect: 'canon',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['write summary', '写摘要'],
@@ -980,13 +908,13 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'canon',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['record evolution', '创建元素补丁'],
     certification: 'write-certified',
     certificationNote:
-      'P5 element-patch certification: exact patch-set freshness, deterministic id, atomic patch/outbox receipt, soft review, and guarded exact delete inverse.',
+      'P5 element-patch certification: hard pre-execution authorization, exact patch-set freshness, deterministic id, atomic patch/outbox receipt, and guarded exact delete inverse.',
   },
   {
     name: 'update_element_patch',
@@ -1003,28 +931,34 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'canon',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['edit evolution', '更新元素补丁'],
     certification: 'write-certified',
     certificationNote:
-      'P5 element-patch certification: exact patch freshness, atomic patch/outbox receipt, crash reconciliation, soft review, and guarded exact field inverse.',
+      'P5 element-patch certification: hard pre-execution authorization, exact patch freshness, atomic patch/outbox receipt, crash reconciliation, and guarded exact field inverse.',
   },
   {
     name: 'delete_element_patch',
-    description: '按 patchId 软删除元素补丁并交给作者审阅。',
+    description: '按 patchId 删除元素补丁；执行前必须由作者确认。',
     parametersSchema: Type.Object(
-      { patchId: str('来自 get_element_patches 的 patchId') },
+      {
+        patchId: str('来自 get_element_patches 的 patchId'),
+        expectedRevision,
+      },
       { additionalProperties: false },
     ),
     risk: 'high',
     effect: 'canon',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'confirm_before',
     retry: 'never',
     revertStrategy: 'exact_inverse',
     aliases: ['remove evolution', '删除元素补丁'],
+    certification: 'write-certified',
+    certificationNote:
+      'P5 element-patch deletion certification: exact patch freshness, pre-execution author confirmation, atomic delete/outbox receipt, crash reconciliation, dependency guard, and exact restore inverse.',
   },
   {
     name: 'create_comment',
@@ -1043,7 +977,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'low',
     effect: 'annotation',
     concurrency: 'exclusive_project',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['add todo', '创建批注', '创建待办'],
@@ -1079,7 +1013,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'low',
     effect: 'annotation',
     concurrency: 'exclusive_project',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['resolve todo', '设置批注状态'],
@@ -1097,7 +1031,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'annotation',
     concurrency: 'exclusive_project',
-    approval: 'soft_review',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['convert todo', '设置批注类型'],
@@ -1105,10 +1039,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   {
     name: 'delete_element',
     description: '删除一个元素；执行前必须由作者明确确认。',
-    parametersSchema: Type.Object(
-      { element: str('元素名') },
-      { additionalProperties: false },
-    ),
+    parametersSchema: Type.Object({ element: str('元素名') }, { additionalProperties: false }),
     risk: 'critical',
     effect: 'destructive',
     concurrency: 'exclusive_project',
@@ -1251,8 +1182,7 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
               newText: Type.String({ description: 'Replacement text; may be empty' }),
               replaceAll: Type.Optional(
                 Type.Boolean({
-                  description:
-                    'Replace every occurrence instead of requiring exactly one match',
+                  description: 'Replace every occurrence instead of requiring exactly one match',
                 }),
               ),
             },
@@ -1268,7 +1198,7 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     risk: 'medium',
     effect: 'prose',
     concurrency: 'exclusive_entity',
-    approval: 'soft_review',
+    approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['edit workspace file', '修改文件', '编辑小说'],
@@ -1276,14 +1206,67 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
       'Runtime-certified facade over independently certified writes: resolves the path, performs the exact dependent read, injects freshness, batches same-file prose changes, and delegates to the durable strategy.',
   },
   {
+    name: 'write_file',
+    description:
+      'Create a novel-project resource by writing its first file, or replace the complete contents of an existing structured file. Use edit_file for focused changes to existing prose.',
+    parametersSchema: Type.Object(
+      {
+        path: Type.String({
+          minLength: 1,
+          description:
+            'Workspace path such as /drifts/标题/prose.md, /elements/类目/名称/body.md, /comments/name.json, or /relations/name.json',
+        }),
+        content: Type.String({
+          description: 'Complete UTF-8 file contents. JSON files require valid JSON.',
+        }),
+      },
+      { additionalProperties: false },
+    ),
+    scope: 'runtime-virtual',
+    access: 'write',
+    risk: 'medium',
+    effect: 'canon',
+    concurrency: 'exclusive_project',
+    approval: 'automatic',
+    retry: 'inspect_before_retry',
+    revertStrategy: 'exact_inverse',
+    aliases: ['create workspace file', '新建内容', '创建小说实体'],
+    certificationNote:
+      'Runtime-certified workspace facade: path parsing and dependent reads are runtime-owned; structural creates commit atomically, while replacement writes to live prose retain the editor block-review surface and exact inverse.',
+  },
+  {
+    name: 'delete_file',
+    description:
+      'Delete one complete novel-project resource by its directory or JSON file path. It cannot delete an individual metadata field; edit that file instead.',
+    parametersSchema: Type.Object(
+      {
+        path: Type.String({
+          minLength: 1,
+          description:
+            'Entity directory or /comments/*.json or /relations/*.json path returned by list_files',
+        }),
+      },
+      { additionalProperties: false },
+    ),
+    scope: 'runtime-virtual',
+    access: 'write',
+    risk: 'high',
+    effect: 'destructive',
+    concurrency: 'exclusive_project',
+    approval: 'confirm_before',
+    retry: 'never',
+    revertStrategy: 'exact_inverse',
+    aliases: ['delete workspace resource', '删除小说实体'],
+    certificationNote:
+      'Runtime-certified destructive facade: resolves one project-owned resource, requires central author confirmation, records an immutable preimage, and uses a guarded exact restore inverse.',
+  },
+  {
     name: 'list_files',
     description:
       'List one directory level in the novel workspace. Directory paths can be listed again; file paths can be read or edited directly.',
     parametersSchema: Type.Object(
       {
-        path: Type.Optional(
-          Type.String({ description: 'Directory path, default /' }),
-        ),
+        path: Type.Optional(Type.String({ description: 'Directory path, default /' })),
       },
       { additionalProperties: false },
     ),
@@ -1341,9 +1324,7 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     parametersSchema: Type.Object(
       {
         query: Type.String({ minLength: 1, description: 'Text to search for' }),
-        path: Type.Optional(
-          Type.String({ description: 'Optional virtual directory prefix' }),
-        ),
+        path: Type.Optional(Type.String({ description: 'Optional virtual directory prefix' })),
         limit: Type.Optional(
           Type.Integer({ minimum: 1, maximum: 100, description: 'Maximum matches' }),
         ),
@@ -1374,6 +1355,15 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
           description:
             'One focused question for the author, including the choice or missing decision that blocks progress',
         }),
+        constraintConflictIds: Type.Optional(
+          Type.Array(Type.String({ minLength: 1, maxLength: 1_000 }), {
+            minItems: 1,
+            maxItems: 32,
+            uniqueItems: true,
+            description:
+              'Exact conflictId values from the pinned context_constraint_confirmation_required note. Include only when this answer resolves those contradictions.',
+          }),
+        ),
       },
       { additionalProperties: false },
     ),
@@ -1391,8 +1381,7 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   },
   {
     name: 'read_tool_result',
-    description:
-      'Continue reading a truncated tool result by resultRef until truncated=false.',
+    description: 'Continue reading a truncated tool result by resultRef until truncated=false.',
     parametersSchema: Type.Object(
       {
         resultRef: Type.String({
@@ -1436,22 +1425,12 @@ function freezeCatalogEntry(tool: RegisteredTool): RegisteredTool {
 
 export const AGENT_TOOL_CATALOG: readonly RegisteredTool[] = Object.freeze([
   ...GENERAL_READ_TOOL_SPECS.map(registerReadTool).map(freezeCatalogEntry),
-  ...GENERAL_WRITE_TOOL_SPECS.map(registerWriteTool).map(
-    freezeCatalogEntry,
-  ),
-  ...SHADOW_INTERNAL_TOOL_SPECS.map(registerInternalTool).map(
-    freezeCatalogEntry,
-  ),
-  ...RUNTIME_VIRTUAL_TOOL_SPECS.map(registerInternalTool).map(
-    freezeCatalogEntry,
-  ),
+  ...GENERAL_WRITE_TOOL_SPECS.map(registerWriteTool).map(freezeCatalogEntry),
+  ...SHADOW_INTERNAL_TOOL_SPECS.map(registerInternalTool).map(freezeCatalogEntry),
+  ...RUNTIME_VIRTUAL_TOOL_SPECS.map(registerInternalTool).map(freezeCatalogEntry),
 ]);
 
-const CERTIFIED_STATUSES = new Set([
-  'read-certified',
-  'write-certified',
-  'internal-certified',
-]);
+const CERTIFIED_STATUSES = new Set(['read-certified', 'write-certified', 'internal-certified']);
 
 export const GENERAL_READ_ONLY_PROVIDER_POLICY: AgentProviderToolPolicy = {
   scopes: ['general'],
@@ -1494,9 +1473,7 @@ export const AGENT_READ_TOOLS: RegisteredTool[] = selectProviderTools(
 export const READ_TOOL_NAMES = new Set(AGENT_READ_TOOLS.map((tool) => tool.name));
 
 /** Resolve only real dispatcher names. Human/search aliases are not executable. */
-export function resolveRegisteredDispatchTool(
-  name: string,
-): RegisteredTool | undefined {
+export function resolveRegisteredDispatchTool(name: string): RegisteredTool | undefined {
   return AGENT_TOOL_CATALOG.find(
     (tool) => tool.name === name || tool.handlerAliases.includes(name),
   );
@@ -1504,15 +1481,11 @@ export function resolveRegisteredDispatchTool(
 
 /** Stable lookup used by the write runtime; deprecated handler aliases resolve
  * to the one canonical entry instead of creating a second policy record. */
-export function getRegisteredTool(
-  name: string,
-): RegisteredTool | undefined {
+export function getRegisteredTool(name: string): RegisteredTool | undefined {
   return resolveRegisteredDispatchTool(name);
 }
 
-export function registeredDispatchNames(
-  tool: RegisteredTool,
-): readonly string[] {
+export function registeredDispatchNames(tool: RegisteredTool): readonly string[] {
   return [tool.name, ...tool.handlerAliases];
 }
 
@@ -1528,16 +1501,12 @@ export interface ListProviderToolsOptions {
  * have independently reached `write-certified`; the current P3.1 result is
  * therefore still read-only even when a caller requests writes.
  */
-export function listProviderTools(
-  options: ListProviderToolsOptions = {},
-): RegisteredTool[] {
+export function listProviderTools(options: ListProviderToolsOptions = {}): RegisteredTool[] {
   const allowWrite = options.allowWrite === true;
   return selectProviderTools({
     scopes: options.scopes ?? ['general'],
     accesses: allowWrite ? ['read', 'write'] : ['read'],
-    certifications: allowWrite
-      ? ['read-certified', 'write-certified']
-      : ['read-certified'],
+    certifications: allowWrite ? ['read-certified', 'write-certified'] : ['read-certified'],
     allowNames: options.allowNames,
     denyNames: options.denyNames,
   });

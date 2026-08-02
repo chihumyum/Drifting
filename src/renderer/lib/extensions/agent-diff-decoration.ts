@@ -1,7 +1,7 @@
 /**
  * Agent-edit diff decorations (#3, approve mode).
  *
- * In approve mode the agent's edit has already landed in the doc (soft-approval),
+ * In approve mode the agent's edit has already landed in the doc (write-first inline review),
  * but we want the user to review the DIFF in place — not the applied final text —
  * before accepting. Rather than float a separate layer over the prose (which lags
  * the native scroll and double-renders), we draw the diff as real ProseMirror

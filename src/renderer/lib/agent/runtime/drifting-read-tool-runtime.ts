@@ -6,6 +6,7 @@ import type {
   CreateAgentRuntimeReadObservation,
   PersistedAgentRuntimeReadReceipt,
 } from '../../../domain/agent-runtime-freshness';
+import type { AgentMemory } from '../../../domain/agent-memory';
 import type { AgentRuntimeResultArtifactQuota } from '../../../domain/agent-runtime-result-artifact';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
@@ -14,6 +15,9 @@ import {
   type AgentRuntimeFreshnessRepository,
 } from '../../../sqlite-repo/agent-runtime-freshness-repo';
 import { createBookContentRepository } from '../../../sqlite-repo/content-repo';
+import { createAgentMemoryRepository } from '../../../sqlite-repo/agent-memory-repo';
+import { getDb } from '../../../lib/db';
+import { proseDocId, type ProseEntityType } from '../../yjs-doc-id';
 import {
   createElementPatchRepository,
   type ElementPatch,
@@ -28,22 +32,16 @@ import {
   runAgentTool,
   type AgentToolContext,
 } from '../tool-handlers';
-import {
-  AGENT_READ_TOOLS,
-  getRegisteredTool,
-  type RegisteredTool,
-} from '../tool-registry';
+import { AGENT_READ_TOOLS, getRegisteredTool, type RegisteredTool } from '../tool-registry';
 import { isAgentAbort, throwIfAgentAborted } from './errors';
 import { createYjsProseSeedState } from './yjs-prose-command';
 import {
   createYjsProsePersistenceCoordinator,
   type YjsProsePersistenceBase,
 } from './yjs-prose-persistence-coordinator';
-import {
-  elementPatchRevision,
-  elementPatchSetRevision,
-} from './element-patch-revision';
+import { elementPatchRevision, elementPatchSetRevision } from './element-patch-revision';
 import { clonePortableData } from './portable-data';
+import { agentMemorySetRevision, loadStorylineMembershipSnapshot } from './domain-crud-revision';
 import type {
   AgentRuntimeContext,
   AgentToolDefinition,
@@ -96,10 +94,15 @@ export interface DriftingReadToolRuntimeOptions {
    * persistence coordinator used by certified prose writes.
    */
   readProseBase?: (
-    nodeId: string,
+    entityId: string,
+    entityType?: ProseEntityType,
   ) => Promise<Pick<YjsProsePersistenceBase, 'revision' | 'stateVector' | 'stateHash'>>;
   /** Injectable transaction-consistent patch reader for freshness tests. */
   readElementPatches?: (elementId: string) => Promise<readonly ElementPatch[]>;
+  /** Exact full memory rows, including dismissed and soft-deleted provenance. */
+  readMemories?: (projectId: string) => Promise<readonly AgentMemory[]>;
+  /** Exact project membership graph revision for a storyline file read. */
+  readStorylineMembershipRevision?: (projectId: string, storylineId: string) => Promise<string>;
   now?: () => string;
   dispatch?: typeof runAgentTool;
   maxStoredResults?: number;
@@ -118,6 +121,9 @@ export interface TruncatedAgentToolResult {
   resultRef: string;
   preview: string;
   totalChars: number;
+  /** Present for SQLite-backed product artifacts. */
+  contentHash?: string;
+  totalBytes?: number;
   reread: {
     tool: typeof RESULT_PAGE_TOOL;
     arguments: {
@@ -145,6 +151,10 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
   private readonly readElementPatches: NonNullable<
     DriftingReadToolRuntimeOptions['readElementPatches']
   >;
+  private readonly readMemories: NonNullable<DriftingReadToolRuntimeOptions['readMemories']>;
+  private readonly readStorylineMembershipRevision: NonNullable<
+    DriftingReadToolRuntimeOptions['readStorylineMembershipRevision']
+  >;
   private readonly now: () => string;
   private readonly dispatch: typeof runAgentTool;
   private readonly maxStoredResults: number;
@@ -171,14 +181,19 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     this.readElementPatches =
       options.readElementPatches ??
       ((elementId) => createElementPatchRepository().listByElement(elementId));
+    this.readMemories =
+      options.readMemories ?? ((projectId) => createAgentMemoryRepository(projectId).findAll());
+    this.readStorylineMembershipRevision =
+      options.readStorylineMembershipRevision ??
+      (async (projectId, storylineId) =>
+        (await loadStorylineMembershipSnapshot(getDb(), projectId, storylineId)).updatedAt);
     this.now = options.now ?? (() => new Date().toISOString());
     this.dispatch = options.dispatch ?? runAgentTool;
     this.maxStoredResults = options.maxStoredResults ?? DEFAULT_MAX_STORED_RESULTS;
     this.maxStoredChars = options.maxStoredChars ?? DEFAULT_MAX_STORED_CHARS;
     if (
       options.resultBudgetCharsCap !== undefined &&
-      (!Number.isSafeInteger(options.resultBudgetCharsCap) ||
-        options.resultBudgetCharsCap <= 0)
+      (!Number.isSafeInteger(options.resultBudgetCharsCap) || options.resultBudgetCharsCap <= 0)
     ) {
       throw new Error('resultBudgetCharsCap must be a positive safe integer');
     }
@@ -213,25 +228,31 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
       return this.executeReadWithReceipt(request, () => this.readStoredResultData(request), []);
     }
     if (request.name === ASK_USER_TOOL) {
-      return this.executeReadWithReceipt(
-        request,
-        async () => {
-          const prompt = String(request.arguments.prompt ?? '').trim();
-          if (!request.control) {
-            throw new Error('No interactive Agent control channel is installed');
-          }
-          const answer = await request.control.requestUserInput({
-            requestId: `agent-user-input:${request.idempotencyKey}`,
-            prompt,
-          });
-          const tool = getRegisteredTool(ASK_USER_TOOL);
-          if (!tool || tool.scope !== 'runtime-virtual') {
-            throw new Error('The ask_user runtime contract is unavailable');
-          }
-          return this.budgetResult(request, tool, { answer });
-        },
-        [],
-      );
+      return this.executeReadWithReceipt(request, async () => {
+        const prompt = String(request.arguments.prompt ?? '').trim();
+        if (!request.control) {
+          throw new Error('No interactive Agent control channel is installed');
+        }
+        const answer = await request.control.requestUserInput({
+          requestId: `agent-user-input:${request.idempotencyKey}`,
+          prompt,
+        });
+        const tool = getRegisteredTool(ASK_USER_TOOL);
+        if (!tool || tool.scope !== 'runtime-virtual') {
+          throw new Error('The ask_user runtime contract is unavailable');
+        }
+        const confirmedConstraintConflictIds = Array.isArray(
+          request.arguments.constraintConflictIds,
+        )
+          ? request.arguments.constraintConflictIds.filter(
+              (value): value is string => typeof value === 'string' && value.length > 0,
+            )
+          : [];
+        return this.budgetResult(request, tool, {
+          answer,
+          ...(confirmedConstraintConflictIds.length > 0 ? { confirmedConstraintConflictIds } : {}),
+        });
+      }, []);
     }
 
     const catalogEntry = AGENT_READ_TOOLS.find((tool) => tool.name === request.name);
@@ -343,10 +364,7 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     if (request.name === 'get_element_patches') {
       return this.captureElementPatchObservations(request, active);
     }
-    if (
-      request.name === 'get_project_brief' ||
-      request.name === 'get_overview'
-    ) {
+    if (request.name === 'get_project_brief' || request.name === 'get_overview') {
       const project = useProjectStore.getState().currentProject;
       return project?.id === active.projectId
         ? [
@@ -363,80 +381,121 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
       const element = resolveObservedEntity(
         useDataStore
           .getState()
-          .bookElements.filter(
-            (candidate) => candidate.projectId === active.projectId,
-          ),
+          .bookElements.filter((candidate) => candidate.projectId === active.projectId),
         request.arguments.element,
         (candidate) => candidate.name,
       );
-      return element
-        ? [
-            {
-              id: readObservationId(request, 0),
-              entityKind: 'element',
-              entityId: element.id,
-              revision: element.updatedAt,
-            },
-          ]
-        : [];
+      if (!element) return [];
+      const prose = await this.readProseBase(element.id, 'element');
+      return [
+        {
+          id: readObservationId(request, 0),
+          entityKind: 'element',
+          entityId: element.id,
+          revision: element.updatedAt,
+        },
+        proseObservation(request, 1, 'element', element.id, prose),
+      ];
     }
     if (request.name === 'get_storyline') {
       const storyline = resolveObservedEntity(
         useDataStore
           .getState()
-          .storylines.filter(
-            (candidate) => candidate.projectId === active.projectId,
-          ),
+          .storylines.filter((candidate) => candidate.projectId === active.projectId),
         request.arguments.storyline,
         (candidate) => candidate.name,
       );
-      return storyline
-        ? [
-            {
-              id: readObservationId(request, 0),
-              entityKind: 'storyline',
-              entityId: storyline.id,
-              revision: storyline.updatedAt,
-            },
-          ]
-        : [];
+      if (!storyline) return [];
+      return [
+        {
+          id: readObservationId(request, 0),
+          entityKind: 'storyline',
+          entityId: storyline.id,
+          revision: storyline.updatedAt,
+        },
+        {
+          id: readObservationId(request, 1),
+          entityKind: 'storyline_membership',
+          entityId: storyline.id,
+          revision: await this.readStorylineMembershipRevision(active.projectId, storyline.id),
+        },
+      ];
+    }
+    if (request.name === 'list_comments') {
+      return useDataStore
+        .getState()
+        .comments.filter((comment) => comment.projectId === active.projectId)
+        .map((comment, ordinal) => ({
+          id: readObservationId(request, ordinal),
+          entityKind: 'comment',
+          entityId: comment.id,
+          revision: comment.updatedAt,
+        }));
+    }
+    if (request.name === 'list_memory') {
+      const memories = await this.readMemories(active.projectId);
+      const observations: CreateAgentRuntimeReadObservation[] = [
+        {
+          id: readObservationId(request, 0),
+          entityKind: 'memory_set',
+          entityId: active.projectId,
+          revision: await agentMemorySetRevision(memories),
+        },
+      ];
+      for (const memory of memories
+        .filter((candidate) => candidate.deletedAt === null)
+        .slice()
+        .sort((left, right) => left.id.localeCompare(right.id, 'en'))) {
+        observations.push({
+          id: readObservationId(request, observations.length),
+          entityKind: 'memory',
+          entityId: memory.id,
+          revision: memory.updatedAt,
+        });
+      }
+      return observations;
+    }
+    if (request.name === 'get_entity_relations') {
+      const target = resolveObservedRelationTarget(request, active.projectId);
+      if (!target) return [];
+      return useDataStore
+        .getState()
+        .entityRelations.filter(
+          (relation) =>
+            relation.projectId === active.projectId &&
+            ((relation.fromKind === target.kind && relation.fromId === target.id) ||
+              (relation.toKind === target.kind && relation.toId === target.id)),
+        )
+        .map((relation, ordinal) => ({
+          id: readObservationId(request, ordinal),
+          entityKind: 'relation',
+          entityId: relation.id,
+          revision: relation.updatedAt,
+        }));
     }
     if (request.name !== 'read_node') return [];
     const rawKind = typeof request.arguments.kind === 'string' ? request.arguments.kind : 'node';
-    if (rawKind !== 'node' && rawKind !== 'chapter' && rawKind !== 'drift') {
-      return [];
-    }
+    const entityType = normalizeObservedProseEntityType(rawKind);
+    if (!entityType) return [];
     const ref = String(request.arguments.node ?? '').trim();
     if (!ref) return [];
-    const nodes = useDataStore
-      .getState()
-      .bookNodes.filter((node) => node.projectId === active.projectId);
-    const direct = nodes.find((node) => node.id === ref);
-    const matches = direct
-      ? [direct]
-      : nodes.filter((node) => node.title.trim().toLocaleLowerCase() === ref.toLocaleLowerCase());
+    const observed = resolveObservedProseEntity(entityType, active.projectId, ref);
     // The canonical dispatcher will produce the user-facing not-found or
     // ambiguity error. Only a uniquely-resolved node becomes an observation.
-    if (matches.length !== 1) return [];
-    const node = matches[0];
+    if (!observed) return [];
     const observations: CreateAgentRuntimeReadObservation[] = [
       {
         id: readObservationId(request, 0),
-        entityKind: 'node',
-        entityId: node.id,
-        revision: node.updatedAt,
+        entityKind: entityType,
+        entityId: observed.id,
+        revision: observed.updatedAt,
       },
     ];
     if (request.arguments.prose !== false) {
-      const prose = await this.readProseBase(node.id);
-      observations.push({
-        id: readObservationId(request, observations.length),
-        entityKind: 'node_prose',
-        entityId: node.id,
-        revision: `yjs:${prose.revision}`,
-        stateVector: new Uint8Array(prose.stateVector),
-        stateHash: prose.stateHash,
-      });
+      const prose = await this.readProseBase(observed.id, entityType);
+      observations.push(
+        proseObservation(request, observations.length, entityType, observed.id, prose),
+      );
     }
     return observations;
   }
@@ -454,9 +513,7 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
     const matches = direct
       ? [direct]
       : elements.filter(
-          (element) =>
-            element.name.trim().toLocaleLowerCase() ===
-            ref.toLocaleLowerCase(),
+          (element) => element.name.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
         );
     if (matches.length !== 1) return [];
     const element = matches[0]!;
@@ -509,9 +566,7 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
         const current = useDataStore
           .getState()
           .bookElements.find(
-            (element) =>
-              element.id === observation.entityId &&
-              element.projectId === projectId,
+            (element) => element.id === observation.entityId && element.projectId === projectId,
           );
         if (!current || current.updatedAt !== observation.revision) {
           throw new Error(
@@ -525,12 +580,82 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
           .getState()
           .storylines.find(
             (storyline) =>
-              storyline.id === observation.entityId &&
-              storyline.projectId === projectId,
+              storyline.id === observation.entityId && storyline.projectId === projectId,
           );
         if (!current || current.updatedAt !== observation.revision) {
           throw new Error(
             'The storyline changed while it was being read; retry get_storyline before writing',
+          );
+        }
+        continue;
+      }
+      if (observation.entityKind === 'storyline_membership') {
+        const revision = await this.readStorylineMembershipRevision(
+          projectId,
+          observation.entityId,
+        );
+        if (revision !== observation.revision) {
+          throw new Error(
+            'Storyline membership changed while it was being read; retry get_storyline before writing',
+          );
+        }
+        continue;
+      }
+      if (observation.entityKind === 'category') {
+        const current = useDataStore
+          .getState()
+          .bookElementCategories.find(
+            (category) => category.id === observation.entityId && category.projectId === projectId,
+          );
+        if (!current || current.updatedAt !== observation.revision) {
+          throw new Error(
+            'The category changed while it was being read; retry read_node before writing',
+          );
+        }
+        continue;
+      }
+      if (observation.entityKind === 'comment') {
+        const current = useDataStore
+          .getState()
+          .comments.find(
+            (comment) => comment.id === observation.entityId && comment.projectId === projectId,
+          );
+        if (!current || current.updatedAt !== observation.revision) {
+          throw new Error(
+            'The comment changed while it was being read; retry list_comments before writing',
+          );
+        }
+        continue;
+      }
+      if (observation.entityKind === 'memory_set') {
+        const revision = await agentMemorySetRevision(await this.readMemories(projectId));
+        if (revision !== observation.revision) {
+          throw new Error(
+            'Writing guidance changed while it was being read; retry list_memory before writing',
+          );
+        }
+        continue;
+      }
+      if (observation.entityKind === 'memory') {
+        const memory = (await this.readMemories(projectId)).find(
+          (candidate) => candidate.id === observation.entityId,
+        );
+        if (!memory || memory.updatedAt !== observation.revision) {
+          throw new Error(
+            'Writing guidance changed while it was being read; retry list_memory before writing',
+          );
+        }
+        continue;
+      }
+      if (observation.entityKind === 'relation') {
+        const current = useDataStore
+          .getState()
+          .entityRelations.find(
+            (relation) => relation.id === observation.entityId && relation.projectId === projectId,
+          );
+        if (!current || current.updatedAt !== observation.revision) {
+          throw new Error(
+            'The relation changed while it was being read; retry get_entity_relations before writing',
           );
         }
         continue;
@@ -548,8 +673,9 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
         }
         continue;
       }
-      if (observation.entityKind === 'node_prose') {
-        const current = await this.readProseBase(observation.entityId);
+      const proseType = proseEntityTypeFromObservation(observation.entityKind);
+      if (proseType) {
+        const current = await this.readProseBase(observation.entityId, proseType);
         if (
           observation.revision !== `yjs:${current.revision}` ||
           observation.stateHash !== current.stateHash ||
@@ -563,17 +689,11 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
       }
       if (observation.entityKind === 'element_patch_set') {
         const pendingDeletes = pendingDeletedPatchIds(observation.entityId);
-        const current = (await this.readElementPatches(
-          observation.entityId,
-        )).filter(
+        const current = (await this.readElementPatches(observation.entityId)).filter(
           (patch) =>
-            patch.projectId === projectId &&
-            !patch.invalidatedAt &&
-            !pendingDeletes.has(patch.id),
+            patch.projectId === projectId && !patch.invalidatedAt && !pendingDeletes.has(patch.id),
         );
-        if (
-          (await elementPatchSetRevision(current)) !== observation.revision
-        ) {
+        if ((await elementPatchSetRevision(current)) !== observation.revision) {
           throw new Error(
             'Element patches changed while they were being read; retry get_element_patches before writing',
           );
@@ -597,10 +717,7 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
               !patch.invalidatedAt &&
               !pendingDeletedPatchIds(patch.elementId).has(patch.id),
           );
-        if (
-          !current ||
-          (await elementPatchRevision(current)) !== observation.revision
-        ) {
+        if (!current || (await elementPatchRevision(current)) !== observation.revision) {
           throw new Error(
             'An element patch changed while it was being read; retry get_element_patches before writing',
           );
@@ -645,8 +762,9 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
 
     const resultRef = ['agent-result', request.sessionId, request.turnId, request.callId].join(':');
     const projectId = request.context.route.projectId ?? '';
+    let durableIntegrity: { contentHash: string; totalBytes: number } | undefined;
     if (this.artifacts) {
-      await this.artifacts.persist({
+      const persisted = await this.artifacts.persist({
         ref: resultRef,
         projectId,
         sessionId: request.sessionId,
@@ -660,6 +778,10 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
         createdAt: this.now(),
         quota: this.resultArtifactQuota,
       });
+      durableIntegrity = {
+        contentHash: persisted.artifact.contentHash,
+        totalBytes: persisted.artifact.byteCount,
+      };
     } else {
       this.storeResult({
         ref: resultRef,
@@ -676,6 +798,7 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
       resultRef,
       preview: sliceCodePoints(serialized, 0, previewLimit),
       totalChars: codePointLength(serialized),
+      ...durableIntegrity,
       reread: {
         tool: RESULT_PAGE_TOOL,
         arguments: {
@@ -711,6 +834,9 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
         offset: page.offset,
         nextOffset: page.nextOffset,
         totalChars: page.charCount,
+        totalBytes: page.byteCount,
+        contentHash: page.contentHash,
+        createdAt: page.createdAt,
         truncated: page.truncated,
         content: page.content,
         ...(page.truncated
@@ -807,10 +933,94 @@ function resolveObservedEntity<T extends { id: string }>(
   const direct = values.find((value) => value.id === ref);
   if (direct) return direct;
   const lowered = ref.toLocaleLowerCase();
-  const matches = values.filter(
-    (value) => label(value).trim().toLocaleLowerCase() === lowered,
-  );
+  const matches = values.filter((value) => label(value).trim().toLocaleLowerCase() === lowered);
   return matches.length === 1 ? matches[0]! : null;
+}
+
+function normalizeObservedProseEntityType(value: string): ProseEntityType | null {
+  if (value === 'node' || value === 'chapter' || value === 'drift') return 'node';
+  if (value === 'element' || value === 'storyline' || value === 'category') return value;
+  return null;
+}
+
+function resolveObservedProseEntity(
+  entityType: ProseEntityType,
+  projectId: string,
+  ref: string,
+): { id: string; updatedAt: string } | null {
+  const state = useDataStore.getState();
+  if (entityType === 'node') {
+    return resolveObservedEntity(
+      state.bookNodes.filter((entity) => entity.projectId === projectId),
+      ref,
+      (entity) => entity.title,
+    );
+  }
+  if (entityType === 'element') {
+    return resolveObservedEntity(
+      state.bookElements.filter((entity) => entity.projectId === projectId),
+      ref,
+      (entity) => entity.name,
+    );
+  }
+  if (entityType === 'storyline') {
+    return resolveObservedEntity(
+      state.storylines.filter((entity) => entity.projectId === projectId),
+      ref,
+      (entity) => entity.name,
+    );
+  }
+  return resolveObservedEntity(
+    state.bookElementCategories.filter((entity) => entity.projectId === projectId),
+    ref,
+    (entity) => entity.name,
+  );
+}
+
+function resolveObservedRelationTarget(
+  request: AgentToolExecutionRequest,
+  projectId: string,
+): { kind: string; id: string } | null {
+  const rawKind = String(request.arguments.kind ?? '').trim();
+  const ref = String(request.arguments.name ?? request.arguments.id ?? '').trim();
+  if (!rawKind || !ref) return null;
+  const entityType = normalizeObservedProseEntityType(rawKind);
+  if (entityType) {
+    const entity = resolveObservedProseEntity(entityType, projectId, ref);
+    return entity ? { kind: entityType, id: entity.id } : null;
+  }
+  if (rawKind === 'comment') {
+    const comment = useDataStore
+      .getState()
+      .comments.find((candidate) => candidate.projectId === projectId && candidate.id === ref);
+    return comment ? { kind: 'comment', id: comment.id } : null;
+  }
+  return { kind: rawKind, id: ref };
+}
+
+function proseObservation(
+  request: AgentToolExecutionRequest,
+  ordinal: number,
+  entityType: ProseEntityType,
+  entityId: string,
+  prose: Pick<YjsProsePersistenceBase, 'revision' | 'stateVector' | 'stateHash'>,
+): CreateAgentRuntimeReadObservation {
+  return {
+    id: readObservationId(request, ordinal),
+    entityKind: `${entityType}_prose`,
+    entityId,
+    revision: `yjs:${prose.revision}`,
+    stateVector: new Uint8Array(prose.stateVector),
+    stateHash: prose.stateHash,
+  };
+}
+
+function proseEntityTypeFromObservation(value: string): ProseEntityType | null {
+  if (value === 'node_prose') return 'node';
+  if (value === 'element_prose') return 'element';
+  if (value === 'storyline_prose') return 'storyline';
+  if (value === 'category_prose') return 'category';
+  return null;
 }
 
 function assertReadReceiptProvenance(
@@ -933,10 +1143,18 @@ function createDefaultProseBaseReader(): NonNullable<
   DriftingReadToolRuntimeOptions['readProseBase']
 > {
   const coordinator = createYjsProsePersistenceCoordinator();
-  return async (nodeId) => {
-    const content = await createBookContentRepository().findByNodeId(nodeId);
-    const seedStateUpdate = await createYjsProseSeedState(content?.contentJson ?? '{}');
-    const base = await coordinator.readBase(`node-content:${nodeId}`, seedStateUpdate);
+  return async (entityId, entityType = 'node') => {
+    const state = useDataStore.getState();
+    const contentJson =
+      entityType === 'node'
+        ? (await createBookContentRepository().findByNodeId(entityId))?.contentJson
+        : entityType === 'element'
+          ? state.bookElements.find((entity) => entity.id === entityId)?.contentJson
+          : entityType === 'storyline'
+            ? state.storylines.find((entity) => entity.id === entityId)?.contentJson
+            : state.bookElementCategories.find((entity) => entity.id === entityId)?.contentJson;
+    const seedStateUpdate = await createYjsProseSeedState(contentJson ?? '{}');
+    const base = await coordinator.readBase(proseDocId(entityType, entityId), seedStateUpdate);
     return {
       revision: base.revision,
       stateVector: new Uint8Array(base.stateVector),

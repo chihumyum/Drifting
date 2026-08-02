@@ -233,6 +233,39 @@ describe('canonical Agent chat recovery projection', () => {
     );
   });
 
+  it('keeps runtime continuation prompts in model history but out of the visible transcript', async () => {
+    const persisted = snapshot();
+    const started = persisted.events.find(
+      (event) => event.eventType === 'turn_started',
+    )!;
+    started.payload = {
+      route,
+      event: {
+        type: 'turn_started',
+        prompt: 'continue the durable plan',
+        promptSource: 'runtime_continuation',
+      },
+    };
+    persisted.messages[0] = {
+      ...persisted.messages[0]!,
+      content: 'continue the durable plan',
+    };
+
+    const projection = await loadCanonicalAgentChatProjection(
+      'session-1',
+      repository(persisted),
+    );
+    expect(projection?.messages.some((message) => message.kind === 'user')).toBe(
+      false,
+    );
+    expect(JSON.stringify(projection?.messages)).not.toContain(
+      'continue the durable plan',
+    );
+    expect(projection?.messages).toContainEqual(
+      expect.objectContaining({ kind: 'assistant', text: 'partial progress' }),
+    );
+  });
+
   it('fails closed partial canonical thinking/tool arguments after an interrupted restart', async () => {
     const persisted = interruptedSnapshot();
     const projection = await loadCanonicalAgentChatProjection('session-1', repository(persisted), [

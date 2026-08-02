@@ -41,7 +41,11 @@ export interface RegisterAgentMcpToolSourceOptions {
   client: AgentMcpClient;
   serverId: string;
   projectId: string;
+  /** Stable persisted MCP configuration fingerprint. */
+  sourceRevision?: string;
   signal: AbortSignal;
+  /** Already validated discovery from the connection handshake. */
+  discoveredTools?: readonly AgentMcpToolDescriptor[];
   /**
    * Mandatory local authority. Returning null keeps the discovered tool
    * hidden. Never derive write permission solely from MCP annotations.
@@ -72,9 +76,11 @@ export async function registerAgentMcpToolSource(
   if (options.signal.aborted) {
     throw options.signal.reason ?? new DOMException('Aborted', 'AbortError');
   }
-  const discovered = await options.client.listTools({
-    signal: options.signal,
-  });
+  const discovered =
+    options.discoveredTools ??
+    (await options.client.listTools({
+      signal: options.signal,
+    }));
   if (options.signal.aborted) {
     throw options.signal.reason ?? new DOMException('Aborted', 'AbortError');
   }
@@ -123,6 +129,7 @@ export async function registerAgentMcpToolSource(
     sourceId: options.serverId,
     sourceKind: 'mcp',
     projectId: options.projectId,
+    ...(options.sourceRevision ? { sourceRevision: options.sourceRevision } : {}),
     tools,
   });
 }

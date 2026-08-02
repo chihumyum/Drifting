@@ -205,6 +205,15 @@ export interface AgentContextCheckpointV2 {
     mode: 'legacy_all_user' | 'verified';
     entries: AgentContextConstraintLedgerEntry[];
     ledgerHash: string;
+    /**
+     * New checkpoints carry an explicit exact-retention witness. Optional only
+     * so checkpoints written before Milestone F remain recoverable.
+     */
+    retentionWitness?: {
+      status: 'exact';
+      sourceIds: string[];
+      sourceHash: string;
+    };
   };
   coverage: {
     representedSourceIds: string[];
@@ -1092,8 +1101,14 @@ async function applySummaryBatch(input: {
     const beforeTokens = projectionTokens(replaced);
     const estimatedTokens = estimateSummaryTokens(candidate, input.estimator);
     if (estimatedTokens >= beforeTokens) {
+      // A production compactor operates on bounded chunks. A short tail chunk
+      // can be perfectly valid yet cost more once source/hash provenance is
+      // included. Keep that chunk byte-exact and still accept other candidates
+      // that produce a real aggregate gain. An all-no-gain batch continues to
+      // fail closed below and opens the circuit exactly as before.
+      if (input.producer === 'full_compactor') continue;
       throw new PlannerFailure(
-        input.producer === 'full_compactor' ? 'COMPACTOR_NO_GAIN' : 'INVALID_SUMMARY',
+        'INVALID_SUMMARY',
         `Summary "${candidate.summaryId}" has no positive token gain.`,
       );
     }
@@ -1518,6 +1533,9 @@ export async function planAgentContext(
     });
     const sourceOrderHash = await hashAgentContextSourceRows(rows);
     const pinnedSourceIds = orderedRows(validated.pinnedRows).map((row) => row.sourceId);
+    const retainedConstraintRows = constraintLedger.entries.map(
+      (entry) => sourceById.get(entry.sourceId)!,
+    );
     const representedSourceIds = orderedRows(validated.representedRows).map((row) => row.sourceId);
     const discardedSourceIds = orderedRows(validated.discardedRows).map((row) => row.sourceId);
     const segments = cloneProjectionSegments(projection.segments);
@@ -1541,6 +1559,11 @@ export async function planAgentContext(
         mode: constraintLedger.mode,
         entries: constraintLedger.entries.map((entry) => ({ ...entry })),
         ledgerHash: constraintLedger.ledgerHash,
+        retentionWitness: {
+          status: 'exact',
+          sourceIds: retainedConstraintRows.map((row) => row.sourceId),
+          sourceHash: await hashAgentContextSourceRows(retainedConstraintRows),
+        },
       },
       coverage: {
         representedSourceIds,

@@ -1,3 +1,5 @@
+import { and, eq, or } from 'drizzle-orm';
+
 import type {
   AgentRuntimeElementPatchSnapshot,
   PersistedAgentRuntimeElementPatchReceipt,
@@ -11,6 +13,11 @@ import {
   type DbExecutor,
   type DbTransaction,
 } from '../../../lib/db';
+import {
+  CommentTable,
+  ElementPatchTable,
+  EntityRelationTable,
+} from '../../../schema/drizzle';
 import {
   notifySyncMutationCommitted,
   persistSyncMutationInTransaction,
@@ -26,7 +33,6 @@ import {
   type UpdatePatchInput,
 } from '../../../sqlite-repo/element-patch-repo';
 import type { AgentRuntimeFreshnessRepository } from '../../../sqlite-repo/agent-runtime-freshness-repo';
-import { useAgentEditStore } from '../../../store/agent-edit-store';
 import { useDataStore } from '../../../store/data-store';
 import {
   createElementPatchWithSync,
@@ -35,7 +41,6 @@ import {
   type ElementPatchAtomicTransactionRunner,
 } from '../../../usecase/synced-entity-commands';
 import { effectiveAgentEditMode } from '../agent-edit-mode';
-import { fieldBlockId, patchFieldChange } from '../field-diff';
 import { eventBus } from '../../events';
 import { pendingDeletedPatchIds } from '../tool-handlers';
 import { throwIfAgentAborted } from './errors';
@@ -50,7 +55,10 @@ import type {
 } from './drifting-write-strategies';
 import type { AgentToolExecutionRequest } from './types';
 
-type CertifiedPatchTool = 'create_element_patch' | 'update_element_patch';
+type CertifiedPatchTool =
+  | 'create_element_patch'
+  | 'update_element_patch'
+  | 'delete_element_patch';
 
 interface ElementPatchCommandPayload {
   kind: 'element_patch_command';
@@ -146,7 +154,6 @@ export function createDriftingElementPatchWriteStrategy(
       });
       runPostCommitEffects(
         payload,
-        committed.receipt,
         committed.syncPersisted,
         notifySyncCommitted,
       );
@@ -168,7 +175,6 @@ export function createDriftingElementPatchWriteStrategy(
       const receipt = await receipts.get(payload.commandId, 'forward');
       if (!receipt) return null;
       assertReceiptMatchesPayload(receipt, payload, 'forward');
-      recordVisibleReview(payload, receipt);
       eventBus.emit('element:patches-changed', {
         elementId: payload.elementId,
       });
@@ -286,22 +292,37 @@ async function preparePayload(
 
   const patchId = requiredString(
     request.arguments.patchId,
-    'update_element_patch requires patchId',
+    `${toolName} requires patchId`,
   );
   const before = await createElementPatchRepository(db).findById(patchId);
   if (!before || before.projectId !== projectId) {
     throw new Error(`No element patch "${patchId}" exists in this project`);
   }
-  if (
-    before.invalidatedAt ||
-    pendingDeletedPatchIds(before.elementId).has(before.id)
-  ) {
+  if (before.invalidatedAt || pendingDeletedPatchIds(before.elementId).has(before.id)) {
     throw new Error(
-      `Element patch "${patchId}" is not available for Agent updates`,
+      `Element patch "${patchId}" is not available for Agent changes`,
     );
   }
   requireExpectation(expectation, request, 'element_patch', patchId);
   assertExpectedRevision(expectation, await elementPatchRevision(before));
+  if (toolName === 'delete_element_patch') {
+    await assertPatchDeleteAllowed(db, projectId, patchId);
+    return {
+      kind: 'element_patch_command',
+      commandId,
+      effectId,
+      toolName,
+      projectId,
+      elementId: before.elementId,
+      patchId,
+      expectedEntityKind: 'element_patch',
+      expectedRevision: expectation!.expectedRevision,
+      create: null,
+      update: null,
+      preimage: snapshotElementPatch(before),
+      reviewSnapshot,
+    };
+  }
   const update: UpdatePatchInput = {};
   if (typeof request.arguments.title === 'string') {
     update.title = request.arguments.title;
@@ -405,18 +426,29 @@ async function applyForwardInTransaction(
   let patch: ElementPatch | null;
   if (payload.toolName === 'create_element_patch') {
     patch = await createElementPatchWithSync(payload.create!, sync.runner);
-  } else {
+  } else if (payload.toolName === 'update_element_patch') {
     patch = await updateElementPatchWithSync(
       payload.projectId,
       payload.patchId,
       payload.update!,
       sync.runner,
     );
+  } else {
+    await assertPatchDeleteAllowed(tx, payload.projectId, payload.patchId);
+    await deleteElementPatchWithSync(
+      payload.projectId,
+      payload.patchId,
+      sync.runner,
+    );
+    patch = null;
   }
-  if (!patch || patch.projectId !== payload.projectId) {
+  if (patch && patch.projectId !== payload.projectId) {
     throw new Error('The element patch command did not persist its target');
   }
-  const postimage = snapshotElementPatch(patch);
+  if (payload.toolName !== 'delete_element_patch' && !patch) {
+    throw new Error('The element patch command did not persist its target');
+  }
+  const postimage = patch ? snapshotElementPatch(patch) : null;
   const receipt = await createAgentRuntimeElementPatchReceiptRepository(
     tx,
   ).persist({
@@ -429,9 +461,9 @@ async function applyForwardInTransaction(
     toolName: payload.toolName,
     patchId: payload.patchId,
     expectedRevision: payload.expectedRevision,
-    resultRevision: await elementPatchRevision(postimage),
+    resultRevision: postimage ? await elementPatchRevision(postimage) : null,
     postimage,
-    postimageHash: await hashElementPatchValue(postimage),
+    postimageHash: postimage ? await hashElementPatchValue(postimage) : null,
     createdAt: now(),
   });
   return { receipt, syncPersisted: sync.persisted() };
@@ -473,7 +505,7 @@ async function applyInverseInTransaction(
         sync.runner,
       );
     }
-  } else {
+  } else if (payload.toolName === 'update_element_patch') {
     if (!current || current.projectId !== payload.projectId) {
       throw new Error(
         'The updated element patch no longer exists; exact reject is unavailable',
@@ -507,6 +539,26 @@ async function applyInverseInTransaction(
         throw new Error('The element patch inverse did not restore its preimage');
       }
     }
+  } else {
+    if (current) {
+      throw new Error(
+        'The deleted element patch id is occupied again; exact restore is unavailable',
+      );
+    }
+    if (!payload.preimage) {
+      throw new Error('The deleted element patch inverse lost its preimage');
+    }
+    await tx.insert(ElementPatchTable).values(payload.preimage);
+    await sync.runner(payload.projectId, (_inner, writeSync) =>
+      writeSync(
+        'elementPatch',
+        'create',
+        payload.patchId,
+        payload.projectId,
+        elementPatchSyncPayload(payload.preimage!),
+      ),
+    );
+    postimage = payload.preimage;
   }
 
   const receipt = await receiptRepo.persist({
@@ -569,45 +621,6 @@ function transactionRunner(
         },
       ),
     persisted: () => persisted,
-  };
-}
-
-function recordVisibleReview(
-  payload: ElementPatchCommandPayload,
-  receipt: PersistedAgentRuntimeElementPatchReceipt,
-): void {
-  if (!receipt.postimage) return;
-  const changes =
-    payload.toolName === 'create_element_patch'
-      ? [patchFieldChange(payload.patchId, receipt.postimage.title)]
-      : [updatePatchFieldChange(payload, receipt.postimage)];
-  useAgentEditStore.getState().recordReview(
-    'element',
-    payload.elementId,
-    changes,
-    payload.reviewSnapshot.mode,
-    {
-      effectId: payload.reviewSnapshot.effectId,
-      reviewId: payload.reviewSnapshot.reviewId,
-    },
-  );
-}
-
-function updatePatchFieldChange(
-  payload: ElementPatchCommandPayload,
-  postimage: AgentRuntimeElementPatchSnapshot,
-) {
-  const label = postimage.title?.trim() || '补丁';
-  return {
-    blockId: fieldBlockId('patch', payload.patchId),
-    op: 'changed' as const,
-    oldText: JSON.stringify({
-      title: payload.preimage?.title ?? null,
-      contentJson: payload.preimage?.contentJson ?? '{}',
-    }),
-    newText: '',
-    afterPrevId: null,
-    field: { kind: 'patch' as const, key: payload.patchId, label },
   };
 }
 
@@ -697,9 +710,11 @@ function assertReceiptMatchesPayload(
     receipt.patchId !== payload.patchId ||
     (direction === 'forward' &&
       (receipt.expectedRevision !== payload.expectedRevision ||
-        !receipt.postimage ||
-        receipt.postimage.projectId !== payload.projectId ||
-        receipt.postimage.elementId !== payload.elementId))
+        (payload.toolName === 'delete_element_patch'
+          ? receipt.postimage !== null || receipt.resultRevision !== null
+          : !receipt.postimage ||
+            receipt.postimage.projectId !== payload.projectId ||
+            receipt.postimage.elementId !== payload.elementId)))
   ) {
     throw new Error(
       `The ${direction} element patch receipt does not match its command provenance`,
@@ -761,17 +776,10 @@ function parsePayload(
 
 function runPostCommitEffects(
   payload: ElementPatchCommandPayload,
-  receipt: PersistedAgentRuntimeElementPatchReceipt,
   syncPersisted: boolean,
   notifySyncCommitted: typeof notifySyncMutationCommitted,
 ): void {
   notifyCommittedSafely(syncPersisted, notifySyncCommitted);
-  try {
-    recordVisibleReview(payload, receipt);
-  } catch {
-    // The immutable receipt remains authoritative. A restart reconciliation can
-    // rebuild the same deterministic local review without replaying the write.
-  }
   emitPatchChanged(payload.elementId);
 }
 
@@ -850,6 +858,70 @@ function resolveOptionalSourceNode(
 function requiredString(value: unknown, message: string): string {
   if (typeof value !== 'string' || !value.trim()) throw new Error(message);
   return value.trim();
+}
+
+async function assertPatchDeleteAllowed(
+  db: DbExecutor,
+  projectId: string,
+  patchId: string,
+): Promise<void> {
+  const relation = await db
+    .select({ id: EntityRelationTable.id })
+    .from(EntityRelationTable)
+    .where(
+      and(
+        eq(EntityRelationTable.projectId, projectId),
+        or(
+          and(
+            eq(EntityRelationTable.fromKind, 'patch'),
+            eq(EntityRelationTable.fromId, patchId),
+          ),
+          and(
+            eq(EntityRelationTable.toKind, 'patch'),
+            eq(EntityRelationTable.toId, patchId),
+          ),
+        ),
+      ),
+    )
+    .limit(1);
+  if (relation[0]) {
+    throw new Error(
+      'This element patch still has a curated relation. Remove its /relations/*.json file before deleting it.',
+    );
+  }
+  const comment = await db
+    .select({ id: CommentTable.id })
+    .from(CommentTable)
+    .where(
+      and(
+        eq(CommentTable.projectId, projectId),
+        eq(CommentTable.targetKind, 'patch'),
+        eq(CommentTable.targetId, patchId),
+      ),
+    )
+    .limit(1);
+  if (comment[0]) {
+    throw new Error(
+      'This element patch still has an attached comment or TODO. Delete or retarget it first.',
+    );
+  }
+}
+
+function elementPatchSyncPayload(
+  patch: AgentRuntimeElementPatchSnapshot,
+): Record<string, unknown> {
+  return {
+    id: patch.id,
+    elementId: patch.elementId,
+    sourceNodeId: patch.sourceNodeId,
+    sourceBlockId: patch.sourceBlockId,
+    sourceBlockText: patch.sourceBlockText,
+    textAnchorJson: patch.textAnchorJson,
+    invalidatedAt: patch.invalidatedAt,
+    title: patch.title,
+    contentJson: patch.contentJson,
+    orderKey: patch.orderKey,
+  };
 }
 
 function samePatchState(

@@ -31,6 +31,8 @@ function continuationPlanState(
     scopeKind: status === 'none' ? null : 'whole_book_chapters',
     runnableStepCount: status === 'active' ? 1 : 0,
     waitingReviewStepCount: 0,
+    manifestStatus: status === 'none' ? 'not_applicable' : 'current',
+    needsManifestReconciliation: false,
     needsFinalization: false,
     progressFingerprint: `${sessionId}:${status}`,
   };
@@ -426,7 +428,7 @@ describe('agent chat canonical journal projection', () => {
     expect(BUDGET_CONTINUATION_PROMPT).toContain('从尚未完成的部分继续');
   });
 
-  it('offers continuation after a completed turn only for an authoritative same-session open plan', () => {
+  it('offers manual continuation after any terminal turn with an authoritative same-session open plan', () => {
     const state = {
       activeConvId: 'conversation-1',
       runningConvId: null,
@@ -451,6 +453,21 @@ describe('agent chat canonical journal projection', () => {
     expect(selectAgentTaskContinuationReason(state)).toBe('active_plan');
     expect(selectCanContinueAgentTask(state)).toBe(true);
     expect(ACTIVE_PLAN_CONTINUATION_PROMPT).toContain('持久化任务计划');
+
+    for (const outcome of ['aborted', 'failed'] as const) {
+      expect(
+        selectAgentTaskContinuationReason({
+          ...state,
+          runs: {
+            ...state.runs,
+            'conversation-1': {
+              ...state.runs['conversation-1'],
+              lastTerminal: { turnId: `turn-${outcome}`, outcome },
+            },
+          },
+        }),
+      ).toBe('active_plan');
+    }
 
     expect(
       selectAgentTaskContinuationReason({
@@ -506,6 +523,7 @@ describe('agent chat canonical journal projection', () => {
               projectId: 'project-intent',
               messages: [],
               runtimeSessionId: 'session-origin',
+              forkCheckpointId: null,
               seenJournalEventIds: {},
               controlStatus: null,
               pendingControl: null,

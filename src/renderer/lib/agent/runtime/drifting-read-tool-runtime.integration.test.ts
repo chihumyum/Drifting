@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AgentMemory } from '../../../domain/agent-memory';
 import { createPlainCommentDoc } from '../../../domain/comment';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
@@ -24,6 +25,13 @@ const memoryFixture = vi.hoisted(() => ({
       body: '保持克制。',
       targetKind: null,
       targetId: null,
+      targetBlockId: null,
+      source: 'author',
+      originRef: null,
+      supersedesId: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      deletedAt: null,
     },
   ],
 }));
@@ -101,6 +109,7 @@ import {
   type AgentWriteApi,
 } from '../tool-handlers';
 import { AGENT_READ_TOOLS } from '../tool-registry';
+import { storylineMembershipRevision } from './domain-crud-revision';
 import { DriftingReadToolRuntime } from './drifting-read-tool-runtime';
 import type { AgentToolExecutionRequest } from './types';
 
@@ -112,6 +121,31 @@ const stableProseBase = {
 
 const route = {
   route: { kind: 'chat' as const, projectId: 'project-1' },
+};
+
+const isolatedCanonicalReaders = {
+  readMemories: async () => memoryFixture.rows as readonly AgentMemory[],
+  readStorylineMembershipRevision: async (projectId: string) => {
+    const data = useDataStore.getState();
+    const activeStorylineIds = new Set(
+      data.storylines
+        .filter((storyline) => storyline.projectId === projectId)
+        .map((storyline) => storyline.id),
+    );
+    return storylineMembershipRevision(
+      Object.entries(data.storylineNodeMapping).flatMap(
+        ([storylineId, nodeIds]) =>
+          activeStorylineIds.has(storylineId)
+            ? nodeIds.map((nodeId) => ({
+                nodeId,
+                storylineId,
+                isPrimary:
+                  data.primaryStorylineByNode[nodeId] === storylineId,
+              }))
+            : [],
+      ),
+    );
+  },
 };
 
 const validArguments: Record<string, Record<string, unknown>> = {
@@ -205,6 +239,13 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
         body: '保持克制。',
         targetKind: null,
         targetId: null,
+        targetBlockId: null,
+        source: 'author',
+        originRef: null,
+        supersedesId: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        deletedAt: null,
       },
     ];
     writeCalls = [];
@@ -395,6 +436,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
     const runtime = new DriftingReadToolRuntime({
       freshness: null,
       readProseBase: async () => stableProseBase,
+      ...isolatedCanonicalReaders,
     });
     const before = domainSnapshot();
     const results: Record<string, unknown> = {};
@@ -427,6 +469,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
     const runtime = new DriftingReadToolRuntime({
       freshness: null,
       readProseBase: async () => stableProseBase,
+      ...isolatedCanonicalReaders,
     });
 
     const result = await runtime.execute(
@@ -624,6 +667,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
     const runtime = new DriftingReadToolRuntime({
       freshness: null,
       readProseBase: async () => stableProseBase,
+      ...isolatedCanonicalReaders,
     });
     const emptySuccesses = new Set([
       'get_overview',

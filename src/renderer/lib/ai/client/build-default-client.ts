@@ -13,6 +13,7 @@
 import { LLMClient } from './llm-client';
 import { GoogleAIStudioProvider } from './providers/google';
 import { DeepSeekProvider } from './providers/deepseek';
+import { OpenAIProvider } from './providers/openai';
 import { ServerProxyProvider } from './providers/server-proxy';
 import { BYOKCredentialsProvider } from '../credentials/byok';
 import { EnvCredentialsProvider } from '../credentials/env';
@@ -22,10 +23,13 @@ import { CaptureInterceptor } from '../interceptors/capture-interceptor';
 import type { LLMProvider } from './providers/provider';
 import { AIError } from '../types';
 import { useSettingsStore } from '../../../store/settings-store';
+import type { AgentProviderId } from '../../agent/runtime/agent-provider-contract';
 
 export interface BuildDefaultLLMClientOptions {
   /** Override the logging tag. Defaults to 'ai'. */
   logTag?: string;
+  provider?: AgentProviderId;
+  model?: string;
 }
 
 export async function buildDefaultLLMClient(
@@ -124,20 +128,33 @@ export async function buildGeneralAgentClient(
     new EnvCredentialsProvider(),
     new BYOKCredentialsProvider(),
   ]);
-  const deepseekKey = await tryGetKey(credentials, 'deepseek');
-  if (!deepseekKey) {
+  const provider = options.provider ?? 'deepseek';
+  if (provider === 'anthropic') {
+    throw new AIError(
+      'invalid-input',
+      'Anthropic uses the native Messages Agent driver, not the OpenAI-compatible client.',
+    );
+  }
+  const apiKey = await tryGetKey(credentials, provider);
+  if (!apiKey) {
     throw new AIError(
       'auth',
-      'No DeepSeek key is configured for General Agent. Add one in Settings → Models & API.',
+      `No ${provider} key is configured for General Agent. Add one in Settings → Models & API.`,
     );
   }
   return wrapClient(
-    new DeepSeekProvider({
-      apiKey: deepseekKey,
-      // The General Agent streams function calls but does not yet round-trip
-      // provider reasoning state.
-      thinking: false,
-    }),
+    provider === 'openai'
+      ? new OpenAIProvider({
+          apiKey,
+          ...(options.model ? { defaultModel: options.model } : {}),
+        })
+      : new DeepSeekProvider({
+          apiKey,
+          ...(options.model ? { defaultModel: options.model } : {}),
+          // The General Agent streams function calls but does not yet round-trip
+          // provider reasoning state.
+          thinking: false,
+        }),
     options.logTag ?? 'general-agent',
   );
 }
@@ -198,7 +215,7 @@ function readDeepSeekReasoningEffort(): 'high' | 'max' | undefined {
 
 async function tryGetKey(
   credentials: ChainCredentialsProvider,
-  provider: 'deepseek' | 'google',
+  provider: import('../../byok-keychain').BYOKProvider,
 ): Promise<string | null> {
   try {
     return await credentials.getApiKey(provider);

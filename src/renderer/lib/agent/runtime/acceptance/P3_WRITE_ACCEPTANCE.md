@@ -5,13 +5,13 @@ provider API:
 
 ```text
 ReaderWriterAgentRuntimeScheduler
+  -> central permission policy (automatic or author-approved)
   -> DriftingWriteToolRuntime
-  -> canonical agent_runtime_write_effect
+  -> authorized agent_runtime_write_effect
   -> runAgentTool
   -> renderer usecase boundary
   -> local projection + durable outbox
-  -> canonical soft review
-  -> next-turn feedback/checkpoint
+  -> durable writeRef/checkpoint
 ```
 
 ## Commands
@@ -45,22 +45,23 @@ repositories, the production reader/writer scheduler, the production
 
 It requires:
 
-- successful canonical effect/review persistence for the two write-certified
-  node-field tools;
+- successful canonical authorization/effect persistence for certified writes;
+- author-approved calls have zero Yjs, domain SQLite, outbox, or effect mutation
+  before approval, and zero mutation after denial; automatic certified calls
+  persist equivalent authorization provenance before mutation;
 - duplicate delivery replay without a second renderer usecase or outbox row;
-- user accept/reject decisions in the next-turn feedback and a durable
-  checkpoint;
-- exact inverse rejection through the same usecase;
-- crash reconciliation when an exact inverse committed but the review receipt
-  did not;
+- node-field writes create no prose-review row; broader product integration
+  verifies that Yjs prose writes create canonical review rows and project their
+  inline badge/reveal only after those rows exist;
+- crash reconciliation from the domain receipt without replaying the write;
 - pre-mutation failure and post-mutation-start `uncertain` classification;
 - no blind retry at the three entered-mutation fault boundaries;
 - stale Yjs revision/vector rejection with zero Y.Doc, projection, or outbox
   mutation;
 - 100 deterministic seeds x 50 mixed operations, with 1,000 unique writes,
   1,000 concurrent duplicate deliveries, and 3,000 reads;
-- exactly 1,000 effects, reviews, renderer usecase dispatches, and outbox rows,
-  with no project crossover.
+- exactly 1,000 effects, renderer usecase dispatches, and outbox rows, with no
+  duplicate review rows and no project crossover.
 
 `p3-crash-consistency.acceptance.mjs` adds real process death. Every case uses a
 separate file-backed SQLite WAL database with `synchronous=FULL`, product
@@ -81,10 +82,8 @@ integrity, and a stable recovery hash.
 
 ## Boundary of the evidence
 
-The end-to-end product path currently applies to `rename_node` and
-`set_node_summary`, the only provider-visible write-certified tools. The crash
-worker deliberately models the future prose transaction with the product
-receipt schema and real SQLite/Yjs primitives; it does not claim that prose
-tools are provider-visible or write-certified. Production prose certification
-still depends on wiring the monotonic Yjs revision/persistence coordinator into
-the tool strategy.
+The original P3 node-field suite remains a focused regression layer. Broader
+product integration covers the current certified entity, prose, patch, comment,
+and virtual-file strategies. Native UI acceptance of destructive-operation
+permission cards and the inline editor badge/reveal still requires author
+testing in the Tauri app.

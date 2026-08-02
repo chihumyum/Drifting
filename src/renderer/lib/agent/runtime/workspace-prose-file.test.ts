@@ -4,6 +4,7 @@ import type { YjsProseBlock } from './yjs-prose-command';
 import {
   parseWorkspaceTextReplacements,
   planWorkspaceProseFileEdit,
+  planWorkspaceProseFileWrite,
   renderWorkspaceProseFile,
 } from './workspace-prose-file';
 
@@ -100,6 +101,24 @@ describe('workspace prose file editing', () => {
       fromBlockId: 'a',
       toBlockId: 'b',
       blocks: [block('paragraph', 'a', '合并后的第一段。')],
+    });
+  });
+
+  it('initializes a blank virtual manuscript without inventing an oldText match', async () => {
+    const operation = await planWorkspaceProseFileWrite({
+      blocks: [block('paragraph', 'blank', '')],
+      content: '# 起点\n\n第一段。',
+      idempotencyKey: 'blank-whole-file',
+    });
+
+    expect(operation).toMatchObject({
+      kind: 'replace',
+      fromBlockId: 'blank',
+      toBlockId: 'blank',
+      blocks: [
+        { id: 'blank', type: 'heading' },
+        { type: 'paragraph' },
+      ],
     });
   });
 });

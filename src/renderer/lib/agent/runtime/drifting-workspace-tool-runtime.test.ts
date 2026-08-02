@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { BookElementCategory } from '../../../domain/book-element';
 import type { BookNode } from '../../../domain/book-node';
+import type { Comment } from '../../../domain/comment';
 import { useDataStore } from '../../../store/data-store';
+import type { EntityRelationLink } from '../../../store/data-store';
 import type { AgentToolContext } from '../tool-handlers';
 import {
   DriftingWorkspaceToolRuntime,
@@ -20,6 +23,9 @@ const runtimeContext: AgentRuntimeContext = {
 };
 
 const originalNodes = useDataStore.getState().bookNodes;
+const originalCategories = useDataStore.getState().bookElementCategories;
+const originalComments = useDataStore.getState().comments;
+const originalRelations = useDataStore.getState().entityRelations;
 
 beforeEach(() => {
   const node: BookNode = {
@@ -37,11 +43,16 @@ beforeEach(() => {
     createdAt: '2026-08-01T00:00:00.000Z',
     updatedAt: '2026-08-01T00:00:00.000Z',
   };
-  useDataStore.setState({ bookNodes: [node] });
+  useDataStore.setState({ bookNodes: [node], comments: [], entityRelations: [] });
 });
 
 afterEach(() => {
-  useDataStore.setState({ bookNodes: originalNodes });
+  useDataStore.setState({
+    bookNodes: originalNodes,
+    bookElementCategories: originalCategories,
+    comments: originalComments,
+    entityRelations: originalRelations,
+  });
 });
 
 describe('DriftingWorkspaceToolRuntime', () => {
@@ -116,6 +127,49 @@ describe('DriftingWorkspaceToolRuntime', () => {
     });
   });
 
+  it('keeps an empty element category visible as a writable directory', async () => {
+    const category: BookElementCategory = {
+      id: 'empty-category',
+      projectId: PROJECT_ID,
+      name: '空分类',
+      contentJson: '{}',
+      elementTemplateJson: '{}',
+      elementTemplateKvJson: '[]',
+      color: '#7386a8',
+      layoutMode: 'auto',
+      gridX: null,
+      gridY: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    useDataStore.setState({ bookElementCategories: [category] });
+    const runtime = createRuntime(fakeReadRuntime());
+
+    const elements = await runtime.execute(request('list_files', { path: '/elements' }));
+    expect(elements).toMatchObject({
+      ok: true,
+      data: {
+        files: [
+          expect.objectContaining({
+            path: '/elements/空分类',
+            name: '空分类',
+            type: 'directory',
+            writable: true,
+            description: expect.stringContaining('/elements/空分类/<element-name>/body.md'),
+          }),
+        ],
+      },
+      modelData: expect.stringContaining('/elements/空分类/'),
+    });
+
+    await expect(
+      runtime.execute(request('list_files', { path: '/elements/空分类' })),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { path: '/elements/空分类', files: [], total: 0, truncated: false },
+    });
+  });
+
   it('turns multiple same-file replacements into one hidden atomic file-edit command', async () => {
     const readRuntime = fakeReadRuntime();
     const runtime = createRuntime(readRuntime);
@@ -185,6 +239,34 @@ describe('DriftingWorkspaceToolRuntime', () => {
     );
   });
 
+  it('prepares whole-file prose replacement directly, including blank files', async () => {
+    const runtime = createRuntime(fakeReadRuntime('1\t'));
+    const prepared = await runtime.prepareWriteRequest(
+      request(
+        'write_file',
+        {
+          path: '/chapters/第一章 雨夜/prose.md',
+          content: '# 新章\n\n第一段。',
+        },
+        'write',
+      ),
+    );
+
+    expect(workspaceCommandFromArguments(prepared.arguments)).toEqual({
+      name: 'edit_prose_file',
+      arguments: {
+        entity: '第一章 雨夜',
+        kind: 'chapter',
+        content: '# 新章\n\n第一段。',
+        expectedRevision: {
+          receiptId: 'read-receipt',
+          observationId: 'prose-observation',
+          revision: 'yjs:7',
+        },
+      },
+    });
+  });
+
   it('resolves a natural chapter ordinal to a numeric chapter directory', async () => {
     const current = useDataStore.getState().bookNodes[0]!;
     if (current.kind !== 'chapter') throw new Error('Expected chapter fixture');
@@ -218,6 +300,93 @@ describe('DriftingWorkspaceToolRuntime', () => {
       error: expect.stringContaining('No virtual file or directory'),
     });
   });
+
+  it('uses an opaque annotative id when refreshing a comment-origin relation', async () => {
+    const commentId = 'comment-origin';
+    const relationId = 'relation-from-comment';
+    const comment: Comment = {
+      id: commentId,
+      projectId: PROJECT_ID,
+      kind: 'todo',
+      targetKind: 'node',
+      targetId: NODE_ID,
+      targetBlockId: null,
+      anchorJson: '{}',
+      authorKind: 'ai',
+      authorId: null,
+      authorName: 'Agent',
+      bodyJson: '{}',
+      status: 'open',
+      priority: null,
+      source: 'api',
+      metadataJson: null,
+      targetBlockIdsJson: '[]',
+      resolvedAt: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    const relation: EntityRelationLink = {
+      id: relationId,
+      projectId: PROJECT_ID,
+      fromKind: 'comment',
+      fromId: commentId,
+      toKind: 'node',
+      toId: NODE_ID,
+      kind: 'supports',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    useDataStore.setState({ comments: [comment], entityRelations: [relation] });
+    const execute = vi.fn(async (input: AgentToolExecutionRequest) => {
+      expect(input).toMatchObject({
+        name: 'get_entity_relations',
+        arguments: { kind: 'comment', name: commentId },
+      });
+      return {
+        ok: true as const,
+        data: {
+          result: {},
+          freshness: {
+            receiptId: 'relation-receipt',
+            observations: [
+              {
+                id: 'relation-observation',
+                entityKind: 'relation',
+                entityId: relationId,
+                revision: relation.updatedAt,
+              },
+            ],
+          },
+        },
+      };
+    });
+    const runtime = createRuntime({ listDefinitions: () => [], execute });
+
+    const prepared = await runtime.prepareWriteRequest(
+      request(
+        'write_file',
+        {
+          path: `/relations/${relationId}.json`,
+          content: JSON.stringify({ kind: 'explains' }),
+        },
+        'write',
+      ),
+    );
+
+    expect(workspaceCommandFromArguments(prepared.arguments)).toEqual({
+      name: 'update_relation_kind',
+      arguments: {
+        relationId,
+        kind: 'explains',
+        expectedRevision: {
+          receiptId: 'relation-receipt',
+          observationId: 'relation-observation',
+          revision: relation.updatedAt,
+        },
+      },
+    });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
 });
 
 function createRuntime(readRuntime: AgentToolRuntime) {
@@ -227,7 +396,9 @@ function createRuntime(readRuntime: AgentToolRuntime) {
   });
 }
 
-function fakeReadRuntime(): AgentToolRuntime & {
+function fakeReadRuntime(
+  prose = '1\t# 雨落旧宅\n2\t她没有回头。',
+): AgentToolRuntime & {
   execute: ReturnType<typeof vi.fn>;
 } {
   const execute = vi.fn(async (input: AgentToolExecutionRequest) => {
@@ -238,7 +409,7 @@ function fakeReadRuntime(): AgentToolRuntime & {
       ok: true as const,
       data: {
         result:
-          'chapter "第一章 雨夜" · draft · 18 words\nsummary: 她在雨夜抵达旧宅。\n\n1\t# 雨落旧宅\n2\t她没有回头。',
+          `chapter "第一章 雨夜" · draft · 18 words\nsummary: 她在雨夜抵达旧宅。\n\n${prose}`,
         freshness: {
           receiptId: 'read-receipt',
           observations: [

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -101,7 +102,10 @@ describe('Drifting product freshness path', () => {
     const renameResult = await fixture.writeRuntime.execute(rename);
     expect(renameResult).toMatchObject({
       ok: true,
-      data: { review: { status: 'pending' } },
+      data: {
+        writeRef: `agent-write:${rename.idempotencyKey}`,
+        authorization: { kind: 'automatic' },
+      },
     });
     expect(fixture.node('node-1').title).toBe('Opening');
     expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
@@ -132,7 +136,10 @@ describe('Drifting product freshness path', () => {
     fixture.seedToolCall(summary);
     expect(await fixture.writeRuntime.execute(summary)).toMatchObject({
       ok: true,
-      data: { review: { status: 'pending' } },
+      data: {
+        writeRef: `agent-write:${summary.idempotencyKey}`,
+        authorization: { kind: 'automatic' },
+      },
     });
     expect(fixture.node('node-1').summary).toBe('A guarded summary.');
     expect(fixture.writeUsecaseCalls).toBe(2);
@@ -182,9 +189,9 @@ describe('Drifting product freshness path', () => {
     ).toBe(2);
     expect(
       fixture.scalar(
-        "SELECT count(*) FROM agent_runtime_write_review WHERE status = 'pending'",
+        'SELECT count(*) FROM agent_runtime_write_review',
       ),
-    ).toBe(2);
+    ).toBe(0);
   });
 
   it('fails closed for stale, cross-project, wrong-entity, missing, and drifted expectations', async () => {
@@ -279,15 +286,17 @@ describe('Drifting product freshness path', () => {
     });
     fixture.seedToolCall(valid);
     expect(await fixture.writeRuntime.execute(valid)).toMatchObject({ ok: true });
+    const changedArguments = {
+      ...valid.arguments,
+      expectedRevision: {
+        ...wrongToken,
+        revision: '2026-07-30T00:00:09.000Z',
+      },
+    };
     const changedExpectation = {
       ...valid,
-      arguments: {
-        ...valid.arguments,
-        expectedRevision: {
-          ...wrongToken,
-          revision: '2026-07-30T00:00:09.000Z',
-        },
-      },
+      arguments: changedArguments,
+      authorization: automaticAuthorization(changedArguments),
     };
     expect(
       await fixture.writeRuntime.execute(changedExpectation),
@@ -342,7 +351,7 @@ describe('Drifting product freshness path', () => {
     expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(0);
   });
 
-  it('uses the forward postimage revision as the exact-inverse SQL CAS guard', async () => {
+  it('keeps a hard-authorized write final without exposing a post-write inverse review', async () => {
     const read = fixture.readRequest('inverse-read', 'read_node', {
       node: 'Chapter One',
       prose: false,
@@ -359,27 +368,18 @@ describe('Drifting product freshness path', () => {
     fixture.seedToolCall(write);
     const written = await fixture.writeRuntime.execute(write);
     if (!written.ok) throw new Error(written.error);
-    const reviewId = (
-      written.data as { review?: { id?: unknown } }
-    ).review?.id;
-    if (typeof reviewId !== 'string') {
-      throw new Error('Certified write did not create its review');
-    }
-
-    fixture.armCasRace();
-    const rejected = await fixture.writeRuntime.rejectReview(reviewId);
-
-    expect(rejected.review).toMatchObject({
-      status: 'revert_failed',
-      errorMessage: expect.stringContaining('changed after Agent observation'),
+    expect(written).toMatchObject({
+      data: {
+        writeRef: `agent-write:${write.idempotencyKey}`,
+        authorization: { kind: 'automatic' },
+      },
     });
-    expect(fixture.writeUsecaseCalls).toBe(2);
+    expect(await fixture.writeRuntime.execute(write)).toEqual(written);
+    expect(fixture.writeUsecaseCalls).toBe(1);
     expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
     expect(
-      fixture.scalar(
-        "SELECT count(*) FROM book_node WHERE id = 'node-1' AND title = 'Concurrent manual title'",
-      ),
-    ).toBe(1);
+      fixture.scalar('SELECT count(*) FROM agent_runtime_write_review'),
+    ).toBe(0);
   });
 });
 
@@ -649,6 +649,7 @@ class ProductFreshnessFixture {
       name,
       arguments: arguments_,
       access: 'write',
+      authorization: automaticAuthorization(arguments_),
       context: runtimeContext(),
       control: unavailableControl(),
       signal: new AbortController().signal,
@@ -884,6 +885,16 @@ function unavailableControl(): AgentToolExecutionRequest['control'] {
     requestUserInput: async () => {
       throw new Error('User input is unavailable in this integration test');
     },
+  };
+}
+
+function automaticAuthorization(arguments_: Record<string, unknown>) {
+  return {
+    kind: 'automatic' as const,
+    requestId: null,
+    argumentsHash: `sha256:${createHash('sha256')
+      .update(canonicalAgentRuntimeJson(arguments_))
+      .digest('hex')}`,
   };
 }
 

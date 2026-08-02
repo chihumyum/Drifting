@@ -70,6 +70,8 @@ import {
 } from '../lib/agent/runtime/long-task-auto-continuation';
 import { generalAgentTransport } from '../lib/agent/transport';
 import { buildGeneralAgentProjectContext } from '../lib/agent/product-project-context';
+import { getAgentUserCheckpointService } from '../services/agent-user-checkpoint.service';
+import { buildProductAgentWritingContext } from '../lib/agent/product-authoring-focus';
 
 const repo = createAgentConversationRepository();
 const longTaskRepo = createAgentRuntimeLongTaskRepository();
@@ -174,6 +176,8 @@ export type AgentChatSendOrigin =
 export interface AgentChatSendOptions {
   /** Omitted calls come from the visible composer and count as author intent. */
   origin?: AgentChatSendOrigin;
+  /** Product-owned model instruction that must never appear in the composer. */
+  runtimePrompt?: string;
 }
 
 /**
@@ -188,6 +192,8 @@ interface RunState {
   messages: ChatMsg[];
   /** Provider-neutral canonical runtime session used for context recovery. */
   runtimeSessionId: string | null;
+  /** User checkpoint that seeds this non-destructive conversation fork. */
+  forkCheckpointId: string | null;
   /** Live/replayed journal entries already folded into this projection. */
   seenJournalEventIds: Record<string, true>;
   controlStatus: AgentControlStatus | null;
@@ -229,8 +235,6 @@ interface AgentChatState {
   send: (options?: AgentChatSendOptions) => Promise<void>;
   /** Re-authorize continuous execution for the current durable task. */
   continueTask: () => Promise<void>;
-  /** Prevent another automatic slice; the current turn, if any, is left alone. */
-  pauseAutomaticContinuation: () => void;
   respondPermission: (decision: 'allow' | 'deny', scope?: AgentPermissionScope) => Promise<void>;
   stopAfterTool: () => Promise<void>;
   cancelRecoveredControl: () => Promise<void>;
@@ -258,6 +262,10 @@ export const selectPendingControl = (s: AgentChatState): AgentPendingControl | n
   s.activeConvId ? (s.runs[s.activeConvId]?.pendingControl ?? null) : null;
 export const selectContextUsage = (s: AgentChatState): AgentContextUsageSnapshot | null =>
   s.activeConvId ? (s.runs[s.activeConvId]?.contextUsage ?? null) : null;
+export const selectRuntimeSessionId = (s: AgentChatState): string | null =>
+  s.activeConvId ? (s.runs[s.activeConvId]?.runtimeSessionId ?? null) : null;
+export const selectForkCheckpointId = (s: AgentChatState): string | null =>
+  s.activeConvId ? (s.runs[s.activeConvId]?.forkCheckpointId ?? null) : null;
 export const selectAutomaticContinuation = (
   s: AgentChatState,
 ): AgentAutomaticContinuationState | null =>
@@ -267,7 +275,9 @@ export const selectAgentTaskContinuationReason = (
   s: AgentChatState,
 ): AgentTaskContinuationReason | null => {
   const run = s.activeConvId ? s.runs[s.activeConvId] : undefined;
-  if (s.starting || s.runningConvId !== null || run?.pendingControl) return null;
+  if (s.starting || s.runningConvId !== null || run?.pendingControl || s.prompt?.trim()) {
+    return null;
+  }
   if (
     run?.automaticContinuation?.status === 'armed' ||
     run?.automaticContinuation?.status === 'evaluating' ||
@@ -289,7 +299,7 @@ export const selectAgentTaskContinuationReason = (
     // decision, while terminal states prove no continuation remains.
     return planStatus === 'none' || planStatus === 'active' ? 'budget_exceeded' : null;
   }
-  if (run.lastTerminal?.outcome === 'completed' && planStatus === 'active') {
+  if (run.lastTerminal && planStatus === 'active') {
     return 'active_plan';
   }
   return null;
@@ -384,6 +394,13 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     // this project (persisted pointer + SQLite transcript), so a reload/restart
     // doesn't drop them into an empty "新对话".
     void (async () => {
+      try {
+        await getAgentUserCheckpointService().recoverIncomplete(projectId);
+      } catch (error) {
+        // Recovery is fail-closed and never blocks read-only chat history. The
+        // durable action remains failed/compensating for the checkpoint UI.
+        console.error('[agent] user-checkpoint recovery failed', error);
+      }
       let rows: AgentConversationSummary[] = [];
       try {
         rows = await repo.listByProject(projectId);
@@ -407,7 +424,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     ensureSubscription();
     const origin = options?.origin ?? 'author';
     const s = get();
-    if (s.starting || !s.prompt.trim() || !s.boundProjectId) return;
+    const submittedPrompt = options?.runtimePrompt ?? s.prompt;
+    if (s.starting || !submittedPrompt.trim() || !s.boundProjectId) return;
     const displayedRun = s.activeConvId ? s.runs[s.activeConvId] : undefined;
     if (displayedRun?.pendingControl?.requiresContinuation) return;
     if (s.runningConvId) {
@@ -415,7 +433,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         return;
       }
       const liveRun = s.runs[s.runningConvId];
-      const text = s.prompt.trim();
+      const text = submittedPrompt.trim();
       const pending = liveRun?.pendingControl;
       if (pending?.requiresContinuation) return;
       const response =
@@ -432,7 +450,11 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
               text,
             });
       if (response.ok) {
-        set((current) => (current.prompt === s.prompt ? { prompt: '' } : current));
+        set((current) =>
+          options?.runtimePrompt === undefined && current.prompt === s.prompt
+            ? { prompt: '' }
+            : current,
+        );
       } else {
         appendRunError(s.runningConvId, response.error);
       }
@@ -447,7 +469,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     set({ starting: true });
     try {
       const projectId = s.boundProjectId;
-      const text = s.prompt.trim();
+      const text = submittedPrompt.trim();
+      const isRuntimeContinuation =
+        origin === 'author_continuation' || origin === 'automatic_continuation';
       // Preserve an explicit cancellable startup boundary even when no product
       // preflight read is needed. New Chat / Load Conversation can invalidate
       // this intent before the stale prompt is appended to either transcript.
@@ -472,9 +496,11 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             projectId,
             title: deriveTitle(text),
             mode: convMode,
-            messages: [{ kind: 'user', text }],
+            messages: isRuntimeContinuation ? [] : [{ kind: 'user', text }],
             sdkSessionId: null,
             runtimeSessionId: null,
+            forkCheckpointId: null,
+            parentConversationId: null,
             createdAt: now,
             updatedAt: now,
           });
@@ -499,8 +525,11 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             : armAgentAutomaticContinuation(previousAutomatic, Date.now());
       const run: RunState = {
         projectId,
-        messages: [...(prevRun?.messages ?? []), { kind: 'user', text }],
+        messages: isRuntimeContinuation
+          ? [...(prevRun?.messages ?? [])]
+          : [...(prevRun?.messages ?? []), { kind: 'user', text }],
         runtimeSessionId: prevRun?.runtimeSessionId ?? null,
+        forkCheckpointId: prevRun?.forkCheckpointId ?? null,
         seenJournalEventIds: prevRun?.seenJournalEventIds ?? {},
         controlStatus: null,
         pendingControl: null,
@@ -518,7 +547,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       set((st) => ({
         runs: { ...st.runs, [cid]: run },
         activeConvId: cid,
-        prompt: '',
+        prompt: options?.runtimePrompt === undefined ? '' : st.prompt,
         runningTurnId: turnId,
         runningConvId: cid,
       }));
@@ -549,6 +578,32 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         discardPreparedTurn();
         return;
       }
+      // Capture the author-visible restore point BEFORE the Agent can execute
+      // any tool for this request. This blocks model startup on the durable
+      // SQLite + Yjs checkpoint instead of racing a post-turn async snapshot.
+      try {
+        await getAgentUserCheckpointService().capture({
+          projectId,
+          conversationId: cid,
+          runtimeSessionId: prevRun?.runtimeSessionId ?? null,
+          sourceTurnId: turnId,
+          label: text.length > 48 ? `${text.slice(0, 48)}…` : text,
+          kind: 'automatic',
+          conversationMessages: prevRun?.messages ?? [],
+          parentCheckpointId: prevRun?.forkCheckpointId ?? null,
+        });
+      } catch (error) {
+        discardPreparedTurn();
+        appendRunError(
+          cid,
+          `无法在执行前创建持久化检查点：${error instanceof Error ? error.message : String(error)}`,
+        );
+        return;
+      }
+      if (!isCurrentStart()) {
+        discardPreparedTurn();
+        return;
+      }
       // Register the provider-neutral boundary. This deliberately seals the
       // legacy whole-turn checkpoint trail instead of collecting these writes:
       // runtime inverses must settle through the canonical durable review ledger.
@@ -572,6 +627,19 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // Active agent memories (author-approved standing guidance) — injected into
       // the system prompt so past preferences/vetoes/directives keep steering.
       const memories = await loadActiveMemoryHints(projectId).catch(() => []);
+      let forkContext: string | null = null;
+      try {
+        forkContext = run.forkCheckpointId
+          ? await getAgentUserCheckpointService().getForkContext(run.forkCheckpointId, projectId)
+          : null;
+      } catch (error) {
+        discardPreparedTurn();
+        appendRunError(
+          cid,
+          `无法读取分叉检查点上下文：${error instanceof Error ? error.message : String(error)}`,
+        );
+        return;
+      }
       if (!isCurrentStart()) {
         discardPreparedTurn();
         return;
@@ -586,13 +654,19 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // that legacy path grew long tasks quadratically and blurred authorship.
       const promptNotes = reverts.length ? [buildRevertNote(reverts)] : [];
       const promptToSend = promptNotes.length ? `${promptNotes.join('\n\n')}\n\n${text}` : text;
+      // Bind deictic author language ("这里" / "选中内容" / "本章") to the
+      // active editor before the model starts. Revert notes are runtime context,
+      // so intent classification must use the author's original text.
+      const writingContext = buildProductAgentWritingContext(projectId, text);
 
       const r = await generalAgentTransport
         .start({
           prompt: promptToSend,
+          promptSource: isRuntimeContinuation ? 'runtime_continuation' : 'author',
           route: { kind: 'chat', projectId, conversationId: cid },
           projectId,
           mode: auth,
+          provider: settings.agentProvider,
           model: settings.agentModel,
           effort: settings.agentEffort,
           thinking: settings.agentThinking,
@@ -604,6 +678,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           ...projectContext,
           writingLanguage,
           memories,
+          writingContext,
+          ...(forkContext ? { checkpointContext: forkContext } : {}),
           turnId,
         })
         .catch((error: unknown) => ({
@@ -662,16 +738,11 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     const state = get();
     const reason = selectAgentTaskContinuationReason(state);
     if (!reason) return;
-    set({
-      prompt:
+    await get().send({
+      origin: 'author_continuation',
+      runtimePrompt:
         reason === 'budget_exceeded' ? BUDGET_CONTINUATION_PROMPT : ACTIVE_PLAN_CONTINUATION_PROMPT,
     });
-    await get().send({ origin: 'author_continuation' });
-  },
-
-  pauseAutomaticContinuation: () => {
-    const convId = get().activeConvId;
-    if (convId) pauseAutomaticContinuationForConversation(convId, 'author_stopped');
   },
 
   respondPermission: async (decision, requestedScope = 'once') => {
@@ -702,8 +773,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
 
   stopAfterTool: async () => {
     const s = get();
+    const convId = s.runningConvId ?? s.activeConvId;
+    if (convId) pauseAutomaticContinuationForConversation(convId, 'author_stopped');
     if (!s.runningTurnId || !s.runningConvId) return;
-    pauseAutomaticContinuationForConversation(s.runningConvId, 'author_stopped');
     const response = await generalAgentTransport.stopAfterTool({
       turnId: s.runningTurnId,
     });
@@ -834,7 +906,20 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             projectId: conv.projectId,
             sessionId: runtimeSessionId,
           });
-          longTaskPlanState = summarizeLongTaskPlanForContinuation(runtimeSessionId, latestPlan);
+          const manifestState = latestPlan
+            ? await longTaskRepo.getChapterManifestState(
+                {
+                  projectId: conv.projectId,
+                  sessionId: runtimeSessionId,
+                },
+                latestPlan.task.id,
+              )
+            : null;
+          longTaskPlanState = summarizeLongTaskPlanForContinuation(
+            runtimeSessionId,
+            latestPlan,
+            manifestState,
+          );
         } catch {
           longTaskPlanState = null;
         }
@@ -847,6 +932,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             projectId: conv.projectId,
             messages,
             runtimeSessionId,
+            forkCheckpointId: conv.forkCheckpointId,
             seenJournalEventIds,
             controlStatus: null,
             pendingControl: null,
@@ -1130,10 +1216,12 @@ function settleAutomaticContinuationAfterPlanRefresh(convId: string, terminalTur
       pauseAutomaticContinuationForConversation(convId, 'author_stopped');
       return;
     }
-    useAgentChatStore.setState({ prompt: ACTIVE_PLAN_CONTINUATION_PROMPT });
     void useAgentChatStore
       .getState()
-      .send({ origin: 'automatic_continuation' })
+      .send({
+        origin: 'automatic_continuation',
+        runtimePrompt: ACTIVE_PLAN_CONTINUATION_PROMPT,
+      })
       .catch(() => pauseAutomaticContinuationForConversation(convId, 'start_failed'));
   }, AUTOMATIC_CONTINUATION_DELAY_MS);
   automaticContinuationTimers.set(convId, timer);
@@ -1151,7 +1239,10 @@ async function refreshLongTaskPlanState(
       projectId,
       sessionId,
     });
-    planState = summarizeLongTaskPlanForContinuation(sessionId, latestPlan);
+    const manifestState = latestPlan
+      ? await longTaskRepo.getChapterManifestState({ projectId, sessionId }, latestPlan.task.id)
+      : null;
+    planState = summarizeLongTaskPlanForContinuation(sessionId, latestPlan, manifestState);
   } catch {
     // Continuation authority is fail-closed when the durable plan cannot be read.
   }

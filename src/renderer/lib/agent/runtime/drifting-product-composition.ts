@@ -1,12 +1,12 @@
+import { and, eq } from 'drizzle-orm';
+
 import type { GeneralAgentAuthStatus } from '../protocol';
 import { isChapter } from '../../../domain/book-node';
-import {
-  getActiveAgentToolContext,
-  type AgentToolContext,
-} from '../tool-handlers';
+import { getActiveAgentToolContext, type AgentToolContext } from '../tool-handlers';
 import { AGENT_TOOL_CATALOG } from '../tool-registry';
 import { createBookContentRepository } from '../../../sqlite-repo/content-repo';
 import { createElementPatchRepository } from '../../../sqlite-repo/element-patch-repo';
+import { createAgentMemoryRepository } from '../../../sqlite-repo/agent-memory-repo';
 import {
   createAgentRuntimeElementPatchReceiptRepository,
   type AgentRuntimeElementPatchReceiptRepository,
@@ -31,9 +31,13 @@ import {
   createAgentRuntimeLongTaskRepository,
   type AgentRuntimeLongTaskRepository,
 } from '../../../sqlite-repo/agent-runtime-long-task-repo';
-import type { DbClient } from '../../../lib/db';
-import { proseDocId } from '../../yjs-doc-id';
-import { useAgentEditStore } from '../../../store/agent-edit-store';
+import {
+  createAgentExtensionRepository,
+  type AgentExtensionRepository,
+} from '../../../sqlite-repo/agent-extension-repo';
+import { getDb, type DbClient } from '../../../lib/db';
+import { BookElementTable, ElementCategoryTable, StorylineTable } from '../../../schema/drizzle';
+import { proseDocId, type ProseEntityType } from '../../yjs-doc-id';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
 import { createDriftingContextCompactor } from './drifting-context-compactor';
@@ -52,10 +56,7 @@ import {
   type DriftingWriteToolRuntime,
 } from './drifting-write-tool-runtime';
 import { DriftingAgentModelDriver } from './drivers';
-import {
-  createLocalGeneralAgentTransport,
-  type RuntimeIdKind,
-} from './local-transport';
+import { createLocalGeneralAgentTransport, type RuntimeIdKind } from './local-transport';
 import { createAgentLongTaskSupplementalRowsHook } from './long-task-context';
 import {
   AGENT_LONG_TASK_CONSTRAINT_TOOL,
@@ -67,18 +68,14 @@ import {
   resolveAgentLongTaskToolAccess,
 } from './long-task-tool-runtime';
 import { createRepositoryAgentTransportPersistence } from './repository-transport-persistence';
-import {
-  identifyExplicitAgentUserConstraints,
-} from './runtime-context-planning';
+import { identifyExplicitAgentUserConstraints } from './runtime-context-planning';
 import type {
   AgentJournalSink,
   AgentModelDriver,
   AgentRuntimeLimits,
   AgentToolRuntime,
 } from './types';
-import {
-  createYjsProseSeedState,
-} from './yjs-prose-command';
+import { createYjsProseSeedState } from './yjs-prose-command';
 import {
   createYjsProsePersistenceCoordinator,
   type YjsProsePersistenceCoordinator,
@@ -86,9 +83,16 @@ import {
 import { loadAgentWriteReviewContextRows } from './write-review-feedback';
 import type { GeneralAgentTransport } from '../transport';
 import { DriftingWorkspaceToolRuntime } from './drifting-workspace-tool-runtime';
+import { assertAgentWritingScope } from './writing-scope-guard';
+import { resolveDriftingAgentContextProfile } from './drifting-agent-product-contract';
+import { resolveAgentProviderContextProfile } from './agent-provider-contract';
+import { loadStorylineMembershipSnapshot } from './domain-crud-revision';
+import { createDurableDynamicPermissionAuthority } from './durable-permission-authority';
+import { AgentExtensionManager } from './agent-extension-manager';
+import { platform } from '../../../platform';
 
 /** Product-level provider window. Planner defaults stay conservative for reuse. */
-export const DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS = 200_000 as const;
+export { DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS } from './drifting-agent-product-contract';
 
 export interface DriftingAgentProductRepositories {
   runtime: AgentRuntimePersistenceRepository;
@@ -97,6 +101,7 @@ export interface DriftingAgentProductRepositories {
   artifacts: AgentRuntimeResultArtifactRepository;
   elementPatchReceipts: AgentRuntimeElementPatchReceiptRepository;
   longTasks: AgentRuntimeLongTaskRepository;
+  extensions: AgentExtensionRepository;
 }
 
 export interface CreateDriftingAgentProductCompositionOptions {
@@ -129,8 +134,17 @@ export interface DriftingAgentProductComposition {
   workspaceTools: DriftingWorkspaceToolRuntime;
   longTaskTools: AgentLongTaskToolRuntime;
   dynamicTools: DynamicAgentToolRegistry;
+  extensionManager: AgentExtensionManager;
   repositories: DriftingAgentProductRepositories;
   proseCoordinator: YjsProsePersistenceCoordinator;
+}
+
+/**
+ * Canonical access classifier for every installed built-in definition.
+ * Dynamic tools remain project/generation-bound and are resolved separately.
+ */
+export function resolveDriftingBuiltInToolAccess(name: string): 'read' | 'write' | undefined {
+  return resolveDriftingCertifiedToolAccess(name) ?? resolveAgentLongTaskToolAccess(name);
 }
 
 /**
@@ -143,31 +157,66 @@ export interface DriftingAgentProductComposition {
 export function createDriftingAgentProductComposition(
   options: CreateDriftingAgentProductCompositionOptions = {},
 ): DriftingAgentProductComposition {
+  const driver = options.driver ?? new DriftingAgentModelDriver();
+  const contextProfile = resolveDriftingAgentContextProfile({
+    ...(driver.capabilities?.context ? { declared: driver.capabilities.context } : {}),
+    ...(options.contextWindowTokens !== undefined
+      ? { requestedContextWindowTokens: options.contextWindowTokens }
+      : {}),
+  });
   const getContext = options.getContext ?? getActiveAgentToolContext;
   const repositories: DriftingAgentProductRepositories = {
     runtime: createAgentRuntimePersistenceRepository(options.database),
     writeEffects: createAgentRuntimeWriteEffectRepository(options.database),
     freshness: createAgentRuntimeFreshnessRepository(options.database),
     artifacts: createAgentRuntimeResultArtifactRepository(options.database),
-    elementPatchReceipts:
-      createAgentRuntimeElementPatchReceiptRepository(options.database),
+    elementPatchReceipts: createAgentRuntimeElementPatchReceiptRepository(options.database),
     longTasks: createAgentRuntimeLongTaskRepository(options.database),
+    extensions: createAgentExtensionRepository(options.database),
   };
   const contentRepository = createBookContentRepository(options.database);
-  const elementPatchRepository =
-    createElementPatchRepository(options.database);
+  const elementPatchRepository = createElementPatchRepository(options.database);
   const proseCoordinator = createYjsProsePersistenceCoordinator({
     ...(options.database ? { database: options.database } : {}),
   });
-  const readProseBase = async (nodeId: string) => {
-    const content = await contentRepository.findByNodeId(nodeId);
-    const seedStateUpdate = await createYjsProseSeedState(
-      content?.contentJson ?? '{}',
-    );
-    const base = await proseCoordinator.readBase(
-      proseDocId('node', nodeId),
-      seedStateUpdate,
-    );
+  const readProseBase = async (entityId: string, entityType: ProseEntityType = 'node') => {
+    const projectId = getContext()?.projectId;
+    if (!projectId) throw new Error('Drifting prose context is not mounted');
+    let contentJson = '{}';
+    if (entityType === 'node') {
+      contentJson = (await contentRepository.findByNodeId(entityId))?.contentJson ?? '{}';
+    } else {
+      const database = options.database ?? getDb();
+      if (entityType === 'element') {
+        const rows = await database
+          .select({ contentJson: BookElementTable.contentJson })
+          .from(BookElementTable)
+          .where(and(eq(BookElementTable.id, entityId), eq(BookElementTable.projectId, projectId)))
+          .limit(1);
+        contentJson = rows[0]?.contentJson ?? '{}';
+      } else if (entityType === 'storyline') {
+        const rows = await database
+          .select({ contentJson: StorylineTable.contentJson })
+          .from(StorylineTable)
+          .where(and(eq(StorylineTable.id, entityId), eq(StorylineTable.projectId, projectId)))
+          .limit(1);
+        contentJson = rows[0]?.contentJson ?? '{}';
+      } else {
+        const rows = await database
+          .select({ contentJson: ElementCategoryTable.contentJson })
+          .from(ElementCategoryTable)
+          .where(
+            and(
+              eq(ElementCategoryTable.id, entityId),
+              eq(ElementCategoryTable.projectId, projectId),
+            ),
+          )
+          .limit(1);
+        contentJson = rows[0]?.contentJson ?? '{}';
+      }
+    }
+    const seedStateUpdate = await createYjsProseSeedState(contentJson);
+    const base = await proseCoordinator.readBase(proseDocId(entityType, entityId), seedStateUpdate);
     return {
       revision: base.revision,
       stateVector: new Uint8Array(base.stateVector),
@@ -182,8 +231,11 @@ export function createDriftingAgentProductComposition(
       ? { resultBudgetCharsCap: options.readResultBudgetCharsCap }
       : {}),
     readProseBase,
-    readElementPatches: (elementId) =>
-      elementPatchRepository.listByElement(elementId),
+    readElementPatches: (elementId) => elementPatchRepository.listByElement(elementId),
+    readMemories: (projectId) => createAgentMemoryRepository(projectId, options.database).findAll(),
+    readStorylineMembershipRevision: async (projectId, storylineId) =>
+      (await loadStorylineMembershipSnapshot(options.database ?? getDb(), projectId, storylineId))
+        .updatedAt,
   });
   const workspaceTools = new DriftingWorkspaceToolRuntime({
     readRuntime: readTools,
@@ -195,38 +247,22 @@ export function createDriftingAgentProductComposition(
     freshness: repositories.freshness,
     getContext,
     readRuntime: readTools,
-    prepareRequest: (request) => workspaceTools.prepareEditRequest(request),
+    prepareRequest: async (request) => {
+      const prepared = await workspaceTools.prepareWriteRequest(request);
+      assertAgentWritingScope(prepared);
+      return prepared;
+    },
     proseCoordinator,
     readNodeContent: async (nodeId) =>
       (await contentRepository.findByNodeId(nodeId))?.contentJson ?? null,
     ...(options.database ? { elementPatchDb: options.database } : {}),
     elementPatchReceipts: repositories.elementPatchReceipts,
-    autoAcceptReview: (effect) => {
-      const batch =
-        useAgentEditStore.getState().reviewBatches[
-          `agent-review:${effect.id}`
-        ];
-      if (
-        batch &&
-          batch.changes.length > 0 &&
-        batch.changes.every((change) => change.mode === 'auto')
-      ) {
-        return true;
-      }
-      // Project facts and Agent-created comments have no entity-editor batch.
-      // Their write strategy still freezes review mode in the durable command,
-      // so auto mode must settle from that snapshot rather than leaving an
-      // invisible pending review forever.
-      return frozenEffectReviewMode(effect.forward) === 'auto';
-    },
   });
   const longTaskTools = new AgentLongTaskToolRuntime({
     repository: repositories.longTasks,
     resolveTarget: resolveDriftingLongTaskTarget,
-    getWholeBookChapterManifest:
-      snapshotDriftingWholeBookChapterManifest,
-    resolveCurrentChapterName:
-      resolveDriftingCurrentChapterName,
+    getWholeBookChapterManifest: snapshotDriftingWholeBookChapterManifest,
+    resolveCurrentChapterName: resolveDriftingCurrentChapterName,
   });
   const dynamicTools =
     options.dynamicTools ??
@@ -243,29 +279,42 @@ export function createDriftingAgentProductComposition(
     [workspaceTools, tools, longTaskTools],
     dynamicTools,
   );
-  const longTaskSupplementalRows =
-    createAgentLongTaskSupplementalRowsHook(repositories.longTasks, {
-      resolveCurrentChapterName:
-        resolveDriftingCurrentChapterName,
-    });
+  const extensionManager = new AgentExtensionManager({
+    repository: repositories.extensions,
+    registry: dynamicTools,
+    stdioPlatform: platform.mcpStdio,
+    httpPlatform: platform.mcpHttp,
+    readSecret: (keychainId) => platform.keychain.get(keychainId),
+  });
+  const longTaskSupplementalRows = createAgentLongTaskSupplementalRowsHook(repositories.longTasks, {
+    resolveCurrentChapterName: resolveDriftingCurrentChapterName,
+  });
   const transport = createLocalGeneralAgentTransport({
-    driver: options.driver ?? new DriftingAgentModelDriver(),
+    driver,
     tools: toolRuntime,
     toolSelector: createDriftingWorkspaceToolSelectionStrategy(),
     permissionPolicy: createDynamicAwareAgentPermissionPolicy(
-      createAgentLongTaskAwarePermissionPolicy(
-        createDriftingAgentPermissionPolicy(),
-      ),
+      createAgentLongTaskAwarePermissionPolicy(createDriftingAgentPermissionPolicy()),
       dynamicTools,
+      createDurableDynamicPermissionAuthority(repositories.extensions),
     ),
     contextPlanning: {
-      contextWindowTokens:
-        options.contextWindowTokens ?? DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS,
+      contextWindowTokens: contextProfile.contextWindowTokens,
+      providerProfileId: contextProfile.id,
+      providerMaxOutputTokens: contextProfile.maxOutputTokens,
+      providerOverheadTokens: contextProfile.providerOverheadTokens,
+      perToolOverheadTokens: contextProfile.perToolOverheadTokens,
+      resolveProviderProfile: (input) =>
+        resolveDriftingAgentContextProfile({
+          declared: resolveAgentProviderContextProfile(input.provider, input.model),
+          ...(options.contextWindowTokens !== undefined
+            ? { requestedContextWindowTokens: options.contextWindowTokens }
+            : {}),
+        }),
       compactionTimeoutMs: 60_000,
       fullCompactor: createDriftingContextCompactor(),
       userConstraintPolicy: identifyExplicitAgentUserConstraints,
-      deterministicSummaries:
-        createDurableAgentContextSummaryHook(repositories.runtime),
+      deterministicSummaries: createDurableAgentContextSummaryHook(repositories.runtime),
       supplementalRows: async (input) => {
         // The Tauri sqlite proxy owns one transaction lane. Keep independent
         // context reads sequential so neither can escape another repository's
@@ -285,9 +334,7 @@ export function createDriftingAgentProductComposition(
       beforeResumeSession: (sessionId, signal) =>
         tools.reconcileInterruptedWrites(sessionId, signal),
       resolveToolAccess: (name, projectId) =>
-        resolveDriftingCertifiedToolAccess(name) ??
-        resolveAgentLongTaskToolAccess(name) ??
-        dynamicTools.resolveAccess(name, projectId),
+        resolveDriftingBuiltInToolAccess(name) ?? dynamicTools.resolveAccess(name, projectId),
     }),
     ...(options.journal ? { journal: options.journal } : {}),
     ...(options.limits ? { limits: options.limits } : {}),
@@ -302,6 +349,7 @@ export function createDriftingAgentProductComposition(
     workspaceTools,
     longTaskTools,
     dynamicTools,
+    extensionManager,
     repositories,
     proseCoordinator,
   };
@@ -327,18 +375,14 @@ function resolveUniqueNamedId(
  * renderer persistence; provider-facing task projections expose ordinal and
  * title, never this internal identity.
  */
-export function snapshotDriftingWholeBookChapterManifest(input: {
-  projectId: string;
-}) {
+export function snapshotDriftingWholeBookChapterManifest(input: { projectId: string }) {
   return useDataStore
     .getState()
     .bookNodes.filter(isChapter)
     .filter((node) => node.projectId === input.projectId)
     .slice()
     .sort(
-      (left, right) =>
-        left.bookOrder - right.bookOrder ||
-        left.id.localeCompare(right.id, 'en'),
+      (left, right) => left.bookOrder - right.bookOrder || left.id.localeCompare(right.id, 'en'),
     )
     .map((chapter, ordinal) => ({
       ordinal,
@@ -369,28 +413,17 @@ export function resolveDriftingCurrentChapterName(input: {
  */
 export function resolveDriftingLongTaskTarget(input: {
   projectId: string;
-  kind:
-    | 'book'
-    | 'project'
-    | 'chapter'
-    | 'drift'
-    | 'element'
-    | 'storyline'
-    | 'other';
+  kind: 'book' | 'project' | 'chapter' | 'drift' | 'element' | 'storyline' | 'category' | 'other';
   name: string;
 }): string | null {
   if (input.kind === 'other') return null;
   if (input.kind === 'book' || input.kind === 'project') {
     const projectState = useProjectStore.getState();
     const projects = [
-      ...(projectState.currentProject
-        ? [projectState.currentProject]
-        : []),
+      ...(projectState.currentProject ? [projectState.currentProject] : []),
       ...projectState.projects,
     ].filter(
-      (project, index, all) =>
-        all.findIndex((candidate) => candidate.id === project.id) ===
-        index,
+      (project, index, all) => all.findIndex((candidate) => candidate.id === project.id) === index,
     );
     return resolveUniqueNamedId(
       projects
@@ -404,11 +437,7 @@ export function resolveDriftingLongTaskTarget(input: {
   if (input.kind === 'chapter' || input.kind === 'drift') {
     return resolveUniqueNamedId(
       state.bookNodes
-        .filter(
-          (node) =>
-            node.projectId === input.projectId &&
-            node.kind === input.kind,
-        )
+        .filter((node) => node.projectId === input.projectId && node.kind === input.kind)
         .map((node) => ({ id: node.id, names: [node.title] })),
       input.name,
     );
@@ -424,6 +453,14 @@ export function resolveDriftingLongTaskTarget(input: {
       input.name,
     );
   }
+  if (input.kind === 'category') {
+    return resolveUniqueNamedId(
+      state.bookElementCategories
+        .filter((category) => category.projectId === input.projectId)
+        .map((category) => ({ id: category.id, names: [category.name] })),
+      input.name,
+    );
+  }
   return resolveUniqueNamedId(
     state.storylines
       .filter((storyline) => storyline.projectId === input.projectId)
@@ -433,24 +470,4 @@ export function resolveDriftingLongTaskTarget(input: {
       })),
     input.name,
   );
-}
-
-function frozenEffectReviewMode(
-  value: unknown,
-): 'auto' | 'approve' | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return null;
-  }
-  const reviewSnapshot = (
-    value as { reviewSnapshot?: unknown }
-  ).reviewSnapshot;
-  if (
-    !reviewSnapshot ||
-    typeof reviewSnapshot !== 'object' ||
-    Array.isArray(reviewSnapshot)
-  ) {
-    return null;
-  }
-  const mode = (reviewSnapshot as { mode?: unknown }).mode;
-  return mode === 'auto' || mode === 'approve' ? mode : null;
 }

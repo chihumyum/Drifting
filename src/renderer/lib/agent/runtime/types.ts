@@ -15,9 +15,11 @@ import type {
   AgentPermissionRequest,
   AgentPermissionResolutionInput,
   AgentPermissionScope,
+  AgentPromptSource,
   AgentUserInputRequest,
 } from '../protocol';
 import type { AgentRuntimeControlChannel } from './control-plane';
+import type { AgentWritingTurnContext } from './writing-intelligence';
 
 export const AGENT_RUNTIME_SCHEMA_VERSION = 1 as const;
 export const AGENT_RUNTIME_TOOL_SEARCH_LIMIT = 8 as const;
@@ -199,6 +201,8 @@ export interface AgentModelRequest {
   sessionId: string;
   turnId: string;
   iteration: number;
+  /** Product-captured route; adapters must not reread mutable UI state. */
+  provider?: string;
   model?: string;
   reasoning?: AgentReasoningOptions;
   /**
@@ -210,6 +214,23 @@ export interface AgentModelRequest {
   tools: AgentModelToolDefinition[];
   maxOutputTokens: number;
   signal: AbortSignal;
+}
+
+/**
+ * The provider/model input contract used by context planning.
+ *
+ * This is deliberately declared by the installed driver instead of inferred
+ * from a model-name string. A gateway can expose the same model name with a
+ * different window or framing cost, and silently assuming the larger value
+ * would make the planner's otherwise strict checkpoint meaningless.
+ */
+export interface AgentModelContextProfile {
+  /** Stable identity; changing any budget field requires a new id. */
+  id: string;
+  contextWindowTokens: number;
+  maxOutputTokens: number;
+  providerOverheadTokens: number;
+  perToolOverheadTokens: number;
 }
 
 export type AgentModelStopReason =
@@ -233,6 +254,8 @@ export interface AgentModelDriver {
   readonly capabilities?: {
     /** False when this adapter cannot safely round-trip provider reasoning state. */
     reasoning?: boolean;
+    /** Exact provider/model budget contract, when the driver can certify it. */
+    context?: AgentModelContextProfile;
   };
   stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent>;
 }
@@ -244,6 +267,8 @@ export type AgentRuntimeRoute =
 
 export interface AgentRuntimeContext {
   route: AgentRuntimeRoute;
+  /** Immutable product-derived authoring scope for this turn. */
+  writing?: AgentWritingTurnContext;
 }
 
 export interface AgentToolExecutionRequest {
@@ -255,6 +280,12 @@ export interface AgentToolExecutionRequest {
   name: string;
   arguments: Record<string, unknown>;
   access: AgentToolDefinition['access'];
+  /**
+   * Decision emitted by the central permission gate before the tool runtime is
+   * allowed to observe this request. Certified writes require it and persist
+   * its public-argument hash with their canonical effect.
+   */
+  authorization?: AgentToolExecutionAuthorization;
   /** Exact local definition generation selected before validation/approval. */
   definitionRevision?: string;
   context: AgentRuntimeContext;
@@ -266,6 +297,12 @@ export interface AgentToolExecutionRequest {
      */
     requestUserInput(input: { requestId?: string; prompt: string }): Promise<string>;
   };
+}
+
+export interface AgentToolExecutionAuthorization {
+  kind: 'automatic' | 'author_approved';
+  requestId: string | null;
+  argumentsHash: string;
 }
 
 export interface AgentToolExecutionPresentation {
@@ -290,11 +327,12 @@ export type AgentToolExecutionResult =
 export interface AgentToolSelectionLongTaskHint {
   status: 'active' | 'paused' | 'blocked' | 'completed' | 'failed';
   scopeKind: 'explicit_targets' | 'whole_book_chapters';
+  workKind?: 'edit' | 'review';
   objective: string;
   /** Provider-safe first in-progress/pending/blocked unit used for tool recall. */
   nextStep?: {
     title: string;
-    status: 'pending' | 'in_progress' | 'blocked' | 'completed' | 'failed';
+    status: 'pending' | 'in_progress' | 'blocked' | 'completed' | 'failed' | 'retired';
     target: { kind: string; name: string } | null;
   };
 }
@@ -327,6 +365,12 @@ export interface AgentToolSelectionHintRequest {
 export interface AgentToolRuntime {
   listDefinitions(context: AgentRuntimeContext): readonly AgentToolDefinition[];
   /**
+   * Resolve only executable legacy dispatcher aliases to the canonical model
+   * tool name. Human/search aliases must never be accepted here. Returning no
+   * value keeps the original name so unknown tools still fail closed.
+   */
+  resolveCanonicalName?(name: string, context: AgentRuntimeContext): string | undefined;
+  /**
    * Load durable facts required before provider-facing tool selection. The
    * runtime reloads these hints for every searched model iteration so a plan
    * mutated by the preceding tool batch is observed immediately.
@@ -349,6 +393,8 @@ export type AgentToolPermissionPolicyDecision =
   | {
       decision: 'allow';
       scope?: AgentPermissionScope;
+      /** Durable authority row that satisfied this exact request. */
+      grantId?: string;
     }
   | {
       decision: 'ask';
@@ -369,6 +415,14 @@ export interface AgentToolPermissionPolicy {
   decide(
     request: AgentToolPermissionPolicyRequest,
   ): AgentToolPermissionPolicyDecision | Promise<AgentToolPermissionPolicyDecision>;
+  /** Persist a broader author choice before the dispatcher can observe it. */
+  recordResolution?(
+    request: AgentToolPermissionPolicyRequest,
+    resolution: AgentPermissionResolutionInput,
+  ):
+    | void
+    | { authorityId: string }
+    | Promise<void | { authorityId: string }>;
 }
 
 export type AgentRuntimeToolSearchMode = 'off' | 'auto' | 'on';
@@ -408,6 +462,13 @@ export interface AgentToolSelectionRequest {
    * resultRef; this becomes false after every pending resultRef is complete.
    */
   pendingResultPage: boolean;
+  /**
+   * Canonical installed tools whose immediately preceding call could not be
+   * validated or was omitted from the searched schema. Selectors may use this
+   * as context, while AgentRuntime itself guarantees a one-iteration repair
+   * lease by forcing these definitions into the provider-facing surface.
+   */
+  repairToolNames: readonly string[];
   /** Hard provider-facing cap; selectors must never return more names. */
   limit: number;
 }
@@ -467,7 +528,7 @@ export type AgentRuntimeFailureCode =
   | 'INTERNAL_ERROR';
 
 export const AGENT_RUNTIME_DURABLE_COMMIT_FAILURE_MESSAGE =
-  'The Agent turn finished execution but could not be durably committed. Its completed context was not adopted.';
+  "The Agent turn's completed conversation context could not be durably adopted. Any manuscript writes that committed are tracked independently and will be reconciled on reload.";
 export const AGENT_RUNTIME_INTERRUPTED_RECOVERY_MESSAGE =
   'The Agent execution was interrupted before a terminal result was durably recorded.';
 
@@ -475,7 +536,7 @@ export type AgentToolResultSource = 'executor' | 'runtime';
 export type AgentRuntimeOutcome = 'completed' | 'failed' | 'aborted' | 'budget_exceeded';
 
 export type AgentRuntimeEvent =
-  | { type: 'turn_started'; prompt: string }
+  | { type: 'turn_started'; prompt: string; promptSource?: AgentPromptSource }
   | { type: 'model_iteration_started'; iteration: number; driverId: string }
   | {
       type: 'context_planned';
@@ -648,7 +709,10 @@ export interface AgentRuntimeRunInput {
   sessionId: string;
   turnId: string;
   route: AgentRuntimeRoute;
+  writingContext?: AgentWritingTurnContext;
   prompt: string;
+  promptSource?: AgentPromptSource;
+  provider?: string;
   model?: string;
   systemPrompt?: string;
   reasoning?: AgentReasoningOptions;

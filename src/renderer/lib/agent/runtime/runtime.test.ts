@@ -180,6 +180,13 @@ describe('AgentRuntime', () => {
     await approved;
 
     expect(execute).toHaveBeenCalledOnce();
+    expect(execute.mock.calls[0]?.[0]).toMatchObject({
+      authorization: {
+        kind: 'author_approved',
+        requestId: requested.request.requestId,
+        argumentsHash: requested.request.argumentsHash,
+      },
+    });
     expect(result.state.status).toBe('completed');
     expect(result.entries.map((entry) => entry.event.type)).toEqual(
       expect.arrayContaining([
@@ -196,6 +203,127 @@ describe('AgentRuntime', () => {
     );
     expect(replayAgentRuntimeJournal(result.entries)).toEqual(result.state);
     clock.assertIdle();
+  });
+
+  it('persists a durable permission choice before dispatch and binds execution to its authority id', async () => {
+    const order: string[] = [];
+    const entries: AgentRuntimeJournalEntry[] = [];
+    const execute = vi.fn<AgentToolRuntime['execute']>(async (request) => {
+      order.push('execute');
+      expect(request.authorization).toMatchObject({
+        kind: 'author_approved',
+        requestId: 'grant-session-1',
+      });
+      return { ok: true, data: 'read' };
+    });
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            ...toolCallSteps('external-1', 'external_read', ['{"query":"rain"}']),
+            { op: 'emit', event: { type: 'usage', usage: usage(2, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: 'done' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(2, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const control = new AgentRuntimeControlChannel('session-1', 'turn-1');
+    const runtime = new AgentRuntime({
+      driver,
+      tools: toolRuntime([definition('external_read', 'read')], execute),
+      permissionPolicy: {
+        decide: () => ({
+          decision: 'ask',
+          reason: 'external authority',
+          allowedScopes: ['once', 'session', 'project'],
+        }),
+        recordResolution: async (_request, resolution) => {
+          order.push('persist');
+          expect(resolution.scope).toBe('session');
+          return { authorityId: 'grant-session-1' };
+        },
+      },
+    });
+    const turn = runtime.runTurn(input({ control, onEntry: (entry) => entries.push(entry) }));
+    await waitUntil(
+      () => entries.some((entry) => entry.event.type === 'permission_requested'),
+      'durable permission was not requested',
+    );
+    const event = entries.find((entry) => entry.event.type === 'permission_requested')?.event;
+    if (!event || event.type !== 'permission_requested') throw new Error('missing permission');
+    expect(event.request.allowedScopes).toEqual(['once', 'session', 'project']);
+    const resolution = control.resolvePermission({
+      requestId: event.request.requestId,
+      sessionId: event.request.sessionId,
+      turnId: event.request.turnId,
+      callId: event.request.callId,
+      argumentsHash: event.request.argumentsHash,
+      revision: event.request.revision,
+      decision: 'allow',
+      scope: 'session',
+    });
+    const result = await turn;
+    await resolution;
+
+    expect(result.state.status).toBe('completed');
+    expect(order).toEqual(['persist', 'execute']);
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it('does not dispatch when durable permission persistence fails', async () => {
+    const entries: AgentRuntimeJournalEntry[] = [];
+    const execute = vi.fn<AgentToolRuntime['execute']>();
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            ...toolCallSteps('external-fail', 'external_write', ['{}']),
+            { op: 'emit', event: { type: 'usage', usage: usage(2, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+      ],
+    });
+    const control = new AgentRuntimeControlChannel('session-1', 'turn-1');
+    const turn = new AgentRuntime({
+      driver,
+      tools: toolRuntime([definition('external_write', 'write')], execute),
+      permissionPolicy: {
+        decide: () => ({ decision: 'ask', allowedScopes: ['project'] }),
+        recordResolution: async () => {
+          throw new Error('injected authority failure');
+        },
+      },
+    }).runTurn(input({ control, onEntry: (entry) => entries.push(entry) }));
+    await waitUntil(
+      () => entries.some((entry) => entry.event.type === 'permission_requested'),
+      'permission was not requested',
+    );
+    const event = entries.find((entry) => entry.event.type === 'permission_requested')?.event;
+    if (!event || event.type !== 'permission_requested') throw new Error('missing permission');
+    const resolution = control.resolvePermission({
+      requestId: event.request.requestId,
+      sessionId: event.request.sessionId,
+      turnId: event.request.turnId,
+      callId: event.request.callId,
+      argumentsHash: event.request.argumentsHash,
+      revision: event.request.revision,
+      decision: 'allow',
+      scope: 'project',
+    });
+    const result = await turn;
+    await expect(resolution).resolves.toBeUndefined();
+
+    expect(result.state.status).toBe('failed');
+    expect(execute).not.toHaveBeenCalled();
+    expect(entries.some((entry) => entry.event.type === 'tool_execution_started')).toBe(false);
   });
 
   it('feeds a policy denial back to the model without dispatching the tool', async () => {
@@ -512,6 +640,14 @@ describe('AgentRuntime', () => {
       type: 'tool_call_ready',
       arguments: { query: 'Alice', limit: 2 },
     });
+    const argumentEvents = result.entries.filter(
+      (entry) => entry.event.type === 'tool_args_delta',
+    );
+    expect(argumentEvents).toHaveLength(1);
+    expect(argumentEvents[0]?.event).toMatchObject({
+      type: 'tool_args_delta',
+      delta: '{"query":"Alice","limit":"2"}',
+    });
     const types = result.entries.map((entry) => entry.event.type);
     expect(types.indexOf('tool_call_ready')).toBeLessThan(
       types.indexOf('model_iteration_completed'),
@@ -521,6 +657,86 @@ describe('AgentRuntime', () => {
     );
     driver.assertExhausted();
     clock.assertIdle();
+  });
+
+  it('assembles character-streamed arguments for interleaved parallel tool calls', async () => {
+    const aJson = JSON.stringify({ path: '/chapters/一/prose.md' });
+    const bJson = JSON.stringify({ path: '/chapters/二/prose.md' });
+    const interleaved: ScriptedDriverStep[] = [
+      { op: 'emit', event: { type: 'tool_call_start', callId: 'a', name: 'read_a' } },
+      { op: 'emit', event: { type: 'tool_call_start', callId: 'b', name: 'read_b' } },
+    ];
+    for (let index = 0; index < Math.max(aJson.length, bJson.length); index += 1) {
+      if (aJson[index]) {
+        interleaved.push({
+          op: 'emit',
+          event: { type: 'tool_args_delta', callId: 'a', delta: aJson[index]! },
+        });
+      }
+      if (bJson[index]) {
+        interleaved.push({
+          op: 'emit',
+          event: { type: 'tool_args_delta', callId: 'b', delta: bJson[index]! },
+        });
+      }
+    }
+    interleaved.push(
+      { op: 'emit', event: { type: 'tool_call_end', callId: 'b' } },
+      { op: 'emit', event: { type: 'tool_call_end', callId: 'a' } },
+    );
+    const execute = vi.fn<AgentToolRuntime['execute']>(async (request) => ({
+      ok: true,
+      data: request.arguments.path,
+    }));
+    const validate: AgentToolDefinition['validateInput'] = (value) =>
+      typeof value.path === 'string'
+        ? { ok: true, value }
+        : { ok: false, error: 'path is required' };
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            ...interleaved,
+            { op: 'emit', event: { type: 'usage', usage: usage(20, 4) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: 'done' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(10, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+
+    const result = await new AgentRuntime({
+      driver,
+      tools: toolRuntime(
+        [definition('read_a', 'read', validate), definition('read_b', 'read', validate)],
+        execute,
+      ),
+    }).runTurn(input());
+
+    expect(result.state.status).toBe('completed');
+    expect(execute.mock.calls.map(([request]) => [request.name, request.arguments])).toEqual([
+      ['read_a', { path: '/chapters/一/prose.md' }],
+      ['read_b', { path: '/chapters/二/prose.md' }],
+    ]);
+    expect(
+      result.entries
+        .filter((entry) => entry.event.type === 'tool_args_delta')
+        .map((entry) =>
+          entry.event.type === 'tool_args_delta'
+            ? [entry.event.callId, entry.event.delta]
+            : null,
+        ),
+    ).toEqual([
+      ['b', bJson],
+      ['a', aJson],
+    ]);
+    driver.assertExhausted();
   });
 
   it('gives a tool-free direct answer the full output budget', async () => {
@@ -1073,6 +1289,64 @@ describe('AgentRuntime', () => {
     ).toEqual(['STOP_AFTER_TOOL', 'STOP_AFTER_TOOL']);
   });
 
+  it('applies author steering exactly once at the next model boundary', async () => {
+    const steeringText = '保留已经完成的修改，但把后续章节的语气改得更克制。';
+    const driver = new ScriptedFakeDriver({
+      rounds: [
+        {
+          steps: [
+            { op: 'wait', gate: 'steer-now' },
+            { op: 'emit', event: { type: 'usage', usage: usage(3, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+        {
+          expectRequest: (request) => {
+            expect(
+              request.messages.filter(
+                (message) =>
+                  message.role === 'user' && message.content === steeringText,
+              ),
+            ).toHaveLength(1);
+            expect(request.messages[request.messages.length - 1]).toEqual({
+              role: 'user',
+              content: steeringText,
+            });
+          },
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: '已按新要求继续。' } },
+            { op: 'emit', event: { type: 'usage', usage: usage(4, 2) } },
+            { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
+          ],
+        },
+      ],
+    });
+    const control = new AgentRuntimeControlChannel('session-1', 'turn-1');
+    const turn = new AgentRuntime({
+      driver,
+      tools: toolRuntime([], async () => ({ ok: true, data: null })),
+    }).runTurn(input({ control }));
+
+    await driver.waitUntilGate('steer-now');
+    await control.steer({ turnId: 'turn-1', text: steeringText });
+    driver.release('steer-now');
+    const result = await turn;
+
+    expect(result.state.status).toBe('completed');
+    expect(result.state.pendingSteering).toEqual([]);
+    expect(
+      result.entries.filter(
+        (entry) => entry.event.type === 'steering_received',
+      ),
+    ).toHaveLength(1);
+    expect(
+      result.entries.filter(
+        (entry) => entry.event.type === 'steering_applied',
+      ),
+    ).toHaveLength(1);
+    driver.assertExhausted();
+  });
+
   it('serializes writes across concurrent runtime instances', async () => {
     const clock = new ManualAgentClock();
     let releaseFirstWrite: () => void = () => undefined;
@@ -1607,6 +1881,9 @@ describe('AgentRuntime', () => {
       const result = await runtime.runTurn(input({ turnId: `turn-${seed}` }));
       expect(received).toEqual(JSON.parse(raw));
       expect(result.state.status).toBe('completed');
+      expect(
+        result.entries.filter((entry) => entry.event.type === 'tool_args_delta'),
+      ).toHaveLength(1);
       expect(replayAgentRuntimeJournal(result.entries)).toEqual(result.state);
       driver.assertExhausted();
       clock.assertIdle();

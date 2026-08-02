@@ -1,4 +1,5 @@
 import type {
+  AgentRuntimeTaskChapterManifestState,
   AgentRuntimeTaskPlan,
   AgentRuntimeTaskScopeKind,
   AgentRuntimeTaskStatus,
@@ -59,6 +60,8 @@ export interface AgentLongTaskPlanContinuationState {
   scopeKind: AgentRuntimeTaskScopeKind | null;
   runnableStepCount: number;
   waitingReviewStepCount: number;
+  manifestStatus: AgentRuntimeTaskChapterManifestState['status'] | 'unknown';
+  needsManifestReconciliation: boolean;
   needsFinalization: boolean;
   /** Stable, renderer-local progress identity; never sent to a provider. */
   progressFingerprint: string;
@@ -167,6 +170,7 @@ export function observeAgentAutomaticContinuationProgress(
 export function summarizeLongTaskPlanForContinuation(
   sessionId: string,
   plan: AgentRuntimeTaskPlan | null,
+  manifestState: AgentRuntimeTaskChapterManifestState | null = null,
 ): AgentLongTaskPlanContinuationState {
   if (!plan) {
     return {
@@ -177,10 +181,17 @@ export function summarizeLongTaskPlanForContinuation(
       scopeKind: null,
       runnableStepCount: 0,
       waitingReviewStepCount: 0,
+      manifestStatus: 'not_applicable',
+      needsManifestReconciliation: false,
       needsFinalization: false,
       progressFingerprint: JSON.stringify({ sessionId, task: null }),
     };
   }
+
+  const manifestStatus =
+    manifestState?.status ??
+    (plan.task.scopeKind === 'explicit_targets' ? 'not_applicable' : 'unknown');
+  const needsManifestReconciliation = manifestStatus === 'drifted';
 
   let runnableStepCount = 0;
   let waitingReviewStepCount = 0;
@@ -208,12 +219,28 @@ export function summarizeLongTaskPlanForContinuation(
     scopeKind: plan.task.scopeKind,
     runnableStepCount,
     waitingReviewStepCount,
+    manifestStatus,
+    needsManifestReconciliation,
     needsFinalization:
-      plan.task.status === 'active' && plan.steps.every((step) => step.status === 'completed'),
+      plan.task.status === 'active' &&
+      manifestStatus !== 'unknown' &&
+      !needsManifestReconciliation &&
+      plan.steps.every(
+        (step) => step.status === 'completed' || step.status === 'retired',
+      ),
     progressFingerprint: JSON.stringify({
       taskId: plan.task.id,
-      revision: plan.task.revision,
       status: plan.task.status,
+      manifest: manifestState
+        ? {
+            status: manifestState.status,
+            current: manifestState.current.map((chapter) => ({
+              ordinal: chapter.ordinal,
+              id: chapter.resolvedChapterId,
+              name: chapter.name,
+            })),
+          }
+        : null,
       steps: plan.steps.map((step) => ({
         id: step.id,
         status: step.status,
@@ -251,14 +278,18 @@ export function decideAgentAutomaticContinuation(input: {
   if (plan.status !== 'active') {
     return { kind: 'stop', status: 'paused', reason: 'task_not_active' };
   }
-  if (plan.waitingReviewStepCount > 0) {
-    return { kind: 'stop', status: 'paused', reason: 'waiting_review' };
-  }
   if (automatic.stagnantSliceCount >= AGENT_AUTO_CONTINUATION_MAX_STAGNANT_SLICES) {
     return { kind: 'stop', status: 'paused', reason: 'no_progress' };
   }
-  if (plan.runnableStepCount > 0 || plan.needsFinalization) {
+  if (
+    plan.runnableStepCount > 0 ||
+    plan.needsManifestReconciliation ||
+    plan.needsFinalization
+  ) {
     return { kind: 'schedule' };
+  }
+  if (plan.waitingReviewStepCount > 0) {
+    return { kind: 'stop', status: 'paused', reason: 'waiting_review' };
   }
   return { kind: 'stop', status: 'paused', reason: 'no_actionable_work' };
 }

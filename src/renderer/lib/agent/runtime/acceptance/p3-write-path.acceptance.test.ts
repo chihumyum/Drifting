@@ -7,7 +7,10 @@ import type { SQLInputValue } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
 
-import { createAgentRuntimePersistenceRepository } from '../../../../sqlite-repo/agent-runtime-persistence-repo';
+import {
+  canonicalAgentRuntimeJson,
+  createAgentRuntimePersistenceRepository,
+} from '../../../../sqlite-repo/agent-runtime-persistence-repo';
 import {
   createAgentRuntimeWriteEffectRepository,
   type AgentRuntimeWriteEffectRepository,
@@ -29,7 +32,6 @@ import {
   prepareYjsProseCommand,
   replaceYjsProseBlocks,
 } from '../yjs-prose-command';
-import { buildAgentWriteReviewFeedback } from '../write-review-feedback';
 import { P3FileBackedSqliteGateway } from './p3-file-backed-sqlite';
 
 const initialDataState = useDataStore.getState();
@@ -69,7 +71,7 @@ describe('P3 file-backed write path acceptance', () => {
     return created;
   }
 
-  it('runs scheduler -> durable runtime -> runAgentTool -> usecase -> outbox, then persists review feedback and checkpoint', async () => {
+  it('runs scheduler -> authorized runtime -> usecase -> outbox, then persists a checkpoint', async () => {
     const subject = await fixture();
     const rename = subject.writeRequest(
       0,
@@ -94,12 +96,18 @@ describe('P3 file-backed write path acceptance', () => {
 
     expect(first).toMatchObject({
       ok: true,
-      data: { review: { status: 'pending' } },
+      data: {
+        writeRef: `agent-write:${rename.idempotencyKey}`,
+        authorization: { kind: 'automatic' },
+      },
     });
     expect(duplicate).toEqual(first);
     expect(second).toMatchObject({
       ok: true,
-      data: { review: { status: 'pending' } },
+      data: {
+        writeRef: `agent-write:${summary.idempotencyKey}`,
+        authorization: { kind: 'automatic' },
+      },
     });
     expect(subject.usecaseDispatches).toBe(2);
     expect(subject.node('node-0')).toMatchObject({
@@ -107,33 +115,10 @@ describe('P3 file-backed write path acceptance', () => {
       summary: 'Agent summary',
     });
 
-    const renameReviewId = resultReviewId(first);
-    const summaryReviewId = resultReviewId(second);
-    expect(
-      (await subject.runtime.acceptReview(renameReviewId, {
-        reason: 'keep it',
-      })).review.status,
-    ).toBe('accepted_effect');
-    expect(
-      (await subject.runtime.rejectReview(summaryReviewId, {
-        reason: 'restore it',
-      })).review.status,
-    ).toBe('reverted');
-    expect(subject.node('node-0').summary).toBe('Summary 0');
-
-    const feedback = await buildAgentWriteReviewFeedback(
-      SESSION_ID,
-      subject.writeRepository,
-    );
-    expect(feedback).toContain('rename_node');
-    expect(feedback).toContain('已被用户接受');
-    expect(feedback).toContain('set_node_summary');
-    expect(feedback).toContain('已被用户拒绝并精确撤销');
-
     const checkpointContext = [
       {
         role: 'user' as const,
-        content: feedback,
+        content: `Authorized writes: agent-write:${rename.idempotencyKey}, agent-write:${summary.idempotencyKey}`,
       },
     ];
     await subject.runtimeRepository.createCheckpoint({
@@ -156,15 +141,9 @@ describe('P3 file-backed write path acceptance', () => {
       2,
     );
     expect(subject.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(
-      2,
+      0,
     );
-    // Two forward mutations plus the exact inverse through the same usecase.
-    expect(subject.scalar('SELECT count(*) FROM acceptance_sync_outbox')).toBe(3);
-    expect(
-      subject.scalar(
-        "SELECT count(*) FROM agent_runtime_write_review WHERE status IN ('accepted_effect', 'reverted')",
-      ),
-    ).toBe(2);
+    expect(subject.scalar('SELECT count(*) FROM acceptance_sync_outbox')).toBe(2);
   });
 
   it('fails before mutation, marks every entered fault uncertain, and never blindly retries', async () => {
@@ -309,7 +288,7 @@ describe('P3 file-backed write path acceptance', () => {
     expect(subject.scalar('SELECT count(*) FROM acceptance_sync_outbox')).toBe(0);
   });
 
-  it('reconciles a crash after an exact inverse committed without dispatching the inverse twice', async () => {
+  it('persists hard authorization and never creates a post-write inverse review', async () => {
     const subject = await fixture();
     const rename = subject.writeRequest(
       0,
@@ -320,41 +299,19 @@ describe('P3 file-backed write path acceptance', () => {
     await subject.seedCanonicalCalls([rename]);
     const result = await subject.execute(rename);
     if (!result.ok) throw new Error(result.error);
-    const reviewId = resultReviewId(result);
-
-    await subject.writeRepository.transitionReview({
-      reviewId,
-      expectedStatus: 'pending',
-      nextStatus: 'rejected',
-      decisionNote: { reason: 'simulate crash boundary' },
-      at: iso(60_000),
+    expect(await subject.effect(rename)).toMatchObject({
+      phase: 'result_committed',
+      authorization: {
+        kind: 'automatic',
+        requestId: null,
+        argumentsHash: rename.authorization?.argumentsHash,
+      },
     });
-    await subject.writeRepository.transitionReview({
-      reviewId,
-      expectedStatus: 'rejected',
-      nextStatus: 'revert_started',
-      at: iso(61_000),
-    });
-    // This is the committed inverse whose result receipt was lost with the
-    // process. The canonical review still says revert_started.
-    await subject.applyAcceptanceUsecase(
-      'node-0',
-      'title',
-      'Chapter 0',
-    );
-    const dispatchesAfterCommittedInverse = subject.usecaseDispatches;
-
-    const reconciled = await subject.runtime.rejectReview(reviewId);
-
-    expect(reconciled.review.status).toBe('reverted');
-    expect(reconciled.review.revertEffect).toMatchObject({
-      field: 'title',
-      value: 'Chapter 0',
-      reconciled: true,
-    });
-    expect(subject.usecaseDispatches).toBe(dispatchesAfterCommittedInverse);
-    expect(subject.node('node-0').title).toBe('Chapter 0');
-    expect(subject.scalar('SELECT count(*) FROM acceptance_sync_outbox')).toBe(2);
+    expect(await subject.execute(rename)).toEqual(result);
+    expect(subject.usecaseDispatches).toBe(1);
+    expect(subject.node('node-0').title).toBe('Temporary title');
+    expect(subject.scalar('SELECT count(*) FROM acceptance_sync_outbox')).toBe(1);
+    expect(subject.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(0);
   });
 
   it(
@@ -440,7 +397,7 @@ describe('P3 file-backed write path acceptance', () => {
       ).toBe(1_000);
       expect(
         subject.scalar('SELECT count(*) FROM agent_runtime_write_review'),
-      ).toBe(1_000);
+      ).toBe(0);
       expect(subject.scalar('SELECT count(*) FROM acceptance_sync_outbox')).toBe(
         1_000,
       );
@@ -565,6 +522,7 @@ class P3WriteFixture {
       name,
       arguments: arguments_,
       access: 'write',
+      authorization: automaticAuthorization(arguments_),
       context: runtimeContext,
       signal: new AbortController().signal,
     };
@@ -684,14 +642,6 @@ class P3WriteFixture {
     return effect;
   }
 
-  async applyAcceptanceUsecase(
-    nodeId: string,
-    field: 'title' | 'summary',
-    value: string,
-  ): Promise<void> {
-    await this.applyNodeField(nodeId, field, value);
-  }
-
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
@@ -807,13 +757,18 @@ const emptyReadRuntime: AgentToolRuntime = {
   }),
 };
 
-function resultReviewId(result: Awaited<ReturnType<P3WriteFixture['execute']>>) {
-  if (!result.ok) throw new Error(result.error);
-  return (result.data as { review: { id: string } }).review.id;
-}
-
 function runtimeToolCallId(request: AgentToolExecutionRequest): string {
   return `agent-tool:${request.sessionId}:${request.turnId}:${request.callId}`;
+}
+
+function automaticAuthorization(arguments_: Record<string, unknown>) {
+  return {
+    kind: 'automatic' as const,
+    requestId: null,
+    argumentsHash: `sha256:${createHash('sha256')
+      .update(canonicalAgentRuntimeJson(arguments_))
+      .digest('hex')}`,
+  };
 }
 
 function iso(offsetMs: number): string {

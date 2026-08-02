@@ -78,7 +78,24 @@ export async function planWorkspaceProseFileEdit(input: {
 }): Promise<YjsProseOperation> {
   const beforeText = renderWorkspaceProseFile(input.blocks);
   const afterText = applyWorkspaceTextReplacements(beforeText, input.replacements);
-  const desiredTexts = splitWorkspaceProseFile(afterText);
+  return planWorkspaceProseFileWrite({
+    blocks: input.blocks,
+    content: afterText,
+    idempotencyKey: input.idempotencyKey,
+  });
+}
+
+/**
+ * Replace a complete virtual prose file, including an empty manuscript. This
+ * shares the same identity-preserving planner as edit_file but does not invent
+ * an impossible non-empty oldText for a blank document.
+ */
+export async function planWorkspaceProseFileWrite(input: {
+  blocks: readonly YjsProseBlock[];
+  content: string;
+  idempotencyKey: string;
+}): Promise<YjsProseOperation> {
+  const desiredTexts = splitWorkspaceProseFile(input.content);
   const beforeTexts = input.blocks.map(renderWorkspaceProseBlock);
   const exactPairs = longestCommonSubsequencePairs(beforeTexts, desiredTexts);
   const desiredBlocks: YjsProseBlock[] = [];

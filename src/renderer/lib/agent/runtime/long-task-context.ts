@@ -1,4 +1,5 @@
 import type {
+  AgentRuntimeTaskChapterManifestState,
   AgentRuntimeTaskPlan,
   AgentRuntimeTaskScope,
 } from '../../../domain/agent-runtime-long-task';
@@ -8,6 +9,30 @@ import type { AgentContextSupplementalPinnedRow } from './context-message-adapte
 import type { AgentRuntimeContextPlanningHookInput } from './runtime-context-planning';
 
 export const AGENT_LONG_TASK_PINNED_STEP_LIMIT = 48 as const;
+
+function projectManifestStateForContext(
+  state: AgentRuntimeTaskChapterManifestState,
+) {
+  return {
+    status: state.status,
+    frozenCount: state.frozenCount,
+    currentCount: state.currentCount,
+    added: state.added.map(({ ordinal, name }) => ({ ordinal, name })),
+    missing: state.missing.map(({ ordinal, name }) => ({ ordinal, name })),
+    renamed: state.renamed.map(({ frozenName, currentName }) => ({
+      frozenName,
+      currentName,
+    })),
+    reordered: state.reordered.map(
+      ({ name, frozenOrdinal, currentOrdinal }) => ({
+        name,
+        frozenOrdinal,
+        currentOrdinal,
+      }),
+    ),
+    needsExplicitReconciliation: state.status === 'drifted',
+  };
+}
 
 function scopeFromHook(input: AgentRuntimeContextPlanningHookInput): AgentRuntimeTaskScope | null {
   const projectId =
@@ -29,6 +54,7 @@ function progress(plan: AgentRuntimeTaskPlan) {
       blocked: 0,
       completed: 0,
       failed: 0,
+      retired: 0,
     },
   );
 }
@@ -120,6 +146,10 @@ export function createAgentLongTaskSupplementalRowsHook(
     if (!scope) return [];
     const plan = (await repository.getOpenPlan(scope)) ?? (await repository.getLatestPlan(scope));
     if (!plan) return [];
+    const manifestState = await repository.getChapterManifestState(
+      scope,
+      plan.task.id,
+    );
     const commandEvidence = await repository.listCommandEvidence(scope, plan.task.id);
     const planCoverage = commandEvidence
       .filter(
@@ -157,7 +187,7 @@ export function createAgentLongTaskSupplementalRowsHook(
         kind: 'task_plan',
         durableWriteCoverage: planCoverage,
         content: canonicalAgentRuntimeJson({
-          schemaVersion: 1,
+          schemaVersion: 2,
           task: {
             taskId: plan.task.id,
             objective: plan.task.objective,
@@ -170,6 +200,7 @@ export function createAgentLongTaskSupplementalRowsHook(
             total: plan.steps.length,
             ...progress(plan),
           },
+          chapterManifestState: projectManifestStateForContext(manifestState),
           stepWindow: {
             offset: window.offset,
             limit: AGENT_LONG_TASK_PINNED_STEP_LIMIT,

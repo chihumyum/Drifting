@@ -722,6 +722,106 @@ describe('repository Agent transport persistence adapter', () => {
     expect(fake.accepted).toHaveLength(0);
   });
 
+  it('acknowledges an exact retry when SQLite committed but the success response was lost', async () => {
+    const fake = fakeRepository();
+    const turnMessages: AgentModelMessage[] = [
+      { role: 'user', content: 'commit once' },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'durable answer' }],
+      },
+    ];
+    fake.state.turns = [
+      {
+        id: 'turn-committed',
+        sessionId: 'session-1',
+        ordinal: 0,
+        status: 'completed',
+        promptMessageId: 'agent-message:turn-committed:0',
+        acceptedAt: NOW,
+        startedAt: NOW,
+        endedAt: LATER,
+        errorCode: null,
+        errorMessage: null,
+        updatedAt: LATER,
+      },
+    ];
+    fake.state.messages = [
+      {
+        id: 'agent-message:turn-committed:0',
+        sessionId: 'session-1',
+        turnId: 'turn-committed',
+        ordinal: 0,
+        role: 'user',
+        status: 'complete',
+        content: 'commit once',
+        createdAt: NOW,
+        completedAt: NOW,
+      },
+      {
+        id: 'agent-message:turn-committed:1',
+        sessionId: 'session-1',
+        turnId: 'turn-committed',
+        ordinal: 1,
+        role: 'assistant',
+        status: 'complete',
+        content: [{ type: 'text', text: 'durable answer' }],
+        createdAt: LATER,
+        completedAt: LATER,
+      },
+    ];
+    fake.state.checkpoints = [
+      {
+        id: 'agent-checkpoint:session-1:0',
+        sessionId: 'session-1',
+        throughTurnOrdinal: 0,
+        messageCount: 2,
+        context: turnMessages,
+        contextHash: 'sha256:already-verified',
+        createdAt: LATER,
+      },
+    ];
+    const persistence = createRepositoryAgentTransportPersistence({
+      repository: fake.repository,
+      recovery: {
+        recoverSnapshot: async () => ({ providerHistory: turnMessages }),
+        hashCheckpointContext: async () => 'sha256:not-needed',
+      },
+      resolveToolAccess: () => 'read',
+    });
+
+    await expect(
+      persistence.commitTurn({
+        sessionId: 'session-1',
+        turnId: 'turn-committed',
+        turnMessages,
+        outcome: 'completed',
+        errorCode: null,
+        errorMessage: null,
+        endedAt: LATER,
+      }),
+    ).resolves.toBeUndefined();
+    expect(fake.committed).toHaveLength(0);
+
+    await expect(
+      persistence.commitTurn({
+        sessionId: 'session-1',
+        turnId: 'turn-committed',
+        turnMessages: [
+          turnMessages[0],
+          {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'different answer' }],
+          },
+        ],
+        outcome: 'completed',
+        errorCode: null,
+        errorMessage: null,
+        endedAt: LATER,
+      }),
+    ).rejects.toMatchObject({ code: 'AGENT_PERSISTENCE_CONFLICT' });
+  });
+
   it('validates a recovery snapshot before applying interruption repairs', async () => {
     const fake = fakeRepository();
     const persistence = createRepositoryAgentTransportPersistence({

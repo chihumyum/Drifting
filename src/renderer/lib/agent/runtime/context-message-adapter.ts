@@ -1303,6 +1303,94 @@ async function validateEnvelopeCoverage(envelope: AgentContextProviderEnvelopeV2
   if (checkpoint.coverage.coverageHash !== coverageHash) {
     failure('INVALID_ENVELOPE', 'Planner coverage hash drifted.');
   }
+
+  await validateConstraintRetention(checkpoint, envelope.sourceManifest);
+}
+
+async function validateConstraintRetention(
+  checkpoint: AgentContextCheckpointV2,
+  manifest: readonly AgentContextSourceManifestEntry[],
+): Promise<void> {
+  const ledger = checkpoint.constraintLedger;
+  if (
+    !ledger ||
+    (ledger.mode !== 'legacy_all_user' && ledger.mode !== 'verified') ||
+    !Array.isArray(ledger.entries)
+  ) {
+    failure('INVALID_ENVELOPE', 'Constraint ledger is missing or invalid.');
+  }
+  const manifestById = new Map(manifest.map((entry) => [entry.sourceId, entry] as const));
+  const constraintIds = new Set<string>();
+  const sourceIds = new Set<string>();
+  for (const entry of ledger.entries) {
+    const source = manifestById.get(entry.sourceId);
+    if (
+      !entry.constraintId ||
+      constraintIds.has(entry.constraintId) ||
+      !entry.sourceId ||
+      sourceIds.has(entry.sourceId) ||
+      !source ||
+      source.kind !== 'user' ||
+      source.sourceHash !== entry.sourceHash ||
+      (entry.kind !== 'session_goal' &&
+        entry.kind !== 'author_instruction' &&
+        entry.kind !== 'author_veto' &&
+        entry.kind !== 'author_fact' &&
+        entry.kind !== 'legacy_user') ||
+      (ledger.mode === 'verified' && entry.kind === 'legacy_user')
+    ) {
+      failure('INVALID_ENVELOPE', 'Constraint ledger provenance drifted.');
+    }
+    constraintIds.add(entry.constraintId);
+    sourceIds.add(entry.sourceId);
+  }
+  if (ledger.ledgerHash !== (await sha256Canonical(ledger.entries))) {
+    failure('INVALID_ENVELOPE', 'Constraint ledger hash drifted.');
+  }
+
+  const directlyProjected = new Map(
+    checkpoint.projection.segments.flatMap((segment) =>
+      segment.type === 'source'
+        ? [[segment.row.sourceId, segment.row] as const]
+        : [],
+    ),
+  );
+  for (const sourceId of sourceIds) {
+    if (!directlyProjected.has(sourceId)) {
+      failure(
+        'INVALID_ENVELOPE',
+        `Critical constraint source "${sourceId}" was not retained byte-exact.`,
+      );
+    }
+  }
+
+  // Legacy V2 checkpoints predate this explicit witness. Their entries are
+  // still validated above; every newly planned checkpoint must include it.
+  if (!ledger.retentionWitness) return;
+  const witnessedIds = validateUniqueIds(
+    ledger.retentionWitness.sourceIds,
+    'Constraint retention witness',
+  );
+  if (
+    ledger.retentionWitness.status !== 'exact' ||
+    witnessedIds.size !== sourceIds.size ||
+    [...sourceIds].some((sourceId) => !witnessedIds.has(sourceId))
+  ) {
+    failure('INVALID_ENVELOPE', 'Constraint retention witness coverage drifted.');
+  }
+  const witnessedRows = ledger.retentionWitness.sourceIds.map((sourceId) => {
+    const row = directlyProjected.get(sourceId);
+    if (!row) {
+      failure('INVALID_ENVELOPE', 'Constraint retention witness lost a direct source.');
+    }
+    return row;
+  });
+  if (
+    ledger.retentionWitness.sourceHash !==
+    (await hashAgentContextSourceRows(witnessedRows))
+  ) {
+    failure('INVALID_ENVELOPE', 'Constraint retention witness hash drifted.');
+  }
 }
 
 function validateCheckpointBudget(checkpoint: AgentContextCheckpointV2): void {

@@ -50,7 +50,6 @@ import {
   ElementPatchTable,
   StorylineTable,
 } from '../../../schema/drizzle';
-import { useAgentEditStore } from '../../../store/agent-edit-store';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
 import {
@@ -62,8 +61,6 @@ import {
   type EntityAtomicTransactionRunner,
 } from '../../../usecase/synced-entity-commands';
 import { effectiveAgentEditMode } from '../agent-edit-mode';
-import type { AgentBlockChange } from '../block-diff';
-import { kvFieldChanges, summaryFieldChange } from '../field-diff';
 import { throwIfAgentAborted } from './errors';
 import {
   deterministicAgentEntityId,
@@ -221,7 +218,6 @@ export function createDriftingEntityWriteStrategy(
       if (!receipt) return null;
       assertReceiptMatchesPayload(receipt, payload, 'forward');
       projectReceipt(payload, receipt);
-      recordVisibleReview(payload, receipt);
       const result = handlerResult(payload);
       return {
         handlerResult: result,
@@ -990,63 +986,6 @@ function projectReceipt(
   }
 }
 
-function recordVisibleReview(
-  payload: EntityWriteCommandPayload,
-  receipt: PersistedAgentRuntimeEntityWriteReceipt,
-): void {
-  if (!receipt.postimage || !payload.preimage) return;
-  const changes: AgentBlockChange[] = [];
-  if (
-    payload.preimage.kind === 'element' &&
-    receipt.postimage.kind === 'element'
-  ) {
-    const summary = summaryFieldChange(
-      payload.preimage.value.summary,
-      receipt.postimage.value.summary,
-    );
-    if (summary) changes.push(summary);
-    changes.push(
-      ...kvFieldChanges(
-        'kv',
-        payload.preimage.value.kvJson,
-        receipt.postimage.value.kvJson,
-      ),
-    );
-  } else if (
-    payload.preimage.kind === 'storyline' &&
-    receipt.postimage.kind === 'storyline'
-  ) {
-    const summary = summaryFieldChange(
-      payload.preimage.value.summary,
-      receipt.postimage.value.summary,
-    );
-    if (summary) changes.push(summary);
-    changes.push(
-      ...kvFieldChanges(
-        'kv',
-        payload.preimage.value.kvJson,
-        receipt.postimage.value.kvJson,
-      ),
-    );
-  }
-  if (
-    changes.length > 0 &&
-    (payload.entityKind === 'element' ||
-      payload.entityKind === 'storyline')
-  ) {
-    useAgentEditStore.getState().recordReview(
-      payload.entityKind,
-      payload.entityId,
-      changes,
-      payload.reviewSnapshot.mode,
-      {
-        effectId: payload.reviewSnapshot.effectId,
-        reviewId: payload.reviewSnapshot.reviewId,
-      },
-    );
-  }
-}
-
 function runPostCommitEffects(
   payload: EntityWriteCommandPayload,
   receipt: PersistedAgentRuntimeEntityWriteReceipt,
@@ -1056,10 +995,9 @@ function runPostCommitEffects(
   notifyCommittedSafely(syncPersisted, notifySyncCommitted);
   try {
     projectReceipt(payload, receipt);
-    recordVisibleReview(payload, receipt);
   } catch {
     // The immutable receipt is authoritative; restart reconciliation rebuilds
-    // the renderer projection and deterministic review without re-execution.
+    // the renderer projection without re-execution.
   }
 }
 
