@@ -16,6 +16,7 @@ const BASE_PREFERENCES: EditorPreferences = {
   paragraphSpacing: 1,
   caretColor: '#6b7fa6',
   entityLinkInteractive: true,
+  entityLinkColorMode: 'contextual',
 };
 
 describe('editor preferences', () => {
@@ -45,6 +46,7 @@ describe('editor preferences', () => {
       expect(setProperty).toHaveBeenCalledWith('--editor-font-family', expected);
       expect(setProperty).toHaveBeenCalledWith('--editor-caret-color', '#6b7fa6');
       expect(setAttribute).toHaveBeenCalledWith('data-entity-link-interactive', 'on');
+      expect(setAttribute).toHaveBeenCalledWith('data-entity-link-style', 'contextual');
     },
   );
 

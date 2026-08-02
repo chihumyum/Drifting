@@ -67,6 +67,10 @@ import {
 } from '../lib/editor-selection-memory';
 import type { CommentTargetKind } from '../domain/comment';
 import { useTypewriterScrolling } from './useTypewriterScrolling';
+import {
+  buildEntityLinkColorSignature,
+  resolveEntityLinkTargetColor,
+} from '../lib/entity-link-appearance';
 
 const log = loglevel.getLogger('useEntityEditor');
 log.setLevel(loglevel.levels.WARN);
@@ -637,9 +641,15 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const editorUndoDepth = useSettingsStore((state) => state.editorUndoDepth);
   const autoElementLinkEnabled = useSettingsStore((state) => state.autoElementLinkEnabled);
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
+  const entityLinkColorMode = useSettingsStore((state) => state.entityLinkColorMode);
+  const entityLinkKindColors = useSettingsStore((state) => state.entityLinkKindColors);
 
   const bookElements = useDataStore((state) => state.bookElements);
   const bookNodes = useDataStore((state) => state.bookNodes);
+  const bookElementCategories = useDataStore((state) => state.bookElementCategories);
+  const storylines = useDataStore((state) => state.storylines);
+  const primaryStorylineByNode = useDataStore((state) => state.primaryStorylineByNode);
+  const driftGroups = useDataStore((state) => state.driftGroups);
   // Subscribed so the dangling-link plugin re-walks when an entity is trashed or
   // restored while this doc is open (mention dims / un-dims immediately).
   const trashedEntityIds = useDataStore((state) => state.trashedEntityIds);
@@ -701,6 +711,35 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     // arrays here is safe: the signature changes whenever any keyed field does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoDetectSignature]);
+
+  // Visual-only signature for all mention colors. Ordinary body/summary writes
+  // mint fresh store arrays but leave this signature stable, so open editors do
+  // not repaint unless ownership, an owner color, or the preference changes.
+  const entityLinkColorSignature = useMemo(
+    () =>
+      buildEntityLinkColorSignature(
+        {
+          bookElements,
+          bookElementCategories,
+          bookNodes,
+          storylines,
+          primaryStorylineByNode,
+          driftGroups,
+        },
+        entityLinkColorMode,
+        entityLinkKindColors,
+      ),
+    [
+      bookElements,
+      bookElementCategories,
+      bookNodes,
+      storylines,
+      primaryStorylineByNode,
+      driftGroups,
+      entityLinkColorMode,
+      entityLinkKindColors,
+    ],
+  );
 
   // @-picker source: pulled live from the store so the popover stays in sync.
   const getMentionableEntities = useCallback((): MentionableEntity[] => {
@@ -1272,6 +1311,17 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       if (alive) return 'alive';
       return state.trashedEntityIds.has(trashedKey(kind, id)) ? 'trashed' : 'gone';
     };
+    entityLinkConfig.resolveTargetColor = (kind, id) => {
+      const state = useDataStore.getState();
+      return resolveEntityLinkTargetColor(
+        kind,
+        id,
+        state,
+        entityLinkColorMode,
+        entityLinkKindColors,
+      );
+    };
+    entityLinkConfig.targetColorVersion += 1;
     // The known-entity / trashed set just changed (e.g. an element was deleted,
     // trashed, or restored while this doc is open). Nudge the dangling-link
     // plugin to re-walk so links re-style immediately. A meta-only transaction
@@ -1279,7 +1329,16 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     if (editor && !editor.isDestroyed) {
       editor.view.dispatch(editor.state.tr.setMeta(EntityLinkDanglingPluginKey, true));
     }
-  }, [autoElementLinkEnabled, autoDetectTargets, entityLinkInteractive, trashedEntityIds, editor]);
+  }, [
+    autoElementLinkEnabled,
+    autoDetectTargets,
+    entityLinkColorSignature,
+    entityLinkColorMode,
+    entityLinkKindColors,
+    entityLinkInteractive,
+    trashedEntityIds,
+    editor,
+  ]);
 
   // Agent-edit diff decorations (#3, approve mode). Any prose editor (node /
   // element / storyline / category). Recomputed from the edit store + edit-mode

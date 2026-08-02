@@ -75,6 +75,11 @@ import {
   removeImportedProseFont,
   type ImportedProseFontMetadata,
 } from '../../lib/prose-fonts';
+import {
+  ENTITY_LINK_COLOR_KINDS,
+  type EntityLinkColorKind,
+  type EntityLinkColorMode,
+} from '../../lib/entity-link-appearance';
 import { AgentExtensionsSettings } from '../agent/AgentExtensionsSettings';
 
 interface SettingsModalProps {
@@ -2106,11 +2111,24 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
     setTypewriterPosition,
     caretColor,
     setCaretColor,
+    entityLinkColorMode,
+    setEntityLinkColorMode,
+    entityLinkKindColors,
+    setEntityLinkKindColor,
     autosave,
     setAutosave,
     autoElementLinkEnabled,
     setAutoElementLinkEnabled,
   } = useSettingsStore();
+
+  const entityLinkKindLabels: Record<EntityLinkColorKind, string> = {
+    element: t('settings.editor.entity_link_kind_element'),
+    chapter: t('settings.editor.entity_link_kind_chapter'),
+    drift: t('settings.editor.entity_link_kind_drift'),
+    patch: t('settings.editor.entity_link_kind_patch'),
+    category: t('settings.editor.entity_link_kind_category'),
+    storyline: t('settings.editor.entity_link_kind_storyline'),
+  };
 
   return (
     <section className="set-panel" ref={registerRef} id="editor">
@@ -2294,6 +2312,62 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
                 onChange={(event) => setCaretColor(event.target.value)}
               />
               <span className="set-color-picker__value">{caretColor.toUpperCase()}</span>
+            </div>
+          }
+        />
+        <Row
+          label={t('settings.editor.entity_link_style')}
+          desc={t('settings.editor.entity_link_style_desc')}
+          stack
+          control={
+            <div className="set-entity-link-style">
+              <Seg<EntityLinkColorMode>
+                value={entityLinkColorMode}
+                options={[
+                  {
+                    value: 'contextual',
+                    label: t('settings.editor.entity_link_style_contextual'),
+                  },
+                  {
+                    value: 'kind',
+                    label: t('settings.editor.entity_link_style_kind'),
+                  },
+                  {
+                    value: 'hover',
+                    label: t('settings.editor.entity_link_style_hover'),
+                  },
+                  {
+                    value: 'prose',
+                    label: t('settings.editor.entity_link_style_prose'),
+                  },
+                ]}
+                onChange={setEntityLinkColorMode}
+              />
+              {entityLinkColorMode === 'kind' && (
+                <div className="set-entity-link-colors">
+                  {ENTITY_LINK_COLOR_KINDS.map((kind) => (
+                    <label key={kind} className="set-entity-link-color">
+                      <span className="set-entity-link-color__label">
+                        {entityLinkKindLabels[kind]}
+                      </span>
+                      <span className="set-color-picker">
+                        <input
+                          className="set-color-picker__input"
+                          type="color"
+                          value={entityLinkKindColors[kind]}
+                          aria-label={entityLinkKindLabels[kind]}
+                          onChange={(event) =>
+                            setEntityLinkKindColor(kind, event.target.value)
+                          }
+                        />
+                        <span className="set-color-picker__value">
+                          {entityLinkKindColors[kind].toUpperCase()}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           }
         />

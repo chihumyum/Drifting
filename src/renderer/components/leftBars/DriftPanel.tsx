@@ -24,7 +24,8 @@ import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { DRIFT_MOVE_TO_GROUP_ACTION } from '../editor/EditorTopBar';
 import { SimpleContextMenu, type SimpleMenuItem } from './SimpleContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
-import { PanelHoverPreview, useHoverPreview } from './PanelHoverPreview';
+import { EntityHoverCard } from '../ui/EntityHoverCard';
+import { useHoverPreview, type EntityHoverTarget } from '../ui/entity-hover-card-model';
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
@@ -201,7 +202,7 @@ export function DriftPanel() {
     preview: hoverPreview,
     onEnter: hoverEnter,
     onLeave: hoverLeave,
-  } = useHoverPreview<BookNode>();
+  } = useHoverPreview<EntityHoverTarget>();
 
   const createDriftInGroup = useCallback(
     async (groupId: string) => {
@@ -264,7 +265,7 @@ export function DriftPanel() {
           if (!selected) {
             event.currentTarget.style.background = 'hsl(var(--ink-1) / 0.03)';
           }
-          hoverEnter(node, event.currentTarget.getBoundingClientRect());
+          hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
         }}
         onMouseLeave={(event) => {
           if (!selected) {
@@ -641,13 +642,10 @@ export function DriftPanel() {
       </div>
 
       {hoverPreview && (
-        <PanelHoverPreview
-          glyph="❦"
-          accentColor="hsl(var(--ink-3))"
-          title={hoverPreview.data.title}
-          summary={hoverPreview.data.summary}
-          top={hoverPreview.top}
-          left={hoverPreview.left}
+        <EntityHoverCard
+          target={hoverPreview.data}
+          anchor={hoverPreview.anchor}
+          placement="right-start"
         />
       )}
 

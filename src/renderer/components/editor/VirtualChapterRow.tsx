@@ -5,7 +5,11 @@ import loglevel from 'loglevel';
 import type { BookNode } from '../../domain/book-node';
 import type { NodeContent } from '../../domain/node-content';
 import { entityLinkConfig } from '../../lib/extensions/entity-link';
-import type { EntityKind, EntityLinkRef } from '../../lib/extensions/entity-link';
+import type {
+  EntityKind,
+  EntityLinkRef,
+  EntityLinkTargetColorResolver,
+} from '../../lib/extensions/entity-link';
 import type { OutlineItem } from '../../lib/outline';
 import { ChapterEditor } from './ChapterEditor';
 import { chapterJsonToHtml } from './chapter-static-html';
@@ -61,6 +65,9 @@ interface VirtualChapterRowProps {
   storylineColor?: string;
   storylineName?: string;
   chapterRoman: string;
+  // Static rows do not mount an EditorView, so the serializer receives the
+  // same store/settings-backed color resolver as live editors explicitly.
+  resolveEntityLinkColor: EntityLinkTargetColorResolver;
 }
 
 // One chapter slot in the all-chapters editor. Renders the chapter's real prose
@@ -90,6 +97,7 @@ function VirtualChapterRowImpl({
   storylineColor,
   storylineName,
   chapterRoman,
+  resolveEntityLinkColor,
 }: VirtualChapterRowProps) {
   const { t } = useTranslation();
   const [content, setContent] = useState<NodeContent | null | undefined>(undefined);
@@ -116,8 +124,11 @@ function VirtualChapterRowImpl({
   }, [isFocused, fetchContent, node.id]);
 
   const staticHtml = useMemo(
-    () => (content == null ? '' : chapterJsonToHtml(content.contentJson)),
-    [content],
+    () =>
+      content == null
+        ? ''
+        : chapterJsonToHtml(content.contentJson, resolveEntityLinkColor),
+    [content, resolveEntityLinkColor],
   );
 
   const handleContentUpdate = useCallback(

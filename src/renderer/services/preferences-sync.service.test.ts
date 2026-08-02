@@ -47,14 +47,19 @@ import {
   stopPreferencesSync,
 } from './preferences-sync.service';
 import { useSettingsStore } from '../store/settings-store';
+import { DEFAULT_ENTITY_LINK_KIND_COLORS } from '../lib/entity-link-appearance';
 
-describe('General Agent tool-search preference sync', () => {
+describe('preferences sync', () => {
   beforeEach(() => {
     stopPreferencesSync();
     storage.clear();
     api.get.mockReset();
     api.post.mockReset();
-    useSettingsStore.setState({ agentToolSearch: 'off' });
+    useSettingsStore.setState({
+      agentToolSearch: 'off',
+      entityLinkColorMode: 'contextual',
+      entityLinkKindColors: { ...DEFAULT_ENTITY_LINK_KIND_COLORS },
+    });
   });
 
   afterEach(() => {
@@ -121,6 +126,53 @@ describe('General Agent tool-search preference sync', () => {
 
     expect(api.post).toHaveBeenCalledWith('/api/preferences', {
       patches: [{ key: 'agentToolSearch', value: 'on' }],
+    });
+  });
+
+  it('normalizes pulled entity-link appearance preferences', async () => {
+    api.get.mockResolvedValue({
+      data: {
+        entries: [
+          {
+            key: 'entityLinkColorMode',
+            value: 'kind',
+            updatedAt: '2026-08-01T00:00:00.000Z',
+          },
+          {
+            key: 'entityLinkKindColors',
+            value: { element: '#AABBCC', chapter: 'invalid' },
+            updatedAt: '2026-08-01T00:00:00.000Z',
+          },
+        ],
+      },
+    });
+
+    await startPreferencesSync();
+
+    expect(useSettingsStore.getState().entityLinkColorMode).toBe('kind');
+    expect(useSettingsStore.getState().entityLinkKindColors).toMatchObject({
+      element: '#aabbcc',
+      chapter: DEFAULT_ENTITY_LINK_KIND_COLORS.chapter,
+    });
+  });
+
+  it('pushes entity-link mode and per-type colors together', async () => {
+    api.get.mockResolvedValue({ data: { entries: [] } });
+    api.post.mockResolvedValue({ data: { entries: [] } });
+    await startPreferencesSync();
+
+    useSettingsStore.getState().setEntityLinkColorMode('prose');
+    useSettingsStore.getState().setEntityLinkKindColor('drift', '#112233');
+    await flushPreferencesSync();
+
+    expect(api.post).toHaveBeenCalledWith('/api/preferences', {
+      patches: [
+        { key: 'entityLinkColorMode', value: 'prose' },
+        {
+          key: 'entityLinkKindColors',
+          value: { ...DEFAULT_ENTITY_LINK_KIND_COLORS, drift: '#112233' },
+        },
+      ],
     });
   });
 });

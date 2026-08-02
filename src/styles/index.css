@@ -517,12 +517,22 @@ button,
    data-target-kind: element / node / patch / category / storyline.
    ============================================================ */
 .entity-link {
-  color: hsl(var(--el-color, var(--accent)));
+  color: var(--entity-link-color, hsl(var(--el-color, var(--accent))));
   text-decoration: none;
   background-image: linear-gradient(
     to top,
-    hsl(var(--el-color, var(--accent)) / 0.1) 0,
-    hsl(var(--el-color, var(--accent)) / 0.1) 28%,
+    color-mix(
+        in srgb,
+        var(--entity-link-color, hsl(var(--el-color, var(--accent)))) 10%,
+        transparent
+      )
+      0,
+    color-mix(
+        in srgb,
+        var(--entity-link-color, hsl(var(--el-color, var(--accent)))) 10%,
+        transparent
+      )
+      28%,
     transparent 28%
   );
   border-radius: 1px;
@@ -535,8 +545,18 @@ button,
 .entity-link:hover {
   background-image: linear-gradient(
     to top,
-    hsl(var(--el-color, var(--accent)) / 0.22) 0,
-    hsl(var(--el-color, var(--accent)) / 0.22) 100%,
+    color-mix(
+        in srgb,
+        var(--entity-link-color, hsl(var(--el-color, var(--accent)))) 22%,
+        transparent
+      )
+      0,
+    color-mix(
+        in srgb,
+        var(--entity-link-color, hsl(var(--el-color, var(--accent)))) 22%,
+        transparent
+      )
+      100%,
     transparent 100%
   );
 }
@@ -575,8 +595,8 @@ button,
   cursor: default !important;
 }
 
-/* Target kind palette — re-uses element link tokens for elements,
-   plus distinct shades for chapter/patch targets. */
+/* Target-kind fallback palette. Contextual and custom modes bind
+   --entity-link-color from live state/settings; missing owners fall back here. */
 .entity-link--element {
   --el-color: var(--el-person);
 }
@@ -596,6 +616,54 @@ button,
 .entity-link--node {
   font-weight: 600;
   text-underline-offset: 0.16em;
+}
+
+/* Hover-only mode is visually indistinguishable from ordinary prose at rest.
+   Hover reveals the contextual owner color without changing document layout. */
+html[data-entity-link-style='hover'] .entity-link {
+  color: inherit;
+  background-image: none;
+  border-bottom: none;
+  font-weight: inherit;
+}
+html[data-entity-link-style='hover'] .entity-link:hover {
+  color: var(--entity-link-color, hsl(var(--el-color, var(--accent))));
+  background-image: linear-gradient(
+    to top,
+    color-mix(
+        in srgb,
+        var(--entity-link-color, hsl(var(--el-color, var(--accent)))) 22%,
+        transparent
+      )
+      0,
+    color-mix(
+        in srgb,
+        var(--entity-link-color, hsl(var(--el-color, var(--accent)))) 22%,
+        transparent
+      )
+      100%,
+    transparent 100%
+  );
+}
+html[data-entity-link-style='hover'] .entity-link--deep::after {
+  content: none;
+}
+
+/* Prose mode keeps references navigable while making them read like ordinary
+   manuscript text. The only persistent affordance is a neutral underline. */
+html[data-entity-link-style='prose'] .entity-link,
+html[data-entity-link-style='prose'] .entity-link:hover {
+  color: inherit;
+  background-image: none;
+  border-bottom: 1px solid hsl(var(--ink-4) / 0.72);
+  font-weight: inherit;
+  padding: 0 1px;
+}
+html[data-entity-link-style='prose'] .entity-link:hover {
+  border-bottom-color: hsl(var(--ink-3) / 0.9);
+}
+html[data-entity-link-style='prose'] .entity-link--deep::after {
+  content: none;
 }
 
 /* Deep-link indicator (mention points at a specific block of the target). */

@@ -50,6 +50,8 @@ type SyncableSlice = {
   maxLineWidth: unknown;
   caretColor: unknown;
   entityLinkInteractive: unknown;
+  entityLinkColorMode: unknown;
+  entityLinkKindColors: unknown;
   autosave: unknown;
   autoElementLinkEnabled: unknown;
   // language
@@ -99,6 +101,8 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'maxLineWidth',
   'caretColor',
   'entityLinkInteractive',
+  'entityLinkColorMode',
+  'entityLinkKindColors',
   'autosave',
   'autoElementLinkEnabled',
   'uiLocale',
@@ -229,6 +233,8 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
       if (typeof v === 'string') store.setCaretColor(v);
     },
     entityLinkInteractive: (v) => store.setEntityLinkInteractive(!!v),
+    entityLinkColorMode: (v) => store.setEntityLinkColorMode(v as never),
+    entityLinkKindColors: (v) => store.setEntityLinkKindColors(v),
     autosave: (v) => store.setAutosave(!!v),
     autoElementLinkEnabled: (v) => store.setAutoElementLinkEnabled(!!v),
     uiLocale: (v) => store.setUiLocale(v as never),

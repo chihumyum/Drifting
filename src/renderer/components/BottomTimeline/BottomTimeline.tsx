@@ -7,7 +7,7 @@ import type { Storyline } from '../../domain/storyline';
 import { isChapter, isDrift } from '../../domain/book-node';
 import { spreadTimelineNodes } from '../../domain/timeline-spread';
 import { useAuthStore } from '../../store/auth';
-import { NodeHoverPreview } from '../NodeHoverPreview';
+import { EntityHoverCard } from '../ui/EntityHoverCard';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useTimelineExpandedScale } from './useTimelineExpandedScale';
@@ -198,7 +198,7 @@ export function BottomTimeline() {
     dragOverPosition,
     contextMenu,
     hoveredNodeId,
-    hoverPosition,
+    hoverAnchor,
     setDraggedNode,
     setDragOverPosition,
     clearDragState,
@@ -555,12 +555,11 @@ export function BottomTimeline() {
     setNodeSelection(clickedNodeId, 'ui');
   };
 
-  const handleNodeMouseEnter = (node: TimelineNode, e: React.MouseEvent) => {
+  const handleNodeMouseEnter = (node: TimelineNode, e: React.MouseEvent<HTMLElement>) => {
     if (draggedNode) return;
-    const rect = e.currentTarget.getBoundingClientRect();
     setHoverPreview({
       nodeId: node.id,
-      position: { x: rect.left + rect.width / 2, y: rect.top - 8 },
+      anchor: e.currentTarget,
     });
   };
 
@@ -691,7 +690,7 @@ export function BottomTimeline() {
           ? 'is-discarded'
           : 'is-draft';
 
-    const handleMouseMove = (e: React.MouseEvent) => {
+    const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
       if (draggedNode) {
         clearHoverPreview();
         return;
@@ -1641,11 +1640,13 @@ export function BottomTimeline() {
         />
       )}
 
-      <NodeHoverPreview
-        node={hoveredNodeId ? (nodeById.get(hoveredNodeId) ?? null) : null}
-        position={hoverPosition}
-        showAbove={true}
-      />
+      {hoveredNodeId && hoverAnchor && (
+        <EntityHoverCard
+          target={{ kind: 'node', id: hoveredNodeId }}
+          anchor={hoverAnchor}
+          placement="top-center"
+        />
+      )}
     </div>
   );
 }

@@ -25,6 +25,10 @@ import type { EntityLinkRef } from '../lib/extensions/entity-link';
 import type { OutlineItem } from '../lib/outline';
 import { parseOutline } from '../lib/outline';
 import { countWordsInPmJson } from '../lib/word-count';
+import {
+  buildEntityLinkColorSignature,
+  resolveEntityLinkTargetColor,
+} from '../lib/entity-link-appearance';
 
 const log = loglevel.getLogger('AllChaptersEditorView');
 log.setLevel(loglevel.levels.WARN);
@@ -91,8 +95,57 @@ export function AllChaptersEditorView() {
   if (!projectId) throw new Error('AllChaptersEditorView requires a projectId');
   if (!userId) throw new Error('AllChaptersEditorView requires a logged-in user');
 
-  const { bookNodes, storylines, primaryStorylineByNode } = useDataStore();
+  const {
+    bookNodes,
+    storylines,
+    primaryStorylineByNode,
+    bookElements,
+    bookElementCategories,
+    driftGroups,
+  } = useDataStore();
   const bookActs = useDataStore((s) => s.bookActs);
+  const entityLinkColorMode = useSettingsStore((s) => s.entityLinkColorMode);
+  const entityLinkKindColors = useSettingsStore((s) => s.entityLinkKindColors);
+  const entityLinkColorSignature = useMemo(
+    () =>
+      buildEntityLinkColorSignature(
+        {
+          bookElements,
+          bookElementCategories,
+          bookNodes,
+          storylines,
+          primaryStorylineByNode,
+          driftGroups,
+        },
+        entityLinkColorMode,
+        entityLinkKindColors,
+      ),
+    [
+      bookElements,
+      bookElementCategories,
+      bookNodes,
+      storylines,
+      primaryStorylineByNode,
+      driftGroups,
+      entityLinkColorMode,
+      entityLinkKindColors,
+    ],
+  );
+  const resolveEntityLinkColor = useCallback(
+    (kind: Parameters<typeof resolveEntityLinkTargetColor>[0], id: string) => {
+      // Capture the minimal visual signature so static rows reserialize when
+      // an owner/category color changes, without reacting to prose metadata.
+      void entityLinkColorSignature;
+      return resolveEntityLinkTargetColor(
+        kind,
+        id,
+        useDataStore.getState(),
+        entityLinkColorMode,
+        entityLinkKindColors,
+      );
+    },
+    [entityLinkColorMode, entityLinkKindColors, entityLinkColorSignature],
+  );
   const currentProject = useProjectStore((s) => s.currentProject);
   const projects = useProjectStore((s) => s.projects);
   const projectName = currentProject?.name || projects.find((p) => p.id === projectId)?.name || 'Untitled';
@@ -866,6 +919,7 @@ export function AllChaptersEditorView() {
                   storylineColor={storyline?.color || undefined}
                   storylineName={storyline?.name || undefined}
                   chapterRoman={toRoman(idx + 1)}
+                  resolveEntityLinkColor={resolveEntityLinkColor}
                 />
               </section>
             );

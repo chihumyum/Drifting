@@ -6,7 +6,8 @@ import type { BookNode } from '../../domain/book-node';
 import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
-import { PanelHoverPreview, useHoverPreview } from './PanelHoverPreview';
+import { EntityHoverCard } from '../ui/EntityHoverCard';
+import { useHoverPreview, type EntityHoverTarget } from '../ui/entity-hover-card-model';
 import { AgentCountBadge } from './AgentCountBadge';
 import { aggregateActivity } from './agentActivityBubble';
 import { CollapsibleFooter } from '../ui/CollapsibleFooter';
@@ -206,7 +207,7 @@ export function ChapterPanel() {
     preview: hoverPreview,
     onEnter: hoverEnter,
     onLeave: hoverLeave,
-  } = useHoverPreview<{ node: BookNode; accent: string }>();
+  } = useHoverPreview<EntityHoverTarget>();
 
   const nodesByStoryline = useMemo(() => {
     const grouped: Record<string, BookNode[]> = {};
@@ -296,10 +297,7 @@ export function ChapterPanel() {
           if (!selected) {
             event.currentTarget.style.background = 'hsl(var(--ink-1) / 0.03)';
           }
-          hoverEnter(
-            { node, accent: storyline?.color ?? 'hsl(var(--ink-3))' },
-            event.currentTarget.getBoundingClientRect(),
-          );
+          hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
         }}
         onMouseLeave={(event) => {
           if (!selected) {
@@ -571,13 +569,10 @@ export function ChapterPanel() {
       )}
 
       {hoverPreview && (
-        <PanelHoverPreview
-          glyph="§"
-          accentColor={hoverPreview.data.accent}
-          title={hoverPreview.data.node.title}
-          summary={hoverPreview.data.node.summary}
-          top={hoverPreview.top}
-          left={hoverPreview.left}
+        <EntityHoverCard
+          target={hoverPreview.data}
+          anchor={hoverPreview.anchor}
+          placement="right-start"
         />
       )}
 

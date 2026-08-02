@@ -9,6 +9,7 @@ import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 // reach for `../../domain/entity-kinds` directly.
 export type { EntityKind } from '../../domain/entity-kinds';
 import type { EntityKind } from '../../domain/entity-kinds';
+import { isEntityKind } from '../../domain/entity-kinds';
 
 export interface EntityLinkRef {
   targetKind: EntityKind;
@@ -28,6 +29,11 @@ export interface AutoDetectTarget {
   kind: EntityKind;
   id: string;
 }
+
+export type EntityLinkTargetColorResolver = (
+  kind: EntityKind,
+  id: string,
+) => string | null | undefined;
 
 export interface EntityLinkOptions {
   // Targets eligible for auto-detection, keyed by their display name.
@@ -54,6 +60,11 @@ export const entityLinkConfig = {
   // hook injects a store-backed implementation; the permissive default keeps
   // the extension usable in isolation/tests.
   resolveTargetState: (_kind: EntityKind, _id: string): EntityLinkTargetState => 'alive',
+  // Mention colors are presentation-only: resolve them from live stores and
+  // editor appearance preferences instead of persisting a stale color snapshot
+  // in the entityLink mark itself.
+  resolveTargetColor: ((_kind: EntityKind, _id: string) => null) as EntityLinkTargetColorResolver,
+  targetColorVersion: 0,
 };
 
 export const EntityLinkPluginKey = new PluginKey('entityLink');
@@ -74,6 +85,47 @@ const META_FLAG = 'entityLink';
 // CSS lives in index.css; both also cover the wrap case via :has().
 const DANGLING_CLASS = 'entity-link--dangling';
 const TRASHED_CLASS = 'entity-link--trashed';
+const ENTITY_LINK_COLOR_PROPERTY = '--entity-link-color';
+
+function safeTargetColor(color: string | null | undefined): string | null {
+  const trimmed = color?.trim();
+  // Category colors are currently hex values or token-backed hsl() values.
+  // Reject declaration delimiters so synced/database content can never escape
+  // the custom property's value and inject another inline declaration.
+  if (!trimmed || trimmed.length > 128 || /[;{}]/.test(trimmed)) return null;
+  return trimmed;
+}
+
+function resolveTargetColor(
+  kind: EntityKind,
+  id: string,
+  resolver: EntityLinkTargetColorResolver = entityLinkConfig.resolveTargetColor,
+): string | null {
+  return safeTargetColor(resolver(kind, id));
+}
+
+/**
+ * Rebind rendered mentions to their current presentation color without
+ * modifying the ProseMirror/Yjs document. Called after editor transactions and
+ * by the static all-chapters serializer. Removing the property deliberately
+ * restores the target-kind fallback palette.
+ */
+export function applyEntityLinkTargetColors(
+  root: ParentNode,
+  resolver: EntityLinkTargetColorResolver = entityLinkConfig.resolveTargetColor,
+): void {
+  const links = root.querySelectorAll<HTMLElement>(
+    '.entity-link[data-target-kind][data-target-id]',
+  );
+  links.forEach((link) => {
+    const targetId = link.getAttribute('data-target-id');
+    const rawKind = link.getAttribute('data-target-kind');
+    const targetKind = isEntityKind(rawKind) ? rawKind : 'element';
+    const color = targetId ? resolveTargetColor(targetKind, targetId, resolver) : null;
+    if (color) link.style.setProperty(ENTITY_LINK_COLOR_PROPERTY, color);
+    else link.style.removeProperty(ENTITY_LINK_COLOR_PROPERTY);
+  });
+}
 
 // Walk the doc and decorate every entity-link span by its target's live state.
 // Alive targets are left untouched; clicks on non-alive targets are already
@@ -282,13 +334,18 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
   },
 
   renderHTML({ HTMLAttributes }) {
-    const targetKind = HTMLAttributes['data-target-kind'] ?? 'element';
+    const targetKind = (HTMLAttributes['data-target-kind'] as EntityKind | undefined) ?? 'element';
+    const targetId = HTMLAttributes['data-target-id'];
     const deepLink = HTMLAttributes['data-target-block-id'] ? ' entity-link--deep' : '';
+    const targetColor = targetId ? resolveTargetColor(targetKind, targetId) : null;
+    const style = targetColor
+      ? `cursor: pointer; ${ENTITY_LINK_COLOR_PROPERTY}: ${targetColor};`
+      : 'cursor: pointer;';
     return [
       'span',
       mergeAttributes(this.options.HTMLAttributes ?? {}, HTMLAttributes, {
         class: `entity-link entity-link--${targetKind}${deepLink}`,
-        style: 'cursor: pointer;',
+        style,
       }),
       0,
     ];
@@ -311,12 +368,25 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
         // by the time the debounced pass runs, the full name is already in the
         // doc, so a plain whole-doc scan finds it regardless of how it was typed.)
         view(editorView) {
+          applyEntityLinkTargetColors(editorView.dom);
+          let appliedTargetColorVersion = entityLinkConfig.targetColorVersion;
           autoDetectStates.set(editorView, { timer: null });
           return {
             update(view, prevState) {
+              // A meta-only refresh is dispatched when entity ownership, colors,
+              // or the appearance preference changes. Restyle existing mark DOM
+              // without paying for a full DOM query on selection-only updates.
+              const docChanged = view.state.doc !== prevState.doc;
+              if (
+                docChanged ||
+                appliedTargetColorVersion !== entityLinkConfig.targetColorVersion
+              ) {
+                applyEntityLinkTargetColors(view.dom);
+                appliedTargetColorVersion = entityLinkConfig.targetColorVersion;
+              }
               // React only to doc changes — cheap identity check (PM mints a new
               // doc node on any change); skip selection-only updates.
-              if (view.state.doc === prevState.doc) return;
+              if (!docChanged) return;
               if (!entityLinkConfig.autoDetectEnabled) return;
               if (entityLinkConfig.autoDetectTargets.size === 0) return;
               const st = autoDetectStates.get(view);

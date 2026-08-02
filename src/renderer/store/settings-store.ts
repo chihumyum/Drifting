@@ -10,6 +10,15 @@ import {
   type AgentProviderId,
 } from '../lib/agent/runtime/agent-provider-contract';
 import { APP_CONFIG } from '../lib/config';
+import {
+  DEFAULT_ENTITY_LINK_KIND_COLORS,
+  normalizeEntityLinkColorMode,
+  normalizeEntityLinkHexColor,
+  normalizeEntityLinkKindColors,
+  type EntityLinkColorKind,
+  type EntityLinkColorMode,
+  type EntityLinkKindColors,
+} from '../lib/entity-link-appearance';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type ParagraphIndent = 'none' | 'one' | 'two';
@@ -263,6 +272,11 @@ interface SettingsState {
   setCaretColor: (color: string) => void;
   entityLinkInteractive: boolean;
   setEntityLinkInteractive: (on: boolean) => void;
+  entityLinkColorMode: EntityLinkColorMode;
+  setEntityLinkColorMode: (mode: EntityLinkColorMode) => void;
+  entityLinkKindColors: EntityLinkKindColors;
+  setEntityLinkKindColor: (kind: EntityLinkColorKind, color: string) => void;
+  setEntityLinkKindColors: (colors: unknown) => void;
   autosave: boolean;
   setAutosave: (on: boolean) => void;
 
@@ -502,6 +516,19 @@ export const useSettingsStore = create<SettingsState>()(
       setCaretColor: (color) => set({ caretColor: normalizeCaretColor(color) }),
       entityLinkInteractive: true,
       setEntityLinkInteractive: (on) => set({ entityLinkInteractive: on }),
+      entityLinkColorMode: 'contextual',
+      setEntityLinkColorMode: (mode) =>
+        set({ entityLinkColorMode: normalizeEntityLinkColorMode(mode) }),
+      entityLinkKindColors: { ...DEFAULT_ENTITY_LINK_KIND_COLORS },
+      setEntityLinkKindColor: (kind, color) =>
+        set((state) => ({
+          entityLinkKindColors: {
+            ...state.entityLinkKindColors,
+            [kind]: normalizeEntityLinkHexColor(color, state.entityLinkKindColors[kind]),
+          },
+        })),
+      setEntityLinkKindColors: (colors) =>
+        set({ entityLinkKindColors: normalizeEntityLinkKindColors(colors) }),
       autosave: true,
       setAutosave: (on) => set({ autosave: on }),
 
@@ -912,6 +939,10 @@ export const useSettingsStore = create<SettingsState>()(
             version,
           );
         }
+        if (version < 21) {
+          next.entityLinkColorMode = 'contextual';
+          next.entityLinkKindColors = { ...DEFAULT_ENTITY_LINK_KIND_COLORS };
+        }
         if (version < 22) {
           const provider = normalizeAgentProvider(next.agentProvider);
           next.agentProvider = provider;
@@ -969,6 +1000,8 @@ export const useSettingsStore = create<SettingsState>()(
           TYPEWRITER_POSITION_DEFAULT,
         );
         merged.caretColor = normalizeCaretColor(merged.caretColor);
+        merged.entityLinkColorMode = normalizeEntityLinkColorMode(merged.entityLinkColorMode);
+        merged.entityLinkKindColors = normalizeEntityLinkKindColors(merged.entityLinkKindColors);
         return merged;
       },
     },

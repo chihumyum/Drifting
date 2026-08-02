@@ -1551,6 +1551,32 @@
   color: hsl(var(--ink-3));
 }
 
+.set-entity-link-style {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+.set-entity-link-colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px 12px;
+  padding: 10px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 4px;
+  background: hsl(var(--paper) / 0.5);
+}
+.set-entity-link-color {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.set-entity-link-color__label {
+  font-size: 12px;
+  color: hsl(var(--ink-2));
+}
+
 /* Typography preview — mirrors the real editor by reading the same global
    --editor-* CSS variables (set by applyEditorPreferences), so 字号 / 行距 /
    段间距 / 段首缩进 and the Tab 缩进 width all reflect live as the controls below

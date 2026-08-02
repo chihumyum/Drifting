@@ -16,7 +16,8 @@ import { events } from '../../lib/events';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { ElementGroupPicker } from './ElementGroupPicker';
-import { PanelHoverPreview } from './PanelHoverPreview';
+import { EntityHoverCard } from '../ui/EntityHoverCard';
+import { useHoverPreview, type EntityHoverTarget } from '../ui/entity-hover-card-model';
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
@@ -107,13 +108,11 @@ export function ElementPanel() {
   const [groupPicker, setGroupPicker] = useState<
     { x: number; y: number; elementId: string } | null
   >(null);
-  const [hoverPreview, setHoverPreview] = useState<{
-    element: BookElement;
-    categoryColor: string;
-    top: number;
-    left: number;
-  } | null>(null);
-  const hoverTimerRef = useRef<number | null>(null);
+  const {
+    preview: hoverPreview,
+    onEnter: hoverEnter,
+    onLeave: hoverLeave,
+  } = useHoverPreview<EntityHoverTarget>();
 
   const toggleCategoryCollapsed = useCallback((id: string) => {
     setCollapsedCategoryIds((prev) => {
@@ -220,35 +219,6 @@ export function ElementPanel() {
     const delta = sectionRect.top - containerRect.top;
     container.scrollBy({ top: delta, behavior: 'smooth' });
   }, []);
-
-  const clearHoverTimer = useCallback(() => {
-    if (hoverTimerRef.current != null) {
-      window.clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-  }, []);
-
-  const handleRowHoverEnter = useCallback(
-    (element: BookElement, categoryColor: string, rect: DOMRect) => {
-      clearHoverTimer();
-      hoverTimerRef.current = window.setTimeout(() => {
-        setHoverPreview({
-          element,
-          categoryColor,
-          top: rect.top,
-          left: rect.right + 8,
-        });
-      }, 220);
-    },
-    [clearHoverTimer],
-  );
-
-  const handleRowHoverLeave = useCallback(() => {
-    clearHoverTimer();
-    setHoverPreview(null);
-  }, [clearHoverTimer]);
-
-  useEffect(() => () => clearHoverTimer(), [clearHoverTimer]);
 
   // Sub-header collapse-all toggles between "expand all" and "collapse all".
   useEffect(() => {
@@ -515,17 +485,13 @@ export function ElementPanel() {
           if (!selected) {
             event.currentTarget.style.background = 'hsl(var(--ink-1) / 0.03)';
           }
-          handleRowHoverEnter(
-            element,
-            categoryColor,
-            event.currentTarget.getBoundingClientRect(),
-          );
+          hoverEnter({ kind: 'element', id: element.id }, event.currentTarget);
         }}
         onMouseLeave={(event) => {
           if (!selected) {
             event.currentTarget.style.background = 'transparent';
           }
-          handleRowHoverLeave();
+          hoverLeave();
         }}
         onClick={() => {
           if (agentChanged) useAgentActivityStore.getState().clearTouched('element', element.id);
@@ -855,13 +821,10 @@ export function ElementPanel() {
       </div>
 
       {hoverPreview && (
-        <PanelHoverPreview
-          glyph="◆"
-          accentColor={hoverPreview.categoryColor}
-          title={hoverPreview.element.name}
-          summary={hoverPreview.element.summary}
-          top={hoverPreview.top}
-          left={hoverPreview.left}
+        <EntityHoverCard
+          target={hoverPreview.data}
+          anchor={hoverPreview.anchor}
+          placement="right-start"
         />
       )}
 

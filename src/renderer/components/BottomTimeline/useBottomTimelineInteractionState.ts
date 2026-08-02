@@ -13,7 +13,7 @@ interface BottomTimelineInteractionState {
   dragOverPosition: BottomTimelineDragOverPosition | null;
   contextMenu: BottomTimelineContextMenuState | null;
   hoveredNodeId: string | null;
-  hoverPosition: { x: number; y: number } | null;
+  hoverAnchor: HTMLElement | null;
 }
 
 type BottomTimelineInteractionAction =
@@ -22,7 +22,7 @@ type BottomTimelineInteractionAction =
   | { type: 'clearDragState' }
   | { type: 'setContextMenu'; payload: BottomTimelineContextMenuState | null }
   | { type: 'clearContextMenu' }
-  | { type: 'setHoverPreview'; payload: { nodeId: string; position: { x: number; y: number } } }
+  | { type: 'setHoverPreview'; payload: { nodeId: string; anchor: HTMLElement } }
   | { type: 'clearHoverPreview' };
 
 const initialInteractionState: BottomTimelineInteractionState = {
@@ -30,7 +30,7 @@ const initialInteractionState: BottomTimelineInteractionState = {
   dragOverPosition: null,
   contextMenu: null,
   hoveredNodeId: null,
-  hoverPosition: null,
+  hoverAnchor: null,
 };
 
 function interactionReducer(
@@ -52,13 +52,13 @@ function interactionReducer(
       return {
         ...state,
         hoveredNodeId: action.payload.nodeId,
-        hoverPosition: action.payload.position,
+        hoverAnchor: action.payload.anchor,
       };
     case 'clearHoverPreview':
       return {
         ...state,
         hoveredNodeId: null,
-        hoverPosition: null,
+        hoverAnchor: null,
       };
     default:
       return state;
@@ -92,7 +92,7 @@ export function useBottomTimelineInteractionState() {
   }, []);
 
   const setHoverPreview = useCallback(
-    (payload: { nodeId: string; position: { x: number; y: number } }) => {
+    (payload: { nodeId: string; anchor: HTMLElement }) => {
       dispatch({ type: 'setHoverPreview', payload });
     },
     [],

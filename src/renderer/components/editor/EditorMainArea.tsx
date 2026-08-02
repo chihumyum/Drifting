@@ -17,6 +17,9 @@ import { CategoryEditorView } from '../../views/CategoryEditorView';
 import { AllChaptersEditorView } from '../../views/AllChaptersEditorView';
 import { ProjectDashboard } from '../../views/ProjectDashboard';
 import { pruneEditorSelectionMemory } from '../../lib/editor-selection-memory';
+import { isStructuralEntityKind } from '../../domain/entity-kinds';
+import { EntityHoverCard } from '../ui/EntityHoverCard';
+import { useHoverPreview, type EntityHoverTarget } from '../ui/entity-hover-card-model';
 
 // EditorMainArea sits where <Outlet /> used to be. Its job is to decide
 // whether the editor surface should render a single matched route element
@@ -63,6 +66,41 @@ export function EditorMainArea() {
   // progress over the surface, otherwise indicates which half is hot.
   const [dropSide, setDropSide] = useState<'left' | 'right' | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const {
+    preview: entityHoverPreview,
+    onEnter: entityHoverEnter,
+    onLeave: entityHoverLeave,
+  } = useHoverPreview<EntityHoverTarget>();
+
+  const handleEntityLinkMouseOver = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (document.documentElement.getAttribute('data-entity-link-interactive') === 'off') return;
+      const origin = event.target;
+      if (!(origin instanceof Element)) return;
+      const link = origin.closest<HTMLElement>('.entity-link');
+      if (!link || !surfaceRef.current?.contains(link)) return;
+      const related = event.relatedTarget;
+      if (related instanceof Node && link.contains(related)) return;
+      const kind = link.getAttribute('data-target-kind') ?? 'element';
+      const id = link.getAttribute('data-target-id');
+      if (!id || !isStructuralEntityKind(kind)) return;
+      entityHoverEnter({ kind, id }, link);
+    },
+    [entityHoverEnter],
+  );
+
+  const handleEntityLinkMouseOut = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const origin = event.target;
+      if (!(origin instanceof Element)) return;
+      const link = origin.closest<HTMLElement>('.entity-link');
+      if (!link) return;
+      const related = event.relatedTarget;
+      if (related instanceof Node && link.contains(related)) return;
+      entityHoverLeave();
+    },
+    [entityHoverLeave],
+  );
 
   const handleDragOver = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
@@ -113,6 +151,8 @@ export function EditorMainArea() {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onMouseOver={handleEntityLinkMouseOver}
+      onMouseOut={handleEntityLinkMouseOut}
       style={{ position: 'relative', height: '100%', width: '100%' }}
     >
       {isSplit && split ? (
@@ -144,6 +184,14 @@ export function EditorMainArea() {
         <div style={{ height: '100%', width: '100%' }}>
           <Outlet />
         </div>
+      )}
+
+      {entityHoverPreview && (
+        <EntityHoverCard
+          target={entityHoverPreview.data}
+          anchor={entityHoverPreview.anchor}
+          placement="bottom-start"
+        />
       )}
 
       {dropSide && <DropOverlay side={dropSide} />}

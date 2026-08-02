@@ -985,6 +985,7 @@ function EditorPreferenceEffects() {
   const paragraphSpacing = useSettingsStore((s) => s.paragraphSpacing);
   const caretColor = useSettingsStore((s) => s.caretColor);
   const entityLinkInteractive = useSettingsStore((s) => s.entityLinkInteractive);
+  const entityLinkColorMode = useSettingsStore((s) => s.entityLinkColorMode);
 
   useEffect(() => {
     applyEditorPreferences({
@@ -998,6 +999,7 @@ function EditorPreferenceEffects() {
       paragraphSpacing,
       caretColor,
       entityLinkInteractive,
+      entityLinkColorMode,
     });
   }, [
     editorFontSource,
@@ -1010,6 +1012,7 @@ function EditorPreferenceEffects() {
     paragraphSpacing,
     caretColor,
     entityLinkInteractive,
+    entityLinkColorMode,
   ]);
 
   useEffect(() => {
