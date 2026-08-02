@@ -412,9 +412,6 @@ function SetHead({
         <kbd>⌘F</kbd>
       </div>
 
-      <button className="set-head__close" onClick={onClose} title={t('settings.close_with_esc')}>
-        ×
-      </button>
     </div>
   );
 }

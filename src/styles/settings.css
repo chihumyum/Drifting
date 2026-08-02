@@ -120,24 +120,6 @@
   border-radius: 2px;
   padding: 1px 5px;
 }
-.set-head__close {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border-radius: 3px;
-  color: hsl(var(--ink-3));
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-  background: transparent;
-  border: 0;
-}
-.set-head__close:hover {
-  background: hsl(var(--rule));
-  color: hsl(var(--ink-1));
-}
-
 /* ───── Body: rail | content ───── */
 .set-body {
   flex: 1;
