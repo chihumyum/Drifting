@@ -78,7 +78,7 @@ recorded in [`MILESTONE_H_EXIT_REPORT.md`](MILESTONE_H_EXIT_REPORT.md) and
 Milestone I, provider and extension platform, is complete. Its provider wire,
 MCP transport/security, durable grant and generation-lifecycle contract is in
 [`../provider-extension-protocol.md`](../provider-extension-protocol.md). The
-implementation and 142-test deterministic acceptance are recorded in
+implementation and 143-test deterministic acceptance are recorded in
 [`MILESTONE_I_EXIT_REPORT.md`](MILESTONE_I_EXIT_REPORT.md) and
 [`milestone-i-provider-extension.json`](milestone-i-provider-extension.json).
 
