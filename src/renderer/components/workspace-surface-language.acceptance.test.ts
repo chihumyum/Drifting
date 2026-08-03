@@ -15,22 +15,28 @@ function block(text: string, start: string, end: string): string {
 }
 
 describe('workspace surface language acceptance', () => {
-  it('makes the center column own the editor, optional dock and footer', () => {
+  it('places the full-width footer below the three-column workspace row', () => {
     const app = source('src/renderer/App.tsx');
     const centerColumn = block(app, '<main\n          className="app-mid"', '</main>');
+    const workspaceRow = block(
+      app,
+      '<div className="app-row"',
+      '{/* Writing/sync status and its Timeline toggle',
+    );
+    const footerShell = block(
+      app,
+      '{/* Writing/sync status and its Timeline toggle',
+      '{/* Overlays / Modals',
+    );
 
     expect(centerColumn).toContain('className="workspace-stage"');
     expect(centerColumn).toContain('className="workspace-dock"');
-    expect(centerColumn).toContain('<BottomStatusBar />');
-    expect(centerColumn.indexOf('className="workspace-stage"')).toBeLessThan(
-      centerColumn.indexOf('<BottomStatusBar />'),
-    );
-    expect(app.indexOf('<Sidebar sidebarType="left">')).toBeLessThan(
-      app.indexOf('<main\n          className="app-mid"'),
-    );
-    expect(app.indexOf('<BottomStatusBar />')).toBeLessThan(
-      app.indexOf('<Sidebar sidebarType="right">'),
-    );
+    expect(centerColumn).not.toContain('<BottomStatusBar />');
+    expect(workspaceRow).toContain('<Sidebar sidebarType="left">');
+    expect(workspaceRow).toContain('<main\n          className="app-mid"');
+    expect(workspaceRow).toContain('<Sidebar sidebarType="right">');
+    expect(workspaceRow).not.toContain('<BottomStatusBar />');
+    expect(footerShell).toContain('<BottomStatusBar />');
   });
 
   it('keeps All Chapters first-class while consolidating the three Super views', () => {
@@ -309,6 +315,11 @@ describe('workspace surface language acceptance', () => {
     const timeline = block(timelineCss, '.btl {', '.btl__resize {');
     const timelineHead = block(timelineCss, '.btl__head {', '.btl__head-left {');
     const timelineRows = block(timelineCss, '.btl-row {', 'Rail (sticky left)');
+    const storylineSeparator = block(
+      timelineCss,
+      '.btl-row + .btl-row .btl-track::before {',
+      '/* ---------------- Rail (sticky left)',
+    );
     const timelineAxis = block(timelineCss, '.btl-axis {', '.btl-axis__rail-add {');
     const localDivider = block(
       controls,
@@ -342,18 +353,22 @@ describe('workspace surface language acceptance', () => {
     expect(timelineRows).not.toContain('border-top');
     expect(timeline).toContain('--btl-lane-bg: hsl(var(--page));');
     expect(timeline).toContain('--btl-secondary-rail-bg: hsl(var(--paper));');
-    expect(timeline).toContain('--btl-rail-contrast-line: var(--btl-lane-bg);');
+    expect(timeline).toContain('--btl-guide-line: var(--workspace-ui-bg);');
+    expect(timeline).not.toContain('--btl-rail-contrast-line');
     expect(timelineAxis).toContain('background: var(--btl-secondary-rail-bg);');
     expect(timelineCss).toMatch(
       /\.btl \.actrail\s*\{[\s\S]*?border-bottom:\s*0;[\s\S]*?background:\s*var\(--btl-secondary-rail-bg\);/,
     );
     expect(timelineCss).toMatch(
-      /\.btl \.actrail__divider::after\s*\{[\s\S]*?background:\s*var\(--btl-rail-contrast-line\);/,
+      /\.btl \.actrail__divider::after\s*\{[\s\S]*?width:\s*0\.5px;[\s\S]*?background:\s*var\(--btl-guide-line\);/,
     );
     expect(timelineCss).toMatch(
-      /\.btl-pin__line\s*\{[\s\S]*?background:\s*var\(--btl-rail-contrast-line\);/,
+      /\.btl-pin__line\s*\{[\s\S]*?width:\s*0\.5px;[\s\S]*?background:\s*var\(--btl-guide-line\);/,
     );
-    expect(trackPinLine).toContain('background: hsl(var(--rule));');
+    expect(trackPinLine).toContain('width: 0.5px;');
+    expect(trackPinLine).toContain('background: var(--btl-guide-line);');
+    expect(storylineSeparator).toContain('height: 0.5px;');
+    expect(storylineSeparator).toContain('background: var(--btl-guide-line);');
     expect(bottomTimeline).not.toContain("background: 'hsl(var(--page))'");
     expect(leftHeader).toContain("background: 'var(--workspace-ui-bg)'");
     expect(leftSubheader).toContain("background: 'var(--workspace-ui-bg)'");
@@ -475,7 +490,7 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('局部层级只使用弱于主接缝的完整 `0.5px` hairline 与相邻灰阶');
     expect(doc).toContain('不实现同时改变三个区域的三向 resize');
     expect(doc).toContain('只用暗淡文字与黑色文字的切换');
-    expect(doc).toContain('footer 只占中间编辑列');
+    expect(doc).toContain('footer 横跨整个窗口底部');
     expect(doc).toContain(
       '`AppTopbar` 的固定顺序是搜索、左栏 toggle、项目主页、通览全书、`SUPER`',
     );

@@ -12,9 +12,9 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 ## Geometry and ownership
 
-- `App.tsx` 的工作区是 `AppTopbar + app-row`；`app-row` 内是 `Sidebar(left) + app-mid + Sidebar(right)`。
-- `app-mid` 依次拥有 `workspace-stage`、可选的 `workspace-dock` 和 `BottomStatusBar`。
-- footer 只占中间编辑列。左右栏打开后直接拥有各自的左下角和右下角，不再被全宽 footer 截断。
+- `App.tsx` 的工作区是 `AppTopbar + app-row + BottomStatusBar`；`app-row` 内是 `Sidebar(left) + app-mid + Sidebar(right)`。
+- `app-mid` 只拥有 `workspace-stage` 与可选的 `workspace-dock`；`BottomStatusBar` 位于三栏之外。
+- footer 横跨整个窗口底部，左右栏与中间编辑列共同停在它上方，形成一条连续的全宽基线。
 - 左右栏与 Bottom Timeline 不通过 z 轴高低区分；模块所有权只由外边界普通 hairline 表达。三方交点不再绘制任何渐变或阴影。
 - 左右栏宽度与 Bottom Timeline 高度仍由各自现有的单轴 handle 独立调整；不实现同时改变三个区域的三向 resize，也不为不存在的能力绘制提示。
 - 顶层工作面使用直角或最多 `2px` 圆角。更大的圆角不用于页面模块、栏、dock 或内容列表容器。
@@ -28,14 +28,14 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - Copilot 与 Shadow 从顶栏移入账户 dropdown 的二级设置页。打开账户菜单后进入对应页面，可就地修改原有 quick settings，并可继续进入完整 Settings；退出二级页先返回账户菜单，不直接关闭整个 dropdown。
 - `BottomStatusBar` 以只读状态为主，报告当前上下文对应的章节/故事线/全书字数、今日新增字数，以及同步状态和最近成功同步时间；原 editor top bar 不再重复显示字数。唯一的交互例外是 Bottom Timeline 展开/收起开关，因为它直接控制 footer 上方相邻的 dock。
 - 通知入口仍留在 topbar，因为它会打开通知中心，属于操作入口而不是被动状态。footer 后续只接受无需点击即可理解、且与当前写作任务有关的短状态。
-- footer 的 `20px` 高度和编辑列所有权保持不变；除相邻 Timeline 开关外，不把低频设置或导航重新塞回底部角落。
+- footer 保持 `20px` 高度并使用全宽所有权；除 Timeline 开关外，不把低频设置或导航重新塞回底部角落。
 
 ## Component shape rules
 
 - 通用圆角阶梯限定为 `1px / 2px / 3px`；`--radius`、`--radius-xs`、`--radius-sm`、`--radius-md` 与 `--radius-lg` 不再制造“软卡片”层级。
 - button、tab、badge、tag、chip、menu row、popover、dialog、toast 和内容卡片使用直角或上述小圆角。`pill` 只保留为旧 API 名称，不再对应胶囊几何。
 - 页面卡片不依靠 hover 上浮、scale 或大面积阴影表达可点击性；改用边框、背景 wash 与文字颜色。菜单和 modal 可以保留一层克制的投影，用来表达真实遮挡关系。
-- 禁止 inset-left vertical accent bar。Graph tile 仍可用覆盖块面的低浓度语义 wash；Bottom Timeline 的故事线名称 rail 与桌面 UI 使用同一底灰，颜色只留给真正承载故事线语义的 marker 与 clip。幕/叙事时 rail 内的边界线取故事线轨道的 `--page` 作局部反色，延伸到故事线轨道后仍使用灰色 `--rule`。
+- 禁止 inset-left vertical accent bar。Graph tile 仍可用覆盖块面的低浓度语义 wash；Bottom Timeline 的故事线名称 rail 与桌面 UI 使用同一底灰，颜色只留给真正承载故事线语义的 marker 与 clip。幕/叙事时 rail 内及故事线轨道里的静态竖线统一取 header 的 `--workspace-ui-bg`；相邻故事线轨道之间也用同色 `0.5px` 横线分隔。
 - 只有形状本身承担语义时才允许圆形或胶囊：头像、状态点、加载 spinner，以及 switch 的 track/thumb。滚动条 thumb 沿用平台可拖拽形状；普通图标按钮不因此自动获得圆形外壳。
 - Plot Planner 是连续的 mini-Excel：单元格共享 hairline 网格，不是带 gap、阴影和 hover lift 的卡片集合。
 
@@ -62,7 +62,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - macOS 红绿灯固定为 `x: 18, y: 22`，基础配置、macOS 覆盖配置与运行时校正必须保持一致。renderer 顶栏高 `42px`，同排图标与文字按钮高 `26px` 并通过 `align-items: center` 共用中心线；`y: 22` 是针对原生 overlay 坐标系校准后的偏移。
 - Project Dashboard 自己拥有垂直滚动：`.dash` 必须以 `width/height: 100%` 受 editor pane 约束，并使用 `overflow-y: auto`。隐藏的只是 scrollbar chrome，不是滚动能力；不能依赖处于非 flex parent 内时无效的 `flex: 1` 来建立滚动高度。
 - 移动端仍保留安全区 padding。侧栏保持 overlay 行为，但表面角色与桌面一致。桌面 topbar 的左右 command groups 在窄屏暂时隐藏；移动端必须用独立的 action menu/sheet 恢复这些能力，不能据此宣称功能等价。
-- Super View overlay 停在中心列 `BottomStatusBar` 上方；工作区入口已经迁到 topbar，左右栏的底角所有权不变。
+- Super View overlay 停在全宽 `BottomStatusBar` 上方；工作区入口已经迁到 topbar。
 
 ## Acceptance
 

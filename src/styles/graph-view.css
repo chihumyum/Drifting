@@ -1065,7 +1065,7 @@
   right: 0;
   /* Anchored above the BottomStatusBar so cards / tab don't get hidden
      by the status bar. Same var as .graph-overlay so the two stay in
-     sync with the center-column status-strip inset. */
+     sync with the full-width status-strip inset. */
   bottom: var(--super-view-bottom-inset);
   display: flex;
   flex-direction: column;

@@ -14,7 +14,7 @@
   right: 0;
   /* Anchor above the BottomStatusBar — same var as the super-view
      overlays so the panel sits flush with the overlay's bottom edge in
-     the center-column status-strip inset. */
+     the full-width status-strip inset. */
   bottom: var(--super-view-bottom-inset);
   display: flex;
   flex-direction: column;

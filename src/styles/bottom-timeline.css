@@ -1,13 +1,13 @@
 /* ============================================================
    Bottom Timeline
    Always-expanded dock. Visibility (open/hidden) is toggled by the
-   center-column BottomStatusBar; the old "collapsed strip" mode is gone.
+   full-width BottomStatusBar; the old "collapsed strip" mode is gone.
    ============================================================ */
 
 .btl {
   --btl-lane-bg: hsl(var(--page));
   --btl-secondary-rail-bg: hsl(var(--paper));
-  --btl-rail-contrast-line: var(--btl-lane-bg);
+  --btl-guide-line: var(--workspace-ui-bg);
   display: flex;
   flex-direction: column;
   background: var(--workspace-ui-bg);
@@ -309,6 +309,21 @@
   background: var(--workspace-ui-bg);
 }
 
+/* A sub-pixel header-tone rule separates adjacent white storyline tracks.
+   It stays inside the scrollable track: the sticky name rail already uses
+   the same workspace/header tone, so drawing over it would add no hierarchy. */
+.btl-row + .btl-row .btl-track::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 0.5px;
+  background: var(--btl-guide-line);
+  pointer-events: none;
+  z-index: 1;
+}
+
 /* ---------------- Rail (sticky left) ---------------- */
 .btl-rail {
   position: sticky;
@@ -449,15 +464,16 @@
   background: var(--btl-secondary-rail-bg);
 }
 
-/* The boundary segment inside the act rail uses the storyline lane's own
-   white as local contrast; its continuation through those white lanes stays
-   the shared gray .btl-pin-line below. */
+/* Static act boundaries use the header tone at sub-pixel width in both the
+   secondary rail and the white storyline lanes below. */
 .btl .actrail__divider::after {
-  background: var(--btl-rail-contrast-line);
+  left: 3.25px;
+  width: 0.5px;
+  background: var(--btl-guide-line);
 }
 
 .btl .actrail__divider:hover::after {
-  width: 2px;
+  width: 0.5px;
   background: hsl(var(--accent));
 }
 
@@ -519,16 +535,15 @@
   opacity: 0;
   pointer-events: none;
 }
-/* Pin line — the rail-height segment uses the storyline lane's white as local
-   contrast. Its continuation through the white storyline lanes is the gray
-   .btl-pin-line below, so the marker remains legible across both surfaces. */
+/* Marker lines use the same sub-pixel header tone through both the secondary
+   rail and the white storyline lanes. */
 .btl-pin__line {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  width: 1px;
-  background: var(--btl-rail-contrast-line);
+  width: 0.5px;
+  background: var(--btl-guide-line);
   cursor: grab;
   transition: opacity 0.1s ease;
 }
@@ -558,7 +573,7 @@
   background: hsl(var(--accent) / 0.12);
 }
 .btl-pin.is-bound .btl-pin__line {
-  background: var(--btl-rail-contrast-line);
+  background: var(--btl-guide-line);
 }
 /* Pin grid line — rendered inside each storyline track so it paints
    below the chapter clips. */
@@ -567,15 +582,15 @@
   top: 0;
   bottom: 0;
   left: 0;
-  width: 1px;
-  background: hsl(var(--rule));
+  width: 0.5px;
+  background: var(--btl-guide-line);
   pointer-events: none;
   z-index: 0;
 }
 
 /* Active drop indicator (marker OR act drag) — accent, matching the act rail
    ghost (.actrail__ghost), so the rail half and the lane half read as one
-   continuous accent line. Static lines stay faint --rule (above). */
+   continuous accent line. Static lines stay sub-pixel header-tone rules. */
 .btl-pin-line.is-dragging {
   width: 1.5px;
   background: hsl(var(--accent));

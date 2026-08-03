@@ -17,9 +17,9 @@ type WordMetric = {
   count: number;
 };
 
-// BottomStatusBar is a status-first line owned by the center editor column.
-// Its one structural control is the adjacent Bottom Timeline visibility
-// toggle; navigation and feature menus live in AppTopbar.
+// BottomStatusBar is a status-first line spanning the full application width.
+// Its one structural control is the Bottom Timeline visibility toggle;
+// navigation and feature menus live in AppTopbar.
 export function BottomStatusBar() {
   const { t } = useTranslation();
   const { projectId } = useProjectNavigation();

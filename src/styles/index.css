@@ -116,7 +116,7 @@
     --chrome-bg: var(--workspace-ui-bg);
     --chrome-divider: none;
 
-    /* Super Views stop above the center-column BottomStatusBar. */
+    /* Super Views stop above the full-width BottomStatusBar. */
     --super-view-bottom-inset: 20px;
 
     /* Workspace geometry. Palette values stay owned by the existing paper,

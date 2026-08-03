@@ -47,8 +47,8 @@ log.setLevel(loglevel.levels.WARN);
 // time axis takes the same vertical slot instead).
 //
 // The old collapsed (strip) state is gone — the timeline is either visible
-// or hidden, controlled by the adjacent BottomStatusBar. Visibility lives in
-// uiStore so the footer toggle can reach it.
+// or hidden, controlled by the full-width BottomStatusBar below the workspace
+// row. Visibility lives in uiStore so the footer toggle can reach it.
 type TimelineView = 'book' | 'narrative';
 const TIMELINE_VIEW_STORAGE_KEY = 'timeline-view';
 const TIMELINE_HEIGHT_STORAGE_KEY = 'timeline-total-height';
@@ -166,7 +166,8 @@ export function BottomTimeline() {
   // glued to the cursor instead of snapping the top edge onto the mouse y.
   const resizeGrabOffsetRef = useRef(0);
   // The timeline's bottom (in viewport coords) at mousedown. The dock isn't
-  // flush with the viewport edge — `BottomStatusBar` sits below it — so we
+  // flush with the viewport edge — the full-width `BottomStatusBar` sits below
+  // the workspace row — so we
   // can't compute height from `window.innerHeight`. The bottom is fixed
   // during the drag (only the top edge moves), so capturing once is enough.
   const resizeBottomYRef = useRef(0);
@@ -1416,8 +1417,9 @@ export function BottomTimeline() {
           // sits flush with the timeline's top border). Capture how far below
           // the top edge the grab happened so handleMouseMove can subtract it
           // and keep the grabbed point glued to the cursor. Also pin the
-          // dock's bottom in viewport coords — `BottomStatusBar` sits below
-          // it, so `window.innerHeight` is not the right anchor.
+          // dock's bottom in viewport coords — the full-width `BottomStatusBar`
+          // sits below the workspace row, so `window.innerHeight` is not the
+          // right anchor.
           const rect = timelineRef.current?.getBoundingClientRect();
           resizeGrabOffsetRef.current = rect ? e.clientY - rect.top : 0;
           resizeBottomYRef.current = rect ? rect.bottom : window.innerHeight;

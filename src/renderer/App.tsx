@@ -758,8 +758,7 @@ function Layout() {
 
   return (
     // One flat workspace plane. The titlebar sits above a three-column body;
-    // both sidebars now run all the way to the bottom while the center column
-    // owns the editor, optional timeline and compact status strip.
+    // the compact status strip spans the full window below all three columns.
     <div
       className="app-root"
       style={{
@@ -838,10 +837,6 @@ function Layout() {
               <BottomTimeline />
             </div>
           )}
-          {/* Writing/sync status and its adjacent Timeline toggle follow the editor column. Open
-              sidebars own their bottom corners instead of being cut off by a
-              full-width footer; other project commands live in AppTopbar. */}
-          <BottomStatusBar />
           {/* In-document Cmd+F find panel — anchored to this editor column
               (.app-mid is position:relative) so it floats over the text area
               instead of the viewport's top-right, which used to occlude the
@@ -862,6 +857,9 @@ function Layout() {
           </div>
         </Sidebar>
       </div>
+      {/* Writing/sync status and its Timeline toggle form one full-width base
+          below the left panel, editor column and right panel. */}
+      <BottomStatusBar />
 
       {/* Overlays / Modals (绝对定位层) */}
       <AgentConfirmDialog />
