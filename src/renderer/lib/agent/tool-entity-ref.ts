@@ -227,6 +227,97 @@ function createdIdFromResult(
   }
 }
 
+function decodedWorkspaceSegment(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function workspaceResultRecord(resultText: string | undefined): Record<string, unknown> | null {
+  if (!resultText) return null;
+  try {
+    const parsed = JSON.parse(resultText) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve a provider-facing workspace path back to the sidebar entity it owns. */
+function workspaceEntityFromPath(path: string): Pick<ToolEntityRef, 'entityType' | 'id'> | null {
+  const parts = path
+    .trim()
+    .replace(/^\/+|\/+$/gu, '')
+    .split('/')
+    .map(decodedWorkspaceSegment);
+  const root = parts[0];
+  const state = useDataStore.getState();
+
+  if ((root === 'chapters' || root === 'drifts') && parts.length >= 3) {
+    const kind = root === 'chapters' ? 'chapter' : 'drift';
+    const title = parts[1]?.trim().toLowerCase();
+    const node = state.bookNodes.find(
+      (candidate) =>
+        candidate.kind === kind && candidate.title.trim().toLowerCase() === title,
+    );
+    return node ? { entityType: 'node', id: node.id } : null;
+  }
+  if (root === 'elements' && parts.length >= 4) {
+    const name = parts[2]?.trim().toLowerCase();
+    const element = state.bookElements.find(
+      (candidate) => candidate.name.trim().toLowerCase() === name,
+    );
+    return element ? { entityType: 'element', id: element.id } : null;
+  }
+  if (root === 'storylines' && parts.length >= 3) {
+    const name = parts[1]?.trim().toLowerCase();
+    const storyline = state.storylines.find(
+      (candidate) => candidate.name.trim().toLowerCase() === name,
+    );
+    return storyline ? { entityType: 'storyline', id: storyline.id } : null;
+  }
+  if (root === 'categories' && parts.length >= 3) {
+    const name = parts[1]?.trim().toLowerCase();
+    const category = state.bookElementCategories.find(
+      (candidate) => candidate.name.trim().toLowerCase() === name,
+    );
+    return category ? { entityType: 'category', id: category.id } : null;
+  }
+  return null;
+}
+
+function workspaceToolEntityRef(
+  name: string,
+  input: Record<string, unknown>,
+  resultText?: string,
+): ToolEntityRef | null {
+  if (name !== 'write_file' && name !== 'edit_file' && name !== 'delete_file') {
+    return null;
+  }
+  const result = workspaceResultRecord(resultText);
+  const path =
+    (typeof result?.path === 'string' && result.path) ||
+    (typeof input.path === 'string' && input.path) ||
+    '';
+  const target = path ? workspaceEntityFromPath(path) : null;
+  if (!target) return null;
+  const op: ActivityOp =
+    name === 'delete_file'
+      ? 'delete'
+      : name === 'write_file' && result?.operation === 'created'
+        ? 'create'
+        : 'write';
+  return {
+    ...target,
+    op,
+    spots: deriveSpots(name, op, resultText),
+  };
+}
+
 /**
  * Resolve a tool call to the entity it touched, or null. `resultText` is needed
  * for create_* tools (the id is in the result). Returns op='read'|'write'|'create'.
@@ -237,6 +328,8 @@ export function toolEntityRef(
   resultText?: string,
 ): ToolEntityRef | null {
   const args = (input ?? {}) as Record<string, unknown>;
+  const workspaceRef = workspaceToolEntityRef(name, args, resultText);
+  if (workspaceRef) return workspaceRef;
   // set_summary is addressed by (targetKind, targetId/target), not a flat field.
   if (name === 'set_summary') {
     const raw = typeof args.target === 'string' ? args.target : String(args.targetId ?? '');

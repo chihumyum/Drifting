@@ -9,23 +9,18 @@ import type {
 } from '../../../domain/agent-runtime-entity-write-receipt';
 import { snapshotAgentRuntimeEntity } from '../../../domain/agent-runtime-entity-write-receipt';
 import type { BookElement, BookElementCategory } from '../../../domain/book-element';
-import {
-  findElementNameConflict,
-  makeUniqueElementName,
-} from '../../../domain/book-element';
+import { findElementNameConflict, makeUniqueElementName } from '../../../domain/book-element';
 import type { BookNode } from '../../../domain/book-node';
 import { makeUniqueNodeTitle } from '../../../domain/book-node';
 import {
   createPlainCommentDoc,
   type Comment,
+  type CommentAction,
   type CommentKind,
   type CommentStatus,
   type CommentTargetKind,
 } from '../../../domain/comment';
-import {
-  isStructuralEntityKind,
-  type EntityKind,
-} from '../../../domain/entity-kinds';
+import { isStructuralEntityKind, type EntityKind } from '../../../domain/entity-kinds';
 import type { PersistedAgentRuntimeWriteExpectation } from '../../../domain/agent-runtime-freshness';
 import type { PersistedAgentRuntimeWriteEffect } from '../../../domain/agent-runtime-write-effect';
 import { stringifyKv, type KvEntry } from '../../../domain/kv';
@@ -40,7 +35,6 @@ import {
 import {
   BookElementTable,
   BookNodeTable,
-  CommentActionTable,
   CommentTable,
   ElementCategoryTable,
   ElementPatchTable,
@@ -58,17 +52,17 @@ import { createBookContentRepository } from '../../../sqlite-repo/content-repo';
 import { createBookElementSqliteRepository } from '../../../sqlite-repo/element-repo';
 import { createElementCategoryRepository } from '../../../sqlite-repo/element-category-repo';
 import { createBookNodeSqliteRepository } from '../../../sqlite-repo/node-repo';
-import { createCommentRepository } from '../../../sqlite-repo/comment-repo';
+import {
+  createCommentActionRepository,
+  createCommentRepository,
+} from '../../../sqlite-repo/comment-repo';
 import { createProjectRepository } from '../../../sqlite-repo/project-repo';
 import { createStorylineRepository } from '../../../sqlite-repo/storyline-repo';
 import { useDataStore, type EntityRelationLink } from '../../../store/data-store';
 import type { EntityAtomicTransactionRunner } from '../../../usecase/synced-entity-commands';
 import { effectiveAgentEditMode } from '../agent-edit-mode';
 import { throwIfAgentAborted } from './errors';
-import {
-  deterministicAgentEntityId,
-  hashEntityWriteValue,
-} from './entity-write-revision';
+import { deterministicAgentEntityId, hashEntityWriteValue } from './entity-write-revision';
 import type { DriftingWriteStrategy } from './drifting-write-strategies';
 import type { AgentToolExecutionRequest } from './types';
 
@@ -91,8 +85,7 @@ export const DRIFTING_STRUCTURAL_WRITE_TOOLS = [
   'remove_relation',
 ] as const satisfies readonly AgentRuntimeEntityWriteTool[];
 
-export type DriftingStructuralWriteTool =
-  (typeof DRIFTING_STRUCTURAL_WRITE_TOOLS)[number];
+export type DriftingStructuralWriteTool = (typeof DRIFTING_STRUCTURAL_WRITE_TOOLS)[number];
 
 type ExpectedEntityKind =
   | 'project'
@@ -117,7 +110,13 @@ type StructuralMutation =
   | { kind: 'update_category'; updates: Partial<BookElementCategory> }
   | { kind: 'update_comment'; updates: Partial<Comment> }
   | { kind: 'add_relation'; value: AgentRuntimeEntityRelationSnapshotValue }
-  | { kind: 'update_relation'; kindValue: string | null };
+  | {
+      kind: 'update_relation';
+      updates: Pick<
+        AgentRuntimeEntityRelationSnapshotValue,
+        'fromKind' | 'fromId' | 'toKind' | 'toId' | 'kind'
+      >;
+    };
 
 interface StructuralWritePayload {
   kind: 'structural_write_command';
@@ -140,6 +139,51 @@ interface StructuralWritePayload {
   };
 }
 
+function numericChapterOrdinal(title: string): number | null {
+  const normalized = title.normalize('NFKC').trim();
+  const match = /^(?:chapter[-_\s]*|第\s*)?(\d+)(?:\s*章)?$/iu.exec(normalized);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function suggestedChapterBookOrder(
+  title: string,
+  nodes: readonly BookNode[],
+  fallback: number,
+): number {
+  const ordinal = numericChapterOrdinal(title);
+  if (ordinal === null) return fallback;
+  const numbered = nodes
+    .filter((node): node is Extract<BookNode, { kind: 'chapter' }> => node.kind === 'chapter')
+    .flatMap((node) => {
+      const candidate = numericChapterOrdinal(node.title);
+      return candidate === null
+        ? []
+        : [{ ordinal: candidate, bookOrder: node.bookOrder }];
+    });
+  const lower = numbered
+    .filter((candidate) => candidate.ordinal < ordinal)
+    .sort((left, right) => right.ordinal - left.ordinal)[0];
+  const upper = numbered
+    .filter((candidate) => candidate.ordinal > ordinal)
+    .sort((left, right) => left.ordinal - right.ordinal)[0];
+  const occupied = new Set(
+    nodes
+      .filter((node) => node.kind === 'chapter')
+      .map((node) => node.bookOrder),
+  );
+  if (lower && upper && upper.bookOrder - lower.bookOrder > 1) {
+    const candidate = Math.floor((lower.bookOrder + upper.bookOrder) / 2);
+    if (!occupied.has(candidate)) return candidate;
+  }
+  if (!lower && upper) {
+    const candidate = upper.bookOrder - 1;
+    if (!occupied.has(candidate)) return candidate;
+  }
+  return fallback;
+}
+
 interface AtomicResult {
   receipt: PersistedAgentRuntimeEntityWriteReceipt;
   syncPersisted: boolean;
@@ -159,13 +203,10 @@ export function createDriftingStructuralWriteStrategy(
   options: DriftingStructuralWriteStrategyOptions,
 ): DriftingWriteStrategy {
   const db = options.db ?? getDb();
-  const receipts =
-    options.receipts ?? createAgentRuntimeEntityWriteReceiptRepository(db);
+  const receipts = options.receipts ?? createAgentRuntimeEntityWriteReceiptRepository(db);
   const now = options.now ?? (() => new Date().toISOString());
-  const persistSyncMutation =
-    options.persistSyncMutation ?? persistSyncMutationInTransaction;
-  const notifySyncCommitted =
-    options.notifySyncCommitted ?? notifySyncMutationCommitted;
+  const persistSyncMutation = options.persistSyncMutation ?? persistSyncMutationInTransaction;
+  const notifySyncCommitted = options.notifySyncCommitted ?? notifySyncMutationCommitted;
 
   return {
     async prepare(request, _context, expectation) {
@@ -187,16 +228,9 @@ export function createDriftingStructuralWriteStrategy(
         effectId: payload.effectId,
         projectId: payload.projectId,
         sessionId: request.sessionId,
-        readCurrentVersion: (tx, expectation) =>
-          readCurrentVersion(tx, expectation, payload),
+        readCurrentVersion: (tx, expectation) => readCurrentVersion(tx, expectation, payload),
         mutate: (tx) =>
-          applyForwardInTransaction(
-            tx,
-            payload,
-            request.sessionId,
-            now,
-            persistSyncMutation,
-          ),
+          applyForwardInTransaction(tx, payload, request.sessionId, now, persistSyncMutation),
       });
       notifyCommittedSafely(committed.syncPersisted, notifySyncCommitted);
       projectSnapshot(payload, committed.receipt.postimage);
@@ -238,15 +272,7 @@ export function createDriftingStructuralWriteStrategy(
         return inverseEffect(existing, true);
       }
       const committed = await db.transaction(
-        (tx) =>
-          applyInverseInTransaction(
-            tx,
-            payload,
-            effect,
-            forward,
-            now,
-            persistSyncMutation,
-          ),
+        (tx) => applyInverseInTransaction(tx, payload, effect, forward, now, persistSyncMutation),
         { behavior: 'immediate' },
       );
       notifyCommittedSafely(committed.syncPersisted, notifySyncCommitted);
@@ -330,7 +356,7 @@ async function preparePayload(
           ? {
               ...shared,
               kind: 'chapter',
-              bookOrder: maxOrder + 1,
+              bookOrder: suggestedChapterBookOrder(title, nodes, maxOrder + 1),
               writingStatus: 'draft',
             }
           : {
@@ -353,10 +379,7 @@ async function preparePayload(
     if (toolName === 'create_element') {
       const category = resolveCategory(projectId, request.arguments.category);
       const elements = await createBookElementSqliteRepository(projectId, db).findAll();
-      const requestedName = requiredString(
-        request.arguments.name,
-        'create_element requires name',
-      );
+      const requestedName = requiredString(request.arguments.name, 'create_element requires name');
       const name = makeUniqueElementName(requestedName, elements, projectId);
       const aliases = stringArray(request.arguments.aliases);
       const conflict = findElementNameConflict([name, ...aliases], elements, projectId);
@@ -387,10 +410,7 @@ async function preparePayload(
       };
     }
     if (toolName === 'create_storyline') {
-      const storylines = await createStorylineRepository(
-        projectId,
-        db,
-      ).getStorylinesByProject();
+      const storylines = await createStorylineRepository(projectId, db).getStorylinesByProject();
       const id = await deterministicAgentEntityId(request.idempotencyKey, 'storyline');
       const value: Storyline = {
         id,
@@ -453,18 +473,8 @@ async function preparePayload(
     if (!isStructuralEntityKind(toKind)) {
       throw new Error(`Relation target kind "${toKind}" is not structural`);
     }
-    const fromId = await resolveEntityId(
-      db,
-      projectId,
-      fromKind,
-      request.arguments.from,
-    );
-    const toId = await resolveEntityId(
-      db,
-      projectId,
-      toKind,
-      request.arguments.to,
-    );
+    const fromId = await resolveEntityId(db, projectId, fromKind, request.arguments.from);
+    const toId = await resolveEntityId(db, projectId, toKind, request.arguments.to);
     const id = await deterministicAgentEntityId(request.idempotencyKey, 'relation');
     const value: AgentRuntimeEntityRelationSnapshotValue = {
       id,
@@ -474,9 +484,7 @@ async function preparePayload(
       toKind,
       toId,
       kind:
-        typeof request.arguments.kind === 'string'
-          ? request.arguments.kind.trim() || null
-          : null,
+        typeof request.arguments.kind === 'string' ? request.arguments.kind.trim() || null : null,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -489,12 +497,7 @@ async function preparePayload(
   }
 
   const resolved = await resolveExistingTarget(toolName, projectId, request.arguments, db);
-  requireExpectation(
-    expectation,
-    request,
-    resolved.entityKind,
-    resolved.snapshot.value.id,
-  );
+  requireExpectation(expectation, request, resolved.entityKind, resolved.snapshot.value.id);
   assertExpectedRevision(expectation, resolved.snapshot.value.updatedAt, resolved.readTool);
   const common = {
     ...base,
@@ -506,12 +509,7 @@ async function preparePayload(
     preimage: resolved.snapshot,
   };
   if (toolName.startsWith('delete_') || toolName === 'remove_relation') {
-    await assertStructuralDeleteAllowed(
-      db,
-      projectId,
-      common.entityKind,
-      common.entityId,
-    );
+    await assertStructuralDeleteAllowed(db, projectId, common.entityKind, common.entityId);
     return { ...common, mutation: { kind: 'delete_entity' } };
   }
   if (toolName === 'update_category') {
@@ -525,7 +523,9 @@ async function preparePayload(
       updates.elementTemplateKvJson = stringifyKv(parseFacts(request.arguments.templateFacts));
     }
     if (Object.keys(updates).length === 0) {
-      throw new Error('update_category requires a changed name or templateFacts; edit body.md for category prose');
+      throw new Error(
+        'update_category requires a changed name or templateFacts; edit body.md for category prose',
+      );
     }
     return { ...common, mutation: { kind: 'update_category', updates } };
   }
@@ -549,37 +549,60 @@ async function preparePayload(
     if (typeof request.arguments.targetKind === 'string') {
       const targetKind = normalizeEntityKind(request.arguments.targetKind);
       if (!isStructuralEntityKind(targetKind)) {
-        throw new Error(
-          'Comment targetKind must be node, element, patch, storyline, or category',
-        );
+        throw new Error('Comment targetKind must be node, element, patch, storyline, or category');
       }
       updates.targetKind = targetKind as CommentTargetKind;
-      updates.targetId = await resolveEntityId(
-        db,
-        projectId,
-        targetKind,
-        request.arguments.target,
-      );
+      updates.targetId = await resolveEntityId(db, projectId, targetKind, request.arguments.target);
     }
     if (Object.keys(updates).length === 0) {
       throw new Error(`${toolName} requires a changed body, kind, status, or target`);
     }
-    if (
-      Object.entries(updates).every(
-        ([key, value]) => value === before[key as keyof Comment],
-      )
-    ) {
+    if (Object.entries(updates).every(([key, value]) => value === before[key as keyof Comment])) {
       throw new Error(`${toolName} would not change the comment`);
     }
     return { ...common, mutation: { kind: 'update_comment', updates } };
   }
-  const kindValue =
-    typeof request.arguments.kind === 'string'
-      ? request.arguments.kind.trim() || null
-      : null;
   const before = resolved.snapshot.value as AgentRuntimeEntityRelationSnapshotValue;
-  if (kindValue === before.kind) throw new Error('The relation kind is unchanged');
-  return { ...common, mutation: { kind: 'update_relation', kindValue } };
+  const fromKind =
+    request.arguments.fromKind === undefined
+      ? normalizeEntityKind(before.fromKind)
+      : normalizeEntityKind(
+          requiredString(request.arguments.fromKind, 'fromKind must be a supported entity kind'),
+        );
+  const toKind =
+    request.arguments.toKind === undefined
+      ? normalizeEntityKind(before.toKind)
+      : normalizeEntityKind(
+          requiredString(request.arguments.toKind, 'toKind must be a supported entity kind'),
+        );
+  if (!isStructuralEntityKind(toKind)) {
+    throw new Error(`Relation target kind "${toKind}" is not structural`);
+  }
+  const fromId =
+    request.arguments.from === undefined
+      ? before.fromId
+      : await resolveEntityId(db, projectId, fromKind, request.arguments.from);
+  const toId =
+    request.arguments.to === undefined
+      ? before.toId
+      : await resolveEntityId(db, projectId, toKind, request.arguments.to);
+  const kindValue =
+    request.arguments.kind === undefined
+      ? before.kind
+      : typeof request.arguments.kind === 'string'
+        ? request.arguments.kind.trim() || null
+        : null;
+  const updates = { fromKind, fromId, toKind, toId, kind: kindValue };
+  if (
+    updates.fromKind === before.fromKind &&
+    updates.fromId === before.fromId &&
+    updates.toKind === before.toKind &&
+    updates.toId === before.toId &&
+    updates.kind === before.kind
+  ) {
+    throw new Error('The relation is unchanged');
+  }
+  return { ...common, mutation: { kind: 'update_relation', updates } };
 }
 
 async function resolveExistingTarget(
@@ -596,19 +619,31 @@ async function resolveExistingTarget(
     const node = resolveNode(projectId, args.node);
     const value = await createBookNodeSqliteRepository(projectId, db).findById(node.id);
     if (!value) throw new Error('The node no longer exists');
-    return { entityKind: 'node', snapshot: snapshotAgentRuntimeEntity(value, 'node'), readTool: 'read_node' };
+    return {
+      entityKind: 'node',
+      snapshot: snapshotAgentRuntimeEntity(value, 'node'),
+      readTool: 'read_node',
+    };
   }
   if (toolName === 'delete_element') {
     const element = resolveElement(projectId, args.element);
     const value = await createBookElementSqliteRepository(projectId, db).findById(element.id);
     if (!value) throw new Error('The element no longer exists');
-    return { entityKind: 'element', snapshot: snapshotAgentRuntimeEntity(value, 'element'), readTool: 'read_element' };
+    return {
+      entityKind: 'element',
+      snapshot: snapshotAgentRuntimeEntity(value, 'element'),
+      readTool: 'read_element',
+    };
   }
   if (toolName === 'delete_storyline') {
     const storyline = resolveStoryline(projectId, args.storyline);
     const value = await createStorylineRepository(projectId, db).getStorylineById(storyline.id);
     if (!value) throw new Error('The storyline no longer exists');
-    return { entityKind: 'storyline', snapshot: snapshotAgentRuntimeEntity(value, 'storyline'), readTool: 'get_storyline' };
+    return {
+      entityKind: 'storyline',
+      snapshot: snapshotAgentRuntimeEntity(value, 'storyline'),
+      readTool: 'get_storyline',
+    };
   }
   if (toolName === 'delete_category' || toolName === 'update_category') {
     const category = resolveCategory(projectId, args.category);
@@ -626,13 +661,29 @@ async function resolveExistingTarget(
   ) {
     const id = requiredString(args.commentId, `${toolName} requires commentId`);
     const value = await createCommentRepository(projectId, db).findById(id);
-    if (!value || value.projectId !== projectId) throw new Error(`Comment "${id}" no longer exists`);
-    return { entityKind: 'comment', snapshot: snapshotAgentRuntimeEntity(value, 'comment'), readTool: 'list_comments' };
+    if (!value || value.projectId !== projectId)
+      throw new Error(`Comment "${id}" no longer exists`);
+    const actions =
+      toolName === 'delete_comment'
+        ? await createCommentActionRepository(projectId, db).findByComment(id)
+        : [];
+    return {
+      entityKind: 'comment',
+      snapshot:
+        toolName === 'delete_comment'
+          ? { kind: 'comment', value, actions }
+          : snapshotAgentRuntimeEntity(value, 'comment'),
+      readTool: 'list_comments',
+    };
   }
   const id = requiredString(args.relationId, `${toolName} requires relationId`);
   const value = await loadRelation(db, projectId, id);
   if (!value) throw new Error(`Relation "${id}" no longer exists`);
-  return { entityKind: 'relation', snapshot: snapshotAgentRuntimeEntity(value, 'relation'), readTool: 'get_entity_relations' };
+  return {
+    entityKind: 'relation',
+    snapshot: snapshotAgentRuntimeEntity(value, 'relation'),
+    readTool: 'get_entity_relations',
+  };
 }
 
 async function readCurrentVersion(
@@ -723,7 +774,13 @@ async function applyForwardInTransaction(
       await assertRelationEndpoints(tx, relation);
       await tx.insert(EntityRelationTable).values(relation);
       await sync.runner(payload.projectId, (_inner, writeSync) =>
-        writeSync('entityRelation', 'create', payload.entityId, payload.projectId, relationPayload(relation)),
+        writeSync(
+          'entityRelation',
+          'create',
+          payload.entityId,
+          payload.projectId,
+          relationPayload(relation),
+        ),
       );
       postimage = snapshotAgentRuntimeEntity(relation, 'relation');
       break;
@@ -737,7 +794,12 @@ async function applyForwardInTransaction(
       );
       await deleteEntity(tx, payload, now());
       await sync.runner(payload.projectId, (_inner, writeSync) =>
-        writeSync(syncEntityType(payload.entityKind), structuralDeleteMutation(payload.entityKind), payload.entityId, payload.projectId),
+        writeSync(
+          syncEntityType(payload.entityKind),
+          structuralDeleteMutation(payload.entityKind),
+          payload.entityId,
+          payload.projectId,
+        ),
       );
       break;
     }
@@ -754,10 +816,10 @@ async function applyForwardInTransaction(
       break;
     }
     case 'update_comment': {
-      const value = await createCommentRepository(payload.projectId, tx).update(
-        payload.entityId,
-        { ...payload.mutation.updates, updatedAt: now() },
-      );
+      const value = await createCommentRepository(payload.projectId, tx).update(payload.entityId, {
+        ...payload.mutation.updates,
+        updatedAt: now(),
+      });
       if (!value) throw new Error('The comment disappeared during update');
       await sync.runner(payload.projectId, (_inner, writeSync) =>
         writeSync('comment', 'update', value.id, payload.projectId, commentPayload(value)),
@@ -767,9 +829,20 @@ async function applyForwardInTransaction(
     }
     case 'update_relation': {
       const timestamp = now();
+      if (payload.preimage?.kind !== 'relation') {
+        throw new Error('The relation update lost its exact preimage');
+      }
+      const next = {
+        ...payload.preimage.value,
+        ...payload.mutation.updates,
+        id: payload.entityId,
+        projectId: payload.projectId,
+        updatedAt: timestamp,
+      } as AgentRuntimeEntityRelationSnapshotValue;
+      await assertRelationEndpoints(tx, next);
       const rows = await tx
         .update(EntityRelationTable)
-        .set({ kind: payload.mutation.kindValue, updatedAt: timestamp })
+        .set({ ...payload.mutation.updates, updatedAt: timestamp })
         .where(
           and(
             eq(EntityRelationTable.id, payload.entityId),
@@ -780,7 +853,13 @@ async function applyForwardInTransaction(
       if (!rows[0]) throw new Error('The relation disappeared during update');
       const value = relationFromRow(rows[0]);
       await sync.runner(payload.projectId, (_inner, writeSync) =>
-        writeSync('entityRelation', 'update', value.id, payload.projectId, { kind: value.kind }),
+        writeSync(
+          'entityRelation',
+          'update',
+          value.id,
+          payload.projectId,
+          relationPayload(value),
+        ),
       );
       postimage = snapshotAgentRuntimeEntity(value, 'relation');
       break;
@@ -821,8 +900,17 @@ async function applyInverseInTransaction(
   const sync = transactionRunner(tx, persistSyncMutation);
   let postimage: AgentRuntimeEntityWriteSnapshot | null = null;
   if (isCreateTool(payload.toolName)) {
-    const current = await loadActiveSnapshot(tx, payload.projectId, payload.entityKind, payload.entityId);
-    await assertUnchanged(current, forward, 'The created entity changed; exact reject is unavailable');
+    const current = await loadActiveSnapshot(
+      tx,
+      payload.projectId,
+      payload.entityKind,
+      payload.entityId,
+    );
+    await assertUnchanged(
+      current,
+      forward,
+      'The created entity changed; exact reject is unavailable',
+    );
     await hardDeleteCreatedEntity(tx, payload);
     await sync.runner(payload.projectId, (_inner, writeSync) =>
       writeSync(syncEntityType(payload.entityKind), 'delete', payload.entityId, payload.projectId),
@@ -830,16 +918,48 @@ async function applyInverseInTransaction(
   } else if (isDeleteTool(payload.toolName)) {
     if (!payload.preimage) throw new Error('The delete inverse lost its preimage');
     postimage = await restoreDeletedEntity(tx, payload, payload.preimage, now());
-    await sync.runner(payload.projectId, (_inner, writeSync) =>
-      writeSync(syncEntityType(payload.entityKind), structuralRestoreMutation(payload.entityKind), payload.entityId, payload.projectId, snapshotPayload(postimage!)),
-    );
+    await sync.runner(payload.projectId, async (_inner, writeSync) => {
+      await writeSync(
+        syncEntityType(payload.entityKind),
+        structuralRestoreMutation(payload.entityKind),
+        payload.entityId,
+        payload.projectId,
+        snapshotPayload(postimage!),
+      );
+      if (postimage?.kind === 'comment') {
+        for (const action of postimage.actions ?? []) {
+          await writeSync(
+            'commentAction',
+            'create',
+            action.id,
+            payload.projectId,
+            commentActionPayload(action),
+          );
+        }
+      }
+    });
   } else {
-    const current = await loadActiveSnapshot(tx, payload.projectId, payload.entityKind, payload.entityId);
-    await assertUnchanged(current, forward, 'The updated entity changed; exact reject is unavailable');
+    const current = await loadActiveSnapshot(
+      tx,
+      payload.projectId,
+      payload.entityKind,
+      payload.entityId,
+    );
+    await assertUnchanged(
+      current,
+      forward,
+      'The updated entity changed; exact reject is unavailable',
+    );
     if (!payload.preimage) throw new Error('The update inverse lost its preimage');
     postimage = await restoreUpdatedEntity(tx, payload, payload.preimage, now());
     await sync.runner(payload.projectId, (_inner, writeSync) =>
-      writeSync(syncEntityType(payload.entityKind), 'update', payload.entityId, payload.projectId, snapshotPayload(postimage!)),
+      writeSync(
+        syncEntityType(payload.entityKind),
+        'update',
+        payload.entityId,
+        payload.projectId,
+        snapshotPayload(postimage!),
+      ),
     );
   }
   const receipt = await receiptRepo.persist({
@@ -890,7 +1010,7 @@ async function assertStructuralDeleteAllowed(
   entityId: string,
 ): Promise<void> {
   if (entityKind !== 'relation') {
-    const relation = await db
+    const relations = await db
       .select({ id: EntityRelationTable.id })
       .from(EntityRelationTable)
       .where(
@@ -901,17 +1021,16 @@ async function assertStructuralDeleteAllowed(
               eq(EntityRelationTable.fromKind, entityKind),
               eq(EntityRelationTable.fromId, entityId),
             ),
-            and(
-              eq(EntityRelationTable.toKind, entityKind),
-              eq(EntityRelationTable.toId, entityId),
-            ),
+            and(eq(EntityRelationTable.toKind, entityKind), eq(EntityRelationTable.toId, entityId)),
           ),
         ),
       )
-      .limit(1);
-    if (relation[0]) {
+      .limit(20);
+    if (relations.length > 0) {
       throw new Error(
-        'This entity still has a curated relation. Remove its /relations/*.json file before deleting the entity.',
+        `This entity still has curated relations: ${relations
+          .map((relation) => `/relations/${workspacePathSegment(relation.id)}.json`)
+          .join(', ')}. Remove those exact files before deleting the entity.`,
       );
     }
   }
@@ -922,7 +1041,7 @@ async function assertStructuralDeleteAllowed(
     entityKind === 'storyline' ||
     entityKind === 'category'
   ) {
-    const comment = await db
+    const comments = await db
       .select({ id: CommentTable.id })
       .from(CommentTable)
       .where(
@@ -932,36 +1051,32 @@ async function assertStructuralDeleteAllowed(
           eq(CommentTable.targetId, entityId),
         ),
       )
-      .limit(1);
-    if (comment[0]) {
+      .limit(20);
+    if (comments.length > 0) {
       throw new Error(
-        'This entity still has an attached comment or TODO. Delete or retarget its /comments/*.json file first.',
-      );
-    }
-  }
-
-  if (entityKind === 'comment') {
-    const action = await db
-      .select({ id: CommentActionTable.id })
-      .from(CommentActionTable)
-      .where(
-        and(
-          eq(CommentActionTable.projectId, projectId),
-          eq(CommentActionTable.commentId, entityId),
-        ),
-      )
-      .limit(1);
-    if (action[0]) {
-      throw new Error(
-        'This comment has an action history and cannot be exactly deleted by the Agent.',
+        `This entity still has attached comments or TODOs: ${comments
+          .map((comment) => `/comments/${workspacePathSegment(comment.id)}.json`)
+          .join(
+            ', ',
+          )}. Delete those exact files, or edit their target fields to retarget them, before deleting the entity.`,
       );
     }
   }
 
   if (entityKind === 'category') {
-    const child = await db
-      .select({ id: BookElementTable.id })
+    const children = await db
+      .select({
+        categoryName: ElementCategoryTable.name,
+        elementName: BookElementTable.name,
+      })
       .from(BookElementTable)
+      .innerJoin(
+        ElementCategoryTable,
+        and(
+          eq(ElementCategoryTable.id, BookElementTable.categoryId),
+          eq(ElementCategoryTable.projectId, projectId),
+        ),
+      )
       .where(
         and(
           eq(BookElementTable.projectId, projectId),
@@ -969,33 +1084,61 @@ async function assertStructuralDeleteAllowed(
           isNull(BookElementTable.deletedAt),
         ),
       )
-      .limit(1);
-    if (child[0]) {
+      .limit(20);
+    if (children.length > 0) {
       throw new Error(
-        'This category still contains elements. Move or delete those elements before deleting the category.',
+        `This category still contains elements: ${children
+          .map(
+            (child) =>
+              `/elements/${workspacePathSegment(child.categoryName)}/${workspacePathSegment(child.elementName)}`,
+          )
+          .join(', ')}. Move or delete those exact resources before deleting the category.`,
       );
     }
   }
 
   if (entityKind === 'node' || entityKind === 'storyline') {
-    const membership = await db
-      .select({ nodeId: NodeStorylineLinkTable.nodeId })
+    const memberships = await db
+      .select({ storylineName: StorylineTable.name })
       .from(NodeStorylineLinkTable)
+      .innerJoin(
+        StorylineTable,
+        and(
+          eq(StorylineTable.id, NodeStorylineLinkTable.storylineId),
+          eq(StorylineTable.projectId, projectId),
+          isNull(StorylineTable.deletedAt),
+        ),
+      )
       .where(
         entityKind === 'node'
           ? eq(NodeStorylineLinkTable.nodeId, entityId)
           : eq(NodeStorylineLinkTable.storylineId, entityId),
       )
-      .limit(1);
-    if (membership[0]) {
+      .limit(20);
+    if (memberships.length > 0) {
       throw new Error(
-        'This entity still has a storyline membership. Unlink it before deleting the entity.',
+        `This entity still has storyline memberships in: ${[
+          ...new Set(
+            memberships.map(
+              (membership) =>
+                `/storylines/${workspacePathSegment(membership.storylineName)}/chapters.json`,
+            ),
+          ),
+        ].join(', ')}. Edit those exact files to unlink it before deleting the entity.`,
       );
     }
   }
 }
 
-async function hardDeleteCreatedEntity(tx: DbExecutor, payload: StructuralWritePayload): Promise<void> {
+function workspacePathSegment(value: string): string {
+  const cleaned = value.trim() || '(untitled)';
+  return cleaned.replaceAll('%', '%25').replaceAll('/', '%2F').replaceAll('\\', '%5C');
+}
+
+async function hardDeleteCreatedEntity(
+  tx: DbExecutor,
+  payload: StructuralWritePayload,
+): Promise<void> {
   if (payload.entityKind === 'comment') {
     await createCommentRepository(payload.projectId, tx).delete(payload.entityId);
     return;
@@ -1023,7 +1166,12 @@ async function restoreDeletedEntity(
       ...preimage.value,
       updatedAt,
     });
-    return snapshotAgentRuntimeEntity(value, 'comment');
+    const actionRepository = createCommentActionRepository(payload.projectId, tx);
+    const actions: CommentAction[] = [];
+    for (const action of preimage.actions ?? []) {
+      actions.push(await actionRepository.create(action));
+    }
+    return { kind: 'comment', value, actions };
   }
   if (preimage.kind === 'relation') {
     const value = { ...preimage.value, updatedAt };
@@ -1035,9 +1183,7 @@ async function restoreDeletedEntity(
     preimage.kind === 'storyline_membership' ||
     preimage.kind === 'memory'
   ) {
-    throw new Error(
-      `${preimage.kind} cannot be restored through a structural entity delete`,
-    );
+    throw new Error(`${preimage.kind} cannot be restored through a structural entity delete`);
   }
   const table = structuralTable(preimage.kind);
   await tx
@@ -1064,17 +1210,24 @@ async function restoreUpdatedEntity(
     return snapshotAgentRuntimeEntity(value, 'category');
   }
   if (preimage.kind === 'comment') {
-    const value = await createCommentRepository(payload.projectId, tx).update(
-      payload.entityId,
-      { ...preimage.value, updatedAt },
-    );
+    const value = await createCommentRepository(payload.projectId, tx).update(payload.entityId, {
+      ...preimage.value,
+      updatedAt,
+    });
     if (!value) throw new Error('The comment inverse failed');
     return snapshotAgentRuntimeEntity(value, 'comment');
   }
   if (preimage.kind === 'relation') {
     const rows = await tx
       .update(EntityRelationTable)
-      .set({ kind: preimage.value.kind, updatedAt })
+      .set({
+        fromKind: preimage.value.fromKind,
+        fromId: preimage.value.fromId,
+        toKind: preimage.value.toKind,
+        toId: preimage.value.toId,
+        kind: preimage.value.kind,
+        updatedAt,
+      })
       .where(eq(EntityRelationTable.id, payload.entityId))
       .returning();
     if (!rows[0]) throw new Error('The relation inverse failed');
@@ -1090,34 +1243,70 @@ async function loadActiveSnapshot(
   id: string,
 ): Promise<AgentRuntimeEntityWriteSnapshot | null> {
   if (kind === 'node') {
-    const active = await tx.select({ id: BookNodeTable.id }).from(BookNodeTable).where(and(eq(BookNodeTable.id, id), eq(BookNodeTable.projectId, projectId), isNull(BookNodeTable.deletedAt))).limit(1);
+    const active = await tx
+      .select({ id: BookNodeTable.id })
+      .from(BookNodeTable)
+      .where(
+        and(
+          eq(BookNodeTable.id, id),
+          eq(BookNodeTable.projectId, projectId),
+          isNull(BookNodeTable.deletedAt),
+        ),
+      )
+      .limit(1);
     if (!active[0]) return null;
     const value = await createBookNodeSqliteRepository(projectId, tx).findById(id);
     return value ? snapshotAgentRuntimeEntity(value, 'node') : null;
   }
   if (kind === 'element') {
-    const active = await tx.select({ id: BookElementTable.id }).from(BookElementTable).where(and(eq(BookElementTable.id, id), eq(BookElementTable.projectId, projectId), isNull(BookElementTable.deletedAt))).limit(1);
+    const active = await tx
+      .select({ id: BookElementTable.id })
+      .from(BookElementTable)
+      .where(
+        and(
+          eq(BookElementTable.id, id),
+          eq(BookElementTable.projectId, projectId),
+          isNull(BookElementTable.deletedAt),
+        ),
+      )
+      .limit(1);
     if (!active[0]) return null;
     const value = await createBookElementSqliteRepository(projectId, tx).findById(id);
     return value ? snapshotAgentRuntimeEntity(value, 'element') : null;
   }
   if (kind === 'storyline') {
-    const active = await tx.select({ id: StorylineTable.id }).from(StorylineTable).where(and(eq(StorylineTable.id, id), eq(StorylineTable.projectId, projectId), isNull(StorylineTable.deletedAt))).limit(1);
+    const active = await tx
+      .select({ id: StorylineTable.id })
+      .from(StorylineTable)
+      .where(
+        and(
+          eq(StorylineTable.id, id),
+          eq(StorylineTable.projectId, projectId),
+          isNull(StorylineTable.deletedAt),
+        ),
+      )
+      .limit(1);
     if (!active[0]) return null;
     const value = await createStorylineRepository(projectId, tx).getStorylineById(id);
     return value ? snapshotAgentRuntimeEntity(value, 'storyline') : null;
   }
   if (kind === 'category') {
-    const rows = await tx.select().from(ElementCategoryTable).where(and(eq(ElementCategoryTable.id, id), eq(ElementCategoryTable.projectId, projectId), isNull(ElementCategoryTable.deletedAt))).limit(1);
-    return rows[0]
-      ? snapshotAgentRuntimeEntity(rows[0] as BookElementCategory, 'category')
-      : null;
+    const rows = await tx
+      .select()
+      .from(ElementCategoryTable)
+      .where(
+        and(
+          eq(ElementCategoryTable.id, id),
+          eq(ElementCategoryTable.projectId, projectId),
+          isNull(ElementCategoryTable.deletedAt),
+        ),
+      )
+      .limit(1);
+    return rows[0] ? snapshotAgentRuntimeEntity(rows[0] as BookElementCategory, 'category') : null;
   }
   if (kind === 'comment') {
     const value = await createCommentRepository(projectId, tx).findById(id);
-    return value?.projectId === projectId
-      ? snapshotAgentRuntimeEntity(value, 'comment')
-      : null;
+    return value?.projectId === projectId ? snapshotAgentRuntimeEntity(value, 'comment') : null;
   }
   if (kind === 'relation') {
     const value = await loadRelation(tx, projectId, id);
@@ -1264,6 +1453,21 @@ function commentPayload(value: Comment): Record<string, unknown> {
   };
 }
 
+function commentActionPayload(value: CommentAction): Record<string, unknown> {
+  return {
+    id: value.id,
+    commentId: value.commentId,
+    kind: value.kind,
+    label: value.label,
+    payloadJson: value.payloadJson,
+    status: value.status,
+    resultJson: value.resultJson,
+    createdByKind: value.createdByKind,
+    createdById: value.createdById,
+    appliedAt: value.appliedAt,
+  };
+}
+
 function relationPayload(value: AgentRuntimeEntityRelationSnapshotValue): Record<string, unknown> {
   return {
     id: value.id,
@@ -1297,12 +1501,7 @@ async function entityExists(
     const rows = await tx
       .select({ id: ElementPatchTable.id })
       .from(ElementPatchTable)
-      .where(
-        and(
-          eq(ElementPatchTable.id, id),
-          eq(ElementPatchTable.projectId, projectId),
-        ),
-      )
+      .where(and(eq(ElementPatchTable.id, id), eq(ElementPatchTable.projectId, projectId)))
       .limit(1);
     return Boolean(rows[0]);
   }
@@ -1310,12 +1509,7 @@ async function entityExists(
     const rows = await tx
       .select({ id: LibraryItemTable.id })
       .from(LibraryItemTable)
-      .where(
-        and(
-          eq(LibraryItemTable.id, id),
-          eq(LibraryItemTable.projectId, projectId),
-        ),
-      )
+      .where(and(eq(LibraryItemTable.id, id), eq(LibraryItemTable.projectId, projectId)))
       .limit(1);
     return Boolean(rows[0]);
   }
@@ -1357,22 +1551,14 @@ function resolveCategory(projectId: string, value: unknown) {
     .getState()
     .bookElementCategories.filter((item) => item.projectId === projectId);
   try {
-    return resolveNamed(
-      categories,
-      value,
-      (item) => item.name,
-      'category',
-    );
+    return resolveNamed(categories, value, (item) => item.name, 'category');
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('No category named')) {
       const reference = requiredString(value, 'category reference is required');
       const normalizedReference = normalizedName(reference);
       const containedMatches = categories.filter((category) => {
         const candidate = normalizedName(category.name);
-        return (
-          candidate.includes(normalizedReference) ||
-          normalizedReference.includes(candidate)
-        );
+        return candidate.includes(normalizedReference) || normalizedReference.includes(candidate);
       });
       if (containedMatches.length === 1) return containedMatches[0]!;
       throw new Error(
@@ -1424,9 +1610,7 @@ async function resolveEntityId(
   }
   if (kind === 'library_item') {
     return resolveNamed(
-      useDataStore
-        .getState()
-        .libraryItems.filter((item) => item.projectId === projectId),
+      useDataStore.getState().libraryItems.filter((item) => item.projectId === projectId),
       value,
       (item) => item.title,
       'library item',
@@ -1437,12 +1621,7 @@ async function resolveEntityId(
     .select({ id: ElementPatchTable.id, title: ElementPatchTable.title })
     .from(ElementPatchTable)
     .where(eq(ElementPatchTable.projectId, projectId));
-  return resolveNamed(
-    rows,
-    reference,
-    (patch) => patch.title ?? '',
-    'element patch',
-  ).id;
+  return resolveNamed(rows, reference, (patch) => patch.title ?? '', 'element patch').id;
 }
 
 function normalizeEntityKind(value: string): EntityKind {
@@ -1534,10 +1713,7 @@ function parsePayload(
   return value as StructuralWritePayload;
 }
 
-function receiptId(
-  payload: StructuralWritePayload,
-  direction: 'forward' | 'inverse',
-): string {
+function receiptId(payload: StructuralWritePayload, direction: 'forward' | 'inverse'): string {
   return `agent-entity-write-receipt:${payload.effectId}:${direction}`;
 }
 
@@ -1613,10 +1789,7 @@ function committedEffect(
   };
 }
 
-function inverseEffect(
-  receipt: PersistedAgentRuntimeEntityWriteReceipt,
-  reconciled: boolean,
-) {
+function inverseEffect(receipt: PersistedAgentRuntimeEntityWriteReceipt, reconciled: boolean) {
   return {
     kind: 'entity_write_revert',
     commandId: receipt.commandId,
@@ -1701,6 +1874,11 @@ function projectSnapshot(
     const exists = data.comments.some((item) => item.id === snapshot.value.id);
     if (exists) data.updateComment(snapshot.value.id, snapshot.value);
     else data.addComment(snapshot.value);
+    for (const action of snapshot.actions ?? []) {
+      if (!data.commentActions.some((candidate) => candidate.id === action.id)) {
+        data.addCommentAction(action);
+      }
+    }
   } else if (snapshot.kind === 'relation') {
     data.removeEntityRelation(snapshot.value.id);
     data.addEntityRelation(snapshot.value as EntityRelationLink);
@@ -1714,24 +1892,21 @@ function transactionRunner(
   let persisted = false;
   return {
     runner: async (projectId, work) =>
-      work(
-        tx,
-        async (entityType, mutationType, entityId, mutationProjectId, payload, parentId) => {
-          if (mutationProjectId !== projectId) {
-            throw new Error(`Structural write for ${projectId} cannot sync ${mutationProjectId}`);
-          }
-          persisted =
-            (await persistSyncMutation(tx as DbTransaction, {
-              entityType,
-              mutationType,
-              entityId,
-              projectId,
-              payload,
-              parentId,
-              timestamp: Date.now(),
-            })) || persisted;
-        },
-      ),
+      work(tx, async (entityType, mutationType, entityId, mutationProjectId, payload, parentId) => {
+        if (mutationProjectId !== projectId) {
+          throw new Error(`Structural write for ${projectId} cannot sync ${mutationProjectId}`);
+        }
+        persisted =
+          (await persistSyncMutation(tx as DbTransaction, {
+            entityType,
+            mutationType,
+            entityId,
+            projectId,
+            payload,
+            parentId,
+            timestamp: Date.now(),
+          })) || persisted;
+      }),
     persisted: () => persisted,
   };
 }

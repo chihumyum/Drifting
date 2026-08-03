@@ -1,7 +1,7 @@
 import type { BookElement } from './book-element';
 import type { BookElementCategory } from './book-element';
 import type { BookNode } from './book-node';
-import type { Comment } from './comment';
+import type { Comment, CommentAction } from './comment';
 import type { Project } from './project';
 import type { Storyline } from './storyline';
 import type { AgentMemory } from './agent-memory';
@@ -81,7 +81,7 @@ export interface AgentRuntimeEntityRelationSnapshotValue {
  * intentionally not stored in any entity metadata column.
  */
 export type AgentRuntimeEntityWriteSnapshot =
-  | { kind: 'comment'; value: Comment }
+  | { kind: 'comment'; value: Comment; actions?: CommentAction[] }
   | { kind: 'node'; value: BookNode }
   | { kind: 'element'; value: BookElement }
   | { kind: 'storyline'; value: Storyline }

@@ -4,6 +4,7 @@ import {
   AGENT_LONG_TASK_READ_TOOL,
   AGENT_LONG_TASK_STEP_TOOL,
 } from './long-task-tool-runtime';
+import { isBroadAutonomousProjectCampaign } from './long-task-intent';
 import type {
   AgentToolDefinition,
   AgentToolSelectionRequest,
@@ -39,7 +40,7 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
 
       const query = intentQuery(request);
       const activeTask = request.hints.longTask?.status === 'active';
-      const needsPlan = activeTask || looksLikeLongTask(query);
+      const offerPlan = looksLikeLongTask(query);
       const createIntent = mentionsCreate(query);
       const wholeFileWriteIntent = mentionsWholeFileWrite(query);
       const deleteIntent = mentionsDelete(query);
@@ -47,6 +48,11 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
 
       if (activeTask) {
         append(result, available, AGENT_LONG_TASK_READ_TOOL, limit);
+        // The active-task surface must retain the task-level mutation tool as
+        // well as the step tool. Without it the model can advance individual
+        // steps but cannot extend/reconcile/complete the durable plan, so a
+        // successful long task is forced to end in an internally-active state.
+        append(result, available, AGENT_LONG_TASK_PLAN_TOOL, limit);
         append(result, available, AGENT_LONG_TASK_STEP_TOOL, limit);
         append(result, available, 'list_files', limit);
         append(result, available, 'read_file', limit);
@@ -56,20 +62,21 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
         // focused correction even when those verbs were absent from the
         // original wording.
         append(result, available, WORKSPACE_WRITE, limit);
-        append(result, available, 'grep', limit);
+        if (!deleteIntent) append(result, available, 'grep', limit);
         append(result, available, WORKSPACE_EDIT, limit);
+        if (deleteIntent) append(result, available, 'grep', limit);
         return result;
       }
 
-      if (needsPlan) {
+      // A durable plan is valuable continuity state, but it must not become a
+      // prerequisite that hides ordinary workspace writes. Providers may
+      // ignore or mishandle a plan tool; the Agent can still make progress and
+      // the runtime can continue a planless turn across context boundaries.
+      if (offerPlan) {
         append(result, available, AGENT_LONG_TASK_PLAN_TOOL, limit);
         if (mentionsExplicitConstraint(query)) {
           append(result, available, AGENT_LONG_TASK_CONSTRAINT_TOOL, limit);
         }
-        append(result, available, 'list_files', limit);
-        append(result, available, 'read_file', limit);
-        append(result, available, 'grep', limit);
-        return result;
       }
 
       append(result, available, 'list_files', limit);
@@ -88,7 +95,13 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
       ) {
         append(result, available, WORKSPACE_WRITE, limit);
       }
-      if (deleteIntent) append(result, available, WORKSPACE_DELETE, limit);
+      // Keep the complete filesystem mutation surface available throughout an
+      // ordinary executable turn. A vague continuation can discover obsolete
+      // resources only after reading; hiding delete_file based solely on the
+      // original wording makes that newly discovered work impossible.
+      if (ordinaryWorkspaceMutation) {
+        append(result, available, WORKSPACE_DELETE, limit);
+      }
       append(result, available, 'grep', limit);
       // Keep the ordinary workspace capability stable, like Claude Code's
       // always-available Edit tool. Inferring whether prose is writable from
@@ -131,6 +144,7 @@ function intentQuery(request: AgentToolSelectionRequest): string {
     originalRequestFromSearchQuery(request.query),
     task?.objective ?? '',
     task?.nextStep?.title ?? '',
+    task?.nextStep?.workKind ?? task?.workKind ?? '',
     task?.nextStep?.target?.name ?? '',
   ]
     .filter(Boolean)
@@ -146,7 +160,42 @@ function originalRequestFromSearchQuery(query: string): string {
 }
 
 function looksLikeLongTask(query: string): boolean {
-  return /整本|全书|所有章节|每(?:一|个)章节|逐章|从头到尾|长任务|整部|whole\s+book|all\s+chapters|every\s+chapter|chapter\s+by\s+chapter/i.test(
+  if (
+    /整本|全书|所有章节|每(?:一|个)章节|逐章|从头到尾|长任务|整部|whole\s+book|all\s+chapters|every\s+chapter|chapter\s+by\s+chapter/i.test(
+      query,
+    )
+  ) {
+    return true;
+  }
+
+  if (isBroadAutonomousProjectCampaign(query)) {
+    return true;
+  }
+
+  // Real authors often describe a campaign as a sequence of outcomes instead
+  // of naming its size: “整理完，该删的删、该补的补，再续写并自检”. That is
+  // exactly the work that needs durable continuation state across compaction.
+  // Exposing the plan is only an affordance; it never limits what the model may
+  // read or write through the ordinary workspace tools.
+  const campaignActions =
+    query.match(
+      /彻底整理|整理(?:完|好|顺)|删掉|删除|清理|补齐|补全|完善|新建|创建|关联|调整关系|修改|改写|续写|往后写|写到|自检|检查|核对|验证|clean\s*up|delete|remove|fill\s+in|complete|create|relate|edit|rewrite|continue\s+writing|self[-\s]?check|verify/gi,
+    ) ?? [];
+  if (
+    campaignActions.length >= 3 &&
+    /该.{0,20}该.{0,24}(?:再|然后)|(?:再|然后).{0,30}(?:自己|自我)?(?:检查|核对|验证)|没做完.{0,12}(?:继续|别停)|直到.{0,16}(?:完成|做完)|彻底.{0,40}(?:删|补|写|改)|(?:then|afterwards).{0,40}(?:check|verify)|(?:keep\s+going|continue).{0,24}(?:until|unfinished|done)/i.test(
+      query,
+    )
+  ) {
+    return true;
+  }
+
+  // Authors rarely describe a long edit as “a long task”. Requests such as
+  // “收拾开头几章，做完再从头检查” are multi-resource campaigns even though
+  // they neither name every target nor say “全书”. Detect the broad chapter
+  // range itself; the durable plan then records the concrete targets after the
+  // model has listed the workspace.
+  return /(?:开头|前面|前部|前期|后面|后部|后期|中间|中部|最近|现有)?\s*(?:几|多|若干|数|好几)(?:个)?\s*章|(?:开头|前面|前部|后面|后部|中间).{0,8}(?:章节|正文)|(?:multiple|several|a\s+few|opening|early|later)\s+chapters?/i.test(
     query,
   );
 }
@@ -173,10 +222,7 @@ function mentionsComment(query: string): boolean {
 
 function mentionsCreate(query: string): boolean {
   return /新建|创建|新增|添加|建立|写一(?:个|条|篇)|new\s+(?:chapter|drift|node|element|entity|storyline|category|comment|todo|relation)|create|add\s+(?:a\s+)?(?:comment|todo|relation)/i.test(
-    withoutNegatedMutationClause(
-      query,
-      '新建|创建|新增|添加|建立|create|add|new',
-    ),
+    withoutNegatedMutationClause(query, '新建|创建|新增|添加|建立|create|add|new'),
   );
 }
 
@@ -187,8 +233,11 @@ function mentionsWholeFileWrite(query: string): boolean {
 }
 
 function mentionsDelete(query: string): boolean {
-  return /删除|移除|清除|删掉|delete|remove/i.test(
-    withoutNegatedMutationClause(query, '删除|移除|清除|删掉|delete|remove'),
+  return /删除|移除|清除|清理|清掉|删掉|delete|remove|clean\s*up/i.test(
+    withoutNegatedMutationClause(
+      query,
+      '删除|移除|清除|清理|清掉|删掉|delete|remove|clean\\s*up',
+    ),
   );
 }
 
@@ -210,13 +259,7 @@ function withoutNegatedMutationClause(query: string, verbs: string): string {
       ),
       '',
     )
-    .replace(
-      new RegExp(
-        `(?:do\\s+not|don't|without)\\s+(?:${verbs})[^,.?;\\n]*`,
-        'gi',
-      ),
-      '',
-    );
+    .replace(new RegExp(`(?:do\\s+not|don't|without)\\s+(?:${verbs})[^,.?;\\n]*`, 'gi'), '');
 }
 
 function append(

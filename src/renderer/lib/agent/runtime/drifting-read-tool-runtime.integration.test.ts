@@ -459,6 +459,8 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
     expect(domainSnapshot()).toBe(before);
     expect(JSON.stringify(results)).not.toContain('FOREIGN_SECRET');
     expect(results.read_node).toContain('雨夜里');
+    expect(results.read_node).toContain('chapter "第一章" · draft · 11字');
+    expect(results.read_node).not.toContain('· 14字');
     expect(results.read_element).toMatchObject({ name: '柳青' });
     expect(results.list_memory).toMatchObject({
       memories: [expect.objectContaining({ body: '保持克制。' })],

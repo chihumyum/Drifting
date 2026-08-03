@@ -1032,6 +1032,7 @@ describe.sequential('Drifting Agent product composition', () => {
             'list_files',
             'read_file',
             'write_file',
+            'delete_file',
             'grep',
             'edit_file',
             'ask_user',

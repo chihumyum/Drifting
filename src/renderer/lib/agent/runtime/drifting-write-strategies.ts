@@ -19,6 +19,7 @@ import { proseDocId, type ProseEntityType } from '../../yjs-doc-id';
 import { computeBlockChanges, type AgentBlockChange } from '../block-diff';
 import { revertEntityBlock } from '../chapter-prose';
 import { effectiveAgentEditMode } from '../agent-edit-mode';
+import { resolveAgentProseReviewMode } from '../agent-prose-review-policy';
 import {
   BookElementTable,
   BookNodeTable,
@@ -639,11 +640,16 @@ function proseWriteStrategy(
         operation,
         ...(base.sourceKind === 'seed' ? { seedStateUpdate } : {}),
       });
+      const reviewMode = resolveAgentProseReviewMode(
+        effectiveAgentEditMode(),
+        beforeContentJson,
+        command.prepared.projection.contentJson,
+      );
       const reviewSnapshot = await proseReviewSnapshot(
         request.idempotencyKey,
         beforeContentJson,
         base.stateHash,
-        effectiveAgentEditMode(),
+        reviewMode,
       );
       const payload: PersistedProseCommandPayload = {
         kind: 'yjs_prose',

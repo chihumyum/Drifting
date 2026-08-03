@@ -4,6 +4,14 @@ import type {
   YjsProseOperation,
   YjsProseTextNode,
 } from './yjs-prose-command';
+import {
+  normalizeAgentMarkdownLink,
+  parseAgentProseMarkdown,
+  renderAgentProseMarkdownBlock,
+  type AgentMarkdownBlock,
+  type AgentMarkdownInline,
+  type AgentMarkdownMarks,
+} from '../markdown-prose-adapter';
 
 export interface WorkspaceTextReplacement {
   oldText: string;
@@ -40,25 +48,154 @@ export function applyWorkspaceTextReplacements(
 ): string {
   let next = normalizeLineEndings(content);
   for (const replacement of replacements) {
-    const count = countOccurrences(next, replacement.oldText);
-    if (count === 0) {
+    const matches = findReplacementMatches(next, replacement.oldText).map((match) =>
+      includeCompatibleStructuralPrefix(next, match, replacement.oldText, replacement.newText),
+    );
+    if (matches.length === 0) {
       throw new Error(
-        `The text to replace was not found in the current file: ${previewText(replacement.oldText)}`,
+        'STALE_EDIT_TARGET: The text to replace was not found in the current file. ' +
+          'Re-read the latest file and copy the current text; do not retry the identical edit. ' +
+          previewText(replacement.oldText),
       );
     }
-    if (!replacement.replaceAll && count !== 1) {
+    if (!replacement.replaceAll && matches.length !== 1) {
       throw new Error(
-        `The text to replace occurs ${count} times. Include more surrounding text or set replaceAll=true.`,
+        `The text to replace occurs ${matches.length} times. Include more surrounding text or set replaceAll=true.`,
       );
     }
-    next = replacement.replaceAll
-      ? next.split(replacement.oldText).join(replacement.newText)
-      : next.replace(replacement.oldText, replacement.newText);
+    const selected = replacement.replaceAll ? matches : matches.slice(0, 1);
+    for (const match of [...selected].reverse()) {
+      next = next.slice(0, match.start) + replacement.newText + next.slice(match.end);
+    }
   }
   if (next === normalizeLineEndings(content)) {
     throw new Error('The requested replacements do not change the file');
   }
   return next;
+}
+
+interface ReplacementMatch {
+  start: number;
+  end: number;
+}
+
+function includeCompatibleStructuralPrefix(
+  content: string,
+  match: ReplacementMatch,
+  oldText: string,
+  newText: string,
+): ReplacementMatch {
+  if (structuralPrefixKind(oldText)) return match;
+  const nextKind = structuralPrefixKind(newText);
+  if (!nextKind) return match;
+  const lineStart = content.lastIndexOf('\n', match.start - 1) + 1;
+  const existingPrefix = content.slice(lineStart, match.start);
+  if (structuralPrefixKind(existingPrefix) !== nextKind) return match;
+  return { start: lineStart, end: match.end };
+}
+
+function structuralPrefixKind(
+  value: string,
+): 'heading' | 'blockquote' | 'code' | 'bullet' | 'ordered' | null {
+  if (/^\s{0,3}#{1,6}[\t ]+/u.test(value)) return 'heading';
+  if (/^\s{0,3}>[\t ]?/u.test(value)) return 'blockquote';
+  if (/^`[\t ]?/u.test(value)) return 'code';
+  if (/^-[\t ]+/u.test(value)) return 'bullet';
+  if (/^1\.[\t ]+/u.test(value)) return 'ordered';
+  return null;
+}
+
+/**
+ * Models commonly normalize straight quotes to typographic quotes and omit
+ * invisible line-end spaces while replaying prose they just read. Treat only
+ * those presentation differences as equivalent, and only after an exact
+ * lookup misses. This keeps edit_file deterministic: wording, paragraph
+ * boundaries, other punctuation, and occurrence cardinality must still match.
+ */
+function findReplacementMatches(content: string, oldText: string): ReplacementMatch[] {
+  const exact = occurrenceIndexes(content, oldText);
+  if (exact.length > 0) {
+    return exact.map((start) => ({
+      start,
+      end: includeInvisibleLineEndWhitespace(content, start + oldText.length),
+    }));
+  }
+
+  const comparableContent = comparableEditText(content);
+  const comparableOldText = comparableEditText(oldText);
+  if (!comparableContent.changed && !comparableOldText.changed) return [];
+  if (!comparableOldText.text) return [];
+  return occurrenceIndexes(comparableContent.text, comparableOldText.text).map((index) => {
+    const start = comparableContent.starts[index]!;
+    const finalIndex = index + comparableOldText.text.length - 1;
+    let end = comparableContent.ends[finalIndex]!;
+    end = includeInvisibleLineEndWhitespace(content, end);
+    return { start, end };
+  });
+}
+
+function includeInvisibleLineEndWhitespace(value: string, end: number): number {
+  const whitespaceEnd = horizontalWhitespaceRunEnd(value, end);
+  return whitespaceEnd > end && (whitespaceEnd === value.length || value[whitespaceEnd] === '\n')
+    ? whitespaceEnd
+    : end;
+}
+
+function occurrenceIndexes(value: string, needle: string): number[] {
+  const indexes: number[] = [];
+  let offset = 0;
+  while (offset <= value.length - needle.length) {
+    const found = value.indexOf(needle, offset);
+    if (found < 0) break;
+    indexes.push(found);
+    offset = found + Math.max(1, needle.length);
+  }
+  return indexes;
+}
+
+interface ComparableEditText {
+  text: string;
+  starts: number[];
+  ends: number[];
+  changed: boolean;
+}
+
+function comparableEditText(value: string): ComparableEditText {
+  let text = '';
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let changed = false;
+  for (let index = 0; index < value.length; ) {
+    const whitespaceEnd = horizontalWhitespaceRunEnd(value, index);
+    if (
+      whitespaceEnd > index &&
+      (whitespaceEnd === value.length || value[whitespaceEnd] === '\n')
+    ) {
+      changed = true;
+      index = whitespaceEnd;
+      continue;
+    }
+    const char = value[index]!;
+    const comparable = comparableQuoteGlyph(char);
+    if (comparable !== char) changed = true;
+    text += comparable;
+    starts.push(index);
+    ends.push(index + 1);
+    index += 1;
+  }
+  return { text, starts, ends, changed };
+}
+
+function horizontalWhitespaceRunEnd(value: string, start: number): number {
+  let end = start;
+  while (end < value.length && /[\t \u00a0\u3000]/u.test(value[end]!)) end += 1;
+  return end;
+}
+
+function comparableQuoteGlyph(value: string): string {
+  if (/[“”„‟＂]/u.test(value)) return '"';
+  if (/[‘’‚‛＇]/u.test(value)) return "'";
+  return value;
 }
 
 export function renderWorkspaceProseFile(blocks: readonly YjsProseBlock[]): string {
@@ -95,31 +232,35 @@ export async function planWorkspaceProseFileWrite(input: {
   content: string;
   idempotencyKey: string;
 }): Promise<YjsProseOperation> {
-  const desiredTexts = splitWorkspaceProseFile(input.content);
-  const beforeTexts = input.blocks.map(renderWorkspaceProseBlock);
-  const exactPairs = longestCommonSubsequencePairs(beforeTexts, desiredTexts);
+  const requestedBlocks = parseAgentProseMarkdown(input.content);
+  const beforeKeys = input.blocks.map(workspaceProseBlockMatchKey);
+  const requestedKeys = requestedBlocks.map(agentMarkdownBlockMatchKey);
+  const exactPairs = longestCommonSubsequencePairs(beforeKeys, requestedKeys);
   const desiredBlocks: YjsProseBlock[] = [];
   let oldCursor = 0;
   let newCursor = 0;
   let inserted = 0;
 
-  for (const [oldMatch, newMatch] of [...exactPairs, [input.blocks.length, desiredTexts.length]]) {
+  for (const [oldMatch, newMatch] of [
+    ...exactPairs,
+    [input.blocks.length, requestedBlocks.length] as [number, number],
+  ]) {
     const oldGap = input.blocks.slice(oldCursor, oldMatch);
-    const newGap = desiredTexts.slice(newCursor, newMatch);
+    const newGap = requestedBlocks.slice(newCursor, newMatch);
     const paired = Math.min(oldGap.length, newGap.length);
     for (let index = 0; index < paired; index += 1) {
-      desiredBlocks.push(blockWithRenderedText(oldGap[index]!, newGap[index]!));
+      desiredBlocks.push(blockWithAgentMarkdown(oldGap[index]!, newGap[index]!));
     }
     for (let index = paired; index < newGap.length; index += 1) {
       desiredBlocks.push(
-        await newBlockFromRenderedText(
+        await newBlockFromAgentMarkdown(
           newGap[index]!,
           await deterministicBlockId(input.idempotencyKey, inserted),
         ),
       );
       inserted += 1;
     }
-    if (oldMatch < input.blocks.length && newMatch < desiredTexts.length) {
+    if (oldMatch < input.blocks.length && newMatch < requestedBlocks.length) {
       desiredBlocks.push(input.blocks[oldMatch]!);
     }
     oldCursor = oldMatch + 1;
@@ -187,42 +328,100 @@ export async function planWorkspaceProseFileWrite(input: {
 }
 
 function renderWorkspaceProseBlock(block: YjsProseBlock): string {
-  const text = nodesText(block.content ?? []).replace(/\s*\n\s*/g, ' ');
-  switch (block.type) {
-    case 'paragraph':
-      return text;
-    case 'heading':
-      return `# ${text}`;
-    case 'blockquote':
-      return `> ${text}`;
-    case 'codeBlock':
-      return `\` ${text}`;
-    case 'listItem':
-    case 'bulletList':
-      return `- ${text}`;
-    case 'orderedList':
-      return `1. ${text}`;
-    default:
-      return `[${block.type}] ${text}`;
+  return renderAgentProseMarkdownBlock(workspaceBlockToAgentMarkdown(block));
+}
+
+function workspaceProseBlockMatchKey(block: YjsProseBlock): string {
+  const rendered = renderWorkspaceProseBlock(block);
+  return isSchemaAllowedWorkspaceBlock(block)
+    ? `allowed:${rendered}`
+    : `legacy:${block.type}:${rendered}`;
+}
+
+function agentMarkdownBlockMatchKey(block: AgentMarkdownBlock): string {
+  return `allowed:${renderAgentProseMarkdownBlock(block)}`;
+}
+
+function isSchemaAllowedWorkspaceBlock(block: YjsProseBlock): boolean {
+  if (block.type === 'heading') return headingLevel(block) !== null;
+  return (
+    block.type === 'paragraph' ||
+    block.type === 'blockquote' ||
+    block.type === 'horizontalRule'
+  );
+}
+
+function workspaceBlockToAgentMarkdown(block: YjsProseBlock): AgentMarkdownBlock {
+  if (block.type === 'horizontalRule') return { type: 'horizontalRule', inline: [] };
+  const inline =
+    block.type === 'blockquote'
+      ? flattenYjsBlockquoteInline(block.content ?? [])
+      : yjsNodesToAgentInline(block.content ?? []);
+  if (block.type === 'heading') {
+    const level = headingLevel(block);
+    if (level) return { type: 'heading', level, inline };
   }
+  if (block.type === 'blockquote') return { type: 'blockquote', inline };
+  return { type: 'paragraph', inline };
 }
 
-function nodesText(nodes: readonly YjsProseNode[]): string {
-  return nodes
-    .map((node) => (node.kind === 'text' ? node.text : nodesText(node.content ?? [])))
-    .join('');
+function headingLevel(block: YjsProseBlock): 1 | 2 | 3 | null {
+  const level = block.attrs?.level;
+  if (level == null) return 1;
+  return level === 1 || level === 2 || level === 3 ? level : null;
 }
 
-function splitWorkspaceProseFile(value: string): string[] {
-  const normalized = normalizeLineEndings(value);
-  if (normalized.length === 0) return [''];
-  return normalized.split(/\n{2,}/).map((block) => block.replace(/\n/g, ' '));
+function flattenYjsBlockquoteInline(nodes: readonly YjsProseNode[]): AgentMarkdownInline[] {
+  return nodes.flatMap((node, index) => [
+    ...(index > 0 ? ([{ kind: 'hardBreak' }, { kind: 'hardBreak' }] as const) : []),
+    ...(node.kind === 'text'
+      ? yjsNodesToAgentInline([node])
+      : yjsNodesToAgentInline(node.content ?? [])),
+  ]);
 }
 
-function blockWithRenderedText(block: YjsProseBlock, rendered: string): YjsProseBlock {
-  const parsed = parseRenderedBlock(rendered, block.type);
+function yjsNodesToAgentInline(nodes: readonly YjsProseNode[]): AgentMarkdownInline[] {
+  const inline: AgentMarkdownInline[] = [];
+  for (const node of nodes) {
+    if (node.kind === 'element') {
+      if (node.type === 'hardBreak') inline.push({ kind: 'hardBreak' });
+      else inline.push(...yjsNodesToAgentInline(node.content ?? []));
+      continue;
+    }
+    const marks = yjsMarksToAgentMarkdown(node.marks);
+    inline.push({
+      kind: 'text',
+      text: node.text,
+      ...(Object.keys(marks).length > 0 ? { marks } : {}),
+    });
+  }
+  return inline;
+}
+
+function yjsMarksToAgentMarkdown(
+  marks: YjsProseTextNode['marks'],
+): AgentMarkdownMarks {
+  if (!marks) return {};
+  const linkRecord = marks.link;
+  const link =
+    linkRecord && typeof linkRecord === 'object' && !Array.isArray(linkRecord)
+      ? normalizeAgentMarkdownLink(linkRecord.href)
+      : null;
+  return {
+    ...(marks.bold ? { bold: true } : {}),
+    ...(marks.italic ? { italic: true } : {}),
+    ...(marks.strike ? { strike: true } : {}),
+    ...(marks.underline ? { underline: true } : {}),
+    ...(link ? { link } : {}),
+  };
+}
+
+function blockWithAgentMarkdown(
+  block: YjsProseBlock,
+  parsed: AgentMarkdownBlock,
+): YjsProseBlock {
   if (parsed.type !== block.type) {
-    return makeBlock(block.id, parsed.type, parsed.text, undefined);
+    return makeBlock(block.id, parsed, undefined);
   }
   if (block.type === 'blockquote') {
     const paragraph = block.content?.find(
@@ -236,18 +435,39 @@ function blockWithRenderedText(block: YjsProseBlock, rendered: string): YjsProse
           kind: 'element',
           type: 'paragraph',
           ...(paragraph?.kind === 'element' && paragraph.attrs ? { attrs: paragraph.attrs } : {}),
-          ...(parsed.text ? { content: replaceMarkedText(current, parsed.text) } : {}),
+          ...(parsed.inline.length > 0
+            ? {
+                content: agentInlineHasFormatting(parsed.inline)
+                  ? preserveOpaqueInlineMarks(
+                      current,
+                      agentMarkdownInlineToYjs(parsed.inline),
+                    )
+                  : replaceMarkedText(current, agentInlinePlainText(parsed.inline)),
+              }
+            : {}),
         },
       ],
     };
   }
-  if (block.type === 'paragraph' || block.type === 'heading' || block.type === 'codeBlock') {
+  if (block.type === 'paragraph' || block.type === 'heading') {
     return {
       ...block,
-      content: parsed.text ? replaceMarkedText(block.content ?? [], parsed.text) : [],
+      ...(block.type === 'heading' && parsed.type === 'heading'
+        ? { attrs: { ...(block.attrs ?? {}), level: parsed.level } }
+        : {}),
+      content:
+        parsed.inline.length === 0
+          ? []
+          : agentInlineHasFormatting(parsed.inline)
+            ? preserveOpaqueInlineMarks(
+                block.content ?? [],
+                agentMarkdownInlineToYjs(parsed.inline),
+              )
+            : replaceMarkedText(block.content ?? [], agentInlinePlainText(parsed.inline)),
     };
   }
-  return makeBlock(block.id, parsed.type, parsed.text, block.attrs);
+  if (block.type === 'horizontalRule') return { ...block, content: [] };
+  return makeBlock(block.id, parsed, undefined);
 }
 
 function replaceMarkedText(
@@ -320,80 +540,192 @@ function mergeTextNodes(nodes: readonly YjsProseTextNode[]): YjsProseTextNode[] 
   return output;
 }
 
-async function newBlockFromRenderedText(rendered: string, id: string): Promise<YjsProseBlock> {
-  const parsed = parseRenderedBlock(rendered, 'paragraph');
-  return makeBlock(id, parsed.type, parsed.text, undefined);
+function agentInlineHasFormatting(inline: readonly AgentMarkdownInline[]): boolean {
+  return inline.some(
+    (node) => node.kind === 'hardBreak' || (node.marks && Object.keys(node.marks).length > 0),
+  );
 }
 
-function parseRenderedBlock(
-  rendered: string,
-  fallbackType: string,
-): { type: string; text: string } {
-  const heading = /^\s{0,3}#{1,6}[\t ]+(.*)$/s.exec(rendered);
-  if (heading) return { type: 'heading', text: heading[1] ?? '' };
-  const quote = /^\s{0,3}>[\t ]?(.*)$/s.exec(rendered);
-  if (quote) return { type: 'blockquote', text: quote[1] ?? '' };
-  const code = /^`[\t ]?(.*)$/s.exec(rendered);
-  if (code) return { type: 'codeBlock', text: code[1] ?? '' };
-  const bullet = /^-[\t ]+(.*)$/s.exec(rendered);
-  if (bullet) return { type: 'bulletList', text: bullet[1] ?? '' };
-  const ordered = /^1\.[\t ]+(.*)$/s.exec(rendered);
-  if (ordered) return { type: 'orderedList', text: ordered[1] ?? '' };
-  const typed = /^\[([^\]]+)]\s?(.*)$/s.exec(rendered);
-  if (typed && typed[1] === fallbackType) {
-    return { type: fallbackType, text: typed[2] ?? '' };
+function agentInlinePlainText(inline: readonly AgentMarkdownInline[]): string {
+  return inline.map((node) => (node.kind === 'hardBreak' ? '\n' : node.text)).join('');
+}
+
+function agentMarkdownInlineToYjs(inline: readonly AgentMarkdownInline[]): YjsProseNode[] {
+  return inline.flatMap((node): YjsProseNode[] => {
+    if (node.kind === 'hardBreak') return [{ kind: 'element', type: 'hardBreak' }];
+    if (!node.text) return [];
+    const marks: Record<string, NonNullable<YjsProseTextNode['marks']>[string]> = {};
+    if (node.marks?.bold) marks.bold = {};
+    if (node.marks?.italic) marks.italic = {};
+    if (node.marks?.strike) marks.strike = {};
+    if (node.marks?.underline) marks.underline = {};
+    const link = normalizeAgentMarkdownLink(node.marks?.link);
+    if (link) marks.link = { href: link };
+    return [
+      {
+        kind: 'text',
+        text: node.text,
+        ...(Object.keys(marks).length > 0 ? { marks } : {}),
+      },
+    ];
+  });
+}
+
+const AGENT_MARK_NAMES = new Set(['bold', 'italic', 'strike', 'underline', 'link']);
+
+/**
+ * Entity links and future editor-only marks are intentionally invisible in the
+ * virtual Markdown file. When the model edits visible Markdown styling, keep
+ * those opaque marks on unchanged prefix/suffix text instead of silently
+ * deleting product semantics that the model could not see.
+ */
+function preserveOpaqueInlineMarks(
+  previous: readonly YjsProseNode[],
+  desired: readonly YjsProseNode[],
+): YjsProseNode[] {
+  if (!previous.every(isFlatInlineNode) || !desired.every(isFlatInlineNode)) return [...desired];
+  const oldText = yjsInlinePlainText(previous);
+  const newText = yjsInlinePlainText(desired);
+  let prefix = 0;
+  while (prefix < oldText.length && prefix < newText.length && oldText[prefix] === newText[prefix]) {
+    prefix += 1;
   }
-  // The Markdown-like prefix is the file representation of a structural
-  // block. Removing that prefix is therefore a real type change, just as it
-  // would be in an ordinary Markdown file.
-  return { type: 'paragraph', text: rendered };
+  let suffix = 0;
+  while (
+    suffix < oldText.length - prefix &&
+    suffix < newText.length - prefix &&
+    oldText[oldText.length - 1 - suffix] === newText[newText.length - 1 - suffix]
+  ) {
+    suffix += 1;
+  }
+
+  const opaqueByOldOffset: Array<YjsProseTextNode['marks']> = [];
+  for (const node of previous) {
+    if (node.kind === 'element') {
+      opaqueByOldOffset.push(undefined);
+      continue;
+    }
+    const opaque = opaqueMarks(node.marks);
+    for (let index = 0; index < node.text.length; index += 1) opaqueByOldOffset.push(opaque);
+  }
+
+  const output: YjsProseNode[] = [];
+  let newOffset = 0;
+  for (const node of desired) {
+    if (node.kind === 'element') {
+      output.push(node);
+      newOffset += 1;
+      continue;
+    }
+    for (let index = 0; index < node.text.length; index += 1) {
+      const absolute = newOffset + index;
+      const oldOffset =
+        absolute < prefix
+          ? absolute
+          : absolute >= newText.length - suffix
+            ? oldText.length - (newText.length - absolute)
+            : null;
+      const opaque = oldOffset === null ? undefined : opaqueByOldOffset[oldOffset];
+      output.push({
+        kind: 'text',
+        text: node.text[index]!,
+        ...mergeYjsMarks(node.marks, opaque),
+      });
+    }
+    newOffset += node.text.length;
+  }
+  return mergeYjsInlineNodes(output);
+}
+
+function isFlatInlineNode(node: YjsProseNode): boolean {
+  return node.kind === 'text' || node.type === 'hardBreak';
+}
+
+function yjsInlinePlainText(nodes: readonly YjsProseNode[]): string {
+  return nodes.map((node) => (node.kind === 'text' ? node.text : '\n')).join('');
+}
+
+function opaqueMarks(marks: YjsProseTextNode['marks']): YjsProseTextNode['marks'] {
+  if (!marks) return undefined;
+  const opaque = Object.fromEntries(
+    Object.entries(marks).filter(([name]) => !AGENT_MARK_NAMES.has(name)),
+  );
+  return Object.keys(opaque).length > 0 ? opaque : undefined;
+}
+
+function mergeYjsMarks(
+  visible: YjsProseTextNode['marks'],
+  opaque: YjsProseTextNode['marks'],
+): Pick<YjsProseTextNode, 'marks'> | Record<string, never> {
+  const marks = { ...(visible ?? {}), ...(opaque ?? {}) };
+  return Object.keys(marks).length > 0 ? { marks } : {};
+}
+
+function mergeYjsInlineNodes(nodes: readonly YjsProseNode[]): YjsProseNode[] {
+  const merged: YjsProseNode[] = [];
+  for (const node of nodes) {
+    const previous = merged[merged.length - 1];
+    if (
+      node.kind === 'text' &&
+      previous?.kind === 'text' &&
+      JSON.stringify(previous.marks ?? {}) === JSON.stringify(node.marks ?? {})
+    ) {
+      merged[merged.length - 1] = { ...previous, text: previous.text + node.text };
+    } else {
+      merged.push(node);
+    }
+  }
+  return merged;
+}
+
+async function newBlockFromAgentMarkdown(
+  block: AgentMarkdownBlock,
+  id: string,
+): Promise<YjsProseBlock> {
+  return makeBlock(id, block, undefined);
 }
 
 function makeBlock(
   id: string,
-  type: string,
-  text: string,
+  block: AgentMarkdownBlock,
   attrs: YjsProseBlock['attrs'],
 ): YjsProseBlock {
-  if (type === 'blockquote') {
+  if (block.type === 'blockquote') {
     return {
       id,
-      type,
+      type: block.type,
       ...(attrs ? { attrs } : {}),
       content: [
         {
           kind: 'element',
           type: 'paragraph',
-          ...(text ? { content: [{ kind: 'text', text }] } : {}),
+          ...(block.inline.length > 0
+            ? { content: agentMarkdownInlineToYjs(block.inline) }
+            : {}),
         },
       ],
     };
   }
-  if (type === 'bulletList' || type === 'orderedList') {
+  if (block.type === 'horizontalRule') {
     return {
       id,
-      type,
+      type: block.type,
       ...(attrs ? { attrs } : {}),
-      content: [
-        {
-          kind: 'element',
-          type: 'listItem',
-          content: [
-            {
-              kind: 'element',
-              type: 'paragraph',
-              ...(text ? { content: [{ kind: 'text', text }] } : {}),
-            },
-          ],
-        },
-      ],
+      content: [],
     };
   }
   return {
     id,
-    type,
-    ...(attrs ? { attrs } : {}),
-    content: text ? [{ kind: 'text', text }] : [],
+    type: block.type,
+    ...((attrs || block.type === 'heading')
+      ? {
+          attrs: {
+            ...(attrs ?? {}),
+            ...(block.type === 'heading' ? { level: block.level } : {}),
+          },
+        }
+      : {}),
+    content: agentMarkdownInlineToYjs(block.inline),
   };
 }
 
@@ -449,18 +781,6 @@ async function deterministicBlockId(idempotencyKey: string, index: number): Prom
 
 function normalizeLineEndings(value: string): string {
   return value.replace(/\r\n?/g, '\n');
-}
-
-function countOccurrences(value: string, needle: string): number {
-  let count = 0;
-  let offset = 0;
-  while (offset <= value.length - needle.length) {
-    const found = value.indexOf(needle, offset);
-    if (found < 0) break;
-    count += 1;
-    offset = found + needle.length;
-  }
-  return count;
 }
 
 function previewText(value: string): string {

@@ -6,6 +6,7 @@ import {
 import { DRIFTING_TOOL_SEARCH_METADATA } from './tool-search-metadata';
 import { createToolSelector, type ToolSearchMetadataByName } from './tool-selector';
 import type { AgentToolSelectionStrategy } from './types';
+import { isBroadAutonomousProjectCampaign } from './long-task-intent';
 
 const RESULT_PAGE_TOOL = 'read_tool_result';
 const ASK_USER_TOOL = 'ask_user';
@@ -402,7 +403,8 @@ function needsLongTaskLedger(query: string): boolean {
     ) ||
     /\b(?:whole[- ]book|entire (?:book|novel|manuscript)|full manuscript|all chapters?|every chapter|long[- ]running|long task|task plan|resume (?:the )?task|continue (?:the )?task)\b/iu.test(
       request,
-    )
+    ) ||
+    isBroadAutonomousProjectCampaign(request)
   );
 }
 
@@ -550,7 +552,7 @@ export function createDriftingToolSelectionStrategy(
             request.query,
             `durable task objective:\n${durableLongTask.objective}`,
             durableLongTask.nextStep
-              ? `next durable step:\n${durableLongTask.nextStep.title}\ntarget: ${durableLongTask.nextStep.target?.kind ?? 'none'} ${durableLongTask.nextStep.target?.name ?? ''}`
+              ? `next durable step:\n${durableLongTask.nextStep.title}\nwork kind: ${durableLongTask.nextStep.workKind ?? durableLongTask.workKind ?? 'edit'}\ntarget: ${durableLongTask.nextStep.target?.kind ?? 'none'} ${durableLongTask.nextStep.target?.name ?? ''}`
               : '',
           ]
             .filter(Boolean)

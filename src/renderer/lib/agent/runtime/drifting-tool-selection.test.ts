@@ -150,6 +150,28 @@ describe('Drifting runtime tool selection', () => {
     );
   });
 
+  it('keeps the durable task ledger available for a vague autonomous project campaign', () => {
+    const strategy = createDriftingToolSelectionStrategy();
+    const names = [
+      ...EXECUTABLE_NAMES,
+      'read_task_plan',
+      'update_task_plan',
+      'update_task_step',
+      'update_task_constraint',
+    ];
+
+    const selected = strategy.select(
+      request(
+        '这本书前半段现在很乱。把它整理成可以继续写的状态：缺的章节和人物补起来，明显的测试残留和重复资料清掉，批注、待办、人物关系也顺手理顺，正文推进到一个阶段性停点。自己查、自己判断，最后从头复核；只要还有明显没收完的就继续做。',
+        names,
+      ),
+    );
+
+    expect(selected).toEqual(
+      expect.arrayContaining(['read_task_plan', 'update_task_plan', 'update_task_step']),
+    );
+  });
+
   it.each([
     ['普通中文继续', '继续。'],
     [

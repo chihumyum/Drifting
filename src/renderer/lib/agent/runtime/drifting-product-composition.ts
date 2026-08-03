@@ -75,12 +75,20 @@ import type {
   AgentRuntimeLimits,
   AgentToolRuntime,
 } from './types';
+
+const DRIFTING_AGENT_FULL_COMPACTION_TIMEOUT_MS = 5 * 60_000;
+const DRIFTING_AGENT_COMPACTION_REDUCTION_RATIO = 0.85;
+const DRIFTING_AGENT_MAX_PROVIDER_SUMMARY_CHUNKS = 2;
+const DRIFTING_AGENT_COMPACTION_CHUNK_INPUT_TOKENS = 64_000;
 import { createYjsProseSeedState } from './yjs-prose-command';
 import {
   createYjsProsePersistenceCoordinator,
   type YjsProsePersistenceCoordinator,
 } from './yjs-prose-persistence-coordinator';
-import { loadAgentWriteReviewContextRows } from './write-review-feedback';
+import {
+  loadAgentDurableWriteReceiptContextRows,
+  loadAgentWriteReviewContextRows,
+} from './write-review-feedback';
 import type { GeneralAgentTransport } from '../transport';
 import { DriftingWorkspaceToolRuntime } from './drifting-workspace-tool-runtime';
 import {
@@ -309,8 +317,17 @@ export function createDriftingAgentProductComposition(
             options.contextWindowTokens ??
             requestedDriftingAgentContextWindowTokens(input.contextMode),
         }),
-      compactionTimeoutMs: 60_000,
-      fullCompactor: createDriftingContextCompactor({ driver }),
+      // A long writing turn can expose several disjoint, topology-safe runs.
+      // Each provider chunk keeps its own short timeout and deterministic
+      // fallback, while the outer pass needs enough time to validate and
+      // persist all resulting summaries instead of killing healthy progress.
+      compactionTimeoutMs: DRIFTING_AGENT_FULL_COMPACTION_TIMEOUT_MS,
+      fullCompactor: createDriftingContextCompactor({
+        driver,
+        targetReductionRatio: DRIFTING_AGENT_COMPACTION_REDUCTION_RATIO,
+        maxProviderChunksPerPass: DRIFTING_AGENT_MAX_PROVIDER_SUMMARY_CHUNKS,
+        maxInputTokensPerRequest: DRIFTING_AGENT_COMPACTION_CHUNK_INPUT_TOKENS,
+      }),
       userConstraintPolicy: identifyExplicitAgentUserConstraints,
       deterministicSummaries: createDurableAgentContextSummaryHook(repositories.runtime),
       supplementalRows: async (input) => {
@@ -322,8 +339,13 @@ export function createDriftingAgentProductComposition(
           repositories.writeEffects,
           { currentTurnId: input.turnId },
         );
+        const writeReceiptRows = await loadAgentDurableWriteReceiptContextRows(
+          input.sessionId,
+          repositories.writeEffects,
+          { currentTurnId: input.turnId },
+        );
         const longTaskRows = await longTaskSupplementalRows(input);
-        return [...writeReviewRows, ...longTaskRows];
+        return [...writeReceiptRows, ...writeReviewRows, ...longTaskRows];
       },
     },
     persistence: createRepositoryAgentTransportPersistence({

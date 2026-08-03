@@ -980,10 +980,11 @@ function resolveObservedRelationTarget(
     return entity ? { kind: entityType, id: entity.id } : null;
   }
   if (rawKind === 'comment') {
-    const comment = useDataStore
-      .getState()
-      .comments.find((candidate) => candidate.projectId === projectId && candidate.id === ref);
-    return comment ? { kind: 'comment', id: comment.id } : null;
+    // A curated relation can temporarily outlive its comment endpoint while a
+    // cleanup batch is deleting both resources. The relation row remains the
+    // source of truth for its own revision, so the deleted endpoint must not
+    // make that relation impossible to read or remove.
+    return { kind: 'comment', id: ref };
   }
   return { kind: rawKind, id: ref };
 }

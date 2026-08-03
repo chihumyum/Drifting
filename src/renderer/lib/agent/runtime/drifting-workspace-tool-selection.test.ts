@@ -42,6 +42,7 @@ describe('Drifting workspace-first tool selection', () => {
       'list_files',
       'read_file',
       'write_file',
+      'delete_file',
       'grep',
       'edit_file',
       'ask_user',
@@ -59,7 +60,115 @@ describe('Drifting workspace-first tool selection', () => {
       'update_task_constraint',
       'list_files',
       'read_file',
+      'write_file',
+      'delete_file',
       'grep',
+      'edit_file',
+    ]);
+  });
+
+  it('treats a vague opening-chapters cleanup as a durable multi-resource task', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request(
+        '把这本书开头几章整体收拾顺，前后别打架。该补的过渡、人物和关系就补上，明显是测试留下的内容就删掉。做完以后自己从头检查一遍，别停在半成品。',
+      ),
+    );
+
+    expect(selected).toEqual([
+      'update_task_plan',
+      'list_files',
+      'read_file',
+      'write_file',
+      'delete_file',
+      'grep',
+      'edit_file',
+      'ask_user',
+    ]);
+  });
+
+  it('offers durable planning for a fuzzy multi-stage campaign without an explicit chapter count', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request(
+        '把开头和相关设定彻底整理完，该删的临时稿删掉，该补的人物、关系和待办补齐，再把正文往后写到一个自然停点。自己检查，没做完就继续。',
+      ),
+    );
+
+    expect(selected).toEqual([
+      'update_task_plan',
+      'list_files',
+      'read_file',
+      'write_file',
+      'delete_file',
+      'grep',
+      'edit_file',
+      'ask_user',
+    ]);
+  });
+
+  it('offers the durable ledger for the real fuzzy paid-stress prompt', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request(
+        '这本书前半段还是一团乱，收拾到可以直接接着写。缺的内容补起来，测试残留和重复资料清掉，批注、待办、人物关系都理顺，正文推进到一个合适的停点。你自己查、自己判断，最后从头复核；明显没收完就继续做。',
+      ),
+    );
+
+    expect(selected).toEqual([
+      'update_task_plan',
+      'list_files',
+      'read_file',
+      'write_file',
+      'delete_file',
+      'grep',
+      'edit_file',
+      'ask_user',
+    ]);
+  });
+
+  it('recognizes the natural 前半本 phrasing used by the post-fix paid stress run', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request(
+        '前半本现在还不能直接接着写。把它彻底收拾好：该补的补、该删的删，正文、人物资料、批注待办和关系都一起处理，推进到一个自然停点。你自己判断做到什么程度，最后复查；没做完就继续。',
+      ),
+    );
+
+    expect(selected).toEqual([
+      'update_task_plan',
+      'list_files',
+      'read_file',
+      'write_file',
+      'delete_file',
+      'grep',
+      'edit_file',
+      'ask_user',
+    ]);
+  });
+
+  it('retains deletion during the active phase of the real fuzzy campaign', () => {
+    const input = request(
+      '这本书前半段还是一团乱，测试残留和重复资料清掉，明显没收完就继续做。',
+    );
+    input.hints = {
+      longTask: {
+        status: 'active',
+        scopeKind: 'explicit_targets',
+        objective: '整理前半段并清掉测试残留',
+        nextStep: {
+          title: '整理章节和关联资料',
+          status: 'pending',
+          target: null,
+        },
+      },
+    };
+
+    expect(createDriftingWorkspaceToolSelectionStrategy().select(input)).toEqual([
+      'read_task_plan',
+      'update_task_plan',
+      'update_task_step',
+      'list_files',
+      'read_file',
+      'delete_file',
+      'write_file',
+      'edit_file',
     ]);
   });
 
@@ -79,11 +188,38 @@ describe('Drifting workspace-first tool selection', () => {
     };
     expect(createDriftingWorkspaceToolSelectionStrategy().select(input)).toEqual([
       'read_task_plan',
+      'update_task_plan',
       'update_task_step',
       'list_files',
       'read_file',
       'write_file',
       'grep',
+      'edit_file',
+    ]);
+  });
+
+  it('keeps delete and edit available for an active cleanup step within the eight-tool cap', () => {
+    const input = request('继续清理测试残留');
+    input.hints = {
+      longTask: {
+        status: 'active',
+        scopeKind: 'whole_book_chapters',
+        objective: '整理开头几章并删除测试残留',
+        nextStep: {
+          title: '清理残留并修正文稿',
+          status: 'pending',
+          target: null,
+        },
+      },
+    };
+    expect(createDriftingWorkspaceToolSelectionStrategy().select(input)).toEqual([
+      'read_task_plan',
+      'update_task_plan',
+      'update_task_step',
+      'list_files',
+      'read_file',
+      'delete_file',
+      'write_file',
       'edit_file',
     ]);
   });
@@ -115,6 +251,7 @@ describe('Drifting workspace-first tool selection', () => {
       'list_files',
       'read_file',
       'write_file',
+      'delete_file',
       'grep',
       'edit_file',
       'ask_user',
@@ -122,13 +259,27 @@ describe('Drifting workspace-first tool selection', () => {
   });
 
   it('keeps both mutation verbs available for an ambiguous follow-up edit', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(request('改一下内容。'));
+    expect(selected).toEqual([
+      'list_files',
+      'read_file',
+      'write_file',
+      'delete_file',
+      'grep',
+      'edit_file',
+      'ask_user',
+    ]);
+  });
+
+  it('keeps delete_file available for a vague executable continuation', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
-      request('改一下内容。'),
+      request('继续，别再从头看了。'),
     );
     expect(selected).toEqual([
       'list_files',
       'read_file',
       'write_file',
+      'delete_file',
       'grep',
       'edit_file',
       'ask_user',
@@ -153,6 +304,7 @@ describe('Drifting workspace-first tool selection', () => {
       'list_files',
       'read_file',
       'write_file',
+      'delete_file',
       'grep',
       'edit_file',
       'ask_user',

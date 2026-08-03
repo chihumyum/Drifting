@@ -9,11 +9,20 @@
 import type { JSONContent } from '@tiptap/core';
 import { v7 as uuidv7 } from 'uuid';
 import { parseTiptapDocJson } from '../../utils/tiptap-doc';
+import {
+  normalizeAgentMarkdownLink,
+  renderAgentProseMarkdownBlock,
+  type AgentMarkdownBlock,
+  type AgentMarkdownInline,
+  type AgentMarkdownMarks,
+} from './markdown-prose-adapter';
 
 export interface DocBlock {
   blockId: string | null;
   type: string;
   text: string;
+  /** Schema-safe Markdown used by the Agent's virtual prose filesystem. */
+  markdown?: string;
 }
 
 /** Concatenate all descendant text nodes of a PM node. */
@@ -30,9 +39,76 @@ export function docToBlocks(contentJson: string): DocBlock[] {
   const blocks: DocBlock[] = [];
   for (const node of doc.content ?? []) {
     const id = node.attrs && typeof node.attrs.id === 'string' ? node.attrs.id : null;
-    blocks.push({ blockId: id, type: node.type ?? 'unknown', text: collectText(node) });
+    blocks.push({
+      blockId: id,
+      type: node.type ?? 'unknown',
+      text: collectText(node),
+      markdown: renderAgentProseMarkdownBlock(jsonBlockToAgentMarkdown(node)),
+    });
   }
   return blocks;
+}
+
+function jsonBlockToAgentMarkdown(node: JSONContent): AgentMarkdownBlock {
+  if (node.type === 'horizontalRule') return { type: 'horizontalRule', inline: [] };
+  const inline =
+    node.type === 'blockquote'
+      ? flattenJsonBlockquoteInline(node.content ?? [])
+      : jsonNodesToAgentInline(node.content ?? []);
+  if (node.type === 'heading') {
+    const rawLevel = node.attrs?.level;
+    const level = rawLevel == null ? 1 : rawLevel;
+    if (level === 1 || level === 2 || level === 3) {
+      return { type: 'heading', level, inline };
+    }
+  }
+  if (node.type === 'blockquote') return { type: 'blockquote', inline };
+  return { type: 'paragraph', inline };
+}
+
+function flattenJsonBlockquoteInline(nodes: readonly JSONContent[]): AgentMarkdownInline[] {
+  return nodes.flatMap((node, index) => [
+    ...(index > 0 ? ([{ kind: 'hardBreak' }, { kind: 'hardBreak' }] as const) : []),
+    ...jsonNodesToAgentInline(node.content ?? [node]),
+  ]);
+}
+
+function jsonNodesToAgentInline(nodes: readonly JSONContent[]): AgentMarkdownInline[] {
+  const inline: AgentMarkdownInline[] = [];
+  for (const node of nodes) {
+    if (node.type === 'hardBreak') {
+      inline.push({ kind: 'hardBreak' });
+      continue;
+    }
+    if (node.type === 'text') {
+      const marks = jsonMarksToAgentMarkdown(node.marks);
+      if (node.text) {
+        inline.push({
+          kind: 'text',
+          text: node.text,
+          ...(Object.keys(marks).length > 0 ? { marks } : {}),
+        });
+      }
+      continue;
+    }
+    inline.push(...jsonNodesToAgentInline(node.content ?? []));
+  }
+  return inline;
+}
+
+function jsonMarksToAgentMarkdown(marks: JSONContent['marks']): AgentMarkdownMarks {
+  const result: AgentMarkdownMarks = {};
+  for (const mark of marks ?? []) {
+    if (mark.type === 'bold') result.bold = true;
+    else if (mark.type === 'italic') result.italic = true;
+    else if (mark.type === 'strike') result.strike = true;
+    else if (mark.type === 'underline') result.underline = true;
+    else if (mark.type === 'link') {
+      const link = normalizeAgentMarkdownLink(mark.attrs?.href);
+      if (link) result.link = link;
+    }
+  }
+  return result;
 }
 
 /** Whole-doc plain text (blocks joined by blank lines). */
@@ -81,31 +157,34 @@ export function replaceBlockByIndex(contentJson: string, index: number, newText:
   return JSON.stringify({ ...doc, content: next });
 }
 
-// Non-paragraph block types get a short prefix so the agent can tell them apart
-// without a verbose `type` field. Paragraphs (the overwhelming majority) get none.
-const TYPE_PREFIX: Record<string, string> = {
-  heading: '# ',
-  blockquote: '> ',
-  codeBlock: '` ',
-  listItem: '- ',
-  bulletList: '- ',
-  orderedList: '1. ',
-};
-
 /**
  * Render blocks as a compact numbered list — one block per line, `<n>\t<text>`,
- * with a type prefix only for non-paragraph blocks. The number is the handle
- * the agent passes to edit_block. Far cheaper than per-block {blockId,type,text}
- * JSON (no uuid, no repeated keys, no pretty-print).
+ * using only Markdown that maps to the live editor schema. The number is the
+ * handle the agent passes to edit_block. Unsupported legacy node styles are
+ * deliberately rendered as plain text instead of being advertised as usable.
  */
 export function blocksToCompactText(blocks: DocBlock[]): string {
   return blocks
     .map((b, i) => {
-      const prefix = b.type === 'paragraph' ? '' : TYPE_PREFIX[b.type] ?? `[${b.type}] `;
-      const text = b.text.replace(/\s*\n\s*/g, ' ');
-      return `${i + 1}\t${prefix}${text}`;
+      const markdown = b.markdown ?? renderDocBlockFallback(b);
+      return `${i + 1}\t${markdown.replace(/\r?\n/gu, '<br>')}`;
     })
     .join('\n');
+}
+
+function renderDocBlockFallback(block: DocBlock): string {
+  const inline: AgentMarkdownInline[] = block.text
+    ? [{ kind: 'text', text: block.text }]
+    : [];
+  const adapted: AgentMarkdownBlock =
+    block.type === 'heading'
+      ? { type: 'heading', level: 1, inline }
+      : block.type === 'blockquote'
+        ? { type: 'blockquote', inline }
+        : block.type === 'horizontalRule'
+          ? { type: 'horizontalRule', inline: [] }
+          : { type: 'paragraph', inline };
+  return renderAgentProseMarkdownBlock(adapted);
 }
 
 /** Append a new paragraph (with a fresh block id) to the end of the doc. */

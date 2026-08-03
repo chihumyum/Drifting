@@ -9,10 +9,12 @@ import migrationJournal from '../../../../../drizzle/meta/_journal.json';
 
 import type { DbClient } from '../../../lib/db';
 import { createDatabaseClient } from '../../../lib/db';
+import type { CommentAction } from '../../../domain/comment';
 import { countWords } from '../../word-count';
 import {
   AgentConversationTable,
   BookNodeTable,
+  CommentActionTable,
   NodeStorylineLinkTable,
   ProjectTable,
   StorylineTable,
@@ -101,8 +103,48 @@ describe('workspace domain CRUD transactions', () => {
       modelData: { wordCount: countWords(prose) },
     });
     expect(
-      fixture.scalar("SELECT word_count FROM book_node WHERE title = '灰港' AND deleted_at IS NULL"),
+      fixture.scalar(
+        "SELECT word_count FROM book_node WHERE title = '灰港' AND deleted_at IS NULL",
+      ),
     ).toBe(countWords(prose));
+  });
+
+  it('places a newly created numbered chapter into an available reading-order gap', async () => {
+    fixture.gateway.database.exec(`
+      UPDATE book_node
+      SET book_order = CASE title
+        WHEN 'Chapter One' THEN 6
+        WHEN 'Chapter Two' THEN 11
+        ELSE book_order
+      END,
+      title = CASE title
+        WHEN 'Chapter One' THEN '01'
+        WHEN 'Chapter Two' THEN '03'
+        ELSE title
+      END
+      WHERE project_id = '${PROJECT_ID}'
+    `);
+    useDataStore.setState((state) => ({
+      bookNodes: state.bookNodes.map((node) =>
+        node.id === CHAPTER_ONE_ID && node.kind === 'chapter'
+          ? { ...node, title: '01', bookOrder: 6 }
+          : node.id === CHAPTER_TWO_ID && node.kind === 'chapter'
+            ? { ...node, title: '03', bookOrder: 11 }
+            : node,
+      ),
+    }));
+
+    const created = await fixture.write('create-missing-chapter-02', 'write_file', {
+      path: '/chapters/02/prose.md',
+      content: '二章补齐。',
+    });
+    expect(created, JSON.stringify(created)).toMatchObject({ ok: true });
+
+    expect(
+      fixture.scalar(
+        "SELECT book_order FROM book_node WHERE title = '02' AND deleted_at IS NULL",
+      ),
+    ).toBe(8);
   });
 
   it('normalizes a unique contained category and seeds a separate summary from initial body', async () => {
@@ -680,6 +722,24 @@ describe('workspace domain CRUD transactions', () => {
     const commentPath = (comment as { data: { result: { canonicalPath: string } } }).data.result
       .canonicalPath;
     await expect(
+      fixture.write('comment-retarget-lifecycle', 'edit_file', {
+        path: commentPath,
+        replacements: [
+          {
+            oldText: '"target": "Chapter One"',
+            newText: '"target": "Chapter Two"',
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(useDataStore.getState().comments).toEqual(
+      expect.arrayContaining([expect.objectContaining({ targetId: CHAPTER_TWO_ID })]),
+    );
+    await fixture.revert('comment-retarget-lifecycle');
+    expect(useDataStore.getState().comments).toEqual(
+      expect.arrayContaining([expect.objectContaining({ targetId: CHAPTER_ONE_ID })]),
+    );
+    await expect(
       fixture.write('comment-update-lifecycle', 'write_file', {
         path: commentPath,
         content: JSON.stringify({
@@ -698,6 +758,24 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().comments).toEqual(
       expect.arrayContaining([expect.objectContaining({ kind: 'todo', status: 'open' })]),
     );
+    const commentId = commentPath.slice('/comments/'.length, -'.json'.length);
+    const action: CommentAction = {
+      id: 'comment-action-history',
+      projectId: PROJECT_ID,
+      commentId,
+      kind: 'accept_suggestion',
+      label: 'Accepted earlier suggestion',
+      payloadJson: '{}',
+      status: 'applied',
+      resultJson: '{"ok":true}',
+      createdByKind: 'user',
+      createdById: USER_ID,
+      createdAt: AT,
+      updatedAt: AT,
+      appliedAt: AT,
+    };
+    await fixture.database.insert(CommentActionTable).values(action);
+    useDataStore.getState().addCommentAction(action);
     await fixture.write(
       'comment-delete-lifecycle',
       'delete_file',
@@ -705,8 +783,12 @@ describe('workspace domain CRUD transactions', () => {
       'author_approved',
     );
     expect(useDataStore.getState().comments).toHaveLength(0);
+    expect(useDataStore.getState().commentActions).toHaveLength(0);
+    expect(fixture.scalar('SELECT count(*) FROM comment_action')).toBe(0);
     await fixture.revert('comment-delete-lifecycle');
     expect(useDataStore.getState().comments).toHaveLength(1);
+    expect(useDataStore.getState().commentActions).toEqual([action]);
+    expect(fixture.scalar('SELECT count(*) FROM comment_action')).toBe(1);
 
     const relationPayload = {
       fromKind: 'node',
@@ -747,16 +829,34 @@ describe('workspace domain CRUD transactions', () => {
       'write_file',
       {
         path: relationPath,
-        content: JSON.stringify({ ...relationPayload, kind: 'contrasts' }),
+        content: JSON.stringify({
+          fromKind: 'node',
+          from: 'Chapter Two',
+          toKind: 'storyline',
+          to: 'Secondary',
+          kind: 'contrasts',
+        }),
       },
       'author_approved',
     );
     expect(useDataStore.getState().entityRelations).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: 'contrasts' })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          fromId: CHAPTER_TWO_ID,
+          toId: SECONDARY_STORYLINE_ID,
+          kind: 'contrasts',
+        }),
+      ]),
     );
     await fixture.revert('relation-update-lifecycle');
     expect(useDataStore.getState().entityRelations).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: 'foreshadows' })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          fromId: CHAPTER_ONE_ID,
+          toId: MAIN_STORYLINE_ID,
+          kind: 'foreshadows',
+        }),
+      ]),
     );
     await fixture.write(
       'relation-delete-lifecycle',
@@ -767,6 +867,122 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().entityRelations).toHaveLength(0);
     await fixture.revert('relation-delete-lifecycle');
     expect(useDataStore.getState().entityRelations).toHaveLength(1);
+  });
+
+  it('can remove a relation after its annotative source was already deleted', async () => {
+    const comment = await fixture.write('dangling-comment-create', 'write_file', {
+      path: '/comments/dangling.json',
+      content: JSON.stringify({
+        kind: 'todo',
+        body: 'Temporary import note.',
+        targetKind: 'node',
+        target: 'Chapter One',
+      }),
+    });
+    const commentPath = (comment as { data: { result: { canonicalPath: string } } }).data.result
+      .canonicalPath;
+    const commentId = commentPath.slice('/comments/'.length, -'.json'.length);
+    const relation = await fixture.write(
+      'dangling-relation-create',
+      'write_file',
+      {
+        path: '/relations/dangling.json',
+        content: JSON.stringify({
+          fromKind: 'comment',
+          from: commentId,
+          toKind: 'node',
+          to: 'Chapter One',
+          kind: 'about',
+        }),
+      },
+      'author_approved',
+    );
+    const relationPath = (relation as { data: { result: { canonicalPath: string } } }).data.result
+      .canonicalPath;
+    fixture.gateway.database.prepare('DELETE FROM comment WHERE id = ?').run(commentId);
+    useDataStore.getState().removeComment(commentId);
+
+    await expect(
+      fixture.write(
+        'dangling-relation-delete',
+        'delete_file',
+        { path: relationPath },
+        'author_approved',
+      ),
+    ).resolves.toMatchObject({ ok: true });
+    expect(useDataStore.getState().entityRelations).toHaveLength(0);
+  });
+
+  it('names every blocking workspace resource when an entity delete is unsafe', async () => {
+    const relation = await fixture.write(
+      'delete-blocker-relation-create',
+      'write_file',
+      {
+        path: '/relations/delete-blocker.json',
+        content: JSON.stringify({
+          fromKind: 'node',
+          from: 'Chapter One',
+          toKind: 'storyline',
+          to: 'Main',
+          kind: 'belongs-to',
+        }),
+      },
+      'author_approved',
+    );
+    const relationPath = (relation as { data: { result: { canonicalPath: string } } }).data.result
+      .canonicalPath;
+    await expect(
+      fixture.write(
+        'delete-blocked-by-relation',
+        'delete_file',
+        { path: '/chapters/Chapter One' },
+        'author_approved',
+      ),
+    ).resolves.toMatchObject({ ok: false, error: expect.stringContaining(relationPath) });
+    await fixture.write(
+      'delete-blocker-relation-remove',
+      'delete_file',
+      { path: relationPath },
+      'author_approved',
+    );
+
+    const comment = await fixture.write('delete-blocker-comment-create', 'write_file', {
+      path: '/comments/delete-blocker.json',
+      content: JSON.stringify({
+        kind: 'todo',
+        body: 'Keep this evidence.',
+        targetKind: 'node',
+        target: 'Chapter One',
+      }),
+    });
+    const commentPath = (comment as { data: { result: { canonicalPath: string } } }).data.result
+      .canonicalPath;
+    await expect(
+      fixture.write(
+        'delete-blocked-by-comment',
+        'delete_file',
+        { path: '/chapters/Chapter One' },
+        'author_approved',
+      ),
+    ).resolves.toMatchObject({ ok: false, error: expect.stringContaining(commentPath) });
+    await fixture.write(
+      'delete-blocker-comment-remove',
+      'delete_file',
+      { path: commentPath },
+      'author_approved',
+    );
+
+    await expect(
+      fixture.write(
+        'delete-blocked-by-membership',
+        'delete_file',
+        { path: '/chapters/Chapter One' },
+        'author_approved',
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('/storylines/Main/chapters.json'),
+    });
   });
 });
 
@@ -828,7 +1044,7 @@ class DomainCrudFixture {
 
   async write(
     callId: string,
-    name: 'write_file' | 'delete_file',
+    name: 'write_file' | 'edit_file' | 'delete_file',
     arguments_: Record<string, unknown>,
     authorization: 'automatic' | 'author_approved' = 'automatic',
   ): Promise<AgentToolExecutionResult> {
@@ -948,7 +1164,7 @@ class DomainCrudFixture {
 
   private async request(
     callId: string,
-    name: 'write_file' | 'delete_file' | 'list_files' | 'read_file',
+    name: 'write_file' | 'edit_file' | 'delete_file' | 'list_files' | 'read_file',
     access: 'read' | 'write',
     arguments_: Record<string, unknown>,
   ): Promise<AgentToolExecutionRequest> {
