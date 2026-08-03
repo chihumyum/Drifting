@@ -160,10 +160,14 @@ export function EntityHoverCard({
                   minWidth: 0,
                   maxWidth: '100%',
                   padding: '2px 6px',
-                  borderRadius: 999,
-                  border: '1px solid hsl(var(--rule))',
-                  background: 'hsl(var(--paper))',
-                  color: 'hsl(var(--ink-3))',
+                  borderRadius: 1,
+                  border:
+                    item.tone === 'secondary'
+                      ? '1px solid hsl(var(--rule) / 0.55)'
+                      : '1px solid hsl(var(--rule))',
+                  background:
+                    item.tone === 'secondary' ? 'hsl(var(--paper) / 0.55)' : 'hsl(var(--paper))',
+                  color: item.tone === 'secondary' ? 'hsl(var(--ink-4))' : 'hsl(var(--ink-3))',
                   fontSize: 10.5,
                   lineHeight: 1.35,
                   overflowWrap: 'anywhere',
@@ -178,6 +182,7 @@ export function EntityHoverCard({
                       borderRadius: '50%',
                       flexShrink: 0,
                       background: item.color,
+                      opacity: item.tone === 'secondary' ? 0.62 : 1,
                     }}
                   />
                 )}

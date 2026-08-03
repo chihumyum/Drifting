@@ -59,6 +59,7 @@ export function ElementPanel() {
   const agentActive = useAgentActivityStore((s) => s.active);
   const agentTouched = useAgentActivityStore((s) => s.touched);
   const agentPending = useAgentEditStore((s) => s.pending);
+  const agentAdditions = useAgentEditStore((s) => s.additions);
 
   const activeProjectId = useMemo(() => {
     if (!projectId) {
@@ -449,11 +450,13 @@ export function ElementPanel() {
   const renderElementCard = (element: BookElement, categoryId: string, elementIndex: number) => {
     const selected = element.id === selectedBookElementId;
     const agentBusy = `element:${element.id}` in agentActive;
+    const agentAdded = !agentBusy && `element:${element.id}` in agentAdditions;
     // "M" on either an activity touch (summary/kv writes) OR a pending edit-store
     // change (e.g. an unreviewed patch create/soft-delete, which leaves no
     // activity dot) — mirrors how storyline/category cells flag both.
     const agentChanged =
       !agentBusy &&
+      !agentAdded &&
       (`element:${element.id}` in agentTouched || `element:${element.id}` in agentPending);
     // The virtual "未分类" bucket isn't a real category — getCategoryColor
     // would log a not-found warning and return a flickering random color.
@@ -520,22 +523,22 @@ export function ElementPanel() {
           title={
             agentBusy
               ? t('agentActivity.working')
-              : agentChanged
-                ? t('agentActivity.changedHere')
+              : agentAdded || agentChanged
+                ? t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')
                 : undefined
           }
           style={{
-            // Done swaps the diamond for a plain "M" marker; working/rest
+            // Done swaps the diamond for a plain Agent file marker; working/rest
             // keep the italic diamond.
-            fontFamily: agentChanged ? 'var(--font-mono)' : 'var(--font-sans)',
-            fontStyle: agentChanged ? 'normal' : 'italic',
-            fontSize: agentChanged ? 10 : 11,
-            fontWeight: agentChanged ? 600 : undefined,
+            fontFamily: agentAdded || agentChanged ? 'var(--font-mono)' : 'var(--font-sans)',
+            fontStyle: agentAdded || agentChanged ? 'normal' : 'italic',
+            fontSize: agentAdded || agentChanged ? 10 : 11,
+            fontWeight: agentAdded || agentChanged ? 600 : undefined,
             // Agent status overrides the category color: accent (lit) while
             // working, muted ink for the done "M". At rest, the category color.
             color: agentBusy
               ? 'hsl(var(--accent))'
-              : agentChanged
+              : agentAdded || agentChanged
                 ? 'hsl(var(--ink-2))'
                 : categoryColor,
             flexShrink: 0,
@@ -544,7 +547,7 @@ export function ElementPanel() {
             textAlign: 'center',
           }}
         >
-          {agentChanged ? 'M' : '◆'}
+          {agentAdded ? 'A' : agentChanged ? 'M' : '◆'}
         </span>
 
         {/* Name */}
@@ -671,6 +674,9 @@ export function ElementPanel() {
                   !isUncategorized &&
                   (`category:${categoryId}` in agentTouched ||
                     `category:${categoryId}` in agentPending)
+                }
+                agentSelfAdded={
+                  !isUncategorized && `category:${categoryId}` in agentAdditions
                 }
               />
 
@@ -871,7 +877,6 @@ export function ElementPanel() {
     </div>
   );
 }
-
 // Concise secondary-group (groupName) header inside a category. Keeps the
 // minimal label style (rule tick + name + count) but adds: double-click to
 // rename the whole group, and a hover-revealed "+" to create an element

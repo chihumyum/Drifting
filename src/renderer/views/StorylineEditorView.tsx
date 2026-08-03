@@ -14,7 +14,8 @@ import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
-import { EditorOutlinePanel, nestHeadings, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
+import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
+import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
 import { ElementTemplateEditor } from '../components/editor/ElementTemplateEditor';
 import { KvEditor } from '../components/editor/KvEditor';
 import { FieldReview, FieldReviewStrip } from '../components/editor/FieldReview';
@@ -364,7 +365,7 @@ export function StorylineEditorView({
       </EditorTopBar>
 
       <div className="editor-body">
-        <EditorOutlinePanel
+        <EditorOutlineRail
           title={t('storylineEditor.outlineTitle', { name: currentStoryline.name || 'STORYLINE' })}
           items={frameworkItems}
           activeId={activeOutlineId}

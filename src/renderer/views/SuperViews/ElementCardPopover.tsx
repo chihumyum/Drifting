@@ -23,9 +23,9 @@ log.setLevel(loglevel.levels.WARN);
 //     two CTAs ("展开编辑" upgrades, "在编辑器中打开" navigates).
 //   · upgrade mode — centered modal with name + summary + TipTap editor
 //     bound to the same process-wide Y.Doc as the full element editor.
-// Closes on ESC and outside click. ESC handler ignores keypresses while
-// a form field / contenteditable inside the popover holds focus so the
-// inner element can use ESC to revert its own draft.
+// Closes on unhandled ESC and outside click. Inputs and the TipTap editor get
+// the first chance to consume ESC for their own transient state; otherwise the
+// shared shell dismisses the card even while contenteditable holds focus.
 
 export type AnchorRect = EntityCardAnchorRect;
 
@@ -193,6 +193,12 @@ export function ElementCardPopover({
     }
   }, [summaryDraft, element.id, element.summary, updateElement]);
 
+  const close = useCallback(() => {
+    void commitName();
+    void commitSummary();
+    onClose();
+  }, [commitName, commitSummary, onClose]);
+
   // The actual editor lives in a child mounted only in upgrade mode. Its Yjs
   // hook resolves to the process-wide shared document instead of treating the
   // potentially-stale contentJson projection as an independent write source.
@@ -213,7 +219,7 @@ export function ElementCardPopover({
         anchorRect={anchorRect}
         popoverWidth={380}
         estimatedHeight={240}
-        onClose={onClose}
+        onClose={close}
         ariaLabel={t('elementCardPopover.aria.card')}
         className="element-card-popover"
         style={{ borderColor: accentColor }}
@@ -273,7 +279,7 @@ export function ElementCardPopover({
             }}
           />
           <GhostIconButton
-            onClick={onClose}
+            onClick={close}
             title={t('common.close')}
             aria-label={t('common.close')}
             size="sm"

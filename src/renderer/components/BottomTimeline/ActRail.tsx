@@ -138,7 +138,10 @@ export function ActRail({
       setMenu(null);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenu(null);
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      setMenu(null);
     };
     document.addEventListener('pointerdown', onPointerDown, true);
     document.addEventListener('keydown', onKey, true);
@@ -387,6 +390,8 @@ export function ActRail({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
                     else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      e.stopPropagation();
                       (e.currentTarget as HTMLInputElement).value = seg.act.name;
                       (e.currentTarget as HTMLInputElement).blur();
                     }

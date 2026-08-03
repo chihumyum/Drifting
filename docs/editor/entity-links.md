@@ -42,6 +42,11 @@ category, group, aliases and key/value facts; Storyline counts, words and facts;
 and Category element count and color. Patch links do not open a hover card until
 patch data is available in the same store boundary.
 
+For chapters with multiple storyline memberships, the card shows one chip per
+storyline instead of a numeric total. The primary storyline keeps the standard
+chip treatment; secondary storyline chips retain their names and colors with a
+quieter border, background, label, and color dot.
+
 Chapter storyline metadata is hydrated from local `node_storyline_link` rows,
 including `is_primary`, before the renderer becomes ready. The card and timeline
 views share the same resolver: use the declared primary while it remains a member,

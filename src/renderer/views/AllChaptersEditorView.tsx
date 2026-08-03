@@ -11,7 +11,8 @@ import { useProjectStore } from '../store/project-store';
 import { useSettingsStore } from '../store/settings-store';
 import { useUiStore } from '../store/ui-store';
 import { EditorCrumb, EditorTopBar, SET_STATUS_ACTION_PREFIX } from '../components/editor/EditorTopBar';
-import { EditorOutlinePanel, nestHeadings, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
+import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
+import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
 import { AllChaptersFindPanel, type FindChapter } from '../components/search/AllChaptersFindPanel';
@@ -719,10 +720,9 @@ export function AllChaptersEditorView() {
   // with chapter rows (L2); each chapter nests its TipTap H1/H2/H3 outline as
   // scene/beat/note (L3-L5). Acts are centred dividers, NOT containers — the
   // chapters that follow an act belong to it visually, the way readRows lays
-  // them out. Expansion is owned by EditorOutlinePanel (collapseChaptersByDefault),
-  // so chapters start collapsed and the user opens subtrees by hand — scrolling
-  // never expands them. No acts → a plain chapter list (matching readRows'
-  // no-act path).
+  // them out. EditorOutlineRail owns dynamic density: render every nested row
+  // while it fits, then keep only the active chapter's children, and finally a
+  // chapter window with omission handles. No acts → a plain chapter list.
   const outlineItems = useMemo<OutlineEntry[]>(() => {
     const buildChapter = (n: ChapterNode): OutlineEntry => ({
       id: n.id,
@@ -862,12 +862,11 @@ export function AllChaptersEditorView() {
       </EditorTopBar>
 
       <div className="editor-body">
-        <EditorOutlinePanel
+        <EditorOutlineRail
           title={t('allChapters.outlineTitle')}
           items={outlineItems}
           activeId={activeOutlineId}
           onItemClick={handleOutlineClick}
-          collapseChaptersByDefault
           emptyHint={t('allChapters.empty.noChaptersShort')}
         />
         <div className="editor-scroll" ref={scrollRef}>

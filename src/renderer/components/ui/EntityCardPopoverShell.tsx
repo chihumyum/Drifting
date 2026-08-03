@@ -1,5 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { shouldDismissEntityCardPopoverOnKeyDown } from './entity-card-popover-dismissal';
 
 export interface EntityCardAnchorRect {
   left: number;
@@ -89,20 +90,16 @@ export function EntityCardPopoverShell({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      const active = document.activeElement as HTMLElement | null;
-      const editingField =
-        active &&
-        (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT' || active.isContentEditable);
-      if (editingField && containerRef.current?.contains(active)) {
-        event.stopPropagation();
-        return;
-      }
-      event.stopPropagation();
+      // Listen after the focused input / TipTap editor has had a chance to
+      // consume Escape for its own transient state. An unhandled Escape means
+      // "leave this card layer", even while contentEditable still has focus.
+      if (!shouldDismissEntityCardPopoverOnKeyDown(event)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
       onClose();
     };
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
   useEffect(() => {

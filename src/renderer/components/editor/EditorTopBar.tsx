@@ -1,4 +1,4 @@
-import { Check, LayoutGrid, Link2, ListTree, MessageSquare, MoreVertical } from 'lucide-react';
+import { Check, LayoutGrid, Link2, MessageSquare, MoreVertical } from 'lucide-react';
 import {
   Children,
   Fragment,
@@ -16,7 +16,6 @@ import {
   MANUAL_CHAPTER_WRITING_STATUSES,
   type WritingStatus,
 } from '../../domain/book-node';
-import { useUiStore } from '../../store/ui-store';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 
 export type EditorType = 'node' | 'element' | 'category' | 'storyline';
@@ -69,9 +68,8 @@ export function getStatusSectionLabel(kind: NodeStatusKind, translate?: Translat
 
 /*
   Shared editor top bar:
-  - Outline toggle pinned at the far left (mirror of the comment-rail toggle
-    on the right), driving the global `outlineCollapsed` UI flag
-  - Breadcrumb area next to it, built from <EditorCrumb> children
+  - Breadcrumb area on the left, built from <EditorCrumb> children
+  - The semantic outline scrollbar is permanent and therefore has no toggle
   - Free-form right slot (word count, counts, etc.)
   - Integrated three-dot menu driven by `editorType` + `onMenuAction`
 */
@@ -125,25 +123,10 @@ export function EditorTopBar({
   const { t } = useTranslation();
   const crumbs = injectSeparators(children);
   const showMenu = Boolean(editorType && onMenuAction);
-  const outlineCollapsed = useUiStore((s) => s.outlineCollapsed);
-  const toggleOutline = useUiStore((s) => s.toggleOutlineCollapsed);
 
   return (
     <div className="editor-bar">
       <div className="editor-bar__left">
-        <button
-          type="button"
-          className={`editor-bar__icon editor-bar__icon--outline${outlineCollapsed ? '' : ' editor-bar__icon--active'}`}
-          title={
-            outlineCollapsed
-              ? t('editorTopBar.actions.showOutline')
-              : t('editorTopBar.actions.hideOutline')
-          }
-          aria-pressed={!outlineCollapsed}
-          onClick={toggleOutline}
-        >
-          <ListTree size={14} />
-        </button>
         <div className="editor-crumbs">{crumbs}</div>
       </div>
       <div className="editor-bar__right">

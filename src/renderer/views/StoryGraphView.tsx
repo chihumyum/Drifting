@@ -13,6 +13,7 @@ import { useStoryline } from '../usecase/useStoryline';
 import { useEntityRelations } from '../usecase/useEntityRelations';
 import { useTimelineMarkers } from '../hooks/useTimelineMarkers';
 import { useEdgeKindMeta, UNCATEGORIZED_META_KEY } from '../hooks/useEdgeKindMeta';
+import { useSuperViewEscapeStack } from '../hooks/useSuperViewEscapeStack';
 import { ActRail } from '../components/BottomTimeline/ActRail';
 import { useBookAct } from '../usecase/useBookAct';
 import { actBoundDriftIds } from '../domain/book-act';
@@ -159,6 +160,7 @@ export function StoryGraphView() {
     useDataStore();
   const bookActs = useDataStore((s) => s.bookActs);
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
+  const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
   const { user } = useAuthStore();
   const { projectId, openEntity } = useProjectNavigation();
   const { updateNode } = useBookNode({
@@ -232,7 +234,6 @@ export function StoryGraphView() {
     closing: driftPanelClosing,
     openPanel: openDriftPanel,
     closePanel: closeDriftPanelBase,
-    closePanelRef: closeDriftPanelRef,
   } = useDriftPanelAnim();
   // Pending source for shift-click edge creation. The first shift-click sets
   // this; the next plain click on a different tile opens the new-edge dialog.
@@ -295,16 +296,14 @@ export function StoryGraphView() {
   // Narrative-mode only — the concept doesn't apply in book view.
   const unplacedBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Dismiss the edge selection on ESC or on any click that doesn't
-  // land on an edge / × badge. Edge onClick handlers stopPropagation;
+  // Dismiss the edge selection on any click that doesn't land on an edge /
+  // × badge. Escape is routed through the shared Super View stack below.
+  // Edge onClick handlers stopPropagation;
   // the badge's own onClick runs first because it's a descendant of
   // document — by the time this fires, the delete has already kicked
   // off (or the user clicked elsewhere intentionally).
   useEffect(() => {
     if (!selectedEdgeId) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSelectedEdgeId(null);
-    };
     const onPointer = (e: PointerEvent) => {
       const t = e.target as Element | null;
       if (!t) return;
@@ -317,10 +316,8 @@ export function StoryGraphView() {
       }
       setSelectedEdgeId(null);
     };
-    document.addEventListener('keydown', onKey, true);
     document.addEventListener('pointerdown', onPointer, true);
     return () => {
-      document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('pointerdown', onPointer, true);
     };
   }, [selectedEdgeId]);
@@ -370,76 +367,8 @@ export function StoryGraphView() {
     localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
   }, [viewMode]);
 
-  // ESC routing. Overlays opt in to "close self" behavior — when any
-  // of them are open, ESC closes the most-recently-opened one. The
-  // state is read through a ref so the listener (registered once)
-  // always sees fresh values without re-registering on every overlay
-  // state change, and there's no stale-closure race against React 18's
-  // automatic batching.
-  // NodeCardPopover handles its own ESC at capture + stopPropagation,
-  // so it's NOT in the candidates here — the event simply never
-  // reaches this listener while the popover is open.
-  const overlayOpenTimes = useRef<Record<string, number>>({});
-  const escStateRef = useRef({
-    newEdgePair: null as typeof newEdgePair,
-    drawerOpen: false,
-    edgeMgrOpen: false,
-    driftPanelMounted: false,
-    driftPanelClosing: false,
-  });
-  // Mirror open-state into the ref so the centralized ESC listener
-  // (registered once, no closure deps) reads fresh values each ESC.
-  useLayoutEffect(() => {
-    escStateRef.current = {
-      newEdgePair,
-      drawerOpen,
-      edgeMgrOpen,
-      driftPanelMounted,
-      driftPanelClosing,
-    };
-  }, [newEdgePair, drawerOpen, edgeMgrOpen, driftPanelMounted, driftPanelClosing]);
-  useLayoutEffect(() => {
-    if (newEdgePair) overlayOpenTimes.current.newEdge = Date.now();
-  }, [newEdgePair]);
-  useLayoutEffect(() => {
-    if (drawerOpen) overlayOpenTimes.current.unplaced = Date.now();
-  }, [drawerOpen]);
-  useLayoutEffect(() => {
-    if (edgeMgrOpen) overlayOpenTimes.current.edgeMgr = Date.now();
-  }, [edgeMgrOpen]);
-  useLayoutEffect(() => {
-    if (driftPanelMounted && !driftPanelClosing) overlayOpenTimes.current.drift = Date.now();
-  }, [driftPanelClosing, driftPanelMounted]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      const s = escStateRef.current;
-      const candidates: Array<[string, boolean, () => void]> = [
-        ['newEdge', !!s.newEdgePair, () => setNewEdgePair(null)],
-        ['unplaced', s.drawerOpen, () => setDrawerOpen(false)],
-        ['edgeMgr', s.edgeMgrOpen, () => setEdgeMgrOpen(false)],
-        [
-          'drift',
-          s.driftPanelMounted && !s.driftPanelClosing,
-          () => closeDriftPanelRef.current?.(),
-        ],
-      ];
-      const opened = candidates.filter(([, isOpen]) => isOpen);
-      if (opened.length === 0) return;
-      // Most-recent-first; the top of the stack closes.
-      opened.sort(
-        ([a], [b]) => (overlayOpenTimes.current[b] ?? 0) - (overlayOpenTimes.current[a] ?? 0),
-      );
-      opened[0][2]();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [closeDriftPanelRef]);
-
   // Outside-click / Esc dismissal is handled inside EntityCellContextMenu
   // itself, so no separate effect is needed for the graph cmenu state.
-
-  const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
 
   // ---- Node positioning ----
   const storylineById = useMemo(() => new Map(storylines.map((s) => [s.id, s])), [storylines]);
@@ -1004,6 +933,60 @@ export function StoryGraphView() {
     setDriftDropIndex(null);
     closeDriftPanelBase();
   }, [closeDriftPanelBase]);
+
+  useSuperViewEscapeStack(
+    [
+      {
+        id: `node-popover:${popover?.nodeId ?? ''}`,
+        active: popover !== null,
+        onEscape: () => setPopover(null),
+      },
+      {
+        id: contextMenu
+          ? contextMenu.kind === 'node'
+            ? `entity-menu:node:${contextMenu.nodeId}`
+            : `entity-menu:storyline:${contextMenu.storylineId}`
+          : 'entity-menu',
+        active: contextMenu !== null,
+        onEscape: () => setContextMenu(null),
+      },
+      {
+        id: `drift-menu:${driftContextMenu?.nodeId ?? ''}`,
+        active: driftContextMenu !== null,
+        onEscape: () => setDriftContextMenu(null),
+      },
+      {
+        id: `rail-menu:${railMenu?.order ?? ''}`,
+        active: railMenu !== null,
+        onEscape: () => setRailMenu(null),
+      },
+      {
+        id: newEdgePair
+          ? `new-edge:${newEdgePair.source}:${newEdgePair.target}`
+          : 'new-edge',
+        active: newEdgePair !== null,
+        onEscape: () => setNewEdgePair(null),
+      },
+      { id: 'unplaced-drawer', active: drawerOpen, onEscape: () => setDrawerOpen(false) },
+      { id: 'relation-kind-menu', active: edgeMgrOpen, onEscape: () => setEdgeMgrOpen(false) },
+      {
+        id: `selected-edge:${selectedEdgeId ?? ''}`,
+        active: selectedEdgeId !== null,
+        onEscape: () => setSelectedEdgeId(null),
+      },
+      {
+        id: `link-source:${linkSource ?? ''}`,
+        active: linkSource !== null,
+        onEscape: () => setLinkSource(null),
+      },
+      {
+        id: 'drift-panel',
+        active: driftPanelMounted && !driftPanelClosing,
+        onEscape: closeDriftPanel,
+      },
+    ],
+    close,
+  );
 
   // Drift edges that touch at least one drift endpoint. Other edges are
   // already handled by `visibleEdges` (which skips them because drift nodes

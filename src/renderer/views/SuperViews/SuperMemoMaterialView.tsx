@@ -6,6 +6,7 @@ import { isChapter } from '../../domain/book-node';
 import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { useSuperViewEscapeStack } from '../../hooks/useSuperViewEscapeStack';
 import { SuperViewHeader } from '../../components/SuperViewHeader';
 import { SuperViewShell } from '../../components/SuperViewShell';
 import { FilterChip } from '../../components/ui/FilterChip';
@@ -45,7 +46,7 @@ const TODO_RAIL_WIDTH = 280;
  * per-entity MemoMaterialPanel in the right sidebar.
  *
  * Layout (full-screen above BottomStatusBar, same shell as StoryGraphView /
- * SuperElementView — no header bar, close via the BSB toggle):
+ * SuperElementView):
  *  ┌── toolbar (search · kind chips · entity filter · +) ─┐
  *  ├──────────┬────────────────────────────────────────────┤
  *  │ TODO 板  │  LibraryItem 网格 (按 kind 分组)              │
@@ -80,11 +81,36 @@ export function SuperMemoMaterialView() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewLibraryItemId, setPreviewLibraryItemId] = useState<string | null>(null);
   const [textPopoverId, setTextPopoverId] = useState<string | null>(null);
+  const [drawerExpanded, setDrawerExpanded] = useState(false);
 
-  // ESC is intentionally NOT wired to close the super view — matches
-  // StoryGraphView / SuperElementView ("ESC no longer exits the super view
-  // itself; users return via the BottomStatusBar toggle"). Compose dialogs
-  // and material preview popovers handle their own ESC dismissal internally.
+  // Compose dialogs and material previews consume Escape themselves. The
+  // shared stack is also aware of them as a safety net, then falls through to
+  // the bottom drawer and finally the Super View root.
+  useSuperViewEscapeStack(
+    [
+      {
+        id: `compose:${composeOpen ?? ''}`,
+        active: composeOpen !== null,
+        onEscape: () => setComposeOpen(null),
+      },
+      {
+        id: `material-preview:${previewLibraryItemId ?? ''}`,
+        active: previewLibraryItemId !== null,
+        onEscape: () => setPreviewLibraryItemId(null),
+      },
+      {
+        id: `text-popover:${textPopoverId ?? ''}`,
+        active: textPopoverId !== null,
+        onEscape: () => setTextPopoverId(null),
+      },
+      {
+        id: 'bottom-drawer',
+        active: drawerExpanded,
+        onEscape: () => setDrawerExpanded(false),
+      },
+    ],
+    closeView,
+  );
 
   // Group entityRelations by from-entity so each card can render its
   // relation chips and the filters can narrow to a specific target.
@@ -279,8 +305,8 @@ export function SuperMemoMaterialView() {
         }
       />
 
-      {/* Body island — wraps the rail/main split and bottom drawer so they
-          read as one card. Header and BottomStatusBar remain sibling islands. */}
+      {/* One continuous body surface wraps the rail/main split and drawer
+          above the shared status strip. */}
       <div className="super-view-body">
         <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
           <TodoRail
@@ -317,6 +343,8 @@ export function SuperMemoMaterialView() {
         </div>
 
         <BottomDrawer
+          expanded={drawerExpanded}
+          onExpandedChange={setDrawerExpanded}
           orphans={orphanLibraryItems}
           resolvedTodos={resolvedTodos}
           editingId={editingId}
@@ -1044,6 +1072,8 @@ function KindGroup({
 // Body is a 2-column split: orphan libraryItems | resolved memos.
 
 function BottomDrawer({
+  expanded,
+  onExpandedChange,
   orphans,
   resolvedTodos,
   editingId,
@@ -1055,6 +1085,8 @@ function BottomDrawer({
   openLibraryItemInApp,
   openLibraryItemInSystem,
 }: {
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
   orphans: LibraryItem[];
   resolvedTodos: Comment[];
   editingId: string | null;
@@ -1067,7 +1099,6 @@ function BottomDrawer({
   openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
   const [height, setHeight] = useState(DRAWER_DEFAULT_HEIGHT);
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
@@ -1132,7 +1163,7 @@ function BottomDrawer({
       />
       <button
         type="button"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => onExpandedChange(!expanded)}
         style={{
           all: 'unset',
           boxSizing: 'border-box',

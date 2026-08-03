@@ -15,11 +15,8 @@ import { useProjectAsset } from '../usecase/useProjectAsset';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
-import {
-  EditorOutlinePanel,
-  nestHeadings,
-  type OutlineEntry,
-} from '../components/editor/EditorOutlinePanel';
+import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
+import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';
 import { KvEditor } from '../components/editor/KvEditor';
 import { FieldReview, FieldReviewStrip } from '../components/editor/FieldReview';
 import { useFieldReview } from '../hooks/useFieldReview';
@@ -750,10 +747,9 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
         </EditorCrumb>
       </EditorTopBar>
 
-      {/* Editor body: TOC sits OUTSIDE the scroll container as a layout
-          sibling — stays put without relying on position:sticky. */}
+      {/* Permanent semantic TOC scrollbar, fixed beside the native scroll tree. */}
       <div className="editor-body">
-        <EditorOutlinePanel
+        <EditorOutlineRail
           title={`${curElement.name || 'ELEMENT'} · OUTLINE`}
           items={frameworkItems}
           activeId={activeOutlineId}

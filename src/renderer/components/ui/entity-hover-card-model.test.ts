@@ -6,7 +6,6 @@ import { buildEntityHoverCardContent } from './entity-hover-card-model';
 
 const t = ((key: string, options?: { count?: string | number }) => {
   if (key === 'nodeEditor.meta.words') return `${options?.count} words`;
-  if (key === 'nodeEditor.meta.storylines') return `${options?.count} storylines`;
   if (key === 'storylineEditor.meta.chapters') return `${options?.count} chapters`;
   if (key === 'storylineEditor.meta.kWords') return `${options?.count}k words`;
   if (key === 'categoryEditor.meta.elements') return `${options?.count} elements`;
@@ -31,7 +30,7 @@ function store(overrides: Record<string, unknown> = {}) {
 }
 
 describe('buildEntityHoverCardContent', () => {
-  it('builds chapter metadata from status, words, and the primary storyline', () => {
+  it('shows the primary storyline followed by dimmed secondary storyline chips', () => {
     const content = buildEntityHoverCardContent(
       { kind: 'node', id: 'chapter-1' },
       store({
@@ -44,7 +43,10 @@ describe('buildEntityHoverCardContent', () => {
             wordCount: 1234,
           },
         ],
-        storylines: [{ id: 'story-1', name: 'Main Arc', color: '#5570A7' }],
+        storylines: [
+          { id: 'story-1', name: 'Main Arc', color: '#5570A7' },
+          { id: 'story-2', name: 'Quiet Arc', color: '#8C6F52' },
+        ],
         nodeStorylineMapping: { 'chapter-1': ['story-1', 'story-2'] },
         primaryStorylineByNode: { 'chapter-1': 'story-1' },
       }),
@@ -57,7 +59,7 @@ describe('buildEntityHoverCardContent', () => {
         { text: 'Draft' },
         { text: '1,234 words' },
         { text: 'Main Arc', color: '#5570A7' },
-        { text: '2 storylines' },
+        { text: 'Quiet Arc', color: '#8C6F52', tone: 'secondary' },
       ],
     });
   });

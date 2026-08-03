@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
 import { useEdgeKindMeta, UNCATEGORIZED_META_KEY } from '../../hooks/useEdgeKindMeta';
+import { useSuperViewEscapeStack } from '../../hooks/useSuperViewEscapeStack';
 import { actBoundDriftIds } from '../../domain/book-act';
 import type { BookElement, BookElementCategory } from '../../domain/book-element';
 import type { BookNode } from '../../domain/book-node';
@@ -1046,7 +1047,6 @@ export function SuperElementView() {
     closing: driftPanelClosing,
     openPanel: openDriftPanel,
     closePanel: closeDriftPanel,
-    closePanelRef: closeDriftPanelRef,
   } = useDriftPanelAnim();
   // Drift-node popover (two-tier name + summary + body editor). Mirrors the
   // popover anchor pattern used for element cards.
@@ -1059,43 +1059,58 @@ export function SuperElementView() {
   const [kindMenuOpen, setKindMenuOpen] = useState(false);
   const kindMenuButtonRef = useRef<HTMLButtonElement>(null);
 
-  // ESC stack — most-recent sub-overlay pops first. The popover registers
-  // its own capture-phase ESC, so we don't include it in our priority list
-  // (window-bubble fires AFTER popover's capture-handler closes it). ESC no
-  // longer exits the super view itself; users return via the global shortcut
-  // or the back button.
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (activePopover) return; // popover handles it
-      if (pendingLink) {
-        setPendingLink(null);
-        return;
-      }
-      if (selectedEdgeId) {
-        setSelectedEdgeId(null);
-        return;
-      }
-      if (linkSource) {
-        setLinkSource(null);
-        return;
-      }
-      if (driftPanelMounted && !driftPanelClosing) {
-        closeDriftPanelRef.current?.();
-        return;
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [
-    activePopover,
-    pendingLink,
-    selectedEdgeId,
-    linkSource,
-    driftPanelMounted,
-    driftPanelClosing,
-    closeDriftPanelRef,
-  ]);
+  useSuperViewEscapeStack(
+    [
+      {
+        id: `element-popover:${activePopover?.elementId ?? ''}`,
+        active: activePopover !== null,
+        onEscape: () => setActivePopover(null),
+      },
+      {
+        id: `drift-popover:${activeDriftPopover?.nodeId ?? ''}`,
+        active: activeDriftPopover !== null,
+        onEscape: () => setActiveDriftPopover(null),
+      },
+      {
+        id: contextMenu
+          ? contextMenu.kind === 'element'
+            ? `entity-menu:element:${contextMenu.elementId}`
+            : `entity-menu:category:${contextMenu.categoryId}`
+          : 'entity-menu',
+        active: contextMenu !== null,
+        onEscape: () => setContextMenu(null),
+      },
+      {
+        id: `drift-menu:${driftContextMenu?.nodeId ?? ''}`,
+        active: driftContextMenu !== null,
+        onEscape: () => setDriftContextMenu(null),
+      },
+      {
+        id: pendingLink
+          ? `pending-link:${pendingLink.source.kind}:${pendingLink.source.id}:${pendingLink.target.kind}:${pendingLink.target.id}`
+          : 'pending-link',
+        active: pendingLink !== null,
+        onEscape: () => setPendingLink(null),
+      },
+      { id: 'relation-kind-menu', active: kindMenuOpen, onEscape: () => setKindMenuOpen(false) },
+      {
+        id: `selected-edge:${selectedEdgeId ?? ''}`,
+        active: selectedEdgeId !== null,
+        onEscape: () => setSelectedEdgeId(null),
+      },
+      {
+        id: linkSource ? `link-source:${linkSource.kind}:${linkSource.id}` : 'link-source',
+        active: linkSource !== null,
+        onEscape: () => setLinkSource(null),
+      },
+      {
+        id: 'drift-panel',
+        active: driftPanelMounted && !driftPanelClosing,
+        onEscape: closeDriftPanel,
+      },
+    ],
+    close,
+  );
 
   // Dismiss the edge selection on any click that doesn't land on an edge
   // or the × badge. Edge / badge handlers stopPropagation so they don't

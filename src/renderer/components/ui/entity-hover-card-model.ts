@@ -22,6 +22,7 @@ export interface EntityHoverPreview<T> {
 export interface EntityHoverMetaItem {
   text: string;
   color?: string | null;
+  tone?: 'secondary';
 }
 
 export interface EntityHoverCardContent {
@@ -71,21 +72,28 @@ export function buildEntityHoverCardContent(
       { text: t('nodeEditor.meta.words', { count: node.wordCount.toLocaleString() }) },
     ];
     if (isChapter(node)) {
-      const storylineIds = state.nodeStorylineMapping[node.id] ?? [];
+      const storylineById = new Map(state.storylines.map((candidate) => [candidate.id, candidate]));
+      const storylineIds = (state.nodeStorylineMapping[node.id] ?? []).filter((id) =>
+        storylineById.has(id),
+      );
       const storylineId = resolvePrimaryStorylineId(
         state.primaryStorylineByNode[node.id],
         storylineIds,
       );
-      const storyline = storylineId
-        ? state.storylines.find((candidate) => candidate.id === storylineId)
-        : null;
+      const storyline = storylineId ? storylineById.get(storylineId) : null;
       meta.push({
         text: storyline?.name ?? t('nodeEditor.empty.noStoryline'),
         color: storyline?.color,
       });
-      const storylineCount = storylineIds.length;
-      if (storylineCount > 1) {
-        meta.push({ text: t('nodeEditor.meta.storylines', { count: storylineCount }) });
+      for (const secondaryStorylineId of storylineIds) {
+        if (secondaryStorylineId === storylineId) continue;
+        const secondaryStoryline = storylineById.get(secondaryStorylineId);
+        if (!secondaryStoryline) continue;
+        meta.push({
+          text: secondaryStoryline.name,
+          color: secondaryStoryline.color,
+          tone: 'secondary',
+        });
       }
     } else if (node.driftGroupId) {
       const groupsById = new Map(state.driftGroups.map((group) => [group.id, group]));

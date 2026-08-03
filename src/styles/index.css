@@ -764,13 +764,17 @@ html[data-platform-target='mobile'] .app-mid {
   min-height: 0; /* let .editor-scroll's flex:1 actually constrain */
 }
 
-/* Flex row living between .editor-bar and the scroll. Hosts the TOC as a
-   layout sibling of .editor-scroll so the outline never lives inside the
-   scrolling viewport — it stays put without relying on position:sticky.
-   `justify-content: center` keeps the [TOC + scroll] group glued together
-   and centered, so the TOC always sits flush against the manuscript's
-   left edge regardless of viewport width or sidebar state. */
+/* Flex row living between .editor-bar and the manuscript scroll. The semantic
+   TOC rail and review marker lanes are absolutely pinned in this coordinate
+   space while the page remains centred underneath them. */
 .editor-body {
+  --editor-toc-rail-width: clamp(88px, 12vw, 152px);
+  --editor-toc-rail-left: max(
+    4px,
+    calc(
+      50% - var(--editor-max-width, 720px) / 2 - var(--editor-toc-rail-width) - 6px
+    )
+  );
   display: flex;
   flex: 1;
   min-height: 0;
@@ -789,16 +793,15 @@ html[data-platform-target='mobile'] .app-mid {
   background: hsl(var(--paper-deep));
   position: sticky;
   top: 0;
-  z-index: 15; /* above .editor__toc-rail (z:5) so crumb dropdowns can hang over the outline */
+  z-index: 15; /* above the semantic TOC rail so anchored controls remain reachable */
   font-family: var(--font-mono);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: hsl(var(--ink-3));
 }
-/* Left group: outline toggle + breadcrumb, kept together at the bar's left
-   edge (the bar itself is space-between, pinning this group left and the
-   right slot right). min-width:0 lets long crumbs truncate. */
+/* Left breadcrumb group. The outline is now a permanent semantic scrollbar,
+   so the bar no longer carries a visibility toggle. */
 .editor-bar__left {
   display: inline-flex;
   align-items: center;
@@ -1341,9 +1344,8 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
    Editor spread layout — TOC | manuscript | margin comments
    ============================================================ */
 .editor-scroll {
-  /* 全宽填充 .editor-body —— 暗色 surface 一直延伸到 editor 区两侧的 chrome
-     边界，正文由内部 .editor__spread 居中。这样滚动条始终贴在最右边的 chrome
-     边缘上，左右没有"白底/暗带不对称"的视觉问题。 */
+  /* 全宽填充 .editor-body，正文由内部 .editor__spread 居中。原生滚动条隐藏；
+     左侧 semantic outline rail 是唯一可见的文稿滚动坐标。 */
   flex: 1;
   min-width: 0;
   overflow-y: auto;
@@ -1351,8 +1353,7 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   position: relative;
   min-height: 0;
   align-self: stretch;
-  scrollbar-gutter: stable;
-  scrollbar-color: transparent transparent;
+  scrollbar-width: none;
 }
 /* Typewriter scrolling needs virtual room below the real document so the last
    prose line can reach the configured viewport anchor. This spacer is visual
@@ -1370,30 +1371,10 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 .ProseMirror[data-typewriter-caret-repaint='on'] {
   caret-color: transparent;
 }
-/* 仅在 .is-scrolling 时显示滚动条（由 App Layout 中的全局 scroll 监听器切换） */
-.editor-scroll.is-scrolling {
-  scrollbar-color: hsl(var(--rule)) transparent;
-}
 .editor-scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.editor-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.editor-scroll::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 0;
-  transition: background 0.25s ease;
-}
-.editor-scroll::-webkit-scrollbar-thumb {
-  border-radius: 4px;
-}
-.editor-scroll.is-scrolling::-webkit-scrollbar-thumb {
-  background: hsl(var(--rule));
-}
-.editor-scroll.is-scrolling::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--ink-4));
+  display: none;
+  width: 0;
+  height: 0;
 }
 /* `.editor-scroll--comments` 不再需要单独的宽度 —— `.editor-scroll` 已全宽，
    评论栏由 `.editor__spread` 内部的 flex 居中容纳 .page + .editor__margin。 */
@@ -1402,9 +1383,7 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   justify-content: center;
   align-items: stretch;
   gap: 24px;
-  /* padding-left 与 .editor-scroll 右侧的 scrollbar gutter (8px) 对称，
-     让居中正文在视觉上左右等距，而不是相对滚动条之后的内容区居中。 */
-  padding: 16px 0 96px 8px;
+  padding: 16px 0 96px;
   margin: 0 auto;
   position: relative;
 }
@@ -1415,8 +1394,8 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   max-width: var(--editor-max-width, 720px);
 }
 /* Comment rail — anchored to the right edge of .editor-body, mirrors the
-   EditorOutlinePanel pattern on the left. Absolute positioning means the
-   manuscript never reflows when the rail opens.
+   semantic outline rail on the left. Absolute positioning means the
+   manuscript never reflows around either permanent rail.
    The rail container is transparent + pointer-events:none so the user can
    click/select manuscript text underneath the rail's empty regions. Only
    the actual cards/chips re-enable pointer events. */
@@ -1992,21 +1971,36 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 }
 
 /* ============================================================
-   Scroll overview ruler (VSCode-style) — ticks on the right edge
-   marking where comments and unread agent edits sit in the document.
-   Lives in .editor-body (non-scrolling), so it stays put while the
-   manuscript scrolls. Container passes pointer events through; only
-   the ticks are clickable (jump-to-block).
+   Review lanes inside the semantic TOC rail. Comment/Agent ticks retain their
+   existing colours and jump behaviour, but no longer form a second ruler on
+   the manuscript's right edge.
    ============================================================ */
 .editor__scrollmap {
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  /* Three agent lanes (≈5px each) + a hair of padding. Wider than the old
-     single-column ruler so the VSCode-git lanes + comment bars fit. */
-  width: 18px;
-  z-index: 8;
+  top: 8px;
+  left: calc(var(--editor-toc-rail-left) + var(--editor-toc-rail-width) - 8px);
+  bottom: 8px;
+  /* Review ticks share the scrollbar itself instead of creating a wide gap
+     between the thumb and its TOC labels. */
+  width: 8px;
+  z-index: 9;
+  pointer-events: none;
+  opacity: 0.46;
+  transition: opacity 0.16s ease;
+}
+.editor-body[data-outline-rail-active='true'] .editor__scrollmap {
+  opacity: 0.92;
+}
+.editor-body[data-outline-rail-mode='edge'] .editor__scrollmap {
+  left: 0;
+  opacity: 0;
+}
+.editor-body[data-outline-rail-mode='edge'][data-outline-rail-active='true']
+  .editor__scrollmap {
+  opacity: 0.92;
+}
+.editor-body[data-outline-rail-mode='edge'][data-outline-rail-active='false']
+  .editor__scrollmap-tick {
   pointer-events: none;
 }
 .editor__scrollmap-tick {
@@ -2027,21 +2021,21 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 /* Three vertical lanes for agent ticks (VSCode-git layout):
    new = left, changed = middle, deleted = right. */
 .editor__scrollmap-tick--lane0 {
-  left: 1px;
-  width: 4px;
+  left: 0;
+  width: 2px;
 }
 .editor__scrollmap-tick--lane1 {
-  left: 7px;
-  width: 4px;
+  left: 3px;
+  width: 2px;
 }
 .editor__scrollmap-tick--lane2 {
-  left: 13px;
-  width: 4px;
+  left: 6px;
+  width: 2px;
 }
 /* Comment ticks: a horizontal bar spanning all three lanes, above agent ticks. */
 .editor__scrollmap-tick--span {
-  left: 1px;
-  right: 1px;
+  left: 0;
+  right: 0;
   width: auto;
   height: 3px;
   z-index: 2;
@@ -2102,10 +2096,12 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
    Agent-edit reveal (#4) — the agent's edit already landed in the doc;
    this overlay crossfades the OLD text (deletions tinted red) into the
    NEW text (insertions tinted green) over the real block, then fades to
-   reveal it. Plus the approve-mode inline ✓ / ✗ controls (#3).
+   reveal it. The layer lives inside .editor__spread so native scrolling
+   composites it with the prose instead of leaving a fixed-layer trail.
+   Plus the approve-mode inline ✓ / ✗ controls (#3).
    ============================================================ */
 .agent-edit-layer {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 60;
   pointer-events: none;
@@ -2629,294 +2625,350 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   background: hsl(var(--rule-strong) / 0.6);
 }
 
-/* Outline rail — pinned absolutely to the top-left of .editor-body (right
-   under the breadcrumb), out of flex flow so toggling never reflows the
-   manuscript. The box itself is transparent and spans the full body
-   height; it exists as the panel's positioning anchor and as a 32px-wide
-   click-target column. Only the toggle button at the top is visually
-   styled, so the outline reads as a small "tab" sticking out of the
-   left edge. `pointer-events: none` on the container makes the empty
-   column transparent to clicks; the button and panel re-enable events. */
+/* ============================================================
+   Semantic outline scrollbar — manuscript structure + viewport + review map
+
+   Labels remain attached to measured document positions. The renderer only
+   spreads colliding glyph boxes and progressively drops density: all rows →
+   current root descendants → a window with hoverable omission handles.
+   ============================================================ */
 .editor__toc-rail {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 0;
-  width: 32px;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  left: var(--editor-toc-rail-left);
+  width: var(--editor-toc-rail-width);
+  display: block;
+  z-index: 7;
+  overflow: visible;
   background: transparent;
+  pointer-events: none;
+  user-select: none;
+}
+.editor__toc-labels {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+  opacity: 0.44;
+  transition: opacity 0.16s ease;
+}
+.editor__toc-rail.is-active .editor__toc-labels,
+.editor__toc-rail:focus-within .editor__toc-labels {
+  opacity: 1;
+}
+.editor__toc-tag,
+.editor__toc-omission {
+  position: absolute;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  max-width: calc(100% - 14px);
+  min-height: 15px;
+  margin: 0;
+  padding: 1px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: hsl(var(--ink-4));
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translateY(-50%);
+  transition:
+    top 0.18s ease,
+    color 0.12s ease,
+    background 0.12s ease,
+    opacity 0.12s ease;
+}
+.editor__toc-tag:hover,
+.editor__toc-tag:focus-visible,
+.editor__toc-omission:hover,
+.editor__toc-omission:focus-visible {
+  z-index: 12;
+  color: hsl(var(--ink-1));
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+.editor__toc-tag-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.editor__toc-tag-num {
+  flex: none;
+  color: hsl(var(--accent));
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+.editor__toc-tag-branch {
+  flex: none;
+  color: hsl(var(--ink-5));
+  font-size: 9px;
+}
+
+/* Five structural levels stay uniform across every editor. Their compact rail
+   treatment preserves the existing "deeper = quieter" hierarchy. */
+.editor__toc-tag--l1 {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0.025em;
+  color: hsl(var(--ink-3));
+}
+.editor__toc-tag--l1::before {
+  content: '';
+  width: 10px;
+  height: 1px;
+  background: hsl(var(--rule-strong));
+}
+.editor__toc-tag--l2 {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 550;
+  color: hsl(var(--ink-2));
+}
+.editor__toc-tag--l3 {
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  font-weight: 400;
+  color: hsl(var(--ink-3));
+}
+.editor__toc-tag--l4 {
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-style: italic;
+  color: hsl(var(--ink-4));
+}
+.editor__toc-tag--l5 {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.01em;
+  color: hsl(var(--ink-5));
+}
+
+/* Viewport intersection and the primary reading location are expressed only
+   through text colour/weight. Tags never acquire a chip, frame, or wash. */
+.editor__toc-tag.is-visible {
+  color: hsl(var(--ink-2));
+}
+.editor__toc-tag.is-active-path:not(.is-primary) {
+  color: hsl(var(--accent) / 0.82);
+}
+.editor__toc-tag.is-primary {
   z-index: 5;
+  color: hsl(var(--accent));
+  font-weight: 600;
+}
+.editor__toc-omission {
+  min-width: 22px;
+  justify-content: center;
+  padding-inline: 5px;
+  color: hsl(var(--ink-4));
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+.editor__toc-omission.is-revealing {
+  opacity: 0;
+}
+.editor__toc-empty {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  max-width: calc(100% - 14px);
+  color: hsl(var(--ink-5));
+  font-family: var(--font-mono);
+  font-size: 8px;
+  line-height: 1.35;
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.editor__toc-track {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ns-resize;
+  pointer-events: auto;
+  touch-action: none;
+  opacity: 0.4;
+  transition: opacity 0.16s ease;
+}
+.editor__toc-rail.is-active .editor__toc-track,
+.editor__toc-track:focus-visible {
+  opacity: 1;
+}
+.editor__toc-track::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 3px;
+  bottom: 8px;
+  width: 1px;
+  background: hsl(var(--rule) / 0.7);
+  opacity: 0.5;
+  transition: opacity 0.12s ease;
+}
+.editor__toc-track:hover::before,
+.editor__toc-track:focus-visible::before,
+.editor__toc-rail.is-dragging .editor__toc-track::before {
+  opacity: 1;
+}
+.editor__toc-track:focus-visible {
+  outline: 1px solid hsl(var(--accent) / 0.5);
+  outline-offset: 2px;
+}
+.editor__toc-viewport-range {
+  position: absolute;
+  right: 0;
+  width: 8px;
+  min-height: 14px;
+  border-radius: 4px;
+  background: hsl(var(--accent) / 0.14);
+  pointer-events: none;
+  transition:
+    top 0.16s ease,
+    height 0.16s ease,
+    opacity 0.16s ease,
+    background 0.12s ease;
+  z-index: 0;
+}
+.editor__toc-rail.is-active .editor__toc-viewport-range {
+  background: hsl(var(--accent) / 0.26);
+}
+.editor__toc-thumb {
+  position: absolute;
+  right: 2px;
+  width: 4px;
+  min-height: 2px;
+  border-radius: 3px;
+  background: hsl(var(--accent) / 0.42);
+  box-shadow: 0 0 0 1px hsl(var(--surface) / 0.66);
+  pointer-events: auto;
+  z-index: 1;
+  transition:
+    background 0.12s ease,
+    width 0.12s ease;
+}
+.editor__toc-track:hover .editor__toc-thumb,
+.editor__toc-track:focus-visible .editor__toc-thumb,
+.editor__toc-rail.is-dragging .editor__toc-thumb {
+  right: 1px;
+  width: 6px;
+  background: hsl(var(--accent) / 0.72);
+}
+
+/* When the rendered manuscript leaves no real left gutter, the same rail
+   becomes an overlay scrollbar at the editor's left edge. TOC text flips to
+   the thumb's right and appears only during scroll/direct interaction. */
+.editor__toc-rail--edge {
+  left: 0;
+  width: min(190px, calc(100% - 8px));
+}
+.editor__toc-rail--edge .editor__toc-labels,
+.editor__toc-rail--edge .editor__toc-viewport-range {
+  opacity: 0;
+}
+.editor__toc-rail--edge.is-active .editor__toc-labels,
+.editor__toc-rail--edge:focus-within .editor__toc-labels,
+.editor__toc-rail--edge.is-active .editor__toc-viewport-range,
+.editor__toc-rail--edge:focus-within .editor__toc-viewport-range {
+  opacity: 1;
+}
+.editor__toc-rail--edge .editor__toc-tag,
+.editor__toc-rail--edge .editor__toc-omission {
+  right: auto;
+  left: 12px;
+  max-width: calc(100% - 14px);
+  justify-content: flex-start;
+  text-align: left;
+}
+.editor__toc-rail--edge .editor__toc-empty {
+  right: auto;
+  left: 12px;
+  max-width: calc(100% - 14px);
+  text-align: left;
+}
+.editor__toc-rail--edge .editor__toc-track {
+  right: auto;
+  left: 0;
+}
+.editor__toc-rail--edge:not(.is-active):not(:focus-within) .editor__toc-tag,
+.editor__toc-rail--edge:not(.is-active):not(:focus-within) .editor__toc-omission {
   pointer-events: none;
 }
 
-/* The panel. Sits flush at the rail's (= body's) left edge and spans the
-   full body height (the rail box does too). When the panel would spill onto
-   the manuscript, the `--over-manuscript` modifier swaps the solid
-   background for a gradient that fades the trailing edge slightly,
-   signalling the overlay state. */
-.editor__toc-overlay {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 200px;
-  padding: 28px 14px 12px 12px;
+/* A distant omission restores nearby real TOC tags on hover/focus. This is a
+   compact traversal aid, not a magnification animation or the retired panel. */
+.editor__toc-omission-reveal {
+  position: fixed;
+  width: 190px;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 1px;
-  overflow-y: auto;
-  background: hsl(var(--surface));
-  border-right: 1px dotted hsl(var(--rule));
-  pointer-events: auto;
-}
-.editor__toc-overlay--over-manuscript {
-  background: linear-gradient(
-    to right,
-    hsl(var(--surface)) 0%,
-    hsl(var(--surface)) 72%,
-    hsl(var(--surface) / 0.92) 100%
-  );
-}
-.editor__toc-overlay::-webkit-scrollbar {
-  width: 4px;
-}
-.editor__toc-overlay::-webkit-scrollbar-thumb {
-  background: hsl(var(--rule-strong));
-  border-radius: 2px;
-}
-
-.toc-head {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: hsl(var(--ink-4));
-  padding: 0 0 8px 8px;
-  margin-bottom: 6px;
-  border-bottom: 1px dotted hsl(var(--rule));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-}
-.toc-head__count {
-  color: hsl(var(--ink-5));
-  font-size: 9px;
-}
-
-/* Thin divider between the static framework block and the dynamic body
-   outline block. No label, no count — the rule alone signals "second TOC". */
-.toc-divider {
+  padding: 3px 5px 3px 24px;
   border: 0;
-  height: 1px;
-  background: hsl(var(--rule));
-  margin: 14px 0 6px;
+  background: transparent;
+  z-index: calc(var(--z-context-menu) + 2);
 }
-
-/* ── Five-level outline (act › chapter › scene › beat › note) ──────────────
-   Driven by per-tier classes, not tree depth, so a given level reads the same
-   whether or not acts/chapters sit above it. Hierarchy is carried entirely by
-   visuals — centred act dividers + indent + size + ink + font-family + guide
-   rails. Core rule: 越深越安静 (deeper = smaller + fainter). */
-.editor__toc-overlay {
-  --toc-indent: 16px;
-  --toc-scene: 14px;
+.editor__toc-omission-reveal--edge {
+  align-items: flex-start;
+  padding: 3px 24px 3px 5px;
 }
-/* Scene/beat/note base. At the root (single-chapter & entity body outlines)
-   headings ARE the top level, so they hug the L2 base (14px) — no phantom
-   chapter to make room for. Only when they actually nest under a chapter (L2)
-   in 通览全书 do they step in one level. Drives both indent and guide rails. */
-.toc-block--l2 > .toc-kids {
-  --toc-scene: calc(14px + var(--toc-indent));
-}
-
-/* L1 · act — a centred chapter-break divider flanked by hairlines, NOT a list
-   row, never indented. Its centred form keeps it un-confusable with the rows
-   below even when a user names an act the same as a chapter. */
-.toc-act {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 20px 10px 12px;
-  cursor: pointer;
-  user-select: none;
-}
-.toc-act:first-child {
-  padding-top: 10px;
-}
-.toc-act::before,
-.toc-act::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: hsl(var(--rule));
-}
-.toc-act__label {
-  font-family: var(--font-sans);
-  font-style: italic;
-  font-size: 13.5px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: hsl(var(--ink-3));
-  white-space: nowrap;
-  transition: color 0.12s;
-}
-.toc-act:hover .toc-act__label {
-  color: hsl(var(--ink-1));
-}
-.toc-act:focus-visible {
-  outline: 2px solid hsl(var(--accent) / 0.55);
-  outline-offset: -2px;
-  border-radius: 3px;
-}
-
-/* shared row */
-.toc-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 10px 5px 0;
-  cursor: pointer;
-  position: relative;
-  color: hsl(var(--ink-2));
-  transition:
-    color 0.12s,
-    background 0.12s;
-}
-.toc-row:hover {
-  background: hsl(var(--rule) / 0.6);
-}
-.toc-row:focus-visible {
-  outline: 2px solid hsl(var(--accent) / 0.55);
-  outline-offset: -2px;
-  border-radius: 3px;
-  background: hsl(var(--accent) / 0.06);
-}
-.toc-row__caret {
-  flex: 0 0 12px;
-  width: 12px;
-  height: 12px;
-  display: grid;
-  place-items: center;
-  color: hsl(var(--ink-4));
-  transition: transform 0.15s ease;
-}
-.toc-row.is-open > .toc-row__caret {
-  transform: rotate(90deg);
-}
-.toc-row__caret.is-leaf {
-  visibility: hidden;
-}
-.toc-row__ord {
-  flex: 0 0 auto;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.04em;
-  color: hsl(var(--accent));
-}
-.toc-row__text {
-  min-width: 0;
-  font-family: var(--font-sans);
+.editor__toc-reveal-item {
+  display: block;
+  max-width: 100%;
+  padding: 2px 7px;
   overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  line-height: 1.35;
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
 }
-
-/* nesting wrapper + vertical guide rail (connects a parent to its children;
-   x-position tracks the parent tier's indent). */
-.toc-kids {
-  position: relative;
+.editor__toc-reveal-item:hover,
+.editor__toc-reveal-item:focus-visible {
+  color: hsl(var(--accent));
+  background: transparent;
+  outline: none;
 }
-.toc-kids::before {
-  content: '';
-  position: absolute;
-  top: 2px;
-  bottom: 6px;
-  width: 1px;
-  background: hsl(var(--rule));
+.editor__toc-omission-reveal--edge .editor__toc-reveal-item {
+  text-align: left;
 }
-.toc-block--l2 > .toc-kids::before {
-  left: 21px;
-}
-.toc-block--l3 > .toc-kids::before {
-  left: calc(var(--toc-scene) + 7px);
-}
-.toc-block--l4 > .toc-kids::before {
-  left: calc(var(--toc-scene) + var(--toc-indent) + 7px);
-}
-
-/* L2 · chapter / section — primary navigation unit: mid-weight and darkest. */
-.toc-block--l2 > .toc-row {
-  padding-left: 14px;
-}
-.toc-block--l2 > .toc-row .toc-row__text {
-  font-size: 15px;
-  font-weight: 500;
-  color: hsl(var(--ink-1));
-  letter-spacing: -0.005em;
-}
-
-/* L3 · scene (h1) — one step in, smaller, a shade lighter. */
-.toc-block--l3 > .toc-row {
-  padding-left: var(--toc-scene);
-}
-.toc-block--l3 > .toc-row .toc-row__text {
-  font-size: 13px;
-  font-weight: 400;
-  color: hsl(var(--ink-2));
-}
-
-/* L4 · beat (h2) — two steps in, italic (= subordinate), quieter still. */
-.toc-block--l4 > .toc-row {
-  padding-left: calc(var(--toc-scene) + var(--toc-indent));
-}
-.toc-block--l4 > .toc-row .toc-row__text {
-  font-size: 12px;
-  font-style: italic;
-  font-weight: 400;
-  color: hsl(var(--ink-3));
-}
-
-/* L5 · note (h3) — the floor: mono (≠ everything above), faintest, no caret. */
-.toc-block--l5 > .toc-row {
-  padding-left: calc(var(--toc-scene) + var(--toc-indent) * 2);
-  padding-top: 3px;
-  padding-bottom: 3px;
-}
-.toc-block--l5 > .toc-row .toc-row__text {
-  font-family: var(--font-mono);
+.editor__toc-reveal-item--l1 {
   font-size: 10px;
-  font-weight: 400;
-  color: hsl(var(--ink-4));
-  letter-spacing: 0.01em;
+  font-style: italic;
 }
-.toc-block--l5 > .toc-row .toc-row__caret {
-  display: none;
+.editor__toc-reveal-item--l2 {
+  color: hsl(var(--ink-2));
+  font-size: 10.5px;
+  font-weight: 550;
 }
-
-/* "You are here", two stages, accent only (no left spine — house style):
-   the active chapter/section gets a faint accent wash + accent text; the
-   active deepest row gets just accent text + a touch of weight. */
-.toc-row.is-active {
-  background: hsl(var(--accent) / 0.08);
-}
-.toc-row.is-active .toc-row__text,
-.toc-row.is-active .toc-row__caret {
-  color: hsl(var(--accent));
-}
-.toc-row.is-current .toc-row__text {
-  color: hsl(var(--accent));
-  font-weight: 500;
-}
-.toc-empty {
-  padding: 8px;
-  font-family: var(--font-mono);
+.editor__toc-reveal-item--l4 {
   font-size: 9px;
-  color: hsl(var(--ink-5));
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+  font-style: italic;
+}
+.editor__toc-reveal-item--l5 {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
 }
 
 /* Scene + Beat headers — render inside .page__body for non-chapter editors,

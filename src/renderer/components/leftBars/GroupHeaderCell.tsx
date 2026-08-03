@@ -48,8 +48,10 @@ export interface GroupHeaderCellProps {
   // changes. Takes priority over the child `agentDoneCount`: show "M" first, then
   // the child count once the group's own body is reviewed.
   agentSelfChanged?: boolean;
+  // A newly created group body uses the IDE-style Added marker until its first
+  // prose reveal completes. Added takes priority over Modified.
+  agentSelfAdded?: boolean;
 }
-
 export function GroupHeaderCell({
   name,
   count,
@@ -67,6 +69,7 @@ export function GroupHeaderCell({
   agentBusy = false,
   agentDoneCount = 0,
   agentSelfChanged = false,
+  agentSelfAdded = false,
 }: GroupHeaderCellProps) {
   const { t } = useTranslation();
   return (
@@ -135,10 +138,14 @@ export function GroupHeaderCell({
             <ChevronDown size={11} strokeWidth={2} />
           )}
         </button>
-        {!agentBusy && agentSelfChanged ? (
+        {!agentBusy && (agentSelfAdded || agentSelfChanged) ? (
           <span
             aria-hidden
-            title={t('agentActivity.groupBodyChanged')}
+            title={t(
+              agentSelfAdded
+                ? 'agentActivity.groupBodyAdded'
+                : 'agentActivity.groupBodyChanged',
+            )}
             style={{
               width: 7,
               flexShrink: 0,
@@ -150,7 +157,7 @@ export function GroupHeaderCell({
               color: 'hsl(var(--ink-2))',
             }}
           >
-            M
+            {agentSelfAdded ? 'A' : 'M'}
           </span>
         ) : !agentBusy && agentDoneCount > 0 ? (
           <AgentCountBadge count={agentDoneCount} title={t('agentActivity.childChanges')} />

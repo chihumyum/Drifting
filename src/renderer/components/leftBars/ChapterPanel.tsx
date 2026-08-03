@@ -73,6 +73,7 @@ export function ChapterPanel() {
   // Persisted pending agent edits (approve/auto review) — survives reload, so a
   // chapter with unreviewed edits still shows "M" after a refresh.
   const agentPending = useAgentEditStore((s) => s.pending);
+  const agentAdditions = useAgentEditStore((s) => s.additions);
 
   const activeProjectId = useMemo(() => {
     if (!projectId) {
@@ -267,8 +268,11 @@ export function ChapterPanel() {
   const renderNodeCard = (node: BookNode) => {
     const selected = node.id === selectedNodeId;
     const agentBusy = `node:${node.id}` in agentActive;
+    const agentAdded = !agentBusy && `node:${node.id}` in agentAdditions;
     const agentChanged =
-      !agentBusy && (`node:${node.id}` in agentTouched || `node:${node.id}` in agentPending);
+      !agentBusy &&
+      !agentAdded &&
+      (`node:${node.id}` in agentTouched || `node:${node.id}` in agentPending);
     const primaryId = primaryStorylineByNode[node.id] ?? null;
     const storyline = primaryId ? storylineById.get(primaryId) : undefined;
     const stripeColor = storyline?.color ?? 'transparent';
@@ -326,10 +330,10 @@ export function ChapterPanel() {
           });
         }}
       >
-        {agentChanged ? (
+        {agentAdded || agentChanged ? (
           <span
             aria-hidden
-            title={t('agentActivity.changedHere')}
+            title={t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')}
             style={{
               width: 12,
               flexShrink: 0,
@@ -341,7 +345,7 @@ export function ChapterPanel() {
               color: 'hsl(var(--ink-2))',
             }}
           >
-            M
+            {agentAdded ? 'A' : 'M'}
           </span>
         ) : (
           <span
@@ -488,6 +492,7 @@ export function ChapterPanel() {
                     `storyline:${storyline.id}` in agentTouched ||
                     `storyline:${storyline.id}` in agentPending
                   }
+                  agentSelfAdded={`storyline:${storyline.id}` in agentAdditions}
                 />
 
                 {!collapsed && sNodes.map((node) => renderNodeCard(node))}

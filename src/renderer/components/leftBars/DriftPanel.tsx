@@ -79,6 +79,7 @@ export function DriftPanel() {
   const agentTouched = useAgentActivityStore((s) => s.touched);
   // Persisted pending agent edits — keeps "M" visible after a reload.
   const agentPending = useAgentEditStore((s) => s.pending);
+  const agentAdditions = useAgentEditStore((s) => s.additions);
 
   const { createNode } = useBookNode({ projectId: projectId ?? '', userId: userId ?? '' });
   const { createGroup, renameGroup, moveGroup, deleteGroup, moveDriftToGroup } = useDriftGroup({
@@ -235,8 +236,11 @@ export function DriftPanel() {
   const renderNodeCard = (node: BookNode, depth: number) => {
     const selected = node.id === selectedNodeId;
     const agentBusy = `node:${node.id}` in agentActive;
+    const agentAdded = !agentBusy && `node:${node.id}` in agentAdditions;
     const agentChanged =
-      !agentBusy && (`node:${node.id}` in agentTouched || `node:${node.id}` in agentPending);
+      !agentBusy &&
+      !agentAdded &&
+      (`node:${node.id}` in agentTouched || `node:${node.id}` in agentPending);
     // Merged display: resting drifts aren't bucketed into a separate drawer
     // anymore — they sit inline, distinguished only by a muted cell style.
     const muted = node.writingStatus === 'resting';
@@ -293,25 +297,25 @@ export function DriftPanel() {
           });
         }}
       >
-        {/* Drift mark — ❦ glyph (or "M" once an agent has touched it). */}
+        {/* Drift mark — ❦ glyph, or Agent file status (A/M). */}
         <span
           aria-hidden
           className={agentBusy ? 'agent-glyph-busy' : undefined}
           title={
             agentBusy
               ? t('agentActivity.working')
-              : agentChanged
-                ? t('agentActivity.changedHere')
+              : agentAdded || agentChanged
+                ? t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')
                 : undefined
           }
           style={{
-            fontFamily: agentChanged ? 'var(--font-mono)' : 'var(--font-sans)',
-            fontStyle: agentChanged ? 'normal' : 'italic',
-            fontSize: agentChanged ? 10 : 11,
-            fontWeight: agentChanged ? 600 : undefined,
+            fontFamily: agentAdded || agentChanged ? 'var(--font-mono)' : 'var(--font-sans)',
+            fontStyle: agentAdded || agentChanged ? 'normal' : 'italic',
+            fontSize: agentAdded || agentChanged ? 10 : 11,
+            fontWeight: agentAdded || agentChanged ? 600 : undefined,
             color: agentBusy
               ? 'hsl(var(--accent))'
-              : agentChanged
+              : agentAdded || agentChanged
                 ? 'hsl(var(--ink-2))'
                 : muted
                   ? 'hsl(var(--ink-4))'
@@ -322,7 +326,7 @@ export function DriftPanel() {
             textAlign: 'center',
           }}
         >
-          {agentChanged ? 'M' : '❦'}
+          {agentAdded ? 'A' : agentChanged ? 'M' : '❦'}
         </span>
 
         <div
@@ -743,7 +747,6 @@ export function DriftPanel() {
     </div>
   );
 }
-
 // Inline rename row shown in place of a group header while editing its name.
 // Enter / blur commits; Escape cancels. Styled to line up with GroupHeaderCell.
 function GroupRenameRow({

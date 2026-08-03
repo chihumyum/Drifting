@@ -658,7 +658,10 @@ function LibraryItemContextMenu({
       onClose();
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
     };
     const onScrollOrResize = () => onClose();
     document.addEventListener('mousedown', onDocPointer, true);

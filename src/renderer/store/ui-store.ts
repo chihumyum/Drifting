@@ -172,13 +172,6 @@ interface UiState {
   timelineHeight: number;
   setTimelineHeight: (height: number) => void;
 
-  // Left outline rail (per-editor TOC) collapse state. Shared across all
-  // entity editors so the toggle persists when switching between chapter /
-  // element / storyline / category tabs.
-  outlineCollapsed: boolean;
-  setOutlineCollapsed: (collapsed: boolean) => void;
-  toggleOutlineCollapsed: () => void;
-
   // BottomTimeline visibility. The bottom status bar always shows; the
   // timeline is hidden by default off-button-click, restored by the same
   // button. There is no "collapsed" timeline state anymore — it's either
@@ -543,10 +536,6 @@ export const useUiStore = create<UiState>()(
         })),
       timelineHeight: 200,
       setTimelineHeight: (height) => set({ timelineHeight: height }),
-
-      outlineCollapsed: false,
-      setOutlineCollapsed: (collapsed) => set({ outlineCollapsed: collapsed }),
-      toggleOutlineCollapsed: () => set((state) => ({ outlineCollapsed: !state.outlineCollapsed })),
 
       bottomTimelineHidden: false,
       setBottomTimelineHidden: (hidden) => set({ bottomTimelineHidden: hidden }),
@@ -1282,7 +1271,6 @@ export const useUiStore = create<UiState>()(
         lastActiveSuperView: state.lastActiveSuperView,
         shadowMode: state.shadowMode,
         tabsByProject: state.tabsByProject,
-        outlineCollapsed: state.outlineCollapsed,
         bottomTimelineHidden: state.bottomTimelineHidden,
         plotPlannerOpen: state.plotPlannerOpen,
         plotPlannerHeight: state.plotPlannerHeight,

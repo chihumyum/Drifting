@@ -9,9 +9,9 @@ import { isProseEntityType } from '../../lib/yjs-doc-id';
 import type { AgentBlockChange } from '../../lib/agent/block-diff';
 
 /**
- * VSCode-style overview ruler for the manuscript (#comments / #agent-changes).
- * Ticks pinned to the right edge of the scroll viewport mark where comments and
- * unread agent edits sit in the document, so the user can find them without
+ * VSCode-style overview ticks for the manuscript (#comments / #agent-changes).
+ * Ticks share the semantic outline scrollbar coordinate and mark where comments
+ * and unread agent edits sit in the document, so the user can find them without
  * scrolling blind. Position is a fraction of total content height — like a
  * minimap — and is scroll-independent, so it only recomputes on layout change.
  *

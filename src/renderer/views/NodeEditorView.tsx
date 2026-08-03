@@ -17,7 +17,8 @@ import { ChapterEditor, type ChapterEditorRef } from '../components/editor/Chapt
 import { CommentRail } from '../components/editor/CommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { PlotPlannerDock } from '../components/editor/PlotPlannerDock';
-import { EditorOutlinePanel, nestHeadings } from '../components/editor/EditorOutlinePanel';
+import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
+import { nestHeadings } from '../components/editor/outline-rail-model';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
@@ -842,10 +843,10 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             />
           )}
 
-          {/* Editor body: TOC sits OUTSIDE the scroll container as a layout
-              sibling, so it stays put without relying on position:sticky. */}
+          {/* The semantic TOC scrollbar stays outside the native scroll tree so
+              labels, viewport thumb and review lanes share one fixed map. */}
           <div className="editor-body">
-            <EditorOutlinePanel
+            <EditorOutlineRail
               title={t('nodeEditor.outline.title')}
               items={outlineTree}
               activeId={activeOutlineId}
@@ -919,8 +920,8 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             </div>
             {/* Comment rail lives OUTSIDE .editor-scroll so it can be absolutely
                 positioned against .editor-body without participating in flex
-                layout — mirrors the EditorOutlinePanel pattern on the left.
-                Page stays centered regardless of whether the rail is open. */}
+                layout — mirrors the permanent semantic outline rail on the left.
+                Page stays centered without either rail entering layout flow. */}
             {marginNotes && (
               <CommentRail
                 projectId={activeProjectId}
