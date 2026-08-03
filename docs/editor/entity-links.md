@@ -36,6 +36,11 @@ It displays the summary first, followed by metadata already available from the
 renderer store. Its maximum height is `min(720px, viewport - 24px)` so summaries
 can expand substantially before the card scrolls.
 
+The same card keeps its existing border but uses the restrained
+`--entity-hover-card-shadow` token (`0 1px 4px -3px` at low opacity). Its shadow
+therefore stays inside the card's 8px anchor gap instead of darkening a newly
+lightened sidebar or Bottom Timeline cell after the preview appears.
+
 The metadata model performs no database query. It can show chapter status, word
 count and storyline membership; Drift status, word count and group path; Element
 category, group, aliases and key/value facts; Storyline counts, words and facts;
