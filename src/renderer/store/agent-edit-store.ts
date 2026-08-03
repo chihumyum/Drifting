@@ -34,6 +34,17 @@ export interface PendingEntityEdits {
    *  global toggle only governs future edits — see {@link AgentBlockChange.mode}. */
   changes: AgentBlockChange[];
 }
+/**
+ * A prose entity created by General Agent but not yet opened by the author.
+ * `revealBlockIds === null` means the editor has not materialized stable block
+ * ids yet; once it does, the ids are persisted so an interrupted first-open
+ * reveal resumes instead of silently turning the Added marker into Modified.
+ */
+export interface AgentAddedEntity {
+  entityType: ActivityEntityType;
+  id: string;
+  revealBlockIds: string[] | null;
+}
 
 export interface AgentEditReviewBatch {
   effectId: string;
@@ -79,6 +90,8 @@ export interface RevertRecord {
 interface AgentEditState {
   /** entityKey → pending block edits awaiting reveal/approval. */
   pending: Record<string, PendingEntityEdits>;
+  /** entityKey → Agent-created prose entity awaiting its first full reveal. */
+  additions: Record<string, AgentAddedEntity>;
   /** Rejected-then-reverted edits awaiting delivery to the agent's next turn. */
   pendingReverts: RevertRecord[];
   /**
@@ -111,6 +124,20 @@ interface AgentEditState {
     mode: AgentEditMode,
     provenance: { effectId: string; reviewId: string },
   ) => boolean;
+  /** Persist the Added state after a successful General Agent create result. */
+  recordAddition: (entityType: ActivityEntityType, id: string) => void;
+  /**
+   * Seed the first-open reveal after ProseMirror has assigned stable block ids.
+   * Existing durable review blocks win on overlap so an Added presentation can
+   * never downgrade or silently accept a later approve-mode edit.
+   */
+  beginAdditionReveal: (
+    entityType: ActivityEntityType,
+    id: string,
+    changes: AgentBlockChange[],
+  ) => string[];
+  /** Clear the Added marker only after every seeded block reveal has finished. */
+  resolveAddition: (entityType: ActivityEntityType, id: string) => void;
   /**
    * Remove successfully settled durable batches and deterministically rebuild
    * the visual aggregate from legacy changes plus the remaining ordered
@@ -145,6 +172,7 @@ export const useAgentEditStore = create<AgentEditState>()(
   persist(
     (set, get) => ({
       pending: {},
+      additions: {},
       pendingReverts: [],
       reviewBatches: {},
       reviewOrder: [],
@@ -219,6 +247,66 @@ export const useAgentEditStore = create<AgentEditState>()(
           };
         });
         return true;
+      },
+
+      recordAddition: (entityType, id) => {
+        const key = entityKey(entityType, id);
+        set((state) =>
+          state.additions[key]
+            ? state
+            : {
+                additions: {
+                  ...state.additions,
+                  [key]: { entityType, id, revealBlockIds: null },
+                },
+              },
+        );
+      },
+
+      beginAdditionReveal: (entityType, id, changes) => {
+        const key = entityKey(entityType, id);
+        const state = get();
+        const addition = state.additions[key];
+        if (!addition) return [];
+        if (addition.revealBlockIds !== null) return addition.revealBlockIds;
+
+        const existing = state.pending[key];
+        const occupied = new Set(existing?.changes.map((change) => change.blockId) ?? []);
+        const seeded = changes
+          .filter((change) => !occupied.has(change.blockId))
+          .map((change) => ({ ...change, mode: 'auto' as const }));
+        const revealBlockIds = seeded.map((change) => change.blockId);
+        set((current) => ({
+          additions: {
+            ...current.additions,
+            [key]: { ...addition, revealBlockIds },
+          },
+          ...(seeded.length > 0
+            ? {
+                pending: {
+                  ...current.pending,
+                  [key]: {
+                    entityType,
+                    id,
+                    changes: current.pending[key]
+                      ? mergeBlockChanges(current.pending[key].changes, seeded)
+                      : seeded,
+                  },
+                },
+              }
+            : {}),
+        }));
+        return revealBlockIds;
+      },
+
+      resolveAddition: (entityType, id) => {
+        const key = entityKey(entityType, id);
+        set((state) => {
+          if (!state.additions[key]) return state;
+          const additions = { ...state.additions };
+          delete additions[key];
+          return { additions };
+        });
       },
 
       resolveReviews: (reviewIds) => {
@@ -334,16 +422,19 @@ export const useAgentEditStore = create<AgentEditState>()(
       clear: (entityType, id) => {
         const key = entityKey(entityType, id);
         set((s) => {
-          if (!(key in s.pending)) return s;
-          const next = { ...s.pending };
-          delete next[key];
-          return { pending: next };
+          if (!(key in s.pending) && !(key in s.additions)) return s;
+          const pending = { ...s.pending };
+          const additions = { ...s.additions };
+          delete pending[key];
+          delete additions[key];
+          return { pending, additions };
         });
       },
 
       clearAll: () =>
         set({
           pending: {},
+          additions: {},
           pendingReverts: [],
           reviewBatches: {},
           reviewOrder: [],
@@ -362,6 +453,7 @@ export const useAgentEditStore = create<AgentEditState>()(
       // persist too, so a reject survives a reload before the next turn drains it.
       partialize: (s) => ({
         pending: s.pending,
+        additions: s.additions,
         pendingReverts: s.pendingReverts,
         reviewBatches: s.reviewBatches,
         reviewOrder: s.reviewOrder,

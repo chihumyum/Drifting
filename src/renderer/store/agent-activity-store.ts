@@ -13,6 +13,7 @@
  */
 import { create } from 'zustand';
 import { toolEntityRef, entityKey, type ToolEntityRef } from '../lib/agent/tool-entity-ref';
+import { useAgentEditStore } from './agent-edit-store';
 
 export interface ActivityMark {
   entityType: ToolEntityRef['entityType'];
@@ -98,6 +99,13 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
     pending.delete(id);
     if (!p || !ok) return;
     const ref = toolEntityRef(p.name, p.input, text);
+    // Added is durable editor presentation, not a turn-lifetime activity dot:
+    // keep it across reload/project navigation until the author's first-open
+    // full-prose reveal completes. This also covers storyline/category group
+    // rows, which intentionally do not enter the cell activity maps below.
+    if (ref?.op === 'create') {
+      useAgentEditStore.getState().recordAddition(ref.entityType, ref.id);
+    }
     // Only writes/creates to a cell-bearing entity leave a breathing dot — not
     // reads (nothing changed) nor deletes (the entity is gone).
     if (!ref || ref.op === 'read' || ref.op === 'delete' || !hasCell(ref.entityType)) return;

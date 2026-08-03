@@ -33,9 +33,7 @@ describe('Agent edit review block decisions', () => {
       }),
     ).toBe(true);
 
-    useAgentEditStore
-      .getState()
-      .syncReviewBlockDecisions('review-1', { 'block-a': 'accepted' });
+    useAgentEditStore.getState().syncReviewBlockDecisions('review-1', { 'block-a': 'accepted' });
 
     const state = useAgentEditStore.getState();
     expect(state.reviewBatches['review-1']).toMatchObject({
@@ -83,14 +81,54 @@ describe('Agent edit review block decisions', () => {
     expect(state.reviewBatches['review-1']?.blockDecisions).toEqual({
       'block-b': 'reverted',
     });
-    expect(
-      state.pending['node:node-1']?.changes.map((change) => change.blockId),
-    ).toEqual(['block-a']);
+    expect(state.pending['node:node-1']?.changes.map((change) => change.blockId)).toEqual([
+      'block-a',
+    ]);
 
     const pending = state.pending;
     useAgentEditStore.getState().syncReviewBlockDecisions('review-1', {
       'block-b': 'reverted',
     });
     expect(useAgentEditStore.getState().pending).toBe(pending);
+  });
+
+  it('persists an Added marker and seeds first-open prose as auto reveal blocks', () => {
+    const store = useAgentEditStore.getState();
+    store.recordAddition('node', 'node-added');
+
+    expect(useAgentEditStore.getState().additions['node:node-added']).toMatchObject({
+      revealBlockIds: null,
+    });
+    expect(store.beginAdditionReveal('node', 'node-added', changes)).toEqual([
+      'block-a',
+      'block-b',
+    ]);
+    expect(useAgentEditStore.getState().pending['node:node-added']?.changes).toEqual(
+      changes.map((change) => ({ ...change, mode: 'auto' })),
+    );
+
+    useAgentEditStore.getState().resolveBlocks('node', 'node-added', ['block-a', 'block-b']);
+    useAgentEditStore.getState().resolveAddition('node', 'node-added');
+    expect(useAgentEditStore.getState().additions['node:node-added']).toBeUndefined();
+  });
+
+  it('does not overwrite a later durable review when first-open Added reveal is seeded', () => {
+    const store = useAgentEditStore.getState();
+    store.recordReview('node', 'node-added', [changes[0]], 'approve', {
+      effectId: 'effect-later',
+      reviewId: 'review-later',
+    });
+    store.recordAddition('node', 'node-added');
+
+    expect(store.beginAdditionReveal('node', 'node-added', changes)).toEqual(['block-b']);
+    expect(useAgentEditStore.getState().pending['node:node-added']?.changes).toEqual([
+      {
+        ...changes[0],
+        mode: 'approve',
+        effectId: 'effect-later',
+        reviewId: 'review-later',
+      },
+      { ...changes[1], mode: 'auto' },
+    ]);
   });
 });

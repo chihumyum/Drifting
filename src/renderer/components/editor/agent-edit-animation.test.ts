@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentBlockChange } from '../../lib/agent/block-diff';
 import {
   agentEditAnimationKey,
+  agentEditRectInScrollHost,
   bulkAgentEditRevealChanges,
 } from './agent-edit-animation';
 
@@ -24,6 +25,34 @@ function change(
 }
 
 describe('Agent edit commit animation planning', () => {
+  it('keeps reveal coordinates stable inside the native scrolling content tree', () => {
+    const before = agentEditRectInScrollHost(
+      { top: 320, left: 220, width: 480, height: 56 },
+      { top: 100, left: 20 },
+    );
+    const afterNativeScroll = agentEditRectInScrollHost(
+      { top: 180, left: 220, width: 480, height: 56 },
+      { top: -40, left: 20 },
+    );
+
+    expect(afterNativeScroll).toEqual(before);
+  });
+
+  it('keeps the scroll-container fallback in content coordinates', () => {
+    const before = agentEditRectInScrollHost(
+      { top: 320, left: 220, width: 480, height: 56 },
+      { top: 100, left: 20 },
+      0,
+    );
+    const afterNativeScroll = agentEditRectInScrollHost(
+      { top: 180, left: 220, width: 480, height: 56 },
+      { top: 100, left: 20 },
+      140,
+    );
+
+    expect(afterNativeScroll).toEqual(before);
+  });
+
   it('keeps every bulk-accepted review even when two effects touch one block', () => {
     const changes = [
       change('changed', 'review-a', 'A', 'B'),

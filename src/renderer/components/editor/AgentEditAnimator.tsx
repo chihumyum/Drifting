@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -25,12 +26,13 @@ import {
 import type { AgentWriteReviewBlockDecisionResult } from '../../lib/agent/runtime/drifting-write-tool-runtime';
 import {
   agentEditAnimationKey,
+  agentEditRectInScrollHost,
   bulkAgentEditRevealChanges,
 } from './agent-edit-animation';
 
 /**
- * Agent prose-edit reveal layer (#3 / #4). Renders OVER the manuscript (a fixed
- * portal that tracks each block's live rect) and:
+ * Agent prose-edit reveal layer (#3 / #4). Renders OVER the manuscript inside
+ * the manuscript's native scrolling content tree and:
  *
  *  - auto mode:    as each agent-changed block scrolls into view, plays a
  *                  text-level reveal — the old text shows, deletions erase and
@@ -131,33 +133,93 @@ function deletionHangsBelow(el: HTMLElement, c: AgentBlockChange): boolean {
   );
 }
 
-/** Track an anchor element's viewport rect, refreshed on scroll/resize. */
-function useAnchorRect(scrollEl: HTMLElement, c: AgentBlockChange): DOMRect | null {
-  const [rect, setRect] = useState<DOMRect | null>(null);
-  useEffect(() => {
+/** Prefer the positioned in-flow spread as the portal host. Falling back to the
+ * scroll container keeps non-standard prose surfaces functional. */
+function editOverlayHost(scrollEl: HTMLElement): HTMLElement {
+  return (
+    (scrollEl.querySelector('.editor__spread') as HTMLElement | null) ?? scrollEl
+  );
+}
+
+interface AnchorBox {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+function sameAnchorBox(a: AnchorBox | null, b: AnchorBox | null): boolean {
+  return (
+    a === b ||
+    (!!a &&
+      !!b &&
+      a.top === b.top &&
+      a.left === b.left &&
+      a.width === b.width &&
+      a.height === b.height)
+  );
+}
+
+/**
+ * Track an anchor in the overlay host's CONTENT coordinates. There is
+ * deliberately no scroll listener: the host is inside `.editor-scroll`, so
+ * WebKit's compositor moves prose and overlay together in the same native scroll
+ * transaction instead of waiting for rAF + React state to catch up.
+ */
+function useAnchorBox(
+  scrollEl: HTMLElement,
+  host: HTMLElement,
+  c: AgentBlockChange,
+): AnchorBox | null {
+  const [box, setBox] = useState<AnchorBox | null>(null);
+  useLayoutEffect(() => {
     let raf = 0;
+    let observedAnchor: HTMLElement | null = null;
+    const ro = new ResizeObserver(() => schedule());
     const update = () => {
       const el = anchorEl(scrollEl, c);
-      setRect(el ? el.getBoundingClientRect() : null);
+      if (observedAnchor !== el) {
+        if (observedAnchor) ro.unobserve(observedAnchor);
+        observedAnchor = el;
+        if (observedAnchor) ro.observe(observedAnchor);
+      }
+      const next = el
+        ? agentEditRectInScrollHost(
+            el.getBoundingClientRect(),
+            host.getBoundingClientRect(),
+            host.scrollTop,
+            host.scrollLeft,
+            host.clientTop,
+            host.clientLeft,
+          )
+        : null;
+      setBox((previous) => (sameAnchorBox(previous, next) ? previous : next));
     };
-    update();
-    const onScroll = () => {
+    function schedule() {
       if (raf) return;
       raf = window.requestAnimationFrame(() => {
         raf = 0;
         update();
       });
-    };
-    scrollEl.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
+    }
+
+    update();
+    ro.observe(scrollEl);
+    if (host !== scrollEl) ro.observe(host);
+    const page = scrollEl.querySelector('.page');
+    if (page) ro.observe(page);
+    const mo = new MutationObserver(schedule);
+    mo.observe(page ?? host, { childList: true, subtree: true });
+    window.addEventListener('resize', schedule);
     return () => {
-      scrollEl.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
+      window.removeEventListener('resize', schedule);
+      ro.disconnect();
+      mo.disconnect();
       if (raf) window.cancelAnimationFrame(raf);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollEl, c.blockId, c.op, c.afterPrevId]);
-  return rect;
+  }, [scrollEl, host, c.blockId, c.op, c.afterPrevId]);
+  return box;
 }
 
 /** Copy the prose typography of the anchor block so the overlay reads as the
@@ -201,12 +263,14 @@ function useProseStyle(scrollEl: HTMLElement, c: AgentBlockChange): CSSPropertie
  */
 function RevealOverlay({
   scrollEl,
+  host,
   change,
   onDone,
   offsetTop = 0,
   onMeasure,
 }: {
   scrollEl: HTMLElement;
+  host: HTMLElement;
   change: AgentBlockChange;
   onDone: () => void;
   /** Extra vertical offset so a run of deletions sharing one anchor stacks
@@ -217,7 +281,7 @@ function RevealOverlay({
    *  let the column compact as each delete erases). Only wired for deletions. */
   onMeasure?: (key: string, height: number) => void;
 }) {
-  const rect = useAnchorRect(scrollEl, change);
+  const rect = useAnchorBox(scrollEl, host, change);
   const prose = useProseStyle(scrollEl, change);
   const segs = useMemo(() => diffTokens(change.oldText, change.newText), [change.oldText, change.newText]);
   const { delChars, insChars } = useMemo(() => {
@@ -324,11 +388,11 @@ function RevealOverlay({
   // anchored to its in-place ghost or the first block, it sits at that top.
   const aEl = anchorEl(scrollEl, change);
   const onGhost = !!aEl && aEl.classList.contains('agent-diff-deleted-block');
-  const top = aEl && deletionHangsBelow(aEl, change) ? rect.bottom : rect.top;
+  const top = aEl && deletionHangsBelow(aEl, change) ? rect.top + rect.height : rect.top;
   const pos: CSSProperties = {
     ...prose,
-    // absolute (not fixed) so the layer's clip-path crops it to the editor
-    // viewport; the layer is inset:0 fixed, so these viewport coords still apply.
+    // The overlay host is an in-flow child of `.editor-scroll`, so these stable
+    // content coordinates move in the same compositor transaction as the prose.
     position: 'absolute',
     // offsetTop stacks a run of deletions sharing this anchor (0 otherwise).
     top: top + offsetTop,
@@ -355,72 +419,31 @@ function RevealOverlay({
 
 /**
  * Floating ✓ / ✗ for one block (approve mode), in the right margin hugging the
- * block's top. Positioned IMPERATIVELY in the scroll handler (no requestAnimation
- * Frame deferral, no React state) so it tracks the block frame-for-frame instead
- * of lagging a frame behind the prose on scroll.
+ * block's top. It shares the prose's scrolling coordinate space, so native
+ * scrolling moves both together without any main-thread scroll handler.
  */
 function ApproveControl({
   scrollEl,
+  host,
   change,
   busy,
   onApprove,
   onReject,
 }: {
   scrollEl: HTMLElement;
+  host: HTMLElement;
   change: AgentBlockChange;
   busy: boolean;
   onApprove: () => void;
   onReject: () => void;
 }) {
   const { t } = useTranslation();
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return undefined;
-    const place = () => {
-      const a = anchorEl(scrollEl, change);
-      if (!a) {
-        node.style.visibility = 'hidden';
-        return;
-      }
-      const r = a.getBoundingClientRect();
-      const top = deletionHangsBelow(a, change) ? r.bottom : r.top;
-      node.style.visibility = 'visible';
-      node.style.top = `${top - 2}px`;
-      node.style.left = `${r.right + 12}px`;
-    };
-    place();
-    // Scroll handler runs synchronously (no rAF) so the control tracks the block
-    // frame-for-frame instead of lagging behind on scroll.
-    scrollEl.addEventListener('scroll', place, { passive: true });
-    window.addEventListener('resize', place);
-    // Observe the scroll container AND its content (.page) so the control also
-    // re-glues when blocks above it grow/shrink, not only on scroll.
-    const ro = new ResizeObserver(place);
-    ro.observe(scrollEl);
-    const page = scrollEl.querySelector('.page');
-    if (page) ro.observe(page);
-    // …and a MutationObserver, because when the agent edits the OPEN chapter the
-    // target block's DOM (esp. a freshly appended/inserted one at the end) syncs
-    // from Yjs a tick after this mounts — so the anchor isn't there on first place.
-    let raf = 0;
-    const mo = new MutationObserver(() => {
-      if (raf) return;
-      raf = window.requestAnimationFrame(() => {
-        raf = 0;
-        place();
-      });
-    });
-    mo.observe(scrollEl, { childList: true, subtree: true });
-    return () => {
-      scrollEl.removeEventListener('scroll', place);
-      window.removeEventListener('resize', place);
-      ro.disconnect();
-      mo.disconnect();
-      if (raf) window.cancelAnimationFrame(raf);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollEl, change.blockId, change.op, change.afterPrevId]);
+  const rect = useAnchorBox(scrollEl, host, change);
+  const aEl = anchorEl(scrollEl, change);
+  const top =
+    rect && aEl && deletionHangsBelow(aEl, change)
+      ? rect.top + rect.height
+      : (rect?.top ?? 0);
 
   const label =
     change.op === 'new'
@@ -430,11 +453,13 @@ function ApproveControl({
         : t('agentEditAnimator.op.changed');
   return (
     <div
-      ref={ref}
       className={`agent-approve agent-approve--${change.op}`}
-      // absolute so the layer's clip-path crops it to the editor viewport (layer
-      // is inset:0 fixed, so the viewport coords place() writes still apply).
-      style={{ position: 'absolute', top: 0, left: 0, visibility: 'hidden' }}
+      style={{
+        position: 'absolute',
+        top: top - 2,
+        left: rect ? rect.left + rect.width + 12 : 0,
+        visibility: rect ? 'visible' : 'hidden',
+      }}
     >
       <span className="agent-approve__tag">{label}</span>
       <button type="button" className="agent-approve__btn agent-approve__btn--ok" title={t('fieldReview.acceptTitle')} disabled={busy} onClick={onApprove}>
@@ -571,7 +596,6 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
     () => new Map(),
   );
   const [bulkBusy, setBulkBusy] = useState(false);
-  const layerRef = useRef<HTMLDivElement>(null);
   const settlingRef = useRef(new Set<string>());
 
   const markBlockSeen = useCallback(
@@ -989,35 +1013,15 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
     };
   }, [scrollEl, id, changesKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Clip the overlay layer to the editor's scroll viewport, so a reveal/control
-  // anchored to a block scrolled near the bottom doesn't spill over the
-  // BottomTimeline (or above the toolbar). Recomputed on layout change only —
-  // scrollEl's own rect doesn't move while the content scrolls inside it.
+  // Portal into the positioned in-flow spread. The ancestor `.editor-scroll`
+  // clips it naturally, and WebKit scrolls the overlay in the same compositor
+  // transaction as the manuscript instead of waiting on main-thread rect state.
+  const layerHost = scrollEl ? editOverlayHost(scrollEl) : null;
   const hasLayer =
     !!scrollEl &&
+    !!layerHost &&
     !!id &&
     (changes.length > 0 || committing.size > 0 || revealing.size > 0);
-  useEffect(() => {
-    if (!hasLayer || !scrollEl) return undefined;
-    const layer = layerRef.current;
-    if (!layer) return undefined;
-    const clip = () => {
-      const r = scrollEl.getBoundingClientRect();
-      const t = Math.max(0, r.top);
-      const right = Math.max(0, window.innerWidth - r.right);
-      const b = Math.max(0, window.innerHeight - r.bottom);
-      const l = Math.max(0, r.left);
-      layer.style.clipPath = `inset(${t}px ${right}px ${b}px ${l}px)`;
-    };
-    clip();
-    window.addEventListener('resize', clip);
-    const ro = new ResizeObserver(clip);
-    ro.observe(scrollEl);
-    return () => {
-      window.removeEventListener('resize', clip);
-      ro.disconnect();
-    };
-  }, [scrollEl, hasLayer]);
 
   // Safety net (per-change, AUTO changes only) so a tick / "M" can't get wedged
   // when a reveal never plays. After a grace period an auto change clears if
@@ -1042,79 +1046,88 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   // Keep rendering while a reveal (auto) or commit (approve) is in flight even
   // after its change resolves out of the store — otherwise the overlay would
   // unmount mid-animation the instant `changes` empties.
-  if (!scrollEl || !id || !hasLayer) return null;
+  if (!scrollEl || !layerHost || !id || !hasLayer) return null;
 
-  return createPortal(
-    <div ref={layerRef} className="agent-edit-layer">
-      {/* Auto changes: each plays its reveal concurrently as it enters the
-          viewport. Rendered off `revealing` alone — that map is only ever
-          populated by the auto effect, so a reveal still finishes if its change
-          resolves out from under it. */}
-      {[...revealing.values()].map((c) => (
-        <RevealOverlay
-          key={keyOf(c)}
-          scrollEl={scrollEl}
-          change={c}
-          offsetTop={stackOffsets.get(keyOf(c)) ?? 0}
-          onMeasure={reportHeight}
-          onDone={() => {
-            resolve(c);
-            // Drop the occluder in the SAME frame the doc change lands (flushSync
-            // forces the React unmount synchronous) — a deletion otherwise leaves
-            // an empty opaque box for one paint (flicker). Non-deletions keep their
-            // crossfade, so a plain unmount is fine.
-            if (c.op === 'deleted') flushSync(() => stopRevealing(c));
-            else stopRevealing(c);
-          }}
-        />
-      ))}
-      {/* Approve changes: the diff itself renders IN PLACE via editor decorations
-          (see useEntityEditor); here we float the ✓ / ✗ just outside the column.
-          ✓ clears the pending block (text already applied) AND plays a one-off
-          typewriter commit over it; ✗ reverts via Yjs. Per-change, so approve and
-          auto changes can coexist on the same entity. */}
-      {approveChanges.map((c) => (
-        <ApproveControl
-          key={keyOf(c)}
-          scrollEl={scrollEl}
-          change={c}
-          busy={bulkBusy || committing.size > 0}
-          onApprove={() => approveOne(c)}
-          onReject={() => rejectOne(c)}
-        />
-      ))}
-      {approveChanges.length > 0 && (
-        <ReviewAllControl
-          scrollEl={scrollEl}
-          count={approveChanges.length}
-          busy={bulkBusy || committing.size > 0}
-          onApproveAll={approveAll}
-          onRejectAll={rejectAll}
-        />
+  return (
+    <>
+      {createPortal(
+        <div className="agent-edit-layer">
+          {/* Auto changes: each plays its reveal concurrently as it enters the
+              viewport. Rendered off `revealing` alone — that map is only ever
+              populated by the auto effect, so a reveal still finishes if its change
+              resolves out from under it. */}
+          {[...revealing.values()].map((c) => (
+            <RevealOverlay
+              key={keyOf(c)}
+              scrollEl={scrollEl}
+              host={layerHost}
+              change={c}
+              offsetTop={stackOffsets.get(keyOf(c)) ?? 0}
+              onMeasure={reportHeight}
+              onDone={() => {
+                resolve(c);
+                // Drop the occluder in the SAME frame the doc change lands (flushSync
+                // forces the React unmount synchronous) — a deletion otherwise leaves
+                // an empty opaque box for one paint (flicker). Non-deletions keep their
+                // crossfade, so a plain unmount is fine.
+                if (c.op === 'deleted') flushSync(() => stopRevealing(c));
+                else stopRevealing(c);
+              }}
+            />
+          ))}
+          {/* Approve changes: the diff itself renders IN PLACE via editor decorations
+              (see useEntityEditor); here we float the ✓ / ✗ just outside the column.
+              ✓ clears the pending block (text already applied) AND plays a one-off
+              typewriter commit over it; ✗ reverts via Yjs. Per-change, so approve and
+              auto changes can coexist on the same entity. */}
+          {approveChanges.map((c) => (
+            <ApproveControl
+              key={keyOf(c)}
+              scrollEl={scrollEl}
+              host={layerHost}
+              change={c}
+              busy={bulkBusy || committing.size > 0}
+              onApprove={() => approveOne(c)}
+              onReject={() => rejectOne(c)}
+            />
+          ))}
+          {/* The approved block's one-off commit reveal (occludes it, plays, fades).
+              For a DELETION the pending change was kept (placeholder held the space) —
+              resolve it now that the erase animation is done, so the collapse happens
+              AFTER the reveal, not before it. */}
+          {[...committing.values()].map((change) => (
+            <RevealOverlay
+              key={`commit:${keyOf(change)}`}
+              scrollEl={scrollEl}
+              host={layerHost}
+              change={change}
+              onDone={() => {
+                if (change.op === 'deleted') {
+                  resolve(change);
+                  // flushSync: unmount the occluder synchronously with the (synchronous)
+                  // ghost removal, so neither the struck ghost nor an empty box ever
+                  // paints alone — kills both the flash and the residual flicker.
+                  flushSync(() => stopCommitting(change));
+                } else {
+                  stopCommitting(change);
+                }
+              }}
+            />
+          ))}
+        </div>,
+        layerHost,
       )}
-      {/* The approved block's one-off commit reveal (occludes it, plays, fades).
-          For a DELETION the pending change was kept (placeholder held the space) —
-          resolve it now that the erase animation is done, so the collapse happens
-          AFTER the reveal, not before it. */}
-      {[...committing.values()].map((change) => (
-        <RevealOverlay
-          key={`commit:${keyOf(change)}`}
-          scrollEl={scrollEl}
-          change={change}
-          onDone={() => {
-            if (change.op === 'deleted') {
-              resolve(change);
-              // flushSync: unmount the occluder synchronously with the (synchronous)
-              // ghost removal, so neither the struck ghost nor an empty box ever
-              // paints alone — kills both the flash and the residual flicker.
-              flushSync(() => stopCommitting(change));
-            } else {
-              stopCommitting(change);
-            }
-          }}
-        />
-      ))}
-    </div>,
-    document.body,
+      {approveChanges.length > 0 &&
+        createPortal(
+          <ReviewAllControl
+            scrollEl={scrollEl}
+            count={approveChanges.length}
+            busy={bulkBusy || committing.size > 0}
+            onApproveAll={approveAll}
+            onRejectAll={rejectAll}
+          />,
+          document.body,
+        )}
+    </>
   );
 }
