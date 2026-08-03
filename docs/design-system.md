@@ -4,7 +4,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 ## Surface roles
 
-1. **Workspace plane**：`AppTopbar`、编辑器周围区域、左右栏、底部时间线 dock 与 `BottomStatusBar` 共同组成一张连续桌面。它们全部使用从 editor 稿纸外侧提取的 `--workspace-ui-bg: hsl(var(--paper-deep))`；一级模块不再用不同底色假装处于不同高度。
+1. **Workspace plane**：`AppTopbar`、编辑器周围区域、左右栏、底部时间线 dock 与 `BottomStatusBar` 共同组成一张连续桌面。它们全部使用从 editor 稿纸外侧提取的不透明 `--workspace-ui-bg: hsl(var(--paper-deep))`；一级模块不再用不同底色假装处于不同高度。
 2. **Manuscript page**：`.page` 使用现有 `--page` 与 `--page-elevation`，圆角上限由 `--workspace-corner-radius: 2px` 控制。无论左右栏是否打开，它始终是主界面唯一抬起的一级工作面。
 3. **Borders and internal levels**：细灰黑 `--workspace-border` 只表达顶栏、左右栏、Bottom Timeline 与 Bottom Status Bar 的一级模块边界。三方交点没有渐变、阴影或额外装饰。局部层级只使用弱于主接缝的完整 `0.5px` hairline 与相邻灰阶：侧栏 Tab、panel header 与 content 之间的线完整贯穿各自区域，但物理厚度低于一级模块的 `1px` 接缝；侧栏 footer 顶线再弱一级。Bottom Timeline header 保持 `--workspace-ui-bg`，幕/叙事时 rail 使用稍浅的 `--paper`，故事线轨道使用 `--page`。
 
@@ -22,8 +22,8 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 ## Command and status ownership
 
-- `AppTopbar` 的固定顺序是搜索、左栏 toggle、项目主页、`SUPER`、文档 Tabs、通知、右栏 toggle 与账户。普通图标按钮统一使用 `26px` 热区和约 `16px` 图标；低频入口不再各自占用一枚顶栏图标。
-- `SUPER` 是不带 chevron 或其他图标的纯大写英文触发器。菜单第一组只有特殊入口 `All Chapters`，分隔线后的第二组依次为 `Elements`、`Storylines` 与 `Library`；四个旧的自绘 Super View 图标不再存在。
+- `AppTopbar` 的固定顺序是搜索、左栏 toggle、项目主页、通览全书、`SUPER`、文档 Tabs、通知、右栏 toggle 与账户。普通图标按钮统一使用 `26px` 热区和约 `16px` 图标；低频入口不再各自占用一枚顶栏图标。
+- 通览全书是 Project Home 与 `SUPER` 之间的独立纯文字按钮，直接进入 All Chapters editor，并以文字颜色表达 hover 与 active。`SUPER` 仍是不带 chevron 或其他图标的纯大写英文触发器，但菜单现在只包含 `Elements`、`Storylines` 与 `Library`；四个旧的自绘 Super View 图标不再存在。
 - 顶栏整行的 icon button、Tab close 与 `SUPER` hover 都只提高前景文字/图标颜色，不绘制额外底色；真正展开的 dropdown menu item 仍保留行级 hover 以表达当前指向。
 - Copilot 与 Shadow 从顶栏移入账户 dropdown 的二级设置页。打开账户菜单后进入对应页面，可就地修改原有 quick settings，并可继续进入完整 Settings；退出二级页先返回账户菜单，不直接关闭整个 dropdown。
 - `BottomStatusBar` 以只读状态为主，报告当前上下文对应的章节/故事线/全书字数、今日新增字数，以及同步状态和最近成功同步时间；原 editor top bar 不再重复显示字数。唯一的交互例外是 Bottom Timeline 展开/收起开关，因为它直接控制 footer 上方相邻的 dock。
@@ -43,6 +43,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 - 顶部文档 Tab 与左右栏 Panel Tab 都由自身绘制静态矩形选中态。
 - Panel Tab 的默认、hover 与 active 背景完全一致；只用暗淡文字与黑色文字的切换表达未选中和选中，不使用彩色 label、`border-bottom`、inset shadow 或其他下划线。
+- 左栏三个 Panel Tab 使用互斥的响应式表示：可用宽度至少 `220px` 时只显示“章节 / 元素 / 灵感”等文字；更窄时只显示对应 glyph，并以 title/aria-label 保留名称。任何宽度都不同时并排图标与文字。
 - 不存在跨 Tab 滑动的 pill indicator，也不为选中态测量 DOM 几何。
 - 文档 Tab 切换和自动滚动是即时的；拖拽重排仍保留窄插入线，因为它表达 drop 位置而不是选中动画。
 - 侧栏开合是工作区保留的结构性动效，时长为 `220ms`；`prefers-reduced-motion: reduce` 时禁用。
@@ -57,7 +58,9 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 - 新状态默认收起左右栏，使首次进入时只突出稿纸。
 - 已持久化的用户侧栏开合状态继续被尊重；这次调整不强制覆盖现有偏好。
-- macOS desktop 使用 Tauri `headerView` 原生材质，并只给 topbar 叠加半透明 `--paper-deep` 色层；Windows、Linux、mobile 与普通 browser render 继续使用不透明 `--workspace-ui-bg`。该能力依赖透明窗口与 `macOSPrivateApi`，因此当前配置不满足 Mac App Store 渠道约束，若进入该渠道必须先重新确认窗口材质方案。
+- Header、左右栏、编辑器外侧、Bottom Timeline 与 `BottomStatusBar` 在所有平台都直接使用不透明 `--workspace-ui-bg`。macOS 也不再启用透明窗口、`windowEffects` 或 `macOSPrivateApi`；Tauri 窗口配置显式保持 `transparent: false`，renderer 不再加载单独的原生材质样式。这样三处灰色底色来自同一个普通颜色 token，不依赖桌面壁纸、窗口激活状态或系统材质变化。
+- macOS 红绿灯固定为 `x: 18, y: 22`，基础配置、macOS 覆盖配置与运行时校正必须保持一致。renderer 顶栏高 `42px`，同排图标与文字按钮高 `26px` 并通过 `align-items: center` 共用中心线；`y: 22` 是针对原生 overlay 坐标系校准后的偏移。
+- Project Dashboard 自己拥有垂直滚动：`.dash` 必须以 `width/height: 100%` 受 editor pane 约束，并使用 `overflow-y: auto`。隐藏的只是 scrollbar chrome，不是滚动能力；不能依赖处于非 flex parent 内时无效的 `flex: 1` 来建立滚动高度。
 - 移动端仍保留安全区 padding。侧栏保持 overlay 行为，但表面角色与桌面一致。桌面 topbar 的左右 command groups 在窄屏暂时隐藏；移动端必须用独立的 action menu/sheet 恢复这些能力，不能据此宣称功能等价。
 - Super View overlay 停在中心列 `BottomStatusBar` 上方；工作区入口已经迁到 topbar，左右栏的底角所有权不变。
 
@@ -66,9 +69,9 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 静态结构契约由以下测试保护：
 
 ```bash
-pnpm --dir client exec vitest run src/renderer/components/workspace-surface-language.acceptance.test.ts
+pnpm --dir client exec vitest run src/renderer/components/workspace-surface-language.acceptance.test.ts src/renderer/components/project-dashboard-scroll.acceptance.test.ts src/renderer/components/workspace-titlebar-alignment.acceptance.test.ts src/renderer/components/left-sidebar-tab-density.acceptance.test.ts
 ```
 
-测试覆盖 footer 的 DOM、状态职责与唯一 Timeline 开关、topbar command ownership、Super 菜单、账户二级设置页、macOS 窗口配置、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS 原生材质、iOS 或 Android 上的视觉、触摸和动效验收。
+测试覆盖 footer 的 DOM、状态职责与唯一 Timeline 开关、topbar command ownership、Super 菜单、账户二级设置页、不透明 macOS 窗口配置、顶栏与左右栏的统一灰色 token、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS titlebar 几何、iOS 或 Android 上的视觉、触摸和动效验收。
 
 移动端起点、缺口和设备验收边界记录在 [`mobile-ui-foundation.md`](mobile-ui-foundation.md)。

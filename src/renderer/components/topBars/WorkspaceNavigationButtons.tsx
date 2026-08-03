@@ -15,9 +15,9 @@ const SUPER_VIEWS: Array<{ id: SuperViewId; label: string }> = [
 ];
 
 /**
- * Project Home stays a first-class header destination. The less frequent
- * project-wide views are intentionally consolidated behind one text trigger,
- * without reviving the four custom pictograms that used to occupy the header.
+ * Project Home and All Chapters stay first-class header destinations. The
+ * three visual overview modes remain consolidated behind one text trigger,
+ * without reviving the old custom pictograms that occupied the header.
  */
 export function WorkspaceNavigationButtons() {
   const { t } = useTranslation();
@@ -33,7 +33,7 @@ export function WorkspaceNavigationButtons() {
   const activeLeaf = activeTab ? focusedLeafOf(activeTab) : null;
   const baseViewVisible = activeSuperView === 'none';
   const allChaptersActive = baseViewVisible && activeLeaf?.entityType === 'all-chapters';
-  const superDestinationActive = allChaptersActive || activeSuperView !== 'none';
+  const superDestinationActive = activeSuperView !== 'none';
 
   const dismissSuperView = () => {
     if (activeSuperView !== 'none') setActiveSuperView('none');
@@ -58,6 +58,19 @@ export function WorkspaceNavigationButtons() {
         icon={<Home size={16} strokeWidth={1.6} />}
       />
       <button
+        type="button"
+        className="workspace-all-chapters-trigger"
+        data-active={allChaptersActive ? 'true' : undefined}
+        aria-pressed={allChaptersActive}
+        title={t('bottomStatusBar.allChapters')}
+        onClick={() => {
+          dismissSuperView();
+          navigateToAllChapters();
+        }}
+      >
+        {t('bottomStatusBar.allChapters')}
+      </button>
+      <button
         ref={superTriggerRef}
         type="button"
         className="workspace-super-trigger"
@@ -80,17 +93,6 @@ export function WorkspaceNavigationButtons() {
         className="workspace-super-menu"
         maxHeight={220}
       >
-        <div className="workspace-super-menu__group workspace-super-menu__group--special">
-          <SuperMenuItem
-            label="All Chapters"
-            active={allChaptersActive}
-            onSelect={() => {
-              dismissSuperView();
-              navigateToAllChapters();
-              setSuperMenuOpen(false);
-            }}
-          />
-        </div>
         <div className="workspace-super-menu__group">
           {SUPER_VIEWS.map((view) => (
             <SuperMenuItem

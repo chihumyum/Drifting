@@ -928,11 +928,11 @@ function AppearanceEffects() {
   useEffect(() => {
     const runtime = getPlatformRuntime();
     if (!runtime.isMacDesktop || !runtime.desktopWindowControls) return;
-    // The native overlay titlebar and the inset renderer island have different
-    // vertical origins. This measured 26px offset centers the 14px buttons on
-    // the shared 42px header pill instead of leaving them high by one inset.
+    // The native overlay and renderer header use different vertical origins.
+    // A 22px native offset aligns the 14px traffic lights with the centered
+    // 26px renderer controls in the shared 42px titlebar.
     void platform.window
-      .setTrafficLightPosition({ x: 18, y: 26 })
+      .setTrafficLightPosition({ x: 18, y: 22 })
       .catch((error) => log.warn('[App] native window-control positioning is unavailable:', error));
   }, []);
 

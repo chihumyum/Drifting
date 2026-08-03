@@ -8,10 +8,9 @@ import { AgentCountBadge } from './AgentCountBadge';
 import { type GroupActivity } from './agentActivityBubble';
 import { PanelTab as SharedPanelTab, PanelTabTray } from '../ui/PanelTabs';
 
-// 三个带标签的 tab 平分整条 header 宽度所需的最小值。低于此值切到 glyph-only。
-// 实测：每个 tab 需要 glyph(13) + gap(6) + label(~28) + padding(20) ≈ 67px，
-// 三个就是 ~200。加点余量到 220，避免在边界宽度上 CJK 字符按字断行（哪怕加了
-// white-space:nowrap 也只是阻止换行，宽度不够时字会被裁），统一走 glyph-only。
+// 三个纯文字 tab 平分整条 header 宽度所需的最小值。宽度足够时只显示
+// label；低于此值时只显示 glyph，绝不把两种表示并排。220px 也为较长的
+// 英文 label 留出余量，避免 ResizeObserver 在临界宽度附近来回切换。
 const FULL_TABS_MIN_WIDTH = 220;
 
 type TabPanel = 'nodes' | 'elements' | 'drift';
@@ -165,43 +164,56 @@ function PanelTabButton({
   const { t } = useTranslation();
   const busy = activity?.busy ?? false;
   const doneCount = activity?.doneCount ?? 0;
+  const statusTitle = busy
+    ? t('agentActivity.working')
+    : doneCount > 0
+      ? t('agentActivity.unviewedChanges')
+      : undefined;
+  const expandedLabel =
+    !busy && doneCount > 0 ? `${label} ${doneCount > 99 ? '99+' : doneCount}` : label;
   return (
     <SharedPanelTab
       onClick={onClick}
-      title={compact ? label : undefined}
+      title={compact ? label : statusTitle}
+      aria-label={statusTitle ? `${label}: ${statusTitle}` : label}
       active={isActive}
       compact={compact}
       typography="label"
       className="left-panel-tab"
     >
-      {/* Glyph slot — while a run is working over this panel the glyph blinks in
-          accent; only once it finishes and leaves unviewed changes is the glyph
-          replaced by their plain count (cell → group → tab bubble, #17). */}
-      {!busy && doneCount > 0 ? (
-        <AgentCountBadge count={doneCount} title={t('agentActivity.unviewedChanges')} />
-      ) : (
-        glyph && (
-          <span
-            aria-hidden
-            className={busy ? 'agent-glyph-busy' : undefined}
-            title={busy ? t('agentActivity.working') : undefined}
-            style={{
-              fontFamily: 'var(--font-sans)',
-              fontStyle: 'italic',
-              fontSize: 12.5,
-              color: busy
-                ? 'hsl(var(--accent))'
-                : isActive
-                  ? 'hsl(var(--ink-1))'
-                  : 'hsl(var(--ink-4))',
-              lineHeight: 1,
-            }}
-          >
-            {glyph}
-          </span>
+      {compact ? (
+        !busy && doneCount > 0 ? (
+          <AgentCountBadge count={doneCount} title={t('agentActivity.unviewedChanges')} />
+        ) : (
+          glyph && (
+            <span
+              aria-hidden
+              className={busy ? 'agent-glyph-busy' : undefined}
+              title={busy ? t('agentActivity.working') : undefined}
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontStyle: 'italic',
+                fontSize: 12.5,
+                color: busy
+                  ? 'hsl(var(--accent))'
+                  : isActive
+                    ? 'hsl(var(--ink-1))'
+                    : 'hsl(var(--ink-4))',
+                lineHeight: 1,
+              }}
+            >
+              {glyph}
+            </span>
+          )
         )
+      ) : (
+        <span
+          className={busy ? 'agent-glyph-busy' : undefined}
+          style={{ color: busy ? 'hsl(var(--accent))' : undefined }}
+        >
+          {expandedLabel}
+        </span>
       )}
-      {!compact && <span>{label}</span>}
     </SharedPanelTab>
   );
 }

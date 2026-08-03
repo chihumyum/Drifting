@@ -10,7 +10,6 @@ import '@fontsource-variable/inter-tight';
 import '../styles/index.css';
 import '../styles/ui-controls.css';
 import '../styles/workspace-navigation.css';
-import '../styles/native-titlebar.css';
 import '../styles/settings.css';
 import '../styles/agent-activity.css';
 import './lib/i18n';

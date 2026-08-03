@@ -16,7 +16,7 @@ export function AppTopbar() {
   // toggle remains beside that dock's status line in the footer.
   // macOS needs room for its native window controls. Other desktop targets
   // and mobile keep only the product controls in this section.
-  const leftWidth = runtime.isMobile ? 72 : runtime.isMacDesktop ? 230 : 160;
+  const leftWidth = runtime.isMobile ? 72 : runtime.isMacDesktop ? 288 : 216;
   return (
     <div
       className="app-topbar app-plane"
