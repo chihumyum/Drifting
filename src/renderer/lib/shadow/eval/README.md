@@ -56,14 +56,13 @@ write-and-judge circularity. See `pnpm eval:gen`.
 
 **From a real project (no hand-written JSON).** `export/` turns a live project slice
 into a `*.golden.json` (`exportProjectGolden`, DI-tested headless). In-app, call
-`downloadProjectGolden(id, project.id, project.kvJson, selection)` to download one —
-see `export/INTEGRATION.md`.
+`downloadProjectGolden(id, project.id, project.kvJson, selection)` to download one,
+then place it under `corpus/goldens/` and reference it from a dataset/suite. Prose
+is read from live Yjs rather than stale `node_content.contentJson`.
 
 > The `golden.*.ts` + `mutations.ts` + `shadow-eval.eval.ts` files below are the
 > **legacy hand-coded path** (operators are reused by the data runner; the TS goldens
 > are superseded by `corpus/` and will be retired once the data path is trusted).
-
-## The idea
 
 ## The idea
 
@@ -143,9 +142,9 @@ is trusted (commented `expect(...FP...)` in `shadow-eval.eval.ts`).
 ## Bringing your own golden
 
 Export your in-app project to the `EvalProject` shape (chapters as `{id,text}`
-block arrays, elements with `facts`, compiled `rules`). Drop it in alongside
-`golden.sample.ts` and point the eval at it. The export bridge (in-app dev button
-or a node DB-reader) is the next piece to build.
+block arrays, elements with `facts`, compiled `rules`) through
+`downloadProjectGolden`. Put the downloaded file under `corpus/goldens/`, then
+point a data-driven dataset and suite at it.
 
 ## Where AI fits
 

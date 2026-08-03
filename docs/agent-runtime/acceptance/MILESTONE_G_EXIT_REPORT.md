@@ -39,9 +39,9 @@ feature's persisted schema. The renderer also clears the retired
 - ordinary destructive-operation approval and domain write receipts.
 
 The current snapshot contract is
-[`../entity-snapshot-history.md`](../entity-snapshot-history.md). The retired
-protocol tombstone is
-[`../checkpoint-rewind-protocol.md`](../checkpoint-rewind-protocol.md).
+[`../entity-snapshot-history.md`](../entity-snapshot-history.md). This report is
+the retained historical record of the removed Agent-specific feature; the
+retired protocol is not kept as a second source of truth.
 
 ## Verification
 

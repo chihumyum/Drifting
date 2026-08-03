@@ -41,7 +41,6 @@ pnpm --dir client eval:agent:durability
 pnpm --dir client eval:agent:crud
 pnpm --dir client eval:agent:long-task
 pnpm --dir client eval:agent:context
-pnpm --dir client eval:agent:checkpoint
 pnpm --dir client eval:agent:writing
 pnpm --dir client eval:agent:p5
 pnpm --dir client tauri:build
@@ -207,29 +206,23 @@ artifacts across restart. Run `pnpm --dir client eval:agent:context` for
 the real-novel, 200k multi-slice, compaction/restart/fault matrix; the normative
 contract is
 [`context-engineering-protocol.md`](docs/agent-runtime/context-engineering-protocol.md).
-Before every requested Agent turn, Drifting now captures a provider-neutral
-user checkpoint from the authoritative SQLite/Yjs state. The Agent toolbar can
-also pin a manual checkpoint, inspect what a manuscript restore would change,
-fork only the conversation, or explicitly restore the captured manuscript and
-continue in a new conversation. Restore is preview-token and compare-and-set
-guarded: an author edit after preview makes the action fail closed, while a
-multi-entity failure compensates already-applied entities and resumes recovery
-after restart. Checkpoints preserve the source conversation and never truncate
-provider history in place. Run
-`pnpm --dir client eval:agent:checkpoint` for the real file SQLite/Yjs,
-restart, concurrency and fault-injection matrix; the normative contract is
-[`checkpoint-rewind-protocol.md`](docs/agent-runtime/checkpoint-rewind-protocol.md).
-Every requested writing turn also captures the active semantic editor entity,
-exact text/block selection and nearby prose as an immutable authoring boundary.
-Unresolved “这里/这段” writes, cross-entity or out-of-selection calls, and
-canon-changing prose without a sanctioned temporal patch fail before mutation.
-Read-only whole-book QA uses `workKind=review`, so it can complete from verified
-exact reads without manufacturing edits. Voice metrics are diagnostic only;
-nearby prose remains the primary style evidence. Run
+Agent conversations are independent flat sessions. There is no author-visible
+Agent checkpoint, manuscript rewind, or conversation-fork hierarchy. Manuscript
+recovery belongs to the independent entity snapshot history, while internal
+runtime checkpoints remain an implementation detail for durable context and
+crash recovery.
+
+Writing policy is author-owned. Drifting does not inject editor focus or
+selection, resolve “这里/这段” into a hidden target, impose a content-scope or
+canon-patch gate, or add default style/POV/voice rules. The current author
+request, editable project facts, and author-created or approved Agent memory are
+the writing guidance. Project isolation, live Yjs writes, revision checks,
+durable review, and destructive-operation approval remain data-safety
+boundaries. Run
 `pnpm --dir client eval:agent:writing` for the local `雾港纪事` read-only
-corpus, ambiguity/scope/canon mutations, cited-review restart matrix and machine
+corpus, unrestricted-target regression, rule-lifecycle checks and machine
 report; the normative contract is
-[`editor-native-writing-protocol.md`](docs/agent-runtime/editor-native-writing-protocol.md).
+[`author-owned-writing-policy.md`](docs/agent-runtime/author-owned-writing-policy.md).
 An optional paid DeepSeek writing canary is available through
 `pnpm --dir client eval:agent:writing:live`.
 Installed tool definitions are frozen for the turn, execution is revision-bound,

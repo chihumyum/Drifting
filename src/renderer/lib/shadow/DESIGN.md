@@ -45,7 +45,7 @@ effective_canon(element, N) = body/facts + 所有 (source 章 narrativeOrder ≤
 
 - 判官拿正文比的是 **effective_canon(·, N)**，不是静态 body。
 - **晚弧 patch 不能赦免早章矛盾**（第 20 章「变强了」不能解释第 5 章的矛盾）。闪回/倒装靠这条自然吃掉。
-- **要补的缺口**：`getElementPatches`（[tool-handlers.ts:871](agent/tool-handlers.ts) 附近）当前只回 `sourceChapter`（章标题）+ body + createdAt，**不带时间轴位置**。
+- **要补的缺口**：`getElementPatches`（[tool-handlers.ts:871](../agent/tool-handlers.ts) 附近）当前只回 `sourceChapter`（章标题）+ body + createdAt，**不带时间轴位置**。
   需补 source 章的 `narrativeOrder`/`bookOrder`，判官才能筛出「≤N 生效」的 patch。
 
 ## 4. 判官改造（治「病 B：看见却合理化」）
@@ -53,7 +53,7 @@ effective_canon(element, N) = body/facts + 所有 (source 章 narrativeOrder ≤
 - 一致性类检查：对每个登场实体，比对其**言行 vs effective_canon(实体, N)**。
 - 命中冲突时：**必须**查 `get_element_patches`；若无 ≤N 生效的 patch 解释 → **报出（advisory）**。
   **绝不放过无 patch 背书的 canon 冲突**；正文内部的弧线叙述**不是许可**。
-- 在 `basis`（已落地，[shadow-rules.ts](ai/shadow-rules.ts) `SUBMIT_VERDICTS_TOOL`）写明：核对了哪条 canon 字段 vs 哪几段、**有无生效 patch**、结论。
+- 在 `basis`（已落地，[shadow-rules.ts](../ai/shadow-rules.ts) `SUBMIT_VERDICTS_TOOL`）写明：核对了哪条 canon 字段 vs 哪几段、**有无生效 patch**、结论。
 - **区分叙述层 vs 角色口中**：角色撒谎（芮塔嘴说「我从不骗人」而设定狡诈）**不是** canon 冲突；只有叙述确立的事实才算。
 - **两种失败别混**：
   - **病 A 检出漏**（判官没看见冲突）→ 靠 `basis`-forcing + 逐角色聚焦治（另一条线）。
@@ -68,7 +68,7 @@ never-FN ⇒ 报得多。但每个「误报」其实是**揪出了未记录的 c
 复用已有 copilot 管线，无需重造：
 
 1. **起草**：复用 copilot 的 `elementPatchPrompt` / `runStructured`
-   （[copilot/capabilities/element-patch.ts:88](copilot/capabilities/element-patch.ts)），
+   （[copilot/capabilities/element-patch.ts:88](../copilot/capabilities/element-patch.ts)），
    输入 `recentText` = 被报的偏离段、`candidateElements` = [被冲突的 element] → 输出 `{patchTitle, patchBody, evidenceText, confidence}`。
 2. **落库**：走和 copilot `accept()`、agent `createElementPatch` **同一条路**——
    `createElementPatchRepository().create({ projectId, elementId, sourceNodeId: chapterId, sourceBlockId, title, contentJson })`

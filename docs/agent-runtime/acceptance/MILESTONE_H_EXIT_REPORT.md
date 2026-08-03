@@ -77,8 +77,8 @@ scope.
 Current result:
 
 - 6/6 required test files discovered;
-- 34/34 tests passed;
+- 35/35 tests passed;
 - all 6 named invariants matched exactly once;
 - TypeScript, scoped ESLint and generated capability drift passed;
 - source-set hash:
-  `sha256:5d40416c168670193542aa6a45d13c836a40ff0b135a1d52bf9e2af952696394`.
+  `sha256:e4dac2a5e0b11ae663c3b8e8cec07edf3800e9ae38f20c0b17a7bcc2f38bc97d`.

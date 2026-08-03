@@ -42,7 +42,6 @@ const LINT_FILES = [
 ];
 const HASHED_SOURCE_FILES = [
   'docs/agent-runtime/author-owned-writing-policy.md',
-  'docs/agent-runtime/editor-native-writing-protocol.md',
   'src/renderer/lib/agent/runtime/acceptance/milestone-h-writing-intelligence.acceptance.mjs',
   ...LINT_FILES,
 ];

@@ -79,7 +79,7 @@ Its contract is in
 implementation and current regression evidence are recorded in
 [`MILESTONE_H_EXIT_REPORT.md`](MILESTONE_H_EXIT_REPORT.md) and
 [`milestone-h-writing-intelligence.json`](milestone-h-writing-intelligence.json):
-6 files, 34/34 tests, plus typecheck, scoped lint and capability drift.
+6 files, 35/35 tests, plus typecheck, scoped lint and capability drift.
 
 Milestone I, provider and extension platform, is complete. Its provider wire,
 MCP transport/security, durable grant and generation-lifecycle contract is in
