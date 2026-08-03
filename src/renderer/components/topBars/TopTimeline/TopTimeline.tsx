@@ -873,11 +873,9 @@ function LeafTabSlot({
           flexShrink: 0,
         }}
         onMouseEnter={(event) => {
-          event.currentTarget.style.background = 'hsl(var(--paper-deep))';
           event.currentTarget.style.color = 'hsl(var(--ink-1))';
         }}
         onMouseLeave={(event) => {
-          event.currentTarget.style.background = 'transparent';
           event.currentTarget.style.color = 'hsl(var(--ink-3))';
         }}
       >
@@ -1133,11 +1131,9 @@ function SplitSubLabel({
           flexShrink: 0,
         }}
         onMouseEnter={(event) => {
-          event.currentTarget.style.background = 'hsl(var(--paper-deep))';
           event.currentTarget.style.color = 'hsl(var(--ink-1))';
         }}
         onMouseLeave={(event) => {
-          event.currentTarget.style.background = 'transparent';
           event.currentTarget.style.color = 'hsl(var(--ink-4))';
         }}
       >

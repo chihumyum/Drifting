@@ -6,8 +6,6 @@ import { UserAvatar, UserMenu } from './UserMenu';
 import { NotificationPill } from '../notifications/NotificationPill';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { GhostIconButton } from '../ui/GhostIconButton';
-import { CopilotQuickMenu } from '../copilot/CopilotBottomMenu';
-import { ShadowQuickMenu } from '../ShadowQuickMenu';
 
 export function RightSidebarTopBar() {
   const { desktopWindowControls } = getPlatformRuntime();
@@ -37,10 +35,6 @@ export function RightSidebarTopBar() {
         } as React.CSSProperties
       }
     >
-      <div className="app-topbar__quick-actions">
-        <CopilotQuickMenu />
-        <ShadowQuickMenu />
-      </div>
       <NotificationPill />
       <GhostIconButton
         onClick={() => toggleSidebar('right')}

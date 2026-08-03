@@ -22,7 +22,10 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 ## Command and status ownership
 
-- `AppTopbar` 承担导航与功能菜单。左栏 toggle 右侧依次放置项目主页、通览全书、元素全景、故事图谱与 TODO/素材库；右侧依次放置 Copilot、Shadow、通知、右栏 toggle 与账户。普通图标按钮统一使用 `26px` 热区和约 `16px` 图标，不再缩成 footer badge。
+- `AppTopbar` 的固定顺序是搜索、左栏 toggle、项目主页、`SUPER`、文档 Tabs、通知、右栏 toggle 与账户。普通图标按钮统一使用 `26px` 热区和约 `16px` 图标；低频入口不再各自占用一枚顶栏图标。
+- `SUPER` 是不带 chevron 或其他图标的纯大写英文触发器。菜单第一组只有特殊入口 `All Chapters`，分隔线后的第二组依次为 `Elements`、`Storylines` 与 `Library`；四个旧的自绘 Super View 图标不再存在。
+- 顶栏整行的 icon button、Tab close 与 `SUPER` hover 都只提高前景文字/图标颜色，不绘制额外底色；真正展开的 dropdown menu item 仍保留行级 hover 以表达当前指向。
+- Copilot 与 Shadow 从顶栏移入账户 dropdown 的二级设置页。打开账户菜单后进入对应页面，可就地修改原有 quick settings，并可继续进入完整 Settings；退出二级页先返回账户菜单，不直接关闭整个 dropdown。
 - `BottomStatusBar` 以只读状态为主，报告当前上下文对应的章节/故事线/全书字数、今日新增字数，以及同步状态和最近成功同步时间；原 editor top bar 不再重复显示字数。唯一的交互例外是 Bottom Timeline 展开/收起开关，因为它直接控制 footer 上方相邻的 dock。
 - 通知入口仍留在 topbar，因为它会打开通知中心，属于操作入口而不是被动状态。footer 后续只接受无需点击即可理解、且与当前写作任务有关的短状态。
 - footer 的 `20px` 高度和编辑列所有权保持不变；除相邻 Timeline 开关外，不把低频设置或导航重新塞回底部角落。
@@ -54,6 +57,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 - 新状态默认收起左右栏，使首次进入时只突出稿纸。
 - 已持久化的用户侧栏开合状态继续被尊重；这次调整不强制覆盖现有偏好。
+- macOS desktop 使用 Tauri `headerView` 原生材质，并只给 topbar 叠加半透明 `--paper-deep` 色层；Windows、Linux、mobile 与普通 browser render 继续使用不透明 `--workspace-ui-bg`。该能力依赖透明窗口与 `macOSPrivateApi`，因此当前配置不满足 Mac App Store 渠道约束，若进入该渠道必须先重新确认窗口材质方案。
 - 移动端仍保留安全区 padding。侧栏保持 overlay 行为，但表面角色与桌面一致。桌面 topbar 的左右 command groups 在窄屏暂时隐藏；移动端必须用独立的 action menu/sheet 恢复这些能力，不能据此宣称功能等价。
 - Super View overlay 停在中心列 `BottomStatusBar` 上方；工作区入口已经迁到 topbar，左右栏的底角所有权不变。
 
@@ -65,6 +69,6 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 pnpm --dir client exec vitest run src/renderer/components/workspace-surface-language.acceptance.test.ts
 ```
 
-测试覆盖 footer 的 DOM、状态职责与唯一 Timeline 开关、topbar command ownership、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest 和 renderer build 可以证明结构与打包成立，但不能替代 macOS、iOS 或 Android 上的视觉、触摸和动效验收。
+测试覆盖 footer 的 DOM、状态职责与唯一 Timeline 开关、topbar command ownership、Super 菜单、账户二级设置页、macOS 窗口配置、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS 原生材质、iOS 或 Android 上的视觉、触摸和动效验收。
 
 移动端起点、缺口和设备验收边界记录在 [`mobile-ui-foundation.md`](mobile-ui-foundation.md)。

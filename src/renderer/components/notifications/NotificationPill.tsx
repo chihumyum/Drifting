@@ -212,15 +212,15 @@ export function NotificationPill() {
           background: 'transparent',
           color: iconColor,
           cursor: 'pointer',
-          transition: 'color 0.2s ease, background 0.15s ease',
+          transition: 'color 0.12s ease',
           flexShrink: 0,
           padding: 0,
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+          e.currentTarget.style.color = 'hsl(var(--ink-1))';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.color = iconColor;
         }}
       >
         {iconEl}

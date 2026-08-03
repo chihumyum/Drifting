@@ -1,8 +1,6 @@
 /**
- * ShadowQuickMenu — the topbar Shadow mini-menu, mirroring CopilotQuickMenu.
- * The Shadow button used to toggle a global "shadow mode" (which re-tinted the whole
- * palette); that coupling is gone. The button now opens a compact popover with the
- * quick controls writers actually reach for:
+ * ShadowQuickSettings — the compact Shadow settings page embedded inside the
+ * avatar menu. It contains the quick controls writers actually reach for:
  *   - 完成时自动审阅 — auto-run a shadow review when a chapter is marked finished
  *     (shadowAutoRun). Off = mark finished directly; deps-change re-review is never
  *     automatic, it only shows as the「需复审」reminder in ShadowPanel.
@@ -10,113 +8,71 @@
  *     edit + enable inline, compiled to checklists on save
  * Room is left below for future Shadow config without a redesign.
  */
-import { useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../store/settings-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { ShadowRulesSection } from './dashboard/ShadowRulesSection';
-import { GhostIconButton } from './ui/GhostIconButton';
 import '../../styles/copilot-surface.css';
 
-export function ShadowQuickMenu() {
+export function ShadowQuickSettings({ onOpenFullSettings }: { onOpenFullSettings?: () => void }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  // Button rect captured on open (reading the ref in render is disallowed). Drives
-  // the portaled panel's fixed position, same as CopilotQuickMenu.
-  const [rect, setRect] = useState<DOMRect | null>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-
   const autoRun = useSettingsStore((s) => s.shadowAutoRun);
   const setAutoRun = useSettingsStore((s) => s.setShadowAutoRun);
   const { projectId } = useProjectNavigation();
 
-  const toggleOpen = () => {
-    setRect(buttonRef.current?.getBoundingClientRect() ?? null);
-    setOpen((v) => !v);
-  };
-
-  const WIDTH = 360;
-  const panelStyle: React.CSSProperties = {
-    position: 'fixed',
-    top: rect ? rect.bottom + 6 : 48,
-    right: rect ? Math.max(8, window.innerWidth - rect.right) : 8,
-    zIndex: 'var(--z-toast)',
-    width: WIDTH,
-    maxHeight: 'min(70vh, 560px)',
-    overflowY: 'auto',
-    background: 'var(--copilot-surface)',
-    border: '1px solid var(--copilot-border)',
-    borderRadius: 'var(--copilot-radius)',
-    boxShadow: '0 12px 32px var(--copilot-shadow)',
-    padding: 10,
-    fontSize: 13,
-    color: 'var(--copilot-text)',
-  };
-
   return (
-    <div style={{ display: 'inline-flex' }}>
-      <GhostIconButton
-        ref={buttonRef}
-        className="workspace-header-action"
-        onClick={toggleOpen}
-        title="Shadow"
-        aria-label="Shadow"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        icon={
-          <span
-            style={{
-              fontFamily: 'var(--font-sans)',
-              fontStyle: 'italic',
-              fontSize: 16,
-              lineHeight: 1,
-            }}
-          >
-            ◐
-          </span>
-        }
+    <div
+      style={{
+        padding: 10,
+        fontSize: 13,
+        color: 'var(--copilot-text)',
+      }}
+    >
+      <ToggleRow
+        label={t('shadowQuickMenu.autoReview')}
+        desc={t('shadowQuickMenu.autoReviewDesc')}
+        checked={autoRun}
+        onChange={setAutoRun}
       />
 
-      {open &&
-        createPortal(
-          <>
-            <div
-              onMouseDown={() => setOpen(false)}
-              style={{ position: 'fixed', inset: 0, zIndex: 'calc(var(--z-toast) - 1)' }}
-            />
-            <div onMouseDown={(e) => e.stopPropagation()} style={panelStyle}>
-              <ToggleRow
-                label={t('shadowQuickMenu.autoReview')}
-                desc={t('shadowQuickMenu.autoReviewDesc')}
-                checked={autoRun}
-                onChange={setAutoRun}
-              />
+      <div style={{ borderTop: '1px solid var(--copilot-border-soft)', margin: '8px 0 6px' }} />
+      <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '0 2px 4px' }}>
+        {t('shadowQuickMenu.rules')}
+      </div>
+      {projectId ? (
+        <ShadowRulesSection projectId={projectId} embedded />
+      ) : (
+        <div
+          style={{
+            fontSize: 12,
+            fontStyle: 'italic',
+            color: 'var(--copilot-text-dim)',
+            padding: '4px 2px',
+          }}
+        >
+          {t('shadowQuickMenu.noProject')}
+        </div>
+      )}
 
-              <div
-                style={{ borderTop: '1px solid var(--copilot-border-soft)', margin: '8px 0 6px' }}
-              />
-              <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '0 2px 4px' }}>
-                {t('shadowQuickMenu.rules')}
-              </div>
-              {projectId ? (
-                <ShadowRulesSection projectId={projectId} embedded />
-              ) : (
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontStyle: 'italic',
-                    color: 'var(--copilot-text-dim)',
-                    padding: '4px 2px',
-                  }}
-                >
-                  {t('shadowQuickMenu.noProject')}
-                </div>
-              )}
-            </div>
-          </>,
-          document.body,
-        )}
+      {onOpenFullSettings && (
+        <button
+          type="button"
+          onClick={onOpenFullSettings}
+          style={{
+            marginTop: 8,
+            width: '100%',
+            border: '1px solid var(--copilot-border)',
+            borderRadius: 'var(--copilot-radius-sm)',
+            background: 'transparent',
+            color: 'var(--copilot-text)',
+            padding: '5px 8px',
+            fontSize: 12,
+            cursor: 'pointer',
+          }}
+        >
+          {t('settings.copilot.moreSettings')}
+        </button>
+      )}
     </div>
   );
 }

@@ -33,34 +33,78 @@ describe('workspace surface language acceptance', () => {
     );
   });
 
-  it('moves workspace navigation and menus to the topbar while keeping Timeline beside its dock', () => {
+  it('consolidates Super navigation and keeps Timeline beside its dock', () => {
     const appTopbar = source('src/renderer/views/AppTopbar.tsx');
     const leftTopbar = source('src/renderer/components/topBars/LeftSidebarTopBar.tsx');
     const workspaceNavigation = source(
       'src/renderer/components/topBars/WorkspaceNavigationButtons.tsx',
     );
     const rightTopbar = source('src/renderer/components/topBars/RightSidebarTopBar.tsx');
+    const userMenu = source('src/renderer/components/topBars/UserMenu.tsx');
+    const notification = source('src/renderer/components/notifications/NotificationPill.tsx');
+    const topTimeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
     const copilot = source('src/renderer/components/copilot/CopilotBottomMenu.tsx');
     const shadow = source('src/renderer/components/ShadowQuickMenu.tsx');
     const footer = source('src/renderer/components/BottomStatusBar.tsx');
     const footerCss = source('src/styles/bottom-status-bar.css');
     const shellCss = source('src/styles/index.css');
+    const workspaceNavigationCss = source('src/styles/workspace-navigation.css');
     const nodeEditor = source('src/renderer/views/NodeEditorView.tsx');
     const storylineEditor = source('src/renderer/views/StorylineEditorView.tsx');
     const allChaptersEditor = source('src/renderer/views/AllChaptersEditorView.tsx');
 
     expect(leftTopbar).toContain('<WorkspaceNavigationButtons />');
-    expect(workspaceNavigation.match(/<GhostIconButton/g)).toHaveLength(5);
+    expect(workspaceNavigation.match(/<GhostIconButton/g)).toHaveLength(1);
     expect(workspaceNavigation).toContain('icon={<Home size={16}');
-    expect(workspaceNavigation).toContain('icon={<AllChaptersIcon size={17}');
-    expect(appTopbar).toContain('runtime.isMacDesktop ? 280 : 210');
+    expect(workspaceNavigation).toContain('<span>SUPER</span>');
+    expect(workspaceNavigation).not.toContain('ChevronDown');
+    expect(workspaceNavigation).toContain('label="All Chapters"');
+    expect(workspaceNavigation).toContain("label: 'Elements'");
+    expect(workspaceNavigation).toContain("label: 'Storylines'");
+    expect(workspaceNavigation).toContain("label: 'Library'");
+    expect(workspaceNavigation).toContain('role="menuitemradio"');
+    expect(workspaceNavigation).not.toContain('BottomStatusBarIcons');
+    expect(
+      existsSync(resolve(process.cwd(), 'src/renderer/components/BottomStatusBarIcons.tsx')),
+    ).toBe(false);
+    expect(workspaceNavigationCss).toContain('.workspace-super-menu__group--special');
+    expect(
+      block(
+        workspaceNavigationCss,
+        '.app-topbar .ghost-icon-button:hover:not(:disabled) {',
+        '.workspace-super-trigger {',
+      ),
+    ).toContain('background: transparent;');
+    expect(
+      block(
+        workspaceNavigationCss,
+        '.workspace-super-trigger:hover,',
+        '.workspace-super-trigger:focus-visible {',
+      ),
+    ).not.toContain('background:');
+    expect(notification).not.toContain('e.currentTarget.style.background');
+    expect(topTimeline).not.toContain('event.currentTarget.style.background');
+    expect(appTopbar).toContain('runtime.isMacDesktop ? 230 : 160');
+    expect(appTopbar).not.toContain("background: 'var(--workspace-ui-bg)'");
 
-    expect(rightTopbar).toContain('<CopilotQuickMenu />');
-    expect(rightTopbar).toContain('<ShadowQuickMenu />');
+    expect(rightTopbar).not.toContain('CopilotQuickMenu');
+    expect(rightTopbar).not.toContain('ShadowQuickMenu');
     expect(rightTopbar).not.toContain('toggleBottomTimelineHidden');
-    expect(copilot).toContain('export function CopilotQuickMenu()');
-    expect(copilot).toContain('icon={<Sparkles size={16}');
-    expect(shadow).toContain('<GhostIconButton');
+    expect(rightTopbar.indexOf('<NotificationPill />')).toBeLessThan(
+      rightTopbar.indexOf('<GhostIconButton'),
+    );
+    expect(rightTopbar.indexOf('<GhostIconButton')).toBeLessThan(
+      rightTopbar.indexOf('<UserAvatar'),
+    );
+    expect(userMenu).toContain("setActiveSettingsPage('copilot')");
+    expect(userMenu).toContain("setActiveSettingsPage('shadow')");
+    expect(userMenu).toContain('<CopilotQuickSettings');
+    expect(userMenu).toContain('<ShadowQuickSettings');
+    expect(userMenu).toContain('dismissOnEscape={activeSettingsPage === null}');
+    expect(copilot).toContain('export function CopilotQuickSettings');
+    expect(copilot).not.toContain('<GhostIconButton');
+    expect(shadow).toContain('export function ShadowQuickSettings');
+    expect(shadow).not.toContain('<GhostIconButton');
 
     expect(footer).toContain('<footer className="bsb app-plane"');
     expect(footer.match(/<button/g)).toHaveLength(1);
@@ -90,18 +134,42 @@ describe('workspace surface language acceptance', () => {
     ).not.toContain('storylineEditor.meta.kWords');
 
     expect(shellCss).toContain("html[data-platform-target='mobile'] .app-topbar__workspace-nav");
-    expect(shellCss).toContain("html[data-platform-target='mobile'] .app-topbar__quick-actions");
+  });
+
+  it('uses native macOS header material with an opaque cross-platform fallback', () => {
+    const nativeCss = source('src/styles/native-titlebar.css');
+    const main = source('src/renderer/main.tsx');
+    const macConfig = JSON.parse(source('src-tauri/tauri.macos.conf.json')) as {
+      app: {
+        macOSPrivateApi: boolean;
+        windows: Array<{
+          transparent: boolean;
+          windowEffects: { effects: string[]; state: string };
+        }>;
+      };
+    };
+
+    expect(main).toContain("import '../styles/native-titlebar.css';");
+    expect(nativeCss).toMatch(/\.app-topbar\s*\{[\s\S]*?background:\s*var\(--workspace-ui-bg\);/);
+    expect(nativeCss).toContain("data-native-platform='macos'");
+    expect(nativeCss).toContain('background: hsl(var(--paper-deep) / 0.68);');
+    expect(macConfig.app.macOSPrivateApi).toBe(true);
+    expect(macConfig.app.windows[0]?.transparent).toBe(true);
+    expect(macConfig.app.windows[0]?.windowEffects.effects).toEqual(['headerView']);
+    expect(macConfig.app.windows[0]?.windowEffects.state).toBe('followsWindowActiveState');
   });
 
   it('assigns explicit plane and edge-panel roles without legacy island shells', () => {
     const app = source('src/renderer/App.tsx');
     const topbar = source('src/renderer/views/AppTopbar.tsx');
+    const nativeCss = source('src/styles/native-titlebar.css');
     const sidebar = source('src/renderer/components/Sidebar.tsx');
     const footer = source('src/renderer/components/BottomStatusBar.tsx');
     const renderer = `${app}\n${topbar}\n${sidebar}\n${footer}`;
 
     expect(topbar).toContain('className="app-topbar app-plane"');
-    expect(topbar).toContain("background: 'var(--workspace-ui-bg)'");
+    expect(topbar).not.toContain("background: 'var(--workspace-ui-bg)'");
+    expect(nativeCss).toContain('background: var(--workspace-ui-bg);');
     expect(sidebar).toContain('app-panel-plane sidebar-shell');
     expect(footer).toContain('className="bsb app-plane"');
     expect(renderer).not.toContain('app-island');
@@ -387,13 +455,14 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('不实现同时改变三个区域的三向 resize');
     expect(doc).toContain('只用暗淡文字与黑色文字的切换');
     expect(doc).toContain('footer 只占中间编辑列');
-    expect(doc).toContain('`AppTopbar` 承担导航与功能菜单');
+    expect(doc).toContain('`AppTopbar` 的固定顺序是搜索、左栏 toggle、项目主页、`SUPER`');
+    expect(doc).toContain('hover 都只提高前景文字/图标颜色，不绘制额外底色');
     expect(doc).toContain('`BottomStatusBar` 以只读状态为主');
     expect(doc).toContain('唯一的交互例外是 Bottom Timeline');
     expect(doc).toContain('通知入口仍留在 topbar');
     expect(doc).toContain('不重新定义现有配色');
     expect(doc).toContain('通用圆角阶梯限定为 `1px / 2px / 3px`');
     expect(doc).toContain('Plot Planner 是连续的 mini-Excel');
-    expect(doc).toContain('不能替代 macOS、iOS 或 Android 上的视觉、触摸和动效验收');
+    expect(doc).toContain('不能替代 macOS 原生材质、iOS 或 Android 上的视觉、触摸和动效验收');
   });
 });

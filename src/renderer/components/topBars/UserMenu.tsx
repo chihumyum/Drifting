@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Sun,
   Moon,
@@ -10,6 +10,10 @@ import {
   HelpCircle,
   LogOut,
   Languages,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Sparkles,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +24,8 @@ import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
 import { useFeatureAccessStore } from '../../lib/feature-access';
 import loglevel from 'loglevel';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
+import { CopilotQuickSettings } from '../copilot/CopilotBottomMenu';
+import { ShadowQuickSettings } from '../ShadowQuickMenu';
 
 const log = loglevel.getLogger('UserMenu');
 
@@ -36,6 +42,8 @@ interface UserMenuProps {
   scope?: 'project' | 'shelf';
 }
 
+type UserMenuSettingsPage = 'copilot' | 'shadow';
+
 export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserMenuProps) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
@@ -49,14 +57,55 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   const uiLocale = useSettingsStore((s) => s.uiLocale);
   const setUiLocale = useSettingsStore((s) => s.setUiLocale);
   const navigate = useNavigate();
+  const settingsBackRef = useRef<HTMLButtonElement | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [activeSettingsPage, setActiveSettingsPage] = useState<UserMenuSettingsPage | null>(null);
+
+  useEffect(() => {
+    if (!open) setActiveSettingsPage(null);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || activeSettingsPage === null) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      settingsBackRef.current?.focus({ preventScroll: true });
+    });
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveSettingsPage(null);
+    };
+    document.addEventListener('keydown', handleEscape, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleEscape, true);
+    };
+  }, [activeSettingsPage, open]);
+
+  const handleClose = () => {
+    setActiveSettingsPage(null);
+    onClose();
+  };
+
+  const openFullSettings = (railId: 'copilot' | 'shadow') => {
+    events.emit('settings:open', { railId });
+    handleClose();
+  };
 
   const handleSignOut = async () => {
     if (signingOut) return;
     setSigningOut(true);
     try {
       await logout();
-      onClose();
+      handleClose();
       navigate('/login');
     } catch (e) {
       log.error('Failed to sign out:', e);
@@ -67,28 +116,81 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || t('common.local');
   const initial = displayName.charAt(0).toUpperCase();
   const normalizedUiLocale = uiLocale.startsWith('zh') ? 'zh-CN' : 'en';
+  const menuWidth =
+    activeSettingsPage === 'shadow' ? 360 : activeSettingsPage === 'copilot' ? 300 : 248;
 
   return (
-      <AnchoredPopover
-        anchorRef={triggerRef}
-        open={open}
-        onClose={onClose}
-        placement="bottom-end"
-        role="dialog"
-        ariaLabel={t('userMenu.accountMenu')}
-        maxHeight={560}
-        style={{
-          width: 248,
-          background: 'hsl(var(--surface))',
-          border: '1px solid hsl(var(--rule))',
-          borderRadius: 2,
-          boxShadow: '0 14px 30px -16px hsl(var(--ink-1) / 0.34)',
-          zIndex: 'var(--z-popover)',
-          fontFamily: 'var(--font-sans)',
-          overflow: 'hidden',
-        }}
-      >
+    <AnchoredPopover
+      anchorRef={triggerRef}
+      open={open}
+      onClose={handleClose}
+      placement="bottom-end"
+      role="dialog"
+      ariaLabel={activeSettingsPage ? `${activeSettingsPage} settings` : t('userMenu.accountMenu')}
+      maxHeight={560}
+      dismissOnEscape={activeSettingsPage === null}
+      style={{
+        width: menuWidth,
+        background: 'hsl(var(--surface))',
+        border: '1px solid hsl(var(--rule))',
+        borderRadius: 2,
+        boxShadow: '0 14px 30px -16px hsl(var(--ink-1) / 0.34)',
+        zIndex: 'var(--z-popover)',
+        fontFamily: 'var(--font-sans)',
+        overflowY: 'auto',
+      }}
+    >
+      {activeSettingsPage && (
+        <div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              minHeight: 38,
+              padding: '4px 8px',
+              borderBottom: '1px solid hsl(var(--rule))',
+            }}
+          >
+            <button
+              ref={settingsBackRef}
+              type="button"
+              onClick={() => setActiveSettingsPage(null)}
+              aria-label={t('common.back', { defaultValue: 'Back' })}
+              style={{
+                width: 28,
+                height: 28,
+                display: 'grid',
+                placeItems: 'center',
+                padding: 0,
+                border: 0,
+                borderRadius: 2,
+                background: 'transparent',
+                color: 'hsl(var(--ink-3))',
+                cursor: 'pointer',
+              }}
+            >
+              <ChevronLeft size={15} strokeWidth={1.6} />
+            </button>
+            <span
+              style={{
+                marginLeft: 4,
+                fontSize: 12.5,
+                fontWeight: 500,
+                color: 'hsl(var(--ink-1))',
+              }}
+            >
+              {activeSettingsPage === 'copilot' ? 'Copilot' : 'Shadow'}
+            </span>
+          </div>
+          {activeSettingsPage === 'copilot' ? (
+            <CopilotQuickSettings onOpenFullSettings={() => openFullSettings('copilot')} />
+          ) : (
+            <ShadowQuickSettings onOpenFullSettings={() => openFullSettings('shadow')} />
+          )}
+        </div>
+      )}
 
+      <div style={{ display: activeSettingsPage ? 'none' : undefined }}>
         <div
           style={{
             display: 'flex',
@@ -129,6 +231,23 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
             </span>
           </div>
         </div>
+
+        {scope === 'project' && (
+          <MenuGroup>
+            <MenuItem
+              icon={<Sparkles size={13} />}
+              label="Copilot"
+              tail={<ChevronRight size={13} strokeWidth={1.6} />}
+              onClick={() => setActiveSettingsPage('copilot')}
+            />
+            <MenuItem
+              icon={<Eye size={13} />}
+              label="Shadow"
+              tail={<ChevronRight size={13} strokeWidth={1.6} />}
+              onClick={() => setActiveSettingsPage('shadow')}
+            />
+          </MenuGroup>
+        )}
 
         <MenuGroup>
           <MenuItem
@@ -212,7 +331,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
                 meta="⌘,"
                 onClick={() => {
                   events.emit('settings:open', {});
-                  onClose();
+                  handleClose();
                 }}
               />
               <MenuItem
@@ -221,7 +340,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
                 meta="⌘K ⌘/"
                 onClick={() => {
                   events.emit('settings:open', { railId: 'keys' });
-                  onClose();
+                  handleClose();
                 }}
               />
             </>
@@ -237,7 +356,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
                 meta="MD · DOCX · TXT"
                 onClick={() => {
                   events.emit('import:open');
-                  onClose();
+                  handleClose();
                 }}
               />
               <MenuItem
@@ -245,7 +364,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
                 label={t('userMenu.bookshelf')}
                 onClick={() => {
                   navigate('/');
-                  onClose();
+                  handleClose();
                 }}
               />
             </>
@@ -266,7 +385,8 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
             />
           </MenuGroup>
         )}
-      </AnchoredPopover>
+      </div>
+    </AnchoredPopover>
   );
 }
 

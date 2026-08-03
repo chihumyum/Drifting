@@ -1,0 +1,24 @@
+/* The ordinary desktop and mobile fallback stays opaque. Only the native
+   macOS window opts into transparent pixels over Tauri's headerView material. */
+.app-topbar {
+  background: var(--workspace-ui-bg);
+}
+
+html[data-platform-target='desktop'][data-native-platform='macos'],
+html[data-platform-target='desktop'][data-native-platform='macos'] body,
+html[data-platform-target='desktop'][data-native-platform='macos'] #root {
+  background: transparent;
+}
+
+html[data-platform-target='desktop'][data-native-platform='macos'] .app-root {
+  background: transparent;
+}
+
+html[data-platform-target='desktop'][data-native-platform='macos'] .app-row,
+html[data-platform-target='desktop'][data-native-platform='macos'] .bsb {
+  background: var(--workspace-ui-bg);
+}
+
+html[data-platform-target='desktop'][data-native-platform='macos'] .app-topbar.app-plane {
+  background: hsl(var(--paper-deep) / 0.68);
+}

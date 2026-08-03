@@ -1,6 +1,6 @@
 /* ============================================================================
-   Copilot floating surfaces — the ⇧⌘I inline popover (CopilotInlinePopover)
-   and the topbar quick menu (CopilotQuickMenu).
+   Copilot surfaces — the ⇧⌘I inline popover (CopilotInlinePopover) and the
+   compact settings page embedded in the account dropdown.
 
    Local `--copilot-*` tokens sit on top of the shared light/dark palette so
    both surfaces remain consistent with the rest of the application shell.
