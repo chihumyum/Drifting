@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "63fa6e9a6c3a165f2aa15d21af6eb1a8f51099dc",
-  "sourceSetSha256": "sha256:f1affb8099cdea3faf4c08aca5d4ae1accddae7ac85038dab7072f01cb9b34e9",
+  "gitHead": "ead756466a2c6daf58162268c2778dc06de1912d",
+  "sourceSetSha256": "sha256:ca0ed74ba5efde22ddafb281c29aec21ee4b36c6383586eb9c217420c9c83edc",
   "corpusPolicy": {
     "committedTruth": "distilled fog-harbor golden fixture",
     "privateProse": "read at test runtime only; machine report stores counts and bytes, never prose",
@@ -22,10 +22,10 @@
       "contextWindowTokens": 200000,
       "slices": 3,
       "compactedSlices": 2,
-      "compactorCalls": 30,
-      "medianTokenReduction": 0.60030777719009,
+      "compactorCalls": 32,
+      "medianTokenReduction": 0.5999927489697752,
       "maxContextWindowRatio": 0.60715,
-      "finalEstimatedInputTokens": 107332
+      "finalEstimatedInputTokens": 102270
     },
     "retrieval": {
       "canon_fact": {
@@ -96,8 +96,8 @@
       "discovered": 11
     },
     "tests": {
-      "total": 84,
-      "passed": 84,
+      "total": 105,
+      "passed": 105,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -118,8 +118,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 40,
-          "passed": 40,
+          "total": 46,
+          "passed": 46,
           "failed": 0,
           "pending": 0
         },
@@ -129,8 +129,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 10,
-          "passed": 10,
+          "total": 19,
+          "passed": 19,
           "failed": 0,
           "pending": 0
         },
@@ -151,8 +151,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 22,
-          "passed": 22,
+          "total": 28,
+          "passed": 28,
           "failed": 0,
           "pending": 0
         },
@@ -186,7 +186,7 @@
         "passed": true
       },
       "safeCompactorFallback": {
-        "requiredName": "replaces summaries that omit or forge write evidence with the safe fallback",
+        "requiredName": "leaves committed-write proof to durable receipts and rejects forged provider evidence",
         "matches": 1,
         "passed": true
       },

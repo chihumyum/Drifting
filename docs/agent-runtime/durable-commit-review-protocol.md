@@ -73,6 +73,14 @@ The UI and logs must report those facts separately. Retrying an idempotent turn
 commit is allowed; reconstructing or silently adopting an uncommitted provider
 history is not.
 
+For small turns the checkpoint may carry the fully witnessed V2 provider
+envelope. For a tool-heavy turn whose V2 serialization exceeds 512 KiB, the
+commit uses bounded V4: exact canonical history stays in normalized message
+rows while the checkpoint stores its message count/SHA-256 plus restart
+summaries. Recovery must rebuild and match that digest before the same adoption
+rule can succeed; a smaller checkpoint is never permission to trust less
+history.
+
 ## Fault matrix
 
 | Failure point | Durable observation after restart | Required recovery |
@@ -108,4 +116,7 @@ Milestone C cannot close from mocked UI tests alone. Its gate must exercise:
 
 Native animation appearance still requires user visual acceptance, but the
 animation selection and accepted/reverted direction must be covered by pure
-tests. Animation failure never changes the durable decision.
+tests. Reveal overlays and their per-block controls must portal into the
+positioned in-flow editor spread and use scroll-content coordinates; they must
+not chase asynchronously scrolled prose from a fixed body layer. Animation
+failure never changes the durable decision.

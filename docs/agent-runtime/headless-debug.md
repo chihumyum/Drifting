@@ -226,9 +226,16 @@ Useful options:
 --edit-mode approve                 # keep writes pending for review in this turn
 --answer 'text'                     # queued ask_user answer; repeatable
 --auto-continue                     # follow the durable plan until a stable stop
---timeout-ms 900000
+--thinking adaptive                 # enable the selected provider's reasoning
+--timeout-ms 43200000               # observer watchdog; up to 12 hours
 --prompt-file /absolute/path/prompt.txt
 ```
+
+For a representative reasoning run, pass `--thinking adaptive` and omit
+`--effort`; the model profile then supplies its default effort. `--effort` is
+only for a scenario that deliberately tests a non-default level. The timeout is
+the DEV observer/client watchdog, not a runtime model-round, tool, token, cost
+or continuation quota.
 
 Settle a pending review through the same live product composition (including
 the exact Yjs inverse on reject):
@@ -251,6 +258,29 @@ The raw endpoint is also curl-friendly:
 curl -N http://127.0.0.1:4317/turn \
   -H 'content-type: application/json' \
   --data '{"projectId":"synthetic-project-0001","prompt":"READ ONLY. List chapters."}'
+```
+
+## Prose Markdown adapter acceptance
+
+The virtual `prose.md` and `body.md` files expose only structures configured by
+the live TipTap editor. `#`, `##`, and `###` become heading levels 1-3;
+paragraphs, blockquotes, horizontal rules, `<br>`, bold, italic, strike,
+`<u>`, and safe links round-trip into Yjs. The compact read protocol keeps each
+block on one transport line while `<br>` represents an editor hard break.
+
+Unsupported Markdown is deliberately style-lossy and text-preserving. H4-H6,
+lists/tasks, inline or fenced code, tables, images, and arbitrary HTML are
+saved as plain paragraphs; unsafe URL schemes retain only their visible label.
+Acceptance must inspect the planned Yjs blocks and load their projection with
+the production static TipTap schema, not merely compare rendered Markdown.
+
+Run the focused adapter gate with:
+
+```bash
+pnpm --dir client exec vitest run \
+  src/renderer/lib/agent/markdown-prose-adapter.test.ts \
+  src/renderer/lib/agent/serialize.test.ts \
+  src/renderer/lib/agent/runtime/workspace-prose-file.test.ts
 ```
 
 ## Acceptance snapshot (2026-08-01)
@@ -349,6 +379,24 @@ After the final fixes, the full Core baseline was 136 files / 897 tests;
 typecheck passed; lint reported zero errors and 41 pre-existing warnings; the
 generated capability drift gate passed 9/9 acceptance groups.
 
+### Reasoning-on long-book campaign (2026-08-03)
+
+A later disposable `雾港纪事` campaign used only vague project-level author
+prompts, `--thinking adaptive`, no `--effort`, `--auto-continue` and the real
+paid DeepSeek route. Its one session accumulated 201 model iterations, 1,931
+tool calls, 181 committed effects and 100 full-compactor plans before all 14
+durable steps completed. The final `继续。` turn completed naturally and wrote a
+138,375-byte checkpoint with 16 verified summaries.
+
+Paid failures in earlier turns exposed the 60-second outer compactor timeout,
+serial-small-chunk latency, no-gain recent pins, whole-element projection drift,
+quote/line-end exact-edit misses and broad-grep false matches. The fixed product
+uses a five-minute outer pass, provider-budget-bounded 64k chunks, at most two
+paid summary chunks per pass, one soft-recent recovery, conservative exact-edit
+normalization and literal metadata/relation/punctuation grep. The complete
+operator record is
+[`acceptance/GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md`](acceptance/GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md).
+
 ## Safety and fidelity
 
 - The broker binds to `127.0.0.1`. Browser origins other than the local Vite or
@@ -367,5 +415,8 @@ generated capability drift gate passed 9/9 acceptance groups.
   Pending review, permission/user input, failure, navigation, or an explicit
   stop pauses it immediately. This authorization is renderer-memory-only and
   is never resumed automatically after an App restart.
+- The explicit DEV request watchdog defaults to ten minutes and accepts up to
+  twelve hours. Expiry aborts the test client and is recorded as test
+  infrastructure, not as an Agent task budget.
 - Stop the broker and the DEV App when finished. No broker or debug service is
   bundled into a release build.

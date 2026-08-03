@@ -140,6 +140,10 @@ and reads that provider's BYOK credential lazily from native secure storage. It 
 through renderer repositories/use cases and routes prose writes through the live Yjs document. It
 does not require the removed desktop Node/Claude CLI, a sidecar, or a remote runner.
 
+Settings has one credential authority: **Models & API** owns the global `byok.<provider>` Keychain
+entries. Copilot and Shadow keep only their own provider/model route; General Agent chooses its
+provider/model in the chat composer. See [`docs/ai-provider-settings.md`](docs/ai-provider-settings.md).
+
 The same turn boundary freezes model-aware thinking and reasoning effort. OpenAI offers the
 GPT-5.6 Sol/Terra/Luna family through the Responses API; DeepSeek and Anthropic retain their native
 thinking state only across the active tool loop. Unsupported model/provider combinations are

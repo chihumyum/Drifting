@@ -62,6 +62,25 @@ LocalStorage and Zustand are projections. They cannot independently approve,
 reject, create, delete, or revert an Agent mutation. Prose writes never mutate
 stale `contentJson` as their source of truth.
 
+### Virtual Markdown schema boundary
+
+Agent-facing prose files are a reversible projection of the current editor
+schema, not a second prose authority. Reads serialize heading levels 1-3,
+paragraphs, blockquotes, horizontal rules, hard breaks, bold, italic, strike,
+underline, and safe links. Writes parse those forms directly into structured
+Yjs nodes before durable preparation.
+
+Markdown presentation that the editor does not configure is unwrapped rather
+than persisted as a hidden or invalid node. Heading levels 4-6, lists and task
+lists, inline/fenced code, tables, images, and arbitrary HTML retain their
+readable text as ordinary paragraphs but lose the unsupported style. Unsafe
+link schemes retain their labels without a link mark. Existing editor-only
+marks such as entity links remain attached to unchanged text even though they
+are intentionally absent from the virtual file.
+
+This boundary is schema sanitation only. It does not impose author style,
+voice, canon, target scope, or any other writing policy.
+
 ## 3. Read-before-write freshness
 
 Every certified mutation cites an authoritative read observation:

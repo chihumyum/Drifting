@@ -13,9 +13,9 @@
     "intro": "This is an early build for a small group of testers. Core writing, cloud sync, and relational data work, but APIs, data formats, and UX may still change.",
     "trial": "This is a 30-day trial account; the server deletes the account and cloud data after expiry.",
     "sync": "Manuscripts are stored in readable form on Drifting's server; end-to-end encryption is not provided.",
-    "byok": "There is no hosted AI service. Copilot, Shadow, and General Agent use your own API keys. General Agent currently runs locally with DeepSeek BYOK.",
+    "byok": "There is no hosted AI service. Every AI feature references the BYOK credentials managed in Settings → Models & API. Copilot and Shadow choose their own provider and model; General Agent chooses them in the chat panel.",
     "backup": "Regularly use Relational Markdown Export to keep a readable copy.",
-    "settingsHint": "After opening a book, connect your model credentials in Settings → Copilot / Shadow / Agent. API keys persist only in system secure storage; General Agent does not currently require a remote runner or sidecar.",
+    "settingsHint": "After opening a book, connect provider credentials once in Settings → Models & API. API keys persist only in system secure storage; General Agent does not currently require a remote runner or sidecar.",
     "continue": "I understand — continue"
   },
   "settings": {
@@ -26,7 +26,6 @@
     "close": "Close",
     "close_with_esc": "Close (Esc)",
     "local_user": "Local user",
-    "model_tier": "model tier",
 
     "groups": {
       "account": "Account",
@@ -61,6 +60,8 @@
       "delete": "Delete",
       "change": "Change",
       "manage": "Manage",
+      "provider": "Provider",
+      "manageKeys": "Manage API keys",
       "connect": "Connect",
       "disconnect": "Disconnect",
       "test_connection": "Test connection",
@@ -493,6 +494,21 @@
       "tagline": "Built for writers awake deep into the night."
     },
 
+    "models": {
+      "kicker": "MODEL PROVIDERS",
+      "title": "Manage every AI credential in one place.",
+      "sub": "Each provider has one global API key. Copilot, Shadow, and General Agent reference it instead of saving separate copies.",
+      "sidebarMeta": "BYOK · local Keychain",
+      "credentialsTitle": "Provider credentials",
+      "credentialsDesc": "Keys are written only to the system Keychain, never localStorage or preference sync. Each feature can still choose its own provider and model.",
+      "providers": {
+        "deepseek": "Shared by Copilot, Shadow, and General Agent.",
+        "anthropic": "Shared by Copilot, Shadow, and General Agent.",
+        "openai": "Shared by Copilot, Shadow, and General Agent.",
+        "google": "Currently available to Copilot; its key is still managed here."
+      }
+    },
+
     "ai": {
       "routing": "AI routing",
       "tierTitle": "Capability tier",
@@ -545,50 +561,25 @@
     "shadow": {
       "kicker": "SHADOW",
       "title": "Shadow reviews the book for you.",
-      "sub": "Shadow's continuity review and element-arc derivation share your DeepSeek key. Pre-Alpha provides no hosted quota.",
-      "keyPrivacy": "Your key stays in local Keychain and the client calls the model provider directly.",
-      "aiModes": {
-        "hosted": {
-          "name": "Hosted",
-          "desc": "Use Drifting routing and quota. Pick a capability tier below."
-        },
-        "byok": {
-          "name": "BYOK",
-          "desc": "Use your own DeepSeek key, shared with Copilot's Keychain entry, and pick a model below."
-        }
-      },
-      "tiers": {
-        "lite": {
-          "kicker": "LOW · LITE",
-          "name": "DeepSeek Flash",
-          "desc": "Speed first. Enough for continuity checks and arc analysis."
-        },
-        "standard": {
-          "kicker": "MED · STANDARD",
-          "name": "DeepSeek Pro",
-          "desc": "Default. Steadier reasoning with fewer format failures."
-        },
-        "pro": {
-          "kicker": "HIGH · PRO",
-          "name": "Sonnet",
-          "desc": "Strongest judgment. Requires hosted subscription."
-        }
-      },
-      "hostedTierNote": "High · Sonnet requires hosted subscription. Local direct calls only support Low / Medium DeepSeek tiers; if High is selected, review falls back to Medium and arc derivation asks for hosted.",
-      "deepseekKey": "DeepSeek key",
-      "deepseekKeyDesc": "Shadow BYOK shares the same DeepSeek key as Copilot in Keychain. Fill or replace it in the Copilot panel.",
+      "sub": "Choose one provider and model route for continuity review, element-arc derivation, and evolve.",
+      "keyPrivacy": "Keys are managed centrally under Models & API.",
+      "routingDesc": "Every Shadow model leaf uses this provider and model; the choice is frozen when a run starts.",
+      "providerDesc": "Model provider used by Shadow's direct calls.",
+      "providerKey": "{{provider}} API key",
+      "providerKeyDesc": "This is status only. Add, edit, or delete credentials under Models & API.",
+      "model": "Shadow model",
+      "modelDesc": "Only models certified for the current provider's Agent Runtime protocol are listed.",
       "keyConnected": "✓ Connected",
-      "keyNotConnected": "⚠ Not connected",
-      "goToCopilot": "Go to Copilot",
-      "deepseekModel": "DeepSeek model",
-      "deepseekModelDesc": "The model Shadow actually calls in BYOK mode."
+      "keyNotConnected": "⚠ Not connected"
     },
 
     "copilot": {
       "kicker": "COPILOT",
       "title": "Give the small work to a quiet assistant.",
-      "sub": "Lightweight completion, entity extraction, polishing, and other structured tasks inside prose. Pre-Alpha only supports your own API key; you can pin provider and model.",
-      "keyPrivacy": "The key is persisted only in local Keychain. Copilot sends it transiently through Drifting Server for the provider call; the server does not store it.",
+      "sub": "Lightweight completion, extraction, polishing, and other structured prose tasks. Choose Copilot's provider and model here.",
+      "keyPrivacy": "Keys are managed centrally under Models & API.",
+      "routingDesc": "Copilot stores only its provider and model choice; the API key comes from the global Keychain credential.",
+      "providerDesc": "Model provider used by Copilot calls.",
       "aiModes": {
         "hosted": {
           "name": "Hosted",
@@ -625,7 +616,7 @@
       "modelIdPlaceholder": "Enter full model id",
       "byokWarningPrefix": "Current BYOK provider \"{{provider}}\" has no connected key; ",
       "byokWarningStrong": "AI calls will fail",
-      "byokWarningSuffix": ". Connect a key below or set a connected provider as current.",
+      "byokWarningSuffix": ". Add that provider's key under Models & API.",
       "byokModel": "Pinned model",
       "byokModelDesc": "Model to use under the current provider. Blank means the server picks that provider's default; choose Custom to enter an id outside the list.",
       "switchesTitle": "Switches",
@@ -681,6 +672,8 @@
       "unavailableReason": "This window has no usable Agent model driver or tool runtime.",
       "unavailableFuture": "Reopen the project. If this persists, check the app version and the selected provider API key.",
       "credentialPrivacy": "Credentials stay local and are not uploaded.",
+      "chatConfigTitle": "Chat configuration",
+      "chatConfigDesc": "Choose provider, model, context, and reasoning from the configuration menu beside the General Agent composer. Manage API keys centrally under Models & API.",
       "hostedDisabledTitle": "Hosted is unavailable · beta uses your own provider API key",
       "auth": {
         "oauth": {
@@ -872,7 +865,9 @@
   "agentActivity": {
     "unviewedChanges": "Unviewed Agent changes",
     "working": "Agent is working",
+    "addedHere": "Agent added this; its full prose reveals on first open",
     "changedHere": "Agent just changed this",
+    "groupBodyAdded": "Agent added this group; its full prose reveals on first open",
     "groupBodyChanged": "Agent just changed this group body",
     "childChanges": "Unviewed child Agent changes"
   },
@@ -918,7 +913,9 @@
   "editorOutline": {
     "aria": "Outline",
     "emptyHint": "— No headings —",
-    "sectionCount": "{{count}} sections"
+    "sectionCount": "{{count}} sections",
+    "scrollbar": "Manuscript structure scrollbar",
+    "hiddenItems": "{{count}} distant outline items; hover to reveal"
   },
   "relationPicker": {
     "addRelation": "+ Link",
@@ -1141,6 +1138,7 @@
         "thinking": "Thinking",
         "tool_calls": "Tool calls",
         "tool_results": "Tool results",
+        "write_receipts": "Committed writes",
         "write_reviews": "Write reviews",
         "write_reverts": "Edit reverts",
         "freshness": "Freshness evidence",
@@ -2522,7 +2520,7 @@
   "arcSection": {
     "title": "Arc",
     "shadowBadge": "Shadow",
-    "shadowBadgeTitle": "Arc derivation is a read-only Shadow analysis; change the model tier in Settings · Shadow.",
+    "shadowBadgeTitle": "Arc derivation is a read-only Shadow analysis; choose its provider and model in Settings → Shadow Agent.",
     "actions": {
       "derive": "Derive arc",
       "rerun": "Derive again"
@@ -2839,8 +2837,6 @@
   },
   "editorTopBar": {
     "actions": {
-      "showOutline": "Show outline",
-      "hideOutline": "Hide outline",
       "collapsePlotPlanner": "Collapse plot planner",
       "expandPlotPlanner": "Expand plot planner",
       "hideReferenceLinks": "Hide reference link styling",

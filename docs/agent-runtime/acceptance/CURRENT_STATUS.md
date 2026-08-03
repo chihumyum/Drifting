@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-08-02
+Updated: 2026-08-03
 
 This document is the current human-readable milestone boundary. Historical
 `P*_*.md` reports remain evidence for their original checkout and must not be
@@ -114,14 +114,37 @@ typed summary initialization and persisted word counts were fixed before that
 pass. This is E3 evidence; E4 interaction, paid 1M, concurrent General Agent
 sessions and the exact historical three-turn write sequence remain open.
 
+The 2026-08-03 reasoning-on long-book campaign then used a deliberately vague
+author prompt, `--thinking adaptive` and no effort override against a disposable
+`雾港纪事` clone. Across 201 model iterations it processed 25.5M input tokens,
+1,931 tool calls, 181 committed effects and 100 full-compactor plans. Failure-
+driven fixes added transactional pre-effect provider resampling, hierarchical
+64k compaction with a two-paid-chunk pass budget, one bounded soft-recent
+recovery, tolerant but conservative exact prose matching, consistent element
+whole-file projections, and literal broad grep for metadata, relations and
+punctuation. The final vague `继续。` turn completed naturally, committed a
+138,375-byte checkpoint with 16 verified summaries and passed SQLite
+`quick_check`. Exact session, failure and context metrics are in
+[`GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md`](GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md).
+
 ## Current product boundary
 
 - The General Agent runs in the Tauri renderer through the provider-neutral
   local runtime and executes authored writes through renderer-owned use cases,
   durable receipts and live Yjs prose coordination.
+- Models & API is the only writable BYOK credential surface. Copilot and Shadow
+  own independent provider/model routes; General Agent selects its route in the
+  chat composer. All three lazily resolve the same native `byok.<provider>`
+  Keychain entries, and Shadow shares the certified DeepSeek/Anthropic/OpenAI
+  provider drivers with General Agent for its multi-round leaves.
 - Ordinary model turns use the virtual workspace facade; the generated
   inventory separately records its natural provider verbs and hidden domain
   operations so direct-catalog counts do not understate user-facing capability.
+- Virtual prose Markdown is now schema-locked in both directions. H1-H3,
+  blockquote, horizontal rule, hard break, bold, italic, strike, underline and
+  safe links map directly to the configured TipTap/Yjs structures. Unsupported
+  Markdown presentation is stripped while readable text remains ordinary
+  prose; editor-only entity-link marks survive edits to unchanged text.
 - The generated nine-domain CRUD matrix closes 43 applicable lifecycle
   operations. Storyline membership is a guarded complete-graph transaction;
   comments/TODOs, relations, structural entities, project facts, and writing

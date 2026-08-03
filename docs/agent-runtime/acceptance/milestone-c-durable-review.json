@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "76ce19ebd113aa5111737fd9f73de07122932f51",
-  "sourceSetSha256": "sha256:a02941dc8dad32368ab1fe126b03468c32b4c12cb02646386812ee41e47e07eb",
+  "gitHead": "ead756466a2c6daf58162268c2778dc06de1912d",
+  "sourceSetSha256": "sha256:6323fa2e4fe0d9d6e713461bd292b87f2ae058ffeb63ed0fa1b9a31803ebb36c",
   "storageReplay": {
     "sqlite": "real file-backed SQLite with product migrations and injected transaction faults",
     "prose": "real Yjs snapshots/updates and guarded block inverses",
@@ -17,8 +17,8 @@
       "discovered": 11
     },
     "tests": {
-      "total": 67,
-      "passed": 67,
+      "total": 73,
+      "passed": 73,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -50,8 +50,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 14,
-          "passed": 14,
+          "total": 16,
+          "passed": 16,
           "failed": 0,
           "pending": 0
         },
@@ -61,8 +61,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 10,
-          "passed": 10,
+          "total": 14,
+          "passed": 14,
           "failed": 0,
           "pending": 0
         },
@@ -127,6 +127,11 @@
       },
       "rejectedAnimationDirection": {
         "requiredName": "turns every bulk rejection into the visible inverse animation",
+        "matches": 1,
+        "passed": true
+      },
+      "nativeScrollRevealCoordinates": {
+        "requiredName": "keeps reveal coordinates stable inside the native scrolling content tree",
         "matches": 1,
         "passed": true
       },

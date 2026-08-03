@@ -13,9 +13,9 @@
     "intro": "这是给少量内测用户使用的早期版本。核心写作、云同步与关系数据已经可用，但接口、数据格式和体验仍可能变化。",
     "trial": "当前账户是 30 天试用账户；到期后服务器会清理账户及云端数据。",
     "sync": "稿件会以可读形式存储在 Drifting 服务器，目前不提供端到端加密。",
-    "byok": "不提供 hosted AI 服务；Copilot、Shadow 和 General Agent 都使用你自己的 API Key。General Agent 当前通过本地运行时使用 DeepSeek BYOK。",
+    "byok": "不提供 hosted AI 服务；所有 AI 功能都引用“设置 → 模型与 API”中统一管理的 BYOK 凭据。Copilot 与 Shadow 各自选择 provider 和模型，General Agent 在对话面板中选择。",
     "backup": "请定期用“导出关系型 Markdown”保存一份可阅读的副本。",
-    "settingsHint": "进入一本书后，可在“设置 → Copilot / Shadow / Agent”中连接自己的模型凭据。API Key 只持久化在系统安全存储；General Agent 当前不需要远程 runner 或 sidecar。",
+    "settingsHint": "进入一本书后，可在“设置 → 模型与 API”中统一连接 provider 凭据。API Key 只持久化在系统安全存储；General Agent 当前不需要远程 runner 或 sidecar。",
     "continue": "了解，继续使用"
   },
   "settings": {
@@ -26,7 +26,6 @@
     "close": "关闭",
     "close_with_esc": "关闭 (Esc)",
     "local_user": "本地用户",
-    "model_tier": "模型档位",
 
     "groups": {
       "account": "我的账户",
@@ -61,6 +60,8 @@
       "delete": "删除",
       "change": "更改",
       "manage": "管理",
+      "provider": "Provider",
+      "manageKeys": "管理 API Key",
       "connect": "连接",
       "disconnect": "断开",
       "test_connection": "测试连接",
@@ -493,6 +494,21 @@
       "tagline": "为夜里不睡的写作人造。"
     },
 
+    "models": {
+      "kicker": "模型服务 · PROVIDERS",
+      "title": "所有 AI 凭据，只在这里管理。",
+      "sub": "每个 provider 保存一条全局 API Key；Copilot、Shadow 和 General Agent 只引用它，不再各自保存副本。",
+      "sidebarMeta": "BYOK · 本机 Keychain",
+      "credentialsTitle": "Provider 凭据",
+      "credentialsDesc": "密钥仅写入本机系统 Keychain，不进入 localStorage 或偏好同步。不同功能可以各自选择 provider 与模型。",
+      "providers": {
+        "deepseek": "可供 Copilot、Shadow 与 General Agent 共用。",
+        "anthropic": "可供 Copilot、Shadow 与 General Agent 共用。",
+        "openai": "可供 Copilot、Shadow 与 General Agent 共用。",
+        "google": "当前可供 Copilot 使用；密钥仍在这里统一管理。"
+      }
+    },
+
     "ai": {
       "routing": "AI 调用方式",
       "tierTitle": "能力档位",
@@ -545,50 +561,25 @@
     "shadow": {
       "kicker": "SHADOW · 影",
       "title": "影，替你巡查全书。",
-      "sub": "Shadow 的章节连贯审阅（CI）与元素弧线派生共用你的 DeepSeek Key。Pre-Alpha 不提供托管额度。",
-      "keyPrivacy": "你的密钥仅存于本机 Keychain，由客户端直连模型服务商。",
-      "aiModes": {
-        "hosted": {
-          "name": "托管",
-          "desc": "走 Drifting 的通道与额度。只需在下方选一个能力档位（低 / 中 / 高）。"
-        },
-        "byok": {
-          "name": "自带 Key",
-          "desc": "用你自己的 DeepSeek Key（与 Copilot 共用 Keychain 里的同一条），在下方选模型。"
-        }
-      },
-      "tiers": {
-        "lite": {
-          "kicker": "低 · LITE",
-          "name": "DeepSeek Flash",
-          "desc": "速度优先。够用的连贯核查与弧线分析。"
-        },
-        "standard": {
-          "kicker": "中 · STANDARD",
-          "name": "DeepSeek Pro",
-          "desc": "默认。更稳的推理，更少的格式失败。"
-        },
-        "pro": {
-          "kicker": "高 · PRO",
-          "name": "Sonnet",
-          "desc": "最强判断力。需托管订阅（服务端调用）。"
-        }
-      },
-      "hostedTierNote": "「高 · Sonnet」需托管订阅（服务端调用）。本地直连仅支持「低 / 中」DeepSeek 档位——若选了高，review 会自动回退到中档、arc 派生会提示需托管。",
-      "deepseekKey": "DeepSeek 密钥",
-      "deepseekKeyDesc": "Shadow 自带 Key 与 Copilot 共用同一条 DeepSeek 密钥（Keychain）。在「Copilot · 副手」面板填写或更换。",
+      "sub": "为章节连贯审阅、元素弧线派生与 evolve 选择同一组 provider 和模型。",
+      "keyPrivacy": "密钥统一在「模型与 API」管理。",
+      "routingDesc": "Shadow 的所有模型叶子使用这一组 provider 与模型；每次运行开始后冻结。",
+      "providerDesc": "选择 Shadow 直连的模型服务商。",
+      "providerKey": "{{provider}} API Key",
+      "providerKeyDesc": "这里只显示连接状态；新增、编辑或删除密钥统一前往「模型与 API」。",
+      "model": "Shadow 模型",
+      "modelDesc": "只列出当前 provider 已通过 Agent Runtime 协议认证的模型。",
       "keyConnected": "✓ 已连接",
-      "keyNotConnected": "⚠ 未连接",
-      "goToCopilot": "前往 Copilot 填写",
-      "deepseekModel": "DeepSeek 模型",
-      "deepseekModelDesc": "自带 Key 时 Shadow 实际调用的模型。"
+      "keyNotConnected": "⚠ 未连接"
     },
 
     "copilot": {
       "kicker": "COPILOT · 副手",
       "title": "把琐事交给一个安静的副手。",
-      "sub": "正文里的轻量补全、实体抽取、润色等结构化任务。Pre-Alpha 仅支持你自己的 API Key，可指定 provider 与模型。",
-      "keyPrivacy": "密钥持久化仅在本机 Keychain；Copilot 请求会将它临时传给 Drifting Server 代理调用，但服务器不会保存。",
+      "sub": "正文里的轻量补全、实体抽取、润色等结构化任务；在这里选择 Copilot 使用的 provider 与模型。",
+      "keyPrivacy": "密钥统一在「模型与 API」管理。",
+      "routingDesc": "Copilot 只保存自己的 provider 与模型选择，API Key 引用全局 Keychain 凭据。",
+      "providerDesc": "选择 Copilot 调用的模型服务商。",
       "aiModes": {
         "hosted": {
           "name": "托管",
@@ -625,7 +616,7 @@
       "modelIdPlaceholder": "输入完整 model id",
       "byokWarningPrefix": "当前 BYOK provider「{{provider}}」未连接密钥 —— ",
       "byokWarningStrong": "AI 调用会直接失败",
-      "byokWarningSuffix": "。请在下方为它「连接」密钥，或把已连接的 provider「设为当前」。",
+      "byokWarningSuffix": "。请前往「模型与 API」填写该 provider 的密钥。",
       "byokModel": "指定模型",
       "byokModelDesc": "当前 provider 下要用的模型（留空 = 由服务端选该 provider 的默认模型；列表外的可选「自定义…」手填 id）。",
       "switchesTitle": "开关",
@@ -681,6 +672,8 @@
       "unavailableReason": "本窗口没有安装可用的 Agent model driver 或工具运行时。",
       "unavailableFuture": "重新打开项目；若问题持续，请检查应用版本与所选 provider 的 API Key。",
       "credentialPrivacy": "凭据仅存于本机，不上传服务器。",
+      "chatConfigTitle": "对话配置",
+      "chatConfigDesc": "Provider、模型、上下文与推理参数都在右侧 General Agent 输入框的配置菜单中选择；API Key 统一在「模型与 API」管理。",
       "hostedDisabledTitle": "托管暂不可用 · 测试版使用你自己的 provider API Key",
       "auth": {
         "oauth": {
@@ -872,7 +865,9 @@
   "agentActivity": {
     "unviewedChanges": "未查看的 Agent 改动",
     "working": "Agent 正在处理",
+    "addedHere": "Agent 新建了这里；首次打开会播放全文 reveal",
     "changedHere": "Agent 刚改动了这里",
+    "groupBodyAdded": "Agent 新建了此线 / 类；首次打开会播放全文 reveal",
     "groupBodyChanged": "Agent 刚改动了此线 / 类的正文",
     "childChanges": "未查看的子条目 Agent 改动"
   },
@@ -918,7 +913,9 @@
   "editorOutline": {
     "aria": "大纲",
     "emptyHint": "— 暂无标题 —",
-    "sectionCount": "{{count}} 节"
+    "sectionCount": "{{count}} 节",
+    "scrollbar": "文稿结构滚动条",
+    "hiddenItems": "远处 {{count}} 个目录项，悬停展开"
   },
   "relationPicker": {
     "addRelation": "＋ 关联",
@@ -1141,6 +1138,7 @@
         "thinking": "思考内容",
         "tool_calls": "工具调用",
         "tool_results": "工具结果",
+        "write_receipts": "已提交写入",
         "write_reviews": "写入审阅",
         "write_reverts": "改动回退",
         "freshness": "数据新鲜度证据",
@@ -2522,7 +2520,7 @@
   "arcSection": {
     "title": "弧线 · ARC",
     "shadowBadge": "Shadow",
-    "shadowBadgeTitle": "弧线派生属于 Shadow 模块（影）的只读分析能力；模型档位在 设置 · Shadow 里调。",
+    "shadowBadgeTitle": "弧线派生属于 Shadow 模块（影）的只读分析能力；provider 与模型在“设置 → Shadow Agent”中选择。",
     "actions": {
       "derive": "派生弧线",
       "rerun": "重新派生"
@@ -2839,8 +2837,6 @@
   },
   "editorTopBar": {
     "actions": {
-      "showOutline": "显示大纲",
-      "hideOutline": "隐藏大纲",
       "collapsePlotPlanner": "收起情节规划",
       "expandPlotPlanner": "展开情节规划",
       "hideReferenceLinks": "隐藏引用链接样式",

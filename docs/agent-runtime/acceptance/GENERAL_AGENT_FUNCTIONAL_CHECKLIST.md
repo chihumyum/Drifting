@@ -1,6 +1,6 @@
 # General Agent functional acceptance checklist
 
-Updated: 2026-08-02
+Updated: 2026-08-03
 
 This is the durable acceptance index for General Agent changes. A milestone is
 not accepted from a test count alone: every applicable row needs an evidence
@@ -73,6 +73,7 @@ Rules:
 | TOOL-09 | Core | E2 | A result ref is inaccessible from another project/session and corruption fails closed. |
 | TOOL-10 | Core | E1 | Provider tool count/schema size and requested output are charged before provider I/O. |
 | TOOL-11 | Core | E3 | A compound mutation keeps the installed `edit_file`/`write_file` verbs available across later iterations; no previously installed verb degrades into `UNKNOWN_TOOL`. |
+| TOOL-12 | Core | E1 | A tool-capable provider sample is published transactionally: parse/network/rate-limit failure, malformed arguments, missing required reasoning, an unavailable tool, or output exhaustion before an action receives a bounded pre-effect resample; no discarded text/tool/usage event or mutation escapes, while authentication and author cancellation are never retried. |
 
 ## D. Natural workspace reads and navigation
 
@@ -129,6 +130,7 @@ plus receipt, inverse/permission behavior and restart visibility.
 | EDIT-12 | Core | E3 | Five-chapter polish preserves requested plot boundary and reports concrete changed targets. |
 | EDIT-13 | Core | E3 | Node prose write/read results expose the actual numeric `wordCount`, and a requested minimum length is verified from persisted content rather than model self-report. |
 | EDIT-14 | Core | E3 | The headless product bridge can accept one review block and reject another; SQLite/Yjs readback contains only the accepted block effect. |
+| EDIT-15 | Core | E2 | Virtual prose Markdown round-trips TipTap-supported H1-H3, blockquote, horizontal rule, hard break and inline marks; unsupported heading/list/code/table/HTML styles become plain prose, unsafe links lose behavior, and no disabled node or mark enters Yjs. |
 
 ## G. Long-running work
 
@@ -146,6 +148,7 @@ plus receipt, inverse/permission behavior and restart visibility.
 | LONG-10 | Core | E3 | LONG-09 emits no `PINNED_CONTEXT_EXCEEDS_BUDGET`, `COMPACTOR_FAILED`, malformed-summary terminal or duplicate write. |
 | LONG-11 | Core | E2 | Stop/restart/retry around a long write never applies the same mutation twice. |
 | LONG-12 | Core | E3 | A broad book review can re-read omitted evidence after compaction and continue naturally. |
+| LONG-13 | Core | E3 | A vague project-level writing prompt, with provider-default reasoning enabled and no effort override, exposes durable-plan plus natural workspace tools, crosses repeated compactions, performs multi-resource CRUD/relation work and reaches a verified terminal without a prompt-authored file list or procedural recipe. |
 
 ## H. Context engineering
 
@@ -166,6 +169,7 @@ plus receipt, inverse/permission behavior and restart visibility.
 | CTX-12A | Core | E1 | Compaction reclaims at least 50% working room when eligible history permits, then stops; a small overage cannot trigger calls for every historical chunk. |
 | CTX-13 | Core | E4 | Context ring uses the selected standard/Max denominator and modal category totals equal the planned input. |
 | CTX-14 | Core | E3 | One 200k long-turn canary and one eligible 1M Max canary cross the compaction threshold and still finish. |
+| CTX-15 | Core | E2 | A tool-heavy completed turn whose witnessed V2 payload exceeds 512 KiB commits a bounded V4 digest checkpoint; restart rebuilds exact history from normalized message rows, verifies count/hash before adoption, and revalidates retained summaries against current canonical sources. |
 
 ## I. Durability, isolation and recovery
 
@@ -202,7 +206,7 @@ plus receipt, inverse/permission behavior and restart visibility.
 | NATIVE-03 | Core | E4 | Repeat applicable interaction rows on iOS. |
 | NATIVE-04 | Core | E4 | Repeat applicable interaction rows on Android. |
 | SOAK-01 | Core | E2 | Accelerated 4h/12h workload preserves bounded memory, receipts and resumability. |
-| SOAK-02 | Core | E3 | Wall-clock real-provider/real-project endurance records provider latency, compactions, retries and terminal rate. |
+| SOAK-02 | Core | E3 | Wall-clock real-provider/real-project endurance uses provider-default reasoning unless the scenario tests another mode, and records provider latency, compactions, retries and terminal rate. |
 
 ## Required command baseline
 
@@ -232,3 +236,11 @@ Log/report paths:
 Known open failures:
 Operator:
 ```
+
+Latest E3 record: the 2026-08-03 DeepSeek Standard-200k campaign used
+provider-default reasoning (`adaptive`, no effort override), a vague
+project-level author prompt and a disposable `雾港纪事` clone. It completed all
+14 durable task steps across 201 model iterations, 1,931 tool calls, 181
+committed effects and 100 full-compactor plans; the final turn completed and
+checkpointed 16 verified summaries. See
+[`GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md`](GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md).

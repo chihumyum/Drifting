@@ -136,3 +136,29 @@ The detailed provider/session/tool-ledger evidence is in
 [`GENERAL_AGENT_ACCEPTANCE_RUN_2026-08-02.md`](GENERAL_AGENT_ACCEPTANCE_RUN_2026-08-02.md).
 This extension is E3 and does not close the E4, paid-1M, concurrent-session or
 exact `LONG-09`/`LONG-10` boundaries.
+
+## Reasoning-on long-book extension
+
+The subsequent 2026-08-03 campaign deliberately replaced procedural test
+prompts with a vague project-level instruction and short follow-ups. It used
+DeepSeek `deepseek-v4-flash`, Standard 200k, `--thinking adaptive` and no effort
+override on a disposable `雾港纪事` clone. Across 201 model iterations the
+session processed 25,499,474 input tokens, issued 1,931 tool calls, committed
+181 effects, exercised 100 full-compactor plans and completed all 14 durable
+task steps.
+
+Intermediate failures exposed the remaining long-context bottlenecks and drove
+transactional pre-effect provider resampling, a five-minute outer compaction
+deadline, hierarchical 64k chunks, a two-paid-summary pass budget, one bounded
+soft-recent recovery, conservative quote/line-end exact-edit tolerance,
+consistent element whole-file projections and literal metadata/relation/
+punctuation grep. The final turn completed naturally, persisted a 138,375-byte
+checkpoint with 16 verified summaries and passed SQLite `quick_check`.
+
+The detailed record is
+[`GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md`](GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md).
+It closes the vague reasoning-on E3 row `LONG-13`; it does not change the E4,
+paid-1M, concurrent-session or exact historical `LONG-09`/`LONG-10` boundaries.
+The final checkout gate passed 148 files / 1,018 full Core tests, 63 files /
+603 Agent Runtime tests, typecheck, lint with zero errors (40 warnings), all
+seven deterministic milestone aggregates and the 9/9 capability drift groups.

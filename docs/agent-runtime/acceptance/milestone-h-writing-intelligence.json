@@ -1,10 +1,10 @@
 {
   "suite": "milestone-h-author-owned-writing-policy",
   "schemaVersion": 2,
-  "nodeVersion": "v24.4.0",
+  "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "c2fe2bfdc53e71d12d336e2a230e12f17f902b00",
-  "sourceSetSha256": "sha256:5d40416c168670193542aa6a45d13c836a40ff0b135a1d52bf9e2af952696394",
+  "gitHead": "ead756466a2c6daf58162268c2778dc06de1912d",
+  "sourceSetSha256": "sha256:8f77758dd29c8ab4daf9c006a6397eab2755794b4dea26bc68822918c867e6f3",
   "evidence": {
     "productWritingDefaults": "none",
     "editorContextInjected": false,
@@ -30,8 +30,8 @@
       "discovered": 6
     },
     "tests": {
-      "total": 34,
-      "passed": 34,
+      "total": 35,
+      "passed": 35,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -63,8 +63,8 @@
         "requiredFiles": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 10,
-          "passed": 10,
+          "total": 11,
+          "passed": 11,
           "failed": 0,
           "pending": 0
         },

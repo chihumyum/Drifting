@@ -1,10 +1,10 @@
 {
   "suite": "milestone-d-domain-crud-and-structural-transactions",
   "schemaVersion": 1,
-  "nodeVersion": "v24.4.0",
+  "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "c2fe2bfdc53e71d12d336e2a230e12f17f902b00",
-  "sourceSetSha256": "sha256:219aca1ab6e461061c77ce9afb4cdaa57d74b3edd2e821e7eb83d31a0bf5177d",
+  "gitHead": "ead756466a2c6daf58162268c2778dc06de1912d",
+  "sourceSetSha256": "sha256:06d26402ef08e654c58fc96a219fd55ffa606d2aa5ba4ee7982bf4c5b4684603",
   "storageReplay": {
     "sqlite": "real file-backed SQLite with every product migration, CAS guards, receipts, outbox rows, and injected transaction faults",
     "prose": "real product Yjs coordination for prose-owning workspace resources",
@@ -24,8 +24,8 @@
       "discovered": 9
     },
     "tests": {
-      "total": 57,
-      "passed": 57,
+      "total": 70,
+      "passed": 70,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -35,8 +35,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 13,
-          "passed": 13,
+          "total": 18,
+          "passed": 18,
           "failed": 0,
           "pending": 0
         },
@@ -46,8 +46,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 15,
-          "passed": 15,
+          "total": 22,
+          "passed": 22,
           "failed": 0,
           "pending": 0
         },
@@ -57,8 +57,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 11,
-          "passed": 11,
+          "total": 12,
+          "passed": 12,
           "failed": 0,
           "pending": 0
         },

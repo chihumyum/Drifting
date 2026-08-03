@@ -10,9 +10,10 @@ Status: **complete**
   provider/model/thinking/effort tuple. Native Anthropic Messages, OpenAI
   Responses and DeepSeek Chat Completions adapters converge on the same
   reasoning/text/tool-call, usage, finish, error and cancellation contract.
-- OpenAI exposes GPT-5.6 Sol/Terra/Luna. Settings and the composer expose only
+- OpenAI exposes GPT-5.6 Sol/Terra/Luna. The General Agent composer exposes only
   each model's certified thinking/effort values; hydration and provider/model
-  switches normalize stale combinations.
+  switches normalize stale combinations. API keys are managed once under
+  Settings → Models & API.
 - Reasoning tool loops retain provider-opaque replay state only for the active
   turn: DeepSeek `reasoning_content`, Anthropic signed thinking blocks, and
   OpenAI encrypted Responses output items. Missing replay state fails closed.

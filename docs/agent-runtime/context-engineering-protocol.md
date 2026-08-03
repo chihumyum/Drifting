@@ -130,22 +130,48 @@ instructs the Agent to re-read current workspace state; a single malformed
 summary therefore degrades recall but does not terminate a progressing task.
 Cancellation and timeout still stop compaction immediately.
 
-The compactor targets the larger of (a) current overage plus
-two-percent/2,048-token headroom and (b) 50% of the planned input. This prevents
-a progressing long task from compacting again immediately after one more tool
-batch. It stops once that target is met rather than paying for every remaining
-historical chunk; if eligible history is smaller, it applies every profitable
-chunk and lets the planner enforce the final budget.
+The compactor contract targets at least the larger of (a) current overage plus
+two-percent/2,048-token headroom and (b) 50% of the planned input. Product
+composition currently requests 85% reduction. It permits chunks up to 64k,
+further bounded to 45% of the selected provider's usable source budget, and
+uses at most two paid summary chunks per invocation; eligible remainder is
+represented by deterministic non-factual rollups. This prevents a progressing
+long task from compacting again immediately after one more tool batch without
+turning every historical chunk into a serial paid call.
 
 The planner independently verifies source coverage, source hash, contiguity,
 tool topology and token gain. A valid short tail whose summary provenance would
 cost more than the original remains byte-exact while profitable sibling chunks
-may still be applied. An all-no-gain batch fails and opens the scoped compaction
-circuit. A failed or timed-out compactor is not retried repeatedly in the same
-session/provider epoch.
+may still be applied. After one all-no-gain batch, the planner may release the
+oldest topology-safe soft recent-exact units and recalculate once because that
+changes the eligible projection. A second no-gain result opens the scoped
+compaction circuit. Invalid output, failure and timeout do not receive that
+recovery and are not retried repeatedly in the same session/provider epoch.
+
+The mounted product allows five minutes for the outer verified full-compaction
+pass. Individual provider chunks keep their independent shorter timeout and
+deterministic fallback, so one stalled summary cannot consume the whole pass.
 
 Verified summaries may be cached in memory or loaded from durable checkpoints.
 Every reuse is revalidated against the current canonical source IDs and hashes.
+
+### Durable checkpoint size boundary
+
+Normalized `agent_runtime_message` rows remain the exact provider-neutral
+history. A completed turn first builds the fully witnessed V2 checkpoint. If
+its serialized payload is at most 512 KiB, that V2 envelope is stored directly.
+If it is larger, the commit stores a bounded V4 checkpoint containing the
+canonical message count, SHA-256 of the rebuilt canonical history, and verified
+restart summaries. The writer drops the oldest summary accelerators until the
+V4 payload is within 512 KiB; it never drops normalized messages.
+
+On restart, V4 recovery rebuilds canonical history from normalized rows and
+must reproduce both the stored count and digest before adopting history or
+loading any summary. The planner then independently revalidates every retained
+summary against current source IDs and hashes. V3 remains readable for existing
+databases but is no longer the oversized-turn write format. These hashes prove
+durable self-consistency, not authenticity against a local attacker capable of
+rewriting the database and every hash.
 
 ## 6. Long-book evidence retrieval
 
@@ -201,7 +227,7 @@ The required gates are:
 - verified summary reuse after restart with no redundant compactor call;
 - topology-safe same-turn chunking, provider-aligned compaction and deterministic
   malformed-output fallback;
-- SQLite artifact paging and V2 checkpoint recovery across process restart;
+- SQLite artifact paging and V2/V3/V4 checkpoint recovery across process restart;
 - idempotent write/task receipts with zero duplicate mutations;
 - typecheck, scoped lint and generated capability drift gate.
 

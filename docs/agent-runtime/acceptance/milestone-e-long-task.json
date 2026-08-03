@@ -1,10 +1,10 @@
 {
   "suite": "milestone-e-durable-long-task-execution",
   "schemaVersion": 1,
-  "nodeVersion": "v24.4.0",
+  "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "c2fe2bfdc53e71d12d336e2a230e12f17f902b00",
-  "sourceSetSha256": "sha256:9c1709e685e859251df8af6315fd1cf0593bcbb4db967131ff6159862f83703f",
+  "gitHead": "ead756466a2c6daf58162268c2778dc06de1912d",
+  "sourceSetSha256": "sha256:31fc1404c6b7050dbbd396c99320d0980bc227767d9cf04246b7f6d3ece63d50",
   "execution": {
     "defaultTaskBudgets": "unlimited",
     "safeStop": "after-current-tool",
@@ -25,8 +25,8 @@
       "discovered": 10
     },
     "tests": {
-      "total": 110,
-      "passed": 110,
+      "total": 120,
+      "passed": 120,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -36,8 +36,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 13,
-          "passed": 13,
+          "total": 19,
+          "passed": 19,
           "failed": 0,
           "pending": 0
         },
@@ -47,8 +47,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 53,
-          "passed": 53,
+          "total": 55,
+          "passed": 55,
           "failed": 0,
           "pending": 0
         },
@@ -69,8 +69,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 32,
-          "passed": 32,
+          "total": 34,
+          "passed": 34,
           "failed": 0,
           "pending": 0
         },
