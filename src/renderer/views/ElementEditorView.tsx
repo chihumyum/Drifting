@@ -910,7 +910,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                             alignItems: 'center',
                             gap: 4,
                             padding: '2px 8px',
-                            borderRadius: 999,
+                            borderRadius: 1,
                             background: 'hsl(var(--surface-elev, var(--surface)))',
                             border: '1px solid hsl(var(--rule))',
                             fontFamily: 'var(--font-content)',

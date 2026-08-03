@@ -80,6 +80,12 @@ pnpm --dir client demo:purge-local
 └── vite.renderer.config.ts
 ```
 
+The workspace surface hierarchy, footer ownership, static-tab behavior, and radius boundaries are
+defined in [`docs/design-system.md`](docs/design-system.md). The visual system keeps the existing
+palette while treating the app as one flat plane with at most three raised work surfaces. The
+mobile starting point and its explicit product gaps are tracked in
+[`docs/mobile-ui-foundation.md`](docs/mobile-ui-foundation.md).
+
 ## Data migration
 
 On the first desktop Tauri launch, Drifting looks for the former desktop client's `Drifting`
@@ -106,8 +112,9 @@ and transfer, lifecycle flush events, external-browser OAuth with queued deep li
 OS-backed credential storage. Apple targets use Keychain through `keyring`; Android uses the
 private Keystore-backed `drifting-secure-storage` plugin with no plaintext fallback.
 
-The shell already handles safe areas, dynamic viewport height, touch-sized chrome, and overlay
-sidebars. This is a portability baseline, not a claim of finished mobile-native UX. Story graph,
+The shell already handles safe areas, dynamic viewport height, responsive entry pages, and overlay
+sidebars. A shared touch-target scale and mobile navigation model are still missing. This is a
+portability baseline, not a claim of finished mobile-native UX. Story graph,
 split editor, plot grid, soft-keyboard behavior, and dense touch interactions still require
 device-specific product passes. Native desktop, iOS, and Android smoke results must remain explicit;
 the checked-in Agent acceptance reports currently mark those manual smokes as not run.

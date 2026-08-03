@@ -217,8 +217,7 @@
   z-index: 4;
 }
 
-/* Band context menu — portaled to body (position: fixed) so it escapes the
-   shell's backdrop-filter containing block, same as every other popover. */
+/* Band context menu — portaled to body as a sharp fixed surface. */
 .actrail__menu {
   z-index: var(--z-popover);
   min-width: 168px;
@@ -227,8 +226,8 @@
   flex-direction: column;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 6px;
-  box-shadow: 0 8px 24px hsl(var(--ink-1) / 0.14);
+  border-radius: 2px;
+  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
 }
 .actrail__menu button {
   appearance: none;
@@ -236,7 +235,7 @@
   background: none;
   text-align: left;
   padding: 6px 10px;
-  border-radius: 4px;
+  border-radius: 0;
   font-size: 12px;
   color: hsl(var(--ink-2));
   cursor: pointer;

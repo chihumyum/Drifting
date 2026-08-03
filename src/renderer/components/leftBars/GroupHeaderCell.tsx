@@ -89,11 +89,8 @@ export function GroupHeaderCell({
               // Use the same chrome-bg as the surrounding sidebar so the
               // sticky header reads as part of the panel surface, matching
               // surrounding element cells (which are transparent over the
-              // same chrome background). The
-              // backdrop blur keeps occlusion when rows scroll underneath.
+              // same chrome background).
               background: 'var(--chrome-bg)',
-              backdropFilter: 'blur(12px) saturate(180%)',
-              WebkitBackdropFilter: 'blur(12px) saturate(180%)',
             }
           : {}),
       }}

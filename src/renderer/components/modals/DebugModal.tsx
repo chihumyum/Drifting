@@ -116,14 +116,14 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
           <h3 className="font-medium text-gray-900">{title}</h3>
           <button
             onClick={() => copyToClipboard(data)}
-            className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+            className="flex items-center gap-1 rounded-[1px] bg-gray-100 px-2 py-1 text-xs transition-colors hover:bg-gray-200"
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}
             {copied ? '已复制' : '复制'}
           </button>
         </div>
 
-        <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-auto">
+        <div className="max-h-96 overflow-auto rounded-[2px] bg-gray-50 p-4">
           <pre className="text-xs text-gray-800 whitespace-pre-wrap break-words">
             {JSON.stringify(data, null, 2)}
           </pre>
@@ -131,7 +131,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
 
         {/* 数据统计 */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-          <div className="bg-blue-50 p-2 rounded">
+          <div className="rounded-[1px] bg-blue-50 p-2">
             <div className="text-blue-600 font-medium">项目</div>
             <div className="text-blue-900">
               {Array.isArray((data as LocalDebugData).projects)
@@ -140,7 +140,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
               个
             </div>
           </div>
-          <div className="bg-green-50 p-2 rounded">
+          <div className="rounded-[1px] bg-green-50 p-2">
             <div className="text-green-600 font-medium">节点</div>
             <div className="text-green-900">
               {Array.isArray((data as LocalDebugData).nodes)
@@ -149,7 +149,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
               个
             </div>
           </div>
-          <div className="bg-purple-50 p-2 rounded">
+          <div className="rounded-[1px] bg-purple-50 p-2">
             <div className="text-purple-600 font-medium">故事线</div>
             <div className="text-purple-900">
               {Array.isArray((data as LocalDebugData).storylines)
@@ -158,7 +158,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
               个
             </div>
           </div>
-          <div className="bg-yellow-50 p-2 rounded">
+          <div className="rounded-[1px] bg-yellow-50 p-2">
             <div className="text-yellow-600 font-medium">元素</div>
             <div className="text-yellow-900">
               {Array.isArray((data as LocalDebugData).elements)
@@ -167,7 +167,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
               个
             </div>
           </div>
-          <div className="bg-pink-50 p-2 rounded">
+          <div className="rounded-[1px] bg-pink-50 p-2">
             <div className="text-pink-600 font-medium">分类</div>
             <div className="text-pink-900">
               {Array.isArray((data as LocalDebugData).categories)
@@ -176,7 +176,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
               个
             </div>
           </div>
-          <div className="bg-indigo-50 p-2 rounded">
+          <div className="rounded-[1px] bg-indigo-50 p-2">
             <div className="text-indigo-600 font-medium">用户</div>
             <div className="text-indigo-900">{user?.email || 'N/A'}</div>
           </div>
@@ -234,7 +234,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
         </div>
 
         {/* 详细差异 */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+        <div className="mt-4 rounded-[2px] border border-yellow-200 bg-yellow-50 p-4">
           <h4 className="font-medium text-yellow-800 mb-2">⚠️ 同步建议</h4>
           <ul className="text-sm text-yellow-700 space-y-1">
             {serverData.projects?.length > sqliteData.projects?.length && (
@@ -267,7 +267,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-[2px] bg-white shadow-lg">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
@@ -278,12 +278,12 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
             <button
               onClick={loadAllData}
               disabled={loading}
-              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+              className="flex items-center gap-1 rounded-[1px] bg-blue-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
               {loading ? '加载中...' : '刷新数据'}
             </button>
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded transition-colors">
+            <button onClick={onClose} className="rounded-[1px] p-1 transition-colors hover:bg-gray-100">
               <X size={20} />
             </button>
           </div>

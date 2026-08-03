@@ -11,19 +11,8 @@
   background: hsl(var(--paper));
   display: flex;
   flex-direction: column;
-  animation: set-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
   font-family: var(--font-sans);
   color: hsl(var(--ink-1));
-}
-@keyframes set-in {
-  from {
-    opacity: 0;
-    transform: scale(0.992);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
 }
 
 /* ───── Header bar ───── */
@@ -1386,7 +1375,7 @@
 /* About block */
 .set-about {
   border: 1px solid hsl(var(--rule));
-  border-radius: 5px;
+  border-radius: 2px;
   background: hsl(var(--surface));
   padding: 20px 22px;
   display: flex;
@@ -1396,7 +1385,7 @@
 .set-about__glyph {
   width: 64px;
   height: 64px;
-  border-radius: 12px;
+  border-radius: 2px;
   background: linear-gradient(135deg, hsl(var(--story-1)), hsl(var(--story-5)));
   color: hsl(var(--paper));
   display: grid;
@@ -1655,7 +1644,7 @@
   gap: 6px;
   padding: 5px 11px 5px 9px;
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 14px;
+  border-radius: 1px;
   font-family: var(--font-sans);
   font-size: 12px;
   color: hsl(var(--ink-2));
@@ -1697,44 +1686,44 @@
 }
 
 /* ============================================================
-   Floating-islands layout
-   Mirrors index.css's app-root → app-chrome + app-island pattern:
-   the overlay becomes the wallpaper (paper-deep with 6px padding +
-   gap), and head / rail / main become three frosted islands that
-   sit on it.
+   Flat settings workspace
+   Header, navigation rail and content meet on one continuous plane. The
+   rail is an edge-anchored tool slab; separators replace island gaps.
    ============================================================ */
 .set-overlay {
-  padding: 6px;
-  gap: 6px;
+  padding: 0;
+  gap: 0;
   background: hsl(var(--paper-deep));
 }
 
 .set-head {
-  background: var(--chrome-bg);
-  border-bottom: none;
+  background: hsl(var(--paper-deep));
+  border-bottom: 1px solid hsl(var(--rule));
 }
 
 .set-body {
-  gap: 6px;
+  gap: 0;
 }
 
 .set-rail {
   background: var(--chrome-bg);
-  border-right: none;
+  border-right: 1px solid hsl(var(--rule));
+  box-shadow: 10px 0 28px -24px hsl(var(--ink-1) / 0.38);
 }
 
 .set-main {
   background: var(--chrome-bg);
 }
 
-/* `.app-island` forces overflow:hidden so the border-radius clips
-   child backgrounds; rail + main both need vertical scrolling
-   though, so restore it at higher specificity. overflow-x stays
-   hidden so the rounded corners still clip horizontally. */
-.set-rail.app-island,
-.set-main.app-island {
+/* Rail and content own independent vertical scrolling. */
+.set-rail,
+.set-main {
   overflow-y: auto;
   overflow-x: hidden;
+  border-radius: 0;
+}
+.set-main {
+  box-shadow: none;
 }
 
 /* Mobile shell: keep the full-screen settings surface inside system safe
@@ -1745,13 +1734,6 @@ html[data-platform-target='mobile'] .set-overlay {
   padding-right: var(--safe-area-right);
   padding-bottom: var(--safe-area-bottom);
   padding-left: var(--safe-area-left);
-}
-
-html[data-platform-target='mobile'] .set-overlay {
-  padding-top: max(6px, var(--safe-area-top));
-  padding-right: max(6px, var(--safe-area-right));
-  padding-bottom: max(6px, var(--safe-area-bottom));
-  padding-left: max(6px, var(--safe-area-left));
 }
 
 @media (max-width: 600px) {
@@ -1811,7 +1793,7 @@ html[data-platform-target='mobile'] .set-overlay {
 .set-agent-ext__form {
   padding: 12px;
   border: 1px solid hsl(var(--line));
-  border-radius: 8px;
+  border-radius: 2px;
   background: hsl(var(--paper-deep) / 0.48);
 }
 
@@ -1854,7 +1836,7 @@ html[data-platform-target='mobile'] .set-overlay {
 
 .set-agent-ext__health {
   padding: 2px 7px;
-  border-radius: 999px;
+  border-radius: 1px;
   background: hsl(var(--paper-deep));
   color: hsl(var(--ink-4));
   font-family: var(--font-mono);

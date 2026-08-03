@@ -298,15 +298,15 @@ export function LibraryPanel({ focused }: Props) {
       />
 
       <div
-        className="scroll-no-bar"
+        className="scroll-no-bar workspace-list"
         style={{
           flex: 1,
           minHeight: 0,
           overflowY: 'auto',
-          padding: '8px 12px 12px',
+          padding: '0 12px 12px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 6,
+          gap: 0,
         }}
       >
         {filteredLibraryItems.length === 0 && (
@@ -777,13 +777,11 @@ export function TodoCard({
 
   return (
     <div
+      className="workspace-list-row"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
         padding: '7px 10px',
-        borderRadius: 4,
-        border: '1px solid hsl(var(--rule))',
-        background: 'hsl(var(--surface))',
         display: 'flex',
         flexDirection: 'column',
         gap: 5,
@@ -1019,14 +1017,12 @@ export function LibraryItemCard({
   return (
     <>
       <div
+        className="workspace-list-row"
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onContextMenu={openContextMenu}
         style={{
           padding: '8px 10px',
-          borderRadius: 4,
-          border: '1px solid hsl(var(--rule))',
-          background: 'hsl(var(--surface))',
           maxHeight: isTextExpanded ? 'none' : 320,
           overflow: isTextExpanded ? 'visible' : 'hidden',
           display: 'flex',
@@ -1925,7 +1921,6 @@ export function LibraryItemFullscreenPreview({
         zIndex: 'var(--z-context-menu)',
         padding: isZoomablePreview ? 0 : '28px 32px',
         background: 'hsl(var(--ink-1) / 0.58)',
-        backdropFilter: isZoomablePreview ? 'none' : 'blur(2px)',
         display: 'flex',
         alignItems: 'stretch',
         justifyContent: 'center',
@@ -2156,10 +2151,10 @@ function PdfCanvasPreview({
             alignItems: 'center',
             gap: 8,
             padding: '5px 8px',
-            borderRadius: 999,
+            borderRadius: 2,
             border: '1px solid hsl(var(--rule))',
             background: 'hsl(var(--paper) / 0.88)',
-            boxShadow: '0 8px 20px hsl(var(--ink-1) / 0.16)',
+            boxShadow: '0 12px 24px -14px hsl(var(--ink-1) / 0.3)',
             fontFamily: 'var(--font-mono)',
             fontSize: 11,
             color: 'hsl(var(--ink-2))',
@@ -2196,7 +2191,7 @@ function PdfPageButton({
       disabled={disabled}
       style={{
         border: 'none',
-        borderRadius: 999,
+        borderRadius: 1,
         background: disabled ? 'transparent' : 'hsl(var(--paper-deep))',
         color: disabled ? 'hsl(var(--ink-5))' : 'hsl(var(--ink-1))',
         cursor: disabled ? 'default' : 'pointer',

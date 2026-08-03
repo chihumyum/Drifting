@@ -1,6 +1,5 @@
 /* Context menu for timeline pins (shared by BottomTimeline + StoryGraphView).
-   Portaled to body — fixed positioning escapes backdrop-filter containing
-   blocks; same visual recipe as .actrail__menu. */
+   Portaled to body and rendered as a sharp fixed surface. */
 
 .tlpin-menu {
   z-index: var(--z-context-menu);
@@ -11,8 +10,8 @@
   flex-direction: column;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 6px;
-  box-shadow: 0 8px 24px hsl(var(--ink-1) / 0.14);
+  border-radius: 2px;
+  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
 }
 .tlpin-menu button {
   appearance: none;
@@ -20,7 +19,7 @@
   background: none;
   text-align: left;
   padding: 6px 10px;
-  border-radius: 4px;
+  border-radius: 0;
   font-size: 12px;
   color: hsl(var(--ink-2));
   cursor: pointer;

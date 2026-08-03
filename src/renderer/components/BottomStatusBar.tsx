@@ -12,10 +12,9 @@ import { CopilotBottomMenu } from './copilot/CopilotBottomMenu';
 import { ShadowQuickMenu } from './ShadowQuickMenu';
 import '../../styles/bottom-status-bar.css';
 
-// BottomStatusBar — always-visible compact footer. Hosts the project-global
-// nav segments (Home / All-Chapters) and super-view toggles (Element / Story
-// Graph / Memo & Material) on the left, the BottomTimeline visibility toggle
-// on the right.
+// BottomStatusBar — always-visible compact command strip owned by the center
+// workspace column. Open sidebars continue through the bottom corners instead
+// of being cut off by a viewport-wide footer.
 
 type SuperViewId = 'element' | 'graph' | 'memo-material';
 
@@ -45,7 +44,7 @@ export function BottomStatusBar() {
   };
 
   return (
-    <div className="bsb app-chrome app-island">
+    <div className="bsb app-plane">
       <button
         type="button"
         className="bsb__seg bsb__nav"

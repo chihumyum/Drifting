@@ -14,7 +14,7 @@
   right: 0;
   /* Anchor above the BottomStatusBar — same var as the super-view
      overlays so the panel sits flush with the overlay's bottom edge in
-     the shared 32px shell inset, including the island gap. */
+     the center-column status-strip inset. */
   bottom: var(--super-view-bottom-inset);
   display: flex;
   flex-direction: column;
@@ -40,32 +40,26 @@
   padding: 6px 16px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong, var(--rule)));
-  border-radius: 6px;
+  border-radius: 1px;
   color: hsl(var(--ink-2));
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 10.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  box-shadow: 0 4px 14px hsl(var(--ink-1) / 0.08);
-  transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.12s;
-  animation: drift-panel-tab-in 140ms ease-out;
-}
-@keyframes drift-panel-tab-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  box-shadow: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 .drift-panel__tab:hover {
   background: hsl(var(--ink-1));
   color: hsl(var(--paper));
   border-color: hsl(var(--ink-1));
-  transform: translateY(-1px);
 }
 .drift-panel__count {
   background: hsl(var(--rule));
   color: hsl(var(--ink-2));
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: 1px;
   font-size: 9px;
 }
 .drift-panel__tab:hover .drift-panel__count {
@@ -73,7 +67,7 @@
   color: hsl(var(--paper));
 }
 
-/* Circular × close button — centered above the open panel. */
+/* Compact × close button — centered above the open panel. */
 .drift-panel__close {
   pointer-events: none;
   display: grid;
@@ -83,7 +77,7 @@
   margin-bottom: 6px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong, var(--rule)));
-  border-radius: 50%;
+  border-radius: 2px;
   color: hsl(var(--ink-3));
   cursor: pointer;
   font-size: 14px;
@@ -91,7 +85,7 @@
   padding: 0;
   opacity: 0;
   transform: translateY(6px) scale(0.96);
-  box-shadow: 0 2px 8px hsl(var(--ink-1) / 0.12);
+  box-shadow: none;
   transition:
     background 0.12s,
     color 0.12s,
@@ -112,7 +106,7 @@
   background: hsl(var(--ink-1));
   color: hsl(var(--paper));
   border-color: hsl(var(--ink-1));
-  transform: scale(1.05);
+  transform: translateY(0);
 }
 
 /* Panel slides as a single hand. Starts below the viewport edge so
@@ -179,7 +173,7 @@
   padding: 8px 10px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule));
-  border-radius: 3px;
+  border-radius: 1px;
   cursor: pointer;
   user-select: none;
   overflow: hidden;
@@ -207,7 +201,7 @@
 .drift-card.is-edge-selected {
   border-color: hsl(var(--accent));
   border-width: 2px;
-  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.18), 0 4px 12px hsl(var(--ink-1) / 0.12);
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.18);
 }
 /* GraphView only — source card faded while a drag ghost is in flight. */
 .drift-card.is-dragged {

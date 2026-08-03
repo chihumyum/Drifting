@@ -275,7 +275,7 @@ function TraceView({ trace, running }: { trace: EvolveTraceStep[]; running: bool
           margin: '6px 0 0',
           padding: '6px 8px',
           border: '1px solid hsl(var(--rule))',
-          borderRadius: 6,
+          borderRadius: 2,
           background: 'hsl(var(--paper-deep) / 0.35)',
           display: 'flex',
           flexDirection: 'column',
@@ -482,7 +482,7 @@ function EvolveResultView({
           color: accent,
           border: '1px solid hsl(var(--rule))',
           background: 'hsl(var(--paper-deep) / 0.4)',
-          borderRadius: 6,
+          borderRadius: 2,
           padding: '6px 8px',
         }}
       >

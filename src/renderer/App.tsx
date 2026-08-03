@@ -1,6 +1,6 @@
 import { Component, useEffect, useRef, useState } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { NodeEditorView } from './views/NodeEditorView';
 import { ElementEditorView } from './views/ElementEditorView';
@@ -275,7 +275,6 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 function Layout() {
   const { t } = useTranslation();
-  const location = useLocation();
   const { projectId } = useParams<{ projectId: string }>();
   const userId = useAuthStore((state) => state.user?.id);
   if (!projectId) {
@@ -286,7 +285,6 @@ function Layout() {
     log.error('No userId found in auth store');
     throw new Error('User must be authenticated');
   }
-  const isEditorRoute = location.pathname.includes('/editor');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsTargetRail, setSettingsTargetRail] = useState<string | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -787,7 +785,9 @@ function Layout() {
   }
 
   return (
-    // 1. 最外层容器：占满屏幕，垂直排列 (中间内容 + 底部时间轴)
+    // One flat workspace plane. The titlebar sits above a three-column body;
+    // both sidebars now run all the way to the bottom while the center column
+    // owns the editor, optional timeline and compact status strip.
     <div
       className="app-root"
       style={{
@@ -795,15 +795,11 @@ function Layout() {
         width: '100vw',
         display: 'flex',
         flexDirection: 'column',
-        // Hide any overflow at the outermost container. The bottom status
-        // bar adds a fixed compact row, so without this clamp the combined
-        // height would push the page into having a window-level scrollbar.
+        // Keep scrolling inside the editor/panels rather than at window level.
         overflow: 'hidden',
       }}
     >
-      {/* 2. 中间主要区域：水平排列 (侧边栏 + 主内容) */}
       <AppTopbar />
-      {/* flex: 1 让它占据除底部时间轴外的所有垂直空间 */}
       <div className="app-row" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left Sidebar */}
         {/* 侧边栏不需要设高度，因为它在 flex 容器里会自动撑满高度 */}
@@ -831,8 +827,8 @@ function Layout() {
           </div>
         </Sidebar>
 
-        {/* Transparent middle column: editor and timeline remain independent
-            floating islands, with each child painting its own surface. */}
+        {/* The center column stays on the workspace plane. Only the manuscript
+            page inside the editor carries document elevation. */}
         <main
           className="app-mid"
           style={{
@@ -843,30 +839,33 @@ function Layout() {
             minWidth: 0, // 关键：防止 flex 子元素被宽内容撑爆
           }}
         >
-          {/* Editor card. In single-pane mode EditorMainArea renders
+          {/* Editor stage. In single-pane mode EditorMainArea renders
               <Outlet /> internally, so the matched route's view component
               still scrolls inside this container. In split mode it renders
               two panes directly and suppresses the Outlet — each pane's
-              view scrolls independently within its half of the editor
-              surface. */}
+              view scrolls independently within its half of the stage. */}
           <div
-            className="app-island"
+            className="workspace-stage"
             style={{
               flex: 1,
               overflowY: 'auto',
               overflowX: 'hidden',
               position: 'relative',
-              background: isEditorRoute ? 'hsl(var(--page))' : 'hsl(var(--surface))',
             }}
           >
             <EditorMainArea />
           </div>
-          {/* 底部时间轴是独立浮层；`.btl` 自己绘制背景。 */}
+          {/* The optional timeline is a dock in the center column, not a
+              fourth elevated island. */}
           {!bottomTimelineHidden && (
-            <div className="app-island" style={{ flexShrink: 0, zIndex: 10 }}>
+            <div className="workspace-dock" style={{ flexShrink: 0, zIndex: 10 }}>
               <BottomTimeline />
             </div>
           )}
+          {/* Project-wide commands follow the editor column. Open sidebars own
+              their bottom corners instead of being cut off by a full-width
+              footer. */}
+          <BottomStatusBar />
           {/* In-document Cmd+F find panel — anchored to this editor column
               (.app-mid is position:relative) so it floats over the text area
               instead of the viewport's top-right, which used to occlude the
@@ -887,12 +886,6 @@ function Layout() {
           </div>
         </Sidebar>
       </div>
-
-      {/* Always-visible bottom status bar — full width, sits below the
-          editor + sidebars. Hosts the BottomTimeline toggle, so even when
-          the timeline is hidden there's a one-click affordance to bring it
-          back. */}
-      <BottomStatusBar />
 
       {/* Overlays / Modals (绝对定位层) */}
       <AgentConfirmDialog />

@@ -399,7 +399,7 @@ export const useUiStore = create<UiState>()(
 
       sidebars: {
         left: {
-          isOpen: true,
+          isOpen: false,
           width: 280,
         },
         right: {

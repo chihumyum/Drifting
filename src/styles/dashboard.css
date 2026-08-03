@@ -40,10 +40,9 @@
   margin-bottom: 16px;
   padding: 28px;
   border: 1px solid hsl(var(--rule));
-  border-radius: 16px;
-  background:
-    linear-gradient(145deg, hsl(var(--accent) / 0.065), transparent 38%), hsl(var(--surface));
-  box-shadow: 0 12px 36px hsl(var(--ink-1) / 0.045);
+  border-radius: 2px;
+  background: hsl(var(--surface));
+  box-shadow: none;
 }
 
 .dash-hero__kicker {
@@ -123,7 +122,7 @@
   min-width: 0;
   padding: 11px 12px;
   border: 1px solid hsl(var(--rule));
-  border-radius: 10px;
+  border-radius: 1px;
   background: hsl(var(--paper) / 0.68);
 }
 
@@ -224,7 +223,7 @@
   gap: 6px;
   padding: 0 10px;
   border: 1px solid hsl(var(--rule));
-  border-radius: 9px;
+  border-radius: 2px;
   color: hsl(var(--ink-2));
   background: hsl(var(--surface));
   font: 620 11px/1 var(--font-sans);
@@ -257,10 +256,9 @@
   margin-bottom: 16px;
   padding: 6px;
   border: 1px solid hsl(var(--rule));
-  border-radius: 12px;
-  background: hsl(var(--surface) / 0.94);
-  box-shadow: 0 8px 26px hsl(var(--ink-1) / 0.045);
-  backdrop-filter: blur(14px);
+  border-radius: 0;
+  background: hsl(var(--surface));
+  box-shadow: none;
 }
 
 .dash-view-tab,
@@ -272,7 +270,7 @@
   gap: 7px;
   padding: 0 14px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 0;
   color: hsl(var(--ink-3));
   background: transparent;
   font: 620 12px/1 var(--font-sans);
@@ -318,7 +316,7 @@
   min-height: 36px;
   padding-right: 12px;
   padding-left: 12px;
-  border-radius: 8px;
+  border-radius: 1px;
   font-family: var(--font-sans);
   font-weight: 600;
   letter-spacing: 0;
@@ -341,9 +339,9 @@
 .dash-section {
   min-width: 0;
   border: 1px solid hsl(var(--rule));
-  border-radius: 14px;
+  border-radius: 2px;
   background: hsl(var(--surface));
-  box-shadow: 0 8px 28px hsl(var(--ink-1) / 0.035);
+  box-shadow: none;
 }
 
 .dash-continue {
@@ -355,14 +353,11 @@
   padding: 24px;
   overflow: hidden;
   cursor: pointer;
-  transition:
-    border-color 140ms ease,
-    transform 140ms ease;
+  transition: border-color 140ms ease;
 }
 
 .dash-continue:hover {
   border-color: color-mix(in srgb, var(--c-color) 45%, transparent);
-  transform: translateY(-1px);
 }
 
 .dash-continue__kicker {
@@ -503,7 +498,7 @@
   height: 5px;
   margin-top: 10px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: 0;
   background: hsl(var(--paper-deep));
 }
 
@@ -528,7 +523,7 @@
   flex-direction: column;
   gap: 4px;
   padding: 8px;
-  border-radius: 8px;
+  border-radius: 1px;
   background: hsl(var(--paper-deep));
 }
 
@@ -629,7 +624,7 @@
   gap: 14px;
   padding: 11px 12px;
   border: 1px solid hsl(var(--rule));
-  border-radius: 10px;
+  border-radius: 1px;
   background: hsl(var(--paper) / 0.68);
   cursor: pointer;
   transition:
@@ -647,7 +642,7 @@
   width: 30px;
   height: 30px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 1px;
   color: var(--s-color);
   background: color-mix(in srgb, var(--s-color) 11%, transparent);
   font-size: 10px;
@@ -724,7 +719,7 @@
   height: 4px;
   margin-top: 6px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: 0;
   background: hsl(var(--paper-deep));
 }
 
@@ -790,7 +785,7 @@
   min-width: 0;
   padding: 12px;
   border: 1px solid hsl(var(--rule));
-  border-radius: 10px;
+  border-radius: 1px;
   background: hsl(var(--paper) / 0.68);
   cursor: pointer;
 }
@@ -883,7 +878,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: 0;
   background: hsl(var(--paper) / 0.68);
   cursor: pointer;
 }
@@ -942,7 +937,7 @@
   gap: 8px;
   padding: 14px;
   border: 1px solid hsl(var(--rule));
-  border-radius: 10px;
+  border-radius: 1px;
   background: hsl(var(--paper) / 0.68);
 }
 
@@ -958,7 +953,7 @@
   align-items: center;
   overflow: hidden;
   border: 1px solid hsl(var(--rule));
-  border-radius: 8px;
+  border-radius: 1px;
   background: hsl(var(--surface));
 }
 
@@ -1023,7 +1018,7 @@
   resize: vertical;
   padding: 12px;
   border: 1px solid hsl(var(--rule));
-  border-radius: 10px;
+  border-radius: 1px;
   outline: 0;
   color: hsl(var(--ink-1));
   background: hsl(var(--paper) / 0.68);

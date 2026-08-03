@@ -318,7 +318,7 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
       />
       <div className="set-body">
         <SetRail items={filtered} active={active} onSelect={onRail} />
-        <main className="set-main app-chrome app-island" ref={mainRef}>
+        <main className="set-main" ref={mainRef}>
           <AccountPanel registerRef={(el) => (panelRefs.current.account = el ?? undefined)} />
           <SubscriptionPanel
             registerRef={(el) => (panelRefs.current.subscription = el ?? undefined)}
@@ -367,7 +367,7 @@ function SetHead({
   const runtime = getPlatformRuntime();
   return (
     <div
-      className="set-head app-chrome app-island"
+      className="set-head app-plane"
       data-tauri-drag-region={runtime.desktopWindowControls ? 'deep' : undefined}
       style={{ paddingLeft: runtime.isMacDesktop ? 86 : 18 }}
     >
@@ -439,7 +439,7 @@ function SetRail({
   }
 
   return (
-    <nav className="set-rail app-chrome app-island">
+    <nav className="set-rail">
       <div className="set-rail__who">
         <div className="set-rail__who-avatar">{initial}</div>
         <div className="set-rail__who-body">
@@ -3376,7 +3376,7 @@ function CopilotByokWarning({ credentialsActive }: { credentialsActive: boolean 
       style={{
         margin: '0 0 10px',
         padding: '9px 12px',
-        borderRadius: 6,
+        borderRadius: 2,
         background: 'hsl(38 92% 50% / 0.1)',
         border: '1px solid hsl(38 80% 50% / 0.35)',
         fontSize: 12.5,

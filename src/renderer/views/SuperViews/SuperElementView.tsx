@@ -552,9 +552,11 @@ function ChapterBand({
               width: BAND_PILL_PX,
               height: CELL_H - 6,
               borderRadius: 3,
-              background: isLinkSource ? 'hsl(var(--paper-deep))' : 'hsl(var(--paper))',
+              background: isLinkSource
+                ? 'hsl(var(--paper-deep))'
+                : `color-mix(in srgb, ${color} 6%, hsl(var(--paper)))`,
               border: `1px solid ${color}`,
-              boxShadow: `inset 0 2px 0 ${color}`,
+              boxShadow: 'none',
               outline: isLinkSource ? `2px dashed ${color}` : 'none',
               outlineOffset: isLinkSource ? '1px' : 0,
               display: 'flex',
@@ -2341,9 +2343,8 @@ export function SuperElementView() {
         }
       />
 
-      {/* Canvas viewport. Doubles as the body island —
-          .super-view-body picks up the rounded+shadow treatment alongside
-          the header above it. position:absolute child (`worldRef`) is
+      {/* Canvas viewport. `.super-view-body` keeps it aligned with the shared
+          flat full-screen shell. The position:absolute child (`worldRef`) is
           unaffected by the class's `display: flex` since it's out of flow. */}
       <div
         ref={viewportRef}

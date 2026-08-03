@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { isChapter, isDrift as isDriftNode } from '../../../domain/book-node';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
-import { useSlidingIndicator } from '../../../hooks/useSlidingIndicator';
 import {
   useUiStore,
   useProjectTabs,
@@ -146,29 +145,9 @@ export function TopTimeline() {
   const bookElementCategories = useDataStore((s) => s.bookElementCategories);
   const primaryStorylineByNode = useDataStore((s) => s.primaryStorylineByNode);
 
-  // Reuse the indicator hook's ref as the container ref — the hook needs
-  // the same DOM node for its ResizeObserver, and we don't want two refs
-  // racing for the same element. The indicator slides under whichever tab
-  // carries `.app-tab.is-active` (we already set that via inline className).
-  //
-  // Pass `openTabs` (not just `.length`) so a reorder re-fires the measure
-  // pass: after dropping a dragged tab, the active tab's DOM position may
-  // have changed even though the count and the active key didn't, and the
-  // pill needs to slide to the new spot.
-  //
-  // Also pass the entity collections: renaming the active entity grows its
-  // tab box (`tabWidths` re-measures the longer label) without changing
-  // `activeTabKey`, `openTabs`, or the container's own size — so neither the
-  // measure pass nor the container ResizeObserver would otherwise re-fire,
-  // and the pill would keep its stale width. These arrays change reference
-  // on any title edit, re-triggering the measure pass to re-read the now
-  // wider active tab. (`activeTabKey` is unchanged, so this takes the snap
-  // path — the pill resizes in place rather than sliding.)
-  const [containerRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
-    activeTabKey,
-    '.app-tab.is-active',
-    [openTabs, bookNodes, storylines, bookElements, bookElementCategories],
-  );
+  // The active tab paints its own static rectangular state. The container ref
+  // remains the authority for width allocation, drag/drop and scrolling.
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
   // Where the dragged tab would land if dropped right now. `side` is which
@@ -329,8 +308,8 @@ export function TopTimeline() {
     return ideals.map((w, i) => Math.max(TAB_FLOOR_WIDTH * weights[i], Math.floor(w * scale)));
   }, [openTabs, lookups, containerWidth]);
 
-  // A single sliding-pill drop indicator lives beside the active-tab pill
-  // and translates between drop positions.
+  // A narrow insertion marker translates between drag-and-drop positions.
+  // It is reorder feedback, independent of the static active-tab treatment.
   // DOM geometry is captured by the drag event that creates the target. This
   // keeps ref reads in an event handler (where React permits them) instead of
   // reading the container ref during render.
@@ -353,9 +332,9 @@ export function TopTimeline() {
     const cRect = container.getBoundingClientRect();
     const eRect = activeEl.getBoundingClientRect();
     if (eRect.left < cRect.left) {
-      container.scrollBy({ left: eRect.left - cRect.left - 8, behavior: 'smooth' });
+      container.scrollBy({ left: eRect.left - cRect.left - 8, behavior: 'auto' });
     } else if (eRect.right > cRect.right) {
-      container.scrollBy({ left: eRect.right - cRect.right + 8, behavior: 'smooth' });
+      container.scrollBy({ left: eRect.right - cRect.right + 8, behavior: 'auto' });
     }
   }, [activeTabKey, tabWidths, containerWidth, containerRef]);
 
@@ -576,11 +555,10 @@ export function TopTimeline() {
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
-        // The absolutely positioned indicators measure against this strip.
+        // The drop marker positions against this strip.
         position: 'relative',
       }}
     >
-      <div className="tab-indicator" style={indicatorStyle} />
       <div className="tab-drop-indicator" style={dropIndicatorStyle} aria-hidden />
       {openTabs.map((tab, index) => {
         const key = tabKey(tab);
@@ -609,11 +587,11 @@ export function TopTimeline() {
               )
             : null;
           if (!targetElement) return;
-          const PILL_WIDTH = 3;
+          const DROP_INDICATOR_WIDTH = 3;
           const indicatorX =
             side === 'before'
-              ? targetElement.offsetLeft - PILL_WIDTH / 2
-              : targetElement.offsetLeft + targetElement.offsetWidth - PILL_WIDTH / 2;
+              ? targetElement.offsetLeft - DROP_INDICATOR_WIDTH / 2
+              : targetElement.offsetLeft + targetElement.offsetWidth - DROP_INDICATOR_WIDTH / 2;
           setDropTarget((prev) =>
             prev &&
             prev.index === targetIndex &&
@@ -808,10 +786,10 @@ function LeafTabSlot({
           paddingRight: 6,
           width,
           minWidth: TAB_FLOOR_WIDTH,
-          background: 'transparent',
+          background: isActive ? 'hsl(var(--surface))' : 'transparent',
           opacity: isDragging ? 0.5 : 1,
           cursor: 'pointer',
-          transition: 'background 0.18s ease, opacity 0.15s ease',
+          transition: 'opacity 0.12s ease',
           fontFamily: 'var(--font-sans)',
           fontSize: 12.5,
           color: isActive ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
@@ -822,7 +800,9 @@ function LeafTabSlot({
           fontWeight: 400,
           textShadow: isActive ? '0 0 0.6px currentcolor' : 'none',
           fontStyle: tab.isPreview ? 'italic' : 'normal',
-          borderBottom: '2px solid transparent',
+          borderBottom: isActive
+            ? '1px solid hsl(var(--surface))'
+            : '1px solid hsl(var(--rule))',
           position: 'relative',
           overflow: 'hidden',
           whiteSpace: 'nowrap',
@@ -884,7 +864,7 @@ function LeafTabSlot({
           width: 16,
           height: 16,
           marginLeft: 2,
-          borderRadius: 3,
+          borderRadius: 1,
           border: 'none',
           background: 'transparent',
           color: 'hsl(var(--ink-3))',
@@ -976,15 +956,17 @@ function SplitTabSlot({
         alignItems: 'stretch',
         width,
         minWidth: TAB_FLOOR_WIDTH * SPLIT_WEIGHT,
-        background: 'transparent',
+        background: isActive ? 'hsl(var(--surface))' : 'transparent',
         opacity: isDragging ? 0.5 : 1,
         cursor: 'pointer',
-        transition: 'background 0.18s ease, opacity 0.15s ease',
+        transition: 'opacity 0.12s ease',
         // Subtle bracket so the fused tab reads as one slot containing two
         // sub-labels rather than two independent tabs jammed together.
         border: '1px solid hsl(var(--rule))',
         borderTop: 'none',
-        borderBottom: '1px solid hsl(var(--rule))',
+        borderBottom: isActive
+          ? '1px solid hsl(var(--surface))'
+          : '1px solid hsl(var(--rule))',
         borderRadius: 0,
         position: 'relative',
         overflow: 'hidden',
@@ -1090,7 +1072,7 @@ function SplitSubLabel({
         // focused side is signalled by `color` + the text-shadow — an extra
         // accent tint here just reads as visual clutter.
         background: 'transparent',
-        transition: 'background 0.15s, color 0.15s',
+        transition: 'none',
       }}
     >
       <span
@@ -1142,7 +1124,7 @@ function SplitSubLabel({
           justifyContent: 'center',
           width: 14,
           height: 14,
-          borderRadius: 3,
+          borderRadius: 1,
           border: 'none',
           background: 'transparent',
           color: 'hsl(var(--ink-4))',

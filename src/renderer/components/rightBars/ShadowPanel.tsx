@@ -109,7 +109,7 @@ function OpsSummary({ ops }: { ops: OpsStats }) {
       style={{
         border: '1px solid hsl(var(--rule))',
         background: 'hsl(var(--paper-deep) / 0.4)',
-        borderRadius: 6,
+        borderRadius: 2,
         padding: '8px 9px',
         marginBottom: 10,
       }}
@@ -176,7 +176,7 @@ function OpsSummary({ ops }: { ops: OpsStats }) {
                 color: 'hsl(var(--ink-2))',
                 background: 'hsl(var(--paper))',
                 border: '1px solid hsl(var(--rule))',
-                borderRadius: 4,
+                borderRadius: 1,
                 padding: '1px 6px',
               }}
               title={r.label}
@@ -276,7 +276,7 @@ const iconBtn: React.CSSProperties = {
   cursor: 'pointer',
   flexShrink: 0,
   padding: 3,
-  borderRadius: 4,
+  borderRadius: 1,
 };
 
 const actionBtn: React.CSSProperties = {
@@ -289,7 +289,7 @@ const actionBtn: React.CSSProperties = {
   cursor: 'pointer',
   fontSize: 11,
   padding: '3px 9px',
-  borderRadius: 5,
+  borderRadius: 1,
 };
 
 export function ShadowPanel() {
@@ -504,7 +504,7 @@ export function ShadowPanel() {
           <div
             style={{
               padding: '16px 12px',
-              borderRadius: 4,
+              borderRadius: 1,
               border: '1px dashed hsl(var(--rule))',
               textAlign: 'center',
               fontFamily: 'var(--font-sans)',
@@ -573,7 +573,7 @@ export function ShadowPanel() {
                 cursor: 'pointer',
                 fontSize: 11,
                 padding: '2px 4px',
-                borderRadius: 4,
+                borderRadius: 1,
               }}
             >
               <RotateCw size={12} /> {t('shadowPanel.actions.reviewWholeBook')}
@@ -593,7 +593,7 @@ export function ShadowPanel() {
                   cursor: 'pointer',
                   fontSize: 11,
                   padding: '2px 4px',
-                  borderRadius: 4,
+                  borderRadius: 1,
                 }}
               >
                 <Archive size={12} /> {t('shadowPanel.actions.archiveCompleted')}
@@ -660,7 +660,7 @@ export function ShadowPanel() {
                 cursor: 'pointer',
                 fontSize: 11,
                 padding: '2px 10px 2px 4px',
-                borderRadius: 4,
+                borderRadius: 1,
                 flexShrink: 0,
               }}
             >
@@ -690,7 +690,7 @@ export function ShadowPanel() {
               key={job.id}
               style={{
                 border: '1px solid hsl(var(--rule) / 0.6)',
-                borderRadius: 5,
+                borderRadius: 1,
                 background: 'hsl(var(--paper-deep) / 0.5)',
                 overflow: 'hidden',
                 flexShrink: 0,
@@ -827,7 +827,7 @@ function StaleSection({
       style={{
         border: '1px solid hsl(32 70% 55% / 0.5)',
         background: 'hsl(38 80% 60% / 0.08)',
-        borderRadius: 6,
+        borderRadius: 2,
         padding: '8px 9px 9px',
         marginBottom: 10,
       }}
@@ -862,7 +862,7 @@ function StaleSection({
               fontSize: 10.5,
               fontWeight: 600,
               padding: '2px 7px',
-              borderRadius: 5,
+              borderRadius: 1,
             }}
           >
             <RotateCw size={11} /> {t('shadowPanel.stale.reviewAll')}
@@ -951,7 +951,7 @@ function JobCell({
     <div
       style={{
         border: '1px solid hsl(var(--rule))',
-        borderRadius: 6,
+        borderRadius: 2,
         overflow: 'hidden',
         background: 'hsl(var(--paper))',
       }}
@@ -1138,7 +1138,7 @@ function JobCell({
                         color: 'hsl(var(--ink-2))',
                         background: 'hsl(var(--paper-deep))',
                         border: '1px solid hsl(var(--rule))',
-                        borderRadius: 4,
+                        borderRadius: 1,
                         padding: '1px 6px',
                       }}
                     >
@@ -1235,7 +1235,7 @@ function JobCell({
                                       color: 'hsl(var(--ink-2))',
                                       background: 'hsl(var(--paper-deep))',
                                       border: '1px solid hsl(var(--rule))',
-                                      borderRadius: 4,
+                                      borderRadius: 1,
                                       maxHeight: 200,
                                       overflow: 'auto',
                                       whiteSpace: 'pre-wrap',

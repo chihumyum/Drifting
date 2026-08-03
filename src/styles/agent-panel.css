@@ -1,6 +1,6 @@
 /*
- * Agent panel composer — the textarea + control bar read as one input box
- * (à la the Claude Code VS Code plugin): a single bordered, rounded container
+ * Agent panel composer — the textarea + control bar read as one input box:
+ * a single bordered, sharp container
  * with a hairline divider between the text and the footer controls. The footer
  * collapses model / thinking / effort into one config button that opens an
  * upward menu where each item is adjusted in place. Mirrors the app's control
@@ -14,11 +14,10 @@
   display: flex;
   flex-direction: column;
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 10px;
+  border-radius: 2px;
   background: hsl(var(--surface));
   transition: border-color 0.15s;
-  /* NOTE: no `overflow: hidden` — it would clip the upward config menu. The
-     children (transparent bg) stay within the rounded border on their own. */
+  /* NOTE: no `overflow: hidden` — it would clip the upward config menu. */
 }
 .agt-composer:focus-within {
   border-color: hsl(var(--accent) / 0.55);
@@ -46,8 +45,8 @@
 }
 /* The composer signals focus via its own :focus-within border. Suppress the
    global form focus ring (index.css adds a 3px box-shadow to
-   textarea:focus-visible) so it doesn't draw a sharp rectangle inside the
-   rounded box. Selector is specific enough (class·class·pseudo) to win. */
+    textarea:focus-visible) so it doesn't draw a second rectangle inside the
+    composer. Selector is specific enough (class·class·pseudo) to win. */
 .agt-composer .agt-composer__text:focus,
 .agt-composer .agt-composer__text:focus-visible {
   outline: none;
@@ -78,7 +77,7 @@
   width: 28px;
   height: 28px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 1px;
   background: transparent;
   color: hsl(var(--ink-3));
   cursor: pointer;
@@ -103,7 +102,7 @@
   justify-content: center;
   padding: 6px 16px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 2px;
   background: hsl(var(--accent));
   color: hsl(var(--paper));
   font-size: 12px;
@@ -129,8 +128,8 @@
   z-index: 30;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule));
-  border-radius: 8px;
-  box-shadow: 0 10px 30px hsl(var(--ink-1) / 0.22);
+  border-radius: 2px;
+  box-shadow: 0 10px 26px -14px hsl(var(--ink-1) / 0.5);
   padding: 5px;
   /* AnchoredPopover portals this surface to body, so it cannot rely on the
      companion panel's typography context. Keep every interactive option on
@@ -156,7 +155,7 @@
   box-sizing: border-box;
   min-height: 32px;
   padding: 7px 8px;
-  border-radius: 5px;
+  border-radius: 0;
   font: inherit;
   color: hsl(var(--ink-1));
 }
@@ -182,7 +181,7 @@
 .agt-menu__select {
   max-width: 112px;
   border: 1px solid hsl(var(--rule));
-  border-radius: 5px;
+  border-radius: 1px;
   background: hsl(var(--paper-1));
   color: hsl(var(--ink-2));
   font: inherit;
@@ -209,7 +208,7 @@
   box-sizing: border-box;
   min-height: 32px;
   padding: 7px 8px;
-  border-radius: 5px;
+  border-radius: 0;
   color: hsl(var(--ink-3));
   cursor: pointer;
   width: 100%;
@@ -230,7 +229,7 @@
   box-sizing: border-box;
   min-height: 32px;
   padding: 7px 8px;
-  border-radius: 5px;
+  border-radius: 0;
   color: hsl(var(--ink-1));
   cursor: pointer;
   width: 100%;
@@ -260,7 +259,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 5px;
+  border-radius: 0;
 }
 .agt-mem:hover {
   background: hsl(var(--ink-1) / 0.06);
@@ -277,7 +276,7 @@
   font-size: 9px;
   letter-spacing: 0.04em;
   padding: 2px 5px;
-  border-radius: 4px;
+  border-radius: 1px;
   color: hsl(var(--ink-3));
   background: hsl(var(--ink-1) / 0.07);
 }
@@ -305,7 +304,7 @@
   font-size: 11px;
   line-height: 1;
   padding: 3px 5px;
-  border-radius: 4px;
+  border-radius: 1px;
   color: hsl(var(--ink-4));
   background: transparent;
   border: none;
@@ -327,7 +326,7 @@
   margin: 8px 2px;
   padding: 10px 11px;
   border: 1px solid hsl(var(--accent) / 0.24);
-  border-radius: 9px;
+  border-radius: 2px;
   background: hsl(var(--accent) / 0.075);
   color: hsl(var(--ink-2));
   font-size: 12px;
@@ -349,7 +348,7 @@
   margin: 6px 0 0;
   padding: 7px 8px;
   overflow: auto;
-  border-radius: 6px;
+  border-radius: 1px;
   background: hsl(var(--paper) / 0.72);
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -362,7 +361,7 @@
   max-height: 220px;
   overflow: auto;
   padding: 7px 8px;
-  border-radius: 7px;
+  border-radius: 1px;
   background: hsl(var(--paper) / 0.72);
 }
 .agt-permission-edit__path {
@@ -392,7 +391,7 @@
 }
 .agt-control-card__actions button {
   border: 1px solid hsl(var(--rule));
-  border-radius: 6px;
+  border-radius: 1px;
   padding: 4px 8px;
   background: hsl(var(--paper));
   color: hsl(var(--ink-2));
@@ -440,7 +439,7 @@
   flex: 0 0 26px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 1px;
   background: transparent;
   color: hsl(var(--accent));
   cursor: pointer;
@@ -516,7 +515,7 @@
   width: 100%;
   height: 9px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: 0;
   background: hsl(var(--ink-1) / 0.05);
 }
 .agt-context-allocation__part {
@@ -573,7 +572,7 @@
 .agt-context-category-list {
   overflow: hidden;
   border: 1px solid hsl(var(--rule));
-  border-radius: 8px;
+  border-radius: 1px;
 }
 .agt-context-category {
   display: flex;
@@ -603,7 +602,7 @@
   flex-direction: column;
   overflow: hidden;
   margin: 0;
-  border-radius: 8px;
+  border-radius: 1px;
   background: hsl(var(--ink-1) / 0.035);
 }
 .agt-context-details > div {

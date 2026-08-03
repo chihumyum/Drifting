@@ -136,7 +136,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
       onMouseDown={onClose}
     >
       <div
-        className="flex w-[460px] max-h-[72vh] flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-xl"
+        className="flex w-[460px] max-h-[72vh] flex-col overflow-hidden rounded-[2px] border border-border bg-card text-card-foreground shadow-lg"
         onMouseDown={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -153,7 +153,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
           <button
             type="button"
             onClick={onClose}
-            className="-mr-1 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="-mr-1 rounded-[1px] p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label={t('common.close')}
           >
             <X size={15} />
@@ -162,7 +162,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
 
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
           {/* Anchored selection quote */}
-          <div className="rounded-md border border-border bg-muted/50 px-3 py-2 text-[12px] leading-relaxed text-muted-foreground">
+          <div className="rounded-[1px] border border-border bg-muted/50 px-3 py-2 text-[12px] leading-relaxed text-muted-foreground">
             <span className="mr-1 select-none text-foreground/40">“</span>
             {request.selectedText}
             <span className="ml-0.5 select-none text-foreground/40">”</span>
@@ -172,8 +172,8 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
           <div className="space-y-1.5">
             <label className="block text-[11px] font-medium text-muted-foreground">{t('patchCreateModal.targetElement')}</label>
             {elementId ? (
-              <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5">
-                <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent">
+              <div className="flex items-center gap-2 rounded-[1px] border border-border bg-background px-2.5 py-1.5">
+                <span className="rounded-[1px] bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent">
                   {t('globalSearch.entity.element')}
                 </span>
                 <span className="flex-1 truncate text-sm">{elementName}</span>
@@ -199,9 +199,9 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={t('patchCreateModal.searchElement')}
-                  className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-ring"
+                  className="w-full rounded-[1px] border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-ring"
                 />
-                <div className="max-h-44 overflow-y-auto rounded-md border border-border">
+                <div className="max-h-44 overflow-y-auto rounded-[1px] border border-border">
                   {candidates.length === 0 && !noExactMatch ? (
                     <div className="px-2.5 py-2 text-xs italic text-muted-foreground">
                       {t('patchCreateModal.noElements')}
@@ -214,7 +214,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
                         onClick={() => pickElement(el.id, el.name)}
                         className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm hover:bg-muted"
                       >
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        <span className="rounded-[1px] bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                           {t('globalSearch.entity.element')}
                         </span>
                         <span className="truncate">{el.name}</span>
@@ -227,7 +227,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
                       onClick={handleCreateElement}
                       className="flex w-full items-center gap-2 border-t border-border px-2.5 py-1.5 text-left text-sm hover:bg-muted"
                     >
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      <span className="rounded-[1px] bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                         {t('patchCreateModal.newElement')}
                       </span>
                       <span className="truncate">{t('patchCreateModal.createElement', { name: query.trim() })}</span>
@@ -246,7 +246,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t('patchCreateModal.titlePlaceholder')}
-              className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-ring"
+              className="w-full rounded-[1px] border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-ring"
             />
           </div>
 
@@ -258,7 +258,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
               onChange={(e) => setBody(e.target.value)}
               placeholder={t('patchCreateModal.bodyPlaceholder')}
               rows={4}
-              className="w-full resize-y rounded-md border border-border bg-background px-2.5 py-1.5 text-sm leading-relaxed outline-none focus:border-ring"
+              className="w-full resize-y rounded-[1px] border border-border bg-background px-2.5 py-1.5 text-sm leading-relaxed outline-none focus:border-ring"
             />
           </div>
         </div>
@@ -268,7 +268,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="rounded-[1px] px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             {t('common.cancel')}
           </button>
@@ -276,7 +276,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
             type="button"
             onClick={handleCreatePatch}
             disabled={!elementId || busy}
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-[1px] bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {t('patchCreateModal.createPatch')}
           </button>

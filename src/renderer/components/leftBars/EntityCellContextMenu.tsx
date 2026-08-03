@@ -152,7 +152,7 @@ export function EntityCellContextMenu({
                     style={{
                       fontSize: 10,
                       padding: '1px 6px',
-                      borderRadius: 8,
+                      borderRadius: 1,
                       color: 'hsl(var(--paper))',
                       background: tag.color || 'hsl(var(--accent))',
                       maxWidth: 120,

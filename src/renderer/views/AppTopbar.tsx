@@ -17,13 +17,13 @@ export function AppTopbar() {
   const leftWidth = runtime.isMacDesktop ? 140 : 72;
   return (
     <div
-      className="app-topbar app-chrome app-island"
+      className="app-topbar app-plane"
       style={{
         display: 'flex',
         width: '100%',
         height: 'var(--window-titlebar-height)',
         overflow: 'hidden',
-        background: 'var(--chrome-bg)',
+        background: 'hsl(var(--paper-deep))',
       }}
     >
       {/* Left Section */}

@@ -45,7 +45,7 @@ export function PreAlphaOnboardingDialog() {
           style={{
             margin: '20px 0',
             padding: '16px 18px',
-            borderRadius: 12,
+            borderRadius: 2,
             background: 'hsl(var(--page))',
           }}
         >

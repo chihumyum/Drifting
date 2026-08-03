@@ -7,8 +7,8 @@
    grid is centered in a faintly recessed tray; the top-bar button
    is the only toggle.
 
-   Content cells use the shared card treatment: gaps, rounded corners,
-   and a restrained hover lift. Row/column headers remain borderless.
+   Content cells form one contiguous, hairline-divided grid. Row/column
+   headers remain visually quiet so this reads as a working table.
    ============================================================ */
 
 .plot-planner {
@@ -22,22 +22,6 @@
   box-shadow: inset 0 8px 14px -12px hsl(var(--ink-1) / 0.22);
   font-family: var(--font-sans);
 }
-@media (prefers-reduced-motion: no-preference) {
-  .plot-planner {
-    animation: plPlannerIn 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-  }
-}
-@keyframes plPlannerIn {
-  from {
-    opacity: 0.4;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 .plot-planner__body {
   flex: 1;
   min-height: 0;
@@ -68,10 +52,8 @@
 
 /* ── table ── */
 .pl-table {
-  border-collapse: separate;
-}
-.pl-table {
-  border-spacing: 7px;
+  border-collapse: collapse;
+  border-spacing: 0;
 }
 
 .pl-corner {
@@ -102,7 +84,7 @@
   display: inline-block;
   outline: none;
   min-width: 14px;
-  border-radius: 4px;
+  border-radius: 0;
   padding: 1px 4px;
   transition: background 0.12s, color 0.12s;
 }
@@ -115,7 +97,7 @@
   color: hsl(var(--ink-5));
 }
 
-/* header delete (×) — revealed on header hover */
+/* Header delete (×) — revealed on header hover. */
 .pl-head__del {
   position: absolute;
   width: 16px;
@@ -123,7 +105,7 @@
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 50%;
+  border-radius: 1px;
   background: hsl(var(--surface));
   color: hsl(var(--ink-4));
   font-size: 13px;
@@ -186,21 +168,20 @@
 }
 
 .pl-cell {
-  background: linear-gradient(158deg, hsl(var(--page)) 0%, hsl(var(--surface)) 100%);
+  background: hsl(var(--page));
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 7px;
-  box-shadow: 0 1px 2px hsl(var(--ink-1) / 0.05);
-  transition: border-color 0.14s, box-shadow 0.14s, transform 0.14s;
+  border-radius: 0;
+  box-shadow: none;
+  transition: background 0.12s, border-color 0.12s;
 }
 .pl-cell:hover {
   border-color: hsl(var(--accent) / 0.4);
-  box-shadow: 0 3px 10px hsl(var(--ink-1) / 0.08);
-  transform: translateY(-1px);
+  background: hsl(var(--surface));
 }
 .pl-cell:focus {
   border-color: hsl(var(--accent) / 0.55);
-  box-shadow: 0 0 0 3px hsl(var(--accent) / 0.12), 0 3px 10px hsl(var(--ink-1) / 0.08);
-  transform: translateY(-1px);
+  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.3);
+  background: hsl(var(--surface));
 }
 
 /* ── add row / col (floating, revealed on grid hover) ── */
@@ -209,7 +190,7 @@
   display: grid;
   place-items: center;
   border: 1px dashed hsl(var(--rule-strong));
-  border-radius: 6px;
+  border-radius: 0;
   background: hsl(var(--paper));
   color: hsl(var(--ink-4));
   cursor: pointer;
@@ -253,7 +234,7 @@
   height: 18px;
   display: grid;
   place-items: center;
-  border-radius: 5px;
+  border-radius: 1px;
   background: hsl(var(--paper));
   color: hsl(var(--ink-4));
   cursor: nwse-resize;

@@ -4,7 +4,6 @@ import { useUiStore } from '../../store/ui-store';
 import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import type { ActivityMark } from '../../store/agent-activity-store';
-import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
 import { AgentCountBadge } from './AgentCountBadge';
 import { type GroupActivity } from './agentActivityBubble';
 import { PanelTab as SharedPanelTab, PanelTabTray } from '../ui/PanelTabs';
@@ -63,12 +62,6 @@ export function LeftSidebarHeader() {
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [compact, setCompact] = useState(false);
-  // Sliding pill that animates between the three panel buttons.
-  const [trayRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
-    activeLeftPanel,
-    '.app-panel-tab.is-active',
-  );
-
   useLayoutEffect(() => {
     const el = rootRef.current;
     if (!el) return;
@@ -94,11 +87,7 @@ export function LeftSidebarHeader() {
         zIndex: 20,
       }}
     >
-      <PanelTabTray
-        ref={trayRef}
-        className="leftbar-tab-tray"
-        indicatorStyle={indicatorStyle}
-      >
+      <PanelTabTray className="leftbar-tab-tray">
         <PanelTab
           label={t('leftSidebar.tabs.chapters')}
           glyph="§"
@@ -175,8 +164,6 @@ function PanelTabButton({
   const { t } = useTranslation();
   const busy = activity?.busy ?? false;
   const doneCount = activity?.doneCount ?? 0;
-  // The sibling sliding indicator carries the active visual; the button
-  // remains transparent so the indicator can show through.
   return (
     <SharedPanelTab
       onClick={onClick}

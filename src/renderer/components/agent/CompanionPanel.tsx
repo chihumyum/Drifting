@@ -1501,7 +1501,7 @@ const sessionNameBtn: React.CSSProperties = {
   textAlign: 'left',
   cursor: 'pointer',
   padding: '2px 4px',
-  borderRadius: 6,
+  borderRadius: 1,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -1515,7 +1515,7 @@ const nameInput: React.CSSProperties = {
   fontWeight: 600,
   padding: '2px 4px',
   border: '1px solid hsl(var(--accent) / 0.5)',
-  borderRadius: 6,
+  borderRadius: 1,
   background: 'hsl(var(--paper))',
   color: 'inherit',
   outline: 'none',
@@ -1527,8 +1527,8 @@ const historyPanel: React.CSSProperties = {
   overflowY: 'auto',
   background: 'hsl(var(--paper))',
   border: '1px solid hsl(var(--rule))',
-  borderRadius: 8,
-  boxShadow: '0 8px 24px hsl(var(--ink-1) / 0.18)',
+  borderRadius: 2,
+  boxShadow: '0 10px 26px -14px hsl(var(--ink-1) / 0.5)',
   zIndex: 20,
   padding: 4,
 };
@@ -1538,7 +1538,7 @@ const historyItem: React.CSSProperties = {
   alignItems: 'center',
   gap: 8,
   padding: '6px 8px',
-  borderRadius: 6,
+  borderRadius: 0,
   cursor: 'pointer',
   fontSize: 12,
 };
@@ -1595,7 +1595,7 @@ const historyInput: React.CSSProperties = {
   fontSize: 12,
   padding: '2px 6px',
   border: '1px solid hsl(var(--accent) / 0.5)',
-  borderRadius: 4,
+  borderRadius: 1,
   background: 'hsl(var(--paper))',
   color: 'inherit',
   outline: 'none',
@@ -1627,7 +1627,7 @@ const jumpBtn: React.CSSProperties = {
   right: 12,
   width: 28,
   height: 28,
-  borderRadius: '50%',
+  borderRadius: 2,
   border: '1px solid hsl(var(--rule))',
   background: 'hsl(var(--paper))',
   color: 'hsl(var(--ink-1))',
@@ -1654,7 +1654,7 @@ const userMessage: React.CSSProperties = {
 const userBubble: React.CSSProperties = {
   background: 'hsl(var(--accent) / 0.14)',
   border: '1px solid hsl(var(--accent) / 0.25)',
-  borderRadius: 8,
+  borderRadius: 2,
   padding: '6px 10px',
   maxWidth: '100%',
   whiteSpace: 'pre-wrap',
@@ -1676,7 +1676,7 @@ const assistantBubble: React.CSSProperties = {
 const errorBubble: React.CSSProperties = {
   background: 'hsl(0 70% 50% / 0.1)',
   border: '1px solid hsl(0 70% 50% / 0.3)',
-  borderRadius: 8,
+  borderRadius: 2,
   padding: '6px 10px',
   color: 'hsl(0 70% 60%)',
   whiteSpace: 'pre-wrap',
@@ -1711,7 +1711,7 @@ const thinkingBody: React.CSSProperties = {
 
 const todoBox: React.CSSProperties = {
   border: '1px solid hsl(var(--rule))',
-  borderRadius: 8,
+  borderRadius: 1,
   background: 'hsl(var(--page))',
   padding: '8px 10px',
   fontSize: 12,
@@ -1739,7 +1739,7 @@ const todoItem: React.CSSProperties = {
 
 const toolRow: React.CSSProperties = {
   border: '1px solid hsl(var(--rule))',
-  borderRadius: 8,
+  borderRadius: 1,
   background: 'hsl(var(--page))',
   fontSize: 12,
 };
@@ -1791,7 +1791,7 @@ const toolPre: React.CSSProperties = {
   margin: '0 0 6px',
   padding: 6,
   background: 'hsl(var(--ink-1) / 0.05)',
-  borderRadius: 4,
+  borderRadius: 1,
   fontSize: 11,
   lineHeight: 1.4,
   whiteSpace: 'pre-wrap',
@@ -1829,7 +1829,7 @@ const primaryBtn: React.CSSProperties = {
   background: 'hsl(var(--accent))',
   color: 'white',
   border: 'none',
-  borderRadius: 6,
+  borderRadius: 2,
   padding: '6px 12px',
   fontSize: 12,
   cursor: 'pointer',
@@ -1840,7 +1840,7 @@ const ghostBtn: React.CSSProperties = {
   background: 'transparent',
   color: 'inherit',
   border: '1px solid hsl(var(--rule))',
-  borderRadius: 6,
+  borderRadius: 2,
   padding: '4px 10px',
   fontSize: 12,
   cursor: 'pointer',
@@ -1882,7 +1882,7 @@ const panelCss = `
 .agent-md li { margin: 2px 0; }
 .agent-md h1, .agent-md h2, .agent-md h3, .agent-md h4 { margin: 10px 0 6px; font-size: 13.5px; font-weight: 600; }
 .agent-md code { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11.5px; background: hsl(var(--ink-1) / 0.08); padding: 1px 4px; border-radius: 3px; }
-.agent-md pre { margin: 0 0 8px; padding: 8px; background: hsl(var(--ink-1) / 0.06); border-radius: 6px; overflow: auto; }
+.agent-md pre { margin: 0 0 8px; padding: 8px; background: hsl(var(--ink-1) / 0.06); border-radius: 1px; overflow: auto; }
 .agent-md pre code { background: none; padding: 0; }
 .agent-md blockquote { margin: 0 0 8px; padding: 6px 10px; border-radius: var(--radius-xs); background: hsl(var(--ink-1) / 0.035); opacity: 0.85; }
 .agent-md a { color: hsl(var(--accent)); text-decoration: underline; }
@@ -1897,11 +1897,11 @@ const panelCss = `
 .agt-pending span:last-child { margin-left: 2px; }
 @keyframes agtPendingPulse { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
 .agt-entity-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 2px 2px; }
-.agt-entity-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid hsl(var(--rule)); border-radius: 999px; background: hsl(var(--surface)); color: hsl(var(--ink-1)); font-size: 11.5px; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.agt-entity-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid hsl(var(--rule)); border-radius: 1px; background: hsl(var(--surface)); color: hsl(var(--ink-1)); font-size: 11.5px; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
 .agt-entity-chip:hover { background: hsl(var(--accent) / 0.08); border-color: hsl(var(--accent) / 0.5); }
 .agt-entity-chip__glyph { color: hsl(var(--accent)); font-family: var(--font-sans); font-style: italic; }
 .agt-entity-chip__op { font-size: 9.5px; opacity: 0.55; }
-.agt-otherrun { display: flex; align-items: center; gap: 7px; width: 100%; margin: 0 0 8px; padding: 6px 10px; border: 1px solid hsl(var(--accent) / 0.3); border-radius: 8px; background: hsl(var(--accent) / 0.06); color: hsl(var(--ink-2)); font-size: 11.5px; cursor: pointer; text-align: left; transition: background 0.12s, border-color 0.12s; }
+.agt-otherrun { display: flex; align-items: center; gap: 7px; width: 100%; margin: 0 0 8px; padding: 6px 10px; border: 1px solid hsl(var(--accent) / 0.3); border-radius: 1px; background: hsl(var(--accent) / 0.06); color: hsl(var(--ink-2)); font-size: 11.5px; cursor: pointer; text-align: left; transition: background 0.12s, border-color 0.12s; }
 .agt-otherrun:hover { background: hsl(var(--accent) / 0.12); border-color: hsl(var(--accent) / 0.5); }
 .agt-otherrun__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agt-otherrun__dot { width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--accent)); flex-shrink: 0; animation: agtOtherRunPulse 1.4s ease-in-out infinite; }

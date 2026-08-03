@@ -1925,7 +1925,6 @@ export function StoryGraphView() {
                           count: node.wordCount ?? 0,
                         })}
                       >
-                        <div className="graph-tile__stripe" />
                         <div className="graph-tile__num">
                           § {String(node.bookOrder).padStart(2, '0')}
                         </div>

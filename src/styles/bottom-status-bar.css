@@ -1,6 +1,7 @@
 /* ============================================================
-   Bottom Status Bar — persistent compact footer
-   Always visible across the editor. Replaces the old collapsed
+   Bottom Status Bar — persistent center-column command strip
+   Always visible under the editor column. Open sidebars continue through
+   the bottom corners. Replaces the old collapsed
    strip mode of BottomTimeline: instead of compressing the dock
    to a sliver, it keeps a small toggle to bring the full timeline
    back.
@@ -9,6 +10,9 @@
 .bsb {
   display: flex;
   align-items: center;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   height: 20px;
   flex-shrink: 0;
   padding: 0;

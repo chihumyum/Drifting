@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui-store';
-import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
 import { PanelTab, PanelTabTray } from '../ui/PanelTabs';
 import { LabelMono } from '../ui/LabelMono';
 
@@ -56,12 +55,7 @@ export function RightSidebarHeader({
     if (g === 'content') setActiveRightPanel(id as 'todo' | 'library' | 'stats');
     else setActiveAgentPanel(id as 'companion' | 'shadow');
   };
-  const indicatorKey = flat ? `${storeGroup}:${activeOf(storeGroup)}` : activeOf(renderGroup);
-  const [trayRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
-    indicatorKey,
-    '.app-panel-tab.is-active',
-    [flat, storeGroup, renderGroup],
-  );
+  const trayRef = useRef<HTMLDivElement | null>(null);
   // 两级折叠阈值（基于 tray 实际宽度，不是 sidebar 宽度）：
   // - shadowGlyphOnly：shadow 模式下，三等分让 "◐ SHADOW 0" 放不下时只剩 ◐
   // - compactLabels：宽度真的很挤时，备忘与材料→MM、Stats→SS
@@ -75,7 +69,7 @@ export function RightSidebarHeader({
     const ro = new ResizeObserver(update);
     ro.observe(node);
     return () => ro.disconnect();
-  }, [trayRef]);
+  }, []);
   // With 4 tabs (TODO + Library + Stats + Shadow) the tray gets squeezed
   // earlier than the old 3-tab layout, so compactLabels triggers at a
   // wider threshold than before.
@@ -94,11 +88,7 @@ export function RightSidebarHeader({
           flexShrink: 0,
         }}
       >
-        <PanelTabTray
-          ref={trayRef}
-          className="rightbar-tab-tray"
-          indicatorStyle={indicatorStyle}
-        >
+        <PanelTabTray ref={trayRef} className="rightbar-tab-tray">
           {(flat || renderGroup === 'content') && (
             <>
               <RightPanelTab
@@ -209,8 +199,6 @@ function RightPanelTab({
   extraStyle?: React.CSSProperties;
   children: React.ReactNode;
 }) {
-  // The sibling sliding indicator carries the active visual, so this button
-  // remains transparent while active.
   return (
     <PanelTab
       onClick={onClick}

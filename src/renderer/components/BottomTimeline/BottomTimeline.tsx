@@ -47,8 +47,8 @@ log.setLevel(loglevel.levels.WARN);
 // time axis takes the same vertical slot instead).
 //
 // The old collapsed (strip) state is gone — the timeline is either visible
-// or hidden, controlled by the global BottomStatusBar. Visibility lives in
-// uiStore so the status bar's toggle button can reach it.
+// or hidden, controlled by the center-column BottomStatusBar. Visibility
+// lives in uiStore so the status bar's toggle button can reach it.
 type TimelineView = 'book' | 'narrative';
 const TIMELINE_VIEW_STORAGE_KEY = 'timeline-view';
 const TIMELINE_HEIGHT_STORAGE_KEY = 'timeline-total-height';
@@ -876,9 +876,14 @@ export function BottomTimeline() {
                   name: storyline.name || t('topTimeline.untitled.storyline'),
                 })
           }
-          style={{ width: TIMELINE_CONFIG.RAIL_WIDTH, cursor: isSynthetic ? 'default' : 'pointer' }}
+          style={
+            {
+              width: TIMELINE_CONFIG.RAIL_WIDTH,
+              cursor: isSynthetic ? 'default' : 'pointer',
+              ['--rail-color' as string]: railColor,
+            } as React.CSSProperties
+          }
         >
-          <span aria-hidden className="btl-rail__stripe" style={{ background: railColor }} />
           <div className="btl-rail__main">
             <div className="btl-rail__name">{storyline.name || 'Untitled'}</div>
             <div className="btl-rail__count">

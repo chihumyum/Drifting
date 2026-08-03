@@ -45,9 +45,9 @@
     --copilot-diff-ins-fg:    hsl(115 35% 35%);
     --copilot-diff-ins-bg:    hsl(104 35% 42% / 0.18);
 
-    /* Panel and inner-control radii follow the shared rounded vocabulary. */
-    --copilot-radius:         10px;
-    --copilot-radius-sm:      6px;
+    /* Copilot follows the same sharp surface ladder as the rest of the app. */
+    --copilot-radius:         2px;
+    --copilot-radius-sm:      1px;
   }
 
   /* Lift diff hues on dark surfaces and use a true black shadow. */

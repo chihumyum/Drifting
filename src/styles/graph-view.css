@@ -149,7 +149,7 @@
   background: hsl(var(--rule));
   color: hsl(var(--ink-2));
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: 1px;
   font-size: 9px;
 }
 .graph-head__unplaced-btn.is-open .graph-head__unplaced-count {
@@ -165,16 +165,11 @@
   padding: 8px 10px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 6px;
-  box-shadow: 0 10px 28px hsl(var(--ink-1) / 0.18);
+  border-radius: 2px;
+  box-shadow: 0 12px 28px -14px hsl(var(--ink-1) / 0.26);
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  animation: graph-head-popover-in 140ms ease-out;
-}
-@keyframes graph-head-popover-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 .graph-head__unplaced-empty {
   width: 100%;
@@ -190,20 +185,20 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border-radius: 12px;
+  border-radius: 1px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule));
   cursor: grab;
   max-width: 260px;
   user-select: none;
-  transition: border-color 0.12s, box-shadow 0.12s;
+  transition: border-color 0.12s, background 0.12s;
 }
 .graph-head__unplaced-chip:active {
   cursor: grabbing;
 }
 .graph-head__unplaced-chip:hover {
   border-color: var(--chip-color, hsl(var(--ink-3)));
-  box-shadow: 0 1px 4px hsl(var(--ink-1) / 0.08);
+  background: color-mix(in srgb, var(--chip-color, hsl(var(--ink-3))) 6%, hsl(var(--paper)));
 }
 .graph-head__unplaced-chip-dot {
   width: 8px;
@@ -560,30 +555,19 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 6px 8px 6px 10px;
-  background: hsl(var(--paper));
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--tile-color, hsl(var(--ink-3))) 6%, hsl(var(--paper)));
   border: 1px solid hsl(var(--rule));
-  border-radius: 4px;
-  box-shadow: 0 1px 2px hsl(var(--ink-1) / 0.06);
+  border-radius: 1px;
+  box-shadow: none;
   cursor: pointer;
   z-index: 3;
   overflow: hidden;
-  transition:
-    transform 0.12s,
-    box-shadow 0.15s,
-    border-color 0.12s;
+  transition: background 0.12s, border-color 0.12s;
 }
 .graph-tile:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px hsl(var(--ink-1) / 0.14);
-}
-.graph-tile__stripe {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--tile-color, hsl(var(--ink-3)));
+  background: color-mix(in srgb, var(--tile-color, hsl(var(--ink-3))) 10%, hsl(var(--paper)));
+  border-color: var(--tile-color, hsl(var(--rule-strong)));
 }
 .graph-tile__num {
   font-family: var(--font-mono);
@@ -640,10 +624,6 @@
   opacity: 0.9;
   transform: none;
 }
-.graph-tile.is-discarded .graph-tile__stripe {
-  background: hsl(var(--ink-4));
-  opacity: 0.5;
-}
 .graph-tile.is-discarded .graph-tile__title {
   color: hsl(var(--ink-3));
   text-decoration: line-through;
@@ -662,7 +642,7 @@
 .graph-drift__card.is-edge-selected {
   border-color: hsl(var(--accent));
   border-width: 2px;
-  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.18), 0 4px 12px hsl(var(--ink-1) / 0.12);
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.18);
 }
 /* Storyline-edge badge lives inside .graph-scroll (scrolls with the
    canvas). Drift-edge badge uses .is-floating to switch to
@@ -753,10 +733,10 @@
   padding: 8px 14px;
   background: hsl(var(--ink-1));
   color: hsl(var(--paper));
-  border-radius: 999px;
+  border-radius: 2px;
   font-family: var(--font-sans);
   font-size: 12px;
-  box-shadow: 0 6px 16px hsl(var(--ink-1) / 0.25);
+  box-shadow: 0 10px 24px -14px hsl(var(--ink-1) / 0.5);
   z-index: 270;
 }
 .graph-linkbar strong {
@@ -790,10 +770,10 @@
 .graph-newedge {
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 6px;
+  border-radius: 2px;
   padding: 20px 22px 18px;
   width: 360px;
-  box-shadow: 0 12px 32px hsl(var(--ink-1) / 0.18);
+  box-shadow: 0 14px 34px -16px hsl(var(--ink-1) / 0.34);
   font-family: var(--font-sans);
 }
 .graph-newedge__head {
@@ -872,8 +852,8 @@
   padding: 4px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 6px;
-  box-shadow: 0 8px 22px hsl(var(--ink-1) / 0.16);
+  border-radius: 2px;
+  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -939,36 +919,20 @@
 
 /* ---------------- Node card popover ----------------
    Anchored to a clicked tile in default state; recenters into a
-   modal-shaped surface in upgrade state. */
+   larger sharp surface in upgrade state. */
 .node-card {
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule));
-  border-radius: 8px;
-  box-shadow:
-    0 10px 30px -8px hsl(var(--ink-1) / 0.25),
-    0 2px 8px -2px hsl(var(--ink-1) / 0.15);
+  border-radius: 2px;
+  box-shadow: 0 14px 32px -16px hsl(var(--ink-1) / 0.36);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   font-family: var(--font-sans);
-  animation: node-card-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .node-card.is-upgrade {
-  border-radius: 12px;
-  box-shadow:
-    0 24px 60px -12px hsl(var(--ink-1) / 0.35),
-    0 6px 18px -4px hsl(var(--ink-1) / 0.18);
-}
-@keyframes node-card-in {
-  from { opacity: 0; transform: translateY(4px) scale(0.985); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-.node-card.is-upgrade {
-  animation-name: node-card-upgrade-in;
-}
-@keyframes node-card-upgrade-in {
-  from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)) scale(0.98); }
-  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  border-radius: 2px;
+  box-shadow: 0 20px 48px -20px hsl(var(--ink-1) / 0.42);
 }
 
 .node-card__head {
@@ -1101,7 +1065,7 @@
   right: 0;
   /* Anchored above the BottomStatusBar so cards / tab don't get hidden
      by the status bar. Same var as .graph-overlay so the two stay in
-     sync so it clears the shared island gap. */
+     sync with the center-column status-strip inset. */
   bottom: var(--super-view-bottom-inset);
   display: flex;
   flex-direction: column;
@@ -1121,41 +1085,33 @@
   padding: 6px 16px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 6px;
+  border-radius: 1px;
   color: hsl(var(--ink-2));
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 10.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  box-shadow: 0 4px 14px hsl(var(--ink-1) / 0.08);
-  transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.12s;
-  animation: graph-drift-tab-in 140ms ease-out;
-}
-@keyframes graph-drift-tab-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  box-shadow: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 .graph-drift__tab:hover {
   background: hsl(var(--ink-1));
   color: hsl(var(--paper));
   border-color: hsl(var(--ink-1));
-  transform: translateY(-1px);
 }
 .graph-drift__count {
   background: hsl(var(--rule));
   color: hsl(var(--ink-2));
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: 1px;
   font-size: 9px;
 }
 .graph-drift__tab:hover .graph-drift__count {
   background: hsl(var(--paper) / 0.2);
   color: hsl(var(--paper));
 }
-/* Circular × close button centered above the open panel — matches
-   the edge-delete badge's visual language (small filled circle, no
-   tab-like shape) so collapse affordances feel consistent. */
+/* Compact × close button centered above the open panel. */
 .graph-drift__close {
   pointer-events: none;
   display: grid;
@@ -1165,7 +1121,7 @@
   margin-bottom: 6px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 50%;
+  border-radius: 2px;
   color: hsl(var(--ink-3));
   cursor: pointer;
   font-size: 14px;
@@ -1173,7 +1129,7 @@
   padding: 0;
   opacity: 0;
   transform: translateY(6px) scale(0.96);
-  box-shadow: 0 2px 8px hsl(var(--ink-1) / 0.12);
+  box-shadow: none;
   transition:
     background 0.12s,
     color 0.12s,
@@ -1194,7 +1150,7 @@
   background: hsl(var(--ink-1));
   color: hsl(var(--paper));
   border-color: hsl(var(--ink-1));
-  transform: scale(1.05);
+  transform: translateY(0);
 }
 
 /* The panel is viewport-bottom anchored and slides as a single hand. It
@@ -1244,10 +1200,8 @@
   padding: 20px 14px;
 }
 
-/* Each drift card looks like a held playing card. The transform
-   transition drives the macOS-Dock-style live shift while a card is
-   being dragged through the hand — neighbour cards slide aside in
-   real time to open the slot where the dragged card will land. */
+/* The transform transition only communicates drag reordering; the surface
+   itself stays flat and rectangular. */
 .graph-drift__card {
   position: relative;
   flex: 0 0 168px;
@@ -1258,8 +1212,8 @@
   padding: 10px 12px 12px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 6px;
-  box-shadow: 0 2px 6px hsl(var(--ink-1) / 0.08), 0 6px 14px hsl(var(--ink-1) / 0.06);
+  border-radius: 1px;
+  box-shadow: none;
   cursor: grab;
   user-select: none;
   transition:
@@ -1273,7 +1227,7 @@
   cursor: grabbing;
 }
 .graph-drift__card:hover {
-  box-shadow: 0 6px 16px hsl(var(--ink-1) / 0.15), 0 14px 32px hsl(var(--ink-1) / 0.08);
+  background: hsl(var(--paper-deep));
   border-color: hsl(var(--accent));
 }
 .graph-drift__card.is-link-source {

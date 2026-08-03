@@ -81,12 +81,11 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
           width: 248,
           background: 'hsl(var(--surface))',
           border: '1px solid hsl(var(--rule))',
-          borderRadius: 6,
-          boxShadow: '0 10px 28px hsl(var(--ink-1) / 0.15), 0 2px 6px hsl(var(--ink-1) / 0.08)',
+          borderRadius: 2,
+          boxShadow: '0 14px 30px -16px hsl(var(--ink-1) / 0.34)',
           zIndex: 'var(--z-popover)',
           fontFamily: 'var(--font-sans)',
           overflow: 'hidden',
-          animation: 'userMenuIn 180ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         }}
       >
 
@@ -313,15 +312,8 @@ export function UserAvatar({
           border: 'none',
           padding: 0,
           flexShrink: 0,
-          transition: 'transform 0.15s ease',
         } as React.CSSProperties
       }
-      onMouseEnter={(e) => {
-        if (onClick) e.currentTarget.style.transform = 'scale(1.05)';
-      }}
-      onMouseLeave={(e) => {
-        if (onClick) e.currentTarget.style.transform = 'scale(1)';
-      }}
     >
       {initial}
     </button>

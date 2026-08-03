@@ -1,23 +1,20 @@
 import {
   forwardRef,
   type ButtonHTMLAttributes,
-  type CSSProperties,
   type HTMLAttributes,
   type ReactNode,
 } from 'react';
 
 interface PanelTabTrayProps extends HTMLAttributes<HTMLDivElement> {
-  indicatorStyle: CSSProperties;
   children: ReactNode;
 }
 
 export const PanelTabTray = forwardRef<HTMLDivElement, PanelTabTrayProps>(function PanelTabTray(
-  { indicatorStyle, className = '', children, ...props },
+  { className = '', children, ...props },
   ref,
 ) {
   return (
     <div ref={ref} className={`panel-tab-tray ${className}`.trim()} {...props}>
-      <div className="tab-indicator" style={indicatorStyle} />
       {children}
     </div>
   );

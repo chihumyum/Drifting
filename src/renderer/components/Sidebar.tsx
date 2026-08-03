@@ -4,7 +4,7 @@ import { clampSidebarWidth } from '../lib/layout-geometry';
 
 // Must match the `width` transition duration in index.css `.sidebar-shell`
 // so children stay mounted through the outgoing slide, then unmount cleanly.
-const COLLAPSE_ANIM_MS = 280;
+const COLLAPSE_ANIM_MS = 220;
 
 interface SidebarProps {
   sidebarType: SidebarType; // 指定侧边栏类型
@@ -132,14 +132,13 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
 
   // When collapsed without any collapsed-content slot the sidebar contributes
   // 0 visible width. Mark that state so the shell can zero out the
-  // inside-facing margin (see `.sidebar-shell.is-fully-hidden` in index.css),
-  // letting the editor + bottom-timeline column align flush with the topbar
-  // and BSB right edges.
+  // inside-facing seam (see `.sidebar-shell.is-fully-hidden` in index.css),
+  // letting the editor column reclaim the complete workspace width.
   const isFullyHidden = !isExpanded && !collapsedContent;
 
   return (
     <div
-      className={`app-chrome app-island sidebar-shell sidebar-shell--${sidebarType} ${
+      className={`app-tool-slab sidebar-shell sidebar-shell--${sidebarType} ${
         isExpanded ? 'is-expanded' : 'is-collapsed'
       }${isFullyHidden ? ' is-fully-hidden' : ''}`}
       style={{
@@ -147,16 +146,9 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--chrome-bg)',
-        borderRight: sidebarType === 'left' ? 'var(--chrome-divider)' : 'none',
-        borderLeft: sidebarType === 'right' ? 'var(--chrome-divider)' : 'none',
         position: 'relative',
-        // `hidden` (not `visible`) so border-radius actually clips child bg
-        // — without this the right sidebar's panel header / left sidebar's
-        // tab tray paint their full-width bg over the rounded top corners
-        // and the island shape doesn't show. Cost: resize handle has to
-        // live inside the bounds instead of straddling them (see below).
-        // Also load-bearing for the slide animation: the inner
-        // fixed-width content is clipped here as the outer shrinks.
+        // Load-bearing for the slide animation: the fixed-width inner slab is
+        // clipped here as the outer column shrinks.
         overflow: 'hidden',
         // Suppress the width transition during a drag-resize, otherwise the
         // outer lags behind the cursor and the resize feels rubbery.
@@ -219,17 +211,11 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
           style={{
             position: 'absolute',
             top: 0,
-            // Sit flush against the inside edge (not straddling -3..+3 like
-            // before). Required because the root now has `overflow: hidden`
-            // for border-radius clipping, which would otherwise crop the
-            // straddling handle to a 3px sliver. The 6px gap around each
-            // shell gutter still provides usable cursor area.
+            // Sit flush against the inside edge of the anchored slab.
             right: sidebarType === 'left' ? 0 : 'auto',
             left: sidebarType === 'right' ? 0 : 'auto',
             // Hit zone (transparent until hovered). Widened to 16 for an easier
-            // grab — it extends inward from the inside edge (root is
-            // overflow:hidden, so it can't straddle outward; the 6px shell
-            // gutter adds reachable area on the outside).
+            // grab — it extends inward because the sliding slab clips overflow.
             width: 16,
             height: '100%',
             cursor: 'col-resize',

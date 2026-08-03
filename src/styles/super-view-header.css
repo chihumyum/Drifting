@@ -27,8 +27,8 @@
 }
 
 /* Shared body wrapper for SuperElementView (added on the canvas viewport)
-   and SuperMemoMaterialView (wraps the split row + BottomDrawer). Lets
-   turn the body into its own floating island distinct from the header.
+   and SuperMemoMaterialView (wraps the split row + BottomDrawer). It keeps
+   the three full-screen work surfaces on one shared shell.
    StoryGraphView already has an equivalent .graph-body
    wrapper and is targeted alongside this class below. */
 .super-view-body {
@@ -38,56 +38,38 @@
   flex-direction: column;
 }
 
-/* ─── Three-island layout ──────────────────────────────────────────
-   Splits each super view into a header island + a body island,
-   matching the rest of the app's floating-card aesthetic. The
-   overlay container extends edge-to-edge above the BottomStatusBar
-   and paints the wallpaper color itself, so the 6px gap between the
-   two islands (and between either island and the overlay edge) reads
-   as solid paper-deep instead of leaking the main page underneath —
-   the BSB below the overlay is the third (global) island.
-
-   The 6px island insets are created via padding (not position) so
-   the opaque bg can fully cover the gap area. Bottom stops at the
-   BSB's top edge: BSB height (20) + app-root's bottom padding (6)
-   = 26px. Drift panel / popovers keep using
-   --super-view-bottom-inset (= 32) since they anchor against the
-   body island's bottom edge (overlay bottom + padding-bottom).
+/* ─── Flat full-screen workspace ────────────────────────────────────
+   Header and body meet at one hairline with no inset, gap, radius or
+   elevation. The overlay stops above the center-column status strip so its
+   project navigation and Super View switches remain available.
    ──────────────────────────────────────────────────────────────── */
 .super-view-overlay {
   top: 0;
   left: 0;
   right: 0;
-  bottom: 26px;
+  bottom: var(--super-view-bottom-inset);
   background: hsl(var(--paper-deep));
-  padding: 6px;
-  gap: 6px;
+  padding: 0;
+  gap: 0;
 }
 
-/* Head + body islands borrow the shared rounded + shadow vocabulary.
-   Fixed-position descendants (drift panel, popovers) escape these clips
-   naturally and keep working unchanged. */
+/* First-class work surfaces are sharp and unelevated here. */
 .super-view-head,
 .super-view-body {
-  border-radius: 8px;
-  box-shadow:
-    0 1px 2px hsl(var(--ink-1) / 0.06),
-    0 1px 4px hsl(var(--ink-1) / 0.04);
+  border-radius: 0;
+  box-shadow: none;
 }
 .super-view-body {
   overflow: hidden;
 }
 
-/* Promote the header to the lighter chrome surface so it stays distinct
-   from the wallpaper gap. The body also paints an explicit surface so
-   partially transparent feature content never leaks the wallpaper. */
+/* The header belongs to the base plane; the body paints the work surface. */
 .super-view-head {
-  background: var(--chrome-bg);
-  /* Header popovers (e.g. StoryGraphView's edge menu) must escape the
-     header island and stack over the body island below. */
+  background: hsl(var(--paper-deep));
+  /* Header popovers (e.g. StoryGraphView's edge menu) must stack over the
+     body below. */
   overflow: visible;
-  /* The shell gap replaces a header divider. */
-  border-bottom: none;
+  border-bottom: 1px solid hsl(var(--rule));
 }
 .super-view-body {
   background: hsl(var(--paper));
@@ -110,16 +92,15 @@
   justify-content: space-between;
   height: var(--window-titlebar-height);
   padding: 0 18px;
-  border-bottom: none;
-  background: var(--chrome-bg);
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper-deep));
   flex-shrink: 0;
   gap: 16px;
   font-family: var(--font-sans);
 }
 
 .super-view-head[data-macos-window-controls] {
-  /* The overlay starts 6px in from the viewport. Subtract that surface
-     inset so every super-view title keeps the shared visible origin. */
+  /* The flat overlay starts at the viewport edge. */
   padding-left: calc(var(--window-header-leading-inset) - var(--window-surface-inline-inset));
 }
 
@@ -242,7 +223,7 @@
 :is(.header-chip-strip, .relation-kind-menu__chips) .filter-chip--drift-edge .filter-chip__marker {
   width: 10px;
   height: 2px;
-  border-radius: 999px;
+  border-radius: 1px;
   box-shadow: 0 0 4px color-mix(in srgb, var(--filter-chip-marker) 72%, transparent);
 }
 
@@ -322,7 +303,7 @@
 .relation-kind-menu-trigger__count {
   min-width: 15px;
   padding: 1px 4px;
-  border-radius: 999px;
+  border-radius: 1px;
   background: hsl(var(--rule));
   color: hsl(var(--ink-3));
   font-size: 9px;
@@ -346,7 +327,7 @@
   border: 1px solid hsl(var(--rule-strong));
   border-radius: var(--radius-sm);
   background: hsl(var(--paper));
-  box-shadow: 0 10px 28px hsl(var(--ink-1) / 0.18);
+  box-shadow: 0 14px 30px -16px hsl(var(--ink-1) / 0.34);
   font-family: var(--font-ui);
 }
 
@@ -380,7 +361,7 @@
 .relation-kind-menu__visible-summary {
   flex-shrink: 0;
   padding: 2px 6px;
-  border-radius: 999px;
+  border-radius: 1px;
   background: hsl(var(--ink-1) / 0.06);
   color: hsl(var(--ink-3));
   font-size: 9px;

@@ -1,7 +1,7 @@
 /* ============================================================
    Bottom Timeline
    Always-expanded dock. Visibility (open/hidden) is toggled by the
-   global BottomStatusBar; the old "collapsed strip" mode is gone.
+   center-column BottomStatusBar; the old "collapsed strip" mode is gone.
    ============================================================ */
 
 .btl {
@@ -16,6 +16,8 @@
      so we don't leak horizontal content outside the dock. */
   overflow: visible;
   font-family: var(--font-sans);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .btl__resize {
@@ -151,7 +153,7 @@
   background: hsl(var(--rule));
   color: hsl(var(--ink-2));
   padding: 0 5px;
-  border-radius: 8px;
+  border-radius: 1px;
   font-size: 9px;
   min-width: 14px;
   text-align: center;
@@ -162,7 +164,7 @@
   color: hsl(var(--ink-4));
 }
 .btl__unplaced-popover {
-  /* Portaled + fixed by AnchoredPopover so app-island overflow cannot clip it. */
+  /* Portaled + fixed by AnchoredPopover so dock overflow cannot clip it. */
   z-index: var(--z-popover);
   min-width: 240px;
   max-width: 360px;
@@ -171,8 +173,8 @@
   padding: 6px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 5px;
-  box-shadow: 0 6px 18px hsl(var(--ink-1) / 0.15);
+  border-radius: 2px;
+  box-shadow: 0 12px 28px -14px hsl(var(--ink-1) / 0.28);
 }
 .btl__unplaced-empty {
   font-family: var(--font-sans);
@@ -191,7 +193,7 @@
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: 1px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule));
   cursor: grab;
@@ -254,7 +256,7 @@
   background: hsl(var(--rule));
   color: hsl(var(--ink-2));
   padding: 0 5px;
-  border-radius: 8px;
+  border-radius: 1px;
   font-size: 9px;
   min-width: 14px;
   text-align: center;
@@ -309,12 +311,10 @@
   align-self: stretch;
   display: flex;
   align-items: center;
-  /* Leaves clearance for the absolute-positioned stripe (3px) on the
-     left edge — keeps rail text from sitting on top of the stripe. */
-  padding-left: 10px;
+  padding-left: 8px;
   padding-right: 8px;
   border-right: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper-deep));
+  background: color-mix(in srgb, var(--rail-color, hsl(var(--ink-3))) 5%, hsl(var(--paper-deep)));
   cursor: default;
   overflow: hidden;
   /* Above clips (incl. selected) and pins so the sticky rail always
@@ -323,18 +323,7 @@
   transition: background 0.12s;
 }
 .btl-rail.is-active {
-  background: hsl(var(--paper));
-}
-.btl-rail__stripe {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  opacity: 0.7;
-}
-.btl-rail.is-active .btl-rail__stripe {
-  opacity: 1;
+  background: color-mix(in srgb, var(--rail-color, hsl(var(--ink-3))) 9%, hsl(var(--paper)));
 }
 .btl-rail__main {
   flex: 1;
@@ -577,7 +566,7 @@
   bottom: 4px;
   background: var(--clip-color, hsl(var(--ink-3)));
   color: hsl(var(--paper));
-  border-radius: 3px;
+  border-radius: 1px;
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -631,7 +620,7 @@
   outline: 2px solid var(--clip-color, hsl(var(--ink-1)));
   outline-offset: 1px;
   z-index: 10;
-  box-shadow: 0 2px 8px hsl(var(--ink-1) / 0.2);
+  box-shadow: none;
 }
 
 .btl-clip__content {
@@ -716,10 +705,7 @@
    "overview" role. */
 
 /* ---------------- Context menu (right-click on timeline) ----------------
-   Matches the v2 design-spec `.user-menu` aesthetic: small italic glyph
-   gutter, uppercase microcopy on hover targets, soft shadow, grouped
-   sections with hairline dividers. Replaces the old inline-styled menu
-   that was too generic-emoji-heavy. */
+   Sharp grouped surface with hairline dividers. */
 .btl-cmenu {
   position: fixed;
   z-index: var(--z-popover);
@@ -727,23 +713,10 @@
   max-width: 280px;
   background: hsl(var(--surface));
   border: 1px solid hsl(var(--rule-strong));
-  border-radius: 6px;
-  box-shadow:
-    0 12px 28px hsl(var(--ink-1) / 0.18),
-    0 1px 2px hsl(var(--ink-1) / 0.06);
+  border-radius: 2px;
+  box-shadow: 0 14px 30px -16px hsl(var(--ink-1) / 0.34);
   font-family: var(--font-sans);
   overflow: hidden;
-  animation: btl-cmenu-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-@keyframes btl-cmenu-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 .btl-cmenu__head {
   padding: 12px 14px 10px;

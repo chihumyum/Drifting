@@ -979,7 +979,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             style={{
               background: 'hsl(var(--page))',
               border: '1px solid hsl(var(--rule-strong))',
-              borderRadius: 8,
+              borderRadius: 2,
               padding: 24,
               minWidth: 360,
               boxShadow: '0 18px 50px rgba(28, 24, 19, 0.22)',

@@ -20,10 +20,10 @@ export function BetaClosedDialog({ open, onClose }: BetaClosedDialogProps) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-2xl shadow-[#8b6f47]/20"
+        className="w-full max-w-sm rounded-[2px] border border-slate-200 bg-white p-6 text-center shadow-lg shadow-[#8b6f47]/20"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#f2e7d7] text-[#8b6f47]">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[2px] bg-[#f2e7d7] text-[#8b6f47]">
           <Sparkles className="h-6 w-6" aria-hidden="true" />
         </div>
         <div className="space-y-2">
@@ -37,7 +37,7 @@ export function BetaClosedDialog({ open, onClose }: BetaClosedDialogProps) {
         <button
           type="button"
           onClick={onClose}
-          className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-[#b89968] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#a68858]"
+          className="mt-6 inline-flex w-full items-center justify-center rounded-[1px] bg-[#b89968] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#a68858]"
         >
           {t('auth.betaClosed.ok')}
         </button>

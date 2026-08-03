@@ -2,7 +2,7 @@
    Search components — Global search modal + Editor find panel.
 
    Backgrounds, text, and borders ride the app-wide light/dark tokens.
-   Highlight tints, the count badge, and field-tag pill have no direct
+   Highlight tints, the count badge, and field tags have no direct
    analogue, so they use local semantic variables.
    ============================================================================ */
 
@@ -45,8 +45,6 @@
   position: fixed;
   inset: 0;
   background: var(--search-overlay-bg);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -59,9 +57,9 @@
   max-height: 80vh;
   background: hsl(var(--surface));
   color: hsl(var(--ink-1));
-  border-radius: 12px;
+  border-radius: 2px;
   border: 1px solid hsl(var(--rule));
-  box-shadow: 0 24px 64px hsl(var(--ink-1) / 0.35);
+  box-shadow: 0 20px 46px -18px hsl(var(--ink-1) / 0.5);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -104,7 +102,7 @@
   background: transparent;
   color: hsl(var(--ink-3));
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 1px;
 }
 .gsearch-close-btn:hover {
   background: hsl(var(--rule));
@@ -168,7 +166,7 @@
   color: var(--search-count-fg);
   background: var(--search-count-bg);
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: 1px;
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -253,8 +251,8 @@
   padding: 6px 10px;
   background: hsl(var(--surface));
   border: 1px solid hsl(var(--rule));
-  border-radius: 8px;
-  box-shadow: 0 6px 20px hsl(var(--ink-1) / 0.18);
+  border-radius: 2px;
+  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
   font-size: 13px;
   color: hsl(var(--ink-1));
 }
@@ -264,7 +262,7 @@
   min-width: 0;
   padding: 4px 6px;
   border: 1px solid hsl(var(--rule));
-  border-radius: 4px;
+  border-radius: 1px;
   outline: none;
   font-size: 13px;
   background: hsl(var(--page));
@@ -327,8 +325,8 @@
   overflow-y: auto;
   background: hsl(var(--surface));
   border: 1px solid hsl(var(--rule));
-  border-radius: 8px;
-  box-shadow: 0 6px 20px hsl(var(--ink-1) / 0.18);
+  border-radius: 2px;
+  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
   padding: 4px;
   font-size: 12.5px;
 }
