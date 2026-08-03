@@ -109,7 +109,7 @@ export interface DriftPanelProps {
   /** Disable the close button (used during closing animation so accidental
    *  re-click doesn't reset the timer). */
   closeDisabled?: boolean;
-  /** Tab label — defaults to "浮缀". */
+  /** Tab label — defaults to "灵感". */
   tabLabel?: string;
   /** ARIA hidden flag for the inner panel (used during closing). */
   panelAriaHidden?: boolean;

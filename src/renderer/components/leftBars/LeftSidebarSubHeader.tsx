@@ -223,7 +223,7 @@ export function LeftSidebarSubHeader() {
     ],
     [t],
   );
-  // Right-edge cell meta toggle — shared by the 章节 and 浮缀 menus.
+  // Right-edge cell meta toggle — shared by the 章节 and 灵感 menus.
   const nodeCellMetaOptions = useMemo<SortMenuOption<NodeCellMeta>[]>(
     () => [
       { value: 'date', label: t('leftSidebar.sort.showDate') },
@@ -356,7 +356,7 @@ export function LeftSidebarSubHeader() {
   };
 
   const renderSecondaryCreate = () => {
-    // 浮缀 panel: a "+ group" affordance next to "+ drift" (each group cell also
+    // 灵感 panel: a "+ group" affordance next to "+ drift" (each group cell also
     // carries its own "+ drift in this group" button). Other panels have
     // nothing to slot here — the element panel's "+ element" lives per-category.
     if (activeLeftPanel === 'drift') {
@@ -418,7 +418,7 @@ export function LeftSidebarSubHeader() {
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         {/* "折叠全部" applies to panels with collapsible groups (元素 类目 and,
-            now that drifts can be grouped into folders, 浮缀 分组). The 章节 panel
+            now that drifts can be grouped into folders, 灵感分组). The 章节 panel
             toggles its storyline lanes individually, so it's excluded. */}
         {(activeLeftPanel === 'elements' || activeLeftPanel === 'drift') && (
           <SubIconBtn title={t('leftSidebar.actions.collapseAll')} onClick={collapseAll}>

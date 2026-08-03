@@ -317,7 +317,7 @@
       "entity_link_style_prose": "正文",
       "entity_link_kind_element": "元素",
       "entity_link_kind_chapter": "章节",
-      "entity_link_kind_drift": "浮缀",
+      "entity_link_kind_drift": "灵感",
       "entity_link_kind_patch": "补丁",
       "entity_link_kind_category": "类目",
       "entity_link_kind_storyline": "故事线",
@@ -622,8 +622,8 @@
       "switchesTitle": "开关",
       "autoTrigger": "自动触发",
       "autoTriggerDesc": "编辑时按 debounce 自动后台运行 task。关闭后只在你手动触发（⇧⌘I / 右键）时运行。",
-      "enableInDrift": "在 drift 节点中启用",
-      "enableInDriftDesc": "drift 是灵感草稿区，默认不打扰。关闭时 Copilot 只在章节编辑器里工作；开启后 drift 编辑器也会跑同样的 task。",
+      "enableInDrift": "在灵感编辑器中启用",
+      "enableInDriftDesc": "灵感用于自由记录创作草稿，默认不打扰。关闭时 Copilot 只在章节编辑器里工作；开启后灵感编辑器也会执行同样的任务。",
       "summaryTitle": "段落概要",
       "generateSummaries": "生成段落概要",
       "generateSummariesDesc": "任何 task 触发后，若未被概要的 block 累积到阈值，会发一次概要调用。概要会作为后续 task 的上下文，提升 patch 召回；关闭则不生成、不注入。",
@@ -858,7 +858,7 @@
     "actionFailed": "操作失败，请重试。"
   },
   "driftPanel": {
-    "tabLabel": "浮缀",
+    "tabLabel": "灵感",
     "expandTitle": "展开{{label}}",
     "collapseTitle": "收起{{label}}"
   },
@@ -924,12 +924,12 @@
     "jumpTo": "跳转至 {{label}}",
     "removeRelation": "移除关联",
     "untitledChapter": "无标题章节",
-    "untitledDrift": "无标题浮缀",
+    "untitledDrift": "无标题灵感",
     "untitledElement": "未命名元素",
     "untitledStoryline": "未命名故事线",
     "groups": {
       "chapters": "章节",
-      "drifts": "浮缀",
+      "drifts": "灵感",
       "elements": "元素",
       "storylines": "故事线",
       "categories": "类目"
@@ -976,7 +976,7 @@
     "purgeNow": "立刻删除",
     "kind": {
       "chapter": "章节",
-      "drift": "浮缀",
+      "drift": "灵感",
       "element": "元素",
       "storyline": "故事线",
       "category": "元素类别"
@@ -1026,12 +1026,12 @@
     }
   },
   "driftBind": {
-    "title": "绑定漂浮节点",
-    "markerSubtitle": "为时间标记选择一个漂浮节点",
+    "title": "绑定灵感",
+    "markerSubtitle": "为时间标记选择一条灵感",
     "actSubtitle": "为此幕选择一篇大纲 / 笔记",
-    "searchPlaceholder": "搜索漂浮节点…",
-    "noMatches": "没有匹配的漂浮节点",
-    "empty": "没有可绑定的漂浮节点 · 都已被占用，或还没有创建"
+    "searchPlaceholder": "搜索灵感…",
+    "noMatches": "没有匹配的灵感",
+    "empty": "没有可绑定的灵感 · 它们都已被占用，或尚未创建"
   },
   "agentConfirm": {
     "allowDelete": "允许删除"
@@ -1457,7 +1457,7 @@
       "titleEmA": "漫长的渡",
       "titleB": "这里给你一艘",
       "titleEmB": "足够稳的船",
-      "body": "Drifting 把章节、故事线、人物、地点、物件、浮缀 — 你心里所有的卷宗 — 编织在一张可漫游的纸上。",
+      "body": "Drifting 把章节、故事线、人物、地点、物件、灵感 — 你心里所有的卷宗 — 编织在一张可漫游的纸上。",
       "featureOutlineTitle": "章节",
       "featureOutlineEm": "场景与节拍",
       "featureOutlineSub": "markdown header · scrollspy · 大纲即正文",
@@ -1474,7 +1474,7 @@
     },
     "signin": {
       "kicker": "WELCOME BACK · 继续写作",
-      "sub": "回到你已经构建的世界 — 章节、故事线、元素、浮缀都还在。"
+      "sub": "回到你已经构建的世界 — 章节、故事线、元素、灵感都还在。"
     },
     "signup": {
       "kicker": "NEW HERE · 起航",
@@ -1731,7 +1731,7 @@
     "chooseFiles": "选择文件",
     "chooseFolder": "选择文件夹",
     "clear": "清空",
-    "noStorylines": "项目里还没有故事线。请先创建一条，或选择「浮缀」导入。",
+    "noStorylines": "项目里还没有故事线。请先创建一条，或选择「灵感」导入。",
     "noCategories": "项目里还没有元素类别。请先创建一个。",
     "importing": "导入中…",
     "start": "开始导入 ({{count}})",
@@ -1745,8 +1745,8 @@
         "desc": "人物 / 地点 / 物件等参考资料。需选择类别。"
       },
       "inspiration": {
-        "label": "浮缀",
-        "desc": "浮缀卡 — 不归属任何故事线，独立悬浮。"
+        "label": "灵感",
+        "desc": "灵感卡 — 不归属任何故事线，独立悬浮。"
       }
     },
     "status": {
@@ -1766,7 +1766,7 @@
     "tabs": {
       "chapters": "章节",
       "elements": "元素",
-      "drifts": "浮缀"
+      "drifts": "灵感"
     },
     "top": {
       "search": "搜索",
@@ -1779,12 +1779,12 @@
       "noChapters": "还没有章节。",
       "noStorylines": "还没有故事线。",
       "noUnaffiliatedChapters": "没有未归属章节。",
-      "noDrifts": "还没有浮缀。"
+      "noDrifts": "还没有灵感。"
     },
     "meta": {
       "chapters": "{{count}} 章",
       "elements": "{{categories}} 类 · {{elements}} 元素",
-      "drifts": "{{count}} 浮缀"
+      "drifts": "{{count}} 条灵感"
     },
     "groups": {
       "newElementInCategory": "在此类目新建元素",
@@ -1795,7 +1795,7 @@
       "unaffiliated": "未归属",
       "expandUnaffiliated": "展开未归属",
       "collapseUnaffiliated": "收起未归属",
-      "newDriftInGroup": "在此新建浮缀",
+      "newDriftInGroup": "在此新建灵感",
       "newSubGroup": "新建子分组",
       "clickCollapseRename": "单击折叠 · 双击重命名",
       "moveDriftToRoot": "根层级（移出分组）",
@@ -1803,7 +1803,7 @@
       "rename": "重命名",
       "moveToGroup": "移动到分组…",
       "deleteGroup": "删除分组",
-      "moveDriftTitle": "移动浮缀到分组",
+      "moveDriftTitle": "移动灵感到分组",
       "moveGroupTitle": "移动分组到"
     },
     "viewMode": {
@@ -1816,7 +1816,7 @@
       "newChapter": "新章节",
       "newStoryline": "新故事线",
       "newCategory": "新类目",
-      "newDrift": "新浮缀",
+      "newDrift": "新灵感",
       "newDriftGroup": "新建分组"
     },
     "sort": {
@@ -1832,7 +1832,7 @@
       "showNone": "都不显示",
       "duplicatesAll": "在每个所属分组显示",
       "duplicatesPrimary": "仅在主线分组显示",
-      "drifts": "排序浮缀",
+      "drifts": "排序灵感",
       "elements": "排序元素",
       "storylineChapters": "排序故事线内章节",
       "chapters": "排序章节",
@@ -1860,7 +1860,7 @@
       "dashboard": "本项目 · 概览",
       "allChapters": "全书 · 节奏统计",
       "chapterContent": "本章 · 片段与材料",
-      "driftContent": "本浮缀 · 片段与材料",
+      "driftContent": "这条灵感 · 片段与材料",
       "storylineContent": "本故事线 · 片段与材料",
       "elementContent": "本元素 · 片段与材料",
       "categoryContent": "本类目 · 片段与材料",
@@ -1869,7 +1869,7 @@
       "stats": {
         "all-chapters": "全书 · 节奏统计",
         "chapter": "本章 · 详细统计",
-        "drift": "本浮缀 · 详细统计",
+        "drift": "这条灵感 · 详细统计",
         "storyline": "本故事线 · 详细统计",
         "element": "本元素 · 详细统计",
         "category": "本类目 · 详细统计",
@@ -1907,11 +1907,11 @@
       "chapterLengthRhythm": "章节长度节奏",
       "snapshotTitle": "浏览并恢复这个实体的历史版本（30 天）",
       "snapshotButton": "历史快照…",
-      "driftCoordinates": "浮缀坐标",
+      "driftCoordinates": "灵感坐标",
       "chapterCoordinates": "章节坐标",
       "storyline": "故事线",
       "type": "类型",
-      "driftFreeFragment": "浮缀 · 自由片段",
+      "driftFreeFragment": "灵感 · 自由片段",
       "chapter": "章节",
       "bookPosition": "全书位置",
       "chapterOrdinal": "第 {{count}} 章",
@@ -2053,7 +2053,7 @@
     },
     "untitled": {
       "chapter": "未命名章节",
-      "drift": "未命名浮缀",
+      "drift": "未命名灵感",
       "storyline": "未命名故事线",
       "element": "未命名元素",
       "category": "未命名类目"
@@ -2076,7 +2076,7 @@
   "bottomTimeline": {
     "marker": {
       "defaultLabel": "标记",
-      "boundTitle": "已绑定漂浮节点 · 单击打开",
+      "boundTitle": "已绑定灵感 · 单击打开",
       "editingTitle": "回车保存，留空删除",
       "renameTitle": "双击编辑名称",
       "dragTitle": "拖动调整位置"
@@ -2127,9 +2127,9 @@
       "startActHere": "从此处开始新幕"
     },
     "pinMenu": {
-      "openDrift": "打开漂浮节点",
+      "openDrift": "打开灵感",
       "unbind": "解绑（恢复为纯标签）",
-      "bindDrift": "绑定漂浮节点…",
+      "bindDrift": "绑定灵感…",
       "rename": "重命名",
       "deleteMarker": "删除标记"
     },
@@ -2143,12 +2143,12 @@
       "emptyTrackTitle": "右键此处新建幕，或点头部 ＋",
       "chapterCount": "{{count}}章",
       "actNote": "幕笔记",
-      "openActNoteTitle": "打开幕笔记（绑定的漂浮节点）",
+      "openActNoteTitle": "打开幕笔记（已绑定灵感）",
       "dragBoundary": "拖动调整幕边界",
       "createHere": "在此处新建幕",
       "startHere": "在此处开始新幕",
       "openActNote": "打开幕笔记",
-      "unbindDrift": "解绑漂浮节点",
+      "unbindDrift": "解绑灵感",
       "deleteMergeNext": "删除此幕（并入下一幕）",
       "deleteMergePrev": "删除此幕（并入前一幕）"
     }
@@ -2168,8 +2168,8 @@
       "titleWithWords": "{{title}} · {{count}} 字"
     },
     "drift": {
-      "allAnchored": "所有浮缀都已锚定在叙事时间轴上",
-      "empty": "还没有浮缀卡片 · 在左侧 Drift 面板新建灵感笔记",
+      "allAnchored": "所有灵感都已锚定在叙事时间轴上",
+      "empty": "还没有灵感卡片 · 在左侧灵感面板新建一条",
       "cardTitle": "{{title}} · {{count}} 字 · shift+点击起关联"
     },
     "edge": {
@@ -2188,7 +2188,7 @@
     },
     "menu": {
       "startEdgeFromNode": "从此节点新建关联",
-      "startEdgeFromDrift": "从此浮缀新建关联",
+      "startEdgeFromDrift": "从这条灵感新建关联",
       "deleteAllEdges": "删除此节点的所有关联 ({{count}})"
     }
   },
@@ -2609,7 +2609,7 @@
     "unnamedCategory": "未命名分类",
     "uncategorized": "未分类",
     "startEdgeFromElement": "从此元素新建关联",
-    "startEdgeFromDrift": "从此浮缀新建关联",
+    "startEdgeFromDrift": "从这条灵感新建关联",
     "empty": {
       "noStorylines": "还没有故事线",
       "noCategories": "还没有元素类目",
@@ -2634,8 +2634,8 @@
   },
   "nodeEditor": {
     "alerts": {
-      "needStoryline": "请先在左侧或时间轴新建一条 Storyline，才能把 drift 转换为章节。",
-      "needCategory": "请先在元素超视图新建一个 Category，才能把 drift 转换为元素。",
+      "needStoryline": "请先在左侧或时间轴新建一条故事线，才能把灵感转换为章节。",
+      "needCategory": "请先在元素超视图新建一个类目，才能把灵感转换为元素。",
       "conversionFailed": "转换失败，请重试。",
       "statusUpdateFailed": "更新写作状态失败，请重试。",
       "deleteFailed": "删除节点失败，请重试。"
@@ -2643,12 +2643,12 @@
     "deleteConfirm": "删除节点「{{name}}」？",
     "folio": {
       "chapter": "章节",
-      "drift": "浮缀"
+      "drift": "灵感"
     },
     "empty": {
       "noStorylines": "还没有故事线",
       "noStoryline": "未归属故事线",
-      "noDrifts": "还没有浮缀",
+      "noDrifts": "还没有灵感",
       "noChapters": "还没有章节"
     },
     "meta": {
@@ -2666,8 +2666,8 @@
     "conversion": {
       "toChapter": "转换为章节",
       "toElement": "转换为元素",
-      "chapterSubtitle": "选择该 drift 归属的 storyline。状态会重置为 draft。",
-      "elementSubtitle": "选择该 drift 归属的 category。drift 节点会被删除，内容迁移到新建元素中。",
+      "chapterSubtitle": "选择这条灵感归属的故事线。状态会重置为草稿。",
+      "elementSubtitle": "选择这条灵感归属的类目。原灵感会被删除，内容迁移到新建元素中。",
       "noStorylines": "没有可用的 Storyline",
       "noCategories": "没有可用的 Category",
       "converting": "转换中…"
@@ -2681,7 +2681,7 @@
     "alerts": {
       "deleteFailed": "删除故事线失败，请重试。"
     },
-    "scratchPlaceholder": "札记 · scratch——本线的速记、浮缀、风格备忘…",
+    "scratchPlaceholder": "札记 · scratch——本线的速记、灵感、风格备忘…",
     "summaryPlaceholder": "一句话概述本线…",
     "nodeTemplatePlaceholder": "用 H1 / H2 / H3 写一份默认的章节骨架，新建章节时自动填充…",
     "outlineTitle": "{{name}} · OUTLINE",
@@ -2857,7 +2857,7 @@
     },
     "statusSection": {
       "chapter": "写作状态",
-      "drift": "Drift 状态"
+      "drift": "灵感状态"
     },
     "menu": {
       "convertToChapter": "转换为章节…",

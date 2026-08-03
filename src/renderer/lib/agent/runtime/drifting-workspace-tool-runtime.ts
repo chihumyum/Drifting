@@ -2115,7 +2115,7 @@ function workspaceDirectoryDisplayName(
 ): string {
   const rootNames: Record<string, string> = {
     '/chapters': '章节',
-    '/drifts': '漂移灵感',
+    '/drifts': '灵感',
     '/elements': '故事元素',
     '/storylines': '故事线',
     '/categories': '元素分类',

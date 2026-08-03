@@ -129,7 +129,7 @@ function describeWorkspacePath(
   const root = segments[0] ?? '';
   const roots: Record<string, [string, string]> = {
     chapters: ['章节', 'chapters'],
-    drifts: ['漂移灵感', 'inspirations'],
+    drifts: ['灵感', 'inspirations'],
     elements: ['故事元素', 'story elements'],
     storylines: ['故事线', 'storylines'],
     categories: ['元素分类', 'element categories'],

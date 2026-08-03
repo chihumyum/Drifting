@@ -5,8 +5,8 @@ import '../../../styles/timeline-pin-menu.css';
 // Context menu shared by both timeline pins (BottomTimeline's TimelinePin and
 // StoryGraphView's TimelinePin). Owns the drift-binding actions:
 //
-//   unbound pin → 绑定漂浮节点…(opens DriftBindModal) / 重命名 / 删除
-//   bound pin   → 打开漂浮节点 / 解绑（恢复为纯标签）/ 删除
+//   unbound pin → 绑定灵感…(opens DriftBindModal) / 重命名 / 删除
+//   bound pin   → 打开灵感 / 解绑（恢复为纯标签）/ 删除
 //
 // The bind picker is a standalone modal (DriftBindModal), not an inline
 // submenu — the drift list can be long and cramps the menu. Portals to body

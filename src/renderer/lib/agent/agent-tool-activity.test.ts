@@ -27,7 +27,7 @@ describe('author-facing Agent tool activity', () => {
 
   it('hides virtual filesystem vocabulary behind novel-domain actions', () => {
     expect(describeAgentToolActivity('list_files', { path: '/' }, 'zh-CN')).toBe('查看作品结构');
-    expect(describeAgentToolActivity('list_files', { path: '/drifts' }, 'zh-CN')).toBe('查看漂移灵感');
+    expect(describeAgentToolActivity('list_files', { path: '/drifts' }, 'zh-CN')).toBe('查看灵感');
     expect(
       describeAgentToolActivity('read_file', { path: '/drifts/灵感碎片/prose.md' }, 'zh-CN'),
     ).toBe('阅读灵感「灵感碎片」正文');

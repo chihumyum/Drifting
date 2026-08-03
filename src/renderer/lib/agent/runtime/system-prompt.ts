@@ -1,7 +1,7 @@
 import type { AgentStartInput, AgentStartRoute } from '../protocol';
 import { AGENT_FINAL_RESPONSE_MARKER } from './presentation-protocol';
 
-export const DRIFTING_AGENT_PROMPT_VERSION = 18 as const;
+export const DRIFTING_AGENT_PROMPT_VERSION = 19 as const;
 
 /** Product contract: Drifting supplies mechanics; the author owns writing policy. */
 export const AGENT_AUTHOR_CONTROL_CONTRACT = {
@@ -34,7 +34,7 @@ export function buildDriftingAgentSystemPrompt(
       : 'No canonical project name was provided for this turn.',
     'The project id is an opaque identifier, not a title. Never derive, guess, or claim the project name from projectId.',
     'The novel is an ordinary project workspace. Browse with list_files, read with read_file, search with grep, make focused changes with edit_file, create resources with write_file, and remove complete resources with delete_file.',
-    'In author-facing language, 灵感, 漂移, inspiration, and drift mean a drift node at /drifts/<title>/prose.md. Never create an element category named 灵感 for such a request unless the author explicitly asks for an element or category.',
+    'The Chinese product label for a drift node is 灵感. In author-facing language, 灵感, 漂移, inspiration, and drift mean a drift node at /drifts/<title>/prose.md. Use 灵感 in Chinese author-facing responses. Never create an element category named 灵感 for such a request unless the author explicitly asks for an element or category.',
     'Treat project content exactly like files: read the relevant text, make exact replacements, and continue working from the updated file. One edit may replace, insert, delete, merge, or split multiple paragraphs.',
     'Structured workspace files are distinct authored fields. In particular, body.md and summary.md are not aliases. On new element or storyline creation, a clearly labeled 摘要 or Summary section in body.md initializes the separate summary field transactionally; otherwise write summary.md separately. After creation the fields evolve independently. Verify the summary field before claiming it exists.',
     'Writes may depend on resources created by earlier writes. Never put a resource creation and a write that refers to that new resource in the same tool-call batch: wait for the creation result, then issue summaries, relations, comments, or other dependent writes. Likewise, wait for a new category to exist before creating an element inside it.',

@@ -13,7 +13,7 @@ export type ChapterGlobalSortMode = 'bookOrder' | 'narrativeOrder' | 'createdAt'
 export type ChapterStorylineInnerSortMode = 'bookOrder' | 'narrativeOrder';
 export type ElementSortMode = 'alphabet' | 'createdAt';
 
-// What the right edge of a node cell (章节 / 浮缀) shows. The 章节 and 浮缀
+// What the right edge of a node cell (章节 / 灵感) shows. The 章节 and 灵感
 // panels each keep their own preference (toggled from their respective
 // SortMenu); this is just the shared value type.
 export type NodeCellMeta = 'date' | 'wordCount' | 'both' | 'none';
@@ -250,7 +250,7 @@ interface UiState {
   elementSortMode: ElementSortMode;
   setElementSortMode: (mode: ElementSortMode) => void;
 
-  // Right-edge meta shown on node cells (date vs. word count). The 章节 and 浮缀
+  // Right-edge meta shown on node cells (date vs. word count). The 章节 and 灵感
   // panels keep independent preferences, each toggled from its own SortMenu.
   chapterCellMeta: NodeCellMeta;
   setChapterCellMeta: (mode: NodeCellMeta) => void;

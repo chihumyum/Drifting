@@ -15,7 +15,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(18);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(19);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).not.toContain('The canonical project name is "019f-opaque-project-id"');
@@ -32,7 +32,9 @@ describe('Drifting General Agent system prompt', () => {
     const system = prompt({ projectName: 'Book' });
 
     expect(system).toContain('The novel is an ordinary project workspace.');
+    expect(system).toContain('The Chinese product label for a drift node is 灵感.');
     expect(system).toContain('灵感, 漂移, inspiration, and drift mean a drift node');
+    expect(system).toContain('Use 灵感 in Chinese author-facing responses.');
     expect(system).toContain('Never create an element category named 灵感');
     expect(system).toContain('list_files');
     expect(system).toContain('read_file');

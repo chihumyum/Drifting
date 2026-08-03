@@ -95,6 +95,7 @@ describe('canonical Agent tool catalog', () => {
   it('teaches the filesystem facade one-write creation forms without sampling existing data', () => {
     const tool = getRegisteredTool('write_file');
     expect(tool?.description).toContain('/drifts/<title>/prose.md');
+    expect(tool?.description).toContain('The Chinese product label for a drift node is 灵感.');
     expect(tool?.description).toContain('灵感, 漂移, inspiration, and drift always mean a drift node');
     expect(tool?.description).toContain('/elements/<category>/<name>/body.md');
     expect(tool?.description).toContain('/comments/<descriptive-name>.json');

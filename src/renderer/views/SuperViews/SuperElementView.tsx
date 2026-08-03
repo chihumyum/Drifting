@@ -1011,7 +1011,7 @@ export function SuperElementView() {
     | null
   >(null);
   // Drift card right-click — same EntityCellContextMenu surface as the
-  // 浮缀 left panel, with `startEdgeFrom` appended so users can wire a
+  // 灵感 left panel, with `startEdgeFrom` appended so users can wire a
   // drift card into an element / node from the bottom drawer.
   const [driftContextMenu, setDriftContextMenu] = useState<{
     x: number;
