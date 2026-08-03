@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import {
-  byokKeychain,
-  agentApiKeychain,
-  maskBYOK,
-  type BYOKProvider,
-} from '../../lib/byok-keychain';
+import { byokKeychain, maskBYOK, type BYOKProvider } from '../../lib/byok-keychain';
 import { apiClient } from '../../lib/axios-config';
 import { isByokOnly } from '../../lib/config';
 import { getCopilotCapability } from '../../lib/copilot/capability';
@@ -24,11 +19,8 @@ import {
   useSettingsStore,
   type CopilotTaskId,
   type DateFormat,
-  type AgentAuth,
   AGENT_PROVIDER_OPTIONS,
   agentProviderOption,
-  resolveAgentProviderReasoningProfile,
-  type AgentEffort,
   type AgentProviderId,
   TYPEWRITER_POSITION_MAX,
   TYPEWRITER_POSITION_MIN,
@@ -37,7 +29,6 @@ import {
   type ParagraphIndent,
   type ThemeMode,
 } from '../../store/settings-store';
-import { SHADOW_BYOK_MODELS } from '../../lib/shadow/model-routing';
 import { useAuthStore } from '../../store/auth';
 import { useProjectStore } from '../../store/project-store';
 import { useAgentChatStore } from '../../store/agent-chat-store';
@@ -98,6 +89,7 @@ type RailId =
   | 'appearance'
   | 'editor'
   | 'language'
+  | 'models'
   | 'copilot'
   | 'shadow'
   | 'agent'
@@ -156,6 +148,12 @@ const RAIL_BASE: RailBaseDef[] = [
     labelKey: 'settings.rail.language',
   },
   {
+    id: 'models',
+    groupKey: 'settings.groups.intelligence',
+    glyph: '◇',
+    labelKey: 'settings.rail.models',
+  },
+  {
     id: 'copilot',
     groupKey: 'settings.groups.intelligence',
     glyph: '⌁',
@@ -196,6 +194,7 @@ const RAIL_IDS = new Set<RailId>([
   'appearance',
   'editor',
   'language',
+  'models',
   'copilot',
   'shadow',
   'agent',
@@ -327,6 +326,10 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
           <AppearancePanel registerRef={(el) => (panelRefs.current.appearance = el ?? undefined)} />
           <EditorPanel registerRef={(el) => (panelRefs.current.editor = el ?? undefined)} />
           <LanguagePanel registerRef={(el) => (panelRefs.current.language = el ?? undefined)} />
+          <ModelsPanel
+            credentialsActive={active === 'models'}
+            registerRef={(el) => (panelRefs.current.models = el ?? undefined)}
+          />
           <CopilotPanel
             credentialsActive={active === 'copilot'}
             registerRef={(el) => (panelRefs.current.copilot = el ?? undefined)}
@@ -337,7 +340,6 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
           />
           <AgentPanel
             open={isOpen}
-            credentialsActive={active === 'agent'}
             registerRef={(el) => (panelRefs.current.agent = el ?? undefined)}
           />
           <KeysPanel registerRef={(el) => (panelRefs.current.keys = el ?? undefined)} />
@@ -429,7 +431,6 @@ function SetRail({
 }) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
-  const tier = useSettingsStore((s) => s.copilotTier);
   const initial = (user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase();
   const groups: { name: string; items: RailDef[] }[] = [];
   for (const r of items) {
@@ -446,9 +447,7 @@ function SetRail({
           <div className="set-rail__who-name">
             {user?.name ?? user?.email ?? t('settings.local_user')}
           </div>
-          <div className="set-rail__who-meta">
-            {tier.toUpperCase()} · {t('settings.model_tier')}
-          </div>
+          <div className="set-rail__who-meta">{t('settings.models.sidebarMeta')}</div>
         </div>
       </div>
 
@@ -1755,9 +1754,7 @@ function EditorFontControl() {
   const editorFontSource = useSettingsStore((state) => state.editorFontSource);
   const setEditorFontSource = useSettingsStore((state) => state.setEditorFontSource);
   const editorSystemFontFamily = useSettingsStore((state) => state.editorSystemFontFamily);
-  const setEditorSystemFontFamily = useSettingsStore(
-    (state) => state.setEditorSystemFontFamily,
-  );
+  const setEditorSystemFontFamily = useSettingsStore((state) => state.setEditorSystemFontFamily);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [systemFamilyDraft, setSystemFamilyDraft] = useState(editorSystemFontFamily);
   const [systemFonts, setSystemFonts] = useState<SystemFontFamily[]>([]);
@@ -1849,12 +1846,7 @@ function EditorFontControl() {
     setEditorSystemFontFamily(family);
     setEditorFontSource('system-custom');
     setFontMessage({ tone: 'success', text: t('settings.editor.font_system_applied') });
-  }, [
-    setEditorFontSource,
-    setEditorSystemFontFamily,
-    systemFamilyDraft,
-    t,
-  ]);
+  }, [setEditorFontSource, setEditorSystemFontFamily, systemFamilyDraft, t]);
 
   const handleFontFile = useCallback(
     async (file: File) => {
@@ -1957,9 +1949,7 @@ function EditorFontControl() {
       <div className="set-font-tools">
         <div className="set-font-tool">
           <div className="set-font-tool__copy">
-            <span className="set-font-tool__title">
-              {t('settings.editor.font_system_title')}
-            </span>
+            <span className="set-font-tool__title">{t('settings.editor.font_system_title')}</span>
             <span className="set-font-tool__desc">
               {t('settings.editor.font_system_help')}{' '}
               {loadingSystemFonts
@@ -1991,10 +1981,7 @@ function EditorFontControl() {
                   ? font.aliases.find((alias) => /[\u3400-\u9fff]/u.test(alias))
                   : undefined;
                 return (
-                  <option
-                    key={font.family}
-                    value={font.family}
-                  >
+                  <option key={font.family} value={font.family}>
                     {localizedAlias ? `${localizedAlias} — ${font.family}` : font.family}
                   </option>
                 );
@@ -2029,9 +2016,7 @@ function EditorFontControl() {
 
         <div className="set-font-tool">
           <div className="set-font-tool__copy">
-            <span className="set-font-tool__title">
-              {t('settings.editor.font_import_title')}
-            </span>
+            <span className="set-font-tool__title">{t('settings.editor.font_import_title')}</span>
             <span className="set-font-tool__desc">
               {importedFont
                 ? `${importedFont.fileName} · ${formatFontFileSize(importedFont.byteLength)}`
@@ -2355,9 +2340,7 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
                           type="color"
                           value={entityLinkKindColors[kind]}
                           aria-label={entityLinkKindLabels[kind]}
-                          onChange={(event) =>
-                            setEntityLinkKindColor(kind, event.target.value)
-                          }
+                          onChange={(event) => setEntityLinkKindColor(kind, event.target.value)}
                         />
                         <span className="set-color-picker__value">
                           {entityLinkKindColors[kind].toUpperCase()}
@@ -2519,299 +2502,6 @@ function GroupHead({ label, hint, desc }: { label: string; hint?: string; desc?:
   );
 }
 
-/** Credential status for the installed General Agent transport. */
-function AgentAuthRow({
-  auth,
-  provider,
-  credentialsActive,
-}: {
-  auth: AgentAuth;
-  provider: AgentProviderId;
-  credentialsActive: boolean;
-}) {
-  const { t } = useTranslation();
-  const api = generalAgentTransport;
-  const [status, setStatus] = useState<{
-    byokConnected: boolean;
-    apiKeyConnected: boolean;
-    hostedAvailable: boolean;
-  } | null>(null);
-  const [awaitingCode, setAwaitingCode] = useState(false);
-  const [code, setCode] = useState('');
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  // API-key path state (the key lives only in the keychain — see agentApiKeychain).
-  const [keyStored, setKeyStored] = useState<string | null>(null);
-  const [keyEditing, setKeyEditing] = useState(false);
-  const [keyDraft, setKeyDraft] = useState('');
-  const usesProviderKey = api.capability.kind === 'local';
-
-  const refresh = useCallback(() => {
-    if (!credentialsActive || !api.capability.available) return;
-    void api
-      .authStatus()
-      .then((result) => {
-        setStatus(
-          result.ok
-            ? result.value
-            : { byokConnected: false, apiKeyConnected: false, hostedAvailable: false },
-        );
-      })
-      .catch(() =>
-        setStatus({ byokConnected: false, apiKeyConnected: false, hostedAvailable: false }),
-      );
-  }, [api, credentialsActive]);
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-  useEffect(() => {
-    if (!credentialsActive) return;
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (!cancelled) setKeyStored(null);
-    });
-    const read = usesProviderKey
-      ? byokKeychain.get(provider)
-      : agentApiKeychain.get();
-    void read
-      .then((v) => {
-        if (!cancelled) setKeyStored(v);
-      })
-      .catch(() => {
-        if (!cancelled) setKeyStored(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [credentialsActive, provider, usesProviderKey]);
-
-  if (!api.capability.available) {
-    return (
-      <div className="set-sec">
-        <SecHead title={t('settings.agent.unavailableTitle')} hint="TAURI · UNSUPPORTED" />
-        <p className="set-row__desc">{t('settings.agent.unavailableReason')}</p>
-        <p className="set-row__desc">{t('settings.agent.unavailableFuture')}</p>
-      </div>
-    );
-  }
-
-  const connect = async () => {
-    setErr(null);
-    const result = await api.authPrepare();
-    if (!result.ok) {
-      setErr(result.error);
-      return;
-    }
-    setAwaitingCode(true);
-  };
-  const submit = async () => {
-    if (!code.trim()) return;
-    setBusy(true);
-    const r = await api.authSubmitCode(code.trim());
-    setBusy(false);
-    if (r.ok) {
-      setAwaitingCode(false);
-      setCode('');
-      setErr(null);
-      refresh();
-      events.emit('agent:auth-changed');
-    } else {
-      setErr(r.error);
-    }
-  };
-  const disconnect = async () => {
-    const result = await api.authLogout();
-    if (!result.ok) {
-      setErr(result.error);
-      return;
-    }
-    refresh();
-    events.emit('agent:auth-changed');
-  };
-
-  const saveKey = async () => {
-    const v = keyDraft.trim();
-    if (!v) {
-      if (usesProviderKey) await byokKeychain.clear(provider);
-      else await agentApiKeychain.clear();
-      setKeyStored(null);
-    } else {
-      if (usesProviderKey) await byokKeychain.set(provider, v);
-      else await agentApiKeychain.set(v);
-      setKeyStored(v);
-    }
-    setKeyDraft('');
-    setKeyEditing(false);
-    refresh();
-    events.emit('agent:auth-changed');
-  };
-  const clearKey = async () => {
-    if (usesProviderKey) await byokKeychain.clear(provider);
-    else await agentApiKeychain.clear();
-    setKeyStored(null);
-    refresh();
-    events.emit('agent:auth-changed');
-  };
-
-  if (auth === 'hosted') {
-    const ok = !!status?.hostedAvailable;
-    return (
-      <div className="set-sec">
-        <SecHead title={t('settings.agentAuth.statusTitle')} hint="HOSTED" />
-        <Row
-          label={ok ? t('settings.agentAuth.hostedReady') : t('settings.agentAuth.hostedSignedOut')}
-          desc={
-            ok
-              ? t('settings.agentAuth.hostedReadyDesc')
-              : t('settings.agentAuth.hostedSignedOutDesc')
-          }
-          control={
-            <span
-              className="set-mono"
-              style={{ color: ok ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))' }}
-            >
-              {ok
-                ? t('settings.agentAuth.hostedAvailable')
-                : t('settings.agentAuth.hostedUnavailable')}
-            </span>
-          }
-        />
-      </div>
-    );
-  }
-
-  if (auth === 'apikey' || usesProviderKey) {
-    const hasKey = !!keyStored;
-    return (
-      <div className="set-sec">
-        <SecHead
-          title={`${agentProviderOption(provider).label} API Key`}
-          hint="PAY-AS-YOU-GO"
-        />
-        {keyEditing ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 0' }}>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>{t('settings.agentAuth.pasteApiKey')}</div>
-            <input
-              className="set-input set-input--mono"
-              style={{ minWidth: 320 }}
-              value={keyDraft}
-              onChange={(e) => setKeyDraft(e.target.value)}
-              placeholder={provider === 'anthropic' ? 'sk-ant-...' : 'sk-...'}
-              autoFocus
-            />
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button className="set-btn set-btn--primary" onClick={saveKey}>
-                {t('settings.common.save')}
-              </button>
-              <button
-                className="set-btn"
-                onClick={() => {
-                  setKeyDraft('');
-                  setKeyEditing(false);
-                }}
-              >
-                {t('settings.common.cancel')}
-              </button>
-            </div>
-          </div>
-        ) : hasKey ? (
-          <Row
-            label={t('settings.agentAuth.filled')}
-            desc={t('settings.agentAuth.apiKeyFilledDesc')}
-            control={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <code className="set-mono">{maskBYOK(keyStored)}</code>
-                <button className="set-btn" onClick={() => setKeyEditing(true)}>
-                  {t('settings.common.edit')}
-                </button>
-                <button className="set-btn set-btn--danger" onClick={clearKey}>
-                  {t('settings.common.delete')}
-                </button>
-              </div>
-            }
-          />
-        ) : (
-          <Row
-            label={t('settings.agentAuth.notFilled')}
-            desc={t('settings.agentAuth.apiKeyEmptyDesc')}
-            control={
-              <button className="set-btn set-btn--primary" onClick={() => setKeyEditing(true)}>
-                {t('settings.agentAuth.enterKey')}
-              </button>
-            }
-          />
-        )}
-      </div>
-    );
-  }
-
-  const connected = !!status?.byokConnected;
-  return (
-    <div className="set-sec">
-      <SecHead title={t('settings.agentAuth.oauthTitle')} hint="BYOK" />
-      {connected ? (
-        <Row
-          label={t('settings.agentAuth.connected')}
-          desc={t('settings.agentAuth.oauthConnectedDesc')}
-          control={
-            <button className="set-btn set-btn--danger" onClick={disconnect}>
-              {t('settings.common.disconnect')}
-            </button>
-          }
-        />
-      ) : !awaitingCode ? (
-        <Row
-          label={t('settings.agentAuth.notConnected')}
-          desc={t('settings.agentAuth.oauthEmptyDesc')}
-          control={
-            <button className="set-btn set-btn--primary" onClick={connect}>
-              {t('settings.agentAuth.connectClaude')}
-            </button>
-          }
-        />
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 0' }}>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>{t('settings.agentAuth.pasteCode')}</div>
-          <input
-            className="set-input set-input--mono"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="authorization code"
-            autoFocus
-          />
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="set-btn set-btn--primary" disabled={busy} onClick={submit}>
-              {busy ? t('settings.agentAuth.verifying') : t('settings.agentAuth.submit')}
-            </button>
-            <button
-              className="set-btn"
-              onClick={() => {
-                setAwaitingCode(false);
-                setErr(null);
-              }}
-            >
-              {t('settings.common.cancel')}
-            </button>
-          </div>
-        </div>
-      )}
-      {err && (
-        <div
-          style={{
-            fontSize: 11.5,
-            color: 'hsl(var(--danger, 0 70% 50%))',
-            marginTop: 4,
-            lineHeight: 1.5,
-            whiteSpace: 'pre-wrap',
-          }}
-        >
-          {err}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function ProviderRow({
   credentialsActive,
   provider,
@@ -2856,11 +2546,6 @@ function ProviderRow({
 
   const connected = !!stored;
   const masked = useMemo(() => maskBYOK(stored), [stored]);
-
-  const copilotAiMode = useSettingsStore((s) => s.copilotAiMode);
-  const activeProvider = useSettingsStore((s) => s.copilotByokProvider);
-  const setCopilotByokProvider = useSettingsStore((s) => s.setCopilotByokProvider);
-  const isActive = activeProvider === provider;
 
   const [testState, setTestState] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
   const [testMsg, setTestMsg] = useState('');
@@ -3008,16 +2693,6 @@ function ProviderRow({
             >
               {t('settings.byokProvider.editKey')}
             </button>
-            {copilotAiMode === 'byok' &&
-              (isActive ? (
-                <span className="set-mono" style={{ color: '#4D6BFE', fontWeight: 600 }}>
-                  {t('settings.byokProvider.currentByok')}
-                </span>
-              ) : (
-                <button className="set-btn" onClick={() => setCopilotByokProvider(provider)}>
-                  {t('settings.byokProvider.setCurrent')}
-                </button>
-              ))}
             <span style={{ flex: 1 }} />
             <button className="set-btn set-btn--danger" onClick={disconnect}>
               {t('settings.common.disconnect')}
@@ -3039,20 +2714,73 @@ function ProviderRow({
   );
 }
 
-// Shadow BYOK shares Copilot's DeepSeek keychain entry (byok.deepseek) — it has no
-// key entry of its own. This makes that borrow VISIBLE: shows connected/未连接 and
-// jumps to the Copilot panel (where the key is actually entered) so the user isn't
-// left with a silent no-key BYOK that only errors at run time.
-function ShadowDeepseekKeyStatus({ credentialsActive }: { credentialsActive: boolean }) {
+/** The only settings surface allowed to create, edit, test or delete AI keys. */
+function ModelsPanel({
+  credentialsActive,
+  registerRef,
+}: {
+  credentialsActive: boolean;
+  registerRef: RegisterRef;
+}) {
   const { t } = useTranslation();
-  const connected = useByokConnected('deepseek', credentialsActive);
-  const jumpToCopilot = () =>
-    document.getElementById('copilot')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  return (
+    <section className="set-panel" ref={registerRef} id="models">
+      <PanelHead
+        kicker={t('settings.models.kicker')}
+        title={t('settings.models.title')}
+        sub={t('settings.models.sub')}
+      />
+      <div className="set-sec">
+        <SecHead title={t('settings.models.credentialsTitle')} hint="BYOK · KEYCHAIN" />
+        <p className="set-row__desc">{t('settings.models.credentialsDesc')}</p>
+        <ProviderRow
+          credentialsActive={credentialsActive}
+          provider="deepseek"
+          logoClass="set-provider__logo--deepseek"
+          logoText="D"
+          name="DeepSeek"
+          desc={t('settings.models.providers.deepseek')}
+        />
+        <ProviderRow
+          credentialsActive={credentialsActive}
+          provider="anthropic"
+          logoClass="set-provider__logo--anthropic"
+          logoText="A"
+          name="Anthropic"
+          desc={t('settings.models.providers.anthropic')}
+        />
+        <ProviderRow
+          credentialsActive={credentialsActive}
+          provider="openai"
+          logoClass="set-provider__logo--openai"
+          logoText="O"
+          name="OpenAI"
+          desc={t('settings.models.providers.openai')}
+        />
+        <ProviderRow
+          credentialsActive={credentialsActive}
+          provider="google"
+          logoClass="set-provider__logo--google"
+          logoText="G"
+          name="Google"
+          desc={t('settings.models.providers.google')}
+        />
+      </div>
+    </section>
+  );
+}
+
+function ShadowProviderKeyStatus({ credentialsActive }: { credentialsActive: boolean }) {
+  const { t } = useTranslation();
+  const provider = useSettingsStore((s) => s.shadowByokProvider);
+  const connected = useByokConnected(provider, credentialsActive);
+  const jumpToModels = () =>
+    document.getElementById('models')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   if (connected === null) return null;
   return (
     <Row
-      label={t('settings.shadow.deepseekKey')}
-      desc={t('settings.shadow.deepseekKeyDesc')}
+      label={t('settings.shadow.providerKey', { provider: BYOK_PROVIDER_LABEL[provider] })}
+      desc={t('settings.shadow.providerKeyDesc')}
       control={
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span
@@ -3061,8 +2789,8 @@ function ShadowDeepseekKeyStatus({ credentialsActive }: { credentialsActive: boo
           >
             {connected ? t('settings.shadow.keyConnected') : t('settings.shadow.keyNotConnected')}
           </span>
-          <button className="set-btn" onClick={jumpToCopilot}>
-            {t('settings.shadow.goToCopilot')}
+          <button className="set-btn" onClick={jumpToModels}>
+            {t('settings.common.manageKeys')}
           </button>
         </div>
       }
@@ -3070,10 +2798,8 @@ function ShadowDeepseekKeyStatus({ credentialsActive }: { credentialsActive: boo
   );
 }
 
-// Shadow Agent settings — model routing for the two Shadow capabilities: chapter
-// continuity review (CI) and element-arc derivation. Both read resolveShadowModel()
-// (lib/shadow/model-routing.ts). Hosted = a capability tier the server maps to a
-// concrete model (低 flash / 中 pro / 高 sonnet); BYOK = pin a DeepSeek model.
+// Shadow owns a provider/model choice, but never owns credentials. Review, arc
+// derivation and evolve leaves all resolve this same frozen route.
 function ShadowPanel({
   credentialsActive,
   registerRef,
@@ -3082,6 +2808,8 @@ function ShadowPanel({
   registerRef: RegisterRef;
 }) {
   const { t } = useTranslation();
+  const shadowByokProvider = useSettingsStore((s) => s.shadowByokProvider);
+  const setShadowByokProvider = useSettingsStore((s) => s.setShadowByokProvider);
   const shadowByokModel = useSettingsStore((s) => s.shadowByokModel);
   const setShadowByokModel = useSettingsStore((s) => s.setShadowByokModel);
 
@@ -3099,12 +2827,30 @@ function ShadowPanel({
       />
 
       <div className="set-sec">
-        <SecHead title={t('settings.ai.byokTitle')} hint="BYOK ONLY" />
-        <p className="set-row__desc">{t('settings.ai.preAlphaByokOnly')}</p>
-        <ShadowDeepseekKeyStatus credentialsActive={credentialsActive} />
+        <SecHead title={t('settings.ai.routing')} hint="PROVIDER · MODEL" />
+        <p className="set-row__desc">{t('settings.shadow.routingDesc')}</p>
+        <ShadowProviderKeyStatus credentialsActive={credentialsActive} />
         <Row
-          label={t('settings.shadow.deepseekModel')}
-          desc={t('settings.shadow.deepseekModelDesc')}
+          label={t('settings.common.provider')}
+          desc={t('settings.shadow.providerDesc')}
+          control={
+            <select
+              className="set-input"
+              style={{ minWidth: 220 }}
+              value={shadowByokProvider}
+              onChange={(e) => setShadowByokProvider(e.target.value as AgentProviderId)}
+            >
+              {AGENT_PROVIDER_OPTIONS.map((provider) => (
+                <option key={provider.value} value={provider.value}>
+                  {provider.label}
+                </option>
+              ))}
+            </select>
+          }
+        />
+        <Row
+          label={t('settings.shadow.model')}
+          desc={t('settings.shadow.modelDesc')}
           control={
             <select
               className="set-input"
@@ -3112,9 +2858,11 @@ function ShadowPanel({
               value={shadowByokModel}
               onChange={(e) => setShadowByokModel(e.target.value)}
             >
-              {SHADOW_BYOK_MODELS.map((m) => (
+              {agentProviderOption(shadowByokProvider).models.map((m) => (
                 <option key={m.value} value={m.value}>
-                  {m.label}
+                  {t(`settings.agent.modelOptions.${m.value}.label`, {
+                    defaultValue: m.label,
+                  })}
                 </option>
               ))}
             </select>
@@ -3371,6 +3119,8 @@ function CopilotByokWarning({ credentialsActive }: { credentialsActive: boolean 
   const provider = useSettingsStore((s) => s.copilotByokProvider);
   const connected = useByokConnected(provider, credentialsActive);
   if (connected !== false) return null;
+  const jumpToModels = () =>
+    document.getElementById('models')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   return (
     <div
       style={{
@@ -3387,6 +3137,9 @@ function CopilotByokWarning({ credentialsActive }: { credentialsActive: boolean 
       {t('settings.copilot.byokWarningPrefix', { provider: BYOK_PROVIDER_LABEL[provider] })}
       <b>{t('settings.copilot.byokWarningStrong')}</b>
       {t('settings.copilot.byokWarningSuffix')}
+      <button className="set-btn" style={{ marginLeft: 10 }} onClick={jumpToModels}>
+        {t('settings.common.manageKeys')}
+      </button>
     </div>
   );
 }
@@ -3399,6 +3152,8 @@ function CopilotPanel({
   registerRef: RegisterRef;
 }) {
   const { t } = useTranslation();
+  const copilotByokProvider = useSettingsStore((s) => s.copilotByokProvider);
+  const setCopilotByokProvider = useSettingsStore((s) => s.setCopilotByokProvider);
   const autoTrigger = useSettingsStore((s) => s.copilotAutoTrigger);
   const setAutoTrigger = useSettingsStore((s) => s.setCopilotAutoTrigger);
   const copilotInDrift = useSettingsStore((s) => s.copilotInDrift);
@@ -3421,54 +3176,34 @@ function CopilotPanel({
         }
       />
 
-      <>
-        <div className="set-sec">
-          <SecHead title={t('settings.ai.byokTitle')} hint="BYOK ONLY · 4 PROVIDERS" />
-          <p className="set-row__desc">{t('settings.ai.preAlphaByokOnly')}</p>
-          <CopilotByokWarning credentialsActive={credentialsActive} />
-          <ProviderRow
-            credentialsActive={credentialsActive}
-            provider="deepseek"
-            logoClass="set-provider__logo--deepseek"
-            logoText="D"
-            name="DeepSeek"
-            desc={t('settings.copilot.providers.deepseek')}
-          />
-          <ProviderRow
-            credentialsActive={credentialsActive}
-            provider="anthropic"
-            logoClass="set-provider__logo--anthropic"
-            logoText="A"
-            name="Anthropic"
-            desc={t('settings.copilot.providers.anthropic')}
-          />
-          <ProviderRow
-            credentialsActive={credentialsActive}
-            provider="openai"
-            logoClass="set-provider__logo--openai"
-            logoText="O"
-            name="OpenAI"
-            desc={t('settings.copilot.providers.openai')}
-          />
-          <ProviderRow
-            credentialsActive={credentialsActive}
-            provider="google"
-            logoClass="set-provider__logo--google"
-            logoText="G"
-            name="Google"
-            desc={t('settings.copilot.providers.google')}
-          />
-        </div>
-
-        <div className="set-sec">
-          <SecHead title={t('settings.ai.modelTitle')} hint="MODEL" />
-          <Row
-            label={t('settings.copilot.byokModel')}
-            desc={t('settings.copilot.byokModelDesc')}
-            control={<CopilotByokModelPicker />}
-          />
-        </div>
-      </>
+      <div className="set-sec">
+        <SecHead title={t('settings.ai.routing')} hint="PROVIDER · MODEL" />
+        <p className="set-row__desc">{t('settings.copilot.routingDesc')}</p>
+        <CopilotByokWarning credentialsActive={credentialsActive} />
+        <Row
+          label={t('settings.common.provider')}
+          desc={t('settings.copilot.providerDesc')}
+          control={
+            <select
+              className="set-input"
+              style={{ minWidth: 240 }}
+              value={copilotByokProvider}
+              onChange={(e) => setCopilotByokProvider(e.target.value as BYOKProvider)}
+            >
+              {(Object.keys(BYOK_PROVIDER_LABEL) as BYOKProvider[]).map((provider) => (
+                <option key={provider} value={provider}>
+                  {BYOK_PROVIDER_LABEL[provider]}
+                </option>
+              ))}
+            </select>
+          }
+        />
+        <Row
+          label={t('settings.copilot.byokModel')}
+          desc={t('settings.copilot.byokModelDesc')}
+          control={<CopilotByokModelPicker />}
+        />
+      </div>
 
       <div className="set-sec">
         <SecHead title={t('settings.copilot.switchesTitle')} hint="ENABLE" />
@@ -4055,35 +3790,8 @@ function AgentUsageSection({ open }: { open: boolean }) {
   );
 }
 
-const AGENT_AUTH_OPTIONS: { value: Exclude<AgentAuth, 'hosted'>; kickerKey: string }[] = [
-  { value: 'apikey', kickerKey: 'settings.agent.auth.apikey.kicker' },
-];
-
-function AgentPanel({
-  open,
-  credentialsActive,
-  registerRef,
-}: {
-  open: boolean;
-  credentialsActive: boolean;
-  registerRef: RegisterRef;
-}) {
+function AgentPanel({ open, registerRef }: { open: boolean; registerRef: RegisterRef }) {
   const { t } = useTranslation();
-  const agentAuth = useSettingsStore((s) => s.agentAuth);
-  const setAgentAuth = useSettingsStore((s) => s.setAgentAuth);
-  const agentProvider = useSettingsStore((s) => s.agentProvider);
-  const setAgentProvider = useSettingsStore((s) => s.setAgentProvider);
-  const agentModel = useSettingsStore((s) => s.agentModel);
-  const setAgentModel = useSettingsStore((s) => s.setAgentModel);
-  const agentThinking = useSettingsStore((s) => s.agentThinking);
-  const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
-  const agentEffort = useSettingsStore((s) => s.agentEffort);
-  const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
-  const reasoningProfile = resolveAgentProviderReasoningProfile(
-    agentProvider,
-    agentModel,
-  );
-  const supportsThinking = reasoningProfile.thinkingModes.includes('adaptive');
 
   if (!generalAgentTransport.capability.available) {
     return (
@@ -4117,120 +3825,18 @@ function AgentPanel({
       />
 
       <div className="set-sec">
-        <SecHead title={t('settings.ai.routing')} hint="YOUR CREDENTIALS" />
-        <p className="set-row__desc">{t('settings.ai.preAlphaAgentCredentials')}</p>
-        <Row
-          label="Provider"
-          desc="The provider and model are captured when a turn starts."
-          control={
-            <select
-              className="set-input"
-              value={agentProvider}
-              onChange={(event) => setAgentProvider(event.target.value as AgentProviderId)}
-            >
-              {AGENT_PROVIDER_OPTIONS.map((provider) => (
-                <option key={provider.value} value={provider.value}>
-                  {provider.label}
-                </option>
-              ))}
-            </select>
+        <SecHead title={t('settings.agent.chatConfigTitle')} hint="RIGHT PANEL" />
+        <p className="set-row__desc">{t('settings.agent.chatConfigDesc')}</p>
+        <button
+          className="set-btn"
+          onClick={() =>
+            document
+              .getElementById('models')
+              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
           }
-        />
-        <div className="set-tiers">
-          {AGENT_AUTH_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              className={'set-tier' + (agentAuth === option.value ? ' set-tier--active' : '')}
-              onClick={() => setAgentAuth(option.value)}
-            >
-              <div className="set-tier__kicker">{t(option.kickerKey)}</div>
-              <div className="set-tier__name">{t(`settings.agent.auth.${option.value}.name`)}</div>
-              <div className="set-tier__desc">{t(`settings.agent.auth.${option.value}.desc`)}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <AgentAuthRow
-        auth={agentAuth}
-        provider={agentProvider}
-        credentialsActive={credentialsActive}
-      />
-
-      <div className="set-sec">
-        <SecHead title={t('settings.ai.modelTitle')} hint="MODEL" />
-        <Row
-          label={t('settings.agent.chatModel')}
-          desc={t('settings.agent.chatModelDesc')}
-          control={
-            <select
-              className="set-input"
-              style={{ minWidth: 220 }}
-              value={agentModel}
-              onChange={(e) => setAgentModel(e.target.value)}
-            >
-              {agentProviderOption(agentProvider).models.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {t(`settings.agent.modelOptions.${m.value}.label`, { defaultValue: m.label })}
-                </option>
-              ))}
-            </select>
-          }
-        />
-      </div>
-
-      <div className="set-sec">
-        <SecHead title={t('settings.agent.reasoningTitle')} hint="REASONING" />
-        <Row
-          label={t('settings.agent.thinking')}
-          desc={
-            supportsThinking
-              ? t('settings.agent.thinkingDesc')
-              : t('settings.agent.thinkingUnavailable')
-          }
-          control={
-            <select
-              className="set-input"
-              value={agentThinking}
-              disabled={!supportsThinking}
-              onChange={(event) =>
-                setAgentThinking(event.target.value === 'adaptive' ? 'adaptive' : 'off')
-              }
-            >
-              {reasoningProfile.thinkingModes.map((mode) => (
-                <option key={mode} value={mode}>
-                  {t(`settings.agent.thinkingOptions.${mode}`)}
-                </option>
-              ))}
-            </select>
-          }
-        />
-        <Row
-          label={t('settings.agent.effort')}
-          desc={
-            reasoningProfile.efforts.length > 0
-              ? t('settings.agent.effortDesc')
-              : t('settings.agent.effortUnavailable')
-          }
-          control={
-            <select
-              className="set-input"
-              value={agentEffort}
-              disabled={reasoningProfile.efforts.length === 0}
-              onChange={(event) => setAgentEffort(event.target.value as AgentEffort)}
-            >
-              {reasoningProfile.efforts.length === 0 ? (
-                <option value={agentEffort}>{t('settings.agent.notSupported')}</option>
-              ) : (
-                reasoningProfile.efforts.map((effort) => (
-                  <option key={effort} value={effort}>
-                    {t(`settings.agent.effortOptions.${effort}`)}
-                  </option>
-                ))
-              )}
-            </select>
-          }
-        />
+        >
+          {t('settings.common.manageKeys')}
+        </button>
       </div>
 
       <AgentMemorySection open={open} />
@@ -4447,11 +4053,7 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
           label={t('settings.sync.vault_path')}
           desc={t('settings.sync.local_data_managed')}
           control={
-            <button
-              className="set-btn"
-              disabled
-              title={t('settings.common.not_available_yet')}
-            >
+            <button className="set-btn" disabled title={t('settings.common.not_available_yet')}>
               {t('settings.sync.show_in_finder')}
             </button>
           }

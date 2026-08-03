@@ -7,12 +7,14 @@
  * user can flip providers by adding/removing env vars without restarting
  * the dev server.
  *
- * Settings-driven provider selection (rather than env-driven) is a Phase 6
- * follow-up; until then the env key is the single source of truth.
+ * Feature-specific factories below use explicit settings routes. This generic
+ * compatibility factory still prefers the first available development credential.
  */
 import { LLMClient } from './llm-client';
 import { GoogleAIStudioProvider } from './providers/google';
 import { DeepSeekProvider } from './providers/deepseek';
+import { AnthropicProvider } from './providers/anthropic';
+import { OpenAIProvider } from './providers/openai';
 import { ServerProxyProvider } from './providers/server-proxy';
 import { BYOKCredentialsProvider } from '../credentials/byok';
 import { EnvCredentialsProvider } from '../credentials/env';
@@ -44,10 +46,7 @@ export async function buildDefaultLLMClient(
   const provider = isProxyTransport()
     ? new ServerProxyProvider()
     : await pickProvider(
-        new ChainCredentialsProvider([
-          new EnvCredentialsProvider(),
-          new BYOKCredentialsProvider(),
-        ]),
+        new ChainCredentialsProvider([new EnvCredentialsProvider(), new BYOKCredentialsProvider()]),
       );
 
   const client = new LLMClient(provider).use(new LoggingInterceptor(options.logTag ?? 'ai'));
@@ -95,10 +94,10 @@ function wrapClient(provider: LLMProvider, logTag: string): LLMClient {
 /**
  * Shadow-only client factory — per-MODE routing instead of the global transport
  * flag. hosted (+server reachable) → ServerProxyProvider (server-side key +
- * metering, routes any model incl. Sonnet); byok → the same certified direct
- * DeepSeek client used by General Agent. buildDefaultLLMClient (Copilot/dev) is
- * left untouched because its one-shot Google fallback is not a multi-turn Agent
- * Runtime contract.
+ * metering); BYOK resolves Shadow's explicit provider against the same global
+ * Keychain namespace used by Copilot and General Agent. This LLMClient factory
+ * serves Shadow's one-shot structured and arc calls. Multi-round Shadow leaves
+ * use the canonical AgentModelDriver path in `shadow/agent-runtime.ts`.
  */
 export async function buildShadowClient(
   options: BuildDefaultLLMClientOptions = {},
@@ -106,7 +105,37 @@ export async function buildShadowClient(
   if (shadowRoutesViaProxy()) {
     return wrapClient(new ServerProxyProvider(), options.logTag ?? 'shadow');
   }
-  return buildDirectDeepSeekClient(options, 'Shadow');
+  const provider = options.provider ?? useSettingsStore.getState().shadowByokProvider;
+  const credentials = new ChainCredentialsProvider([
+    new EnvCredentialsProvider(),
+    new BYOKCredentialsProvider(),
+  ]);
+  const apiKey = await tryGetKey(credentials, provider);
+  if (!apiKey) {
+    throw new AIError(
+      'auth',
+      `No ${provider} key is configured for Shadow. Add one in Settings → Models & API.`,
+    );
+  }
+  if (provider === 'anthropic') {
+    return wrapClient(
+      new AnthropicProvider({
+        apiKey,
+        ...(options.model ? { defaultModel: options.model } : {}),
+      }),
+      options.logTag ?? 'shadow',
+    );
+  }
+  if (provider === 'openai') {
+    return wrapClient(
+      new OpenAIProvider({
+        apiKey,
+        ...(options.model ? { defaultModel: options.model } : {}),
+      }),
+      options.logTag ?? 'shadow',
+    );
+  }
+  return buildDirectDeepSeekClient(options, 'Shadow', credentials);
 }
 
 /**

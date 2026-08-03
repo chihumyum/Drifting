@@ -10,9 +10,9 @@
  * switches and streaming keeps flowing while it's not mounted. This component is
  * a thin projection: render + local UI concerns (scroll, history dropdown).
  *
- * Credential mode and model selection live in Settings → 模型与 API; the
- * switcher here writes the same store field. If the agent isn't set up for the
- * chosen mode, we show a hint that opens it.
+ * Provider/model/reasoning selection lives in this composer. API keys are
+ * managed once in Settings → 模型与 API; a missing selected-provider key links
+ * there instead of creating another credential form in the chat surface.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
@@ -1127,7 +1127,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
         <button
           type="button"
           style={primaryBtn}
-          onClick={() => events.emit('settings:open', { railId: 'agent' })}
+          onClick={() => events.emit('settings:open', { railId: 'models' })}
         >
           {t('agentPanel.setup.openSettings')}
         </button>

@@ -56,7 +56,8 @@ describe('AgentRuntime structured completion tool', () => {
         {
           expectRequest: {
             iteration: 2,
-            reasoning: { enabled: false },
+            reasoning: { enabled: true, effort: 'high' },
+            executionMode: 'required_tool_non_reasoning',
             toolChoice: { force: 'submit_result' },
             toolNames: ['submit_result'],
           },

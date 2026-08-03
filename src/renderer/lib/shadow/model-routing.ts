@@ -1,24 +1,29 @@
 // Shadow model routing — the single place that turns the user's Shadow settings
-// (hosted tier OR BYOK provider+model) into a concrete model id for BOTH the
-// chapter-CI review judge and the element-arc derivation.
+// (legacy hosted tier OR explicit BYOK provider+model) into a concrete route for
+// BOTH the chapter-CI review judge and the element-arc derivation.
 //
-// Hosted tiers (低/中/高) map to concrete models here; BYOK passes the user's
-// chosen model straight through. The actual PROVIDER is still resolved by
-// buildDefaultLLMClient (key presence) / the server proxy — this module only
-// decides the model *name* and guards against asking for a model the current
-// transport can't reach (e.g. Sonnet on a local direct-to-DeepSeek build).
+// Hosted tiers (低/中/高) map to concrete models here; BYOK freezes Shadow's
+// explicit provider + model pair. Credentials are not Shadow-owned: every local
+// AI surface resolves the same `byok.<provider>` Keychain entry.
 import { shadowRoutesViaProxy } from '../ai/client/build-default-client';
 import { AIError } from '../ai/types';
 import { useSettingsStore, type ModelTier } from '../../store/settings-store';
+import {
+  AGENT_PROVIDER_OPTIONS,
+  normalizeAgentProvider,
+  normalizeAgentProviderModel,
+  resolveAgentProviderReasoningProfile,
+  type AgentProviderId,
+} from '../agent/runtime/agent-provider-contract';
 
 /**
  * Hosted capability tier → concrete model. Per the product decision:
  *   低 (lite)     → DeepSeek Flash   — speed-first, fine for most checks/arcs
  *   中 (standard) → DeepSeek Pro     — default; steadier reasoning, fewer format misses
  *   高 (pro)      → Sonnet           — strongest judgment; server-routed (hosted proxy)
- * The high tier is intentionally a non-DeepSeek model; it only runs when the
- * call goes through the hosted proxy (the renderer substrate has no Anthropic
- * provider). `ensureShadowModelRoutable` enforces that honestly.
+ * Hosted mode is a separate product route: even though BYOK can call Anthropic
+ * locally, a hosted tier only runs through the hosted proxy.
+ * `ensureShadowModelRoutable` enforces that boundary.
  */
 export const SHADOW_TIER_MODEL: Record<ModelTier, string> = {
   lite: 'deepseek-v4-flash',
@@ -26,7 +31,7 @@ export const SHADOW_TIER_MODEL: Record<ModelTier, string> = {
   pro: 'claude-sonnet-4-6',
 };
 
-/** Display catalog for the Settings · Shadow tier cards (低/中/高). */
+/** Legacy hosted-tier catalog retained for persisted settings and future hosted routing. */
 export const SHADOW_TIERS: {
   value: ModelTier;
   kicker: string;
@@ -35,25 +40,36 @@ export const SHADOW_TIERS: {
   /** true = the resolved model only runs through the hosted proxy (no local route). */
   needsHosted?: boolean;
 }[] = [
-  { value: 'lite', kicker: '低 · LITE', name: 'DeepSeek Flash', desc: '速度优先。够用的连贯核查与弧线分析。' },
-  { value: 'standard', kicker: '中 · STANDARD', name: 'DeepSeek Pro', desc: '默认。更稳的推理，更少的格式失败。' },
-  { value: 'pro', kicker: '高 · PRO', name: 'Sonnet', desc: '最强判断力。需托管订阅（服务端调用）。', needsHosted: true },
+  {
+    value: 'lite',
+    kicker: '低 · LITE',
+    name: 'DeepSeek Flash',
+    desc: '速度优先。够用的连贯核查与弧线分析。',
+  },
+  {
+    value: 'standard',
+    kicker: '中 · STANDARD',
+    name: 'DeepSeek Pro',
+    desc: '默认。更稳的推理，更少的格式失败。',
+  },
+  {
+    value: 'pro',
+    kicker: '高 · PRO',
+    name: 'Sonnet',
+    desc: '最强判断力。需托管订阅（服务端调用）。',
+    needsHosted: true,
+  },
 ];
 
-/**
- * BYOK model options. Scoped to DeepSeek for now — the renderer substrate routes
- * DeepSeek (and Google) directly; other providers arrive with their own provider
- * or via the hosted path. (Settings · Shadow only offers these two today.)
- */
-export const SHADOW_BYOK_MODELS: { value: string; label: string }[] = [
-  { value: 'deepseek-v4-flash', label: 'DeepSeek Flash · 快' },
-  { value: 'deepseek-v4-pro', label: 'DeepSeek Pro · 稳' },
-];
+/** Shadow uses the same certified provider/model catalog as General Agent. */
+export const SHADOW_PROVIDER_OPTIONS = AGENT_PROVIDER_OPTIONS;
 
 export interface ShadowModelChoice {
+  provider: AgentProviderId;
   model: string;
-  /** Arc derive always wants a reasoning pass (jsonMode composes with it). */
+  /** Whether the selected model has a certified native reasoning mode. */
   thinking: boolean;
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 }
 
 /**
@@ -64,34 +80,47 @@ export interface ShadowModelChoice {
 export function resolveShadowModel(): ShadowModelChoice {
   const s = useSettingsStore.getState();
   if (s.shadowAiMode === 'byok') {
-    const model = s.shadowByokModel?.trim() || 'deepseek-v4-flash';
-    return { model, thinking: true };
+    const provider = normalizeAgentProvider(s.shadowByokProvider);
+    const model = normalizeAgentProviderModel(provider, s.shadowByokModel);
+    const reasoning = resolveAgentProviderReasoningProfile(provider, model);
+    return {
+      provider,
+      model,
+      thinking: reasoning.thinkingModes.includes('adaptive'),
+      ...(reasoning.efforts.length > 0 ? { effort: reasoning.defaultEffort } : {}),
+    };
   }
-  return { model: SHADOW_TIER_MODEL[s.shadowTier] ?? SHADOW_TIER_MODEL.standard, thinking: true };
+  const model = SHADOW_TIER_MODEL[s.shadowTier] ?? SHADOW_TIER_MODEL.standard;
+  const provider = shadowProviderForModel(model);
+  return {
+    provider: provider === 'unknown' || provider === 'google' ? 'deepseek' : provider,
+    model,
+    thinking: true,
+    effort: 'high',
+  };
 }
 
 /** Which provider's namespace a model id belongs to (by prefix). */
-export function shadowProviderForModel(model: string): 'deepseek' | 'google' | 'anthropic' | 'unknown' {
+export function shadowProviderForModel(model: string): AgentProviderId | 'google' | 'unknown' {
   if (model.startsWith('deepseek-')) return 'deepseek';
   if (model.startsWith('gemini-')) return 'google';
   if (model.startsWith('claude-')) return 'anthropic';
+  if (model.startsWith('gpt-') || model.startsWith('o')) return 'openai';
   return 'unknown';
 }
 
 /**
  * Fail loudly (instead of silently downgrading) when the chosen model can't be
- * reached on the current transport. On the hosted proxy the server routes any
- * provider, so anything goes. On a local direct build the substrate only has
- * DeepSeek + Google — a Sonnet/高档 request would otherwise be silently rewritten
- * to the DeepSeek default by the provider, which is worse than a clear error.
+ * reached on the current transport. Every BYOK choice comes from the certified
+ * shared provider catalog and routes locally. A hosted-only tier still needs the
+ * hosted proxy; without it, fail before any provider silently rewrites a model.
  */
-export function ensureShadowModelRoutable(model: string): void {
-  if (shadowRoutesViaProxy()) return; // hosted + server reachable → server routes any provider
-  const p = shadowProviderForModel(model);
-  if (p === 'deepseek' || p === 'google') return; // byok/direct substrate has these directly
+export function ensureShadowModelRoutable(choice: ShadowModelChoice): void {
+  if (useSettingsStore.getState().shadowAiMode === 'byok') return;
+  if (shadowRoutesViaProxy()) return;
   throw new AIError(
     'invalid-input',
-    `「高档 · Sonnet」需要托管订阅（服务端代理）。当前为 BYOK 直连，仅支持 DeepSeek 档位。` +
-      `请在 设置 · Shadow 改用「中档 · DeepSeek-Pro」，或切到托管。`,
+    `Shadow 模型 ${choice.model} 需要托管代理，但当前构建没有可用的托管模型服务。` +
+      `请改用 BYOK provider，或在支持托管模型的构建中重试。`,
   );
 }

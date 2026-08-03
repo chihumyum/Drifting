@@ -473,6 +473,151 @@ describe('LLMClient strict terminal validation', () => {
     expect(observer.onError).toHaveBeenCalledOnce();
   });
 
+  it('retries an invalid completion sample before observers record success', async () => {
+    let attempts = 0;
+    const provider: LLMProvider = {
+      id: 'stochastic-invalid-completion-provider',
+      complete: vi.fn(async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          return {
+            text: 'truncated attempt',
+            usage: { inputTokens: 2, outputTokens: 1 },
+          };
+        }
+        return {
+          text: 'valid attempt',
+          finishReason: 'stop',
+          usage: { inputTokens: 3, outputTokens: 2 },
+        };
+      }),
+    };
+    const observer = observerSpies();
+    const client = new LLMClient(provider, {
+      retry: {
+        maxAttempts: 2,
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        jitter: false,
+      },
+    }).use(observer.interceptor);
+
+    await expect(client.complete(STRICT_REQUEST)).resolves.toMatchObject({
+      text: 'valid attempt',
+      finishReason: 'stop',
+    });
+    expect(provider.complete).toHaveBeenCalledTimes(2);
+    expect(observer.after).toHaveBeenCalledOnce();
+    expect(observer.onError).not.toHaveBeenCalled();
+  });
+
+  it('requires reasoning content for a reasoning-enabled tool completion and resamples it', async () => {
+    let attempts = 0;
+    const provider: LLMProvider = {
+      id: 'reasoning-tool-completion-provider',
+      supportsTools: true,
+      complete: vi.fn(async () => {
+        attempts += 1;
+        return {
+          toolCalls: [
+            {
+              id: `call-${attempts}`,
+              name: 'read_node',
+              arguments: { node: '第一章' },
+            },
+          ],
+          ...(attempts === 2 ? { thinking: 'I should inspect the chapter.' } : {}),
+          finishReason: 'tool_calls',
+          usage: { inputTokens: 4, outputTokens: 2 },
+        };
+      }),
+    };
+    const client = new LLMClient(provider, {
+      retry: {
+        maxAttempts: 2,
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        jitter: false,
+      },
+    });
+
+    await expect(
+      client.complete({
+        ...STRICT_REQUEST,
+        tools: [
+          {
+            name: 'read_node',
+            description: 'Read one node',
+            parametersSchema: { type: 'object' },
+          },
+        ],
+        terminalRequirements: {
+          ...STRICT_REQUEST.terminalRequirements,
+          reasoningContentForToolCalls: true,
+        },
+      }),
+    ).resolves.toMatchObject({
+      thinking: 'I should inspect the chapter.',
+      finishReason: 'tool_calls',
+    });
+    expect(provider.complete).toHaveBeenCalledTimes(2);
+  });
+
+  it('resamples a completion that ignores a forced tool choice', async () => {
+    let attempts = 0;
+    const provider: LLMProvider = {
+      id: 'forced-tool-completion-provider',
+      supportsTools: true,
+      complete: vi.fn(async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          return {
+            text: 'I can summarize without the tool.',
+            finishReason: 'stop',
+            usage: { inputTokens: 4, outputTokens: 2 },
+          };
+        }
+        return {
+          toolCalls: [
+            {
+              id: 'call-summary',
+              name: 'submit_context_summary',
+              arguments: { summary: 'done' },
+            },
+          ],
+          finishReason: 'tool_calls',
+          usage: { inputTokens: 4, outputTokens: 2 },
+        };
+      }),
+    };
+    const client = new LLMClient(provider, {
+      retry: {
+        maxAttempts: 2,
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        jitter: false,
+      },
+    });
+
+    await expect(
+      client.complete({
+        ...STRICT_REQUEST,
+        tools: [
+          {
+            name: 'submit_context_summary',
+            description: 'Submit the context summary',
+            parametersSchema: { type: 'object' },
+          },
+        ],
+        toolChoice: { force: 'submit_context_summary' },
+      }),
+    ).resolves.toMatchObject({
+      finishReason: 'tool_calls',
+      toolCalls: [{ name: 'submit_context_summary' }],
+    });
+    expect(provider.complete).toHaveBeenCalledTimes(2);
+  });
+
   it('does not synthesize a finish reason for a streamless provider', async () => {
     const provider: LLMProvider = {
       id: 'streamless-provider',

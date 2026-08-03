@@ -55,7 +55,7 @@ coding-agent 的本质循环：`edit → 跑测试 → 红 → fix → 绿 → d
 | **复用** | deps 章发现（X 在哪些章出场）                                                 | `listBacklinksToTarget('element', id)` [inline-mention-repo.ts:68](../../sqlite-repo/inline-mention-repo.ts) |
 | **复用** | FC 跑环骨架 + 只读 tool registry（`submit_verdicts`/`basis` 纪律）            | [shadow-rules.ts](../ai/shadow-rules.ts)                                                                     |
 | **复用** | effective-canon 解析（`effective_canon(E, N)`，安全检查要用）                 | `shadowEffectivePatchesText` [tool-handlers.ts:1846](../agent/tool-handlers.ts)                              |
-| **复用** | 叶层取证（读段、搜证 provider）                                               | `buildShadowEvidenceProvider` [tool-handlers.ts:2008](../agent/tool-handlers.ts)                             |
+| **复用** | 叶层 agent loop / provider driver / 取证工具                                   | `runShadowAgentRuntime` + `AgentRuntime` + `makeShadowRunTool`                                               |
 | **Fork** | 判据：不迭代 project rules，换成一条 **bespoke E-scoped critic**              | 新建                                                                                                         |
 | **Fork** | 验证单元：不复用「一章一过、所有 rule、写 comment、翻 status」                | 新建                                                                                                         |
 | **Fork** | **不写 shadow comment、不翻 chapter status**；verdict 只在内存回 orchestrator | ——                                                                                                           |
@@ -125,7 +125,7 @@ Phase 4  Terminate   所有编辑 pending 在 edit-store；批量交人审（§6
   _（备选：edit-first 盲改全部 deps 再验——覆盖更全但更贵、会动没问题的章。v1 默认 review 起手。）_
 - **`runShadowEditTurn`**：renderer 内运行受限 function-calling editor，调用同一套 `runAgentTool` 写工具，再从 [agent-edit-store.ts](../../store/agent-edit-store.ts) 收集本轮改动；无需额外进程或 IPC。
 - **编辑落 live Yjs**：`writeEntityProse` [chapter-prose.ts:497](../agent/chapter-prose.ts)，agent 按 **name** 引用实体 [tool-entity-ref.ts](../agent/tool-entity-ref.ts)。
-- **editor 引擎**：当前 Tauri 版本固定使用 `shadow-fc`，跑在 Shadow provider（BYOK 一致、零 Anthropic SDK 依赖；文笔受所选 Shadow 模型限制）。`runShadowEditBatch`（[tool-handlers.ts](../agent/tool-handlers.ts)）使用 tiny 写工具集 edit_block/edit_blocks/finish_edits，经 `runAgentTool` 落 live Yjs。`agent-sdk` 仅作为旧设置值与未来 transport 的兼容 token，hydrate 时会自动迁为 `shadow-fc`。
+- **editor 引擎**：当前设置 token 仍为 `shadow-fc`，但实现已经是 canonical `AgentRuntime` 的 Shadow write profile，不再有自建 FC loop。`runShadowEditBatch`（[tool-handlers.ts](../agent/tool-handlers.ts)）只声明 tiny 写工具集 edit_block/edit_blocks/finish_edits，经 `runAgentTool` 落 live Yjs；provider/context/reasoning/终止由共享 runtime 处理。`agent-sdk` 仅作为旧设置值与未来 transport 的兼容 token，hydrate 时会自动迁为 `shadow-fc`。
 - **edit-mode 按模块分流**：evolve 编辑记 `shadowEditMode`（默认 `approve`，批量+critic 可错），不是 general agent 的 `agentEditMode`。机制：`setAgentEditModeOverride`（[agent-edit-mode.ts](../agent/agent-edit-mode.ts)），写路径 `.record` 读 `effectiveAgentEditMode()`。
 - **`approve` 模式**：编辑只 stage，不 auto-commit，留给 §6 人工闸门。
 - **并发=两条 lane + 按章流水线**：`makeLimiter` 信号量两条——edit lane（`shadow-fc`=3 跨章独立 fan-out）和 critique lane（=5，只读）。轮内**无 edit/verify 屏障**：一章改完立刻进 critique lane 验，同时 edit lane 已在改下一章。轮与轮之间仍有屏障（收缩判据要全集）。
@@ -133,7 +133,7 @@ Phase 4  Terminate   所有编辑 pending 在 edit-store；批量交人审（§6
 - **草稿过滤**：`includeDrafts`（默认 false，镜像 arc 派生）——只把 `writingStatus==='finished'` 的章纳入 scope，不改半成品草稿。
 - **只动 chapter**：scope 显式 `isChapter(node)` 闸——drift 节点（自由灵感）永不自动改。不能只靠 writingStatus 滤（drift 的 'drifting'/'resting' 只是碰巧不等于 'finished'，含草稿章一开就漏进来）。
 - **结果只报本次**：scope 后先 `pendingSnapshot`（每章已 pending 的 blockId 集），`harvestPending` 只报快照外的新增——上一轮未审完的暂存不再混进下一轮的结果 UI。
-- **过程可检视（trace）**：`EvolveOpts.onTrace` 流式收 `EvolveTraceStep{round, phase, chapter, actor, step}`——critic 的查证/裁决轮（FC judge 原生 `AgenticTraceStep`）+ Shadow-FC 的 edit_block/edit_blocks/finish 摘要。evolve-store 按 element 收（cap 800），UI「过程」面板跑时自动展开、跑完折叠待查。
+- **过程可检视（trace）**：`EvolveOpts.onTrace` 流式收 `EvolveTraceStep{round, phase, chapter, actor, step}`——critic 与 editor 都从 canonical runtime journal 投影 `AgenticTraceStep`（read calls / edit_block / edit_blocks / finish）。evolve-store 按 element 收（cap 800），UI「过程」面板跑时自动展开、跑完折叠待查。
 - **运行态 per-element**：run/phase/result 存 `evolve-store`（keyed by elementId，非组件局部 state）→ 每个 element editor 各看各的演化、切换不串台、跑动中离开再回来仍在。AbortController 存组件外 Map（非渲染态）。
 - **持久化**：给 `shadow_job` 加一种 kind（`evolve`）或新 `goal_run` 行，白嫖 durable 队列 + trace + 顶栏 pill，支持长跑/重启续跑 [job-recorder.ts](job-recorder.ts)、[shadow-job-repo.ts](../../sqlite-repo/shadow-job-repo.ts)。
 
@@ -166,10 +166,10 @@ Phase 4  Terminate   所有编辑 pending 在 edit-store；批量交人审（§6
 | 需要                                        | 复用                                                         | 位置                                                                                                                          |
 | ------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | work-list（E 在哪些章出场）                 | `listBacklinksToTarget('element', id)`                       | [inline-mention-repo.ts:68](../../sqlite-repo/inline-mention-repo.ts)                                                         |
-| critic 的 FC 骨架 / 只读工具 / `basis` 纪律 | `evaluateSemanticAssertionsFC` 模式 + `SUBMIT_VERDICTS_TOOL` | [shadow-rules.ts](../ai/shadow-rules.ts)                                                                                      |
+| critic 的 agent loop / 只读工具 / `basis` 纪律 | `runShadowAgentRuntime` + `SUBMIT_VERDICTS_TOOL`          | [agent-runtime.ts](agent-runtime.ts)、[shadow-rules.ts](../ai/shadow-rules.ts)                                                |
 | 安全检查基线 `effective_canon(E,N)`         | `shadowEffectivePatchesText`                                 | [tool-handlers.ts:1846](../agent/tool-handlers.ts)                                                                            |
-| critic 取证 provider                        | `buildShadowEvidenceProvider`                                | [tool-handlers.ts:2008](../agent/tool-handlers.ts)                                                                            |
-| editor 叶（程序化跑一轮编辑）               | Shadow-FC + `runAgentTool` + 读 edit-store                   | [run-shadow-edit-turn.ts](../goal/run-shadow-edit-turn.ts)、[agent-edit-store.ts](../../store/agent-edit-store.ts)            |
+| critic 取证 provider                        | shared `AgentModelDriver` + `makeShadowRunTool`               | [agent-runtime.ts](agent-runtime.ts)、[tool-handlers.ts](../agent/tool-handlers.ts)                                           |
+| editor 叶（程序化跑一轮编辑）               | shared `AgentRuntime` + `runAgentTool` + 读 edit-store        | [run-shadow-edit-turn.ts](../goal/run-shadow-edit-turn.ts)、[agent-edit-store.ts](../../store/agent-edit-store.ts)            |
 | 落正文（live Yjs）                          | `writeEntityProse`                                           | [chapter-prose.ts:497](../agent/chapter-prose.ts)                                                                             |
 | 实体按名解析                                | tool-entity-ref                                              | [tool-entity-ref.ts](../agent/tool-entity-ref.ts)                                                                             |
 | 批量审稿 UI                                 | agent-edit-review store                                      | [agent-edit-store.ts](../../store/agent-edit-store.ts)                                                                        |
@@ -196,7 +196,7 @@ Phase 4  Terminate   所有编辑 pending 在 edit-store；批量交人审（§6
 
 **已建**（renderer `lib/goal/`，typecheck+lint clean；devtools `__goalEvolve` 手动跑过、并接入 element editor UI）：
 
-- 核心循环 `orchestrator`（scope→critic→edit→re-critic，集合严格收缩 / 3 轮）、E-scoped `critic`（复用 FC 骨架 + judgingGuide 注入 + effective-canon **预载**）、editor 叶 `runShadowEditTurn`、`scope`/`scopeAppearances`。
+- 核心循环 `orchestrator`（scope→critic→edit→re-critic，集合严格收缩 / 3 轮）、E-scoped `critic`（复用 shared AgentRuntime + judgingGuide 注入 + effective-canon **预载**）、editor 叶 `runShadowEditTurn`、`scope`/`scopeAppearances`。
 - 两道前置闸（§4.6 语义三分 + 爆炸半径）、essence **worklist**（定位不自动改）、mixed **拆分**。
 - 失败隔离 + `parse` 重试（§6）。
 - **UI**：element editor `ArcSection` 旁挂 `EvolveSection`（自动检测改动字段 → 演化 → overview + 需手动清单）。
@@ -212,7 +212,7 @@ Phase 4  Terminate   所有编辑 pending 在 edit-store；批量交人审（§6
 | work-list：element → 引用章                               | `listBacklinksToTarget` [inline-mention-repo.ts:68](../../sqlite-repo/inline-mention-repo.ts)                                                                |
 | critic 骨架（FC / submit_verdicts / basis）               | [shadow-rules.ts](../ai/shadow-rules.ts)                                                                                                                     |
 | effective_canon(E,N)（critic 安全检查基线）               | `shadowEffectivePatchesText` [tool-handlers.ts:1846](../agent/tool-handlers.ts)                                                                              |
-| critic 取证 provider                                      | `buildShadowEvidenceProvider` [tool-handlers.ts:2008](../agent/tool-handlers.ts)                                                                             |
+| critic/editor runtime + provider                          | [agent-runtime.ts](agent-runtime.ts)、[tool-handlers.ts](../agent/tool-handlers.ts)                                                                           |
 | editor 叶 / 落 Yjs / 按名解析                             | [run-shadow-edit-turn.ts](../goal/run-shadow-edit-turn.ts)、[chapter-prose.ts](../agent/chapter-prose.ts)、[tool-entity-ref.ts](../agent/tool-entity-ref.ts) |
 | 批量审稿                                                  | [agent-edit-store.ts](../../store/agent-edit-store.ts)                                                                                                       |
 | 编排/trace/持久化（加 `evolve` kind）                     | [job-recorder.ts](job-recorder.ts)、[shadow-job-repo.ts](../../sqlite-repo/shadow-job-repo.ts)                                                               |

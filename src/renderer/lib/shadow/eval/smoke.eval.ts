@@ -15,9 +15,12 @@ vi.mock('../../ai/client/build-default-client', () => ({
   buildDefaultLLMClient: async () => {
     throw new Error('buildDefaultLLMClient must not be called in eval (pass a client)');
   },
+  buildShadowClient: async () => {
+    throw new Error('buildShadowClient must not be called in eval (pass a client)');
+  },
 }));
 
-import { evaluateSemanticAssertionsFC } from '../../ai/shadow-rules';
+import { evaluateSemanticAssertionsWithRuntime } from '../../ai/shadow-rules';
 import { AGENT_READ_TOOLS, toAITools } from '../../agent/tool-registry';
 import type { LLMClient } from '../../ai/client/llm-client';
 import type { AICompletionResponse } from '../../ai/types';
@@ -25,15 +28,17 @@ import type { AICompletionResponse } from '../../ai/types';
 // A canned client: ignores the prompt, returns one forced submit_verdicts call
 // marking the given assertion indices (1-based) as violated.
 function mockClient(violatedConstraints: number[]): LLMClient {
-  const verdicts = violatedConstraints.map((constraint) => ({
+  const verdicts = [1].map((constraint) => ({
     constraint,
-    violations: [
-      { violated: true, blockStart: 1, blockEnd: 1, reason: 'mock 违反', confidence: 0.9 },
-    ],
+    basis: 'mock 已核对当前设定与正文',
+    violations: violatedConstraints.includes(constraint)
+      ? [{ violated: true, blockStart: 1, blockEnd: 1, reason: 'mock 违反', confidence: 0.9 }]
+      : [],
   }));
   const complete = async (): Promise<AICompletionResponse> => ({
     text: '',
     toolCalls: [{ id: 'c1', name: 'submit_verdicts', arguments: { verdicts } }],
+    finishReason: 'tool_calls',
     usage: { inputTokens: 0, outputTokens: 0 },
   });
   return { supportsTools: true, complete } as unknown as LLMClient;
@@ -48,7 +53,7 @@ describe('shadow judge eval — smoke', () => {
   const noopRunTool = async () => ({ content: '（eval：无此工具）', status: 'denied' as const });
 
   test('clean case → no violations', async () => {
-    const out = await evaluateSemanticAssertionsFC(
+    const out = await evaluateSemanticAssertionsWithRuntime(
       ['全文保持第三人称限知视角，禁止头跳'],
       blocks,
       'eval-project',
@@ -62,7 +67,7 @@ describe('shadow judge eval — smoke', () => {
   });
 
   test('injected violation → assertion 1 flagged', async () => {
-    const out = await evaluateSemanticAssertionsFC(
+    const out = await evaluateSemanticAssertionsWithRuntime(
       ['角色动作需符合设定（奥伦惯用左手）'],
       blocks,
       'eval-project',

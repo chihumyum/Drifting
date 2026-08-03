@@ -22,6 +22,31 @@ import {
 } from '../types';
 import { withRetry, type RetryConfig } from './retry';
 
+export const MALFORMED_STREAMED_TOOL_ARGUMENTS_CODE = 'MALFORMED_STREAMED_TOOL_ARGUMENTS' as const;
+export const MISSING_REASONING_TOOL_CALL_CODE = 'MISSING_REASONING_TOOL_CALL' as const;
+
+export function isMalformedStreamedToolArgumentsError(error: unknown): error is AIError {
+  if (!(error instanceof AIError) || error.kind !== 'parse') return false;
+  const cause = error.cause;
+  return Boolean(
+    cause &&
+    typeof cause === 'object' &&
+    'code' in cause &&
+    cause.code === MALFORMED_STREAMED_TOOL_ARGUMENTS_CODE,
+  );
+}
+
+export function isMissingReasoningToolCallError(error: unknown): error is AIError {
+  if (!(error instanceof AIError) || error.kind !== 'parse') return false;
+  const cause = error.cause;
+  return Boolean(
+    cause &&
+    typeof cause === 'object' &&
+    'code' in cause &&
+    cause.code === MISSING_REASONING_TOOL_CALL_CODE,
+  );
+}
+
 export interface LLMClientOptions {
   retry?: RetryConfig;
 }
@@ -53,8 +78,7 @@ export class LLMClient {
   /** Whether the provider's stream preserves the full function-calling loop. */
   get supportsToolStreaming(): boolean {
     return (
-      this.provider.supportsToolStreaming === true &&
-      typeof this.provider.stream === 'function'
+      this.provider.supportsToolStreaming === true && typeof this.provider.stream === 'function'
     );
   }
 
@@ -67,12 +91,18 @@ export class LLMClient {
 
     try {
       const res = await withRetry(
-        () => this.provider.complete(req),
+        async () => {
+          const response = await this.provider.complete(req);
+          // Terminal validation belongs inside the retry lease. A syntactically
+          // successful HTTP response can still be a stochastic, unusable model
+          // sample (truncated tool JSON, missing finish/usage/reasoning).
+          validateCompletionTerminal(req, response);
+          return response;
+        },
         isRetryable,
         this.options.retry,
         req.signal,
       );
-      validateCompletionTerminal(req, res);
       for (const it of this.interceptors) {
         try {
           await it.after?.(req, res);
@@ -110,12 +140,10 @@ export class LLMClient {
     }
 
     let text = '';
+    let thinking = '';
     let usage: AIUsage | undefined;
     let finishReason: string | undefined;
-    const streamedCalls = new Map<
-      number,
-      { id?: string; name: string; rawArguments: string }
-    >();
+    const streamedCalls = new Map<number, { id?: string; name: string; rawArguments: string }>();
     let fallbackResponse: AICompletionResponse | undefined;
     let observerSettled = false;
     let completed = false;
@@ -126,22 +154,16 @@ export class LLMClient {
         (!req.tools?.length || this.provider.supportsToolStreaming === true);
       if (canUseProviderStream && this.provider.stream) {
         for await (const chunk of this.provider.stream(req)) {
-          if (
-            terminalSeen &&
-            (chunk.delta ||
-              chunk.toolCallDeltas?.length ||
-              chunk.finishReason)
-          ) {
+          if (terminalSeen && (chunk.delta || chunk.toolCallDeltas?.length || chunk.finishReason)) {
             throw invalidTerminalResponse(
               'Model provider emitted payload after the finish reason.',
             );
           }
           if (chunk.delta) text += chunk.delta;
+          if (chunk.thinkingDelta) thinking += chunk.thinkingDelta;
           for (const delta of chunk.toolCallDeltas ?? []) {
             if (!Number.isSafeInteger(delta.index) || delta.index < 0) {
-              throw invalidTerminalResponse(
-                'Model provider returned an invalid tool-call index.',
-              );
+              throw invalidTerminalResponse('Model provider returned an invalid tool-call index.');
             }
             const call = streamedCalls.get(delta.index) ?? {
               name: '',
@@ -149,9 +171,7 @@ export class LLMClient {
             };
             if (delta.id) {
               if (call.id && call.id !== delta.id) {
-                throw invalidTerminalResponse(
-                  'Model provider changed a streamed tool-call id.',
-                );
+                throw invalidTerminalResponse('Model provider changed a streamed tool-call id.');
               }
               call.id = delta.id;
             }
@@ -185,13 +205,11 @@ export class LLMClient {
         validateCompletionTerminal(req, res);
         fallbackResponse = res;
         text = res.text ?? '';
+        thinking = res.thinking ?? '';
         usage = res.usage;
         if (text) yield { delta: text };
-        const calls = res.toolCalls?.length
-          ? res.toolCalls
-          : res.toolCall
-            ? [res.toolCall]
-            : [];
+        if (thinking) yield { delta: '', thinkingDelta: thinking };
+        const calls = res.toolCalls?.length ? res.toolCalls : res.toolCall ? [res.toolCall] : [];
         for (const [index, call] of calls.entries()) {
           const rawArguments = stringifyStreamedArguments(
             call.arguments,
@@ -217,11 +235,7 @@ export class LLMClient {
         const explicitFinishReason = completionFinishReason(res);
         finishReason =
           explicitFinishReason ??
-          (requiresExplicitFinish(req)
-            ? undefined
-            : calls.length > 0
-              ? 'tool_calls'
-              : 'stop');
+          (requiresExplicitFinish(req) ? undefined : calls.length > 0 ? 'tool_calls' : 'stop');
         yield {
           delta: '',
           usage,
@@ -233,33 +247,28 @@ export class LLMClient {
         ([left], [right]) => left - right,
       );
       const strictTerminal = requiresStrictTerminal(req);
-      const toolCalls = orderedStreamedCalls.map(
-        ([index, call], orderedIndex): AIToolCall => {
-          if (strictTerminal && index !== orderedIndex) {
-            throw invalidTerminalResponse(
-              'Model provider returned a non-contiguous tool-call sequence.',
-            );
-          }
-          return {
-            ...(call.id ? { id: call.id } : {}),
-            name: call.name,
-            arguments: parseStreamedArguments(
-              call.rawArguments,
-              strictTerminal,
-            ),
-          };
-        },
-      );
+      const toolCalls = orderedStreamedCalls.map(([index, call], orderedIndex): AIToolCall => {
+        if (strictTerminal && index !== orderedIndex) {
+          throw invalidTerminalResponse(
+            'Model provider returned a non-contiguous tool-call sequence.',
+          );
+        }
+        return {
+          ...(call.id ? { id: call.id } : {}),
+          name: call.name,
+          arguments: parseStreamedArguments(call.rawArguments, strictTerminal),
+        };
+      });
       validateTerminalParts(req, {
         finishReason,
         usage,
         toolCalls,
+        reasoningContent: thinking,
       });
       const finalRes: AICompletionResponse = {
         ...(text ? { text } : {}),
-        ...(toolCalls.length
-          ? { toolCall: toolCalls[0], toolCalls }
-          : {}),
+        ...(thinking ? { thinking } : {}),
+        ...(toolCalls.length ? { toolCall: toolCalls[0], toolCalls } : {}),
         ...(finishReason ? { finishReason } : {}),
         usage: usage ?? { inputTokens: 0, outputTokens: 0 },
       };
@@ -311,11 +320,10 @@ function parseStreamedArguments(raw: string, strict: boolean): unknown {
     return JSON.parse(raw);
   } catch (error) {
     if (strict) {
-      throw new AIError(
-        'parse',
-        'Model provider returned malformed streamed tool arguments.',
-        error,
-      );
+      throw new AIError('parse', 'Model provider returned malformed streamed tool arguments.', {
+        code: MALFORMED_STREAMED_TOOL_ARGUMENTS_CODE,
+        cause: error,
+      });
     }
     // The runtime consumes and validates raw deltas independently. Preserve a
     // malformed provider payload for diagnostics without making an observer
@@ -324,18 +332,10 @@ function parseStreamedArguments(raw: string, strict: boolean): unknown {
   }
 }
 
-function stringifyStreamedArguments(
-  value: unknown,
-  strict = false,
-): string {
+function stringifyStreamedArguments(value: unknown, strict = false): string {
   try {
     const input = value ?? (strict ? value : {});
-    if (
-      strict &&
-      (typeof input !== 'object' ||
-        input === null ||
-        Array.isArray(input))
-    ) {
+    if (strict && (typeof input !== 'object' || input === null || Array.isArray(input))) {
       throw new TypeError('tool arguments must be a JSON object');
     }
     const seen = new WeakSet<object>();
@@ -362,43 +362,28 @@ function stringifyStreamedArguments(
     }
     if (strict) {
       const roundTrip = JSON.parse(serialized) as unknown;
-      if (
-        typeof roundTrip !== 'object' ||
-        roundTrip === null ||
-        Array.isArray(roundTrip)
-      ) {
+      if (typeof roundTrip !== 'object' || roundTrip === null || Array.isArray(roundTrip)) {
         throw new TypeError('tool arguments must serialize to a JSON object');
       }
     }
     return serialized;
   } catch (error) {
     if (strict) {
-      throw new AIError(
-        'parse',
-        'Model provider returned non-JSON tool arguments.',
-        error,
-      );
+      throw new AIError('parse', 'Model provider returned non-JSON tool arguments.', error);
     }
     return '{}';
   }
 }
 
-function completionFinishReason(
-  response: AICompletionResponse,
-): string | undefined {
+function completionFinishReason(response: AICompletionResponse): string | undefined {
   if (response.finishReason) return response.finishReason;
   const raw = response.raw;
-  if (
-    raw &&
-    typeof raw === 'object' &&
-    Array.isArray((raw as { choices?: unknown }).choices)
-  ) {
+  if (raw && typeof raw === 'object' && Array.isArray((raw as { choices?: unknown }).choices)) {
     const choice = (raw as { choices: unknown[] }).choices[0];
     if (
       choice &&
       typeof choice === 'object' &&
-      typeof (choice as { finish_reason?: unknown }).finish_reason ===
-        'string'
+      typeof (choice as { finish_reason?: unknown }).finish_reason === 'string'
     ) {
       return (choice as { finish_reason: string }).finish_reason;
     }
@@ -413,7 +398,8 @@ function requiresExplicitFinish(request: AICompletionRequest): boolean {
 function requiresStrictTerminal(request: AICompletionRequest): boolean {
   return Boolean(
     request.terminalRequirements?.finishReason ||
-      request.terminalRequirements?.usage,
+    request.terminalRequirements?.usage ||
+    request.terminalRequirements?.reasoningContentForToolCalls,
   );
 }
 
@@ -435,14 +421,13 @@ function validateCompletionTerminal(
     (response.toolCalls[0].id !== response.toolCall.id ||
       response.toolCalls[0].name !== response.toolCall.name)
   ) {
-    throw invalidTerminalResponse(
-      'Model provider returned inconsistent primary tool-call fields.',
-    );
+    throw invalidTerminalResponse('Model provider returned inconsistent primary tool-call fields.');
   }
   validateTerminalParts(request, {
     finishReason: completionFinishReason(response),
     usage: response.usage,
     toolCalls,
+    reasoningContent: response.thinking,
   });
 }
 
@@ -452,13 +437,12 @@ function validateTerminalParts(
     finishReason: string | undefined;
     usage: AIUsage | undefined;
     toolCalls: readonly AIToolCall[];
+    reasoningContent?: string;
   },
 ): void {
   if (request.terminalRequirements?.usage) {
     if (!terminal.usage) {
-      throw invalidTerminalResponse(
-        'Model provider stream ended without terminal usage.',
-      );
+      throw invalidTerminalResponse('Model provider stream ended without terminal usage.');
     }
     if (
       !Number.isSafeInteger(terminal.usage.inputTokens) ||
@@ -466,46 +450,55 @@ function validateTerminalParts(
       !Number.isSafeInteger(terminal.usage.outputTokens) ||
       terminal.usage.outputTokens < 0 ||
       (terminal.usage.cachedTokens !== undefined &&
-        (!Number.isSafeInteger(terminal.usage.cachedTokens) ||
-          terminal.usage.cachedTokens < 0))
+        (!Number.isSafeInteger(terminal.usage.cachedTokens) || terminal.usage.cachedTokens < 0))
     ) {
-      throw invalidTerminalResponse(
-        'Model provider returned invalid terminal usage.',
-      );
+      throw invalidTerminalResponse('Model provider returned invalid terminal usage.');
     }
   }
-  if (
-    request.terminalRequirements?.finishReason &&
-    !terminal.finishReason
-  ) {
-    throw invalidTerminalResponse(
-      'Model provider stream ended without a finish reason.',
-    );
+  if (request.terminalRequirements?.finishReason && !terminal.finishReason) {
+    throw invalidTerminalResponse('Model provider stream ended without a finish reason.');
   }
   if (!requiresStrictTerminal(request)) return;
+
+  if (
+    request.terminalRequirements?.reasoningContentForToolCalls &&
+    terminal.toolCalls.length > 0 &&
+    !terminal.reasoningContent?.trim()
+  ) {
+    throw new AIError('parse', 'Model provider returned a tool call without reasoning content.', {
+      code: MISSING_REASONING_TOOL_CALL_CODE,
+    });
+  }
+
+  const forcedToolName = typeof request.toolChoice === 'object' ? request.toolChoice.force : null;
+  if (
+    (request.toolChoice === 'required' || forcedToolName !== null) &&
+    terminal.toolCalls.length === 0
+  ) {
+    throw invalidTerminalResponse('Model provider ignored the required tool call.');
+  }
+  if (forcedToolName !== null && terminal.toolCalls.some((call) => call.name !== forcedToolName)) {
+    throw invalidTerminalResponse(
+      'Model provider returned a different tool than the forced tool call.',
+    );
+  }
 
   const callIds = new Set<string>();
   for (const call of terminal.toolCalls) {
     if (!call.id?.trim() || !call.name.trim() || callIds.has(call.id)) {
-      throw invalidTerminalResponse(
-        'Model provider returned invalid streamed tool-call identity.',
-      );
+      throw invalidTerminalResponse('Model provider returned invalid streamed tool-call identity.');
     }
     callIds.add(call.id);
     stringifyStreamedArguments(call.arguments, true);
   }
-  if (
-    terminal.toolCalls.length > 0 &&
-    terminal.finishReason !== 'tool_calls'
-  ) {
+  if (terminal.toolCalls.length > 0 && terminal.finishReason !== 'tool_calls') {
     throw invalidTerminalResponse(
       'Model provider returned tool calls without a tool_calls finish reason.',
     );
   }
   if (
     terminal.toolCalls.length === 0 &&
-    (terminal.finishReason === 'tool_calls' ||
-      terminal.finishReason === 'function_call')
+    (terminal.finishReason === 'tool_calls' || terminal.finishReason === 'function_call')
   ) {
     throw invalidTerminalResponse(
       'Model provider returned a tool finish reason without tool calls.',

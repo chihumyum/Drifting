@@ -128,10 +128,9 @@ export type AppEvents = {
   // Settings) — the Agent panel listens to refresh its usable state.
   'agent:auth-changed': void;
 
-  // A BYOK provider key was connected/disconnected in Settings (copilot's
-  // per-provider keychain). Lets key-STATUS indicators that don't own the
-  // ProviderRow's local state (the copilot active-provider warning, the
-  // Shadow panel's "DeepSeek key connected?" line) re-read the keychain live.
+  // A global BYOK provider key changed under Settings → Models & API. Feature
+  // status indicators re-read their selected provider without owning another
+  // credential form.
   'byok:keys-changed': void;
 
   // Copilot persisted a suggestion against the given (kind, id) target.

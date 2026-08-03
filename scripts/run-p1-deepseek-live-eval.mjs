@@ -1,5 +1,5 @@
 /**
- * Explicit opt-in launcher for the credentialed P1 Agent evaluation.
+ * Explicit opt-in launcher for credentialed DeepSeek Agent evaluations.
  *
  * Only DEEPSEEK_AI_API_KEY is selected from private-service/.env. The value is
  * passed to the dedicated Vitest child process and is never printed, persisted,
@@ -18,10 +18,13 @@ const evalFiles = {
   p1: 'src/renderer/lib/agent/runtime/eval/p1-deepseek-live.eval.ts',
   'product-canary': 'src/renderer/lib/agent/runtime/eval/agent-product-canary.live.eval.ts',
   'writing-canary': 'src/renderer/lib/agent/runtime/eval/agent-writing-canary.live.eval.ts',
+  'shadow-canary': 'src/renderer/lib/shadow/eval/shared-runtime.live.eval.ts',
 };
 const evalFile = evalFiles[suite];
 if (!evalFile) {
-  console.error('DRIFTING_AGENT_LIVE_SUITE must be "p1", "product-canary", or "writing-canary".');
+  console.error(
+    'DRIFTING_AGENT_LIVE_SUITE must be "p1", "product-canary", "writing-canary", or "shadow-canary".',
+  );
   process.exitCode = 1;
   process.exit();
 }

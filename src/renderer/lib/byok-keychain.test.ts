@@ -45,4 +45,17 @@ describe('BYOK keychain reads', () => {
 
     expect(mocks.get).toHaveBeenCalledTimes(2);
   });
+
+  it('migrates the legacy General Agent Anthropic key into the global provider entry', async () => {
+    mocks.get.mockResolvedValueOnce(null).mockResolvedValueOnce('legacy-anthropic-secret');
+    mocks.set.mockResolvedValue(true);
+    mocks.delete.mockResolvedValue(true);
+    const { byokKeychain } = await import('./byok-keychain');
+
+    await expect(byokKeychain.get('anthropic')).resolves.toBe('legacy-anthropic-secret');
+    expect(mocks.get).toHaveBeenNthCalledWith(1, 'byok.anthropic');
+    expect(mocks.get).toHaveBeenNthCalledWith(2, 'byok.agent.anthropic');
+    expect(mocks.set).toHaveBeenCalledWith('byok.anthropic', 'legacy-anthropic-secret');
+    expect(mocks.delete).toHaveBeenCalledWith('byok.agent.anthropic');
+  });
 });

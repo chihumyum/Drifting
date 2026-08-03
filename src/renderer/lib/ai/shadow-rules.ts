@@ -1,14 +1,19 @@
-import { buildDefaultLLMClient } from './client/build-default-client';
+import { buildShadowClient } from './client/build-default-client';
+import { Type } from '@sinclair/typebox';
 import { callStructured } from './call-structured';
 import { resolveWritingLanguage } from './output-language';
 import { shadowRuleCompilePrompt } from './prompts/templates/shadow-rule-compile';
 import { shadowSemanticEvalPrompt } from './prompts/templates/shadow-semantic-eval';
-import { shadowSemanticAgenticPrompt } from './prompts/templates/shadow-semantic-agentic';
 import type { LLMClient } from './client/llm-client';
-import type { AIMessage, AITool, AIToolCall, AIUsage } from './types';
+import type { AITool, AIUsage } from './types';
 import type { ChecklistItem, RuleKind } from '../../domain/project-rule';
 import type { ShadowToolCall, ShadowToolStatus } from '../../domain/shadow-job';
-import { yieldToMain } from '../async/yield-to-main';
+import { runShadowAgentRuntime } from '../shadow/agent-runtime';
+import { ensureShadowModelRoutable, resolveShadowModel } from '../shadow/model-routing';
+import {
+  resolveAgentProviderReasoningProfile,
+  type AgentProviderId,
+} from '../agent/runtime/agent-provider-contract';
 
 // What the FC judge's tool executor returns: the result text fed back to the
 // model + the outcome status surfaced to the trace (ok / denied / error).
@@ -53,12 +58,18 @@ export async function compileRule(
   const rule = rawContent.trim();
   if (!rule) return { checklist: [], kind: 'other', judgingGuide: '' };
 
-  const client = await buildDefaultLLMClient();
+  const choice = resolveShadowModel();
+  ensureShadowModelRoutable(choice);
+  const client = await buildShadowClient({
+    logTag: 'shadow:rule-compile',
+    provider: choice.provider,
+    model: choice.model,
+  });
   const out = await callStructured(
     client,
     shadowRuleCompilePrompt,
     { rule },
-    { outputLanguage: resolveWritingLanguage(projectId), signal },
+    { outputLanguage: resolveWritingLanguage(projectId), signal, model: choice.model },
   );
 
   return {
@@ -176,7 +187,9 @@ function buildBackground(context?: SemanticEvalContext): string {
   // Pre-loaded canon (evolve critic): the full element + its in-effect patches are
   // handed up front so the judge compares directly instead of fetching them.
   if (context?.preloadedCanon?.trim()) {
-    lines.push(`【已提供的设定全文与对本章生效的演化记录（直接据此核对，无需再查）】\n${context.preloadedCanon.trim()}`);
+    lines.push(
+      `【已提供的设定全文与对本章生效的演化记录（直接据此核对，无需再查）】\n${context.preloadedCanon.trim()}`,
+    );
   }
   return lines.length > 0 ? lines.join('\n') : '（无额外背景）';
 }
@@ -195,7 +208,9 @@ function buildChangedDepsHint(context?: SemanticEvalContext): string {
     .map((d) => {
       const head = d.fact?.trim() ? `${d.name}（字段：${d.fact.trim()}）` : d.name;
       const hasDiff = (d.from?.trim() ?? '') !== '' || (d.to?.trim() ?? '') !== '';
-      return hasDiff ? `${head}：由「${d.from?.trim() || '（空）'}」改为「${d.to?.trim() || '（空）'}」` : head;
+      return hasDiff
+        ? `${head}：由「${d.from?.trim() || '（空）'}」改为「${d.to?.trim() || '（空）'}」`
+        : head;
     })
     .join('\n');
   return [
@@ -288,13 +303,19 @@ export async function evaluateSemanticAssertion(
   signal?: AbortSignal,
 ): Promise<SemanticViolation[]> {
   if (!assertion.trim() || blocks.length === 0) return [];
-  const client = await buildDefaultLLMClient();
+  const choice = resolveShadowModel();
+  ensureShadowModelRoutable(choice);
+  const client = await buildShadowClient({
+    logTag: 'shadow:single-shot',
+    provider: choice.provider,
+    model: choice.model,
+  });
   const numbered = blocks.map((b, i) => `[${i + 1}] ${b.text}`).join('\n');
   const out = await callStructured(
     client,
     shadowSemanticEvalPrompt,
     { assertion, blocks: numbered, context: buildBackground(context) },
-    { outputLanguage: resolveWritingLanguage(projectId), signal },
+    { outputLanguage: resolveWritingLanguage(projectId), signal, model: choice.model },
   );
   return mapViolations(out.violations, blocks);
 }
@@ -329,84 +350,8 @@ function mapViolations(
     });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Agentic (evidence-gathering) semantic judge.
-//
-// The shadow judge no longer gets a fixed, pre-baked background. It runs a loop:
-// each round it either rules, or asks for canon it needs first (an element
-// profile, an element's cross-chapter evolution, a free-floating drift node's
-// full text, or another chapter's prose). The harness fetches the request with
-// the project's existing read tools and re-invokes — so deep rules ground
-// themselves in exactly the facts they need, while shallow rules still rule in
-// one round (no cost regression). The renderer owns the data, so it injects an
-// EvidenceProvider; this module stays pure orchestration + LLM.
-
-// What evidence the judge can ask for. `kind` is validated/normalized from the
-// model's free string; unknown kinds are dropped by the harness.
-export type EvidenceKind = 'element' | 'element_evolution' | 'drift' | 'chapter';
-
-export interface EvidenceRequest {
-  kind: EvidenceKind;
-  name: string;
-}
-
-// The cheap, always-shown menu the judge picks from. Summaries are the first tier
-// of progressive disclosure: the judge reads a drift/chapter summary here and only
-// requests the full text when it looks relevant.
-export interface EvidenceCatalog {
-  sceneEntities: { name: string; summary?: string }[]; // elements appearing in this chapter
-  driftNodes: { title: string; summary?: string }[]; // free-floating drift nodes (settings/rules)
-  priorChapter?: { title: string; summary?: string }; // the immediately-preceding chapter
-}
-
-// The renderer-side data surface the loop pulls from. Mirrors the LangGraph
-// ShadowDeps pattern: the only contact with the DB/Yjs world, injected so this
-// module is testable and never imports a repo.
-export interface EvidenceProvider {
-  catalog(): Promise<EvidenceCatalog>;
-  // Fetch one request as already-formatted, human-readable text (handed straight
-  // to the model). Returns null when the target can't be found.
-  fetch(req: EvidenceRequest): Promise<string | null>;
-}
-
-const EVIDENCE_KINDS: readonly EvidenceKind[] = ['element', 'element_evolution', 'drift', 'chapter'];
-const MAX_ROUNDS = 4; // judge gets at most this many evidence rounds before a forced verdict
-const MAX_REQUESTS_PER_ROUND = 4;
-
-function normalizeKind(raw: string): EvidenceKind | null {
-  const k = raw.trim().toLowerCase();
-  return (EVIDENCE_KINDS as readonly string[]).includes(k) ? (k as EvidenceKind) : null;
-}
-
-function renderCatalog(cat: EvidenceCatalog): string {
-  const lines: string[] = [];
-  if (cat.sceneEntities.length > 0) {
-    lines.push('出场 element（可 element / element_evolution 索取详情）：');
-    for (const e of cat.sceneEntities) {
-      lines.push(`- ${e.name}${e.summary ? `：${e.summary}` : ''}`);
-    }
-  }
-  if (cat.driftNodes.length > 0) {
-    lines.push('drift 节点（可能含设定集/规则；先看 summary，相关再 drift 索取全文）：');
-    for (const d of cat.driftNodes) {
-      lines.push(`- ${d.title}${d.summary ? `：${d.summary}` : ''}`);
-    }
-  }
-  if (cat.priorChapter) {
-    lines.push(
-      `前一章（可 chapter 索取全文核对连续性）：\n- ${cat.priorChapter.title}${cat.priorChapter.summary ? `：${cat.priorChapter.summary}` : ''}`,
-    );
-  }
-  return lines.length > 0 ? lines.join('\n') : '（无可用证据）';
-}
-
-/**
- * Judge one semantic assertion with on-demand evidence gathering. Falls back to
- * the single-shot path when no provider is given (unit tests / disabled). The
- * loop caps rounds and dedupes fetches so a review stays bounded.
- */
-// A readable trail step from the judge's loop — surfaced to the shadow job
-// recorder so the panel can show what evidence it pulled and how it ruled.
+// A readable trail step from the shared Agent Runtime — surfaced to the Shadow
+// job recorder so the panel can show what evidence it pulled and how it ruled.
 export interface AgenticTraceStep {
   label: string;
   detail?: string;
@@ -414,116 +359,11 @@ export interface AgenticTraceStep {
   calls?: ShadowToolCall[];
 }
 
-export async function evaluateSemanticAssertionAgentic(
-  assertion: string,
-  blocks: { id: string | null; text: string }[],
-  projectId: string,
-  context: SemanticEvalContext | undefined,
-  provider: EvidenceProvider | undefined,
-  signal?: AbortSignal,
-  onTrace?: (step: AgenticTraceStep) => void,
-): Promise<SemanticViolation[]> {
-  if (!assertion.trim() || blocks.length === 0) return [];
-  if (!provider) {
-    return evaluateSemanticAssertion(assertion, blocks, projectId, context, signal);
-  }
-
-  const client = await buildDefaultLLMClient();
-  const numbered = blocks.map((b, i) => `[${i + 1}] ${b.text}`).join('\n');
-  const background = buildBackground(context);
-  const catalogText = renderCatalog(await provider.catalog());
-  const outputLanguage = resolveWritingLanguage(projectId);
-
-  const fetched = new Map<string, string>(); // key `${kind}:${name}` → formatted evidence
-  const evidenceLog: string[] = [];
-
-  // Emit a "裁决" trail step from a verdict, then return the mapped violations.
-  const settle = (violations: RawViolation[]): SemanticViolation[] => {
-    const mapped = mapViolations(violations, blocks);
-    onTrace?.({
-      label: mapped.length ? '裁决：发现违反' : '裁决：通过',
-      items: mapped.length ? mapped.map((v) => v.reason).filter(Boolean) : undefined,
-    });
-    return mapped;
-  };
-
-  for (let round = 1; round <= MAX_ROUNDS; round++) {
-    const mustDecide = round === MAX_ROUNDS;
-    const out = await callStructured(
-      client,
-      shadowSemanticAgenticPrompt,
-      {
-        assertion,
-        context: background,
-        blocks: numbered,
-        catalog: catalogText,
-        evidence: evidenceLog.join('\n\n'),
-        mustDecide,
-      },
-      { outputLanguage, signal },
-    );
-
-    if (out.done || mustDecide || out.requests.length === 0) {
-      return settle(out.violations);
-    }
-
-    // Fetch this round's (deduped, capped) requests and append to the evidence log.
-    let added = 0;
-    const traceLines: string[] = [];
-    for (const r of out.requests) {
-      if (added >= MAX_REQUESTS_PER_ROUND) break;
-      const kind = normalizeKind(r.kind);
-      const name = String(r.name ?? '').trim();
-      if (!kind || !name) continue;
-      const key = `${kind}:${name}`;
-      if (fetched.has(key)) continue;
-      let text: string | null = null;
-      try {
-        text = await provider.fetch({ kind, name });
-      } catch {
-        text = null; // a bad fetch must never abort the review
-      }
-      const found = text != null;
-      const value = text ?? `（未找到：${kind} ${name}）`;
-      fetched.set(key, value);
-      evidenceLog.push(`【${kind} · ${name}】\n${value}`);
-      const why = String(r.why ?? '').trim();
-      traceLines.push(`${kind} · ${name}${why ? ` — ${why}` : ''}${found ? '' : '（未找到）'}`);
-      added += 1;
-    }
-    if (traceLines.length) onTrace?.({ label: `取证 · 第 ${round} 轮`, items: traceLines });
-
-    // Nothing new could be fetched — avoid spinning; force a verdict next round.
-    if (added === 0) {
-      const out2 = await callStructured(
-        client,
-        shadowSemanticAgenticPrompt,
-        {
-          assertion,
-          context: background,
-          blocks: numbered,
-          catalog: catalogText,
-          evidence: evidenceLog.join('\n\n'),
-          mustDecide: true,
-        },
-        { outputLanguage, signal },
-      );
-      return settle(out2.violations);
-    }
-  }
-  return [];
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// Function-calling (FC) semantic judge — the freer cousin of the Path-A loop.
-//
-// On an OpenAI-compatible substrate that supports a real tool loop, the judge
-// gets the project's READ tools (read_element, search_prose, read_node,
-// …) and calls whatever it needs, in any order, with free arguments — then calls
-// the terminal `submit_verdicts` tool to rule. We (the harness) execute each tool,
-// thread results back as tool messages, and enforce guardrails: a hard cap on
-// tool calls, a round cap, result truncation, and a forced submit at the end.
-// Strictly READ tools (caller passes a read-only set) keeps advise-not-block.
+// Function-calling (FC) semantic judge, expressed as a bounded read-only profile
+// of the same AgentRuntime used by General Agent. Shadow still owns its prompt,
+// allowlist, limits and structured completion schema; provider protocol, context
+// planning, cancellation, the tool loop and forced-submit policy are shared.
 //
 // The judge takes ALL of one rule's semantic assertions at once and rules on them
 // in a SINGLE loop — these checks share context by design (a rule groups related
@@ -553,43 +393,28 @@ const SUBMIT_VERDICTS_TOOL: AITool = {
   name: 'submit_verdicts',
   description:
     '证据已足够，一次性提交对所有约束的最终裁决。verdicts 必须每条约束恰好一项，用 constraint 标明约束编号（与输入的「约束」列表 1-based 对应）。每项都必须填 basis（核对依据，即使判一致也要写）。某条整章满足时其 violations 为空数组；不确定/依据不足的边缘段不写进 violations，但仍要在 basis 说明。',
-  parametersSchema: {
-    type: 'object',
-    properties: {
-      verdicts: {
-        type: 'array',
-        description: '每条约束一项的裁决列表',
-        items: {
-          type: 'object',
-          properties: {
-            constraint: { type: 'number', description: '约束编号(1 起，对应输入「约束」的顺序)' },
-            basis: {
-              type: 'string',
-              description:
-                '核对依据：逐个核对了哪些角色/设定的【当前值】对照本章哪几段，结论一致还是冲突。判一致也必须写，不得为空——这是为了逼出真实比对，杜绝「读完直接空数组、零依据放行」。',
-            },
-            violations: {
-              type: 'array',
-              description: '该约束违反的连续段范围列表；无违反则为空数组',
-              items: {
-                type: 'object',
-                properties: {
-                  violated: { type: 'boolean', description: 'true=该段确实违反' },
-                  blockStart: { type: 'number', description: '起始段编号(1 起);0=整章级' },
-                  blockEnd: { type: 'number', description: '结束段编号(含);单段时同 blockStart' },
-                  reason: { type: 'string', description: '一句话解释为何违反(不要照抄原文)' },
-                  confidence: { type: 'number', description: '0~1 把握' },
-                },
-                required: ['violated', 'blockStart', 'blockEnd', 'reason', 'confidence'],
-              },
-            },
-          },
-          required: ['constraint', 'basis', 'violations'],
-        },
-      },
-    },
-    required: ['verdicts'],
-  },
+  parametersSchema: Type.Object({
+    verdicts: Type.Array(
+      Type.Object({
+        constraint: Type.Number({ description: '约束编号(1 起，对应输入「约束」的顺序)' }),
+        basis: Type.String({
+          description:
+            '核对依据：逐个核对了哪些角色/设定的【当前值】对照本章哪几段，结论一致还是冲突。判一致也必须写，不得为空——这是为了逼出真实比对，杜绝「读完直接空数组、零依据放行」。',
+        }),
+        violations: Type.Array(
+          Type.Object({
+            violated: Type.Boolean({ description: 'true=该段确实违反' }),
+            blockStart: Type.Number({ description: '起始段编号(1 起);0=整章级' }),
+            blockEnd: Type.Number({ description: '结束段编号(含);单段时同 blockStart' }),
+            reason: Type.String({ description: '一句话解释为何违反(不要照抄原文)' }),
+            confidence: Type.Number({ description: '0~1 把握' }),
+          }),
+          { description: '该约束违反的连续段范围列表；无违反则为空数组' },
+        ),
+      }),
+      { description: '每条约束一项的裁决列表' },
+    ),
+  }),
 };
 
 function coerceVerdict(args: unknown): RawViolation[] {
@@ -647,12 +472,12 @@ function summarizeArgs(args: unknown): string {
 
 // Judge a rule's semantic assertions together. Returns one SemanticViolation[]
 // per input assertion (aligned by index). The whole rule shares ONE tool loop.
-export async function evaluateSemanticAssertionsFC(
+export async function evaluateSemanticAssertionsWithRuntime(
   assertions: string[],
   blocks: { id: string | null; text: string }[],
   projectId: string,
   context: SemanticEvalContext | undefined,
-  client: LLMClient,
+  client: LLMClient | null,
   readTools: AITool[],
   runTool: (name: string, args: Record<string, unknown>) => Promise<ToolRunOutcome>,
   signal?: AbortSignal,
@@ -660,10 +485,13 @@ export async function evaluateSemanticAssertionsFC(
   // Per-call usage bypass (like onTrace) — lets the eval attribute tokens/cost down
   // to a single judge invocation without changing the return shape. Unused in prod.
   onUsage?: (usage: AIUsage) => void,
-  // The judge model. Prod passes the user's Shadow tier model (设置 · Shadow);
-  // omitted by the eval, which leaves the non-deepseek placeholder so the provider
-  // substitutes its configured defaultModel (the eval flips the model that way).
+  // Production passes the explicit model selected in Settings · Shadow Agent.
+  // The eval can omit it so its injected provider substitutes the configured
+  // defaultModel.
   judgeModel: string = FC_MODEL,
+  // Production passes Shadow's explicit provider and leaves client null. Tests
+  // and hosted compatibility calls may continue to inject an LLMClient.
+  provider?: AgentProviderId,
 ): Promise<SemanticViolation[][]> {
   const active = assertions.map((a) => a.trim());
   const empty = (): SemanticViolation[][] => assertions.map(() => []);
@@ -685,7 +513,7 @@ export async function evaluateSemanticAssertionsFC(
     '默认只依据下面的「正文」判断。本章全文已在上文按段给你——绝不要再去读/检索本章自身。',
     '结构/格式类约束(是否分幕、单一视角、是否头跳、字数等)只看本章正文即可，不要读其他章节或设定。仅当约束确实涉及跨章连续性或人物动机/设定一致性时，才去取证。',
     // Tool-shape guidance — it kept hallucinating read_drift / search_facts / get_all_drifts.
-    '只读工具就是给你的这几个，没有别的：读 drift/设定/元素/故事线的正文一律用 read_node(node=名称, kind=\'drift\'|\'element\'|\'storyline\'|\'category\')；查内容用 search_prose，查名称/元数据用 search_project。不要臆造工具名或给工具加未列出的参数。',
+    "只读工具就是给你的这几个，没有别的：读 drift/设定/元素/故事线的正文一律用 read_node(node=名称, kind='drift'|'element'|'storyline'|'category')；查内容用 search_prose，查名称/元数据用 search_project。不要臆造工具名或给工具加未列出的参数。",
     '克制取证：能直接判就别查；只查真正影响判断的；同一样东西只查一次。',
     // Per-rule judging template: the LLM-authored, author-editable guide for THIS rule
     // (from the enhancement compiler, threaded via context.judgingGuide). It embeds the
@@ -705,109 +533,75 @@ export async function evaluateSemanticAssertionsFC(
 
   const header = buildChapterHeader(context, blocks.length);
   const depHint = buildChangedDepsHint(context);
-  const messages: AIMessage[] = [
-    {
-      role: 'user',
-      content:
-        `${header}\n\n背景设定：\n${buildBackground(context)}` +
-        (depHint ? `\n\n${depHint}` : '') +
-        `\n\n约束（共 ${active.length} 条，逐条裁决）：\n${constraintList}\n\n正文（按段编号）：\n${numbered}`,
-    },
-  ];
+  const prompt =
+    `${header}\n\n背景设定：\n${buildBackground(context)}` +
+    (depHint ? `\n\n${depHint}` : '') +
+    `\n\n约束（共 ${active.length} 条，逐条裁决）：\n${constraintList}\n\n正文（按段编号）：\n${numbered}`;
 
   const count = Math.max(1, active.filter(Boolean).length);
   const maxToolCalls = FC_TOOL_CALLS_BASE + FC_TOOL_CALLS_PER_ASSERTION * count;
   const maxRounds = FC_ROUNDS_BASE + FC_ROUNDS_PER_ASSERTION * count;
 
-  let toolCalls = 0;
-  for (let round = 0; round < maxRounds; round++) {
-    const force = toolCalls >= maxToolCalls || round === maxRounds - 1;
-    const resp = await client.complete({
-      model: judgeModel,
-      system,
-      messages,
-      tools,
-      toolChoice: force ? { force: 'submit_verdicts' } : 'auto',
-      // Reason during investigation (auto rounds); MUST stay OFF on the forced-
-      // submit round — forced tool_choice + thinking = 400 on DeepSeek (deepseek.ts).
-      thinking: !force,
-      signal,
-      metadata: { feature: 'shadow-semantic-fc' },
-    });
-    if (resp.usage) onUsage?.(resp.usage);
-
-    const calls: AIToolCall[] = resp.toolCalls ?? (resp.toolCall ? [resp.toolCall] : []);
-    if (calls.length === 0) {
-      // Model answered in prose without calling submit — nudge it to rule.
-      messages.push({ role: 'model', content: resp.text ?? '' });
-      messages.push({ role: 'user', content: '请调用 submit_verdicts 一次性提交每条约束的裁决。' });
-      continue;
-    }
-
-    messages.push({ role: 'model', content: resp.text ?? '', toolCalls: calls });
-
-    const traceCalls: ShadowToolCall[] = [];
-    let submitted: SemanticViolation[][] | null = null;
-    let bases: string[] = [];
-    for (const call of calls) {
-      if (call.name === 'submit_verdicts') {
-        submitted = coerceBatchVerdicts(call.arguments, active.length).map((vs) =>
-          mapViolations(vs, blocks),
-        );
-        bases = coerceBases(call.arguments, active.length);
-        continue;
-      }
-      toolCalls += 1;
-      const argRecord =
-        call.arguments && typeof call.arguments === 'object'
-          ? (call.arguments as Record<string, unknown>)
-          : {};
-      let outcome: ToolRunOutcome;
-      try {
-        outcome = await runTool(call.name, argRecord);
-      } catch (e) {
-        // A cancel must unwind the whole review, not be swallowed as a tool error.
-        if (e instanceof Error && e.name === 'ShadowCancelledError') throw e;
-        const msg = e instanceof Error ? e.message : String(e);
-        outcome = { content: `（工具错误：${msg}）`, status: 'error', note: msg };
-      }
-      const forModel =
-        outcome.content.length > FC_RESULT_MAX
-          ? `${outcome.content.slice(0, FC_RESULT_MAX)}…（截断）`
-          : outcome.content;
-      messages.push({ role: 'tool', toolCallId: call.id, content: forModel });
-      traceCalls.push({
-        tool: call.name,
-        args: summarizeArgs(call.arguments) || undefined,
-        status: outcome.status,
-        note: outcome.note,
-        // Keep the result the model saw (trace-capped) so the panel can show it.
-        result:
-          forModel.length > FC_TRACE_RESULT_MAX
-            ? `${forModel.slice(0, FC_TRACE_RESULT_MAX)}…（截断）`
-            : forModel,
-      });
-    }
-    if (traceCalls.length) {
-      const bad = traceCalls.filter((c) => c.status !== 'ok').length;
+  const reasoning = provider ? resolveAgentProviderReasoningProfile(provider, judgeModel) : null;
+  const result = await runShadowAgentRuntime({
+    projectId,
+    operation: 'review',
+    feature: 'shadow-semantic-fc',
+    ...(client ? { client } : {}),
+    ...(provider ? { provider } : {}),
+    model: judgeModel,
+    systemPrompt: system,
+    prompt,
+    tools,
+    completionTool: SUBMIT_VERDICTS_TOOL.name,
+    maxModelIterations: maxRounds,
+    // Runtime counts the terminal submit call too; the historical evidence cap did not.
+    maxToolCalls: maxToolCalls + 1,
+    reasoning: {
+      enabled: reasoning
+        ? reasoning.thinkingModes.includes('adaptive')
+        : client?.providerId === 'deepseek',
+      ...(reasoning?.efforts.length ? { effort: reasoning.defaultEffort } : {}),
+    },
+    signal,
+    maxToolResultChars: FC_RESULT_MAX,
+    executeTool: runTool,
+    summarizeArguments: (_name, args) => summarizeArgs(args) || undefined,
+    onToolRound: ({ iteration, calls }) => {
+      const bad = calls.filter((call) => call.status !== 'ok').length;
       onTrace?.({
-        label: bad ? `查证 · 第 ${round + 1} 轮（${bad} 失败）` : `查证 · 第 ${round + 1} 轮`,
-        calls: traceCalls,
+        label: bad ? `查证 · 第 ${iteration} 轮（${bad} 失败）` : `查证 · 第 ${iteration} 轮`,
+        calls: calls.map((call) => ({
+          ...call,
+          ...(call.result
+            ? {
+                result:
+                  call.result.length > FC_TRACE_RESULT_MAX
+                    ? `${call.result.slice(0, FC_TRACE_RESULT_MAX)}…（截断）`
+                    : call.result,
+              }
+            : {}),
+        })),
       });
-    }
-    if (submitted) {
-      const hit = submitted.filter((vs) => vs.length > 0).length;
-      const reasons = submitted.flat().map((v) => v.reason).filter(Boolean);
-      // On a PASS, show the forced `basis` (what the judge actually compared) so a
-      // silent rubber-stamp is no longer possible to hide — the panel sees the check.
-      const checkNotes = bases.filter(Boolean);
-      onTrace?.({
-        label: hit ? `裁决：${hit}/${active.length} 条发现违反` : `裁决：${active.length} 条全部通过`,
-        items: reasons.length ? reasons : checkNotes.length ? checkNotes : undefined,
-      });
-      return submitted;
-    }
-    await yieldToMain(); // let this round's trace-push re-render + paint before the next
-  }
-  return empty();
+    },
+    onUsage,
+  });
+
+  const submitted = coerceBatchVerdicts(result.completion.arguments, active.length).map((vs) =>
+    mapViolations(vs, blocks),
+  );
+  const bases = coerceBases(result.completion.arguments, active.length);
+  const hit = submitted.filter((violations) => violations.length > 0).length;
+  const reasons = submitted
+    .flat()
+    .map((violation) => violation.reason)
+    .filter(Boolean);
+  // On a PASS, show the forced `basis` (what the judge actually compared) so a
+  // silent rubber-stamp is no longer possible to hide — the panel sees the check.
+  const checkNotes = bases.filter(Boolean);
+  onTrace?.({
+    label: hit ? `裁决：${hit}/${active.length} 条发现违反` : `裁决：${active.length} 条全部通过`,
+    items: reasons.length ? reasons : checkNotes.length ? checkNotes : undefined,
+  });
+  return submitted;
 }

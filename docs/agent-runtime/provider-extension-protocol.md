@@ -29,6 +29,15 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   Missing usage, missing terminal finish, malformed arguments, authentication,
   rate limit and abort behavior are normalized before the runtime adopts
   provider history.
+- On the current DeepSeek/OpenAI-compatible route, a tool-capable sample is
+  buffered until its complete tool/usage/finish contract validates. Before any
+  Agent event or effect escapes, parse/network/rate-limit failures, malformed
+  tool arguments, missing required reasoning, unavailable tools and output
+  exhaustion before an action receive at most four provider attempts. An
+  action-serialization recovery may temporarily turn thinking off; the next
+  model iteration restores the turn's frozen reasoning mode. Authentication
+  failures and author cancellation are never retried, and tool-free visible
+  synthesis is never replayed after text has streamed.
 - Model context windows and output ceilings come only from the certified model
   catalog. The planner may reserve or reduce that budget, never enlarge it.
 - Provider API keys are independent native Keychain entries. They do not enter
@@ -125,6 +134,11 @@ This milestone exposes tools only. MCP sampling, elicitation, roots,
 subscriptions, resources and prompts are not model-visible. Subagents remain a
 separate product decision. Paid live-provider calls are optional canaries, not
 part of the deterministic release gate.
+
+Representative live Agent canaries enable the selected model's reasoning and
+omit an effort override. In the headless client this is `--thinking adaptive`
+without `--effort`; a non-default effort is used only when effort itself is the
+scenario under test.
 
 Run the network-free aggregate gate with:
 

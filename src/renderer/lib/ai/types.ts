@@ -77,6 +77,8 @@ export interface AICompletionRequest {
   terminalRequirements?: {
     finishReason?: boolean;
     usage?: boolean;
+    /** A reasoning-enabled tool call is invalid unless its replay payload exists. */
+    reasoningContentForToolCalls?: boolean;
   };
   /**
    * Tool-choice for a function-calling turn. Absent = the legacy "force the

@@ -47,13 +47,13 @@ type SynthOut = Static<typeof arcSynthesizePrompt.output>;
 const GROUP_SIZE = 4;
 const DEFAULT_CONCURRENCY = 4;
 
-// Arc runs in THINKING mode regardless of tier. Without thinking, flash returns
-// invalid JSON for ~40% of these prose-heavy structured calls (measured: leaf 6/16,
-// distill 2/5 — equal across stages, so it's model-bound, not input size). A
+// Arc uses the selected Shadow provider's certified reasoning profile. Without
+// reasoning, weaker models returned invalid JSON for ~40% of these prose-heavy
+// structured calls (measured: leaf 6/16, distill 2/5 — equal across stages, so
+// it's model-bound, not input size). A
 // reasoning pass makes the output far more disciplined; it composes with json mode.
-// Arc is low-freq + manual, so the extra reasoning cost is fine. The MODEL itself
-// now follows the user's Shadow tier (设置 · Shadow): 低 flash / 中 pro / 高 sonnet —
-// resolved per-run via resolveShadowModel(). See lib/shadow/model-routing.ts.
+// Arc is low-freq + manual, so the extra reasoning cost is fine. The provider and
+// model follow Settings · Shadow Agent and are frozen once per run.
 const arcLog = loglevel.getLogger('arc');
 
 // callStructured does NOT retry (by design — see its header). Weak models
@@ -116,7 +116,12 @@ export function buildAppearances(
     const fromNarrative = node.narrativeOrder != null;
     const order = node.narrativeOrder ?? node.bookOrder;
     if (order == null) continue; // unplaced (outline etc.) — skip
-    apps.push({ chapterId: bl.fromId, chapterTitle: node.title || bl.fromTitle, order, fromNarrative });
+    apps.push({
+      chapterId: bl.fromId,
+      chapterTitle: node.title || bl.fromTitle,
+      order,
+      fromNarrative,
+    });
   }
   apps.sort((a, b) => a.order - b.order);
   return apps;
@@ -191,7 +196,11 @@ export function formatProse(blocks: DocBlock[]): string {
     .join('\n');
 }
 
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
   const out = new Array<R>(items.length);
   let cursor = 0;
   const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
@@ -220,7 +229,8 @@ export async function deriveElementArc(
   opts: DeriveArcOptions = {},
 ): Promise<ArcMap> {
   const deps =
-    opts.deps ?? createDefaultArcDeps(projectId, { includeDrafts: opts.includeDrafts, signal: opts.signal });
+    opts.deps ??
+    createDefaultArcDeps(projectId, { includeDrafts: opts.includeDrafts, signal: opts.signal });
   const element = await deps.loadElementCanon(elementId);
   if (!element) throw new Error(`element not found: ${elementId}`);
 
@@ -332,17 +342,25 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
   const categoryRepo = createElementCategoryRepository(projectId);
   const outputLanguage = resolveWritingLanguage(projectId);
 
-  // Resolve the model from the user's Shadow tier (设置 · Shadow), once per run.
-  // ensureShadowModelRoutable throws a clear error up-front if the chosen tier
-  // (e.g. 高/Sonnet) can't be reached on this transport — better than a silent
-  // downgrade mid-derivation.
-  const { model: arcModel, thinking: arcThinking } = resolveShadowModel();
-  ensureShadowModelRoutable(arcModel);
+  // Freeze the user's Shadow provider/model route once per run. Fail up-front if
+  // that explicit route cannot be reached instead of silently changing models
+  // halfway through derivation.
+  const { provider: arcProvider, model: arcModel, thinking: arcThinking } = resolveShadowModel();
+  ensureShadowModelRoutable({
+    provider: arcProvider,
+    model: arcModel,
+    thinking: arcThinking,
+  });
 
   // Build the LLM client once, lazily, shared across all stage calls. buildShadowClient
-  // routes per shadowAiMode (hosted → server proxy, byok → direct provider).
+  // routes per shadowAiMode and the explicit Shadow provider selection.
   let clientPromise: ReturnType<typeof buildShadowClient> | null = null;
-  const getClient = () => (clientPromise ??= buildShadowClient({ logTag: 'shadow:arc' }));
+  const getClient = () =>
+    (clientPromise ??= buildShadowClient({
+      logTag: 'shadow:arc',
+      provider: arcProvider,
+      model: arcModel,
+    }));
 
   return {
     async loadElementCanon(elementId) {
@@ -366,7 +384,12 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
       const distinct = [...new Map(backlinks.map((b) => [b.fromId, b])).values()];
       const nodeOrder = new Map<
         string,
-        { title: string; narrativeOrder: number | null; bookOrder: number | null; finished: boolean }
+        {
+          title: string;
+          narrativeOrder: number | null;
+          bookOrder: number | null;
+          finished: boolean;
+        }
       >();
       for (const bl of distinct) {
         const node = await nodeRepo.findById(bl.fromId);
@@ -404,8 +427,7 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
           outputLanguage,
           signal,
           model: arcModel,
-          thinking: arcThinking,
-          jsonMode: true,
+          ...(arcProvider === 'deepseek' ? { thinking: arcThinking, jsonMode: true as const } : {}),
           onUsage: (u) => recordShadowUsage('shadow:arc', arcModel, u),
         }),
       );
@@ -417,8 +439,7 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
           outputLanguage,
           signal,
           model: arcModel,
-          thinking: arcThinking,
-          jsonMode: true,
+          ...(arcProvider === 'deepseek' ? { thinking: arcThinking, jsonMode: true as const } : {}),
           onUsage: (u) => recordShadowUsage('shadow:arc', arcModel, u),
         }),
       );
@@ -430,8 +451,7 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
           outputLanguage,
           signal,
           model: arcModel,
-          thinking: arcThinking,
-          jsonMode: true,
+          ...(arcProvider === 'deepseek' ? { thinking: arcThinking, jsonMode: true as const } : {}),
           onUsage: (u) => recordShadowUsage('shadow:arc', arcModel, u),
         }),
       );

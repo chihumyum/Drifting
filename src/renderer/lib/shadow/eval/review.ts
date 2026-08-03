@@ -10,7 +10,10 @@
  */
 import { evaluateRules } from '../review-evaluator';
 import type { Finding, ReviewContext, SemanticViolation } from '../review-types';
-import { evaluateSemanticAssertionsFC, type AgenticTraceStep } from '../../ai/shadow-rules';
+import {
+  evaluateSemanticAssertionsWithRuntime,
+  type AgenticTraceStep,
+} from '../../ai/shadow-rules';
 import type { AIUsage } from '../../ai/types';
 import { AGENT_READ_TOOLS, toAITools } from '../../agent/tool-registry';
 import { LLMClient } from '../../ai/client/llm-client';
@@ -45,6 +48,7 @@ export function mockCleanClient(): LLMClient {
   const complete = async (): Promise<AICompletionResponse> => ({
     text: '',
     toolCalls: [{ id: 'c1', name: 'submit_verdicts', arguments: { verdicts: [] } }],
+    finishReason: 'tool_calls',
     usage: { inputTokens: 0, outputTokens: 0 },
   });
   return { supportsTools: true, complete } as unknown as LLMClient;
@@ -125,7 +129,7 @@ export async function reviewChapter(
     assertions: string[],
     blocks: { id: string | null; text: string }[],
   ): Promise<SemanticViolation[][]> =>
-    evaluateSemanticAssertionsFC(
+    evaluateSemanticAssertionsWithRuntime(
       assertions,
       blocks,
       project.projectId,

@@ -11,6 +11,7 @@
 import { platform } from '../platform';
 
 export type BYOKProvider = 'anthropic' | 'openai' | 'google' | 'deepseek';
+const LEGACY_AGENT_ANTHROPIC_KEY_ID = 'byok.agent.anthropic';
 
 function keyOf(provider: BYOKProvider): string {
   return `byok.${provider}`;
@@ -22,6 +23,7 @@ function keyOf(provider: BYOKProvider): string {
 // lookup produces one OS prompt without retaining secrets beyond the caller's
 // own lifetime.
 const pendingReads = new Map<string, Promise<string | null>>();
+let pendingLegacyAnthropicMigration: Promise<string | null> | null = null;
 
 function readSecret(key: string): Promise<string | null> {
   const pending = pendingReads.get(key);
@@ -38,34 +40,51 @@ function readSecret(key: string): Promise<string | null> {
 
 export const byokKeychain = {
   async get(provider: BYOKProvider): Promise<string | null> {
-    return readSecret(keyOf(provider));
+    const current = await readSecret(keyOf(provider));
+    if (current || provider !== 'anthropic') return current;
+    return migrateLegacyAgentAnthropicKey();
   },
   async set(provider: BYOKProvider, value: string): Promise<boolean> {
-    return platform.keychain.set(keyOf(provider), value);
+    const saved = await platform.keychain.set(keyOf(provider), value);
+    if (saved && provider === 'anthropic') {
+      await platform.keychain.delete(LEGACY_AGENT_ANTHROPIC_KEY_ID);
+    }
+    return saved;
   },
   async clear(provider: BYOKProvider): Promise<boolean> {
-    return platform.keychain.delete(keyOf(provider));
+    const cleared = await platform.keychain.delete(keyOf(provider));
+    if (provider === 'anthropic') {
+      const legacyCleared = await platform.keychain.delete(LEGACY_AGENT_ANTHROPIC_KEY_ID);
+      return cleared || legacyCleared;
+    }
+    return cleared;
   },
 };
 
 /**
- * Reserved Anthropic API key for a future General Agent transport. It remains
- * separate from Copilot's per-provider `byok.<provider>` keys and is not read by
- * the current unsupported transport.
+ * Old desktop builds stored General Agent's Anthropic key separately. Fold it
+ * into the global provider credential on first read, then remove the obsolete
+ * entry. The in-flight promise is cleared after settlement so the secret is not
+ * retained by this module.
  */
-export const AGENT_API_KEY_ID = 'byok.agent.anthropic';
-
-export const agentApiKeychain = {
-  async get(): Promise<string | null> {
-    return readSecret(AGENT_API_KEY_ID);
-  },
-  async set(value: string): Promise<boolean> {
-    return platform.keychain.set(AGENT_API_KEY_ID, value);
-  },
-  async clear(): Promise<boolean> {
-    return platform.keychain.delete(AGENT_API_KEY_ID);
-  },
-};
+function migrateLegacyAgentAnthropicKey(): Promise<string | null> {
+  if (pendingLegacyAnthropicMigration) return pendingLegacyAnthropicMigration;
+  const migration = (async () => {
+    const legacy = await readSecret(LEGACY_AGENT_ANTHROPIC_KEY_ID);
+    if (!legacy) return null;
+    const saved = await platform.keychain.set(keyOf('anthropic'), legacy);
+    if (saved) await platform.keychain.delete(LEGACY_AGENT_ANTHROPIC_KEY_ID);
+    return saved ? legacy : null;
+  })();
+  pendingLegacyAnthropicMigration = migration;
+  const clear = () => {
+    if (pendingLegacyAnthropicMigration === migration) {
+      pendingLegacyAnthropicMigration = null;
+    }
+  };
+  void migration.then(clear, clear);
+  return migration;
+}
 
 /**
  * Mask helper — UI-only. Renders the last 4 chars so users can confirm

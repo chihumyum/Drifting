@@ -19,12 +19,9 @@ describe('General Agent product settings', () => {
     useSettingsStore.getState().setAgentMaxContext(false);
   });
 
-  it.each(['off', 'auto', 'on'] as const)(
-    'preserves an explicit persisted %s choice',
-    (value) => {
-      expect(normalizeAgentToolSearch(value)).toBe(value);
-    },
-  );
+  it.each(['off', 'auto', 'on'] as const)('preserves an explicit persisted %s choice', (value) => {
+    expect(normalizeAgentToolSearch(value)).toBe(value);
+  });
 
   it('uses auto only when the persisted value is absent or invalid', () => {
     expect(normalizeAgentToolSearch(undefined)).toBe('auto');
@@ -73,6 +70,32 @@ describe('General Agent product settings', () => {
         agentThinking: 'adaptive',
         agentEffort: 'high',
       });
+    } finally {
+      useSettingsStore.setState(original);
+    }
+  });
+
+  it('keeps Shadow provider and model in one certified route', () => {
+    const before = useSettingsStore.getState();
+    const original = {
+      shadowByokProvider: before.shadowByokProvider,
+      shadowByokModel: before.shadowByokModel,
+    };
+    try {
+      useSettingsStore.getState().setShadowByokProvider('anthropic');
+      expect(useSettingsStore.getState()).toMatchObject({
+        shadowByokProvider: 'anthropic',
+        shadowByokModel: 'claude-sonnet-5',
+      });
+
+      useSettingsStore.getState().setShadowByokProvider('openai');
+      expect(useSettingsStore.getState()).toMatchObject({
+        shadowByokProvider: 'openai',
+        shadowByokModel: 'gpt-5.6-sol',
+      });
+
+      useSettingsStore.getState().setShadowByokModel('deepseek-v4-pro');
+      expect(useSettingsStore.getState().shadowByokModel).toBe('gpt-5.6-sol');
     } finally {
       useSettingsStore.setState(original);
     }

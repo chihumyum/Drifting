@@ -55,7 +55,7 @@ export function CopilotBottomMenu() {
 
   // Panel position: anchored above the button, computed from its captured
   // rect. The panel is portaled to <body> with a high z-index so the editor
-  // floating island can't paint over it.
+  // workspace cannot paint over it.
   const panelStyle: React.CSSProperties = {
     position: 'fixed',
     bottom: rect ? window.innerHeight - rect.top + 6 : 48,

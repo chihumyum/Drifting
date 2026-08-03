@@ -117,7 +117,7 @@ interface TensionFlag {
 |---|---|---|
 | work-list（X 在哪些章出场） | `listBacklinksToTarget('element', id)` 反查引用 | [inline-mention-repo.ts:68](../../sqlite-repo/inline-mention-repo.ts) |
 | 同款依赖/陈旧面（触发联动） | `useStaleReviews` / dependency-index | [useStaleReviews.ts:45](../../usecase/useStaleReviews.ts)、[dependency-index.ts](dependency-index.ts) |
-| 叶层取证（读段、搜证） | `buildShadowEvidenceProvider` 模式 + read 工具 | [tool-handlers.ts:2008](../agent/tool-handlers.ts) |
+| 叶层取证（读段、搜证） | shared `AgentRuntime` profile + read 工具 | [agent-runtime.ts](agent-runtime.ts)、[tool-handlers.ts](../agent/tool-handlers.ts) |
 | 叶层"该时点应有基线" | `shadowEffectivePatchesText`（effective_canon(X,K)） | [tool-handlers.ts:1846](../agent/tool-handlers.ts) |
 | patch overlay（已写 vs 已派生） | `PatchWithSourceTitle.sourceNarrativeOrder` | [element-patch-repo.ts:36](../../sqlite-repo/element-patch-repo.ts) |
 | 编排/持久化/trace/通知 | 给 `shadow_job` 加一种 job kind（`arc`），白嫖队列+trace+pill | [job-recorder.ts](job-recorder.ts)、[shadow-job-repo.ts](../../sqlite-repo/shadow-job-repo.ts) |
@@ -165,7 +165,7 @@ interface TensionFlag {
 | element canon（summary/body/facts） | `BookElementTable` [drizzle.ts:270](../../schema/drizzle.ts) |
 | work-list：element→引用章 | `listBacklinksToTarget` [inline-mention-repo.ts:68](../../sqlite-repo/inline-mention-repo.ts) |
 | effective_canon(X,N)（叶层基线 + patch overlay） | `shadowEffectivePatchesText` [tool-handlers.ts:1846](../agent/tool-handlers.ts)、`PatchWithSourceTitle` [element-patch-repo.ts:30](../../sqlite-repo/element-patch-repo.ts) |
-| 叶层取证 provider | `buildShadowEvidenceProvider` [tool-handlers.ts:2008](../agent/tool-handlers.ts) |
+| 叶层取证 provider | shared `AgentModelDriver` + `makeShadowRunTool` [agent-runtime.ts](agent-runtime.ts)、[tool-handlers.ts](../agent/tool-handlers.ts) |
 | 编排/trace/持久化（加 `arc` kind） | [job-recorder.ts](job-recorder.ts)、[shadow-job-repo.ts](../../sqlite-repo/shadow-job-repo.ts) |
 | 依赖/陈旧（触发联动） | [useStaleReviews.ts:45](../../usecase/useStaleReviews.ts)、[dependency-index.ts](dependency-index.ts) |
 | canon-truth 模型（reconcile 的未来对照） | [DESIGN.md](DESIGN.md) |

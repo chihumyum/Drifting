@@ -1,12 +1,4 @@
-import {
-  afterAll,
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = vi.hoisted(() => ({
   get: vi.fn(),
@@ -89,13 +81,19 @@ describe('preferences sync', () => {
     expect(useSettingsStore.getState().agentToolSearch).toBe('on');
   });
 
-  it('applies provider before model and restores the Max context preference', async () => {
+  it('applies each provider before its model and restores the Max context preference', async () => {
     api.get.mockResolvedValue({
       data: {
         entries: [
           { key: 'agentModel', value: 'gpt-5.6-terra', updatedAt: '2026-08-02T00:00:00.000Z' },
+          {
+            key: 'shadowByokModel',
+            value: 'claude-sonnet-5',
+            updatedAt: '2026-08-02T00:00:00.000Z',
+          },
           { key: 'agentMaxContext', value: true, updatedAt: '2026-08-02T00:00:00.000Z' },
           { key: 'agentProvider', value: 'openai', updatedAt: '2026-08-02T00:00:00.000Z' },
+          { key: 'shadowByokProvider', value: 'anthropic', updatedAt: '2026-08-02T00:00:00.000Z' },
         ],
       },
     });
@@ -106,6 +104,8 @@ describe('preferences sync', () => {
       agentProvider: 'openai',
       agentModel: 'gpt-5.6-terra',
       agentMaxContext: true,
+      shadowByokProvider: 'anthropic',
+      shadowByokModel: 'claude-sonnet-5',
     });
   });
 

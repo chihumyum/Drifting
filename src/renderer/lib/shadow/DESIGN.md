@@ -3,6 +3,11 @@
 > 决定「正文与设定冲突时，谁是真理」的核心模型。替代判官当前「发现冲突→自己脑补成有意→静默放行」的行为。
 > 配套：判官改造、时序有效-canon、一键演化（复用 copilot patch-gen）、规则→LLM 增强管线。
 
+> Runtime 基线：semantic judge 是 canonical `AgentRuntime` 的只读 Shadow profile，
+> 通过 `runShadowAgentRuntime` 安装只读工具、预算与 `submit_verdicts` completion tool。
+> Shadow 不再维护独立 provider round loop；详见
+> [shared-shadow-runtime.md](../../../../docs/agent-runtime/shared-shadow-runtime.md)。
+
 ## 1. 问题
 
 判官把裁决坍缩成 pass/flag，并自己**猜意图**。真章实测（269 段 / 8 角色，rule「角色言行须与设定一致」）：
@@ -104,5 +109,5 @@ never-FN ⇒ 报得多。但每个「误报」其实是**揪出了未记录的 c
 | patch 建 + sync | `createElementPatchRepository().create` [element-patch-repo.ts:71](../../sqlite-repo/element-patch-repo.ts)、`syncElementPatchCreate` [sync-helpers.ts:194](../../usecase/sync-helpers.ts) |
 | copilot 起草 patch（复用） | `elementPatchCapability` detect/accept [copilot/capabilities/element-patch.ts:54](../copilot/capabilities/element-patch.ts) |
 | agent 建 patch（参考实现） | `createElementPatch` [tool-handlers.ts:1575](../agent/tool-handlers.ts) |
-| 判官 | `evaluateSemanticAssertionsFC` [shadow-rules.ts:553](../ai/shadow-rules.ts)（政策 + effective-canon 注入） |
+| 判官 | `evaluateSemanticAssertionsWithRuntime` [shadow-rules.ts](../ai/shadow-rules.ts)（政策 + effective-canon 注入） |
 | canon↔章 依赖/陈旧 | [dep-snapshot.ts](dep-snapshot.ts)、[useStaleReviews.ts](../../usecase/useStaleReviews.ts) |

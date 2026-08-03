@@ -76,12 +76,9 @@ export type CopilotMode = 'local' | 'cloud';
  */
 export type AiMode = 'hosted' | 'byok';
 /**
- * General-Agent (Claude Agent SDK) credential method. Unlike copilot's binary
- * hosted/BYOK, the Agent SDK speaks Claude only, so BYOK splits into two:
- *  - 'hosted': route through Drifting's metered proxy (subscription).
- *  - 'oauth':  the user's Claude account via OAuth (Max/Pro) — direct, unmetered.
- *  - 'apikey': a plain Anthropic API key (pay-as-you-go), stored in the keychain
- *              as `byok.agent.anthropic`. The SDK reads it as ANTHROPIC_API_KEY.
+ * Legacy General-Agent credential token retained for persisted compatibility.
+ * The current provider-neutral local runtime always uses `apikey`, resolving the
+ * selected provider from the global `byok.<provider>` Keychain namespace.
  */
 export type AgentAuth = 'hosted' | 'oauth' | 'apikey';
 /**
@@ -116,19 +113,12 @@ export const AGENT_TOOL_SEARCH_DEFAULT: AgentToolSearch = 'auto';
  * pre-setting installs the current product default.
  */
 export function normalizeAgentToolSearch(value: unknown): AgentToolSearch {
-  return value === 'off' || value === 'auto' || value === 'on'
-    ? value
-    : AGENT_TOOL_SEARCH_DEFAULT;
+  return value === 'off' || value === 'auto' || value === 'on' ? value : AGENT_TOOL_SEARCH_DEFAULT;
 }
 
 /** One-time v20 migration: the old default `off` was not product-usable. */
-export function migrateAgentToolSearch(
-  value: unknown,
-  persistedVersion: number,
-): AgentToolSearch {
-  return persistedVersion < 20
-    ? AGENT_TOOL_SEARCH_DEFAULT
-    : normalizeAgentToolSearch(value);
+export function migrateAgentToolSearch(value: unknown, persistedVersion: number): AgentToolSearch {
+  return persistedVersion < 20 ? AGENT_TOOL_SEARCH_DEFAULT : normalizeAgentToolSearch(value);
 }
 
 /** Tool-search options for the settings picker. */
@@ -159,11 +149,7 @@ export type EvolveEditorEngine = 'agent-sdk' | 'shadow-fc';
  */
 /** @deprecated Prefer `agentProviderOption(provider).models`. */
 export const AGENT_MODEL_OPTIONS = AGENT_PROVIDER_OPTIONS.flatMap((provider) => provider.models);
-export {
-  AGENT_PROVIDER_OPTIONS,
-  agentProviderOption,
-  resolveAgentProviderReasoningProfile,
-};
+export { AGENT_PROVIDER_OPTIONS, agentProviderOption, resolveAgentProviderReasoningProfile };
 export type { AgentProviderId };
 
 /** Effort levels for the pickers, with compact labels. */
@@ -334,9 +320,8 @@ interface SettingsState {
   shadowAutoRun: boolean;
   setShadowAutoRun: (on: boolean) => void;
 
-  // General Agent (Claude Agent SDK) credential method — independent of copilot.
-  // hosted = our metered proxy; oauth = user's Claude account; apikey = a plain
-  // Anthropic API key (kept in the keychain). See AgentAuth.
+  // General Agent credential token. Current BYOK-only builds coerce this to
+  // `apikey`; the actual provider/model are chosen in the chat composer.
   agentAuth: AgentAuth;
   setAgentAuth: (a: AgentAuth) => void;
   // Provider/model are captured into each turn before provider I/O. Changing a
@@ -571,10 +556,7 @@ export const useSettingsStore = create<SettingsState>()(
           const shadowByokProvider = normalizeAgentProvider(provider);
           return {
             shadowByokProvider,
-            shadowByokModel: normalizeAgentProviderModel(
-              shadowByokProvider,
-              state.shadowByokModel,
-            ),
+            shadowByokModel: normalizeAgentProviderModel(shadowByokProvider, state.shadowByokModel),
           };
         }),
       shadowByokModel: 'deepseek-v4-flash',
@@ -588,10 +570,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAgentProvider: (provider) =>
         set((state) => {
           const normalizedProvider = normalizeAgentProvider(provider);
-          const normalizedModel = normalizeAgentProviderModel(
-            normalizedProvider,
-            state.agentModel,
-          );
+          const normalizedModel = normalizeAgentProviderModel(normalizedProvider, state.agentModel);
           return {
             agentProvider: normalizedProvider,
             agentModel: normalizedModel,
@@ -630,20 +609,12 @@ export const useSettingsStore = create<SettingsState>()(
       agentEffort: 'high',
       setAgentEffort: (e) =>
         set((state) => ({
-          agentEffort: normalizeAgentProviderEffort(
-            state.agentProvider,
-            state.agentModel,
-            e,
-          ),
+          agentEffort: normalizeAgentProviderEffort(state.agentProvider, state.agentModel, e),
         })),
       agentThinking: 'off',
       setAgentThinking: (t) =>
         set((state) => ({
-          agentThinking: normalizeAgentProviderThinking(
-            state.agentProvider,
-            state.agentModel,
-            t,
-          ),
+          agentThinking: normalizeAgentProviderThinking(state.agentProvider, state.agentModel, t),
         })),
       agentToolSearch: AGENT_TOOL_SEARCH_DEFAULT,
       setAgentToolSearch: (t) => set({ agentToolSearch: t }),
@@ -967,10 +938,7 @@ export const useSettingsStore = create<SettingsState>()(
           // completion-mode tool loop; legacy Claude OAuth/model/thinking
           // selections are not valid inputs for this adapter.
           next.agentAuth = 'apikey';
-          if (
-            typeof next.agentModel !== 'string' ||
-            !next.agentModel.startsWith('deepseek-')
-          ) {
+          if (typeof next.agentModel !== 'string' || !next.agentModel.startsWith('deepseek-')) {
             next.agentModel = 'deepseek-v4-flash';
           }
           next.agentThinking = 'off';
@@ -997,10 +965,7 @@ export const useSettingsStore = create<SettingsState>()(
           // merely changing the fresh-store value would leave every existing
           // installation on the 30-schema path. Migrate once to bounded Auto;
           // users can explicitly choose Off again after this upgrade.
-          next.agentToolSearch = migrateAgentToolSearch(
-            next.agentToolSearch,
-            version,
-          );
+          next.agentToolSearch = migrateAgentToolSearch(next.agentToolSearch, version);
         }
         if (version < 21) {
           next.entityLinkColorMode = 'contextual';
@@ -1019,24 +984,13 @@ export const useSettingsStore = create<SettingsState>()(
           const model = normalizeAgentProviderModel(provider, next.agentModel);
           next.agentProvider = provider;
           next.agentModel = model;
-          next.agentThinking = normalizeAgentProviderThinking(
-            provider,
-            model,
-            next.agentThinking,
-          );
-          next.agentEffort = normalizeAgentProviderEffort(
-            provider,
-            model,
-            next.agentEffort,
-          );
+          next.agentThinking = normalizeAgentProviderThinking(provider, model, next.agentThinking);
+          next.agentEffort = normalizeAgentProviderEffort(provider, model, next.agentEffort);
         }
         if (version < 25) {
           const provider = normalizeAgentProvider(next.shadowByokProvider);
           next.shadowByokProvider = provider;
-          next.shadowByokModel = normalizeAgentProviderModel(
-            provider,
-            next.shadowByokModel,
-          );
+          next.shadowByokModel = normalizeAgentProviderModel(provider, next.shadowByokModel);
         }
         return next;
       },
@@ -1054,10 +1008,7 @@ export const useSettingsStore = create<SettingsState>()(
           merged.shadowByokModel,
         );
         merged.agentProvider = normalizeAgentProvider(merged.agentProvider);
-        merged.agentModel = normalizeAgentProviderModel(
-          merged.agentProvider,
-          merged.agentModel,
-        );
+        merged.agentModel = normalizeAgentProviderModel(merged.agentProvider, merged.agentModel);
         merged.agentThinking = normalizeAgentProviderThinking(
           merged.agentProvider,
           merged.agentModel,
@@ -1069,9 +1020,7 @@ export const useSettingsStore = create<SettingsState>()(
           merged.agentEffort,
         );
         merged.agentMaxContext = merged.agentMaxContext === true;
-        merged.agentToolSearch = normalizeAgentToolSearch(
-          persistedSettings?.agentToolSearch,
-        );
+        merged.agentToolSearch = normalizeAgentToolSearch(persistedSettings?.agentToolSearch);
         if (APP_CONFIG.BYOK_ONLY) {
           if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';
           if (merged.shadowAiMode === 'hosted') merged.shadowAiMode = 'byok';

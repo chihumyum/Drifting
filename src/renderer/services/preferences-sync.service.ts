@@ -292,8 +292,7 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     agentThinking: (v) => {
       if (v === 'adaptive' || v === 'off') store.setAgentThinking(v);
     },
-    agentToolSearch: (v) =>
-      store.setAgentToolSearch(normalizeAgentToolSearch(v)),
+    agentToolSearch: (v) => store.setAgentToolSearch(normalizeAgentToolSearch(v)),
     copilotAutoTrigger: (v) => store.setCopilotAutoTrigger(!!v),
     copilotMode: (v) => store.setCopilotMode(v as never),
     copilotTaskConfigs: (v) => {
