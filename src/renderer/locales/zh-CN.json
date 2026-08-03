@@ -1819,7 +1819,9 @@
     },
     "viewMode": {
       "storylineTitle": "按 storyline 分组 · 点此切回全书总览",
-      "globalTitle": "全书总览 · 点此按 storyline 分组"
+      "globalTitle": "全书总览 · 点此按 storyline 分组",
+      "storylineSummary": "{{storylines}} 条故事线 · {{chapters}} 章",
+      "globalSummary": "共 {{count}} 章"
     },
     "actions": {
       "collapseAll": "折叠全部",

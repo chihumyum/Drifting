@@ -1,6 +1,51 @@
 /* Shared interactive primitives. Feature styles may position these controls,
    but geometry, states, and theme behavior stay centralized here. */
 
+/* Sidebar chrome is intentionally dense: one 28px tab strip followed by a
+   26px single-line panel toolbar. Feature components only own horizontal
+   padding and contents, so left and right panels cannot drift vertically. */
+.workspace-panel-tab-row {
+  box-sizing: border-box;
+  height: 28px;
+  padding-inline: 6px;
+}
+
+.workspace-panel-header-row {
+  box-sizing: border-box;
+  min-height: 26px;
+  padding-block: 3px;
+}
+
+.workspace-panel-title-block {
+  padding: 6px 12px 5px;
+}
+
+.left-panel-view-mode-text {
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  text-align: start;
+  text-overflow: ellipsis;
+  text-transform: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 100ms ease;
+}
+
+.left-panel-view-mode-text:hover,
+.left-panel-view-mode-text:focus-visible {
+  color: hsl(var(--ink-1));
+}
+
 .panel-tab-tray {
   display: flex;
   flex: 1;
@@ -571,8 +616,8 @@
   font-size: 12.5px;
 }
 
-/* Local headers use a full-width half-pixel hairline. It reads as structure,
-   but stays physically finer than the 1px first-level workspace seams. */
+/* Only the tab strip uses this full-width half-pixel hairline. Panel headers
+   flow directly into their content so adjacent local rows do not double-rule. */
 .workspace-local-divider {
   position: relative;
 }
@@ -604,7 +649,7 @@
 
 .workspace-list-row:hover,
 .workspace-list-row:focus-within {
-  background: color-mix(in srgb, hsl(var(--page)) 70%, var(--workspace-ui-bg));
+  background: var(--workspace-cell-hover-bg);
 }
 
 .label-mono {

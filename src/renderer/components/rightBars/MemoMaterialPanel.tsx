@@ -446,12 +446,12 @@ function Toolbar({
   return (
     <div
       ref={toolbarRef}
-      className="workspace-local-divider"
+      className="workspace-panel-header-row"
       style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '6px 10px 6px 12px',
+        paddingInline: '12px 10px',
         gap: 6,
         flexShrink: 0,
         // Pin the toolbar to the top of the scroll container so the filter

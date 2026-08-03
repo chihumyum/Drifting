@@ -75,12 +75,10 @@ export function RightSidebarHeader({
   return (
     <>
       <div
-        className="workspace-local-divider"
+        className="workspace-local-divider workspace-panel-tab-row"
         style={{
           display: 'flex',
           alignItems: 'center',
-          height: 35,
-          padding: '0 8px',
           gap: 4,
           background: 'var(--workspace-ui-bg)',
           flexShrink: 0,
@@ -146,9 +144,8 @@ export function RightSidebarHeader({
 
       {!hideTitleBlock && (
         <div
-          className="workspace-local-divider"
+          className="workspace-panel-title-block"
           style={{
-            padding: '10px 14px 8px',
             background: 'var(--workspace-ui-bg)',
             flexShrink: 0,
           }}

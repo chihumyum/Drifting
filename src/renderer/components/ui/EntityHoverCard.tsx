@@ -120,7 +120,7 @@ export function EntityHoverCard({
         visibility: position ? 'visible' : 'hidden',
         background: 'hsl(var(--surface))',
         border: '1px solid hsl(var(--rule-strong))',
-        boxShadow: '0 12px 28px -14px hsl(var(--ink-1) / 0.3)',
+        boxShadow: 'var(--entity-hover-card-shadow)',
         zIndex: 'var(--z-popover)',
         pointerEvents: 'none',
         display: 'flex',

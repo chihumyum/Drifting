@@ -254,7 +254,7 @@ export function DriftPanel() {
           padding: `5px 14px 5px ${DRIFT_BASE_PAD_LEFT + depth * INDENT_STEP}px`,
           cursor: 'pointer',
           position: 'relative',
-          background: selected ? 'hsl(var(--accent) / 0.10)' : 'transparent',
+          background: selected ? 'hsl(var(--surface))' : 'transparent',
           color: selected
             ? 'hsl(var(--ink-1))'
             : muted
@@ -267,7 +267,7 @@ export function DriftPanel() {
         }}
         onMouseEnter={(event) => {
           if (!selected) {
-            event.currentTarget.style.background = 'hsl(var(--ink-1) / 0.03)';
+            event.currentTarget.style.background = 'var(--workspace-cell-hover-bg)';
           }
           hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
         }}

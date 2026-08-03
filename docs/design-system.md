@@ -6,7 +6,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 1. **Workspace plane**：`AppTopbar`、编辑器周围区域、左右栏、底部时间线 dock 与 `BottomStatusBar` 共同组成一张连续桌面。它们全部使用从 editor 稿纸外侧提取的不透明 `--workspace-ui-bg: hsl(var(--paper-deep))`；一级模块不再用不同底色假装处于不同高度。
 2. **Manuscript page**：`.page` 使用现有 `--page` 与 `--page-elevation`，圆角上限由 `--workspace-corner-radius: 2px` 控制。无论左右栏是否打开，它始终是主界面唯一抬起的一级工作面。
-3. **Borders and internal levels**：细灰黑 `--workspace-border` 只表达顶栏、左右栏、Bottom Timeline 与 Bottom Status Bar 的一级模块边界。三方交点没有渐变、阴影或额外装饰。局部层级只使用弱于主接缝的完整 `0.5px` hairline 与相邻灰阶：侧栏 Tab、panel header 与 content 之间的线完整贯穿各自区域，但物理厚度低于一级模块的 `1px` 接缝；侧栏 footer 顶线再弱一级。Bottom Timeline header 保持 `--workspace-ui-bg`，幕/叙事时 rail 使用稍浅的 `--paper`，故事线轨道使用 `--page`。
+3. **Borders and internal levels**：细灰黑 `--workspace-border` 只表达顶栏、左右栏、Bottom Timeline 与 Bottom Status Bar 的一级模块边界。三方交点没有渐变、阴影或额外装饰。侧栏局部层级只在 Tabs 与 panel header 之间保留一条完整的 `0.5px` hairline；panel header 直接衔接 content，不再重复画第二条线，侧栏 footer 顶线则再弱一级。Bottom Timeline header 保持 `--workspace-ui-bg`，幕/叙事时 rail 使用稍浅的 `--paper`，故事线轨道使用 `--page`；幕边界、时间点和相邻故事线轨道的静态 guide 使用 header 的 `--workspace-ui-bg`，厚度统一为 `0.5px`。
 
 因此普通编辑状态只出现一块抬起的一级工作面：稿纸。标题栏、左右栏、Tab 栏、时间线与 footer 都不是额外的“岛”。
 
@@ -42,6 +42,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 ## Tabs and motion
 
 - 顶部文档 Tab 与左右栏 Panel Tab 都由自身绘制静态矩形选中态。
+- 左右栏的 Tab 行固定为紧凑的 `28px`；其下单行 panel header 以约 `26px` 为基准，不用大块上下 padding 制造空白。
 - Panel Tab 的默认、hover 与 active 背景完全一致；只用暗淡文字与黑色文字的切换表达未选中和选中，不使用彩色 label、`border-bottom`、inset shadow 或其他下划线。
 - 左栏三个 Panel Tab 使用互斥的响应式表示：可用宽度至少 `220px` 时只显示“章节 / 元素 / 灵感”等文字；更窄时只显示对应 glyph，并以 title/aria-label 保留名称。任何宽度都不同时并排图标与文字。
 - 不存在跨 Tab 滑动的 pill indicator，也不为选中态测量 DOM 几何。
@@ -51,6 +52,8 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 ## Dense content and semantic controls
 
 - 侧栏中的高密度 TODO/资料列表使用 `.workspace-list` 与 `.workspace-list-row`：cell 保留简单的四边 border、`2px` 小圆角和略浅于 panel 的灰色底，彼此留出小间距；hover/focus 只轻微提高底色，不增加阴影或位移。
+- 左栏的章节、元素与漂流 cell 选中态复用顶部文档 Tab 的 `--surface` 背景，并以 `--ink-1` 文字和现有字重表达焦点；不再使用蓝色 `--accent` wash。hover 与 TODO/Library card 共用 `--workspace-cell-hover-bg` 的轻微提亮，不再叠加黑色 wash。
+- 章节 panel 的全书/故事线视图切换使用纯文本摘要：全书模式显示总章数，故事线模式显示故事线数与总章数。文字本身是点击区域，只以文字颜色变化表达 hover/focus，不绘制 switch、底框或背景。
 - 标签、状态 chip、菜单、popover、dialog 和预览内容保持小圆角；头像、状态点、spinner 与 switch 可以保留其语义形状。它们不计作一级页面模块，也不应被无差别的全局 `border-radius: 0` 误伤。
 - 不使用 inset-left vertical accent bar；强调状态继续使用背景 wash、细分隔线、字重或语义颜色。
 

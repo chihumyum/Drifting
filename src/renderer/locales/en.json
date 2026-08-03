@@ -1819,7 +1819,9 @@
     },
     "viewMode": {
       "storylineTitle": "Grouped by storyline · switch back to book overview",
-      "globalTitle": "Book overview · group by storyline"
+      "globalTitle": "Book overview · group by storyline",
+      "storylineSummary": "{{storylines}} storylines · {{chapters}} chapters",
+      "globalSummary": "{{count}} chapters total"
     },
     "actions": {
       "collapseAll": "Collapse all",

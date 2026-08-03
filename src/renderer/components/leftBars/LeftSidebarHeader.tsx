@@ -74,13 +74,11 @@ export function LeftSidebarHeader() {
   return (
     <div
       ref={rootRef}
-      className="workspace-local-divider"
+      className="workspace-local-divider workspace-panel-tab-row"
       style={{
         display: 'flex',
-        height: 35,
         width: '100%',
         alignItems: 'center',
-        padding: '0 8px',
         background: 'var(--workspace-ui-bg)',
         // Keep the header strip above the panel content rendered below it.
         position: 'relative',

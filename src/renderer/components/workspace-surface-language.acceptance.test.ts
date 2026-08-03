@@ -271,6 +271,106 @@ describe('workspace surface language acceptance', () => {
     );
   });
 
+  it('keeps sidebar chrome compact and rules only below the tab strips', () => {
+    const controls = source('src/styles/ui-controls.css');
+    const leftHeader = source('src/renderer/components/leftBars/LeftSidebarHeader.tsx');
+    const leftSubheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
+    const rightHeader = source('src/renderer/components/rightBars/RightSidebarHeader.tsx');
+    const todo = source('src/renderer/components/rightBars/TodoPanel.tsx');
+    const library = source('src/renderer/components/rightBars/MemoMaterialPanel.tsx');
+    const compactChrome = block(controls, '/* Sidebar chrome', '.panel-tab-tray {');
+
+    expect(compactChrome).toContain('height: 28px;');
+    expect(compactChrome).toContain('min-height: 26px;');
+    expect(compactChrome).toContain('padding-block: 3px;');
+    expect(leftHeader).toContain('workspace-local-divider workspace-panel-tab-row');
+    expect(rightHeader).toContain('workspace-local-divider workspace-panel-tab-row');
+    expect(leftSubheader).toContain('className="workspace-panel-header-row"');
+    expect(todo).toContain('className="workspace-panel-header-row"');
+    expect(library).toContain('className="workspace-panel-header-row"');
+    expect(rightHeader).toContain('className="workspace-panel-title-block"');
+    expect(leftSubheader).not.toContain('workspace-local-divider');
+    expect(todo).not.toContain('workspace-local-divider');
+    expect(library).not.toContain('workspace-local-divider');
+    expect(rightHeader.match(/workspace-local-divider/g)).toHaveLength(1);
+  });
+
+  it('uses a text-only chapter view-mode summary instead of a switch', () => {
+    const subheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
+    const controls = source('src/styles/ui-controls.css');
+    const zh = JSON.parse(source('src/renderer/locales/zh-CN.json')) as {
+      leftSidebar: { viewMode: Record<string, string> };
+    };
+    const textControl = block(controls, '.left-panel-view-mode-text {', '.panel-tab-tray {');
+    const hoverState = block(controls, '.left-panel-view-mode-text:hover,', '.panel-tab-tray {');
+
+    expect(subheader).not.toContain("from '../ui/Switch'");
+    expect(subheader).not.toContain('<Switch');
+    expect(subheader).not.toContain('ViewModeSwitch');
+    expect(subheader).toContain('className="left-panel-view-mode-text"');
+    expect(subheader).toContain('onClick={handleToggleChapterViewMode}');
+    expect(subheader).toContain("t('leftSidebar.viewMode.storylineSummary'");
+    expect(subheader).toContain("t('leftSidebar.viewMode.globalSummary'");
+    expect(textControl).toContain('border: 0;');
+    expect(textControl).toContain('background: transparent;');
+    expect(hoverState).toContain('color: hsl(var(--ink-1));');
+    expect(hoverState).not.toContain('background:');
+    expect(hoverState).not.toContain('border:');
+    expect(zh.leftSidebar.viewMode.storylineSummary).toBe(
+      '{{storylines}} 条故事线 · {{chapters}} 章',
+    );
+    expect(zh.leftSidebar.viewMode.globalSummary).toBe('共 {{count}} 章');
+  });
+
+  it('uses the document-tab surface instead of an accent wash for left-panel selection', () => {
+    const css = source('src/styles/index.css');
+    const controls = source('src/styles/ui-controls.css');
+    const chapterPanel = source('src/renderer/components/leftBars/ChapterPanel.tsx');
+    const elementPanel = source('src/renderer/components/leftBars/ElementPanel.tsx');
+    const driftPanel = source('src/renderer/components/leftBars/DriftPanel.tsx');
+    const panels = [chapterPanel, elementPanel, driftPanel];
+
+    expect(block(css, '.app-tab.is-active {', '/* Container-level drag-and-drop')).toContain(
+      'background: hsl(var(--surface));',
+    );
+    expect(css).toContain('--workspace-cell-hover-bg: color-mix(');
+    expect(block(controls, '.workspace-list-row:hover,', '.label-mono {')).toContain(
+      'background: var(--workspace-cell-hover-bg);',
+    );
+    for (const panel of panels) {
+      expect(panel).toContain("background: selected ? 'hsl(var(--surface))' : 'transparent'");
+      expect(panel).toContain(
+        "event.currentTarget.style.background = 'var(--workspace-cell-hover-bg)'",
+      );
+      expect(panel).not.toContain(
+        "event.currentTarget.style.background = 'hsl(var(--ink-1) / 0.03)'",
+      );
+      expect(panel).not.toContain(
+        "background: selected ? 'hsl(var(--accent) / 0.10)' : 'transparent'",
+      );
+    }
+  });
+
+  it('keeps the shared entity hover preview shadow clear of its hovered cell', () => {
+    const css = source('src/styles/index.css');
+    const hoverCard = source('src/renderer/components/ui/EntityHoverCard.tsx');
+    const consumers = [
+      source('src/renderer/components/leftBars/ChapterPanel.tsx'),
+      source('src/renderer/components/leftBars/ElementPanel.tsx'),
+      source('src/renderer/components/leftBars/DriftPanel.tsx'),
+      source('src/renderer/components/BottomTimeline/BottomTimeline.tsx'),
+    ];
+
+    expect(css).toContain(
+      '--entity-hover-card-shadow: 0 1px 4px -3px hsl(var(--ink-1) / 0.14);',
+    );
+    expect(hoverCard).toContain("boxShadow: 'var(--entity-hover-card-shadow)'");
+    expect(hoverCard).not.toContain('0 12px 28px -14px');
+    for (const consumer of consumers) {
+      expect(consumer).toContain('<EntityHoverCard');
+    }
+  });
+
   it('keeps edge slabs collapsed by default and preserves only their structural motion', () => {
     const store = source('src/renderer/store/ui-store.ts');
     const css = source('src/styles/index.css');
@@ -375,11 +475,11 @@ describe('workspace surface language acceptance', () => {
     expect(rightHeader).toContain("background: 'var(--workspace-ui-bg)'");
     expect(todo).toContain("background: 'var(--workspace-ui-bg)'");
     expect(library).toContain("background: 'var(--workspace-ui-bg)'");
-    expect(leftHeader).toContain('className="workspace-local-divider"');
-    expect(leftSubheader).toContain('className="workspace-local-divider"');
-    expect(rightHeader.match(/className="workspace-local-divider"/g)).toHaveLength(2);
-    expect(todo).toContain('className="workspace-local-divider"');
-    expect(library).toContain('className="workspace-local-divider"');
+    expect(leftHeader).toContain('className="workspace-local-divider');
+    expect(leftSubheader).not.toContain('workspace-local-divider');
+    expect(rightHeader.match(/className="workspace-local-divider/g)).toHaveLength(1);
+    expect(todo).not.toContain('workspace-local-divider');
+    expect(library).not.toContain('workspace-local-divider');
     expect(localDivider).toContain('right: 0;');
     expect(localDivider).toContain('left: 0;');
     expect(localDivider).toContain('height: 0.5px;');
@@ -487,7 +587,10 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('它们全部使用从 editor 稿纸外侧提取的');
     expect(doc).toContain('macOS 也不再启用透明窗口、`windowEffects` 或 `macOSPrivateApi`');
     expect(doc).toContain('三方交点没有渐变、阴影或额外装饰');
-    expect(doc).toContain('局部层级只使用弱于主接缝的完整 `0.5px` hairline 与相邻灰阶');
+    expect(doc).toContain(
+      '侧栏局部层级只在 Tabs 与 panel header 之间保留一条完整的 `0.5px` hairline',
+    );
+    expect(doc).toContain('panel header 直接衔接 content，不再重复画第二条线');
     expect(doc).toContain('不实现同时改变三个区域的三向 resize');
     expect(doc).toContain('只用暗淡文字与黑色文字的切换');
     expect(doc).toContain('footer 横跨整个窗口底部');

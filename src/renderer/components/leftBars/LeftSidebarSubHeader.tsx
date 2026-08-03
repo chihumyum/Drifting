@@ -21,7 +21,6 @@ import { useDriftGroup } from '../../usecase/useDriftGroup';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
 import { SortMenu, sortMenuGroup, type SortMenuOption } from './SortMenu';
-import { Switch } from '../ui/Switch';
 
 const log = loglevel.getLogger('LeftSidebarSubHeader');
 log.setLevel(loglevel.levels.ERROR);
@@ -128,12 +127,18 @@ export function LeftSidebarSubHeader() {
     }
   }, [projectId, createGroup]);
 
-  // Chapter panel meta — just the chapter count in both view modes. The
-  // storyline count lives on the view-mode switch's adjacent context, not in
-  // the meta text.
+  // The chapter panel's text summary doubles as its view-mode control. In
+  // storyline mode it reports both grouping and chapter totals; in global
+  // mode it reports the flat book total. Other panels keep read-only meta.
+  const isStorylineView = storylines.length > 0 && nodesViewMode === 'storyline';
   const meta =
     activeLeftPanel === 'nodes'
-      ? t('leftSidebar.meta.chapters', { count: storylineNodeCount })
+      ? isStorylineView
+        ? t('leftSidebar.viewMode.storylineSummary', {
+            storylines: storylines.length,
+            chapters: storylineNodeCount,
+          })
+        : t('leftSidebar.viewMode.globalSummary', { count: storylineNodeCount })
       : activeLeftPanel === 'elements'
         ? t('leftSidebar.meta.elements', {
             categories: bookElementCategories.length,
@@ -141,10 +146,9 @@ export function LeftSidebarSubHeader() {
           })
         : t('leftSidebar.meta.drifts', { count: driftCount });
 
-  // The 章节 panel's view-mode switch reflects the *effective* mode: a project
+  // The 章节 panel's view-mode text reflects the *effective* mode: a project
   // with zero storylines is forced to 'global' (mirrors ChapterPanel), so the
-  // switch reads off while empty even if a 'storyline' preference is persisted.
-  const isStorylineView = storylines.length > 0 && nodesViewMode === 'storyline';
+  // summary stays global while empty even if a 'storyline' preference persists.
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [showMeta, setShowMeta] = useState(true);
@@ -251,10 +255,9 @@ export function LeftSidebarSubHeader() {
           ? t('leftSidebar.sort.storylineChapters')
           : t('leftSidebar.sort.chapters');
 
-  // Chapter-panel view mode is driven by the switch in front of the meta text
-  // (全书总览 ⇄ 按 storyline 分组). Flipping it on with zero storylines bootstraps
-  // the first storyline — migrating existing chapters into it — so the grouped
-  // view has a lane to show, the same gesture the old hover-menu performed.
+  // Chapter-panel view mode is driven by the summary text itself (全书总览 ⇄ 按
+  // storyline 分组). Activating it with zero storylines bootstraps the first
+  // storyline so the grouped view has a lane to show, matching the old switch.
   const handleToggleChapterViewMode = useCallback(() => {
     if (isStorylineView) {
       setChapterViewMode('global');
@@ -369,13 +372,13 @@ export function LeftSidebarSubHeader() {
   return (
     <div
       ref={rootRef}
-      className="workspace-local-divider"
+      className="workspace-panel-header-row"
       style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: showMeta ? 'space-between' : 'flex-end',
         gap: 8,
-        padding: '6px 10px 6px 12px',
+        paddingInline: '12px 10px',
         fontFamily: 'var(--font-mono)',
         fontSize: 9.5,
         textTransform: 'uppercase',
@@ -395,18 +398,24 @@ export function LeftSidebarSubHeader() {
             overflow: 'hidden',
           }}
         >
-          {/* 全书总览 ⇄ 按 storyline 分组. Only the 章节 panel groups by storyline. */}
-          {activeLeftPanel === 'nodes' && (
-            <ViewModeSwitch
-              on={isStorylineView}
-              onToggle={handleToggleChapterViewMode}
-              titleOn={t('leftSidebar.viewMode.storylineTitle')}
-              titleOff={t('leftSidebar.viewMode.globalTitle')}
-            />
+          {activeLeftPanel === 'nodes' ? (
+            <button
+              type="button"
+              className="left-panel-view-mode-text"
+              onClick={handleToggleChapterViewMode}
+              title={
+                isStorylineView
+                  ? t('leftSidebar.viewMode.storylineTitle')
+                  : t('leftSidebar.viewMode.globalTitle')
+              }
+            >
+              {meta}
+            </button>
+          ) : (
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {meta}
+            </span>
           )}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {meta}
-          </span>
         </span>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -566,26 +575,5 @@ function SubIconBtn({
     >
       {children}
     </button>
-  );
-}
-
-/**
- * Compact view-mode toggle for the 章节 panel — off = 全书总览 (flat chapter
- * list), on = 按 storyline 分组 (storyline lanes). Sized down to sit inline with
- * the tiny subheader meta text; mirrors the settings `.tog` switch in shape.
- */
-function ViewModeSwitch({
-  on,
-  onToggle,
-  titleOn,
-  titleOff,
-}: {
-  on: boolean;
-  onToggle: () => void;
-  titleOn: string;
-  titleOff: string;
-}) {
-  return (
-    <Switch size="sm" checked={on} onCheckedChange={onToggle} title={on ? titleOn : titleOff} />
   );
 }

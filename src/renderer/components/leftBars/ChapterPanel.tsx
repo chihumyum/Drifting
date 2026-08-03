@@ -291,7 +291,7 @@ export function ChapterPanel() {
           padding: '5px 14px 5px 22px',
           cursor: 'pointer',
           position: 'relative',
-          background: selected ? 'hsl(var(--accent) / 0.10)' : 'transparent',
+          background: selected ? 'hsl(var(--surface))' : 'transparent',
           color: selected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
           fontSize: 12.5,
           lineHeight: 1.35,
@@ -299,7 +299,7 @@ export function ChapterPanel() {
         }}
         onMouseEnter={(event) => {
           if (!selected) {
-            event.currentTarget.style.background = 'hsl(var(--ink-1) / 0.03)';
+            event.currentTarget.style.background = 'var(--workspace-cell-hover-bg)';
           }
           hoverEnter({ kind: 'node', id: node.id }, event.currentTarget);
         }}
