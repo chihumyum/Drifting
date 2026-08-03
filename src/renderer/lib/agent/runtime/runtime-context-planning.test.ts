@@ -491,7 +491,7 @@ describe('AgentRuntime context planning integration', () => {
     expect(actualRequest.context.messages.map((message) => message.type)).toContain('context_note');
   });
 
-  it('counts 3000 summary source ids and fails before invoking the provider', async () => {
+  it('retains 3000 summary source ids internally without charging them as provider input', async () => {
     const oldAssistantBlocks = Array.from({ length: 3_000 }, (_, index) => ({
       type: 'text' as const,
       text: `historical-${index}:${'payload '.repeat(24)}`,
@@ -544,10 +544,19 @@ describe('AgentRuntime context planning integration', () => {
       }),
     );
 
-    expect(result.state.status).toBe('budget_exceeded');
-    expect(result.state.terminal?.failureCode).toBe('BUDGET_EXCEEDED');
-    expect(driver.requests).toHaveLength(0);
-    expect(result.lastProviderCallContextEnvelope).toBeUndefined();
+    expect(result.state.status).toBe('completed');
+    expect(driver.requests).toHaveLength(1);
+    const summaryMessage = driver.requests[0]?.context.messages.find(
+      (message) => message.type === 'context_summary',
+    );
+    expect(summaryMessage).toMatchObject({
+      type: 'context_summary',
+      summaryId: 'summary-with-3000-sources',
+    });
+    if (summaryMessage?.type === 'context_summary') {
+      expect(summaryMessage.sourceIds).toHaveLength(3_000);
+    }
+    expect(result.lastProviderCallContextEnvelope).toBeDefined();
   });
 
   it('fails closed when the completed assistant no longer fits a verified checkpoint', async () => {

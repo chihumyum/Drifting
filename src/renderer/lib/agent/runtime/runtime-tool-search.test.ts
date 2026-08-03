@@ -169,10 +169,7 @@ describe('AgentRuntime tool search integration', () => {
         hintLoad += 1;
         return {
           longTask: {
-            status:
-              hintLoad === 1
-                ? ('active' as const)
-                : ('blocked' as const),
+            status: hintLoad === 1 ? ('active' as const) : ('blocked' as const),
             scopeKind: 'whole_book_chapters' as const,
             objective: '逐章润色整本小说',
           },
@@ -180,9 +177,7 @@ describe('AgentRuntime tool search integration', () => {
       }),
     };
     const driver = new RecordingDriver((request) =>
-      request.iteration === 1
-        ? toolCall('read-1', 'read_node')
-        : endTurn(),
+      request.iteration === 1 ? toolCall('read-1', 'read_node') : endTurn(),
     );
     const runtime = new AgentRuntime({
       driver,
@@ -195,15 +190,13 @@ describe('AgentRuntime tool search integration', () => {
       },
     });
 
-    const result = await runtime.runTurn(
-      runInput({ prompt: '继续。', toolSearch: 'on' }),
-    );
-
+    const result = await runtime.runTurn(runInput({ prompt: '继续。', toolSearch: 'on' }));
     expect(result.state.status).toBe('completed');
     expect(tools.loadSelectionHints).toHaveBeenCalledTimes(2);
-    expect(
-      selections.map((selection) => selection.hints.longTask?.status),
-    ).toEqual(['active', 'blocked']);
+    expect(selections.map((selection) => selection.hints.longTask?.status)).toEqual([
+      'active',
+      'blocked',
+    ]);
     expect(selections[0]?.hints.longTask).toEqual({
       status: 'active',
       scopeKind: 'whole_book_chapters',
@@ -247,19 +240,21 @@ describe('AgentRuntime tool search integration', () => {
 
     expect(selections).toHaveLength(4);
     expect(selections[1]?.query).toContain('search_prose next');
-    expect(selections[1]?.successfulReadNamesSinceLastWrite).toEqual([
-      'read_node',
-    ]);
+    expect(selections[1]?.successfulReadNamesSinceLastWrite).toEqual(['read_node']);
     expect(selections[2]?.successfulReadNamesSinceLastWrite).toEqual(['read_node']);
     expect(selections[3]?.successfulReadNamesSinceLastWrite).toEqual(['read_node']);
-    expect(
-      selections.map(
-        (selection) => selection.successfulReadNamesInPreviousBatch,
-      ),
-    ).toEqual([[], ['read_node'], [], ['read_node']]);
-    expect(
-      selections.map((selection) => selection.pendingResultPage),
-    ).toEqual([false, false, false, false]);
+    expect(selections.map((selection) => selection.successfulReadNamesInPreviousBatch)).toEqual([
+      [],
+      ['read_node'],
+      [],
+      ['read_node'],
+    ]);
+    expect(selections.map((selection) => selection.pendingResultPage)).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
     expect(selections.map((selection) => selection.repairToolNames)).toEqual([
       [],
       [],
@@ -313,11 +308,7 @@ describe('AgentRuntime tool search integration', () => {
     const driver = new RecordingDriver((request) => {
       if (request.iteration === 1) return toolCall('invalid', 'read_node');
       if (request.iteration === 2) {
-        return toolCallWithArguments(
-          'repaired',
-          'read_node',
-          '{"path":"/chapters/00/prose.md"}',
-        );
+        return toolCallWithArguments('repaired', 'read_node', '{"path":"/chapters/00/prose.md"}');
       }
       return endTurn();
     });
@@ -358,9 +349,7 @@ describe('AgentRuntime tool search integration', () => {
     ];
     const selections: AgentToolSelectionRequest[] = [];
     const driver = new RecordingDriver((request) =>
-      request.iteration === 1
-        ? toolCall('unknown', 'delete_the_universe')
-        : endTurn(),
+      request.iteration === 1 ? toolCall('unknown', 'delete_the_universe') : endTurn(),
     );
     const runtime = new AgentRuntime({
       driver,
@@ -376,10 +365,7 @@ describe('AgentRuntime tool search integration', () => {
     const result = await runtime.runTurn(runInput({ toolSearch: 'auto' }));
 
     expect(result.state.status).toBe('completed');
-    expect(selections.map((selection) => selection.repairToolNames)).toEqual([
-      [],
-      [],
-    ]);
+    expect(selections.map((selection) => selection.repairToolNames)).toEqual([[], []]);
     expect(driver.requests.map((request) => request.tools.map((tool) => tool.name))).toEqual([
       ['search_prose'],
       ['search_prose'],
@@ -397,14 +383,11 @@ describe('AgentRuntime tool search integration', () => {
     }));
     const tools: AgentToolRuntime = {
       listDefinitions: () => definitions,
-      resolveCanonicalName: (name) =>
-        name === 'legacy_read_node' ? 'read_node' : undefined,
+      resolveCanonicalName: (name) => (name === 'legacy_read_node' ? 'read_node' : undefined),
       execute,
     };
     const driver = new RecordingDriver((request) =>
-      request.iteration === 1
-        ? toolCall('legacy', 'legacy_read_node')
-        : endTurn(),
+      request.iteration === 1 ? toolCall('legacy', 'legacy_read_node') : endTurn(),
     );
     const runtime = new AgentRuntime({
       driver,
@@ -415,14 +398,10 @@ describe('AgentRuntime tool search integration', () => {
     const result = await runtime.runTurn(runInput({ toolSearch: 'auto' }));
 
     expect(result.state.status).toBe('completed');
-    expect(execute).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'read_node' }),
-    );
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ name: 'read_node' }));
     expect(
       result.entries.some(
-        (entry) =>
-          entry.event.type === 'tool_call_started' &&
-          entry.event.name === 'read_node',
+        (entry) => entry.event.type === 'tool_call_started' && entry.event.name === 'read_node',
       ),
     ).toBe(true);
   });
@@ -480,21 +459,149 @@ describe('AgentRuntime tool search integration', () => {
 
     await runtime.runTurn(runInput({ toolSearch: 'auto' }));
 
+    expect(selections.map((selection) => selection.successfulReadNamesSinceLastWrite)).toEqual([
+      [],
+      ['read_node'],
+      [],
+    ]);
+    expect(selections.map((selection) => selection.successfulReadNamesInPreviousBatch)).toEqual([
+      [],
+      ['read_node'],
+      [],
+    ]);
+  });
+
+  it('keeps the full tool surface through a long research chain before mutation', async () => {
+    const definitions = [definition('read_node'), definition('edit_node', 'write')];
+    const driver = new RecordingDriver((request) => {
+      if (request.iteration <= 12) {
+        return toolCall(`read-${request.iteration}`, 'read_node');
+      }
+      if (request.iteration === 13) return toolCall('write-1', 'edit_node');
+      return endTurn();
+    });
+    const runtime = new AgentRuntime({
+      driver,
+      tools: toolRuntime(definitions),
+      toolSelector: { select: () => ['read_node', 'edit_node'] },
+    });
+
+    await runtime.runTurn(
+      runInput({
+        prompt: '把开头几章收拾顺并修正问题',
+        systemPrompt: 'base policy',
+        toolSearch: 'on',
+      }),
+    );
+
+    expect(driver.requests).toHaveLength(14);
     expect(
-      selections.map((selection) => selection.successfulReadNamesSinceLastWrite),
-    ).toEqual([[], ['read_node'], []]);
-    expect(
-      selections.map(
-        (selection) => selection.successfulReadNamesInPreviousBatch,
+      driver.requests.every(
+        (request) =>
+          !request.context.systemPrompt.includes('Runtime action checkpoint') &&
+          request.executionMode === undefined &&
+          request.toolChoice === 'auto' &&
+          request.tools.map((tool) => tool.name).join(',') === 'read_node,edit_node',
       ),
-    ).toEqual([[], ['read_node'], []]);
+    ).toBe(true);
+    expect(
+      JSON.stringify(driver.requests.map((request) => request.context.messages)),
+    ).not.toContain('drifting_runtime_action_checkpoint');
+  });
+
+  it('does not reprompt or constrain a mutation request after the model ends naturally', async () => {
+    const definitions = [definition('read_node'), definition('edit_node', 'write')];
+    const driver = new RecordingDriver(() => endTurn('I am done.'));
+    const runtime = new AgentRuntime({
+      driver,
+      tools: toolRuntime(definitions),
+      toolSelector: { select: () => ['read_node', 'edit_node'] },
+    });
+
+    const result = await runtime.runTurn(
+      runInput({
+        prompt: '继续把剩下的收尾。',
+        systemPrompt: 'base policy',
+        toolSearch: 'on',
+        reasoning: { enabled: true },
+      }),
+    );
+
+    expect(result.state.status).toBe('completed');
+    expect(driver.requests).toHaveLength(1);
+    expect(driver.requests[0]?.reasoning).toEqual({ enabled: true });
+    expect(driver.requests[0]?.executionMode).toBeUndefined();
+    expect(driver.requests[0]?.toolChoice).toBe('auto');
+    expect(driver.requests[0]?.tools.map((tool) => tool.name)).toEqual(['read_node', 'edit_node']);
+  });
+
+  it('never nudges a read-only request toward mutation', async () => {
+    const definitions = [definition('read_node'), definition('edit_node', 'write')];
+    const driver = new RecordingDriver((request) =>
+      request.iteration <= 9 ? toolCall(`read-${request.iteration}`, 'read_node') : endTurn(),
+    );
+    const runtime = new AgentRuntime({
+      driver,
+      tools: toolRuntime(definitions),
+      toolSelector: { select: () => ['read_node', 'edit_node'] },
+    });
+
+    await runtime.runTurn(
+      runInput({
+        prompt: '只阅读并分析这些章节，不要修改任何内容',
+        systemPrompt: 'base policy',
+        toolSearch: 'on',
+        reasoning: { enabled: true },
+      }),
+    );
+
+    expect(
+      driver.requests.every(
+        (request) => !request.context.systemPrompt.includes('Runtime action checkpoint'),
+      ),
+    ).toBe(true);
+    expect(
+      JSON.stringify(driver.requests.map((request) => request.context.messages)),
+    ).not.toContain('drifting_runtime_action_checkpoint');
+    expect(driver.requests.every((request) => request.reasoning?.enabled === true)).toBe(true);
+    expect(driver.requests.every((request) => request.toolChoice === 'auto')).toBe(true);
+  });
+
+  it('inherits read-only intent for a terse continuation', async () => {
+    const definitions = [definition('read_node'), definition('edit_node', 'write')];
+    const driver = new RecordingDriver((request) =>
+      request.iteration <= 9 ? toolCall(`read-${request.iteration}`, 'read_node') : endTurn(),
+    );
+    const runtime = new AgentRuntime({
+      driver,
+      tools: toolRuntime(definitions),
+      toolSelector: { select: () => ['read_node', 'edit_node'] },
+    });
+
+    await runtime.runTurn(
+      runInput({
+        prompt: '继续。',
+        history: [
+          { role: 'user', content: '只阅读并分析这些章节，不要修改任何内容' },
+          { role: 'assistant', content: [{ type: 'text', text: '分析结果' }] },
+        ],
+        systemPrompt: 'base policy',
+        toolSearch: 'on',
+        reasoning: { enabled: true },
+      }),
+    );
+
+    expect(
+      driver.requests.every(
+        (request) => !request.context.systemPrompt.includes('Runtime action checkpoint'),
+      ),
+    ).toBe(true);
+    expect(driver.requests.every((request) => request.reasoning?.enabled === true)).toBe(true);
+    expect(driver.requests.every((request) => request.toolChoice === 'auto')).toBe(true);
   });
 
   it('opens and closes structured result paging for one resultRef', async () => {
-    const definitions = [
-      definition('list_nodes'),
-      definition('read_tool_result'),
-    ];
+    const definitions = [definition('list_nodes'), definition('read_tool_result')];
     const execute = vi.fn<AgentToolRuntime['execute']>(async (request) => ({
       ok: true,
       data: {
@@ -550,14 +657,16 @@ describe('AgentRuntime tool search integration', () => {
 
     expect(result.state.status).toBe('completed');
     expect(execute).toHaveBeenCalledTimes(2);
-    expect(
-      selections.map((selection) => selection.pendingResultPage),
-    ).toEqual([false, true, false]);
-    expect(
-      selections.map(
-        (selection) => selection.successfulReadNamesInPreviousBatch,
-      ),
-    ).toEqual([[], ['list_nodes'], ['read_tool_result']]);
+    expect(selections.map((selection) => selection.pendingResultPage)).toEqual([
+      false,
+      true,
+      false,
+    ]);
+    expect(selections.map((selection) => selection.successfulReadNamesInPreviousBatch)).toEqual([
+      [],
+      ['list_nodes'],
+      ['read_tool_result'],
+    ]);
   });
 
   it.each([
@@ -581,10 +690,7 @@ describe('AgentRuntime tool search integration', () => {
         definition('list_elements'),
         definition('read_tool_result'),
       ];
-      const pageByCallId: Record<
-        string,
-        { resultRef: string; truncated: boolean }
-      > = {
+      const pageByCallId: Record<string, { resultRef: string; truncated: boolean }> = {
         'initial-a': { resultRef: 'agent-result:a', truncated: true },
         'initial-b': { resultRef: 'agent-result:b', truncated: true },
         'page-a-done': { resultRef: 'agent-result:a', truncated: false },
@@ -615,9 +721,7 @@ describe('AgentRuntime tool search integration', () => {
       const selector: AgentToolSelectionStrategy = {
         select(request) {
           selections.push(request);
-          return request.iteration === 1
-            ? ['list_nodes', 'list_elements']
-            : ['read_tool_result'];
+          return request.iteration === 1 ? ['list_nodes', 'list_elements'] : ['read_tool_result'];
         },
       };
       const driver = new RecordingDriver((request) => {
@@ -642,13 +746,13 @@ describe('AgentRuntime tool search integration', () => {
         toolSelector: selector,
       }).runTurn(runInput({ toolSearch: 'on' }));
 
-      expect(
-        result.state.status,
-        JSON.stringify(result.state.terminal),
-      ).toBe('completed');
-      expect(
-        selections.map((selection) => selection.pendingResultPage),
-      ).toEqual([false, true, true, false]);
+      expect(result.state.status, JSON.stringify(result.state.terminal)).toBe('completed');
+      expect(selections.map((selection) => selection.pendingResultPage)).toEqual([
+        false,
+        true,
+        true,
+        false,
+      ]);
     },
   );
 

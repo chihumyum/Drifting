@@ -81,6 +81,10 @@ describe('product file-backed migration acceptance', () => {
     expect(conversationColumns.map((column) => column.name)).not.toContain(
       'parent_conversation_id',
     );
+    const taskStepColumns = first.database
+      .prepare("PRAGMA table_info('agent_runtime_task_step')")
+      .all() as Array<{ name: string }>;
+    expect(taskStepColumns.map((column) => column.name)).toContain('work_kind');
     await first.close();
 
     const reopened = new ProductFileBackedSqliteGateway(databasePath);

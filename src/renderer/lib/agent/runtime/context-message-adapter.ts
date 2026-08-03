@@ -39,6 +39,7 @@ export const AGENT_CONTEXT_PROVIDER_ENVELOPE_FORMAT =
 
 const CANONICAL_SOURCE_PREFIX = 'model';
 const SUPPLEMENTAL_KINDS = new Set<AgentContextSupplementalKind>([
+  'write_receipt',
   'write_review',
   'write_revert',
   'freshness',
@@ -52,6 +53,7 @@ const SOURCE_KINDS = new Set<AgentContextSourceKind>([
   'thinking',
   'tool_call',
   'tool_result',
+  'write_receipt',
   'write_review',
   'write_revert',
   'freshness',
@@ -60,6 +62,7 @@ const SOURCE_KINDS = new Set<AgentContextSourceKind>([
 ]);
 
 export type AgentContextSupplementalKind =
+  | 'write_receipt'
   | 'write_review'
   | 'write_revert'
   | 'freshness'

@@ -605,9 +605,6 @@ export class AgentRuntime {
     let userInputSequence = 0;
     let steeringSequence = 0;
     let acceptingControl = true;
-    let repeatedFailureSignature: string | null = null;
-    let repeatedFailureIterations = 0;
-    let forceSynthesisOnly = false;
     const successfulReadNamesSinceLastWrite = new Set<string>();
     let successfulReadNamesInPreviousBatch = new Set<string>();
     let repairToolNamesForNextIteration = new Set<string>();
@@ -620,9 +617,7 @@ export class AgentRuntime {
     let completedContextCheckpoint:
       | NonNullable<AgentRuntimeRunResult['completedContextCheckpoint']>
       | undefined;
-    let completedTool:
-      | NonNullable<AgentRuntimeRunResult['completionTool']>
-      | undefined;
+    let completedTool: NonNullable<AgentRuntimeRunResult['completionTool']> | undefined;
     let lastPlanningSelection:
       | {
           iteration: number;
@@ -933,10 +928,9 @@ export class AgentRuntime {
           this.permissionPolicy?.recordResolution
         ) {
           const recorded = await awaitAbortable(
-            Promise.resolve(this.permissionPolicy.recordResolution(
-              { ...request, context },
-              resolution,
-            )),
+            Promise.resolve(
+              this.permissionPolicy.recordResolution({ ...request, context }, resolution),
+            ),
           );
           authorityId = recorded?.authorityId ?? null;
           if (!authorityId) {
@@ -1384,13 +1378,13 @@ export class AgentRuntime {
         (remainingOutputTokens <= synthesisReserve || remainingTotalTokens <= synthesisReserve);
       const forceCompletionTool = Boolean(
         completionToolName &&
-          isFinalModelIteration &&
-          input.completionTool?.forceOnFinalIteration !== false,
+        isFinalModelIteration &&
+        input.completionTool?.forceOnFinalIteration !== false,
       );
       const synthesisOnly =
         hasToolResultsInContext &&
         !forceCompletionTool &&
-        (forceSynthesisOnly || reserveForcesSynthesis || isFinalModelIteration);
+        (reserveForcesSynthesis || isFinalModelIteration);
       if (remainingOutputTokens <= 0 || remainingTotalTokens <= 0) {
         budget('No output token budget remains for another model iteration');
       }
@@ -1529,14 +1523,17 @@ export class AgentRuntime {
         budget('No output token budget remains for another model iteration');
       }
       const definitionsByName = groupDefinitions(iterationDefinitions);
-      const providerTools = iterationDefinitions.map(({ name, description, inputSchema }) => ({
-        name,
-        description,
-        inputSchema: clonePortableData(inputSchema),
+      const providerTools = iterationDefinitions.map((definition) => ({
+        name: definition.name,
+        description: definition.description,
+        inputSchema: clonePortableData(definition.inputSchema),
       }));
-      const iterationSystemPrompt = synthesisOnly
-        ? [input.systemPrompt, AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE].filter(Boolean).join('\n\n')
-        : input.systemPrompt;
+      const iterationSystemPrompt = [
+        input.systemPrompt,
+        synthesisOnly ? AGENT_SYNTHESIS_ONLY_SYSTEM_NOTE : undefined,
+      ]
+        .filter(Boolean)
+        .join('\n\n');
       const plannedContext = await awaitAbortable(
         this.contextPlanning.plan({
           purpose: 'provider_call',
@@ -1590,11 +1587,10 @@ export class AgentRuntime {
         iteration,
         ...(input.provider ? { provider: input.provider } : {}),
         ...(input.model ? { model: input.model } : {}),
+        ...(input.reasoning ? { reasoning: input.reasoning } : {}),
         ...(forceCompletionTool && input.completionTool?.disableReasoningWhenForced !== false
-          ? { reasoning: { enabled: false } }
-          : input.reasoning
-            ? { reasoning: input.reasoning }
-            : {}),
+          ? { executionMode: 'required_tool_non_reasoning' as const }
+          : {}),
         ...(providerTools.length > 0
           ? {
               toolChoice: forceCompletionTool
@@ -1768,6 +1764,12 @@ export class AgentRuntime {
                 });
               }
               if (call.argumentsTooLarge) {
+                // The journal above retains the provider's exact bytes. The
+                // canonical model message must still contain a valid JSON
+                // object pair so a rejected call cannot poison restart
+                // recovery after the model repairs it on the next iteration.
+                call.block.arguments = deepFreeze({});
+                call.block.rawArguments = '{}';
                 await emitRuntimeToolResult(
                   call,
                   `Tool arguments exceeded ${limits.maxToolArgumentBytes} bytes`,
@@ -1780,6 +1782,8 @@ export class AgentRuntime {
               try {
                 parsed = call.rawArguments.trim() ? JSON.parse(call.rawArguments) : {};
               } catch (error) {
+                call.block.arguments = deepFreeze({});
+                call.block.rawArguments = '{}';
                 await emitRuntimeToolResult(
                   call,
                   `Malformed JSON arguments: ${toErrorMessage(error)}`,
@@ -1789,6 +1793,8 @@ export class AgentRuntime {
                 break;
               }
               if (!isRecord(parsed)) {
+                call.block.arguments = deepFreeze({});
+                call.block.rawArguments = '{}';
                 await emitRuntimeToolResult(
                   call,
                   'Tool arguments must be a JSON object',
@@ -1797,6 +1803,25 @@ export class AgentRuntime {
                 );
                 break;
               }
+              const parsedCanonical = canonicalizeArguments(parsed);
+              if (!parsedCanonical.ok) {
+                call.block.arguments = deepFreeze({});
+                call.block.rawArguments = '{}';
+                await emitRuntimeToolResult(
+                  call,
+                  `Invalid normalized arguments for "${call.name}": ${parsedCanonical.error}`,
+                  'INVALID_NORMALIZED_TOOL_ARGUMENTS',
+                  availableDefinitionsByName.has(call.name),
+                );
+                break;
+              }
+              // Preserve a canonical representation even when the tool name
+              // is unknown or schema validation rejects the call. The
+              // following tool_result is the model-visible rejection; keeping
+              // arguments internally consistent makes the completed turn
+              // durably recoverable.
+              call.block.arguments = deepFreeze(parsedCanonical.value);
+              call.block.rawArguments = call.rawArguments;
               const definition = definitionsByName.get(call.name);
               if (!definition) {
                 await emitRuntimeToolResult(
@@ -1962,9 +1987,7 @@ export class AgentRuntime {
         messages.push({ role: 'tool', content: toolResults });
       }
       const successfulCompletionCalls = completionToolName
-        ? calls.filter(
-            (call) => call.name === completionToolName && call.result?.ok === true,
-          )
+        ? calls.filter((call) => call.name === completionToolName && call.result?.ok === true)
         : [];
       if (successfulCompletionCalls.length > 1) {
         protocol(`Model called completion tool "${completionToolName}" more than once`);
@@ -2022,8 +2045,8 @@ export class AgentRuntime {
           } else if (pageUpdate) {
             completedResultRefs.add(pageUpdate.resultRef);
           }
-          if (!toolResult.ok) continue;
           const definition = availableDefinitionsByName.get(toolResult.name);
+          if (!toolResult.ok) continue;
           if (definition?.access === 'write') {
             successfulReadsInThisBatch.clear();
             successfulReadNamesSinceLastWrite.clear();
@@ -2041,30 +2064,6 @@ export class AgentRuntime {
           pendingResultRefs.delete(resultRef);
         }
         successfulReadNamesInPreviousBatch = successfulReadsInThisBatch;
-        if (result.toolResults.length > 0) {
-          const failures = result.toolResults.filter((toolResult) => !toolResult.ok);
-          if (failures.length === result.toolResults.length) {
-            const signature = JSON.stringify(
-              [...new Set(failures.map((failure) => failure.content))].sort(),
-            );
-            if (signature === repeatedFailureSignature) {
-              repeatedFailureIterations += 1;
-            } else {
-              repeatedFailureSignature = signature;
-              repeatedFailureIterations = 1;
-            }
-            // One repair/alternative iteration is useful; a third identical
-            // all-failed tool round is not. Remove the tool surface on the next
-            // iteration so the model must explain the limitation or answer
-            // from any facts already present.
-            if (repeatedFailureIterations >= 2 && !completionToolName) {
-              forceSynthesisOnly = true;
-            }
-          } else {
-            repeatedFailureSignature = null;
-            repeatedFailureIterations = 0;
-          }
-        }
         if (result.toolResults.length > 0 && state.stopAfterToolRequested) {
           const reason = 'Agent stopped after the current tool completed.';
           await emit({ type: 'cancellation_requested', reason }, true);

@@ -19,6 +19,7 @@ const SOURCE_CATEGORY = {
   thinking: 'thinking',
   tool_call: 'tool_calls',
   tool_result: 'tool_results',
+  write_receipt: 'write_receipts',
   write_review: 'write_reviews',
   write_revert: 'write_reverts',
   freshness: 'freshness',
@@ -320,4 +321,45 @@ export function isAgentContextUsageSnapshot(value: unknown): value is AgentConte
     snapshot.coverage.representedSources + snapshot.coverage.discardedSources ===
       snapshot.coverage.canonicalSources
   );
+}
+
+/**
+ * Upgrade the original content-free usage payload after new display buckets
+ * are added. Context snapshots are durable journal events: changing the
+ * category list without a schema migration makes every existing long-running
+ * conversation fail strict recovery before its next turn can start.
+ */
+export function normalizeAgentContextUsageSnapshot(
+  value: unknown,
+): AgentContextUsageSnapshot | null {
+  if (isAgentContextUsageSnapshot(value)) return value;
+  if (!isRecord(value) || value.schemaVersion !== 1 || !Array.isArray(value.categories)) {
+    return null;
+  }
+
+  const categories = new Map<string, unknown>();
+  for (const category of value.categories) {
+    if (!isRecord(category) || typeof category.key !== 'string' || categories.has(category.key)) {
+      return null;
+    }
+    categories.set(category.key, category);
+  }
+  const allowedLegacyKeys = new Set<string>(AGENT_CONTEXT_USAGE_CATEGORY_KEYS);
+  if ([...categories.keys()].some((key) => !allowedLegacyKeys.has(key))) return null;
+  if (
+    AGENT_CONTEXT_USAGE_CATEGORY_KEYS.some(
+      (key) => key !== 'write_receipts' && !categories.has(key),
+    )
+  ) {
+    return null;
+  }
+
+  const upgraded = {
+    ...value,
+    schemaVersion: AGENT_CONTEXT_USAGE_SCHEMA_VERSION,
+    categories: AGENT_CONTEXT_USAGE_CATEGORY_KEYS.map(
+      (key) => categories.get(key) ?? { key, tokens: 0, sourceCount: 0 },
+    ),
+  };
+  return isAgentContextUsageSnapshot(upgraded) ? upgraded : null;
 }

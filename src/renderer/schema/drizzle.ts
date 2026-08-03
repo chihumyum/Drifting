@@ -1654,6 +1654,7 @@ export const AgentRuntimeTaskStepTable = sqliteTable(
     sessionId: text('session_id').notNull(),
     ordinal: integer('ordinal').notNull(),
     title: text('title').notNull(),
+    workKind: text('work_kind').notNull().default('edit'),
     targetKind: text('target_kind'),
     targetName: text('target_name'),
     resolvedTargetId: text('resolved_target_id'),

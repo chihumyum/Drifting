@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentRuntimeWriteEffectRepository } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
 import {
   buildAgentWriteReviewFeedback,
+  loadAgentDurableWriteReceiptContextRows,
   loadAgentWriteReviewContextRows,
 } from './write-review-feedback';
 import { planAgentModelContext } from './context-message-adapter';
@@ -371,6 +372,135 @@ describe('Agent write review feedback', () => {
       expect.arrayContaining(rows.map((row) => row.sourceId)),
     );
   });
+
+  it('archives committed non-review writes as bounded receipt evidence and leaves unsettled writes exact', async () => {
+    const committed = effect(
+      'effect-committed-delete',
+      'delete_file',
+      { path: '/comments/old.json' },
+      'turn-current',
+    );
+    const pending = effect(
+      'effect-pending-edit',
+      'edit_file',
+      { path: '/chapters/01/prose.md' },
+      'turn-current',
+    );
+    const failed = {
+      ...effect('effect-failed-delete', 'delete_file', { path: '/missing' }, 'turn-current'),
+      phase: 'failed',
+      resultCommittedAt: null,
+    };
+    const repository = {
+      loadSnapshot: async () => ({
+        effects: [committed, pending, failed],
+        reviews: [review('review-pending', pending.id, 'pending', 1)],
+        turnOrdinalsById: { 'turn-current': 7 },
+        turnContextOrdinalsById: { 'turn-current': 3 },
+        turnHasCanonicalHistoryById: { 'turn-current': false },
+      }),
+    } as unknown as AgentRuntimeWriteEffectRepository;
+
+    const rows = await loadAgentDurableWriteReceiptContextRows('session-1', repository, {
+      currentTurnId: 'turn-current',
+    });
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        sourceId: 'write-receipt:session-1:committed-archive',
+        turnOrdinal: 3,
+        kind: 'write_receipt',
+        durableWriteCoverage: [
+          {
+            turnOrdinal: 3,
+            callId: committed.callId,
+            toolName: 'delete_file',
+          },
+        ],
+      }),
+    ]);
+    expect(rows[0]?.content).toContain('"kind":"durable_write_receipt_archive"');
+    expect(rows[0]?.content).toContain('"effectCount":1');
+    expect(rows[0]?.content).toContain('"delete_file":1');
+    expect(rows[0]?.content).not.toContain(pending.id);
+    expect(rows[0]?.content).not.toContain(failed.id);
+  });
+
+  it('uses a durable receipt row to make the exact committed write pair compactible', async () => {
+    const committed = effect(
+      'effect-committed-delete',
+      'delete_file',
+      { path: '/comments/old.json' },
+      'turn-0',
+    );
+    const repository = {
+      loadSnapshot: async () => ({
+        effects: [committed],
+        reviews: [],
+        turnOrdinalsById: { 'turn-0': 0 },
+      }),
+    } as unknown as AgentRuntimeWriteEffectRepository;
+    const rows = await loadAgentDurableWriteReceiptContextRows('session-1', repository);
+    const messages: AgentModelMessage[] = [
+      { role: 'user', content: '清理旧批注' },
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_call',
+            callId: committed.callId,
+            name: committed.toolName,
+            arguments: committed.arguments,
+            rawArguments: JSON.stringify(committed.arguments),
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        content: [
+          {
+            callId: committed.callId,
+            name: committed.toolName,
+            ok: true,
+            content: '{"updated":true}',
+          },
+        ],
+      },
+      { role: 'user', content: '检查人物资料' },
+      { role: 'assistant', content: [{ type: 'text', text: '正在检查' }] },
+      { role: 'user', content: '继续' },
+    ];
+
+    const planned = await planAgentModelContext({
+      systemPrompt: 'Continue from durable domain state.',
+      messages,
+      resolveToolAccess: (name) => (name === 'delete_file' ? 'write' : null),
+      supplementalRows: rows,
+      planner: {
+        contextWindowTokens: 32_768,
+        requestedOutputTokens: 4_096,
+        fixedInputTokens: 0,
+      },
+    });
+
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    expect(
+      planned.plan.segments.filter(
+        (segment) =>
+          segment.type === 'source' && segment.row.callId === committed.callId,
+      ),
+    ).toEqual([
+      expect.objectContaining({ classification: 'compressible', pinReason: null }),
+      expect.objectContaining({ classification: 'compressible', pinReason: null }),
+    ]);
+    expect(
+      planned.plan.segments.find(
+        (segment) =>
+          segment.type === 'source' && segment.row.kind === 'write_receipt',
+      ),
+    ).toMatchObject({ classification: 'pinned', pinReason: 'semantic' });
+  });
 });
 
 function effect(
@@ -386,6 +516,10 @@ function effect(
     callId: `call-${id}`,
     toolName,
     arguments: arguments_,
+    phase: 'result_committed',
+    idempotencyKey: `idempotency-${id}`,
+    resultCommittedAt: '2026-07-30T00:00:00.000Z',
+    updatedAt: '2026-07-30T00:00:00.000Z',
   };
 }
 

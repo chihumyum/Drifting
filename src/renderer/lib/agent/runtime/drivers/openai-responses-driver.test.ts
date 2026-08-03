@@ -83,6 +83,41 @@ describe('OpenAI Responses Agent driver', () => {
     expect(body?.tool_choice).toEqual({ type: 'function', name: 'search' });
   });
 
+  it('serializes a required action with reasoning effort none for one sample', async () => {
+    let body: Record<string, unknown> | undefined;
+    const driver = new OpenAIResponsesAgentDriver({
+      apiKey: 'test',
+      fetch: async (_input, init) => {
+        body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return new Response(
+          sse([
+            {
+              type: 'response.completed',
+              response: {
+                status: 'completed',
+                output: [],
+                usage: { input_tokens: 1, output_tokens: 1 },
+              },
+            },
+          ]),
+          { status: 200 },
+        );
+      },
+    });
+
+    await collect(
+      driver,
+      request({
+        executionMode: 'required_tool_non_reasoning',
+        toolChoice: 'required',
+      }),
+    );
+
+    expect(body?.tool_choice).toBe('required');
+    expect(body?.reasoning).toEqual({ effort: 'none' });
+    expect(body).not.toHaveProperty('include');
+  });
+
   it('uses GPT-5.6 Responses reasoning and replays encrypted reasoning items across tools', async () => {
     const bodies: Record<string, unknown>[] = [];
     const reasoningItem = {

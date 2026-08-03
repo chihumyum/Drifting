@@ -94,10 +94,16 @@ const targetSchema = Type.Object(
 );
 
 const workKindSchema = Type.Union([Type.Literal('edit'), Type.Literal('review')]);
+const stepWorkKindSchema = Type.Union([
+  Type.Literal('edit'),
+  Type.Literal('review'),
+  Type.Literal('research'),
+]);
 
 const stepSeedSchema = Type.Object(
   {
     title: Type.String({ minLength: 1, maxLength: 500 }),
+    workKind: Type.Optional(stepWorkKindSchema),
     target: targetSchema,
   },
   { additionalProperties: false },
@@ -372,6 +378,7 @@ const updateConstraintProviderSchema = Type.Object(
 
 interface ProviderStepSeed {
   title: string;
+  workKind?: 'edit' | 'review' | 'research';
   target: {
     kind: AgentRuntimeTaskTargetKind;
     name: string;
@@ -608,6 +615,7 @@ export function projectAgentLongTaskPlanForProvider(
       stepId: step.id,
       ordinal: step.ordinal,
       title: step.title,
+      workKind: step.workKind,
       target,
       status: step.status,
       resultNote: step.resultNote,
@@ -618,7 +626,7 @@ export function projectAgentLongTaskPlanForProvider(
     };
   });
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     task: {
       taskId: plan.task.id,
       objective: plan.task.objective,
@@ -693,7 +701,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_LONG_TASK_PLAN_TOOL,
         description:
-          'Task-level operations only: create, extend, rename, reconcile a changed whole-book chapter manifest, pause, block, fail, or complete the durable long-task plan. NEVER change an individual step with this tool; update_task_step is the only step-status tool. operation=create requires scopeKind, objective, and an explicit workKind: edit proves accepted writes; review proves exact source reads without manufacturing edits. Use whole_book_chapters only when the author explicitly asks for every chapter/the whole book. A chosen subset or count such as five chapters MUST use explicit_targets with one named step per target. explicit_targets requires steps; whole_book_chapters must omit steps so the runtime freezes canonical chapter order. append_steps requires taskId, expectedRevision, and steps. set_objective requires taskId, expectedRevision, and objective. reconcile_manifest requires taskId and expectedRevision and is mandatory when read_task_plan reports chapterManifestState.status=drifted. set_status requires taskId, expectedRevision, and status. Never pass a chapter or drift UUID.',
+          'Task-level operations only: create, extend, rename, reconcile a changed whole-book chapter manifest, pause, block, fail, or complete the durable long-task plan. NEVER change an individual step with this tool; update_task_step is the only step-status tool. operation=create requires scopeKind, objective, and an explicit task workKind: edit is the default for effect-producing work; review is the default for exact-source review. Each explicit-target step may override workKind with research, edit, or review. Use a bounded research step for preparatory exploration, then separate edit/review steps for effects or conclusions; do not turn initial discovery into an unfinishable "read the entire workspace" step when concrete follow-up units are already known. Use whole_book_chapters only when the author explicitly asks for every chapter/the whole book. A chosen subset or count such as five chapters MUST use explicit_targets with one named step per target. explicit_targets requires steps; whole_book_chapters must omit steps so the runtime freezes canonical chapter order. append_steps requires taskId, expectedRevision, and steps. set_objective requires taskId, expectedRevision, and objective. reconcile_manifest requires taskId and expectedRevision and is mandatory when read_task_plan reports chapterManifestState.status=drifted. set_status requires taskId, expectedRevision, and status. Never pass a chapter or drift UUID.',
         inputSchema: updatePlanProviderSchema,
         access: 'write',
         validateInput: (input) => validation(updatePlanCommandSchema, input),
@@ -701,7 +709,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_LONG_TASK_STEP_TOOL,
         description:
-          'The only tool for changing an individual durable step status. Advance exactly one step with taskId, expectedRevision, stepId, status; there is no set_step_status operation on update_task_plan. Only one step may be in_progress. For workKind=edit, copy writeRef from the successful write result into resultRef and complete only with accepted target evidence. For workKind=review, first read the exact target, then complete with structured reviewResult and omit resultRef: Drifting binds the verified read receipt itself. Every review claim/finding needs an exact source quote.',
+          'The only tool for changing an individual durable step status. Advance exactly one step with taskId, expectedRevision, stepId, status; there is no set_step_status operation on update_task_plan. Independent step calls may share the revision read before a parallel batch: Drifting revalidates each named step against the current plan and safely rebases only non-conflicting step transitions. Only one step may be in_progress, but a pending step may be completed directly when its work already finished. Drifting owns resultRef: omit it for edit, review, and research completion. For edit, Drifting binds an unclaimed accepted durable workspace write for that exact target made during the current task, including work completed before a newly discovered step was appended. For review, read the named prose target when there is one, or the relevant project sources for a book/project/category review, then provide structured reviewResult. For research, perform at least one successful relevant workspace read and provide a non-empty resultNote without reviewResult. Every review claim/finding needs an exact source quote.',
         inputSchema: updateStepSchema,
         access: 'write',
         validateInput: (input) => validation(updateStepSchema, input),
@@ -740,6 +748,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
               ? {
                   nextStep: {
                     title: nextStep.title,
+                    workKind: nextStep.workKind,
                     status: nextStep.status,
                     target: nextStep.target
                       ? {
@@ -871,6 +880,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
           error: `${error.code}: ${error.message}`,
         };
       }
+      console.error('[agent] long-task runtime operation failed', error);
       return {
         ok: false,
         error: 'Long-task runtime operation failed.',
@@ -885,6 +895,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
     return Promise.all(
       input.map(async (step) => ({
         title: step.title.trim(),
+        workKind: step.workKind,
         target: step.target
           ? {
               kind: step.target.kind,
@@ -960,6 +971,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
             chapterManifest,
             steps: chapterManifest.map((chapter) => ({
               title: `${(input.workKind ?? 'edit') === 'review' ? '检查' : '处理'}章节：${chapter.name}`,
+              workKind: input.workKind ?? 'edit',
               target: {
                 kind: 'chapter',
                 name: chapter.name,

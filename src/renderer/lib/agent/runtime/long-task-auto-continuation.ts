@@ -270,7 +270,13 @@ export function decideAgentAutomaticContinuation(input: {
     return { kind: 'stop', status: 'paused', reason: 'plan_unavailable' };
   }
   if (plan.status === 'none') {
-    return { kind: 'stop', status: 'off', reason: 'not_applicable' };
+    // A physical context boundary is resumable even when the model ignored the
+    // durable-plan instruction. Continuous execution is explicit author
+    // authority, and a missing plan must not turn compaction into a task stop.
+    // A normally completed planless turn is still terminal.
+    return terminalOutcome === 'budget_exceeded'
+      ? { kind: 'schedule' }
+      : { kind: 'stop', status: 'off', reason: 'not_applicable' };
   }
   if (plan.status === 'completed' || plan.status === 'failed') {
     return { kind: 'stop', status: 'off', reason: 'task_completed' };

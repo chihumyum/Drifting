@@ -80,6 +80,8 @@ const REQUIRED_ASSERTIONS = {
     'retries idempotently when Yjs changed but the first persistence acknowledgement failed',
   rejectedAnimationDirection:
     'turns every bulk rejection into the visible inverse animation',
+  nativeScrollRevealCoordinates:
+    'keeps reveal coordinates stable inside the native scrolling content tree',
   sqliteProjectionWins:
     'replaces stale local decisions with the exact SQLite-backed projection',
 };

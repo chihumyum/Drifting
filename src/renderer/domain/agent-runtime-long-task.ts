@@ -35,6 +35,13 @@ export type AgentRuntimeTaskScopeKind = 'explicit_targets' | 'whole_book_chapter
 /** Edit tasks prove accepted manuscript effects; review tasks prove exact reads. */
 export type AgentRuntimeTaskWorkKind = 'edit' | 'review';
 
+/**
+ * A durable plan may mix preparatory research with effect-producing or review
+ * work. The task-level kind remains the backward-compatible default; this
+ * step-level kind owns the evidence contract for one concrete unit of work.
+ */
+export type AgentRuntimeTaskStepWorkKind = AgentRuntimeTaskWorkKind | 'research';
+
 export type AgentRuntimeTaskTargetKind =
   | 'book'
   | 'project'
@@ -88,6 +95,7 @@ export interface PersistedAgentRuntimeTaskStep extends AgentRuntimeTaskScope {
   taskId: string;
   ordinal: number;
   title: string;
+  workKind: AgentRuntimeTaskStepWorkKind;
   target: AgentRuntimeTaskTarget | null;
   status: AgentRuntimeTaskStepStatus;
   resultNote: string | null;
@@ -245,6 +253,8 @@ export interface AgentRuntimeTaskManifestReconciliationResult {
 
 export interface AgentRuntimeTaskStepSeed {
   title: string;
+  /** Defaults to the parent task's workKind for backward compatibility. */
+  workKind?: AgentRuntimeTaskStepWorkKind;
   target: AgentRuntimeTaskTarget | null;
 }
 
@@ -367,9 +377,11 @@ const STEP_TRANSITIONS: Record<
   AgentRuntimeTaskStepStatus,
   ReadonlySet<AgentRuntimeTaskStepStatus>
 > = {
-  // A planned unit cannot be declared complete without first entering the
-  // execution/review path. It may still fail or block during preflight.
-  pending: new Set(['pending', 'in_progress', 'blocked', 'failed']),
+  // Providers often finish the authored work before they service plan
+  // bookkeeping. Completion is therefore allowed directly from pending; the
+  // repository still binds product-owned read/write evidence before accepting
+  // the transition.
+  pending: new Set(['pending', 'in_progress', 'blocked', 'completed', 'failed']),
   in_progress: new Set(['in_progress', 'blocked', 'completed', 'failed']),
   blocked: new Set(['blocked', 'pending', 'in_progress', 'completed', 'failed']),
   completed: new Set(['completed']),

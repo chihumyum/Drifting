@@ -49,6 +49,7 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
     string,
     readonly AnthropicReasoningReplayBlock[]
   >();
+  private readonly nonReasoningCallIds = new Set<string>();
 
   constructor(options: AnthropicMessagesAgentDriverOptions) {
     if (!options.apiKey.trim()) throw new Error('Anthropic API key is empty');
@@ -65,7 +66,10 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
       'anthropic',
       model,
     );
-    const reasoningEnabled = request.reasoning?.enabled === true;
+    const configuredReasoningEnabled = request.reasoning?.enabled === true;
+    const reasoningEnabled =
+      configuredReasoningEnabled &&
+      request.executionMode !== 'required_tool_non_reasoning';
     if (
       reasoningEnabled &&
       !reasoningProfile.thinkingModes.includes('adaptive')
@@ -78,6 +82,7 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
       assertActiveAnthropicReplay(
         request.context,
         this.reasoningReplayByCallId,
+        this.nonReasoningCallIds,
       );
     }
     const effort = reasoningProfile.efforts.includes(
@@ -103,12 +108,13 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
           system: request.context.systemPrompt,
           messages: projectAnthropicMessages(
             request.context.messages,
-            reasoningEnabled ? this.reasoningReplayByCallId : undefined,
+            configuredReasoningEnabled ? this.reasoningReplayByCallId : undefined,
           ),
           ...(reasoningEnabled
             ? { thinking: { type: 'adaptive', display: 'summarized' } }
             : {}),
-          ...(reasoningProfile.efforts.length > 0
+          ...(reasoningProfile.efforts.length > 0 &&
+          request.executionMode !== 'required_tool_non_reasoning'
             ? { output_config: { effort } }
             : {}),
           ...(request.tools.length
@@ -296,7 +302,13 @@ export class AnthropicMessagesAgentDriver implements AgentModelDriver {
     if (reasoningEnabled && finishReason === 'tool_use') {
       const exact = reasoningReplay.map((block) => ({ ...block }));
       for (const callId of responseToolCallIds) {
+        this.nonReasoningCallIds.delete(callId);
         this.reasoningReplayByCallId.set(callId, exact);
+      }
+    } else if (finishReason === 'tool_use') {
+      for (const callId of responseToolCallIds) {
+        this.reasoningReplayByCallId.delete(callId);
+        this.nonReasoningCallIds.add(callId);
       }
     }
     yield { type: 'usage', usage };
@@ -438,6 +450,7 @@ function assertActiveAnthropicReplay(
     string,
     readonly AnthropicReasoningReplayBlock[]
   >,
+  nonReasoningCallIds: ReadonlySet<string>,
 ): void {
   let activeCallIds: string[] = [];
   for (const entry of context.messages) {
@@ -454,7 +467,10 @@ function assertActiveAnthropicReplay(
   }
   if (
     activeCallIds.length === 0 ||
-    activeCallIds.some((callId) => !replayByCallId.has(callId))
+    activeCallIds.some(
+      (callId) =>
+        !replayByCallId.has(callId) && !nonReasoningCallIds.has(callId),
+    )
   ) {
     throw new AgentModelDriverError(
       'Anthropic reasoning replay state is unavailable for the active tool loop.',

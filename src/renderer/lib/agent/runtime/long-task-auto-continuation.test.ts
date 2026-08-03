@@ -45,6 +45,7 @@ function step(
     taskId: 'task-1',
     ordinal: 0,
     title: input.id,
+    workKind: input.workKind ?? 'edit',
     target: null,
     resultNote: null,
     resultRef: null,
@@ -181,6 +182,43 @@ describe('long-task auto continuation', () => {
         nowMs: 200,
       }),
     ).toEqual({ kind: 'schedule' });
+  });
+
+  it('continues a planless task across physical context boundaries', () => {
+    const automatic = markAutomaticContinuationTerminal(armAgentAutomaticContinuation(null, 100), {
+      turnId: 'turn-1',
+      costUsd: 0.01,
+    });
+    const noPlan = summarizeLongTaskPlanForContinuation('session-1', null);
+
+    expect(
+      decideAgentAutomaticContinuation({
+        automatic,
+        plan: noPlan,
+        terminalOutcome: 'budget_exceeded',
+        nowMs: 200,
+      }),
+    ).toEqual({ kind: 'schedule' });
+    expect(
+      decideAgentAutomaticContinuation({
+        automatic: {
+          ...automatic,
+          automaticSlicesStarted: 10_000,
+          stagnantSliceCount: AGENT_AUTO_CONTINUATION_MAX_STAGNANT_SLICES,
+        },
+        plan: noPlan,
+        terminalOutcome: 'budget_exceeded',
+        nowMs: Number.MAX_SAFE_INTEGER,
+      }),
+    ).toEqual({ kind: 'schedule' });
+    expect(
+      decideAgentAutomaticContinuation({
+        automatic,
+        plan: noPlan,
+        terminalOutcome: 'completed',
+        nowMs: 200,
+      }),
+    ).toEqual({ kind: 'stop', status: 'off', reason: 'not_applicable' });
   });
 
   it('does not mistake a metadata-only revision bump for task progress', () => {

@@ -2,15 +2,20 @@
  * Adapter from Drifting's provider-neutral LLMClient contract to the canonical
  * AgentModelDriver stream.
  *
- * The existing OpenAI-compatible providers already own credentials, retries,
- * wire translation, and function calls. This adapter deliberately does
- * not inspect provider errors or expose their messages. It only:
+ * The existing OpenAI-compatible providers own credentials, wire translation,
+ * and function calls. This adapter owns the bounded pre-effect sample retry
+ * boundary without exposing raw provider errors. It:
  *   - projects canonical AgentModelMessage blocks into AIMessage,
  *   - preserves DeepSeek reasoning_content inside the active tool loop,
  *   - forwards true text/tool deltas when the provider supports them,
  *   - retains a completion-to-stream compatibility path for older providers.
  */
-import type { LLMClient } from '../../../ai/client/llm-client';
+import {
+  isMalformedStreamedToolArgumentsError,
+  isMissingReasoningToolCallError,
+  type LLMClient,
+} from '../../../ai/client/llm-client';
+import { DEFAULT_RETRY, withRetry, type RetryConfig } from '../../../ai/client/retry';
 import {
   AIError,
   type AICompletionChunk,
@@ -35,9 +40,7 @@ export interface AgentCompletionClient {
   readonly supportsTools: boolean;
   readonly supportsToolStreaming?: boolean;
   complete(request: AICompletionRequest): Promise<AICompletionResponse>;
-  stream?(
-    request: AICompletionRequest,
-  ): AsyncIterable<AICompletionChunk>;
+  stream?(request: AICompletionRequest): AsyncIterable<AICompletionChunk>;
 }
 
 export interface OpenAICompatibleCompletionDriverOptions {
@@ -50,10 +53,46 @@ export interface OpenAICompatibleCompletionDriverOptions {
   feature?: string;
   /** Enables the certified DeepSeek thinking/replay wire contract. */
   reasoningMode?: 'disabled' | 'deepseek';
+  /** Bounded pre-effect retry lease for malformed streamed model samples. */
+  providerAttemptRetry?: RetryConfig;
 }
 
 const DEFAULT_DRIVER_ID = 'openai-compatible-completion';
 const DEFAULT_FEATURE = 'general-agent';
+const DEFAULT_PROVIDER_ATTEMPT_RETRY: RetryConfig = {
+  ...DEFAULT_RETRY,
+  maxAttempts: 4,
+  baseDelayMs: 250,
+  maxDelayMs: 2_000,
+};
+
+type ProviderSampleRecovery =
+  | {
+      reason: 'max_tokens_before_action';
+      planningExcerpt: string;
+    }
+  | {
+      reason: 'unavailable_tool';
+      availableToolNames: readonly string[];
+    }
+  | {
+      reason: 'malformed_tool_arguments';
+      availableToolNames: readonly string[];
+    }
+  | {
+      reason: 'missing_reasoning_content';
+      availableToolNames: readonly string[];
+    };
+
+class RetryableProviderSampleError extends AgentModelDriverError {
+  constructor(
+    public readonly recovery: ProviderSampleRecovery,
+    publicMessage: string,
+  ) {
+    super(publicMessage, true);
+    this.name = 'RetryableProviderSampleError';
+  }
+}
 
 export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
   readonly id: string;
@@ -63,7 +102,10 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
   private readonly defaultModel: string;
   private readonly feature: string;
   private readonly reasoningMode: 'disabled' | 'deepseek';
+  private readonly providerAttemptRetry: RetryConfig;
   private readonly reasoningReplayByCallId = new Map<string, string>();
+  private readonly nonReasoningCallIds = new Set<string>();
+  private readonly recoveryPlanningByCallId = new Map<string, string>();
 
   constructor(options: OpenAICompatibleCompletionDriverOptions) {
     this.client = options.client;
@@ -71,21 +113,31 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
     this.id = requireNonEmpty(options.id ?? DEFAULT_DRIVER_ID, 'id');
     this.feature = requireNonEmpty(options.feature ?? DEFAULT_FEATURE, 'feature');
     this.reasoningMode = options.reasoningMode ?? 'disabled';
+    this.providerAttemptRetry = options.providerAttemptRetry ?? DEFAULT_PROVIDER_ATTEMPT_RETRY;
     this.capabilities = { reasoning: this.reasoningMode === 'deepseek' };
   }
 
   async *stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
-    const reasoningEnabled = request.reasoning?.enabled === true;
+    const configuredReasoningEnabled = request.reasoning?.enabled === true;
+    // DeepSeek requires every assistant tool-call message in a thinking-mode
+    // segment to carry the exact reasoning_content that produced it. A bounded
+    // action-recovery attempt intentionally turns thinking off so it can force
+    // one complete tool call. On the next iteration we insert a transport-only
+    // provider-user boundary immediately after that tool result. This closes
+    // the non-reasoning segment, restores the author's configured reasoning
+    // mode, and can hand the discarded private scratchpad back to the model
+    // without pretending it was the reasoning_content for the recovered call.
+    const hasReasoningResumeBoundary =
+      configuredReasoningEnabled &&
+      request.iteration > 1 &&
+      hasActiveNonReasoningToolCall(request.context, this.nonReasoningCallIds);
+    const reasoningEnabled =
+      configuredReasoningEnabled && request.executionMode !== 'required_tool_non_reasoning';
     if (reasoningEnabled && this.reasoningMode !== 'deepseek') {
-      throw new AgentModelDriverError(
-        'Reasoning is not supported by the General Agent driver.',
-      );
+      throw new AgentModelDriverError('Reasoning is not supported by the General Agent driver.');
     }
-    if (reasoningEnabled && request.iteration > 1) {
-      assertActiveReasoningReplay(
-        request.context,
-        this.reasoningReplayByCallId,
-      );
+    if (reasoningEnabled && request.iteration > 1 && !hasReasoningResumeBoundary) {
+      assertActiveReasoningReplay(request.context, this.reasoningReplayByCallId);
     }
     if (request.tools.length > 0 && !this.client.supportsTools) {
       throw new AgentModelDriverError(
@@ -93,14 +145,29 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
       );
     }
 
+    const plannedMessages = projectPlannedMessages(
+      request.context,
+      this.reasoningMode,
+      configuredReasoningEnabled ? this.reasoningReplayByCallId : undefined,
+    );
+    const providerMessages =
+      reasoningEnabled && hasReasoningResumeBoundary
+        ? insertReasoningResumeBoundary({
+            messages: plannedMessages,
+            activeNonReasoningCallIds: activeToolCallIds(request.context).filter((callId) =>
+              this.nonReasoningCallIds.has(callId),
+            ),
+            recoveryPlanningByCallId: this.recoveryPlanningByCallId,
+          })
+        : plannedMessages;
+    if (reasoningEnabled && hasReasoningResumeBoundary) {
+      assertReasoningReplayAfterResumeBoundary(providerMessages);
+    }
+
     const completionRequest: AICompletionRequest = {
       model: request.model ?? this.defaultModel,
       system: requirePlannedSystem(request.context.systemPrompt),
-      messages: projectPlannedMessages(
-        request.context,
-        this.reasoningMode,
-        reasoningEnabled ? this.reasoningReplayByCallId : undefined,
-      ),
+      messages: providerMessages,
       tools: request.tools.map((tool) => ({
         name: tool.name,
         description: tool.description,
@@ -108,16 +175,15 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
       })),
       maxOutputTokens: request.maxOutputTokens,
       thinking: reasoningEnabled,
-      ...(request.reasoning?.effort
+      ...(reasoningEnabled && request.reasoning?.effort
         ? { reasoningEffort: request.reasoning.effort }
         : {}),
       terminalRequirements: {
         finishReason: true,
         usage: true,
+        ...(reasoningEnabled ? { reasoningContentForToolCalls: true } : {}),
       },
-      ...(request.tools.length > 0
-        ? { toolChoice: request.toolChoice ?? ('auto' as const) }
-        : {}),
+      ...(request.tools.length > 0 ? { toolChoice: request.toolChoice ?? ('auto' as const) } : {}),
       signal: request.signal,
       metadata: {
         feature: this.feature,
@@ -129,18 +195,82 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
 
     if (
       this.client.stream &&
-      (request.tools.length === 0 ||
-        this.client.supportsToolStreaming === true)
+      (request.tools.length === 0 || this.client.supportsToolStreaming === true)
     ) {
       try {
-        yield* streamCompletion(
-          this.client,
-          completionRequest,
-          reasoningEnabled
-            ? (callIds, reasoningContent) =>
-                this.rememberReasoningReplay(callIds, reasoningContent)
-            : undefined,
-        );
+        const rememberReasoning = reasoningEnabled
+          ? (callIds: readonly string[], reasoningContent: string) =>
+              this.rememberReasoningReplay(callIds, reasoningContent)
+          : undefined;
+        if (request.tools.length === 0) {
+          // Tool-free synthesis keeps true progressive text streaming. Once
+          // visible output escapes, automatically replaying it would duplicate
+          // author-facing prose, so this path intentionally has no mid-stream
+          // resample lease.
+          yield* streamCompletion(this.client, completionRequest, rememberReasoning);
+        } else {
+          // A tool-capable provider attempt is transactional: consume and
+          // validate its entire stream before publishing any Agent event. This
+          // makes malformed JSON, missing reasoning, incomplete identities and
+          // transient transport failures safely resampleable because no tool
+          // call, usage, assistant block or UI activity has escaped yet.
+          let providerAttempt = 0;
+          let recovery: ProviderSampleRecovery | undefined;
+          const events = await withRetry(
+            async () => {
+              providerAttempt += 1;
+              const attemptRequest = withProviderAttemptMetadata(
+                recovery
+                  ? withProviderSampleRecovery(completionRequest, recovery, providerAttempt)
+                  : completionRequest,
+                providerAttempt,
+              );
+              try {
+                const collected = await collectModelEvents(
+                  streamCompletion(this.client, attemptRequest),
+                );
+                assertCompleteProviderSample(
+                  collected,
+                  attemptRequest.tools?.map((tool) => tool.name) ?? [],
+                );
+                const callIds = collected.flatMap((event) =>
+                  event.type === 'tool_call_start' ? [event.callId] : [],
+                );
+                if (callIds.length > 0) {
+                  if (attemptRequest.thinking === true) {
+                    this.rememberReasoningReplay(
+                      callIds,
+                      collected
+                        .flatMap((event) => (event.type === 'thinking_delta' ? [event.text] : []))
+                        .join(''),
+                    );
+                  } else {
+                    this.rememberNonReasoningToolCalls(
+                      callIds,
+                      recovery?.reason === 'max_tokens_before_action'
+                        ? recovery.planningExcerpt
+                        : undefined,
+                    );
+                  }
+                }
+                return collected;
+              } catch (error) {
+                const nextRecovery = providerSampleRecovery(
+                  error,
+                  attemptRequest.tools?.map((tool) => tool.name) ?? [],
+                );
+                if (nextRecovery) {
+                  recovery = mergeProviderSampleRecovery(recovery, nextRecovery);
+                }
+                throw error;
+              }
+            },
+            isRetryableProviderAttemptError,
+            this.providerAttemptRetry,
+            request.signal,
+          );
+          for (const event of events) yield event;
+        }
       } catch (error) {
         throw safeCompletionError(error);
       }
@@ -170,6 +300,8 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
         projectedToolCalls.map((call) => call.callId),
         requireProviderField(response.thinking, 'reasoning content'),
       );
+    } else if (toolCalls.length > 0) {
+      this.rememberNonReasoningToolCalls(projectedToolCalls.map((call) => call.callId));
     }
     if (response.text) {
       yield { type: 'text_delta', text: response.text };
@@ -193,12 +325,29 @@ export class OpenAICompatibleCompletionDriver implements AgentModelDriver {
     };
   }
 
-  private rememberReasoningReplay(
-    callIds: readonly string[],
-    reasoningContent: string,
-  ): void {
+  private rememberReasoningReplay(callIds: readonly string[], reasoningContent: string): void {
     const exact = requireProviderField(reasoningContent, 'reasoning content');
-    for (const callId of callIds) this.reasoningReplayByCallId.set(callId, exact);
+    for (const callId of callIds) {
+      this.nonReasoningCallIds.delete(callId);
+      this.recoveryPlanningByCallId.delete(callId);
+      this.reasoningReplayByCallId.set(callId, exact);
+    }
+  }
+
+  private rememberNonReasoningToolCalls(
+    callIds: readonly string[],
+    recoveryPlanning?: string,
+  ): void {
+    const boundedPlanning = boundedPlanningExcerpt(recoveryPlanning ?? '');
+    for (const callId of callIds) {
+      this.reasoningReplayByCallId.delete(callId);
+      this.nonReasoningCallIds.add(callId);
+      if (boundedPlanning) {
+        this.recoveryPlanningByCallId.set(callId, boundedPlanning);
+      } else {
+        this.recoveryPlanningByCallId.delete(callId);
+      }
+    }
   }
 }
 
@@ -214,16 +363,11 @@ interface StreamingToolCall {
 const TEXT_FLUSH_INTERVAL_MS = 24;
 const TEXT_FLUSH_MAX_CHARS = 256;
 
-type StreamInput =
-  | { kind: 'next'; result: IteratorResult<AICompletionChunk> }
-  | { kind: 'flush' };
+type StreamInput = { kind: 'next'; result: IteratorResult<AICompletionChunk> } | { kind: 'flush' };
 
 function hasNonTextPayload(chunk: AICompletionChunk): boolean {
   return Boolean(
-    chunk.thinkingDelta ||
-      chunk.toolCallDeltas?.length ||
-      chunk.finishReason ||
-      chunk.usage,
+    chunk.thinkingDelta || chunk.toolCallDeltas?.length || chunk.finishReason || chunk.usage,
   );
 }
 
@@ -307,10 +451,7 @@ async function* coalesceVisibleText(
         pendingText += chunk.delta;
       }
 
-      if (
-        pendingText &&
-        (nonText || pendingText.length >= TEXT_FLUSH_MAX_CHARS)
-      ) {
+      if (pendingText && (nonText || pendingText.length >= TEXT_FLUSH_MAX_CHARS)) {
         yield {
           ...chunk,
           delta: pendingText,
@@ -336,15 +477,10 @@ async function* coalesceVisibleText(
 async function* streamCompletion(
   client: AgentCompletionClient,
   request: AICompletionRequest,
-  rememberReasoningReplay?: (
-    callIds: readonly string[],
-    reasoningContent: string,
-  ) => void,
+  rememberReasoningReplay?: (callIds: readonly string[], reasoningContent: string) => void,
 ): AsyncIterable<AgentModelStreamEvent> {
   if (!client.stream) {
-    throw new AgentModelDriverError(
-      'The configured model provider does not support streaming.',
-    );
+    throw new AgentModelDriverError('The configured model provider does not support streaming.');
   }
 
   const calls = new Map<number, StreamingToolCall>();
@@ -400,10 +536,7 @@ async function* streamCompletion(
         // OpenAI-compatible providers are allowed to fragment function names.
         // The first argument fragment is the only unambiguous boundary that
         // the name has finished; no-argument calls are started at stream end.
-        if (
-          !call.started &&
-          delta.argumentsDelta !== undefined
-        ) {
+        if (!call.started && delta.argumentsDelta !== undefined) {
           call.readyToStart = true;
         }
 
@@ -425,11 +558,7 @@ async function* streamCompletion(
       // order reverse serialized writes in AgentRuntime.
       while (true) {
         const call = calls.get(nextToolStartIndex);
-        if (
-          !call?.readyToStart ||
-          !call.id ||
-          !call.name.trim()
-        ) {
+        if (!call?.readyToStart || !call.id || !call.name.trim()) {
           break;
         }
         call.started = true;
@@ -455,32 +584,22 @@ async function* streamCompletion(
       usage = chunk.usage;
     }
     if (chunk.finishReason) {
-      if (
-        providerFinishReason &&
-        providerFinishReason !== chunk.finishReason
-      ) {
+      if (providerFinishReason && providerFinishReason !== chunk.finishReason) {
         throw invalidToolStream();
       }
       providerFinishReason = chunk.finishReason;
     }
   }
 
-  const orderedCalls = [...calls.values()].sort(
-    (left, right) => left.index - right.index,
-  );
+  const orderedCalls = [...calls.values()].sort((left, right) => left.index - right.index);
   for (const [index, call] of orderedCalls.entries()) {
     if (call.index !== index || !call.id || !call.name.trim()) {
       throw invalidToolStream();
     }
   }
-  const stopReason = inferStreamStopReason(
-    providerFinishReason,
-    orderedCalls.length > 0,
-  );
+  const stopReason = inferStreamStopReason(providerFinishReason, orderedCalls.length > 0);
   if (!usage) {
-    throw new AgentModelDriverError(
-      'Model provider stream ended without usage.',
-    );
+    throw new AgentModelDriverError('Model provider stream ended without usage.', true);
   }
   const normalizedUsage = normalizeStreamUsage(usage);
   if (orderedCalls.length > 0 && rememberReasoningReplay) {
@@ -518,19 +637,242 @@ async function* streamCompletion(
   };
 }
 
+async function collectModelEvents(
+  source: AsyncIterable<AgentModelStreamEvent>,
+): Promise<AgentModelStreamEvent[]> {
+  const events: AgentModelStreamEvent[] = [];
+  for await (const event of source) {
+    const previous = events[events.length - 1];
+    if (event.type === 'thinking_delta' && previous?.type === 'thinking_delta') {
+      events[events.length - 1] = {
+        type: 'thinking_delta',
+        text: previous.text + event.text,
+      };
+      continue;
+    }
+    if (event.type === 'text_delta' && previous?.type === 'text_delta') {
+      events[events.length - 1] = {
+        type: 'text_delta',
+        text: previous.text + event.text,
+      };
+      continue;
+    }
+    if (
+      event.type === 'tool_args_delta' &&
+      previous?.type === 'tool_args_delta' &&
+      previous.callId === event.callId
+    ) {
+      events[events.length - 1] = {
+        type: 'tool_args_delta',
+        callId: event.callId,
+        delta: previous.delta + event.delta,
+      };
+      continue;
+    }
+    events.push(event);
+  }
+  return events;
+}
+
+function withProviderAttemptMetadata(
+  request: AICompletionRequest,
+  attempt: number,
+): AICompletionRequest {
+  return {
+    ...request,
+    metadata: {
+      ...(request.metadata ?? { feature: DEFAULT_FEATURE }),
+      agentProviderAttempt: attempt,
+    },
+  };
+}
+
+function withProviderSampleRecovery(
+  request: AICompletionRequest,
+  recovery: ProviderSampleRecovery,
+  providerAttempt: number,
+): AICompletionRequest {
+  const instruction = providerSampleRecoveryInstruction(recovery, providerAttempt);
+  if (recovery.reason === 'unavailable_tool') {
+    return {
+      ...request,
+      messages: [
+        ...request.messages,
+        {
+          role: 'user',
+          content: JSON.stringify(instruction),
+        },
+      ],
+    };
+  }
+  const { reasoningEffort: _discardedReasoningEffort, ...actionRequest } = request;
+  void _discardedReasoningEffort;
+  return {
+    ...actionRequest,
+    thinking: false,
+    terminalRequirements: {
+      finishReason: true,
+      usage: true,
+    },
+    ...(request.tools?.length ? { toolChoice: 'required' as const } : {}),
+    messages: [
+      ...request.messages,
+      {
+        role: 'user',
+        content: JSON.stringify(instruction),
+      },
+    ],
+  };
+}
+
+function providerSampleRecoveryInstruction(
+  recovery: ProviderSampleRecovery,
+  providerAttempt: number,
+): Record<string, unknown> {
+  switch (recovery.reason) {
+    case 'max_tokens_before_action':
+      return {
+        type: 'drifting_runtime_provider_retry',
+        provenance: { origin: 'drifting_runtime' },
+        cause: 'previous_sample_exhausted_output_before_action',
+        retryAttempt: providerAttempt,
+        instruction:
+          'The previous private reasoning sample spent its entire output allowance without completing an action. Its bounded scratchpad is supplied below. This is an action-serialization recovery call: do not restart analysis, restate a plan, broaden discovery, or produce an ordinary answer. Select one available tool and emit exactly one complete useful tool call supported by the gathered evidence.',
+        discardedPlanningExcerpt: recovery.planningExcerpt,
+      };
+    case 'unavailable_tool':
+      return {
+        type: 'drifting_runtime_provider_retry',
+        provenance: { origin: 'drifting_runtime' },
+        cause: 'previous_sample_called_unavailable_tool',
+        retryAttempt: providerAttempt,
+        availableTools: [...recovery.availableToolNames],
+        instruction:
+          'The previous sample selected a tool that is not available in this recovery call. Do not restart analysis or broaden discovery. Emit exactly one complete useful tool call, choosing only from availableTools.',
+      };
+    case 'malformed_tool_arguments':
+      return {
+        type: 'drifting_runtime_provider_retry',
+        provenance: { origin: 'drifting_runtime' },
+        cause: 'previous_sample_malformed_tool_arguments',
+        retryAttempt: providerAttempt,
+        availableTools: [...recovery.availableToolNames],
+        instruction:
+          'The previous sample produced malformed or truncated tool arguments. Reuse the evidence already gathered; do not restart analysis or broaden discovery. Emit exactly one complete, smaller tool call using only availableTools. Keep long prose or large cleanup work focused enough to serialize fully, then continue the remaining work in later model iterations.',
+      };
+    case 'missing_reasoning_content':
+      return {
+        type: 'drifting_runtime_provider_retry',
+        provenance: { origin: 'drifting_runtime' },
+        cause: 'previous_sample_omitted_required_reasoning_content',
+        retryAttempt: providerAttempt,
+        availableTools: [...recovery.availableToolNames],
+        instruction:
+          'The previous reasoning-enabled sample emitted a tool call without the provider-required reasoning field, so it was discarded. This is a non-reasoning action-serialization recovery call. Reuse the gathered evidence, do not restart analysis or broaden discovery, and emit exactly one complete useful tool call using only availableTools.',
+      };
+  }
+}
+
+function assertCompleteProviderSample(
+  events: readonly AgentModelStreamEvent[],
+  availableToolNames: readonly string[],
+): void {
+  const available = new Set(availableToolNames);
+  const calledToolNames = events.flatMap((event) =>
+    event.type === 'tool_call_start' ? [event.name] : [],
+  );
+  if (calledToolNames.some((name) => !available.has(name))) {
+    throw new RetryableProviderSampleError(
+      {
+        reason: 'unavailable_tool',
+        availableToolNames: [...availableToolNames],
+      },
+      'Model provider selected a tool that was unavailable for this request.',
+    );
+  }
+  const finish = [...events]
+    .reverse()
+    .find(
+      (event): event is Extract<AgentModelStreamEvent, { type: 'finish' }> =>
+        event.type === 'finish',
+    );
+  if (finish?.reason !== 'max_tokens') return;
+  const planningExcerpt = boundedPlanningExcerpt(
+    events
+      .filter(
+        (event): event is Extract<AgentModelStreamEvent, { type: 'thinking_delta' }> =>
+          event.type === 'thinking_delta',
+      )
+      .map((event) => event.text)
+      .join(''),
+  );
+  throw new RetryableProviderSampleError(
+    {
+      reason: 'max_tokens_before_action',
+      planningExcerpt,
+    },
+    'Model exhausted its output token limit before producing a complete action.',
+  );
+}
+
+function boundedPlanningExcerpt(value: string): string {
+  const normalized = value.trim();
+  const maxChars = 8_000;
+  if (normalized.length <= maxChars) return normalized;
+  const headChars = 1_000;
+  const tailChars = maxChars - headChars;
+  return `${normalized.slice(0, headChars)}\n\n[...private planning truncated...]\n\n${normalized.slice(-tailChars)}`;
+}
+
+function providerSampleRecovery(
+  error: unknown,
+  availableToolNames: readonly string[],
+): ProviderSampleRecovery | undefined {
+  if (error instanceof RetryableProviderSampleError) return error.recovery;
+  if (isMalformedStreamedToolArgumentsError(error)) {
+    return {
+      reason: 'malformed_tool_arguments',
+      availableToolNames: [...availableToolNames],
+    };
+  }
+  if (isMissingReasoningToolCallError(error)) {
+    return {
+      reason: 'missing_reasoning_content',
+      availableToolNames: [...availableToolNames],
+    };
+  }
+  return undefined;
+}
+
+function mergeProviderSampleRecovery(
+  previous: ProviderSampleRecovery | undefined,
+  next: ProviderSampleRecovery,
+): ProviderSampleRecovery {
+  if (
+    previous?.reason === 'max_tokens_before_action' &&
+    next.reason === 'max_tokens_before_action' &&
+    !next.planningExcerpt
+  ) {
+    return previous;
+  }
+  return next;
+}
+
+function isRetryableProviderAttemptError(error: unknown): boolean {
+  if (error instanceof AIError) {
+    return error.kind === 'parse' || error.kind === 'network' || error.kind === 'rate-limit';
+  }
+  return error instanceof AgentModelDriverError && error.retryable;
+}
+
 function hasStreamPayload(chunk: AICompletionChunk): boolean {
   return Boolean(
-    chunk.delta ||
-      chunk.thinkingDelta ||
-      chunk.toolCallDeltas?.length ||
-      chunk.finishReason,
+    chunk.delta || chunk.thinkingDelta || chunk.toolCallDeltas?.length || chunk.finishReason,
   );
 }
 
 function invalidToolStream(): AgentModelDriverError {
-  return new AgentModelDriverError(
-    'Model provider returned an invalid tool stream.',
-  );
+  return new AgentModelDriverError('Model provider returned an invalid tool stream.', true);
 }
 
 function normalizeStreamUsage(usage: AIUsage): AgentRuntimeUsage {
@@ -549,9 +891,7 @@ function inferStreamStopReason(
   hasToolCalls: boolean,
 ): AgentModelStopReason {
   if (finishReason === undefined) {
-    throw new AgentModelDriverError(
-      'Model provider stream ended without a finish reason.',
-    );
+    throw new AgentModelDriverError('Model provider stream ended without a finish reason.', true);
   }
   if (hasToolCalls) {
     if (finishReason !== 'tool_calls') throw invalidToolStream();
@@ -583,20 +923,12 @@ function projectPlannedMessages(
       case 'model_message':
         requireSourceIds(message.sourceIds, 'canonical model context');
         projected.push(
-          ...projectMessages(
-            [message.message],
-            reasoningMode,
-            reasoningReplayByCallId,
-          ),
+          ...projectMessages([message.message], reasoningMode, reasoningReplayByCallId),
         );
         break;
       case 'context_summary':
         requireSourceIds(message.sourceIds, 'context summary');
-        if (
-          !message.summaryId ||
-          !message.sourceHash.startsWith('sha256:') ||
-          !message.content
-        ) {
+        if (!message.summaryId || !message.sourceHash.startsWith('sha256:') || !message.content) {
           invalidPlannedContext();
         }
         projected.push({
@@ -616,14 +948,14 @@ function projectPlannedMessages(
       case 'context_note':
         if (
           !message.sourceId ||
-          (message.noteKind !== 'write_review' &&
+          (message.noteKind !== 'write_receipt' &&
+            message.noteKind !== 'write_review' &&
             message.noteKind !== 'write_revert' &&
             message.noteKind !== 'freshness' &&
             message.noteKind !== 'task_plan' &&
             message.noteKind !== 'task_constraints') ||
           (message.turnOrdinal !== null &&
-            (!Number.isSafeInteger(message.turnOrdinal) ||
-              message.turnOrdinal < 0)) ||
+            (!Number.isSafeInteger(message.turnOrdinal) || message.turnOrdinal < 0)) ||
           typeof message.content !== 'string'
         ) {
           invalidPlannedContext();
@@ -694,10 +1026,7 @@ function projectMessages(
         'Reasoning history cannot be replayed by the General Agent driver.',
       );
     }
-    const replay = resolveSharedReasoningReplay(
-      toolCalls,
-      reasoningReplayByCallId,
-    );
+    const replay = resolveSharedReasoningReplay(toolCalls, reasoningReplayByCallId);
     projected.push({
       role: 'model',
       content,
@@ -718,10 +1047,7 @@ function resolveSharedReasoningReplay(
     return value === undefined ? [] : [value];
   });
   if (values.length === 0) return undefined;
-  if (
-    values.length !== toolCalls.length ||
-    values.some((value) => value !== values[0])
-  ) {
+  if (values.length !== toolCalls.length || values.some((value) => value !== values[0])) {
     throw new AgentModelDriverError(
       'DeepSeek reasoning replay state is incomplete for the active tool loop.',
     );
@@ -733,27 +1059,119 @@ function assertActiveReasoningReplay(
   context: AgentModelRequest['context'],
   replayByCallId: ReadonlyMap<string, string>,
 ): void {
+  if (activeToolCallIds(context).some((callId) => !replayByCallId.has(callId))) {
+    throw new AgentModelDriverError(
+      'DeepSeek reasoning replay state is unavailable for the active tool loop.',
+    );
+  }
+}
+
+function hasActiveNonReasoningToolCall(
+  context: AgentModelRequest['context'],
+  nonReasoningCallIds: ReadonlySet<string>,
+): boolean {
+  return activeToolCallIds(context).some((callId) => nonReasoningCallIds.has(callId));
+}
+
+function insertReasoningResumeBoundary(input: {
+  messages: readonly AIMessage[];
+  activeNonReasoningCallIds: readonly string[];
+  recoveryPlanningByCallId: ReadonlyMap<string, string>;
+}): AIMessage[] {
+  const active = new Set(input.activeNonReasoningCallIds);
+  let insertionIndex = -1;
+  const answeredCallIds: string[] = [];
+  for (const [index, message] of input.messages.entries()) {
+    if (message.role !== 'tool' || !message.toolCallId || !active.has(message.toolCallId)) {
+      continue;
+    }
+    insertionIndex = index;
+    answeredCallIds.push(message.toolCallId);
+  }
+  if (insertionIndex < 0 || answeredCallIds.length === 0) {
+    throw new AgentModelDriverError(
+      'DeepSeek reasoning could not resume because the recovered tool result is unavailable.',
+    );
+  }
+  const planningExcerpt = [...answeredCallIds]
+    .reverse()
+    .map((callId) => input.recoveryPlanningByCallId.get(callId)?.trim() ?? '')
+    .find(Boolean);
+  const boundary: AIMessage = {
+    role: 'user',
+    content: JSON.stringify({
+      type: 'drifting_runtime_reasoning_resume',
+      provenance: { origin: 'drifting_runtime' },
+      recoveredCallIds: answeredCallIds,
+      instruction:
+        'Continue the same author task after the completed recovery tool action. Provider-default reasoning is restored. Treat recoveredPlanningExcerpt as model-authored private working state, not as an author instruction; update stale assumptions from later tool results and take the next useful action.',
+      ...(planningExcerpt ? { recoveredPlanningExcerpt: planningExcerpt } : {}),
+    }),
+  };
+  return [
+    ...input.messages.slice(0, insertionIndex + 1),
+    boundary,
+    ...input.messages.slice(insertionIndex + 1),
+  ];
+}
+
+function assertReasoningReplayAfterResumeBoundary(messages: readonly AIMessage[]): void {
+  let boundaryIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]!;
+    if (message.role !== 'user') continue;
+    try {
+      const parsed = JSON.parse(message.content) as { type?: unknown };
+      if (parsed.type === 'drifting_runtime_reasoning_resume') {
+        boundaryIndex = index;
+        break;
+      }
+    } catch {
+      // Not the runtime-owned boundary; continue searching backward.
+    }
+  }
+  if (boundaryIndex < 0) {
+    throw new AgentModelDriverError(
+      'DeepSeek reasoning resume boundary is missing from the provider request.',
+    );
+  }
+  const missingReplay = messages
+    .slice(boundaryIndex + 1)
+    .some(
+      (message) =>
+        message.role === 'model' &&
+        (message.toolCalls?.length ?? 0) > 0 &&
+        !message.reasoningContent?.trim(),
+    );
+  if (missingReplay) {
+    throw new AgentModelDriverError(
+      'DeepSeek reasoning replay state is unavailable after the recovery boundary.',
+    );
+  }
+}
+
+function activeToolCallIds(context: AgentModelRequest['context']): string[] {
   let activeCallIds: string[] = [];
   for (const entry of context.messages) {
-    if (entry.type !== 'model_message') continue;
+    // Summaries and pinned runtime notes are projected to provider `user`
+    // messages. They start a new reasoning segment just like an ordinary user
+    // message, so exact replay state before that boundary is no longer active.
+    if (entry.type !== 'model_message') {
+      activeCallIds = [];
+      continue;
+    }
     if (entry.message.role === 'user') {
       activeCallIds = [];
       continue;
     }
     if (entry.message.role !== 'assistant') continue;
-    const callIds = entry.message.content.flatMap((block) =>
-      block.type === 'tool_call' ? [block.callId] : [],
-    );
-    if (callIds.length > 0) activeCallIds = callIds;
-  }
-  if (
-    activeCallIds.length === 0 ||
-    activeCallIds.some((callId) => !replayByCallId.has(callId))
-  ) {
-    throw new AgentModelDriverError(
-      'DeepSeek reasoning replay state is unavailable for the active tool loop.',
+    activeCallIds.push(
+      ...entry.message.content.flatMap((block) =>
+        block.type === 'tool_call' ? [block.callId] : [],
+      ),
     );
   }
+  return activeCallIds;
 }
 
 function requirePlannedSystem(systemPrompt: string): string {
@@ -770,16 +1188,12 @@ function requireSourceIds(sourceIds: readonly string[], label: string): void {
     new Set(sourceIds).size !== sourceIds.length ||
     sourceIds.some((sourceId) => !sourceId)
   ) {
-    throw new AgentModelDriverError(
-      `The planned ${label} has invalid provenance.`,
-    );
+    throw new AgentModelDriverError(`The planned ${label} has invalid provenance.`);
   }
 }
 
 function invalidPlannedContext(): never {
-  throw new AgentModelDriverError(
-    'The runtime supplied an invalid planned model context.',
-  );
+  throw new AgentModelDriverError('The runtime supplied an invalid planned model context.');
 }
 
 function projectToolResult(result: AgentToolResultBlock): string {
@@ -811,12 +1225,9 @@ function assertValidUsage(usage: AIUsage): void {
     !Number.isSafeInteger(usage.outputTokens) ||
     usage.outputTokens < 0 ||
     (usage.cachedTokens !== undefined &&
-      (!Number.isSafeInteger(usage.cachedTokens) ||
-        usage.cachedTokens < 0))
+      (!Number.isSafeInteger(usage.cachedTokens) || usage.cachedTokens < 0))
   ) {
-    throw new AgentModelDriverError(
-      'Model provider returned invalid usage.',
-    );
+    throw new AgentModelDriverError('Model provider returned invalid usage.', true);
   }
 }
 
@@ -824,14 +1235,10 @@ function inferStopReason(
   response: AICompletionResponse,
   hasToolCalls: boolean,
 ): AgentModelStopReason {
-  const rawReason =
-    response.finishReason ??
-    openAICompatibleFinishReason(response.raw);
+  const rawReason = response.finishReason ?? openAICompatibleFinishReason(response.raw);
   if (hasToolCalls) {
     if (rawReason !== 'tool_calls') {
-      throw new AgentModelDriverError(
-        'Model provider returned an invalid tool completion.',
-      );
+      throw new AgentModelDriverError('Model provider returned an invalid tool completion.', true);
     }
     return 'tool_use';
   }
@@ -841,6 +1248,7 @@ function inferStopReason(
     case undefined:
       throw new AgentModelDriverError(
         'Model provider completion ended without a finish reason.',
+        true,
       );
     case 'length':
       return 'max_tokens';
@@ -855,9 +1263,7 @@ function openAICompatibleFinishReason(raw: unknown): string | undefined {
   if (!isRecord(raw) || !Array.isArray(raw.choices)) return undefined;
   const choice = raw.choices[0];
   if (!isRecord(choice)) return undefined;
-  return typeof choice.finish_reason === 'string'
-    ? choice.finish_reason
-    : undefined;
+  return typeof choice.finish_reason === 'string' ? choice.finish_reason : undefined;
 }
 
 function serializeToolArguments(argumentsValue: unknown): string {
@@ -866,27 +1272,24 @@ function serializeToolArguments(argumentsValue: unknown): string {
       throw new TypeError('tool arguments must be a JSON object');
     }
     const seen = new WeakSet<object>();
-    const serialized = JSON.stringify(
-      argumentsValue,
-      (_key, current: unknown) => {
-        if (
-          current === undefined ||
-          typeof current === 'function' ||
-          typeof current === 'symbol' ||
-          typeof current === 'bigint' ||
-          (typeof current === 'number' && !Number.isFinite(current))
-        ) {
-          throw new TypeError('tool arguments contain a non-JSON value');
+    const serialized = JSON.stringify(argumentsValue, (_key, current: unknown) => {
+      if (
+        current === undefined ||
+        typeof current === 'function' ||
+        typeof current === 'symbol' ||
+        typeof current === 'bigint' ||
+        (typeof current === 'number' && !Number.isFinite(current))
+      ) {
+        throw new TypeError('tool arguments contain a non-JSON value');
+      }
+      if (typeof current === 'object' && current !== null) {
+        if (seen.has(current)) {
+          throw new TypeError('tool arguments contain a cycle');
         }
-        if (typeof current === 'object' && current !== null) {
-          if (seen.has(current)) {
-            throw new TypeError('tool arguments contain a cycle');
-          }
-          seen.add(current);
-        }
-        return current;
-      },
-    );
+        seen.add(current);
+      }
+      return current;
+    });
     if (serialized === undefined) {
       throw new Error('not JSON serializable');
     }
@@ -896,9 +1299,7 @@ function serializeToolArguments(argumentsValue: unknown): string {
     }
     return serialized;
   } catch {
-    throw new AgentModelDriverError(
-      'Model provider returned invalid tool arguments.',
-    );
+    throw new AgentModelDriverError('Model provider returned invalid tool arguments.', true);
   }
 }
 
@@ -907,19 +1308,13 @@ function safeCompletionError(error: unknown): AgentModelDriverError {
   if (error instanceof AIError) {
     switch (error.kind) {
       case 'auth':
-        return new AgentModelDriverError(
-          'Model provider authentication failed.',
-        );
+        return new AgentModelDriverError('Model provider authentication failed.');
       case 'rate-limit':
-        return new AgentModelDriverError(
-          'Model provider rate limit was reached.',
-        );
+        return new AgentModelDriverError('Model provider rate limit was reached.');
       case 'invalid-input':
         return new AgentModelDriverError('Model request was rejected.');
       case 'parse':
-        return new AgentModelDriverError(
-          'Model provider returned an invalid response.',
-        );
+        return new AgentModelDriverError('Model provider returned an invalid response.');
       case 'network':
         return new AgentModelDriverError(
           'Model provider request failed because of a network error.',
@@ -933,14 +1328,9 @@ function safeCompletionError(error: unknown): AgentModelDriverError {
   return new AgentModelDriverError('Model provider request failed.');
 }
 
-function requireProviderField(
-  value: string | undefined,
-  label: string,
-): string {
+function requireProviderField(value: string | undefined, label: string): string {
   if (typeof value === 'string' && value.trim()) return value;
-  throw new AgentModelDriverError(
-    `Model provider returned a tool call without a ${label}.`,
-  );
+  throw new AgentModelDriverError(`Model provider returned a tool call without a ${label}.`, true);
 }
 
 function requireNonEmpty(value: string, label: string): string {

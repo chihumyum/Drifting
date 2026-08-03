@@ -24,6 +24,7 @@ import type {
   AgentRuntimeTaskPlan,
   AgentRuntimeTaskScope,
   AgentRuntimeTaskScopeKind,
+  AgentRuntimeTaskStepWorkKind,
   AgentRuntimeTaskStepReadEvidence,
   AgentRuntimeTaskStepReviewResult,
   AgentRuntimeTaskStepReviewEvidence,
@@ -283,6 +284,7 @@ function stepToDomain(
     sessionId: row.sessionId,
     ordinal: row.ordinal,
     title: row.title,
+    workKind: (row.workKind || 'edit') as AgentRuntimeTaskStepWorkKind,
     target:
       row.targetKind && row.targetName
         ? {
@@ -405,23 +407,30 @@ export function compareAgentRuntimeTaskChapterManifest(
   };
 }
 
-function stableTaskStepKeys(step: {
-  title: string;
-  target: {
-    kind: AgentRuntimeTaskTargetKind;
-    name: string;
-    resolvedTargetId?: string | null;
-  } | null;
-}): string[] {
+function stableTaskStepKeys(
+  step: {
+    title: string;
+    workKind?: AgentRuntimeTaskStepWorkKind;
+    target: {
+      kind: AgentRuntimeTaskTargetKind;
+      name: string;
+      resolvedTargetId?: string | null;
+    } | null;
+  },
+  defaultWorkKind: AgentRuntimeTaskWorkKind = 'edit',
+): string[] {
+  const workKind = step.workKind ?? defaultWorkKind;
   if (step.target) {
     return [
-      `target:${step.target.kind}:name:${stableTaskText(step.target.name)}`,
+      `${workKind}:target:${step.target.kind}:name:${stableTaskText(step.target.name)}`,
       ...(step.target.resolvedTargetId?.trim()
-        ? [`target:${step.target.kind}:id:${stableTaskText(step.target.resolvedTargetId)}`]
+        ? [
+            `${workKind}:target:${step.target.kind}:id:${stableTaskText(step.target.resolvedTargetId)}`,
+          ]
         : []),
     ];
   }
-  return [`title:${stableTaskText(step.title)}`];
+  return [`${workKind}:title:${stableTaskText(step.title)}`];
 }
 
 function assertFrozenChapterManifestCoverage(input: {
@@ -544,96 +553,6 @@ function chapterManifestSeedsMatch(
   );
 }
 
-function writeArguments(json: string): Record<string, unknown> | null {
-  try {
-    const value = JSON.parse(json) as unknown;
-    return value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function acceptedWriteMatchesStepTarget(input: {
-  step: PersistedAgentRuntimeTaskStep;
-  effectChapterId: string | null;
-  effectArgumentsJson: string;
-  effectForwardJson: string | null;
-  effectResultJson: string;
-}): boolean {
-  const target = input.step.target;
-  if (!target) return false;
-  const expected = new Set(
-    [target.name, target.resolvedTargetId]
-      .filter((value): value is string => Boolean(value?.trim()))
-      .map(stableTaskText),
-  );
-  if (input.effectChapterId && expected.has(stableTaskText(input.effectChapterId))) {
-    return true;
-  }
-  const forward = input.effectForwardJson ? writeArguments(input.effectForwardJson) : null;
-  if (forward) {
-    const entityKind =
-      typeof forward.entityKind === 'string' ? stableTaskText(forward.entityKind) : null;
-    const expectedKind = stableTaskText(target.kind);
-    const canonicalTargets: Array<{ kind: string | null; id: unknown }> = [
-      { kind: entityKind, id: forward.entityId },
-      {
-        kind: target.kind === 'chapter' || target.kind === 'drift' ? expectedKind : null,
-        id: forward.nodeId,
-      },
-      { kind: 'chapter', id: forward.chapterId },
-    ];
-    if (
-      canonicalTargets.some(
-        (candidate) =>
-          typeof candidate.id === 'string' &&
-          (candidate.kind === null || candidate.kind === expectedKind) &&
-          expected.has(stableTaskText(candidate.id)),
-      )
-    ) {
-      return true;
-    }
-  }
-  const result = writeArguments(input.effectResultJson);
-  if (
-    result &&
-    ['nodeId', 'chapterId', 'entityId'].some((field) => {
-      const value = result[field];
-      return typeof value === 'string' && expected.has(stableTaskText(value));
-    })
-  ) {
-    return true;
-  }
-  const arguments_ = writeArguments(input.effectArgumentsJson);
-  if (!arguments_) return false;
-  const fields: Record<AgentRuntimeTaskTargetKind, readonly string[]> = {
-    book: ['book', 'entity', 'target'],
-    project: ['project', 'entity', 'target'],
-    chapter: ['node', 'chapter', 'entity', 'target'],
-    drift: ['node', 'entity', 'target'],
-    element: ['element', 'entity', 'target'],
-    storyline: ['storyline', 'entity', 'target'],
-    category: ['category', 'entity', 'target'],
-    other: ['entity', 'target'],
-  };
-  return fields[target.kind].some((field) => {
-    const value = arguments_[field];
-    return typeof value === 'string' && expected.has(stableTaskText(value));
-  });
-}
-
-const WHOLE_BOOK_PROSE_MUTATION_TOOLS = new Set([
-  'edit_file',
-  'edit_block',
-  'edit_blocks',
-  'append_paragraph',
-  'insert_blocks',
-  'remove_blocks',
-  'replace_block_range',
-]);
-
 interface DurableTaskStepReviewRow {
   reviewId: string;
   reviewStatus: string;
@@ -668,11 +587,163 @@ const TASK_STEP_REVIEW_STATUSES = new Set([
   'revert_unavailable',
 ]);
 
+interface TaskWriteEvidenceIdentity {
+  ids: Set<string>;
+  names: Set<string>;
+  operations: Set<string>;
+  paths: string[][];
+}
+
+function evidenceRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function parseEvidenceJson(value: string | null): Record<string, unknown> | null {
+  if (!value) return null;
+  try {
+    return evidenceRecord(JSON.parse(value) as unknown);
+  } catch {
+    return null;
+  }
+}
+
+function evidencePathSegments(value: string): string[] {
+  return value
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => {
+      try {
+        return stableTaskText(decodeURIComponent(segment));
+      } catch {
+        return stableTaskText(segment);
+      }
+    });
+}
+
+function collectTaskWriteEvidenceIdentity(
+  evidence: DurableTaskStepReviewRow,
+): TaskWriteEvidenceIdentity {
+  const identity: TaskWriteEvidenceIdentity = {
+    ids: new Set(evidence.effectChapterId ? [evidence.effectChapterId] : []),
+    names: new Set(),
+    operations: new Set([stableTaskText(evidence.effectToolName)]),
+    paths: [],
+  };
+  const visit = (value: unknown, depth: number): void => {
+    if (depth > 6) return;
+    const row = evidenceRecord(value);
+    if (!row) return;
+    for (const key of [
+      'entity',
+      'entityId',
+      'node',
+      'nodeId',
+      'chapterId',
+      'element',
+      'elementId',
+      'storyline',
+      'storylineId',
+      'categoryId',
+      'relation',
+      'relationId',
+      'comment',
+      'commentId',
+    ]) {
+      const candidate = row[key];
+      if (typeof candidate === 'string' && candidate.trim()) {
+        identity.ids.add(candidate);
+      }
+    }
+    for (const key of ['title', 'category', 'targetName']) {
+      const candidate = row[key];
+      if (typeof candidate === 'string' && candidate.trim()) {
+        identity.names.add(stableTaskText(candidate));
+      }
+    }
+    for (const key of ['name', 'operation', 'kind']) {
+      const candidate = row[key];
+      if (typeof candidate === 'string' && candidate.trim()) {
+        identity.operations.add(stableTaskText(candidate));
+      }
+    }
+    const path = row.path;
+    if (typeof path === 'string' && path.trim()) {
+      identity.paths.push(evidencePathSegments(path));
+    }
+    for (const key of [
+      '__workspaceCommand',
+      'arguments',
+      'data',
+      'modelData',
+      'result',
+      'presentation',
+    ]) {
+      visit(row[key], depth + 1);
+    }
+  };
+  visit(parseEvidenceJson(evidence.effectArgumentsJson), 0);
+  visit(parseEvidenceJson(evidence.effectForwardJson), 0);
+  visit(parseEvidenceJson(evidence.effectResultJson), 0);
+  return identity;
+}
+
+function writeEvidenceMatchesStepTarget(
+  step: PersistedAgentRuntimeTaskStep,
+  evidence: DurableTaskStepReviewRow,
+): boolean {
+  const target = step.target;
+  if (!target || target.kind === 'book' || target.kind === 'project') return true;
+  const identity = collectTaskWriteEvidenceIdentity(evidence);
+  if (target.resolvedTargetId && identity.ids.has(target.resolvedTargetId)) return true;
+  const targetName = stableTaskText(target.name);
+  const pathMatches = identity.paths.some((segments) => {
+    if (segments.length < 2) return false;
+    if (target.kind === 'chapter') {
+      return segments[0] === 'chapters' && segments[1] === targetName;
+    }
+    if (target.kind === 'drift') {
+      return segments[0] === 'drifts' && segments[1] === targetName;
+    }
+    if (target.kind === 'storyline') {
+      return segments[0] === 'storylines' && segments[1] === targetName;
+    }
+    if (target.kind === 'element') {
+      return segments[0] === 'elements' && segments.includes(targetName);
+    }
+    if (target.kind === 'category') {
+      return (
+        (segments[0] === 'categories' || segments[0] === 'elements') &&
+        segments[1] === targetName
+      );
+    }
+    return segments.includes(targetName);
+  });
+  if (pathMatches || identity.names.has(targetName)) return true;
+  if (target.kind !== 'other') return false;
+  const keyword = targetName.replace(/[-_\s]+/gu, '');
+  return [...identity.operations].some((operation) => {
+    const normalized = operation.replace(/[-_\s]+/gu, '');
+    if (keyword.includes('relation') || keyword.includes('关系')) {
+      return normalized.includes('relation');
+    }
+    if (keyword.includes('comment') || keyword.includes('批注')) {
+      return normalized.includes('comment');
+    }
+    if (keyword.includes('todo') || keyword.includes('待办')) {
+      return normalized.includes('todo') || normalized.includes('comment');
+    }
+    return normalized.includes(keyword) || keyword.includes(normalized);
+  });
+}
+
 function evaluateTaskStepReviewEvidence(input: {
   scope: AgentRuntimeTaskScope;
   scopeKind: AgentRuntimeTaskScopeKind;
   step: PersistedAgentRuntimeTaskStep;
   evidence: DurableTaskStepReviewRow | undefined;
+  evidenceBoundaryAt: string;
 }): AgentRuntimeTaskStepReviewEvidence | null {
   if (!input.step.resultRef) return null;
   const evidence = input.evidence;
@@ -691,13 +762,10 @@ function evaluateTaskStepReviewEvidence(input: {
         'missing'
       >)
     : 'missing';
-  // A model may perform the exact target write before it emits the purely
-  // orchestration-level `in_progress` transition.  Binding evidence to that
-  // transition made a valid, post-plan write unusable and forced the provider
-  // to service bookkeeping in a brittle order.  The step creation boundary is
-  // the durable anti-replay boundary: it rejects pre-plan effects while still
-  // accepting an authorized exact-target write made at any later point.
-  const evidenceBoundaryAt = input.step.createdAt;
+  // A model may discover a missing unit, perform its write, and append the
+  // corresponding plan step afterwards. The task creation boundary rejects
+  // pre-task effects without forcing model bookkeeping to precede useful work.
+  const evidenceBoundaryAt = input.evidenceBoundaryAt;
   const provenanceValid =
     evidence.reviewId === input.step.resultRef &&
     evidence.reviewSessionId === input.scope.sessionId &&
@@ -712,15 +780,7 @@ function evaluateTaskStepReviewEvidence(input: {
     evidence.reviewCreatedAt >= evidenceBoundaryAt &&
     evidence.reviewUpdatedAt >= evidenceBoundaryAt &&
     (evidence.reviewSettledAt === null || evidence.reviewSettledAt >= evidenceBoundaryAt) &&
-    (input.scopeKind !== 'whole_book_chapters' ||
-      WHOLE_BOOK_PROSE_MUTATION_TOOLS.has(evidence.effectToolName)) &&
-    acceptedWriteMatchesStepTarget({
-      step: input.step,
-      effectChapterId: evidence.effectChapterId,
-      effectArgumentsJson: evidence.effectArgumentsJson,
-      effectForwardJson: evidence.effectForwardJson,
-      effectResultJson: evidence.effectResultJson ?? '{}',
-    });
+    writeEvidenceMatchesStepTarget(input.step, evidence);
   const acceptedTargetEvidence =
     provenanceValid &&
     (reviewStatus === 'accepted_effect' || reviewStatus === 'authorized_effect') &&
@@ -775,6 +835,7 @@ function commandHashShape(command: AgentRuntimeTaskCommand): unknown {
       workKind: command.workKind ?? 'edit',
       steps: command.steps.map((step) => ({
         title: step.title,
+        workKind: step.workKind ?? command.workKind ?? 'edit',
         target: step.target
           ? {
               kind: step.target.kind,
@@ -790,6 +851,7 @@ function commandHashShape(command: AgentRuntimeTaskCommand): unknown {
       ...command,
       steps: command.steps.map((step) => ({
         title: step.title,
+        workKind: step.workKind ?? null,
         target: step.target
           ? {
               kind: step.target.kind,
@@ -875,8 +937,6 @@ function reviewTargetObservationKind(step: PersistedAgentRuntimeTaskStep): strin
       return 'element_prose';
     case 'storyline':
       return 'storyline_prose';
-    case 'category':
-      return 'category_prose';
     default:
       return null;
   }
@@ -897,62 +957,107 @@ async function resolveTaskStepReadEvidence(input: {
   requiredReceiptId?: string;
 }): Promise<AgentRuntimeTaskStepReadEvidence> {
   const { executor, scope, step, reviewResult } = input;
+  const boundaryAt = step.startedAt ?? step.createdAt;
   const observationKind = reviewTargetObservationKind(step);
-  if (!step.startedAt || !step.target?.resolvedTargetId || !observationKind) {
-    return reviewEvidenceError(
-      `Review step "${step.id}" must be in progress and target one readable prose entity.`,
-    );
-  }
-  const candidates = await executor
-    .select({
-      receipt: AgentRuntimeReadReceiptTable,
-      observationKind: AgentRuntimeReadObservationTable.entityKind,
-    })
-    .from(AgentRuntimeReadObservationTable)
-    .innerJoin(
-      AgentRuntimeReadReceiptTable,
-      eq(AgentRuntimeReadReceiptTable.id, AgentRuntimeReadObservationTable.receiptId),
-    )
-    .where(
-      and(
-        eq(AgentRuntimeReadObservationTable.projectId, scope.projectId),
-        eq(AgentRuntimeReadObservationTable.sessionId, scope.sessionId),
-        eq(AgentRuntimeReadObservationTable.entityKind, observationKind),
-        eq(AgentRuntimeReadObservationTable.entityId, step.target.resolvedTargetId),
-        gte(AgentRuntimeReadReceiptTable.createdAt, step.startedAt),
-        ...(input.requiredReceiptId
-          ? [eq(AgentRuntimeReadReceiptTable.id, input.requiredReceiptId)]
-          : []),
-      ),
-    )
-    .orderBy(desc(AgentRuntimeReadReceiptTable.createdAt), desc(AgentRuntimeReadReceiptTable.id))
-    .limit(20);
-  const exact = candidates[0]?.receipt;
-  if (!exact) {
-    return reviewEvidenceError(
-      `Review step "${step.id}" has no exact target read after it entered in_progress. Read the target prose and then retry completion.`,
-    );
-  }
-
-  const relatedRows = await executor
-    .select()
-    .from(AgentRuntimeReadReceiptTable)
-    .where(
-      and(
-        eq(AgentRuntimeReadReceiptTable.projectId, scope.projectId),
-        eq(AgentRuntimeReadReceiptTable.sessionId, scope.sessionId),
-        eq(AgentRuntimeReadReceiptTable.turnId, exact.turnId),
-        gte(AgentRuntimeReadReceiptTable.createdAt, step.startedAt),
-        or(
-          eq(AgentRuntimeReadReceiptTable.callId, exact.callId),
-          like(AgentRuntimeReadReceiptTable.callId, `${exact.callId}:%`),
+  let boundReceipt: typeof AgentRuntimeReadReceiptTable.$inferSelect | undefined;
+  let corpusRows: Array<typeof AgentRuntimeReadReceiptTable.$inferSelect> = [];
+  let exactTargetEvidence = false;
+  if (step.target?.resolvedTargetId && observationKind) {
+    const candidates = await executor
+      .select({ receipt: AgentRuntimeReadReceiptTable })
+      .from(AgentRuntimeReadObservationTable)
+      .innerJoin(
+        AgentRuntimeReadReceiptTable,
+        eq(AgentRuntimeReadReceiptTable.id, AgentRuntimeReadObservationTable.receiptId),
+      )
+      .where(
+        and(
+          eq(AgentRuntimeReadObservationTable.projectId, scope.projectId),
+          eq(AgentRuntimeReadObservationTable.sessionId, scope.sessionId),
+          eq(AgentRuntimeReadObservationTable.entityKind, observationKind),
+          eq(AgentRuntimeReadObservationTable.entityId, step.target.resolvedTargetId),
+          gte(AgentRuntimeReadReceiptTable.createdAt, boundaryAt),
+          ...(input.requiredReceiptId
+            ? [eq(AgentRuntimeReadReceiptTable.id, input.requiredReceiptId)]
+            : []),
         ),
-      ),
-    )
-    .orderBy(asc(AgentRuntimeReadReceiptTable.createdAt), asc(AgentRuntimeReadReceiptTable.id));
+      )
+      .orderBy(desc(AgentRuntimeReadReceiptTable.createdAt), desc(AgentRuntimeReadReceiptTable.id))
+      .limit(20);
+    boundReceipt = candidates[0]?.receipt;
+    if (!boundReceipt) {
+      return reviewEvidenceError(
+        `Review step "${step.id}" has no verified read of its named prose target after the step was created.`,
+      );
+    }
+    corpusRows = await executor
+      .select()
+      .from(AgentRuntimeReadReceiptTable)
+      .where(
+        and(
+          eq(AgentRuntimeReadReceiptTable.projectId, scope.projectId),
+          eq(AgentRuntimeReadReceiptTable.sessionId, scope.sessionId),
+          eq(AgentRuntimeReadReceiptTable.turnId, boundReceipt.turnId),
+          gte(AgentRuntimeReadReceiptTable.createdAt, boundaryAt),
+          or(
+            eq(AgentRuntimeReadReceiptTable.callId, boundReceipt.callId),
+            like(AgentRuntimeReadReceiptTable.callId, `${boundReceipt.callId}:%`),
+          ),
+        ),
+      )
+      .orderBy(asc(AgentRuntimeReadReceiptTable.createdAt), asc(AgentRuntimeReadReceiptTable.id));
+    exactTargetEvidence = true;
+  } else {
+    const candidates = await executor
+      .select()
+      .from(AgentRuntimeReadReceiptTable)
+      .where(
+        and(
+          eq(AgentRuntimeReadReceiptTable.projectId, scope.projectId),
+          eq(AgentRuntimeReadReceiptTable.sessionId, scope.sessionId),
+          gte(AgentRuntimeReadReceiptTable.createdAt, boundaryAt),
+          ...(input.requiredReceiptId
+            ? [eq(AgentRuntimeReadReceiptTable.id, input.requiredReceiptId)]
+            : []),
+        ),
+      )
+      .orderBy(desc(AgentRuntimeReadReceiptTable.createdAt), desc(AgentRuntimeReadReceiptTable.id));
+    for (const candidate of candidates) {
+      if (NON_RESEARCH_READ_TOOLS.has(candidate.toolName)) continue;
+      try {
+        await decodeVerifiedReadReceiptResult(candidate);
+        boundReceipt = candidate;
+        break;
+      } catch {
+        // A corrupt candidate cannot hide an earlier valid project read.
+      }
+    }
+    if (!boundReceipt) {
+      return reviewEvidenceError(
+        `Review step "${step.id}" has no verified workspace read after the step was created.`,
+      );
+    }
+    corpusRows = await executor
+      .select()
+      .from(AgentRuntimeReadReceiptTable)
+      .where(
+        and(
+          eq(AgentRuntimeReadReceiptTable.projectId, scope.projectId),
+          eq(AgentRuntimeReadReceiptTable.sessionId, scope.sessionId),
+          gte(AgentRuntimeReadReceiptTable.createdAt, boundaryAt),
+        ),
+      )
+      .orderBy(asc(AgentRuntimeReadReceiptTable.createdAt), asc(AgentRuntimeReadReceiptTable.id));
+  }
   const corpus: string[] = [];
-  for (const row of relatedRows) {
-    collectReadStrings(await decodeVerifiedReadReceiptResult(row), corpus);
+  for (const row of corpusRows) {
+    if (NON_RESEARCH_READ_TOOLS.has(row.toolName)) continue;
+    try {
+      collectReadStrings(await decodeVerifiedReadReceiptResult(row), corpus);
+    } catch {
+      // A broad review may span many reads. Ignore unrelated corrupt receipts;
+      // the bound receipt itself was verified above.
+    }
   }
   const citations = reviewCitations(reviewResult);
   const missing = citations.find(
@@ -964,12 +1069,64 @@ async function resolveTaskStepReadEvidence(input: {
     );
   }
   return {
-    receiptId: exact.id,
-    toolName: exact.toolName,
-    observedAt: exact.createdAt,
-    exactTargetEvidence: true,
+    receiptId: boundReceipt.id,
+    toolName: boundReceipt.toolName,
+    observedAt: boundReceipt.createdAt,
+    exactTargetEvidence,
     citationCount: citations.length,
   };
+}
+
+const NON_RESEARCH_READ_TOOLS = new Set(['read_task_plan']);
+
+/**
+ * Research steps prove that discovery actually happened after the step began,
+ * without pretending a broad scan has one exact prose target. Read receipts
+ * are renderer-created only after successful read execution and are hash
+ * verified again here before they may settle durable progress.
+ */
+async function resolveResearchStepReadEvidence(input: {
+  executor: DbExecutor;
+  scope: AgentRuntimeTaskScope;
+  step: PersistedAgentRuntimeTaskStep;
+  requiredReceiptId?: string;
+}): Promise<AgentRuntimeTaskStepReadEvidence> {
+  const { executor, scope, step } = input;
+  const boundaryAt = step.startedAt ?? step.createdAt;
+  const candidates = await executor
+    .select()
+    .from(AgentRuntimeReadReceiptTable)
+    .where(
+      and(
+        eq(AgentRuntimeReadReceiptTable.projectId, scope.projectId),
+        eq(AgentRuntimeReadReceiptTable.sessionId, scope.sessionId),
+        gte(AgentRuntimeReadReceiptTable.createdAt, boundaryAt),
+        ...(input.requiredReceiptId
+          ? [eq(AgentRuntimeReadReceiptTable.id, input.requiredReceiptId)]
+          : []),
+      ),
+    )
+    .orderBy(desc(AgentRuntimeReadReceiptTable.createdAt), desc(AgentRuntimeReadReceiptTable.id))
+    .limit(50);
+  for (const receipt of candidates) {
+    if (NON_RESEARCH_READ_TOOLS.has(receipt.toolName)) continue;
+    try {
+      await decodeVerifiedReadReceiptResult(receipt);
+      return {
+        receiptId: receipt.id,
+        toolName: receipt.toolName,
+        observedAt: receipt.createdAt,
+        exactTargetEvidence: false,
+        citationCount: 0,
+      };
+    } catch {
+      // Keep looking for a valid immutable receipt. A corrupt candidate must
+      // neither settle the step nor hide an earlier valid read.
+    }
+  }
+  return reviewEvidenceError(
+    `Research step "${step.id}" has no verified workspace read after it entered in_progress. Read the relevant workspace state and retry completion.`,
+  );
 }
 
 function assertScope(expected: AgentRuntimeTaskScope, actual: AgentRuntimeTaskScope): void {
@@ -1172,22 +1329,20 @@ export function createAgentRuntimeLongTaskRepository(
     ]);
     const task = taskToDomain(taskRow);
     const domainSteps = steps.map(stepToDomain);
-    const reviewEvidenceRows =
-      task.workKind === 'edit'
-        ? await loadReviewEvidenceRows(
-            executor,
-            scope,
-            domainSteps
-              .map((step) => step.resultRef)
-              .filter((value): value is string => value !== null),
-          )
-        : [];
+    const reviewEvidenceRows = await loadReviewEvidenceRows(
+      executor,
+      scope,
+      domainSteps
+        .filter((step) => step.workKind === 'edit')
+        .map((step) => step.resultRef)
+        .filter((value): value is string => value !== null),
+    );
     const reviewEvidenceById = new Map(
       reviewEvidenceRows.map((evidence) => [evidence.reviewId, evidence]),
     );
     const hydratedSteps = await Promise.all(
       domainSteps.map(async (step) => {
-        if (task.workKind === 'edit') {
+        if (step.workKind === 'edit') {
           return {
             ...step,
             reviewEvidence: evaluateTaskStepReviewEvidence({
@@ -1195,17 +1350,29 @@ export function createAgentRuntimeLongTaskRepository(
               scopeKind: task.scopeKind,
               step,
               evidence: step.resultRef ? reviewEvidenceById.get(step.resultRef) : undefined,
+              evidenceBoundaryAt: task.createdAt,
             }),
           };
         }
         let readEvidence: AgentRuntimeTaskStepReadEvidence | null = null;
-        if (step.resultRef && step.reviewResult) {
+        if (step.workKind === 'review' && step.resultRef && step.reviewResult) {
           try {
             readEvidence = await resolveTaskStepReadEvidence({
               executor,
               scope,
               step,
               reviewResult: step.reviewResult,
+              requiredReceiptId: step.resultRef,
+            });
+          } catch {
+            readEvidence = null;
+          }
+        } else if (step.workKind === 'research' && step.resultRef) {
+          try {
+            readEvidence = await resolveResearchStepReadEvidence({
+              executor,
+              scope,
+              step,
               requiredReceiptId: step.resultRef,
             });
           } catch {
@@ -1264,39 +1431,119 @@ export function createAgentRuntimeLongTaskRepository(
     }
   };
 
-  const assertAcceptedWriteEvidence = async (
+  const mutableStepRevision = (
+    plan: AgentRuntimeTaskPlan,
+    expectedRevision: number,
+  ): number => {
+    requireExpectedRevision(expectedRevision);
+    if (expectedRevision > plan.task.revision) {
+      throw new AgentRuntimeLongTaskConflictError(
+        'TASK_REVISION_CONFLICT',
+        `Task revision is behind the requested step transition: expected ${expectedRevision}, current ${plan.task.revision}.`,
+      );
+    }
+    if (!isOpenAgentRuntimeTaskStatus(plan.task.status)) {
+      throw new AgentRuntimeLongTaskConflictError(
+        'INVALID_TASK_TRANSITION',
+        `Terminal task "${plan.task.id}" cannot be mutated.`,
+      );
+    }
+    // Step transitions name one stable step and are revalidated against the
+    // current plan below. This makes parallel tool calls for independent steps
+    // safe without weakening CAS for plan, manifest, objective, or constraint
+    // mutations.
+    return plan.task.revision;
+  };
+
+  const resolveAcceptedWriteEvidence = async (
     executor: DbExecutor,
     scope: AgentRuntimeTaskScope,
-    scopeKind: AgentRuntimeTaskScopeKind,
+    task: PersistedAgentRuntimeTask,
     step: PersistedAgentRuntimeTaskStep,
-    resultRef: string | null,
-  ): Promise<void> => {
-    if (!resultRef || !step.target) {
-      throw new AgentRuntimeLongTaskConflictError(
-        'TASK_WRITE_EVIDENCE_INVALID',
-        'A completed task step requires its target and an authorized durable writeRef in resultRef.',
-      );
+    preferredResultRef: string | null,
+    claimedResultRefs: ReadonlySet<string>,
+  ): Promise<string> => {
+    const candidateRefs: string[] = [];
+    if (preferredResultRef && !claimedResultRefs.has(preferredResultRef)) {
+      candidateRefs.push(preferredResultRef);
     }
-    const evidenceRows = await loadReviewEvidenceRows(executor, scope, [resultRef]);
-    const evidence = evidenceRows[0];
-    const reviewEvidence = evaluateTaskStepReviewEvidence({
-      scope,
-      scopeKind,
-      step: { ...step, resultRef },
-      evidence,
-    });
-    if (!reviewEvidence?.acceptedTargetEvidence) {
-      if (reviewEvidence?.outcome === 'pending') {
-        throw new AgentRuntimeLongTaskConflictError(
-          'TASK_WRITE_EVIDENCE_INVALID',
-          `Write "${resultRef}" is still awaiting a legacy review. Do not retry completion; call update_task_step with status="blocked", the same taskId/stepId/resultRef, and the current expectedRevision.`,
-        );
+    const effects = await executor
+      .select({
+        id: AgentRuntimeWriteEffectTable.id,
+        toolName: AgentRuntimeWriteEffectTable.toolName,
+      })
+      .from(AgentRuntimeWriteEffectTable)
+      .where(
+        and(
+          eq(AgentRuntimeWriteEffectTable.projectId, scope.projectId),
+          eq(AgentRuntimeWriteEffectTable.sessionId, scope.sessionId),
+          eq(AgentRuntimeWriteEffectTable.phase, 'result_committed'),
+          gte(AgentRuntimeWriteEffectTable.resultCommittedAt, task.createdAt),
+          isNotNull(AgentRuntimeWriteEffectTable.authorizationKind),
+          isNotNull(AgentRuntimeWriteEffectTable.authorizationArgumentsHash),
+          isNotNull(AgentRuntimeWriteEffectTable.authorizedAt),
+        ),
+      )
+      .orderBy(
+        desc(AgentRuntimeWriteEffectTable.resultCommittedAt),
+        desc(AgentRuntimeWriteEffectTable.id),
+      );
+    for (const effect of effects) {
+      if (
+        effect.toolName === 'update_task_plan' ||
+        effect.toolName === 'update_task_step' ||
+        effect.toolName === 'update_task_constraint'
+      ) {
+        continue;
       }
+      if (
+        effect.id !== preferredResultRef &&
+        !candidateRefs.includes(effect.id)
+      ) {
+        candidateRefs.push(effect.id);
+      }
+    }
+    const evidenceRows = await loadReviewEvidenceRows(executor, scope, candidateRefs);
+    const evidenceById = new Map(evidenceRows.map((evidence) => [evidence.reviewId, evidence]));
+    const preferredEvidence = preferredResultRef
+      ? evaluateTaskStepReviewEvidence({
+          scope,
+        scopeKind: 'explicit_targets',
+        step: { ...step, resultRef: preferredResultRef },
+        evidence: evidenceById.get(preferredResultRef),
+        evidenceBoundaryAt: task.createdAt,
+      })
+      : null;
+    if (preferredResultRef && claimedResultRefs.has(preferredResultRef)) {
       throw new AgentRuntimeLongTaskConflictError(
         'TASK_WRITE_EVIDENCE_INVALID',
-        `Task step "${step.id}" cannot complete without an accepted durable write for its exact target.`,
+        `Write "${preferredResultRef}" is already claimed by another task step.`,
       );
     }
+    if (preferredResultRef && preferredEvidence?.acceptedTargetEvidence) {
+      return preferredResultRef;
+    }
+    if (preferredResultRef && preferredEvidence?.outcome === 'pending') {
+      throw new AgentRuntimeLongTaskConflictError(
+        'TASK_WRITE_EVIDENCE_INVALID',
+        `Write "${preferredResultRef}" is still awaiting author review. Block the step only if no independent work can continue.`,
+      );
+    }
+    for (const resultRef of candidateRefs) {
+      if (resultRef === preferredResultRef || claimedResultRefs.has(resultRef)) continue;
+      const reviewEvidence = evaluateTaskStepReviewEvidence({
+        scope,
+        scopeKind: 'explicit_targets',
+        step: { ...step, resultRef },
+        evidence: evidenceById.get(resultRef),
+        evidenceBoundaryAt: task.createdAt,
+      });
+      if (reviewEvidence?.acceptedTargetEvidence) return resultRef;
+    }
+    throw new AgentRuntimeLongTaskConflictError(
+      'TASK_WRITE_EVIDENCE_INVALID',
+      `Task step "${step.id}" has no unclaimed accepted durable workspace write for its exact target during this task.`,
+    );
   };
 
   const bumpRevision = async (
@@ -1326,6 +1573,7 @@ export function createAgentRuntimeLongTaskRepository(
     plan: {
       taskId: string;
       scope: AgentRuntimeTaskScope;
+      defaultWorkKind: AgentRuntimeTaskWorkKind;
       firstOrdinal: number;
       createdAt: string;
     },
@@ -1343,7 +1591,21 @@ export function createAgentRuntimeLongTaskRepository(
     if (seeds.some((seed) => !seed.target)) {
       throw new AgentRuntimeLongTaskConflictError(
         'TASK_PLAN_INVALID',
-        'Every task step requires a named write target.',
+        'Every task step requires a named target.',
+      );
+    }
+    if (
+      seeds.some(
+        (seed) =>
+          seed.workKind !== undefined &&
+          seed.workKind !== 'edit' &&
+          seed.workKind !== 'review' &&
+          seed.workKind !== 'research',
+      )
+    ) {
+      throw new AgentRuntimeLongTaskConflictError(
+        'TASK_PLAN_INVALID',
+        'Task step workKind must be edit, review, or research.',
       );
     }
     const rows = seeds.map((seed, index) => ({
@@ -1353,6 +1615,7 @@ export function createAgentRuntimeLongTaskRepository(
       sessionId: plan.scope.sessionId,
       ordinal: plan.firstOrdinal + index,
       title: requireNonBlank(seed.title, `steps[${index}].title`),
+      workKind: seed.workKind ?? plan.defaultWorkKind,
       targetKind: seed.target?.kind ?? null,
       targetName: seed.target
         ? requireNonBlank(seed.target.name, `steps[${index}].target.name`)
@@ -1497,6 +1760,7 @@ export function createAgentRuntimeLongTaskRepository(
           sessionId: scope.sessionId,
           ordinal: chapter.ordinal,
           title: `处理章节：${chapter.name}`,
+          workKind: plan.task.workKind,
           targetKind: 'chapter',
           targetName: chapter.name,
           resolvedTargetId: chapter.resolvedChapterId,
@@ -1715,6 +1979,17 @@ export function createAgentRuntimeLongTaskRepository(
                 'Task workKind must be edit or review.',
               );
             }
+            if (
+              command.scopeKind === 'whole_book_chapters' &&
+              command.steps.some(
+                (step) => step.workKind !== undefined && step.workKind !== workKind,
+              )
+            ) {
+              throw new AgentRuntimeLongTaskConflictError(
+                'TASK_PLAN_INVALID',
+                'Whole-book chapter steps must use the task workKind.',
+              );
+            }
             assertFrozenChapterManifestCoverage({
               scopeKind: command.scopeKind,
               chapterManifest: command.chapterManifest,
@@ -1766,6 +2041,7 @@ export function createAgentRuntimeLongTaskRepository(
               {
                 taskId,
                 scope,
+                defaultWorkKind: workKind,
                 firstOrdinal: 0,
                 createdAt: at,
               },
@@ -1791,9 +2067,11 @@ export function createAgentRuntimeLongTaskRepository(
                     'A frozen whole-book task cannot append chapter steps.',
                   );
                 }
-                const knownStepKeys = new Set(plan.steps.flatMap(stableTaskStepKeys));
+                const knownStepKeys = new Set(
+                  plan.steps.flatMap((step) => stableTaskStepKeys(step, plan.task.workKind)),
+                );
                 const uniqueSteps = command.steps.filter((step) => {
-                  const keys = stableTaskStepKeys(step);
+                  const keys = stableTaskStepKeys(step, plan.task.workKind);
                   if (keys.some((key) => knownStepKeys.has(key))) return false;
                   for (const key of keys) knownStepKeys.add(key);
                   return true;
@@ -1813,6 +2091,7 @@ export function createAgentRuntimeLongTaskRepository(
                     {
                       taskId,
                       scope,
+                      defaultWorkKind: plan.task.workKind,
                       firstOrdinal: Number(maxRows[0]?.value ?? -1) + 1,
                       createdAt: at,
                     },
@@ -1871,15 +2150,29 @@ export function createAgentRuntimeLongTaskRepository(
                     );
                   }
                   if (
-                    plan.task.workKind === 'review' &&
                     plan.steps.some(
                       (step) =>
-                        step.status === 'completed' && !step.readEvidence?.exactTargetEvidence,
+                        step.status === 'completed' &&
+                        step.workKind === 'review' &&
+                        !step.readEvidence,
                     )
                   ) {
                     throw new AgentRuntimeLongTaskConflictError(
                       'TASK_READ_EVIDENCE_INVALID',
-                      'Task cannot complete because one or more review steps lost exact read evidence.',
+                      'Task cannot complete because one or more review steps lost verified read evidence.',
+                    );
+                  }
+                  if (
+                    plan.steps.some(
+                      (step) =>
+                        step.status === 'completed' &&
+                        step.workKind === 'research' &&
+                        !step.readEvidence,
+                    )
+                  ) {
+                    throw new AgentRuntimeLongTaskConflictError(
+                      'TASK_READ_EVIDENCE_INVALID',
+                      'Task cannot complete because one or more research steps lost verified read evidence.',
                     );
                   }
                 }
@@ -1890,7 +2183,10 @@ export function createAgentRuntimeLongTaskRepository(
                 });
               }
             } else if (command.toolName === 'update_task_step') {
-              assertMutableRevision(plan, command.expectedRevision);
+              const currentRevision = mutableStepRevision(
+                plan,
+                command.expectedRevision,
+              );
               const step = plan.steps.find((candidate) => candidate.id === command.stepId);
               if (!step) {
                 throw new AgentRuntimeLongTaskConflictError(
@@ -1918,21 +2214,24 @@ export function createAgentRuntimeLongTaskRepository(
                   'Only one task step may be in progress at a time.',
                 );
               }
-              if (command.status === 'completed') {
-                if (plan.task.workKind === 'edit') {
-                  await assertAcceptedWriteEvidence(
-                    tx,
-                    scope,
-                    plan.task.scopeKind,
-                    step,
-                    command.resultRef,
-                  );
-                }
-              }
               let effectiveResultRef = command.resultRef;
               let effectiveResultNote = command.resultNote;
               let effectiveReviewResult: AgentRuntimeTaskStepReviewResult | null = null;
-              if (plan.task.workKind === 'review' && command.status === 'completed') {
+              if (step.workKind === 'edit' && command.status === 'completed') {
+                effectiveResultRef = await resolveAcceptedWriteEvidence(
+                  tx,
+                  scope,
+                  plan.task,
+                  step,
+                  command.resultRef,
+                  new Set(
+                    plan.steps
+                      .filter((candidate) => candidate.id !== step.id)
+                      .map((candidate) => candidate.resultRef)
+                      .filter((value): value is string => value !== null),
+                  ),
+                );
+              } else if (step.workKind === 'review' && command.status === 'completed') {
                 if (command.resultRef) {
                   throw new AgentRuntimeLongTaskConflictError(
                     'TASK_READ_EVIDENCE_INVALID',
@@ -1948,6 +2247,26 @@ export function createAgentRuntimeLongTaskRepository(
                 });
                 effectiveResultRef = readEvidence.receiptId;
                 effectiveResultNote ??= effectiveReviewResult.synopsis;
+              } else if (step.workKind === 'research' && command.status === 'completed') {
+                if (command.resultRef) {
+                  throw new AgentRuntimeLongTaskConflictError(
+                    'TASK_READ_EVIDENCE_INVALID',
+                    'Research resultRef is product-owned. Omit it; Drifting will bind the latest verified workspace read.',
+                  );
+                }
+                if (command.reviewResult !== undefined && command.reviewResult !== null) {
+                  throw new AgentRuntimeLongTaskConflictError(
+                    'TASK_READ_EVIDENCE_INVALID',
+                    'reviewResult is not valid for a research step.',
+                  );
+                }
+                effectiveResultNote = reviewText(command.resultNote, 'resultNote', 4_000);
+                const readEvidence = await resolveResearchStepReadEvidence({
+                  executor: tx,
+                  scope,
+                  step,
+                });
+                effectiveResultRef = readEvidence.receiptId;
               } else if (command.reviewResult !== undefined && command.reviewResult !== null) {
                 throw new AgentRuntimeLongTaskConflictError(
                   'TASK_READ_EVIDENCE_INVALID',
@@ -1995,7 +2314,7 @@ export function createAgentRuntimeLongTaskRepository(
               await bumpRevision(
                 tx,
                 taskId,
-                command.expectedRevision,
+                currentRevision,
                 at,
                 finalizesExplicitTask
                   ? {

@@ -1,6 +1,4 @@
-import {
-  buildGeneralAgentClient,
-} from '../../../ai/client/build-default-client';
+import { buildGeneralAgentClient } from '../../../ai/client/build-default-client';
 import { ChainCredentialsProvider } from '../../../ai/credentials/chain';
 import { EnvCredentialsProvider } from '../../../ai/credentials/env';
 import { BYOKCredentialsProvider } from '../../../ai/credentials/byok';
@@ -29,11 +27,14 @@ import { OpenAIResponsesAgentDriver } from './openai-responses-driver';
 
 export interface DriftingAgentModelDriverOptions {
   createClient?: () => Promise<AgentCompletionClient | LLMClient>;
-  createProviderDriver?: (
-    provider: AgentProviderId,
-    model: string,
-  ) => Promise<AgentModelDriver>;
+  createProviderDriver?: (provider: AgentProviderId, model: string) => Promise<AgentModelDriver>;
   defaultModel?: string;
+  /** User-facing workload name for credential initialization errors. */
+  featureLabel?: string;
+  /** Logging/capture tag for the DeepSeek compatibility client. */
+  logTag?: string;
+  /** AI interceptor attribution key for the selected workload. */
+  feature?: string;
 }
 
 /**
@@ -52,12 +53,13 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
     context: DRIFTING_AGENT_CONTEXT_PROFILE,
   } as const;
 
-  private readonly createClient: () => Promise<
-    AgentCompletionClient | LLMClient
-  >;
+  private readonly createClient: () => Promise<AgentCompletionClient | LLMClient>;
   private readonly defaultModel: string;
   private readonly createProviderDriver?: DriftingAgentModelDriverOptions['createProviderDriver'];
   private readonly legacyClientOverride: boolean;
+  private readonly featureLabel: string;
+  private readonly logTag: string;
+  private readonly feature: string;
   private readonly activeTurnDrivers = new Map<
     string,
     {
@@ -73,11 +75,12 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
     this.legacyClientOverride = options.createClient !== undefined;
     this.defaultModel = options.defaultModel ?? 'deepseek-v4-flash';
     this.createProviderDriver = options.createProviderDriver;
+    this.featureLabel = options.featureLabel ?? 'General Agent';
+    this.logTag = options.logTag ?? 'general-agent';
+    this.feature = options.feature ?? 'general-agent';
   }
 
-  async *stream(
-    request: AgentModelRequest,
-  ): AsyncIterable<AgentModelStreamEvent> {
+  async *stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
     const provider = request.provider ?? 'deepseek';
     if (!isAgentProviderId(provider)) {
       throw new AgentModelDriverError('The selected Agent provider is not certified.');
@@ -96,10 +99,11 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
     }
 
     const cacheKey = `${request.sessionId}\u0000${request.turnId}`;
+    const cacheable = request.lifecycle !== 'single_request';
     const reasoningKey = `${request.reasoning?.enabled === true}:${
       request.reasoning?.effort ?? ''
     }`;
-    const cached = this.activeTurnDrivers.get(cacheKey);
+    const cached = cacheable ? this.activeTurnDrivers.get(cacheKey) : undefined;
     if (
       cached &&
       (cached.provider !== provider ||
@@ -111,7 +115,7 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
       );
     }
     const selected = cached?.driver ?? (await this.createSelectedDriver(provider, model));
-    if (!cached) {
+    if (!cached && cacheable) {
       this.activeTurnDrivers.set(cacheKey, {
         provider,
         model,
@@ -127,7 +131,7 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
         yield event;
       }
     } finally {
-      if (stopReason !== 'tool_use') this.activeTurnDrivers.delete(cacheKey);
+      if (cacheable && stopReason !== 'tool_use') this.activeTurnDrivers.delete(cacheKey);
     }
   }
 
@@ -150,7 +154,7 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
       const client: AgentCompletionClient | LLMClient = this.hasLegacyClientOverride()
         ? await this.createClient()
         : await buildGeneralAgentClient({
-            logTag: 'general-agent',
+            logTag: this.logTag,
             provider,
             model,
           });
@@ -158,11 +162,11 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
         client,
         defaultModel: model,
         id: `${this.id}:${provider}`,
-        feature: 'general-agent',
+        feature: this.feature,
         reasoningMode: provider === 'deepseek' ? 'deepseek' : 'disabled',
       });
     } catch (error) {
-      throw clientInitializationError(error, provider);
+      throw clientInitializationError(error, provider, this.featureLabel);
     }
   }
 
@@ -183,13 +187,12 @@ function createCredentialChain(): ChainCredentialsProvider {
 function clientInitializationError(
   error: unknown,
   provider: AgentProviderId,
+  featureLabel: string,
 ): AgentModelDriverError {
   if (error instanceof AIError && error.kind === 'auth') {
     return new AgentModelDriverError(
-      `General Agent needs a configured ${agentProviderOption(provider).label} API key.`,
+      `${featureLabel} needs a configured ${agentProviderOption(provider).label} API key.`,
     );
   }
-  return new AgentModelDriverError(
-    'General Agent could not initialize its model provider.',
-  );
+  return new AgentModelDriverError(`${featureLabel} could not initialize its model provider.`);
 }

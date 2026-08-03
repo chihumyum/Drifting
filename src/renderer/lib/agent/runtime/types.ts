@@ -22,7 +22,7 @@ import type { AgentRuntimeControlChannel } from './control-plane';
 
 export const AGENT_RUNTIME_SCHEMA_VERSION = 1 as const;
 export const AGENT_RUNTIME_TOOL_SEARCH_LIMIT = 8 as const;
-export const AGENT_CONTEXT_USAGE_SCHEMA_VERSION = 1 as const;
+export const AGENT_CONTEXT_USAGE_SCHEMA_VERSION = 2 as const;
 
 export const AGENT_CONTEXT_USAGE_CATEGORY_KEYS = [
   'system_prompt',
@@ -31,6 +31,7 @@ export const AGENT_CONTEXT_USAGE_CATEGORY_KEYS = [
   'thinking',
   'tool_calls',
   'tool_results',
+  'write_receipts',
   'write_reviews',
   'write_reverts',
   'freshness',
@@ -203,10 +204,23 @@ export interface AgentModelRequest {
   sessionId: string;
   turnId: string;
   iteration: number;
+  /**
+   * One-shot internal calls (for example context compaction) must not join the
+   * main turn's provider reasoning cache merely because they share diagnostic
+   * session/turn ids.
+   */
+  lifecycle?: 'turn' | 'single_request';
   /** Product-captured route; adapters must not reread mutable UI state. */
   provider?: string;
   model?: string;
   reasoning?: AgentReasoningOptions;
+  /**
+   * Runtime-internal provider sampling mode. This does not mutate the
+   * provider/model/reasoning tuple frozen for the author turn; it only asks
+   * the adapter to serialize one required tool action without spending
+   * another reasoning allowance.
+   */
+  executionMode?: 'required_tool_non_reasoning';
   /** Runtime-selected policy for this exact iteration. */
   toolChoice?: AgentModelToolChoice;
   /**
@@ -340,6 +354,8 @@ export interface AgentToolSelectionLongTaskHint {
   /** Provider-safe first in-progress/pending/blocked unit used for tool recall. */
   nextStep?: {
     title: string;
+    /** Present for current runtimes; optional for transport/backward compatibility. */
+    workKind?: 'edit' | 'review' | 'research';
     status: 'pending' | 'in_progress' | 'blocked' | 'completed' | 'failed' | 'retired';
     target: { kind: string; name: string } | null;
   };
@@ -427,10 +443,7 @@ export interface AgentToolPermissionPolicy {
   recordResolution?(
     request: AgentToolPermissionPolicyRequest,
     resolution: AgentPermissionResolutionInput,
-  ):
-    | void
-    | { authorityId: string }
-    | Promise<void | { authorityId: string }>;
+  ): void | { authorityId: string } | Promise<void | { authorityId: string }>;
 }
 
 export type AgentRuntimeToolSearchMode = 'off' | 'auto' | 'on';

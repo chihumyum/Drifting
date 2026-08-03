@@ -1,6 +1,10 @@
 import { getActiveAgentToolContext } from '../tool-handlers';
 import { generalAgentTransport } from '../transport';
-import type { AgentPermissionResolutionInput } from '../protocol';
+import type {
+  AgentEffortChoice,
+  AgentPermissionResolutionInput,
+  AgentThinkingChoice,
+} from '../protocol';
 import type {
   AgentContextUsageSnapshot,
   AgentRuntimeJournalEntry,
@@ -19,7 +23,11 @@ const EVENT_BATCH_DELAY_MS = 24;
 const RETRY_DELAY_MS = 1_000;
 const TERMINAL_GRACE_MS = 5_000;
 const STORE_RELEASE_GRACE_MS = 2_000;
-const CONVERSATION_LOAD_GRACE_MS = 3_000;
+// Recovery verifies checkpoints, canonical tool topology, and durable write
+// effects before hydrating a long conversation. Real stress histories can
+// legitimately take several seconds on a debug build, so the headless harness
+// must not impose a much shorter timeout than the turn it is observing.
+const CONVERSATION_LOAD_GRACE_MS = 60_000;
 
 type PermissionMode = 'manual' | 'allow_once' | 'deny';
 
@@ -35,6 +43,8 @@ interface DebugTurnRequest {
   userInputs: string[];
   autoContinue: boolean;
   editMode?: 'auto' | 'approve';
+  thinking?: AgentThinkingChoice;
+  effort?: AgentEffortChoice;
 }
 
 interface DebugReviewRequest {
@@ -271,6 +281,16 @@ function parseDebugRequest(value: unknown, projectId: string): DebugRequest {
     ...(value.editMode === 'auto' || value.editMode === 'approve'
       ? { editMode: value.editMode }
       : {}),
+    ...(value.thinking === 'adaptive' || value.thinking === 'off'
+      ? { thinking: value.thinking }
+      : {}),
+    ...(value.effort === 'low' ||
+    value.effort === 'medium' ||
+    value.effort === 'high' ||
+    value.effort === 'xhigh' ||
+    value.effort === 'max'
+      ? { effort: value.effort }
+      : {}),
   };
 }
 
@@ -297,17 +317,8 @@ async function executeDebugReview(
     const note = request.note ? { note: request.note } : undefined;
     const result = request.blockId
       ? request.decision === 'accept'
-        ? await acceptDriftingAgentWriteReviewBlock(
-            request.reviewId,
-            request.blockId,
-            note,
-          )
-        : await rejectDriftingAgentWriteReviewBlock(
-            request.reviewId,
-            request.blockId,
-            note,
-            signal,
-          )
+        ? await acceptDriftingAgentWriteReviewBlock(request.reviewId, request.blockId, note)
+        : await rejectDriftingAgentWriteReviewBlock(request.reviewId, request.blockId, note, signal)
       : request.decision === 'accept'
         ? await acceptDriftingAgentWriteReview(request.reviewId, note)
         : await rejectDriftingAgentWriteReview(request.reviewId, note, signal);
@@ -375,7 +386,12 @@ async function executeDebugTurn(
   bridgeSignal: AbortSignal,
 ): Promise<void> {
   const emitter = new DebugEventBatcher(baseUrl, request.requestId);
-  emitter.emit({ type: 'bridge_started', projectId: request.projectId });
+  emitter.emit({
+    type: 'bridge_started',
+    projectId: request.projectId,
+    ...(request.thinking ? { thinking: request.thinking } : {}),
+    ...(request.effort ? { effort: request.effort } : {}),
+  });
   const deadlineAt = Date.now() + request.timeoutMs;
   const leaseController = new AbortController();
   const stopLeaseOnBridgeAbort = () => leaseController.abort('Debug bridge stopped');
@@ -395,9 +411,18 @@ async function executeDebugTurn(
     }
   });
   let journalSubscription: (() => void) | null = null;
-  const previousEditMode = useSettingsStore.getState().agentEditMode;
+  const previousSettings = useSettingsStore.getState();
+  const previousEditMode = previousSettings.agentEditMode;
+  const previousThinking = previousSettings.agentThinking;
+  const previousEffort = previousSettings.agentEffort;
   if (request.editMode) {
     useSettingsStore.getState().setAgentEditMode(request.editMode);
+  }
+  if (request.thinking) {
+    useSettingsStore.getState().setAgentThinking(request.thinking);
+  }
+  if (request.effort) {
+    useSettingsStore.getState().setAgentEffort(request.effort);
   }
   try {
     // Flush the handshake before entering any renderer/database preflight so a
@@ -535,7 +560,15 @@ async function executeDebugTurn(
     const startedState = useAgentChatStore.getState();
     conversationId ??= startedState.runningConvId ?? startedState.activeConvId;
     if (!firstTurnId || !conversationId) {
-      throw new Error('Agent turn failed before the canonical turn_started event');
+      const failedConversationId = conversationId ?? startedState.activeConvId;
+      const startupError = failedConversationId
+        ? [...(startedState.runs[failedConversationId]?.messages ?? [])]
+            .reverse()
+            .find((message) => message.kind === 'error')
+        : undefined;
+      throw new Error(
+        startupError?.text ?? 'Agent turn failed before the canonical turn_started event',
+      );
     }
 
     const terminalEntry = await waitForTerminal(
@@ -597,6 +630,12 @@ async function executeDebugTurn(
     journalSubscription?.();
     if (request.editMode && useSettingsStore.getState().agentEditMode === request.editMode) {
       useSettingsStore.getState().setAgentEditMode(previousEditMode);
+    }
+    if (request.thinking && useSettingsStore.getState().agentThinking === request.thinking) {
+      useSettingsStore.getState().setAgentThinking(previousThinking);
+    }
+    if (request.effort && useSettingsStore.getState().agentEffort === request.effort) {
+      useSettingsStore.getState().setAgentEffort(previousEffort);
     }
   }
 }

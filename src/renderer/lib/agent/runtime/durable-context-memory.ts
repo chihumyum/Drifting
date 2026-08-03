@@ -6,9 +6,12 @@ import {
   AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_VERSION,
   AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_FORMAT,
   AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_VERSION,
+  AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_FORMAT,
+  AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_VERSION,
   recoverAgentRuntimeSnapshot,
   type AgentRuntimeCheckpointContextV2,
   type AgentRuntimeCheckpointContextV3,
+  type AgentRuntimeCheckpointContextV4,
 } from './recovery';
 import type {
   AgentRuntimeContextPlanningHookInput,
@@ -34,7 +37,10 @@ export async function loadDurableAgentContextSummaries(
   );
   if (!checkpoint) return [];
 
-  if (isCheckpointContextV3(checkpoint.context)) {
+  if (
+    isCheckpointContextV3(checkpoint.context) ||
+    isCheckpointContextV4(checkpoint.context)
+  ) {
     return checkpoint.context.durableSummaries.map(cloneSummary);
   }
   if (!isCheckpointContextV2(checkpoint.context)) return [];
@@ -112,6 +118,23 @@ function isCheckpointContextV3(
         AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_VERSION &&
       (value as { format?: unknown }).format ===
         AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_FORMAT &&
+      Array.isArray(
+        (value as { durableSummaries?: unknown }).durableSummaries,
+      ),
+  );
+}
+
+function isCheckpointContextV4(
+  value: unknown,
+): value is AgentRuntimeCheckpointContextV4 {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      (value as { schemaVersion?: unknown }).schemaVersion ===
+        AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_VERSION &&
+      (value as { format?: unknown }).format ===
+        AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_FORMAT &&
       Array.isArray(
         (value as { durableSummaries?: unknown }).durableSummaries,
       ),

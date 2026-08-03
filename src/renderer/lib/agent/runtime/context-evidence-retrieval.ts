@@ -1,9 +1,4 @@
-export type AgentContextEvidenceFieldKind =
-  | 'title'
-  | 'alias'
-  | 'summary'
-  | 'fact'
-  | 'prose';
+export type AgentContextEvidenceFieldKind = 'title' | 'alias' | 'summary' | 'fact' | 'prose';
 
 export interface AgentContextEvidenceField {
   kind: AgentContextEvidenceFieldKind;
@@ -76,7 +71,9 @@ function cjkTerms(sequence: string): string[] {
 export function tokenizeAgentContextEvidenceQuery(query: string): string[] {
   const normalized = normalize(query);
   const terms: string[] = [];
-  for (const match of normalized.matchAll(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+|[\p{Letter}\p{Number}_-]+/gu)) {
+  for (const match of normalized.matchAll(
+    /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+|[\p{Letter}\p{Number}_-]+/gu,
+  )) {
     const token = match[0];
     if (/^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+$/u.test(token)) {
       terms.push(...cjkTerms(token));
@@ -133,8 +130,12 @@ export function rankAgentContextEvidence(
 ): AgentContextEvidenceMatch[] {
   const phrase = normalize(input.query.trim());
   if (!phrase) return [];
-  const terms = tokenizeAgentContextEvidenceQuery(phrase);
-  if (terms.length === 0) return [];
+  const tokenizedTerms = tokenizeAgentContextEvidenceQuery(phrase);
+  // Punctuation-only literals such as a straight quote or a manuscript
+  // marker intentionally have no lexical tokens. They are still valid grep
+  // queries, so retain the full normalized phrase as one exact term instead
+  // of producing a false zero-match result.
+  const terms = tokenizedTerms.length > 0 ? tokenizedTerms : [phrase];
   const limit = Math.min(Math.max(input.limit ?? 30, 1), MAX_LIMIT);
   const documents = input.documents.filter(
     (document) =>
@@ -171,9 +172,7 @@ export function rankAgentContextEvidence(
     );
     if (matchedTerms.length === 0) continue;
     let score = (matchedTerms.length / terms.length) * 80;
-    let best:
-      | { field: AgentContextEvidenceField; normalized: string; score: number }
-      | undefined;
+    let best: { field: AgentContextEvidenceField; normalized: string; score: number } | undefined;
     for (const candidate of fields) {
       let fieldScore = 0;
       const weight = FIELD_WEIGHT[candidate.field.kind];

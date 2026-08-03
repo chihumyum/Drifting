@@ -16,6 +16,13 @@ const DEFAULT_COMPACTION_TIMEOUT_MS = 8_000;
 const SOURCE_SEGMENT_OVERHEAD_TOKENS = 6;
 const SUMMARY_SEGMENT_OVERHEAD_TOKENS = 8;
 const MAX_RECENT_EXACT_TOKENS = 64_000;
+// Exact recent rows are useful, but they must not consume every token left
+// after semantic pins. Long tool turns also carry already-compacted summaries;
+// filling the entire remainder with fresh read results can leave no room for
+// those summaries and make the next compaction mathematically impossible.
+// Large (200k/1m) windows still retain the 64k cap, while smaller windows keep
+// at least half of the non-semantic budget available for compacted history.
+const MAX_RECENT_EXACT_BUDGET_RATIO = 0.5;
 const AGENT_CONTEXT_SOURCE_KINDS: ReadonlySet<AgentContextSourceKind> = new Set([
   'system_policy',
   'user',
@@ -23,6 +30,7 @@ const AGENT_CONTEXT_SOURCE_KINDS: ReadonlySet<AgentContextSourceKind> = new Set(
   'thinking',
   'tool_call',
   'tool_result',
+  'write_receipt',
   'write_review',
   'write_revert',
   'freshness',
@@ -40,6 +48,7 @@ export type AgentContextSourceKind =
   | 'thinking'
   | 'tool_call'
   | 'tool_result'
+  | 'write_receipt'
   | 'write_review'
   | 'write_revert'
   | 'freshness'
@@ -75,6 +84,31 @@ export interface AgentContextSummaryCandidate {
   /** SHA-256 of the exact canonical source rows, not of the summary text. */
   sourceHash: string;
   content: string;
+}
+
+/**
+ * One already topology-safe unit offered to a hierarchical full compactor.
+ *
+ * `sourceRows` always contains the exact canonical rows used for hashing and
+ * final coverage validation. `projectionRows` is the bounded material the
+ * compactor may actually send to its model: it can contain exact source rows
+ * or an earlier verified summary that represents many canonical rows.
+ */
+export interface AgentContextFullCompactionUnit {
+  sourceRows: readonly AgentContextSourceRow[];
+  projectionRows: readonly AgentContextFullCompactionProjectionRow[];
+  estimatedTokens: number;
+}
+
+export interface AgentContextFullCompactionProjectionRow {
+  type: 'source' | 'summary';
+  sourceIds: readonly string[];
+  content: string;
+  kind?: AgentContextSourceKind;
+  turnOrdinal?: number | null;
+  toolName?: string;
+  toolAccess?: AgentContextToolAccess;
+  summaryId?: string;
 }
 
 export type AgentContextConstraintKind =
@@ -117,6 +151,14 @@ export interface AgentContextFullCompactionRequest {
    * run and preserve complete read-tool call/result pairs.
    */
   eligibleRuns: readonly (readonly AgentContextSourceRow[])[];
+  /**
+   * Current verified projection grouped into atomic units. Product compactors
+   * should prefer this view because it can roll up earlier summaries without
+   * replaying their full canonical source bytes to the provider. The legacy
+   * `eligibleRuns` view remains for provider-neutral/custom compactors that
+   * only understand exact source rows.
+   */
+  eligibleProjectionRuns?: readonly (readonly AgentContextFullCompactionUnit[])[];
   currentEstimatedTokens: number;
   usableInputBudgetTokens: number;
   /** Optional runtime route used by product compactors to reuse the active provider. */
@@ -232,7 +274,7 @@ export interface AgentContextCheckpointV2 {
   };
   compaction: {
     stages: Array<'drop_discardable' | 'deterministic_summaries' | 'full_compactor'>;
-    fullCompactionCount: 0 | 1;
+    fullCompactionCount: number;
     circuitState: AgentContextCompactionCircuitSnapshot;
   };
 }
@@ -267,7 +309,7 @@ export type AgentContextPlannerResult =
       diagnostics: {
         usableInputBudgetTokens: number | null;
         estimatedInputTokens: number | null;
-        fullCompactionCount: 0 | 1;
+        fullCompactionCount: number;
         circuitState: AgentContextCompactionCircuitSnapshot;
       };
     };
@@ -504,9 +546,11 @@ export function estimateAgentContextTextTokens(text: string): number {
 }
 
 /**
- * Canonical conservative payload used for summary budgeting. It deliberately
- * includes every source id retained by the internal verified envelope even
- * when a provider adapter sends only sourceCount + sourceHash on its wire.
+ * Canonical wire-equivalent payload used for summary budgeting. The verified
+ * envelope retains every source id internally, but provider adapters send only
+ * sourceCount + sourceHash. Charging internal provenance as model input makes
+ * long-running summaries grow without bound even though those bytes never
+ * cross the provider wire.
  */
 export function serializeAgentContextSummaryBudgetPayload(input: {
   summaryId: string;
@@ -519,7 +563,7 @@ export function serializeAgentContextSummaryBudgetPayload(input: {
     provenance: {
       origin: 'drifting_runtime',
       summaryId: input.summaryId,
-      sourceIds: [...input.sourceIds],
+      sourceCount: input.sourceIds.length,
       sourceHash: input.sourceHash,
     },
     content: input.content,
@@ -528,7 +572,13 @@ export function serializeAgentContextSummaryBudgetPayload(input: {
 
 /** Canonical wire-equivalent payload for pinned supplemental runtime facts. */
 export function serializeAgentContextNoteBudgetPayload(input: {
-  noteKind: 'write_review' | 'write_revert' | 'freshness' | 'task_plan' | 'task_constraints';
+  noteKind:
+    | 'write_receipt'
+    | 'write_review'
+    | 'write_revert'
+    | 'freshness'
+    | 'task_plan'
+    | 'task_constraints';
   sourceId: string;
   turnOrdinal: number | null;
   content: string;
@@ -590,6 +640,7 @@ export function classifyAgentContextSource(
 ): AgentContextClass {
   switch (row.kind) {
     case 'system_policy':
+    case 'write_receipt':
     case 'write_review':
     case 'write_revert':
     case 'freshness':
@@ -840,6 +891,7 @@ function estimateSourceTokens(
 ): number {
   const budgetText =
     row.kind === 'write_review' ||
+    row.kind === 'write_receipt' ||
     row.kind === 'write_revert' ||
     row.kind === 'freshness' ||
     row.kind === 'task_plan' ||
@@ -900,7 +952,10 @@ function recentExactSourceIds(input: {
       recentTurns.has(row.turnOrdinal) &&
       input.classifications.get(row.sourceId) === 'compressible',
   );
-  const cap = Math.min(MAX_RECENT_EXACT_TOKENS, input.availableTokens);
+  const cap = Math.min(
+    MAX_RECENT_EXACT_TOKENS,
+    Math.floor(input.availableTokens * MAX_RECENT_EXACT_BUDGET_RATIO),
+  );
   const candidateTokens = candidates.reduce(
     (total, row) => total + estimateSourceTokens(row, input.estimator),
     0,
@@ -921,6 +976,46 @@ function recentExactSourceIds(input: {
     selectedTokens += unitTokens;
   }
   return selected;
+}
+
+/**
+ * Recent exact context is a quality preference, not a semantic invariant.
+ * When every older verified summary is already at its minimum size, release
+ * the oldest topology-safe recent unit so long turns can keep compacting
+ * instead of permanently tripping the session circuit. Canonical history is
+ * untouched and hard semantic pins are never relaxed.
+ */
+function releaseOldestRecentExactUnits(input: {
+  projection: WorkingProjection;
+  recentSourceIds: Set<string>;
+  minimumReleasedTokens: number;
+}): number {
+  let releasedTokens = 0;
+  while (releasedTokens < input.minimumReleasedTokens) {
+    const recentRows = input.projection.segments.flatMap((segment) =>
+      segment.type === 'source' && segment.pinReason === 'recent_turn' ? [segment.row] : [],
+    );
+    const unit = groupAgentContextRowsByToolTopology(recentRows)[0];
+    if (!unit?.length) break;
+
+    const releasedIds = new Set(unit.map((row) => row.sourceId));
+    let unitTokens = 0;
+    for (const segment of input.projection.segments) {
+      if (
+        segment.type !== 'source' ||
+        segment.pinReason !== 'recent_turn' ||
+        !releasedIds.has(segment.row.sourceId)
+      ) {
+        continue;
+      }
+      segment.pinReason = null;
+      input.recentSourceIds.delete(segment.row.sourceId);
+      unitTokens += segment.estimatedTokens;
+    }
+    if (unitTokens <= 0) break;
+    releasedTokens += unitTokens;
+  }
+  return releasedTokens;
 }
 
 function sourcePinReason(
@@ -1033,7 +1128,8 @@ function durablyCoveredWriteSourceIds(input: {
     const evidenceRow = input.sourceById.get(evidence.evidenceSourceId);
     if (
       !evidenceRow ||
-      (evidenceRow.kind !== 'write_review' &&
+      (evidenceRow.kind !== 'write_receipt' &&
+        evidenceRow.kind !== 'write_review' &&
         evidenceRow.kind !== 'task_plan' &&
         evidenceRow.kind !== 'task_constraints')
     ) {
@@ -1050,13 +1146,17 @@ function durablyCoveredWriteSourceIds(input: {
       continue;
     }
     const evidenceMatchesProductSnapshot =
-      evidenceRow.kind === 'write_review'
+      evidenceRow.kind === 'write_receipt'
         ? evidence.toolName !== 'update_task_plan' &&
           evidence.toolName !== 'update_task_step' &&
           evidence.toolName !== 'update_task_constraint'
-        : evidenceRow.kind === 'task_plan'
-          ? evidence.toolName === 'update_task_plan' || evidence.toolName === 'update_task_step'
-          : evidence.toolName === 'update_task_constraint';
+        : evidenceRow.kind === 'write_review'
+          ? evidence.toolName !== 'update_task_plan' &&
+            evidence.toolName !== 'update_task_step' &&
+            evidence.toolName !== 'update_task_constraint'
+          : evidenceRow.kind === 'task_plan'
+            ? evidence.toolName === 'update_task_plan' || evidence.toolName === 'update_task_step'
+            : evidence.toolName === 'update_task_constraint';
     if (!evidenceMatchesProductSnapshot) continue;
 
     covered.add(pair.call.sourceId);
@@ -1105,9 +1205,6 @@ async function applySummaryBatch(input: {
         `Summary "${candidate.summaryId}" attempts to replace protected recent context.`,
       );
     }
-    if (projection.summaryIds.has(candidate.summaryId)) {
-      throw new PlannerFailure('INVALID_SUMMARY', `Duplicate summary id "${candidate.summaryId}".`);
-    }
     for (const row of sourceRows) {
       if (input.classifications.get(row.sourceId) !== 'compressible') {
         throw new PlannerFailure(
@@ -1116,10 +1213,10 @@ async function applySummaryBatch(input: {
         );
       }
       const representation = projection.coverage.get(row.sourceId);
-      if (!representation || representation.type !== 'source') {
+      if (!representation) {
         throw new PlannerFailure(
           'INVALID_SUMMARY',
-          `Summary "${candidate.summaryId}" overlaps an already summarized source.`,
+          `Summary "${candidate.summaryId}" references an unrepresented source.`,
         );
       }
     }
@@ -1143,19 +1240,24 @@ async function applySummaryBatch(input: {
       }
     }
 
-    const sourceSegmentIndexes = sourceRows
-      .map((row) =>
-        projection.segments.findIndex(
-          (segment) => segment.type === 'source' && segment.row.sourceId === row.sourceId,
-        ),
-      )
-      .sort((left, right) => left - right);
-    const firstIndex = sourceSegmentIndexes[0];
-    const lastIndex = sourceSegmentIndexes[sourceSegmentIndexes.length - 1];
+    const representedSegmentIndexes = [
+      ...new Set(
+        sourceRows.map((row) => {
+          const representation = projection.coverage.get(row.sourceId)!;
+          return projection.segments.findIndex((segment) =>
+            representation.type === 'source'
+              ? segment.type === 'source' && segment.row.sourceId === row.sourceId
+              : segment.type === 'summary' && segment.summaryId === representation.id,
+          );
+        }),
+      ),
+    ].sort((left, right) => left - right);
+    const firstIndex = representedSegmentIndexes[0];
+    const lastIndex = representedSegmentIndexes[representedSegmentIndexes.length - 1];
     if (
       firstIndex < 0 ||
-      lastIndex - firstIndex + 1 !== sourceSegmentIndexes.length ||
-      sourceSegmentIndexes.some((index, offset) => index !== firstIndex + offset)
+      lastIndex - firstIndex + 1 !== representedSegmentIndexes.length ||
+      representedSegmentIndexes.some((index, offset) => index !== firstIndex + offset)
     ) {
       throw new PlannerFailure(
         'INVALID_SUMMARY',
@@ -1163,11 +1265,29 @@ async function applySummaryBatch(input: {
       );
     }
     const replaced = projection.segments.slice(firstIndex, lastIndex + 1);
-    if (replaced.some((segment) => segment.type !== 'source')) {
+    const replacedSourceIds = new Set(
+      replaced.flatMap((segment) =>
+        segment.type === 'source' ? [segment.row.sourceId] : segment.sourceIds,
+      ),
+    );
+    const candidateSourceIds = new Set(sourceRows.map((row) => row.sourceId));
+    if (
+      replacedSourceIds.size !== candidateSourceIds.size ||
+      [...replacedSourceIds].some((sourceId) => !candidateSourceIds.has(sourceId))
+    ) {
       throw new PlannerFailure(
         'INVALID_SUMMARY',
-        `Summary "${candidate.summaryId}" crosses another summary boundary.`,
+        `Summary "${candidate.summaryId}" partially overlaps an existing summary boundary.`,
       );
+    }
+    const replacedSummaryIds = new Set(
+      replaced.flatMap((segment) => (segment.type === 'summary' ? [segment.summaryId] : [])),
+    );
+    if (
+      projection.summaryIds.has(candidate.summaryId) &&
+      !replacedSummaryIds.has(candidate.summaryId)
+    ) {
+      throw new PlannerFailure('INVALID_SUMMARY', `Duplicate summary id "${candidate.summaryId}".`);
     }
     const beforeTokens = projectionTokens(replaced);
     const estimatedTokens = estimateSummaryTokens(candidate, input.estimator);
@@ -1199,6 +1319,7 @@ async function applySummaryBatch(input: {
       producer: input.producer,
     };
     projection.segments.splice(firstIndex, replaced.length, segment);
+    for (const summaryId of replacedSummaryIds) projection.summaryIds.delete(summaryId);
     for (const sourceId of normalizedSourceIds) {
       projection.coverage.set(sourceId, {
         type: 'summary',
@@ -1211,25 +1332,158 @@ async function applySummaryBatch(input: {
   return { projection, gainedTokens };
 }
 
-function eligibleRuns(
+function eligibleCompactionViews(
   projection: WorkingProjection,
-): readonly (readonly AgentContextSourceRow[])[] {
-  const runs: Array<readonly AgentContextSourceRow[]> = [];
-  let current: AgentContextSourceRow[] = [];
-  for (const segment of projection.segments) {
-    if (
-      segment.type === 'source' &&
-      segment.classification === 'compressible' &&
-      segment.pinReason === null
-    ) {
-      current.push(Object.freeze(cloneSourceRow(segment.row)));
+  toolPairs: readonly ToolPair[],
+  sourceById: ReadonlyMap<string, AgentContextSourceRow>,
+): {
+  legacyRuns: readonly (readonly AgentContextSourceRow[])[];
+  projectionRuns: readonly (readonly AgentContextFullCompactionUnit[])[];
+} {
+  // A parallel tool batch is ordered as call A, call B, result A, result B.
+  // Pinned writes or an existing summary can therefore sit between a read
+  // call and its result even though both read rows are individually
+  // compressible. Never expose either half as a compactor run: removing one
+  // split pair can expose an overlapping pair, so close the interval set to a
+  // fixed point before collecting contiguous runs.
+  const segmentIndexBySourceId = new Map<string, number>();
+  const eligible = projection.segments.map((segment, index) => {
+    if (segment.type === 'source') {
+      segmentIndexBySourceId.set(segment.row.sourceId, index);
+      return segment.classification === 'compressible' && segment.pinReason === null;
+    }
+    for (const sourceId of segment.sourceIds) {
+      segmentIndexBySourceId.set(sourceId, index);
+    }
+    return true;
+  });
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const pair of toolPairs) {
+      const callIndex = segmentIndexBySourceId.get(pair.call.sourceId);
+      const resultIndex = segmentIndexBySourceId.get(pair.result.sourceId);
+      if (callIndex === undefined || resultIndex === undefined) continue;
+      const first = Math.min(callIndex, resultIndex);
+      const last = Math.max(callIndex, resultIndex);
+      // A verified summary is already atomic: applySummaryBatch proved that it
+      // contains both halves of every tool pair it represents. It is therefore
+      // safe to roll that whole segment up again. Requiring every segment to be
+      // an exact source made all tool-bearing summaries permanently ineligible
+      // and eventually stranded long turns with no compactable history.
+      const wholeIntervalEligible = projection.segments
+        .slice(first, last + 1)
+        .every((_segment, offset) => eligible[first + offset] === true);
+      if (wholeIntervalEligible) continue;
+      for (let index = first; index <= last; index += 1) {
+        if (!eligible[index]) continue;
+        eligible[index] = false;
+        changed = true;
+      }
+    }
+  }
+
+  const eligibleSegmentRuns: AgentContextProjectionSegment[][] = [];
+  let currentSegments: AgentContextProjectionSegment[] = [];
+  for (const [index, segment] of projection.segments.entries()) {
+    if (eligible[index]) {
+      currentSegments.push(segment);
       continue;
     }
-    if (current.length > 0) runs.push(Object.freeze(current));
-    current = [];
+    if (currentSegments.length > 0) eligibleSegmentRuns.push(currentSegments);
+    currentSegments = [];
   }
-  if (current.length > 0) runs.push(Object.freeze(current));
-  return Object.freeze(runs);
+  if (currentSegments.length > 0) eligibleSegmentRuns.push(currentSegments);
+
+  const legacyRuns: Array<readonly AgentContextSourceRow[]> = [];
+  for (const segmentRun of eligibleSegmentRuns) {
+    let currentRows: AgentContextSourceRow[] = [];
+    for (const segment of segmentRun) {
+      if (segment.type === 'source') {
+        currentRows.push(Object.freeze(cloneSourceRow(segment.row)));
+      } else {
+        if (currentRows.length > 0) legacyRuns.push(Object.freeze(currentRows));
+        currentRows = [];
+      }
+    }
+    if (currentRows.length > 0) legacyRuns.push(Object.freeze(currentRows));
+  }
+
+  const projectionRuns = eligibleSegmentRuns.map((segmentRun) => {
+    const localIndexBySourceId = new Map<string, number>();
+    for (const [index, segment] of segmentRun.entries()) {
+      const sourceIds = segment.type === 'source' ? [segment.row.sourceId] : segment.sourceIds;
+      for (const sourceId of sourceIds) localIndexBySourceId.set(sourceId, index);
+    }
+    const intervalEndByStart = new Map<number, number>();
+    for (const pair of toolPairs) {
+      const callIndex = localIndexBySourceId.get(pair.call.sourceId);
+      const resultIndex = localIndexBySourceId.get(pair.result.sourceId);
+      if (callIndex === undefined || resultIndex === undefined) continue;
+      const first = Math.min(callIndex, resultIndex);
+      const last = Math.max(callIndex, resultIndex);
+      intervalEndByStart.set(first, Math.max(intervalEndByStart.get(first) ?? first, last));
+    }
+
+    const units: AgentContextFullCompactionUnit[] = [];
+    let start = 0;
+    let openThrough = -1;
+    for (let index = 0; index < segmentRun.length; index += 1) {
+      openThrough = Math.max(openThrough, intervalEndByStart.get(index) ?? index);
+      if (index < openThrough) continue;
+      const unitSegments = segmentRun.slice(start, index + 1);
+      const unitSourceIds = unitSegments.flatMap((segment) =>
+        segment.type === 'source' ? [segment.row.sourceId] : segment.sourceIds,
+      );
+      const sourceRows = orderedRows(
+        unitSourceIds.map((sourceId) => {
+          const source = sourceById.get(sourceId);
+          if (!source) {
+            throw new PlannerFailure(
+              'INVALID_CONTEXT',
+              `Projected compaction source "${sourceId}" is missing.`,
+            );
+          }
+          return cloneSourceRow(source);
+        }),
+      );
+      units.push(
+        Object.freeze({
+          sourceRows: Object.freeze(sourceRows),
+          projectionRows: Object.freeze(
+            unitSegments.map(
+              (segment): AgentContextFullCompactionProjectionRow =>
+                segment.type === 'source'
+                  ? Object.freeze({
+                      type: 'source',
+                      sourceIds: Object.freeze([segment.row.sourceId]),
+                      content: segment.row.content,
+                      kind: segment.row.kind,
+                      turnOrdinal: segment.row.turnOrdinal,
+                      ...(segment.row.toolName ? { toolName: segment.row.toolName } : {}),
+                      ...(segment.row.toolAccess ? { toolAccess: segment.row.toolAccess } : {}),
+                    })
+                  : Object.freeze({
+                      type: 'summary',
+                      sourceIds: Object.freeze([...segment.sourceIds]),
+                      content: segment.content,
+                      summaryId: segment.summaryId,
+                    }),
+            ),
+          ),
+          estimatedTokens: projectionTokens(unitSegments),
+        }),
+      );
+      start = index + 1;
+      openThrough = -1;
+    }
+    return Object.freeze(units);
+  });
+  return {
+    legacyRuns: Object.freeze(legacyRuns),
+    projectionRuns: Object.freeze(projectionRuns),
+  };
 }
 
 async function runFullCompactor(input: {
@@ -1400,7 +1654,7 @@ function failureResult(input: {
   error: PlannerFailure;
   budget: ContextBudget | null;
   estimatedInputTokens: number | null;
-  fullCompactionCount: 0 | 1;
+  fullCompactionCount: number;
   circuit: AgentContextCompactionCircuitBreaker;
 }): AgentContextPlannerResult {
   return {
@@ -1419,8 +1673,9 @@ function failureResult(input: {
 }
 
 /**
- * Build a provider-call projection and V2 checkpoint. Every compaction branch
- * is single-pass and fail-closed: there is no retry loop inside the planner.
+ * Build a provider-call projection and V2 checkpoint. Full compaction may run
+ * repeatedly while every pass makes verified progress; invalid output and a
+ * genuine no-gain state still fail closed.
  */
 export async function planAgentContext(
   input: AgentContextPlannerInput,
@@ -1428,7 +1683,7 @@ export async function planAgentContext(
   const circuit = input.compactionCircuit ?? new AgentContextCompactionCircuitBreaker();
   let budget: ContextBudget | null = null;
   let estimatedInputTokens: number | null = null;
-  let fullCompactionCount: 0 | 1 = 0;
+  let fullCompactionCount = 0;
   try {
     budget = computeAgentContextBudget(input);
     const estimator = input.estimateTokens ?? estimateAgentContextTextTokens;
@@ -1527,7 +1782,8 @@ export async function planAgentContext(
       }
     }
 
-    if (estimatedInputTokens > budget.usableInputBudgetTokens) {
+    let softRecentReleaseAttempted = false;
+    while (estimatedInputTokens > budget.usableInputBudgetTokens) {
       if (!input.fullCompactor) {
         throw new PlannerFailure(
           'CONTEXT_BUDGET_EXCEEDED',
@@ -1540,20 +1796,21 @@ export async function planAgentContext(
           'Full context compaction is disabled by an open circuit breaker.',
         );
       }
-      const runs = eligibleRuns(projection);
-      if (runs.length === 0) {
+      const compactionViews = eligibleCompactionViews(projection, toolPairs, sourceById);
+      if (compactionViews.legacyRuns.length === 0 && compactionViews.projectionRuns.length === 0) {
         throw new PlannerFailure(
           'CONTEXT_BUDGET_EXCEEDED',
           'No unpinned context remains eligible for full compaction.',
         );
       }
-      fullCompactionCount = 1;
+      fullCompactionCount += 1;
       let candidates: readonly AgentContextSummaryCandidate[];
       try {
         candidates = await runFullCompactor({
           compactor: input.fullCompactor,
           request: {
-            eligibleRuns: runs,
+            eligibleRuns: compactionViews.legacyRuns,
+            eligibleProjectionRuns: compactionViews.projectionRuns,
             currentEstimatedTokens: estimatedInputTokens,
             usableInputBudgetTokens: budget.usableInputBudgetTokens,
           },
@@ -1598,6 +1855,24 @@ export async function planAgentContext(
         throw failure;
       }
       if (compacted.gainedTokens <= 0) {
+        if (
+          !softRecentReleaseAttempted &&
+          releaseOldestRecentExactUnits({
+            projection,
+            recentSourceIds,
+            minimumReleasedTokens: Math.max(
+              2_048,
+              estimatedInputTokens - budget.usableInputBudgetTokens + 4_096,
+            ),
+          }) > 0
+        ) {
+          softRecentReleaseAttempted = true;
+          // Recompute eligible runs with one less soft recent pin. The next
+          // pass may now merge that exact unit with already-minimal summaries.
+          // This is the only no-gain recovery attempt: a second no-gain result
+          // opens the circuit instead of spending repeatedly on the same turn.
+          continue;
+        }
         const failure = new PlannerFailure(
           'COMPACTOR_NO_GAIN',
           'Full compactor produced no positive token gain.',
@@ -1606,16 +1881,14 @@ export async function planAgentContext(
         throw failure;
       }
       projection = compacted.projection;
-      stages.push('full_compactor');
+      if (!stages.includes('full_compactor')) stages.push('full_compactor');
       estimatedInputTokens = projectionTokens(projection.segments);
-      if (estimatedInputTokens > budget.usableInputBudgetTokens) {
-        const failure = new PlannerFailure(
-          'CONTEXT_BUDGET_EXCEEDED',
-          `Full compaction still needs ${estimatedInputTokens} tokens, above the ${budget.usableInputBudgetTokens}-token usable budget.`,
-        );
-        circuit.trip(`${failure.code}:${failure.message}`);
-        throw failure;
-      }
+      // One provider pass is allowed to make partial positive progress. Large
+      // same-turn read/write campaigns can expose several disjoint topology-
+      // safe runs, and a bounded compactor request may reclaim most—but not
+      // all—of the overage before its own timeout. Recompute eligibility and
+      // continue until the verified projection fits. Positive integer gain
+      // makes this loop finite; no-gain and invalid output still fail closed.
     }
 
     const validated = await validateFinalProjection({

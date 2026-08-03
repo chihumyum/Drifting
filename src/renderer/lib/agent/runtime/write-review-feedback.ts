@@ -23,6 +23,8 @@ const PINNED_REVIEW_STATUSES = new Set([
   'revert_unavailable',
 ]);
 
+const DURABLE_WRITE_RECEIPT_KIND = 'durable_write_receipt_archive' as const;
+
 function isSettledReviewStatus(status: string): boolean {
   return SETTLED_REVIEW_STATUSES.has(status);
 }
@@ -271,6 +273,103 @@ export async function loadAgentWriteReviewContextRows(
       ),
     },
     ...exactRows,
+  ];
+}
+
+/**
+ * One bounded, first-class receipt row for writes whose result is already
+ * durable in SQLite. Its provider-visible body stays small while the
+ * out-of-band provenance covers every matching canonical tool pair. This lets
+ * the planner compact old create/update/delete calls without pretending that
+ * the effects were merely conversational history.
+ *
+ * Effects with an unsettled editor review remain exact until that review is
+ * settled. Failed/uncertain writes are never covered.
+ */
+export async function loadAgentDurableWriteReceiptContextRows(
+  sessionId: string,
+  repository: AgentRuntimeWriteEffectRepository = createAgentRuntimeWriteEffectRepository(),
+  options: { currentTurnId?: string } = {},
+): Promise<AgentContextSupplementalPinnedRow[]> {
+  if (!sessionId) return [];
+  const snapshot = await repository.loadSnapshot(sessionId);
+  const unsettledEffectIds = new Set(
+    snapshot.reviews
+      .filter((review) => !isSettledReviewStatus(review.status))
+      .map((review) => review.effectId),
+  );
+  const committed = snapshot.effects
+    .filter(
+      (effect) =>
+        effect.phase === 'result_committed' &&
+        effect.callId.length > 0 &&
+        !unsettledEffectIds.has(effect.id),
+    )
+    .map((effect) => {
+      const turnOrdinal =
+        snapshot.turnContextOrdinalsById?.[effect.turnId] ??
+        snapshot.turnOrdinalsById?.[effect.turnId];
+      if (turnOrdinal === undefined || !Number.isSafeInteger(turnOrdinal) || turnOrdinal < 0) {
+        throw new Error(
+          `Committed write effect ${effect.id} has no canonical turn ordinal for ${effect.turnId}.`,
+        );
+      }
+      const toolPairIsCanonical =
+        (snapshot.turnHasCanonicalHistoryById?.[effect.turnId] ?? true) ||
+        effect.turnId === options.currentTurnId;
+      return { effect, turnOrdinal, toolPairIsCanonical };
+    })
+    .sort(
+      (left, right) =>
+        left.turnOrdinal - right.turnOrdinal ||
+        left.effect.updatedAt.localeCompare(right.effect.updatedAt) ||
+        left.effect.id.localeCompare(right.effect.id),
+    );
+  if (committed.length === 0) return [];
+
+  const evidence = committed.map(({ effect, turnOrdinal }) => ({
+    effectId: effect.id,
+    turnOrdinal,
+    callId: effect.callId,
+    toolName: effect.toolName,
+    idempotencyKey: effect.idempotencyKey,
+    resultCommittedAt: effect.resultCommittedAt,
+  }));
+  const toolCounts = Object.fromEntries(
+    [...committed.reduce<Map<string, number>>((counts, { effect }) => {
+      counts.set(effect.toolName, (counts.get(effect.toolName) ?? 0) + 1);
+      return counts;
+    }, new Map())].sort(([left], [right]) => left.localeCompare(right)),
+  );
+  const latestTurnOrdinal = Math.max(...committed.map((item) => item.turnOrdinal));
+
+  return [
+    {
+      sourceId: `write-receipt:${sessionId}:committed-archive`,
+      turnOrdinal: latestTurnOrdinal,
+      kind: 'write_receipt',
+      content: JSON.stringify({
+        schemaVersion: 1,
+        kind: DURABLE_WRITE_RECEIPT_KIND,
+        effectCount: committed.length,
+        toolCounts,
+        throughTurnOrdinal: latestTurnOrdinal,
+        evidenceHash: await settledArchiveHash(evidence),
+        instruction:
+          'These tool effects are durably committed. Treat current domain state as authoritative and re-read affected resources before dependent edits.',
+      }),
+      durableWriteCoverage: committed.flatMap(({ effect, turnOrdinal, toolPairIsCanonical }) =>
+        toolPairIsCanonical
+          ? [
+              {
+                turnOrdinal,
+                callId: effect.callId,
+                toolName: effect.toolName,
+              },
+            ]
+          : [],
+      ),
+    },
   ];
 }
 

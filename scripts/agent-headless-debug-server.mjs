@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 4317;
 const MAX_BODY_BYTES = 1_048_576;
+const MAX_TURN_TIMEOUT_MS = 12 * 60 * 60 * 1_000;
 const WATCH_HEARTBEAT_MS = 1_000;
 const TERMINAL_EVENT_TYPES = new Set(['bridge_completed', 'bridge_failed']);
 const ALLOWED_RENDERER_ORIGINS = new Set([
@@ -100,9 +101,9 @@ function validateTurnRequest(value) {
     value.timeoutMs !== undefined &&
     (!Number.isSafeInteger(value.timeoutMs) ||
       value.timeoutMs < 1_000 ||
-      value.timeoutMs > 3_600_000)
+      value.timeoutMs > MAX_TURN_TIMEOUT_MS)
   ) {
-    throw new Error('timeoutMs must be an integer from 1000 to 3600000');
+    throw new Error(`timeoutMs must be an integer from 1000 to ${MAX_TURN_TIMEOUT_MS}`);
   }
   if (
     value.permissionMode !== undefined &&
@@ -118,6 +119,15 @@ function validateTurnRequest(value) {
   }
   if (value.editMode !== undefined && value.editMode !== 'auto' && value.editMode !== 'approve') {
     throw new Error('editMode must be auto or approve');
+  }
+  if (value.thinking !== undefined && value.thinking !== 'adaptive' && value.thinking !== 'off') {
+    throw new Error('thinking must be adaptive or off');
+  }
+  if (
+    value.effort !== undefined &&
+    !['low', 'medium', 'high', 'xhigh', 'max'].includes(value.effort)
+  ) {
+    throw new Error('effort must be low, medium, high, xhigh, or max');
   }
   if (value.autoContinue !== undefined && typeof value.autoContinue !== 'boolean') {
     throw new Error('autoContinue must be a boolean');
@@ -137,6 +147,10 @@ function validateTurnRequest(value) {
     ...(value.editMode === 'auto' || value.editMode === 'approve'
       ? { editMode: value.editMode }
       : {}),
+    ...(value.thinking === 'adaptive' || value.thinking === 'off'
+      ? { thinking: value.thinking }
+      : {}),
+    ...(typeof value.effort === 'string' ? { effort: value.effort } : {}),
   };
 }
 
@@ -264,7 +278,16 @@ function startBroker({ host, port }) {
       clientConnected: true,
     };
     jobs.set(id, job);
+    const clientHeartbeat = setInterval(() => {
+      if (response.writableEnded || response.destroyed) {
+        clearInterval(clientHeartbeat);
+        return;
+      }
+      writeNdjson(response, { type: 'heartbeat', now: Date.now() });
+    }, WATCH_HEARTBEAT_MS);
+    clientHeartbeat.unref();
     response.on('close', () => {
+      clearInterval(clientHeartbeat);
       job.clientConnected = false;
     });
     writeNdjson(response, {

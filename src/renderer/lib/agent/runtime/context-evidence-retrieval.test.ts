@@ -69,9 +69,7 @@ describe('context evidence retrieval', () => {
       matchedField: 'fact',
       freshness: { revision: 'element-r7' },
     });
-    expect(matches[0]!.matchedTerms.length).toBeGreaterThan(
-      matches[1]!.matchedTerms.length,
-    );
+    expect(matches[0]!.matchedTerms.length).toBeGreaterThan(matches[1]!.matchedTerms.length);
   });
 
   it('returns Unicode-safe snippets, block provenance, path scoping, and stable freshness', () => {
@@ -92,6 +90,29 @@ describe('context evidence retrieval', () => {
           updatedAt: '2025-12-01T00:00:00.000Z',
           revision: 'yjs-r3',
         },
+      }),
+    ]);
+  });
+
+  it('searches punctuation-only queries as exact literals', () => {
+    const matches = rankAgentContextEvidence({
+      query: '"',
+      documents: [
+        {
+          evidenceId: 'chapter:quote',
+          kind: 'chapter',
+          title: '引号测试',
+          fields: [{ kind: 'prose', text: '他说："留不住的东西，才值得唱"。', block: 2 }],
+        },
+      ],
+    });
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        evidenceId: 'chapter:quote',
+        block: 2,
+        matchedTerms: ['"'],
+        snippet: expect.stringContaining('留不住的东西'),
       }),
     ]);
   });

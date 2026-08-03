@@ -4,7 +4,11 @@ import {
   planAgentModelContext,
 } from './context-message-adapter';
 import { createAgentContextSummaryCandidate } from './context-planner';
-import { createAgentContextUsageSnapshot, isAgentContextUsageSnapshot } from './context-usage';
+import {
+  createAgentContextUsageSnapshot,
+  isAgentContextUsageSnapshot,
+  normalizeAgentContextUsageSnapshot,
+} from './context-usage';
 import type { AgentModelMessage, AgentModelToolDefinition } from './types';
 
 const estimateTokens = (text: string): number => text.length;
@@ -167,5 +171,20 @@ describe('Agent context usage telemetry', () => {
     const tamperedCoverage = structuredClone(snapshot);
     tamperedCoverage.coverage.discardedSources += 1;
     expect(isAgentContextUsageSnapshot(tamperedCoverage)).toBe(false);
+
+    const legacySnapshot = structuredClone(snapshot) as unknown as Record<string, unknown>;
+    legacySnapshot.schemaVersion = 1;
+    legacySnapshot.categories = snapshot.categories.filter(
+      (category) => category.key !== 'write_receipts',
+    );
+    expect(isAgentContextUsageSnapshot(legacySnapshot)).toBe(false);
+    const upgradedLegacy = normalizeAgentContextUsageSnapshot(legacySnapshot);
+    expect(upgradedLegacy?.schemaVersion).toBe(2);
+    expect(upgradedLegacy?.categories.find((category) => category.key === 'write_receipts')).toEqual({
+      key: 'write_receipts',
+      tokens: 0,
+      sourceCount: 0,
+    });
+    expect(isAgentContextUsageSnapshot(upgradedLegacy)).toBe(true);
   });
 });

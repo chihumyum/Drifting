@@ -144,6 +144,12 @@ export interface AgentRuntimePersistenceRepository {
   listEvents(sessionId: string): Promise<PersistedAgentRuntimeEvent[]>;
 
   createToolCall(toolCall: PersistedAgentRuntimeToolCall): Promise<IdempotentPersistenceOutcome>;
+  /**
+   * Point lookup for the hot execution path. Long Agent turns can accumulate
+   * hundreds of tool results, so callers that already know the durable id must
+   * not load and JSON-decode the entire session tool ledger.
+   */
+  getToolCall?(id: string): Promise<PersistedAgentRuntimeToolCall | null>;
   updateToolCall(id: string, patch: UpdateAgentRuntimeToolCall): Promise<void>;
   listToolCalls(sessionId: string): Promise<PersistedAgentRuntimeToolCall[]>;
 
@@ -408,6 +414,20 @@ function sameCheckpointOrRetainedDigest(
 function checkpointCanonicalMessageCount(context: unknown): number | null {
   if (Array.isArray(context)) return context.length;
   if (
+    typeof context === 'object' &&
+    context !== null &&
+    'schemaVersion' in context &&
+    context.schemaVersion === 4 &&
+    'format' in context &&
+    context.format === 'drifting.agent-runtime-checkpoint-digest-with-summaries' &&
+    'canonicalMessageCount' in context &&
+    typeof context.canonicalMessageCount === 'number' &&
+    Number.isSafeInteger(context.canonicalMessageCount) &&
+    context.canonicalMessageCount >= 0
+  ) {
+    return context.canonicalMessageCount;
+  }
+  if (
     typeof context !== 'object' ||
     context === null ||
     !('schemaVersion' in context) ||
@@ -589,6 +609,18 @@ export function createAgentRuntimePersistenceRepository(
         asc(AgentRuntimeToolCallTable.id),
       );
     return rows.map(toolCallToDomain);
+  };
+
+  const getToolCall = async (
+    id: string,
+    executor: DbExecutor = dbProvider(),
+  ): Promise<PersistedAgentRuntimeToolCall | null> => {
+    const rows = await executor
+      .select()
+      .from(AgentRuntimeToolCallTable)
+      .where(eq(AgentRuntimeToolCallTable.id, id))
+      .limit(1);
+    return rows[0] ? toolCallToDomain(rows[0]) : null;
   };
 
   const listCheckpoints = async (
@@ -953,6 +985,7 @@ export function createAgentRuntimePersistenceRepository(
         .set(values)
         .where(eq(AgentRuntimeToolCallTable.id, id));
     },
+    getToolCall,
     listToolCalls,
 
     async createCheckpoint(checkpoint) {

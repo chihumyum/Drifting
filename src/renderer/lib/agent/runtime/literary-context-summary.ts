@@ -96,9 +96,12 @@ function boundedStringList(
  * bytes. A source hash proves coverage; these citations additionally prove
  * that every retained evidence quote really existed before compaction.
  *
- * Every write-tool result must contribute at least one citation. Read results
- * may be deliberately omitted so long tasks can re-read current workspace
- * state instead of carrying a citation for every exploratory lookup forever.
+ * Durable successful writes are proven out-of-band by the planner's pinned
+ * write-receipt row before their call/result pair becomes compressible. Do not
+ * require a second per-effect citation here: doing so makes summary size grow
+ * linearly with long write campaigns. Failed or uncertain writes have no
+ * receipt and therefore remain exact, pinned context. Read results may be
+ * deliberately omitted so long tasks can re-read current workspace state.
  */
 export function validateDriftingLiteraryContextSummary(input: {
   value: unknown;
@@ -115,7 +118,6 @@ export function validateDriftingLiteraryContextSummary(input: {
     fail(`summary.evidence must be an array with at most ${MAX_EVIDENCE} entries.`);
   }
   const sourceById = new Map(input.sourceRows.map((row) => [row.sourceId, row] as const));
-  const citedToolResults = new Set<string>();
   const citationKeys = new Set<string>();
   const evidence = value.evidence.map((raw, index): DriftingLiteraryEvidenceCitation => {
     const citation = record(raw, `summary.evidence[${index}]`);
@@ -146,7 +148,6 @@ export function validateDriftingLiteraryContextSummary(input: {
     const key = JSON.stringify([sourceId, citation.kind, claim, quote]);
     if (citationKeys.has(key)) fail(`summary.evidence[${index}] is duplicated.`);
     citationKeys.add(key);
-    if (source.kind === 'tool_result') citedToolResults.add(sourceId);
     return {
       sourceId,
       kind: citation.kind as DriftingLiteraryEvidenceKind,
@@ -154,16 +155,6 @@ export function validateDriftingLiteraryContextSummary(input: {
       quote,
     };
   });
-
-  const uncitedToolResult = input.sourceRows.find(
-    (row) =>
-      row.kind === 'tool_result' &&
-      row.toolAccess === 'write' &&
-      !citedToolResults.has(row.sourceId),
-  );
-  if (uncitedToolResult) {
-    fail(`Write tool result "${uncitedToolResult.sourceId}" has no exact evidence citation.`);
-  }
 
   return {
     schemaVersion: DRIFTING_LITERARY_CONTEXT_SUMMARY_VERSION,

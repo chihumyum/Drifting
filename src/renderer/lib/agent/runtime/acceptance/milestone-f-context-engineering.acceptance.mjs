@@ -71,7 +71,7 @@ const REQUIRED_ASSERTIONS = {
   providerCannotBeEnlarged: 'never enlarges a smaller provider declaration',
   undeclaredProviderFallback: 'uses a conservative window for an undeclared custom driver',
   safeCompactorFallback:
-    'replaces summaries that omit or forge write evidence with the safe fallback',
+    'leaves committed-write proof to durable receipts and rejects forged provider evidence',
   sameTurnOversize: 'compacts older tool batches inside one oversized current turn',
   sameTurnChunking:
     'chunks inside one turn at tool-topology boundaries without splitting a pair',

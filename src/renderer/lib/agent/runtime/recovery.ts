@@ -21,7 +21,7 @@ import type {
   AgentContextSourceKind,
   AgentContextSourceRow,
 } from './context-planner';
-import { isAgentContextUsageSnapshot } from './context-usage';
+import { normalizeAgentContextUsageSnapshot } from './context-usage';
 import {
   AGENT_RUNTIME_SCHEMA_VERSION,
   isCanonicalAgentRuntimeUnknownToolResult,
@@ -59,6 +59,9 @@ export const AGENT_RUNTIME_CHECKPOINT_CONTEXT_V2_FORMAT =
 export const AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_VERSION = 3 as const;
 export const AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_FORMAT =
   'drifting.agent-runtime-checkpoint-context-with-summaries' as const;
+export const AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_VERSION = 4 as const;
+export const AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_FORMAT =
+  'drifting.agent-runtime-checkpoint-digest-with-summaries' as const;
 
 /**
  * Durable P4 checkpoint payload.
@@ -89,6 +92,23 @@ export interface AgentRuntimeCheckpointContextV3 {
   schemaVersion: typeof AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_VERSION;
   format: typeof AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_FORMAT;
   canonicalHistory: AgentModelMessage[];
+  durableSummaries: AgentContextSummaryCandidate[];
+}
+
+/**
+ * Bounded checkpoint for long, tool-heavy turns.
+ *
+ * Canonical provider history already lives in normalized message rows. V4
+ * stores only its exact SHA-256/count plus restart summaries, avoiding a second
+ * near-megabyte renderer-to-native parameter while retaining strict recovery:
+ * the reader rebuilds history from rows and must reproduce this digest before
+ * any summary or provider context is adopted.
+ */
+export interface AgentRuntimeCheckpointContextV4 {
+  schemaVersion: typeof AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_VERSION;
+  format: typeof AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_FORMAT;
+  canonicalMessageCount: number;
+  canonicalHistoryHash: string;
   durableSummaries: AgentContextSummaryCandidate[];
 }
 
@@ -424,6 +444,7 @@ const CONTEXT_SOURCE_KINDS: ReadonlySet<AgentContextSourceKind> = new Set([
   'thinking',
   'tool_call',
   'tool_result',
+  'write_receipt',
   'write_review',
   'write_revert',
   'freshness',
@@ -499,6 +520,7 @@ function deriveCheckpointBridgeInput(
 
   const supplementalRows = rows.flatMap((row): AgentContextSupplementalPinnedRow[] => {
     if (
+      row.kind !== 'write_receipt' &&
       row.kind !== 'write_review' &&
       row.kind !== 'write_revert' &&
       row.kind !== 'freshness' &&
@@ -679,10 +701,74 @@ function parseCheckpointContextV3(
   return { context, payload };
 }
 
-async function parseCheckpointContext(checkpoint: PersistedAgentRuntimeCheckpoint): Promise<{
+async function parseCheckpointContextV4(
+  value: Record<string, unknown>,
+  checkpointId: string,
+  canonicalHistory: readonly AgentModelMessage[],
+): Promise<{
+  context: AgentModelMessage[];
+  payload: AgentRuntimeCheckpointContextV4;
+}> {
+  if (
+    value.schemaVersion !== AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_VERSION ||
+    value.format !== AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_FORMAT
+  ) {
+    corruption(
+      'INVALID_CHECKPOINT',
+      `Checkpoint "${checkpointId}" has an unsupported digest context envelope.`,
+    );
+  }
+  if (
+    !isNonNegativeInteger(value.canonicalMessageCount) ||
+    value.canonicalMessageCount !== canonicalHistory.length ||
+    typeof value.canonicalHistoryHash !== 'string' ||
+    !/^sha256:[0-9a-f]{64}$/.test(value.canonicalHistoryHash) ||
+    !Array.isArray(value.durableSummaries)
+  ) {
+    corruption('INVALID_CHECKPOINT', `Checkpoint "${checkpointId}" digest metadata is invalid.`);
+  }
+  const durableSummaries = value.durableSummaries.map((summary, index) =>
+    parseCheckpointSummaryCandidate(summary, checkpointId, index),
+  );
+  const summaryIds = durableSummaries.map((summary) => summary.summaryId);
+  if (new Set(summaryIds).size !== summaryIds.length) {
+    corruption('INVALID_CHECKPOINT', `Checkpoint "${checkpointId}" repeats a durable summary id.`);
+  }
+  const payload: AgentRuntimeCheckpointContextV4 = {
+    schemaVersion: AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_VERSION,
+    format: AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_FORMAT,
+    canonicalMessageCount: value.canonicalMessageCount as number,
+    canonicalHistoryHash: value.canonicalHistoryHash,
+    durableSummaries,
+  };
+  if (!sameJson(value, payload)) {
+    corruption(
+      'INVALID_CHECKPOINT',
+      `Checkpoint "${checkpointId}" contains non-canonical V4 fields.`,
+    );
+  }
+  const actualHistoryHash = await hashAgentRuntimeCheckpointContext(canonicalHistory);
+  if (actualHistoryHash !== payload.canonicalHistoryHash) {
+    corruption(
+      'CHECKPOINT_HASH_MISMATCH',
+      `Checkpoint "${checkpointId}" canonical message rows do not match its history digest.`,
+    );
+  }
+  return {
+    context: canonicalHistory.map((message) =>
+      toCanonicalJsonValue(message, 'checkpoint.canonicalHistory') as unknown as AgentModelMessage,
+    ),
+    payload,
+  };
+}
+
+async function parseCheckpointContext(
+  checkpoint: PersistedAgentRuntimeCheckpoint,
+  canonicalHistory: readonly AgentModelMessage[],
+): Promise<{
   context: AgentModelMessage[];
   hashPayload: unknown;
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
 }> {
   if (Array.isArray(checkpoint.context)) {
     const context = parseCheckpointMessages(
@@ -697,6 +783,21 @@ async function parseCheckpointContext(checkpoint: PersistedAgentRuntimeCheckpoin
       'INVALID_CHECKPOINT',
       `Checkpoint "${checkpoint.id}" context is not a supported durable payload.`,
     );
+  }
+  if (
+    checkpoint.context.schemaVersion === AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_VERSION &&
+    checkpoint.context.format === AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_FORMAT
+  ) {
+    const parsed = await parseCheckpointContextV4(
+      checkpoint.context,
+      checkpoint.id,
+      canonicalHistory,
+    );
+    return {
+      context: parsed.context,
+      hashPayload: parsed.payload,
+      version: 4,
+    };
   }
   if (
     checkpoint.context.schemaVersion === AGENT_RUNTIME_CHECKPOINT_CONTEXT_V3_VERSION &&
@@ -755,6 +856,29 @@ export function createAgentRuntimeCheckpointContextV3(input: {
     'checkpoint.context',
   ) as unknown as Record<string, unknown>;
   return parseCheckpointContextV3(candidate, 'pending-v3-checkpoint').payload;
+}
+
+export async function createAgentRuntimeCheckpointContextV4(input: {
+  canonicalHistory: readonly AgentModelMessage[];
+  durableSummaries: readonly AgentContextSummaryCandidate[];
+}): Promise<AgentRuntimeCheckpointContextV4> {
+  const candidate = toCanonicalJsonValue(
+    {
+      schemaVersion: AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_VERSION,
+      format: AGENT_RUNTIME_CHECKPOINT_CONTEXT_V4_FORMAT,
+      canonicalMessageCount: input.canonicalHistory.length,
+      canonicalHistoryHash: await hashAgentRuntimeCheckpointContext(input.canonicalHistory),
+      durableSummaries: input.durableSummaries,
+    },
+    'checkpoint.context',
+  ) as unknown as Record<string, unknown>;
+  return (
+    await parseCheckpointContextV4(
+      candidate,
+      'pending-v4-checkpoint',
+      input.canonicalHistory,
+    )
+  ).payload;
 }
 
 interface ScopedModelMessage {
@@ -1012,19 +1136,21 @@ function parseRuntimeEvent(value: unknown, path: string): AgentRuntimeEvent {
         driverId: value.driverId,
       };
 
-    case 'context_planned':
+    case 'context_planned': {
+      const snapshot = normalizeAgentContextUsageSnapshot(value.snapshot);
       if (
         !isPositiveInteger(value.iteration) ||
-        !isAgentContextUsageSnapshot(value.snapshot) ||
-        value.snapshot.iteration !== value.iteration
+        !snapshot ||
+        snapshot.iteration !== value.iteration
       ) {
         corruption('EVENT_PAYLOAD_INVALID', `${path} has an invalid context snapshot.`);
       }
       return {
         type: 'context_planned',
         iteration: value.iteration,
-        snapshot: value.snapshot,
+        snapshot,
       };
+    }
 
     case 'text_delta':
     case 'thinking_delta':
@@ -1908,7 +2034,15 @@ async function validateCheckpoints(
           `Checkpoint "${checkpoint.id}" points past the session turn range.`,
         );
       }
-      const parsedContext = await parseCheckpointContext(checkpoint);
+      const throughRows = completeRows.filter((row) => {
+        if (row.turnId === null) return false;
+        const ordinal = turnOrdinalById.get(row.turnId);
+        return ordinal !== undefined && ordinal <= checkpoint.throughTurnOrdinal;
+      });
+      const throughMessages = throughRows
+        .map((row) => parseModelMessageContent(row.role, row.content, `message[${row.id}].content`))
+        .filter((message): message is AgentModelMessage => message !== null);
+      const parsedContext = await parseCheckpointContext(checkpoint, throughMessages);
       const context = parsedContext.context;
       if (context.length !== checkpoint.messageCount) {
         corruption(
@@ -1923,15 +2057,6 @@ async function validateCheckpoints(
           `Checkpoint "${checkpoint.id}" failed SHA-256 verification.`,
         );
       }
-
-      const throughRows = completeRows.filter((row) => {
-        if (row.turnId === null) return false;
-        const ordinal = turnOrdinalById.get(row.turnId);
-        return ordinal !== undefined && ordinal <= checkpoint.throughTurnOrdinal;
-      });
-      const throughMessages = throughRows
-        .map((row) => parseModelMessageContent(row.role, row.content, `message[${row.id}].content`))
-        .filter((message): message is AgentModelMessage => message !== null);
       if (!sameJson(throughMessages, context)) {
         corruption(
           'INVALID_CHECKPOINT',

@@ -10,9 +10,7 @@ import type { AgentRuntimeContextPlanningHookInput } from './runtime-context-pla
 
 export const AGENT_LONG_TASK_PINNED_STEP_LIMIT = 48 as const;
 
-function projectManifestStateForContext(
-  state: AgentRuntimeTaskChapterManifestState,
-) {
+function projectManifestStateForContext(state: AgentRuntimeTaskChapterManifestState) {
   return {
     status: state.status,
     frozenCount: state.frozenCount,
@@ -23,13 +21,11 @@ function projectManifestStateForContext(
       frozenName,
       currentName,
     })),
-    reordered: state.reordered.map(
-      ({ name, frozenOrdinal, currentOrdinal }) => ({
-        name,
-        frozenOrdinal,
-        currentOrdinal,
-      }),
-    ),
+    reordered: state.reordered.map(({ name, frozenOrdinal, currentOrdinal }) => ({
+      name,
+      frozenOrdinal,
+      currentOrdinal,
+    })),
     needsExplicitReconciliation: state.status === 'drifted',
   };
 }
@@ -66,9 +62,7 @@ function pinnedStepWindow(
     resolvedChapterId: string;
   }) => string | null,
 ) {
-  const inProgress = plan.steps.findIndex(
-    (step) => step.status === 'in_progress',
-  );
+  const inProgress = plan.steps.findIndex((step) => step.status === 'in_progress');
   const pending = plan.steps.findIndex((step) => step.status === 'pending');
   const firstActionable =
     inProgress >= 0
@@ -82,44 +76,38 @@ function pinnedStepWindow(
       : Math.max(0, firstActionable - 4);
   return {
     offset,
-    rows: plan.steps
-      .slice(offset, offset + AGENT_LONG_TASK_PINNED_STEP_LIMIT)
-      .map((step) => {
-        const currentName =
-          step.target?.kind === 'chapter' &&
-          step.target.resolvedTargetId &&
-          resolveCurrentChapterName
-            ? resolveCurrentChapterName({
-                projectId: plan.task.projectId,
-                resolvedChapterId: step.target.resolvedTargetId,
-              })
-            : undefined;
-        const target = step.target
-          ? {
-              kind: step.target.kind,
-              name:
-                currentName === undefined || currentName === null
-                  ? step.target.name
-                  : currentName,
-              ...(currentName === null
-                ? { availability: 'missing' as const }
-                : currentName !== undefined &&
-                    currentName !== step.target.name
-                  ? { frozenName: step.target.name }
-                  : {}),
-            }
-          : null;
-        return {
-          stepId: step.id,
-          ordinal: step.ordinal,
-          title: step.title,
-          target,
-          status: step.status,
-          resultNote: step.resultNote,
-          resultRef: step.resultRef,
-          reviewEvidence: step.reviewEvidence,
-        };
-      }),
+    rows: plan.steps.slice(offset, offset + AGENT_LONG_TASK_PINNED_STEP_LIMIT).map((step) => {
+      const currentName =
+        step.target?.kind === 'chapter' && step.target.resolvedTargetId && resolveCurrentChapterName
+          ? resolveCurrentChapterName({
+              projectId: plan.task.projectId,
+              resolvedChapterId: step.target.resolvedTargetId,
+            })
+          : undefined;
+      const target = step.target
+        ? {
+            kind: step.target.kind,
+            name:
+              currentName === undefined || currentName === null ? step.target.name : currentName,
+            ...(currentName === null
+              ? { availability: 'missing' as const }
+              : currentName !== undefined && currentName !== step.target.name
+                ? { frozenName: step.target.name }
+                : {}),
+          }
+        : null;
+      return {
+        stepId: step.id,
+        ordinal: step.ordinal,
+        title: step.title,
+        workKind: step.workKind,
+        target,
+        status: step.status,
+        resultNote: step.resultNote,
+        resultRef: step.resultRef,
+        reviewEvidence: step.reviewEvidence,
+      };
+    }),
   };
 }
 
@@ -146,10 +134,7 @@ export function createAgentLongTaskSupplementalRowsHook(
     if (!scope) return [];
     const plan = (await repository.getOpenPlan(scope)) ?? (await repository.getLatestPlan(scope));
     if (!plan) return [];
-    const manifestState = await repository.getChapterManifestState(
-      scope,
-      plan.task.id,
-    );
+    const manifestState = await repository.getChapterManifestState(scope, plan.task.id);
     const commandEvidence = await repository.listCommandEvidence(scope, plan.task.id);
     const planCoverage = commandEvidence
       .filter(
@@ -169,10 +154,7 @@ export function createAgentLongTaskSupplementalRowsHook(
         toolName,
       }));
 
-    const window = pinnedStepWindow(
-      plan,
-      options.resolveCurrentChapterName,
-    );
+    const window = pinnedStepWindow(plan, options.resolveCurrentChapterName);
     const activeConstraints = plan.constraints
       .filter((constraint) => constraint.status === 'active')
       .map((constraint) => ({
@@ -187,11 +169,12 @@ export function createAgentLongTaskSupplementalRowsHook(
         kind: 'task_plan',
         durableWriteCoverage: planCoverage,
         content: canonicalAgentRuntimeJson({
-          schemaVersion: 2,
+          schemaVersion: 3,
           task: {
             taskId: plan.task.id,
             objective: plan.task.objective,
             scopeKind: plan.task.scopeKind,
+            workKind: plan.task.workKind,
             frozenChapterCount: plan.chapterManifest.length,
             status: plan.task.status,
             revision: plan.task.revision,

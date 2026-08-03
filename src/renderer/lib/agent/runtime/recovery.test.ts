@@ -8,6 +8,7 @@ import {
   applyAgentRuntimeRecoveryPlan,
   createAgentRuntimeCheckpointContextV2,
   createAgentRuntimeCheckpointContextV3,
+  createAgentRuntimeCheckpointContextV4,
   hashAgentRuntimeCheckpointContext,
   hashAgentRuntimeCheckpointPayload,
   recoverAgentRuntimeSnapshot,
@@ -695,6 +696,73 @@ describe('Agent runtime canonical recovery', () => {
     await expect(recoverAgentRuntimeSnapshot(snapshot)).resolves.toMatchObject({
       checkpointId: 'checkpoint-v3',
       providerHistory: context,
+    });
+  });
+
+  it('recovers exact normalized message history and restart summaries from a digest-only V4 checkpoint', async () => {
+    const snapshot = completeSnapshot();
+    const context = completeMessages().map((row) => ({
+      role: row.role,
+      content: row.content,
+    })) as AgentModelMessage[];
+    const durableContext = await createAgentRuntimeCheckpointContextV4({
+      canonicalHistory: context,
+      durableSummaries: [
+        {
+          summaryId: 'summary-before-v4-restart',
+          sourceIds: ['model/turn/0/assistant/0'],
+          sourceHash: `sha256:${'b'.repeat(64)}`,
+          content: 'The compact restart summary remains available.',
+        },
+      ],
+    });
+    snapshot.checkpoints = [
+      {
+        id: 'checkpoint-v4',
+        sessionId: SESSION_ID,
+        throughTurnOrdinal: 0,
+        messageCount: context.length,
+        context: durableContext,
+        contextHash: await hashAgentRuntimeCheckpointPayload(durableContext),
+        createdAt: NOW,
+      },
+    ];
+
+    expect(durableContext).not.toHaveProperty('canonicalHistory');
+    await expect(recoverAgentRuntimeSnapshot(snapshot)).resolves.toMatchObject({
+      checkpointId: 'checkpoint-v4',
+      providerHistory: context,
+    });
+  });
+
+  it('rejects a V4 digest that does not match the normalized message rows', async () => {
+    const snapshot = completeSnapshot();
+    const context = completeMessages().map((row) => ({
+      role: row.role,
+      content: row.content,
+    })) as AgentModelMessage[];
+    const valid = await createAgentRuntimeCheckpointContextV4({
+      canonicalHistory: context,
+      durableSummaries: [],
+    });
+    const tampered = {
+      ...valid,
+      canonicalHistoryHash: `sha256:${'0'.repeat(64)}`,
+    };
+    snapshot.checkpoints = [
+      {
+        id: 'checkpoint-v4-tampered',
+        sessionId: SESSION_ID,
+        throughTurnOrdinal: 0,
+        messageCount: context.length,
+        context: tampered,
+        contextHash: await hashAgentRuntimeCheckpointPayload(tampered),
+        createdAt: NOW,
+      },
+    ];
+
+    await expect(recoverAgentRuntimeSnapshot(snapshot)).rejects.toMatchObject({
+      code: 'CHECKPOINT_HASH_MISMATCH',
     });
   });
 

@@ -44,6 +44,7 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
   private readonly endpoint: string;
   private readonly fetchImpl: FetchLike;
   private readonly replayByCallId = new Map<string, readonly ResponsesItem[]>();
+  private readonly nonReasoningCallIds = new Set<string>();
 
   constructor(options: OpenAIResponsesAgentDriverOptions) {
     if (!options.apiKey.trim()) throw new Error('OpenAI API key is empty');
@@ -57,9 +58,16 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
     if (request.signal.aborted) throw abortError();
     const model = request.model || this.defaultModel;
     const reasoningProfile = resolveAgentProviderReasoningProfile('openai', model);
-    const reasoningEnabled = request.reasoning?.enabled === true;
+    const configuredReasoningEnabled = request.reasoning?.enabled === true;
+    const reasoningEnabled =
+      configuredReasoningEnabled &&
+      request.executionMode !== 'required_tool_non_reasoning';
     if (reasoningEnabled && request.iteration > 1) {
-      assertActiveResponsesReplay(request.context, this.replayByCallId);
+      assertActiveResponsesReplay(
+        request.context,
+        this.replayByCallId,
+        this.nonReasoningCallIds,
+      );
     }
     const effort = reasoningEnabled
       ? reasoningProfile.efforts.includes(
@@ -83,7 +91,9 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
           instructions: requirePlannedSystem(request.context.systemPrompt),
           input: projectResponsesInput(
             request.context,
-            reasoningEnabled ? this.replayByCallId : EMPTY_RESPONSES_REPLAY,
+            configuredReasoningEnabled
+              ? this.replayByCallId
+              : EMPTY_RESPONSES_REPLAY,
           ),
           max_output_tokens: request.maxOutputTokens,
           stream: true,
@@ -202,7 +212,13 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
         const replay = output.map((item) => structuredClone(item));
         if (reasoningEnabled) {
           for (const callId of responseFunctionCallIds(output)) {
+            this.nonReasoningCallIds.delete(callId);
             this.replayByCallId.set(callId, replay);
+          }
+        } else {
+          for (const callId of responseFunctionCallIds(output)) {
+            this.replayByCallId.delete(callId);
+            this.nonReasoningCallIds.add(callId);
           }
         }
         for (const state of callsByItemId.values()) {
@@ -269,7 +285,8 @@ function projectResponsesInput(
     } else {
       if (
         !entry.sourceId ||
-        (entry.noteKind !== 'write_review' &&
+        (entry.noteKind !== 'write_receipt' &&
+          entry.noteKind !== 'write_review' &&
           entry.noteKind !== 'write_revert' &&
           entry.noteKind !== 'freshness' &&
           entry.noteKind !== 'task_plan' &&
@@ -357,6 +374,7 @@ function resolveSharedResponsesReplay(
 function assertActiveResponsesReplay(
   context: AgentModelRequest['context'],
   replayByCallId: ReadonlyMap<string, readonly ResponsesItem[]>,
+  nonReasoningCallIds: ReadonlySet<string>,
 ): void {
   let activeCallIds: string[] = [];
   for (const entry of context.messages) {
@@ -373,7 +391,10 @@ function assertActiveResponsesReplay(
   }
   if (
     activeCallIds.length === 0 ||
-    activeCallIds.some((callId) => !replayByCallId.has(callId))
+    activeCallIds.some(
+      (callId) =>
+        !replayByCallId.has(callId) && !nonReasoningCallIds.has(callId),
+    )
   ) {
     throw new AgentModelDriverError(
       'OpenAI reasoning replay state is unavailable for the active tool loop.',

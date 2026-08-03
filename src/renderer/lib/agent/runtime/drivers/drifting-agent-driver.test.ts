@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AIError } from '../../../ai/types';
 import { publicModelDriverErrorMessage } from '../errors';
-import type {
-  AgentModelRequest,
-  AgentModelStreamEvent,
-} from '../types';
+import type { AgentModelRequest, AgentModelStreamEvent } from '../types';
 import { DriftingAgentModelDriver } from './drifting-agent-driver';
 
 function request(): AgentModelRequest {
@@ -29,9 +26,7 @@ function request(): AgentModelRequest {
   };
 }
 
-async function collect(
-  driver: DriftingAgentModelDriver,
-): Promise<AgentModelStreamEvent[]> {
+async function collect(driver: DriftingAgentModelDriver): Promise<AgentModelStreamEvent[]> {
   const events: AgentModelStreamEvent[] = [];
   for await (const event of driver.stream(request())) events.push(event);
   return events;
@@ -71,10 +66,7 @@ describe('DriftingAgentModelDriver', () => {
   it('maps credential initialization failures without exposing provider details', async () => {
     const driver = new DriftingAgentModelDriver({
       createClient: async () => {
-        throw new AIError(
-          'auth',
-          'Bearer sk-live-secret https://provider.invalid',
-        );
+        throw new AIError('auth', 'Bearer sk-live-secret https://provider.invalid');
       },
     });
 
@@ -85,11 +77,28 @@ describe('DriftingAgentModelDriver', () => {
       caught = error;
     }
     const message = publicModelDriverErrorMessage(caught);
-    expect(message).toBe(
-      'General Agent needs a configured DeepSeek API key.',
-    );
+    expect(message).toBe('General Agent needs a configured DeepSeek API key.');
     expect(message).not.toContain('sk-live-secret');
     expect(message).not.toContain('provider.invalid');
+  });
+
+  it('keeps workload attribution when Shadow reuses the provider router', async () => {
+    const complete = vi.fn(async () => ({
+      text: 'ready',
+      finishReason: 'stop',
+      usage: { inputTokens: 2, outputTokens: 1 },
+    }));
+    const driver = new DriftingAgentModelDriver({
+      featureLabel: 'Shadow Agent',
+      feature: 'shadow-review',
+      createClient: async () => ({ supportsTools: true, complete }),
+    });
+
+    await collect(driver);
+
+    expect(complete).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.objectContaining({ feature: 'shadow-review' }) }),
+    );
   });
 
   it.each([
@@ -169,6 +178,58 @@ describe('DriftingAgentModelDriver', () => {
     await run(1);
     await run(2);
     await run(1);
+    expect(createProviderDriver).toHaveBeenCalledTimes(2);
+  });
+
+  it('isolates one-shot internal calls from the active turn reasoning cache', async () => {
+    let created = 0;
+    const createProviderDriver = vi.fn(async () => {
+      created += 1;
+      const instance = created;
+      return {
+        id: `fixture-${instance}`,
+        capabilities: { reasoning: true },
+        async *stream(input: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
+          yield { type: 'text_delta', text: `driver-${instance}` };
+          yield {
+            type: 'usage',
+            usage: {
+              inputTokens: 1,
+              outputTokens: 1,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+              costUsd: 0,
+            },
+          };
+          yield {
+            type: 'finish',
+            reason:
+              input.lifecycle === 'single_request' || input.iteration === 1
+                ? 'tool_use'
+                : 'end_turn',
+          };
+        },
+      };
+    });
+    const driver = new DriftingAgentModelDriver({ createProviderDriver });
+    const run = async (input: AgentModelRequest) => {
+      const events: AgentModelStreamEvent[] = [];
+      for await (const event of driver.stream(input)) events.push(event);
+      return events;
+    };
+
+    const first = await run(request());
+    const compactor = await run({
+      ...request(),
+      lifecycle: 'single_request',
+      iteration: 0,
+      reasoning: { enabled: true, effort: 'high' },
+    });
+    const second = await run({ ...request(), iteration: 2 });
+
+    expect(first[0]).toEqual({ type: 'text_delta', text: 'driver-1' });
+    expect(compactor[0]).toEqual({ type: 'text_delta', text: 'driver-2' });
+    expect(second[0]).toEqual({ type: 'text_delta', text: 'driver-1' });
     expect(createProviderDriver).toHaveBeenCalledTimes(2);
   });
 });

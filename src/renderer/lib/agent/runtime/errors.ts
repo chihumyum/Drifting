@@ -22,7 +22,11 @@ export class AgentRuntimeAbortError extends Error {
  * Raw HTTP bodies, headers, URLs, and credentials must remain adapter-local.
  */
 export class AgentModelDriverError extends Error {
-  constructor(public readonly publicMessage: string) {
+  constructor(
+    public readonly publicMessage: string,
+    /** True only when no tool/effect has escaped and a fresh model sample is safe. */
+    public readonly retryable = false,
+  ) {
     super(publicMessage);
     this.name = 'AgentModelDriverError';
   }

@@ -176,16 +176,17 @@ describe('provider-neutral Agent context planner', () => {
         ),
       );
     }
-    const fullCompactor = vi.fn(async ({ eligibleRuns }: AgentContextFullCompactionRequest) =>
-      await Promise.all(
-        eligibleRuns.map((sourceRows, index) =>
-          createAgentContextSummaryCandidate({
-            summaryId: `same-turn-${index}`,
-            sourceRows,
-            content: 'Earlier reads were completed; re-read current state when needed.',
-          }),
+    const fullCompactor = vi.fn(
+      async ({ eligibleRuns }: AgentContextFullCompactionRequest) =>
+        await Promise.all(
+          eligibleRuns.map((sourceRows, index) =>
+            createAgentContextSummaryCandidate({
+              summaryId: `same-turn-${index}`,
+              sourceRows,
+              content: 'Earlier reads were completed; re-read current state when needed.',
+            }),
+          ),
         ),
-      ),
     );
 
     const result = await planAgentContext({
@@ -198,10 +199,206 @@ describe('provider-neutral Agent context planner', () => {
 
     expect(result.ok).toBe(true);
     expect(fullCompactor).toHaveBeenCalledOnce();
-    expect(fullCompactor.mock.calls[0]![0].eligibleRuns.flat().map((source) => source.sourceId))
-      .toEqual(['call-0', 'result-0', 'call-1', 'result-1']);
+    expect(
+      fullCompactor.mock.calls[0]![0].eligibleRuns.flat().map((source) => source.sourceId),
+    ).toEqual(['call-0', 'result-0', 'call-1', 'result-1']);
     expect(sourceSegment(result, 'call-2')).toMatchObject({ pinReason: 'recent_turn' });
     expect(sourceSegment(result, 'result-2')).toMatchObject({ pinReason: 'recent_turn' });
+  });
+
+  it('reserves room for accumulated summaries when a small window has many recent reads', async () => {
+    const oldNarrative = row('assistant-old', 2, 0, 'assistant_narrative', '旧'.repeat(12_000));
+    const rows: AgentContextSourceRow[] = [
+      row('system', 0, null, 'system_policy', 'POLICY'),
+      row('user-old', 1, 0, 'user', 'Earlier request'),
+      oldNarrative,
+      row('user-middle', 3, 1, 'user', 'Continue'),
+      row('assistant-middle', 4, 1, 'assistant_narrative', 'Middle turn result'),
+      row('user-current', 5, 2, 'user', 'Inspect the opening chapters'),
+    ];
+    for (let index = 0; index < 6; index += 1) {
+      rows.push(
+        row(`recent-call-${index}`, rows.length, 2, 'tool_call', `{"path":"/${index}"}`, {
+          callId: `recent-${index}`,
+          toolName: 'read_file',
+          toolAccess: 'read',
+        }),
+        row(`recent-result-${index}`, rows.length + 1, 2, 'tool_result', '章'.repeat(8_000), {
+          callId: `recent-${index}`,
+          toolName: 'read_file',
+          toolAccess: 'read',
+        }),
+      );
+    }
+    const deterministic = await createAgentContextSummaryCandidate({
+      summaryId: 'existing-large-summary',
+      sourceRows: [oldNarrative],
+      content: '摘要'.repeat(2_500),
+    });
+    const fullCompactor = vi.fn(
+      async ({ eligibleRuns }: AgentContextFullCompactionRequest) =>
+        await Promise.all(
+          eligibleRuns.map((sourceRows, index) =>
+            createAgentContextSummaryCandidate({
+              summaryId: `recent-summary-${index}`,
+              sourceRows,
+              content: 'Earlier exact reads were completed.',
+            }),
+          ),
+        ),
+    );
+
+    const result = await planAgentContext({
+      contextWindowTokens: 60_000,
+      requestedOutputTokens: 8_192,
+      fixedInputTokens: 2_200,
+      sourceRows: rows,
+      deterministicSummaries: [deterministic],
+      fullCompactor,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(fullCompactor).toHaveBeenCalledOnce();
+    expect(result.plan.estimatedInputTokens).toBeLessThanOrEqual(
+      result.plan.usableInputBudgetTokens,
+    );
+    expect(result.plan.checkpoint.compaction.stages).toEqual([
+      'deterministic_summaries',
+      'full_compactor',
+    ]);
+    expect(sourceSegment(result, 'recent-result-5')).toMatchObject({
+      pinReason: 'recent_turn',
+    });
+    expect(sourceSegment(result, 'recent-result-0')).toBeUndefined();
+  });
+
+  it('hierarchically compacts prior verified summaries when no exact old rows remain eligible', async () => {
+    const oldRows = [0, 1, 2].map((index) =>
+      row(`old-${index}`, index + 2, 0, 'assistant_narrative', '旧'.repeat(6_000)),
+    );
+    const rows = [
+      row('system', 0, null, 'system_policy', 'POLICY'),
+      row('user-0', 1, 0, 'user', '整理整本书'),
+      ...oldRows,
+      row('user-1', 5, 1, 'user', '继续'),
+      row('recent-1', 6, 1, 'assistant_narrative', '近'.repeat(2_500)),
+      row('user-2', 7, 2, 'user', '继续完成'),
+      row('recent-2', 8, 2, 'assistant_narrative', '新'.repeat(2_500)),
+    ];
+    const deterministicSummaries = await Promise.all(
+      oldRows.map((source, index) =>
+        createAgentContextSummaryCandidate({
+          summaryId: `prior-summary-${index}`,
+          sourceRows: [source],
+          content: '摘要'.repeat(1_500),
+        }),
+      ),
+    );
+    const fullCompactor = vi.fn(async (request: AgentContextFullCompactionRequest) => {
+      expect(request.eligibleRuns).toEqual([]);
+      const units = request.eligibleProjectionRuns?.flat() ?? [];
+      expect(units).toHaveLength(3);
+      expect(
+        units.flatMap((unit) => unit.projectionRows.map((projected) => projected.type)),
+      ).toEqual(['summary', 'summary', 'summary']);
+      return [
+        await createAgentContextSummaryCandidate({
+          summaryId: 'rolled-up-summary',
+          sourceRows: units.flatMap((unit) => unit.sourceRows),
+          content: '此前整理进度已合并；从最近步骤继续。',
+        }),
+      ];
+    });
+
+    const result = await planAgentContext({
+      contextWindowTokens: 20_000,
+      requestedOutputTokens: 4_096,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      deterministicSummaries,
+      fullCompactor,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(fullCompactor).toHaveBeenCalledOnce();
+    expect(result.plan.segments.filter((segment) => segment.type === 'summary')).toEqual([
+      expect.objectContaining({
+        summaryId: 'rolled-up-summary',
+        sourceIds: oldRows.map((source) => source.sourceId),
+      }),
+    ]);
+    expect(sourceSegment(result, 'recent-1')).toMatchObject({ pinReason: 'recent_turn' });
+    expect(sourceSegment(result, 'recent-2')).toMatchObject({ pinReason: 'recent_turn' });
+  });
+
+  it('hierarchically compacts verified summaries that each contain a complete read-tool pair', async () => {
+    const oldPairs = Array.from({ length: 3 }, (_, index) => {
+      const tool = {
+        callId: `read-${index}`,
+        toolName: 'read_file',
+        toolAccess: 'read' as const,
+      };
+      return [
+        row(`old-call-${index}`, index * 2 + 2, 0, 'tool_call', '{"path":"/old"}', tool),
+        row(`old-result-${index}`, index * 2 + 3, 0, 'tool_result', '旧'.repeat(6_000), tool),
+      ] as const;
+    });
+    const rows = [
+      row('system', 0, null, 'system_policy', 'POLICY'),
+      row('user-0', 1, 0, 'user', '整理整本书'),
+      ...oldPairs.flat(),
+      row('user-1', 8, 1, 'user', '继续'),
+      row('recent-1', 9, 1, 'assistant_narrative', '近'.repeat(2_000)),
+      row('user-2', 10, 2, 'user', '继续完成'),
+      row('recent-2', 11, 2, 'assistant_narrative', '新'.repeat(2_000)),
+    ];
+    const deterministicSummaries = await Promise.all(
+      oldPairs.map((sourceRows, index) =>
+        createAgentContextSummaryCandidate({
+          summaryId: `prior-tool-summary-${index}`,
+          sourceRows,
+          content: '摘要'.repeat(2_500),
+        }),
+      ),
+    );
+    const fullCompactor = vi.fn(async (request: AgentContextFullCompactionRequest) => {
+      expect(request.eligibleRuns).toEqual([]);
+      const units = request.eligibleProjectionRuns?.flat() ?? [];
+      expect(units).toHaveLength(3);
+      expect(units.map((unit) => unit.projectionRows[0]?.type)).toEqual([
+        'summary',
+        'summary',
+        'summary',
+      ]);
+      return [
+        await createAgentContextSummaryCandidate({
+          summaryId: 'rolled-up-tool-summary',
+          sourceRows: units.flatMap((unit) => unit.sourceRows),
+          content: '此前读取结果已合并；继续当前任务。',
+        }),
+      ];
+    });
+
+    const result = await planAgentContext({
+      contextWindowTokens: 16_000,
+      requestedOutputTokens: 4_096,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      deterministicSummaries,
+      fullCompactor,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(fullCompactor).toHaveBeenCalledOnce();
+    expect(result.plan.segments.filter((segment) => segment.type === 'summary')).toEqual([
+      expect.objectContaining({
+        summaryId: 'rolled-up-tool-summary',
+        sourceIds: oldPairs.flat().map((source) => source.sourceId),
+      }),
+    ]);
   });
 
   it('keeps writes pinned unless an exact pinned durable evidence row covers the whole pair', async () => {
@@ -535,7 +732,7 @@ describe('provider-neutral Agent context planner', () => {
     });
   });
 
-  it('charges every one of 3000 summary source ids instead of budgeting only summary prose', async () => {
+  it('budgets the provider wire summary while retaining all 3000 internal source ids', async () => {
     const oldRows = Array.from({ length: 3_000 }, (_, index) =>
       row(
         `model/message/0/assistant/${index}/assistant_narrative_with_deliberately_long_identity`,
@@ -575,7 +772,11 @@ describe('provider-neutral Agent context planner', () => {
       (segment) => segment.type === 'summary' && segment.summaryId === 'summary-3000-sources',
     );
     expect(summarySegment?.estimatedTokens).toBe(expectedSummaryTokens);
-    expect(expectedSummaryTokens).toBeGreaterThan(20_000);
+    expect(expectedSummaryTokens).toBeLessThan(200);
+    expect(summarySegment?.type).toBe('summary');
+    if (summarySegment?.type === 'summary') {
+      expect(summarySegment.sourceIds).toHaveLength(3_000);
+    }
 
     const constrained = await planAgentContext({
       contextWindowTokens: 20_000,
@@ -584,13 +785,7 @@ describe('provider-neutral Agent context planner', () => {
       sourceRows: rows,
       deterministicSummaries: [summary],
     });
-    expect(constrained).toMatchObject({
-      ok: false,
-      error: { code: 'CONTEXT_BUDGET_EXCEEDED' },
-    });
-    if (!constrained.ok) {
-      expect(constrained.diagnostics.estimatedInputTokens).toBeGreaterThan(expectedSummaryTokens);
-    }
+    expect(constrained.ok).toBe(true);
   });
 
   it('charges supplemental note provenance as well as its visible content', async () => {
@@ -626,7 +821,7 @@ describe('provider-neutral Agent context planner', () => {
     expect(expected).toBeGreaterThan(estimateAgentContextTextTokens(freshness.content) + 1_000);
   });
 
-  it('runs a full compactor at most once and accepts only a positive verified projection', async () => {
+  it('accepts a positive verified full-compactor projection', async () => {
     const rows = baseRows({ oldNarrative: 'history '.repeat(6_000) });
     let calls = 0;
     const result = await planAgentContext({
@@ -657,6 +852,99 @@ describe('provider-neutral Agent context planner', () => {
       stages: ['drop_discardable', 'full_compactor'],
       fullCompactionCount: 1,
     });
+  });
+
+  it('continues bounded full-compactor passes while each pass makes positive progress', async () => {
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user-0', 1, 0, 'user', 'clean the book'),
+      row('assistant-0', 2, 0, 'assistant_narrative', 'old alpha '.repeat(5_000)),
+      row('assistant-1', 3, 0, 'assistant_narrative', 'old beta '.repeat(5_000)),
+      row('user-1', 4, 1, 'user', 'continue'),
+      row('assistant-2', 5, 1, 'assistant_narrative', 'recent'),
+    ];
+    let calls = 0;
+    const result = await planAgentContext({
+      contextWindowTokens: 8_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      fullCompactor: async ({ eligibleProjectionRuns, eligibleRuns }) => {
+        calls += 1;
+        const sourceRows =
+          eligibleProjectionRuns?.flatMap((run) => run.flatMap((unit) => unit.sourceRows)) ??
+          eligibleRuns.flat();
+        const target = sourceRows.find(
+          (candidate) => candidate.sourceId === (calls === 1 ? 'assistant-0' : 'assistant-1'),
+        );
+        return target
+          ? [
+              await createAgentContextSummaryCandidate({
+                summaryId: `progressive-${calls}`,
+                sourceRows: [target],
+                content: `compact ${calls}`,
+              }),
+            ]
+          : [];
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(calls).toBe(2);
+    expect(result.plan.checkpoint.compaction.fullCompactionCount).toBe(2);
+    expect(result.plan.estimatedInputTokens).toBeLessThanOrEqual(
+      result.plan.usableInputBudgetTokens,
+    );
+  });
+
+  it('releases the oldest soft recent pin when verified older summaries cannot shrink further', async () => {
+    const oldNarrative = row('assistant-old', 2, 0, 'assistant_narrative', '旧正文'.repeat(8_000));
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user-old', 1, 0, 'user', '整理前半本'),
+      oldNarrative,
+      row('user-1', 3, 1, 'user', '继续检查'),
+      row('assistant-1', 4, 1, 'assistant_narrative', '近期一'.repeat(1_000)),
+      row('user-2', 5, 2, 'user', '继续收尾'),
+      row('assistant-2', 6, 2, 'assistant_narrative', '近期二'.repeat(1_000)),
+    ];
+    const prior = await createAgentContextSummaryCandidate({
+      summaryId: 'already-minimal-prior',
+      sourceRows: [oldNarrative],
+      content: '既有证据摘要'.repeat(1_000),
+    });
+    let calls = 0;
+
+    const result = await planAgentContext({
+      contextWindowTokens: 12_000,
+      requestedOutputTokens: 2_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      constraintLedger: [],
+      deterministicSummaries: [prior],
+      fullCompactor: async (request) => {
+        calls += 1;
+        const units = request.eligibleProjectionRuns?.[0] ?? [];
+        const sourceRows = units.flatMap((unit) => unit.sourceRows);
+        return sourceRows.length === 0
+          ? []
+          : [
+              await createAgentContextSummaryCandidate({
+                summaryId: `soft-recent-${calls}`,
+                sourceRows,
+                content:
+                  calls === 1 ? '不会产生收益的摘要'.repeat(2_000) : '旧进度与最早近期消息已合并。',
+              }),
+            ];
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(calls).toBe(2);
+    expect(result.plan.checkpoint.compaction.fullCompactionCount).toBe(2);
+    expect(sourceSegment(result, 'user-1')).toBeUndefined();
   });
 
   it('keeps write calls/results, reviews, reverts, and freshness byte-exact', async () => {
@@ -776,6 +1064,49 @@ describe('provider-neutral Agent context planner', () => {
       diagnostics: { fullCompactionCount: 0 },
     });
     expect(calls).toBe(1);
+  });
+
+  it('never offers half of a parallel read pair across a pinned write to the full compactor', async () => {
+    const write = {
+      callId: 'write-1',
+      toolName: 'edit_node',
+      toolAccess: 'write' as const,
+    };
+    const read = {
+      callId: 'read-1',
+      toolName: 'read_node',
+      toolAccess: 'read' as const,
+    };
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user-0', 1, 0, 'user', 'clean the manuscript'),
+      row('old-narrative', 2, 0, 'assistant_narrative', 'history '.repeat(6_000)),
+      row('write-call', 3, 0, 'tool_call', '{"path":"chapter"}', write),
+      row('read-call', 4, 0, 'tool_call', '{"path":"chapter"}', read),
+      row('write-result', 5, 0, 'tool_result', '{"updated":true}', write),
+      row('read-result', 6, 0, 'tool_result', 'chapter '.repeat(6_000), read),
+      row('user-1', 7, 1, 'user', 'continue'),
+      row('assistant-1', 8, 1, 'assistant_narrative', 'recent one'),
+      row('user-2', 9, 2, 'user', 'keep going'),
+      row('assistant-2', 10, 2, 'assistant_narrative', 'recent two'),
+    ];
+    let offered: readonly (readonly AgentContextSourceRow[])[] = [];
+
+    await planAgentContext({
+      contextWindowTokens: 10_000,
+      requestedOutputTokens: 1_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      fullCompactor: async (request) => {
+        offered = request.eligibleRuns;
+        return [];
+      },
+    });
+
+    const offeredIds = offered.flatMap((run) => run.map((item) => item.sourceId));
+    expect(offeredIds).toContain('old-narrative');
+    expect(offeredIds).not.toContain('read-call');
+    expect(offeredIds).not.toContain('read-result');
   });
 
   it('opens the circuit on compactor timeout without retrying', async () => {

@@ -855,7 +855,12 @@ describe('file-backed Agent V2 context recovery', () => {
     expect(snapshot?.checkpoints[0]).toMatchObject({
       throughTurnOrdinal: 0,
       messageCount: 2,
-      context: HISTORY,
+      context: {
+        schemaVersion: 4,
+        format: 'drifting.agent-runtime-checkpoint-digest-with-summaries',
+        canonicalMessageCount: 2,
+        durableSummaries: [],
+      },
     });
     if (!snapshot) throw new Error('fallback lost the session');
     await expect(recoverAgentRuntimeSnapshot(snapshot)).resolves.toMatchObject({
@@ -964,7 +969,18 @@ describe('file-backed Agent V2 context recovery', () => {
     });
 
     const snapshot = await repository.loadRecoverySnapshot('session-v2-large');
-    expect(snapshot?.checkpoints[0]?.context).toEqual(largeHistory);
+    expect(snapshot?.checkpoints[0]?.context).toMatchObject({
+      schemaVersion: 4,
+      format: 'drifting.agent-runtime-checkpoint-digest-with-summaries',
+      canonicalMessageCount: largeHistory.length,
+      durableSummaries: [],
+    });
+    expect(snapshot?.checkpoints[0]?.context).not.toHaveProperty('canonicalHistory');
+    expect(
+      new TextEncoder().encode(
+        JSON.stringify(snapshot?.checkpoints[0]?.context),
+      ).byteLength,
+    ).toBeLessThanOrEqual(MAX_INLINE_AGENT_RUNTIME_V2_CHECKPOINT_BYTES);
     if (!snapshot) throw new Error('oversized checkpoint lost the session');
     await expect(recoverAgentRuntimeSnapshot(snapshot)).resolves.toMatchObject({
       providerHistory: largeHistory,

@@ -270,6 +270,14 @@ describe('agent runtime persistence repository against real SQLite', () => {
         completedAt: '2026-07-30T00:00:03.000Z',
       }),
     ).toBe('inserted');
+    await expect(repository.getToolCall?.('tool-record-1')).resolves.toMatchObject({
+      id: 'tool-record-1',
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+      callId: 'call-1',
+      result: { nodes: [] },
+    });
+    await expect(repository.getToolCall?.('missing-tool-record')).resolves.toBeNull();
 
     const assistant = message({
       id: 'message-2',

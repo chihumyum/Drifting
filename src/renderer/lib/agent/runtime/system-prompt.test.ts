@@ -15,7 +15,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(17);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(18);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).not.toContain('The canonical project name is "019f-opaque-project-id"');
@@ -95,8 +95,9 @@ describe('Drifting General Agent system prompt', () => {
     expect(system).toContain('never repeat completed work');
     expect(system).toContain('resume the first unfinished step after compaction or restart');
     expect(system).toContain('Those are continuity boundaries, not task completion');
-    expect(system).toContain('block that step with its returned review reference');
-    expect(system).toContain('only after runtime context confirms acceptance');
+    expect(system).toContain('Drifting binds the durable read/write evidence itself');
+    expect(system).toContain('do not copy writeRef values into plan updates');
+    expect(system).toContain('block that step only when no independent pending work can continue');
     expect(system).toContain('chapterManifestState.status=drifted');
     expect(system).toContain('explicitly reconcile_manifest before finalization');
     expect(system).toContain('retired does not mean the chapter was edited');

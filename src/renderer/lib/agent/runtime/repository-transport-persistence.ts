@@ -15,9 +15,10 @@ import type {
   AgentStartRoute,
 } from '../protocol';
 import { clonePortableData } from './portable-data';
+import type { AgentContextSummaryCandidate } from './context-planner';
 import {
   createAgentRuntimeCheckpointContextV2,
-  createAgentRuntimeCheckpointContextV3,
+  createAgentRuntimeCheckpointContextV4,
   hashAgentRuntimeCheckpointContext,
   hashAgentRuntimeCheckpointPayload,
   recoverAgentRuntimeSnapshot,
@@ -53,14 +54,65 @@ export interface AgentRuntimeRecoveryCodec {
  * That is valuable for restart verification, but a long tool-heavy turn can
  * make the single SQLite text parameter much larger than the history itself.
  * Keep renderer-to-native commits bounded. An oversized, already-verified V2
- * payload stores exact history plus its compact summary candidates in a slim
- * V3 envelope, so restart does not pay for or risk repeating compaction. If no
- * summary exists, exact hashed V1 history remains the smallest representation.
+ * payload stores only the canonical message-row digest/count plus compact
+ * summary candidates in V4. Normalized message rows remain the exact history;
+ * recovery re-hashes them before adopting either history or summaries.
  */
 export const MAX_INLINE_AGENT_RUNTIME_V2_CHECKPOINT_BYTES = 512 * 1024;
 
 function serializedByteLength(value: unknown): number {
   return new TextEncoder().encode(canonicalAgentRuntimeJson(value)).byteLength;
+}
+
+function canonicalDurableSummaries(
+  summaries: readonly AgentContextSummaryCandidate[],
+): AgentContextSummaryCandidate[] {
+  const byId = new Map<string, AgentContextSummaryCandidate>();
+  for (const summary of summaries) {
+    if (
+      !summary.summaryId.trim() ||
+      summary.sourceIds.length === 0 ||
+      summary.sourceIds.some((sourceId) => !sourceId.trim()) ||
+      new Set(summary.sourceIds).size !== summary.sourceIds.length ||
+      !/^sha256:[0-9a-f]{64}$/.test(summary.sourceHash) ||
+      !summary.content.trim()
+    ) {
+      continue;
+    }
+    // Summary candidates are restart accelerators, not authored truth. A
+    // repeated id can arise when several compaction generations retain the
+    // same candidate; keep only the newest canonical occurrence.
+    byId.delete(summary.summaryId);
+    byId.set(summary.summaryId, {
+      summaryId: summary.summaryId,
+      sourceIds: [...summary.sourceIds],
+      sourceHash: summary.sourceHash,
+      content: summary.content,
+    });
+  }
+  return [...byId.values()];
+}
+
+async function createBoundedDigestCheckpoint(
+  canonicalHistory: readonly AgentModelMessage[],
+  summaries: readonly AgentContextSummaryCandidate[],
+) {
+  let retained = canonicalDurableSummaries(summaries);
+  while (true) {
+    const candidate = await createAgentRuntimeCheckpointContextV4({
+      canonicalHistory,
+      durableSummaries: retained,
+    });
+    if (
+      serializedByteLength(candidate) <= MAX_INLINE_AGENT_RUNTIME_V2_CHECKPOINT_BYTES ||
+      retained.length === 0
+    ) {
+      return candidate;
+    }
+    // Source order is chronological; discard the oldest acceleration hint
+    // first. Exact history remains lossless in normalized message rows.
+    retained = retained.slice(1);
+  }
 }
 
 export interface RepositoryAgentTransportPersistenceOptions {
@@ -476,7 +528,7 @@ export function createRepositoryAgentTransportPersistence(
             // not strand an otherwise completed turn after its tools committed.
             // Keep the diagnostic local; recovery will re-plan V1 next turn.
             console.warn(
-              '[agent] checkpoint V2 verification failed; retaining exact V1 history',
+              '[agent] checkpoint V2 verification failed; retaining exact normalized history',
               cause,
             );
           }
@@ -501,16 +553,15 @@ export function createRepositoryAgentTransportPersistence(
                   : [],
             )
           : [];
-        const compactV3 =
-          !useV2 && durableSummaries.length > 0
-            ? createAgentRuntimeCheckpointContextV3({
-                canonicalHistory: context,
-                durableSummaries,
-              })
+        const compactV4 =
+          !useV2 &&
+          (Boolean(input.contextCheckpointV2) ||
+            serializedByteLength(context) > MAX_INLINE_AGENT_RUNTIME_V2_CHECKPOINT_BYTES)
+            ? await createBoundedDigestCheckpoint(context, durableSummaries)
             : null;
         const durableContext = useV2
           ? verifiedV2!
-          : compactV3 ?? context.map(clonePortableData);
+          : compactV4 ?? context.map(clonePortableData);
         throwIfAborted(signal);
         checkpoint = {
           id: runtimeCheckpointId(input.sessionId, turn.ordinal),
@@ -518,7 +569,7 @@ export function createRepositoryAgentTransportPersistence(
           throughTurnOrdinal: turn.ordinal,
           messageCount: context.length,
           context: durableContext,
-          contextHash: useV2 || compactV3
+          contextHash: useV2 || compactV4
             ? await hashAgentRuntimeCheckpointPayload(durableContext)
             : await recovery.hashCheckpointContext(context),
           createdAt: input.endedAt,
@@ -959,11 +1010,18 @@ async function convergeToolProjection(
       `Agent tool "${projection.name}" is missing certified arguments or access.`,
     );
   }
-  const existing = (await repository.listToolCalls(projection.sessionId)).find(
-    (toolCall) =>
-      toolCall.turnId === projection.turnId &&
-      toolCall.callId === projection.callId,
+  const durableId = runtimeToolCallId(
+    projection.sessionId,
+    projection.turnId,
+    projection.callId,
   );
+  const existing = repository.getToolCall
+    ? await repository.getToolCall(durableId)
+    : (await repository.listToolCalls(projection.sessionId)).find(
+        (toolCall) =>
+          toolCall.turnId === projection.turnId &&
+          toolCall.callId === projection.callId,
+      );
   if (existing) {
     if (
       existing.name !== projection.name ||
@@ -995,11 +1053,7 @@ async function convergeToolProjection(
   }
 
   await repository.createToolCall({
-    id: runtimeToolCallId(
-      projection.sessionId,
-      projection.turnId,
-      projection.callId,
-    ),
+    id: durableId,
     sessionId: projection.sessionId,
     turnId: projection.turnId,
     callId: projection.callId,

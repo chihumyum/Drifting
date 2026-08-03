@@ -81,6 +81,41 @@ describe('Anthropic Messages Agent driver', () => {
     expect(body?.tool_choice).toEqual({ type: 'tool', name: 'search' });
   });
 
+  it('uses a required non-reasoning action sample without changing the turn setting', async () => {
+    let body: Record<string, unknown> | undefined;
+    const driver = new AnthropicMessagesAgentDriver({
+      apiKey: 'test',
+      fetch: async (_input, init) => {
+        body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return new Response(
+          sse([
+            { type: 'message_start', message: { usage: { input_tokens: 1 } } },
+            {
+              type: 'message_delta',
+              delta: { stop_reason: 'end_turn' },
+              usage: { output_tokens: 1 },
+            },
+            { type: 'message_stop' },
+          ]),
+          { status: 200 },
+        );
+      },
+    });
+
+    await collect(
+      driver,
+      request({
+        reasoning: { enabled: true, effort: 'high' },
+        executionMode: 'required_tool_non_reasoning',
+        toolChoice: 'required',
+      }),
+    );
+
+    expect(body?.tool_choice).toEqual({ type: 'any' });
+    expect(body).not.toHaveProperty('thinking');
+    expect(body).not.toHaveProperty('output_config');
+  });
+
   it('projects the model request and normalizes fragmented tool use, usage and finish', async () => {
     let captured: Record<string, unknown> | null = null;
     const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {

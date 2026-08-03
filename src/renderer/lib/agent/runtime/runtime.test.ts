@@ -640,9 +640,7 @@ describe('AgentRuntime', () => {
       type: 'tool_call_ready',
       arguments: { query: 'Alice', limit: 2 },
     });
-    const argumentEvents = result.entries.filter(
-      (entry) => entry.event.type === 'tool_args_delta',
-    );
+    const argumentEvents = result.entries.filter((entry) => entry.event.type === 'tool_args_delta');
     expect(argumentEvents).toHaveLength(1);
     expect(argumentEvents[0]?.event).toMatchObject({
       type: 'tool_args_delta',
@@ -728,9 +726,7 @@ describe('AgentRuntime', () => {
       result.entries
         .filter((entry) => entry.event.type === 'tool_args_delta')
         .map((entry) =>
-          entry.event.type === 'tool_args_delta'
-            ? [entry.event.callId, entry.event.delta]
-            : null,
+          entry.event.type === 'tool_args_delta' ? [entry.event.callId, entry.event.delta] : null,
         ),
     ).toEqual([
       ['b', bJson],
@@ -998,11 +994,17 @@ describe('AgentRuntime', () => {
     },
   );
 
-  it('opens a synthesis-only circuit after the same all-failed tool result repeats', async () => {
-    const execute = vi.fn<AgentToolRuntime['execute']>(async () => ({
-      ok: false,
-      error: 'The project read boundary is temporarily unavailable.',
-    }));
+  it('keeps tools available after repeated failures so a long task can recover', async () => {
+    let attempts = 0;
+    const execute = vi.fn<AgentToolRuntime['execute']>(async () => {
+      attempts += 1;
+      return attempts < 3
+        ? {
+            ok: false,
+            error: 'The project read boundary is temporarily unavailable.',
+          }
+        : { ok: true, data: { recovered: true } };
+    });
     const driver = new ScriptedFakeDriver({
       rounds: [
         {
@@ -1021,31 +1023,20 @@ describe('AgentRuntime', () => {
         },
         {
           expectRequest: (request) => {
-            expect(request.tools).toEqual([]);
-            expect(request.messages.slice(-2)).toEqual([
-              expect.objectContaining({
-                role: 'assistant',
-              }),
-              {
-                role: 'tool',
-                content: [
-                  expect.objectContaining({
-                    callId: 'read-b',
-                    ok: false,
-                    content: 'The project read boundary is temporarily unavailable.',
-                  }),
-                ],
-              },
-            ]);
+            expect(request.tools.map((tool) => tool.name)).toEqual(['read_a', 'read_b']);
           },
           steps: [
-            {
-              op: 'emit',
-              event: {
-                type: 'text_delta',
-                text: '读取暂时不可用，请稍后重试。',
-              },
-            },
+            ...toolCallSteps('read-c', 'read_a', ['{}']),
+            { op: 'emit', event: { type: 'usage', usage: usage(4, 1) } },
+            { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
+          ],
+        },
+        {
+          expectRequest: (request) => {
+            expect(request.tools.map((tool) => tool.name)).toEqual(['read_a', 'read_b']);
+          },
+          steps: [
+            { op: 'emit', event: { type: 'text_delta', text: '已恢复并完成读取。' } },
             { op: 'emit', event: { type: 'usage', usage: usage(5, 4) } },
             { op: 'emit', event: { type: 'finish', reason: 'end_turn' } },
           ],
@@ -1058,10 +1049,10 @@ describe('AgentRuntime', () => {
       tools: toolRuntime([definition('read_a'), definition('read_b')], execute),
     }).runTurn(input());
 
-    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenCalledTimes(3);
     expect(result.state.status).toBe('completed');
-    expect(result.state.modelIterations).toBe(3);
-    expect(result.state.assistantText).toContain('读取暂时不可用');
+    expect(result.state.modelIterations).toBe(4);
+    expect(result.state.assistantText).toContain('已恢复并完成读取');
     driver.assertExhausted();
   });
 
@@ -1118,7 +1109,7 @@ describe('AgentRuntime', () => {
           steps: [
             ...toolCallSteps('malformed', 'lookup', ['{"query":']),
             ...toolCallSteps('unknown', 'missing_tool', ['{}']),
-            ...toolCallSteps('invalid', 'lookup', ['{}']),
+            ...toolCallSteps('invalid', 'lookup', ['{"extra":true}']),
             { op: 'emit', event: { type: 'usage', usage: usage(12, 5) } },
             { op: 'emit', event: { type: 'finish', reason: 'tool_use' } },
           ],
@@ -1152,6 +1143,34 @@ describe('AgentRuntime', () => {
         )
         .map((entry) => entry.event.errorCode),
     ).toEqual(['MALFORMED_TOOL_ARGUMENTS', 'UNKNOWN_TOOL', 'INVALID_TOOL_ARGUMENTS']);
+    const rejectedAssistant = result.messages.find(
+      (message) =>
+        message.role === 'assistant' &&
+        message.content.some((block) => block.type === 'tool_call'),
+    );
+    expect(rejectedAssistant).toMatchObject({
+      role: 'assistant',
+      content: [
+        {
+          type: 'tool_call',
+          callId: 'malformed',
+          arguments: {},
+          rawArguments: '{}',
+        },
+        {
+          type: 'tool_call',
+          callId: 'unknown',
+          arguments: {},
+          rawArguments: '{}',
+        },
+        {
+          type: 'tool_call',
+          callId: 'invalid',
+          arguments: { extra: true },
+          rawArguments: '{"extra":true}',
+        },
+      ],
+    });
     expect(driver.calls).toHaveLength(2);
     driver.assertExhausted();
     clock.assertIdle();
@@ -1304,8 +1323,7 @@ describe('AgentRuntime', () => {
           expectRequest: (request) => {
             expect(
               request.messages.filter(
-                (message) =>
-                  message.role === 'user' && message.content === steeringText,
+                (message) => message.role === 'user' && message.content === steeringText,
               ),
             ).toHaveLength(1);
             expect(request.messages[request.messages.length - 1]).toEqual({
@@ -1334,16 +1352,12 @@ describe('AgentRuntime', () => {
 
     expect(result.state.status).toBe('completed');
     expect(result.state.pendingSteering).toEqual([]);
-    expect(
-      result.entries.filter(
-        (entry) => entry.event.type === 'steering_received',
-      ),
-    ).toHaveLength(1);
-    expect(
-      result.entries.filter(
-        (entry) => entry.event.type === 'steering_applied',
-      ),
-    ).toHaveLength(1);
+    expect(result.entries.filter((entry) => entry.event.type === 'steering_received')).toHaveLength(
+      1,
+    );
+    expect(result.entries.filter((entry) => entry.event.type === 'steering_applied')).toHaveLength(
+      1,
+    );
     driver.assertExhausted();
   });
 
@@ -1881,9 +1895,9 @@ describe('AgentRuntime', () => {
       const result = await runtime.runTurn(input({ turnId: `turn-${seed}` }));
       expect(received).toEqual(JSON.parse(raw));
       expect(result.state.status).toBe('completed');
-      expect(
-        result.entries.filter((entry) => entry.event.type === 'tool_args_delta'),
-      ).toHaveLength(1);
+      expect(result.entries.filter((entry) => entry.event.type === 'tool_args_delta')).toHaveLength(
+        1,
+      );
       expect(replayAgentRuntimeJournal(result.entries)).toEqual(result.state);
       driver.assertExhausted();
       clock.assertIdle();

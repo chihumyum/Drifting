@@ -1092,6 +1092,11 @@ function settleAutomaticContinuationAfterPlanRefresh(convId: string, terminalTur
   }
 
   const sequenceId = run.automaticContinuation.sequenceId;
+  const continuationPrompt =
+    run.lastTerminal.outcome === 'budget_exceeded' &&
+    run.longTaskPlanState?.status === 'none'
+      ? BUDGET_CONTINUATION_PROMPT
+      : ACTIVE_PLAN_CONTINUATION_PROMPT;
   useAgentChatStore.setState((current) => {
     const currentRun = current.runs[convId];
     if (
@@ -1144,7 +1149,7 @@ function settleAutomaticContinuationAfterPlanRefresh(convId: string, terminalTur
       .getState()
       .send({
         origin: 'automatic_continuation',
-        runtimePrompt: ACTIVE_PLAN_CONTINUATION_PROMPT,
+        runtimePrompt: continuationPrompt,
       })
       .catch(() => pauseAutomaticContinuationForConversation(convId, 'start_failed'));
   }, AUTOMATIC_CONTINUATION_DELAY_MS);
@@ -1219,13 +1224,10 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
       }
     } else if (ev.type === 'permission_requested') {
       controlStatus = 'waiting_permission';
-      if (automaticContinuation.status !== 'off' && automaticContinuation.status !== 'paused') {
-        automaticContinuation = {
-          ...automaticContinuation,
-          status: 'paused',
-          stopReason: 'waiting_permission',
-        };
-      }
+      // The active slice is already suspended by the runtime. Keep continuous
+      // execution armed: once this exact request is resolved, the same slice
+      // resumes and a later terminal may safely schedule the next durable-plan
+      // slice. A renderer restart still drops the in-memory authorization.
       pendingControl = {
         sessionId: ev.request.sessionId,
         turnId: ev.request.turnId,
@@ -1240,13 +1242,9 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
       }
     } else if (ev.type === 'user_input_requested') {
       controlStatus = 'waiting_user';
-      if (automaticContinuation.status !== 'off' && automaticContinuation.status !== 'paused') {
-        automaticContinuation = {
-          ...automaticContinuation,
-          status: 'paused',
-          stopReason: 'waiting_user',
-        };
-      }
+      // Asking a question pauses the current provider loop by construction;
+      // answering it should not silently revoke an already armed continuous
+      // task. It remains cancellable through the single Stop control.
       pendingControl = {
         sessionId: ev.request.sessionId,
         turnId: ev.request.turnId,

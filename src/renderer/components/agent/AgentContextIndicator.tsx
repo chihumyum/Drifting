@@ -16,6 +16,7 @@ const CATEGORY_ORDER: readonly AgentContextUsageCategoryKey[] = [
   'thinking',
   'tool_calls',
   'tool_results',
+  'write_receipts',
   'write_reviews',
   'write_reverts',
   'freshness',

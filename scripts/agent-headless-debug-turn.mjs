@@ -27,6 +27,8 @@ function parseArgs(argv) {
     else if (arg === '--timeout-ms') options.timeoutMs = Number(next());
     else if (arg === '--permission') options.permissionMode = next();
     else if (arg === '--edit-mode') options.editMode = next();
+    else if (arg === '--thinking') options.thinking = next();
+    else if (arg === '--effort') options.effort = next();
     else if (arg === '--answer') options.userInputs.push(next());
     else if (arg === '--auto-continue') options.autoContinue = true;
     else if (arg === '--raw') options.raw = true;
@@ -46,9 +48,11 @@ function usage() {
     '  --conversation <id>             Resume an existing Agent conversation',
     '  --permission manual|allow_once|deny',
     '  --edit-mode auto|approve         Override review mode for this turn only',
+    '  --thinking adaptive|off          Override reasoning mode for this turn only',
+    '  --effort low|medium|high|xhigh|max  Override reasoning effort for this turn only',
     '  --answer <text>                  Queued answer for ask_user (repeatable)',
     '  --auto-continue                  Follow durable-task steps until a stable stop',
-    '  --timeout-ms <ms>                1000..3600000 (default 600000)',
+    '  --timeout-ms <ms>                1000..43200000 (default 600000)',
     '  --raw                            Print every NDJSON object',
     '  --url <http://127.0.0.1:4317>   Broker URL',
   ].join('\n');
@@ -65,7 +69,11 @@ function printEvent(payload, state) {
     return;
   }
   if (payload.type === 'bridge_started') {
-    console.log(`[bridge] project=${payload.projectId}`);
+    console.log(
+      `[bridge] project=${payload.projectId}` +
+        `${payload.thinking ? ` thinking=${payload.thinking}` : ''}` +
+        `${payload.effort ? ` effort=${payload.effort}` : ''}`,
+    );
     return;
   }
   if (payload.type === 'bridge_completed') {
@@ -168,6 +176,15 @@ async function main() {
   if (options.editMode && options.editMode !== 'auto' && options.editMode !== 'approve') {
     throw new Error('--edit-mode must be auto or approve');
   }
+  if (options.thinking && options.thinking !== 'adaptive' && options.thinking !== 'off') {
+    throw new Error('--thinking must be adaptive or off');
+  }
+  if (
+    options.effort &&
+    !['low', 'medium', 'high', 'xhigh', 'max'].includes(options.effort)
+  ) {
+    throw new Error('--effort must be low, medium, high, xhigh, or max');
+  }
   const response = await fetch(new URL('/turn', options.url), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -178,6 +195,8 @@ async function main() {
       permissionMode: options.permissionMode,
       autoContinue: options.autoContinue === true,
       ...(options.editMode ? { editMode: options.editMode } : {}),
+      ...(options.thinking ? { thinking: options.thinking } : {}),
+      ...(options.effort ? { effort: options.effort } : {}),
       userInputs: options.userInputs,
       newConversation: !options.conversationId,
       ...(options.conversationId ? { conversationId: options.conversationId } : {}),

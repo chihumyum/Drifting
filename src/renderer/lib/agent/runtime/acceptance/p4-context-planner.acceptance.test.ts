@@ -260,10 +260,11 @@ describe('P4 context planner acceptance', () => {
     expect(p95ContextWindowRatio).toBeLessThanOrEqual(0.9);
   });
 
-  it('fails closed and opens the circuit for compactor faults without a second attempt', async () => {
+  it('fails closed and bounds the one state-changing no-gain recovery', async () => {
     type Fault = {
       name: string;
       expectedCode: string;
+      expectedAttempts?: number;
       timeoutMs?: number;
       createCompactor: () => AgentContextFullCompactor;
     };
@@ -307,6 +308,7 @@ describe('P4 context planner acceptance', () => {
       {
         name: 'no gain',
         expectedCode: 'COMPACTOR_NO_GAIN',
+        expectedAttempts: 2,
         createCompactor: () => async ({ eligibleRuns }) => [
           await createAgentContextSummaryCandidate({
             summaryId: 'no-gain',
@@ -348,12 +350,14 @@ describe('P4 context planner acceptance', () => {
 
       const first = await planAgentContext(plannerInput);
       const second = await planAgentContext(plannerInput);
+      const expectedAttempts =
+        'expectedAttempts' in fault ? fault.expectedAttempts : 1;
 
       expect(first, fault.name).toMatchObject({
         ok: false,
         error: { code: fault.expectedCode },
         diagnostics: {
-          fullCompactionCount: 1,
+          fullCompactionCount: expectedAttempts,
           circuitState: { state: 'open' },
         },
       });
@@ -365,7 +369,7 @@ describe('P4 context planner acceptance', () => {
           circuitState: { state: 'open' },
         },
       });
-      expect(attempts, fault.name).toBe(1);
+      expect(attempts, fault.name).toBe(expectedAttempts);
     }
   });
 });
