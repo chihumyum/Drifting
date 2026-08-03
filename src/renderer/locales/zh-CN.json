@@ -923,7 +923,6 @@
   },
   "editorOutline": {
     "aria": "大纲",
-    "emptyHint": "— 暂无标题 —",
     "sectionCount": "{{count}} 节",
     "scrollbar": "文稿结构滚动条",
     "hiddenItems": "远处 {{count}} 个目录项，悬停展开"
@@ -2669,8 +2668,7 @@
       "storylines": "{{count}} 条故事线"
     },
     "outline": {
-      "title": "本章 · OUTLINE",
-      "empty": "— 用 H1 / H2 / H3 标题构建大纲 —"
+      "title": "本章 · OUTLINE"
     },
     "groupMove": {
       "title": "移动到分组",
@@ -2852,12 +2850,18 @@
     "actions": {
       "collapsePlotPlanner": "收起情节规划",
       "expandPlotPlanner": "展开情节规划",
+      "outlineRailDisplay": "TOC 滚动条",
       "hideReferenceLinks": "隐藏引用链接样式",
       "showReferenceLinks": "显示引用链接样式",
       "noComments": "无批注",
       "hideComments": "隐藏批注",
       "showComments": "显示批注",
       "more": "更多操作"
+    },
+    "outlineRailMode": {
+      "always": "常驻",
+      "auto": "自动隐藏",
+      "hidden": "隐藏"
     },
     "status": {
       "draft": "草稿",

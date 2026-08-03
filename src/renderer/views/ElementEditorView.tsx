@@ -292,7 +292,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
   ];
   // Scrollspy needs the FLAT id list (framework anchors + every heading),
   // not just the nested tree's roots.
-  const outlineIds = [...frameworkItems.map((i) => i.id), ...outline.map((h) => h.id)];
+  const outlineIds = [...frameworkItems.map((item) => item.id), ...outline.map((heading) => heading.id)];
   const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(scrollEl, outlineIds);
 
   const commitName = async () => {
@@ -747,7 +747,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
         </EditorCrumb>
       </EditorTopBar>
 
-      {/* Permanent semantic TOC scrollbar, fixed beside the native scroll tree. */}
+      {/* Mode-controlled semantic TOC scrollbar beside the native scroll tree. */}
       <div className="editor-body">
         <EditorOutlineRail
           title={`${curElement.name || 'ELEMENT'} · OUTLINE`}
@@ -757,7 +757,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
             pinOutline(id);
             scrollToOutlineAnchor(id, scrollEl);
           }}
-          emptyHint={t('nodeEditor.outline.empty')}
         />
         <div
           className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`}

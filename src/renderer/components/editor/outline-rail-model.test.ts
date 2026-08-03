@@ -4,7 +4,6 @@ import {
   flattenOutlineEntries,
   layoutOutlineRailLabels,
   outlineVisibleLabelRange,
-  planOutlineRailPlacement,
   planOutlineRail,
   visibleOutlineIds,
   type OutlineEntry,
@@ -26,20 +25,6 @@ function chapter(index: number, childCount = 0): OutlineEntry {
 }
 
 describe('semantic outline rail density planning', () => {
-  it('switches from the manuscript gutter to the left edge when width is insufficient', () => {
-    expect(planOutlineRailPlacement(220)).toEqual({
-      mode: 'resident',
-      left: 62,
-      width: 152,
-    });
-    expect(planOutlineRailPlacement(97)).toEqual({ mode: 'edge', left: 0, width: 0 });
-    expect(planOutlineRailPlacement(98)).toEqual({
-      mode: 'resident',
-      left: 4,
-      width: 88,
-    });
-  });
-
   it('keeps every chapter and nested heading when the rail has room', () => {
     const flat = flattenOutlineEntries([chapter(1, 2), chapter(2, 2)]);
     const plan = planOutlineRail(flat, 'chapter-1-scene-0', 500);

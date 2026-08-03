@@ -6,8 +6,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 //
 // Pass the scroll container (.editor-scroll) as state-backed element rather
 // than a plain ref so the effect re-runs when the element first attaches.
-// Anchors are resolved by `data-block-id` first (headings inside the editor)
-// then by `getElementById` (static section anchors).
+// Anchors are resolved inside that scroll container by `data-block-id` first
+// (headings inside the editor), then by a scoped id lookup (static section
+// anchors). This matters when split panes render the same ids.
 //
 // Returns the active id plus a `pin(id)` callback the view should call when the
 // user clicks a TOC row. Pinning holds the highlight on the clicked anchor
@@ -38,8 +39,8 @@ export function useOutlineScrollspy(
     const resolve = (id: string): HTMLElement | null => {
       const escaped = typeof CSS !== 'undefined' && 'escape' in CSS ? CSS.escape(id) : id;
       return (
-        document.querySelector<HTMLElement>(`[data-block-id="${escaped}"]`) ??
-        document.getElementById(id)
+        scrollRoot.querySelector<HTMLElement>(`[data-block-id="${escaped}"]`) ??
+        scrollRoot.querySelector<HTMLElement>(`#${escaped}`)
       );
     };
     const recompute = () => {

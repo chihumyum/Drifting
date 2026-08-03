@@ -175,7 +175,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   );
   const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(
     scrollEl,
-    outline.map((h) => h.id),
+    outline.map((heading) => heading.id),
   );
   // Nest the flat H1/H2/H3 outline into the scene/beat/note tree so this
   // single-chapter TOC reads identically to the same chapter inside 通览全书.
@@ -846,7 +846,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                 pinOutline(id);
                 scrollToOutlineAnchor(id, scrollEl);
               }}
-              emptyHint={t('nodeEditor.outline.empty')}
             />
             <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
               <div className="editor__spread">
@@ -912,7 +911,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             </div>
             {/* Comment rail lives OUTSIDE .editor-scroll so it can be absolutely
                 positioned against .editor-body without participating in flex
-                layout — mirrors the permanent semantic outline rail on the left.
+                layout — mirrors the semantic outline rail on the left.
                 Page stays centered without either rail entering layout flow. */}
             {marginNotes && (
               <CommentRail

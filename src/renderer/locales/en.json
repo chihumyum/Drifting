@@ -923,7 +923,6 @@
   },
   "editorOutline": {
     "aria": "Outline",
-    "emptyHint": "— No headings —",
     "sectionCount": "{{count}} sections",
     "scrollbar": "Manuscript structure scrollbar",
     "hiddenItems": "{{count}} distant outline items; hover to reveal"
@@ -2669,8 +2668,7 @@
       "storylines": "{{count}} storylines"
     },
     "outline": {
-      "title": "Chapter · OUTLINE",
-      "empty": "Use H1 / H2 / H3 headings to build an outline"
+      "title": "Chapter · OUTLINE"
     },
     "groupMove": {
       "title": "Move to group",
@@ -2852,12 +2850,18 @@
     "actions": {
       "collapsePlotPlanner": "Collapse plot planner",
       "expandPlotPlanner": "Expand plot planner",
+      "outlineRailDisplay": "TOC scrollbar",
       "hideReferenceLinks": "Hide reference link styling",
       "showReferenceLinks": "Show reference link styling",
       "noComments": "No comments",
       "hideComments": "Hide comments",
       "showComments": "Show comments",
       "more": "More actions"
+    },
+    "outlineRailMode": {
+      "always": "Always visible",
+      "auto": "Auto-hide",
+      "hidden": "Hidden"
     },
     "status": {
       "draft": "Draft",

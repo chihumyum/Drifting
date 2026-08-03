@@ -37,6 +37,14 @@ export const TYPEWRITER_POSITION_MIN = 25;
 export const TYPEWRITER_POSITION_MAX = 75;
 export const TYPEWRITER_POSITION_DEFAULT = 50;
 export const CARET_COLOR_DEFAULT = '#6b7fa6';
+export type OutlineRailMode = 'always' | 'auto' | 'hidden';
+export const OUTLINE_RAIL_MODE_DEFAULT: OutlineRailMode = 'auto';
+
+export function normalizeOutlineRailMode(value: unknown): OutlineRailMode {
+  return value === 'always' || value === 'auto' || value === 'hidden'
+    ? value
+    : OUTLINE_RAIL_MODE_DEFAULT;
+}
 
 export function normalizeCaretColor(color: unknown): string {
   return typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)
@@ -263,6 +271,8 @@ interface SettingsState {
   setTypewriterPosition: (percent: number) => void;
   caretColor: string;
   setCaretColor: (color: string) => void;
+  outlineRailMode: OutlineRailMode;
+  setOutlineRailMode: (mode: OutlineRailMode) => void;
   entityLinkInteractive: boolean;
   setEntityLinkInteractive: (on: boolean) => void;
   entityLinkColorMode: EntityLinkColorMode;
@@ -507,6 +517,8 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       caretColor: CARET_COLOR_DEFAULT,
       setCaretColor: (color) => set({ caretColor: normalizeCaretColor(color) }),
+      outlineRailMode: OUTLINE_RAIL_MODE_DEFAULT,
+      setOutlineRailMode: (mode) => set({ outlineRailMode: normalizeOutlineRailMode(mode) }),
       entityLinkInteractive: true,
       setEntityLinkInteractive: (on) => set({ entityLinkInteractive: on }),
       entityLinkColorMode: 'contextual',
@@ -701,7 +713,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 25,
+      version: 26,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           appearanceSkin?: 'classic' | 'modern';
@@ -992,6 +1004,9 @@ export const useSettingsStore = create<SettingsState>()(
           next.shadowByokProvider = provider;
           next.shadowByokModel = normalizeAgentProviderModel(provider, next.shadowByokModel);
         }
+        if (version < 26) {
+          next.outlineRailMode = OUTLINE_RAIL_MODE_DEFAULT;
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -1055,6 +1070,8 @@ export const useSettingsStore = create<SettingsState>()(
           TYPEWRITER_POSITION_DEFAULT,
         );
         merged.caretColor = normalizeCaretColor(merged.caretColor);
+        delete (merged as unknown as Record<string, unknown>).outlineRailVisible;
+        merged.outlineRailMode = normalizeOutlineRailMode(merged.outlineRailMode);
         merged.entityLinkColorMode = normalizeEntityLinkColorMode(merged.entityLinkColorMode);
         merged.entityLinkKindColors = normalizeEntityLinkKindColors(merged.entityLinkKindColors);
         return merged;

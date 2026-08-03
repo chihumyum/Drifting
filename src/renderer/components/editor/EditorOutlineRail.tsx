@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { useSettingsStore, type OutlineRailMode } from '../../store/settings-store';
 
 import {
   flattenOutlineEntries,
@@ -18,7 +19,6 @@ import {
   outlineActivePathIds,
   outlineVisibleLabelRange,
   planOutlineRail,
-  planOutlineRailPlacement,
   visibleOutlineIds,
   type FlatOutlineEntry,
   type OutlineEntry,
@@ -146,14 +146,21 @@ function omissionRevealEntries(label: OutlineRailOmissionLabel): FlatOutlineEntr
     : label.entries.slice(0, OMISSION_REVEAL_LIMIT);
 }
 
-export function EditorOutlineRail({
+export function EditorOutlineRail(props: Props) {
+  const outlineRailMode = useSettingsStore((state) => state.outlineRailMode);
+  if (outlineRailMode === 'hidden') return null;
+  return <VisibleEditorOutlineRail {...props} displayMode={outlineRailMode} />;
+}
+
+function VisibleEditorOutlineRail({
   title,
   items,
   activeId,
   onItemClick,
   emptyHint,
   secondaryItems,
-}: Props) {
+  displayMode,
+}: Props & { displayMode: Exclude<OutlineRailMode, 'hidden'> }) {
   const { t } = useTranslation();
   const railRef = useRef<HTMLElement | null>(null);
   const bodyElRef = useRef<HTMLElement | null>(null);
@@ -167,7 +174,6 @@ export function EditorOutlineRail({
   const [bodyEl, setBodyEl] = useState<HTMLElement | null>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
   const [railHeight, setRailHeight] = useState(0);
-  const [edgeMode, setEdgeMode] = useState(false);
   const [geometry, setGeometry] = useState<RailGeometry>(EMPTY_GEOMETRY);
   const [dragging, setDragging] = useState(false);
   const [scrollActive, setScrollActive] = useState(false);
@@ -204,67 +210,17 @@ export function EditorOutlineRail({
     const rail = railRef.current;
     const body = bodyElRef.current;
     if (!rail || !body) return undefined;
-    let manuscript: HTMLElement | null = null;
-    const observeManuscript = () => {
-      const next = scrollEl?.querySelector<HTMLElement>('.page') ?? null;
-      if (next === manuscript && manuscript?.isConnected) return;
-      if (manuscript) observer.unobserve(manuscript);
-      manuscript = next;
-      if (next) observer.observe(next);
-    };
     const update = () => {
       setRailHeight(rail.clientHeight);
-      observeManuscript();
-
-      const bodyRect = body.getBoundingClientRect();
-      const manuscriptRect = manuscript?.getBoundingClientRect();
-      const configuredPageWidth =
-        Number.parseFloat(
-          getComputedStyle(document.documentElement).getPropertyValue('--editor-max-width'),
-        ) || 720;
-      const fallbackPageWidth = Math.min(configuredPageWidth, bodyRect.width);
-      const leftGutter = manuscriptRect
-        ? Math.max(0, manuscriptRect.left - bodyRect.left)
-        : Math.max(0, (bodyRect.width - fallbackPageWidth) / 2);
-      const placement = planOutlineRailPlacement(leftGutter);
-
-      body.dataset.outlineRailMode = placement.mode;
-      if (placement.mode === 'resident') {
-        body.style.setProperty('--editor-toc-rail-left', `${placement.left}px`);
-        body.style.setProperty('--editor-toc-rail-width', `${placement.width}px`);
-      } else {
-        body.style.setProperty('--editor-toc-rail-left', '0px');
-        body.style.setProperty('--editor-toc-rail-width', '0px');
-      }
-      setEdgeMode((previous) => {
-        const next = placement.mode === 'edge';
-        return previous === next ? previous : next;
-      });
     };
     const observer = new ResizeObserver(update);
     observer.observe(rail);
     observer.observe(body);
-    if (scrollEl) observer.observe(scrollEl);
-    observeManuscript();
-    const mutationObserver = scrollEl
-      ? new MutationObserver(() => {
-          if (manuscript?.isConnected) return;
-          observeManuscript();
-          update();
-        })
-      : null;
-    if (mutationObserver && scrollEl) {
-      mutationObserver.observe(scrollEl, { childList: true, subtree: true });
-    }
     update();
     return () => {
       observer.disconnect();
-      mutationObserver?.disconnect();
-      delete body.dataset.outlineRailMode;
-      body.style.removeProperty('--editor-toc-rail-left');
-      body.style.removeProperty('--editor-toc-rail-width');
     };
-  }, [bodyEl, scrollEl]);
+  }, [bodyEl]);
 
   const measure = useCallback(() => {
     if (!scrollEl) {
@@ -527,7 +483,10 @@ export function EditorOutlineRail({
     const root = scrollElRef.current;
     if (!root) return;
     event.preventDefault();
-    root.scrollBy({ top: event.deltaY, left: event.deltaX });
+    // The rail represents one vertical document coordinate. Trackpad flings
+    // commonly include a small deltaX; forwarding it would move the hidden
+    // horizontal scroll offset and make the manuscript shake at a Y boundary.
+    root.scrollBy({ top: event.deltaY });
   };
 
   const clearRevealClose = useCallback(() => {
@@ -549,7 +508,8 @@ export function EditorOutlineRail({
     [clearRevealClose],
   );
 
-  const railActive = scrollActive || dragging || interacting || omissionReveal != null;
+  const railActive =
+    displayMode === 'always' || scrollActive || dragging || interacting || omissionReveal != null;
   useLayoutEffect(() => {
     const body = bodyElRef.current;
     if (!body) return undefined;
@@ -567,7 +527,6 @@ export function EditorOutlineRail({
     setOmissionReveal({ label, rect: target.getBoundingClientRect() });
   };
 
-  const resolvedEmptyHint = emptyHint ?? t('editorOutline.emptyHint');
   const jumpToEntry = (id: string) => {
     setSemanticTargetId(id);
     if (semanticTargetTimerRef.current != null) {
@@ -583,12 +542,13 @@ export function EditorOutlineRail({
   return (
     <nav
       ref={attachRail}
-      className={`editor__toc-rail editor__toc-rail--${edgeMode ? 'edge' : 'resident'}${
+      className={`editor__toc-rail editor__toc-rail--edge${
         dragging ? ' is-dragging' : ''
       }${scrollActive ? ' is-scroll-active' : ''}${railActive ? ' is-active' : ''}`}
       aria-label={`${title} · ${t('editorOutline.aria')}`}
       data-density={plan.mode}
-      data-placement={edgeMode ? 'edge' : 'resident'}
+      data-display-mode={displayMode}
+      data-placement="edge"
       onWheel={handleWheel}
       onPointerEnter={() => setInteracting(true)}
       onPointerLeave={() => setInteracting(false)}
@@ -601,7 +561,9 @@ export function EditorOutlineRail({
       }}
     >
       <div className="editor__toc-labels">
-        {flat.length === 0 && <span className="editor__toc-empty">{resolvedEmptyHint}</span>}
+        {flat.length === 0 && emptyHint && (
+          <span className="editor__toc-empty">{emptyHint}</span>
+        )}
         {laidOut.map(({ label, y }) => {
           const style = { top: `${y}px` };
 
@@ -697,21 +659,17 @@ export function EditorOutlineRail({
       {omissionReveal && typeof document !== 'undefined'
         ? createPortal(
             <div
-              className={`editor__toc-omission-reveal${
-                edgeMode ? ' editor__toc-omission-reveal--edge' : ''
-              }`}
+              className="editor__toc-omission-reveal editor__toc-omission-reveal--edge"
               role="group"
               aria-label={t('editorOutline.hiddenItems', {
                 count: omissionReveal.label.entries.length,
               })}
               style={{
                 left: `${
-                  edgeMode
-                    ? Math.min(
-                        window.innerWidth - OMISSION_REVEAL_WIDTH - 8,
-                        Math.max(8, omissionReveal.rect.left),
-                      )
-                    : Math.max(8, omissionReveal.rect.right - OMISSION_REVEAL_WIDTH)
+                  Math.min(
+                    window.innerWidth - OMISSION_REVEAL_WIDTH - 8,
+                    Math.max(8, omissionReveal.rect.left),
+                  )
                 }px`,
                 top: `${Math.min(
                   window.innerHeight -

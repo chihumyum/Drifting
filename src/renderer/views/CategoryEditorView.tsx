@@ -248,7 +248,7 @@ export function CategoryEditorView({
   const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(
     scrollEl,
     // Flat id list (framework anchors + every body heading).
-    [...frameworkItems.map((i) => i.id), ...outline.map((h) => h.id)],
+    [...frameworkItems.map((item) => item.id), ...outline.map((heading) => heading.id)],
   );
 
   const handleContextAction = useCallback(

@@ -816,8 +816,8 @@ html[data-platform-target='mobile'] .app-mid {
   letter-spacing: 0.08em;
   color: hsl(var(--ink-3));
 }
-/* Left breadcrumb group. The outline is now a permanent semantic scrollbar,
-   so the bar no longer carries a visibility toggle. */
+/* Left breadcrumb group. TOC visibility lives with the compact controls on the
+   right, immediately beside Entity Link highlighting. */
 .editor-bar__left {
   display: inline-flex;
   align-items: center;
@@ -829,6 +829,11 @@ html[data-platform-target='mobile'] .app-mid {
   align-items: center;
   gap: 14px;
   white-space: nowrap;
+}
+.editor-bar__toggle-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .editor-bar__sep {
   color: hsl(var(--ink-5));
@@ -894,6 +899,9 @@ html[data-platform-target='mobile'] .app-mid {
   font-family: var(--font-sans);
   text-transform: none;
   letter-spacing: normal;
+}
+.editor-bar__outline-menu {
+  min-width: 156px;
 }
 .editor-bar__menu-item {
   display: flex;
@@ -1418,7 +1426,7 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 }
 /* Comment rail — anchored to the right edge of .editor-body, mirrors the
    semantic outline rail on the left. Absolute positioning means the
-   manuscript never reflows around either permanent rail.
+   manuscript never reflows around either rail, including when TOC mode changes.
    The rail container is transparent + pointer-events:none so the user can
    click/select manuscript text underneath the rail's empty regions. Only
    the actual cards/chips re-enable pointer events. */
@@ -2726,16 +2734,6 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   font-size: 9px;
 }
 
-/* A single-entity editor's own name is a pinned structural root above the
-   five-level manuscript outline. It remains plain text, like every TOC tag. */
-.editor__toc-tag--root {
-  font-family: var(--font-sans);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: hsl(var(--ink-2));
-}
-
 /* Five structural levels stay uniform across every editor. Their compact rail
    treatment preserves the existing "deeper = quieter" hierarchy. */
 .editor__toc-tag--l1 {
@@ -2894,7 +2892,8 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 }
 
 /* The rail always occupies the editor area's left edge. TOC text sits to the
-   thumb's right and appears only during scroll/direct interaction. */
+   thumb's right. Auto mode exposes it during scroll/direct interaction; the
+   always mode supplies .is-active continuously. */
 .editor__toc-rail--edge .editor__toc-labels,
 .editor__toc-rail--edge .editor__toc-viewport-range {
   opacity: 0;

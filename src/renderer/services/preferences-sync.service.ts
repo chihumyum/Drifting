@@ -24,6 +24,7 @@ import {
   useSettingsStore,
   COPILOT_TASKS,
   normalizeAgentToolSearch,
+  normalizeOutlineRailMode,
   type CopilotTaskId,
 } from '../store/settings-store';
 import loglevel from 'loglevel';
@@ -49,6 +50,7 @@ type SyncableSlice = {
   paragraphSpacing: unknown;
   maxLineWidth: unknown;
   caretColor: unknown;
+  outlineRailMode: unknown;
   entityLinkInteractive: unknown;
   entityLinkColorMode: unknown;
   entityLinkKindColors: unknown;
@@ -102,6 +104,7 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'paragraphSpacing',
   'maxLineWidth',
   'caretColor',
+  'outlineRailMode',
   'entityLinkInteractive',
   'entityLinkColorMode',
   'entityLinkKindColors',
@@ -236,6 +239,7 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     caretColor: (v) => {
       if (typeof v === 'string') store.setCaretColor(v);
     },
+    outlineRailMode: (v) => store.setOutlineRailMode(normalizeOutlineRailMode(v)),
     entityLinkInteractive: (v) => store.setEntityLinkInteractive(!!v),
     entityLinkColorMode: (v) => store.setEntityLinkColorMode(v as never),
     entityLinkKindColors: (v) => store.setEntityLinkKindColors(v),

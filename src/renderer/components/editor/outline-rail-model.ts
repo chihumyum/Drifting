@@ -56,43 +56,11 @@ export interface OutlineVisibleLabelRange {
   count: number;
 }
 
-export interface OutlineRailPlacement {
-  mode: 'resident' | 'edge';
-  left: number;
-  width: number;
-}
-
 export const OUTLINE_RAIL_LABEL_PITCH = 17;
 const OUTLINE_RAIL_VERTICAL_INSET = 9;
-const OUTLINE_RAIL_MIN_RESIDENT_WIDTH = 88;
-const OUTLINE_RAIL_MAX_RESIDENT_WIDTH = 152;
-const OUTLINE_RAIL_PAGE_GAP = 6;
-const OUTLINE_RAIL_BODY_INSET = 4;
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
-}
-
-/**
- * Use the real gutter beside the rendered manuscript, not the window width.
- * A resident rail needs room for an 88px text lane plus its page/inset gaps;
- * below that it becomes an overlay scrollbar on the editor's left edge.
- */
-export function planOutlineRailPlacement(leftGutter: number): OutlineRailPlacement {
-  const minimumGutter =
-    OUTLINE_RAIL_BODY_INSET + OUTLINE_RAIL_MIN_RESIDENT_WIDTH + OUTLINE_RAIL_PAGE_GAP;
-  if (!Number.isFinite(leftGutter) || leftGutter < minimumGutter) {
-    return { mode: 'edge', left: 0, width: 0 };
-  }
-  const width = Math.min(
-    OUTLINE_RAIL_MAX_RESIDENT_WIDTH,
-    leftGutter - OUTLINE_RAIL_BODY_INSET - OUTLINE_RAIL_PAGE_GAP,
-  );
-  return {
-    mode: 'resident',
-    left: Math.max(OUTLINE_RAIL_BODY_INSET, leftGutter - width - OUTLINE_RAIL_PAGE_GAP),
-    width,
-  };
 }
 
 /** Fold a flat h1/h2/h3 list into the scene/beat/note hierarchy. */
@@ -240,8 +208,13 @@ export function planOutlineRail(
   );
   // Reserve two slots first. If the final window touches one edge, reclaim the
   // unused omission slot so ordinary first/last chapters get one more label.
-  let window = centeredWindow(activeBranch.length, activeBranchIndex, Math.max(1, capacity - 2));
-  const omissionCount = Number(window.start > 0) + Number(window.end < activeBranch.length);
+  let window = centeredWindow(
+    activeBranch.length,
+    activeBranchIndex,
+    Math.max(1, capacity - 2),
+  );
+  const omissionCount =
+    Number(window.start > 0) + Number(window.end < activeBranch.length);
   window = centeredWindow(
     activeBranch.length,
     activeBranchIndex,

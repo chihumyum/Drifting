@@ -1,4 +1,4 @@
-import { Check, LayoutGrid, Link2, MessageSquare, MoreVertical } from 'lucide-react';
+import { Check, LayoutGrid, Link2, ListTree, MessageSquare, MoreVertical } from 'lucide-react';
 import {
   Children,
   Fragment,
@@ -16,6 +16,7 @@ import {
   MANUAL_CHAPTER_WRITING_STATUSES,
   type WritingStatus,
 } from '../../domain/book-node';
+import { useSettingsStore, type OutlineRailMode } from '../../store/settings-store';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 
 export type EditorType = 'node' | 'element' | 'category' | 'storyline';
@@ -69,7 +70,7 @@ export function getStatusSectionLabel(kind: NodeStatusKind, translate?: Translat
 /*
   Shared editor top bar:
   - Breadcrumb area on the left, built from <EditorCrumb> children
-  - The semantic outline scrollbar is permanent and therefore has no toggle
+  - The semantic outline scrollbar toggle sits beside Entity Link highlighting
   - Free-form right slot for contextual controls and non-word-count metadata
   - Integrated three-dot menu driven by `editorType` + `onMenuAction`
 */
@@ -146,20 +147,25 @@ export function EditorTopBar({
             <LayoutGrid size={14} />
           </button>
         )}
-        {referenceLinkToggle && (
-          <button
-            type="button"
-            className={`editor-bar__icon editor-bar__icon--reflink${referenceLinkToggle.enabled ? ' editor-bar__icon--active' : ''}`}
-            title={
-              referenceLinkToggle.enabled
-                ? t('editorTopBar.actions.hideReferenceLinks')
-                : t('editorTopBar.actions.showReferenceLinks')
-            }
-            aria-pressed={referenceLinkToggle.enabled}
-            onClick={referenceLinkToggle.onToggle}
-          >
-            <Link2 size={14} />
-          </button>
+        {(editorType || referenceLinkToggle) && (
+          <div className="editor-bar__toggle-group">
+            {editorType && <OutlineRailModeMenu translate={t} />}
+            {referenceLinkToggle && (
+              <button
+                type="button"
+                className={`editor-bar__icon editor-bar__icon--reflink${referenceLinkToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+                title={
+                  referenceLinkToggle.enabled
+                    ? t('editorTopBar.actions.hideReferenceLinks')
+                    : t('editorTopBar.actions.showReferenceLinks')
+                }
+                aria-pressed={referenceLinkToggle.enabled}
+                onClick={referenceLinkToggle.onToggle}
+              >
+                <Link2 size={14} />
+              </button>
+            )}
+          </div>
         )}
         {commentToggle && (
           <button
@@ -194,6 +200,71 @@ export function EditorTopBar({
         )}
       </div>
     </div>
+  );
+}
+
+const OUTLINE_RAIL_MODES: readonly OutlineRailMode[] = ['always', 'auto', 'hidden'];
+
+const OUTLINE_RAIL_MODE_LABEL_KEYS: Record<OutlineRailMode, string> = {
+  always: 'editorTopBar.outlineRailMode.always',
+  auto: 'editorTopBar.outlineRailMode.auto',
+  hidden: 'editorTopBar.outlineRailMode.hidden',
+};
+
+function OutlineRailModeMenu({ translate }: { translate: Translate }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const mode = useSettingsStore((state) => state.outlineRailMode);
+  const setMode = useSettingsStore((state) => state.setOutlineRailMode);
+  const label = translate(OUTLINE_RAIL_MODE_LABEL_KEYS[mode]);
+  const title = `${translate('editorTopBar.actions.outlineRailDisplay')}: ${label}`;
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`editor-bar__icon editor-bar__icon--outline${mode !== 'hidden' ? ' editor-bar__icon--active' : ''}`}
+        title={title}
+        aria-label={title}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <ListTree size={14} />
+      </button>
+      <AnchoredPopover
+        anchorRef={buttonRef}
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        placement="bottom-end"
+        className="editor-bar__menu editor-bar__outline-menu"
+        role="menu"
+      >
+        <div className="editor-bar__menu-section-label">
+          {translate('editorTopBar.actions.outlineRailDisplay')}
+        </div>
+        {OUTLINE_RAIL_MODES.map((option) => {
+          const active = option === mode;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="menuitemradio"
+              aria-checked={active}
+              className={`editor-bar__menu-item editor-bar__menu-item--status${active ? ' editor-bar__menu-item--active' : ''}`}
+              onClick={() => {
+                if (!active) setMode(option);
+                setIsOpen(false);
+              }}
+            >
+              <span>{translate(OUTLINE_RAIL_MODE_LABEL_KEYS[option])}</span>
+              {active && <Check size={12} />}
+            </button>
+          );
+        })}
+      </AnchoredPopover>
+    </>
   );
 }
 

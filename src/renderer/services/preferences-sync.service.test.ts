@@ -38,7 +38,7 @@ import {
   startPreferencesSync,
   stopPreferencesSync,
 } from './preferences-sync.service';
-import { useSettingsStore } from '../store/settings-store';
+import { normalizeOutlineRailMode, useSettingsStore } from '../store/settings-store';
 import { DEFAULT_ENTITY_LINK_KIND_COLORS } from '../lib/entity-link-appearance';
 
 describe('preferences sync', () => {
@@ -50,6 +50,7 @@ describe('preferences sync', () => {
     useSettingsStore.setState({
       agentToolSearch: 'off',
       agentMaxContext: false,
+      outlineRailMode: 'auto',
       entityLinkColorMode: 'contextual',
       entityLinkKindColors: { ...DEFAULT_ENTITY_LINK_KIND_COLORS },
     });
@@ -61,6 +62,13 @@ describe('preferences sync', () => {
 
   afterAll(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('normalizes the three outline-rail modes and rejects malformed values', () => {
+    expect(normalizeOutlineRailMode('always')).toBe('always');
+    expect(normalizeOutlineRailMode('auto')).toBe('auto');
+    expect(normalizeOutlineRailMode('hidden')).toBe('hidden');
+    expect(normalizeOutlineRailMode('legacy')).toBe('auto');
   });
 
   it('normalizes and applies the server value during the initial pull', async () => {
@@ -147,6 +155,31 @@ describe('preferences sync', () => {
 
     expect(api.post).toHaveBeenCalledWith('/api/preferences', {
       patches: [{ key: 'agentToolSearch', value: 'on' }],
+    });
+  });
+
+  it('pulls and pushes the outline-rail display mode', async () => {
+    api.get.mockResolvedValue({
+      data: {
+        entries: [
+          {
+            key: 'outlineRailMode',
+            value: 'hidden',
+            updatedAt: '2026-08-04T00:00:00.000Z',
+          },
+        ],
+      },
+    });
+    api.post.mockResolvedValue({ data: { entries: [] } });
+
+    await startPreferencesSync();
+    expect(useSettingsStore.getState().outlineRailMode).toBe('hidden');
+
+    useSettingsStore.getState().setOutlineRailMode('always');
+    await flushPreferencesSync();
+
+    expect(api.post).toHaveBeenCalledWith('/api/preferences', {
+      patches: [{ key: 'outlineRailMode', value: 'always' }],
     });
   });
 
