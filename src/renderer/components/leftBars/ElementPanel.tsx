@@ -753,6 +753,7 @@ export function ElementPanel() {
               padding: '6px 8px',
               overflowX: footerHeight == null ? 'auto' : 'hidden',
               overflowY: footerHeight == null ? 'hidden' : 'auto',
+              borderTop: '1px solid var(--workspace-subtle-border)',
               background: 'var(--workspace-ui-bg)',
               whiteSpace: footerHeight == null ? 'nowrap' : 'normal',
               height: footerHeight ?? undefined,

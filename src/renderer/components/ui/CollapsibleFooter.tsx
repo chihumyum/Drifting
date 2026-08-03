@@ -158,7 +158,7 @@ export function CollapsibleFooter({
         flexDirection: 'column',
         position: 'relative',
         overflow: 'hidden',
-        borderTop: '1px solid hsl(var(--rule))',
+        borderTop: '1px solid var(--workspace-subtle-border)',
         background: 'hsl(var(--paper-deep) / 0.5)',
         minHeight: COLLAPSIBLE_FOOTER_HEADER_HEIGHT,
         height: isExpanded ? currentHeight : COLLAPSIBLE_FOOTER_HEADER_HEIGHT,

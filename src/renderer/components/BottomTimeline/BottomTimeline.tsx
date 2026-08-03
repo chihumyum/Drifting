@@ -895,7 +895,7 @@ export function BottomTimeline() {
         <div
           data-node-container
           className="btl-track"
-          style={{ background: 'hsl(var(--page))', minWidth: timelineWidth }}
+          style={{ minWidth: timelineWidth }}
         >
           {isNarrative &&
             markers.map((m) => {

@@ -571,24 +571,40 @@
   font-size: 12.5px;
 }
 
-/* Dense sidebar collections are rows on the tool slab, not cards nested
-   inside another elevated surface. */
+/* Local headers use a full-width half-pixel hairline. It reads as structure,
+   but stays physically finer than the 1px first-level workspace seams. */
+.workspace-local-divider {
+  position: relative;
+}
+
+.workspace-local-divider::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 0.5px;
+  background: var(--workspace-local-border);
+  pointer-events: none;
+}
+
+/* Dense sidebar collections keep a bounded cell surface, but never lift into
+   another card layer. */
 .workspace-list {
   background: transparent;
 }
 
 .workspace-list-row {
-  border: 0;
-  border-bottom: 1px solid hsl(var(--rule));
-  border-radius: 0;
-  background: transparent;
+  border: 1px solid var(--workspace-card-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, hsl(var(--page)) 55%, var(--workspace-ui-bg));
   box-shadow: none;
   transition: background 80ms ease;
 }
 
 .workspace-list-row:hover,
 .workspace-list-row:focus-within {
-  background: hsl(var(--rule) / 0.24);
+  background: color-mix(in srgb, hsl(var(--page)) 70%, var(--workspace-ui-bg));
 }
 
 .label-mono {

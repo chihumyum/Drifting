@@ -5,6 +5,9 @@
    ============================================================ */
 
 .btl {
+  --btl-lane-bg: hsl(var(--page));
+  --btl-secondary-rail-bg: hsl(var(--paper));
+  --btl-rail-contrast-line: var(--btl-lane-bg);
   display: flex;
   flex-direction: column;
   background: var(--workspace-ui-bg);
@@ -365,6 +368,7 @@
   flex: 1;
   height: 100%;
   border-radius: 4px;
+  background: var(--btl-lane-bg);
   cursor: default;
 }
 
@@ -374,7 +378,7 @@
   align-items: stretch;
   flex: 0 0 auto;
   height: 22px;
-  background: var(--workspace-ui-bg);
+  background: var(--btl-secondary-rail-bg);
   position: relative;
 }
 .btl-axis__rail {
@@ -385,7 +389,7 @@
   align-items: center;
   justify-content: space-between;
   border-right: 1px solid hsl(var(--rule));
-  background: var(--workspace-ui-bg);
+  background: var(--btl-secondary-rail-bg);
   padding: 0 10px 0 16px;
   z-index: 20;
   font-family: var(--font-mono);
@@ -429,20 +433,32 @@
      element sized to the scroll content (flex:1 + minWidth:timelineWidth);
      the parent `.btl-axis` is only as wide as the container, so relying on its
      background left everything past the pre-scroll right edge bare. */
-  background: var(--workspace-ui-bg);
+  background: var(--btl-secondary-rail-bg);
 }
 
 /* Book mode uses the shared ActRail in the same structural slot as the
-   narrative axis. Inside the timeline it shares the dock's one background,
-   without another hairline-delimited strip. StoryGraphView keeps the shared
-   default. */
+   narrative axis. Inside the timeline the two rails share a slightly lighter
+   gray than the header, without adding another full-width hairline.
+   StoryGraphView keeps the shared default. */
 .btl .actrail {
   border-bottom: 0;
-  background: var(--workspace-ui-bg);
+  background: var(--btl-secondary-rail-bg);
 }
 .btl .actrail__rail,
 .btl .actrail__track {
-  background: var(--workspace-ui-bg);
+  background: var(--btl-secondary-rail-bg);
+}
+
+/* The boundary segment inside the act rail uses the storyline lane's own
+   white as local contrast; its continuation through those white lanes stays
+   the shared gray .btl-pin-line below. */
+.btl .actrail__divider::after {
+  background: var(--btl-rail-contrast-line);
+}
+
+.btl .actrail__divider:hover::after {
+  width: 2px;
+  background: hsl(var(--accent));
 }
 
 /* ---------------- Time pin (narrative view, draggable marker) ----------------
@@ -503,17 +519,16 @@
   opacity: 0;
   pointer-events: none;
 }
-/* Pin line — the rail-height vertical line at the marker's position, mirroring
-   the act boundary line (.actrail__divider::after): same 1px --rule primitive.
-   Replaced the old triangle head. Continues downward as .btl-pin-line through
-   the storyline tracks, so the marker reads as one line from rail to bottom. */
+/* Pin line — the rail-height segment uses the storyline lane's white as local
+   contrast. Its continuation through the white storyline lanes is the gray
+   .btl-pin-line below, so the marker remains legible across both surfaces. */
 .btl-pin__line {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
   width: 1px;
-  background: hsl(var(--rule));
+  background: var(--btl-rail-contrast-line);
   cursor: grab;
   transition: opacity 0.1s ease;
 }
@@ -543,7 +558,7 @@
   background: hsl(var(--accent) / 0.12);
 }
 .btl-pin.is-bound .btl-pin__line {
-  background: hsl(var(--accent));
+  background: var(--btl-rail-contrast-line);
 }
 /* Pin grid line — rendered inside each storyline track so it paints
    below the chapter clips. */

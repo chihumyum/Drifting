@@ -75,6 +75,7 @@ export function RightSidebarHeader({
   return (
     <>
       <div
+        className="workspace-local-divider"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -145,6 +146,7 @@ export function RightSidebarHeader({
 
       {!hideTitleBlock && (
         <div
+          className="workspace-local-divider"
           style={{
             padding: '10px 14px 8px',
             background: 'var(--workspace-ui-bg)',

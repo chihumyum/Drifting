@@ -369,6 +369,7 @@ export function LeftSidebarSubHeader() {
   return (
     <div
       ref={rootRef}
+      className="workspace-local-divider"
       style={{
         display: 'flex',
         alignItems: 'center',

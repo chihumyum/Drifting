@@ -75,6 +75,7 @@ export function LeftSidebarHeader() {
   return (
     <div
       ref={rootRef}
+      className="workspace-local-divider"
       style={{
         display: 'flex',
         height: 35,

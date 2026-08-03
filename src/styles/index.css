@@ -123,6 +123,9 @@
        surface and ink tokens; these only define role and shape. */
     --workspace-corner-radius: 2px;
     --workspace-border: hsl(var(--ink-1) / 0.14);
+    --workspace-local-border: hsl(var(--ink-1) / 0.12);
+    --workspace-card-border: hsl(var(--ink-1) / 0.1);
+    --workspace-subtle-border: hsl(var(--ink-1) / 0.07);
 
     /* Native window chrome geometry. Every renderer-owned titlebar surface
        consumes the same height so its content center stays aligned with the

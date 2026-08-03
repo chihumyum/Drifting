@@ -205,19 +205,30 @@ describe('workspace surface language acceptance', () => {
     expect(sidebar).toContain("window.addEventListener('blur', stopResizing);");
   });
 
-  it('uses plain outer seams and one internal gray without junction decoration', () => {
+  it('uses plain outer seams with restrained local hierarchy and no junction decoration', () => {
     const app = source('src/renderer/App.tsx');
     const shellCss = source('src/styles/index.css');
     const timelineCss = source('src/styles/bottom-timeline.css');
+    const controls = source('src/styles/ui-controls.css');
+    const bottomTimeline = source('src/renderer/components/BottomTimeline/BottomTimeline.tsx');
     const leftHeader = source('src/renderer/components/leftBars/LeftSidebarHeader.tsx');
     const leftSubheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
+    const elementPanel = source('src/renderer/components/leftBars/ElementPanel.tsx');
     const rightHeader = source('src/renderer/components/rightBars/RightSidebarHeader.tsx');
     const todo = source('src/renderer/components/rightBars/TodoPanel.tsx');
     const library = source('src/renderer/components/rightBars/MemoMaterialPanel.tsx');
+    const collapsibleFooter = source('src/renderer/components/ui/CollapsibleFooter.tsx');
     const timeline = block(timelineCss, '.btl {', '.btl__resize {');
     const timelineHead = block(timelineCss, '.btl__head {', '.btl__head-left {');
     const timelineRows = block(timelineCss, '.btl-row {', 'Rail (sticky left)');
     const timelineAxis = block(timelineCss, '.btl-axis {', '.btl-axis__rail-add {');
+    const localDivider = block(
+      controls,
+      '.workspace-local-divider {',
+      '/* Dense sidebar collections',
+    );
+    const listRow = block(controls, '.workspace-list-row {', '.workspace-list-row:hover,');
+    const trackPinLine = block(timelineCss, '.btl-pin-line {', '.btl-pin-line.is-dragging {');
     const shell = block(
       shellCss,
       'Coplanar workspace + manuscript elevation',
@@ -225,6 +236,9 @@ describe('workspace surface language acceptance', () => {
     );
 
     expect(shellCss).toContain('--workspace-border:');
+    expect(shellCss).toContain('--workspace-local-border:');
+    expect(shellCss).toContain('--workspace-card-border:');
+    expect(shellCss).toContain('--workspace-subtle-border:');
     expect(shellCss).not.toContain('--workspace-level-1-bg:');
     expect(shellCss).not.toContain('--workspace-level-2-bg:');
     expect(shell).not.toContain('radial-gradient');
@@ -238,20 +252,44 @@ describe('workspace surface language acceptance', () => {
     expect(timelineHead).toContain('background: var(--workspace-ui-bg);');
     expect(timelineHead).not.toContain('border-bottom');
     expect(timelineRows).not.toContain('border-top');
-    expect(timelineAxis).toContain('background: var(--workspace-ui-bg);');
+    expect(timeline).toContain('--btl-lane-bg: hsl(var(--page));');
+    expect(timeline).toContain('--btl-secondary-rail-bg: hsl(var(--paper));');
+    expect(timeline).toContain('--btl-rail-contrast-line: var(--btl-lane-bg);');
+    expect(timelineAxis).toContain('background: var(--btl-secondary-rail-bg);');
     expect(timelineCss).toMatch(
-      /\.btl \.actrail\s*\{[\s\S]*?border-bottom:\s*0;[\s\S]*?background:\s*var\(--workspace-ui-bg\);/,
+      /\.btl \.actrail\s*\{[\s\S]*?border-bottom:\s*0;[\s\S]*?background:\s*var\(--btl-secondary-rail-bg\);/,
     );
+    expect(timelineCss).toMatch(
+      /\.btl \.actrail__divider::after\s*\{[\s\S]*?background:\s*var\(--btl-rail-contrast-line\);/,
+    );
+    expect(timelineCss).toMatch(
+      /\.btl-pin__line\s*\{[\s\S]*?background:\s*var\(--btl-rail-contrast-line\);/,
+    );
+    expect(trackPinLine).toContain('background: hsl(var(--rule));');
+    expect(bottomTimeline).not.toContain("background: 'hsl(var(--page))'");
     expect(leftHeader).toContain("background: 'var(--workspace-ui-bg)'");
     expect(leftSubheader).toContain("background: 'var(--workspace-ui-bg)'");
     expect(rightHeader).toContain("background: 'var(--workspace-ui-bg)'");
     expect(todo).toContain("background: 'var(--workspace-ui-bg)'");
     expect(library).toContain("background: 'var(--workspace-ui-bg)'");
-    expect(leftHeader).not.toContain('workspace-border');
-    expect(leftSubheader).not.toContain('borderBottom');
-    expect(rightHeader).not.toContain('workspace-border');
-    expect(todo).not.toContain('workspace-border');
-    expect(library).not.toContain('workspace-border');
+    expect(leftHeader).toContain('className="workspace-local-divider"');
+    expect(leftSubheader).toContain('className="workspace-local-divider"');
+    expect(rightHeader.match(/className="workspace-local-divider"/g)).toHaveLength(2);
+    expect(todo).toContain('className="workspace-local-divider"');
+    expect(library).toContain('className="workspace-local-divider"');
+    expect(localDivider).toContain('right: 0;');
+    expect(localDivider).toContain('left: 0;');
+    expect(localDivider).toContain('height: 0.5px;');
+    expect(localDivider).toContain('background: var(--workspace-local-border);');
+    expect(listRow).toContain('border: 1px solid var(--workspace-card-border);');
+    expect(listRow).toContain('background: color-mix');
+    expect(listRow).toContain('box-shadow: none;');
+    expect(todo).toContain("padding: '6px 12px 12px'");
+    expect(todo).toContain('gap: 6');
+    expect(library).toContain("padding: '6px 12px 12px'");
+    expect(library).toContain('gap: 6');
+    expect(collapsibleFooter).toContain("borderTop: '1px solid var(--workspace-subtle-border)'");
+    expect(elementPanel).toContain("borderTop: '1px solid var(--workspace-subtle-border)'");
   });
 
   it('keeps Settings and Super Views on flat edge-aligned shells', () => {
@@ -345,7 +383,7 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('单层桌面，只有一张抬起的稿纸');
     expect(doc).toContain('它们全部使用从 editor 稿纸外侧提取的');
     expect(doc).toContain('三方交点没有渐变、阴影或额外装饰');
-    expect(doc).toContain('它们全部使用同一个 `--workspace-ui-bg`');
+    expect(doc).toContain('局部层级只使用弱于主接缝的完整 `0.5px` hairline 与相邻灰阶');
     expect(doc).toContain('不实现同时改变三个区域的三向 resize');
     expect(doc).toContain('只用暗淡文字与黑色文字的切换');
     expect(doc).toContain('footer 只占中间编辑列');

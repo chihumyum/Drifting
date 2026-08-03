@@ -121,10 +121,10 @@ export function TodoPanel({ focused }: Props) {
           flex: 1,
           minHeight: 0,
           overflowY: 'auto',
-          padding: '0 12px 12px',
+          padding: '6px 12px 12px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 0,
+          gap: 6,
         }}
       >
         {openTodos.length === 0 && <EmptyState message={t('todoPanel.empty')} />}
@@ -193,6 +193,7 @@ function Subheader({ count, onCompose }: { count: number; onCompose: () => void 
   return (
     <div
       ref={ref}
+      className="workspace-local-divider"
       style={{
         display: 'flex',
         alignItems: 'center',
