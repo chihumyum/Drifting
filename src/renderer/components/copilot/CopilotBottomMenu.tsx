@@ -1,6 +1,6 @@
 /**
- * CopilotBottomMenu — the bottom-bar Copilot mini-menu (Task 2), sitting next
- * to Shadow. A compact popover with the master switch, the auto-trigger
+ * CopilotQuickMenu — the topbar Copilot mini-menu, sitting next to Shadow.
+ * A compact popover with the auto-trigger
  * switch, and per-task toggles — the same settings exposed in the full
  * Settings panel, surfaced here for quick reach while writing.
  *
@@ -20,6 +20,7 @@ import {
 import { getCopilotCapability } from '../../lib/copilot/capability';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
+import { GhostIconButton } from '../ui/GhostIconButton';
 import '../../../styles/copilot-surface.css';
 
 const OUTPUT_LANG_OPTIONS: { value: CopilotOutputLang; label: string }[] = [
@@ -32,7 +33,7 @@ const OUTPUT_LANG_OPTIONS: { value: CopilotOutputLang; label: string }[] = [
   { value: 'fr', label: 'Français' },
 ];
 
-export function CopilotBottomMenu() {
+export function CopilotQuickMenu() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   // Button rect captured on open (in the click handler — reading the ref in
@@ -53,13 +54,13 @@ export function CopilotBottomMenu() {
     'auto';
   const setOutputLang = useSettingsStore((s) => s.setCopilotOutputLang);
 
-  // Panel position: anchored above the button, computed from its captured
+  // Panel position: anchored below the topbar button, computed from its captured
   // rect. The panel is portaled to <body> with a high z-index so the editor
   // workspace cannot paint over it.
   const panelStyle: React.CSSProperties = {
     position: 'fixed',
-    bottom: rect ? window.innerHeight - rect.top + 6 : 48,
-    left: rect ? Math.max(8, rect.right - 248) : 8,
+    top: rect ? rect.bottom + 6 : 48,
+    right: rect ? Math.max(8, window.innerWidth - rect.right) : 8,
     zIndex: 'var(--z-toast)',
     width: 248,
     background: 'var(--copilot-surface)',
@@ -73,17 +74,16 @@ export function CopilotBottomMenu() {
 
   return (
     <div style={{ display: 'inline-flex' }}>
-      <button
+      <GhostIconButton
         ref={buttonRef}
-        type="button"
-        className={`bsb__seg bsb__copilot${autoTrigger ? ' is-live' : ''}`}
+        className="workspace-header-action"
         onClick={toggleOpen}
         title="Copilot"
         aria-label="Copilot"
-      >
-        <Sparkles size={11} strokeWidth={1.6} />
-        <span>Copilot</span>
-      </button>
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        icon={<Sparkles size={16} strokeWidth={1.6} />}
+      />
 
       {open &&
         createPortal(
@@ -93,84 +93,92 @@ export function CopilotBottomMenu() {
               style={{ position: 'fixed', inset: 0, zIndex: 'calc(var(--z-toast) - 1)' }}
             />
             <div onMouseDown={(e) => e.stopPropagation()} style={panelStyle}>
-          <ToggleRow
-            label={t('settings.copilot.autoTrigger')}
-            desc={t('settings.copilot.autoTriggerDesc')}
-            checked={autoTrigger}
-            onChange={setAutoTrigger}
-          />
+              <ToggleRow
+                label={t('settings.copilot.autoTrigger')}
+                desc={t('settings.copilot.autoTriggerDesc')}
+                checked={autoTrigger}
+                onChange={setAutoTrigger}
+              />
 
-          {projectId && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 10,
-                padding: '5px 4px',
-              }}
-            >
-              <span style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: 13, color: 'var(--copilot-text)' }}>{t('settings.copilot.outputLang')}</span>
-                <span style={{ fontSize: 10.5, color: 'var(--copilot-text-dim)', lineHeight: 1.3 }}>
-                  {t('settings.copilot.outputLangDesc')}
-                </span>
-              </span>
-              <select
-                value={outputLang}
-                onChange={(e) => setOutputLang(projectId, e.target.value as CopilotOutputLang)}
-                className="copilot-field"
+              {projectId && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    padding: '5px 4px',
+                  }}
+                >
+                  <span style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: 13, color: 'var(--copilot-text)' }}>
+                      {t('settings.copilot.outputLang')}
+                    </span>
+                    <span
+                      style={{ fontSize: 10.5, color: 'var(--copilot-text-dim)', lineHeight: 1.3 }}
+                    >
+                      {t('settings.copilot.outputLangDesc')}
+                    </span>
+                  </span>
+                  <select
+                    value={outputLang}
+                    onChange={(e) => setOutputLang(projectId, e.target.value as CopilotOutputLang)}
+                    className="copilot-field"
+                    style={{
+                      fontSize: 12,
+                      padding: '3px 6px',
+                      borderRadius: 'var(--copilot-radius-sm)',
+                      border: '1px solid var(--copilot-border)',
+                      background: 'var(--copilot-field-bg)',
+                      color: 'var(--copilot-text)',
+                    }}
+                  >
+                    {OUTPUT_LANG_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {t(`settings.copilot.outputLangOptions.${o.value}`, {
+                          defaultValue: o.label,
+                        })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div
+                style={{ borderTop: '1px solid var(--copilot-border-soft)', margin: '8px 0 6px' }}
+              />
+              <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '0 2px 4px' }}>
+                {t('settings.copilot.tasksTitle')}
+              </div>
+              {COPILOT_TASKS.map((task) => (
+                <TaskRow
+                  key={task.id}
+                  taskId={task.id}
+                  label={t(`settings.copilot.tasks.${task.id}.label`, { defaultValue: task.label })}
+                  desc={t(`settings.copilot.tasks.${task.id}.desc`, { defaultValue: task.desc })}
+                />
+              ))}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  events.emit('settings:open', { railId: 'copilot' });
+                }}
                 style={{
-                  fontSize: 12,
-                  padding: '3px 6px',
-                  borderRadius: 'var(--copilot-radius-sm)',
+                  marginTop: 8,
+                  width: '100%',
                   border: '1px solid var(--copilot-border)',
-                  background: 'var(--copilot-field-bg)',
+                  borderRadius: 'var(--copilot-radius-sm)',
+                  background: 'transparent',
                   color: 'var(--copilot-text)',
+                  padding: '5px 8px',
+                  fontSize: 12,
+                  cursor: 'pointer',
                 }}
               >
-                {OUTPUT_LANG_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {t(`settings.copilot.outputLangOptions.${o.value}`, { defaultValue: o.label })}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div style={{ borderTop: '1px solid var(--copilot-border-soft)', margin: '8px 0 6px' }} />
-          <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '0 2px 4px' }}>
-            {t('settings.copilot.tasksTitle')}
-          </div>
-          {COPILOT_TASKS.map((task) => (
-            <TaskRow
-              key={task.id}
-              taskId={task.id}
-              label={t(`settings.copilot.tasks.${task.id}.label`, { defaultValue: task.label })}
-              desc={t(`settings.copilot.tasks.${task.id}.desc`, { defaultValue: task.desc })}
-            />
-          ))}
-
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              events.emit('settings:open', { railId: 'copilot' });
-            }}
-            style={{
-              marginTop: 8,
-              width: '100%',
-              border: '1px solid var(--copilot-border)',
-              borderRadius: 'var(--copilot-radius-sm)',
-              background: 'transparent',
-              color: 'var(--copilot-text)',
-              padding: '5px 8px',
-              fontSize: 12,
-              cursor: 'pointer',
-            }}
-          >
-            {t('settings.copilot.moreSettings')}
-          </button>
+                {t('settings.copilot.moreSettings')}
+              </button>
             </div>
           </>,
           document.body,
@@ -200,7 +208,12 @@ function TaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label: string
 
   return (
     <div>
-      <ToggleRow label={label} desc={desc} checked={enabled} onChange={(on) => setEnabled(taskId, on)} />
+      <ToggleRow
+        label={label}
+        desc={desc}
+        checked={enabled}
+        onChange={(on) => setEnabled(taskId, on)}
+      />
       {cap && enabled && (
         <div style={{ padding: '0 4px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
@@ -266,7 +279,9 @@ function ToggleRow({
       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <span style={{ fontSize: 13, color: 'var(--copilot-text)' }}>{label}</span>
         {desc && (
-          <span style={{ fontSize: 10.5, color: 'var(--copilot-text-dim)', lineHeight: 1.3 }}>{desc}</span>
+          <span style={{ fontSize: 10.5, color: 'var(--copilot-text-dim)', lineHeight: 1.3 }}>
+            {desc}
+          </span>
         )}
       </span>
       <span

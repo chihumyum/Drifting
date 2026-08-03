@@ -11,8 +11,6 @@ interface RightSidebarHeaderProps {
   title: string;
   /** Pulsates the library/TODO tab labels after a shadow → fragment conversion. */
   fragmentCountFlash?: boolean;
-  /** Pulsates the Shadow tab when shadow mode first activates. */
-  shadowJustAppeared?: boolean;
   /** Skip the kicker + title block under the tab strip — used by the
    *  TODO + Library tabs where the tab label itself already describes the
    *  surface and the project-wide list doesn't need a per-entity title. */
@@ -30,7 +28,6 @@ export function RightSidebarHeader({
   kicker,
   title,
   fragmentCountFlash,
-  shadowJustAppeared,
   hideTitleBlock,
   group,
   flat,
@@ -84,7 +81,7 @@ export function RightSidebarHeader({
           height: 35,
           padding: '0 8px',
           gap: 4,
-          borderBottom: '1px solid hsl(var(--rule))',
+          background: 'var(--workspace-ui-bg)',
           flexShrink: 0,
         }}
       >
@@ -133,21 +130,14 @@ export function RightSidebarHeader({
               >
                 <span>{compactLabels ? 'AI' : 'Agent'}</span>
               </RightPanelTab>
-              {/* Shadow tab always shown — shadow mode is a stub for now. */ (
-                <RightPanelTab
-                  id="shadow"
-                  accent
-                  active={isActive('agent', 'shadow')}
-                  onClick={() => onSelect('agent', 'shadow')}
-                  extraStyle={
-                    shadowJustAppeared
-                      ? { animation: 'insp-shadow-tab-pulse 1.4s ease-in-out 3' }
-                      : undefined
-                  }
-                >
-                  <span>{compactLabels ? 'SH' : 'Shadow'}</span>
-                </RightPanelTab>
-              )}
+              {/* Shadow is a normal panel tab; it carries no accent treatment. */}
+              <RightPanelTab
+                id="shadow"
+                active={isActive('agent', 'shadow')}
+                onClick={() => onSelect('agent', 'shadow')}
+              >
+                <span>{compactLabels ? 'SH' : 'Shadow'}</span>
+              </RightPanelTab>
             </>
           )}
         </PanelTabTray>
@@ -157,7 +147,7 @@ export function RightSidebarHeader({
         <div
           style={{
             padding: '10px 14px 8px',
-            borderBottom: '1px solid hsl(var(--rule))',
+            background: 'var(--workspace-ui-bg)',
             flexShrink: 0,
           }}
         >
@@ -187,26 +177,16 @@ export function RightSidebarHeader({
 function RightPanelTab({
   id: _id,
   active,
-  accent,
   onClick,
-  extraStyle,
   children,
 }: {
   id: RightPanelId;
   active: boolean;
-  accent?: boolean;
   onClick: () => void;
-  extraStyle?: React.CSSProperties;
   children: React.ReactNode;
 }) {
   return (
-    <PanelTab
-      onClick={onClick}
-      active={active}
-      accent={accent}
-      typography="caps"
-      style={extraStyle}
-    >
+    <PanelTab onClick={onClick} active={active} typography="caps">
       {children}
     </PanelTab>
   );

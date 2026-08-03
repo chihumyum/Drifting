@@ -1,5 +1,5 @@
 /**
- * ShadowQuickMenu — the bottom-bar Shadow mini-menu, mirroring CopilotBottomMenu.
+ * ShadowQuickMenu — the topbar Shadow mini-menu, mirroring CopilotQuickMenu.
  * The Shadow button used to toggle a global "shadow mode" (which re-tinted the whole
  * palette); that coupling is gone. The button now opens a compact popover with the
  * quick controls writers actually reach for:
@@ -16,13 +16,14 @@ import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../store/settings-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { ShadowRulesSection } from './dashboard/ShadowRulesSection';
+import { GhostIconButton } from './ui/GhostIconButton';
 import '../../styles/copilot-surface.css';
 
 export function ShadowQuickMenu() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   // Button rect captured on open (reading the ref in render is disallowed). Drives
-  // the portaled panel's fixed position, same as CopilotBottomMenu.
+  // the portaled panel's fixed position, same as CopilotQuickMenu.
   const [rect, setRect] = useState<DOMRect | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -38,8 +39,8 @@ export function ShadowQuickMenu() {
   const WIDTH = 360;
   const panelStyle: React.CSSProperties = {
     position: 'fixed',
-    bottom: rect ? window.innerHeight - rect.top + 6 : 48,
-    left: rect ? Math.max(8, rect.right - WIDTH) : 8,
+    top: rect ? rect.bottom + 6 : 48,
+    right: rect ? Math.max(8, window.innerWidth - rect.right) : 8,
     zIndex: 'var(--z-toast)',
     width: WIDTH,
     maxHeight: 'min(70vh, 560px)',
@@ -55,26 +56,27 @@ export function ShadowQuickMenu() {
 
   return (
     <div style={{ display: 'inline-flex' }}>
-      <button
+      <GhostIconButton
         ref={buttonRef}
-        type="button"
-        className={`bsb__seg bsb__shadow${autoRun ? ' is-active' : ''}`}
+        className="workspace-header-action"
         onClick={toggleOpen}
         title="Shadow"
         aria-label="Shadow"
-      >
-        <span
-          style={{
-            fontFamily: 'var(--font-sans)',
-            fontStyle: 'italic',
-            fontSize: 12,
-            lineHeight: 1,
-          }}
-        >
-          ◐
-        </span>
-        <span>Shadow</span>
-      </button>
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        icon={
+          <span
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontStyle: 'italic',
+              fontSize: 16,
+              lineHeight: 1,
+            }}
+          >
+            ◐
+          </span>
+        }
+      />
 
       {open &&
         createPortal(
@@ -91,7 +93,9 @@ export function ShadowQuickMenu() {
                 onChange={setAutoRun}
               />
 
-              <div style={{ borderTop: '1px solid var(--copilot-border-soft)', margin: '8px 0 6px' }} />
+              <div
+                style={{ borderTop: '1px solid var(--copilot-border-soft)', margin: '8px 0 6px' }}
+              />
               <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '0 2px 4px' }}>
                 {t('shadowQuickMenu.rules')}
               </div>

@@ -5,8 +5,10 @@
   min-height: 0;
   flex: 1;
   overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   color: hsl(var(--ink-1));
-  background: hsl(var(--paper-deep));
+  background: var(--workspace-ui-bg);
   font-family: var(--font-sans);
 }
 
@@ -17,14 +19,9 @@
 }
 
 .dash::-webkit-scrollbar {
-  width: 10px;
-}
-
-.dash::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
-  border-radius: 10px;
-  background: hsl(var(--ink-5));
-  background-clip: padding-box;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .dash__inner {

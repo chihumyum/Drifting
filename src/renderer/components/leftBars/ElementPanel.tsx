@@ -101,14 +101,18 @@ export function ElementPanel() {
   // via EntityCellContextMenu so element & category context options stay in
   // lockstep with what the editor exposes.
   const dispatchEntityAction = useEntityCellAction();
-  const [contextMenu, setContextMenu] = useState<
-    | { x: number; y: number; entityType: EditorType; id: string }
-    | null
-  >(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    entityType: EditorType;
+    id: string;
+  } | null>(null);
   // In-place "change group" picker (replaces the old jump-to-editor modal).
-  const [groupPicker, setGroupPicker] = useState<
-    { x: number; y: number; elementId: string } | null
-  >(null);
+  const [groupPicker, setGroupPicker] = useState<{
+    x: number;
+    y: number;
+    elementId: string;
+  } | null>(null);
   const {
     preview: hoverPreview,
     onEnter: hoverEnter,
@@ -179,31 +183,34 @@ export function ElementPanel() {
     }
   }, [activeCategoryId]);
 
-  const startFooterResize = useCallback((event: React.MouseEvent) => {
-    if (!footerScrollRef.current) return;
-    event.preventDefault();
-    const startY = event.clientY;
-    const startHeight = footerScrollRef.current.offsetHeight;
-    const min = minFooterHeightRef.current || startHeight;
+  const startFooterResize = useCallback(
+    (event: React.MouseEvent) => {
+      if (!footerScrollRef.current) return;
+      event.preventDefault();
+      const startY = event.clientY;
+      const startHeight = footerScrollRef.current.offsetHeight;
+      const min = minFooterHeightRef.current || startHeight;
 
-    const onMove = (ev: MouseEvent) => {
-      const next = startHeight + (startY - ev.clientY);
-      const max = Math.max(min, Math.round(window.innerHeight * 0.5));
-      const clamped = Math.max(min, Math.min(max, next));
-      // Snap back to "natural" when within a couple px of the min.
-      setFooterHeight(clamped <= min + 2 ? null : clamped);
-    };
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    document.body.style.cursor = 'ns-resize';
-    document.body.style.userSelect = 'none';
-  }, [setFooterHeight]);
+      const onMove = (ev: MouseEvent) => {
+        const next = startHeight + (startY - ev.clientY);
+        const max = Math.max(min, Math.round(window.innerHeight * 0.5));
+        const clamped = Math.max(min, Math.min(max, next));
+        // Snap back to "natural" when within a couple px of the min.
+        setFooterHeight(clamped <= min + 2 ? null : clamped);
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+    },
+    [setFooterHeight],
+  );
 
   const scrollToCategory = useCallback((categoryId: string) => {
     // Lock the highlight to the clicked chip first. If the section can fully
@@ -248,10 +255,7 @@ export function ElementPanel() {
 
   // Are there any elements with no category? Drives whether we render the
   // virtual "未分类" group at the tail.
-  const hasUncategorized = useMemo(
-    () => bookElements.some((el) => !el.categoryId),
-    [bookElements],
-  );
+  const hasUncategorized = useMemo(() => bookElements.some((el) => !el.categoryId), [bookElements]);
 
   const categoryIds = useMemo(() => {
     const ids = new Set<string>();
@@ -294,12 +298,19 @@ export function ElementPanel() {
     if (hasUncategorized) result.push(UNCATEGORIZED_ID);
 
     return result;
-  }, [bookElementCategories, bookElements, getCategoryLabel, hasUncategorized, sortMode, categoryById]);
+  }, [
+    bookElementCategories,
+    bookElements,
+    getCategoryLabel,
+    hasUncategorized,
+    sortMode,
+    categoryById,
+  ]);
 
   // Lower bound for the resize gesture = natural one-row footer height.
   // Prefer measuring directly when footerHeight is null (the footer is at its
   // natural size). Otherwise derive it from a single chip's height plus the
-  // footer's own padding+border — measuring offsetHeight while an explicit
+  // footer's own padding — measuring offsetHeight while an explicit
   // height is applied would lock min to the persisted value, causing later
   // drags to jump straight past the 2-row size.
   useLayoutEffect(() => {
@@ -310,8 +321,8 @@ export function ElementPanel() {
     }
     const firstChip = footerChipRefs.current.values().next().value;
     if (firstChip) {
-      // footer paddingTop + paddingBottom + borderTop
-      minFooterHeightRef.current = firstChip.offsetHeight + 6 + 6 + 1;
+      // footer paddingTop + paddingBottom
+      minFooterHeightRef.current = firstChip.offsetHeight + 6 + 6;
     }
   }, [footerHeight, categoryIds.length]);
 
@@ -615,100 +626,97 @@ export function ElementPanel() {
             const activity = aggregateActivity(
               agentActive,
               agentTouched,
-              (elementsByCategory[categoryId] ?? []).map((el) =>
-                entityKey('element', el.id),
-              ),
+              (elementsByCategory[categoryId] ?? []).map((el) => entityKey('element', el.id)),
             );
             return (
-            <div
-              key={categoryId}
-              ref={(el) => {
-                if (el) categorySectionRefs.current.set(categoryId, el);
-                else categorySectionRefs.current.delete(categoryId);
-              }}
-              data-category-section={categoryId}
-              style={{ marginBottom: 8 }}
-            >
-              <GroupHeaderCell
-                name={getCategoryLabel(categoryId)}
-                count={(elementsByCategory[categoryId] ?? []).length}
-                color={isUncategorized ? UNCATEGORIZED_COLOR : getCategoryColor(categoryId)}
-                collapsed={collapsedCategoryIds.has(categoryId)}
-                onToggleCollapsed={() => toggleCategoryCollapsed(categoryId)}
-                onClick={
-                  // The "未分类" bucket isn't a real category — there's no
-                  // editor page to open. Click is a no-op except for the
-                  // toggle handled by the disclosure caret.
-                  isUncategorized
-                    ? undefined
-                    : () => openEntity({ entityType: 'category', id: categoryId })
-                }
-                onDoubleClick={isUncategorized ? undefined : () => promoteCurrentTab()}
-                onContextMenu={
-                  isUncategorized
-                    ? undefined
-                    : (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        setContextMenu({
-                          x: event.clientX,
-                          y: event.clientY,
-                          entityType: 'category',
-                          id: categoryId,
-                        });
-                      }
-                }
-                addButtonTitle={
-                  isUncategorized ? undefined : t('leftSidebar.groups.newElementInCategory')
-                }
-                // Creating a new element in "未分类" means categoryId=null;
-                // we don't surface that affordance — users should pick a real
-                // category. Setting onAdd to undefined hides the + button.
-                onAdd={
-                  isUncategorized ? undefined : () => void handleCreateElement(categoryId)
-                }
-                sticky
-                agentBusy={activity.busy}
-                agentDoneCount={activity.doneCount}
-                agentSelfChanged={
-                  !isUncategorized &&
-                  (`category:${categoryId}` in agentTouched ||
-                    `category:${categoryId}` in agentPending)
-                }
-                agentSelfAdded={
-                  !isUncategorized && `category:${categoryId}` in agentAdditions
-                }
-              />
+              <div
+                key={categoryId}
+                ref={(el) => {
+                  if (el) categorySectionRefs.current.set(categoryId, el);
+                  else categorySectionRefs.current.delete(categoryId);
+                }}
+                data-category-section={categoryId}
+                style={{ marginBottom: 8 }}
+              >
+                <GroupHeaderCell
+                  name={getCategoryLabel(categoryId)}
+                  count={(elementsByCategory[categoryId] ?? []).length}
+                  color={isUncategorized ? UNCATEGORIZED_COLOR : getCategoryColor(categoryId)}
+                  collapsed={collapsedCategoryIds.has(categoryId)}
+                  onToggleCollapsed={() => toggleCategoryCollapsed(categoryId)}
+                  onClick={
+                    // The "未分类" bucket isn't a real category — there's no
+                    // editor page to open. Click is a no-op except for the
+                    // toggle handled by the disclosure caret.
+                    isUncategorized
+                      ? undefined
+                      : () => openEntity({ entityType: 'category', id: categoryId })
+                  }
+                  onDoubleClick={isUncategorized ? undefined : () => promoteCurrentTab()}
+                  onContextMenu={
+                    isUncategorized
+                      ? undefined
+                      : (event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setContextMenu({
+                            x: event.clientX,
+                            y: event.clientY,
+                            entityType: 'category',
+                            id: categoryId,
+                          });
+                        }
+                  }
+                  addButtonTitle={
+                    isUncategorized ? undefined : t('leftSidebar.groups.newElementInCategory')
+                  }
+                  // Creating a new element in "未分类" means categoryId=null;
+                  // we don't surface that affordance — users should pick a real
+                  // category. Setting onAdd to undefined hides the + button.
+                  onAdd={isUncategorized ? undefined : () => void handleCreateElement(categoryId)}
+                  sticky
+                  agentBusy={activity.busy}
+                  agentDoneCount={activity.doneCount}
+                  agentSelfChanged={
+                    !isUncategorized &&
+                    (`category:${categoryId}` in agentTouched ||
+                      `category:${categoryId}` in agentPending)
+                  }
+                  agentSelfAdded={!isUncategorized && `category:${categoryId}` in agentAdditions}
+                />
 
-              {!collapsedCategoryIds.has(categoryId) &&
-                (() => {
-                  const groups = groupedByCategory[categoryId] ?? [];
-                  let elementIndex = 0;
-                  return groups.map((group) => {
-                    const cards = group.items.map((element) => {
-                      const card = renderElementCard(element, categoryId, elementIndex);
-                      elementIndex += 1;
-                      return card;
+                {!collapsedCategoryIds.has(categoryId) &&
+                  (() => {
+                    const groups = groupedByCategory[categoryId] ?? [];
+                    let elementIndex = 0;
+                    return groups.map((group) => {
+                      const cards = group.items.map((element) => {
+                        const card = renderElementCard(element, categoryId, elementIndex);
+                        elementIndex += 1;
+                        return card;
+                      });
+                      return (
+                        <div key={`${categoryId}::${group.groupName ?? '__ungrouped__'}`}>
+                          {group.groupName !== null && (
+                            <ElementGroupHeader
+                              name={group.groupName}
+                              count={group.items.length}
+                              canAdd={categoryId !== UNCATEGORIZED_ID}
+                              onRename={(next) => void handleRenameElementGroup(group.items, next)}
+                              onAddElement={() =>
+                                void handleCreateElementInGroup(
+                                  categoryId,
+                                  group.groupName as string,
+                                )
+                              }
+                            />
+                          )}
+                          {cards}
+                        </div>
+                      );
                     });
-                    return (
-                      <div key={`${categoryId}::${group.groupName ?? '__ungrouped__'}`}>
-                        {group.groupName !== null && (
-                          <ElementGroupHeader
-                            name={group.groupName}
-                            count={group.items.length}
-                            canAdd={categoryId !== UNCATEGORIZED_ID}
-                            onRename={(next) => void handleRenameElementGroup(group.items, next)}
-                            onAddElement={() =>
-                              void handleCreateElementInGroup(categoryId, group.groupName as string)
-                            }
-                          />
-                        )}
-                        {cards}
-                      </div>
-                    );
-                  });
-                })()}
-            </div>
+                  })()}
+              </div>
             );
           })}
 
@@ -745,13 +753,12 @@ export function ElementPanel() {
               padding: '6px 8px',
               overflowX: footerHeight == null ? 'auto' : 'hidden',
               overflowY: footerHeight == null ? 'hidden' : 'auto',
-              borderTop: '1px solid hsl(var(--rule))',
-              background: 'hsl(var(--paper))',
+              background: 'var(--workspace-ui-bg)',
               whiteSpace: footerHeight == null ? 'nowrap' : 'normal',
               height: footerHeight ?? undefined,
             }}
           >
-            {/* Invisible drag handle on the top border — no extra UI. */}
+            {/* Invisible drag handle on the top edge — no extra UI. */}
             <div
               onMouseDown={startFooterResize}
               title={t('leftSidebar.groups.resizeFooter')}
@@ -856,24 +863,24 @@ export function ElementPanel() {
         />
       )}
 
-      {groupPicker && (() => {
-        const element = bookElements.find((e) => e.id === groupPicker.elementId);
-        if (!element) return null;
-        const catKey = element.categoryId ?? UNCATEGORIZED_ID;
-        return (
-          <ElementGroupPicker
-            x={groupPicker.x}
-            y={groupPicker.y}
-            current={element.groupName}
-            existing={groupNamesByCategory[catKey] ?? []}
-            onPick={(groupName) => {
-              void updateElement(groupPicker.elementId, { groupName });
-            }}
-            onClose={() => setGroupPicker(null)}
-          />
-        );
-      })()}
-
+      {groupPicker &&
+        (() => {
+          const element = bookElements.find((e) => e.id === groupPicker.elementId);
+          if (!element) return null;
+          const catKey = element.categoryId ?? UNCATEGORIZED_ID;
+          return (
+            <ElementGroupPicker
+              x={groupPicker.x}
+              y={groupPicker.y}
+              current={element.groupName}
+              existing={groupNamesByCategory[catKey] ?? []}
+              onPick={(groupName) => {
+                void updateElement(groupPicker.elementId, { groupName });
+              }}
+              onClose={() => setGroupPicker(null)}
+            />
+          );
+        })()}
     </div>
   );
 }

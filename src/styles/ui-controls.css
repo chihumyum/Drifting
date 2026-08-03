@@ -24,7 +24,6 @@
   min-height: var(--control-height-sm);
   padding: 4px 8px;
   border: 0;
-  border-bottom: 1px solid transparent;
   border-radius: 0;
   background: transparent;
   color: hsl(var(--ink-4));
@@ -57,24 +56,6 @@
 .app-panel-tab:hover:not(:disabled),
 .app-panel-tab.is-active {
   color: hsl(var(--ink-1));
-}
-
-.app-panel-tab:hover:not(:disabled) {
-  background: hsl(var(--rule) / 0.32);
-}
-
-.app-panel-tab.is-accent,
-.app-panel-tab.is-accent.is-active {
-  color: hsl(var(--accent));
-}
-
-.app-panel-tab.is-active {
-  background: hsl(var(--surface));
-  box-shadow: inset 0 -1px 0 hsl(var(--ink-2) / 0.55);
-}
-
-.app-panel-tab.is-accent.is-active {
-  box-shadow: inset 0 -1px 0 hsl(var(--accent) / 0.72);
 }
 
 .segmented-control {
@@ -192,9 +173,7 @@
 }
 
 .ui-switch.is-on::after {
-  transform: translateX(
-    calc(var(--switch-width) - var(--switch-thumb) - var(--switch-inset) * 2)
-  );
+  transform: translateX(calc(var(--switch-width) - var(--switch-thumb) - var(--switch-inset) * 2));
   background: hsl(var(--paper));
 }
 
@@ -232,6 +211,11 @@
 .ghost-icon-button:hover:not(:disabled) {
   color: hsl(var(--ink-1));
   background: hsl(var(--paper-deep));
+}
+
+.workspace-header-action[aria-pressed='true'],
+.workspace-header-action[aria-expanded='true'] {
+  color: hsl(var(--ink-1));
 }
 
 .ghost-icon-button--accent {
@@ -685,7 +669,10 @@
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  transition: background 120ms, color 120ms, border-color 120ms;
+  transition:
+    background 120ms,
+    color 120ms,
+    border-color 120ms;
 }
 
 .super-element-overlay .super-element-reset:hover,
@@ -712,17 +699,5 @@ svg.super-viewport-edges[data-panning='1'] {
   100% {
     color: hsl(var(--ink-4));
     transform: scale(1);
-  }
-}
-
-@keyframes insp-shadow-tab-pulse {
-  0%,
-  100% {
-    background: transparent;
-    box-shadow: 0 0 0 0 hsl(var(--accent) / 0.18);
-  }
-  50% {
-    background: hsl(var(--accent) / 0.10);
-    box-shadow: 0 0 0 4px hsl(var(--accent) / 0.10);
   }
 }

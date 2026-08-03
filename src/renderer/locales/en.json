@@ -872,6 +872,7 @@
     "childChanges": "Unviewed child Agent changes"
   },
   "bottomStatusBar": {
+    "workspaceViews": "Workspace views",
     "projectHome": "Project home",
     "allChapters": "Whole book",
     "elements": "Elements",
@@ -879,7 +880,17 @@
     "todoLibrary": "TODO & Library",
     "timeline": "Timeline",
     "expandTimeline": "Expand Storyline Timeline",
-    "collapseTimeline": "Collapse Storyline Timeline"
+    "collapseTimeline": "Collapse Storyline Timeline",
+    "statusLine": "Editor status",
+    "currentWords": "Current {{formatted}} words",
+    "storylineWords": "Storyline {{formatted}} words",
+    "projectWords": "Book {{formatted}} words",
+    "todayWords": "Today {{formatted}} words",
+    "syncLocal": "Local only",
+    "syncing": "Syncing…",
+    "syncError": "Sync failed",
+    "syncedAt": "Synced {{time}}",
+    "syncReady": "Sync ready"
   },
   "nodeHoverPreview": {
     "noSummary": "No summary"

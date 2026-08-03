@@ -47,8 +47,8 @@ log.setLevel(loglevel.levels.WARN);
 // time axis takes the same vertical slot instead).
 //
 // The old collapsed (strip) state is gone — the timeline is either visible
-// or hidden, controlled by the center-column BottomStatusBar. Visibility
-// lives in uiStore so the status bar's toggle button can reach it.
+// or hidden, controlled by the adjacent BottomStatusBar. Visibility lives in
+// uiStore so the footer toggle can reach it.
 type TimelineView = 'book' | 'narrative';
 const TIMELINE_VIEW_STORAGE_KEY = 'timeline-view';
 const TIMELINE_HEIGHT_STORAGE_KEY = 'timeline-total-height';

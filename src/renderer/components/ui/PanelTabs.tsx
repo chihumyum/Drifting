@@ -1,9 +1,4 @@
-import {
-  forwardRef,
-  type ButtonHTMLAttributes,
-  type HTMLAttributes,
-  type ReactNode,
-} from 'react';
+import { forwardRef, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react';
 
 interface PanelTabTrayProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
@@ -22,7 +17,6 @@ export const PanelTabTray = forwardRef<HTMLDivElement, PanelTabTrayProps>(functi
 
 interface PanelTabProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   active: boolean;
-  accent?: boolean;
   compact?: boolean;
   typography?: 'label' | 'caps';
 }
@@ -33,7 +27,6 @@ interface PanelTabProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  */
 export function PanelTab({
   active,
-  accent = false,
   compact = false,
   typography = 'caps',
   className = '',
@@ -47,7 +40,6 @@ export function PanelTab({
         'app-panel-tab',
         `app-panel-tab--${typography}`,
         active ? 'is-active' : '',
-        accent ? 'is-accent' : '',
         compact ? 'is-compact' : '',
         className,
       ]

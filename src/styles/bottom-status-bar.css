@@ -1,10 +1,7 @@
 /* ============================================================
-   Bottom Status Bar — persistent center-column command strip
-   Always visible under the editor column. Open sidebars continue through
-   the bottom corners. Replaces the old collapsed
-   strip mode of BottomTimeline: instead of compressing the dock
-   to a sliver, it keeps a small toggle to bring the full timeline
-   back.
+   Bottom Status Bar — status-first center-column line
+   Project navigation and feature menus live in AppTopbar. This footer reports
+   writing/sync state and keeps one adjacent structural Timeline toggle.
    ============================================================ */
 
 .bsb {
@@ -15,54 +12,92 @@
   box-sizing: border-box;
   height: 20px;
   flex-shrink: 0;
-  padding: 0;
-  background: hsl(var(--paper-deep));
-  border-top: 1px solid hsl(var(--rule));
+  padding: 0 8px;
+  background: var(--workspace-ui-bg);
+  border-top: 1px solid var(--workspace-border);
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0;
   color: hsl(var(--ink-3));
-  gap: 0;
+  user-select: none;
+}
+
+.bsb__group,
+.bsb__sync {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.bsb__group {
+  gap: 6px;
+  overflow: hidden;
+}
+
+.bsb__item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bsb__divider {
+  color: hsl(var(--ink-4));
 }
 
 .bsb__spacer {
   flex: 1;
+  min-width: 12px;
 }
 
-.bsb__seg {
+.bsb__sync {
+  flex-shrink: 0;
+  gap: 5px;
+  pointer-events: none;
+}
+
+.bsb__sync-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.bsb__sync--syncing {
+  color: hsl(var(--ink-2));
+}
+
+.bsb__sync--error {
+  color: hsl(var(--destructive));
+}
+
+.bsb__sync--local {
+  color: hsl(var(--ink-4));
+}
+
+.bsb__timeline-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 0 8px;
   height: 20px;
-  background: transparent;
+  flex-shrink: 0;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 0 4px;
   border: 0;
+  border-radius: 0;
+  background: transparent;
   color: hsl(var(--ink-3));
+  font: inherit;
   cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0;
-  transition:
-    background 0.1s,
-    color 0.1s;
 }
-.bsb__seg:hover {
-  background: hsl(var(--rule) / 0.5);
+
+.bsb__timeline-toggle:hover,
+.bsb__timeline-toggle[aria-pressed='true'] {
   color: hsl(var(--ink-1));
 }
-.bsb__super.is-active {
-  color: hsl(var(--accent));
-  background: hsl(var(--accent) / 0.10);
-  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.30);
-}
-/* Shadow auto-review "on" state — mirror the Timeline toggle's open look
-   (default hover-ish ink, faint wash) rather than the accent treatment used
-   by .bsb__super super-view toggles. */
-.bsb__shadow.is-active,
-.bsb__timeline-toggle.is-open {
-  color: hsl(var(--ink-1));
-  background: hsl(var(--rule) / 0.3);
-}
-.bsb__timeline-toggle svg {
-  display: block;
+
+@media (max-width: 520px) {
+  .bsb__divider,
+  .bsb__item--today {
+    display: none;
+  }
 }

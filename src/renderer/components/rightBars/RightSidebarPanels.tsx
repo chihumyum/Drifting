@@ -36,7 +36,6 @@ export function RightSidebarPanels() {
   const rightPanelGroup = useUiStore((s) => s.rightPanelGroup);
   const activeRightPanel = useUiStore((s) => s.activeRightPanel);
   const activeAgentPanel = useUiStore((s) => s.activeAgentPanel);
-  const shadowMode = useUiStore((s) => s.shadowMode);
   const splitRatio = useUiStore((s) => s.rightPanelSplitRatio);
   const setSplitRatio = useUiStore((s) => s.setRightPanelSplitRatio);
 
@@ -88,7 +87,9 @@ export function RightSidebarPanels() {
       return {
         kind: drift ? 'drift' : 'chapter',
         id: node.id,
-        title: node.title || (drift ? t('topTimeline.untitled.drift') : t('topTimeline.untitled.chapter')),
+        title:
+          node.title ||
+          (drift ? t('topTimeline.untitled.drift') : t('topTimeline.untitled.chapter')),
         kicker: drift
           ? t('rightSidebar.kickers.driftContent')
           : t('rightSidebar.kickers.chapterContent'),
@@ -153,23 +154,6 @@ export function RightSidebarPanels() {
     return { kind, id: target.id };
   }, [target.kind, target.id]);
   const [fragmentCountFlash] = useState(false);
-  const [shadowJustAppeared, setShadowJustAppeared] = useState(false);
-
-
-  // Pulse the Shadow tab the first ~4.5s after the user invokes shadow mode.
-  // Syncing a UI pulse to an external trigger (shadowMode) — the setState is
-  // intentional here, not a derived-render smell.
-  useEffect(() => {
-    if (!shadowMode) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setShadowJustAppeared(false);
-      return;
-    }
-    setShadowJustAppeared(true);
-    const id = window.setTimeout(() => setShadowJustAppeared(false), 4500);
-    return () => window.clearTimeout(id);
-  }, [shadowMode]);
-
 
   const isAgentGroup = rightPanelGroup === 'agent';
   const isFragmentTab =
@@ -276,7 +260,7 @@ export function RightSidebarPanels() {
         flexDirection: isSplit ? 'row' : 'column',
         height: '100%',
         minHeight: 0,
-        background: 'hsl(var(--paper))',
+        background: 'var(--workspace-ui-bg)',
       }}
     >
       {isSplit ? (
@@ -290,12 +274,7 @@ export function RightSidebarPanels() {
               flexDirection: 'column',
             }}
           >
-            <RightSidebarHeader
-              group="content"
-              kicker=""
-              title=""
-              hideTitleBlock
-            />
+            <RightSidebarHeader group="content" kicker="" title="" hideTitleBlock />
             <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
               {contentBody}
             </div>
@@ -310,13 +289,7 @@ export function RightSidebarPanels() {
               flexDirection: 'column',
             }}
           >
-            <RightSidebarHeader
-              group="agent"
-              shadowJustAppeared={shadowJustAppeared}
-              kicker=""
-              title=""
-              hideTitleBlock
-            />
+            <RightSidebarHeader group="agent" kicker="" title="" hideTitleBlock />
             <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
               {agentBody}
             </div>
@@ -329,7 +302,6 @@ export function RightSidebarPanels() {
             kicker={headerKicker}
             title={headerTitle}
             fragmentCountFlash={fragmentCountFlash}
-            shadowJustAppeared={shadowJustAppeared}
             hideTitleBlock={hideTitleBlock}
           />
           <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -352,9 +324,7 @@ interface StatsViewProps {
   storylines: ReturnType<typeof useDataStore.getState>['storylines'];
   categories: ReturnType<typeof useDataStore.getState>['bookElementCategories'];
   storylineNodeMapping: ReturnType<typeof useDataStore.getState>['storylineNodeMapping'];
-  primaryStorylineByNode: ReturnType<
-    typeof useDataStore.getState
-  >['primaryStorylineByNode'];
+  primaryStorylineByNode: ReturnType<typeof useDataStore.getState>['primaryStorylineByNode'];
 }
 
 function StatsView({
@@ -608,10 +578,7 @@ function AllChaptersStats({
   );
   type Ch = (typeof chapters)[number];
 
-  const totalWc = useMemo(
-    () => chapters.reduce((a, n) => a + (n.wordCount || 0), 0),
-    [chapters],
-  );
+  const totalWc = useMemo(() => chapters.reduce((a, n) => a + (n.wordCount || 0), 0), [chapters]);
   const count = chapters.length;
   const avgWc = count ? Math.round(totalWc / count) : 0;
   const targetPct =
@@ -1273,10 +1240,7 @@ function StorylineStats({
     return counts;
   }, [nodes]);
   const discarded = statusCounts.get('discarded') ?? 0;
-  const activeTotal = STORYLINE_STATUS_ORDER.reduce(
-    (a, s) => a + (statusCounts.get(s) ?? 0),
-    0,
-  );
+  const activeTotal = STORYLINE_STATUS_ORDER.reduce((a, s) => a + (statusCounts.get(s) ?? 0), 0);
 
   const coreElements = useStorylineCoreElements(useMemo(() => nodes.map((n) => n.id), [nodes]));
 
@@ -1458,9 +1422,7 @@ function CategoryStats({
   category: ReturnType<typeof useDataStore.getState>['bookElementCategories'][number];
   elements: ReturnType<typeof useDataStore.getState>['bookElements'];
   storylines: ReturnType<typeof useDataStore.getState>['storylines'];
-  primaryStorylineByNode: ReturnType<
-    typeof useDataStore.getState
-  >['primaryStorylineByNode'];
+  primaryStorylineByNode: ReturnType<typeof useDataStore.getState>['primaryStorylineByNode'];
 }) {
   const { t } = useTranslation();
   const total = elements.length;
@@ -1800,7 +1762,13 @@ function MetaK({ children }: { children: React.ReactNode }) {
 function MetaV({ children }: { children: React.ReactNode }) {
   return (
     <div
-      style={{ fontSize: 12, color: 'hsl(var(--ink-2))', display: 'flex', alignItems: 'center', gap: 6 }}
+      style={{
+        fontSize: 12,
+        color: 'hsl(var(--ink-2))',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+      }}
     >
       {children}
     </div>

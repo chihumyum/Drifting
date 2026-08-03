@@ -1,6 +1,6 @@
 /* ============================================================================
    Copilot floating surfaces — the ⇧⌘I inline popover (CopilotInlinePopover)
-   and the bottom-bar mini-menu (CopilotBottomMenu).
+   and the topbar quick menu (CopilotQuickMenu).
 
    Local `--copilot-*` tokens sit on top of the shared light/dark palette so
    both surfaces remain consistent with the rest of the application shell.
@@ -67,13 +67,4 @@
 }
 .copilot-field::placeholder {
   color: var(--copilot-text-faint);
-}
-
-/* Bottom-bar Copilot button "live" (auto-trigger on) state — mirror the
-   Timeline toggle's open look (default hover-ish ink + faint wash) rather than
-   the accent box used by the super-view toggles. Hover falls through to the
-   base .bsb__seg:hover (base .bsb__seg lives in bottom-status-bar.css). */
-.bsb__copilot.is-live {
-  color: hsl(var(--ink-1));
-  background: hsl(var(--rule) / 0.3);
 }

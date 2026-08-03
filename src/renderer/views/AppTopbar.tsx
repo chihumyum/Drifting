@@ -11,10 +11,12 @@ export function AppTopbar() {
   // the side sections matched the sidebar widths "for alignment", but with
   // a wide sidebar that wasted ~200px per side that could have been tabs.
   // Now the tabs take all remaining width and the side sections hug their
-  // controls — search + toggle on the left, toggle + avatar on the right.
+  // controls. Project-wide destinations live beside the left toggle; Copilot
+  // and Shadow live with the notification/right-sidebar controls. The Bottom
+  // Timeline toggle remains beside that dock's status line in the footer.
   // macOS needs room for its native window controls. Other desktop targets
   // and mobile keep only the product controls in this section.
-  const leftWidth = runtime.isMacDesktop ? 140 : 72;
+  const leftWidth = runtime.isMobile ? 72 : runtime.isMacDesktop ? 280 : 210;
   return (
     <div
       className="app-topbar app-plane"
@@ -23,7 +25,7 @@ export function AppTopbar() {
         width: '100%',
         height: 'var(--window-titlebar-height)',
         overflow: 'hidden',
-        background: 'hsl(var(--paper-deep))',
+        background: 'var(--workspace-ui-bg)',
       }}
     >
       {/* Left Section */}

@@ -70,7 +70,7 @@ export function getStatusSectionLabel(kind: NodeStatusKind, translate?: Translat
   Shared editor top bar:
   - Breadcrumb area on the left, built from <EditorCrumb> children
   - The semantic outline scrollbar is permanent and therefore has no toggle
-  - Free-form right slot (word count, counts, etc.)
+  - Free-form right slot for contextual controls and non-word-count metadata
   - Integrated three-dot menu driven by `editorType` + `onMenuAction`
 */
 

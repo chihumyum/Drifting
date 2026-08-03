@@ -81,7 +81,7 @@ pnpm --dir client demo:purge-local
 
 The workspace surface hierarchy, footer ownership, static-tab behavior, and radius boundaries are
 defined in [`docs/design-system.md`](docs/design-system.md). The visual system keeps the existing
-palette while treating the app as one flat plane with at most three raised work surfaces. The
+palette while treating the app as one coplanar desktop with only the manuscript page raised. The
 mobile starting point and its explicit product gaps are tracked in
 [`docs/mobile-ui-foundation.md`](docs/mobile-ui-foundation.md).
 

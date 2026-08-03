@@ -872,6 +872,7 @@
     "childChanges": "未查看的子条目 Agent 改动"
   },
   "bottomStatusBar": {
+    "workspaceViews": "工作区视图",
     "projectHome": "项目主页",
     "allChapters": "通览全书",
     "elements": "元素全景",
@@ -879,7 +880,17 @@
     "todoLibrary": "TODO 与素材库",
     "timeline": "时间线",
     "expandTimeline": "展开 Storyline Timeline",
-    "collapseTimeline": "收起 Storyline Timeline"
+    "collapseTimeline": "收起 Storyline Timeline",
+    "statusLine": "编辑器状态",
+    "currentWords": "当前 {{formatted}} 字",
+    "storylineWords": "故事线 {{formatted}} 字",
+    "projectWords": "全书 {{formatted}} 字",
+    "todayWords": "今日 {{formatted}} 字",
+    "syncLocal": "仅本地",
+    "syncing": "正在同步…",
+    "syncError": "同步失败",
+    "syncedAt": "已同步 {{time}}",
+    "syncReady": "同步就绪"
   },
   "nodeHoverPreview": {
     "noSummary": "暂无摘要"

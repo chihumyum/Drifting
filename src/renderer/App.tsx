@@ -538,7 +538,7 @@ function Layout() {
 
   // Track the last singleton-nav shortcut so a quick repeat (Digit1/Digit2)
   // promotes the preview tab to dedicated — mirrors the dblclick gesture on
-  // the BottomStatusBar Home / 通览全书 buttons.
+  // the AppTopbar Home / 通览全书 buttons.
   const lastSingletonShortcut = useRef<{ code: 'Digit1' | 'Digit2'; t: number } | null>(null);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -820,7 +820,11 @@ function Layout() {
             className="workspace-stage"
             style={{
               flex: 1,
-              overflowY: 'auto',
+              // Every routed surface below owns its real scroll container
+              // (.editor-scroll or .dash). Keeping this stage scrollable
+              // creates a second Y owner: momentum chains here at the inner
+              // boundary and its scrollbar width makes centred paper twitch.
+              overflowY: 'hidden',
               overflowX: 'hidden',
               position: 'relative',
             }}
@@ -834,9 +838,9 @@ function Layout() {
               <BottomTimeline />
             </div>
           )}
-          {/* Project-wide commands follow the editor column. Open sidebars own
-              their bottom corners instead of being cut off by a full-width
-              footer. */}
+          {/* Writing/sync status and its adjacent Timeline toggle follow the editor column. Open
+              sidebars own their bottom corners instead of being cut off by a
+              full-width footer; other project commands live in AppTopbar. */}
           <BottomStatusBar />
           {/* In-document Cmd+F find panel — anchored to this editor column
               (.app-mid is position:relative) so it floats over the text area

@@ -1,111 +1,117 @@
-import { Home } from 'lucide-react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useUiStore, usePromoteCurrentTab } from '../store/ui-store';
+import { isChapter } from '../domain/book-node';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import {
-  IcebergIcon,
-  AllChaptersIcon,
-  AllRefsIcon,
-  StoryGraphViewIcon,
-} from './BottomStatusBarIcons';
-import { CopilotBottomMenu } from './copilot/CopilotBottomMenu';
-import { ShadowQuickMenu } from './ShadowQuickMenu';
+import { isSyncEnabled } from '../lib/config';
+import { useSyncObserver } from '../services/sync-observer.service';
+import { useDataStore } from '../store/data-store';
+import { focusedLeafOf, tabKey, useUiStore } from '../store/ui-store';
+import { deriveWritingStats, useWritingStatsStore } from '../store/writing-stats-store';
 import '../../styles/bottom-status-bar.css';
 
-// BottomStatusBar — always-visible compact command strip owned by the center
-// workspace column. Open sidebars continue through the bottom corners instead
-// of being cut off by a viewport-wide footer.
+type WordMetric = {
+  labelKey:
+    | 'bottomStatusBar.currentWords'
+    | 'bottomStatusBar.storylineWords'
+    | 'bottomStatusBar.projectWords';
+  count: number;
+};
 
-type SuperViewId = 'element' | 'graph' | 'memo-material';
-
+// BottomStatusBar is a status-first line owned by the center editor column.
+// Its one structural control is the adjacent Bottom Timeline visibility
+// toggle; navigation and feature menus live in AppTopbar.
 export function BottomStatusBar() {
   const { t } = useTranslation();
-  const bottomTimelineHidden = useUiStore((s) => s.bottomTimelineHidden);
-  const toggleBottomTimelineHidden = useUiStore((s) => s.toggleBottomTimelineHidden);
+  const { projectId } = useProjectNavigation();
+  const projectTabs = useUiStore((state) => state.tabsByProject[projectId]);
+  const bookNodes = useDataStore((state) => state.bookNodes);
+  const storylineNodeMapping = useDataStore((state) => state.storylineNodeMapping);
+  const writingHistory = useWritingStatsStore((state) => state.history[projectId]);
+  const syncMetrics = useSyncObserver((state) => state.metrics);
+  const bottomTimelineHidden = useUiStore((state) => state.bottomTimelineHidden);
+  const toggleBottomTimelineHidden = useUiStore((state) => state.toggleBottomTimelineHidden);
 
-  const { projectId, navigateToHome, navigateToAllChapters } = useProjectNavigation();
-  // Mirror ChapterPanel's "double-click promotes the preview tab to a dedicated
-  // tab" gesture — so Home / 通览全书 can open as a real tab without a
-  // right-click detour.
-  const promoteCurrentTab = usePromoteCurrentTab(projectId);
+  const activeTab = projectTabs?.openTabs.find((tab) => tabKey(tab) === projectTabs.activeTabKey);
+  const activeLeaf = activeTab ? focusedLeafOf(activeTab) : null;
 
-  const activeSuperView = useUiStore((s) => s.activeSuperView);
-  const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
-  const toggleSuper = (id: SuperViewId) =>
-    setActiveSuperView(activeSuperView === id ? 'none' : id);
+  const projectWordCount = useMemo(
+    () => bookNodes.filter(isChapter).reduce((sum, node) => sum + (node.wordCount || 0), 0),
+    [bookNodes],
+  );
 
-  // Nav-icon clicks should ALWAYS land the user on the navigated route —
-  // when a super view is overlaying the editor, clicking Home / 通览全书
-  // would otherwise silently open the tab in the background while the
-  // overlay still covers it. Dismiss the super view as part of the nav
-  // gesture so the user sees the new route immediately.
-  const dismissSuperView = () => {
-    if (activeSuperView !== 'none') setActiveSuperView('none');
-  };
+  const wordMetric = useMemo<WordMetric>(() => {
+    if (activeLeaf?.entityType === 'node') {
+      const node = bookNodes.find((candidate) => candidate.id === activeLeaf.id);
+      if (node) {
+        return { labelKey: 'bottomStatusBar.currentWords', count: node.wordCount || 0 };
+      }
+    }
+
+    if (activeLeaf?.entityType === 'storyline') {
+      const nodeIds = new Set(storylineNodeMapping[activeLeaf.id] ?? []);
+      const count = bookNodes.reduce(
+        (sum, node) => sum + (nodeIds.has(node.id) ? node.wordCount || 0 : 0),
+        0,
+      );
+      return { labelKey: 'bottomStatusBar.storylineWords', count };
+    }
+
+    return { labelKey: 'bottomStatusBar.projectWords', count: projectWordCount };
+  }, [activeLeaf, bookNodes, projectWordCount, storylineNodeMapping]);
+
+  const todayWords = useMemo(
+    () => deriveWritingStats(writingHistory, projectWordCount).todayWords,
+    [projectWordCount, writingHistory],
+  );
+
+  const syncEnabled = isSyncEnabled();
+  const syncState = !syncEnabled
+    ? 'local'
+    : syncMetrics.inflight > 0
+      ? 'syncing'
+      : syncMetrics.lastFailureAt !== null &&
+          (syncMetrics.lastSuccessAt === null ||
+            syncMetrics.lastFailureAt > syncMetrics.lastSuccessAt)
+        ? 'error'
+        : 'synced';
+  const lastSyncTime = syncMetrics.lastSuccessAt
+    ? new Date(syncMetrics.lastSuccessAt).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
+  const syncLabel =
+    syncState === 'local'
+      ? t('bottomStatusBar.syncLocal')
+      : syncState === 'syncing'
+        ? t('bottomStatusBar.syncing')
+        : syncState === 'error'
+          ? t('bottomStatusBar.syncError')
+          : lastSyncTime
+            ? t('bottomStatusBar.syncedAt', { time: lastSyncTime })
+            : t('bottomStatusBar.syncReady');
 
   return (
-    <div className="bsb app-plane">
-      <button
-        type="button"
-        className="bsb__seg bsb__nav"
-        onClick={() => {
-          dismissSuperView();
-          navigateToHome();
-        }}
-        onDoubleClick={() => promoteCurrentTab()}
-        title={t('bottomStatusBar.projectHome')}
-        aria-label={t('bottomStatusBar.projectHome')}
-      >
-        <Home size={11} strokeWidth={1.6} />
-      </button>
-      <button
-        type="button"
-        className="bsb__seg bsb__nav"
-        onClick={() => {
-          dismissSuperView();
-          navigateToAllChapters();
-        }}
-        onDoubleClick={() => promoteCurrentTab()}
-        title={t('bottomStatusBar.allChapters')}
-        aria-label={t('bottomStatusBar.allChapters')}
-      >
-        <AllChaptersIcon size={14} />
-      </button>
-
-      <button
-        type="button"
-        className={`bsb__seg bsb__super${activeSuperView === 'element' ? ' is-active' : ''}`}
-        onClick={() => toggleSuper('element')}
-        title={t('bottomStatusBar.elements')}
-        aria-label={t('bottomStatusBar.elements')}
-      >
-        <IcebergIcon size={14} />
-      </button>
-      <button
-        type="button"
-        className={`bsb__seg bsb__super${activeSuperView === 'graph' ? ' is-active' : ''}`}
-        onClick={() => toggleSuper('graph')}
-        title={t('bottomStatusBar.storyGraph')}
-        aria-label={t('bottomStatusBar.storyGraph')}
-      >
-        <StoryGraphViewIcon size={14} />
-      </button>
-      <button
-        type="button"
-        className={`bsb__seg bsb__super${activeSuperView === 'memo-material' ? ' is-active' : ''}`}
-        onClick={() => toggleSuper('memo-material')}
-        title={t('bottomStatusBar.todoLibrary')}
-        aria-label={t('bottomStatusBar.todoLibrary')}
-      >
-        <AllRefsIcon size={14} />
-      </button>
-
+    <footer className="bsb app-plane" aria-label={t('bottomStatusBar.statusLine')}>
+      <div className="bsb__group">
+        <span className="bsb__item">
+          {t(wordMetric.labelKey, { formatted: wordMetric.count.toLocaleString() })}
+        </span>
+        <span className="bsb__divider" aria-hidden="true">
+          ·
+        </span>
+        <span className="bsb__item bsb__item--today">
+          {t('bottomStatusBar.todayWords', { formatted: todayWords.toLocaleString() })}
+        </span>
+      </div>
       <div className="bsb__spacer" />
-      <CopilotBottomMenu />
-      <ShadowQuickMenu />
+      <div className={`bsb__sync bsb__sync--${syncState}`} aria-live="polite">
+        <span className="bsb__sync-dot" aria-hidden="true" />
+        <span>{syncLabel}</span>
+      </div>
       <button
         type="button"
-        className={`bsb__seg bsb__timeline-toggle${bottomTimelineHidden ? '' : ' is-open'}`}
+        className="bsb__timeline-toggle"
         onClick={toggleBottomTimelineHidden}
         title={
           bottomTimelineHidden
@@ -117,6 +123,7 @@ export function BottomStatusBar() {
             ? t('bottomStatusBar.expandTimeline')
             : t('bottomStatusBar.collapseTimeline')
         }
+        aria-pressed={!bottomTimelineHidden}
       >
         <svg
           width="10"
@@ -125,6 +132,7 @@ export function BottomStatusBar() {
           fill="none"
           stroke="currentColor"
           strokeWidth="1.4"
+          aria-hidden="true"
         >
           <rect x="1.5" y="3.5" width="13" height="9" rx="1" />
           <line x1="1.5" y1="7" x2="14.5" y2="7" />
@@ -132,6 +140,6 @@ export function BottomStatusBar() {
         </svg>
         <span>{t('bottomStatusBar.timeline')}</span>
       </button>
-    </div>
+    </footer>
   );
 }

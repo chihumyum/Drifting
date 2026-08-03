@@ -10,11 +10,7 @@ import { createPlainCommentDoc } from '../../domain/comment';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import type { FocusedEntity } from './MemoMaterialPanel';
 import type { RelationTarget } from './EntityRelationPicker';
-import {
-  ComposeTodoDialog,
-  ResolvedTodoArchive,
-  TodoCard,
-} from './MemoMaterialPanel';
+import { ComposeTodoDialog, ResolvedTodoArchive, TodoCard } from './MemoMaterialPanel';
 import { EmptyState } from '../ui/EmptyState';
 
 interface Props {
@@ -81,9 +77,7 @@ export function TodoPanel({ focused }: Props) {
       .filter((c) => c.status === 'open')
       .map((c) => {
         const anchored =
-          focused.kind === c.targetKind &&
-          focused.id !== null &&
-          c.targetId === focused.id;
+          focused.kind === c.targetKind && focused.id !== null && c.targetId === focused.id;
         const related = anchored || isRelatedToFocus('comment', c.id);
         return { c, related, anchored };
       })
@@ -133,9 +127,7 @@ export function TodoPanel({ focused }: Props) {
           gap: 0,
         }}
       >
-        {openTodos.length === 0 && (
-          <EmptyState message={t('todoPanel.empty')} />
-        )}
+        {openTodos.length === 0 && <EmptyState message={t('todoPanel.empty')} />}
 
         {openTodos.map((c) => (
           <TodoCard
@@ -149,9 +141,7 @@ export function TodoPanel({ focused }: Props) {
             showRelations
             onResolve={() => commentUsecases.resolveComment(c.id)}
             onDelete={() => commentUsecases.deleteComment(c.id)}
-            onAddRelation={(t) =>
-              relationUsecases.addRelation('comment', c.id, t.kind, t.id)
-            }
+            onAddRelation={(t) => relationUsecases.addRelation('comment', c.id, t.kind, t.id)}
             onRemoveRelation={(t) => {
               const ref = entityRelations.find(
                 (r) =>
@@ -208,13 +198,12 @@ function Subheader({ count, onCompose }: { count: number; onCompose: () => void 
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '6px 10px 6px 12px',
-        borderBottom: '1px solid hsl(var(--rule))',
         gap: 6,
         flexShrink: 0,
         position: 'sticky',
         top: 0,
         zIndex: 4,
-        background: 'hsl(var(--paper))',
+        background: 'var(--workspace-ui-bg)',
       }}
     >
       {showCount ? (

@@ -19,7 +19,7 @@
 
 ## Missing product foundations
 
-1. **移动信息架构**：手机不应同时展示三块工作面。需要明确“稿纸 / 左工具 / 右工具”的单屏导航、返回路径，以及 topbar/footer 在手机上的职责。
+1. **移动信息架构**：手机不应同时展示三块工作面。需要明确“稿纸 / 左工具 / 右工具”的单屏导航、返回路径，以及 topbar/footer 在手机上的职责。桌面迁入 topbar 的 7 个工作区动作目前会在窄屏隐藏，尚缺恢复它们的 mobile action menu/sheet。
 2. **触摸尺寸系统**：当前仍有大量 `20–36px` 的桌面密度控件；尚无统一的 coarse-pointer target token、`44/48px` 操作热区或相邻目标间距规则。
 3. **软键盘与编辑器**：尚无围绕 `visualViewport`、IME 遮挡、selection/caret 滚动、键盘弹出后的 footer/dock 归位所形成的验收闭环。
 4. **桌面动作替代**：right-click、double-click、hover-only reveal、精细 drag/drop 与鼠标滚轮缩放需要长按、显式菜单、拖拽手柄或移动专用流程。

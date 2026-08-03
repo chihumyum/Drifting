@@ -1,6 +1,5 @@
-// Custom hand-drawn icons used in the BottomStatusBar. Strokes use
-// `currentColor` so they inherit hover / active styling from the surrounding
-// .bsb__seg button.
+// Custom hand-drawn workspace-navigation icons. Strokes use `currentColor`
+// so they inherit hover / active styling from the surrounding toolbar button.
 
 type IconProps = { size?: number };
 

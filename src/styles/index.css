@@ -93,8 +93,8 @@
       ui-serif, 'Songti SC', STSong, 'Source Han Serif SC', 'Noto Serif CJK SC', Georgia,
       'Times New Roman', serif;
     --font-prose-system-sans:
-      -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Segoe UI',
-      system-ui, sans-serif;
+      -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Segoe UI', system-ui,
+      sans-serif;
     --font-prose-mono:
       ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono',
       'PingFang SC', 'Hiragino Sans GB', monospace;
@@ -110,7 +110,10 @@
        --editor-font-family remains the preference bridge updated at runtime. */
     --font-content: var(--editor-font-family);
 
-    --chrome-bg: hsl(var(--paper) / 0.55);
+    /* The editor surround is the one desktop-UI background. Sidebars,
+       titlebar, timeline and footer all resolve through the same role. */
+    --workspace-ui-bg: hsl(var(--paper-deep));
+    --chrome-bg: var(--workspace-ui-bg);
     --chrome-divider: none;
 
     /* Super Views stop above the center-column BottomStatusBar. */
@@ -119,6 +122,7 @@
     /* Workspace geometry. Palette values stay owned by the existing paper,
        surface and ink tokens; these only define role and shape. */
     --workspace-corner-radius: 2px;
+    --workspace-border: hsl(var(--ink-1) / 0.14);
 
     /* Native window chrome geometry. Every renderer-owned titlebar surface
        consumes the same height so its content center stays aligned with the
@@ -128,46 +132,51 @@
     --window-surface-inline-inset: 0px;
   }
 
-  /* ─── Workspace plane + raised work surfaces ───────────────────────────
+  /* ─── Coplanar workspace + manuscript elevation ───────────────────────
      The titlebar, editor surround, timeline and status controls share one
-     paper-deep plane. The manuscript page and whichever edge-anchored
-     sidebars are open are the only raised first-class workspace surfaces.
+     paper-deep plane and the exact same background role. The manuscript page
+     is the only raised surface.
      -------------------------------------------------------------------- */
   .app-root {
     padding: 0;
     gap: 0;
-    background: hsl(var(--paper-deep));
+    background: var(--workspace-ui-bg);
   }
   .app-row {
     min-height: 0;
-    background: hsl(var(--paper-deep));
+    background: var(--workspace-ui-bg);
   }
   .app-mid {
     gap: 0;
-    background: hsl(var(--paper-deep));
+    background: var(--workspace-ui-bg);
   }
-  /* Sidebars touch the window edges and express elevation only toward the
-     editor. A fully collapsed sidebar contributes no seam or shadow. */
+  /* Sidebars are coplanar edge panels. Their full seams are ordinary
+     hairlines; neither panel casts a shadow over the editor. */
   .sidebar-shell--left {
-    border-right: 1px solid hsl(var(--rule));
-    box-shadow: 10px 0 28px -24px hsl(var(--ink-1) / 0.38);
+    border-right: 1px solid var(--workspace-border);
+    box-shadow: none;
   }
   .sidebar-shell--right {
-    border-left: 1px solid hsl(var(--rule));
-    box-shadow: -10px 0 28px -24px hsl(var(--ink-1) / 0.38);
+    border-left: 1px solid var(--workspace-border);
+    box-shadow: none;
   }
   .sidebar-shell.is-fully-hidden {
     border-left: 0;
     border-right: 0;
-    box-shadow: none;
   }
   .app-plane,
   .workspace-stage,
   .workspace-dock {
-    background: hsl(var(--paper-deep));
+    background: var(--workspace-ui-bg);
   }
   .app-topbar {
-    border-bottom: 1px solid hsl(var(--rule));
+    border-bottom: 1px solid var(--workspace-border);
+  }
+  .app-topbar__workspace-nav,
+  .app-topbar__quick-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
   }
   .workspace-stage {
     min-height: 0;
@@ -178,10 +187,10 @@
     border-radius: 0;
     box-shadow: none;
   }
-  .app-tool-slab {
+  .app-panel-plane {
     border-radius: 0;
-    background: var(--chrome-bg);
-    z-index: 20;
+    background: var(--workspace-ui-bg);
+    box-shadow: none;
   }
 
   /* ─── Static document and panel tabs ─────────────────────────────────
@@ -238,7 +247,7 @@
   /* Smooth light/dark transitions on the stable shell surfaces. */
   body,
   .app-plane,
-  .app-tool-slab,
+  .app-panel-plane,
   .bsb {
     transition:
       background-color 240ms ease,
@@ -746,6 +755,11 @@ html[data-platform-target='mobile'] .app-mid {
 }
 
 @media (max-width: 600px) {
+  html[data-platform-target='mobile'] .app-topbar__workspace-nav,
+  html[data-platform-target='mobile'] .app-topbar__quick-actions {
+    display: none;
+  }
+
   html[data-platform-target='mobile'] .app-topbar__right {
     max-width: 108px;
     overflow: hidden;
@@ -765,16 +779,9 @@ html[data-platform-target='mobile'] .app-mid {
 }
 
 /* Flex row living between .editor-bar and the manuscript scroll. The semantic
-   TOC rail and review marker lanes are absolutely pinned in this coordinate
-   space while the page remains centred underneath them. */
+   TOC rail is pinned to this editor area's left edge; an open application left
+   sidebar therefore sits immediately before it. */
 .editor-body {
-  --editor-toc-rail-width: clamp(88px, 12vw, 152px);
-  --editor-toc-rail-left: max(
-    4px,
-    calc(
-      50% - var(--editor-max-width, 720px) / 2 - var(--editor-toc-rail-width) - 6px
-    )
-  );
   display: flex;
   flex: 1;
   min-height: 0;
@@ -1349,6 +1356,13 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
+  /* A vertical trackpad fling often carries a small deltaX. Keep the
+     manuscript on a strict vertical axis so hitting the bottom cannot expose
+     WebKit's horizontal rubber-band as a left/right page shake. */
+  overflow-x: hidden;
+  /* The editor is the sole scroll owner. Consume momentum at both document
+     boundaries instead of chaining it to .workspace-stage / the WKWebView. */
+  overscroll-behavior: none;
   background: hsl(var(--paper-deep));
   position: relative;
   min-height: 0;
@@ -1978,29 +1992,20 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 .editor__scrollmap {
   position: absolute;
   top: 8px;
-  left: calc(var(--editor-toc-rail-left) + var(--editor-toc-rail-width) - 8px);
+  left: 0;
   bottom: 8px;
   /* Review ticks share the scrollbar itself instead of creating a wide gap
      between the thumb and its TOC labels. */
   width: 8px;
   z-index: 9;
   pointer-events: none;
-  opacity: 0.46;
+  opacity: 0;
   transition: opacity 0.16s ease;
 }
 .editor-body[data-outline-rail-active='true'] .editor__scrollmap {
   opacity: 0.92;
 }
-.editor-body[data-outline-rail-mode='edge'] .editor__scrollmap {
-  left: 0;
-  opacity: 0;
-}
-.editor-body[data-outline-rail-mode='edge'][data-outline-rail-active='true']
-  .editor__scrollmap {
-  opacity: 0.92;
-}
-.editor-body[data-outline-rail-mode='edge'][data-outline-rail-active='false']
-  .editor__scrollmap-tick {
+.editor-body[data-outline-rail-active='false'] .editor__scrollmap-tick {
   pointer-events: none;
 }
 .editor__scrollmap-tick {
@@ -2636,8 +2641,8 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: var(--editor-toc-rail-left);
-  width: var(--editor-toc-rail-width);
+  left: 0;
+  width: min(190px, calc(100% - 8px));
   display: block;
   z-index: 7;
   overflow: visible;
@@ -2710,6 +2715,16 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   flex: none;
   color: hsl(var(--ink-5));
   font-size: 9px;
+}
+
+/* A single-entity editor's own name is a pinned structural root above the
+   five-level manuscript outline. It remains plain text, like every TOC tag. */
+.editor__toc-tag--root {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: hsl(var(--ink-2));
 }
 
 /* Five structural levels stay uniform across every editor. Their compact rail
@@ -2834,7 +2849,7 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   right: 0;
   width: 8px;
   min-height: 14px;
-  border-radius: 4px;
+  border-radius: 0;
   background: hsl(var(--accent) / 0.14);
   pointer-events: none;
   transition:
@@ -2852,9 +2867,9 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   right: 2px;
   width: 4px;
   min-height: 2px;
-  border-radius: 3px;
+  border-radius: 0;
   background: hsl(var(--accent) / 0.42);
-  box-shadow: 0 0 0 1px hsl(var(--surface) / 0.66);
+  box-shadow: none;
   pointer-events: auto;
   z-index: 1;
   transition:
@@ -2869,13 +2884,8 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   background: hsl(var(--accent) / 0.72);
 }
 
-/* When the rendered manuscript leaves no real left gutter, the same rail
-   becomes an overlay scrollbar at the editor's left edge. TOC text flips to
-   the thumb's right and appears only during scroll/direct interaction. */
-.editor__toc-rail--edge {
-  left: 0;
-  width: min(190px, calc(100% - 8px));
-}
+/* The rail always occupies the editor area's left edge. TOC text sits to the
+   thumb's right and appears only during scroll/direct interaction. */
 .editor__toc-rail--edge .editor__toc-labels,
 .editor__toc-rail--edge .editor__toc-viewport-range {
   opacity: 0;
@@ -2956,6 +2966,11 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 .editor__toc-reveal-item--l1 {
   font-size: 10px;
   font-style: italic;
+}
+.editor__toc-reveal-item--root {
+  color: hsl(var(--ink-2));
+  font-size: 10.5px;
+  font-weight: 600;
 }
 .editor__toc-reveal-item--l2 {
   color: hsl(var(--ink-2));
@@ -4137,7 +4152,9 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   position: relative;
   border: 2px solid hsl(var(--page));
   box-shadow: 0 0 0 1px hsl(var(--rule-strong));
-  transition: border-color 0.12s, box-shadow 0.12s;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
 }
 .col-pick__sw:hover {
   border-color: hsl(var(--ink-2));

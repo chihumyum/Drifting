@@ -4,6 +4,7 @@ import { events } from '../../lib/events.ts';
 import { useUiStore } from '../../store/ui-store';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { GhostIconButton } from '../ui/GhostIconButton';
+import { WorkspaceNavigationButtons } from './WorkspaceNavigationButtons';
 
 export function LeftSidebarTopBar() {
   const { t } = useTranslation();
@@ -54,6 +55,7 @@ export function LeftSidebarTopBar() {
           )
         }
       />
+      <WorkspaceNavigationButtons />
     </div>
   );
 }

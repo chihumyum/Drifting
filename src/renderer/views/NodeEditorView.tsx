@@ -742,17 +742,9 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               onToggle: togglePlotPlanner,
             }}
             right={
-              <>
-                <span>{t('nodeEditor.meta.words', { count: curNode.wordCount.toLocaleString() })}</span>
-                {currentStorylines.length > 1 && (
-                  <>
-                    <span className="editor-bar__sep">·</span>
-                    <span>
-                      {t('nodeEditor.meta.storylines', { count: currentStorylines.length })}
-                    </span>
-                  </>
-                )}
-              </>
+              currentStorylines.length > 1 ? (
+                <span>{t('nodeEditor.meta.storylines', { count: currentStorylines.length })}</span>
+              ) : undefined
             }
           >
             {!isDriftNode && (

@@ -83,7 +83,18 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
   useEffect(() => {
     if (!isResizing) return;
 
+    const root = document.documentElement;
+    const body = document.body;
+    const previousRootUserSelect = root.style.userSelect;
+    const previousRootWebkitUserSelect = root.style.getPropertyValue('-webkit-user-select');
+    const previousBodyUserSelect = body.style.userSelect;
+    const previousBodyWebkitUserSelect = body.style.getPropertyValue('-webkit-user-select');
+    const previousBodyCursor = body.style.cursor;
+
+    const preventSelection = (event: Event) => event.preventDefault();
+
     const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
       const requestedWidth = sidebarType === 'left' ? e.clientX : window.innerWidth - e.clientX;
       const current = useUiStore.getState();
       const opposite = current.sidebars[oppositeType];
@@ -97,20 +108,44 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
       setSidebarWidth(sidebarType, newWidth);
     };
 
-    const handleMouseUp = () => {
+    const stopResizing = () => {
       setIsResizing(false);
       setResizingSidebar(null);
-      document.body.style.cursor = 'default';
     };
 
     document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = 'col-resize';
+    document.addEventListener('mouseup', stopResizing);
+    document.addEventListener('selectstart', preventSelection, true);
+    window.addEventListener('blur', stopResizing);
+
+    // `preventDefault` on the resize handle stops the initial selection.
+    // These document-level guards also cover text/contenteditable nodes that
+    // the pointer crosses later in the drag, including WebKit's native
+    // selectstart path.
+    root.style.userSelect = 'none';
+    root.style.setProperty('-webkit-user-select', 'none');
+    body.style.userSelect = 'none';
+    body.style.setProperty('-webkit-user-select', 'none');
+    body.style.cursor = 'col-resize';
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'default';
+      document.removeEventListener('mouseup', stopResizing);
+      document.removeEventListener('selectstart', preventSelection, true);
+      window.removeEventListener('blur', stopResizing);
+      root.style.userSelect = previousRootUserSelect;
+      body.style.userSelect = previousBodyUserSelect;
+      body.style.cursor = previousBodyCursor;
+      if (previousRootWebkitUserSelect) {
+        root.style.setProperty('-webkit-user-select', previousRootWebkitUserSelect);
+      } else {
+        root.style.removeProperty('-webkit-user-select');
+      }
+      if (previousBodyWebkitUserSelect) {
+        body.style.setProperty('-webkit-user-select', previousBodyWebkitUserSelect);
+      } else {
+        body.style.removeProperty('-webkit-user-select');
+      }
     };
   }, [isResizing, oppositeType, setSidebarWidth, setResizingSidebar, sidebarType]);
 
@@ -138,14 +173,13 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
 
   return (
     <div
-      className={`app-tool-slab sidebar-shell sidebar-shell--${sidebarType} ${
+      className={`app-panel-plane sidebar-shell sidebar-shell--${sidebarType} ${
         isExpanded ? 'is-expanded' : 'is-collapsed'
       }${isFullyHidden ? ' is-fully-hidden' : ''}`}
       style={{
         width: outerWidth,
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--chrome-bg)',
         position: 'relative',
         // Load-bearing for the slide animation: the fixed-width inner slab is
         // clipped here as the outer column shrinks.
@@ -204,7 +238,9 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
 
       {isExpanded && (
         <div
-          onMouseDown={() => {
+          onMouseDown={(event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
             setIsResizing(true);
             setResizingSidebar(sidebarType);
           }}

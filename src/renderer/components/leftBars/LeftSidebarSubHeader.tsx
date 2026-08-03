@@ -175,12 +175,8 @@ export function LeftSidebarSubHeader() {
   const setDriftSortMode = useUiStore((s) => s.setDriftSortMode);
   const chapterGlobalSortMode = useUiStore((s) => s.chapterGlobalSortMode);
   const setChapterGlobalSortMode = useUiStore((s) => s.setChapterGlobalSortMode);
-  const chapterStorylineInnerSortMode = useUiStore(
-    (s) => s.chapterStorylineInnerSortMode,
-  );
-  const setChapterStorylineInnerSortMode = useUiStore(
-    (s) => s.setChapterStorylineInnerSortMode,
-  );
+  const chapterStorylineInnerSortMode = useUiStore((s) => s.chapterStorylineInnerSortMode);
+  const setChapterStorylineInnerSortMode = useUiStore((s) => s.setChapterStorylineInnerSortMode);
   const elementSortMode = useUiStore((s) => s.elementSortMode);
   const setElementSortMode = useUiStore((s) => s.setElementSortMode);
   const chapterCellMeta = useUiStore((s) => s.chapterCellMeta);
@@ -207,9 +203,7 @@ export function LeftSidebarSubHeader() {
     ],
     [t],
   );
-  const chapterStorylineInnerSortOptions = useMemo<
-    SortMenuOption<ChapterStorylineInnerSortMode>[]
-  >(
+  const chapterStorylineInnerSortOptions = useMemo<SortMenuOption<ChapterStorylineInnerSortMode>[]>(
     () => [
       { value: 'bookOrder', label: t('leftSidebar.sort.bookOrder') },
       { value: 'narrativeOrder', label: t('leftSidebar.sort.narrativeOrder') },
@@ -386,7 +380,7 @@ export function LeftSidebarSubHeader() {
         textTransform: 'uppercase',
         letterSpacing: '0.12em',
         color: 'hsl(var(--ink-3))',
-        borderBottom: '1px solid hsl(var(--rule))',
+        background: 'var(--workspace-ui-bg)',
         flexShrink: 0,
       }}
     >
@@ -409,9 +403,7 @@ export function LeftSidebarSubHeader() {
               titleOff={t('leftSidebar.viewMode.globalTitle')}
             />
           )}
-          <span
-            style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-          >
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {meta}
           </span>
         </span>
@@ -593,11 +585,6 @@ function ViewModeSwitch({
   titleOff: string;
 }) {
   return (
-    <Switch
-      size="sm"
-      checked={on}
-      onCheckedChange={onToggle}
-      title={on ? titleOn : titleOff}
-    />
+    <Switch size="sm" checked={on} onCheckedChange={onToggle} title={on ? titleOn : titleOff} />
   );
 }

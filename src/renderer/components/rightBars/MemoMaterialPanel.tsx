@@ -451,7 +451,6 @@ function Toolbar({
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '6px 10px 6px 12px',
-        borderBottom: '1px solid hsl(var(--rule))',
         gap: 6,
         flexShrink: 0,
         // Pin the toolbar to the top of the scroll container so the filter
@@ -459,7 +458,7 @@ function Toolbar({
         position: 'sticky',
         top: 0,
         zIndex: 4,
-        background: 'hsl(var(--paper))',
+        background: 'var(--workspace-ui-bg)',
       }}
     >
       <div style={{ display: 'flex', gap: 4 }}>
@@ -1886,9 +1885,7 @@ export function LibraryItemFullscreenPreview({
           ? r2PdfSource.filePath
           : (material.localPath ?? (pdfSrc ? pdfSrc.replace(/^file:\/\//, '') : null));
       if (!pdfPath) return <FullscreenEmpty message={t('memoMaterial.preview.noPdf')} />;
-      return (
-        <PdfCanvasPreview filePath={pdfPath} viewport={viewport} />
-      );
+      return <PdfCanvasPreview filePath={pdfPath} viewport={viewport} />;
     }
 
     return (
@@ -2898,12 +2895,7 @@ function DialogActions({
       <Button size="sm" onClick={onCancel}>
         {t('common.cancel')}
       </Button>
-      <Button
-        size="sm"
-        variant="primary"
-        onClick={onConfirm}
-        disabled={confirmDisabled}
-      >
+      <Button size="sm" variant="primary" onClick={onConfirm} disabled={confirmDisabled}>
         {t('memoMaterial.dialog.create')}
       </Button>
     </div>

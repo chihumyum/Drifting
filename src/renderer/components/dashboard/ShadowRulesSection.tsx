@@ -16,7 +16,7 @@ export function ShadowRulesSection({
   embedded = false,
 }: {
   projectId: string;
-  // Embedded (e.g. in the bottom-bar quick menu): drop the big dash-section
+  // Embedded (e.g. in the topbar quick menu): drop the big dash-section
   // header/title — the host already labels the section — and keep only a compact
   // "＋ 新增规则" affordance + the rows.
   embedded?: boolean;

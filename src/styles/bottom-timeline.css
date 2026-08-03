@@ -7,8 +7,8 @@
 .btl {
   display: flex;
   flex-direction: column;
-  background: hsl(var(--paper-deep));
-  border-top: 1px solid hsl(var(--rule));
+  background: var(--workspace-ui-bg);
+  border-top: 1px solid var(--workspace-border);
   position: relative;
   /* Visible overflow lets the narrative-view "未放置" popover open
      UPWARD past the head bar into the editor area, as requested.
@@ -37,9 +37,8 @@
   justify-content: space-between;
   height: 30px;
   padding: 0 14px;
-  border-bottom: 1px solid hsl(var(--rule));
   flex-shrink: 0;
-  background: hsl(var(--paper-deep));
+  background: var(--workspace-ui-bg);
   gap: 12px;
 }
 .btl__head-left {
@@ -142,7 +141,9 @@
   color: hsl(var(--ink-3));
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 .btl__unplaced-btn:hover,
 .btl__unplaced-btn.is-open {
@@ -198,7 +199,9 @@
   border: 1px solid hsl(var(--rule));
   cursor: grab;
   user-select: none;
-  transition: border-color 0.12s, background 0.12s;
+  transition:
+    border-color 0.12s,
+    background 0.12s;
 }
 .btl__unplaced-chip:focus-visible {
   outline: 2px solid hsl(var(--accent) / 0.6);
@@ -245,7 +248,9 @@
   color: hsl(var(--ink-3));
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 .btl__unaffiliated-toggle:hover,
 .btl__unaffiliated-toggle.is-active {
@@ -295,12 +300,10 @@
   flex: 1;
   gap: 0;
   /* Floor that keeps the node title (one line, ~14px line-box + 6px content
-     padding + 8px clip top/bottom inset + 1px row border) from getting
-     vertically clipped when many storylines compress the rows-area. */
+     padding + 8px clip top/bottom inset) from getting vertically clipped when
+     many storylines compress the rows-area. */
   min-height: 30px;
-}
-.btl-row + .btl-row {
-  border-top: 1px solid hsl(var(--rule) / 0.5);
+  background: var(--workspace-ui-bg);
 }
 
 /* ---------------- Rail (sticky left) ---------------- */
@@ -314,16 +317,12 @@
   padding-left: 8px;
   padding-right: 8px;
   border-right: 1px solid hsl(var(--rule));
-  background: color-mix(in srgb, var(--rail-color, hsl(var(--ink-3))) 5%, hsl(var(--paper-deep)));
+  background: var(--workspace-ui-bg);
   cursor: default;
   overflow: hidden;
   /* Above clips (incl. selected) and pins so the sticky rail always
      covers content scrolling under it. */
   z-index: 20;
-  transition: background 0.12s;
-}
-.btl-rail.is-active {
-  background: color-mix(in srgb, var(--rail-color, hsl(var(--ink-3))) 9%, hsl(var(--paper)));
 }
 .btl-rail__main {
   flex: 1;
@@ -375,8 +374,7 @@
   align-items: stretch;
   flex: 0 0 auto;
   height: 22px;
-  border-bottom: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper));
+  background: var(--workspace-ui-bg);
   position: relative;
 }
 .btl-axis__rail {
@@ -387,7 +385,7 @@
   align-items: center;
   justify-content: space-between;
   border-right: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper));
+  background: var(--workspace-ui-bg);
   padding: 0 10px 0 16px;
   z-index: 20;
   font-family: var(--font-mono);
@@ -431,7 +429,20 @@
      element sized to the scroll content (flex:1 + minWidth:timelineWidth);
      the parent `.btl-axis` is only as wide as the container, so relying on its
      background left everything past the pre-scroll right edge bare. */
-  background: hsl(var(--paper));
+  background: var(--workspace-ui-bg);
+}
+
+/* Book mode uses the shared ActRail in the same structural slot as the
+   narrative axis. Inside the timeline it shares the dock's one background,
+   without another hairline-delimited strip. StoryGraphView keeps the shared
+   default. */
+.btl .actrail {
+  border-bottom: 0;
+  background: var(--workspace-ui-bg);
+}
+.btl .actrail__rail,
+.btl .actrail__track {
+  background: var(--workspace-ui-bg);
 }
 
 /* ---------------- Time pin (narrative view, draggable marker) ----------------
@@ -653,7 +664,9 @@
 .btl-row.is-drop-disabled .btl-track {
   opacity: 0.32;
   filter: saturate(0.6);
-  transition: opacity 0.12s, filter 0.12s;
+  transition:
+    opacity 0.12s,
+    filter 0.12s;
 }
 
 /* ---------------- Empty + loading ---------------- */
@@ -699,7 +712,6 @@
   pointer-events: none;
   z-index: 4;
 }
-
 
 /* Minimap removed: the ActRail (act-rail.css) + storyline rows serve the
    "overview" role. */
@@ -781,7 +793,9 @@
   font-size: 12.5px;
   letter-spacing: 0.005em;
   text-align: left;
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
 }
 .btl-cmenu__item:hover {
   background: hsl(var(--rule));

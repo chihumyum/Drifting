@@ -210,11 +210,6 @@ export function AllChaptersEditorView() {
     [bookNodes],
   );
 
-  const totalWordCount = useMemo(
-    () => orderedNodes.reduce((sum, n) => sum + (n.wordCount || 0), 0),
-    [orderedNodes],
-  );
-
   // Interleave act dividers into the read-through. Chapter indices keep
   // counting straight through (the Roman numeral sequence ignores acts);
   // empty acts still render their divider — a planned 幕 with no chapters
@@ -836,8 +831,6 @@ export function AllChaptersEditorView() {
         right={
           <>
             <span>{t('storylineEditor.meta.chapters', { count: orderedNodes.length })}</span>
-            <span className="editor-bar__sep">·</span>
-            <span>{t('storylineEditor.meta.kWords', { count: (totalWordCount / 1000).toFixed(1) })}</span>
             {menuTargetNode && (
               // The chapter at the reading line — what the three-dot menu acts
               // on. Updates as you scroll.

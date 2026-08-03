@@ -33,7 +33,67 @@ describe('workspace surface language acceptance', () => {
     );
   });
 
-  it('assigns explicit plane and tool-slab roles without legacy island shells', () => {
+  it('moves workspace navigation and menus to the topbar while keeping Timeline beside its dock', () => {
+    const appTopbar = source('src/renderer/views/AppTopbar.tsx');
+    const leftTopbar = source('src/renderer/components/topBars/LeftSidebarTopBar.tsx');
+    const workspaceNavigation = source(
+      'src/renderer/components/topBars/WorkspaceNavigationButtons.tsx',
+    );
+    const rightTopbar = source('src/renderer/components/topBars/RightSidebarTopBar.tsx');
+    const copilot = source('src/renderer/components/copilot/CopilotBottomMenu.tsx');
+    const shadow = source('src/renderer/components/ShadowQuickMenu.tsx');
+    const footer = source('src/renderer/components/BottomStatusBar.tsx');
+    const footerCss = source('src/styles/bottom-status-bar.css');
+    const shellCss = source('src/styles/index.css');
+    const nodeEditor = source('src/renderer/views/NodeEditorView.tsx');
+    const storylineEditor = source('src/renderer/views/StorylineEditorView.tsx');
+    const allChaptersEditor = source('src/renderer/views/AllChaptersEditorView.tsx');
+
+    expect(leftTopbar).toContain('<WorkspaceNavigationButtons />');
+    expect(workspaceNavigation.match(/<GhostIconButton/g)).toHaveLength(5);
+    expect(workspaceNavigation).toContain('icon={<Home size={16}');
+    expect(workspaceNavigation).toContain('icon={<AllChaptersIcon size={17}');
+    expect(appTopbar).toContain('runtime.isMacDesktop ? 280 : 210');
+
+    expect(rightTopbar).toContain('<CopilotQuickMenu />');
+    expect(rightTopbar).toContain('<ShadowQuickMenu />');
+    expect(rightTopbar).not.toContain('toggleBottomTimelineHidden');
+    expect(copilot).toContain('export function CopilotQuickMenu()');
+    expect(copilot).toContain('icon={<Sparkles size={16}');
+    expect(shadow).toContain('<GhostIconButton');
+
+    expect(footer).toContain('<footer className="bsb app-plane"');
+    expect(footer.match(/<button/g)).toHaveLength(1);
+    expect(footer).toContain('className="bsb__timeline-toggle"');
+    expect(footer).toContain('onClick={toggleBottomTimelineHidden}');
+    expect(footer).not.toContain('CopilotQuickMenu');
+    expect(footer).not.toContain('ShadowQuickMenu');
+    expect(footer).toContain('deriveWritingStats');
+    expect(footer).toContain('useSyncObserver');
+    expect(footerCss).toContain('.bsb__timeline-toggle {');
+    expect(footerCss).toContain('cursor: pointer;');
+    expect(footerCss).toContain('background: transparent;');
+    expect(footerCss).not.toContain('.bsb__seg');
+
+    expect(
+      block(nodeEditor, '<EditorTopBar\n            editorType="node"', '</EditorTopBar>'),
+    ).not.toContain('nodeEditor.meta.words');
+    expect(
+      block(storylineEditor, '<EditorTopBar\n        editorType="storyline"', '</EditorTopBar>'),
+    ).not.toContain('storylineEditor.meta.kWords');
+    expect(
+      block(
+        allChaptersEditor,
+        '<EditorTopBar\n        editorType="node"\n        onMenuAction={handleChapterMenuAction}',
+        '</EditorTopBar>',
+      ),
+    ).not.toContain('storylineEditor.meta.kWords');
+
+    expect(shellCss).toContain("html[data-platform-target='mobile'] .app-topbar__workspace-nav");
+    expect(shellCss).toContain("html[data-platform-target='mobile'] .app-topbar__quick-actions");
+  });
+
+  it('assigns explicit plane and edge-panel roles without legacy island shells', () => {
     const app = source('src/renderer/App.tsx');
     const topbar = source('src/renderer/views/AppTopbar.tsx');
     const sidebar = source('src/renderer/components/Sidebar.tsx');
@@ -41,17 +101,20 @@ describe('workspace surface language acceptance', () => {
     const renderer = `${app}\n${topbar}\n${sidebar}\n${footer}`;
 
     expect(topbar).toContain('className="app-topbar app-plane"');
-    expect(sidebar).toContain('app-tool-slab sidebar-shell');
+    expect(topbar).toContain("background: 'var(--workspace-ui-bg)'");
+    expect(sidebar).toContain('app-panel-plane sidebar-shell');
     expect(footer).toContain('className="bsb app-plane"');
     expect(renderer).not.toContain('app-island');
     expect(renderer).not.toContain('app-chrome');
   });
 
-  it('keeps first-class geometry sharp and the manuscript independently raised', () => {
+  it('keeps the desktop coplanar and the manuscript independently raised', () => {
     const css = source('src/styles/index.css');
+    const sidebar = source('src/renderer/components/Sidebar.tsx');
+    const rightPanels = source('src/renderer/components/rightBars/RightSidebarPanels.tsx');
     const shell = block(
       css,
-      'Workspace plane + raised work surfaces',
+      'Coplanar workspace + manuscript elevation',
       'Static document and panel tabs',
     );
     const page = block(css, '.page {', '.page__folio {');
@@ -60,7 +123,20 @@ describe('workspace surface language acceptance', () => {
     expect(shell).toMatch(
       /\.workspace-stage\s*\{[\s\S]*?border-radius:\s*0;[\s\S]*?box-shadow:\s*none;/,
     );
-    expect(shell).toMatch(/\.app-tool-slab\s*\{[\s\S]*?border-radius:\s*0;/);
+    expect(shell).toMatch(
+      /\.app-panel-plane\s*\{[\s\S]*?border-radius:\s*0;[\s\S]*?box-shadow:\s*none;/,
+    );
+    expect(shell).toMatch(
+      /\.sidebar-shell--left\s*\{[\s\S]*?border-right:[\s\S]*?box-shadow:\s*none;/,
+    );
+    expect(shell).toMatch(
+      /\.sidebar-shell--right\s*\{[\s\S]*?border-left:[\s\S]*?box-shadow:\s*none;/,
+    );
+    expect(css).toContain('--workspace-ui-bg: hsl(var(--paper-deep));');
+    expect(css).toContain('--chrome-bg: var(--workspace-ui-bg);');
+    expect(shell).toMatch(/\.app-panel-plane\s*\{[\s\S]*?background:\s*var\(--workspace-ui-bg\);/);
+    expect(sidebar).not.toContain("background: 'var(--chrome-bg)'");
+    expect(rightPanels).toContain("background: 'var(--workspace-ui-bg)'");
     expect(page).toContain('background: hsl(var(--page));');
     expect(page).toContain('border-radius: var(--workspace-corner-radius);');
     expect(page).toContain('box-shadow: var(--page-elevation);');
@@ -70,17 +146,32 @@ describe('workspace surface language acceptance', () => {
 
   it('uses static rectangular tabs and removes the selection-indicator hook', () => {
     const tabs = source('src/renderer/components/ui/PanelTabs.tsx');
+    const rightHeader = source('src/renderer/components/rightBars/RightSidebarHeader.tsx');
     const timeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
     const controls = source('src/styles/ui-controls.css');
 
     expect(tabs).not.toContain('indicatorStyle');
     expect(tabs).not.toContain('tab-indicator');
+    expect(tabs).not.toContain('is-accent');
+    expect(block(rightHeader, 'id="shadow"', "active={isActive('agent', 'shadow')}")).not.toContain(
+      'accent',
+    );
     expect(timeline).not.toContain('useSlidingIndicator');
     expect(timeline).toContain("behavior: 'auto'");
     expect(timeline).not.toContain("transition: 'background");
     expect(controls).toMatch(
       /\.app-panel-tab\s*\{[\s\S]*?border-radius:\s*0;[\s\S]*?transition:\s*none;/,
     );
+    const panelTabStates = block(
+      controls,
+      '.app-panel-tab:hover:not(:disabled),',
+      '.segmented-control {',
+    );
+    expect(panelTabStates).toContain('color: hsl(var(--ink-1));');
+    expect(panelTabStates).not.toContain('background:');
+    expect(panelTabStates).not.toContain('box-shadow:');
+    expect(panelTabStates).not.toContain('border-bottom');
+    expect(panelTabStates).not.toContain('inset');
     expect(existsSync(resolve(process.cwd(), 'src/renderer/hooks/useSlidingIndicator.ts'))).toBe(
       false,
     );
@@ -96,6 +187,71 @@ describe('workspace surface language acceptance', () => {
     expect(css).toMatch(
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.sidebar-shell\s*\{\s*transition:\s*none;/,
     );
+  });
+
+  it('hides the dashboard scrollbar and blocks native selection during sidebar resizing', () => {
+    const dashboard = source('src/styles/dashboard.css');
+    const sidebar = source('src/renderer/components/Sidebar.tsx');
+    const dash = block(dashboard, '.dash {', '.dash *,');
+    const webkitScrollbar = block(dashboard, '.dash::-webkit-scrollbar {', '.dash__inner {');
+
+    expect(dash).toContain('overflow-y: auto;');
+    expect(dash).toContain('scrollbar-width: none;');
+    expect(webkitScrollbar).toContain('display: none;');
+    expect(sidebar).toContain('event.preventDefault();');
+    expect(sidebar).toContain("document.addEventListener('selectstart', preventSelection, true);");
+    expect(sidebar).toContain("root.style.userSelect = 'none';");
+    expect(sidebar).toContain("body.style.userSelect = 'none';");
+    expect(sidebar).toContain("window.addEventListener('blur', stopResizing);");
+  });
+
+  it('uses plain outer seams and one internal gray without junction decoration', () => {
+    const app = source('src/renderer/App.tsx');
+    const shellCss = source('src/styles/index.css');
+    const timelineCss = source('src/styles/bottom-timeline.css');
+    const leftHeader = source('src/renderer/components/leftBars/LeftSidebarHeader.tsx');
+    const leftSubheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
+    const rightHeader = source('src/renderer/components/rightBars/RightSidebarHeader.tsx');
+    const todo = source('src/renderer/components/rightBars/TodoPanel.tsx');
+    const library = source('src/renderer/components/rightBars/MemoMaterialPanel.tsx');
+    const timeline = block(timelineCss, '.btl {', '.btl__resize {');
+    const timelineHead = block(timelineCss, '.btl__head {', '.btl__head-left {');
+    const timelineRows = block(timelineCss, '.btl-row {', 'Rail (sticky left)');
+    const timelineAxis = block(timelineCss, '.btl-axis {', '.btl-axis__rail-add {');
+    const shell = block(
+      shellCss,
+      'Coplanar workspace + manuscript elevation',
+      'Static document and panel tabs',
+    );
+
+    expect(shellCss).toContain('--workspace-border:');
+    expect(shellCss).not.toContain('--workspace-level-1-bg:');
+    expect(shellCss).not.toContain('--workspace-level-2-bg:');
+    expect(shell).not.toContain('radial-gradient');
+    expect(shellCss).not.toContain('workspace-junction');
+    expect(shellCss).not.toContain('.app-root.has-left-panel::before');
+    expect(shellCss).not.toContain('.workspace-dock::before');
+    expect(app).not.toContain('workspace-left-panel-width');
+    expect(app).not.toContain('workspace-right-panel-width');
+    expect(timeline).toContain('box-shadow: none;');
+    expect(timeline).toContain('border-top: 1px solid var(--workspace-border);');
+    expect(timelineHead).toContain('background: var(--workspace-ui-bg);');
+    expect(timelineHead).not.toContain('border-bottom');
+    expect(timelineRows).not.toContain('border-top');
+    expect(timelineAxis).toContain('background: var(--workspace-ui-bg);');
+    expect(timelineCss).toMatch(
+      /\.btl \.actrail\s*\{[\s\S]*?border-bottom:\s*0;[\s\S]*?background:\s*var\(--workspace-ui-bg\);/,
+    );
+    expect(leftHeader).toContain("background: 'var(--workspace-ui-bg)'");
+    expect(leftSubheader).toContain("background: 'var(--workspace-ui-bg)'");
+    expect(rightHeader).toContain("background: 'var(--workspace-ui-bg)'");
+    expect(todo).toContain("background: 'var(--workspace-ui-bg)'");
+    expect(library).toContain("background: 'var(--workspace-ui-bg)'");
+    expect(leftHeader).not.toContain('workspace-border');
+    expect(leftSubheader).not.toContain('borderBottom');
+    expect(rightHeader).not.toContain('workspace-border');
+    expect(todo).not.toContain('workspace-border');
+    expect(library).not.toContain('workspace-border');
   });
 
   it('keeps Settings and Super Views on flat edge-aligned shells', () => {
@@ -155,9 +311,9 @@ describe('workspace surface language acceptance', () => {
     );
     expect(timeline).not.toContain('btl-rail__stripe');
     expect(timelineCss).not.toContain('.btl-rail__stripe');
-    expect(block(timelineCss, '.btl-rail {', '.btl-rail.is-active {')).toContain(
-      'background: color-mix',
-    );
+    const timelineRail = block(timelineCss, '.btl-rail {', '.btl-rail__main {');
+    expect(timelineRail).toContain('background: var(--workspace-ui-bg);');
+    expect(timelineRail).not.toContain('color-mix');
     expect(block(planner, '.pl-table {', '.pl-corner {')).toMatch(
       /border-collapse:\s*collapse;[\s\S]*?border-spacing:\s*0;/,
     );
@@ -186,8 +342,17 @@ describe('workspace surface language acceptance', () => {
   it('records the palette boundary and manual visual acceptance boundary', () => {
     const doc = source('docs/design-system.md');
 
-    expect(doc).toContain('一个平面，最多三块抬起的工作面');
+    expect(doc).toContain('单层桌面，只有一张抬起的稿纸');
+    expect(doc).toContain('它们全部使用从 editor 稿纸外侧提取的');
+    expect(doc).toContain('三方交点没有渐变、阴影或额外装饰');
+    expect(doc).toContain('它们全部使用同一个 `--workspace-ui-bg`');
+    expect(doc).toContain('不实现同时改变三个区域的三向 resize');
+    expect(doc).toContain('只用暗淡文字与黑色文字的切换');
     expect(doc).toContain('footer 只占中间编辑列');
+    expect(doc).toContain('`AppTopbar` 承担导航与功能菜单');
+    expect(doc).toContain('`BottomStatusBar` 以只读状态为主');
+    expect(doc).toContain('唯一的交互例外是 Bottom Timeline');
+    expect(doc).toContain('通知入口仍留在 topbar');
     expect(doc).toContain('不重新定义现有配色');
     expect(doc).toContain('通用圆角阶梯限定为 `1px / 2px / 3px`');
     expect(doc).toContain('Plot Planner 是连续的 mini-Excel');

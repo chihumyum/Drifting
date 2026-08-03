@@ -327,15 +327,7 @@ export function StorylineEditorView({
           onToggle: toggleComments,
         }}
         right={
-          <>
-            <span>{t('storylineEditor.meta.chapters', { count: sNodes.length })}</span>
-            {sNodes.length > 0 && (
-              <>
-                <span className="editor-bar__sep">·</span>
-                <span>{t('storylineEditor.meta.kWords', { count: (totalWc / 1000).toFixed(1) })}</span>
-              </>
-            )}
-          </>
+          <span>{t('storylineEditor.meta.chapters', { count: sNodes.length })}</span>
         }
       >
         <EditorCrumb

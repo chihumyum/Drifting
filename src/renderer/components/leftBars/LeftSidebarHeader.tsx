@@ -79,9 +79,9 @@ export function LeftSidebarHeader() {
         display: 'flex',
         height: 35,
         width: '100%',
-        borderBottom: '1px solid hsl(var(--rule))',
         alignItems: 'center',
         padding: '0 8px',
+        background: 'var(--workspace-ui-bg)',
         // Keep the header strip above the panel content rendered below it.
         position: 'relative',
         zIndex: 20,
@@ -188,7 +188,11 @@ function PanelTabButton({
               fontFamily: 'var(--font-sans)',
               fontStyle: 'italic',
               fontSize: 12.5,
-              color: busy || isActive ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))',
+              color: busy
+                ? 'hsl(var(--accent))'
+                : isActive
+                  ? 'hsl(var(--ink-1))'
+                  : 'hsl(var(--ink-4))',
               lineHeight: 1,
             }}
           >
