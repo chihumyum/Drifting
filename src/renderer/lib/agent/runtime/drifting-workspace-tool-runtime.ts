@@ -30,6 +30,7 @@ import {
   restoreAuthoredTextAnnotations,
   type WorkspaceTextReplacement,
 } from './workspace-prose-file';
+import { stripRedundantLeadingAuthoredTitle } from './normalize-new-authored-prose';
 import { describeWorkspaceDomainTarget } from './workspace-domain-language';
 import {
   DRIFTING_WORKSPACE_DELETE_TOOL,
@@ -1901,6 +1902,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       if (!title || segments.length !== 3) {
         throw new Error('章节或灵感的名称不完整，无法新建。');
       }
+      const body = stripRedundantLeadingAuthoredTitle(content, title);
       return {
         expectedRevision,
         command: {
@@ -1908,7 +1910,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
           arguments: {
             kind: segments[0] === 'chapters' ? 'chapter' : 'drift',
             title,
-            body: content,
+            body,
             ...(explicitSummary ? { summary: explicitSummary } : {}),
             expectedRevision,
           },
@@ -1916,7 +1918,8 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       };
     }
     if (segments[0] === 'elements' && file === 'body.md' && segments.length === 4) {
-      const summary = explicitSummary || initialStructuredSummary(content);
+      const body = stripRedundantLeadingAuthoredTitle(content, segments[2] ?? '');
+      const summary = explicitSummary || initialStructuredSummary(body);
       return {
         expectedRevision,
         command: {
@@ -1924,7 +1927,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
           arguments: {
             category: segments[1],
             name: segments[2],
-            body: content,
+            body,
             ...(summary ? { summary } : {}),
             expectedRevision,
           },
@@ -1932,14 +1935,15 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       };
     }
     if (segments[0] === 'storylines' && file === 'body.md' && segments.length === 3) {
-      const summary = explicitSummary || initialStructuredSummary(content);
+      const body = stripRedundantLeadingAuthoredTitle(content, segments[1] ?? '');
+      const summary = explicitSummary || initialStructuredSummary(body);
       return {
         expectedRevision,
         command: {
           name: 'create_storyline',
           arguments: {
             name: segments[1],
-            body: content,
+            body,
             ...(summary ? { summary } : {}),
             expectedRevision,
           },
@@ -1947,11 +1951,12 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       };
     }
     if (segments[0] === 'categories' && file === 'body.md' && segments.length === 3) {
+      const body = stripRedundantLeadingAuthoredTitle(content, segments[1] ?? '');
       return {
         expectedRevision,
         command: {
           name: 'create_category',
-          arguments: { name: segments[1], body: content, expectedRevision },
+          arguments: { name: segments[1], body, expectedRevision },
         },
       };
     }
