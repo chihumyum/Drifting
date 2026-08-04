@@ -120,7 +120,7 @@ plus receipt, inverse/permission behavior and restart visibility.
 | EDIT-01 | Core | E3 | Append, prepend, replace and delete prose on both chapter and drift targets. |
 | EDIT-02 | Core | E2 | Multi-block edits preserve block identity where possible and persist through live Yjs. |
 | EDIT-03 | Core | E2 | Agent may edit any in-project target it decides is useful; no editor-focus/scope whitelist rejects a valid target. |
-| EDIT-04 | Core | E4 | Auto mode plays the colored reveal animation and leaves no pending review. |
+| EDIT-04 | Core | E4 | Auto mode stages a pre-live mask for open existing files, plays the colored reveal for Added and existing-file edits, never paints completed live prose beneath it, atomically hands the mask to the durable review, and leaves no pending review. |
 | EDIT-05 | Core | E4 | Review mode inserts the committed diff in the editor with per-block accept/reject badge. |
 | EDIT-06 | Core | E2 | Accept/reject one settles only that block through durable compare-and-set. |
 | EDIT-07 | Core | E2 | Accept/reject all settles every remaining block, including partial prior decisions. |

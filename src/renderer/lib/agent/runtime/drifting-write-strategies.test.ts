@@ -521,6 +521,76 @@ describe('Drifting write strategies', () => {
     harness.doc.destroy();
   });
 
+  it('guards an open existing-file auto edit before live merge and atomically hands it to the durable review', async () => {
+    const harness = await proseHarness({ runBeforeLiveMerge: true });
+    const expectedRevision = {
+      receiptId: 'receipt-pre-live-guard',
+      observationId: 'observation-pre-live-guard',
+      revision: `yjs:${harness.base.revision}`,
+    };
+    const request = executionRequest('edit_block', {
+      entity: 'Old title',
+      blockId: 'block-a',
+      text: 'Guarded alpha',
+      expectedRevision,
+    });
+    const strategy = getDriftingWriteStrategy('edit_block', {
+      proseCoordinator:
+        harness.coordinator as unknown as YjsProsePersistenceCoordinator,
+      readNodeContent: async () => harness.contentJson,
+    })!;
+    const prepared = await strategy.prepare(
+      request,
+      context(),
+      proseExpectation(request, expectedRevision, harness.base),
+    );
+
+    const handlerResult = await strategy.applyForward!(
+      request,
+      context(),
+      prepared,
+    );
+    const [reviewId] = Object.keys(
+      useAgentEditStore.getState().autoRevealGuards,
+    );
+    expect(reviewId).toBeDefined();
+    expect(useAgentEditStore.getState().autoRevealGuards[reviewId!]).toMatchObject({
+      entityType: 'node',
+      id: 'node-1',
+      blockIds: ['block-a'],
+    });
+    expect(useAgentEditStore.getState().pending['node:node-1']).toBeUndefined();
+
+    const committedEffect = await strategy.captureEffect(
+      request,
+      context(),
+      handlerResult,
+      prepared,
+    );
+    const effect: PersistedAgentRuntimeWriteEffect = {
+      ...persistedEffect({
+        inverse: prepared.inverse,
+        effect: committedEffect,
+      }),
+      id: `agent-write:${request.idempotencyKey}`,
+      toolName: 'edit_block',
+      idempotencyKey: request.idempotencyKey,
+      forward: prepared.forward,
+    };
+    await strategy.projectReview!(effect, context());
+
+    expect(useAgentEditStore.getState().autoRevealGuards[reviewId!]).toBeUndefined();
+    expect(useAgentEditStore.getState().pending['node:node-1']?.changes).toEqual([
+      expect.objectContaining({
+        blockId: 'block-a',
+        op: 'changed',
+        mode: 'auto',
+        reviewId,
+      }),
+    ]);
+    harness.doc.destroy();
+  });
+
   it('reconciles a crash after the Yjs commit without rebuilding removed review UI', async () => {
     const harness = await proseHarness({ crashAfterForwardCommit: true });
     const expectedRevision = {
@@ -843,6 +913,7 @@ function paragraph(id: string, text: string): YjsProseBlock {
 async function proseHarness(
   options: {
     crashAfterForwardCommit?: boolean;
+    runBeforeLiveMerge?: boolean;
     firstText?: string;
     revision?: number;
     blocks?: readonly YjsProseBlock[];
@@ -947,6 +1018,9 @@ async function proseHarness(
       receipts.set(`${prepared.commandId}:${input.direction}`, receipt);
       if (options.crashAfterForwardCommit && isForward) {
         throw new Error('crash after durable Yjs commit');
+      }
+      if (options.runBeforeLiveMerge && isForward) {
+        input.beforeLiveMerge?.();
       }
       return {
         outcome: 'committed' as const,

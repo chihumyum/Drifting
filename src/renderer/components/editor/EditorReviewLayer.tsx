@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 
 import { AgentEditAnimator } from './AgentEditAnimator';
 import { EditorScrollMarkers } from './EditorScrollMarkers';
@@ -43,7 +43,7 @@ function useAgentAddedFileReveal(
   const addition = useAgentEditStore((state) => (key ? state.additions[key] : undefined));
   const pending = useAgentEditStore((state) => (key ? state.pending[key] : undefined));
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!scrollEl || !id || !addition || addition.revealBlockIds !== null) {
       return undefined;
     }

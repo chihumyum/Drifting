@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentBlockChange } from '../../lib/agent/block-diff';
 import {
   agentEditAnimationKey,
+  agentEditOpaqueBackground,
   agentEditRectInScrollHost,
   bulkAgentEditRevealChanges,
 } from './agent-edit-animation';
@@ -51,6 +52,22 @@ describe('Agent edit commit animation planning', () => {
     );
 
     expect(afterNativeScroll).toEqual(before);
+  });
+
+  it('skips transparent editor surfaces and uses the first opaque reveal backdrop', () => {
+    expect(
+      agentEditOpaqueBackground([
+        'rgba(0, 0, 0, 0)',
+        'rgb(255 255 255 / 7%)',
+        'rgb(248, 246, 241)',
+      ]),
+    ).toBe('rgb(248, 246, 241)');
+  });
+
+  it('keeps a deterministic opaque fallback when every ancestor is transparent', () => {
+    expect(agentEditOpaqueBackground(['transparent', 'rgba(0, 0, 0, 0)'])).toBe(
+      '#fff',
+    );
   });
 
   it('keeps every bulk-accepted review even when two effects touch one block', () => {

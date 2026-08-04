@@ -522,15 +522,25 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
       base,
       'agent-live',
     );
+    const rollbackPresentation = vi.fn();
+    const beforeMergeBlockIds: string[][] = [];
     const result = await coordinator.commit({
       command,
       direction: 'forward',
       expectedRevision: 1,
       ...persistenceHooks(),
+      beforeLiveMerge() {
+        beforeMergeBlockIds.push(
+          snapshotYjsProseBlocks(live).map((block) => block.id),
+        );
+        return rollbackPresentation;
+      },
     });
 
     expect(result.outcome).toBe('committed');
     expect(result.liveMerged).toBe(false);
+    expect(beforeMergeBlockIds).toEqual([['base-a', 'base-b']]);
+    expect(rollbackPresentation).not.toHaveBeenCalled();
     expect(persistedOriginCount).toBe(1);
     expect(accidentalAppendCount).toBe(0);
     expect(queryCount(gateway!, 'yjs_updates')).toBe(1);

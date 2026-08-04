@@ -2128,6 +2128,14 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   z-index: 60;
   pointer-events: none;
 }
+/* Agent prose is durable before auto reveal, for existing edits as well as
+   newly created files. It must not paint its completed body underneath the
+   typewriter. A ProseMirror node decoration owns this class so reconciliation
+   cannot strip the mask. Opacity preserves exact block geometry for overlay
+   anchoring and long-document scroll. */
+.agent-auto-reveal-pending {
+  opacity: 0 !important;
+}
 .agent-reveal {
   display: block;
   z-index: 61;

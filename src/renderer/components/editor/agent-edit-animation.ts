@@ -7,6 +7,42 @@ export interface AgentEditRect {
   height: number;
 }
 
+function cssColorAlpha(color: string): number {
+  const normalized = color.trim().toLowerCase();
+  if (!normalized || normalized === 'transparent') return 0;
+
+  // Modern computed colors may use a slash (`rgb(0 0 0 / 0.5)`), while older
+  // WebKit returns legacy comma-separated rgba(). Values without an explicit
+  // alpha channel are opaque.
+  const slashAlpha = normalized.match(/\/\s*([\d.]+)%?\s*\)$/);
+  if (slashAlpha) {
+    const value = Number(slashAlpha[1]);
+    return slashAlpha[0].includes('%') ? value / 100 : value;
+  }
+  const legacy = normalized.match(/^rgba?\((.*)\)$/);
+  if (legacy) {
+    const parts = legacy[1].split(',').map((part) => part.trim());
+    if (parts.length === 4) {
+      const value = Number.parseFloat(parts[3]);
+      return Number.isFinite(value) ? value : 1;
+    }
+  }
+  return 1;
+}
+
+/**
+ * Pick a genuinely opaque backdrop for a reveal overlay. Editor surfaces are
+ * allowed to be transparent (for example the flat continuous-page treatment),
+ * but using that transparent value on the overlay exposes the already-written
+ * live prose underneath and makes the typewriter look like a duplicate pass.
+ */
+export function agentEditOpaqueBackground(
+  candidates: readonly string[],
+  fallback = '#fff',
+): string {
+  return candidates.find((color) => cssColorAlpha(color) >= 0.999) ?? fallback;
+}
+
 /**
  * Convert an anchor's viewport rect into the coordinate space of the scrolling
  * overlay host. Both the prose anchor and a nested host move in the same native

@@ -46,6 +46,19 @@ export interface AgentAddedEntity {
   revealBlockIds: string[] | null;
 }
 
+/**
+ * Ephemeral pre-live guard for an auto prose write. The durable Yjs transaction
+ * commits before its canonical review is projected; an open editor must mask
+ * these blocks synchronously before that committed update merges into its
+ * Y.Doc. This is presentation only and is deliberately excluded from persist.
+ */
+export interface AgentAutoRevealGuard {
+  entityType: ActivityEntityType;
+  id: string;
+  reviewId: string;
+  blockIds: string[];
+}
+
 export interface AgentEditReviewBatch {
   effectId: string;
   reviewId: string;
@@ -92,6 +105,8 @@ interface AgentEditState {
   pending: Record<string, PendingEntityEdits>;
   /** entityKey → Agent-created prose entity awaiting its first full reveal. */
   additions: Record<string, AgentAddedEntity>;
+  /** reviewId → blocks masked immediately before a committed live Yjs merge. */
+  autoRevealGuards: Record<string, AgentAutoRevealGuard>;
   /** Rejected-then-reverted edits awaiting delivery to the agent's next turn. */
   pendingReverts: RevertRecord[];
   /**
@@ -124,6 +139,15 @@ interface AgentEditState {
     mode: AgentEditMode,
     provenance: { effectId: string; reviewId: string },
   ) => boolean;
+  /** Install a mask before a durable auto write merges into an open Y.Doc. */
+  stageAutoRevealGuard: (
+    entityType: ActivityEntityType,
+    id: string,
+    reviewId: string,
+    blockIds: string[],
+  ) => void;
+  /** Remove a failed/replayed pre-live mask. */
+  clearAutoRevealGuard: (reviewId: string) => void;
   /** Persist the Added state after a successful General Agent create result. */
   recordAddition: (entityType: ActivityEntityType, id: string) => void;
   /**
@@ -173,6 +197,7 @@ export const useAgentEditStore = create<AgentEditState>()(
     (set, get) => ({
       pending: {},
       additions: {},
+      autoRevealGuards: {},
       pendingReverts: [],
       reviewBatches: {},
       reviewOrder: [],
@@ -211,6 +236,7 @@ export const useAgentEditStore = create<AgentEditState>()(
           get().reviewBatches[provenance.reviewId] ||
           get().settledReviewIds[provenance.reviewId]
         ) {
+          get().clearAutoRevealGuard(provenance.reviewId);
           return false;
         }
         const key = entityKey(entityType, id);
@@ -221,9 +247,16 @@ export const useAgentEditStore = create<AgentEditState>()(
           reviewId: provenance.reviewId,
         }));
         set((state) => {
+          const guarded = state.autoRevealGuards[provenance.reviewId];
+          const autoRevealGuards = guarded
+            ? { ...state.autoRevealGuards }
+            : state.autoRevealGuards;
+          if (guarded) delete autoRevealGuards[provenance.reviewId];
           // Keep this guard inside the state transition as well as above: the
           // batch map, not merged block contents, is the idempotency authority.
-          if (state.reviewBatches[provenance.reviewId]) return state;
+          if (state.reviewBatches[provenance.reviewId]) {
+            return guarded ? { autoRevealGuards } : state;
+          }
           const previous = state.pending[key];
           const merged = previous
             ? mergeBlockChanges(previous.changes, stamped)
@@ -244,9 +277,44 @@ export const useAgentEditStore = create<AgentEditState>()(
               },
             },
             reviewOrder: [...state.reviewOrder, provenance.reviewId],
+            autoRevealGuards,
           };
         });
         return true;
+      },
+
+      stageAutoRevealGuard: (entityType, id, reviewId, blockIds) => {
+        const uniqueBlockIds = [...new Set(blockIds.filter(Boolean))];
+        if (!reviewId.trim() || uniqueBlockIds.length === 0) return;
+        set((state) => {
+          const previous = state.autoRevealGuards[reviewId];
+          if (
+            previous &&
+            previous.entityType === entityType &&
+            previous.id === id &&
+            previous.blockIds.length === uniqueBlockIds.length &&
+            previous.blockIds.every(
+              (blockId, index) => blockId === uniqueBlockIds[index],
+            )
+          ) {
+            return state;
+          }
+          return {
+            autoRevealGuards: {
+              ...state.autoRevealGuards,
+              [reviewId]: { entityType, id, reviewId, blockIds: uniqueBlockIds },
+            },
+          };
+        });
+      },
+
+      clearAutoRevealGuard: (reviewId) => {
+        set((state) => {
+          if (!state.autoRevealGuards[reviewId]) return state;
+          const autoRevealGuards = { ...state.autoRevealGuards };
+          delete autoRevealGuards[reviewId];
+          return { autoRevealGuards };
+        });
       },
 
       recordAddition: (entityType, id) => {
@@ -422,12 +490,25 @@ export const useAgentEditStore = create<AgentEditState>()(
       clear: (entityType, id) => {
         const key = entityKey(entityType, id);
         set((s) => {
-          if (!(key in s.pending) && !(key in s.additions)) return s;
+          const guardedReviewIds = Object.values(s.autoRevealGuards)
+            .filter((guard) => guard.entityType === entityType && guard.id === id)
+            .map((guard) => guard.reviewId);
+          if (
+            !(key in s.pending) &&
+            !(key in s.additions) &&
+            guardedReviewIds.length === 0
+          ) {
+            return s;
+          }
           const pending = { ...s.pending };
           const additions = { ...s.additions };
+          const autoRevealGuards = { ...s.autoRevealGuards };
           delete pending[key];
           delete additions[key];
-          return { pending, additions };
+          for (const reviewId of guardedReviewIds) {
+            delete autoRevealGuards[reviewId];
+          }
+          return { pending, additions, autoRevealGuards };
         });
       },
 
@@ -435,6 +516,7 @@ export const useAgentEditStore = create<AgentEditState>()(
         set({
           pending: {},
           additions: {},
+          autoRevealGuards: {},
           pendingReverts: [],
           reviewBatches: {},
           reviewOrder: [],
@@ -451,6 +533,8 @@ export const useAgentEditStore = create<AgentEditState>()(
           : persistedState,
       // Only the data — methods come from the initializer on every load. Reverts
       // persist too, so a reject survives a reload before the next turn drains it.
+      // `autoRevealGuards` is intentionally absent: it only bridges one live
+      // merge to the canonical review projection in the current renderer.
       partialize: (s) => ({
         pending: s.pending,
         additions: s.additions,

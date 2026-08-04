@@ -131,4 +131,64 @@ describe('Agent edit review block decisions', () => {
       { ...changes[1], mode: 'auto' },
     ]);
   });
+
+  it('atomically replaces a pre-live auto guard with its canonical review projection', () => {
+    const store = useAgentEditStore.getState();
+    store.stageAutoRevealGuard('node', 'node-1', 'review-guarded', [
+      'block-a',
+      'block-a',
+      'block-b',
+    ]);
+
+    expect(useAgentEditStore.getState().autoRevealGuards['review-guarded']).toEqual({
+      entityType: 'node',
+      id: 'node-1',
+      reviewId: 'review-guarded',
+      blockIds: ['block-a', 'block-b'],
+    });
+    expect(useAgentEditStore.getState().pending['node:node-1']).toBeUndefined();
+
+    const projections: Array<{ guarded: boolean; blockIds: string[] }> = [];
+    const unsubscribe = useAgentEditStore.subscribe((state) => {
+      projections.push({
+        guarded: Boolean(state.autoRevealGuards['review-guarded']),
+        blockIds:
+          state.pending['node:node-1']?.changes.map((change) => change.blockId) ?? [],
+      });
+    });
+
+    expect(
+      store.recordReview('node', 'node-1', changes, 'auto', {
+        effectId: 'effect-guarded',
+        reviewId: 'review-guarded',
+      }),
+    ).toBe(true);
+    unsubscribe();
+
+    expect(projections).toEqual([
+      { guarded: false, blockIds: ['block-a', 'block-b'] },
+    ]);
+    expect(useAgentEditStore.getState().autoRevealGuards['review-guarded']).toBeUndefined();
+    expect(useAgentEditStore.getState().pending['node:node-1']?.changes).toEqual(
+      changes.map((change) => ({
+        ...change,
+        mode: 'auto',
+        effectId: 'effect-guarded',
+        reviewId: 'review-guarded',
+      })),
+    );
+  });
+
+  it('clears a pre-live guard when canonical projection proves there is no review', () => {
+    const store = useAgentEditStore.getState();
+    store.stageAutoRevealGuard('node', 'node-1', 'review-empty', ['block-a']);
+
+    expect(
+      store.recordReview('node', 'node-1', [], 'auto', {
+        effectId: 'effect-empty',
+        reviewId: 'review-empty',
+      }),
+    ).toBe(false);
+    expect(useAgentEditStore.getState().autoRevealGuards['review-empty']).toBeUndefined();
+  });
 });

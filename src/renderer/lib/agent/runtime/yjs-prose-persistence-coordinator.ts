@@ -96,6 +96,12 @@ export interface YjsProseCommitHooks {
     tx: DbExecutor,
     projection: YjsProseProjectionPayload,
   ): Promise<void>;
+  /**
+   * Runs synchronously after the SQLite transaction commits but immediately
+   * before its update enters an open live Y.Doc. The optional returned cleanup
+   * runs only when that live merge fails.
+   */
+  beforeLiveMerge?: () => void | (() => void);
 }
 
 export interface PreparePersistedYjsProseCommandInput {
@@ -793,7 +799,9 @@ export class YjsProsePersistenceCoordinator {
   ): Promise<boolean> {
     const live = this.getLiveDocument(receipt.docId);
     if (!live) return false;
+    let rollbackPresentation: (() => void) | undefined;
     try {
+      rollbackPresentation = input.beforeLiveMerge?.() ?? undefined;
       Y.applyUpdate(
         live,
         updateFor(input.command.prepared, input.direction),
@@ -801,6 +809,7 @@ export class YjsProsePersistenceCoordinator {
       );
       return (await hashYjsProseState(live)) !== receipt.resultStateHash;
     } catch (cause) {
+      rollbackPresentation?.();
       throw new YjsProsePersistenceError(
         'POST_COMMIT_LIVE_APPLY_FAILED',
         `Yjs command ${receipt.commandId} committed but could not merge into the live editor.`,

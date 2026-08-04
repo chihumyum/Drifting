@@ -24,8 +24,10 @@ import {
   rejectDriftingAgentWriteReviewBlock,
 } from '../../lib/agent/useDriftingAgentRuntime';
 import type { AgentWriteReviewBlockDecisionResult } from '../../lib/agent/runtime/drifting-write-tool-runtime';
+import { agentChangeUsesAutoRevealMask } from '../../lib/extensions/agent-diff-decoration';
 import {
   agentEditAnimationKey,
+  agentEditOpaqueBackground,
   agentEditRectInScrollHost,
   bulkAgentEditRevealChanges,
 } from './agent-edit-animation';
@@ -233,8 +235,13 @@ function useProseStyle(scrollEl: HTMLElement, c: AgentBlockChange): CSSPropertie
     const el = anchorEl(scrollEl, c);
     if (!el) return {};
     const cs = getComputedStyle(el);
-    const page = scrollEl.querySelector('.page') as HTMLElement | null;
-    const bg = (page ? getComputedStyle(page).backgroundColor : cs.backgroundColor) || '#fff';
+    const backgroundCandidates: string[] = [];
+    let backgroundNode: HTMLElement | null = el;
+    while (backgroundNode) {
+      backgroundCandidates.push(getComputedStyle(backgroundNode).backgroundColor);
+      backgroundNode = backgroundNode.parentElement;
+    }
+    const bg = agentEditOpaqueBackground(backgroundCandidates);
     return {
       fontFamily: cs.fontFamily,
       fontSize: cs.fontSize,
@@ -266,6 +273,7 @@ function RevealOverlay({
   host,
   change,
   onDone,
+  crossfade = true,
   offsetTop = 0,
   onMeasure,
 }: {
@@ -273,6 +281,9 @@ function RevealOverlay({
   host: HTMLElement;
   change: AgentBlockChange;
   onDone: () => void;
+  /** Auto changed/new blocks stay masked in ProseMirror while typing. At
+   *  completion they swap atomically to the real block, so no crossfade. */
+  crossfade?: boolean;
   /** Extra vertical offset so a run of deletions sharing one anchor stacks
    *  instead of all pinning to the anchor's bottom (the parent sums the earlier
    *  deletes' heights). 0 for everything else. */
@@ -332,6 +343,7 @@ function RevealOverlay({
   useEffect(() => {
     const duration = Math.max(MIN_REVEAL_MS, Math.min(MAX_REVEAL_MS, total * CHAR_MS));
     let raf = 0;
+    let exitTimer = 0;
     let start = 0;
     const tick = (ts: number) => {
       if (!start) start = ts;
@@ -345,16 +357,19 @@ function RevealOverlay({
         // synchronously via the edit store), so it can't flash through a fading
         // overlay. The EXIT crossfade is only for changed/new blocks.
         done.current();
+      } else if (!crossfade) {
+        done.current();
       } else {
         setFading(true);
-        window.setTimeout(() => done.current(), EXIT_MS);
+        exitTimer = window.setTimeout(() => done.current(), EXIT_MS);
       }
     };
     raf = window.requestAnimationFrame(tick);
     return () => {
       if (raf) window.cancelAnimationFrame(raf);
+      if (exitTimer) window.clearTimeout(exitTimer);
     };
-  }, [total, change.op]);
+  }, [total, change.op, crossfade]);
 
   if (!rect) return null;
 
@@ -572,7 +587,8 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   // toggle only governs future edits: an 'auto' change reveals + auto-applies, an
   // 'approve' change shows ✓/✗ — even after the toggle flips. No global read here.
   const pending = useAgentEditStore((s) => s.pending);
-  const entry = id ? pending[entityKey(entityType, id)] : undefined;
+  const editKey = id ? entityKey(entityType, id) : null;
+  const entry = editKey ? pending[editKey] : undefined;
   const allChanges = entry?.changes ?? EMPTY;
   // Field (summary/kv) changes are reviewed by the in-page field affordances, not
   // this prose overlay — exclude them so we never try to anchor a `field:*` id as
@@ -951,7 +967,7 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   // never plays and the tick / "M" wedge (the frequent "edit didn't animate"
   // bug). Re-running anchorEl() on scroll / resize / DOM-mutation always tests
   // the CURRENT node, so a replaced or late-rendered block is picked up next frame.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!scrollEl || !id || autoChanges.length === 0) return undefined;
 
     const fired = new Set<string>(); // change keys whose reveal has been kicked off
@@ -1056,25 +1072,39 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
               viewport. Rendered off `revealing` alone — that map is only ever
               populated by the auto effect, so a reveal still finishes if its change
               resolves out from under it. */}
-          {[...revealing.values()].map((c) => (
-            <RevealOverlay
-              key={keyOf(c)}
-              scrollEl={scrollEl}
-              host={layerHost}
-              change={c}
-              offsetTop={stackOffsets.get(keyOf(c)) ?? 0}
-              onMeasure={reportHeight}
-              onDone={() => {
-                resolve(c);
-                // Drop the occluder in the SAME frame the doc change lands (flushSync
-                // forces the React unmount synchronous) — a deletion otherwise leaves
-                // an empty opaque box for one paint (flicker). Non-deletions keep their
-                // crossfade, so a plain unmount is fine.
-                if (c.op === 'deleted') flushSync(() => stopRevealing(c));
-                else stopRevealing(c);
-              }}
-            />
-          ))}
+          {[...revealing.values()].map((c) => {
+            const maskedAutoReveal = agentChangeUsesAutoRevealMask(c);
+            return (
+              <RevealOverlay
+                key={keyOf(c)}
+                scrollEl={scrollEl}
+                host={layerHost}
+                change={c}
+                crossfade={!maskedAutoReveal}
+                offsetTop={stackOffsets.get(keyOf(c)) ?? 0}
+                onMeasure={reportHeight}
+                onDone={() => {
+                  // Every auto changed/new block stays masked in the real editor
+                  // until the overlay contains the complete text. Resolve the
+                  // mask and remove that identical overlay in one React commit:
+                  // existing and Added files share the same no-double-paint rule.
+                  if (maskedAutoReveal) {
+                    flushSync(() => {
+                      resolve(c);
+                      stopRevealing(c);
+                    });
+                    return;
+                  }
+                  resolve(c);
+                  // Drop the occluder in the SAME frame the doc change lands
+                  // (flushSync forces the React unmount synchronous) — a
+                  // deletion otherwise leaves an empty opaque box for one paint.
+                  if (c.op === 'deleted') flushSync(() => stopRevealing(c));
+                  else stopRevealing(c);
+                }}
+              />
+            );
+          })}
           {/* Approve changes: the diff itself renders IN PLACE via editor decorations
               (see useEntityEditor); here we float the ✓ / ✗ just outside the column.
               ✓ clears the pending block (text already applied) AND plays a one-off

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useEditor } from '@tiptap/react';
 import { useTranslation } from 'react-i18next';
 import type { Editor } from '@tiptap/core';
@@ -20,7 +20,8 @@ import { ParagraphIndent } from '../lib/extensions/paragraph-indent';
 import {
   AgentDiffDecoration,
   AgentDiffPluginKey,
-  buildAgentDiffDecorations,
+  buildAgentEditorDecorations,
+  planAgentAutoRevealMask,
 } from '../lib/extensions/agent-diff-decoration';
 import { useAgentEditStore } from '../store/agent-edit-store';
 import { entityKey } from '../lib/agent/tool-entity-ref';
@@ -1340,19 +1341,28 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     editor,
   ]);
 
-  // Agent-edit diff decorations (#3, approve mode). Any prose editor (node /
-  // element / storyline / category). Recomputed from the edit store + edit-mode
-  // setting and pushed into the doc via meta, so the diff renders IN PLACE
-  // (reflows + scrolls with the prose, no overlay). The `update` listener re-runs
-  // it after content load and after any edit (positions shift); a meta-only
-  // dispatch makes no doc change, so it can't loop.
-  useEffect(() => {
+  // Agent-edit prose decorations: approve-mode inline diffs plus the auto-mode
+  // reveal mask. Any prose editor (node / element / storyline / category).
+  // Recomputed from the edit store and pushed into the doc via meta, so both
+  // projections render IN PLACE (reflow + scroll with prose, no detached DOM).
+  // The `update` listener re-runs after content load and edits (positions shift);
+  // a meta-only dispatch makes no doc change, so it can't loop.
+  useLayoutEffect(() => {
     if (!editor || editor.isDestroyed || !isProseEntityType(sourceKind)) return undefined;
     const entityType = sourceKind;
     const recompute = () => {
       if (editor.isDestroyed) return;
       try {
-        const entry = useAgentEditStore.getState().pending[entityKey(entityType, sourceId)];
+        const state = useAgentEditStore.getState();
+        const key = entityKey(entityType, sourceId);
+        const entry = state.pending[key];
+        const addition = state.additions[key];
+        const guardedBlockIds = Object.values(state.autoRevealGuards).flatMap(
+          (guard) =>
+            guard.entityType === entityType && guard.id === sourceId
+              ? guard.blockIds
+              : [],
+        );
         // Only APPROVE-mode changes render the in-place diff (per-change mode);
         // auto changes reveal + apply via AgentEditAnimator instead. No global-mode
         // dependency — switching the toggle never reclassifies existing changes.
@@ -1360,9 +1370,25 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         // in-page field affordances, not these ProseMirror decorations.
         const approveChanges =
           entry?.changes.filter((c) => !c.field && (c.mode ?? 'approve') === 'approve') ?? [];
-        const set = approveChanges.length
-          ? buildAgentDiffDecorations(editor.state.doc, approveChanges)
-          : DecorationSet.empty;
+        // Every auto changed/new block is already durable before the overlay
+        // plays — this applies to edits of existing files as well as Added
+        // first-open prose. Mask the real ProseMirror node until its reveal
+        // finishes, preserving layout and preventing completed text from ever
+        // painting beneath a duplicate typewriter pass. Before an Added file's
+        // ids materialize, mask every textual top-level block.
+        const autoRevealBlockIds = planAgentAutoRevealMask(
+          entry?.changes ?? [],
+          addition?.revealBlockIds === null,
+          guardedBlockIds,
+        );
+        const set =
+          approveChanges.length > 0 || autoRevealBlockIds !== undefined
+            ? buildAgentEditorDecorations(
+                editor.state.doc,
+                approveChanges,
+                autoRevealBlockIds,
+              )
+            : DecorationSet.empty;
         editor.view.dispatch(editor.state.tr.setMeta(AgentDiffPluginKey, set));
       } catch (error) {
         log.warn('Failed to build agent diff decorations:', error);

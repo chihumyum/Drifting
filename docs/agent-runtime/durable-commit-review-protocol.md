@@ -18,6 +18,14 @@ LocalStorage is never permission, mutation or review authority. Losing it may
 lose only presentation timing; opening a project reconstructs every unresolved
 review from SQLite and immutable write evidence.
 
+For an auto-mode prose write targeting an editor whose live `Y.Doc` is open,
+the renderer installs an ephemeral block guard synchronously after the SQLite
+transaction commits and immediately before the committed update enters that
+`Y.Doc`. The guard is presentation only, is never persisted, and cannot create
+or settle a review. Canonical review projection replaces the guard and pending
+mask in one store transition; a failed live merge removes it. This closes the
+post-commit window without weakening Yjs or SQLite authority.
+
 ## Write effect state machine
 
 ```text
@@ -119,4 +127,10 @@ animation selection and accepted/reverted direction must be covered by pure
 tests. Reveal overlays and their per-block controls must portal into the
 positioned in-flow editor spread and use scroll-content coordinates; they must
 not chase asynchronously scrolled prose from a fixed body layer. Animation
-failure never changes the durable decision.
+failure never changes the durable decision. In auto mode, every already-durable
+`new` or `changed` prose block is masked in the real ProseMirror flow until its
+overlay completes, for existing files and Added first-open prose alike. The
+completed overlay and real block swap atomically; the finished live text must
+never paint underneath a duplicate reveal. Tests must cover the pre-live guard
+running before `Y.applyUpdate`, its atomic handoff to the provenance-bound
+review, and the ordinary pending-mask lifecycle.

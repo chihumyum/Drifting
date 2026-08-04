@@ -691,11 +691,36 @@ function proseWriteStrategy(
     async applyForward(request, _context, prepared) {
       throwIfAgentAborted(request.signal);
       const execution = parseProseExecution(prepared.execution);
+      const payload = parseProsePayload(prepared.forward);
+      const entityType = proseExecutionEntityType(execution);
+      const guardedBlockIds =
+        payload.reviewSnapshot.mode === 'auto'
+          ? computeBlockChanges(
+              execution.beforeContentJson,
+              execution.command.prepared.projection.contentJson,
+            )
+              .filter((change) => change.op !== 'deleted')
+              .map((change) => change.blockId)
+          : [];
       const result = await commitProseCommand(
         coordinator,
         execution,
         'forward',
         execution.command.base.revision,
+        guardedBlockIds.length > 0
+          ? () => {
+              useAgentEditStore.getState().stageAutoRevealGuard(
+                entityType,
+                execution.nodeId,
+                payload.reviewSnapshot.reviewId,
+                guardedBlockIds,
+              );
+              return () =>
+                useAgentEditStore
+                  .getState()
+                  .clearAutoRevealGuard(payload.reviewSnapshot.reviewId);
+            }
+          : undefined,
       );
       throwIfAgentAborted(request.signal);
       return proseHandlerResult(execution.nodeId, result);
@@ -972,8 +997,6 @@ function recordVisibleProseReview(
   blockDecisions?: Readonly<Record<string, 'accepted' | 'reverted'>>,
 ): void {
   const editState = useAgentEditStore.getState();
-  if (editState.reviewBatches[provenance.reviewId]) return;
-  if (changes.length === 0) return;
   editState.recordReview(
     entityType,
     entityId,
@@ -1439,6 +1462,7 @@ async function commitProseCommand(
   execution: ProseExecution,
   direction: 'forward' | 'inverse',
   expectedRevision: number,
+  beforeLiveMerge?: () => void | (() => void),
 ): Promise<YjsProseCommitResult> {
   const entityType = proseExecutionEntityType(execution);
   let projectedNode:
@@ -1454,6 +1478,7 @@ async function commitProseCommand(
     command: execution.command,
     direction,
     expectedRevision,
+    ...(beforeLiveMerge ? { beforeLiveMerge } : {}),
     async persistProjection(tx, projection) {
       if (entityType === 'node') {
         const content = await createBookContentRepository(tx).updateByNodeId(
