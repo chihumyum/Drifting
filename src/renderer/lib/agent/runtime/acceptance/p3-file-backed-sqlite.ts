@@ -175,6 +175,12 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
         error: Error;
       }
     | null = null;
+  private nextQueryFault:
+    | {
+        matches: (sql: string, parameters: readonly unknown[]) => boolean;
+        error: Error;
+      }
+    | null = null;
 
   constructor(
     readonly databasePath: string,
@@ -297,6 +303,11 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
     transactionId?: string,
   ): Promise<DatabaseQueryResult> {
     this.assertTransaction(transactionId);
+    if (this.nextQueryFault?.matches(sql, parameters)) {
+      const { error } = this.nextQueryFault;
+      this.nextQueryFault = null;
+      throw error;
+    }
     const statement = this.database.prepare(sql);
     statement.setReturnArrays(true);
     const columns = statement.columns().map((column) => column.name);
@@ -351,6 +362,14 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
     message = 'injected acceptance execute failure',
   ): void {
     this.nextExecuteFault = { matches, error: new Error(message) };
+  }
+
+  /** Query/RETURNING companion to `failNextExecute` for transaction acceptance. */
+  failNextQuery(
+    matches: (sql: string, parameters: readonly unknown[]) => boolean,
+    message = 'injected acceptance query failure',
+  ): void {
+    this.nextQueryFault = { matches, error: new Error(message) };
   }
 
   private assertTransaction(transactionId?: string): void {

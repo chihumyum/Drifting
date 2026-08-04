@@ -8,13 +8,181 @@ import type { YjsProseBlock } from './yjs-prose-command';
 import { replaceYjsProseBlocks } from './yjs-prose-command';
 import {
   applyWorkspaceTextReplacements,
+  normalizeAuthoredTextTransportArtifacts,
+  normalizeWorkspaceProseReplacements,
   parseWorkspaceTextReplacements,
   planWorkspaceProseFileEdit,
   planWorkspaceProseFileWrite,
+  projectAuthoredTextForModel,
   renderWorkspaceProseFile,
+  restoreAuthoredTextAnnotations,
 } from './workspace-prose-file';
 
 describe('workspace prose file editing', () => {
+  it('removes provider transport escapes from authored prose without touching Markdown escapes', () => {
+    const input = String.raw`\"第一百零一种。\"\他说。\“天亮前。” 保留 \*星号\* 与 \#号。`;
+
+    expect(normalizeAuthoredTextTransportArtifacts(input)).toBe(
+      '"第一百零一种。"他说。“天亮前。” 保留 \\*星号\\* 与 \\#号。',
+    );
+  });
+
+  it('projects editor annotations as plain authored text plus semantic entity connections', () => {
+    const projected = projectAuthoredTextForModel(
+      '他看见[泰勒](主要角色.md#泰勒)<br>停下。访问[资料](https://example.com)。',
+    );
+
+    expect(projected).toEqual({
+      text: '他看见泰勒\n停下。访问[资料](https://example.com)。',
+      linkedMentions: ['泰勒'],
+    });
+    expect(projected.text).not.toMatch(/<br>|主要角色\.md/iu);
+  });
+
+  it('does not show legacy transport escapes as authored prose', () => {
+    const projected = projectAuthoredTextForModel(
+      String.raw`\第二章\：茶镇。\“夜里不要开门。\”`,
+    );
+
+    expect(projected).toEqual({
+      text: '第二章：茶镇。“夜里不要开门。”',
+      linkedMentions: [],
+    });
+  });
+
+  it('accepts model-facing plain text edits while preserving existing entity links and hard breaks', () => {
+    const current = '他看见[泰勒](主要角色.md#泰勒)<br>停下。';
+    const normalized = normalizeWorkspaceProseReplacements(
+      current,
+      parseWorkspaceTextReplacements([
+        {
+          oldText: '他看见泰勒\n停下。',
+          newText: '他终于看见泰勒\n停下。',
+        },
+      ]),
+    );
+
+    expect(normalized.replacements).toEqual([
+      {
+        oldText: current,
+        newText: '他终于看见[泰勒](主要角色.md#泰勒)<br>停下。',
+        replaceAll: false,
+      },
+    ]);
+    expect(applyWorkspaceTextReplacements(current, normalized.replacements)).toBe(
+      '他终于看见[泰勒](主要角色.md#泰勒)<br>停下。',
+    );
+    expect(
+      restoreAuthoredTextAnnotations(current, '他终于看见泰勒\n停下。'),
+    ).toBe('他终于看见[泰勒](主要角色.md#泰勒)<br>停下。');
+  });
+
+  it('can replace already persisted escape artifacts while normalizing the new prose', () => {
+    const current = String.raw`\"旧对白。\"\他说。`;
+    const normalized = normalizeWorkspaceProseReplacements(
+      current,
+      parseWorkspaceTextReplacements([
+        {
+          oldText: String.raw`\"旧对白。\"\他说。`,
+          newText: String.raw`\"新对白。\"\她答道。`,
+        },
+      ]),
+    );
+
+    expect(normalized).toEqual({
+      replacements: [
+        {
+          oldText: current,
+          newText: '"新对白。"她答道。',
+          replaceAll: false,
+        },
+      ],
+      skippedStale: 0,
+      skippedStaleTargets: [],
+    });
+    expect(applyWorkspaceTextReplacements(current, normalized.replacements)).toBe(
+      '"新对白。"她答道。',
+    );
+  });
+
+  it('drops accidental no-op rows without rejecting other useful replacements', () => {
+    const normalized = normalizeWorkspaceProseReplacements(
+      '甲。\n\n乙。',
+      parseWorkspaceTextReplacements([
+        { oldText: '甲。', newText: '甲。' },
+        { oldText: '乙。', newText: '乙改。' },
+      ]),
+    );
+
+    expect(normalized).toEqual({
+      replacements: [{ oldText: '乙。', newText: '乙改。', replaceAll: false }],
+      skippedStale: 0,
+      skippedStaleTargets: [],
+    });
+  });
+
+  it('silently treats an already-current desired passage as an idempotent row', () => {
+    const current =
+      '“求求你，安静一点。”\n\n没有底气的稚嫩声音，[伊莱亚斯](人物.md#伊莱亚斯)的声音。\n\n下一段。';
+    const normalized = normalizeWorkspaceProseReplacements(
+      current,
+      parseWorkspaceTextReplacements([
+        {
+          oldText: '“求求你，安静一点。”/\n\n没有底气的稚嫩声音，伊莱亚斯的声音。',
+          newText: '“求求你，安静一点。”\n\n没有底气的稚嫩声音，伊莱亚斯的声音。',
+        },
+        { oldText: '下一段。', newText: '下一段收紧。' },
+      ]),
+    );
+
+    expect(normalized).toEqual({
+      replacements: [{ oldText: '下一段。', newText: '下一段收紧。', replaceAll: false }],
+      skippedStale: 0,
+      skippedStaleTargets: [],
+    });
+  });
+
+  it('removes an accidental quote wrapper from both sides of a narration edit', () => {
+    const current =
+      '米拉成天不见人影；同船的那几十号人也各忙各的，没一个肯正眼瞧他。';
+    const normalized = normalizeWorkspaceProseReplacements(
+      current,
+      parseWorkspaceTextReplacements([
+        {
+          oldText: `“${current}”`,
+          newText: '“米拉成天不见人影；同来的那几十号难民也各忙各的，没一个肯正眼瞧他。”',
+        },
+      ]),
+    );
+
+    expect(normalized.replacements).toEqual([
+      {
+        oldText: current,
+        newText: '米拉成天不见人影；同来的那几十号难民也各忙各的，没一个肯正眼瞧他。',
+        replaceAll: false,
+      },
+    ]);
+  });
+
+  it('commits matching rows while skipping isolated stale rows in one current revision', () => {
+    const normalized = normalizeWorkspaceProseReplacements(
+      '甲。\n\n乙。',
+      parseWorkspaceTextReplacements([
+        { oldText: '已经改过。', newText: '不要重做。' },
+        { oldText: '乙。', newText: '乙改。' },
+      ]),
+    );
+
+    expect(normalized).toEqual({
+      replacements: [{ oldText: '乙。', newText: '乙改。', replaceAll: false }],
+      skippedStale: 1,
+      skippedStaleTargets: ['已经改过。'],
+    });
+    expect(applyWorkspaceTextReplacements('甲。\n\n乙。', normalized.replacements)).toBe(
+      '甲。\n\n乙改。',
+    );
+  });
+
   it('accepts a unique straight-versus-typographic quote mismatch without weakening wording', () => {
     const original = '"她不在那儿了。"维勒说。\n\n奥伦愣住了。';
 
@@ -29,6 +197,94 @@ describe('workspace prose file editing', () => {
         ]),
       ),
     ).toBe('“我把她拖出来了。”维勒说。\n\n奥伦愣住了。');
+  });
+
+  it('absorbs unique quote-family and paragraph-indent drift from the model', () => {
+    const current = '就是‘杀人还是被杀’之类的陈词滥调。';
+    const normalized = normalizeWorkspaceProseReplacements(
+      current,
+      parseWorkspaceTextReplacements([
+        {
+          oldText: '    就是“杀人还是被杀”之类的陈词滥调。',
+          newText: '就是‘杀人或被杀’之类的陈词滥调。',
+        },
+      ]),
+    );
+
+    expect(normalized.replacements).toEqual([
+      {
+        oldText: current,
+        newText: '就是‘杀人或被杀’之类的陈词滥调。',
+        replaceAll: false,
+      },
+    ]);
+  });
+
+  it('reconciles one omitted dialogue quote in a long unique prose passage', () => {
+    const current =
+      '“他们即将回归从前的强大？”\n\n“是的，而且这个过程似乎还在加速。同时，凡世国家的军事技术发展给了他们与能力者在同一台面对话的资本。”';
+
+    expect(
+      applyWorkspaceTextReplacements(
+        current,
+        parseWorkspaceTextReplacements([
+          {
+            oldText:
+              '“他们即将回归从前的强大？\n\n“是的，而且这个过程似乎还在加速。同时，凡世国家的军事技术发展给了他们与能力者在同一台面对话的资本。”',
+            newText:
+              '“他们即将回归从前的强大？”\n\n“是的，而且这个过程似乎还在加速。平衡也在松动。”',
+          },
+        ]),
+      ),
+    ).toBe('“他们即将回归从前的强大？”\n\n“是的，而且这个过程似乎还在加速。平衡也在松动。”');
+  });
+
+  it('reconciles an omitted quote in one unique short paragraph run', () => {
+    const current = '“我只是做不到！”\n\n“不不不......”\n\n安慰和自我否定，\n\n窗外，风停了。';
+
+    expect(
+      applyWorkspaceTextReplacements(
+        current,
+        parseWorkspaceTextReplacements([
+          {
+            oldText: '“我只是做不到！”\n\n不不不......\n\n安慰和自我否定，\n\n窗外，',
+            newText: '“我只是做不到！”\n\n“不不不……”\n\n屋里，安慰与自我否定来回拉锯。\n\n窗外，',
+          },
+        ]),
+      ),
+    ).toBe('“我只是做不到！”\n\n“不不不……”\n\n屋里，安慰与自我否定来回拉锯。\n\n窗外，风停了。');
+  });
+
+  it('reconciles paragraph whitespace folded by the model in a long unique passage', () => {
+    const current =
+      '走到客厅窗边，拉开窗帘。日已西去，华灯初上，维旺达的夜生活刚刚开始。转身看到萨恩拿着酒壶正欲抬头，她走到跟前，摘掉他的眼镜，罕见地用积极的语气说：';
+
+    expect(
+      applyWorkspaceTextReplacements(
+        current,
+        parseWorkspaceTextReplacements([
+          {
+            oldText:
+              '走到客厅窗边，拉开窗帘。日已西去，华灯初上，维旺达的夜生活刚刚开始。\n\n转身看到萨恩拿着酒壶正欲抬头，她走到跟前，摘掉他的眼镜，罕见地用积极的语气说：',
+            newText:
+              '走到客厅窗边，拉开窗帘。日已西去，华灯初上，维旺达的夜生活刚刚开始。转身看到萨恩拿着酒壶正欲抬头，她罕见地用积极的语气说：',
+          },
+        ]),
+      ),
+    ).toBe(
+      '走到客厅窗边，拉开窗帘。日已西去，华灯初上，维旺达的夜生活刚刚开始。转身看到萨恩拿着酒壶正欲抬头，她罕见地用积极的语气说：',
+    );
+  });
+
+  it('does not use semantic reconciliation for a short ambiguous fragment', () => {
+    expect(() =>
+      applyWorkspaceTextReplacements(
+        '“是的。”\n\n“是的。”',
+        parseWorkspaceTextReplacements([
+          { oldText: '是的。', newText: '不是。' },
+        ]),
+      ),
+    ).toThrow(/occurs 2 times/);
   });
 
   it('still rejects stale wording after quote normalization', () => {

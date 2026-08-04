@@ -9,6 +9,7 @@ import {
   canonicalAgentRuntimeJson,
   type AgentRuntimePersistenceRepository,
 } from '../../../sqlite-repo/agent-runtime-persistence-repo';
+import type { AgentRuntimeWriteEffectRepository } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
 import { getActiveAgentToolContext, type AgentToolContext } from '../tool-handlers';
 import { getRegisteredTool } from '../tool-registry';
 import { isAgentAbort, throwIfAgentAborted } from './errors';
@@ -22,14 +23,20 @@ import type {
 } from './types';
 import {
   applyWorkspaceTextReplacements,
+  normalizeAuthoredTextTransportArtifacts,
+  normalizeWorkspaceProseReplacements,
   parseWorkspaceTextReplacements,
+  projectAuthoredTextForModel,
+  restoreAuthoredTextAnnotations,
   type WorkspaceTextReplacement,
 } from './workspace-prose-file';
+import { describeWorkspaceDomainTarget } from './workspace-domain-language';
 import {
   DRIFTING_WORKSPACE_DELETE_TOOL,
   DRIFTING_WORKSPACE_EDIT_TOOL,
   DRIFTING_WORKSPACE_READ_TOOLS,
   DRIFTING_WORKSPACE_WRITE_TOOL,
+  WORKSPACE_NOOP_WRITE_MODEL_MARKER,
   isDriftingWorkspaceCommandName,
   type DriftingWorkspaceCommandName,
   type DriftingWorkspaceReadToolName,
@@ -40,7 +47,36 @@ export {
   DRIFTING_WORKSPACE_EDIT_TOOL,
   DRIFTING_WORKSPACE_READ_TOOLS,
   DRIFTING_WORKSPACE_WRITE_TOOL,
+  WORKSPACE_COMPLETE_READ_MODEL_MARKER,
+  WORKSPACE_NOOP_WRITE_MODEL_MARKER,
 } from './drifting-workspace-tool-contract';
+
+/**
+ * Preparing a workspace facade can prove that the requested authored state is
+ * already current. That is a successful, side-effect-free write outcome, not
+ * a failed mutation for the model to debug. The outer write coordinator owns
+ * this signal so no durable effect is claimed for work that never mutates.
+ */
+export class WorkspaceNoopWriteSignal extends Error {
+  readonly result: AgentToolExecutionResult;
+
+  constructor(path: string) {
+    const target = describeWorkspaceDomainTarget(path);
+    super(`${target}${WORKSPACE_NOOP_WRITE_MODEL_MARKER}`);
+    this.name = 'WorkspaceNoopWriteSignal';
+    this.result = {
+      ok: true,
+      data: { noop: true, target: path },
+      modelData: `${target}${WORKSPACE_NOOP_WRITE_MODEL_MARKER}。直接继续剩余任务。`,
+    };
+  }
+}
+
+export function isWorkspaceNoopWriteSignal(
+  error: unknown,
+): error is WorkspaceNoopWriteSignal {
+  return error instanceof WorkspaceNoopWriteSignal;
+}
 
 type WorkspaceTarget =
   | { kind: 'overview' }
@@ -132,12 +168,53 @@ interface WorkspaceReadCoverage {
   fingerprint: string;
   totalChars: number;
   ranges: Array<{ start: number; end: number }>;
+  completeContent?: string;
+}
+
+export interface WorkspaceAuthoredReadState {
+  targetKey: string;
+  target: string;
+  summary: string;
+  completeBodyRead: boolean;
+  focusedBodyEdit: boolean;
+  currentPassages: string[];
 }
 
 const DEFAULT_READ_LIMIT = 16_000;
 const MAX_LISTED_FILES = 500;
 const MAX_TRACKED_READ_COVERAGE = 512;
+const MAX_CACHED_COMPLETE_READS = 32;
+const MAX_DEFERRED_REPEAT_READS = 512;
 const WORKSPACE_COMMAND_ARGUMENT = '__workspaceCommand';
+const WORKSPACE_AUTHORED_READ_STATE_ARGUMENT = '__workspaceAuthoredReadState';
+
+export function workspaceAuthoredReadStateFromArguments(
+  value: unknown,
+): WorkspaceAuthoredReadState | null {
+  const record = asRecord(value);
+  const state = asRecord(record[WORKSPACE_AUTHORED_READ_STATE_ARGUMENT]);
+  return typeof state.targetKey === 'string' &&
+    state.targetKey.length > 0 &&
+    typeof state.target === 'string' &&
+    state.target.length > 0 &&
+    typeof state.summary === 'string' &&
+    typeof state.completeBodyRead === 'boolean' &&
+    (state.focusedBodyEdit === undefined || typeof state.focusedBodyEdit === 'boolean') &&
+    (state.currentPassages === undefined ||
+      (Array.isArray(state.currentPassages) &&
+        state.currentPassages.every((passage) => typeof passage === 'string')))
+    ? {
+        targetKey: state.targetKey,
+        target: state.target,
+        summary: state.summary,
+        completeBodyRead: state.completeBodyRead,
+        focusedBodyEdit: state.focusedBodyEdit === true,
+        currentPassages: Array.isArray(state.currentPassages)
+          ? state.currentPassages.slice(0, 12)
+          : [],
+      }
+    : null;
+}
 
 interface WorkspaceListItem {
   path: string;
@@ -152,6 +229,7 @@ export interface DriftingWorkspaceToolRuntimeOptions {
   readRuntime: AgentToolRuntime;
   getContext?: () => AgentToolContext | null;
   persistence?: AgentRuntimePersistenceRepository;
+  writeEffects?: AgentRuntimeWriteEffectRepository;
   now?: () => string;
 }
 
@@ -167,13 +245,16 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
   private readonly readRuntime: AgentToolRuntime;
   private readonly getContext: () => AgentToolContext | null;
   private readonly persistence: AgentRuntimePersistenceRepository | undefined;
+  private readonly writeEffects: AgentRuntimeWriteEffectRepository | undefined;
   private readonly now: () => string;
   private readonly readCoverage = new Map<string, WorkspaceReadCoverage>();
+  private readonly deferredRepeatReads = new Set<string>();
 
   constructor(options: DriftingWorkspaceToolRuntimeOptions) {
     this.readRuntime = options.readRuntime;
     this.getContext = options.getContext ?? getActiveAgentToolContext;
     this.persistence = options.persistence;
+    this.writeEffects = options.writeEffects;
     this.now = options.now ?? (() => new Date().toISOString());
   }
 
@@ -229,22 +310,65 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     throwIfAgentAborted(request.signal);
     const projectId = this.requireProject(request.context);
     if (request.name === DRIFTING_WORKSPACE_WRITE_TOOL) {
-      const path = normalizeWorkspaceWritePath(request.arguments.path);
-      const content = String(request.arguments.content ?? '');
+      const path = normalizeWorkspaceWritePath(request.arguments.path, projectId);
+      const rawContent = String(request.arguments.content ?? '');
+      const content = isAuthoredWorkspaceTextPath(path)
+        ? normalizeAuthoredTextTransportArtifacts(rawContent)
+        : rawContent;
+      const summary =
+        typeof request.arguments.summary === 'string'
+          ? normalizeAuthoredTextTransportArtifacts(request.arguments.summary).trim()
+          : undefined;
       const resolvedPath = resolveWorkspacePath(projectId, path);
       const existing =
         findWorkspaceEntry(projectId, resolvedPath) ??
         (await this.resolveDynamicMemoryEntry(projectId, resolvedPath, request));
-      const prepared = existing
-        ? await this.prepareWholeFileCommand(existing, content, request)
-        : await this.prepareCreateCommand(path, content, request);
+      const existingProseTarget = existing
+        ? workspaceProseTarget(existing.target)
+        : null;
+      if (
+        existing &&
+        summary !== undefined &&
+        existingProseTarget?.entityType !== 'node'
+      ) {
+        throw new Error(
+          '这个对象已经存在；当前只能在整章或整篇灵感覆盖时同时更新摘要。',
+        );
+      }
+      const publicPath = existing?.path ?? path;
+      const prepared = await (async () => {
+        try {
+          return existing
+            ? await this.prepareWholeFileCommand(existing, content, request, summary)
+            : await this.prepareCreateCommand(path, content, request, summary);
+        } catch (error) {
+          if (existing && isWorkspaceNoopPreparationError(error)) {
+            throw new WorkspaceNoopWriteSignal(publicPath);
+          }
+          throw error;
+        }
+      })();
+      const changeSummary =
+        ('changeSummary' in prepared ? prepared.changeSummary : undefined) ??
+        (isAuthoredProseBodyPath(publicPath)
+          ? undefined
+          : normalizeChangeSummary(request.arguments.changeSummary) ??
+            defaultAuthoredChangeSummary(publicPath));
+      const remainingWork =
+        'remainingWork' in prepared ? prepared.remainingWork : undefined;
       if (existing) this.invalidateReadCoverage(request, existing.path);
       return {
         ...request,
         arguments: {
-          path,
+          path: publicPath,
           content,
+          ...(summary !== undefined ? { summary } : {}),
+          ...(changeSummary ? { changeSummary } : {}),
+          ...(remainingWork ? { remainingWork } : {}),
           expectedRevision: prepared.expectedRevision,
+          ...('authoredReadState' in prepared && prepared.authoredReadState
+            ? { [WORKSPACE_AUTHORED_READ_STATE_ARGUMENT]: prepared.authoredReadState }
+            : {}),
           [WORKSPACE_COMMAND_ARGUMENT]: prepared.command,
         },
       };
@@ -261,20 +385,48 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         },
       };
     }
-    const entry = requireWorkspaceFileEntry(projectId, request.arguments.path, true);
-    const path = entry.path;
-    if (!entry.writable) {
-      throw new Error(`"${path}" is read-only in this version of the workspace`);
+    const requestedEntry = requireWorkspaceFileEntry(projectId, request.arguments.path, true);
+    if (!requestedEntry.writable) {
+      throw new Error(`"${requestedEntry.path}" is read-only in this version of the workspace`);
     }
     const replacements = parseWorkspaceTextReplacements(request.arguments.replacements);
-    const prepared = await this.prepareWorkspaceCommand(entry, replacements, request);
+    const entry = this.resolveUniqueReadProseEditTarget(
+      requestedEntry,
+      replacements,
+      request,
+    );
+    const path = entry.path;
+    let prepared: Awaited<ReturnType<DriftingWorkspaceToolRuntime['prepareWorkspaceCommand']>>;
+    try {
+      prepared = await this.prepareWorkspaceCommand(entry, replacements, request);
+    } catch (error) {
+      if (isWorkspaceNoopPreparationError(error)) {
+        throw new WorkspaceNoopWriteSignal(path);
+      }
+      throw error;
+    }
+    const preparedReplacements =
+      prepared.command.name === 'edit_prose_file'
+        ? prepared.command.arguments.replacements
+        : request.arguments.replacements;
     this.invalidateReadCoverage(request, path);
+    const changeSummary = isAuthoredProseBodyPath(path)
+      ? prepared.changeSummary
+      : normalizeChangeSummary(request.arguments.changeSummary) ??
+        prepared.changeSummary ??
+        defaultAuthoredChangeSummary(path);
     return {
       ...request,
       arguments: {
         path,
-        replacements: request.arguments.replacements,
+        replacements: preparedReplacements,
+        ...(changeSummary ? { changeSummary } : {}),
+        ...(prepared.remainingWork ? { remainingWork: prepared.remainingWork } : {}),
+        ...(prepared.skippedStale ? { skippedStaleReplacements: prepared.skippedStale } : {}),
         expectedRevision: prepared.expectedRevision,
+        ...(prepared.authoredReadState
+          ? { [WORKSPACE_AUTHORED_READ_STATE_ARGUMENT]: prepared.authoredReadState }
+          : {}),
         [WORKSPACE_COMMAND_ARGUMENT]: prepared.command,
       },
     };
@@ -429,12 +581,56 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
 
   private async readFile(projectId: string, request: AgentToolExecutionRequest) {
     const resolved = resolveWorkspacePath(projectId, request.arguments.path);
-    const entry =
+    const direct =
       findWorkspaceEntry(projectId, resolved) ??
-      (await this.resolveDynamicMemoryEntry(projectId, resolved, request)) ??
-      primaryWorkspaceEntry(projectId, resolved);
-    if (!entry) return this.listFiles(projectId, resolved, request);
+      (await this.resolveDynamicMemoryEntry(projectId, resolved, request));
+    if (!direct && (resolved === '/' || isVirtualWorkspaceRoot(resolved))) {
+      // Opening a named domain collection is a perfectly natural author
+      // action. Adapt it to a browse operation instead of making the model
+      // reason about the list_files/read_file distinction.
+      return this.listFiles(projectId, resolved, request);
+    }
+    const entry = direct ?? primaryWorkspaceEntry(projectId, resolved);
+    if (!entry) {
+      const missing = missingAuthoredTargetMessage(
+        projectId,
+        request.arguments.path,
+      );
+      if (missing) {
+        const missingMessage = await this.enrichMissingAuthoredTarget(
+          projectId,
+          request.arguments.path,
+          missing,
+          request,
+        );
+        const path =
+          semanticAuthoredCreationPath(
+            projectId,
+            normalizeVirtualPath(request.arguments.path),
+          ) ?? resolved;
+        return {
+          path,
+          name: describeWorkspaceDomainTarget(path),
+          content: '',
+          writable: true,
+          offset: 0,
+          nextOffset: 0,
+          totalChars: 0,
+          truncated: false,
+          wordCount: 0,
+          summary: '',
+          missing: true,
+          missingMessage,
+        };
+      }
+      return this.listFiles(projectId, resolved, request);
+    }
     const path = entry.path;
+    const deferredWorkingCopy = await this.deferRedundantCurrentWorkingCopyRead(
+      entry,
+      request,
+    );
+    if (deferredWorkingCopy) return deferredWorkingCopy;
     const content = await this.renderEntry(entry, request);
     const offset = boundedInteger(request.arguments.offset, 0, 0, content.length);
     const limit = boundedInteger(request.arguments.limit, DEFAULT_READ_LIMIT, 1, 32_000);
@@ -447,6 +643,26 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     // Once this call has paid to read the live body, report the live count so
     // the model never sees contradictory "1057 words + empty file" evidence.
     const wordCount = entry.target.kind === 'node_prose' ? countWords(content) : null;
+    const summary =
+      entry.target.kind === 'node_prose'
+        ? currentNode(entry.target.nodeId, projectId).summary.trim()
+        : null;
+    if (summary !== null) {
+      // A chapter/灵感 read presents the complete current summary alongside
+      // every prose page. Record that authored field as read as well, so a
+      // later summary rewrite does not force the model to open the same text
+      // through a second product alias merely to satisfy write safety.
+      const summaryPath = path.replace(/\/prose\.md$/u, '/summary.md');
+      const summaryChars = codePointLength(summary);
+      await this.recordReadCoverage(
+        request,
+        summaryPath,
+        summary,
+        0,
+        summaryChars,
+        summaryChars,
+      );
+    }
     return {
       path,
       name: workspaceEntryDisplayName(entry),
@@ -457,6 +673,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       totalChars,
       truncated: nextOffset < totalChars,
       ...(wordCount !== null ? { wordCount } : {}),
+      ...(summary !== null ? { summary } : {}),
     };
   }
 
@@ -610,6 +827,49 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     };
   }
 
+  private async enrichMissingAuthoredTarget(
+    projectId: string,
+    requestedPath: unknown,
+    baseMessage: string,
+    request: AgentToolExecutionRequest,
+  ): Promise<string> {
+    const query = missingAuthoredTargetQuery(requestedPath);
+    if (!query) return baseMessage;
+    try {
+      const related = await this.grep(projectId, {
+        ...request,
+        name: 'grep',
+        arguments: { query, path: '灵感', limit: 4 },
+      });
+      const entries = buildWorkspaceEntries(projectId);
+      const evidence: string[] = [];
+      for (const raw of recordArray(related, 'matches')) {
+        const path = typeof raw.path === 'string' ? raw.path : '';
+        let snippet = typeof raw.snippet === 'string' ? raw.snippet.trim() : '';
+        const entry = entries.find((candidate) => candidate.path === path);
+        if (entry) {
+          const content = await this.renderEntry(entry, request);
+          snippet = authoredQueryExcerpt(content, query) || snippet;
+        }
+        if (!path || !snippet) continue;
+        evidence.push(
+          `- ${describeWorkspaceDomainTarget(path)}：${sliceCodePoints(
+            projectAuthoredTextForModel(snippet).text,
+            0,
+            1_600,
+          )}`,
+        );
+      }
+      return evidence.length > 0
+        ? `${baseMessage}\n现有相关作者素材（已给出完整相关段落，无需另行打开整份灵感）：\n${evidence.join('\n')}`
+        : baseMessage;
+    } catch {
+      // Related-material discovery is a convenience projection. The original
+      // missing-object result remains correct if search is unavailable.
+      return baseMessage;
+    }
+  }
+
   private async resolveDynamicMemoryEntry(
     projectId: string,
     path: string,
@@ -640,10 +900,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     const target = entry.target;
     if (target.kind === 'overview') {
       const read = await this.canonicalRead(request, 'get_overview', {}, 'overview');
-      return renderOverview(
-        read.value,
-        buildWorkspaceEntries(this.requireProject(request.context)),
-      );
+      return renderOverview(read.value);
     }
     if (target.kind === 'comments') {
       const read = await this.canonicalRead(request, 'list_comments', {}, 'comments');
@@ -836,7 +1093,14 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     entry: WorkspaceEntry,
     replacements: WorkspaceTextReplacement[],
     request: AgentToolExecutionRequest,
-  ): Promise<{ expectedRevision: Record<string, string>; command: WorkspaceCommand }> {
+  ): Promise<{
+    expectedRevision: Record<string, string>;
+    command: WorkspaceCommand;
+    skippedStale?: number;
+    changeSummary?: string;
+    remainingWork?: string;
+    authoredReadState?: WorkspaceAuthoredReadState;
+  }> {
     if (!entry.writable) {
       throw new Error(`"${entry.path}" is read-only in this version of the workspace`);
     }
@@ -854,23 +1118,56 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         'edit-source',
       );
       const blocks = compactProseBlocks(read.value);
-      applyWorkspaceTextReplacements(
-        blocks.map((block) => block.displayText).join('\n\n'),
+      const current = blocks.map((block) => block.displayText).join('\n\n');
+      const normalized = normalizeWorkspaceProseReplacements(
+        current,
         replacements,
+      );
+      const next = applyWorkspaceTextReplacements(current, normalized.replacements);
+      const impact = inferAuthoredChangeImpact(
+        entry.path,
+        current,
+        next,
+        normalized.skippedStaleTargets,
       );
       const expectedRevision = expectedRevisionFrom(
         read,
         `${proseTarget.entityType}_prose`,
         proseTarget.id,
       );
+      const authoredReadState =
+        proseTarget.entityType === 'node'
+          ? {
+              targetKey: `node:${proseTarget.id}`,
+              target: describeWorkspaceDomainTarget(entry.path),
+              summary: currentNode(
+                proseTarget.id,
+                this.requireProject(request.context),
+              ).summary,
+              completeBodyRead: await this.hasCompleteWholeFileRead(
+                entry.path,
+                current,
+                request,
+              ),
+              focusedBodyEdit: true,
+              currentPassages: normalized.replacements
+                .map((replacement) => replacement.newText.trim())
+                .filter(Boolean)
+                .slice(0, 12),
+            }
+          : undefined;
       return {
         expectedRevision,
+        ...(authoredReadState ? { authoredReadState } : {}),
+        ...(normalized.skippedStale > 0 ? { skippedStale: normalized.skippedStale } : {}),
+        ...(impact.changeSummary ? { changeSummary: impact.changeSummary } : {}),
+        ...(impact.remainingWork ? { remainingWork: impact.remainingWork } : {}),
         command: {
           name: 'edit_prose_file',
           arguments: {
             entity: proseTarget.id,
             kind: proseTarget.entityType === 'node' ? proseTarget.nodeKind : proseTarget.entityType,
-            replacements,
+            replacements: normalized.replacements,
             expectedRevision,
           },
         },
@@ -917,8 +1214,28 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         target.kind === 'node_summary' ? current.summary : current.title,
         replacements,
       );
+      const impact =
+        target.kind === 'node_summary'
+          ? inferAuthoredChangeImpact(entry.path, current.summary, next)
+          : {};
       return {
         expectedRevision,
+        ...(target.kind === 'node_summary'
+          ? {
+              authoredReadState: {
+                targetKey: `node:${target.nodeId}`,
+                target: describeWorkspaceDomainTarget(
+                  entry.path.replace(/\/summary\.md$/u, '/prose.md'),
+                ),
+                summary: next,
+                completeBodyRead: false,
+                focusedBodyEdit: false,
+                currentPassages: [],
+              },
+            }
+          : {}),
+        ...(impact.changeSummary ? { changeSummary: impact.changeSummary } : {}),
+        ...(impact.remainingWork ? { remainingWork: impact.remainingWork } : {}),
         command:
           target.kind === 'node_summary'
             ? {
@@ -971,13 +1288,15 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         element: target.elementId,
         expectedRevision,
       };
+      let impact: { changeSummary?: string; remainingWork?: string } = {};
       switch (target.kind) {
-        case 'element_summary':
-          update.summary = applyWorkspaceTextReplacements(
-            String(value.summary ?? ''),
-            replacements,
-          );
+        case 'element_summary': {
+          const currentSummary = String(value.summary ?? '');
+          const nextSummary = applyWorkspaceTextReplacements(currentSummary, replacements);
+          update.summary = nextSummary;
+          impact = inferAuthoredChangeImpact(entry.path, currentSummary, nextSummary);
           break;
+        }
         case 'element_name':
           update.name = applyWorkspaceTextReplacements(String(value.name ?? ''), replacements);
           break;
@@ -1008,6 +1327,8 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       }
       return {
         expectedRevision,
+        ...(impact.changeSummary ? { changeSummary: impact.changeSummary } : {}),
+        ...(impact.remainingWork ? { remainingWork: impact.remainingWork } : {}),
         command: { name: 'update_element', arguments: update },
       };
     }
@@ -1028,13 +1349,15 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         storyline: target.storylineId,
         expectedRevision,
       };
+      let impact: { changeSummary?: string; remainingWork?: string } = {};
       switch (target.kind) {
-        case 'storyline_summary':
-          update.summary = applyWorkspaceTextReplacements(
-            String(value.summary ?? ''),
-            replacements,
-          );
+        case 'storyline_summary': {
+          const currentSummary = String(value.summary ?? '');
+          const nextSummary = applyWorkspaceTextReplacements(currentSummary, replacements);
+          update.summary = nextSummary;
+          impact = inferAuthoredChangeImpact(entry.path, currentSummary, nextSummary);
           break;
+        }
         case 'storyline_name':
           update.name = applyWorkspaceTextReplacements(String(value.name ?? ''), replacements);
           break;
@@ -1076,17 +1399,142 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       }
       return {
         expectedRevision,
+        ...(impact.changeSummary ? { changeSummary: impact.changeSummary } : {}),
+        ...(impact.remainingWork ? { remainingWork: impact.remainingWork } : {}),
         command: { name: 'update_storyline', arguments: update },
       };
     }
     throw new Error(`"${entry.path}" is read-only in this version of the workspace`);
   }
 
+  /**
+   * A model can momentarily doubt a body it has already read and just revised.
+   * Return the durable current author-domain state once instead of injecting a
+   * second whole manuscript. A second explicit request is allowed through, so
+   * compaction or a genuinely new question can still recover the full body.
+   */
+  private async deferRedundantCurrentWorkingCopyRead(
+    entry: WorkspaceEntry,
+    request: AgentToolExecutionRequest,
+  ): Promise<Record<string, unknown> | null> {
+    if (
+      entry.target.kind !== 'node_prose' ||
+      !this.writeEffects ||
+      boundedInteger(request.arguments.offset, 0, 0, Number.MAX_SAFE_INTEGER) > 0
+    ) {
+      return null;
+    }
+    const nodeId = entry.target.nodeId;
+    const key = `${request.sessionId}\u0000${request.turnId}\u0000${entry.path}`;
+    if (this.deferredRepeatReads.has(key)) return null;
+    const snapshot = await this.writeEffects.loadSnapshot(request.sessionId);
+    const inapplicableEffectIds = new Set(
+      snapshot.reviews
+        .filter((review) =>
+          [
+            'rejected',
+            'revert_started',
+            'reverted',
+            'revert_failed',
+            'revert_unavailable',
+          ].includes(review.status),
+        )
+        .map((review) => review.effectId),
+    );
+    const states = snapshot.effects
+      .filter(
+        (effect) =>
+          effect.turnId === request.turnId &&
+          effect.phase === 'result_committed' &&
+          !inapplicableEffectIds.has(effect.id),
+      )
+      .flatMap((effect) => {
+        const state = workspaceAuthoredReadStateFromArguments(effect.arguments);
+        return state?.targetKey === `node:${nodeId}` ? [state] : [];
+      });
+    if (states.length === 0) return null;
+    const completeBodyRead = states.some((state) => state.completeBodyRead);
+    const focusedBodyEdit = states.some((state) => state.focusedBodyEdit);
+    if (!completeBodyRead || !focusedBodyEdit) return null;
+    const latest = states[states.length - 1]!;
+    const currentPassages = uniqueStrings(states.flatMap((state) => state.currentPassages)).slice(
+      -8,
+    );
+    this.deferredRepeatReads.add(key);
+    while (this.deferredRepeatReads.size > MAX_DEFERRED_REPEAT_READS) {
+      const oldest = this.deferredRepeatReads.values().next().value as string | undefined;
+      if (!oldest) break;
+      this.deferredRepeatReads.delete(oldest);
+    }
+    return {
+      path: entry.path,
+      name: workspaceEntryDisplayName(entry),
+      currentWorkingCopy: true,
+      summary: latest.summary,
+      currentPassages,
+    };
+  }
+
+  /**
+   * A quoted passage is a stronger locator than an accidentally misnamed
+   * chapter. Score each fully-read object of the same author-domain kind by
+   * how many proposed passages it actually contains, then route to the one
+   * strictly dominant object before creating any durable child read. Rows that
+   * belong elsewhere remain unfinished instead of moving a second object inside
+   * the same review. Ties and unread candidates keep the ordinary fail-closed
+   * behavior.
+   */
+  private resolveUniqueReadProseEditTarget(
+    requestedEntry: WorkspaceEntry,
+    replacements: readonly WorkspaceTextReplacement[],
+    request: AgentToolExecutionRequest,
+  ): WorkspaceEntry {
+    const requestedTarget = workspaceProseTarget(requestedEntry.target);
+    if (!requestedTarget) return requestedEntry;
+    const projectId = this.requireProject(request.context);
+    const requestedCoverage = this.readCoverage.get(
+      this.readCoverageKey(request, requestedEntry.path),
+    );
+    if (!requestedCoverage?.completeContent) return requestedEntry;
+    let bestEntry = requestedEntry;
+    let bestScore = countApplicableWorkspaceReplacements(
+      requestedCoverage.completeContent,
+      replacements,
+    );
+    let bestIsTied = false;
+    for (const candidate of buildWorkspaceEntries(projectId)) {
+      if (candidate.path === requestedEntry.path || !candidate.writable) continue;
+      const candidateTarget = workspaceProseTarget(candidate.target);
+      if (!sameWorkspaceProseDomainKind(requestedTarget, candidateTarget)) continue;
+      const coverage = this.readCoverage.get(this.readCoverageKey(request, candidate.path));
+      if (!coverage?.completeContent) continue;
+      const score = countApplicableWorkspaceReplacements(
+        coverage.completeContent,
+        replacements,
+      );
+      if (score > bestScore) {
+        bestEntry = candidate;
+        bestScore = score;
+        bestIsTied = false;
+      } else if (score > 0 && score === bestScore) {
+        bestIsTied = true;
+      }
+    }
+    return bestScore > 0 && !bestIsTied ? bestEntry : requestedEntry;
+  }
+
   private async prepareWholeFileCommand(
     entry: WorkspaceEntry,
     content: string,
     request: AgentToolExecutionRequest,
-  ): Promise<{ expectedRevision: Record<string, string>; command: WorkspaceCommand }> {
+    summary?: string,
+  ): Promise<{
+    expectedRevision: Record<string, string>;
+    command: WorkspaceCommand;
+    changeSummary?: string;
+    remainingWork?: string;
+    authoredReadState?: WorkspaceAuthoredReadState;
+  }> {
     if (!entry.writable) {
       throw new Error(`"${entry.path}" is read-only in this version of the workspace`);
     }
@@ -1106,7 +1554,15 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       const current = compactProseBlocks(read.value)
         .map((block) => block.displayText)
         .join('\n\n');
-      if (current === content) {
+      const annotatedContent = restoreAuthoredTextAnnotations(current, content);
+      const currentSummary =
+        proseTarget.entityType === 'node'
+          ? (useDataStore.getState().bookNodes.find((node) => node.id === proseTarget.id)?.summary ?? '')
+          : undefined;
+      if (
+        current === annotatedContent &&
+        (summary === undefined || summary === currentSummary)
+      ) {
         throw new Error(`"${entry.path}" already has the requested contents`);
       }
       await this.requireCompleteWholeFileRead(entry.path, current, request);
@@ -1115,14 +1571,32 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         `${proseTarget.entityType}_prose`,
         proseTarget.id,
       );
+      const impact = inferAuthoredChangeImpact(entry.path, current, annotatedContent);
       return {
         expectedRevision,
+        ...(proseTarget.entityType === 'node'
+          ? {
+              authoredReadState: {
+                targetKey: `node:${proseTarget.id}`,
+                target: describeWorkspaceDomainTarget(entry.path),
+                summary: summary ?? currentSummary ?? '',
+                completeBodyRead: true,
+                focusedBodyEdit: false,
+                currentPassages: [],
+              },
+            }
+          : {}),
+        ...(impact.changeSummary ? { changeSummary: impact.changeSummary } : {}),
+        ...(impact.remainingWork ? { remainingWork: impact.remainingWork } : {}),
         command: {
           name: 'edit_prose_file',
           arguments: {
             entity: proseTarget.id,
             kind: proseTarget.entityType === 'node' ? proseTarget.nodeKind : proseTarget.entityType,
-            content,
+            content: annotatedContent,
+            ...(proseTarget.entityType === 'node' && summary !== undefined
+              ? { summary }
+              : {}),
             expectedRevision,
           },
         },
@@ -1263,12 +1737,32 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         last.end = Math.max(last.end, range.end);
       }
     }
+    const completeContent =
+      merged.length === 1 && merged[0]!.start === 0 && merged[0]!.end >= totalChars
+        ? content
+        : undefined;
     this.readCoverage.delete(key);
-    this.readCoverage.set(key, { fingerprint, totalChars, ranges: merged });
+    this.readCoverage.set(key, {
+      fingerprint,
+      totalChars,
+      ranges: merged,
+      ...(completeContent !== undefined ? { completeContent } : {}),
+    });
     while (this.readCoverage.size > MAX_TRACKED_READ_COVERAGE) {
       const oldest = this.readCoverage.keys().next().value as string | undefined;
       if (!oldest) break;
       this.readCoverage.delete(oldest);
+    }
+    let cachedCompleteReads = [...this.readCoverage.values()].filter(
+      (coverage) => coverage.completeContent !== undefined,
+    ).length;
+    if (cachedCompleteReads > MAX_CACHED_COMPLETE_READS) {
+      for (const coverage of this.readCoverage.values()) {
+        if (coverage.completeContent === undefined) continue;
+        delete coverage.completeContent;
+        cachedCompleteReads -= 1;
+        if (cachedCompleteReads <= MAX_CACHED_COMPLETE_READS) break;
+      }
     }
   }
 
@@ -1277,21 +1771,29 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     current: string,
     request: AgentToolExecutionRequest,
   ): Promise<void> {
-    if (!current) return;
-    const coverage = this.readCoverage.get(this.readCoverageKey(request, path));
-    const totalChars = codePointLength(current);
-    const complete =
-      coverage?.totalChars === totalChars &&
-      coverage.fingerprint === (await workspaceContentFingerprint(current)) &&
-      coverage.ranges.length === 1 &&
-      coverage.ranges[0]!.start === 0 &&
-      coverage.ranges[0]!.end >= totalChars;
-    if (complete) return;
+    if (await this.hasCompleteWholeFileRead(path, current, request)) return;
     throw new Error(
       `INCOMPLETE_WHOLE_FILE_READ: write_file cannot replace existing "${path}" ` +
         'because the complete current file has not been read. Continue read_file from its ' +
         'nextOffset until no [File continues ...] marker remains, or use edit_file for a ' +
         'focused change. The file was not changed.',
+    );
+  }
+
+  private async hasCompleteWholeFileRead(
+    path: string,
+    current: string,
+    request: AgentToolExecutionRequest,
+  ): Promise<boolean> {
+    if (!current) return true;
+    const coverage = this.readCoverage.get(this.readCoverageKey(request, path));
+    const totalChars = codePointLength(current);
+    return Boolean(
+      coverage?.totalChars === totalChars &&
+      coverage.fingerprint === (await workspaceContentFingerprint(current)) &&
+      coverage.ranges.length === 1 &&
+      coverage.ranges[0]!.start === 0 &&
+      coverage.ranges[0]!.end >= totalChars,
     );
   }
 
@@ -1373,6 +1875,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     path: string,
     content: string,
     request: AgentToolExecutionRequest,
+    explicitSummary?: string,
   ): Promise<{ expectedRevision: Record<string, string>; command: WorkspaceCommand }> {
     const projectId = this.requireProject(request.context);
     const segments = path.split('/').filter(Boolean).map(decodePathSegment);
@@ -1395,7 +1898,9 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     const expectedRevision = expectedRevisionFrom(read, 'project', projectId);
     if ((segments[0] === 'chapters' || segments[0] === 'drifts') && file === 'prose.md') {
       const title = segments[1]?.trim();
-      if (!title || segments.length !== 3) throw new Error('Invalid chapter/drift creation path');
+      if (!title || segments.length !== 3) {
+        throw new Error('章节或灵感的名称不完整，无法新建。');
+      }
       return {
         expectedRevision,
         command: {
@@ -1404,13 +1909,14 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
             kind: segments[0] === 'chapters' ? 'chapter' : 'drift',
             title,
             body: content,
+            ...(explicitSummary ? { summary: explicitSummary } : {}),
             expectedRevision,
           },
         },
       };
     }
     if (segments[0] === 'elements' && file === 'body.md' && segments.length === 4) {
-      const summary = initialStructuredSummary(content);
+      const summary = explicitSummary || initialStructuredSummary(content);
       return {
         expectedRevision,
         command: {
@@ -1426,7 +1932,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       };
     }
     if (segments[0] === 'storylines' && file === 'body.md' && segments.length === 3) {
-      const summary = initialStructuredSummary(content);
+      const summary = explicitSummary || initialStructuredSummary(content);
       return {
         expectedRevision,
         command: {
@@ -1468,7 +1974,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       };
     }
     throw new Error(
-      'Unsupported creation path. Create prose.md/body.md under chapters, drifts, elements, storylines, or categories; comments, relations, and memory use one JSON file.',
+      '无法从这个名称判断要新建哪种作品对象。请使用“第二章”、“灵感「雨夜片段」”、“人物「林弦」”、“故事线「返乡」”或“要素分类「人物」”这样的作者语义名称。',
     );
   }
 
@@ -2222,6 +2728,10 @@ function compactDescription(value: string, limit: number): string {
   return compact.length <= limit ? compact : `${compact.slice(0, limit - 1)}…`;
 }
 
+function uniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
 function findWorkspaceEntry(projectId: string, path: string): WorkspaceEntry | undefined {
   return buildWorkspaceEntries(projectId).find((candidate) => candidate.path === path);
 }
@@ -2272,39 +2782,33 @@ function primaryWorkspaceEntry(
   })[0];
 }
 
-function renderOverview(value: unknown, entries: readonly WorkspaceEntry[]): string {
+function renderOverview(value: unknown): string {
   const overview = asRecord(value);
   const counts = asRecord(overview.counts);
-  const writable = entries.filter((entry) => entry.writable).length;
   return [
     `# ${String(overview.name ?? 'Drifting project')}`,
     '',
     String(overview.description ?? '').trim(),
     '',
-    '## Workspace',
+    '## 作品内容',
     '',
-    '- `/chapters/*/prose.md`: live manuscript; exact replacements are writable',
-    '- `/drifts/*/prose.md`: live drift notes; exact replacements are writable',
-    '- `/elements/*/*`: character, setting, and object canon',
-    '- Create a new category at `/categories/<category>/body.md`, then create its elements at `/elements/<category>/<element>/body.md`; an empty category is still a valid directory',
-    '- `/storylines/*`: storyline canon and chapter membership',
-    '- `/comments/*.json`: editorial notes and TODOs',
-    '- `/relations/*.json`: curated entity relationships',
-    '- `/project/facts.json`: book-level constraints',
-    '- `/materials/*`: reference material (read-only)',
+    '- 章节：按作品顺序排列的正文与摘要',
+    '- 灵感：可自由组织的创作片段',
+    '- 要素：人物、地点、组织、物件与其他设定',
+    '- 故事线：故事线说明及其章节关系',
+    '- 批注与待办：作者的编辑记录',
+    '- 实体关系：要素之间由作者确认的关系',
+    '- 作者规则：本作品希望 Agent 遵循的可编辑规则',
+    '- 素材：只读参考材料',
     '',
-    'Prose files accept the editor schema directly: `#`-`###` headings, paragraphs, blockquotes, horizontal rules, hard breaks, bold, italic, strike, underline, and safe links. Other Markdown styling is unwrapped to plain prose when saved.',
+    '正文以作者在编辑器中看到的文本交给 Agent；人物连接、保存、并发保护、审阅和撤销均由 Drifting 自动处理。',
     '',
-    'Use list_files to browse, read_file to inspect, grep to search, edit_file for focused changes, write_file to create resources, and delete_file to remove a complete resource.',
-    'Chapters behave like ordinary files. Saving, concurrent-edit protection, review, and undo are automatic.',
+    '## 数量',
     '',
-    '## Counts',
-    '',
-    `- chapters: ${Number(counts.chapters ?? 0)}`,
-    `- drifts: ${Number(counts.drifts ?? 0)}`,
-    `- storylines: ${Number(counts.storylines ?? 0)}`,
-    `- elements: ${Number(counts.elements ?? 0)}`,
-    `- writable files: ${writable}`,
+    `- 章节：${Number(counts.chapters ?? 0)}`,
+    `- 灵感：${Number(counts.drifts ?? 0)}`,
+    `- 故事线：${Number(counts.storylines ?? 0)}`,
+    `- 要素：${Number(counts.elements ?? 0)}`,
   ]
     .filter((line, index, all) => line !== '' || all[index - 1] !== '')
     .join('\n')
@@ -2600,6 +3104,33 @@ function workspaceProseTarget(target: WorkspaceTarget): WorkspaceProseTarget | n
   return null;
 }
 
+function sameWorkspaceProseDomainKind(
+  left: WorkspaceProseTarget,
+  right: WorkspaceProseTarget | null,
+): boolean {
+  if (!right || left.entityType !== right.entityType) return false;
+  if (left.entityType !== 'node' || right.entityType !== 'node') return true;
+  return left.nodeKind === right.nodeKind;
+}
+
+function countApplicableWorkspaceReplacements(
+  content: string,
+  replacements: readonly WorkspaceTextReplacement[],
+): number {
+  let matches = 0;
+  for (const replacement of replacements) {
+    try {
+      const normalized = normalizeWorkspaceProseReplacements(content, [replacement]);
+      if (normalized.skippedStale === 0 && normalized.replacements.length === 1) {
+        matches += 1;
+      }
+    } catch {
+      // Missing, ambiguous, or already-satisfied text is not a locator.
+    }
+  }
+  return matches;
+}
+
 function scalarWholeFileReadCoverageRequired(target: WorkspaceTarget): boolean {
   switch (target.kind) {
     case 'node_summary':
@@ -2629,14 +3160,79 @@ function normalizeVirtualPath(value: unknown): string {
   return normalized;
 }
 
+function isAuthoredWorkspaceTextPath(path: string): boolean {
+  return path.endsWith('.md') || path.endsWith('.txt');
+}
+
+function isAuthoredProseBodyPath(path: string): boolean {
+  return path.endsWith('/prose.md') || path.endsWith('/body.md');
+}
+
+function normalizeChangeSummary(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const compact = value.replace(/\s+/gu, ' ').trim().slice(0, 240);
+  if (!compact) return undefined;
+  if (/\b(?:json|path|revision|receipt|writeref|yjs|sqlite|write_file|edit_file)\b/iu.test(compact)) {
+    return undefined;
+  }
+  return compact.replace(/[。；;\s]+$/u, '');
+}
+
+function defaultAuthoredChangeSummary(path: string): string | undefined {
+  if (path.endsWith('/summary.md')) return '已同步整理摘要';
+  if (path.endsWith('/title.txt')) return '已更新标题';
+  return undefined;
+}
+
+function inferAuthoredChangeImpact(
+  path: string,
+  before: string,
+  after: string,
+  skippedStaleTargets: readonly string[] = [],
+): { changeSummary?: string; remainingWork?: string } {
+  if (path.endsWith('/summary.md')) {
+    if (!after.trim()) {
+      return {
+        changeSummary: before.trim() ? '已清空摘要' : '摘要仍为空',
+        remainingWork: '当前摘要为空，需要补写',
+      };
+    }
+    return {
+      changeSummary: before.trim() ? '已同步整理摘要' : '已补写摘要',
+    };
+  }
+  const fallback = defaultAuthoredChangeSummary(path);
+  if (!path.endsWith('/prose.md') && !path.endsWith('/body.md')) {
+    return fallback ? { changeSummary: fallback } : {};
+  }
+  const beforeWords = countWords(before);
+  const afterWords = countWords(after);
+  const changeSummary =
+    beforeWords === afterWords
+      ? '完成正文修改'
+      : `将正文从 ${beforeWords} 字调整为 ${afterWords} 字`;
+  return {
+    changeSummary,
+    ...(skippedStaleTargets.length > 0
+      ? { remainingWork: describeStaleAuthoredTargets(skippedStaleTargets) }
+      : {}),
+  };
+}
+
+function describeStaleAuthoredTargets(targets: readonly string[]): string {
+  return `${targets.length} 处局部修改因正文已变化而跳过；只有它仍影响作者目标时，才需在附近正文中重新定位一次`;
+}
+
 /**
  * Let the model address an authored resource by its semantic directory. The
  * virtual filesystem still resolves the operation to the same certified
  * prose/body command; this only removes product-internal filename trivia from
  * the public write contract.
  */
-function normalizeWorkspaceWritePath(value: unknown): string {
+function normalizeWorkspaceWritePath(value: unknown, projectId: string): string {
   const path = normalizeVirtualPath(value);
+  const semantic = semanticAuthoredCreationPath(projectId, path);
+  if (semantic) return semantic;
   const segments = path.split('/').filter(Boolean);
   if (segments.length === 2 && (segments[0] === 'chapters' || segments[0] === 'drifts')) {
     return `${path}/prose.md`;
@@ -2650,41 +3246,135 @@ function normalizeWorkspaceWritePath(value: unknown): string {
   return path;
 }
 
+function semanticAuthoredCreationPath(projectId: string, path: string): string | null {
+  const chapterLabel = /^\/章节[「“"](.+?)[」”"]$/u.exec(path)?.[1]?.trim();
+  const naturalChapter = /^\/(第[〇零一二三四五六七八九十百两\d]+章)$/u.exec(path)?.[1];
+  const chapter = chapterLabel ?? naturalChapter;
+  if (chapter) {
+    const ordinal = parseChapterOrdinal(chapter);
+    const title = ordinal === null ? chapter : canonicalNewChapterTitle(projectId, ordinal);
+    return `/chapters/${pathSegment(title)}/prose.md`;
+  }
+  const drift = /^\/(?:灵感|漂移)[「“"](.+?)[」”"]$/u.exec(path)?.[1]?.trim();
+  if (drift) return `/drifts/${pathSegment(drift)}/prose.md`;
+  const storyline = /^\/故事线[「“"](.+?)[」”"]$/u.exec(path)?.[1]?.trim();
+  if (storyline) return `/storylines/${pathSegment(storyline)}/body.md`;
+  const category = /^\/要素分类[「“"](.+?)[」”"]$/u.exec(path)?.[1]?.trim();
+  if (category) return `/categories/${pathSegment(category)}/body.md`;
+  const element = /^\/(人物|角色|地点|区域|组织|势力|物品|道具|要素)[「“"](.+?)[」”"]$/u.exec(
+    path,
+  );
+  if (element) {
+    const categoryName = semanticElementCategory(projectId, element[1]!);
+    const name = element[2]!.trim();
+    if (categoryName && name) {
+      return `/elements/${pathSegment(categoryName)}/${pathSegment(name)}/body.md`;
+    }
+  }
+  return null;
+}
+
+function canonicalNewChapterTitle(projectId: string, ordinal: number): string {
+  const numericTitles = useDataStore
+    .getState()
+    .bookNodes.filter(
+      (node) => node.projectId === projectId && node.kind === 'chapter' && /^\d+$/u.test(node.title),
+    )
+    .map((node) => node.title);
+  const width = Math.max(1, ...numericTitles.map((title) => title.length));
+  return String(ordinal).padStart(width, '0');
+}
+
+function semanticElementCategory(projectId: string, label: string): string | null {
+  const categories = useDataStore
+    .getState()
+    .bookElementCategories.filter((category) => category.projectId === projectId);
+  const exact = categories.filter((category) => category.name.trim() === label);
+  if (exact.length === 1) return exact[0]!.name;
+  const aliases: Record<string, RegExp> = {
+    人物: /人物|角色/u,
+    角色: /人物|角色/u,
+    地点: /地点|区域|国家|地理/u,
+    区域: /地点|区域|国家|地理/u,
+    组织: /组织|势力|机构/u,
+    势力: /组织|势力|机构/u,
+    物品: /物品|道具|器物/u,
+    道具: /物品|道具|器物/u,
+  };
+  const pattern = aliases[label];
+  if (!pattern) return null;
+  const matches = categories.filter((category) => pattern.test(category.name));
+  return matches.length === 1 ? matches[0]!.name : null;
+}
+
 function workspaceReadModelData(value: unknown): string {
   const result = asRecord(value);
   const path = typeof result.path === 'string' ? result.path : '/';
+  if (result.missing === true && typeof result.missingMessage === 'string') {
+    return result.missingMessage;
+  }
   if (Array.isArray(result.files)) {
     const lines = result.files.flatMap((raw) => {
       const file = asRecord(raw);
       if (typeof file.path !== 'string') return [];
-      const shownPath = file.type === 'directory' ? `${file.path}/` : file.path;
-      return [shownPath];
+      return [workspaceDomainListItem(file.path)];
     });
-    if (result.truncated === true) lines.push('[More entries exist in this directory.]');
-    if (typeof result.creationGuide === 'string' && result.creationGuide.trim()) {
-      lines.push('', 'Creation guide:', result.creationGuide.trim());
+    if (result.truncated === true) lines.push('（还有更多内容）');
+    const creationHint = workspaceDomainCreationHint(path);
+    if (creationHint) {
+      lines.push('', creationHint);
     }
-    return [`Directory ${path}`, ...lines].join('\n');
+    return [workspaceDomainListHeading(path), ...lines].join('\n');
+  }
+  if (result.currentWorkingCopy === true) {
+    const target = describeWorkspaceDomainTarget(path);
+    const summary =
+      typeof result.summary === 'string' && result.summary.trim()
+        ? `当前摘要：${result.summary.trim()}`
+        : '当前摘要为空。';
+    const passages = Array.isArray(result.currentPassages)
+      ? result.currentPassages
+          .filter((passage): passage is string => typeof passage === 'string' && Boolean(passage))
+          .slice(-8)
+      : [];
+    return (
+      `${target}仍是本轮已经完整通读并持续更新的当前稿件。${summary}` +
+      (passages.length > 0
+        ? `当前修改后的正文片段：${passages.map((passage) => `「${passage}」`).join('；')}。`
+        : '') +
+      '本轮已有完整通读证据；这次无需再次载入整篇。若确有未保留的具体段落需要核对，可以再次查看。'
+    );
   }
   if (typeof result.content === 'string') {
+    const target = describeWorkspaceDomainTarget(path);
+    const authored = projectAuthoredTextForModel(result.content);
+    const summaryReference = chapterSummaryReference(path);
+    const summary =
+      typeof result.summary === 'string'
+        ? `\n摘要${summaryReference ? `（${summaryReference}）` : ''}：${result.summary.trim() || '（暂无）'}`
+        : '';
     const wordCount =
       typeof result.wordCount === 'number' && Number.isFinite(result.wordCount)
-        ? `\nWord count: ${result.wordCount}`
+        ? `\n字数：${result.wordCount}`
         : '';
     const continuation =
       result.truncated === true && typeof result.nextOffset === 'number'
-        ? `\n\n[File continues at character ${result.nextOffset}.]`
+        ? `\n\n[这份内容尚未读完；从第 ${result.nextOffset} 个字符继续。]`
         : '';
-    return `${path}${wordCount}\n\n${result.content}${continuation}`;
+    const linkedMentions =
+      authored.linkedMentions.length > 0
+        ? `\n正文中的实体连接：${authored.linkedMentions.join('、')}`
+        : '';
+    return `${target}${wordCount}${summary}${linkedMentions}\n\n${authored.text}${continuation}`;
   }
   if (Array.isArray(result.matches)) {
     const query = typeof result.query === 'string' ? result.query : '';
     const matches = result.matches.flatMap((raw) => {
       const match = asRecord(raw);
       if (typeof match.path !== 'string') return [];
-      const line = typeof match.line === 'number' ? `:${match.line}` : '';
+      const line = typeof match.line === 'number' ? `，第 ${match.line} 段` : '';
       const snippet = typeof match.snippet === 'string' ? match.snippet : '';
-      return [`${match.path}${line}: ${snippet}`];
+      return [`${describeWorkspaceDomainTarget(match.path)}${line}：${snippet}`];
     });
     const total =
       typeof result.total === 'number' && Number.isFinite(result.total)
@@ -2693,12 +3383,53 @@ function workspaceReadModelData(value: unknown): string {
     const header =
       result.exact === true ? `Exact literal occurrences: ${total}` : `Search matches: ${total}`;
     if (matches.length === 0) {
-      return `${header}\nNo matches for ${JSON.stringify(query)} under ${path}.`;
+      return `${header}\n在${describeWorkspaceDomainTarget(path)}中没有找到${JSON.stringify(query)}。`;
     }
     if (result.truncated === true) matches.push('[More matches exist.]');
     return [header, ...matches].join('\n');
   }
   return prettyJson(value);
+}
+
+function workspaceDomainListHeading(path: string): string {
+  if (path === '/') return '作品内容目录';
+  return `${describeWorkspaceDomainTarget(path)}目录`;
+}
+
+function workspaceDomainListItem(path: string): string {
+  const segments = path.split('/').filter(Boolean);
+  if (segments[0] === 'categories' && segments.length === 2) {
+    return `要素分类「${decodePathSegment(segments[1]!)}」`;
+  }
+  if (segments[0] === 'elements' && segments.length === 2) {
+    return `要素分类「${decodePathSegment(segments[1]!)}」`;
+  }
+  return describeWorkspaceDomainTarget(path);
+}
+
+function workspaceDomainCreationHint(path: string): string | null {
+  if (path === '/chapters') {
+    return '可直接用名称和完整初稿新建章节；标题、摘要与保存细节由 Drifting 管理。';
+  }
+  if (path === '/drifts') {
+    return '可直接用名称和完整内容新建灵感；标题、摘要与保存细节由 Drifting 管理。';
+  }
+  if (path === '/elements') {
+    return '新建要素时先选择或建立分类，再提供名称与设定正文。';
+  }
+  if (/^\/elements\/[^/]+$/u.test(path)) {
+    return `可在${workspaceDomainListItem(path)}中新建要素，只需提供名称与设定正文。`;
+  }
+  if (path === '/storylines') return '可直接用名称与说明新建故事线。';
+  if (path === '/comments') return '可新建一条批注或待办，并说明内容及其对象。';
+  if (path === '/relations') return '可用准确的实体名称和关系类型建立一条实体关系。';
+  if (path === '/memory') return '可新建、修改或删除作者规则。';
+  return null;
+}
+
+function chapterSummaryReference(path: string): string | null {
+  const match = /^\/chapters\/([^/]+)\/prose\.md$/u.exec(path);
+  return match ? `章节「${decodePathSegment(match[1]!)}」摘要` : null;
 }
 
 function workspaceDirectoryCreationGuide(path: string): string | null {
@@ -2712,11 +3443,17 @@ function workspaceDirectoryCreationGuide(path: string): string | null {
       'title.txt and meta.json are generated automatically; do not create or rewrite them. If the author requests a summary, write summary.md after creation.'
     );
   }
-  if (path === '/elements' || path.startsWith('/elements/')) {
+  if (path === '/elements') {
     return (
       'Elements are canon entities such as people, places, organizations, and objects. Author terms 灵感 or 漂移 belong under /drifts, never an /elements/灵感 category unless explicitly requested. Create one element with one write_file to /elements/<category>/<name>/body.md containing its complete initial profile. ' +
       'If the author did not name a category, list /elements once and reuse the closest existing category; create a new category only when no suitable one exists. ' +
       'name.txt, category.txt, and meta.json are generated automatically; do not create or rewrite them. A clearly labeled 摘要 or Summary section inside the initial body.md initializes the separate summary field in the same transaction; otherwise write summary.md separately when requested. aliases.json, facts.json, and group.txt are optional.'
+    );
+  }
+  if (/^\/elements\/[^/]+$/u.test(path)) {
+    return (
+      `Create one element in this category with one write_file to ${path}/<name>/body.md ` +
+      'containing its complete initial profile. Generated identity and metadata files need no separate write.'
     );
   }
   if (path === '/storylines' || path === '/categories') {
@@ -2748,6 +3485,8 @@ function workspaceDirectoryCreationGuide(path: string): string | null {
 function resolveWorkspacePath(projectId: string, value: unknown): string {
   const normalized = normalizeVirtualPath(value);
   if (normalized === '/') return normalized;
+  const collectionAlias = semanticCollectionPath(normalized);
+  if (collectionAlias) return collectionAlias;
   const entries = buildWorkspaceEntries(projectId);
   const paths = new Set<string>(['/']);
   for (const entry of entries) {
@@ -2758,10 +3497,96 @@ function resolveWorkspacePath(projectId: string, value: unknown): string {
     }
   }
   if (paths.has(normalized)) return normalized;
+  const semanticChapterField = resolveSemanticChapterFieldAlias(entries, normalized);
+  if (semanticChapterField && paths.has(semanticChapterField)) return semanticChapterField;
   const chapterAlias = resolveChapterOrdinalAlias(entries, normalized);
   if (chapterAlias && paths.has(chapterAlias)) return chapterAlias;
   const suffixMatches = [...paths].filter((path) => path.endsWith(normalized));
   return suffixMatches.length === 1 ? suffixMatches[0]! : normalized;
+}
+
+function missingAuthoredTargetMessage(projectId: string, value: unknown): string | null {
+  const normalized = normalizeVirtualPath(value);
+  const segments = normalized.split('/').filter(Boolean);
+  const referenceIndex = segments[0] === 'chapters' ? 1 : 0;
+  const rawReference = segments[referenceIndex];
+  if (!rawReference) return null;
+  const decoded = decodePathSegment(rawReference).trim();
+  const withoutField = decoded.replace(/\s*(正文|摘要|标题)$/u, '').trim();
+  if (parseChapterOrdinal(withoutField) === null) return null;
+
+  void projectId;
+  return (
+    `${withoutField}尚未创建。` +
+    `如果当前任务包含它，可以直接按作者已有素材写出正文并同时建立摘要。`
+  );
+}
+
+function authoredQueryExcerpt(content: string, query: string): string {
+  const text = projectAuthoredTextForModel(content).text;
+  const at = text.toLocaleLowerCase().indexOf(query.toLocaleLowerCase());
+  if (at < 0) return '';
+  const lineStart = text.lastIndexOf('\n', at - 1) + 1;
+  const paragraphEnd = text.indexOf('\n\n', at + query.length);
+  const end = paragraphEnd < 0 ? text.length : paragraphEnd;
+  return text.slice(lineStart, end).trim();
+}
+
+function missingAuthoredTargetQuery(value: unknown): string | null {
+  const normalized = normalizeVirtualPath(value);
+  const segments = normalized.split('/').filter(Boolean);
+  const referenceIndex = segments[0] === 'chapters' ? 1 : 0;
+  const rawReference = segments[referenceIndex];
+  if (!rawReference) return null;
+  const reference = decodePathSegment(rawReference)
+    .replace(/\s*(正文|摘要|标题)$/u, '')
+    .trim();
+  return parseChapterOrdinal(reference) === null ? null : reference;
+}
+
+function resolveSemanticChapterFieldAlias(
+  entries: readonly WorkspaceEntry[],
+  normalized: string,
+): string | null {
+  const match = /^\/?(章节|灵感|漂移)[「“"](.+?)[」”"](正文|摘要|标题)?$/u.exec(
+    normalized,
+  );
+  if (!match) return null;
+  const nodeKind = match[1] === '章节' ? 'chapter' : 'drift';
+  const name = match[2]!.trim();
+  const matches = entries.filter((entry) => {
+    const target = entry.target;
+    return (
+      isNodeTarget(target) &&
+      target.kind === 'node_prose' &&
+      target.nodeKind === nodeKind &&
+      target.nodeName.trim() === name
+    );
+  });
+  if (matches.length !== 1) return null;
+  const base = matches[0]!.path.replace(/\/prose\.md$/u, '');
+  const file =
+    match[3] === '摘要' ? 'summary.md' : match[3] === '标题' ? 'title.txt' : 'prose.md';
+  return `${base}/${file}`;
+}
+
+function semanticCollectionPath(path: string): string | null {
+  const aliases: Record<string, string> = {
+    '/作品': '/',
+    '/章节': '/chapters',
+    '/灵感': '/drifts',
+    '/漂移': '/drifts',
+    '/元素': '/elements',
+    '/要素': '/elements',
+    '/故事线': '/storylines',
+    '/要素分类': '/categories',
+    '/批注': '/comments',
+    '/待办': '/comments',
+    '/关系': '/relations',
+    '/作者规则': '/memory',
+    '/写作规则': '/memory',
+  };
+  return aliases[path] ?? null;
 }
 
 const VIRTUAL_WORKSPACE_ROOTS = new Set([
@@ -2889,7 +3714,11 @@ function resolveChapterOrdinalAlias(
 ): string | null {
   const segments = normalized.split('/').filter(Boolean);
   const referenceIndex = segments[0] === 'chapters' ? 1 : 0;
-  const reference = segments[referenceIndex];
+  const rawReference = segments[referenceIndex];
+  const naturalField = rawReference
+    ? /^(.*?)(正文|摘要|标题)$/u.exec(decodePathSegment(rawReference))
+    : null;
+  const reference = naturalField?.[1] || rawReference;
   if (!reference) return null;
   const ordinal = parseChapterOrdinal(decodePathSegment(reference));
   if (ordinal === null) return null;
@@ -2912,11 +3741,34 @@ function resolveChapterOrdinalAlias(
       .bookNodes.find((candidate) => candidate.id === target.nodeId);
     return node?.bookOrder === ordinal;
   });
-  const matches = numericTitleMatches.length > 0 ? numericTitleMatches : orderMatches;
+  const projectUsesNumericChapterTitles = entries.some((entry) => {
+    const target = entry.target;
+    return (
+      isNodeTarget(target) &&
+      target.kind === 'node_prose' &&
+      target.nodeKind === 'chapter' &&
+      /^\d+$/u.test(target.nodeName.trim())
+    );
+  });
+  // Numeric-titled manuscripts use that title as their authored chapter
+  // identity. Falling back to layout order when one number is absent can map
+  // "第十六章" onto an unrelated earlier chapter whose bookOrder happens
+  // to be 16. Order aliases remain available only for projects whose chapter
+  // titles are non-numeric.
+  const matches = projectUsesNumericChapterTitles ? numericTitleMatches : orderMatches;
   if (matches.length !== 1) return null;
   const base = matches[0]!.path.replace(/\/prose\.md$/, '');
   const remainder = segments.slice(referenceIndex + 1);
-  return remainder.length > 0 ? `${base}/${remainder.join('/')}` : base;
+  if (remainder.length > 0) return `${base}/${remainder.join('/')}`;
+  const naturalFile =
+    naturalField?.[2] === '正文'
+      ? 'prose.md'
+      : naturalField?.[2] === '摘要'
+        ? 'summary.md'
+        : naturalField?.[2] === '标题'
+          ? 'title.txt'
+          : null;
+  return naturalFile ? `${base}/${naturalFile}` : base;
 }
 
 function parseChapterOrdinal(value: string): number | null {
@@ -2972,6 +3824,14 @@ function decodePathSegment(value: string): string {
 
 function pathIsWithin(path: string, prefix: string): boolean {
   return prefix === '/' || path === prefix || path.startsWith(`${prefix}/`);
+}
+
+function isWorkspaceNoopPreparationError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.message === 'The requested replacements do not change the file' ||
+    /^".*" already has the requested contents$/u.test(error.message)
+  );
 }
 
 function currentNode(nodeId: string, projectId: string) {

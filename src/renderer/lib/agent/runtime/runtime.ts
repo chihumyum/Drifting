@@ -468,6 +468,34 @@ function searchableMessageText(message: AgentModelMessage): string {
     .join('\n');
 }
 
+function isBareToolSearchContinuation(value: string): boolean {
+  const prompt = value.trim();
+  if (prompt.length > 64) return false;
+  return /^(?:(?:请)?继续(?:把)?(?:刚才|之前|上次)?(?:的)?(?:任务|工作)?(?:做完|完成|下去)?|接着(?:做|来|继续)?|接下去|go\s+on|continue|resume|keep\s+going)[。.!！ ]*$/iu.test(
+    prompt,
+  );
+}
+
+function toolSearchOriginalRequest(
+  prompt: string,
+  messages: readonly AgentModelMessage[],
+): string {
+  if (!isBareToolSearchContinuation(prompt)) return prompt;
+  let skippedCurrentPrompt = false;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== 'user') continue;
+    const content = message.content.trim();
+    if (!content) continue;
+    if (!skippedCurrentPrompt && content === prompt.trim()) {
+      skippedCurrentPrompt = true;
+      continue;
+    }
+    if (!isBareToolSearchContinuation(content)) return content;
+  }
+  return prompt;
+}
+
 /**
  * Keep retrieval deterministic and bounded. The original request remains the
  * stable anchor; only the four most recent assistant/tool messages can affect
@@ -477,6 +505,7 @@ export function buildAgentToolSearchQuery(
   prompt: string,
   messages: readonly AgentModelMessage[],
 ): string {
+  const originalRequest = toolSearchOriginalRequest(prompt, messages);
   const recent = messages
     .map((message) => searchableMessageText(message))
     .filter((value) => value.trim().length > 0)
@@ -484,7 +513,7 @@ export function buildAgentToolSearchQuery(
     .map((value) => clipped(value, TOOL_SEARCH_RECENT_MESSAGE_CHARS));
   return clipped(
     [
-      `original request:\n${clipped(prompt, TOOL_SEARCH_PROMPT_CHARS)}`,
+      `original request:\n${clipped(originalRequest, TOOL_SEARCH_PROMPT_CHARS)}`,
       ...recent.map((value) => `recent work:\n${value}`),
     ].join('\n'),
     TOOL_SEARCH_QUERY_CHARS,
@@ -1119,12 +1148,13 @@ export class AgentRuntime {
       });
     };
 
-    const executeOne = async (call: MutableToolCall): Promise<void> => {
+    const executeOne = async (call: MutableToolCall, iteration: number): Promise<void> => {
       if (!call.definition || !call.validatedArguments || call.result) return;
       checkBeforeWork();
       const request = {
         sessionId: input.sessionId,
         turnId: input.turnId,
+        iteration,
         callId: call.callId,
         idempotencyKey: `${input.sessionId}:${input.turnId}:${call.callId}`,
         name: call.name,
@@ -1208,7 +1238,10 @@ export class AgentRuntime {
       };
     };
 
-    const executeReadBatch = async (calls: MutableToolCall[]): Promise<void> => {
+    const executeReadBatch = async (
+      calls: MutableToolCall[],
+      iteration: number,
+    ): Promise<void> => {
       checkBeforeWork();
       const settled = await Promise.all(
         calls.map(async (call) => {
@@ -1223,6 +1256,7 @@ export class AgentRuntime {
           const request = {
             sessionId: input.sessionId,
             turnId: input.turnId,
+            iteration,
             callId: call.callId,
             idempotencyKey: `${input.sessionId}:${input.turnId}:${call.callId}`,
             name: call.name,
@@ -1290,7 +1324,10 @@ export class AgentRuntime {
       }
     };
 
-    const executeTools = async (calls: MutableToolCall[]): Promise<void> => {
+    const executeTools = async (
+      calls: MutableToolCall[],
+      iteration: number,
+    ): Promise<void> => {
       let readBatch: MutableToolCall[] = [];
       const stopUnstarted = async (startIndex: number): Promise<boolean> => {
         if (!state.stopAfterToolRequested) return false;
@@ -1309,7 +1346,7 @@ export class AgentRuntime {
         if (readBatch.length === 0) return;
         const batch = readBatch;
         readBatch = [];
-        await executeReadBatch(batch);
+        await executeReadBatch(batch, iteration);
       };
 
       for (let index = 0; index < calls.length; index += 1) {
@@ -1324,7 +1361,7 @@ export class AgentRuntime {
         }
         await flushReads();
         if (await stopUnstarted(index)) break;
-        await executeOne(call);
+        await executeOne(call, iteration);
         if (await stopUnstarted(index + 1)) break;
       }
       if (state.stopAfterToolRequested) {
@@ -1973,7 +2010,7 @@ export class AgentRuntime {
         modelFailure('Model returned an unknown stop reason');
       }
 
-      if (calls.length > 0) await executeTools(calls);
+      if (calls.length > 0) await executeTools(calls, iteration);
       const toolResults = calls.map((call) => {
         if (!call.result) {
           throw new AgentRuntimeError(

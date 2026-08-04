@@ -26,6 +26,10 @@ import {
   type AIUsage,
 } from '../../../ai/types';
 import { AgentModelDriverError } from '../errors';
+import {
+  serializeAgentContextNoteBudgetPayload,
+  serializeAgentContextSummaryProviderPayload,
+} from '../context-planner';
 import type {
   AgentModelDriver,
   AgentModelMessage,
@@ -933,16 +937,7 @@ function projectPlannedMessages(
         }
         projected.push({
           role: 'user',
-          content: JSON.stringify({
-            type: 'drifting_verified_context_summary',
-            provenance: {
-              origin: 'drifting_runtime',
-              summaryId: message.summaryId,
-              sourceCount: message.sourceIds.length,
-              sourceHash: message.sourceHash,
-            },
-            content: message.content,
-          }),
+          content: serializeAgentContextSummaryProviderPayload(message),
         });
         break;
       case 'context_note':
@@ -951,6 +946,7 @@ function projectPlannedMessages(
           (message.noteKind !== 'write_receipt' &&
             message.noteKind !== 'write_review' &&
             message.noteKind !== 'write_revert' &&
+            message.noteKind !== 'read_progress' &&
             message.noteKind !== 'freshness' &&
             message.noteKind !== 'task_plan' &&
             message.noteKind !== 'task_constraints') ||
@@ -962,16 +958,7 @@ function projectPlannedMessages(
         }
         projected.push({
           role: 'user',
-          content: JSON.stringify({
-            type: 'drifting_verified_context_note',
-            provenance: {
-              origin: 'drifting_runtime',
-              noteKind: message.noteKind,
-              sourceId: message.sourceId,
-              turnOrdinal: message.turnOrdinal,
-            },
-            content: message.content,
-          }),
+          content: serializeAgentContextNoteBudgetPayload(message),
         });
         break;
     }

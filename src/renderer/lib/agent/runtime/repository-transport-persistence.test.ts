@@ -446,6 +446,99 @@ describe('repository Agent transport persistence adapter', () => {
     expect(fake.accepted[0]?.promptMessage.ordinal).toBe(2);
   });
 
+  it('restores only the author request when explicitly continuing an aborted turn', async () => {
+    const fake = fakeRepository();
+    fake.state.session = session({ status: 'idle' });
+    fake.state.turns[0] = {
+      ...fake.state.turns[0]!,
+      status: 'aborted',
+      endedAt: LATER,
+      errorCode: null,
+      errorMessage: 'Agent turn aborted by user',
+      updatedAt: LATER,
+    };
+    fake.state.messages[0] = {
+      ...fake.state.messages[0]!,
+      content: '整体润色第八章和第九章，并同步两个摘要。',
+    };
+    const persistence = createRepositoryAgentTransportPersistence({
+      repository: fake.repository,
+      recovery: {
+        recoverSnapshot: async () => ({ providerHistory: [] }),
+        hashCheckpointContext: hashAgentRuntimeCheckpointContext,
+      },
+      resolveToolAccess: () => 'read',
+    });
+
+    await expect(
+      persistence.prepareTurn({
+        candidateSessionId: 'session-unused',
+        resumeSessionId: 'session-1',
+        newConversation: false,
+        route: {
+          kind: 'chat',
+          projectId: 'project-1',
+          conversationId: 'conversation-1',
+        },
+        provider: 'provider-old',
+        model: 'model-old',
+        turnId: 'turn-continue',
+        prompt: '继续把刚才的任务做完。',
+        acceptedAt: NOW,
+      }),
+    ).resolves.toMatchObject({
+      history: [
+        {
+          role: 'user',
+          content: '整体润色第八章和第九章，并同步两个摘要。',
+        },
+      ],
+    });
+  });
+
+  it('does not revive an aborted author request when the author changes tasks', async () => {
+    const fake = fakeRepository();
+    fake.state.session = session({ status: 'idle' });
+    fake.state.turns[0] = {
+      ...fake.state.turns[0]!,
+      status: 'aborted',
+      endedAt: LATER,
+      errorCode: null,
+      errorMessage: 'Agent turn aborted by user',
+      updatedAt: LATER,
+    };
+    fake.state.messages[0] = {
+      ...fake.state.messages[0]!,
+      content: '整体润色第八章和第九章。',
+    };
+    const persistence = createRepositoryAgentTransportPersistence({
+      repository: fake.repository,
+      recovery: {
+        recoverSnapshot: async () => ({ providerHistory: [] }),
+        hashCheckpointContext: hashAgentRuntimeCheckpointContext,
+      },
+      resolveToolAccess: () => 'read',
+    });
+
+    await expect(
+      persistence.prepareTurn({
+        candidateSessionId: 'session-unused',
+        resumeSessionId: 'session-1',
+        newConversation: false,
+        route: {
+          kind: 'chat',
+          projectId: 'project-1',
+          conversationId: 'conversation-1',
+        },
+        provider: 'provider-old',
+        model: 'model-old',
+        turnId: 'turn-new-task',
+        prompt: '改第十章结尾。',
+        acceptedAt: NOW,
+      }),
+    ).resolves.toMatchObject({ history: [] });
+  });
+
   it('repairs stale state, accepts the prompt before the provider, and commits a checkpoint from completed-turn history only', async () => {
     const fake = fakeRepository();
     const recoveredHistories: AgentModelMessage[][] = [];

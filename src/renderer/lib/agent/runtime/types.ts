@@ -296,6 +296,8 @@ export interface AgentRuntimeContext {
 export interface AgentToolExecutionRequest {
   sessionId: string;
   turnId: string;
+  /** Model iteration that emitted this call; useful for iteration-aware diagnostics. */
+  iteration?: number;
   callId: string;
   /** Stable effect key; write adapters must make duplicate delivery harmless. */
   idempotencyKey: string;

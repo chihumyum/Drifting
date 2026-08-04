@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "ead756466a2c6daf58162268c2778dc06de1912d",
-  "sourceSetSha256": "sha256:ca0ed74ba5efde22ddafb281c29aec21ee4b36c6383586eb9c217420c9c83edc",
+  "gitHead": "c7b0f5bbf018ea5874e1ec928ca15f841faebf4e",
+  "sourceSetSha256": "sha256:597da9dc70d7b1ee6d61d0d8bc0d8728d9d6855a8d569430375922986e8dca28",
   "corpusPolicy": {
     "committedTruth": "distilled fog-harbor golden fixture",
     "privateProse": "read at test runtime only; machine report stores counts and bytes, never prose",
@@ -22,10 +22,10 @@
       "contextWindowTokens": 200000,
       "slices": 3,
       "compactedSlices": 2,
-      "compactorCalls": 32,
-      "medianTokenReduction": 0.5999927489697752,
+      "compactorCalls": 29,
+      "medianTokenReduction": 0.613996818625723,
       "maxContextWindowRatio": 0.60715,
-      "finalEstimatedInputTokens": 102270
+      "finalEstimatedInputTokens": 99379
     },
     "retrieval": {
       "canon_fact": {
@@ -92,12 +92,12 @@
   },
   "vitest": {
     "files": {
-      "required": 11,
-      "discovered": 11
+      "required": 15,
+      "discovered": 15
     },
     "tests": {
-      "total": 105,
-      "passed": 105,
+      "total": 188,
+      "passed": 188,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -107,8 +107,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 2,
-          "passed": 2,
+          "total": 3,
+          "passed": 3,
           "failed": 0,
           "pending": 0
         },
@@ -118,8 +118,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 46,
-          "passed": 46,
+          "total": 56,
+          "passed": 56,
           "failed": 0,
           "pending": 0
         },
@@ -129,8 +129,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 19,
-          "passed": 19,
+          "total": 21,
+          "passed": 21,
           "failed": 0,
           "pending": 0
         },
@@ -148,11 +148,11 @@
         "passed": true
       },
       "longTaskNoDuplicateWrites": {
-        "requiredFiles": 2,
-        "discoveredFiles": 2,
+        "requiredFiles": 6,
+        "discoveredFiles": 6,
         "tests": {
-          "total": 28,
-          "passed": 28,
+          "total": 98,
+          "passed": 98,
           "failed": 0,
           "pending": 0
         },
@@ -212,6 +212,81 @@
       },
       "mixedChunkGain": {
         "requiredName": "keeps a no-gain short chunk exact while applying profitable full-compactor chunks",
+        "matches": 1,
+        "passed": true
+      },
+      "activeTurnWriteDelta": {
+        "requiredName": "drops same-turn pre-write prose after recovery while retaining the successful delta",
+        "matches": 1,
+        "passed": true
+      },
+      "focusedWorkingCopy": {
+        "requiredName": "keeps one complete same-turn working copy across focused authored edits",
+        "matches": 1,
+        "passed": true
+      },
+      "supersededRead": {
+        "requiredName": "drops an older complete read when a newer complete read covers the same authored object",
+        "matches": 1,
+        "passed": true
+      },
+      "obsoleteSummaryRetirement": {
+        "requiredName": "retires a cached summary when a later read makes one covered source discardable",
+        "matches": 1,
+        "passed": true
+      },
+      "multiChapterWorkingSet": {
+        "requiredName": "keeps a bounded multi-chapter authored working set exact when it fits the window",
+        "matches": 1,
+        "passed": true
+      },
+      "noopContextRetirement": {
+        "requiredName": "drops a successful side-effect-free write while retaining an unresolved write",
+        "matches": 1,
+        "passed": true
+      },
+      "noopWriteSettlement": {
+        "requiredName": "settles a workspace no-op as success without claiming a durable effect",
+        "matches": 1,
+        "passed": true
+      },
+      "bundledSummaryRead": {
+        "requiredName": "lets the summary bundled with a chapter read authorize a summary rewrite",
+        "matches": 1,
+        "passed": true
+      },
+      "durableReadProgress": {
+        "requiredName": "keeps complete authored reading as current domain state after body and summary writes",
+        "matches": 1,
+        "passed": true
+      },
+      "domainReadProgressPresentation": {
+        "requiredName": "retains full-read and current-summary state without transport vocabulary",
+        "matches": 1,
+        "passed": true
+      },
+      "numericOrdinalIdentity": {
+        "requiredName": "never substitutes book order for a missing number in numeric-titled manuscripts",
+        "matches": 1,
+        "passed": true
+      },
+      "dominantPassageTarget": {
+        "requiredName": "uses the dominant quoted passages to correct an accidentally misnamed read chapter",
+        "matches": 1,
+        "passed": true
+      },
+      "redundantReadDeferral": {
+        "requiredName": "defers one redundant whole-body read to the durable current working copy",
+        "matches": 1,
+        "passed": true
+      },
+      "wholeChapterSummaryReview": {
+        "requiredName": "commits whole-chapter prose and summary together and restores the summary when one block is rejected",
+        "matches": 1,
+        "passed": true
+      },
+      "wholeChapterSummaryRollback": {
+        "requiredName": "rolls back prose, summary, Yjs receipt, and sync outbox when their shared transaction fails",
         "matches": 1,
         "passed": true
       },

@@ -789,6 +789,23 @@ describe('AgentRuntime tool search integration', () => {
     expect(first).toContain('tool_5');
   });
 
+  it('uses the restored substantive author request as the tool-search anchor on a bare continuation', () => {
+    const messages: AgentModelMessage[] = [
+      {
+        role: 'user',
+        content: '第十章和第十一章接起来有点生硬。整体收拾顺一点，摘要也跟上。',
+      },
+      { role: 'user', content: '继续把刚才的任务做完。' },
+    ];
+
+    const query = buildAgentToolSearchQuery('继续把刚才的任务做完。', messages);
+
+    expect(query).toContain(
+      'original request:\n第十章和第十一章接起来有点生硬。整体收拾顺一点，摘要也跟上。',
+    );
+    expect(query).not.toContain('original request:\n继续把刚才的任务做完。');
+  });
+
   it('forwards AgentStartInput.toolSearch through the local transport', async () => {
     const select = vi.fn<AgentToolSelectionStrategy['select']>(() => ['read_node']);
     const driver = new RecordingDriver(() => endTurn());

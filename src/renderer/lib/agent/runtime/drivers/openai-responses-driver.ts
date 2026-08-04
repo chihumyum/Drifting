@@ -1,4 +1,8 @@
 import { AgentModelDriverError } from '../errors';
+import {
+  serializeAgentContextNoteBudgetPayload,
+  serializeAgentContextSummaryProviderPayload,
+} from '../context-planner';
 import type {
   AgentModelDriver,
   AgentModelMessage,
@@ -271,16 +275,7 @@ function projectResponsesInput(
       }
       projected.push({
         role: 'user',
-        content: JSON.stringify({
-          type: 'drifting_verified_context_summary',
-          provenance: {
-            origin: 'drifting_runtime',
-            summaryId: entry.summaryId,
-            sourceCount: entry.sourceIds.length,
-            sourceHash: entry.sourceHash,
-          },
-          content: entry.content,
-        }),
+        content: serializeAgentContextSummaryProviderPayload(entry),
       });
     } else {
       if (
@@ -288,6 +283,7 @@ function projectResponsesInput(
         (entry.noteKind !== 'write_receipt' &&
           entry.noteKind !== 'write_review' &&
           entry.noteKind !== 'write_revert' &&
+          entry.noteKind !== 'read_progress' &&
           entry.noteKind !== 'freshness' &&
           entry.noteKind !== 'task_plan' &&
           entry.noteKind !== 'task_constraints') ||
@@ -299,16 +295,7 @@ function projectResponsesInput(
       }
       projected.push({
         role: 'user',
-        content: JSON.stringify({
-          type: 'drifting_verified_context_note',
-          provenance: {
-            origin: 'drifting_runtime',
-            noteKind: entry.noteKind,
-            sourceId: entry.sourceId,
-            turnOrdinal: entry.turnOrdinal,
-          },
-          content: entry.content,
-        }),
+        content: serializeAgentContextNoteBudgetPayload(entry),
       });
     }
   }

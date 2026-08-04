@@ -86,6 +86,33 @@ describe('Drifting workspace-first tool selection', () => {
     ]);
   });
 
+  it('keeps a small explicit chapter range on the ordinary streaming edit surface', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request('第七章到第十章整体有点散。收拾到能顺着往下写，摘要一起补好，最后自己检查。'),
+    );
+
+    expect(selected).toEqual([
+      'read_file',
+      'write_file',
+      'edit_file',
+      'ask_user',
+    ]);
+  });
+
+  it('offers durable planning for a genuinely long explicit chapter range', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request('第一章到第八章都整理一遍，摘要也补齐。'),
+    );
+
+    expect(selected).toEqual([
+      'update_task_plan',
+      'read_file',
+      'write_file',
+      'edit_file',
+      'ask_user',
+    ]);
+  });
+
   it('offers durable planning for a fuzzy multi-stage campaign without an explicit chapter count', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
       request(
@@ -190,7 +217,6 @@ describe('Drifting workspace-first tool selection', () => {
       'read_task_plan',
       'update_task_plan',
       'update_task_step',
-      'list_files',
       'read_file',
       'write_file',
       'grep',
@@ -241,6 +267,53 @@ describe('Drifting workspace-first tool selection', () => {
       request('在第十二章开头插入一个独立段落，不要修改其他内容。'),
     );
     expect(selected).toContain('edit_file');
+    expect(selected).not.toContain('list_files');
+  });
+
+  it('opens an explicitly named chapter without exposing project inventory first', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request('第六章读起来有点散，帮我收紧一下，把人物动机和前后衔接顺一遍。'),
+    );
+    expect(selected).toEqual([
+      'read_file',
+      'write_file',
+      'edit_file',
+      'ask_user',
+    ]);
+  });
+
+  it('keeps a named chapter cleanup on the authored read and edit surface', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request('第八章有点松散，清掉明显测试痕迹，收紧正文，摘要也同步。'),
+    );
+    expect(selected).toEqual(['read_file', 'write_file', 'edit_file', 'ask_user']);
+  });
+
+  it('restores discovery after a directly named target cannot be resolved', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request(
+        'original request:\n润色第六章。\nrecent work:\n第六章 not found',
+      ),
+    );
+    expect(selected).toContain('list_files');
+  });
+
+  it('restores discovery after the semantic reader reports a missing chapter', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request(
+        'original request:\n整理第十三章。\nrecent work:\n未找到第十三章。当前作品已有章节：章节「12」。第十三章尚未创建。',
+      ),
+    );
+    expect(selected).toContain('list_files');
+  });
+
+  it('does not turn a stale paragraph edit into project-wide discovery', () => {
+    const selected = createDriftingWorkspaceToolSelectionStrategy().select(
+      request(
+        'original request:\n收紧第九章并同步摘要。\nrecent work:\nSTALE_EDIT_TARGET: The text to replace was not found in the current file.',
+      ),
+    );
+    expect(selected).toEqual(['read_file', 'write_file', 'edit_file', 'ask_user']);
   });
 
   it('keeps write_file and edit_file together for a mixed file mutation turn', () => {

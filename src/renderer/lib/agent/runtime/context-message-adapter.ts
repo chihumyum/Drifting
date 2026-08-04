@@ -42,6 +42,7 @@ const SUPPLEMENTAL_KINDS = new Set<AgentContextSupplementalKind>([
   'write_receipt',
   'write_review',
   'write_revert',
+  'read_progress',
   'freshness',
   'task_plan',
   'task_constraints',
@@ -56,6 +57,7 @@ const SOURCE_KINDS = new Set<AgentContextSourceKind>([
   'write_receipt',
   'write_review',
   'write_revert',
+  'read_progress',
   'freshness',
   'task_plan',
   'task_constraints',
@@ -65,6 +67,7 @@ export type AgentContextSupplementalKind =
   | 'write_receipt'
   | 'write_review'
   | 'write_revert'
+  | 'read_progress'
   | 'freshness'
   | 'task_plan'
   | 'task_constraints';

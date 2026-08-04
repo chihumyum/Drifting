@@ -118,6 +118,14 @@ const readPlanSchema = Type.Object(
   { additionalProperties: false },
 );
 
+const readPlanProviderSchema = Type.Object(
+  {
+    offset: Type.Optional(Type.Integer({ minimum: 0 })),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+  },
+  { additionalProperties: false },
+);
+
 /**
  * Strict command schema used at the execution boundary.  Keep the discriminated
  * branches here even though the provider-facing schema below is deliberately a
@@ -236,8 +244,6 @@ const updatePlanProviderSchema = Type.Object(
         maxItems: 32,
       }),
     ),
-    taskId: Type.Optional(Type.String({ minLength: 1, maxLength: 240 })),
-    expectedRevision: Type.Optional(Type.Integer({ minimum: 0 })),
     status: Type.Optional(
       Type.Union([
         Type.Literal('active'),
@@ -250,6 +256,62 @@ const updatePlanProviderSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+
+const updatePlanSemanticCommandSchema = Type.Union([
+  Type.Object(
+    {
+      operation: Type.Literal('create'),
+      scopeKind: Type.Literal('explicit_targets'),
+      objective: Type.String({ minLength: 1, maxLength: 4_000 }),
+      workKind: Type.Optional(workKindSchema),
+      steps: Type.Array(stepSeedSchema, { minItems: 1, maxItems: 128 }),
+      constraints: Type.Optional(
+        Type.Array(Type.String({ minLength: 1, maxLength: 2_000 }), { maxItems: 32 }),
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      operation: Type.Literal('create'),
+      scopeKind: Type.Literal('whole_book_chapters'),
+      objective: Type.String({ minLength: 1, maxLength: 4_000 }),
+      workKind: Type.Optional(workKindSchema),
+      constraints: Type.Optional(
+        Type.Array(Type.String({ minLength: 1, maxLength: 2_000 }), { maxItems: 32 }),
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      operation: Type.Literal('append_steps'),
+      steps: Type.Array(stepSeedSchema, { minItems: 1, maxItems: 128 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      operation: Type.Literal('set_objective'),
+      objective: Type.String({ minLength: 1, maxLength: 4_000 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object({ operation: Type.Literal('reconcile_manifest') }, { additionalProperties: false }),
+  Type.Object(
+    {
+      operation: Type.Literal('set_status'),
+      status: Type.Union([
+        Type.Literal('active'),
+        Type.Literal('paused'),
+        Type.Literal('blocked'),
+        Type.Literal('completed'),
+        Type.Literal('failed'),
+      ]),
+    },
+    { additionalProperties: false },
+  ),
+]);
 
 const citationSchema = Type.Object(
   {
@@ -321,6 +383,19 @@ const updateStepSchema = Type.Object(
     resultRef: Type.Optional(
       Type.Union([Type.String({ minLength: 1, maxLength: 500 }), Type.Null()]),
     ),
+    reviewResult: Type.Optional(Type.Union([reviewResultSchema, Type.Null()])),
+  },
+  { additionalProperties: false },
+);
+
+const updateStepProviderSchema = Type.Object(
+  {
+    step: Type.Union([
+      Type.Integer({ minimum: 1, description: 'One-based checklist item number' }),
+      Type.String({ minLength: 1, maxLength: 500 }),
+    ]),
+    status: Type.Union(STEP_STATUSES.map((status) => Type.Literal(status))),
+    resultNote: Type.Optional(Type.Union([Type.String({ maxLength: 4_000 }), Type.Null()])),
     reviewResult: Type.Optional(Type.Union([reviewResultSchema, Type.Null()])),
   },
   { additionalProperties: false },
@@ -403,25 +478,25 @@ type UpdatePlanInput =
     }
   | {
       operation: 'append_steps';
-      taskId: string;
-      expectedRevision: number;
+      taskId?: string;
+      expectedRevision?: number;
       steps: ProviderStepSeed[];
     }
   | {
       operation: 'set_objective';
-      taskId: string;
-      expectedRevision: number;
+      taskId?: string;
+      expectedRevision?: number;
       objective: string;
     }
   | {
       operation: 'reconcile_manifest';
-      taskId: string;
-      expectedRevision: number;
+      taskId?: string;
+      expectedRevision?: number;
     }
   | {
       operation: 'set_status';
-      taskId: string;
-      expectedRevision: number;
+      taskId?: string;
+      expectedRevision?: number;
       status: 'active' | 'paused' | 'blocked' | 'completed' | 'failed';
     };
 
@@ -501,6 +576,17 @@ function validation(schema: TSchema, input: Record<string, unknown>) {
   };
 }
 
+function validationEither(
+  schemas: readonly TSchema[],
+  input: Record<string, unknown>,
+) {
+  for (const schema of schemas) {
+    const checked = validation(schema, input);
+    if (checked.ok) return checked;
+  }
+  return validation(schemas[0]!, input);
+}
+
 function projectIdFromContext(context: AgentRuntimeContext): string | null {
   return context.route.kind === 'test'
     ? (context.route.projectId ?? null)
@@ -544,6 +630,34 @@ function nextActionableStep(plan: AgentRuntimeTaskPlan) {
     plan.steps.find((step) => step.status === 'pending') ??
     reviewSettledBlocked ??
     null
+  );
+}
+
+function resolveChecklistStep(
+  plan: AgentRuntimeTaskPlan,
+  selector: string | number,
+) {
+  if (typeof selector === 'number') {
+    const step = plan.steps.find((candidate) => candidate.ordinal === selector - 1);
+    if (step) return step;
+    throw new AgentRuntimeLongTaskConflictError(
+      'TASK_NOT_FOUND',
+      `任务清单中没有第 ${selector} 项。`,
+    );
+  }
+  const normalized = selector.trim().replace(/\s+/gu, ' ');
+  const matches = plan.steps.filter((candidate) => {
+    const labels = [candidate.title, candidate.target?.name, String(candidate.ordinal + 1)]
+      .filter((label): label is string => typeof label === 'string')
+      .map((label) => label.trim().replace(/\s+/gu, ' '));
+    return labels.includes(normalized);
+  });
+  if (matches.length === 1) return matches[0]!;
+  throw new AgentRuntimeLongTaskConflictError(
+    'TASK_NOT_FOUND',
+    matches.length === 0
+      ? `任务清单中没有“${normalized}”。`
+      : `任务清单中有多个“${normalized}”，请改用项目编号。`,
   );
 }
 
@@ -669,6 +783,47 @@ export function projectAgentLongTaskPlanForProvider(
   };
 }
 
+function taskPlanModelData(
+  projection: ReturnType<typeof projectAgentLongTaskPlanForProvider>,
+): string {
+  const statusLabel: Record<string, string> = {
+    active: '进行中',
+    paused: '已暂停',
+    blocked: '受阻',
+    completed: '已完成',
+    failed: '失败',
+    pending: '待处理',
+    in_progress: '进行中',
+    retired: '已移出当前作品',
+  };
+  const lines = [
+    `任务清单：${projection.task.objective}`,
+    `状态：${statusLabel[projection.task.status] ?? projection.task.status}`,
+    `进度：${projection.progress.completed}/${projection.progress.total} 已完成，${projection.progress.inProgress} 进行中，${projection.progress.pending} 待处理`,
+  ];
+  if (projection.chapterManifestState?.status === 'drifted') {
+    lines.push('作品章节清单已经变化，需要先更新这份任务清单。');
+  }
+  for (const step of projection.steps) {
+    const target = step.target?.name ? `（${step.target.name}）` : '';
+    const availability = step.target && 'availability' in step.target ? '，当前已不存在' : '';
+    lines.push(
+      `${step.ordinal + 1}. [${statusLabel[step.status] ?? step.status}] ${step.title}${target}${availability}${step.resultNote ? ` — ${step.resultNote}` : ''}`,
+    );
+  }
+  if (projection.activeConstraints.length > 0) {
+    lines.push(
+      '作者要求：',
+      ...projection.activeConstraints.map((constraint) => `- ${constraint.body}`),
+    );
+  }
+  const next = projection.steps.find(
+    (step) => step.status === 'in_progress' || step.status === 'pending',
+  );
+  if (next) lines.push(`下一项：${next.ordinal + 1}. ${next.title}`);
+  return lines.join('\n');
+}
+
 export class AgentLongTaskToolRuntime implements AgentToolRuntime {
   private readonly repository: AgentRuntimeLongTaskRepository;
   private readonly now: () => string;
@@ -693,26 +848,27 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_LONG_TASK_READ_TOOL,
         description:
-          'Read the durable task plan for this runtime session. Use pagination for a long whole-book plan.',
-        inputSchema: readPlanSchema,
+          'Read the current writing-task checklist. Use pagination only when a whole-book checklist is long.',
+        inputSchema: readPlanProviderSchema,
         access: 'read',
         validateInput: (input) => validation(readPlanSchema, input),
       },
       {
         name: AGENT_LONG_TASK_PLAN_TOOL,
         description:
-          'Task-level operations only: create, extend, rename, reconcile a changed whole-book chapter manifest, pause, block, fail, or complete the durable long-task plan. NEVER change an individual step with this tool; update_task_step is the only step-status tool. operation=create requires scopeKind, objective, and an explicit task workKind: edit is the default for effect-producing work; review is the default for exact-source review. Each explicit-target step may override workKind with research, edit, or review. Use a bounded research step for preparatory exploration, then separate edit/review steps for effects or conclusions; do not turn initial discovery into an unfinishable "read the entire workspace" step when concrete follow-up units are already known. Use whole_book_chapters only when the author explicitly asks for every chapter/the whole book. A chosen subset or count such as five chapters MUST use explicit_targets with one named step per target. explicit_targets requires steps; whole_book_chapters must omit steps so the runtime freezes canonical chapter order. append_steps requires taskId, expectedRevision, and steps. set_objective requires taskId, expectedRevision, and objective. reconcile_manifest requires taskId and expectedRevision and is mandatory when read_task_plan reports chapterManifestState.status=drifted. set_status requires taskId, expectedRevision, and status. Never pass a chapter or drift UUID.',
+          'Create or maintain the current writing-task checklist. create requires scopeKind and objective; explicit_targets also requires one named step per authored target, while whole_book_chapters automatically uses the current chapter order and must omit steps. append_steps adds named work, set_objective renames the task, reconcile_manifest refreshes a changed whole-book chapter list, and set_status changes the whole checklist status. Drifting resolves the active checklist and concurrency details automatically.',
         inputSchema: updatePlanProviderSchema,
         access: 'write',
-        validateInput: (input) => validation(updatePlanCommandSchema, input),
+        validateInput: (input) =>
+          validationEither([updatePlanSemanticCommandSchema, updatePlanCommandSchema], input),
       },
       {
         name: AGENT_LONG_TASK_STEP_TOOL,
         description:
-          'The only tool for changing an individual durable step status. Advance exactly one step with taskId, expectedRevision, stepId, status; there is no set_step_status operation on update_task_plan. Independent step calls may share the revision read before a parallel batch: Drifting revalidates each named step against the current plan and safely rebases only non-conflicting step transitions. Only one step may be in_progress, but a pending step may be completed directly when its work already finished. Drifting owns resultRef: omit it for edit, review, and research completion. For edit, Drifting binds an unclaimed accepted durable workspace write for that exact target made during the current task, including work completed before a newly discovered step was appended. For review, read the named prose target when there is one, or the relevant project sources for a book/project/category review, then provide structured reviewResult. For research, perform at least one successful relevant workspace read and provide a non-empty resultNote without reviewResult. Every review claim/finding needs an exact source quote.',
-        inputSchema: updateStepSchema,
+          'Change one item in the current writing-task checklist. Identify it by its one-based number, exact title, or authored target name. Only one item may be in_progress, but already-finished pending work may be marked completed directly. For review completion, include the structured reviewResult with exact authored quotes; for research completion, include a short resultNote. Drifting binds saved reads and edits automatically.',
+        inputSchema: updateStepProviderSchema,
         access: 'write',
-        validateInput: (input) => validation(updateStepSchema, input),
+        validateInput: (input) => validationEither([updateStepProviderSchema, updateStepSchema], input),
       },
       {
         name: AGENT_LONG_TASK_CONSTRAINT_TOOL,
@@ -811,21 +967,24 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
               task: null,
               message: 'No matching durable task plan exists.',
             },
+            modelData: '当前没有进行中的任务清单。',
           };
         }
         const manifestState = await this.repository.getChapterManifestState(scope, plan.task.id);
+        const projection = projectAgentLongTaskPlanForProvider(plan, {
+          offset: input.offset ?? 0,
+          limit: input.limit ?? 32,
+          manifestState,
+          ...(this.resolveCurrentChapterName
+            ? {
+                resolveCurrentChapterName: this.resolveCurrentChapterName,
+              }
+            : {}),
+        });
         return {
           ok: true,
-          data: projectAgentLongTaskPlanForProvider(plan, {
-            offset: input.offset ?? 0,
-            limit: input.limit ?? 32,
-            manifestState,
-            ...(this.resolveCurrentChapterName
-              ? {
-                  resolveCurrentChapterName: this.resolveCurrentChapterName,
-                }
-              : {}),
-          }),
+          data: projection,
+          modelData: taskPlanModelData(projection),
         };
       }
 
@@ -847,20 +1006,21 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
         scope,
         result.plan.task.id,
       );
+      const projection = projectAgentLongTaskPlanForProvider(result.plan, {
+        manifestState,
+        ...(this.resolveCurrentChapterName
+          ? {
+              resolveCurrentChapterName: this.resolveCurrentChapterName,
+            }
+          : {}),
+      });
       // Do not observe abort after commit: the write is durable and must return
       // its committed result to the runtime scheduler.
       return {
         ok: true,
         data: {
           replayed: result.outcome === 'duplicate',
-          ...projectAgentLongTaskPlanForProvider(result.plan, {
-            manifestState,
-            ...(this.resolveCurrentChapterName
-              ? {
-                  resolveCurrentChapterName: this.resolveCurrentChapterName,
-                }
-              : {}),
-          }),
+          ...projection,
           ...(result.changedStepId ? { changedStepId: result.changedStepId } : {}),
           ...(result.changedConstraintId
             ? {
@@ -871,6 +1031,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
             ? { manifestReconciliation: result.manifestReconciliation }
             : {}),
         },
+        modelData: taskPlanModelData(projection),
       };
     } catch (error) {
       if (isAgentAbort(error, request.signal)) throw error;
@@ -953,6 +1114,29 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
     });
   }
 
+  private async resolvePlanIdentity(
+    request: AgentToolExecutionRequest,
+    projectId: string,
+    taskId?: string,
+    expectedRevision?: number,
+  ): Promise<{ taskId: string; expectedRevision: number; plan: AgentRuntimeTaskPlan }> {
+    const scope = { projectId, sessionId: request.sessionId };
+    const plan = taskId
+      ? await this.repository.getPlan(scope, taskId)
+      : await this.repository.getOpenPlan(scope);
+    if (!plan) {
+      throw new AgentRuntimeLongTaskConflictError(
+        'TASK_NOT_FOUND',
+        '当前没有可更新的任务清单。',
+      );
+    }
+    return {
+      taskId: taskId ?? plan.task.id,
+      expectedRevision: expectedRevision ?? plan.task.revision,
+      plan,
+    };
+  }
+
   private async toCommand(
     request: AgentToolExecutionRequest,
     projectId: string,
@@ -999,55 +1183,87 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
         };
       }
       if (input.operation === 'append_steps') {
+        const identity = await this.resolvePlanIdentity(
+          request,
+          projectId,
+          input.taskId,
+          input.expectedRevision,
+        );
         return {
           toolName: AGENT_LONG_TASK_PLAN_TOOL,
           operation: 'append_steps',
-          taskId: input.taskId,
-          expectedRevision: input.expectedRevision,
+          taskId: identity.taskId,
+          expectedRevision: identity.expectedRevision,
           steps: await this.resolveSteps(projectId, input.steps),
         };
       }
       if (input.operation === 'set_objective') {
+        const identity = await this.resolvePlanIdentity(
+          request,
+          projectId,
+          input.taskId,
+          input.expectedRevision,
+        );
         return {
           toolName: AGENT_LONG_TASK_PLAN_TOOL,
           operation: 'set_objective',
-          taskId: input.taskId,
-          expectedRevision: input.expectedRevision,
+          taskId: identity.taskId,
+          expectedRevision: identity.expectedRevision,
           objective: input.objective.trim(),
         };
       }
       if (input.operation === 'reconcile_manifest') {
+        const identity = await this.resolvePlanIdentity(
+          request,
+          projectId,
+          input.taskId,
+          input.expectedRevision,
+        );
         return {
           toolName: AGENT_LONG_TASK_PLAN_TOOL,
           operation: 'reconcile_manifest',
-          taskId: input.taskId,
-          expectedRevision: input.expectedRevision,
+          taskId: identity.taskId,
+          expectedRevision: identity.expectedRevision,
         };
       }
+      const identity = await this.resolvePlanIdentity(
+        request,
+        projectId,
+        input.taskId,
+        input.expectedRevision,
+      );
       return {
         toolName: AGENT_LONG_TASK_PLAN_TOOL,
         operation: 'set_status',
-        taskId: input.taskId,
-        expectedRevision: input.expectedRevision,
+        taskId: identity.taskId,
+        expectedRevision: identity.expectedRevision,
         status: input.status,
       };
     }
 
     if (request.name === AGENT_LONG_TASK_STEP_TOOL) {
       const input = request.arguments as {
-        taskId: string;
-        expectedRevision: number;
-        stepId: string;
+        taskId?: string;
+        expectedRevision?: number;
+        stepId?: string;
+        step?: string | number;
         status: AgentRuntimeTaskStepStatus;
         resultNote?: string | null;
         resultRef?: string | null;
         reviewResult?: AgentRuntimeTaskStepReviewResult | null;
       };
+      const identity = await this.resolvePlanIdentity(
+        request,
+        projectId,
+        input.taskId,
+        input.expectedRevision,
+      );
+      const stepId = input.stepId ?? resolveChecklistStep(identity.plan, input.step!).id;
       return {
         toolName: AGENT_LONG_TASK_STEP_TOOL,
-        taskId: input.taskId,
-        expectedRevision: input.expectedRevision,
-        stepId: input.stepId,
+        taskId: identity.taskId,
+        expectedRevision: identity.expectedRevision,
+        stepId,
         status: input.status,
         resultNote: typeof input.resultNote === 'string' ? input.resultNote.trim() : null,
         resultRef: typeof input.resultRef === 'string' ? input.resultRef.trim() : null,

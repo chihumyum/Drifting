@@ -339,7 +339,7 @@ describe('OpenAICompatibleCompletionDriver', () => {
     });
   });
 
-  it('uses only planned context and labels summaries/notes with runtime provenance', async () => {
+  it('uses only planned context and projects runtime provenance into domain state', async () => {
     const client = new FakeCompletionClient(() => ({
       text: 'planned answer',
       finishReason: 'stop',
@@ -375,6 +375,13 @@ describe('OpenAICompatibleCompletionDriver', () => {
               turnOrdinal: null,
               content: '{"nodeId":"node-1","revision":"r1"}',
             },
+            {
+              type: 'context_note',
+              noteKind: 'write_receipt',
+              sourceId: 'write-receipt:private-session-id',
+              turnOrdinal: 1,
+              content: '章节「第三章」正文已更新。',
+            },
           ],
         },
       }),
@@ -387,29 +394,14 @@ describe('OpenAICompatibleCompletionDriver', () => {
       role: 'user',
       content: 'planned user',
     });
-    expect(sent.messages).toHaveLength(3);
-    const summary = JSON.parse(sent.messages[1]!.content);
-    expect(summary).toEqual({
-      type: 'drifting_verified_context_summary',
-      provenance: {
-        origin: 'drifting_runtime',
-        summaryId: 'summary-1',
-        sourceCount: 1,
-        sourceHash: 'sha256:summary-source',
-      },
-      content: 'verified older context',
-    });
-    const note = JSON.parse(sent.messages[2]!.content);
-    expect(note).toEqual({
-      type: 'drifting_verified_context_note',
-      provenance: {
-        origin: 'drifting_runtime',
-        noteKind: 'freshness',
-        sourceId: 'freshness/node-1',
-        turnOrdinal: null,
-      },
-      content: '{"nodeId":"node-1","revision":"r1"}',
-    });
+    expect(sent.messages).toHaveLength(4);
+    expect(sent.messages[1]!.content).toContain('[当前作品与任务状态]');
+    expect(sent.messages[1]!.content).toContain('verified older context');
+    expect(sent.messages[1]!.content).not.toMatch(/summary-1|summary-source|sourceHash/u);
+    expect(sent.messages[2]!.content).toContain('[当前作品状态]');
+    expect(sent.messages[2]!.content).not.toMatch(/node-1|revision|r1/u);
+    expect(sent.messages[3]!.content).toContain('[当前作品任务状态]');
+    expect(sent.messages[3]!.content).not.toContain('private-session-id');
   });
 
   it('fails closed for invalid planned context', async () => {

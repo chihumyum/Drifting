@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-08-03
+Updated: 2026-08-04
 
 This document is the current human-readable milestone boundary. Historical
 `P*_*.md` reports remain evidence for their original checkout and must not be
@@ -127,6 +127,31 @@ punctuation. The final vague `继续。` turn completed naturally, committed a
 `quick_check`. Exact session, failure and context metrics are in
 [`GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md`](GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md).
 
+On 2026-08-04 the provider-facing writing loop moved transport mechanics out
+of working memory. Durable writes now project one author-domain state instead
+of raw prose arguments, private receipts or revision metadata; a recovered
+success retires stale failures while a focused edit retains one complete
+same-turn working copy plus its current passages. Whole replacement still
+supersedes the old body. Chapter reads authorize their bundled summary; prose
+plus summary commits and reverts atomically; exact no-ops settle as success
+without a durable effect. Numeric chapter aliases no longer substitute
+`bookOrder` in numeric-title manuscripts. Quoted passages can correct an
+accidentally misnamed, fully read manuscript when one same-kind object is the
+strictly dominant match; one redundant post-edit read is answered from durable
+current-domain state before a second explicit request may reload the body.
+`agent-headless-debug-turn.mjs --show-thinking` supplies the machine-visible
+reasoning stream without adding it to the author transcript.
+
+The final sync-disabled four-chapter paid regression completed in three model
+iterations and 120.852 seconds with 7/7 successful calls. Its two thinking
+passes totalled 2,100 characters; mechanics, runtime metadata, character
+matching, reread intent, oversized-pass and duplicate-call counters were all
+zero. It crossed `drop_discardable`, made eight focused revisions, left one
+chapter and every already-aligned summary unchanged, and never browsed or
+reloaded a manuscript. Exact run metrics and the isolated-clone boundary are
+recorded in
+[`GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04.md`](GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04.md).
+
 ## Current product boundary
 
 - The General Agent runs in the Tauri renderer through the provider-neutral
@@ -140,6 +165,10 @@ punctuation. The final vague `继续。` turn completed naturally, committed a
 - Ordinary model turns use the virtual workspace facade; the generated
   inventory separately records its natural provider verbs and hidden domain
   operations so direct-catalog counts do not understate user-facing capability.
+- The virtual workspace is an implementation seam, not model memory. Named
+  authored targets resolve directly; successful writes replace raw tool
+  arguments and stale pre-write evidence with bounded semantic current state.
+  Serialization, revision, review and storage identities remain runtime-owned.
 - Virtual prose Markdown is now schema-locked in both directions. H1-H3,
   blockquote, horizontal rule, hard break, bold, italic, strike, underline and
   safe links map directly to the configured TipTap/Yjs structures. Unsupported

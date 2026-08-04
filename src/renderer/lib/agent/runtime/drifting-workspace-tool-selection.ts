@@ -44,6 +44,13 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
       const createIntent = mentionsCreate(query);
       const wholeFileWriteIntent = mentionsWholeFileWrite(query);
       const deleteIntent = mentionsDelete(query);
+      const directTarget = hasDirectAuthoredTarget(query, request);
+      const needsDiscovery = !directTarget || createIntent || directTargetResolutionFailed(request.query);
+      const directAuthoredEdit =
+        directTarget &&
+        !createIntent &&
+        !activeTask &&
+        !directTargetResolutionFailed(request.query);
       const result: string[] = [];
 
       if (activeTask) {
@@ -54,7 +61,7 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
         // successful long task is forced to end in an internally-active state.
         append(result, available, AGENT_LONG_TASK_PLAN_TOOL, limit);
         append(result, available, AGENT_LONG_TASK_STEP_TOOL, limit);
-        append(result, available, 'list_files', limit);
+        if (needsDiscovery) append(result, available, 'list_files', limit);
         append(result, available, 'read_file', limit);
         if (deleteIntent) append(result, available, WORKSPACE_DELETE, limit);
         // Keep the ordinary workspace verbs stable throughout an active task.
@@ -79,7 +86,26 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
         }
       }
 
-      append(result, available, 'list_files', limit);
+      // A named chapter/entity edit is the dominant writing path. Keep its
+      // surface deliberately small so a model cannot fall back into project
+      // archaeology, global search, or resource deletion while polishing one
+      // authored object. This is relevance routing, not a mutation scope: a
+      // later request can expose any project operation it actually needs.
+      if (directAuthoredEdit && !mentionsElementPatch(query)) {
+        append(result, available, 'read_file', limit);
+        if (!explicitlyReadOnly(query)) {
+          append(result, available, WORKSPACE_WRITE, limit);
+          if (mentionsResourceDelete(query)) {
+            append(result, available, WORKSPACE_DELETE, limit);
+          }
+          append(result, available, WORKSPACE_EDIT, limit);
+        }
+        if (mentionsSearch(query)) append(result, available, 'grep', limit);
+        append(result, available, ASK_USER, limit);
+        return result;
+      }
+
+      if (needsDiscovery) append(result, available, 'list_files', limit);
       append(result, available, 'read_file', limit);
       const patchIntent = mentionsElementPatch(query);
       const commentIntent = mentionsComment(query);
@@ -138,6 +164,23 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
   };
 }
 
+function hasDirectAuthoredTarget(query: string, request: AgentToolSelectionRequest): boolean {
+  if (request.hints.longTask?.nextStep?.target?.name) return true;
+  return /(?:第\s*)?[零〇一二两三四五六七八九十百千0-9]+\s*章|\/chapters\/[^\s/]+|(?:章节|灵感|漂移|人物|角色|地点|组织|要素|故事线)[「“"'][^」”"']+[」”"']/iu.test(
+    query,
+  );
+}
+
+function directTargetResolutionFailed(searchQuery: string): boolean {
+  const recentWork = searchQuery.indexOf('\nrecent work:\n');
+  if (recentWork < 0) return false;
+  const recent = searchQuery.slice(recentWork);
+  if (/STALE_EDIT_TARGET|text to replace was not found/iu.test(recent)) return false;
+  return /not found|No virtual directory exists|ambiguous|moved or was deleted|不存在|未找到|无法解析|有多个同名/iu.test(
+    recent,
+  );
+}
+
 function intentQuery(request: AgentToolSelectionRequest): string {
   const task = request.hints.longTask;
   return [
@@ -165,6 +208,11 @@ function looksLikeLongTask(query: string): boolean {
       query,
     )
   ) {
+    return true;
+  }
+
+  const chapterRangeSize = explicitChapterRangeSize(query);
+  if (chapterRangeSize !== null && chapterRangeSize >= 6) {
     return true;
   }
 
@@ -198,6 +246,58 @@ function looksLikeLongTask(query: string): boolean {
   return /(?:开头|前面|前部|前期|后面|后部|后期|中间|中部|最近|现有)?\s*(?:几|多|若干|数|好几)(?:个)?\s*章|(?:开头|前面|前部|后面|后部|中间).{0,8}(?:章节|正文)|(?:multiple|several|a\s+few|opening|early|later)\s+chapters?/i.test(
     query,
   );
+}
+
+function explicitChapterRangeSize(query: string): number | null {
+  const match = /(?:第\s*)?([零〇一二两三四五六七八九十百千0-9]+)\s*章\s*(?:到|至|—|–|-|~|～)\s*(?:第\s*)?([零〇一二两三四五六七八九十百千0-9]+)\s*章/iu.exec(
+    query,
+  );
+  if (!match) return null;
+  const start = chapterOrdinal(match[1] ?? '');
+  const end = chapterOrdinal(match[2] ?? '');
+  return start === null || end === null ? null : Math.abs(end - start) + 1;
+}
+
+function chapterOrdinal(value: string): number | null {
+  if (/^\d+$/u.test(value)) {
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  }
+  const digit = new Map<string, number>([
+    ['零', 0],
+    ['〇', 0],
+    ['一', 1],
+    ['二', 2],
+    ['两', 2],
+    ['三', 3],
+    ['四', 4],
+    ['五', 5],
+    ['六', 6],
+    ['七', 7],
+    ['八', 8],
+    ['九', 9],
+  ]);
+  if (![...value].some((character) => character === '十' || character === '百' || character === '千')) {
+    const digits = [...value].map((character) => digit.get(character));
+    if (digits.some((number) => number === undefined)) return null;
+    const parsed = Number(digits.join(''));
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  }
+  const units: Record<string, number> = { 十: 10, 百: 100, 千: 1_000 };
+  let total = 0;
+  let current = 0;
+  for (const character of value) {
+    const number = digit.get(character);
+    if (number !== undefined) {
+      current = number;
+      continue;
+    }
+    const unit = units[character];
+    if (!unit) return null;
+    total += (current || 1) * unit;
+    current = 0;
+  }
+  return total + current;
 }
 
 function explicitlyReadOnly(query: string): boolean {
@@ -238,6 +338,22 @@ function mentionsDelete(query: string): boolean {
       query,
       '删除|移除|清除|清理|清掉|删掉|delete|remove|clean\\s*up',
     ),
+  );
+}
+
+function mentionsResourceDelete(query: string): boolean {
+  const positive = withoutNegatedMutationClause(
+    query,
+    '删除|移除|清除|清理|清掉|删掉|delete|remove',
+  );
+  return /(?:删除|移除|删掉)(?:整个|整条|整项|这个|这条|该)?\s*(?:章节|灵感|漂移|要素|实体|故事线|分类|批注|待办|关系|作者规则)(?:[「“"']|$)|把\s*(?:章节|灵感|漂移|要素|实体|故事线|分类|批注|待办|关系|作者规则)[^，。；;\n]{0,30}(?:整个)?(?:删掉|删除|移除)|delete\s+(?:the\s+)?(?:chapter|drift|element|entity|storyline|category|comment|todo|relation|rule)\b|remove\s+(?:the\s+)?(?:chapter|drift|element|entity|storyline|category|comment|todo|relation|rule)\b/iu.test(
+    positive,
+  );
+}
+
+function mentionsSearch(query: string): boolean {
+  return /搜索|查找|检索|全文搜|出现在哪|哪些地方|grep|search|find\s+(?:all|every|where|occurrences?)/iu.test(
+    query,
   );
 }
 

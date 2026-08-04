@@ -217,6 +217,12 @@ name-plus-argument repeats. The audit prints bounded examples for every
 non-zero family. `SIGINT`, `SIGTERM` and `SIGHUP` print the partial audit before
 cancelling the renderer lease, so a runaway paid run still leaves evidence.
 
+Named missing chapters are returned as ordinary writable manuscript state. If
+a matching outline paragraph exists, the bridge gives that complete paragraph
+in the same result. The model should not need to list directories, open an
+entire outline, or learn a virtual filename before creating the chapter and its
+summary.
+
 ## Reversible write matrix
 
 After copying the active SQLite database, run every provider-exposed write
@@ -416,6 +422,23 @@ paid summary chunks per pass, one soft-recent recovery, conservative exact-edit
 normalization and literal metadata/relation/punctuation grep. The complete
 operator record is
 [`acceptance/GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md`](acceptance/GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md).
+
+### Domain-reasoning regression (2026-08-04)
+
+The later domain-abstraction campaign ran the real mounted renderer against an
+explicit copied database with `VITE_ENABLE_SYNC=false`, a forced 60k context
+window, `--thinking adaptive`, `--show-thinking` and no effort override. Earlier
+paid attempts exposed semantic no-op failures, stale current-reading state,
+duplicated summary punctuation, numeric-ordinal fallback, wrong-chapter quoted
+passages, mixed passage batches and redundant post-edit reads.
+
+The final vague four-chapter turn completed in three iterations and 120.852
+seconds with 7/7 successful calls. It crossed `drop_discardable`, made eight
+focused prose revisions, left already-correct content unchanged, and recorded
+the clean audit shown above: no mechanics, runtime metadata, character matching,
+reread intent, oversized reasoning or duplicate calls. Exact prompts, session
+ids, failure-driven corrections and the isolation boundary are in
+[`acceptance/GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04.md`](acceptance/GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04.md).
 
 ## Safety and fidelity
 

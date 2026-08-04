@@ -7,6 +7,11 @@
  * rows.
  */
 
+import {
+  WORKSPACE_COMPLETE_READ_MODEL_MARKER,
+  WORKSPACE_NOOP_WRITE_MODEL_MARKER,
+} from './drifting-workspace-tool-contract';
+
 export const AGENT_CONTEXT_CHECKPOINT_VERSION = 2 as const;
 export const AGENT_CONTEXT_CHECKPOINT_FORMAT = 'drifting.agent-context-checkpoint' as const;
 
@@ -23,6 +28,12 @@ const MAX_RECENT_EXACT_TOKENS = 64_000;
 // Large (200k/1m) windows still retain the 64k cap, while smaller windows keep
 // at least half of the non-semantic budget available for compacted history.
 const MAX_RECENT_EXACT_BUDGET_RATIO = 0.5;
+// Authored document reads are the Agent's active working set. If several
+// chapters were opened for one edit campaign, compressing half of them before
+// the next model iteration makes the model reopen the same prose forever.
+// Prefer keeping those exact reads while they fit, then rely on the existing
+// soft-release path if accumulated summaries genuinely need the room.
+const MAX_AUTHORED_READ_EXACT_BUDGET_RATIO = 0.8;
 const AGENT_CONTEXT_SOURCE_KINDS: ReadonlySet<AgentContextSourceKind> = new Set([
   'system_policy',
   'user',
@@ -33,6 +44,7 @@ const AGENT_CONTEXT_SOURCE_KINDS: ReadonlySet<AgentContextSourceKind> = new Set(
   'write_receipt',
   'write_review',
   'write_revert',
+  'read_progress',
   'freshness',
   'task_plan',
   'task_constraints',
@@ -51,6 +63,7 @@ export type AgentContextSourceKind =
   | 'write_receipt'
   | 'write_review'
   | 'write_revert'
+  | 'read_progress'
   | 'freshness'
   | 'task_plan'
   | 'task_constraints';
@@ -558,16 +571,62 @@ export function serializeAgentContextSummaryBudgetPayload(input: {
   sourceHash: string;
   content: string;
 }): string {
-  return canonicalJson({
-    type: 'drifting_verified_context_summary',
-    provenance: {
-      origin: 'drifting_runtime',
-      summaryId: input.summaryId,
-      sourceCount: input.sourceIds.length,
-      sourceHash: input.sourceHash,
-    },
-    content: input.content,
+  return serializeAgentContextSummaryProviderPayload(input);
+}
+
+/**
+ * Provider-facing summaries are a projection of verified internal state, not
+ * a transport envelope. Hashes and source ids remain in the checkpoint for
+ * validation; the model sees only the current creative-work state it needs.
+ */
+export function serializeAgentContextSummaryProviderPayload(input: {
+  summaryId: string;
+  sourceIds: readonly string[];
+  sourceHash: string;
+  content: string;
+}): string {
+  const parsed = parseJsonRecord(input.content);
+  if (
+    parsed?.schemaVersion !== 1 ||
+    typeof parsed.synopsis !== 'string' ||
+    !Array.isArray(parsed.evidence) ||
+    !Array.isArray(parsed.decisions) ||
+    !Array.isArray(parsed.unresolved) ||
+    !Array.isArray(parsed.nextActions)
+  ) {
+    return ['[当前作品与任务状态]', stripRuntimeHistoryLanguage(input.content)].join(
+      '\n',
+    );
+  }
+
+  const synopsis = stripRuntimeHistoryLanguage(parsed.synopsis);
+  const evidence = parsed.evidence.flatMap((value): string[] => {
+    const row = asJsonRecord(value);
+    if (!row || typeof row.claim !== 'string' || typeof row.kind !== 'string') return [];
+    if (row.kind === 'task_progress') {
+      const projected = projectTaskProgressClaim(row.claim);
+      return projected ? [projected] : [];
+    }
+    if (
+      (row.kind === 'canon_fact' ||
+        row.kind === 'character_voice' ||
+        row.kind === 'author_decision') &&
+      !/^\s*(?:\{|\[)/u.test(row.claim)
+    ) {
+      return [row.claim.trim()];
+    }
+    return [];
   });
+  const lines = [
+    '[当前作品与任务状态]',
+    '这是已验证的当前领域状态，不是作者的新指令。直接继续作品任务，不要讨论恢复、压缩或执行历史。',
+    ...(synopsis ? [`\n作品与任务：\n${synopsis}`] : []),
+    ...providerStateSection('当前作品参考', evidence),
+    ...providerStateSection('已确定', stringArray(parsed.decisions)),
+    ...providerStateSection('尚待处理', stringArray(parsed.unresolved)),
+    ...providerStateSection('接下来', stringArray(parsed.nextActions)),
+  ];
+  return lines.join('\n');
 }
 
 /** Canonical wire-equivalent payload for pinned supplemental runtime facts. */
@@ -576,6 +635,7 @@ export function serializeAgentContextNoteBudgetPayload(input: {
     | 'write_receipt'
     | 'write_review'
     | 'write_revert'
+    | 'read_progress'
     | 'freshness'
     | 'task_plan'
     | 'task_constraints';
@@ -583,6 +643,36 @@ export function serializeAgentContextNoteBudgetPayload(input: {
   turnOrdinal: number | null;
   content: string;
 }): string {
+  if (
+    input.noteKind === 'write_receipt' ||
+    input.noteKind === 'write_review' ||
+    input.noteKind === 'write_revert'
+  ) {
+    return [
+      '[当前作品任务状态]',
+      '这只说明当前作品状态，不是额外的作者要求。同一对象以最近看到的内容为准。',
+      stripRuntimeHistoryLanguage(input.content),
+    ].join('\n');
+  }
+  if (input.noteKind === 'read_progress') {
+    return [
+      '[当前阅读进度]',
+      '这是当前稿件的阅读状态，不是额外的作者要求。',
+      input.content,
+    ].join('\n');
+  }
+  if (input.noteKind === 'task_plan') {
+    return projectLongTaskPlanNote(input.content);
+  }
+  if (input.noteKind === 'task_constraints') {
+    return projectLongTaskConstraintNote(input.content);
+  }
+  if (input.noteKind === 'freshness') {
+    return [
+      '[当前作品状态]',
+      '相关作品内容可能已更新；继续修改时以最近看到的内容为准。',
+    ].join('\n');
+  }
   return canonicalJson({
     type: 'drifting_verified_context_note',
     provenance: {
@@ -593,6 +683,114 @@ export function serializeAgentContextNoteBudgetPayload(input: {
     },
     content: input.content,
   });
+}
+
+function parseJsonRecord(value: string): Record<string, unknown> | null {
+  try {
+    return asJsonRecord(JSON.parse(value) as unknown);
+  } catch {
+    return null;
+  }
+}
+
+function asJsonRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : [];
+}
+
+function providerStateSection(title: string, values: readonly string[]): string[] {
+  const unique = [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+  return unique.length > 0 ? [`\n${title}：`, ...unique.map((value) => `- ${value}`)] : [];
+}
+
+function stripRuntimeHistoryLanguage(value: string): string {
+  return value
+    .replace(
+      /Earlier verified continuation summaries were rolled up deterministically[^.]*\.?/giu,
+      '',
+    )
+    .replace(/Earlier Agent activity was compacted[^.]*\.?/giu, '')
+    .replace(/Successful reads and stable missing-target results[^.]*\.?/giu, '')
+    .replace(/较早的\s*\d+\s*项作品审阅决定已归档，涉及/gu, '当前任务涉及')
+    .replace(/已提交\s*\d+\s*项作品改动：/gu, '已修改：')
+    .replace(/你已经完成对(.+?)的一轮修改。/gu, '$1已包含本轮修改。')
+    .replace(/完成内容：将正文从\s*\d+\s*字调整为\s*\d+\s*字。?/gu, '')
+    .replace(
+      /(?:这些操作已成功保存|这些是已保存的历史决定)[^\n。]*。?/gu,
+      '',
+    )
+    .replace(/\n{3,}/gu, '\n\n')
+    .trim();
+}
+
+function projectTaskProgressClaim(value: string): string | null {
+  const currentChapter = /^(.+?)\s+已完成整章阅读；[^\n]*：\n([\s\S]+)$/u.exec(value);
+  if (currentChapter) return `${currentChapter[1]} 当前版本参考：\n${currentChapter[2]}`;
+  const genericRead = /^(?:.+? completed for )(.+?)\. This records scan progress/iu.exec(value);
+  if (genericRead) return `${genericRead[1]} 已纳入当前任务背景。`;
+  const missing = /^(?:.+? confirmed that )(.+?) did not resolve/iu.exec(value);
+  if (missing) return `${missing[1]} 当前不存在。`;
+  return stripRuntimeHistoryLanguage(value) || null;
+}
+
+function projectLongTaskPlanNote(content: string): string {
+  const parsed = parseJsonRecord(content);
+  const task = asJsonRecord(parsed?.task);
+  const progress = asJsonRecord(parsed?.progress);
+  const stepWindow = asJsonRecord(parsed?.stepWindow);
+  const steps = Array.isArray(stepWindow?.steps) ? stepWindow.steps : [];
+  if (!task || typeof task.objective !== 'string') {
+    return ['[当前长任务]', stripRuntimeHistoryLanguage(content)].join('\n');
+  }
+  const lines = [
+    '[当前长任务]',
+    `目标：${task.objective}`,
+    ...(typeof progress?.completed === 'number' && typeof progress?.total === 'number'
+      ? [`进度：${progress.completed}/${progress.total} 步已完成。`]
+      : []),
+  ];
+  const projectedSteps = steps.flatMap((value): string[] => {
+    const step = asJsonRecord(value);
+    if (!step || typeof step.title !== 'string' || typeof step.status !== 'string') return [];
+    const target = asJsonRecord(step.target);
+    const targetName =
+      typeof target?.name === 'string'
+        ? target.name
+        : typeof target?.title === 'string'
+          ? target.title
+          : '';
+    const status =
+      step.status === 'completed'
+        ? '已完成'
+        : step.status === 'in_progress'
+          ? '进行中'
+          : step.status === 'blocked'
+            ? '受阻'
+            : '待处理';
+    return [`- ${step.title}${targetName ? `（${targetName}）` : ''}：${status}`];
+  });
+  if (projectedSteps.length > 0) lines.push('当前步骤：', ...projectedSteps);
+  lines.push('从“进行中”的步骤继续；若没有，则处理第一个“待处理”步骤。不要重复已完成内容。');
+  return lines.join('\n');
+}
+
+function projectLongTaskConstraintNote(content: string): string {
+  const parsed = parseJsonRecord(content);
+  const constraints = Array.isArray(parsed?.activeConstraints) ? parsed.activeConstraints : [];
+  const bodies = constraints.flatMap((value): string[] => {
+    const row = asJsonRecord(value);
+    return typeof row?.body === 'string' && row.body.trim() ? [row.body.trim()] : [];
+  });
+  return bodies.length > 0
+    ? ['[作者为当前任务设定的规则]', ...bodies.map((body) => `- ${body}`)].join('\n')
+    : '[作者为当前任务设定的规则]\n无额外规则。';
 }
 
 export function computeAgentContextBudget(input: {
@@ -636,13 +834,15 @@ export function computeAgentContextBudget(input: {
 export function classifyAgentContextSource(
   row: AgentContextSourceRow,
   constraintSourceIds?: ReadonlySet<string>,
-  durablyCoveredWriteSourceIds?: ReadonlySet<string>,
+  durablyDiscardableToolSourceIds?: ReadonlySet<string>,
+  activeDurableWriteSourceIds?: ReadonlySet<string>,
 ): AgentContextClass {
   switch (row.kind) {
     case 'system_policy':
     case 'write_receipt':
     case 'write_review':
     case 'write_revert':
+    case 'read_progress':
     case 'freshness':
     case 'task_plan':
     case 'task_constraints':
@@ -655,9 +855,14 @@ export function classifyAgentContextSource(
       return 'discardable';
     case 'tool_call':
     case 'tool_result':
-      return row.toolAccess === 'write' && !durablyCoveredWriteSourceIds?.has(row.sourceId)
-        ? 'pinned'
-        : 'compressible';
+      if (durablyDiscardableToolSourceIds?.has(row.sourceId)) return 'discardable';
+      // A settled write from the active turn is safe to compact, but its exact
+      // domain delta is still useful working memory until the turn ends. Treat
+      // it like an ordinary recent row instead of erasing it immediately or
+      // pinning an arbitrarily large manuscript replacement forever.
+      if (activeDurableWriteSourceIds?.has(row.sourceId)) return 'compressible';
+      if (row.toolAccess !== 'write') return 'compressible';
+      return 'pinned';
     case 'assistant_narrative':
       return 'compressible';
   }
@@ -952,9 +1157,16 @@ function recentExactSourceIds(input: {
       recentTurns.has(row.turnOrdinal) &&
       input.classifications.get(row.sourceId) === 'compressible',
   );
+  const units = groupAgentContextRowsByToolTopology(candidates);
+  const hasAuthoredRead = units.some(isAuthoredReadUnit);
   const cap = Math.min(
     MAX_RECENT_EXACT_TOKENS,
-    Math.floor(input.availableTokens * MAX_RECENT_EXACT_BUDGET_RATIO),
+    Math.floor(
+      input.availableTokens *
+        (hasAuthoredRead
+          ? MAX_AUTHORED_READ_EXACT_BUDGET_RATIO
+          : MAX_RECENT_EXACT_BUDGET_RATIO),
+    ),
   );
   const candidateTokens = candidates.reduce(
     (total, row) => total + estimateSourceTokens(row, input.estimator),
@@ -964,18 +1176,30 @@ function recentExactSourceIds(input: {
 
   const selected = new Set<string>();
   let selectedTokens = 0;
-  const units = groupAgentContextRowsByToolTopology(candidates);
-  for (let index = units.length - 1; index >= 0; index -= 1) {
-    const unit = units[index]!;
+  const newestFirst = [...units].reverse();
+  const prioritized = [
+    ...newestFirst.filter(isAuthoredReadUnit),
+    ...newestFirst.filter((unit) => !isAuthoredReadUnit(unit)),
+  ];
+  for (const unit of prioritized) {
     const unitTokens = unit.reduce(
       (total, row) => total + estimateSourceTokens(row, input.estimator),
       0,
     );
-    if (selectedTokens + unitTokens > cap) break;
+    // A single verbose assistant message must not prevent later compact
+    // authored reads from being retained. Skip an oversized unit and keep
+    // considering other topology-safe units.
+    if (selectedTokens + unitTokens > cap) continue;
     for (const row of unit) selected.add(row.sourceId);
     selectedTokens += unitTokens;
   }
   return selected;
+}
+
+function isAuthoredReadUnit(rows: readonly AgentContextSourceRow[]): boolean {
+  return rows.some(
+    (row) => row.toolAccess === 'read' && row.toolName === 'read_file',
+  );
 }
 
 /**
@@ -1162,7 +1386,252 @@ function durablyCoveredWriteSourceIds(input: {
     covered.add(pair.call.sourceId);
     covered.add(pair.result.sourceId);
   }
+
+  // A recovered write must not keep poisoning later reasoning with an older
+  // raw failure for the same authored target. The canonical rows remain in
+  // the checkpoint for audit/recovery, but a later durable success is the
+  // authoritative provider-facing state. This is intentionally conservative:
+  // only explicit failed results with a stable target fingerprint and a later
+  // durably covered write are superseded.
+  const coveredPairs = input.toolPairs.filter(
+    (pair) => covered.has(pair.call.sourceId) && covered.has(pair.result.sourceId),
+  );
+  for (const pair of input.toolPairs) {
+    if (
+      pair.call.toolAccess !== 'write' ||
+      covered.has(pair.call.sourceId) ||
+      !toolResultExplicitlyFailed(pair.result)
+    ) {
+      continue;
+    }
+    const target = writeToolTargetFingerprint(pair.call);
+    if (!target) continue;
+    const recovered = coveredPairs.some(
+      (candidate) =>
+        candidate.call.ordinal > pair.result.ordinal &&
+        writeToolTargetFingerprint(candidate.call) === target,
+    );
+    if (!recovered) continue;
+    covered.add(pair.call.sourceId);
+    covered.add(pair.result.sourceId);
+  }
   return covered;
+}
+
+function parsedToolPayload(row: AgentContextSourceRow): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(row.content) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function toolResultExplicitlyFailed(row: AgentContextSourceRow): boolean {
+  return parsedToolPayload(row)?.ok === false;
+}
+
+function successfulNoopWriteSourceIds(toolPairs: readonly ToolPair[]): Set<string> {
+  const discardable = new Set<string>();
+  for (const pair of toolPairs) {
+    if (pair.call.toolAccess !== 'write' || pair.result.toolAccess !== 'write') continue;
+    const result = parsedToolPayload(pair.result);
+    if (
+      result?.ok !== true ||
+      typeof result.content !== 'string' ||
+      !result.content.includes(WORKSPACE_NOOP_WRITE_MODEL_MARKER)
+    ) {
+      continue;
+    }
+    discardable.add(pair.call.sourceId);
+    discardable.add(pair.result.sourceId);
+  }
+  return discardable;
+}
+
+function writeToolTargetFingerprint(row: AgentContextSourceRow): string | null {
+  const target = authoredToolTargetFingerprint(row);
+  return target ? canonicalJson({ toolName: row.toolName, target }) : null;
+}
+
+function authoredToolTargetFingerprint(row: AgentContextSourceRow): string | null {
+  const payload = parsedToolPayload(row);
+  const arguments_ = payload?.arguments;
+  if (!arguments_ || typeof arguments_ !== 'object' || Array.isArray(arguments_)) return null;
+  const record = arguments_ as Record<string, unknown>;
+  const targetKeys = [
+    'path',
+    'node',
+    'entity',
+    'element',
+    'storyline',
+    'category',
+    'comment',
+    'relation',
+    'memory',
+    'id',
+    'name',
+    'title',
+    'from',
+    'to',
+  ] as const;
+  const target = Object.fromEntries(
+    targetKeys.flatMap((key) => {
+      const value = record[key];
+      if (typeof value !== 'string' || !value.trim()) return [];
+      return [[key, key === 'path' ? normalizeAuthoredWorkspacePath(value) : value.trim()]];
+    }),
+  );
+  return Object.keys(target).length > 0 ? canonicalJson(target) : null;
+}
+
+function normalizeAuthoredWorkspacePath(value: string): string {
+  const path = `/${value.trim().split('/').filter(Boolean).join('/')}`;
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length === 2 && (segments[0] === 'chapters' || segments[0] === 'drifts')) {
+    return `${path}/prose.md`;
+  }
+  if (segments.length === 2 && (segments[0] === 'storylines' || segments[0] === 'categories')) {
+    return `${path}/body.md`;
+  }
+  if (segments.length === 3 && segments[0] === 'elements') {
+    return `${path}/body.md`;
+  }
+  return path;
+}
+
+function staleReadSourceIds(input: {
+  toolPairs: readonly ToolPair[];
+  durablyCoveredWriteSourceIds: ReadonlySet<string>;
+}): Set<string> {
+  const stale = new Set<string>();
+  const committedTargets = input.toolPairs.flatMap((pair) => {
+    if (
+      pair.call.toolAccess !== 'write' ||
+      !input.durablyCoveredWriteSourceIds.has(pair.call.sourceId) ||
+      !input.durablyCoveredWriteSourceIds.has(pair.result.sourceId)
+    ) {
+      return [];
+    }
+    const target = authoredToolTargetFingerprint(pair.call);
+    const resultContent = parsedToolPayload(pair.result)?.content;
+    return target
+      ? [{
+          ordinal: pair.call.ordinal,
+          turnOrdinal: pair.call.turnOrdinal,
+          target,
+          focusedEdit: pair.call.toolName === 'edit_file',
+          completeReadCarriedForward:
+            typeof resultContent === 'string' &&
+            resultContent.includes(WORKSPACE_COMPLETE_READ_MODEL_MARKER),
+        }]
+      : [];
+  });
+  if (committedTargets.length === 0) return stale;
+  for (const pair of input.toolPairs) {
+    if (
+      pair.call.toolAccess !== 'read' ||
+      (pair.call.toolName !== 'read_file' && pair.call.toolName !== 'grep')
+    ) {
+      continue;
+    }
+    const target = authoredToolTargetFingerprint(pair.call);
+    if (!target) continue;
+    const laterWrites = committedTargets.filter(
+      (committed) =>
+        committed.ordinal > pair.result.ordinal &&
+        committed.target === target,
+    );
+    if (laterWrites.length === 0) {
+      continue;
+    }
+    const keepCurrentWorkingCopy =
+      pair.call.toolName === 'read_file' &&
+      laterWrites.every(
+        (write) => write.turnOrdinal === pair.call.turnOrdinal && write.focusedEdit,
+      ) &&
+      laterWrites.some((write) => write.completeReadCarriedForward);
+    if (keepCurrentWorkingCopy) continue;
+    stale.add(pair.call.sourceId);
+    stale.add(pair.result.sourceId);
+  }
+  return stale;
+}
+
+function activeTurnDurableWriteSourceIds(input: {
+  rows: readonly AgentContextSourceRow[];
+  toolPairs: readonly ToolPair[];
+  durablyCoveredSourceIds: ReadonlySet<string>;
+}): Set<string> {
+  const latestTurnOrdinal = input.rows.reduce<number | null>(
+    (latest, row) =>
+      row.turnOrdinal === null || (latest !== null && row.turnOrdinal <= latest)
+        ? latest
+        : row.turnOrdinal,
+    null,
+  );
+  const active = new Set<string>();
+  if (latestTurnOrdinal === null) return active;
+  for (const pair of input.toolPairs) {
+    if (
+      pair.call.turnOrdinal !== latestTurnOrdinal ||
+      !input.durablyCoveredSourceIds.has(pair.call.sourceId) ||
+      !input.durablyCoveredSourceIds.has(pair.result.sourceId) ||
+      parsedToolPayload(pair.result)?.ok !== true
+    ) {
+      continue;
+    }
+    active.add(pair.call.sourceId);
+    active.add(pair.result.sourceId);
+  }
+  return active;
+}
+
+/**
+ * Keep only the newest complete read of one authored object in provider
+ * context. Canonical history remains untouched, but an older full read cannot
+ * be more current than a later successful full read of the same target. This
+ * prevents harmless verification reads from accumulating into a context loop.
+ * Partial pages are deliberately excluded because each page may carry unique
+ * prose needed for a complete document read.
+ */
+function supersededReadSourceIds(toolPairs: readonly ToolPair[]): Set<string> {
+  const superseded = new Set<string>();
+  const newestByTarget = new Map<string, ToolPair>();
+  for (const pair of toolPairs) {
+    const target = completeReadTargetFingerprint(pair);
+    if (!target) continue;
+    const previous = newestByTarget.get(target);
+    if (previous) {
+      superseded.add(previous.call.sourceId);
+      superseded.add(previous.result.sourceId);
+    }
+    newestByTarget.set(target, pair);
+  }
+  return superseded;
+}
+
+function completeReadTargetFingerprint(pair: ToolPair): string | null {
+  if (
+    pair.call.toolAccess !== 'read' ||
+    pair.call.toolName !== 'read_file' ||
+    parsedToolPayload(pair.result)?.ok !== true
+  ) {
+    return null;
+  }
+  const call = parsedToolPayload(pair.call);
+  const arguments_ = call?.arguments;
+  if (!arguments_ || typeof arguments_ !== 'object' || Array.isArray(arguments_)) return null;
+  const record = arguments_ as Record<string, unknown>;
+  const offset = record.offset;
+  if (offset !== undefined && offset !== 0) return null;
+  const result = parsedToolPayload(pair.result);
+  const content = typeof result?.content === 'string' ? result.content : '';
+  if (!content || /这份内容尚未读完|"truncated"\s*:\s*true/iu.test(content)) return null;
+  const target = authoredToolTargetFingerprint(pair.call);
+  return target ? canonicalJson({ toolName: pair.call.toolName, target }) : null;
 }
 
 async function applySummaryBatch(input: {
@@ -1207,6 +1676,11 @@ async function applySummaryBatch(input: {
     }
     for (const row of sourceRows) {
       if (input.classifications.get(row.sourceId) !== 'compressible') {
+        // Cached verified summaries are projections, not canonical truth. A
+        // later read or write can make one of their sources obsolete between
+        // model iterations. Silently retire that cached candidate; only a
+        // freshly returned full-compactor candidate is a protocol violation.
+        if (input.protectedPolicy === 'skip') break;
         throw new PlannerFailure(
           'INVALID_SUMMARY',
           `Summary "${candidate.summaryId}" attempts to replace pinned or discardable source "${row.sourceId}".`,
@@ -1214,11 +1688,22 @@ async function applySummaryBatch(input: {
       }
       const representation = projection.coverage.get(row.sourceId);
       if (!representation) {
+        if (input.protectedPolicy === 'skip') break;
         throw new PlannerFailure(
           'INVALID_SUMMARY',
           `Summary "${candidate.summaryId}" references an unrepresented source.`,
         );
       }
+    }
+    if (
+      input.protectedPolicy === 'skip' &&
+      sourceRows.some(
+        (row) =>
+          input.classifications.get(row.sourceId) !== 'compressible' ||
+          !projection.coverage.has(row.sourceId),
+      )
+    ) {
+      continue;
     }
     const actualSourceHash = await hashAgentContextSourceRows(sourceRows);
     if (candidate.sourceHash !== actualSourceHash) {
@@ -1640,7 +2125,12 @@ async function validateFinalProjection(input: {
       callRepresentation?.type === 'summary' &&
       resultRepresentation?.type === 'summary' &&
       callRepresentation.id === resultRepresentation.id;
-    if (!bothOriginal && !sameSummary) {
+    const bothDurablyDiscarded =
+      callRepresentation === undefined &&
+      resultRepresentation === undefined &&
+      input.classifications.get(pair.call.sourceId) === 'discardable' &&
+      input.classifications.get(pair.result.sourceId) === 'discardable';
+    if (!bothOriginal && !sameSummary && !bothDurablyDiscarded) {
       throw new PlannerFailure(
         'INVALID_SUMMARY',
         `Projected context splits tool pair "${pair.key}".`,
@@ -1705,10 +2195,28 @@ export async function planAgentContext(
       sourceById,
       toolPairs,
     });
+    const activeDurableWriteSourceIds = activeTurnDurableWriteSourceIds({
+      rows,
+      toolPairs,
+      durablyCoveredSourceIds: coveredWriteSourceIds,
+    });
+    const discardableToolSourceIds = new Set([
+      ...[...coveredWriteSourceIds].filter(
+        (sourceId) => !activeDurableWriteSourceIds.has(sourceId),
+      ),
+      ...successfulNoopWriteSourceIds(toolPairs),
+      ...staleReadSourceIds({ toolPairs, durablyCoveredWriteSourceIds: coveredWriteSourceIds }),
+      ...supersededReadSourceIds(toolPairs),
+    ]);
     const classifications = new Map(
       rows.map((row) => [
         row.sourceId,
-        classifyAgentContextSource(row, constraintLedger.sourceIds, coveredWriteSourceIds),
+        classifyAgentContextSource(
+          row,
+          constraintLedger.sourceIds,
+          discardableToolSourceIds,
+          activeDurableWriteSourceIds,
+        ),
       ]),
     );
     const initialTokens = rows.reduce(

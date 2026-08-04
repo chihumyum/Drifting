@@ -287,7 +287,10 @@ export function createRepositoryAgentTransportPersistence(
       }
 
       const snapshot = recoveredSnapshot?.snapshot ?? null;
-      const history = recoveredSnapshot?.providerHistory ?? [];
+      const history = [
+        ...(recoveredSnapshot?.providerHistory ?? []),
+        ...(snapshot ? interruptedAuthorIntentForContinuation(snapshot, input.prompt) : []),
+      ];
       const nextTurnOrdinal =
         (snapshot?.turns[snapshot.turns.length - 1]?.ordinal ?? -1) + 1;
       const nextMessageOrdinal =
@@ -703,6 +706,46 @@ const defaultRecoveryCodec: AgentRuntimeRecoveryCodec = {
   recoverSnapshot: recoverAgentRuntimeSnapshot,
   hashCheckpointContext: hashAgentRuntimeCheckpointContext,
 };
+
+/**
+ * An aborted turn must not adopt partial assistant output, but the author's
+ * request remains the task identity. When the next message explicitly asks to
+ * continue, restore only the substantive prompts from the trailing aborted
+ * turns. A new unrelated request keeps the historical fail-closed behavior.
+ */
+function interruptedAuthorIntentForContinuation(
+  snapshot: AgentRuntimeRecoverySnapshot,
+  currentPrompt: string,
+): AgentModelMessage[] {
+  if (!looksLikeContinuationRequest(currentPrompt)) return [];
+  const messagesById = new Map(snapshot.messages.map((message) => [message.id, message]));
+  const prompts: string[] = [];
+  for (const turn of [...snapshot.turns].sort((left, right) => right.ordinal - left.ordinal)) {
+    if (turn.status !== 'aborted') break;
+    const row = turn.promptMessageId ? messagesById.get(turn.promptMessageId) : null;
+    if (row?.role !== 'user' || typeof row.content !== 'string') continue;
+    const prompt = row.content.trim();
+    if (!prompt || isBareContinuationPrompt(prompt) || prompts.includes(prompt)) continue;
+    prompts.unshift(prompt);
+    if (prompts.length >= 3) break;
+  }
+  return prompts.map((content) => ({ role: 'user' as const, content }));
+}
+
+function looksLikeContinuationRequest(value: string): boolean {
+  const prompt = value.trim();
+  return /^(?:继续|接着|接下去|接上次|从刚才|把刚才|完成刚才|go\s+on\b|continue\b|resume\b|keep\s+going\b|pick\s+up\b)/iu.test(
+    prompt,
+  );
+}
+
+function isBareContinuationPrompt(value: string): boolean {
+  const prompt = value.trim();
+  if (prompt.length > 48) return false;
+  return /^(?:(?:请)?继续(?:把)?(?:刚才|之前|上次)?(?:的)?(?:任务|工作)?(?:做完|完成|下去)?|接着(?:做|来|继续)?|接下去|go\s+on|continue|resume|keep\s+going)[。.!！ ]*$/iu.test(
+    prompt,
+  );
+}
 
 async function resolveSession(
   repository: AgentRuntimePersistenceRepository,

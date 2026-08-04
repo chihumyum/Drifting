@@ -61,6 +61,8 @@ import {
   DRIFTING_WORKSPACE_DELETE_TOOL,
   DRIFTING_WORKSPACE_EDIT_TOOL,
   DRIFTING_WORKSPACE_WRITE_TOOL,
+  isWorkspaceNoopWriteSignal,
+  workspaceAuthoredReadStateFromArguments,
   workspaceCommandFromArguments,
 } from './drifting-workspace-tool-runtime';
 import { hashAgentPermissionArguments } from './control-plane';
@@ -68,6 +70,10 @@ import {
   agentMemorySetRevision,
   loadStorylineMembershipSnapshot,
 } from './domain-crud-revision';
+import {
+  describeAgentWriteTarget,
+  describeWorkspaceDomainWriteResult,
+} from './workspace-domain-language';
 
 export interface DriftingWriteToolRuntimeOptions {
   repository?: AgentRuntimeWriteEffectRepository;
@@ -240,15 +246,17 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         };
       }
       const context = this.requireMatchingContext(effectiveRequest.context);
-      return await this.executeCertifiedWrite(
+      const result = await this.executeCertifiedWrite(
         effectiveRequest,
         tool,
         strategy,
         context,
         request.arguments,
       );
+      return result;
     } catch (error) {
       if (isAgentAbort(error, request.signal)) throw error;
+      if (isWorkspaceNoopWriteSignal(error)) return error.result;
       return {
         ok: false,
         error: workspaceFacade ? publicWorkspaceWriteError(error) : publicWriteError(error),
@@ -1234,14 +1242,13 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         ? {
             modelData: workspaceModelWriteResult(
               visibleResult as ReturnType<typeof workspaceVisibleWriteResult>,
-              effect.id,
             ),
           }
-        : descriptor
+          : descriptor
           ? {
-              // The model only needs a stable success reference. Review IDs,
-              // Yjs hashes, and editor presentation are renderer concerns.
-              modelData: { updated: true, writeRef: effect.id },
+              modelData:
+                `${describeAgentWriteTarget(effect.toolName, effect.arguments)}已更新。` +
+                '这一步已经完成；直接继续剩余任务，不要为了确认写入而重读。',
             }
           : {}),
       ...(reviewId
@@ -1293,8 +1300,6 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         ? {
             modelData: workspaceModelWriteResult(
               visibleResult as ReturnType<typeof workspaceVisibleWriteResult>,
-              reviewId,
-              'pending',
             ),
           }
         : {}),
@@ -2285,17 +2290,31 @@ function workspaceVisibleWriteResult(
   requestedPath?: string;
   updated: true;
   replacements?: number;
+  skippedStale?: number;
   operation?: 'created' | 'updated' | 'deleted';
   guidance?: string;
   canonicalPath?: string;
   wordCount?: number;
   summaryInitialized?: true;
+  summaryUpdated?: true;
+  changeSummary?: string;
+  remainingWork?: string;
+  authoredReadState?: ReturnType<typeof workspaceAuthoredReadStateFromArguments>;
 } {
   const arguments_ = requireRecord(effect.arguments, 'The workspace write arguments are invalid');
   const path = String(arguments_.path ?? '');
+  const changeSummary = recordString(arguments_, 'changeSummary');
+  const remainingWork = recordString(arguments_, 'remainingWork');
+  const authoredReadState = workspaceAuthoredReadStateFromArguments(arguments_);
   if (!path) throw new Error('The workspace write lost its public path');
   if (effect.toolName === DRIFTING_WORKSPACE_DELETE_TOOL) {
-    return { path, updated: true, operation: 'deleted' };
+    return {
+      path,
+      updated: true,
+      operation: 'deleted',
+      ...(changeSummary ? { changeSummary } : {}),
+      ...(remainingWork ? { remainingWork } : {}),
+    };
   }
   if (effect.toolName === DRIFTING_WORKSPACE_WRITE_TOOL) {
     const command = workspaceCommandFromArguments(arguments_);
@@ -2380,10 +2399,16 @@ function workspaceVisibleWriteResult(
       updated: true,
       operation: created ? 'created' : 'updated',
       ...(wordCount !== null ? { wordCount } : {}),
+      ...(changeSummary ? { changeSummary } : {}),
+      ...(remainingWork ? { remainingWork } : {}),
       ...(created && typeof command?.arguments.summary === 'string' && command.arguments.summary.trim()
         ? { summaryInitialized: true as const }
         : {}),
+      ...(!created && typeof command?.arguments.summary === 'string'
+        ? { summaryUpdated: true as const }
+        : {}),
       ...(canonicalPath ? { canonicalPath } : {}),
+      ...(authoredReadState ? { authoredReadState } : {}),
       ...(command?.name === 'create_category' && categoryPath
         ? {
             guidance:
@@ -2394,10 +2419,19 @@ function workspaceVisibleWriteResult(
     };
   }
   const replacements = Array.isArray(arguments_.replacements) ? arguments_.replacements.length : 0;
+  const skippedStale = Number(arguments_.skippedStaleReplacements ?? 0);
   if (replacements <= 0) {
     throw new Error('The workspace edit lost its public result summary');
   }
-  return { path, updated: true, replacements };
+  return {
+    path,
+    updated: true,
+    replacements,
+    ...(authoredReadState ? { authoredReadState } : {}),
+    ...(changeSummary ? { changeSummary } : {}),
+    ...(remainingWork ? { remainingWork } : {}),
+    ...(Number.isSafeInteger(skippedStale) && skippedStale > 0 ? { skippedStale } : {}),
+  };
 }
 
 function parseYjsRevision(value: string): number | null {
@@ -2431,8 +2465,6 @@ function withCanonicalReviewStatus(
       ? {
           modelData: workspaceModelWriteResult(
             (data as { result: ReturnType<typeof workspaceVisibleWriteResult> }).result,
-            review.id,
-            review.status,
           ),
         }
       : {}),
@@ -2456,22 +2488,8 @@ function withCanonicalReviewStatus(
 
 function workspaceModelWriteResult(
   result: ReturnType<typeof workspaceVisibleWriteResult>,
-  writeRef: string,
-  reviewStatus?: string,
-) {
-  return {
-    updated: true as const,
-    path: result.path,
-    ...(result.requestedPath ? { requestedPath: result.requestedPath } : {}),
-    ...(result.replacements !== undefined ? { replacements: result.replacements } : {}),
-    ...(result.operation ? { operation: result.operation } : {}),
-    ...(result.guidance ? { guidance: result.guidance } : {}),
-    ...(result.canonicalPath ? { canonicalPath: result.canonicalPath } : {}),
-    ...(result.wordCount !== undefined ? { wordCount: result.wordCount } : {}),
-    ...(result.summaryInitialized ? { summaryInitialized: true as const } : {}),
-    writeRef,
-    ...(reviewStatus ? { reviewStatus } : {}),
-  };
+): string {
+  return describeWorkspaceDomainWriteResult(result);
 }
 
 function workspaceResultPathSegment(value: string): string {

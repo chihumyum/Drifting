@@ -1165,12 +1165,13 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
     name: 'edit_file',
     description:
-      'Edit one writable novel-project file by exact text replacement. Replacements may span paragraphs and may insert, delete, merge, or split prose. Put independent changes to the same file in one call.',
+      'Revise a few local passages in one authored document. Quote enough current prose to identify each passage; Drifting reconciles harmless quote-style and paragraph-spacing drift. Put independent changes to the same document in one call. For a chapter-scale rewrite after a complete read, prefer write_file with the complete revised prose and optional summary. Never spend reasoning on transport escaping or character-by-character matching.',
     parametersSchema: Type.Object(
       {
         path: Type.String({
           minLength: 1,
-          description: 'Workspace file path, chapter directory, or unique chapter name',
+          description:
+            'Authored field target. Use 第九章 for its prose and 章节「09」摘要 (the label returned by a chapter read) for its summary.',
         }),
         replacements: Type.Array(
           Type.Object(
@@ -1208,17 +1209,23 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
     name: 'write_file',
     description:
-      'Create or completely replace one novel-workspace file. Replacing a non-empty existing text file requires complete read_file coverage of its current contents, including every page until no continuation marker remains; use edit_file instead for focused changes so a partial read can never truncate an unseen tail. The Chinese product label for a drift node is 灵感. Author terms 灵感, 漂移, inspiration, and drift always mean a drift node at /drifts/<title>/prose.md, not an /elements/灵感 category. Create each new structured resource with exactly one primary write: a chapter/drift at /chapters/<title>/prose.md or /drifts/<title>/prose.md; an element at /elements/<category>/<name>/body.md; a storyline/category at its body.md. The runtime generates title.txt, name.txt, category.txt, and meta.json, so never pre-create them. For a new element or storyline, a clearly labeled 摘要 or Summary section inside body.md initializes the independent summary field in the same transaction; without such a section, make a second write to summary.md when the author requests a summary. When element category is not author-specified, list /elements once and reuse a suitable existing category instead of inventing a near-duplicate. A unique contained category name such as 势力 -> 势力与组织 is normalized automatically. Create a note/TODO at /comments/<descriptive-name>.json with {"body":"...","kind":"note|todo","targetKind":"node|element|storyline|category","target":"exact name"}; create a relation at /relations/<descriptive-name>.json with {"fromKind":"...","from":"exact name","toKind":"...","to":"exact name","kind":"label"}. One relation JSON creates exactly one edge: "both A and B relate to C" requires separate A-to-C and B-to-C files in addition to any A-to-B edge. Never put creation and writes that reference the new resource in the same tool-call batch; wait for creation success before summaries, comments, or relations. These schemas are authoritative; do not inspect unrelated existing resources merely to infer their format. Use edit_file for focused changes to existing prose.',
+      'Create one authored project object or replace one complete authored document. Use the natural authored name: for example 第二章, 灵感「雨夜片段」, 人物「林弦」, or 故事线「返乡」。For a new chapter or 灵感, content is the complete prose and summary is its separate optional summary. Create referenced objects before dependent relations or notes. Replacing an existing document requires a complete prior read; use edit_file for focused revisions.',
     parametersSchema: Type.Object(
       {
         path: Type.String({
           minLength: 1,
           description:
-            'Exact workspace file path. For a new resource, write its prose.md, body.md, or one comments/relations JSON file directly; do not write generated metadata files first.',
+            'Natural authored target name, such as 第二章 or 灵感「雨夜片段」',
         }),
         content: Type.String({
-          description: 'Complete UTF-8 file contents. JSON files require valid JSON.',
+          description: 'Complete authored prose or document content',
         }),
+        summary: Type.Optional(
+          Type.String({
+            description:
+              'Separate summary to save with a created object or a complete chapter/灵感 replacement',
+          }),
+        ),
       },
       { additionalProperties: false },
     ),
@@ -1241,13 +1248,13 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
     name: 'delete_file',
     description:
-      'Delete one complete novel-project resource by its directory or JSON file path. It cannot delete an individual metadata field; edit that file instead.',
+      'Delete one complete authored object, such as a chapter, 灵感, entity, storyline, comment, TODO, relation, or author rule. Use the exact authored target returned by the work catalog.',
     parametersSchema: Type.Object(
       {
         path: Type.String({
           minLength: 1,
           description:
-            'Entity directory or /comments/*.json or /relations/*.json path returned by list_files',
+            'Exact authored object returned by the work catalog',
         }),
       },
       { additionalProperties: false },
@@ -1267,10 +1274,14 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
     name: 'list_files',
     description:
-      'List one directory level in the novel workspace. Directory paths can be listed again; file paths can be read or edited directly.',
+      'View one level of the work catalog: chapters, 灵感, entities, storylines, comments, relations, rules, or materials. Use this only when the author did not name an exact target or a named target is missing.',
     parametersSchema: Type.Object(
       {
-        path: Type.Optional(Type.String({ description: 'Directory path, default /' })),
+        path: Type.Optional(
+          Type.String({
+            description: 'Authored collection or object to browse; omit for the top-level catalog',
+          }),
+        ),
       },
       { additionalProperties: false },
     ),
@@ -1289,12 +1300,13 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
     name: 'read_file',
     description:
-      'Read a novel-project file. Passing a chapter directory or unique chapter name reads its manuscript. Passing a collection directory lists it. Large files continue at nextOffset until truncated is false.',
+      'Read one authored chapter, 灵感, entity, summary, or other project document. A chapter read returns its current summary together with its prose. When the author says 第八章, pass 第八章 directly—never read /, chapters, or search the project to resolve that ordinal. Large documents continue at nextOffset until truncated is false.',
     parametersSchema: Type.Object(
       {
         path: Type.String({
           minLength: 1,
-          description: 'Workspace file path, directory, or unique chapter name',
+          description:
+            'Authored target name, such as 第八章 or 灵感碎片; name 正文 or 摘要 only when selecting that specific authored field',
         }),
         offset: Type.Optional(
           Type.Integer({ minimum: 0, description: 'Unicode character offset' }),
@@ -1324,11 +1336,11 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
     name: 'grep',
     description:
-      'Search literal text in titles, canon, and live manuscript text across the virtual project workspace; the query is not a regular expression. Optionally narrow results to a path prefix. When path resolves to one file or one entity directory, search reports the exact occurrence count for verification.',
+      'Search literal text in titles, canon, and current manuscript text across this work; the query is not a regular expression. Optionally narrow the search to one authored object or collection.',
     parametersSchema: Type.Object(
       {
         query: Type.String({ minLength: 1, description: 'Text to search for' }),
-        path: Type.Optional(Type.String({ description: 'Optional virtual directory prefix' })),
+        path: Type.Optional(Type.String({ description: 'Optional authored object or collection' })),
         limit: Type.Optional(
           Type.Integer({ minimum: 1, maximum: 100, description: 'Maximum matches' }),
         ),

@@ -100,8 +100,9 @@ describe('workspace domain CRUD transactions', () => {
           wordCount: countWords(prose),
         },
       },
-      modelData: { wordCount: countWords(prose) },
     });
+    if (!created.ok) throw new Error(created.error);
+    expect(created.modelData).toContain(`当前 ${countWords(prose)} 字`);
     expect(
       fixture.scalar(
         "SELECT word_count FROM book_node WHERE title = '灰港' AND deleted_at IS NULL",
@@ -135,8 +136,9 @@ describe('workspace domain CRUD transactions', () => {
     }));
 
     const created = await fixture.write('create-missing-chapter-02', 'write_file', {
-      path: '/chapters/02/prose.md',
+      path: '第二章',
       content: '二章补齐。',
+      summary: '奥伦与凯尔在茶镇遭遇异变。',
     });
     expect(created, JSON.stringify(created)).toMatchObject({ ok: true });
 
@@ -145,6 +147,11 @@ describe('workspace domain CRUD transactions', () => {
         "SELECT book_order FROM book_node WHERE title = '02' AND deleted_at IS NULL",
       ),
     ).toBe(8);
+    expect(
+      fixture.text(
+        "SELECT summary FROM book_node WHERE title = '02' AND deleted_at IS NULL",
+      ),
+    ).toBe('奥伦与凯尔在茶镇遭遇异变。');
   });
 
   it('normalizes a unique contained category and seeds a separate summary from initial body', async () => {
@@ -169,11 +176,10 @@ describe('workspace domain CRUD transactions', () => {
           summaryInitialized: true,
         },
       },
-      modelData: {
-        path: '/elements/势力与组织/灰潮档案局/body.md',
-        summaryInitialized: true,
-      },
     });
+    if (!created.ok) throw new Error(created.error);
+    expect(created.modelData).toContain('要素「灰潮档案局」设定已创建');
+    expect(created.modelData).toContain('摘要已同时建立');
     const category = useDataStore
       .getState()
       .bookElementCategories.find((item) => item.name === '势力与组织');
@@ -1118,6 +1124,11 @@ class DomainCrudFixture {
   scalar(sql: string): number {
     const row = this.gateway.database.prepare(sql).get() as Record<string, unknown>;
     return Number(Object.values(row)[0] ?? 0);
+  }
+
+  text(sql: string): string {
+    const row = this.gateway.database.prepare(sql).get() as Record<string, unknown>;
+    return String(Object.values(row)[0] ?? '');
   }
 
   async restartEvidence(): Promise<{

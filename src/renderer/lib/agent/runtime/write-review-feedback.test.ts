@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentRuntimeWriteEffectRepository } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
 import {
   buildAgentWriteReviewFeedback,
+  loadAgentAuthoredReadProgressContextRows,
   loadAgentDurableWriteReceiptContextRows,
   loadAgentWriteReviewContextRows,
 } from './write-review-feedback';
@@ -34,8 +35,9 @@ describe('Agent write review feedback', () => {
 
     const feedback = await buildAgentWriteReviewFeedback('session-1', repository);
 
-    expect(feedback).toContain('rename_node');
-    expect(feedback).toContain('已被用户接受');
+    expect(feedback).toContain('作品内容「A」');
+    expect(feedback).not.toContain('rename_node');
+    expect(feedback).not.toContain('已经完成且由作者保留');
     expect(feedback).toContain('已被用户拒绝并精确撤销');
     expect(feedback).toContain('自动撤销失败');
     expect(feedback).not.toContain('review-pending');
@@ -80,6 +82,7 @@ describe('Agent write review feedback', () => {
             'edit_file',
             {
               path: '/chapters/12/prose.md',
+              changeSummary: '清理测试痕迹并收紧正文',
               replacements: [{ oldText: 'old', newText: 'new' }],
               expectedRevision: {
                 receiptId: 'private-receipt',
@@ -101,13 +104,62 @@ describe('Agent write review feedback', () => {
 
     const rows = await loadAgentWriteReviewContextRows('session-1', repository);
 
-    expect(rows[0]?.content).toContain('/chapters/12/prose.md');
+    expect(rows[0]?.content).toContain('章节「12」正文');
+    expect(rows[0]?.content).toContain('已有可靠完成证据并属于当前稿件');
+    expect(rows[0]?.content).toContain('读取或计划不算完成');
+    expect(rows[0]?.content).not.toMatch(/本轮|保存的修改/u);
+    expect(rows[0]?.content).not.toContain('清理测试痕迹并收紧正文');
+    expect(rows[0]?.content).not.toContain('/chapters/12/prose.md');
     expect(rows[0]?.content).not.toMatch(
       /private-receipt|private-observation|private-node|expectedRevision|workspaceCommand|yjs/i,
     );
   });
 
-  it('keeps every unsettled decision as a stable first-class pinned row', async () => {
+  it('lets a later accepted edit supersede stale remaining work for the same authored field', async () => {
+    const repository = {
+      loadSnapshot: async () => ({
+        effects: [
+          effect(
+            'effect-partial',
+            'edit_file',
+            {
+              path: '/chapters/08/prose.md',
+              changeSummary: '完成第一轮修改',
+              remainingWork: '3 个原文片段仍待重新定位',
+            },
+            'turn-partial',
+          ),
+          effect(
+            'effect-followup',
+            'edit_file',
+            {
+              path: '/chapters/08/prose.md',
+              changeSummary: '按当前正文完成后续修正',
+            },
+            'turn-followup',
+          ),
+        ],
+        reviews: [
+          review('review-partial', 'effect-partial', 'accepted_effect', 1),
+          review('review-followup', 'effect-followup', 'accepted_effect', 2),
+        ],
+        turnOrdinalsById: {
+          'turn-partial': 1,
+          'turn-followup': 2,
+        },
+      }),
+    } as unknown as AgentRuntimeWriteEffectRepository;
+
+    const rows = await loadAgentWriteReviewContextRows('session-1', repository);
+    const content = rows.map((row) => row.content).join('\n');
+
+    expect(content).toContain('章节「08」正文已有可靠完成证据并属于当前稿件');
+    expect(content).not.toContain('按当前正文完成后续修正');
+    expect(content).not.toContain('3 个原文片段仍待重新定位');
+    expect(rows.flatMap((row) => row.durableWriteCoverage ?? [])).toHaveLength(2);
+  });
+
+  it('collapses same-target unsettled decisions into one current domain state', async () => {
     const repository = {
       loadSnapshot: async () => ({
         effects: [
@@ -144,16 +196,13 @@ describe('Agent write review feedback', () => {
 
     const rows = await loadAgentWriteReviewContextRows('session-1', repository);
 
-    expect(rows).toHaveLength(2);
-    expect(rows.map((row) => row.sourceId)).toEqual([
-      'write-review:review-pending',
-      'write-review:review-reverting',
-    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows.map((row) => row.sourceId)).toEqual(['write-review:review-reverting']);
     expect(rows.every((row) => row.kind === 'write_review')).toBe(true);
-    expect(rows.map((row) => row.turnOrdinal)).toEqual([3, 7]);
-    expect(rows[0].content).toContain('"reviewStatus":"pending"');
-    expect(rows[1].content).toContain('"reviewStatus":"revert_started"');
-    expect(rows.every((row) => row.durableWriteCoverage === undefined)).toBe(true);
+    expect(rows.map((row) => row.turnOrdinal)).toEqual([7]);
+    expect(rows[0].content).toContain('正在还原');
+    expect(rows[0].content).not.toMatch(/审阅|标记|等待作者/u);
+    expect(rows[0].durableWriteCoverage).toHaveLength(2);
   });
 
   it('bounds exact settled rows, archives their durable coverage, and never covers pending reviews', async () => {
@@ -175,10 +224,12 @@ describe('Agent write review feedback', () => {
 
     const rows = await loadAgentWriteReviewContextRows('session-1', repository);
 
-    expect(rows).toHaveLength(22);
+    expect(rows).toHaveLength(21);
     expect(rows.some((row) => row.sourceId === 'write-review:review-pending')).toBe(true);
     expect(rows.some((row) => row.sourceId === 'write-review:review-settled-0')).toBe(false);
-    const archive = rows.find((row) => row.sourceId === 'write-review:session-1:settled-archive');
+    const archive = rows.find(
+      (row) => row.sourceId === 'write-review:session-1:current-state-archive',
+    );
     expect(archive).toMatchObject({
       kind: 'write_review',
       durableWriteCoverage: expect.arrayContaining([
@@ -189,12 +240,20 @@ describe('Agent write review feedback', () => {
         },
       ]),
     });
-    expect(archive?.durableWriteCoverage).toHaveLength(5);
-    expect(archive?.content).toContain('"kind":"settled_write_review_archive"');
-    expect(archive?.content).toMatch(/"evidenceHash":"sha256:[0-9a-f]{64}"/);
+    expect(archive?.durableWriteCoverage).toHaveLength(6);
+    expect(archive?.content).toContain('执行进度中已有可靠完成证据的对象');
+    expect(archive?.content).toContain('读取或计划不算完成');
+    expect(archive?.content).not.toContain('审阅');
+    expect(archive?.content).not.toMatch(/reviewId|effectId|callId|evidenceHash/);
     expect(
       rows.find((row) => row.sourceId === 'write-review:review-pending')?.durableWriteCoverage,
-    ).toBeUndefined();
+    ).toEqual([
+      {
+        turnOrdinal: 0,
+        callId: 'call-effect-pending',
+        toolName: 'edit_block',
+      },
+    ]);
   });
 
   it('projects failed/current physical turns into canonical context without inventing old tool pairs', async () => {
@@ -247,7 +306,7 @@ describe('Agent write review feedback', () => {
     ]);
   });
 
-  it('makes only the exactly matched settled write pair compressible while keeping both review rows pinned', async () => {
+  it('replaces settled and pending raw write pairs with pinned domain review state', async () => {
     const settledEffect = effect(
       'effect-settled',
       'rename_node',
@@ -340,34 +399,7 @@ describe('Agent write review feedback', () => {
         segment.type === 'source' &&
         (segment.row.kind === 'tool_call' || segment.row.kind === 'tool_result'),
     );
-    expect(
-      toolSegments.filter(
-        (segment) => segment.type === 'source' && segment.row.callId === settledEffect.callId,
-      ),
-    ).toEqual([
-      expect.objectContaining({
-        classification: 'compressible',
-        pinReason: null,
-      }),
-      expect.objectContaining({
-        classification: 'compressible',
-        pinReason: null,
-      }),
-    ]);
-    expect(
-      toolSegments.filter(
-        (segment) => segment.type === 'source' && segment.row.callId === pendingEffect.callId,
-      ),
-    ).toEqual([
-      expect.objectContaining({
-        classification: 'pinned',
-        pinReason: 'semantic',
-      }),
-      expect.objectContaining({
-        classification: 'pinned',
-        pinReason: 'semantic',
-      }),
-    ]);
+    expect(toolSegments).toEqual([]);
     expect(planned.plan.checkpoint.pinned.sourceIds).toEqual(
       expect.arrayContaining(rows.map((row) => row.sourceId)),
     );
@@ -386,6 +418,12 @@ describe('Agent write review feedback', () => {
       { path: '/chapters/01/prose.md' },
       'turn-current',
     );
+    const accepted = effect(
+      'effect-accepted-edit',
+      'edit_file',
+      { path: '/chapters/02/prose.md' },
+      'turn-current',
+    );
     const failed = {
       ...effect('effect-failed-delete', 'delete_file', { path: '/missing' }, 'turn-current'),
       phase: 'failed',
@@ -393,8 +431,11 @@ describe('Agent write review feedback', () => {
     };
     const repository = {
       loadSnapshot: async () => ({
-        effects: [committed, pending, failed],
-        reviews: [review('review-pending', pending.id, 'pending', 1)],
+        effects: [committed, pending, accepted, failed],
+        reviews: [
+          review('review-pending', pending.id, 'pending', 1),
+          review('review-accepted', accepted.id, 'accepted_effect', 2),
+        ],
         turnOrdinalsById: { 'turn-current': 7 },
         turnContextOrdinalsById: { 'turn-current': 3 },
         turnHasCanonicalHistoryById: { 'turn-current': false },
@@ -419,14 +460,47 @@ describe('Agent write review feedback', () => {
         ],
       }),
     ]);
-    expect(rows[0]?.content).toContain('"kind":"durable_write_receipt_archive"');
-    expect(rows[0]?.content).toContain('"effectCount":1');
-    expect(rows[0]?.content).toContain('"delete_file":1');
+    expect(rows[0]?.content).toContain('执行进度中已有可靠完成证据的对象');
+    expect(rows[0]?.content).toContain('读取或计划不算完成');
+    expect(rows[0]?.content).not.toMatch(/本轮|已修改/u);
+    expect(rows[0]?.content).toContain('批注或待办「old」');
+    expect(rows[0]?.content).not.toContain('delete_file');
     expect(rows[0]?.content).not.toContain(pending.id);
+    expect(rows[0]?.content).not.toContain('章节「02」正文');
     expect(rows[0]?.content).not.toContain(failed.id);
   });
 
-  it('uses a durable receipt row to make the exact committed write pair compactible', async () => {
+  it('repairs legacy receipts that mislabeled an empty chapter summary as complete', async () => {
+    const cleared = effect(
+      'effect-cleared-summary',
+      'edit_file',
+      {
+        path: '/chapters/08/summary.md',
+        changeSummary: '已同步整理摘要',
+        __workspaceCommand: {
+          name: 'set_node_summary',
+          arguments: { node: 'chapter-08', summary: '' },
+        },
+      },
+      'turn-cleared',
+    );
+    const repository = {
+      loadSnapshot: async () => ({
+        effects: [cleared],
+        reviews: [],
+        turnOrdinalsById: { 'turn-cleared': 4 },
+      }),
+    } as unknown as AgentRuntimeWriteEffectRepository;
+
+    const rows = await loadAgentDurableWriteReceiptContextRows('session-1', repository);
+    const content = rows.map((row) => row.content).join('\n');
+
+    expect(content).toContain('当前尚需处理：当前摘要为空，需要补写');
+    expect(content).toContain('只处理作者目标本身');
+    expect(content).not.toMatch(/完成内容|写入|快照/u);
+  });
+
+  it('uses a durable receipt row to remove the exact committed write pair', async () => {
     const committed = effect(
       'effect-committed-delete',
       'delete_file',
@@ -490,16 +564,80 @@ describe('Agent write review feedback', () => {
         (segment) =>
           segment.type === 'source' && segment.row.callId === committed.callId,
       ),
-    ).toEqual([
-      expect.objectContaining({ classification: 'compressible', pinReason: null }),
-      expect.objectContaining({ classification: 'compressible', pinReason: null }),
-    ]);
+    ).toEqual([]);
     expect(
       planned.plan.segments.find(
         (segment) =>
           segment.type === 'source' && segment.row.kind === 'write_receipt',
       ),
     ).toMatchObject({ classification: 'pinned', pinReason: 'semantic' });
+  });
+
+  it('keeps complete authored reading as current domain state after body and summary writes', async () => {
+    const body = {
+      ...effect(
+        'effect-body-read',
+        'edit_file',
+        {
+          path: '/chapters/11/prose.md',
+          __workspaceAuthoredReadState: {
+            targetKey: 'node:chapter-11',
+            target: '章节「11」正文',
+            summary: '旧摘要',
+            completeBodyRead: true,
+            focusedBodyEdit: true,
+            currentPassages: ['她终于突破了那面墙。'],
+          },
+        },
+        'turn-current',
+      ),
+      updatedAt: '2026-07-30T00:00:01.000Z',
+    };
+    const summary = {
+      ...effect(
+        'effect-summary-after-read',
+        'edit_file',
+        {
+          path: '/chapters/11/summary.md',
+          __workspaceAuthoredReadState: {
+            targetKey: 'node:chapter-11',
+            target: '章节「11」正文',
+            summary: '已对齐的当前摘要',
+            completeBodyRead: false,
+            focusedBodyEdit: false,
+            currentPassages: [],
+          },
+        },
+        'turn-current',
+      ),
+      updatedAt: '2026-07-30T00:00:02.000Z',
+    };
+    const repository = {
+      loadSnapshot: async () => ({
+        effects: [body, summary],
+        reviews: [],
+        turnOrdinalsById: { 'turn-current': 4 },
+        turnContextOrdinalsById: { 'turn-current': 2 },
+      }),
+    } as unknown as AgentRuntimeWriteEffectRepository;
+
+    const rows = await loadAgentAuthoredReadProgressContextRows(
+      'session-1',
+      repository,
+      { currentTurnId: 'turn-current' },
+    );
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        sourceId: `read-progress:${summary.id}`,
+        turnOrdinal: 2,
+        kind: 'read_progress',
+      }),
+    ]);
+    expect(rows[0]?.content).toContain('章节「11」正文已在本轮完整通读');
+    expect(rows[0]?.content).toContain('当前摘要：已对齐的当前摘要');
+    expect(rows[0]?.content).toContain('当前修改后的正文片段：「她终于突破了那面墙。」');
+    expect(rows[0]?.content).not.toMatch(/edit_file|\/chapters|effect-|revision|Yjs|SQLite/iu);
   });
 });
 

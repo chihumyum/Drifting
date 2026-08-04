@@ -557,6 +557,12 @@ interface ProseExecution {
   entityType?: ProseEntityType;
   projectId: string;
   beforeContentJson: string;
+  nodeSummary?: PersistedNodeSummaryChange;
+}
+
+interface PersistedNodeSummaryChange {
+  before: string;
+  after: string;
 }
 
 interface PersistedProseCommandPayload {
@@ -566,6 +572,8 @@ interface PersistedProseCommandPayload {
   entityType?: ProseEntityType;
   docId: string;
   command: PortablePreparedYjsProseCommand;
+  /** Optional chapter/drift summary committed with the same SQLite/Yjs receipt. */
+  nodeSummary?: PersistedNodeSummaryChange;
   /**
    * A durable UI-review baseline only. It is never a prose write source and
    * must validate against the command's canonical Yjs base hash before use.
@@ -603,6 +611,17 @@ function proseWriteStrategy(
     async prepare(request, _context, expectation) {
       throwIfAgentAborted(request.signal);
       const entity = resolveProjectProseEntity(request);
+      const requestedSummary =
+        typeof request.arguments.summary === 'string'
+          ? request.arguments.summary
+          : undefined;
+      if (requestedSummary !== undefined && entity.entityType !== 'node') {
+        throw new Error('A combined prose and summary write currently requires a chapter or 灵感');
+      }
+      const nodeSummary =
+        requestedSummary === undefined
+          ? undefined
+          : currentNodeSummaryChange(entity.id, entity.projectId, requestedSummary);
       const proseExpectation = requireProseExpectation(
         expectation,
         request,
@@ -657,6 +676,7 @@ function proseWriteStrategy(
         ...(entity.entityType === 'node' ? {} : { entityType: entity.entityType }),
         docId,
         command: toPortablePreparedYjsProseCommand(command.prepared),
+        ...(nodeSummary ? { nodeSummary } : {}),
         reviewSnapshot,
       };
       return {
@@ -684,6 +704,7 @@ function proseWriteStrategy(
           ...(entity.entityType === 'node' ? {} : { entityType: entity.entityType }),
           projectId: entity.projectId,
           beforeContentJson,
+          ...(nodeSummary ? { nodeSummary } : {}),
         } satisfies ProseExecution,
       };
     },
@@ -726,7 +747,7 @@ function proseWriteStrategy(
       return proseHandlerResult(execution.nodeId, result);
     },
 
-    async captureEffect(_request, _context, result, prepared) {
+    async captureEffect(request, _context, result, prepared) {
       const payload = parseProsePayload(prepared.forward);
       const verified = await deserializePreparedYjsProseCommand(
         payload.command,
@@ -751,6 +772,11 @@ function proseWriteStrategy(
       ) {
         throw new Error('The written prose command has no exact durable receipt');
       }
+      assertCurrentNodeSummary(
+        payload,
+        request.context.route.projectId,
+        'forward',
+      );
       return {
         kind: 'yjs_prose',
         nodeId: payload.nodeId,
@@ -780,6 +806,7 @@ function proseWriteStrategy(
         payload.reviewSnapshot,
         prepared,
       );
+      assertCurrentNodeSummary(payload, effect.projectId, 'forward');
       const handlerResult: ProseHandlerResult = {
         ok: true,
         nodeId: payload.nodeId,
@@ -833,6 +860,7 @@ function proseWriteStrategy(
           `The durable prose review has no block "${blockId}"`,
         );
       }
+      await revertNodeSummaryForPartialReview(payload, effect.projectId, context);
       await revertEntityBlock(
         prosePayloadEntityType(payload),
         payload.nodeId,
@@ -884,6 +912,7 @@ function proseWriteStrategy(
             : { entityType: prosePayloadEntityType(payload) }),
           projectId: effect.projectId,
           beforeContentJson: prepared.projection.contentJson,
+          ...(payload.nodeSummary ? { nodeSummary: payload.nodeSummary } : {}),
         },
         'inverse',
         forwardReceipt.committedRevision,
@@ -1055,6 +1084,61 @@ function assertPersistedProseProvenance(
     prosePayloadEntityType(payload),
     payload.nodeId,
   );
+}
+
+function assertCurrentNodeSummary(
+  payload: PersistedProseCommandPayload,
+  projectId: string | undefined,
+  direction: 'forward' | 'inverse',
+): void {
+  if (!payload.nodeSummary) return;
+  const expected =
+    direction === 'forward'
+      ? payload.nodeSummary.after
+      : payload.nodeSummary.before;
+  const node = useDataStore
+    .getState()
+    .bookNodes.find(
+      (candidate) =>
+        candidate.id === payload.nodeId && candidate.projectId === projectId,
+    );
+  if (!node || node.summary !== expected) {
+    throw new Error('The chapter summary did not commit with its prose');
+  }
+}
+
+async function revertNodeSummaryForPartialReview(
+  payload: PersistedProseCommandPayload,
+  projectId: string,
+  context: AgentToolContext,
+): Promise<void> {
+  if (!payload.nodeSummary) return;
+  const node = useDataStore
+    .getState()
+    .bookNodes.find(
+      (candidate) =>
+        candidate.id === payload.nodeId && candidate.projectId === projectId,
+    );
+  if (!node) throw new Error('The chapter for this Agent review no longer exists');
+  if (node.summary === payload.nodeSummary.before) return;
+  if (node.summary !== payload.nodeSummary.after) {
+    throw new Error(
+      'The chapter summary changed after the Agent write; exact review is unavailable',
+    );
+  }
+  await context.write.updateNode(
+    node.id,
+    { summary: payload.nodeSummary.before },
+    { expectedRevision: node.updatedAt },
+  );
+  const reverted = useDataStore
+    .getState()
+    .bookNodes.find(
+      (candidate) => candidate.id === node.id && candidate.projectId === projectId,
+    );
+  if (!reverted || reverted.summary !== payload.nodeSummary.before) {
+    throw new Error('The chapter summary review inverse did not settle exactly');
+  }
 }
 
 async function proseReviewSnapshot(
@@ -1468,12 +1552,24 @@ async function commitProseCommand(
   let projectedNode:
     | {
         wordCount: number;
+        summary: string;
         updatedAt: string;
       }
     | undefined;
   let projectedUpdatedAt: string | undefined;
   let outboxPersisted = false;
   const committedAt = new Date().toISOString();
+  const nodeSummary = execution.nodeSummary;
+  const projectedSummary = nodeSummary
+    ? direction === 'forward'
+      ? nodeSummary.after
+      : nodeSummary.before
+    : undefined;
+  const expectedSummary = nodeSummary
+    ? direction === 'forward'
+      ? nodeSummary.before
+      : nodeSummary.after
+    : undefined;
   const result = await coordinator.commit({
     command: execution.command,
     direction,
@@ -1494,16 +1590,24 @@ async function commitProseCommand(
         const wordCount = countWordsInPmJson(projection.contentJson);
         const rows = await tx
           .update(BookNodeTable)
-          .set({ wordCount, updatedAt: committedAt })
+          .set({
+            wordCount,
+            ...(projectedSummary !== undefined ? { summary: projectedSummary } : {}),
+            updatedAt: committedAt,
+          })
           .where(
             and(
               eq(BookNodeTable.id, execution.nodeId),
               eq(BookNodeTable.projectId, execution.projectId),
               isNull(BookNodeTable.deletedAt),
+              ...(expectedSummary !== undefined
+                ? [eq(BookNodeTable.summary, expectedSummary)]
+                : []),
             ),
           )
           .returning({
             wordCount: BookNodeTable.wordCount,
+            summary: BookNodeTable.summary,
             updatedAt: BookNodeTable.updatedAt,
           });
         if (rows.length !== 1) {
@@ -1530,6 +1634,7 @@ async function commitProseCommand(
           execution,
           projection,
           committedAt,
+          direction,
         )) || outboxPersisted;
     },
   });
@@ -1542,6 +1647,7 @@ async function commitProseCommand(
           ? {
               ...node,
               wordCount: projectedNode!.wordCount,
+              summary: projectedNode!.summary,
               updatedAt: projectedNode!.updatedAt,
             }
           : node,
@@ -1567,6 +1673,7 @@ async function persistProseOutbox(
   execution: ProseExecution,
   projection: YjsProseProjectionPayload,
   committedAt: string,
+  direction: 'forward' | 'inverse',
 ): Promise<boolean> {
   const entityType = proseExecutionEntityType(execution);
   const timestamp = Date.parse(committedAt);
@@ -1593,7 +1700,17 @@ async function persistProseOutbox(
     mutationType: 'update',
     entityId: execution.nodeId,
     projectId: execution.projectId,
-    payload: { wordCount: countWordsInPmJson(projection.contentJson) },
+    payload: {
+      wordCount: countWordsInPmJson(projection.contentJson),
+      ...(execution.nodeSummary
+        ? {
+            summary:
+              direction === 'forward'
+                ? execution.nodeSummary.after
+                : execution.nodeSummary.before,
+          }
+        : {}),
+    },
     timestamp,
   });
   return contentPersisted || nodePersisted;
@@ -1719,6 +1836,10 @@ function parseProseExecution(value: unknown): ProseExecution {
     value && typeof value === 'object'
       ? (value as { entityType?: unknown }).entityType
       : undefined;
+  const nodeSummary =
+    value && typeof value === 'object'
+      ? (value as { nodeSummary?: unknown }).nodeSummary
+      : undefined;
   if (
     !value ||
     typeof value !== 'object' ||
@@ -1727,7 +1848,9 @@ function parseProseExecution(value: unknown): ProseExecution {
     typeof (value as { projectId?: unknown }).projectId !== 'string' ||
     typeof (value as { beforeContentJson?: unknown }).beforeContentJson !==
       'string' ||
-    (entityType !== undefined && !isProseEntityTypeValue(entityType))
+    (entityType !== undefined && !isProseEntityTypeValue(entityType)) ||
+    (nodeSummary !== undefined &&
+      (entityType !== undefined || !isPersistedNodeSummaryChange(nodeSummary)))
   ) {
     throw new Error('The prepared prose execution capability is missing');
   }
@@ -1743,6 +1866,10 @@ function parseProsePayload(value: unknown): PersistedProseCommandPayload {
     value && typeof value === 'object'
       ? (value as { entityType?: unknown }).entityType
       : undefined;
+  const nodeSummary =
+    value && typeof value === 'object'
+      ? (value as { nodeSummary?: unknown }).nodeSummary
+      : undefined;
   if (
     !value ||
     typeof value !== 'object' ||
@@ -1750,6 +1877,8 @@ function parseProsePayload(value: unknown): PersistedProseCommandPayload {
     typeof (value as { nodeId?: unknown }).nodeId !== 'string' ||
     typeof (value as { docId?: unknown }).docId !== 'string' ||
     (entityType !== undefined && !isProseEntityTypeValue(entityType)) ||
+    (nodeSummary !== undefined &&
+      (entityType !== undefined || !isPersistedNodeSummaryChange(nodeSummary))) ||
     !(value as { command?: unknown }).command ||
     typeof (value as { command?: { commandId?: unknown } }).command
       ?.commandId !== 'string' ||
@@ -1801,6 +1930,20 @@ function parseProsePayload(value: unknown): PersistedProseCommandPayload {
     throw new Error('The persisted prose command is invalid');
   }
   return value as PersistedProseCommandPayload;
+}
+
+function isPersistedNodeSummaryChange(
+  value: unknown,
+): value is PersistedNodeSummaryChange {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      hasExactKeys(value, ['after', 'before']) &&
+      typeof (value as { before?: unknown }).before === 'string' &&
+      typeof (value as { after?: unknown }).after === 'string' &&
+      (value as { before: string }).before !== (value as { after: string }).after,
+  );
 }
 
 function hasExactKeys(
@@ -1965,6 +2108,22 @@ function resolveProjectProseEntity(request: AgentToolExecutionRequest): {
     );
   }
   return { id: matches[0]!.id, projectId, entityType };
+}
+
+function currentNodeSummaryChange(
+  nodeId: string,
+  projectId: string,
+  nextSummary: string,
+): PersistedNodeSummaryChange | undefined {
+  const node = useDataStore
+    .getState()
+    .bookNodes.find(
+      (candidate) => candidate.id === nodeId && candidate.projectId === projectId,
+    );
+  if (!node) throw new Error('The chapter or 灵感 disappeared before its summary was prepared');
+  return node.summary === nextSummary
+    ? undefined
+    : { before: node.summary, after: nextSummary };
 }
 
 function readProjectedProseContent(

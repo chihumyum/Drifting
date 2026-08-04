@@ -28,6 +28,10 @@ const TEST_GROUPS = {
   ],
   longTaskNoDuplicateWrites: [
     'src/renderer/lib/agent/runtime/drifting-write-tool-runtime.test.ts',
+    'src/renderer/lib/agent/runtime/drifting-workspace-tool-runtime.test.ts',
+    'src/renderer/lib/agent/runtime/workspace-domain-language.test.ts',
+    'src/renderer/lib/agent/runtime/write-review-feedback.test.ts',
+    'src/renderer/lib/agent/runtime/drifting-product-composition.integration.test.ts',
     'src/renderer/lib/agent/runtime/long-task-runtime.integration.test.ts',
   ],
 };
@@ -79,6 +83,36 @@ const REQUIRED_ASSERTIONS = {
   maxContextMode: 'lets Max request 1M while still capping to the provider declaration',
   mixedChunkGain:
     'keeps a no-gain short chunk exact while applying profitable full-compactor chunks',
+  activeTurnWriteDelta:
+    'drops same-turn pre-write prose after recovery while retaining the successful delta',
+  focusedWorkingCopy:
+    'keeps one complete same-turn working copy across focused authored edits',
+  supersededRead:
+    'drops an older complete read when a newer complete read covers the same authored object',
+  obsoleteSummaryRetirement:
+    'retires a cached summary when a later read makes one covered source discardable',
+  multiChapterWorkingSet:
+    'keeps a bounded multi-chapter authored working set exact when it fits the window',
+  noopContextRetirement:
+    'drops a successful side-effect-free write while retaining an unresolved write',
+  noopWriteSettlement:
+    'settles a workspace no-op as success without claiming a durable effect',
+  bundledSummaryRead:
+    'lets the summary bundled with a chapter read authorize a summary rewrite',
+  durableReadProgress:
+    'keeps complete authored reading as current domain state after body and summary writes',
+  domainReadProgressPresentation:
+    'retains full-read and current-summary state without transport vocabulary',
+  numericOrdinalIdentity:
+    'never substitutes book order for a missing number in numeric-titled manuscripts',
+  dominantPassageTarget:
+    'uses the dominant quoted passages to correct an accidentally misnamed read chapter',
+  redundantReadDeferral:
+    'defers one redundant whole-body read to the durable current working copy',
+  wholeChapterSummaryReview:
+    'commits whole-chapter prose and summary together and restores the summary when one block is rejected',
+  wholeChapterSummaryRollback:
+    'rolls back prose, summary, Yjs receipt, and sync outbox when their shared transaction fails',
   artifactRestart: 'pages exact Unicode content after closing and reopening the repository',
   checkpointRestart:
     'commits the final assistant atomically, restarts, verifies nested integrity, and resumes canonical history',

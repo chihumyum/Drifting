@@ -181,6 +181,172 @@ describe('Drifting context compactor', () => {
     expect(request.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it('retains exact chapter boundaries instead of reducing a fresh prose read to scan progress', async () => {
+    const chapter = [
+      '章节「10」正文',
+      '摘要（章节「10」摘要）：米拉从干部居所回来。',
+      '',
+      `开头原文。${'雨落在屋檐上。'.repeat(80)}`,
+      '',
+      `结尾原文。${'她终于睁开眼。'.repeat(80)}`,
+    ].join('\n');
+    const rows = [
+      row(
+        'read-call',
+        0,
+        0,
+        'tool_call',
+        JSON.stringify({
+          type: 'tool_call',
+          name: 'read_file',
+          callId: 'read-chapter',
+          arguments: { path: '第十章' },
+        }),
+        { callId: 'read-chapter', toolName: 'read_file', toolAccess: 'read' },
+      ),
+      row(
+        'read-result',
+        1,
+        0,
+        'tool_result',
+        JSON.stringify({
+          callId: 'read-chapter',
+          name: 'read_file',
+          ok: true,
+          content: chapter,
+        }),
+        { callId: 'read-chapter', toolName: 'read_file', toolAccess: 'read' },
+      ),
+    ];
+    const compactor = createDriftingContextCompactor({
+      createClient: async () => ({
+        supportsTools: true,
+        complete: async () => response('继续处理第十章与第十一章的衔接。'),
+      }),
+    });
+
+    const summaries = await compactor({
+      eligibleRuns: [rows],
+      currentEstimatedTokens: 20_000,
+      usableInputBudgetTokens: 10_000,
+      signal: new AbortController().signal,
+    });
+    const parsed = parseDriftingLiteraryContextSummary(summaries[0]!.content);
+    const progress = parsed?.evidence.find((entry) => entry.sourceId === 'read-result');
+
+    expect(progress).toMatchObject({ kind: 'task_progress' });
+    expect(progress?.claim).toContain('章节「10」正文 当前版本参考');
+    expect(progress?.claim).toContain('对象：章节「10」正文');
+    expect(progress?.claim).toContain('当前摘要');
+    expect(progress?.claim).toContain('开头：开头原文');
+    expect(progress?.claim).toContain('结尾：');
+    expect(progress?.claim).not.toContain('字数：');
+    expect(progress?.claim).toContain('她终于睁开眼。');
+    expect(chapter).toContain(progress?.quote ?? '__missing__');
+  });
+
+  it('keeps only the newest current-version evidence for the same authored chapter', async () => {
+    const call = (sourceId: string, ordinal: number, callId: string) =>
+      row(
+        sourceId,
+        ordinal,
+        0,
+        'tool_call',
+        JSON.stringify({
+          type: 'tool_call',
+          name: 'read_file',
+          callId,
+          arguments: { path: '第七章' },
+          rawArguments: JSON.stringify({ path: '第七章' }),
+        }),
+        { callId, toolName: 'read_file', toolAccess: 'read' },
+      );
+    const result = (
+      sourceId: string,
+      ordinal: number,
+      callId: string,
+      wordCount: number,
+      summary: string,
+    ) =>
+      row(
+        sourceId,
+        ordinal,
+        0,
+        'tool_result',
+        JSON.stringify({
+          callId,
+          name: 'read_file',
+          ok: true,
+          content: `章节「07」正文\n字数：${wordCount}\n摘要（章节「07」摘要）：${summary}\n\n# 第一幕\n\n${summary}的开头。`,
+        }),
+        { callId, toolName: 'read_file', toolAccess: 'read' },
+      );
+    const rows = [
+      call('old-call', 0, 'old-read'),
+      result('old-result', 1, 'old-read', 9_134, '旧版摘要'),
+      call('new-call', 2, 'new-read'),
+      result('new-result', 3, 'new-read', 8_666, '当前摘要'),
+    ];
+    const prior = serializeDriftingLiteraryContextSummary({
+      schemaVersion: 1,
+      synopsis: '第七章仍需收紧。',
+      evidence: [
+        {
+          sourceId: 'old-result',
+          kind: 'task_progress',
+          claim: '章节「07」正文 当前版本参考：旧版摘要',
+          quote: '旧版摘要',
+        },
+      ],
+      decisions: [],
+      unresolved: [],
+      nextActions: [],
+    });
+    const compactor = createDriftingContextCompactor({
+      createClient: async () => ({ supportsTools: false, complete: vi.fn() }),
+    });
+
+    const summaries = await compactor({
+      eligibleRuns: [],
+      eligibleProjectionRuns: [
+        [
+          {
+            sourceRows: rows,
+            projectionRows: [
+              {
+                type: 'summary',
+                summaryId: 'prior-summary',
+                sourceIds: ['old-call', 'old-result'],
+                content: prior,
+              },
+              ...rows.slice(2).map((source) => ({
+                type: 'source' as const,
+                sourceIds: [source.sourceId],
+                content: source.content,
+                kind: source.kind,
+                turnOrdinal: source.turnOrdinal,
+                ...(source.toolName ? { toolName: source.toolName } : {}),
+                ...(source.toolAccess ? { toolAccess: source.toolAccess } : {}),
+              })),
+            ],
+            estimatedTokens: 4_000,
+          },
+        ],
+      ],
+      currentEstimatedTokens: 8_000,
+      usableInputBudgetTokens: 2_000,
+      signal: new AbortController().signal,
+    });
+
+    const evidence = parseDriftingLiteraryContextSummary(summaries[0]!.content)?.evidence.filter(
+      (entry) => entry.kind === 'task_progress',
+    );
+    expect(evidence).toHaveLength(1);
+    expect(evidence?.[0]).toMatchObject({ sourceId: 'new-result' });
+    expect(evidence?.[0]?.claim).toContain('当前摘要');
+    expect(evidence?.[0]?.claim).not.toMatch(/旧版摘要|字数：|9134/u);
+  });
+
   it('rolls up a prior verified summary while binding the result to original canonical rows', async () => {
     const rows = [
       row('old-a', 0, 0, 'assistant_narrative', `ORIGINAL_A_${'a'.repeat(8_000)}`),
@@ -539,9 +705,9 @@ describe('Drifting context compactor', () => {
     expect(complete).toHaveBeenCalledOnce();
     expect(summaries).toHaveLength(4);
     expect(parseDriftingLiteraryContextSummary(summaries[1]!.content)?.synopsis).toContain(
-      'bounded provider-summary call budget',
+      '只保留可验证的作品状态',
     );
-    expect(summaries[1]!.content).not.toContain('provider_failure');
+    expect(summaries[1]!.content).not.toMatch(/provider|budget|compac/iu);
   });
 
   it('caps a configured large chunk against the current provider source budget', async () => {
@@ -595,7 +761,7 @@ describe('Drifting context compactor', () => {
     });
     expect(
       parseDriftingLiteraryContextSummary(unsupportedSummaries[0]!.content)?.synopsis,
-    ).toContain('deterministic fallback');
+    ).toContain('当前任务仍按作者最近的要求继续');
 
     const malformed = createDriftingContextCompactor({
       createClient: async () => ({
@@ -613,7 +779,7 @@ describe('Drifting context compactor', () => {
       signal: new AbortController().signal,
     });
     expect(parseDriftingLiteraryContextSummary(malformedSummaries[0]!.content)?.synopsis).toContain(
-      'deterministic fallback',
+      '当前任务仍按作者最近的要求继续',
     );
   });
 
@@ -744,15 +910,15 @@ describe('Drifting context compactor', () => {
       expect.objectContaining({
         sourceId: 'result-new',
         kind: 'task_progress',
-        claim: expect.stringContaining('/chapters/00'),
+        claim: expect.stringContaining('章节「00」'),
       }),
       expect.objectContaining({
         sourceId: 'result-failed',
         kind: 'task_progress',
-        claim: expect.stringContaining('/chapters/missing'),
+        claim: expect.stringContaining('章节「missing」'),
       }),
     ]);
-    expect(parsed?.nextActions.join('\n')).toContain('Do not repeat broad directory scans');
+    expect(parsed?.nextActions.join('\n')).toContain('按作者目标继续');
     expect(JSON.stringify(parsed)).toContain('not found');
     expect(JSON.stringify(parsed)).not.toContain('/chapters/temporarily-unavailable');
   });
@@ -847,7 +1013,7 @@ describe('Drifting context compactor', () => {
     expect(summaries.length).toBeGreaterThan(1);
     expect(providerSignal?.aborted).toBe(true);
     expect(parseDriftingLiteraryContextSummary(summaries[0]!.content)?.synopsis).toContain(
-      'deterministic fallback',
+      '当前任务仍按作者最近的要求继续',
     );
   });
 

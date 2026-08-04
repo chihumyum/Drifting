@@ -24,6 +24,7 @@ import {
   AgentLongTaskToolRuntime,
   AGENT_LONG_TASK_CONSTRAINT_TOOL,
   AGENT_LONG_TASK_PLAN_TOOL,
+  AGENT_LONG_TASK_STEP_TOOL,
   projectAgentLongTaskPlanForProvider,
 } from './long-task-tool-runtime';
 import type { AgentRuntimeContextPlanningHookInput } from './runtime-context-planning';
@@ -2239,6 +2240,13 @@ describe('durable Agent long-task runtime', () => {
     const definition = runtime
       .listDefinitions(context)
       .find((candidate) => candidate.name === AGENT_LONG_TASK_PLAN_TOOL)!;
+    const stepDefinition = runtime
+      .listDefinitions(context)
+      .find((candidate) => candidate.name === AGENT_LONG_TASK_STEP_TOOL)!;
+    expect(JSON.stringify(definition.inputSchema)).not.toMatch(/taskId|expectedRevision/u);
+    expect(JSON.stringify(stepDefinition.inputSchema)).not.toMatch(
+      /taskId|expectedRevision|stepId/u,
+    );
     expect(
       definition.validateInput({
         operation: 'create',
@@ -2302,6 +2310,9 @@ describe('durable Agent long-task runtime', () => {
     });
     expect(JSON.stringify(result)).not.toContain('internal:');
     expect(JSON.stringify(result)).not.toContain('resolvedTargetId');
+    expect(result.ok && result.modelData).toContain('任务清单：润色整本书');
+    expect(result.ok && result.modelData).toContain('1. [待处理] 润色第一章');
+    expect(result.ok && result.modelData).not.toMatch(/taskId|revision|stepId/u);
 
     const hook = createAgentLongTaskSupplementalRowsHook(repository);
     const hookInput: AgentRuntimeContextPlanningHookInput = {
@@ -2412,19 +2423,37 @@ describe('durable Agent long-task runtime', () => {
           (segment.row.kind === 'tool_call' || segment.row.kind === 'tool_result') &&
           segment.row.callId === provenance.callId,
       );
-      expect(taskPair).toHaveLength(2);
-      expect(taskPair).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            classification: 'compressible',
-            pinReason: null,
-          }),
-        ]),
-      );
+      // The pinned canonical task snapshot is now the provider-facing truth.
+      // Once it durably covers this exact task mutation, retaining the raw
+      // call/result pair only teaches the model bookkeeping mechanics and
+      // consumes context without adding authored state.
+      expect(taskPair).toHaveLength(0);
+      expect(coveredPlan.plan.checkpoint.compaction.stages).toContain('drop_discardable');
+      expect(coveredPlan.plan.checkpoint.coverage.discardedSourceIds).toHaveLength(2);
       expect(coveredPlan.plan.checkpoint.pinned.sourceIds).toEqual(
         expect.arrayContaining(rows.map((row) => row.sourceId)),
       );
     }
+
+    const stepProvenance = test.nextProvenance('update_task_step');
+    const semanticStepResult = await runtime.execute({
+      sessionId: SESSION_ID,
+      turnId: TURN_ID,
+      callId: stepProvenance.callId,
+      idempotencyKey: stepProvenance.idempotencyKey,
+      name: AGENT_LONG_TASK_STEP_TOOL,
+      access: 'write',
+      arguments: { step: 1, status: 'in_progress' },
+      context,
+      signal: new AbortController().signal,
+    });
+    expect(semanticStepResult).toMatchObject({ ok: true });
+    expect(semanticStepResult.ok && semanticStepResult.modelData).toContain(
+      '1. [进行中] 润色第一章',
+    );
+    expect(semanticStepResult.ok && semanticStepResult.modelData).not.toMatch(
+      /taskId|revision|stepId/u,
+    );
     await test.gateway.close();
   });
 });

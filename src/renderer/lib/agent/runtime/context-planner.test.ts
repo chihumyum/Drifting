@@ -11,9 +11,14 @@ import {
   planAgentContext,
   serializeAgentContextNoteBudgetPayload,
   serializeAgentContextSummaryBudgetPayload,
+  serializeAgentContextSummaryProviderPayload,
   type AgentContextFullCompactionRequest,
   type AgentContextSourceRow,
 } from './context-planner';
+import {
+  WORKSPACE_COMPLETE_READ_MODEL_MARKER,
+  WORKSPACE_NOOP_WRITE_MODEL_MARKER,
+} from './drifting-workspace-tool-contract';
 
 function row(
   sourceId: string,
@@ -58,6 +63,98 @@ function sourceSegment(result: Awaited<ReturnType<typeof planAgentContext>>, sou
 }
 
 describe('provider-neutral Agent context planner', () => {
+  it('makes a newer authored read override historical write continuity', () => {
+    const serialized = serializeAgentContextNoteBudgetPayload({
+      noteKind: 'write_receipt',
+      sourceId: 'receipt-1',
+      turnOrdinal: 1,
+      content: '已提交章节「08」摘要。',
+    });
+
+    expect(serialized).toContain('[当前作品任务状态]');
+    expect(serialized).toContain('同一对象以最近看到的内容为准');
+    expect(serialized).not.toMatch(/快照|写入|receipt|sourceId/u);
+  });
+
+  it('projects authored read progress as current manuscript state only', () => {
+    const serialized = serializeAgentContextNoteBudgetPayload({
+      noteKind: 'read_progress',
+      sourceId: 'read-progress:private-effect-id',
+      turnOrdinal: 3,
+      content:
+        '章节「11」正文已在本轮完整通读，之后的修改已经计入当前稿件。当前摘要：米拉确认泰勒面临的危险。',
+    });
+
+    expect(serialized).toContain('[当前阅读进度]');
+    expect(serialized).toContain('章节「11」正文已在本轮完整通读');
+    expect(serialized).not.toMatch(/private-|effect|sourceId|path|offset|tool|revision|JSON/iu);
+  });
+
+  it('projects verified summaries as one domain state without provenance or history mechanics', () => {
+    const serialized = serializeAgentContextSummaryProviderPayload({
+      summaryId: 'private-summary-id',
+      sourceIds: ['private-source-id'],
+      sourceHash: 'sha256:private-source-hash',
+      content: JSON.stringify({
+        schemaVersion: 1,
+        synopsis:
+          'Earlier Agent activity was compacted deterministically. 第七章需继续收紧。',
+        evidence: [
+          {
+            sourceId: 'old-read',
+            kind: 'task_progress',
+            claim: '章节「07」正文 当前版本参考：\n对象：章节「07」正文\n摘要：旧城重逢。',
+            quote: '旧城重逢',
+          },
+        ],
+        decisions: ['保留酒馆对峙。'],
+        unresolved: ['第八章摘要待更新。'],
+        nextActions: ['收紧第八章。'],
+      }),
+    });
+
+    expect(serialized).toContain('第七章需继续收紧');
+    expect(serialized).toContain('章节「07」正文 当前版本参考');
+    expect(serialized).toContain('保留酒馆对峙');
+    expect(serialized).not.toMatch(
+      /private-|sourceHash|summaryId|compacted|JSON|review|token|path/iu,
+    );
+  });
+
+  it('projects durable long-task notes without task ids, revisions, or tool names', () => {
+    const serialized = serializeAgentContextNoteBudgetPayload({
+      noteKind: 'task_plan',
+      sourceId: 'long-task:private-id:plan',
+      turnOrdinal: null,
+      content: JSON.stringify({
+        schemaVersion: 3,
+        task: {
+          taskId: 'private-task-id',
+          objective: '润色整本小说',
+          status: 'active',
+          revision: 17,
+        },
+        progress: { total: 8, completed: 3 },
+        stepWindow: {
+          steps: [
+            {
+              stepId: 'private-step-id',
+              title: '收紧第四章',
+              status: 'in_progress',
+              target: { name: '第四章' },
+            },
+          ],
+        },
+        continuation: { readTool: 'read_task_plan' },
+      }),
+    });
+
+    expect(serialized).toContain('目标：润色整本小说');
+    expect(serialized).toContain('进度：3/8');
+    expect(serialized).toContain('收紧第四章（第四章）：进行中');
+    expect(serialized).not.toMatch(/private-|taskId|stepId|revision|read_task_plan|JSON/iu);
+  });
+
   it('does not under-count CJK manuscript text with the provider-neutral estimator', () => {
     const chinese = '雨夜里，柳青点亮了一盏灯。';
     const hanCount = [...chinese].filter((character) => /\p{Script=Han}/u.test(character)).length;
@@ -401,7 +498,7 @@ describe('provider-neutral Agent context planner', () => {
     ]);
   });
 
-  it('keeps writes pinned unless an exact pinned durable evidence row covers the whole pair', async () => {
+  it('drops raw writes immediately when exact pinned domain evidence covers the whole pair', async () => {
     const rows = [
       row('system', 0, null, 'system_policy', 'policy'),
       row('user-0', 1, 0, 'user', 'old request'),
@@ -474,18 +571,479 @@ describe('provider-neutral Agent context planner', () => {
       classification: 'pinned',
       pinReason: 'semantic',
     });
-    expect(sourceSegment(coveredPlan, 'write-call')).toMatchObject({
-      classification: 'compressible',
-      pinReason: null,
-    });
-    expect(sourceSegment(coveredPlan, 'write-result')).toMatchObject({
-      classification: 'compressible',
-      pinReason: null,
-    });
+    expect(sourceSegment(coveredPlan, 'write-call')).toBeUndefined();
+    expect(sourceSegment(coveredPlan, 'write-result')).toBeUndefined();
+    if (!coveredPlan.ok) return;
+    expect(coveredPlan.plan.checkpoint.compaction.stages).toContain('drop_discardable');
     expect(sourceSegment(coveredPlan, 'review-evidence')).toMatchObject({
       classification: 'pinned',
       pinReason: 'semantic',
     });
+  });
+
+  it('drops same-turn pre-write prose after recovery while retaining the successful delta', async () => {
+    const call = (
+      callId: string,
+      ordinal: number,
+      path: string,
+      replacements: unknown,
+    ) =>
+      row(
+        `${callId}-call`,
+        ordinal,
+        0,
+        'tool_call',
+        JSON.stringify({
+          type: 'tool_call',
+          callId,
+          name: 'edit_file',
+          arguments: { path, replacements },
+          rawArguments: JSON.stringify({ path, replacements }),
+        }),
+        { callId, toolName: 'edit_file', toolAccess: 'write' },
+      );
+    const result = (callId: string, ordinal: number, ok: boolean) =>
+      row(
+        `${callId}-result`,
+        ordinal,
+        0,
+        'tool_result',
+        JSON.stringify({ callId, name: 'edit_file', ok, content: ok ? 'updated' : 'stale' }),
+        { callId, toolName: 'edit_file', toolAccess: 'write' },
+      );
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user', 1, 0, 'user', '润色第三章'),
+      row(
+        'stale-read-call',
+        2,
+        0,
+        'tool_call',
+        JSON.stringify({
+          type: 'tool_call',
+          callId: 'stale-read',
+          name: 'read_file',
+          arguments: { path: '/chapters/03/' },
+          rawArguments: '{"path":"/chapters/03/"}',
+        }),
+        { callId: 'stale-read', toolName: 'read_file', toolAccess: 'read' },
+      ),
+      row(
+        'stale-read-result',
+        3,
+        0,
+        'tool_result',
+        JSON.stringify({ callId: 'stale-read', name: 'read_file', ok: true, content: '旧正文' }),
+        { callId: 'stale-read', toolName: 'read_file', toolAccess: 'read' },
+      ),
+      call('failed-same-target', 4, '/chapters/03/prose.md', [
+        { oldText: '旧'.repeat(2_000), newText: '新'.repeat(2_000) },
+      ]),
+      result('failed-same-target', 5, false),
+      call('failed-other-target', 6, '/chapters/04/prose.md', [
+        { oldText: '甲', newText: '乙' },
+      ]),
+      result('failed-other-target', 7, false),
+      call('recovered', 8, '/chapters/03/prose.md', [{ oldText: '旧', newText: '新' }]),
+      result('recovered', 9, true),
+      row('review-evidence', 10, 0, 'write_review', '章节「03」正文的改动已写入。'),
+    ];
+
+    const planned = await planAgentContext({
+      contextWindowTokens: 32_768,
+      requestedOutputTokens: 4_096,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      durableWriteEvidence: [
+        {
+          evidenceSourceId: 'review-evidence',
+          turnOrdinal: 0,
+          callId: 'recovered',
+          toolName: 'edit_file',
+        },
+      ],
+    });
+
+    expect(sourceSegment(planned, 'failed-same-target-call')).toBeUndefined();
+    expect(sourceSegment(planned, 'failed-same-target-result')).toBeUndefined();
+    expect(sourceSegment(planned, 'stale-read-call')).toBeUndefined();
+    expect(sourceSegment(planned, 'stale-read-result')).toBeUndefined();
+    expect(sourceSegment(planned, 'recovered-call')).toMatchObject({
+      classification: 'compressible',
+      pinReason: 'recent_turn',
+    });
+    expect(sourceSegment(planned, 'recovered-result')).toMatchObject({
+      classification: 'compressible',
+      pinReason: 'recent_turn',
+    });
+    expect(sourceSegment(planned, 'failed-other-target-call')).toMatchObject({
+      classification: 'pinned',
+      pinReason: 'semantic',
+    });
+  });
+
+  it('keeps one complete same-turn working copy across focused authored edits', async () => {
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user', 1, 0, 'user', '通读并润色第五章'),
+      row(
+        'read-call',
+        2,
+        0,
+        'tool_call',
+        JSON.stringify({ name: 'read_file', arguments: { path: '第五章' } }),
+        { callId: 'read', toolName: 'read_file', toolAccess: 'read' },
+      ),
+      row(
+        'read-result',
+        3,
+        0,
+        'tool_result',
+        JSON.stringify({
+          callId: 'read',
+          name: 'read_file',
+          ok: true,
+          content: '章节「05」正文\n完整正文'.repeat(1_000),
+        }),
+        { callId: 'read', toolName: 'read_file', toolAccess: 'read' },
+      ),
+      row(
+        'write-call',
+        4,
+        0,
+        'tool_call',
+        JSON.stringify({
+          name: 'edit_file',
+          arguments: {
+            path: '第五章',
+            replacements: [{ oldText: '旧句', newText: '当前新句' }],
+          },
+        }),
+        { callId: 'write', toolName: 'edit_file', toolAccess: 'write' },
+      ),
+      row(
+        'write-result',
+        5,
+        0,
+        'tool_result',
+        JSON.stringify({
+          callId: 'write',
+          name: 'edit_file',
+          ok: true,
+          content:
+            `章节「05」正文已修改。${WORKSPACE_COMPLETE_READ_MODEL_MARKER}，之后的修改已计入当前稿件。` +
+            '当前修改后的正文片段：「当前新句」。',
+        }),
+        { callId: 'write', toolName: 'edit_file', toolAccess: 'write' },
+      ),
+      row('review', 6, 0, 'write_review', '章节「05」正文已有可靠完成证据。'),
+      row(
+        'read-progress',
+        7,
+        0,
+        'read_progress',
+        '章节「05」正文已在本轮完整通读，当前修改后片段：「当前新句」。',
+      ),
+    ];
+
+    const planned = await planAgentContext({
+      contextWindowTokens: 60_000,
+      requestedOutputTokens: 5_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      durableWriteEvidence: [
+        {
+          evidenceSourceId: 'review',
+          turnOrdinal: 0,
+          callId: 'write',
+          toolName: 'edit_file',
+        },
+      ],
+    });
+
+    expect(sourceSegment(planned, 'read-call')).toBeDefined();
+    expect(sourceSegment(planned, 'read-result')).toBeDefined();
+    expect(sourceSegment(planned, 'read-progress')).toMatchObject({
+      classification: 'pinned',
+      pinReason: 'semantic',
+    });
+  });
+
+  it('drops a successful side-effect-free write while retaining an unresolved write', async () => {
+    const toolRow = (
+      sourceId: string,
+      ordinal: number,
+      callId: string,
+      kind: 'tool_call' | 'tool_result',
+      content: Record<string, unknown>,
+    ) =>
+      row(sourceId, ordinal, 0, kind, JSON.stringify(content), {
+        callId,
+        toolName: 'edit_file',
+        toolAccess: 'write',
+      });
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user', 1, 0, 'user', '检查第十二章，没必要改的地方就别动'),
+      toolRow('noop-call', 2, 'noop', 'tool_call', {
+        type: 'tool_call',
+        callId: 'noop',
+        name: 'edit_file',
+        arguments: {
+          path: '第十二章',
+          replacements: [{ oldText: '已完成段落'.repeat(2_000), newText: '已完成段落'.repeat(2_000) }],
+        },
+      }),
+      toolRow('noop-result', 3, 'noop', 'tool_result', {
+        callId: 'noop',
+        name: 'edit_file',
+        ok: true,
+        content: `章节「第十二章」正文${WORKSPACE_NOOP_WRITE_MODEL_MARKER}。直接继续剩余任务。`,
+      }),
+      toolRow('unresolved-call', 4, 'unresolved', 'tool_call', {
+        type: 'tool_call',
+        callId: 'unresolved',
+        name: 'edit_file',
+        arguments: {
+          path: '第十一章',
+          replacements: [{ oldText: '待改', newText: '新稿' }],
+        },
+      }),
+      toolRow('unresolved-result', 5, 'unresolved', 'tool_result', {
+        callId: 'unresolved',
+        name: 'edit_file',
+        ok: false,
+        content: 'write failed',
+      }),
+    ];
+
+    const planned = await planAgentContext({
+      contextWindowTokens: 32_768,
+      requestedOutputTokens: 4_096,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+    });
+
+    expect(sourceSegment(planned, 'noop-call')).toBeUndefined();
+    expect(sourceSegment(planned, 'noop-result')).toBeUndefined();
+    expect(sourceSegment(planned, 'unresolved-call')).toMatchObject({
+      classification: 'pinned',
+      pinReason: 'semantic',
+    });
+    expect(sourceSegment(planned, 'unresolved-result')).toMatchObject({
+      classification: 'pinned',
+      pinReason: 'semantic',
+    });
+  });
+
+  it('drops an older complete read when a newer complete read covers the same authored object', async () => {
+    const readPair = (prefix: string, ordinal: number, content: string) => [
+      row(
+        `${prefix}-call`,
+        ordinal,
+        0,
+        'tool_call',
+        JSON.stringify({
+          type: 'tool_call',
+          callId: prefix,
+          name: 'read_file',
+          arguments: { path: '第七章' },
+          rawArguments: '{"path":"第七章"}',
+        }),
+        { callId: prefix, toolName: 'read_file', toolAccess: 'read' },
+      ),
+      row(
+        `${prefix}-result`,
+        ordinal + 1,
+        0,
+        'tool_result',
+        JSON.stringify({ callId: prefix, name: 'read_file', ok: true, content }),
+        { callId: prefix, toolName: 'read_file', toolAccess: 'read' },
+      ),
+    ] as const;
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user', 1, 0, 'user', '整理第七章'),
+      ...readPair('read-old', 2, '章节「07」正文\n旧正文'),
+      ...readPair('read-current', 4, '章节「07」正文\n当前正文'),
+    ];
+
+    const planned = await planAgentContext({
+      contextWindowTokens: 16_000,
+      requestedOutputTokens: 4_096,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      constraintLedger: [],
+    });
+
+    expect(sourceSegment(planned, 'read-old-call')).toBeUndefined();
+    expect(sourceSegment(planned, 'read-old-result')).toBeUndefined();
+    expect(sourceSegment(planned, 'read-current-call')).toMatchObject({
+      classification: 'compressible',
+      pinReason: 'recent_turn',
+    });
+    expect(sourceSegment(planned, 'read-current-result')).toMatchObject({
+      classification: 'compressible',
+      pinReason: 'recent_turn',
+    });
+  });
+
+  it('retires a cached summary when a later read makes one covered source discardable', async () => {
+    const assistantOld = row(
+      'assistant-old',
+      2,
+      0,
+      'assistant_narrative',
+      '旧'.repeat(7_000),
+    );
+    const oldRead = [
+      row(
+        'read-old-call',
+        6,
+        2,
+        'tool_call',
+        JSON.stringify({
+          callId: 'read-old',
+          name: 'read_file',
+          arguments: { path: '第三章' },
+        }),
+        { callId: 'read-old', toolName: 'read_file', toolAccess: 'read' },
+      ),
+      row(
+        'read-old-result',
+        7,
+        2,
+        'tool_result',
+        JSON.stringify({ callId: 'read-old', name: 'read_file', ok: true, content: '旧正文' }),
+        { callId: 'read-old', toolName: 'read_file', toolAccess: 'read' },
+      ),
+    ] as const;
+    const currentRead = [
+      row(
+        'read-current-call',
+        8,
+        2,
+        'tool_call',
+        JSON.stringify({
+          callId: 'read-current',
+          name: 'read_file',
+          arguments: { path: '第三章' },
+        }),
+        { callId: 'read-current', toolName: 'read_file', toolAccess: 'read' },
+      ),
+      row(
+        'read-current-result',
+        9,
+        2,
+        'tool_result',
+        JSON.stringify({
+          callId: 'read-current',
+          name: 'read_file',
+          ok: true,
+          content: '章节「03」正文\n' + '新'.repeat(1_000),
+        }),
+        { callId: 'read-current', toolName: 'read_file', toolAccess: 'read' },
+      ),
+    ] as const;
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user-old', 1, 0, 'user', '旧请求'),
+      assistantOld,
+      row('user-middle', 3, 1, 'user', '继续'),
+      row('assistant-middle', 4, 1, 'assistant_narrative', '继续中'),
+      row('user-current', 5, 2, 'user', '整理第三章'),
+      ...oldRead,
+      ...currentRead,
+    ];
+    const obsolete = await createAgentContextSummaryCandidate({
+      summaryId: 'obsolete-read-summary',
+      sourceRows: oldRead,
+      content: '旧读取已完成。',
+    });
+    const useful = await createAgentContextSummaryCandidate({
+      summaryId: 'useful-history-summary',
+      sourceRows: [assistantOld],
+      content: '此前对话没有未完成事项。',
+    });
+
+    const planned = await planAgentContext({
+      contextWindowTokens: 12_000,
+      requestedOutputTokens: 4_096,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      constraintLedger: [],
+      deterministicSummaries: [obsolete, useful],
+    });
+
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    expect(
+      planned.plan.segments.some(
+        (segment) => segment.type === 'summary' && segment.summaryId === obsolete.summaryId,
+      ),
+    ).toBe(false);
+    expect(
+      planned.plan.segments.some(
+        (segment) => segment.type === 'summary' && segment.summaryId === useful.summaryId,
+      ),
+    ).toBe(true);
+    expect(sourceSegment(planned, 'read-old-result')).toBeUndefined();
+    expect(sourceSegment(planned, 'read-current-result')).toMatchObject({
+      pinReason: 'recent_turn',
+    });
+  });
+
+  it('keeps a bounded multi-chapter authored working set exact when it fits the window', async () => {
+    const rows: AgentContextSourceRow[] = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user', 1, 0, 'user', '整理第七章到第十章'),
+    ];
+    for (let chapter = 7; chapter <= 10; chapter += 1) {
+      const callId = `read-${chapter}`;
+      rows.push(
+        row(
+          `${callId}-call`,
+          rows.length,
+          0,
+          'tool_call',
+          JSON.stringify({
+            type: 'tool_call',
+            callId,
+            name: 'read_file',
+            arguments: { path: `第${chapter}章` },
+          }),
+          { callId, toolName: 'read_file', toolAccess: 'read' },
+        ),
+        row(
+          `${callId}-result`,
+          rows.length + 1,
+          0,
+          'tool_result',
+          JSON.stringify({
+            callId,
+            name: 'read_file',
+            ok: true,
+            content: `章节「${chapter}」正文\n${'章'.repeat(6_000)}`,
+          }),
+          { callId, toolName: 'read_file', toolAccess: 'read' },
+        ),
+      );
+    }
+
+    const planned = await planAgentContext({
+      contextWindowTokens: 60_000,
+      requestedOutputTokens: 8_192,
+      fixedInputTokens: 2_000,
+      sourceRows: rows,
+      constraintLedger: [],
+    });
+
+    expect(planned.ok).toBe(true);
+    for (let chapter = 7; chapter <= 10; chapter += 1) {
+      expect(sourceSegment(planned, `read-${chapter}-result`)).toMatchObject({
+        pinReason: 'recent_turn',
+      });
+    }
   });
 
   it('lets a pinned canonical task snapshot replace accumulated long-task metadata results', async () => {
@@ -569,12 +1127,12 @@ describe('provider-neutral Agent context planner', () => {
     });
     expect(coveredPlan.ok).toBe(true);
     if (!coveredPlan.ok) return;
-    expect(coveredPlan.plan.checkpoint.compaction.stages).toContain('deterministic_summaries');
+    expect(coveredPlan.plan.checkpoint.compaction.stages).toEqual(['drop_discardable']);
     expect(
       coveredPlan.plan.segments.find(
         (segment) => segment.type === 'summary' && segment.summaryId === 'task-command-archive',
       ),
-    ).toBeDefined();
+    ).toBeUndefined();
     expect(sourceSegment(coveredPlan, 'task-plan')).toMatchObject({
       classification: 'pinned',
       pinReason: 'semantic',
@@ -788,7 +1346,7 @@ describe('provider-neutral Agent context planner', () => {
     expect(constrained.ok).toBe(true);
   });
 
-  it('charges supplemental note provenance as well as its visible content', async () => {
+  it('charges the exact provider-facing domain note without private provenance', async () => {
     const freshness = row(
       `freshness/${'source-identity-'.repeat(400)}`,
       2,
@@ -818,7 +1376,15 @@ describe('provider-neutral Agent context planner', () => {
         }),
       ) + 6;
     expect(sourceSegment(result, freshness.sourceId)?.estimatedTokens).toBe(expected);
-    expect(expected).toBeGreaterThan(estimateAgentContextTextTokens(freshness.content) + 1_000);
+    expect(expected).toBeLessThan(200);
+    expect(
+      serializeAgentContextNoteBudgetPayload({
+        noteKind: 'freshness',
+        sourceId: freshness.sourceId,
+        turnOrdinal: null,
+        content: freshness.content,
+      }),
+    ).not.toContain('source-identity');
   });
 
   it('accepts a positive verified full-compactor projection', async () => {

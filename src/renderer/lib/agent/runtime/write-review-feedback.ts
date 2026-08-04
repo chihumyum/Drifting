@@ -3,9 +3,10 @@ import {
   type AgentRuntimeWriteEffectRepository,
 } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
 import type { AgentContextSupplementalPinnedRow } from './context-message-adapter';
+import { describeAgentWriteTarget } from './workspace-domain-language';
+import { workspaceAuthoredReadStateFromArguments } from './drifting-workspace-tool-runtime';
 
 const MAX_FEEDBACK_ITEMS = 20;
-const MAX_ARGUMENT_CHARS = 240;
 const SETTLED_REVIEW_STATUSES = new Set([
   'accepted_effect',
   'reverted',
@@ -22,8 +23,6 @@ const PINNED_REVIEW_STATUSES = new Set([
   'revert_failed',
   'revert_unavailable',
 ]);
-
-const DURABLE_WRITE_RECEIPT_KIND = 'durable_write_receipt_archive' as const;
 
 function isSettledReviewStatus(status: string): boolean {
   return SETTLED_REVIEW_STATUSES.has(status);
@@ -67,22 +66,6 @@ function writeCoverage(
     : [];
 }
 
-async function settledArchiveHash(value: unknown): Promise<string> {
-  const subtle = globalThis.crypto?.subtle;
-  if (!subtle) {
-    throw new Error(
-      'Web Crypto SHA-256 is unavailable; settled write-review evidence cannot be archived.',
-    );
-  }
-  const digest = await subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(JSON.stringify(value)) as BufferSource,
-  );
-  return `sha256:${Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, '0'),
-  ).join('')}`;
-}
-
 /**
  * Canonical user-decision feedback appended to the next model prompt.
  *
@@ -109,8 +92,7 @@ export async function buildAgentWriteReviewFeedback(
   const lines = settled.flatMap((review) => {
     const effect = effects.get(review.effectId);
     if (!effect) return [];
-    const args = modelFacingWriteArguments(effect.arguments);
-    const prefix = `- ${effect.toolName}(${args})`;
+    const prefix = `- ${describeAgentWriteTarget(effect.toolName, effect.arguments)}`;
     switch (review.status) {
       case 'accepted_effect':
         {
@@ -121,11 +103,7 @@ export async function buildAgentWriteReviewFeedback(
             ];
           }
         }
-        return [
-          review.decisionNote === 'auto mode'
-            ? `${prefix} 已按自动编辑模式完成，继续把该结果视为当前事实。`
-            : `${prefix} 已被用户接受，继续把该结果视为当前事实。`,
-        ];
+        return [];
       case 'reverted':
         return [`${prefix} 已被用户拒绝并精确撤销，不要假设该改动仍然存在。`];
       case 'revert_failed':
@@ -137,7 +115,7 @@ export async function buildAgentWriteReviewFeedback(
     }
   });
   return lines.length > 0
-    ? ['[Agent write-review decisions since this session began]', ...lines].join('\n')
+    ? ['[Current author review decisions]', ...lines].join('\n')
     : '';
 }
 
@@ -165,59 +143,16 @@ export async function loadAgentWriteReviewContextRows(
       (left, right) =>
         left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
     );
-  const unsettled = eligible.filter((review) => !isSettledReviewStatus(review.status));
-  const allSettled = eligible.filter((review) => isSettledReviewStatus(review.status));
-  const settled = allSettled.slice(-MAX_FEEDBACK_ITEMS);
-  const archivedSettled = allSettled.slice(0, Math.max(0, allSettled.length - MAX_FEEDBACK_ITEMS));
-
-  const exactRows: AgentContextSupplementalPinnedRow[] = [...settled, ...unsettled]
-    .sort(
-      (left, right) =>
-        left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id),
-    )
-    .map((review) => {
-      const effect = effects.get(review.effectId)!;
-      const turnOrdinal =
-        snapshot.turnContextOrdinalsById?.[effect.turnId] ??
-        snapshot.turnOrdinalsById?.[effect.turnId];
-      if (turnOrdinal === undefined || !Number.isSafeInteger(turnOrdinal) || turnOrdinal < 0) {
-        throw new Error(
-          `Write review ${review.id} has no canonical turn ordinal for ${effect.turnId}.`,
-        );
-      }
-      const settledReview = isSettledReviewStatus(review.status);
-      const toolPairIsCanonical = snapshot.turnHasCanonicalHistoryById?.[effect.turnId] ?? true;
-      return {
-        sourceId: `write-review:${review.id}`,
-        turnOrdinal,
-        kind: 'write_review' as const,
-        content: JSON.stringify({
-          reviewId: review.id,
-          effectId: effect.id,
-          callId: effect.callId,
-          turnOrdinal,
-          toolName: effect.toolName,
-          arguments: modelFacingWriteArguments(effect.arguments),
-          effectPhase: effect.phase,
-          reviewStatus: review.status,
-          decisionNote: review.decisionNote,
-          errorCode: review.errorCode,
-          errorMessage: review.errorMessage,
-        }),
-        ...(settledReview
-          ? {
-              durableWriteCoverage: writeCoverage(
-                effect,
-                turnOrdinal,
-                toolPairIsCanonical || effect.turnId === options.currentTurnId,
-              ),
-            }
-          : {}),
-      };
-    });
-  if (archivedSettled.length === 0) return exactRows;
-
-  const archivedEvidence = archivedSettled.map((review) => {
+  const byTarget = new Map<
+    string,
+    Array<{
+      review: (typeof eligible)[number];
+      effect: (typeof snapshot.effects)[number];
+      turnOrdinal: number;
+      coverage: ReturnType<typeof writeCoverage>;
+    }>
+  >();
+  for (const review of eligible) {
     const effect = effects.get(review.effectId)!;
     const turnOrdinal =
       snapshot.turnContextOrdinalsById?.[effect.turnId] ??
@@ -227,53 +162,76 @@ export async function loadAgentWriteReviewContextRows(
         `Write review ${review.id} has no canonical turn ordinal for ${effect.turnId}.`,
       );
     }
-    return {
-      reviewId: review.id,
-      effectId: effect.id,
-      status: review.status,
+    const target = describeAgentWriteTarget(effect.toolName, effect.arguments);
+    const rows = byTarget.get(target) ?? [];
+    const toolPairIsCanonical = snapshot.turnHasCanonicalHistoryById?.[effect.turnId] ?? true;
+    rows.push({
+      review,
+      effect,
       turnOrdinal,
-      callId: effect.callId,
-      toolName: effect.toolName,
-      toolPairIsCanonical: snapshot.turnHasCanonicalHistoryById?.[effect.turnId] ?? true,
-    };
-  });
-  const archiveHash = await settledArchiveHash(archivedEvidence);
-  const statusCounts = archivedEvidence.reduce<Record<string, number>>((counts, evidence) => {
-    counts[evidence.status] = (counts[evidence.status] ?? 0) + 1;
-    return counts;
-  }, {});
-  const latestTurnOrdinal = Math.max(...archivedEvidence.map((evidence) => evidence.turnOrdinal));
+      coverage: writeCoverage(
+        effect,
+        turnOrdinal,
+        toolPairIsCanonical || effect.turnId === options.currentTurnId,
+      ),
+    });
+    byTarget.set(target, rows);
+  }
+
+  const targetStates = [...byTarget.entries()]
+    .map(([target, rows]) => {
+      const latest = [...rows].sort(
+        (left, right) =>
+          left.review.updatedAt.localeCompare(right.review.updatedAt) ||
+          left.review.id.localeCompare(right.review.id),
+      )[rows.length - 1]!;
+      return {
+        target,
+        latest,
+        coverage: uniqueWriteCoverage(rows.flatMap((row) => row.coverage)),
+      };
+    })
+    .sort(
+      (left, right) =>
+        left.latest.review.updatedAt.localeCompare(right.latest.review.updatedAt) ||
+        left.latest.review.id.localeCompare(right.latest.review.id),
+    );
+  const exactStates = targetStates.slice(-MAX_FEEDBACK_ITEMS);
+  const archivedStates = targetStates.slice(0, -MAX_FEEDBACK_ITEMS);
+  const exactRows: AgentContextSupplementalPinnedRow[] = exactStates.map((state) => ({
+    sourceId: `write-review:${state.latest.review.id}`,
+    turnOrdinal: state.latest.turnOrdinal,
+    kind: 'write_review',
+    content: modelFacingReviewState(state.latest.review, state.latest.effect),
+    durableWriteCoverage: state.coverage,
+  }));
+  if (archivedStates.length === 0) return exactRows;
   return [
     {
-      sourceId: `write-review:${sessionId}:settled-archive`,
-      turnOrdinal: latestTurnOrdinal,
+      sourceId: `write-review:${sessionId}:current-state-archive`,
+      turnOrdinal: Math.max(...archivedStates.map((state) => state.latest.turnOrdinal)),
       kind: 'write_review',
-      content: JSON.stringify({
-        schemaVersion: 1,
-        kind: 'settled_write_review_archive',
-        reviewCount: archivedEvidence.length,
-        statusCounts,
-        throughTurnOrdinal: latestTurnOrdinal,
-        evidenceHash: archiveHash,
-        instruction:
-          'Historical settled writes are represented by current domain state. Re-read affected entities before dependent edits.',
-      }),
-      durableWriteCoverage: archivedEvidence.flatMap((evidence) =>
-        evidence.toolPairIsCanonical &&
-        typeof evidence.callId === 'string' &&
-        evidence.callId.length > 0
-          ? [
-              {
-                turnOrdinal: evidence.turnOrdinal,
-                callId: evidence.callId,
-                toolName: evidence.toolName,
-              },
-            ]
-          : [],
+      content:
+        `执行进度中已有可靠完成证据的对象：${summarizeDomainTargets(archivedStates.map((state) => state.target))}。` +
+        '读取或计划不算完成；只处理作者目标本身。',
+      durableWriteCoverage: uniqueWriteCoverage(
+        archivedStates.flatMap((state) => state.coverage),
       ),
     },
     ...exactRows,
   ];
+}
+
+function uniqueWriteCoverage(
+  values: readonly { turnOrdinal: number; callId: string; toolName: string }[],
+): Array<{ turnOrdinal: number; callId: string; toolName: string }> {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = `${value.turnOrdinal}:${value.callId}:${value.toolName}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /**
@@ -283,8 +241,9 @@ export async function loadAgentWriteReviewContextRows(
  * the planner compact old create/update/delete calls without pretending that
  * the effects were merely conversational history.
  *
- * Effects with an unsettled editor review remain exact until that review is
- * settled. Failed/uncertain writes are never covered.
+ * Effects with an unsettled editor review are represented by their own pinned
+ * semantic review row rather than duplicated here. Failed/uncertain writes are
+ * never covered.
  */
 export async function loadAgentDurableWriteReceiptContextRows(
   sessionId: string,
@@ -293,9 +252,9 @@ export async function loadAgentDurableWriteReceiptContextRows(
 ): Promise<AgentContextSupplementalPinnedRow[]> {
   if (!sessionId) return [];
   const snapshot = await repository.loadSnapshot(sessionId);
-  const unsettledEffectIds = new Set(
+  const reviewedEffectIds = new Set(
     snapshot.reviews
-      .filter((review) => !isSettledReviewStatus(review.status))
+      .filter((review) => PINNED_REVIEW_STATUSES.has(review.status))
       .map((review) => review.effectId),
   );
   const committed = snapshot.effects
@@ -303,7 +262,7 @@ export async function loadAgentDurableWriteReceiptContextRows(
       (effect) =>
         effect.phase === 'result_committed' &&
         effect.callId.length > 0 &&
-        !unsettledEffectIds.has(effect.id),
+        !reviewedEffectIds.has(effect.id),
     )
     .map((effect) => {
       const turnOrdinal =
@@ -327,37 +286,34 @@ export async function loadAgentDurableWriteReceiptContextRows(
     );
   if (committed.length === 0) return [];
 
-  const evidence = committed.map(({ effect, turnOrdinal }) => ({
-    effectId: effect.id,
-    turnOrdinal,
-    callId: effect.callId,
-    toolName: effect.toolName,
-    idempotencyKey: effect.idempotencyKey,
-    resultCommittedAt: effect.resultCommittedAt,
-  }));
-  const toolCounts = Object.fromEntries(
-    [...committed.reduce<Map<string, number>>((counts, { effect }) => {
-      counts.set(effect.toolName, (counts.get(effect.toolName) ?? 0) + 1);
-      return counts;
-    }, new Map())].sort(([left], [right]) => left.localeCompare(right)),
-  );
   const latestTurnOrdinal = Math.max(...committed.map((item) => item.turnOrdinal));
+  const latestCommittedByTarget = new Map<string, (typeof committed)[number]>();
+  for (const item of committed) {
+    latestCommittedByTarget.set(
+      describeAgentWriteTarget(item.effect.toolName, item.effect.arguments),
+      item,
+    );
+  }
+  const latestCommitted = [...latestCommittedByTarget.values()];
+  const targets = latestCommitted.map(({ effect }) =>
+    describeAgentWriteTarget(effect.toolName, effect.arguments),
+  );
+  const remainingWork = latestCommitted.flatMap(({ effect }) => {
+    const summary = modelFacingRemainingWork(effect.arguments);
+    return summary ? [summary] : [];
+  });
 
   return [
     {
       sourceId: `write-receipt:${sessionId}:committed-archive`,
       turnOrdinal: latestTurnOrdinal,
       kind: 'write_receipt',
-      content: JSON.stringify({
-        schemaVersion: 1,
-        kind: DURABLE_WRITE_RECEIPT_KIND,
-        effectCount: committed.length,
-        toolCounts,
-        throughTurnOrdinal: latestTurnOrdinal,
-        evidenceHash: await settledArchiveHash(evidence),
-        instruction:
-          'These tool effects are durably committed. Treat current domain state as authoritative and re-read affected resources before dependent edits.',
-      }),
+      content:
+        `执行进度中已有可靠完成证据的对象：${summarizeDomainTargets(targets)}。` +
+        (remainingWork.length > 0
+          ? `当前尚需处理：${summarizeDomainTargets(remainingWork)}。`
+          : '') +
+        '读取或计划不算完成；只处理作者目标本身；不要只为确认而重读。',
       durableWriteCoverage: committed.flatMap(({ effect, turnOrdinal, toolPairIsCanonical }) =>
         toolPairIsCanonical
           ? [
@@ -373,28 +329,207 @@ export async function loadAgentDurableWriteReceiptContextRows(
   ];
 }
 
-function clamp(value: string, maxLength: number): string {
-  return value.length <= maxLength ? value : `${value.slice(0, maxLength)}…`;
-}
-
-function modelFacingWriteArguments(value: unknown): string {
-  return clamp(JSON.stringify(stripWriteCoordination(value)), MAX_ARGUMENT_CHARS);
-}
-
-function stripWriteCoordination(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stripWriteCoordination);
-  if (!value || typeof value !== 'object') return value;
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).flatMap(([key, child]) => {
-      if (
-        key.startsWith('__') ||
-        /^(?:expectedRevision|revision|receiptId|observationId|stateVector|stateHash|nodeId|entityId|docId|commandId)$/i.test(
-          key,
-        )
-      ) {
-        return [];
-      }
-      return [[key, stripWriteCoordination(child)]];
-    }),
+/**
+ * Current-turn authored reading is a domain fact, not raw tool history. When a
+ * complete body read is followed by one or more durable writes, keep a small
+ * current-state note after the obsolete prose/tool rows are retired. Later
+ * summary writes in the same turn update the note without erasing the fact
+ * that the body was already read.
+ */
+export async function loadAgentAuthoredReadProgressContextRows(
+  sessionId: string,
+  repository: AgentRuntimeWriteEffectRepository = createAgentRuntimeWriteEffectRepository(),
+  options: { currentTurnId?: string } = {},
+): Promise<AgentContextSupplementalPinnedRow[]> {
+  if (!sessionId || !options.currentTurnId) return [];
+  const snapshot = await repository.loadSnapshot(sessionId);
+  const inapplicableEffectIds = new Set(
+    snapshot.reviews
+      .filter((review) =>
+        [
+          'rejected',
+          'revert_started',
+          'reverted',
+          'revert_failed',
+          'revert_unavailable',
+        ].includes(review.status),
+      )
+      .map((review) => review.effectId),
   );
+  const candidates = snapshot.effects
+    .filter(
+      (effect) =>
+        effect.turnId === options.currentTurnId &&
+        effect.phase === 'result_committed' &&
+        !inapplicableEffectIds.has(effect.id),
+    )
+    .flatMap((effect) => {
+      const state = workspaceAuthoredReadStateFromArguments(effect.arguments);
+      if (!state) return [];
+      const turnOrdinal =
+        snapshot.turnContextOrdinalsById?.[effect.turnId] ??
+        snapshot.turnOrdinalsById?.[effect.turnId];
+      if (turnOrdinal === undefined || !Number.isSafeInteger(turnOrdinal) || turnOrdinal < 0) {
+        throw new Error(
+          `Authored read progress ${effect.id} has no canonical turn ordinal for ${effect.turnId}.`,
+        );
+      }
+      return [{ effect, state, turnOrdinal }];
+    })
+    .sort(
+      (left, right) =>
+        left.turnOrdinal - right.turnOrdinal ||
+        left.effect.updatedAt.localeCompare(right.effect.updatedAt) ||
+        left.effect.id.localeCompare(right.effect.id),
+    );
+  const byTarget = new Map<
+    string,
+    {
+      target: string;
+      summary: string;
+      completeBodyRead: boolean;
+      focusedBodyEdit: boolean;
+      currentPassages: string[];
+      turnOrdinal: number;
+      sourceEffectId: string;
+    }
+  >();
+  for (const candidate of candidates) {
+    const previous = byTarget.get(candidate.state.targetKey);
+    byTarget.set(candidate.state.targetKey, {
+      target: candidate.state.target,
+      summary: candidate.state.summary,
+      completeBodyRead:
+        (previous?.completeBodyRead ?? false) || candidate.state.completeBodyRead,
+      focusedBodyEdit:
+        (previous?.focusedBodyEdit ?? false) || candidate.state.focusedBodyEdit,
+      currentPassages: uniqueStrings([
+        ...(previous?.currentPassages ?? []),
+        ...candidate.state.currentPassages,
+      ]).slice(-12),
+      turnOrdinal: candidate.turnOrdinal,
+      sourceEffectId: candidate.effect.id,
+    });
+  }
+  return [...byTarget.values()]
+    .filter((state) => state.completeBodyRead)
+    .slice(-MAX_FEEDBACK_ITEMS)
+    .map((state) => {
+      const summary = [...state.summary.replace(/\s+/gu, ' ').trim()]
+        .slice(0, 1_200)
+        .join('');
+      const passages = state.focusedBodyEdit
+        ? state.currentPassages
+            .map((passage) => passage.replace(/\s+/gu, ' ').trim())
+            .filter(Boolean)
+            .slice(-8)
+        : [];
+      return {
+        sourceId: `read-progress:${state.sourceEffectId}`,
+        turnOrdinal: state.turnOrdinal,
+        kind: 'read_progress' as const,
+        content:
+          `${state.target}已在本轮完整通读，之后的修改已经计入当前稿件。` +
+          (summary ? `当前摘要：${withSentenceTerminal(summary)}` : '当前摘要为空。') +
+          (passages.length > 0
+            ? `当前修改后的正文片段：${passages
+                .map((passage) => `「${[...passage].slice(0, 320).join('')}」`)
+                .join('；')}。`
+            : '') +
+          '只有出现新的具体疑点时才需要再次查看正文。',
+      };
+    });
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function withSentenceTerminal(value: string): string {
+  return /[。！？…!?]$/u.test(value) ? value : `${value}。`;
+}
+
+function modelFacingReviewState(
+  review: {
+    status: string;
+    decisionNote: unknown;
+    errorMessage?: string | null;
+  },
+  effect: { toolName: string; arguments: unknown },
+): string {
+  const target = describeAgentWriteTarget(effect.toolName, effect.arguments);
+  const remaining = modelFacingRemainingWork(effect.arguments);
+  const remainingSuffix = remaining ? `仍待完成：${remaining}。` : '';
+  const blockDecisions = blockReviewDecisionCounts(review.decisionNote);
+  if (review.status === 'accepted_effect' && blockDecisions?.reverted) {
+    return `${target}当前保留 ${blockDecisions.accepted} 处修改、还原 ${blockDecisions.reverted} 处。${remainingSuffix}作者改变了上次结果；仅在继续修改同一段时查看当前正文。`;
+  }
+  switch (review.status) {
+    case 'pending':
+    case 'accepted':
+    case 'accepted_effect':
+      return `${target}已有可靠完成证据并属于当前稿件。${remainingSuffix}读取或计划不算完成；只处理作者目标本身；只在确实还要改这个对象时查看正文。`;
+    case 'rejected':
+    case 'revert_started':
+      return `${target}的改动已被作者拒绝，正在还原。依赖它继续编辑前先读取当前内容。`;
+    case 'reverted':
+      return `${target}的上一轮修改已被作者拒绝并还原。仅在继续修改同一处时读取当前正文。`;
+    case 'revert_failed':
+      return `${target}的改动被作者拒绝，但自动还原失败。继续编辑前先读取当前内容。`;
+    case 'revert_unavailable':
+      return `${target}的改动被作者拒绝，但无法安全还原。不要重试，等待作者处理。`;
+    default:
+      return `${target}的审阅状态已变化。仅在继续修改同一处时读取当前正文。`;
+  }
+}
+
+function summarizeDomainTargets(targets: readonly string[]): string {
+  const unique = [...new Set(targets)];
+  const visible = unique.slice(0, 12);
+  const hidden = unique.length - visible.length;
+  return `${visible.join('、') || '作品内容'}${hidden > 0 ? `等另 ${hidden} 项` : ''}`;
+}
+
+function modelFacingRemainingWork(arguments_: unknown): string | null {
+  return (
+    modelFacingWorkField(arguments_) ??
+    (hiddenSummaryWasCleared(arguments_) ? '当前摘要为空，需要补写' : null)
+  );
+}
+
+/**
+ * Repair receipts written by older runtimes that mislabeled a full summary
+ * clear as "summary synchronized". The hidden command is durable evidence of
+ * the resulting authored value, so this inference is reconstructible rather
+ * than a heuristic over model prose.
+ */
+function hiddenSummaryWasCleared(arguments_: unknown): boolean {
+  if (!arguments_ || typeof arguments_ !== 'object' || Array.isArray(arguments_)) return false;
+  const command = (arguments_ as Record<string, unknown>).__workspaceCommand;
+  if (!command || typeof command !== 'object' || Array.isArray(command)) return false;
+  const commandRecord = command as Record<string, unknown>;
+  if (commandRecord.name !== 'set_node_summary') return false;
+  const commandArguments = commandRecord.arguments;
+  if (!commandArguments || typeof commandArguments !== 'object' || Array.isArray(commandArguments)) {
+    return false;
+  }
+  return (commandArguments as Record<string, unknown>).summary === '';
+}
+
+function modelFacingWorkField(arguments_: unknown): string | null {
+  if (!arguments_ || typeof arguments_ !== 'object' || Array.isArray(arguments_)) return null;
+  const value = (arguments_ as Record<string, unknown>).remainingWork;
+  if (typeof value !== 'string') return null;
+  const compact = value.replace(/\s+/gu, ' ').trim().slice(0, 240);
+  if (
+    !compact ||
+    /(?:局部修改|正文已变化|目标已不在|重新定位|跳过|未重复执行)/u.test(compact) ||
+    /\b(?:stale|skipped|not found|already changed|local edit)\b/iu.test(compact) ||
+    /\b(?:json|path|revision|receipt|writeref|yjs|sqlite|write_file|edit_file)\b/iu.test(
+      compact,
+    )
+  ) {
+    return null;
+  }
+  return compact.replace(/[。；;\s]+$/u, '');
 }

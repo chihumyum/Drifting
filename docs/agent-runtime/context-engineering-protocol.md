@@ -93,6 +93,81 @@ the model, which resolves precedence through normal reasoning. It may use
 correction naturally supersedes older conversational guidance without an
 internal conflict-ID protocol.
 
+### Domain projection boundary
+
+Canonical history retains the exact provider-neutral tool calls, results and
+durable write provenance required for audit and restart. That does not make
+transport syntax part of the model's working memory. Once a write is durably
+committed or represented by an inline-review row, the next provider projection
+replaces its raw call/result pair with one bounded author-domain state such as
+"章节「06」正文已更新". Provider-visible state must not contain `writeRef`,
+revision receipts, hidden command names, Yjs/SQLite identities or a second JSON
+encoding of authored prose.
+
+A later durable success for one authored target supersedes stale provider
+evidence without discarding useful current literary state:
+
+- an earlier explicitly failed write to that same target;
+- a whole-body replacement retires every older body read for that target;
+- a focused edit keeps one complete same-turn body as the working copy and
+  overlays its current modified passages plus latest summary.
+
+Those rows remain byte-exact in canonical history and checkpoint hashes; they
+are only discarded from the next provider projection. An unresolved latest
+failure remains exact. This prevents the model from comparing an accepted
+current manuscript with obsolete pre-edit prose or replaying a giant failed
+argument payload after recovery.
+
+Provider string escaping is normalized at the authored-text boundary. A
+multi-replacement prose edit evaluates every row against one freshly read
+revision: exact matching rows commit together, accidental no-ops are ignored,
+and isolated stale rows are skipped and reported semantically. If no row
+matches, the operation still fails stale. The final Yjs mutation retains the
+same revision compare-and-set, so partial stale-row tolerance cannot cross a
+concurrent author edit.
+
+Before that fresh revision is claimed, fully read authored objects of the same
+kind are scored by the quoted old passages. If one object is a strictly
+dominant match, an accidentally misnamed edit is prepared against that object;
+matching rows commit in its single review and rows belonging elsewhere remain
+unfinished. A tie, unread candidate or zero match stays on the ordinary
+fail-closed path. This is passage localization, not permission to spread one
+review across multiple chapters.
+
+If every requested row is already satisfied or has identical old/new authored
+text, preparation returns semantic idempotent success before the durable write
+coordinator claims an effect. The no-op call/result pair is immediately
+discardable, including a large repeated prose payload. A whole-body write with
+unchanged prose but a changed summary is not a no-op and proceeds normally.
+
+The same boundary removes legacy provider escape artifacts before text is
+shown to the model. A unique replacement may tolerate quote-family,
+paragraph-leading indentation and invisible line-end differences, and may
+unwrap an accidental pair of quotation marks around narration. Wording,
+paragraph structure, other punctuation and match cardinality remain exact.
+These are runtime-owned presentation repairs, not instructions for the model
+to reason about serialization.
+
+For an explicitly named chapter, 灵感 or entity, tool selection omits project
+inventory. A direct read accepts the authored name; opening a named collection
+returns that collection without requiring the model to choose a separate
+browse verb. A missing ordinal chapter is represented as writable manuscript
+state and may carry the complete relevant outline paragraph, so the model can
+create it without discovering a virtual directory. Neighboring continuity is
+summary-first and full prose is fetched only for a concrete unresolved gap.
+Every chapter or drift body read includes its authored summary and records
+complete coverage for both views, so a body-plus-summary or summary-only write
+does not require a redundant summary read.
+
+After a committed focused edit, durable `read_progress` retains complete-read
+status, the latest summary and bounded current passages. If the model
+immediately asks for the same whole body again, the first request returns that
+compact current-working-copy state instead of injecting another manuscript.
+A second explicit request is allowed through to live Yjs, so a real post-
+compaction uncertainty can still recover full evidence. Summary rendering is
+sentence-terminal-idempotent; an existing `。`, `！`, `？` or equivalent is not
+duplicated in this projection.
+
 ## 5. Literary compaction
 
 Small histories keep the latest two turns byte-exact. That convenience is not
@@ -101,6 +176,23 @@ current turn is larger, the planner walks backward over the smallest
 tool-topology-safe units. The current author request stays independently
 semantic-pinned, so an oversized read batch can be compacted without losing the
 instruction that caused it.
+
+Within the active turn, the latest complete authored read for each target and
+the exact successful write delta remain a working set while they fit. Authored
+reads may use at most 80% of the exact-source budget; oversized units are
+skipped instead of evicting every smaller chapter, and a newer complete read
+supersedes an older complete read of the same target. A focused durable edit
+keeps one complete same-turn read and appends only its current changed passages;
+there is no parallel obsolete copy. A whole-body rewrite supersedes the older
+body because the replacement itself is the current manuscript. A cached
+verified summary whose source later becomes superseded is retired rather than
+treated as invalid compactor output.
+
+Compacted progress is reconstructed from reliable completed-write evidence,
+not from the model's plan or from successful reads. The newest authored state
+wins. The resulting provider note describes chapters, summaries and remaining
+author work only; it must not reconstruct tool history, matching attempts,
+paths, escaping, revision identifiers or persistence mechanics.
 
 The full compactor receives only contiguous, unpinned eligible runs. Chunks may
 split inside one turn at the smallest boundary that does not separate a tool

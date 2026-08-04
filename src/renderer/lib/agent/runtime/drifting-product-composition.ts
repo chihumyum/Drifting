@@ -86,6 +86,7 @@ import {
   type YjsProsePersistenceCoordinator,
 } from './yjs-prose-persistence-coordinator';
 import {
+  loadAgentAuthoredReadProgressContextRows,
   loadAgentDurableWriteReceiptContextRows,
   loadAgentWriteReviewContextRows,
 } from './write-review-feedback';
@@ -251,6 +252,7 @@ export function createDriftingAgentProductComposition(
     readRuntime: readTools,
     getContext,
     persistence: repositories.runtime,
+    writeEffects: repositories.writeEffects,
   });
   const tools = createDriftingWriteToolRuntime({
     repository: repositories.writeEffects,
@@ -344,8 +346,18 @@ export function createDriftingAgentProductComposition(
           repositories.writeEffects,
           { currentTurnId: input.turnId },
         );
+        const readProgressRows = await loadAgentAuthoredReadProgressContextRows(
+          input.sessionId,
+          repositories.writeEffects,
+          { currentTurnId: input.turnId },
+        );
         const longTaskRows = await longTaskSupplementalRows(input);
-        return [...writeReceiptRows, ...writeReviewRows, ...longTaskRows];
+        return [
+          ...writeReceiptRows,
+          ...writeReviewRows,
+          ...readProgressRows,
+          ...longTaskRows,
+        ];
       },
     },
     persistence: createRepositoryAgentTransportPersistence({

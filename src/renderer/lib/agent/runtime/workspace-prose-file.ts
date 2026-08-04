@@ -19,6 +19,283 @@ export interface WorkspaceTextReplacement {
   replaceAll: boolean;
 }
 
+export interface NormalizedWorkspaceProseReplacements {
+  replacements: WorkspaceTextReplacement[];
+  skippedStale: number;
+  skippedStaleTargets: string[];
+}
+
+export interface ModelFacingAuthoredText {
+  text: string;
+  linkedMentions: string[];
+}
+
+/**
+ * The editor stores inline structure such as hard breaks and entity links.
+ * Those are domain annotations, not prose for the model to clean up. Present
+ * ordinary authored text plus a compact mention set; keep the reversible
+ * annotation syntax inside the runtime.
+ */
+export function projectAuthoredTextForModel(value: string): ModelFacingAuthoredText {
+  const projection = projectAuthoredText(value);
+  return {
+    text: normalizeAuthoredTextTransportArtifacts(projection.text),
+    linkedMentions: [...new Set(projection.linkedMentions)],
+  };
+}
+
+/**
+ * Provider function calls carry strings inside JSON. Some models occasionally
+ * emit a second transport-escaping layer (for example `\\\"对白\\\"` or
+ * `\\他说`) as if that layer were authored prose. Drifting owns that boundary:
+ * remove only impossible prose escapes before quote/CJK glyphs while keeping
+ * Markdown escapes and ordinary backslashes intact.
+ */
+export function normalizeAuthoredTextTransportArtifacts(value: string): string {
+  return normalizeLineEndings(value).replace(
+    /\\+(?=["'“”‘’「」『』《》〈〉，。！？；：、—…（）【】\p{Script=Han}])/gu,
+    '',
+  );
+}
+
+/** Normalize newly authored replacement text without losing an exact match
+ * against already persisted legacy artifacts. */
+export function normalizeWorkspaceProseReplacements(
+  content: string,
+  replacements: readonly WorkspaceTextReplacement[],
+): NormalizedWorkspaceProseReplacements {
+  let current = normalizeLineEndings(content);
+  const normalizedReplacements: WorkspaceTextReplacement[] = [];
+  let skippedStale = 0;
+  const skippedStaleTargets: string[] = [];
+  let firstStaleError: Error | null = null;
+  for (const replacement of replacements) {
+    const normalizedOld = normalizeAuthoredTextTransportArtifacts(replacement.oldText);
+    const accidentalWrapper = matchingQuoteWrapper(normalizedOld);
+    const directOld = current.includes(replacement.oldText)
+      ? replacement.oldText
+      : current.includes(normalizedOld)
+        ? normalizedOld
+        : null;
+    const unwrappedOld =
+      directOld === null &&
+      accidentalWrapper
+        ? resolveModelFacingOldText(
+            current,
+            accidentalWrapper.inner,
+            replacement.replaceAll,
+          )
+        : null;
+    const projectedOld =
+      directOld === null && unwrappedOld === null
+        ? resolveModelFacingOldText(current, normalizedOld, replacement.replaceAll)
+        : null;
+    const resolvedOld = directOld ?? unwrappedOld ?? projectedOld;
+    const oldText = resolvedOld ?? normalizedOld;
+    const normalizedNew = normalizeAuthoredTextTransportArtifacts(replacement.newText);
+    if (
+      resolvedOld === null &&
+      normalizedNew.length > 0 &&
+      uniqueModelFacingTextExists(current, normalizedNew, replacement.replaceAll)
+    ) {
+      // The desired authored passage is already current. This is an idempotent
+      // row, not unfinished work for the model to localize or debug.
+      continue;
+    }
+    const matchingNewWrapper =
+      unwrappedOld && accidentalWrapper ? matchingQuoteWrapper(normalizedNew) : null;
+    const authoredNew =
+      matchingNewWrapper &&
+      accidentalWrapper &&
+      matchingNewWrapper.open === accidentalWrapper.open &&
+      matchingNewWrapper.close === accidentalWrapper.close
+        ? matchingNewWrapper.inner
+        : normalizedNew;
+    const normalized = {
+      ...replacement,
+      oldText,
+      newText: restoreAuthoredTextAnnotations(
+        oldText,
+        authoredNew,
+      ),
+    };
+    if (normalized.oldText === normalized.newText) continue;
+    try {
+      current = applyWorkspaceTextReplacements(current, [normalized]);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('STALE_EDIT_TARGET:')) {
+        skippedStale += 1;
+        skippedStaleTargets.push(normalized.oldText);
+        firstStaleError ??= error;
+        continue;
+      }
+      throw error;
+    }
+    normalizedReplacements.push(normalized);
+  }
+  if (normalizedReplacements.length === 0) {
+    if (firstStaleError) throw firstStaleError;
+    throw new Error('The requested replacements do not change the file');
+  }
+  return { replacements: normalizedReplacements, skippedStale, skippedStaleTargets };
+}
+
+function uniqueModelFacingTextExists(
+  current: string,
+  desiredText: string,
+  replaceAll: boolean,
+): boolean {
+  try {
+    return resolveModelFacingOldText(current, desiredText, replaceAll) !== null;
+  } catch {
+    // A repeated desired phrase cannot prove that this exact stale target was
+    // already satisfied. Leave it on the ordinary stale path.
+    return false;
+  }
+}
+
+function matchingQuoteWrapper(
+  value: string,
+): { open: string; close: string; inner: string } | null {
+  const pairs = [
+    ['“', '”'],
+    ['‘', '’'],
+    ['「', '」'],
+    ['『', '』'],
+    ['"', '"'],
+    ["'", "'"],
+  ] as const;
+  for (const [open, close] of pairs) {
+    if (value.length > open.length + close.length && value.startsWith(open) && value.endsWith(close)) {
+      return { open, close, inner: value.slice(open.length, -close.length) };
+    }
+  }
+  return null;
+}
+
+export function restoreAuthoredTextAnnotations(previous: string, next: string): string {
+  let restored = next;
+  let searchFrom = 0;
+  for (const link of internalAuthoredLinks(previous)) {
+    if (restored.includes(link.raw)) {
+      searchFrom = restored.indexOf(link.raw, searchFrom) + link.raw.length;
+      continue;
+    }
+    const labelAt = restored.indexOf(link.label, searchFrom);
+    if (labelAt < 0) continue;
+    restored = `${restored.slice(0, labelAt)}${link.raw}${restored.slice(labelAt + link.label.length)}`;
+    searchFrom = labelAt + link.raw.length;
+  }
+  if (/<br\s*\/?>/iu.test(previous)) {
+    restored = restored.replace(/(?<!\n)\n(?!\n)/gu, '<br>');
+  }
+  return restored;
+}
+
+function resolveModelFacingOldText(
+  current: string,
+  modelOldText: string,
+  replaceAll: boolean,
+): string | null {
+  const projection = projectAuthoredText(current);
+  const matches = findReplacementMatches(projection.text, modelOldText);
+  if (matches.length === 0) return null;
+  if (!replaceAll && matches.length > 1) {
+    throw new Error(
+      `The text to replace occurs ${matches.length} times. Include more surrounding text or set replaceAll=true.`,
+    );
+  }
+  const rawMatches = matches.map((match) =>
+    current.slice(
+      projection.boundaries[match.start] ?? match.start,
+      projection.boundaries[match.end] ?? match.end,
+    ),
+  );
+  if (replaceAll && new Set(rawMatches).size > 1) return null;
+  return rawMatches[0] ?? null;
+}
+
+function projectAuthoredText(value: string): {
+  text: string;
+  boundaries: number[];
+  linkedMentions: string[];
+} {
+  const tokenPattern = /<br\s*\/?>|\[([^\]\n]+)\]\(([^)\n]+)\)/giu;
+  let text = '';
+  const boundaries = [0];
+  const linkedMentions: string[] = [];
+  let cursor = 0;
+  const appendLiteral = (start: number, end: number) => {
+    for (let index = start; index < end; index += 1) {
+      text += value[index] ?? '';
+      boundaries.push(index + 1);
+    }
+  };
+  for (const match of value.matchAll(tokenPattern)) {
+    const start = match.index;
+    const raw = match[0];
+    const end = start + raw.length;
+    appendLiteral(cursor, start);
+    if (/^<br\s*\/?>$/iu.test(raw)) {
+      text += '\n';
+      boundaries.push(end);
+    } else {
+      const label = match[1] ?? '';
+      const destination = match[2] ?? '';
+      if (!isInternalAuthoredLink(destination)) {
+        appendLiteral(start, end);
+      } else {
+        linkedMentions.push(authoredLinkDomainTarget(destination, label));
+        for (let index = 0; index < label.length; index += 1) {
+          text += label[index] ?? '';
+          boundaries.push(index === label.length - 1 ? end : start + 1 + index + 1);
+        }
+      }
+    }
+    cursor = end;
+  }
+  appendLiteral(cursor, value.length);
+  return { text, boundaries, linkedMentions };
+}
+
+function internalAuthoredLinks(value: string): Array<{
+  raw: string;
+  label: string;
+}> {
+  return [...value.matchAll(/\[([^\]\n]+)\]\(([^)\n]+)\)/gu)].flatMap((match) =>
+    isInternalAuthoredLink(match[2] ?? '')
+      ? [{ raw: match[0], label: match[1] ?? '' }]
+      : [],
+  );
+}
+
+function isInternalAuthoredLink(destination: string): boolean {
+  const scheme = /^([a-z][a-z0-9+.-]*):/iu.exec(destination.trim())?.[1]?.toLowerCase();
+  return !scheme || !['http', 'https', 'mailto', 'tel'].includes(scheme);
+}
+
+function authoredLinkDomainTarget(destination: string, fallbackLabel: string): string {
+  const normalized = destination.trim();
+  const fragment = normalized.includes('#') ? normalized.slice(normalized.lastIndexOf('#') + 1) : '';
+  const pathSegments = normalized.split('#', 1)[0]!.split('/').filter(Boolean);
+  const pathName = pathSegments[pathSegments.length - 1]?.replace(/\.md$/iu, '');
+  const candidate = fragment || pathName || fallbackLabel;
+  try {
+    return stripInlinePresentation(decodeURIComponent(candidate));
+  } catch {
+    return stripInlinePresentation(candidate);
+  }
+}
+
+function stripInlinePresentation(value: string): string {
+  return value
+    .replace(/^\*{1,2}|\*{1,2}$/gu, '')
+    .replace(/^~~|~~$/gu, '')
+    .replace(/^<u>|<\/u>$/giu, '')
+    .replace(/\\([\\`*{}\[\]()#+.!_>-])/gu, '$1')
+    .trim();
+}
+
 export function parseWorkspaceTextReplacements(value: unknown): WorkspaceTextReplacement[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error('edit_file requires at least one exact replacement');
@@ -106,10 +383,10 @@ function structuralPrefixKind(
 }
 
 /**
- * Models commonly normalize straight quotes to typographic quotes and omit
- * invisible line-end spaces while replaying prose they just read. Treat only
- * those presentation differences as equivalent, and only after an exact
- * lookup misses. This keeps edit_file deterministic: wording, paragraph
+ * Models commonly normalize quote styles, add paragraph-leading indentation,
+ * or omit invisible line-end spaces while replaying prose they just read.
+ * Treat only those presentation differences as equivalent, and only after an
+ * exact lookup misses. This keeps edit_file deterministic: wording, paragraph
  * boundaries, other punctuation, and occurrence cardinality must still match.
  */
 function findReplacementMatches(content: string, oldText: string): ReplacementMatch[] {
@@ -123,15 +400,75 @@ function findReplacementMatches(content: string, oldText: string): ReplacementMa
 
   const comparableContent = comparableEditText(content);
   const comparableOldText = comparableEditText(oldText);
-  if (!comparableContent.changed && !comparableOldText.changed) return [];
-  if (!comparableOldText.text) return [];
-  return occurrenceIndexes(comparableContent.text, comparableOldText.text).map((index) => {
-    const start = comparableContent.starts[index]!;
-    const finalIndex = index + comparableOldText.text.length - 1;
-    let end = comparableContent.ends[finalIndex]!;
+  if (
+    (comparableContent.changed || comparableOldText.changed) &&
+    comparableOldText.text
+  ) {
+    const comparableMatches = occurrenceIndexes(
+      comparableContent.text,
+      comparableOldText.text,
+    ).map((index) => {
+      const start = comparableContent.starts[index]!;
+      const finalIndex = index + comparableOldText.text.length - 1;
+      let end = comparableContent.ends[finalIndex]!;
+      end = includeInvisibleLineEndWhitespace(content, end);
+      return { start, end };
+    });
+    if (comparableMatches.length > 0) return comparableMatches;
+  }
+
+  // Long prose fragments are often replayed with one transport-level quote
+  // omitted or with paragraph whitespace folded into a single line. Those
+  // differences are not editorial intent. Reconcile them only when a long,
+  // punctuation-preserving signature identifies exactly one current span.
+  // Short or ambiguous fragments still fail closed.
+  const semanticContent = semanticComparableEditText(content);
+  const semanticOldText = semanticComparableEditText(oldText);
+  if (semanticOldText.text.length < MIN_SEMANTIC_EDIT_SIGNATURE_LENGTH) return [];
+  const semanticIndexes = occurrenceIndexes(semanticContent.text, semanticOldText.text);
+  if (semanticIndexes.length !== 1) return [];
+  return semanticIndexes.map((index) => {
+    let start = semanticContent.starts[index]!;
+    const finalIndex = index + semanticOldText.text.length - 1;
+    let end = semanticContent.ends[finalIndex]!;
+    if ((semanticOldText.starts[0] ?? 0) > 0) {
+      while (start > 0 && isSemanticBoundaryIgnorable(content[start - 1]!)) start -= 1;
+    }
+    if (
+      (semanticOldText.ends[semanticOldText.ends.length - 1] ?? oldText.length) <
+      oldText.length
+    ) {
+      while (end < content.length && isSemanticBoundaryIgnorable(content[end]!)) end += 1;
+    }
     end = includeInvisibleLineEndWhitespace(content, end);
     return { start, end };
   });
+}
+
+const MIN_SEMANTIC_EDIT_SIGNATURE_LENGTH = 24;
+
+/**
+ * A second, deliberately narrow reconciliation view for long prose spans.
+ * It removes only whitespace and quotation marks. Sentence punctuation and
+ * every authored word remain byte-significant, so a stale rewrite or a
+ * different sentence cannot silently match.
+ */
+function semanticComparableEditText(value: string): ComparableEditText {
+  let text = '';
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let changed = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index]!;
+    if (/\s/u.test(char) || isQuoteGlyph(char)) {
+      changed = true;
+      continue;
+    }
+    text += char;
+    starts.push(index);
+    ends.push(index + 1);
+  }
+  return { text, starts, ends, changed };
 }
 
 function includeInvisibleLineEndWhitespace(value: string, end: number): number {
@@ -169,6 +506,14 @@ function comparableEditText(value: string): ComparableEditText {
     const whitespaceEnd = horizontalWhitespaceRunEnd(value, index);
     if (
       whitespaceEnd > index &&
+      (index === 0 || value[index - 1] === '\n')
+    ) {
+      changed = true;
+      index = whitespaceEnd;
+      continue;
+    }
+    if (
+      whitespaceEnd > index &&
       (whitespaceEnd === value.length || value[whitespaceEnd] === '\n')
     ) {
       changed = true;
@@ -193,9 +538,16 @@ function horizontalWhitespaceRunEnd(value: string, start: number): number {
 }
 
 function comparableQuoteGlyph(value: string): string {
-  if (/[“”„‟＂]/u.test(value)) return '"';
-  if (/[‘’‚‛＇]/u.test(value)) return "'";
+  if (isQuoteGlyph(value)) return '"';
   return value;
+}
+
+function isQuoteGlyph(value: string): boolean {
+  return /["'“”„‟＂‘’‚‛＇「」『』]/u.test(value);
+}
+
+function isSemanticBoundaryIgnorable(value: string): boolean {
+  return isQuoteGlyph(value) || /[\t \u00a0\u3000]/u.test(value);
 }
 
 export function renderWorkspaceProseFile(blocks: readonly YjsProseBlock[]): string {

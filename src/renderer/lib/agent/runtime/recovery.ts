@@ -447,6 +447,7 @@ const CONTEXT_SOURCE_KINDS: ReadonlySet<AgentContextSourceKind> = new Set([
   'write_receipt',
   'write_review',
   'write_revert',
+  'read_progress',
   'freshness',
   'task_plan',
   'task_constraints',
@@ -523,6 +524,7 @@ function deriveCheckpointBridgeInput(
       row.kind !== 'write_receipt' &&
       row.kind !== 'write_review' &&
       row.kind !== 'write_revert' &&
+      row.kind !== 'read_progress' &&
       row.kind !== 'freshness' &&
       row.kind !== 'task_plan' &&
       row.kind !== 'task_constraints'

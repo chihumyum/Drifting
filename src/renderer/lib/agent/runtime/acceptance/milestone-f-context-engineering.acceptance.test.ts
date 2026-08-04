@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { AICompletionRequest, AICompletionResponse } from '../../../ai/types';
 import {
+  planAgentModelContext,
   verifyAgentContextProviderEnvelope,
   type AgentContextProviderEnvelopeV2,
 } from '../context-message-adapter';
@@ -273,6 +274,86 @@ function median(values: readonly number[]): number {
 }
 
 describe('Milestone F context engineering acceptance', () => {
+  it('keeps a durable long prose write canonical while removing its transport payload from the next model call', async () => {
+    const callId = 'paid-writing-shape-write';
+    const transportSentinel = String.raw`\"TRANSPORT_SENTINEL\"\他说。`;
+    const prose = `${transportSentinel}\n${'长篇正文。'.repeat(8_000)}`;
+    const planned = await planAgentModelContext({
+      systemPrompt: 'Reason only about the authored work.',
+      messages: [
+        { role: 'user', content: '把这一章润色完整。' },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_call',
+              callId,
+              name: 'write_file',
+              arguments: { path: '/chapters/第三章/prose.md', content: prose },
+              rawArguments: JSON.stringify({
+                path: '/chapters/第三章/prose.md',
+                content: prose,
+              }),
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              callId,
+              name: 'write_file',
+              ok: true,
+              content:
+                '{"updated":true,"path":"/chapters/第三章/prose.md","writeRef":"private"}',
+            },
+          ],
+        },
+        { role: 'user', content: '继续。' },
+      ],
+      resolveToolAccess: (name) => (name === 'write_file' ? 'write' : null),
+      supplementalRows: [
+        {
+          sourceId: 'write-receipt:private-session:committed',
+          turnOrdinal: 0,
+          kind: 'write_receipt',
+          content:
+            '章节「第三章」正文已更新。这一步已经完成；直接继续剩余任务，不要为了确认写入而重读。',
+          durableWriteCoverage: [
+            { turnOrdinal: 0, callId, toolName: 'write_file' },
+          ],
+        },
+      ],
+      planner: {
+        contextWindowTokens: 200_000,
+        requestedOutputTokens: 8_192,
+        fixedInputTokens: 0,
+      },
+    });
+
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    await expect(
+      verifyAgentContextProviderEnvelope({
+        envelope: planned.envelope,
+        canonicalSourceRows: planned.bridge.sourceRows,
+      }),
+    ).resolves.toBeUndefined();
+    expect(JSON.stringify(planned.bridge.sourceRows)).toContain('TRANSPORT_SENTINEL');
+    const providerProjection = JSON.stringify(planned.envelope.providerContext);
+    expect(providerProjection).toContain('章节「第三章」正文已更新');
+    expect(providerProjection).not.toMatch(
+      /TRANSPORT_SENTINEL|长篇正文|\/chapters\/第三章|writeRef|rawArguments/,
+    );
+    expect(planned.plan.checkpoint.coverage.discardedSourceIds).toEqual(
+      expect.arrayContaining(
+        planned.bridge.sourceRows
+          .filter((row) => row.callId === callId)
+          .map((row) => row.sourceId),
+      ),
+    );
+  });
+
   it('preserves literary evidence and author constraints across 200k multi-slice compaction, restart, and compactor faults', async () => {
     const fixture = loadMilestoneFLiteraryFixture();
     const retrievalByDimension = new Map<string, { hits: number; total: number }>();

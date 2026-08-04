@@ -343,7 +343,7 @@ async function preparePayload(
         id,
         projectId,
         title,
-        summary: '',
+        summary: String(request.arguments.summary ?? ''),
         narrativeOrder: kind === 'drift' ? maxOrder + 1 : null,
         driftGroupId: null,
         position: { x: 0, y: 0 },

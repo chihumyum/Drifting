@@ -22,6 +22,7 @@ const SOURCE_CATEGORY = {
   write_receipt: 'write_receipts',
   write_review: 'write_reviews',
   write_revert: 'write_reverts',
+  read_progress: 'freshness',
   freshness: 'freshness',
   task_plan: 'task_plan',
   task_constraints: 'task_constraints',

@@ -13,6 +13,10 @@ export const DRIFTING_WORKSPACE_READ_TOOLS = [
 export const DRIFTING_WORKSPACE_EDIT_TOOL = 'edit_file' as const;
 export const DRIFTING_WORKSPACE_WRITE_TOOL = 'write_file' as const;
 export const DRIFTING_WORKSPACE_DELETE_TOOL = 'delete_file' as const;
+/** Stable semantic receipt used to retire side-effect-free write pairs from
+ * provider context without exposing runtime mechanics. */
+export const WORKSPACE_NOOP_WRITE_MODEL_MARKER = '已经是所需内容，无需修改' as const;
+export const WORKSPACE_COMPLETE_READ_MODEL_MARKER = '该正文已在本轮完整通读' as const;
 
 export const DRIFTING_WORKSPACE_WRITE_TOOLS = [
   DRIFTING_WORKSPACE_EDIT_TOOL,

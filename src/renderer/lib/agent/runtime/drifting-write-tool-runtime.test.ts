@@ -15,6 +15,7 @@ import type { AgentToolContext, AgentWriteApi } from '../tool-handlers';
 import type { DriftingWriteStrategy } from './drifting-write-strategies';
 import { hashAgentPermissionArguments } from './control-plane';
 import { DriftingWriteToolRuntime } from './drifting-write-tool-runtime';
+import { WorkspaceNoopWriteSignal } from './drifting-workspace-tool-runtime';
 import type { AgentToolExecutionRequest, AgentToolRuntime } from './types';
 
 const initialDataState = useDataStore.getState();
@@ -534,6 +535,33 @@ describe('DriftingWriteToolRuntime', () => {
     });
     expect(repository.allEffects()).toEqual([]);
   });
+
+  it('settles a workspace no-op as success without claiming a durable effect', async () => {
+    const repository = memoryRepository();
+    const runtime = createRuntime(
+      repository,
+      {},
+      undefined,
+      undefined,
+      async () => {
+        throw new WorkspaceNoopWriteSignal('/chapters/Chapter One/prose.md');
+      },
+    );
+
+    await expect(
+      runtime.execute(
+        request('edit_file', {
+          path: 'Chapter One',
+          replacements: [{ oldText: 'Same', newText: 'Same' }],
+        }),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { noop: true },
+      modelData: expect.stringContaining('已经是所需内容，无需修改'),
+    });
+    expect(repository.allEffects()).toEqual([]);
+  });
 });
 
 function createRuntime(
@@ -545,6 +573,9 @@ function createRuntime(
     context: AgentToolContext,
   ) => Promise<unknown>,
   resolveStrategy?: (name: string) => DriftingWriteStrategy | undefined,
+  prepareRequest?: (
+    request: AgentToolExecutionRequest,
+  ) => Promise<AgentToolExecutionRequest>,
 ): DriftingWriteToolRuntime {
   const write = {
     renameNode: async (id: string, title: string) => {
@@ -568,6 +599,7 @@ function createRuntime(
     now: incrementingClock(),
     ...(dispatch ? { dispatch } : {}),
     ...(resolveStrategy ? { resolveStrategy } : {}),
+    ...(prepareRequest ? { prepareRequest } : {}),
   });
 }
 

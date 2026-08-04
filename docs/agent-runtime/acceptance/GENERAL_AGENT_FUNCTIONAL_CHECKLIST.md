@@ -89,6 +89,10 @@ Rules:
 | READ-07 | Core | E2 | Pagination/list cursors neither skip nor duplicate entries across exact same revision. |
 | READ-08 | Core | E3 | A broad exploratory read can continue to a write/final answer without context or tool-selection failure. |
 | READ-09 | Core | E2 | A narrow `grep` against one file or entity directory is literal, reports an exact occurrence count, and represents zero matches explicitly. |
+| READ-10 | Core | E1+E3 | When the author explicitly names a chapter/entity, the first tool surface omits project inventory and direct authored-name read resolves it; opening a named domain collection returns that collection without making the model choose a second browse verb. |
+| READ-11 | Core | E2+E3 | A missing named ordinal is returned as writable manuscript state rather than a path error; matching outline evidence is supplied as one complete relevant paragraph so creation needs no directory archaeology. |
+| READ-12 | Core | E2 | Reading a chapter or drift returns its authored summary with the body and records complete coverage for both, so a later body-plus-summary or summary-only rewrite needs no second summary-specific read. |
+| READ-13 | Core | E1+E3 | In a numeric-title manuscript, “第十六章” resolves only title `16`; it never substitutes the sixteenth `bookOrder` node, and a missing number remains writable missing-manuscript state. Nonnumeric-title projects may still use reading-order aliases. |
 
 ## E. Domain CRUD closure
 
@@ -132,6 +136,12 @@ plus receipt, inverse/permission behavior and restart visibility.
 | EDIT-13 | Core | E3 | Node prose write/read results expose the actual numeric `wordCount`, and a requested minimum length is verified from persisted content rather than model self-report. |
 | EDIT-14 | Core | E3 | The headless product bridge can accept one review block and reject another; SQLite/Yjs readback contains only the accepted block effect. |
 | EDIT-15 | Core | E2 | Virtual prose Markdown round-trips TipTap-supported H1-H3, blockquote, horizontal rule, hard break and inline marks; unsupported heading/list/code/table/HTML styles become plain prose, unsafe links lose behavior, and no disabled node or mark enters Yjs. |
+| EDIT-16 | Core | E2 | Provider transport artifacts such as literal backslashes before Chinese dialogue/CJK glyphs are removed at the authored-text boundary while meaningful Markdown escapes remain intact. |
+| EDIT-17 | Core | E2+E3 | One multi-replacement prose call commits every exact row against one current revision, ignores no-ops, skips isolated stale rows with a semantic count, and still fails when no row matches. |
+| EDIT-18 | Core | E2 | The prose adapter uniquely resolves quote-family, paragraph-leading indentation, invisible line-end and accidental narration-wrapper drift while preserving exact wording, paragraph structure, cardinality and live-revision CAS. |
+| EDIT-19 | Core | E2 | An existing chapter/drift whole-body rewrite and requested summary update share one Yjs/SQLite/outbox transaction and one inline review; rejecting either body or summary restores both, and an injected SQL failure leaves neither prose, summary, receipt nor outbox row. |
+| EDIT-20 | Core | E1+E2 | An exact or already-satisfied prose edit returns semantic idempotent success before claiming a durable effect; its raw arguments are retired from provider context, while a genuinely changed summary with an unchanged body still commits. |
+| EDIT-21 | Core | E1+E3 | When a model quotes the right passage under the wrong authored name, fully read same-kind objects are scored before durable preparation. One strictly dominant target receives the matching rows in one review; unmatched rows remain unfinished, ties fail closed, and no second object is mutated inside that call. |
 
 ## G. Long-running work
 
@@ -171,6 +181,15 @@ plus receipt, inverse/permission behavior and restart visibility.
 | CTX-13 | Core | E4 | Context ring uses the selected standard/Max denominator and modal category totals equal the planned input. |
 | CTX-14 | Core | E3 | One 200k long-turn canary and one eligible 1M Max canary cross the compaction threshold and still finish. |
 | CTX-15 | Core | E2 | A tool-heavy completed turn whose witnessed V2 payload exceeds 512 KiB commits a bounded V4 digest checkpoint; restart rebuilds exact history from normalized message rows, verifies count/hash before adoption, and revalidates retained summaries against current canonical sources. |
+| CTX-16 | Core | E1 | A committed or pending-review write removes its raw call/result and private receipt/path/JSON payload from the next provider projection while retaining one pinned author-domain state and exact canonical audit history. |
+| CTX-17 | Core | E1+E3 | A later durable success discards earlier failed writes and obsolete pre-write evidence for the same authored target; a focused same-turn edit may retain exactly one current working copy, while unresolved failures and reads of other targets remain represented. |
+| CTX-18 | Core | E2 | The active turn retains the latest complete authored read and exact successful delta, bounds authored reads to 80% of exact-source budget, skips oversized units, and supersedes older complete reads of the same target. |
+| CTX-19 | Core | E2 | A verified cached summary whose source becomes superseded is retired cleanly instead of terminating context planning with `INVALID_SUMMARY`. |
+| CTX-20 | Core | E1+E3 | Compaction and provider adapters expose only the newest author-domain manuscript state, bounded chapter evidence and semantic completion facts; tool arguments, paths, receipts, revisions, review IDs, escaping and storage vocabulary never become reconstructed working memory. |
+| CTX-21 | Core | E1 | A focused successful edit retains one complete same-turn authored working copy plus current modified passages; a whole replacement retires the obsolete body. Only reliable write evidence marks work complete, while reading or planning alone cannot. |
+| CTX-22 | Core | E1 | A side-effect-free successful write pair is immediately discardable and cannot pin a large identical replacement payload; unresolved real writes remain exact. |
+| CTX-23 | Core | E1+E2 | Durable read-progress rows merge complete-read status, latest summary and focused current passages across committed effects, exclude reverted effects, survive restart, and render already-punctuated summaries without adding a second terminal mark. |
+| CTX-24 | Core | E1+E3 | The first redundant same-turn whole-body read after a committed focused edit returns a compact current-working-copy state instead of another manuscript payload; a second explicit request still receives the full live body for genuine recovery. |
 
 ## I. Durability, isolation and recovery
 

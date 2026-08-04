@@ -1,4 +1,8 @@
 import { AgentModelDriverError } from '../errors';
+import {
+  serializeAgentContextNoteBudgetPayload,
+  serializeAgentContextSummaryProviderPayload,
+} from '../context-planner';
 import type {
   AgentModelDriver,
   AgentModelMessage,
@@ -345,30 +349,12 @@ function projectAnthropicMessages(
     } else if (entry.type === 'context_summary') {
       projected.push({
         role: 'user',
-        content: JSON.stringify({
-          type: 'drifting_verified_context_summary',
-          provenance: {
-            origin: 'drifting_runtime',
-            summaryId: entry.summaryId,
-            sourceCount: entry.sourceIds.length,
-            sourceHash: entry.sourceHash,
-          },
-          content: entry.content,
-        }),
+        content: serializeAgentContextSummaryProviderPayload(entry),
       });
     } else {
       projected.push({
         role: 'user',
-        content: JSON.stringify({
-          type: 'drifting_verified_context_note',
-          provenance: {
-            origin: 'drifting_runtime',
-            noteKind: entry.noteKind,
-            sourceId: entry.sourceId,
-            turnOrdinal: entry.turnOrdinal,
-          },
-          content: entry.content,
-        }),
+        content: serializeAgentContextNoteBudgetPayload(entry),
       });
     }
   }

@@ -1181,6 +1181,114 @@ describe.sequential('Drifting Agent product composition', () => {
     harness.driver.assertExhausted();
   });
 
+  it('commits whole-chapter prose and summary together and restores the summary when one block is rejected', async () => {
+    const turnId = 'turn-workspace-prose-summary-review';
+    const writeCallId = 'workspace-prose-summary-write';
+    const replacement = '第一段已经收紧。\n\n第二段保留余韵。';
+    const summary = '两段正文在同一场景内完成收束。';
+    const effectId = `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`;
+    const reviewId = `agent-review:${effectId}`;
+    useSettingsStore.getState().setAgentEditMode('approve');
+    setAgentEditModeOverride('approve');
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'read prose before prose and summary replacement',
+        steps: toolCallSteps('workspace-prose-summary-read', 'read_file', {
+          path: `/chapters/${NODE_TITLE}/prose.md`,
+        }),
+      },
+      {
+        name: 'replace prose and summary as one authored change',
+        steps: toolCallSteps(writeCallId, 'write_file', {
+          path: `/chapters/${NODE_TITLE}/prose.md`,
+          content: replacement,
+          summary,
+        }),
+      },
+      {
+        name: 'finish prose and summary replacement',
+        steps: finalSteps('The chapter and its summary are ready in the editor.'),
+      },
+    ]);
+
+    await harness.runTurn(turnId, '收紧这一章，摘要也一起整理。', 1, 'auto');
+
+    expect((await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson).toContain(
+      '第二段保留余韵。',
+    );
+    expect((await harness.nodeRepository.findById(NODE_ID))?.summary).toBe(summary);
+    expect(useDataStore.getState().bookNodes.find((node) => node.id === NODE_ID)?.summary).toBe(
+      summary,
+    );
+    expect(
+      harness.scalar(
+        "SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'nodeContent' AND entity_id = 'product-agent-node'",
+      ),
+    ).toBe(1);
+    expect(
+      harness.scalar(
+        "SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'node' AND entity_id = 'product-agent-node'",
+      ),
+    ).toBe(1);
+
+    const blocks = await harness.composition.repositories.writeEffects.listReviewBlocks(reviewId);
+    expect(blocks.length).toBeGreaterThan(0);
+    await expect(
+      harness.composition.tools.rejectReviewBlock(
+        reviewId,
+        blocks[0]!.blockId,
+        'Reject one changed passage',
+      ),
+    ).resolves.toMatchObject({ block: { status: 'reverted' } });
+    expect((await harness.nodeRepository.findById(NODE_ID))?.summary).toBe(INITIAL_SUMMARY);
+    expect(useDataStore.getState().bookNodes.find((node) => node.id === NODE_ID)?.summary).toBe(
+      INITIAL_SUMMARY,
+    );
+    harness.driver.assertExhausted();
+  });
+
+  it('rolls back prose, summary, Yjs receipt, and sync outbox when their shared transaction fails', async () => {
+    const turnId = 'turn-workspace-prose-summary-fault';
+    const writeCallId = 'workspace-prose-summary-fault-write';
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'read prose before the injected transaction fault',
+        steps: toolCallSteps('workspace-prose-summary-fault-read', 'read_file', {
+          path: `/chapters/${NODE_TITLE}/prose.md`,
+        }),
+      },
+      {
+        name: 'attempt prose and summary replacement across the transaction fault',
+        steps: toolCallSteps(writeCallId, 'write_file', {
+          path: `/chapters/${NODE_TITLE}/prose.md`,
+          content: '这段正文不应留下。',
+          summary: '这个摘要也不应留下。',
+        }),
+      },
+      {
+        name: 'finish after the expected write failure',
+        steps: finalSteps('The failed write left the chapter unchanged.'),
+      },
+    ]);
+    harness.gateway.failNextQuery(
+      (sql) => /^update\s+(?:"|`|\[)?book_node(?:"|`|\])?\s/iu.test(sql.trim()),
+      'injected prose and summary transaction failure',
+    );
+
+    await harness.runTurn(turnId, '把这一章和摘要一起改好。', 1, 'auto');
+
+    expect((await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson).toBe(
+      CONTENT_JSON,
+    );
+    expect((await harness.nodeRepository.findById(NODE_ID))?.summary).toBe(INITIAL_SUMMARY);
+    expect(harness.scalar('SELECT count(*) FROM yjs_prose_command_receipt')).toBe(0);
+    expect(harness.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(0);
+    expect(await harness.composition.repositories.writeEffects.getEffect(
+      `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`,
+    )).toMatchObject({ phase: 'uncertain' });
+    harness.driver.assertExhausted();
+  });
+
   it('lets workspace writes target any project entity without a content-scope gate', async () => {
     const turnId = 'turn-workspace-generic-prose';
     harness = await ProductAgentHarness.create([
