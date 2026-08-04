@@ -74,6 +74,7 @@ Rules:
 | TOOL-10 | Core | E1 | Provider tool count/schema size and requested output are charged before provider I/O. |
 | TOOL-11 | Core | E3 | A compound mutation keeps the installed `edit_file`/`write_file` verbs available across later iterations; no previously installed verb degrades into `UNKNOWN_TOOL`. |
 | TOOL-12 | Core | E1 | A tool-capable provider sample is published transactionally: parse/network/rate-limit failure, malformed arguments, missing required reasoning, an unavailable tool, or output exhaustion before an action receives a bounded pre-effect resample; no discarded text/tool/usage event or mutation escapes, while authentication and author cancellation are never retried. |
+| TOOL-13 | Core | E3 | Headless `--show-thinking` prints one complete thinking block per iteration plus mechanics, runtime-meta, character-matching, reread-intent, oversized-pass and duplicate-call counters; `SIGINT`, `SIGTERM` and `SIGHUP` preserve a partial audit without exposing thinking in the author transcript. |
 
 ## D. Natural workspace reads and navigation
 

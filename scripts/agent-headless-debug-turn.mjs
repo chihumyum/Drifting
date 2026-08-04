@@ -29,6 +29,7 @@ function parseArgs(argv) {
     else if (arg === '--edit-mode') options.editMode = next();
     else if (arg === '--thinking') options.thinking = next();
     else if (arg === '--effort') options.effort = next();
+    else if (arg === '--show-thinking') options.showThinking = true;
     else if (arg === '--answer') options.userInputs.push(next());
     else if (arg === '--auto-continue') options.autoContinue = true;
     else if (arg === '--raw') options.raw = true;
@@ -50,6 +51,7 @@ function usage() {
     '  --edit-mode auto|approve         Override review mode for this turn only',
     '  --thinking adaptive|off          Override reasoning mode for this turn only',
     '  --effort low|medium|high|xhigh|max  Override reasoning effort for this turn only',
+    '  --show-thinking                  Print each complete model reasoning pass',
     '  --answer <text>                  Queued answer for ask_user (repeatable)',
     '  --auto-continue                  Follow durable-task steps until a stable stop',
     '  --timeout-ms <ms>                1000..43200000 (default 600000)',
@@ -61,6 +63,106 @@ function usage() {
 function truncate(value, max = 800) {
   const text = typeof value === 'string' ? value : JSON.stringify(value);
   return text.length <= max ? text : `${text.slice(0, max)}… (${text.length} chars)`;
+}
+
+const THINKING_MECHANICS =
+  /\b(?:JSON|Yjs|SQLite|callId|taskId|stepId|schema|serialization|escaping|expectedRevision)\b|\b(?:virtual|filesystem|file) path\b|\brevision (?:id|token|number|receipt)\b|\/(?:chapters|drifts|elements)\/|\b(?:prose|body)\.md\b|虚拟路径|文件路径|版本号|序列化|转义|数据库|工具参数/giu;
+const THINKING_REREAD =
+  /\b(?:re-?read|read (?:all|each|the) .* again|fresh reads?|read .* fully)\b|重新(?:通读|读取|读)|再(?:通读|读取|读)(?:一遍|一次)?|重新确认正文/giu;
+const THINKING_RUNTIME_META =
+  /\b(?:compaction|compacted|context continuity|system messages?|earlier (?:agent activity|session|turns?)|previous (?:session|turn)|tool results?|write (?:succeeded|failed)|provider summary)\b|压缩(?:上下文)?|恢复上下文|系统消息|较早轮次|工具结果|写入(?:成功|失败)/giu;
+const THINKING_CHARACTER_MATCH =
+  /\b(?:character[- ]by[- ]character|closing quote|quote characters?|newlines?|blank lines?|exact text|oldText|newText|fragment (?:match|matching)|match fail(?:ed|ure)?|why did .* match fail)\b|逐字符|引号|换行|空行|精确文本|片段匹配|匹配失败/giu;
+const OVERSIZED_THINKING_CHARACTERS = 8_000;
+
+function auditExamples(text, matches, target) {
+  for (const match of matches) {
+    if (target.length >= 3) break;
+    const at = match.index ?? text.indexOf(match[0]);
+    const start = Math.max(0, at - 80);
+    const end = Math.min(text.length, at + match[0].length + 80);
+    const excerpt = text.slice(start, end).replace(/\s+/g, ' ').trim();
+    if (excerpt && !target.includes(excerpt)) target.push(excerpt);
+  }
+}
+
+function auditThinking(state, iteration, value) {
+  const text = value.trim();
+  if (!text) return;
+  const mechanics = text.match(THINKING_MECHANICS) ?? [];
+  const rereads = text.match(THINKING_REREAD) ?? [];
+  const runtimeMeta = [...text.matchAll(THINKING_RUNTIME_META)];
+  const characterMatch = [...text.matchAll(THINKING_CHARACTER_MATCH)];
+  const characters = [...text].length;
+  state.thinkingAudit.passes += 1;
+  state.thinkingAudit.characters += characters;
+  state.thinkingAudit.longestCharacters = Math.max(
+    state.thinkingAudit.longestCharacters,
+    characters,
+  );
+  state.thinkingAudit.mechanicsHits += mechanics.length;
+  state.thinkingAudit.rereadIntentHits += rereads.length;
+  state.thinkingAudit.runtimeMetaHits += runtimeMeta.length;
+  state.thinkingAudit.characterMatchHits += characterMatch.length;
+  auditExamples(text, runtimeMeta, state.thinkingAudit.runtimeMetaExamples);
+  auditExamples(text, characterMatch, state.thinkingAudit.characterMatchExamples);
+  for (const match of mechanics) state.thinkingAudit.mechanicsTerms.add(match.toLowerCase());
+  state.thinkingAudit.iterations.push(iteration);
+  if (characters > OVERSIZED_THINKING_CHARACTERS) {
+    state.thinkingAudit.oversizedIterations.push(iteration);
+  }
+}
+
+function printAudit(state) {
+  if (!state.showThinking || state.auditPrinted) return;
+  state.auditPrinted = true;
+  const duplicateCalls = [...state.toolCallCounts.values()].reduce(
+    (total, count) => total + Math.max(0, count - 1),
+    0,
+  );
+  console.log(
+    `[thinking-audit] passes=${state.thinkingAudit.passes} ` +
+      `chars=${state.thinkingAudit.characters} ` +
+      `longest=${state.thinkingAudit.longestCharacters} ` +
+      `mechanics_hits=${state.thinkingAudit.mechanicsHits} ` +
+      `runtime_meta_hits=${state.thinkingAudit.runtimeMetaHits} ` +
+      `character_match_hits=${state.thinkingAudit.characterMatchHits} ` +
+      `reread_intent_hits=${state.thinkingAudit.rereadIntentHits} ` +
+      `oversized_passes=${state.thinkingAudit.oversizedIterations.length} ` +
+      `duplicate_tool_calls=${duplicateCalls}`,
+  );
+  if (state.thinkingAudit.mechanicsTerms.size > 0) {
+    console.log(
+      `[thinking-audit mechanics] ${[...state.thinkingAudit.mechanicsTerms].sort().join(', ')}`,
+    );
+  }
+  for (const excerpt of state.thinkingAudit.runtimeMetaExamples) {
+    console.log(`[thinking-audit runtime-example] ${excerpt}`);
+  }
+  for (const excerpt of state.thinkingAudit.characterMatchExamples) {
+    console.log(`[thinking-audit character-example] ${excerpt}`);
+  }
+  if (state.thinkingAudit.oversizedIterations.length > 0) {
+    console.log(
+      `[thinking-audit oversized] threshold=${OVERSIZED_THINKING_CHARACTERS} ` +
+        `iterations=${state.thinkingAudit.oversizedIterations.join(',')}`,
+    );
+  }
+}
+
+function flushThinking(state, iteration) {
+  if (!state.showThinking) return;
+  const iterations = iteration === undefined
+    ? [...state.thinkingByIteration.keys()].sort((left, right) => left - right)
+    : [iteration];
+  for (const current of iterations) {
+    const text = state.thinkingByIteration.get(current)?.trim();
+    if (!text) continue;
+    auditThinking(state, current, text);
+    console.log(`\n[thinking ${current}]`);
+    console.log(text);
+    state.thinkingByIteration.delete(current);
+  }
 }
 
 function printEvent(payload, state) {
@@ -77,6 +179,8 @@ function printEvent(payload, state) {
     return;
   }
   if (payload.type === 'bridge_completed') {
+    flushThinking(state);
+    printAudit(state);
     console.log('\n[assistant]');
     console.log(payload.assistantText || '(empty)');
     console.log(
@@ -101,6 +205,8 @@ function printEvent(payload, state) {
     return;
   }
   if (payload.type === 'bridge_failed' || payload.type === 'broker_error') {
+    flushThinking(state);
+    printAudit(state);
     console.error(`[failed] ${payload.error}`);
     state.failed = true;
     return;
@@ -109,7 +215,20 @@ function printEvent(payload, state) {
   const event = payload.entry?.event;
   if (!event) return;
   switch (event.type) {
+    case 'thinking_delta':
+      if (state.showThinking) {
+        state.thinkingByIteration.set(
+          event.iteration,
+          (state.thinkingByIteration.get(event.iteration) ?? '') + event.text,
+        );
+      }
+      break;
     case 'tool_call_ready':
+      flushThinking(state, event.iteration);
+      {
+        const signature = `${event.name}:${JSON.stringify(event.arguments)}`;
+        state.toolCallCounts.set(signature, (state.toolCallCounts.get(signature) ?? 0) + 1);
+      }
       console.log(`[tool ->] ${event.name} ${truncate(event.arguments)}`);
       break;
     case 'tool_result':
@@ -126,6 +245,7 @@ function printEvent(payload, state) {
       );
       break;
     case 'model_usage':
+      flushThinking(state, event.iteration);
       console.log(
         `[usage] iteration=${event.iteration} input=${event.usage.inputTokens} ` +
           `output=${event.usage.outputTokens}`,
@@ -138,6 +258,7 @@ function printEvent(payload, state) {
       console.log(`[ask_user] ${event.request.prompt}`);
       break;
     case 'turn_finished':
+      flushThinking(state);
       console.log(
         `[turn] ${event.outcome} iterations=${event.modelIterations} ` +
           `duration=${event.durationMs}ms${event.failureCode ? ` code=${event.failureCode}` : ''}`,
@@ -185,48 +306,87 @@ async function main() {
   ) {
     throw new Error('--effort must be low, medium, high, xhigh, or max');
   }
-  const response = await fetch(new URL('/turn', options.url), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      projectId: options.projectId,
-      prompt,
-      timeoutMs: options.timeoutMs,
-      permissionMode: options.permissionMode,
-      autoContinue: options.autoContinue === true,
-      ...(options.editMode ? { editMode: options.editMode } : {}),
-      ...(options.thinking ? { thinking: options.thinking } : {}),
-      ...(options.effort ? { effort: options.effort } : {}),
-      userInputs: options.userInputs,
-      newConversation: !options.conversationId,
-      ...(options.conversationId ? { conversationId: options.conversationId } : {}),
-    }),
-  });
-  if (!response.ok || !response.body) {
-    throw new Error(`Broker returned HTTP ${response.status}: ${await response.text()}`);
-  }
   const state = {
     failed: false,
     permissionMode: options.permissionMode,
     autoContinue: options.autoContinue === true,
+    showThinking: options.showThinking === true,
+    thinkingByIteration: new Map(),
+    thinkingAudit: {
+      passes: 0,
+      characters: 0,
+      longestCharacters: 0,
+      mechanicsHits: 0,
+      runtimeMetaHits: 0,
+      characterMatchHits: 0,
+      rereadIntentHits: 0,
+      mechanicsTerms: new Set(),
+      runtimeMetaExamples: [],
+      characterMatchExamples: [],
+      iterations: [],
+      oversizedIterations: [],
+    },
+    toolCallCounts: new Map(),
+    auditPrinted: false,
   };
-  const decoder = new TextDecoder();
-  let buffered = '';
-  for await (const chunk of response.body) {
-    buffered += decoder.decode(chunk, { stream: true });
-    let newline = buffered.indexOf('\n');
-    while (newline >= 0) {
-      const line = buffered.slice(0, newline).trim();
-      buffered = buffered.slice(newline + 1);
-      if (line) {
-        const payload = JSON.parse(line);
-        if (options.raw) console.log(JSON.stringify(payload));
-        else printEvent(payload, state);
+  const onTermination = (signal) => {
+    flushThinking(state);
+    printAudit(state);
+    console.error(
+      `[aborted] debug client received ${signal}; the renderer will cancel the active turn`,
+    );
+    process.exit(signal === 'SIGINT' ? 130 : signal === 'SIGHUP' ? 129 : 143);
+  };
+  const terminationHandlers = new Map(
+    ['SIGINT', 'SIGTERM', 'SIGHUP'].map((signal) => {
+      const handler = () => onTermination(signal);
+      process.once(signal, handler);
+      return [signal, handler];
+    }),
+  );
+  try {
+    const response = await fetch(new URL('/turn', options.url), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId: options.projectId,
+        prompt,
+        timeoutMs: options.timeoutMs,
+        permissionMode: options.permissionMode,
+        autoContinue: options.autoContinue === true,
+        ...(options.editMode ? { editMode: options.editMode } : {}),
+        ...(options.thinking ? { thinking: options.thinking } : {}),
+        ...(options.effort ? { effort: options.effort } : {}),
+        userInputs: options.userInputs,
+        newConversation: !options.conversationId,
+        ...(options.conversationId ? { conversationId: options.conversationId } : {}),
+      }),
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`Broker returned HTTP ${response.status}: ${await response.text()}`);
+    }
+    const decoder = new TextDecoder();
+    let buffered = '';
+    for await (const chunk of response.body) {
+      buffered += decoder.decode(chunk, { stream: true });
+      let newline = buffered.indexOf('\n');
+      while (newline >= 0) {
+        const line = buffered.slice(0, newline).trim();
+        buffered = buffered.slice(newline + 1);
+        if (line) {
+          const payload = JSON.parse(line);
+          if (options.raw) console.log(JSON.stringify(payload));
+          else printEvent(payload, state);
+        }
+        newline = buffered.indexOf('\n');
       }
-      newline = buffered.indexOf('\n');
+    }
+    if (state.failed) process.exitCode = 2;
+  } finally {
+    for (const [signal, handler] of terminationHandlers) {
+      process.off(signal, handler);
     }
   }
-  if (state.failed) process.exitCode = 2;
 }
 
 main().catch((error) => {

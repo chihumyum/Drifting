@@ -196,7 +196,26 @@ pnpm --dir client agent:debug:turn -- \
 
 The client prints tool arguments/results, context-window and compaction
 snapshots, per-iteration usage, the terminal outcome, and the final assistant
-text. Add `--raw` to retain the complete NDJSON journal.
+text. Add `--show-thinking` to group and print each complete reasoning pass;
+this is the required observation mode when evaluating whether the model is
+wasting reasoning on paths, schemas, JSON escaping or persistence details. Add
+`--raw` to retain the complete NDJSON journal.
+
+At every terminal outcome, `--show-thinking` also prints one aggregate line:
+
+```text
+[thinking-audit] passes=2 chars=2100 longest=1916 mechanics_hits=0 runtime_meta_hits=0 character_match_hits=0 reread_intent_hits=0 oversized_passes=0 duplicate_tool_calls=0
+```
+
+`mechanics_hits` scans for path/schema/tool/transport vocabulary;
+`runtime_meta_hits` covers provider, persistence, revision and review internals;
+`character_match_hits` catches quote/escape/byte-matching fixation.
+`reread_intent_hits` is a diagnostic text heuristic, not a count of actual
+reads; compare it with the printed calls. `oversized_passes` counts reasoning
+passes above 8,000 characters and `duplicate_tool_calls` counts exact
+name-plus-argument repeats. The audit prints bounded examples for every
+non-zero family. `SIGINT`, `SIGTERM` and `SIGHUP` print the partial audit before
+cancelling the renderer lease, so a runaway paid run still leaves evidence.
 
 ## Reversible write matrix
 
@@ -227,6 +246,7 @@ Useful options:
 --answer 'text'                     # queued ask_user answer; repeatable
 --auto-continue                     # follow the durable plan until a stable stop
 --thinking adaptive                 # enable the selected provider's reasoning
+--show-thinking                     # print thinking by iteration plus a terminal audit
 --timeout-ms 43200000               # observer watchdog; up to 12 hours
 --prompt-file /absolute/path/prompt.txt
 ```
