@@ -35,87 +35,6 @@ export const ProjectTable = sqliteTable('project', {
   updatedAt: text('updated_at').notNull(),
 });
 
-// Project Rule (Shadow Mode)
-// Domain: ProjectRule — a project-owned review rule the shadow CI checks chapters
-// against. The author writes rules FREEFORM (rawContent: a kv-ish line or prose);
-// an LLM normalizer compiles each into checklistJson — a list of atomic
-// assertions, each with an inferred `type` (mechanical kinds like word-count /
-// must-appear, or 'semantic'). compiledFromHash holds the hash of rawContent at
-// compile time, so a rule recompiles only when its source changes.
-//
-// scopeJson is AUTHOR-owned metadata (null = whole project) narrowing which
-// chapters/storylines/elements the rule applies to. There is no soft/advisory
-// tier — ANY violation drives the chapter to 'revising' (the author can still
-// resolve or finish manually).
-//
-// source 'project' = authored here; 'drift' = discovered from a drift node and
-// pending until enabled. sourceDriftHash drives incremental re-discovery (only
-// re-classify a drift whose content changed). Facts/summary are NOT rules — they
-// are auxiliary ground-truth pulled at evaluation time.
-export const ProjectRuleTable = sqliteTable('project_rule', {
-  id: text('id').primaryKey(),
-  projectId: text('project_id').notNull(),
-  rawContent: text('raw_content').notNull().default(''),
-  checklistJson: text('checklist_json').notNull().default('[]'),
-  // Enhancement-compiler outputs: `kind` routes judging; `judgingGuide` is the LLM-
-  // authored, author-editable judging template injected into the Shadow judge's prompt.
-  kind: text('kind').notNull().default('other'),
-  judgingGuide: text('judging_guide').notNull().default(''),
-  compiledFromHash: text('compiled_from_hash').notNull().default(''),
-  scopeJson: text('scope_json'),
-  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
-  source: text('source').notNull().default('project'),
-  sourceDriftId: text('source_drift_id'),
-  sourceDriftHash: text('source_drift_hash'),
-  orderKey: integer('order_key').notNull().default(0),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
-});
-
-// Shadow Job
-// Domain: ShadowJob — one record per chapter shadow-review run, kept for
-// observability. The right-rail Shadow panel lists these; a cell expands to its
-// `trace_json` (the structured evidence-gathering / decision trail). Local-only
-// (never synced): these are runtime telemetry, not authored content.
-//   status:   running | done | failed
-//   decision: finished | draft | null (null while running / on failure)
-//   traceJson: ShadowTraceStep[] — phase steps, per-rule evidence rounds, verdicts
-export const ShadowJobTable = sqliteTable(
-  'shadow_job',
-  {
-    id: text('id').primaryKey(),
-    projectId: text('project_id').notNull(),
-    chapterId: text('chapter_id').notNull(),
-    chapterTitle: text('chapter_title').notNull().default(''),
-    status: text('status').notNull().default('running'),
-    decision: text('decision'),
-    findingCount: integer('finding_count').notNull().default(0),
-    error: text('error'),
-    traceJson: text('trace_json').notNull().default('[]'),
-    // The canon entities the FC judge ACTUALLY consulted this review (resolved
-    // {kind,id,label}). The precise `(chapter)→entities` dependency edges — the
-    // compiler `-MMD` to the inline-mention `grep #include`.
-    consultedJson: text('consulted_json').notNull().default('[]'),
-    // Was a consultation set MEASURED this review? Disambiguates an empty
-    // consulted_json: false = legacy/un-measured (staleness falls back to prose
-    // mentions); true = measured, and an empty set means "no entity deps" (don't
-    // fall back). Set true by setShadowConsulted at the end of a real review.
-    consultedCaptured: integer('consulted_captured', { mode: 'boolean' }).notNull().default(false),
-    // Value-state of the consulted canon AT THIS REVIEW — {kind,id,label,summary?,facts?}[].
-    // The baseline a later re-review diffs CURRENT canon against to produce the old→new
-    // dep-hint fed to the judge. consultedJson holds identity; this holds the values.
-    consultedSnapshotJson: text('consulted_snapshot_json').notNull().default('[]'),
-    archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
-    startedAt: text('started_at').notNull(),
-    finishedAt: text('finished_at'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (t) => [
-    index('idx_shadow_job_project').on(t.projectId),
-    index('idx_shadow_job_chapter').on(t.chapterId),
-  ],
-);
 
 // Element Category
 // project(1) <-> elementCategory(N)
@@ -301,10 +220,8 @@ export const BookNodeTable = sqliteTable(
     // Materialized word count, derived from this node's content.
     // Updated on every save; defaults to 0 for nodes that have never been edited.
     wordCount: integer('word_count').notNull().default(0),
-    // Author-facing chapter status. Manual: user marks 'finished' from the
-    // editor menu (the future AI-review pipeline will route that through
-    // waiting_review → revising before landing on finished). Stored as plain
-    // text — the enum lives in the domain layer (see WritingStatus).
+    // Author-facing chapter status, selected directly from the editor menu.
+    // Stored as plain text — the enum lives in the domain layer (see WritingStatus).
     writingStatus: text('writing_status').notNull().default('draft'),
     // Explicit discriminator between 'chapter' and 'drift'. Replaces the
     // historical "mainStorylineId nullability" implicit discriminator. A
@@ -377,7 +294,7 @@ export const NodeContentTable = sqliteTable(
     outlineJson: text('outline_json').default('[]'),
     // In-chapter plot planner grid (mini-Excel scratchpad). Sparse JSON,
     // authored upstream of prose — NOT derived from it and NOT part of the
-    // dep-graph/shadow. Lives here for the same per-node 1:1 cache reasons as
+    // dependency analysis. Lives here for the same per-node 1:1 cache reasons as
     // outlineJson. See domain/plot-grid.ts for the shape.
     plotGridJson: text('plot_grid_json').default('{}'),
     createdAt: text('created_at').notNull(),
@@ -518,7 +435,7 @@ export const ElementPatchTable = sqliteTable(
     // Set (ISO timestamp) when the anchored source text was deleted/rewritten
     // out of the source chapter, NULL while the anchor still resolves. Stored
     // as TEXT (not a real timestamp) so it round-trips through the JSON sync
-    // payload unchanged. Invalidated patches are EXCLUDED from Shadow / agent
+    // payload unchanged. Invalidated patches are EXCLUDED from Agent
     // canon context (deleted evidence ⇒ no longer a sanctioned evolution) but
     // still shown — badged — in the element editor so the user can act on them.
     invalidatedAt: text('invalidated_at'),
@@ -535,57 +452,6 @@ export const ElementPatchTable = sqliteTable(
     index('idx_patch_element').on(t.elementId),
     index('idx_patch_source_node').on(t.sourceNodeId),
     index('idx_patch_project').on(t.projectId),
-  ],
-);
-
-// Element Arc — per-element derived development trajectory (the「弧线透镜」). One row
-// per element holds the LATEST derivation + its status, so the element editor's arc
-// section persists across reloads. Deliberately NOT folded into shadow_job: that's a
-// chapter-CI record (subject=chapter, product=findings); an arc is an element-level
-// analysis (subject=element, product=an ArcMap, stored in result_json). Joins to
-// element; cascades on delete.
-export const ElementArcTable = sqliteTable(
-  'element_arc',
-  {
-    id: text('id').primaryKey(),
-    projectId: text('project_id').notNull(),
-    elementId: text('element_id')
-      .notNull()
-      .references(() => BookElementTable.id, { onDelete: 'cascade' }),
-    // running | done | failed
-    status: text('status').notNull().default('running'),
-    includeDrafts: integer('include_drafts', { mode: 'boolean' }).notNull().default(false),
-    // The ArcMap (domain/element-arc.ts) as JSON; null until the derivation finishes.
-    resultJson: text('result_json'),
-    error: text('error'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (t) => [uniqueIndex('idx_element_arc_element').on(t.elementId)],
-);
-
-// ai_usage — local token accounting for AI calls that EXECUTE on this client
-// (Shadow BYOK / direct-provider). Hosted calls run on the Drifting server and are
-// metered there; this captures the calls the server never sees. One row per LLM
-// call, tagged by `feature` ('shadow:review' | 'shadow:arc' | …). Tokens only, no
-// cost/$. `credentialsMode` records hosted|byok for forward-compat (today local).
-export const AiUsageTable = sqliteTable(
-  'ai_usage',
-  {
-    id: text('id').primaryKey(),
-    projectId: text('project_id'),
-    feature: text('feature').notNull(),
-    provider: text('provider'),
-    model: text('model'),
-    credentialsMode: text('credentials_mode'),
-    inputTokens: integer('input_tokens').notNull().default(0),
-    outputTokens: integer('output_tokens').notNull().default(0),
-    cachedTokens: integer('cached_tokens').notNull().default(0),
-    createdAt: text('created_at').notNull(),
-  },
-  (t) => [
-    index('idx_ai_usage_created').on(t.createdAt),
-    index('idx_ai_usage_feature').on(t.feature),
   ],
 );
 
@@ -758,11 +624,11 @@ export const CommentTable = sqliteTable(
     bodyJson: text('body_json').notNull().default('{}'),
     status: text('status').notNull().default('open'), // open | resolved | converted
     priority: text('priority'),
-    source: text('source').notNull().default('manual'), // manual | shadow | copilot | api
+    source: text('source').notNull().default('manual'), // manual | copilot | api
     metadataJson: text('metadata_json'),
     // JSON array of block ids this comment anchors to (a consecutive range).
     // targetBlockId stays the primary/first (card position + back-compat); this
-    // is the full span, written by both manual multi-block selection and shadow.
+    // is the full span, written by manual selection and automated writers.
     targetBlockIdsJson: text('target_block_ids_json').notNull().default('[]'),
     resolvedAt: text('resolved_at'),
     createdAt: text('created_at').notNull(),
@@ -1786,8 +1652,8 @@ export const AgentRuntimeTaskCommandTable = sqliteTable(
 );
 
 // Agent Memory
-// A small, evolving store of author-level guidance that BOTH the General agent
-// and the Shadow review engine read as auxiliary context. Distinct from canon
+// A small, evolving store of author-level guidance that the General Agent
+// reads as auxiliary context. Distinct from canon
 // (the story world) and project facts (the structured governing KV): it holds
 // the standing, cross-cutting meta — personal writing preferences, vetoed
 // proposals, and standing directives. Anchored/block-local guidance lives in

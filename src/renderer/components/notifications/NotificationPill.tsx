@@ -1,6 +1,6 @@
 /**
  * Notification bell button in the topbar. Always a 26×26 circle.
- *   - a task is running   → source-specific icon (Sparkles / ◐) blinks
+ *   - a task is running   → Copilot icon blinks
  *   - task just finished  → result icon (✓ / ⚠ / ✗) for FLASH_MS, then bell
  *   - otherwise           → bell icon
  * Clicking toggles the NotificationCenter history dropdown.
@@ -48,7 +48,7 @@ function relTime(
 }
 
 function sourceLabel(n: AppNotification): string {
-  return n.source === 'shadow' ? 'Shadow' : 'Copilot';
+  return n.source === 'copilot' ? 'Copilot' : 'Copilot';
 }
 
 function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
@@ -167,21 +167,16 @@ export function NotificationPill() {
 
   const now = useNow(centerOpen);
 
-  // Priority: running source icon (blink) > flash result icon > bell
+  // Priority: running Copilot icon (blink) > flash result icon > bell
   let iconEl: React.ReactNode;
   let iconColor: string;
   if (runningItem) {
     iconColor = 'hsl(var(--ink-2))';
-    iconEl =
-      runningItem.source === 'copilot' ? (
-        <span key="copilot-run" className="notif-blink-icon">
-          <Sparkles size={14} strokeWidth={1.8} />
-        </span>
-      ) : (
-        <span key="shadow-run" className="notif-blink-icon notif-blink-icon--text">
-          ◐
-        </span>
-      );
+    iconEl = (
+      <span key="copilot-run" className="notif-blink-icon">
+        <Sparkles size={14} strokeWidth={1.8} />
+      </span>
+    );
   } else if (flashResult) {
     iconColor = flashToneColor(flashResult);
     iconEl = (

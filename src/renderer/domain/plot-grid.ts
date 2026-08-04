@@ -5,7 +5,7 @@
  * chapter. The author owns the meaning of rows and columns (e.g. characters ×
  * time, or beats × detail) — we impose no semantics and bind to nothing. It is
  * deliberately decoupled from prose: NOT derived from the text (unlike
- * outlineJson / chapter summary) and never feeds the dep-graph or shadow.
+ * outlineJson / chapter summary) and never feeds Agent context automatically.
  *
  * Rows/cols carry stable ids so cells survive insert/delete without reindexing
  * and React keys stay stable across structural edits. Cells are stored sparsely

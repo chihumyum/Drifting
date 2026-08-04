@@ -1,5 +1,5 @@
 /**
- * Global AI-task notification feed. Both Copilot and Shadow emit an `ai-task`
+ * Global AI-task notification feed. Copilot emits an `ai-task`
  * event on start / completion / failure (see lib/events). The feed ingests those
  * into a capped, newest-first history that backs two surfaces:
  *   - the Dynamic-Island PILL in the topbar (shows the in-flight task, or the

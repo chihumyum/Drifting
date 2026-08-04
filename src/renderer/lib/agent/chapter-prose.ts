@@ -302,20 +302,6 @@ export function yReplaceAllParagraphs(frag: Y.XmlFragment, texts: string[]): str
  * one is open, else a transient doc rehydrated from SQLite, else the supplied
  * fallback (the projection cache) when the entity has no Yjs state yet.
  */
-// Optional read-through cache for a bounded READ-ONLY burst (a shadow review):
-// rebuilding a chapter's Y.Doc (apply snapshot + every update → y-prosemirror
-// conversion) is CPU-heavy, and full-project scans (search_prose,
-// where_does_entity_appear) re-hydrate every chapter on EVERY call. With the cache
-// each doc hydrates at most once per burst. Only the non-live paths are cached — a
-// doc on those paths has no open editor, so its source is static for the burst.
-let proseReadCache: Map<string, string> | null = null;
-export function beginProseReadCache(): void {
-  proseReadCache = new Map(); // fresh each bracket — self-heals a missed end()
-}
-export function endProseReadCache(): void {
-  proseReadCache = null;
-}
-
 async function readProseContentJson(
   docId: string,
   readFallbackJson: () => Promise<string>,
@@ -327,9 +313,6 @@ async function readProseContentJson(
     const { yDocToProsemirrorJSON } = await import('y-prosemirror');
     return JSON.stringify(yDocToProsemirrorJSON(live, 'default'));
   }
-
-  const cached = proseReadCache?.get(docId);
-  if (cached !== undefined) return cached;
 
   let result: string;
   const repo = createYjsRepository();
@@ -345,7 +328,6 @@ async function readProseContentJson(
   } else {
     result = await readFallbackJson();
   }
-  proseReadCache?.set(docId, result);
   return result;
 }
 
@@ -502,7 +484,7 @@ async function persistBody(
 
 /**
  * Apply a prose edit to ANY prose entity through its Yjs document, keeping the
- * contentJson cache in sync (chapters also keep wordCount). Shadow/legacy
+ * contentJson cache in sync (chapters also keep wordCount). Legacy/manual
  * callers without runtime provenance still seed the visual edit surface.
  * General Agent calls are already hard-authorized before this function and
  * must not create a second post-write approval state.
@@ -523,7 +505,7 @@ export async function writeEntityProse(
 
   await persistBody(ctx, entityType, id, contentJson);
 
-  // Only Shadow/legacy callers use post-write visual staging. The General
+  // Only legacy/manual callers use post-write visual staging. The General
   // Agent's durable provenance proves it crossed the pre-execution gate.
   if (!ctx.provenance && changes.length) {
     useAgentEditStore

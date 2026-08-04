@@ -17,8 +17,7 @@ export interface AnthropicProviderConfig {
 }
 
 /**
- * Anthropic Messages adapter for one-shot substrate calls such as Shadow rule
- * compilation and arc stages. Multi-round Shadow/General-Agent work uses the
+ * Anthropic Messages adapter for one-shot structured calls. Multi-round General-Agent work uses the
  * native AnthropicMessagesAgentDriver so reasoning replay remains exact.
  */
 export class AnthropicProvider implements LLMProvider {

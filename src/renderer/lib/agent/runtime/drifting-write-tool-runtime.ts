@@ -1734,9 +1734,6 @@ function durableWriteRoute(route: AgentRuntimeRoute) {
   if (route.kind === 'test' || !route.projectId) {
     throw new Error('A durable Agent write requires a project route');
   }
-  if (route.kind === 'shadow') {
-    throw new Error('Shadow workloads must use their explicit bounded tool profile');
-  }
   if (route.kind === 'chat') {
     if (!route.conversationId) {
       throw new Error('A durable Agent write requires a conversation');

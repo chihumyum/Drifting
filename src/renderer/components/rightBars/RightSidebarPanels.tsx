@@ -17,7 +17,6 @@ import { RightSidebarHeader } from './RightSidebarHeader';
 import { LibraryPanel, type FocusedEntity } from './MemoMaterialPanel';
 import { TodoPanel } from './TodoPanel';
 import { CompanionPanel } from '../agent/CompanionPanel';
-import { ShadowPanel } from './ShadowPanel';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { EmptyState } from '../ui/EmptyState';
 
@@ -35,7 +34,6 @@ export function RightSidebarPanels() {
   const { activeTabKey, openTabs } = useProjectTabs(projectId);
   const rightPanelGroup = useUiStore((s) => s.rightPanelGroup);
   const activeRightPanel = useUiStore((s) => s.activeRightPanel);
-  const activeAgentPanel = useUiStore((s) => s.activeAgentPanel);
   const splitRatio = useUiStore((s) => s.rightPanelSplitRatio);
   const setSplitRatio = useUiStore((s) => s.setRightPanelSplitRatio);
 
@@ -245,12 +243,7 @@ export function RightSidebarPanels() {
       )}
     </>
   );
-  const agentBody = (
-    <>
-      {activeAgentPanel === 'companion' && <CompanionPanel projectId={projectId} />}
-      {activeAgentPanel === 'shadow' && <ShadowAgentView />}
-    </>
-  );
+  const agentBody = <CompanionPanel projectId={projectId} />;
 
   return (
     <div
@@ -1203,11 +1196,9 @@ function StatsLinkRow({
 }
 
 /** Manual-pick chapter statuses, in stacked-bar order (most → least done). */
-const STORYLINE_STATUS_ORDER = ['finished', 'revising', 'waiting_review', 'draft'] as const;
+const STORYLINE_STATUS_ORDER = ['finished', 'draft'] as const;
 const STORYLINE_STATUS_OPACITY: Record<(typeof STORYLINE_STATUS_ORDER)[number], number> = {
   finished: 1,
-  revising: 0.65,
-  waiting_review: 0.4,
   draft: 0.18,
 };
 
@@ -1578,20 +1569,6 @@ function CategoryStats({
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shadow tab — real task queue lands here (mock list removed)
-
-function ShadowAgentView() {
-  // The real shadow task queue: persisted review jobs, each expandable to its
-  // evidence-gathering + decision trail. See ShadowPanel.
-  return <ShadowPanel />;
-}
-
-// Shadow notification stack (bottom-pinned card pile) used to live here.
-// Removed when the shadow-mode toggle was consolidated onto the bottom
-// status bar. Reintroduce a real notification surface only when there's a
-// backing store to populate it.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Small shared bits

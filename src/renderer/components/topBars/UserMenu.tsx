@@ -12,7 +12,6 @@ import {
   Languages,
   ChevronLeft,
   ChevronRight,
-  Eye,
   Sparkles,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -25,7 +24,6 @@ import { useFeatureAccessStore } from '../../lib/feature-access';
 import loglevel from 'loglevel';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { CopilotQuickSettings } from '../copilot/CopilotBottomMenu';
-import { ShadowQuickSettings } from '../ShadowQuickMenu';
 
 const log = loglevel.getLogger('UserMenu');
 
@@ -42,7 +40,7 @@ interface UserMenuProps {
   scope?: 'project' | 'shelf';
 }
 
-type UserMenuSettingsPage = 'copilot' | 'shadow';
+type UserMenuSettingsPage = 'copilot';
 
 export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserMenuProps) {
   const { t } = useTranslation();
@@ -95,8 +93,8 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
     onClose();
   };
 
-  const openFullSettings = (railId: 'copilot' | 'shadow') => {
-    events.emit('settings:open', { railId });
+  const openFullSettings = () => {
+    events.emit('settings:open', { railId: 'copilot' });
     handleClose();
   };
 
@@ -116,8 +114,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || t('common.local');
   const initial = displayName.charAt(0).toUpperCase();
   const normalizedUiLocale = uiLocale.startsWith('zh') ? 'zh-CN' : 'en';
-  const menuWidth =
-    activeSettingsPage === 'shadow' ? 360 : activeSettingsPage === 'copilot' ? 300 : 248;
+  const menuWidth = activeSettingsPage === 'copilot' ? 300 : 248;
 
   return (
     <AnchoredPopover
@@ -179,14 +176,10 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
                 color: 'hsl(var(--ink-1))',
               }}
             >
-              {activeSettingsPage === 'copilot' ? 'Copilot' : 'Shadow'}
+              Copilot
             </span>
           </div>
-          {activeSettingsPage === 'copilot' ? (
-            <CopilotQuickSettings onOpenFullSettings={() => openFullSettings('copilot')} />
-          ) : (
-            <ShadowQuickSettings onOpenFullSettings={() => openFullSettings('shadow')} />
-          )}
+          <CopilotQuickSettings onOpenFullSettings={openFullSettings} />
         </div>
       )}
 
@@ -239,12 +232,6 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
               label="Copilot"
               tail={<ChevronRight size={13} strokeWidth={1.6} />}
               onClick={() => setActiveSettingsPage('copilot')}
-            />
-            <MenuItem
-              icon={<Eye size={13} />}
-              label="Shadow"
-              tail={<ChevronRight size={13} strokeWidth={1.6} />}
-              onClick={() => setActiveSettingsPage('shadow')}
             />
           </MenuGroup>
         )}

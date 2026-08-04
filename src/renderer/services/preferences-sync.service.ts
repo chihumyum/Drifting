@@ -67,13 +67,6 @@ type SyncableSlice = {
   copilotAiMode: unknown;
   copilotByokProvider: unknown;
   copilotByokModel: unknown;
-  // shadow* = the Shadow module's own routing (review + arc); the hosted tier needs
-  // to reach the server so it can map 高→Sonnet. Keys never sync (same as copilot).
-  shadowAiMode: unknown;
-  shadowTier: unknown;
-  shadowByokProvider: unknown;
-  shadowByokModel: unknown;
-  shadowAutoRun: unknown;
   agentAuth: unknown;
   agentProvider: unknown;
   agentModel: unknown;
@@ -118,11 +111,6 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'copilotAiMode',
   'copilotByokProvider',
   'copilotByokModel',
-  'shadowAiMode',
-  'shadowTier',
-  'shadowByokProvider',
-  'shadowByokModel',
-  'shadowAutoRun',
   'agentAuth',
   'agentProvider',
   'agentModel',
@@ -261,21 +249,6 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     copilotByokModel: (v) => {
       if (typeof v === 'string') store.setCopilotByokModel(v);
     },
-    shadowAiMode: (v) => {
-      if (v === 'hosted' || v === 'byok') store.setShadowAiMode(v);
-    },
-    shadowTier: (v) => {
-      if (v === 'lite' || v === 'standard' || v === 'pro') store.setShadowTier(v);
-    },
-    shadowByokProvider: (v) => {
-      if (v === 'deepseek' || v === 'anthropic' || v === 'openai') {
-        store.setShadowByokProvider(v);
-      }
-    },
-    shadowByokModel: (v) => {
-      if (typeof v === 'string') store.setShadowByokModel(v);
-    },
-    shadowAutoRun: (v) => store.setShadowAutoRun(!!v),
     agentAuth: (v) => {
       if (v === 'hosted' || v === 'oauth' || v === 'apikey') store.setAgentAuth(v);
     },
@@ -345,11 +318,7 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
   try {
     const orderedEntries = [...entries].sort((left, right) => {
       const priority = (key: string) =>
-        key === 'agentProvider' || key === 'shadowByokProvider'
-          ? 0
-          : key === 'agentModel' || key === 'shadowByokModel'
-            ? 1
-            : 2;
+        key === 'agentProvider' ? 0 : key === 'agentModel' ? 1 : 2;
       return priority(left.key) - priority(right.key);
     });
     for (const entry of orderedEntries) {

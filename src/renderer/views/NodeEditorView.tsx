@@ -52,7 +52,6 @@ import {
   ModalHeader,
   ModalRoot,
 } from '../components/ui/Modal';
-import { enqueueShadowReview } from '../lib/shadow/job-recorder';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { countWordsInPmJson } from '../lib/word-count';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
@@ -546,22 +545,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
         const allowed = isDrift(curNode) ? DRIFT_STATUSES : CHAPTER_WRITING_STATUSES;
         if (!allowed.includes(next as never) || next === curNode.writingStatus) return;
         try {
-          // Marking a chapter finished OPTIONALLY runs it through shadow review
-          // first — gated by shadowAutoRun ("完成时自动审阅"). When on: lock it
-          // (waiting_review) + enqueue; shadow then pushes it to finished (clean)
-          // or back to draft (issues surface as comments). When off — or for drift
-          // nodes / the 'draft' option — set the status directly; the user can
-          // still review by hand later (复审 / 复审全书). Deps-change re-review is
-          // never automatic now; it only surfaces as the「需复审」reminder. Read the
-          // toggle imperatively so the handler always sees the live value.
-          const autoReviewOnFinish = useSettingsStore.getState().shadowAutoRun;
-          if (next === 'finished' && !isDrift(curNode) && autoReviewOnFinish) {
-            await updateNode(nodeId, { writingStatus: 'waiting_review' });
-            // Durable enqueue: persists a 'queued' row first so a restart resumes it.
-            await enqueueShadowReview(nodeId, activeProjectId);
-          } else {
-            await updateNode(nodeId, { writingStatus: next });
-          }
+          await updateNode(nodeId, { writingStatus: next });
         } catch (error) {
           log.error('[NodeEditor] Failed to set writing status:', error);
           alert(t('nodeEditor.alerts.statusUpdateFailed'));
@@ -879,14 +863,13 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                   )}
 
                   <ChapterEditor
-                    key={`${nodeId}:${curNode.writingStatus === 'waiting_review' ? 'ro' : 'rw'}`}
+                    key={nodeId}
                     ref={editorRef}
                     nodeId={nodeId}
                     projectId={activeProjectId}
                     content={bookContent?.contentJson ?? null}
                     title={curNode.title}
                     summary={curNode.summary || ''}
-                    readOnly={curNode.writingStatus === 'waiting_review'}
                     onContentUpdate={handleContentUpdate}
                     onTitleUpdate={handleTitleUpdate}
                     onSummaryUpdate={handleSummaryUpdate}

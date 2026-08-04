@@ -1,7 +1,7 @@
 /**
  * useSegmentMergeOnFinalize (Task 5, part A) — watch this chapter's writing
  * status; when it transitions out of 'draft' into a "moving forward" state
- * (finished / waiting_review / revising) AND every block is currently covered
+ * (`finished`) AND every block is currently covered
  * by a segment summary, auto-run the segment merge to consolidate the small
  * rolling summaries.
  *
@@ -19,7 +19,7 @@ import { computeCoverageMap } from '../lib/copilot/coverage-map';
 import { mergeChapterSegments } from '../lib/copilot/merge-chapter-segments';
 
 const log = loglevel.getLogger('copilot:merge-finalize');
-const FINALIZE_STATUSES = new Set(['finished', 'waiting_review', 'revising']);
+const FINALIZE_STATUSES = new Set(['finished']);
 
 export interface UseSegmentMergeOnFinalizeInput {
   editor: Editor;

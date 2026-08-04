@@ -1,5 +1,5 @@
 /**
- * Agent/Shadow prose-edit presentation state (#3 / #4).
+ * General Agent prose-edit presentation state (#3 / #4).
  *
  * General Agent prose writes enter this store only after their Yjs mutation,
  * durable effect result, and canonical SQLite review have committed. The store
@@ -12,8 +12,7 @@
  *   - approve mode: show inline accept/reject controls; approving plays the same
  *                   animation, rejecting undoes the block via Yjs.
  *
- * Keyed `${entityType}:${id}` like the activity store. Shadow renderer paths
- * may still seed local-only batches synchronously when their edit applies.
+ * Keyed `${entityType}:${id}` like the activity store.
  *
  * PERSISTED to localStorage so pending editor presentation survives a reload.
  * The v1 migration retires batches from the previously removed review protocol;
@@ -549,7 +548,7 @@ export const useAgentEditStore = create<AgentEditState>()(
 
 /**
  * Retire review batches created by the superseded pre-v1 protocol at hydration
- * time. Changes without a reviewId belong to Shadow/legacy staging and remain.
+ * time. Changes without a reviewId belong to legacy local staging and remain.
  * Retired ids are remembered so a delayed old receipt cannot recreate them.
  */
 export function retireLegacyAgentReviewPersistence(

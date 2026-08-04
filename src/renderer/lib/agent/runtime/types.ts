@@ -281,12 +281,6 @@ export interface AgentModelDriver {
 export type AgentRuntimeRoute =
   | { kind: 'chat'; projectId: string; conversationId?: string }
   | { kind: 'goal'; projectId: string; goalRunId?: string; chapterId?: string }
-  | {
-      kind: 'shadow';
-      projectId: string;
-      chapterId?: string;
-      operation: 'review' | 'evolve-critic' | 'evolve-edit' | 'eval';
-    }
   | { kind: 'test'; projectId?: string };
 
 export interface AgentRuntimeContext {

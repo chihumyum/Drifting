@@ -40,7 +40,7 @@ describe('local Agent tool selector', () => {
     const selector = createToolSelector({
       catalog: AGENT_TOOL_CATALOG,
       policy: {
-        scopes: ['general', 'shadow-internal', 'runtime-virtual'],
+        scopes: ['general', 'runtime-virtual'],
         accesses: ['read', 'write'],
         certifications: [
           'unavailable',
@@ -71,15 +71,13 @@ describe('local Agent tool selector', () => {
     ).toBe(true);
 
     const selected = selector.select(
-      'shadow_commit_review delete_element read_node',
+      'ask_user delete_element read_node',
       100,
     );
     expect(selected).toHaveLength(
       Math.min(selected.length, MAX_SELECTED_AGENT_TOOLS),
     );
-    expect(selected.map((tool) => tool.name)).not.toContain(
-      'shadow_commit_review',
-    );
+    expect(selected.map((tool) => tool.name)).not.toContain('ask_user');
     expect(selected.map((tool) => tool.name)).not.toContain(
       'delete_element',
     );

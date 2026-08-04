@@ -13,8 +13,6 @@
 import { LLMClient } from './llm-client';
 import { GoogleAIStudioProvider } from './providers/google';
 import { DeepSeekProvider } from './providers/deepseek';
-import { AnthropicProvider } from './providers/anthropic';
-import { OpenAIProvider } from './providers/openai';
 import { ServerProxyProvider } from './providers/server-proxy';
 import { BYOKCredentialsProvider } from '../credentials/byok';
 import { EnvCredentialsProvider } from '../credentials/env';
@@ -23,7 +21,6 @@ import { LoggingInterceptor } from '../interceptors/logging-interceptor';
 import { CaptureInterceptor } from '../interceptors/capture-interceptor';
 import type { LLMProvider } from './providers/provider';
 import { AIError } from '../types';
-import { useSettingsStore } from '../../../store/settings-store';
 import type { AgentProviderId } from '../../agent/runtime/agent-provider-contract';
 
 export interface BuildDefaultLLMClientOptions {
@@ -60,82 +57,10 @@ export async function buildDefaultLLMClient(
   return client;
 }
 
-/**
- * Whether the Drifting server transport is reachable to route a hosted call.
- * Today this is the same build-time gate the global path uses (VITE_AI_TRANSPORT
- * =proxy). Kept as the single "is hosted reachable" predicate so per-mode Shadow
- * routing and its usage gate share one honest source of truth — when the proxy is
- * promoted to always-on, relax this in ONE place.
- */
-export function isServerTransportAvailable(): boolean {
-  return import.meta.env.VITE_AI_TRANSPORT === 'proxy';
-}
-
-/**
- * Does THIS Shadow call route through the hosted server proxy? hosted + server
- * reachable → yes (server holds the key, meters it, can reach any model); byok or
- * no-server → no (direct provider, recorded locally). Exported so the Shadow client
- * factory, the usage-recording gate, and the model-routability guard all agree.
- *
- * NOTE: on a normal (non-proxy) build this is always false, so Shadow behaves
- * exactly as today (direct/local) until the proxy transport is turned on AND the
- * server's /api/ai/complete contract is widened to serve the FC tool loop.
- */
-export function shadowRoutesViaProxy(): boolean {
-  return useSettingsStore.getState().shadowAiMode === 'hosted' && isServerTransportAvailable();
-}
-
 function wrapClient(provider: LLMProvider, logTag: string): LLMClient {
   const client = new LLMClient(provider).use(new LoggingInterceptor(logTag));
   if (import.meta.env.DEV) client.use(new CaptureInterceptor({ writeFiles: true }));
   return client;
-}
-
-/**
- * Shadow-only client factory — per-MODE routing instead of the global transport
- * flag. hosted (+server reachable) → ServerProxyProvider (server-side key +
- * metering); BYOK resolves Shadow's explicit provider against the same global
- * Keychain namespace used by Copilot and General Agent. This LLMClient factory
- * serves Shadow's one-shot structured and arc calls. Multi-round Shadow leaves
- * use the canonical AgentModelDriver path in `shadow/agent-runtime.ts`.
- */
-export async function buildShadowClient(
-  options: BuildDefaultLLMClientOptions = {},
-): Promise<LLMClient> {
-  if (shadowRoutesViaProxy()) {
-    return wrapClient(new ServerProxyProvider(), options.logTag ?? 'shadow');
-  }
-  const provider = options.provider ?? useSettingsStore.getState().shadowByokProvider;
-  const credentials = new ChainCredentialsProvider([
-    new EnvCredentialsProvider(),
-    new BYOKCredentialsProvider(),
-  ]);
-  const apiKey = await tryGetKey(credentials, provider);
-  if (!apiKey) {
-    throw new AIError(
-      'auth',
-      `No ${provider} key is configured for Shadow. Add one in Settings → Models & API.`,
-    );
-  }
-  if (provider === 'anthropic') {
-    return wrapClient(
-      new AnthropicProvider({
-        apiKey,
-        ...(options.model ? { defaultModel: options.model } : {}),
-      }),
-      options.logTag ?? 'shadow',
-    );
-  }
-  if (provider === 'openai') {
-    return wrapClient(
-      new OpenAIProvider({
-        apiKey,
-        ...(options.model ? { defaultModel: options.model } : {}),
-      }),
-      options.logTag ?? 'shadow',
-    );
-  }
-  return buildDirectDeepSeekClient(options, 'Shadow', credentials);
 }
 
 /**
@@ -161,12 +86,11 @@ export async function buildGeneralAgentClient(
       `${provider} uses a native Agent driver, not the OpenAI-compatible client.`,
     );
   }
-  return buildDirectDeepSeekClient(options, 'General Agent', credentials);
+  return buildDirectDeepSeekClient(options, credentials);
 }
 
 async function buildDirectDeepSeekClient(
   options: BuildDefaultLLMClientOptions,
-  featureLabel: 'Shadow' | 'General Agent',
   credentials = new ChainCredentialsProvider([
     new EnvCredentialsProvider(),
     new BYOKCredentialsProvider(),
@@ -176,7 +100,7 @@ async function buildDirectDeepSeekClient(
   if (!apiKey) {
     throw new AIError(
       'auth',
-      `No deepseek key is configured for ${featureLabel}. Add one in Settings → Models & API.`,
+      'No deepseek key is configured for General Agent. Add one in Settings → Models & API.',
     );
   }
   return wrapClient(
@@ -185,7 +109,7 @@ async function buildDirectDeepSeekClient(
       ...(options.model ? { defaultModel: options.model } : {}),
       thinking: false,
     }),
-    options.logTag ?? (featureLabel === 'Shadow' ? 'shadow' : 'general-agent'),
+    options.logTag ?? 'general-agent',
   );
 }
 

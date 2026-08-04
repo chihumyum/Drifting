@@ -25,7 +25,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - `AppTopbar` 的固定顺序是搜索、左栏 toggle、项目主页、通览全书、`SUPER`、文档 Tabs、通知、右栏 toggle 与账户。普通图标按钮统一使用 `26px` 热区和约 `16px` 图标；低频入口不再各自占用一枚顶栏图标。
 - 通览全书是 Project Home 与 `SUPER` 之间的独立纯文字按钮，直接进入 All Chapters editor，并以文字颜色表达 hover 与 active。`SUPER` 仍是不带 chevron 或其他图标的纯大写英文触发器，但菜单现在只包含 `Elements`、`Storylines` 与 `Library`；四个旧的自绘 Super View 图标不再存在。
 - 顶栏整行的 icon button、Tab close 与 `SUPER` hover 都只提高前景文字/图标颜色，不绘制额外底色；真正展开的 dropdown menu item 仍保留行级 hover 以表达当前指向。
-- Copilot 与 Shadow 从顶栏移入账户 dropdown 的二级设置页。打开账户菜单后进入对应页面，可就地修改原有 quick settings，并可继续进入完整 Settings；退出二级页先返回账户菜单，不直接关闭整个 dropdown。
+- Copilot 从顶栏移入账户 dropdown 的二级设置页。打开账户菜单后可就地修改 quick settings，并可继续进入完整 Settings；退出二级页先返回账户菜单，不直接关闭整个 dropdown。
 - `BottomStatusBar` 以只读状态为主，报告当前上下文对应的章节/故事线/全书字数、今日新增字数，以及同步状态和最近成功同步时间；原 editor top bar 不再重复显示字数。唯一的交互例外是 Bottom Timeline 展开/收起开关，因为它直接控制 footer 上方相邻的 dock。
 - 通知入口仍留在 topbar，因为它会打开通知中心，属于操作入口而不是被动状态。footer 后续只接受无需点击即可理解、且与当前写作任务有关的短状态。
 - footer 保持 `20px` 高度并使用全宽所有权；除 Timeline 开关外，不把低频设置或导航重新塞回底部角落。

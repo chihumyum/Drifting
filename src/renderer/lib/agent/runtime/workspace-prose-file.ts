@@ -292,7 +292,7 @@ function stripInlinePresentation(value: string): string {
     .replace(/^\*{1,2}|\*{1,2}$/gu, '')
     .replace(/^~~|~~$/gu, '')
     .replace(/^<u>|<\/u>$/giu, '')
-    .replace(/\\([\\`*{}\[\]()#+.!_>-])/gu, '$1')
+    .replace(/\\([\\`*{}\x5b\]()#+.!_>-])/gu, '$1')
     .trim();
 }
 

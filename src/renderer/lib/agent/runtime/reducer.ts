@@ -75,9 +75,6 @@ function sameRoute(a: AgentRuntimeRoute, b: AgentRuntimeRoute): boolean {
       a.chapterId === b.chapterId
     );
   }
-  if (a.kind === 'shadow' && b.kind === 'shadow') {
-    return a.chapterId === b.chapterId && a.operation === b.operation;
-  }
   return a.kind === 'test' && b.kind === 'test';
 }
 

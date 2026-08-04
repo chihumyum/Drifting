@@ -3,12 +3,11 @@ import type { TSchema } from '@sinclair/typebox';
 /**
  * The audience that owns a tool contract.
  *
- * `scope` is deliberately separate from `access`: an internal Shadow write must
- * never become a General Agent write merely because both have `access: write`.
+ * `scope` is deliberately separate from `access`: runtime-only virtual tools
+ * must never become provider-facing merely because they have a matching access.
  */
 export type AgentToolScope =
   | 'general'
-  | 'shadow-internal'
   | 'runtime-virtual';
 
 export type AgentToolAccess = 'read' | 'write';

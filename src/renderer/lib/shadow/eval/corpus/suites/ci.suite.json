@@ -1,7 +1,0 @@
-{
-  "id": "ci",
-  "datasets": ["sample.smoke.jsonl"],
-  "client": "mock",
-  "repeat": 1,
-  "gate": { "maxFP": 0, "maxFN": 0 }
-}

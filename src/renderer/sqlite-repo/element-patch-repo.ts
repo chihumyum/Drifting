@@ -17,7 +17,7 @@ export interface ElementPatch {
   textAnchorJson: string | null;
   // ISO timestamp set when the anchored text was deleted from the source
   // chapter; NULL while the anchor still resolves. Invalidated patches are
-  // hidden from Shadow / agent canon context but still shown (badged) in UI.
+  // hidden from Agent canon context but still shown (badged) in UI.
   invalidatedAt: string | null;
   title: string | null;
   contentJson: string;
@@ -29,7 +29,7 @@ export interface ElementPatch {
 // Hydrated read shape including the source chapter's title for display.
 export interface PatchWithSourceTitle extends ElementPatch {
   sourceNodeTitle: string | null;
-  // Source chapter's timeline position — drives Shadow's "effective canon at chapter N"
+  // Source chapter's timeline position — drives "effective canon at chapter N"
   // (a patch is in effect only from its source chapter onward). Null = floating/unordered
   // patch (no chapter anchor), treated as always-in-effect. narrativeOrder = author's
   // story-time axis (preferred); bookOrder = reading order (always present, fallback).

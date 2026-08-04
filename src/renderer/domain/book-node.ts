@@ -1,16 +1,10 @@
-// Author-facing chapter status. `draft`, `finished`, and `discarded` are
-// user-selectable (MANUAL_CHAPTER_WRITING_STATUSES, offered by the editor
-// top-bar menu and the chapter panel's cell context menu); `waiting_review`
-// and `revising` are reserved for the AI-review pipeline: marking a draft
-// "finished" routes through waiting_review (AI running) → revising (user
-// acting on AI feedback) → finished.
+// Author-facing chapter status. All three values are user-selectable through
+// the editor top-bar menu and the chapter panel's cell context menu.
 // `discarded` is the soft-delete state — the chapter stays on the timeline
 // (no data loss) but is styled as set-aside so the author can tell at a
 // glance which chapters they've parked.
 export type ChapterWritingStatus =
   | 'draft'
-  | 'waiting_review'
-  | 'revising'
   | 'finished'
   | 'discarded';
 
@@ -35,15 +29,11 @@ export type BookNodeKind = 'chapter' | 'drift';
 
 export const CHAPTER_WRITING_STATUSES: readonly ChapterWritingStatus[] = [
   'draft',
-  'waiting_review',
-  'revising',
   'finished',
   'discarded',
 ];
 
-// The subset the author can pick by hand (editor top-bar menu AND the chapter
-// panel cell's context menu — keep the two surfaces identical). waiting_review
-// / revising stay system-driven by the AI-review pipeline.
+// Editor top-bar menu AND chapter-panel context menu share this exact list.
 export const MANUAL_CHAPTER_WRITING_STATUSES: readonly ChapterWritingStatus[] = [
   'draft',
   'finished',
@@ -134,7 +124,7 @@ export function isDrift(node: BookNode): node is DriftNode {
 // four progress buckets. Drift nodes carry their own status domain and are
 // filtered out before this is called.
 //   finished                                   → done
-//   waiting_review / revising / draft+content  → draft
+//   draft+content                              → draft
 //   draft with no content yet                  → todo
 //   discarded                                  → set-aside, not progress
 export type DerivedStatus = 'done' | 'draft' | 'todo' | 'discarded';
@@ -146,7 +136,7 @@ export function deriveStatus(node: {
   if (s === 'finished') return 'done';
   if (s === 'discarded') return 'discarded';
   if (s === 'draft' && (node.wordCount || 0) === 0) return 'todo';
-  if (s === 'draft' || s === 'waiting_review' || s === 'revising') return 'draft';
+  if (s === 'draft') return 'draft';
   return 'todo';
 }
 

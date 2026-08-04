@@ -2,21 +2,20 @@
 // TODOs, floating TODOs, AI suggestions}. `kind` distinguishes 'note' (the
 // classic Word-style marginal annotation), 'todo' (surfaces in the
 // right-sidebar TODO list and is what agent pipelines consume), and 'exception'
-// (a manual, block-anchored "this is intentional" the author writes for the
-// Shadow review engine to read as context — so it doesn't re-flag the passage).
+// (a manual, block-anchored "this is intentional" note for collaborators and
+// General Agent context).
 // target_* are nullable so a comment can sit at block / chapter / nowhere — see
 // drizzle.ts for the anchor matrix.
 import type { CommentTargetKind } from './entity-kinds';
 export type { CommentTargetKind };
 
 // 'exception' is kind-only (no migration — `kind` is unconstrained text). It is
-// meaningful on manual comments (source='manual'); Shadow reads these to know a
-// flagged-looking passage is deliberate. See agent-memory.ts for the un-anchored
+// meaningful on manual comments (source='manual'). See agent-memory.ts for the un-anchored
 // counterpart (standing directives live in memory, not comments).
 export type CommentKind = 'note' | 'todo' | 'exception';
 export type CommentStatus = 'open' | 'resolved' | 'converted';
 export type CommentAuthorKind = 'user' | 'ai' | 'copilot' | 'external';
-export type CommentSource = 'manual' | 'shadow' | 'copilot' | 'api';
+export type CommentSource = 'manual' | 'copilot' | 'api';
 export type CommentPriority = 'low' | 'med' | 'high';
 // Comment action log entries. New kinds are additive — `kind` is an
 // unconstrained text column at the DB level (see CommentActionTable in
@@ -277,7 +276,7 @@ export function getBlockSnapshotsFromAnchor(
 /**
  * The block ids a comment anchors to — its consecutive range from
  * `targetBlockIdsJson` (a first-class field written by BOTH manual multi-block
- * selection and shadow), falling back to the single `targetBlockId`. Shared by
+ * selection and automated writers), falling back to the single `targetBlockId`. Shared by
  * the rail's hover highlight and the scroll-map ticks so a multi-block comment
  * is handled identically everywhere.
  */
@@ -331,10 +330,9 @@ export function locateTextInBlock(
 
 /** Visual family used across card / rail-icon / scroll-tick / in-prose highlight.
  *  A TODO is yellow regardless of where it came from; otherwise by source. */
-export type CommentColorKey = 'todo' | 'manual' | 'shadow' | 'copilot';
+export type CommentColorKey = 'todo' | 'manual' | 'copilot';
 export function commentColorKey(comment: Comment): CommentColorKey {
   if (comment.kind === 'todo') return 'todo';
-  if (comment.source === 'shadow') return 'shadow';
   if (comment.source === 'copilot') return 'copilot';
   return 'manual';
 }

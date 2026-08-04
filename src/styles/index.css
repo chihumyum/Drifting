@@ -1541,22 +1541,6 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   background: hsl(var(--comment) / 0.85);
   border-color: hsl(var(--comment) / 0.85);
 }
-/* Shadow (CI) comments carry a 梅紫→群青 (dark-purple → abyss-blue) gradient
-   wash — distinct from the rouge of manual notes and the blue of copilot. No
-   left bar; the gradient tint + purple glyph carry the identity. */
-.mnote--shadow {
-  border-left: 1px solid hsl(var(--rule));
-  background-color: hsl(var(--surface));
-  background-image: linear-gradient(135deg, hsl(var(--story-5) / 0.16), hsl(var(--story-2) / 0.16));
-}
-.mnote--shadow:hover {
-  background-image: linear-gradient(135deg, hsl(var(--story-5) / 0.24), hsl(var(--story-2) / 0.24));
-}
-.mnote--shadow .mnote__head-glyph,
-.mnote--shadow .mnote__head-l > span:last-child {
-  color: hsl(var(--story-5));
-}
-
 /* Copilot suggestions carry a solid 群青 (abyss blue) identity — the accept
    button + glyph are blue; a faint blue tint backs the card. */
 .mnote--copilot {
@@ -1783,9 +1767,6 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 ::highlight(comment-hl-manual) {
   background-color: hsl(var(--comment) / 0.24);
 }
-::highlight(comment-hl-shadow) {
-  background-color: hsl(var(--story-5) / 0.3);
-}
 ::highlight(comment-hl-copilot) {
   background-color: hsl(var(--story-2) / 0.26);
 }
@@ -1845,10 +1826,6 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 .comment-chip--manual {
   border-color: hsl(var(--comment));
   color: hsl(var(--comment));
-}
-.comment-chip--shadow {
-  border-color: hsl(var(--story-5));
-  color: hsl(var(--story-5));
 }
 .comment-chip--copilot {
   border-color: hsl(var(--story-2));
@@ -2078,9 +2055,6 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 /* Comment family colours (the spanning bar). */
 .editor__scrollmap-tick--c-manual {
   background: hsl(var(--comment)); /* 胭脂 rouge */
-}
-.editor__scrollmap-tick--c-shadow {
-  background: linear-gradient(90deg, hsl(var(--story-5)), hsl(var(--story-2))); /* 梅紫→群青 */
 }
 .editor__scrollmap-tick--c-copilot {
   background: hsl(var(--story-2)); /* 群青 abyss blue */

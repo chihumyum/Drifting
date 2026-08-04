@@ -202,7 +202,7 @@ export function useCopilot({
           try {
             // Enrich the bare evidence anchor into the unified shape (snapshot +
             // precise text anchor) so a copilot comment hover-highlights its
-            // evidence phrase and can show "原文" like manual/shadow comments.
+            // evidence phrase and can show "原文" like manual comments.
             const targetBlockId = result.overrideTargetBlockId ?? defaultAnchorBlockId;
             const evidenceText = (() => {
               try {

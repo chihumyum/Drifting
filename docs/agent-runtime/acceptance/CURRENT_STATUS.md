@@ -166,14 +166,21 @@ recorded in
 
 ## Current product boundary
 
+On 2026-08-05 the standalone Shadow CI product, Element Arc lens, and Goal
+Evolve workflow were retired. Their panels, settings, rules/jobs/arcs, provider
+routes, internal tools, eval corpus, and client-side usage accounting no longer
+ship. Migration `0080_retire_shadow_arc_evolve.sql` maps legacy review states
+back to `draft`, preserves old generated comments as ordinary API comments, and
+drops the four feature-only local tables. General Agent's durable
+`workKind=review`, long-task plan, existing read/write tools, `element_patch`, live
+Yjs writes, and shared comment model remain the supported composition.
+
 - The General Agent runs in the Tauri renderer through the provider-neutral
   local runtime and executes authored writes through renderer-owned use cases,
   durable receipts and live Yjs prose coordination.
-- Models & API is the only writable BYOK credential surface. Copilot and Shadow
-  own independent provider/model routes; General Agent selects its route in the
-  chat composer. All three lazily resolve the same native `byok.<provider>`
-  Keychain entries, and Shadow shares the certified DeepSeek/Anthropic/OpenAI
-  provider drivers with General Agent for its multi-round leaves.
+- Models & API is the only writable BYOK credential surface. Copilot owns its
+  provider/model route; General Agent selects its route in the chat composer.
+  Both lazily resolve the shared native `byok.<provider>` Keychain entries.
 - Ordinary model turns use the virtual workspace facade; the generated
   inventory separately records its natural provider verbs and hidden domain
   operations so direct-catalog counts do not understate user-facing capability.

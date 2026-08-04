@@ -12,7 +12,6 @@ import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useRecentEntitiesStore } from '../store/recent-entities-store';
 import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats-store';
 import { KvEditor } from '../components/editor/KvEditor';
-import { ShadowRulesSection } from '../components/dashboard/ShadowRulesSection';
 import { isChapter, deriveStatus, type BookNode } from '../domain/book-node';
 import { getPlatformRuntime } from '../platform/runtime';
 import { useSyncObserver } from '../services/sync-observer.service';
@@ -24,13 +23,12 @@ import {
   ListTree,
   Plus,
   Settings2,
-  ShieldCheck,
 } from 'lucide-react';
 import loglevel from 'loglevel';
 import '../../styles/dashboard.css';
 
 const log = loglevel.getLogger('ProjectDashboard');
-type DashboardView = 'overview' | 'structure' | 'rules';
+type DashboardView = 'overview' | 'structure';
 
 const STORY_TOKENS = [
   '--story-1',
@@ -525,7 +523,6 @@ export function ProjectDashboard() {
             [
               ['overview', isZh(i18n.language) ? '概览' : 'Overview', LayoutDashboard],
               ['structure', isZh(i18n.language) ? '结构与设定' : 'Structure', ListTree],
-              ['rules', isZh(i18n.language) ? '规则' : 'Rules', ShieldCheck],
             ] as const
           ).map(([id, label, Icon]) => (
             <button
@@ -1100,13 +1097,6 @@ export function ProjectDashboard() {
               </div>
             </section>
           </div>
-        )}
-
-        {/* ════════ SHADOW RULES ════════
-            Temporary authoring surface for shadow review rules (freeform; an LLM
-            compiles each into a checklist). Parked here until a dedicated UX. */}
-        {dashboardView === 'rules' && currentProject && (
-          <ShadowRulesSection projectId={currentProject.id} />
         )}
 
         {/* ════════ FOOTER ════════ */}

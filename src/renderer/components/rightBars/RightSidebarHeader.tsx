@@ -4,12 +4,12 @@ import { useUiStore } from '../../store/ui-store';
 import { PanelTab, PanelTabTray } from '../ui/PanelTabs';
 import { LabelMono } from '../ui/LabelMono';
 
-type RightPanelId = 'todo' | 'library' | 'stats' | 'companion' | 'shadow';
+type RightPanelId = 'todo' | 'library' | 'stats' | 'companion';
 
 interface RightSidebarHeaderProps {
   kicker: string;
   title: string;
-  /** Pulsates the library/TODO tab labels after a shadow → fragment conversion. */
+  /** Pulsates the library/TODO tab labels after a background conversion. */
   fragmentCountFlash?: boolean;
   /** Skip the kicker + title block under the tab strip — used by the
    *  TODO + Library tabs where the tab label itself already describes the
@@ -36,27 +36,23 @@ export function RightSidebarHeader({
   const storeGroup = useUiStore((state) => state.rightPanelGroup);
   const activeRightPanel = useUiStore((state) => state.activeRightPanel);
   const setActiveRightPanel = useUiStore((state) => state.setActiveRightPanel);
-  const activeAgentPanel = useUiStore((state) => state.activeAgentPanel);
-  const setActiveAgentPanel = useUiStore((state) => state.setActiveAgentPanel);
+  const setRightPanelGroup = useUiStore((state) => state.setRightPanelGroup);
   // Render modes:
   //  - flat: show ALL five tabs in one row (the default single-column panel).
   //  - column: `group` pins one group's tabs (the wide-screen split layout).
   const renderGroup = group ?? storeGroup;
   const activeOf = (g: 'content' | 'agent') =>
-    g === 'content' ? activeRightPanel : activeAgentPanel;
+    g === 'content' ? activeRightPanel : 'companion';
   // In flat mode the one active tab is (storeGroup, that group's active);
   // otherwise it's the rendered group's active tab.
   const isActive = (g: 'content' | 'agent', id: string) =>
     flat ? storeGroup === g && activeOf(g) === id : activeOf(renderGroup) === id;
   const onSelect = (g: 'content' | 'agent', id: string) => {
     if (g === 'content') setActiveRightPanel(id as 'todo' | 'library' | 'stats');
-    else setActiveAgentPanel(id as 'companion' | 'shadow');
+    else setRightPanelGroup('agent');
   };
   const trayRef = useRef<HTMLDivElement | null>(null);
-  // 两级折叠阈值（基于 tray 实际宽度，不是 sidebar 宽度）：
-  // - shadowGlyphOnly：shadow 模式下，三等分让 "◐ SHADOW 0" 放不下时只剩 ◐
-  // - compactLabels：宽度真的很挤时，备忘与材料→MM、Stats→SS
-  // 默认 sidebar 280 → tray ≈ 266，此时 shadow 折叠 glyph，其他 tab 文本仍完整。
+  // Compact labels are based on the tray's actual width, not sidebar width.
   const [trayWidth, setTrayWidth] = useState(Number.POSITIVE_INFINITY);
   useEffect(() => {
     const node = trayRef.current;
@@ -67,9 +63,6 @@ export function RightSidebarHeader({
     ro.observe(node);
     return () => ro.disconnect();
   }, []);
-  // With 4 tabs (TODO + Library + Stats + Shadow) the tray gets squeezed
-  // earlier than the old 3-tab layout, so compactLabels triggers at a
-  // wider threshold than before.
   const compactLabels = trayWidth < 200;
 
   return (
@@ -128,14 +121,6 @@ export function RightSidebarHeader({
                 onClick={() => onSelect('agent', 'companion')}
               >
                 <span>{compactLabels ? 'AI' : 'Agent'}</span>
-              </RightPanelTab>
-              {/* Shadow is a normal panel tab; it carries no accent treatment. */}
-              <RightPanelTab
-                id="shadow"
-                active={isActive('agent', 'shadow')}
-                onClick={() => onSelect('agent', 'shadow')}
-              >
-                <span>{compactLabels ? 'SH' : 'Shadow'}</span>
               </RightPanelTab>
             </>
           )}

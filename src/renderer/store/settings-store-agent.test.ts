@@ -75,29 +75,4 @@ describe('General Agent product settings', () => {
     }
   });
 
-  it('keeps Shadow provider and model in one certified route', () => {
-    const before = useSettingsStore.getState();
-    const original = {
-      shadowByokProvider: before.shadowByokProvider,
-      shadowByokModel: before.shadowByokModel,
-    };
-    try {
-      useSettingsStore.getState().setShadowByokProvider('anthropic');
-      expect(useSettingsStore.getState()).toMatchObject({
-        shadowByokProvider: 'anthropic',
-        shadowByokModel: 'claude-sonnet-5',
-      });
-
-      useSettingsStore.getState().setShadowByokProvider('openai');
-      expect(useSettingsStore.getState()).toMatchObject({
-        shadowByokProvider: 'openai',
-        shadowByokModel: 'gpt-5.6-sol',
-      });
-
-      useSettingsStore.getState().setShadowByokModel('deepseek-v4-pro');
-      expect(useSettingsStore.getState().shadowByokModel).toBe('gpt-5.6-sol');
-    } finally {
-      useSettingsStore.setState(original);
-    }
-  });
 });

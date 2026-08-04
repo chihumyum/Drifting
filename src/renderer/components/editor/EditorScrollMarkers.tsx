@@ -129,7 +129,7 @@ export function EditorScrollMarkers({
         .find((el): el is HTMLElement => el != null);
       if (!firstPresent) continue; // orphan — no anchor on the rail
       // Comment ticks span all three lanes (a horizontal bar), coloured by
-      // family (manual/shadow/copilot/todo) — muted once resolved.
+      // family (manual/copilot/todo) — muted once resolved.
       const cls =
         c.status === 'resolved'
           ? 'editor__scrollmap-tick--resolved'

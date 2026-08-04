@@ -19,7 +19,7 @@
  *
  * Trigger types are deliberately small and additive. Today only
  * `editor-block-debounced` is wired; later capabilities (inline-chat,
- * shadow-mode) may need 'manual', 'editor-block-on-leave', 'scene-on-save'.
+ * future workflows) may need 'manual', 'editor-block-on-leave', 'scene-on-save'.
  */
 import type { Editor } from '@tiptap/core';
 import type { BookElement } from '../../domain/book-element';

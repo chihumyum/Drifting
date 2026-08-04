@@ -1,5 +1,5 @@
 // Agent memory: a small, evolving store of author-level guidance that BOTH the
-// General agent and the Shadow review engine read as auxiliary context. It is
+// General Agent reads as auxiliary context. It is
 // NOT canon (the story world — that's elements/facts/patches) and NOT project
 // facts (the structured governing KV — POV / 文风 / 字数). It holds the standing,
 // cross-cutting meta: personal writing preferences, vetoed proposals, and

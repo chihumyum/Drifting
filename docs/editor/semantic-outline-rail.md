@@ -31,7 +31,7 @@ The rail shares one document-height coordinate system across four surfaces:
 - Every sequential TOC range intersecting the viewport receives stronger text.
   The existing scrollspy reading location is the primary accent selection; its
   ancestors remain part of the active path.
-- Existing manual/Shadow/Copilot/TODO and Agent-change markers reuse the same
+- Existing manual/Copilot/TODO and Agent-change markers reuse the same
   rail coordinate, in the narrow lanes immediately beside the thumb.
 
 The five-level semantics remain act / chapter / scene / beat / note. `h1` maps

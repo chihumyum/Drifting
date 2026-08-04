@@ -29,8 +29,6 @@ export const SET_STATUS_ACTION_PREFIX = 'setWritingStatus:';
 
 export const WRITING_STATUS_LABELS: Record<WritingStatus, string> = {
   draft: 'Draft',
-  waiting_review: 'Waiting for AI review',
-  revising: 'Revising',
   finished: 'Finished',
   discarded: 'Discarded',
   drifting: 'Floating',
@@ -46,8 +44,6 @@ type Translate = (key: string) => string;
 
 const WRITING_STATUS_LABEL_KEYS: Record<WritingStatus, string> = {
   draft: 'editorTopBar.status.draft',
-  waiting_review: 'editorTopBar.status.waitingReview',
-  revising: 'editorTopBar.status.revising',
   finished: 'editorTopBar.status.finished',
   discarded: 'editorTopBar.status.discarded',
   drifting: 'editorTopBar.status.drifting',
@@ -401,11 +397,7 @@ function EditorBarMenu({
   const statusOptions: readonly WritingStatus[] = showStatus
     ? nodeStatusKind === 'drift'
       ? DRIFT_STATUSES
-      : // Hand-pickable chapter states (shared with the chapter panel's cell
-        // context menu). waiting_review / revising are system-driven (shadow
-        // review) and never offered; picking 'finished' routes through the
-        // shadow gate (see NodeEditorView).
-        MANUAL_CHAPTER_WRITING_STATUSES
+      : MANUAL_CHAPTER_WRITING_STATUSES
     : [];
   if (items.length === 0 && !showStatus && !menuHeader) return null;
 

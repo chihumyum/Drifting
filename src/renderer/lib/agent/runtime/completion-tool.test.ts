@@ -82,13 +82,13 @@ describe('AgentRuntime structured completion tool', () => {
     });
 
     const result = await runtime.runTurn({
-      sessionId: 'shadow-session',
-      turnId: 'shadow-turn',
+      sessionId: 'review-session',
+      turnId: 'review-turn',
       route: {
-        kind: 'shadow',
+        kind: 'goal',
         projectId: 'project-1',
+        goalRunId: 'review-goal-1',
         chapterId: 'chapter-1',
-        operation: 'review',
       },
       prompt: 'judge this chapter',
       reasoning: { enabled: true, effort: 'high' },

@@ -51,8 +51,6 @@ import { forceSyncAllDocuments } from './services/yjs-sync.service';
 import type { Editor } from '@tiptap/core';
 import { useProjectNavigation } from './hooks/useProjectNavigation';
 import { useNotificationFeed } from './hooks/useNotificationFeed';
-import { useShadowJobs } from './usecase/useShadowJobs';
-import { useShadowReview } from './usecase/useShadowReview';
 import { useAuthStore } from './store/auth';
 import { useDataStore } from './store/data-store';
 import { useWritingStatsStore } from './store/writing-stats-store';
@@ -81,12 +79,6 @@ import { flushApplicationPersistenceForLifecycle } from './lib/persistence-lifec
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('App');
-
-// The goal smoke harness can execute real staged writes. Keep it out of the
-// production module graph instead of merely hiding its UI.
-if (import.meta.env.DEV) {
-  void import('./lib/goal/dev-harness');
-}
 
 // URL builder for a leaf tab — used by the keyboard tab-cycle shortcut when
 // stepping into a split tab. Lives next to App because it's the only call
@@ -302,8 +294,8 @@ function Layout() {
   // side. Mounted at the Layout level so it runs in both single- and
   // split-pane modes (EditorShell wouldn't run when Outlet isn't rendered).
   useSyncSplitFocusedUrl();
-  // Collect Copilot/Shadow task lifecycle events into the global notification
-  // feed (pill + center). Mounted here so history accrues even on platforms
+  // Collect Copilot task lifecycle events into the global notification feed
+  // (pill + center). Mounted here so history accrues even on platforms
   // where the topbar pill isn't rendered.
   useNotificationFeed();
   const nodeUsecases = useBookNode({ projectId: projectId, userId: userId });
@@ -316,10 +308,7 @@ function Layout() {
   const commentUsecases = useComment({ projectId: projectId, userId: userId });
   const contentUsecases = useBookContent({ userId: userId, projectId: projectId });
   const projectUsecases = useProject({ userId: userId });
-  const shadowJobUsecases = useShadowJobs({ projectId: projectId });
-  const shadowReviewUsecases = useShadowReview({ projectId: projectId, userId: userId });
-
-  // Publish renderer-side tool handlers for Shadow and future Agent transports;
+  // Publish renderer-side tool handlers for Agent transports;
   // reads/writes go through the same store + usecases as manual edits.
   useAgentToolBridge(projectId, {
     updateElement: elementUsecases.updateElement,
@@ -347,7 +336,6 @@ function Layout() {
     convertToTodo: commentUsecases.convertToTodo,
     revertToNote: commentUsecases.revertToNote,
     setCommentKind: commentUsecases.setCommentKind,
-    commitShadowReview: shadowReviewUsecases.commitShadowReview,
   });
   useDriftingAgentRuntime();
 
@@ -427,16 +415,12 @@ function Layout() {
           libraryItemUsecases.loadInitial(),
           relationUsecases.loadInitial(),
           commentUsecases.loadInitial(),
-          shadowJobUsecases.loadInitial(),
           loadBookActs(projectId),
           loadDriftGroups(projectId),
           loadTimelineMarkers(projectId),
         ]);
         // Node-storyline mapping depends on nodes being loaded first.
         await storylineUsecases.loadNodeStorylineMapping();
-        // Resume the durable shadow queue now that nodes are loaded (so the
-        // waiting_review check is reliable) — re-dispatch interrupted reviews.
-        void shadowJobUsecases.resumeQueued();
         await rebuildProjectInlineReferenceIndex(projectId).catch((error) => {
           log.warn('[App] Reference index rebuild failed:', error);
         });
@@ -487,7 +471,6 @@ function Layout() {
     libraryItemUsecases,
     relationUsecases,
     commentUsecases,
-    shadowJobUsecases,
   ]); // Re-init when projectId or user changes
 
   // listen for left topbar events

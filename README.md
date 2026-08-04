@@ -140,8 +140,12 @@ through renderer repositories/use cases and routes prose writes through the live
 does not require the removed desktop Node/Claude CLI, a sidecar, or a remote runner.
 
 Settings has one credential authority: **Models & API** owns the global `byok.<provider>` Keychain
-entries. Copilot and Shadow keep only their own provider/model route; General Agent chooses its
-provider/model in the chat composer. See [`docs/ai-provider-settings.md`](docs/ai-provider-settings.md).
+entries. Copilot keeps its own provider/model route; General Agent chooses its provider/model in
+the chat composer. See [`docs/ai-provider-settings.md`](docs/ai-provider-settings.md).
+
+The standalone Shadow CI, Element Arc, and Goal Evolve products were retired on 2026-08-05.
+General Agent remains the single agent surface: its durable long-task plan supports explicit review
+work without reintroducing a second runtime, rule pipeline, or chapter-status state machine.
 
 The same turn boundary freezes model-aware thinking and reasoning effort. OpenAI offers the
 GPT-5.6 Sol/Terra/Luna family through the Responses API; DeepSeek and Anthropic retain their native

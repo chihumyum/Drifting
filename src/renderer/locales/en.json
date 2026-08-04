@@ -13,7 +13,7 @@
     "intro": "This is an early build for a small group of testers. Core writing, cloud sync, and relational data work, but APIs, data formats, and UX may still change.",
     "trial": "This is a 30-day trial account; the server deletes the account and cloud data after expiry.",
     "sync": "Manuscripts are stored in readable form on Drifting's server; end-to-end encryption is not provided.",
-    "byok": "There is no hosted AI service. Every AI feature references the BYOK credentials managed in Settings → Models & API. Copilot and Shadow choose their own provider and model; General Agent chooses them in the chat panel.",
+    "byok": "There is no hosted AI service. Every AI feature references the BYOK credentials managed in Settings → Models & API. Copilot uses its selected provider and model; General Agent chooses them in the chat panel.",
     "backup": "Regularly use Relational Markdown Export to keep a readable copy.",
     "settingsHint": "After opening a book, connect provider credentials once in Settings → Models & API. API keys persist only in system secure storage; General Agent does not currently require a remote runner or sidecar.",
     "continue": "I understand — continue"
@@ -26,7 +26,6 @@
     "close": "Close",
     "close_with_esc": "Close (Esc)",
     "local_user": "Local user",
-
     "groups": {
       "account": "Account",
       "preferences": "Preferences",
@@ -34,17 +33,14 @@
       "control": "Control",
       "about": "About"
     },
-
     "rail": {
       "account": "Account",
       "subscription": "Subscription",
       "trash": "Trash",
-      "usage": "Shadow Usage",
       "appearance": "Appearance",
       "editor": "Editor",
       "language": "Language",
       "models": "Models & API",
-      "shadow": "Shadow Agent",
       "copilot": "Copilot · Tasks",
       "agent": "General Agent",
       "keys": "Keyboard",
@@ -52,7 +48,6 @@
       "privacy": "Privacy",
       "about_app": "About Drifting"
     },
-
     "common": {
       "save": "Save",
       "cancel": "Cancel",
@@ -69,14 +64,13 @@
       "back": "Back",
       "not_available_yet": "Not available in this build"
     },
-
     "account": {
       "kicker": "ACCOUNT",
       "title": "Your writing identity.",
-      "sub": "Shown on collaboration panels, manuscript metadata, and Shadow Agent reports.",
+      "sub": "Shown on collaboration panels and manuscript metadata.",
       "profile": "Profile",
       "display_name": "Display name",
-      "display_name_desc": "How collaborators and Shadow reports see you.",
+      "display_name_desc": "How collaborators see you.",
       "not_set": "Not set",
       "pen_name": "Pen name",
       "pen_name_desc": "Used on exported PDF / EPUB. Leave blank to use display name.",
@@ -137,7 +131,6 @@
       "delete_pending": "Deletion scheduled · permanent in {{daysLeft}} day(s)",
       "delete_cancel": "Cancel deletion"
     },
-
     "subscription": {
       "kicker": "SUBSCRIPTION",
       "title": "Your plan and invoices.",
@@ -175,65 +168,38 @@
       "open_portal": "Open portal",
       "plans": {
         "free_label": "Ferry (free)",
-        "pro_label": "Shadow Pro",
+        "pro_label": "Drifting Pro",
         "studio_label": "Studio",
         "free_name": "Ferry",
         "free_feature_1": "1 project · 50,000 words",
         "free_feature_2": "Basic task automation · 50/month",
-        "free_feature_3": "No Shadow Agent",
         "free_feature_4": "No BYOK",
         "pro_feature_1": "Unlimited projects and words",
-        "pro_feature_2": "Shadow Agent · 50 tasks/month",
         "pro_feature_3": "Unlimited Copilot automation",
         "pro_feature_4": "Bring your own model key",
         "pro_feature_5": "90-day version history",
-        "studio_feature_1": "Unlimited Shadow Agent",
         "studio_feature_2": "5 collaborator seats",
         "studio_feature_3": "1-year version history",
         "studio_feature_4": "Priority stable channel"
       }
     },
-
     "trash": {
       "kicker": "TRASH",
       "title": "Soft-deleted content.",
       "sub": "Automatically purged after 30 days. Pro/Studio only — Free accounts delete permanently."
     },
-
-    "shadow_usage": {
-      "title": "Local usage",
-      "desc_a": "Counts only Shadow calls ",
-      "local_direct": "run directly on this device",
-      "desc_b": " (chapter review + arc synthesis). Hosted usage is metered server-side and is not shown here; BYOK has no quota here.",
-      "this_month": "This month",
-      "all_time": "All time",
-      "tokens_label": "Tokens (input + output)",
-      "calls": "calls",
-      "input": "Input",
-      "output": "Output",
-      "cached": "Cached",
-      "by_feature": "By feature",
-      "empty": "No local usage yet. Run a chapter review or arc synthesis and token usage will appear here.",
-      "feature_review": "Chapter review · CI",
-      "feature_arc": "Arc synthesis",
-      "calls_count": "{{count}} calls"
-    },
-
     "appearance": {
       "kicker": "APPEARANCE",
       "title": "You decide the light at your desk.",
-      "sub": "Pick a brightness. Whether Shadow mode also shifts the palette is up to you.",
+      "sub": "Pick the brightness that feels best for the writing surface.",
       "theme": "Theme",
       "light": "Light",
       "dark": "Dark",
       "system": "Follow system",
-      "shadow_affects_theme": "Shadow mode shifts theme tones",
-      "shadow_affects_theme_desc": "On: entering Shadow turns the page cool and plum. Off: only the right panel changes.",
       "density": "Density",
       "animations": "Animations & transitions",
-      "animations_desc": "Orb breathing, tab swaps, the Shadow-mode wash."
+      "animations_desc": "Interface transitions and activity feedback."
     },
-
     "editor": {
       "kicker": "EDITOR",
       "title": "How letters land on the page.",
@@ -333,18 +299,16 @@
       "auto_link_desc": "Auto-detect existing element names while you type and link them.",
       "margin_notes": "Margin notes",
       "margin_notes_desc": "Show annotation cards on the right margin.",
-      "autosave": "Autosave",
       "autosave_desc": "After 3 seconds of idle."
     },
-
     "language": {
       "kicker": "LANGUAGE",
       "title": "What language the UI speaks.",
-      "sub": "UI language only — manuscript and Shadow reply languages are below.",
+      "sub": "UI language only — manuscript language is configured below.",
       "ui_locale": "UI language",
       "manuscript": "Manuscript",
       "manuscript_default": "Default manuscript language",
-      "manuscript_default_desc": "Affects spellcheck, line-breaking, and Shadow Agent reply language.",
+      "manuscript_default_desc": "Affects spellcheck, line-breaking, and AI writing language.",
       "spellcheck": "Spellcheck",
       "spellcheck_desc": "CJK uses a dictionary; English uses the system spell checker.",
       "date_format": "Dates & numbers",
@@ -358,7 +322,6 @@
         "beta": "beta"
       }
     },
-
     "sync": {
       "kicker": "SYNC",
       "title": "Where your work lives, and where it's backed up.",
@@ -397,7 +360,6 @@
       "activity_desc": "Latest 200 push / pull events, including failure reasons.",
       "activity_open": "Open full log"
     },
-
     "keys": {
       "kicker": "KEYBOARD",
       "title": "Writing without leaving the keyboard.",
@@ -449,7 +411,6 @@
         }
       }
     },
-
     "privacy": {
       "kicker": "PRIVACY",
       "title": "Where your manuscript stops.",
@@ -468,7 +429,6 @@
       "fullPolicy": "View full privacy policy",
       "lastUpdated": "Last updated 2026-04-02"
     },
-
     "about": {
       "kicker": "ABOUT",
       "title": "Drifting",
@@ -493,22 +453,20 @@
       "feedback": "Feedback…",
       "tagline": "Built for writers awake deep into the night."
     },
-
     "models": {
       "kicker": "MODEL PROVIDERS",
       "title": "Manage every AI credential in one place.",
-      "sub": "Each provider has one global API key. Copilot, Shadow, and General Agent reference it instead of saving separate copies.",
+      "sub": "Each provider has one global API key. Copilot and General Agent reference it instead of saving separate copies.",
       "sidebarMeta": "BYOK · local Keychain",
       "credentialsTitle": "Provider credentials",
       "credentialsDesc": "Keys are written only to the system Keychain, never localStorage or preference sync. Each feature can still choose its own provider and model.",
       "providers": {
-        "deepseek": "Shared by Copilot, Shadow, and General Agent.",
-        "anthropic": "Shared by Copilot, Shadow, and General Agent.",
-        "openai": "Shared by Copilot, Shadow, and General Agent.",
+        "deepseek": "Shared by Copilot and General Agent.",
+        "anthropic": "Shared by Copilot and General Agent.",
+        "openai": "Shared by Copilot and General Agent.",
         "google": "Currently available to Copilot; its key is still managed here."
       }
     },
-
     "ai": {
       "routing": "AI routing",
       "tierTitle": "Capability tier",
@@ -519,7 +477,6 @@
       "hostedByokOnlyTitle": "Hosted is unavailable · beta only supports BYOK",
       "disabledSuffix": " · Unavailable"
     },
-
     "byokProvider": {
       "ownKey": "Own key",
       "notConnected": "Not connected",
@@ -532,7 +489,6 @@
       "invalidKey": "Invalid key",
       "requestFailed": "Request failed (server not running or network issue)"
     },
-
     "agentAuth": {
       "statusTitle": "Status",
       "hostedReady": "Ready",
@@ -557,22 +513,6 @@
       "verifying": "Verifying…",
       "submit": "Submit"
     },
-
-    "shadow": {
-      "kicker": "SHADOW",
-      "title": "Shadow reviews the book for you.",
-      "sub": "Choose one provider and model route for continuity review, element-arc derivation, and evolve.",
-      "keyPrivacy": "Keys are managed centrally under Models & API.",
-      "routingDesc": "Every Shadow model leaf uses this provider and model; the choice is frozen when a run starts.",
-      "providerDesc": "Model provider used by Shadow's direct calls.",
-      "providerKey": "{{provider}} API key",
-      "providerKeyDesc": "This is status only. Add, edit, or delete credentials under Models & API.",
-      "model": "Shadow model",
-      "modelDesc": "Only models certified for the current provider's Agent Runtime protocol are listed.",
-      "keyConnected": "✓ Connected",
-      "keyNotConnected": "⚠ Not connected"
-    },
-
     "copilot": {
       "kicker": "COPILOT",
       "title": "Give the small work to a quiet assistant.",
@@ -662,7 +602,6 @@
       "resetTaskDefaultTitle": "Restore this task's built-in default",
       "resetDefault": "Reset default"
     },
-
     "agent": {
       "kicker": "GENERAL AGENT",
       "title": "The agent in the right rail that can act.",
@@ -788,7 +727,6 @@
         }
       }
     },
-
     "agentMemory": {
       "title": "Agent rules",
       "desc": "Long-term rules controlled by you. Active preferences, directives, and vetoes are injected verbatim into future chats; you can add or delete them at any time. Rules proposed by Agent require your approval, and the product adds no hidden writing policy.",
@@ -804,7 +742,6 @@
       "approve": "Approve",
       "deleteConfirm": "Delete this rule? It will no longer affect future chats or reviews."
     },
-
     "agentUsage": {
       "usage": "Usage",
       "usageDesc": "How many tokens Agent used and what it cost in this project. Usage is recorded from each returned turn, including cached input reads. In self-paid mode this is your real spend, stored locally. View by this month or all time.",
@@ -1075,24 +1012,6 @@
       "hoursAgo": "{{count}} hr ago",
       "daysAgo": "{{count}} days ago"
     }
-  },
-  "shadowQuickMenu": {
-    "autoReview": "Auto-review when finished",
-    "autoReviewDesc": "Run Shadow review when a chapter is marked finished; when off, it is marked finished directly and can be reviewed manually anytime.",
-    "rules": "Rules",
-    "noProject": "Open a project to edit Shadow rules"
-  },
-  "shadowRules": {
-    "add": "+ Add rule",
-    "titleCn": "Shadow rules",
-    "titleEn": "Shadow rules",
-    "empty": "- No rules yet. Write this book's constraints in natural language; saving compiles them into a checkable checklist -",
-    "help": "Each rule is compiled by the LLM into atomic checklist items. Mechanical checks such as word count, appearances, and banned words have zero false positives; semantic checks are judged by the review engine. Book summary and fields are used as supporting context, so you do not need to repeat them here.",
-    "placeholder": "Example: third-person limited throughout / protagonist does not know their origin before chapter five / target 3000 words",
-    "enabled": "Enabled",
-    "deleteTitle": "Delete rule",
-    "compiling": "Compiling…",
-    "judgingGuide": "Judging guide · {{kind}}"
   },
   "userMenu": {
     "accountMenu": "Account menu",
@@ -1434,7 +1353,9 @@
     }
   },
   "auth": {
-    "brand": { "cn": "灵感" },
+    "brand": {
+      "cn": "灵感"
+    },
     "signIn": "Sign in",
     "signUp": "Sign up",
     "signInShort": "SIGN IN",
@@ -1477,8 +1398,6 @@
       "featureStorylineEm": "multi-POV",
       "featureStorylineTitleB": " narrative",
       "featureStorylineSub": "timeline · narrative arcs · cross-line references",
-      "featureShadowTitle": "Shadow · offline AI review",
-      "featureShadowSub": "character age / POV drift / canon contradictions",
       "brandVersion": "Drifting Writing Studio · v{{version}}",
       "footer": "Local-first · cloud sync"
     },
@@ -1845,7 +1764,10 @@
       "storylineChapters": "Sort chapters within storylines",
       "chapters": "Sort chapters",
       "cellMetaGroup": "Cell right edge",
-      "duplicatesGroup": "Multi-storyline chapters"
+      "duplicatesGroup": "Multi-storyline chapters",
+      "elementDisplayGroup": "Element display",
+      "visualIndex": "Visual index",
+      "nameList": "Name list"
     }
   },
   "rightSidebar": {
@@ -1960,98 +1882,6 @@
       "moreUnappearedElements": "{{count}} more unappeared",
       "storylineDistribution": "Storyline distribution",
       "floatingStoryline": "Floating / unaffiliated"
-    }
-  },
-  "shadowPanel": {
-    "ruleFallback": "Rule",
-    "chapterFallback": "Chapter",
-    "untitledChapter": "Untitled chapter",
-    "phase": {
-      "gather": "Gather",
-      "resolve": "Rules",
-      "check": "Verify",
-      "emit": "Comments",
-      "decide": "Decision"
-    },
-    "consultedKind": {
-      "node": "Chapter",
-      "element": "Canon",
-      "storyline": "Storyline",
-      "category": "Category"
-    },
-    "ops": {
-      "reviews": "Reviews",
-      "passRate": "Pass rate",
-      "avgDuration": "Avg time",
-      "todos": "Todos",
-      "active": "{{count}} reviews running / queued",
-      "topRules": "Rule hits"
-    },
-    "time": {
-      "justNow": "Just now",
-      "minutesAgo": "{{count}} min ago",
-      "hoursAgo": "{{count}} hr ago",
-      "daysAgo": "{{count}} d ago"
-    },
-    "status": {
-      "passedByUser": "Passed",
-      "queued": "Queued…",
-      "running": "Reviewing…",
-      "stopped": "Stopped",
-      "failed": "Failed",
-      "passed": "Passed",
-      "todos": "Todo {{open}} · resolved {{handled}}/{{total}}",
-      "todosCleared": "Todos cleared",
-      "superseded": "Superseded by re-review",
-      "findings": "{{count}} findings"
-    },
-    "confirm": {
-      "sweepBook": "Re-review these {{count}} finished chapters across the book:\n\n{{list}}\n\nThis may spend more tokens and time. Continue?"
-    },
-    "empty": {
-      "title": "No shadow tasks",
-      "sub": "Mark a chapter as \"Finished\" to trigger review",
-      "allArchived": "Everything is archived",
-      "noArchived": "No archived tasks",
-      "noTrace": "No trace records",
-      "runningTrace": "Review running…"
-    },
-    "actions": {
-      "reviewWholeBookTitle": "Re-review all finished chapters in the book",
-      "reviewWholeBook": "Review book",
-      "archiveCompletedTitle": "Archive handled tasks (passed / todos cleared / stopped; unresolved and running tasks stay active)",
-      "archiveCompleted": "Archive done",
-      "deletePermanently": "Delete permanently",
-      "stopReview": "Stop review",
-      "archive": "Archive",
-      "forcePassTitle": "Resolve all todos and mark this chapter finished",
-      "forcePass": "Force pass (resolve {{count}})",
-      "pass": "Pass",
-      "rerun": "Rerun",
-      "openChapter": "Open chapter →"
-    },
-    "archived": {
-      "label": "Archived",
-      "expand": "Expand archived",
-      "collapse": "Collapse archived",
-      "clearTitle": "Clear archived",
-      "clear": "Clear"
-    },
-    "stale": {
-      "listSeparator": ", ",
-      "changedUnknown": "Dependencies changed",
-      "changed": "Changed basis: {{names}}",
-      "manyChanged": "Changed basis: {{names}} and {{count}} total items",
-      "needsReview": "Needs review · {{count}}",
-      "reviewAllTitle": "Re-review every chapter that needs review",
-      "reviewAll": "Review all",
-      "reviewOneTitle": "Re-review this chapter",
-      "reviewOne": "Review"
-    },
-    "job": {
-      "verdicts": "Verdicts ({{count}})",
-      "consultedTitle": "Canon/chapters actually checked in this review (precise dependency edges, read-only)",
-      "consulted": "Checked ({{count}})"
     }
   },
   "topTimeline": {
@@ -2265,73 +2095,6 @@
       "selectionChanged": "The selection changed, so the edit cannot be applied."
     }
   },
-  "evolveSection": {
-    "kicker": "Evolve",
-    "actions": {
-      "dryRun": "Detect only",
-      "evolve": "Evolve",
-      "stop": "Stop",
-      "stopTitle": "Stop this evolve run; staged edits remain for review"
-    },
-    "controls": {
-      "engine": "Rewrite engine",
-      "approval": "Approval",
-      "needApproval": "Needs approval",
-      "auto": "Auto",
-      "includeDrafts": "Include draft chapters"
-    },
-    "emptyHint": "After changing this setting, evolve all referenced chapter prose to match canon.",
-    "status": {
-      "preparing": "Preparing…"
-    },
-    "stop": {
-      "converged": "Converged · contradictions cleared",
-      "maxRounds": "Round limit reached · residuals remain",
-      "stalled": "Stalled · no net shrink",
-      "noScope": "No appearance chapters",
-      "dryRun": "Detect only",
-      "needsConfirmation": "Large scope · confirmation required",
-      "outOfScope": "Essential rewrite · handle scene by scene",
-      "aborted": "Manually stopped · staged for review"
-    },
-    "trace": {
-      "summary": "Process · {{count}} steps (critic / editor actions and tool calls)",
-      "phase": {
-        "detect": "Detect",
-        "edit": "Edit",
-        "verify": "Verify"
-      },
-      "actor": {
-        "critic": "Review",
-        "editor": "Edit"
-      }
-    },
-    "changed": {
-      "summary": "These {{count}} changes will evolve: ",
-      "empty": "(empty)",
-      "dismissTitle": "This change does not need evolution; mark it landed and remove it from the list",
-      "dismiss": "Skip evolve"
-    },
-    "result": {
-      "stats": "{{rounds}} rounds · resolved {{resolved}} · residual {{residual}} · staged {{staged}} block edits",
-      "errors": "{{count}} chapters failed and were isolated",
-      "confirmAndEvolve": "Confirm and evolve ({{count}} affected)",
-      "worklistTitle": "Appearance list · {{count}} chapters (scene-by-scene reconstruction, not contradictions)",
-      "appearanceCount": "{{count}} appearances",
-      "appearance": "Appearance",
-      "residualTitle": "Manual work · {{count}} residual contradictions",
-      "stagedNote": "{{count}} block edits staged. Review them block by block in the relevant chapters."
-    },
-    "activity": {
-      "title": "Evolve log · {{count}} chapters (findings and edits)",
-      "summary": "Found {{found}} contradictions · edited {{edits}} blocks",
-      "found": "Found",
-      "edit": "Edit"
-    },
-    "common": {
-      "jumpToChapter": "Jump to chapter"
-    }
-  },
   "referencesPanel": {
     "loading": "Loading…",
     "relationKind": {
@@ -2428,7 +2191,6 @@
     },
     "color": {
       "todo": "TODO",
-      "shadow": "SHADOW",
       "copilot": "COPILOT",
       "manual": "COMMENT"
     },
@@ -2466,7 +2228,7 @@
       "toTodo": "To TODO",
       "unmarkExceptionTitle": "Remove exception mark",
       "unmarkException": "Remove exception",
-      "markExceptionTitle": "Mark as exception so Shadow treats this passage as intentional",
+      "markExceptionTitle": "Mark as an intentional exception for collaborators and Agent context",
       "markException": "Mark exception",
       "cancelComment": "Cancel comment",
       "add": "Add"
@@ -2524,36 +2286,6 @@
   "patchesSection": {
     "add": "+ New",
     "empty": "- No patches yet. Select text in a chapter and right-click \"New patch\" to anchor one to this element -"
-  },
-  "arcSection": {
-    "title": "Arc",
-    "shadowBadge": "Shadow",
-    "shadowBadgeTitle": "Arc derivation is a read-only Shadow analysis; choose its provider and model in Settings → Shadow Agent.",
-    "actions": {
-      "derive": "Derive arc",
-      "rerun": "Derive again"
-    },
-    "includeDrafts": "Include draft chapters (completed chapters only by default)",
-    "running": "Deriving… (extracting chapter by chapter -> distilling -> synthesizing, about 1-2 minutes)",
-    "failed": "x Derivation failed: {{error}}",
-    "empty": "- Derive this element's cross-chapter trajectory from prose (read-only analysis, no edits) -",
-    "axis": {
-      "narrativeOrder": "narrative order",
-      "bookOrder": "book order"
-    },
-    "coverageTitle": "Covers {{count}} appearance chapters; through {{axis}} position n{{order}} (n = {{axis}}, not reader-facing chapter number)",
-    "coverageLine": "Covers {{count}} chapters · through n{{order}}",
-    "skipped": " · skipped {{count}}",
-    "overall": "Overall arc",
-    "patchOverlayTitle": "Author patch \"{{title}}\" {{status}}",
-    "patchOverlayHit": "matched",
-    "patchOverlayMiss": "not matched",
-    "tensionsTitle": "Tensions · needs review",
-    "tensionKind": {
-      "contrast": "Contrast",
-      "possible-drift": "Possible drift",
-      "uncommitted-evolution": "Unrecorded evolution"
-    }
   },
   "edgeKindManager": {
     "title": "All relation types",
@@ -2791,8 +2523,7 @@
       "bio": "Biography",
       "bioTitle": "Biography",
       "facts": "Facts",
-      "patches": "Patches",
-      "arc": "Arc"
+      "patches": "Patches"
     },
     "meta": {
       "facts": "alias / category / birth year / first appearance …"
@@ -2861,8 +2592,6 @@
     },
     "status": {
       "draft": "Draft",
-      "waitingReview": "Waiting for AI review",
-      "revising": "Revising",
       "finished": "Finished",
       "discarded": "Discarded",
       "drifting": "Floating",

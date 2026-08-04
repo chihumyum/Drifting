@@ -12,6 +12,7 @@ export type DriftSortMode = 'createdAt' | 'updatedAt' | 'title';
 export type ChapterGlobalSortMode = 'bookOrder' | 'narrativeOrder' | 'createdAt' | 'updatedAt';
 export type ChapterStorylineInnerSortMode = 'bookOrder' | 'narrativeOrder';
 export type ElementSortMode = 'alphabet' | 'createdAt';
+export type ElementPanelViewMode = 'visual' | 'list';
 
 // What the right edge of a node cell (章节 / 灵感) shows. The 章节 and 灵感
 // panels each keep their own preference (toggled from their respective
@@ -238,6 +239,8 @@ interface UiState {
   setChapterStorylineInnerSortMode: (mode: ChapterStorylineInnerSortMode) => void;
   elementSortMode: ElementSortMode;
   setElementSortMode: (mode: ElementSortMode) => void;
+  elementPanelViewMode: ElementPanelViewMode;
+  setElementPanelViewMode: (mode: ElementPanelViewMode) => void;
 
   // Right-edge meta shown on node cells (date vs. word count). The 章节 and 灵感
   // panels keep independent preferences, each toggled from its own SortMenu.
@@ -252,17 +255,12 @@ interface UiState {
   chapterStorylinePrimaryOnly: boolean;
   setChapterStorylinePrimaryOnly: (only: boolean) => void;
 
-  // The right sidebar splits its tabs into two groups, toggled by a switch at
-  // the right end of the tab row. Each group remembers its own active tab.
+  // The right sidebar splits content and Agent tabs into two groups.
   rightPanelGroup: 'content' | 'agent';
   setRightPanelGroup: (group: 'content' | 'agent') => void;
   // Content group.
   activeRightPanel: 'todo' | 'library' | 'stats';
   setActiveRightPanel: (panel: 'todo' | 'library' | 'stats') => void;
-  // Agent group. 'shadow' only appears when shadowMode is on.
-  activeAgentPanel: 'companion' | 'shadow';
-  setActiveAgentPanel: (panel: 'companion' | 'shadow') => void;
-
   // When the right sidebar is wide enough to show both groups side by side,
   // this is the width fraction given to the content (left) column; the agent
   // (right) column gets the remainder. Dragged via the divider between the two
@@ -270,10 +268,6 @@ interface UiState {
   // globally (the dual-column layout itself isn't per-project).
   rightPanelSplitRatio: number;
   setRightPanelSplitRatio: (ratio: number) => void;
-
-  shadowMode: boolean;
-  setShadowMode: (active: boolean) => void;
-  toggleShadowMode: () => void;
 
   activeSuperView: 'none' | 'element' | 'graph' | 'memo-material';
   setActiveSuperView: (view: 'none' | 'element' | 'graph' | 'memo-material') => void;
@@ -570,6 +564,8 @@ export const useUiStore = create<UiState>()(
       setChapterStorylineInnerSortMode: (mode) => set({ chapterStorylineInnerSortMode: mode }),
       elementSortMode: 'alphabet',
       setElementSortMode: (mode) => set({ elementSortMode: mode }),
+      elementPanelViewMode: 'visual',
+      setElementPanelViewMode: (mode) => set({ elementPanelViewMode: mode }),
 
       chapterCellMeta: 'date',
       setChapterCellMeta: (mode) => set({ chapterCellMeta: mode }),
@@ -579,44 +575,13 @@ export const useUiStore = create<UiState>()(
       setChapterStorylinePrimaryOnly: (only) => set({ chapterStorylinePrimaryOnly: only }),
       rightPanelGroup: 'content',
       setRightPanelGroup: (group) => set({ rightPanelGroup: group }),
-      // Selecting a tab also marks its group current — so in flat mode (all
-      // tabs in one row) the single active tab is well-defined, and collapsing
-      // back to the switch lands on the group you last touched.
+      // Selecting a content tab also marks its group current.
       activeRightPanel: 'library',
       setActiveRightPanel: (panel) => set({ activeRightPanel: panel, rightPanelGroup: 'content' }),
-      activeAgentPanel: 'companion',
-      setActiveAgentPanel: (panel) => set({ activeAgentPanel: panel, rightPanelGroup: 'agent' }),
 
       rightPanelSplitRatio: 0.5,
       setRightPanelSplitRatio: (ratio) =>
         set({ rightPanelSplitRatio: Math.max(0.2, Math.min(0.8, ratio)) }),
-
-      shadowMode: false,
-      setShadowMode: (active) =>
-        set((state) => {
-          // Entering shadow jumps to the agent group + Shadow tab. Leaving it
-          // falls back to Companion (stay in the agent group).
-          if (active) {
-            return { shadowMode: true, rightPanelGroup: 'agent', activeAgentPanel: 'shadow' };
-          }
-          return {
-            shadowMode: false,
-            activeAgentPanel:
-              state.activeAgentPanel === 'shadow' ? 'companion' : state.activeAgentPanel,
-          };
-        }),
-      toggleShadowMode: () =>
-        set((state) => {
-          const next = !state.shadowMode;
-          if (next) {
-            return { shadowMode: true, rightPanelGroup: 'agent', activeAgentPanel: 'shadow' };
-          }
-          return {
-            shadowMode: false,
-            activeAgentPanel:
-              state.activeAgentPanel === 'shadow' ? 'companion' : state.activeAgentPanel,
-          };
-        }),
 
       activeSuperView: 'none',
       setActiveSuperView: (view) => {
@@ -1249,11 +1214,9 @@ export const useUiStore = create<UiState>()(
         chapterPanelViewMode: state.chapterPanelViewMode,
         rightPanelGroup: state.rightPanelGroup,
         activeRightPanel: state.activeRightPanel,
-        activeAgentPanel: state.activeAgentPanel,
         rightPanelSplitRatio: state.rightPanelSplitRatio,
         activeSuperView: state.activeSuperView,
         lastActiveSuperView: state.lastActiveSuperView,
-        shadowMode: state.shadowMode,
         tabsByProject: state.tabsByProject,
         bottomTimelineHidden: state.bottomTimelineHidden,
         plotPlannerOpen: state.plotPlannerOpen,
@@ -1263,6 +1226,7 @@ export const useUiStore = create<UiState>()(
         chapterGlobalSortMode: state.chapterGlobalSortMode,
         chapterStorylineInnerSortMode: state.chapterStorylineInnerSortMode,
         elementSortMode: state.elementSortMode,
+        elementPanelViewMode: state.elementPanelViewMode,
         chapterCellMeta: state.chapterCellMeta,
         driftCellMeta: state.driftCellMeta,
         chapterStorylinePrimaryOnly: state.chapterStorylinePrimaryOnly,
@@ -1316,11 +1280,9 @@ export const useUiStore = create<UiState>()(
       // view was clarified.
       merge: (persisted, current) => {
         const merged = { ...current, ...(persisted as Partial<UiState>) };
-        // 'shadow' used to be a right-panel tab; it now lives in the agent
-        // group. Migrate an old 'shadow' selection into the new model.
+        // Retired Shadow selections fall back to the Agent group.
         if ((merged.activeRightPanel as string) === 'shadow') {
           merged.activeRightPanel = 'library';
-          merged.activeAgentPanel = 'shadow';
           merged.rightPanelGroup = 'agent';
         }
         if ((merged.activeRightPanel as string) === 'fragments') {
@@ -1330,12 +1292,11 @@ export const useUiStore = create<UiState>()(
         if (!allowed.has(merged.activeRightPanel as string)) {
           merged.activeRightPanel = 'library';
         }
-        const allowedAgent = new Set(['companion', 'shadow']);
-        if (!allowedAgent.has(merged.activeAgentPanel as string)) {
-          merged.activeAgentPanel = 'companion';
-        }
         if (merged.rightPanelGroup !== 'agent' && merged.rightPanelGroup !== 'content') {
           merged.rightPanelGroup = 'content';
+        }
+        if (merged.elementPanelViewMode !== 'visual' && merged.elementPanelViewMode !== 'list') {
+          merged.elementPanelViewMode = 'visual';
         }
         const allowedSuper = new Set(['none', 'element', 'graph', 'memo-material']);
         if ((merged.activeSuperView as string) === 'reference') {

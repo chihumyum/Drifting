@@ -19,9 +19,7 @@ import {
   useSettingsStore,
   type CopilotTaskId,
   type DateFormat,
-  AGENT_PROVIDER_OPTIONS,
   agentProviderOption,
-  type AgentProviderId,
   TYPEWRITER_POSITION_MAX,
   TYPEWRITER_POSITION_MIN,
   type EditorFontSource,
@@ -43,7 +41,6 @@ import {
   softDeleteMemory,
 } from '../../usecase/useAgentMemory';
 import type { AgentMemory, AgentMemoryKind } from '../../domain/agent-memory';
-import { createAiUsageRepository, type AiUsageSummary } from '../../sqlite-repo/ai-usage-repo';
 import { authClient } from '../../lib/auth-client';
 import { TrashPanel } from '../TrashPanel';
 import { refreshFeatureAccess, useFeatureAccessStore } from '../../lib/feature-access';
@@ -91,7 +88,6 @@ type RailId =
   | 'language'
   | 'models'
   | 'copilot'
-  | 'shadow'
   | 'agent'
   | 'keys'
   | 'sync'
@@ -160,12 +156,6 @@ const RAIL_BASE: RailBaseDef[] = [
     labelKey: 'settings.rail.copilot',
   },
   {
-    id: 'shadow',
-    groupKey: 'settings.groups.intelligence',
-    glyph: '◐',
-    labelKey: 'settings.rail.shadow',
-  },
-  {
     id: 'agent',
     groupKey: 'settings.groups.intelligence',
     glyph: '✦',
@@ -196,7 +186,6 @@ const RAIL_IDS = new Set<RailId>([
   'language',
   'models',
   'copilot',
-  'shadow',
   'agent',
   'keys',
   'sync',
@@ -333,10 +322,6 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
           <CopilotPanel
             credentialsActive={active === 'copilot'}
             registerRef={(el) => (panelRefs.current.copilot = el ?? undefined)}
-          />
-          <ShadowPanel
-            credentialsActive={active === 'shadow'}
-            registerRef={(el) => (panelRefs.current.shadow = el ?? undefined)}
           />
           <AgentPanel
             open={isOpen}
@@ -1259,7 +1244,6 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
             features={[
               t('settings.subscription.plans.free_feature_1'),
               t('settings.subscription.plans.free_feature_2'),
-              t('settings.subscription.plans.free_feature_3'),
               t('settings.subscription.plans.free_feature_4'),
             ]}
             ctaLabel={
@@ -1278,11 +1262,10 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
                 ? t('settings.subscription.current_kicker')
                 : t('settings.subscription.recommended')
             }
-            name="Shadow Pro"
+            name="Drifting Pro"
             price="¥58"
             features={[
               t('settings.subscription.plans.pro_feature_1'),
-              t('settings.subscription.plans.pro_feature_2'),
               t('settings.subscription.plans.pro_feature_3'),
               t('settings.subscription.plans.pro_feature_4'),
               t('settings.subscription.plans.pro_feature_5'),
@@ -1307,7 +1290,6 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
             name="Studio"
             price="¥168"
             features={[
-              t('settings.subscription.plans.studio_feature_1'),
               t('settings.subscription.plans.studio_feature_2'),
               t('settings.subscription.plans.studio_feature_3'),
               t('settings.subscription.plans.studio_feature_4'),
@@ -1525,163 +1507,6 @@ function TrashRailPanel({ registerRef }: { registerRef: RegisterRef }) {
       />
       <TrashPanel />
     </section>
-  );
-}
-
-const SHADOW_USAGE_FEATURE_LABEL_KEY: Record<string, string> = {
-  'shadow:review': 'settings.shadow_usage.feature_review',
-  'shadow:arc': 'settings.shadow_usage.feature_arc',
-};
-
-const EMPTY_USAGE_SUMMARY: AiUsageSummary = {
-  total: { calls: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
-  byFeature: [],
-};
-
-// Start of the current month (UTC), ISO — the window the usage panel sums over.
-function monthStartISO(): string {
-  const d = new Date();
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
-}
-
-// REAL local usage — sums the `ai_usage` rows recorded by recordShadowUsage for
-// Shadow calls that executed on this client (direct/BYOK). Hosted usage is metered
-// server-side and intentionally NOT shown here. Tokens only (no cost/$, no quota:
-// BYOK has no hosted budget). Rendered as a section INSIDE the Shadow panel.
-function ShadowUsageSection() {
-  const { t } = useTranslation();
-  const [scope, setScope] = useState<'month' | 'all'>('month');
-  const [summary, setSummary] = useState<AiUsageSummary | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const since = scope === 'month' ? monthStartISO() : undefined;
-    createAiUsageRepository()
-      .summary({ featurePrefix: 'shadow:', since })
-      .then((s) => {
-        if (!cancelled) setSummary(s);
-      })
-      .catch(() => {
-        if (!cancelled) setSummary(EMPTY_USAGE_SUMMARY);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [scope]);
-
-  const s = summary ?? EMPTY_USAGE_SUMMARY;
-  const totalTokens = s.total.inputTokens + s.total.outputTokens;
-
-  return (
-    <>
-      <div className="set-sec">
-        <SecHead title={t('settings.shadow_usage.title')} hint="USAGE" />
-        <p className="set-row__desc" style={{ margin: '-4px 0 8px' }}>
-          {t('settings.shadow_usage.desc_a')}
-          <b>{t('settings.shadow_usage.local_direct')}</b>
-          {t('settings.shadow_usage.desc_b')}
-        </p>
-        <Seg<'month' | 'all'>
-          value={scope}
-          options={[
-            { value: 'month', label: t('settings.shadow_usage.this_month') },
-            { value: 'all', label: t('settings.shadow_usage.all_time') },
-          ]}
-          onChange={setScope}
-        />
-      </div>
-
-      <div
-        style={{
-          border: '1px solid hsl(var(--rule))',
-          borderRadius: 5,
-          background: 'hsl(var(--surface))',
-          padding: '18px 20px',
-        }}
-      >
-        <div
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
-            textTransform: 'uppercase',
-            letterSpacing: '0.14em',
-            color: 'hsl(var(--ink-4))',
-          }}
-        >
-          {t('settings.shadow_usage.tokens_label')}
-        </div>
-        <div
-          style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 36,
-            color: 'hsl(var(--ink-1))',
-            marginTop: 6,
-          }}
-        >
-          {totalTokens.toLocaleString()}
-        </div>
-        <div
-          style={{
-            marginTop: 10,
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 18,
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10,
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            color: 'hsl(var(--ink-4))',
-          }}
-        >
-          <span>
-            <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.calls.toLocaleString()}</b>{' '}
-            {t('settings.shadow_usage.calls')}
-          </span>
-          <span>
-            {t('settings.shadow_usage.input')}{' '}
-            <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.inputTokens.toLocaleString()}</b>
-          </span>
-          <span>
-            {t('settings.shadow_usage.output')}{' '}
-            <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.outputTokens.toLocaleString()}</b>
-          </span>
-          {s.total.cachedTokens > 0 && (
-            <span>
-              {t('settings.shadow_usage.cached')}{' '}
-              <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.cachedTokens.toLocaleString()}</b>
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="set-sec" style={{ marginTop: 24 }}>
-        <SecHead title={t('settings.shadow_usage.by_feature')} hint="BY FEATURE" />
-        {s.byFeature.length === 0 ? (
-          <p className="set-row__desc" style={{ margin: '4px 0 0' }}>
-            {t('settings.shadow_usage.empty')}
-          </p>
-        ) : (
-          s.byFeature.map((f) => (
-            <Row
-              key={f.feature}
-              label={
-                SHADOW_USAGE_FEATURE_LABEL_KEY[f.feature]
-                  ? t(SHADOW_USAGE_FEATURE_LABEL_KEY[f.feature])
-                  : f.feature
-              }
-              desc={t('settings.shadow_usage.calls_count', {
-                count: f.calls.toLocaleString(),
-              })}
-              control={
-                <span className="set-mono" style={{ fontSize: 12, color: 'hsl(var(--ink-2))' }}>
-                  {(f.inputTokens + f.outputTokens).toLocaleString()} tok
-                </span>
-              }
-            />
-          ))
-        )}
-      </div>
-    </>
   );
 }
 
@@ -2813,111 +2638,6 @@ function ModelsPanel({
   );
 }
 
-function ShadowProviderKeyStatus({ credentialsActive }: { credentialsActive: boolean }) {
-  const { t } = useTranslation();
-  const provider = useSettingsStore((s) => s.shadowByokProvider);
-  const connected = useByokConnected(provider, credentialsActive);
-  const jumpToModels = () =>
-    document.getElementById('models')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (connected === null) return null;
-  return (
-    <Row
-      label={t('settings.shadow.providerKey', { provider: BYOK_PROVIDER_LABEL[provider] })}
-      desc={t('settings.shadow.providerKeyDesc')}
-      control={
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span
-            className="set-mono"
-            style={{ fontSize: 12, color: connected ? '#2e7d52' : 'hsl(38 80% 42%)' }}
-          >
-            {connected ? t('settings.shadow.keyConnected') : t('settings.shadow.keyNotConnected')}
-          </span>
-          <button className="set-btn" onClick={jumpToModels}>
-            {t('settings.common.manageKeys')}
-          </button>
-        </div>
-      }
-    />
-  );
-}
-
-// Shadow owns a provider/model choice, but never owns credentials. Review, arc
-// derivation and evolve leaves all resolve this same frozen route.
-function ShadowPanel({
-  credentialsActive,
-  registerRef,
-}: {
-  credentialsActive: boolean;
-  registerRef: RegisterRef;
-}) {
-  const { t } = useTranslation();
-  const shadowByokProvider = useSettingsStore((s) => s.shadowByokProvider);
-  const setShadowByokProvider = useSettingsStore((s) => s.setShadowByokProvider);
-  const shadowByokModel = useSettingsStore((s) => s.shadowByokModel);
-  const setShadowByokModel = useSettingsStore((s) => s.setShadowByokModel);
-
-  return (
-    <section className="set-panel" ref={registerRef} id="shadow">
-      <PanelHead
-        kicker={t('settings.shadow.kicker')}
-        title={t('settings.shadow.title')}
-        sub={
-          <>
-            {t('settings.shadow.sub')}
-            <span className="set-italic"> {t('settings.shadow.keyPrivacy')}</span>
-          </>
-        }
-      />
-
-      <div className="set-sec">
-        <SecHead title={t('settings.ai.routing')} hint="PROVIDER · MODEL" />
-        <p className="set-row__desc">{t('settings.shadow.routingDesc')}</p>
-        <ShadowProviderKeyStatus credentialsActive={credentialsActive} />
-        <Row
-          label={t('settings.common.provider')}
-          desc={t('settings.shadow.providerDesc')}
-          control={
-            <select
-              className="set-input"
-              style={{ minWidth: 220 }}
-              value={shadowByokProvider}
-              onChange={(e) => setShadowByokProvider(e.target.value as AgentProviderId)}
-            >
-              {AGENT_PROVIDER_OPTIONS.map((provider) => (
-                <option key={provider.value} value={provider.value}>
-                  {provider.label}
-                </option>
-              ))}
-            </select>
-          }
-        />
-        <Row
-          label={t('settings.shadow.model')}
-          desc={t('settings.shadow.modelDesc')}
-          control={
-            <select
-              className="set-input"
-              style={{ minWidth: 220 }}
-              value={shadowByokModel}
-              onChange={(e) => setShadowByokModel(e.target.value)}
-            >
-              {agentProviderOption(shadowByokProvider).models.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {t(`settings.agent.modelOptions.${m.value}.label`, {
-                    defaultValue: m.label,
-                  })}
-                </option>
-              ))}
-            </select>
-          }
-        />
-      </div>
-
-      <ShadowUsageSection />
-    </section>
-  );
-}
-
 const COPILOT_DEBOUNCE_MIN_SEC = 1;
 const COPILOT_DEBOUNCE_MAX_SEC = 60;
 const COPILOT_SECTION_SIZE_MIN = 3;
@@ -3533,11 +3253,16 @@ function AgentMemorySection({ open }: { open: boolean }) {
   );
 }
 
+function monthStartISO(): string {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+}
+
 function AgentUsageSection({ open }: { open: boolean }) {
   const { t } = useTranslation();
   const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
   const [rows, setRows] = useState<AgentConversationUsage[]>([]);
-  // Two reporting windows, à la the Shadow usage panel: this-month vs all-time.
+  // Two reporting windows: this-month vs all-time.
   // Defaults to all-time: usage entries written before per-turn timestamps existed
   // are undated, so they only surface under 累计 — landing there shows real numbers
   // instead of a misleading 本月 = 0 until fresh, dated turns accrue.

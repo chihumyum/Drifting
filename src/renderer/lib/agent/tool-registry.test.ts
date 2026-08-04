@@ -149,11 +149,6 @@ describe('canonical Agent tool catalog', () => {
     ).toHaveLength(34);
     expect(
       AGENT_TOOL_CATALOG.filter(
-        (tool) => tool.scope === 'shadow-internal',
-      ),
-    ).toHaveLength(4);
-    expect(
-      AGENT_TOOL_CATALOG.filter(
         (tool) => tool.scope === 'runtime-virtual',
       ),
     ).toHaveLength(8);
@@ -401,7 +396,6 @@ describe('canonical Agent tool catalog', () => {
     expect(providerNames).toEqual(reads.map((tool) => tool.name));
     expect(new Set(providerNames).size).toBe(providerNames.length);
     expect(providerNames).not.toContain('set_element_body');
-    expect(providerNames).not.toContain('shadow_commit_review');
     expect(providerNames).not.toContain('read_tool_result');
     expect(providerNames).not.toContain('ask_user');
   });

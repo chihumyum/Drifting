@@ -11,7 +11,7 @@ import { ChevronUp } from 'lucide-react';
 
 /**
  * Shared collapsible footer drawer used by the sidebar panels:
- * MemoMaterialPanel「已完成」and ShadowPanel「已归档」. One implementation keeps
+ * MemoMaterialPanel「已完成」and similar archived drawers. One implementation keeps
  * both in lockstep: a
  * 28px header strip pinned to the bottom of the panel, a chevron-left
  * disclosure toggle (a real <button>, so it's keyboard- and screen-reader
@@ -19,7 +19,7 @@ import { ChevronUp } from 'lucide-react';
  * clamped between `minHeight` and 90% of the parent panel.
  *
  * Both the expand state and the height can be controlled or left internal.
- * ShadowPanel controls the expand state so it can fold the drawer shut after
+ * The caller controls the expand state so it can fold the drawer shut after
  * a bulk delete; other consumers can let the component own both.
  */
 

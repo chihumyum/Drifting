@@ -1,6 +1,6 @@
 /**
  * Agent memory usecases — the small, evolving store of author-level guidance
- * shared by the General agent and the Shadow review engine (see
+ * consumed by the General Agent (see
  * domain/agent-memory.ts + sqlite-repo/agent-memory-repo.ts).
  *
  * Two surfaces:
@@ -184,9 +184,8 @@ export async function listLiveMemories(projectId: string): Promise<AgentMemory[]
 }
 
 /**
- * The ACTIVE memories that may be injected into an agent/judge prompt. This is
- * the single retrieval seam both consumers go through (General system prompt +
- * Shadow judge); when episodic/embedding retrieval lands it slots in here.
+ * The ACTIVE memories that may be injected into an Agent prompt. This is the
+ * single retrieval seam; when episodic/embedding retrieval lands it slots in here.
  */
 export async function loadActiveMemories(projectId: string): Promise<AgentMemory[]> {
   return createAgentMemoryRepository(projectId).listByStatus('active');

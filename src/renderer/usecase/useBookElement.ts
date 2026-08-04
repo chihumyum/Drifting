@@ -12,7 +12,6 @@ import {
 } from '../domain/book-element';
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
 import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
-import { createShadowJobRepository } from '../sqlite-repo/shadow-job-repo';
 import { createProjectAssetSqliteRepository } from '../sqlite-repo/project-asset-repo';
 import { unlinkEntityFromChapterProse } from '../lib/agent/chapter-prose';
 import { initDatabase } from '../lib/db';
@@ -75,7 +74,6 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
     [activeProjectId],
   );
   const mentionRepo = useMemo(() => createInlineMentionRepository(), []);
-  const shadowJobRepo = useMemo(() => createShadowJobRepository(), []);
   const ensureDb = useCallback(async () => {
     await initDatabase(userId);
   }, [userId]);
@@ -297,8 +295,6 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
   //   • 解链保留文字 — strip the dangling entityLink marks from each chapter's prose
   //     so the link doesn't re-project into inline_mention on the next save
   //     (reference-projection reads ALL marks regardless of target liveness).
-  //   • scrub shadow dep refs — a deleted dep would otherwise read as "changed"
-  //     forever, keeping chapters perpetually stale (and auto-re-reviewing).
   const hardDeleteElement = useCallback(
     async (id: string) => {
       // Capture prose backlinks before the transaction deletes their projection.
@@ -381,16 +377,9 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         }
       }
 
-      try {
-        const changed = await shadowJobRepo.scrubEntityRefs(activeProjectId, 'element', id);
-        for (const job of changed) useDataStore.getState().upsertShadowJob(job);
-      } catch {
-        /* best-effort telemetry cleanup */
-      }
-
       return result.deleted;
     },
-    [mentionRepo, shadowJobRepo, activeProjectId],
+    [mentionRepo, activeProjectId],
   );
 
   const removeElement = useCallback(

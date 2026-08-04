@@ -81,9 +81,7 @@ export function EntityCellContextMenu({
   const statusOptions: readonly WritingStatus[] = showStatus
     ? nodeStatusKind === 'drift'
       ? DRIFT_STATUSES
-      : // Same hand-pickable subset as the editor top bar — waiting_review /
-        // revising are system-driven and never offered here.
-        MANUAL_CHAPTER_WRITING_STATUSES
+      : MANUAL_CHAPTER_WRITING_STATUSES
     : [];
   const filledExtraGroups = (extraGroups ?? []).filter((g) => g.length > 0);
   const hasHeader = Boolean(

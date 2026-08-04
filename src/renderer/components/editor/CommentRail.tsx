@@ -11,7 +11,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   Check,
-  Eye,
   EyeOff,
   ListTodo,
   MessageSquare,
@@ -93,7 +92,7 @@ function commentSort(a: Comment, b: Comment): number {
 //     the block was deleted.
 function originalDiverged(comment: Comment, scrollEl: HTMLElement | null): boolean {
   if (!scrollEl) return false;
-  // Whitespace-normalize both sides: snapshots captured server-side (shadow,
+  // Whitespace-normalize both sides: snapshots captured by automated writers
   // via docToBlocks/collectText) and live DOM textContent can differ only in
   // whitespace for unchanged prose — comparing raw would false-positive.
   const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
@@ -118,15 +117,13 @@ function originalDiverged(comment: Comment, scrollEl: HTMLElement | null): boole
   return false;
 }
 
-// Per-family rail micro-icon (head glyph + collapsed chip) — manual / shadow /
-// copilot / todo are visually distinct (see commentColorKey + the .mnote--*
+// Per-family rail micro-icon (head glyph + collapsed chip) — manual / copilot /
+// todo are visually distinct (see commentColorKey + the .mnote--*
 // colours in index.css).
 function colorIcon(key: CommentColorKey, size = 11): ReactNode {
   switch (key) {
     case 'todo':
       return <ListTodo size={size} />;
-    case 'shadow':
-      return <Eye size={size} />;
     case 'copilot':
       return <Sparkles size={size} />;
     default:
@@ -136,7 +133,6 @@ function colorIcon(key: CommentColorKey, size = 11): ReactNode {
 
 const COLOR_LABEL_KEY: Record<CommentColorKey, string> = {
   todo: 'commentRail.color.todo',
-  shadow: 'commentRail.color.shadow',
   copilot: 'commentRail.color.copilot',
   manual: 'commentRail.color.manual',
 };
@@ -713,7 +709,7 @@ export function CommentRail({
   );
 
   // ─── unified card renderer ────────────────────────────────────────────
-  // ONE card for every comment — manual / shadow / copilot / todo. They share
+  // ONE card for every comment — manual / copilot / todo. They share
   // structure, hover-highlight, the snapshot affordance, and the
   // resolve/转TODO/删除 actions; only the colour, icon, header label, and
   // (copilot-only) the accept/reject + capability summary differ. `loose` cards
@@ -906,9 +902,8 @@ export function CommentRail({
               <span>{t('commentRail.actions.toTodo')}</span>
             </button>
           )}
-          {/* Manual comments can be marked as a Shadow 'exception' — an author
-              "this is intentional" the review engine reads so it won't re-flag
-              the passage. Only on manual rows (not shadow/copilot). */}
+          {/* Manual comments can be marked as an author exception: an anchored
+              "this is intentional" instruction for collaborators and Agent context. */}
           {comment.source === 'manual' &&
             (isException ? (
               <button

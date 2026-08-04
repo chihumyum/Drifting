@@ -13,7 +13,7 @@
     "intro": "这是给少量内测用户使用的早期版本。核心写作、云同步与关系数据已经可用，但接口、数据格式和体验仍可能变化。",
     "trial": "当前账户是 30 天试用账户；到期后服务器会清理账户及云端数据。",
     "sync": "稿件会以可读形式存储在 Drifting 服务器，目前不提供端到端加密。",
-    "byok": "不提供 hosted AI 服务；所有 AI 功能都引用“设置 → 模型与 API”中统一管理的 BYOK 凭据。Copilot 与 Shadow 各自选择 provider 和模型，General Agent 在对话面板中选择。",
+    "byok": "不提供 hosted AI 服务；所有 AI 功能都引用“设置 → 模型与 API”中统一管理的 BYOK 凭据。Copilot 使用自己选择的 provider 和模型，General Agent 在对话面板中选择。",
     "backup": "请定期用“导出关系型 Markdown”保存一份可阅读的副本。",
     "settingsHint": "进入一本书后，可在“设置 → 模型与 API”中统一连接 provider 凭据。API Key 只持久化在系统安全存储；General Agent 当前不需要远程 runner 或 sidecar。",
     "continue": "了解，继续使用"
@@ -26,7 +26,6 @@
     "close": "关闭",
     "close_with_esc": "关闭 (Esc)",
     "local_user": "本地用户",
-
     "groups": {
       "account": "我的账户",
       "preferences": "偏好",
@@ -34,17 +33,14 @@
       "control": "控制",
       "about": "关于"
     },
-
     "rail": {
       "account": "账号",
       "subscription": "订阅",
       "trash": "回收站",
-      "usage": "Shadow 用量",
       "appearance": "外观",
       "editor": "编辑器",
       "language": "语言",
       "models": "模型与 API",
-      "shadow": "Shadow Agent",
       "copilot": "Copilot · 任务",
       "agent": "General Agent",
       "keys": "快捷键",
@@ -52,7 +48,6 @@
       "privacy": "隐私",
       "about_app": "关于 Drifting"
     },
-
     "common": {
       "save": "保存",
       "cancel": "取消",
@@ -69,14 +64,13 @@
       "back": "返回",
       "not_available_yet": "当前版本尚未提供"
     },
-
     "account": {
       "kicker": "账号 · ACCOUNT",
       "title": "你的写作身份。",
-      "sub": "这些信息会出现在协作面板、稿件元数据和 Shadow Agent 的署名里——是你给自己作品留下的指印。",
+      "sub": "这些信息会出现在协作面板与稿件元数据里——是你给自己作品留下的指印。",
       "profile": "个人资料",
       "display_name": "显示名",
-      "display_name_desc": "协作者与 Shadow 报告里看见的名字。",
+      "display_name_desc": "协作者看见的名字。",
       "not_set": "未设置",
       "pen_name": "笔名",
       "pen_name_desc": "导出稿件 PDF / EPUB 时使用。可留空。",
@@ -137,7 +131,6 @@
       "delete_pending": "已请求注销，{{daysLeft}} 天后永久删除",
       "delete_cancel": "取消注销"
     },
-
     "subscription": {
       "kicker": "订阅 · SUBSCRIPTION",
       "title": "你的方案与发票。",
@@ -175,65 +168,38 @@
       "open_portal": "打开门户",
       "plans": {
         "free_label": "渡口（免费）",
-        "pro_label": "Shadow Pro",
+        "pro_label": "Drifting Pro",
         "studio_label": "Studio",
         "free_name": "渡口",
         "free_feature_1": "1 个项目 · 50,000 字",
         "free_feature_2": "基础任务自动化 · 50 次/月",
-        "free_feature_3": "无 Shadow Agent",
         "free_feature_4": "无 BYOK",
         "pro_feature_1": "无限项目与字数",
-        "pro_feature_2": "Shadow Agent · 50 任务/月",
         "pro_feature_3": "Copilot 自动化无限",
         "pro_feature_4": "自带模型 BYOK",
         "pro_feature_5": "版本历史 90 天",
-        "studio_feature_1": "Shadow Agent · 不限",
         "studio_feature_2": "协作者 · 5 席位",
         "studio_feature_3": "版本历史 1 年",
         "studio_feature_4": "优先稳定通道"
       }
     },
-
     "trash": {
       "kicker": "回收站 · TRASH",
       "title": "软删除的内容。",
       "sub": "30 天后自动彻底删除。Pro/Studio 专享 — Free 账号删除即永久删除。"
     },
-
-    "shadow_usage": {
-      "title": "本地用量",
-      "desc_a": "只统计",
-      "local_direct": "在本机直连执行",
-      "desc_b": "的 Shadow 调用（章节审阅 + 弧线派生）的 token；托管用量在服务端计量、不在此处，自带 Key 无配额。",
-      "this_month": "本月",
-      "all_time": "累计",
-      "tokens_label": "Tokens（输入 + 输出）",
-      "calls": "次调用",
-      "input": "输入",
-      "output": "输出",
-      "cached": "缓存",
-      "by_feature": "按能力",
-      "empty": "还没有本地用量记录。跑一次章节审阅或弧线派生后，token 用量会出现在这里。",
-      "feature_review": "章节审阅 · CI",
-      "feature_arc": "弧线派生",
-      "calls_count": "{{count}} 次调用"
-    },
-
     "appearance": {
       "kicker": "外观 · APPEARANCE",
       "title": "书桌的光线，由你决定。",
-      "sub": "挑一个最合眼的明度，Shadow 模式是否进一步偏冷的色调由你决定。",
+      "sub": "挑一个最合眼的写作界面明度。",
       "theme": "主题",
       "light": "浅色",
       "dark": "深色",
       "system": "跟随系统",
-      "shadow_affects_theme": "Shadow 模式改变主题色调",
-      "shadow_affects_theme_desc": "开启时，进入 Shadow 模式会同时把纸面调向冷色与梅紫；关闭则只切换右栏面板。",
       "density": "界面密度",
       "animations": "动效与过渡",
-      "animations_desc": "墨珠呼吸、标签切换、影模式涌入波。"
+      "animations_desc": "界面过渡与任务活动反馈。"
     },
-
     "editor": {
       "kicker": "编辑器 · EDITOR",
       "title": "字落在纸上的样子。",
@@ -333,18 +299,16 @@
       "auto_link_desc": "输入时自动识别已存在的元素名称（如人物、地点），并链接到对应页面。",
       "margin_notes": "边注栏",
       "margin_notes_desc": "在手稿右侧显示批注卡片。",
-      "autosave": "自动保存",
       "autosave_desc": "每次空闲超过 3 秒。"
     },
-
     "language": {
       "kicker": "语言 · LANGUAGE",
       "title": "界面用什么语言对你说话。",
-      "sub": "这只关乎界面文本——稿件与 Shadow 的回复语言独立设置在下方。",
+      "sub": "这只关乎界面文本——稿件语言在下方独立设置。",
       "ui_locale": "界面语言",
       "manuscript": "写作语言",
       "manuscript_default": "手稿默认语言",
-      "manuscript_default_desc": "影响拼写检查、断行、Shadow Agent 的回复语言。",
+      "manuscript_default_desc": "影响拼写检查、断行与 AI 写作语言。",
       "spellcheck": "拼写检查",
       "spellcheck_desc": "中文按词典检查别字。英文使用系统拼写。",
       "date_format": "日期与数字",
@@ -358,7 +322,6 @@
         "beta": "beta"
       }
     },
-
     "sync": {
       "kicker": "同步 · SYNC",
       "title": "稿子放哪儿，又备份在哪儿。",
@@ -397,7 +360,6 @@
       "activity_desc": "最近 200 条 push / pull 事件，含失败原因。",
       "activity_open": "查看完整记录"
     },
-
     "keys": {
       "kicker": "键盘 · KEYBOARD",
       "title": "手不离键盘的写作。",
@@ -449,7 +411,6 @@
         }
       }
     },
-
     "privacy": {
       "kicker": "隐私 · PRIVACY",
       "title": "你的稿子，停在哪儿。",
@@ -468,7 +429,6 @@
       "fullPolicy": "查看完整隐私政策",
       "lastUpdated": "最近更新 2026·04·02"
     },
-
     "about": {
       "kicker": "关于 · ABOUT",
       "title": "Drifting · 灵感",
@@ -493,22 +453,20 @@
       "feedback": "反馈…",
       "tagline": "为夜里不睡的写作人造。"
     },
-
     "models": {
       "kicker": "模型服务 · PROVIDERS",
       "title": "所有 AI 凭据，只在这里管理。",
-      "sub": "每个 provider 保存一条全局 API Key；Copilot、Shadow 和 General Agent 只引用它，不再各自保存副本。",
+      "sub": "每个 provider 保存一条全局 API Key；Copilot 和 General Agent 只引用它，不再各自保存副本。",
       "sidebarMeta": "BYOK · 本机 Keychain",
       "credentialsTitle": "Provider 凭据",
       "credentialsDesc": "密钥仅写入本机系统 Keychain，不进入 localStorage 或偏好同步。不同功能可以各自选择 provider 与模型。",
       "providers": {
-        "deepseek": "可供 Copilot、Shadow 与 General Agent 共用。",
-        "anthropic": "可供 Copilot、Shadow 与 General Agent 共用。",
-        "openai": "可供 Copilot、Shadow 与 General Agent 共用。",
+        "deepseek": "可供 Copilot 与 General Agent 共用。",
+        "anthropic": "可供 Copilot 与 General Agent 共用。",
+        "openai": "可供 Copilot 与 General Agent 共用。",
         "google": "当前可供 Copilot 使用；密钥仍在这里统一管理。"
       }
     },
-
     "ai": {
       "routing": "AI 调用方式",
       "tierTitle": "能力档位",
@@ -519,7 +477,6 @@
       "hostedByokOnlyTitle": "托管暂不可用 · 测试版仅支持自带 Key",
       "disabledSuffix": " · 暂不可用"
     },
-
     "byokProvider": {
       "ownKey": "自带密钥",
       "notConnected": "未连接",
@@ -532,7 +489,6 @@
       "invalidKey": "密钥无效",
       "requestFailed": "请求失败（服务器未启动或网络问题）"
     },
-
     "agentAuth": {
       "statusTitle": "状态",
       "hostedReady": "已就绪",
@@ -557,22 +513,6 @@
       "verifying": "验证中…",
       "submit": "提交"
     },
-
-    "shadow": {
-      "kicker": "SHADOW · 影",
-      "title": "影，替你巡查全书。",
-      "sub": "为章节连贯审阅、元素弧线派生与 evolve 选择同一组 provider 和模型。",
-      "keyPrivacy": "密钥统一在「模型与 API」管理。",
-      "routingDesc": "Shadow 的所有模型叶子使用这一组 provider 与模型；每次运行开始后冻结。",
-      "providerDesc": "选择 Shadow 直连的模型服务商。",
-      "providerKey": "{{provider}} API Key",
-      "providerKeyDesc": "这里只显示连接状态；新增、编辑或删除密钥统一前往「模型与 API」。",
-      "model": "Shadow 模型",
-      "modelDesc": "只列出当前 provider 已通过 Agent Runtime 协议认证的模型。",
-      "keyConnected": "✓ 已连接",
-      "keyNotConnected": "⚠ 未连接"
-    },
-
     "copilot": {
       "kicker": "COPILOT · 副手",
       "title": "把琐事交给一个安静的副手。",
@@ -662,7 +602,6 @@
       "resetTaskDefaultTitle": "恢复该 task 的内置默认值",
       "resetDefault": "重置默认"
     },
-
     "agent": {
       "kicker": "GENERAL AGENT · 对话",
       "title": "右栏那位能动手的 Agent。",
@@ -788,7 +727,6 @@
         }
       }
     },
-
     "agentMemory": {
       "title": "Agent 规则",
       "desc": "由你掌控的长期规则。这里生效的偏好、指令和否决会原样注入后续对话；你可以随时新增或删除。Agent 提议的规则必须先由你批准，产品不会额外添加隐藏的写作规范。",
@@ -804,7 +742,6 @@
       "approve": "批准",
       "deleteConfirm": "删除这条规则？它将不再影响后续对话与审阅。"
     },
-
     "agentUsage": {
       "usage": "用量",
       "usageDesc": "本项目里 Agent 用了多少 token、花了多少钱。统计自每轮返回的用量（输入含缓存读取）；自付费模式下为你的实际花费，数据保存在本地。按本月 / 累计两个口径查看。",
@@ -1075,24 +1012,6 @@
       "hoursAgo": "{{count}} 小时前",
       "daysAgo": "{{count}} 天前"
     }
-  },
-  "shadowQuickMenu": {
-    "autoReview": "完成时自动审阅",
-    "autoReviewDesc": "标记章节「已完成」时自动审阅；关闭则直接置为完成，可随时手动复审",
-    "rules": "规则",
-    "noProject": "打开一个项目后可编辑 Shadow 规则"
-  },
-  "shadowRules": {
-    "add": "＋ 新增规则",
-    "titleCn": "Shadow 规则",
-    "titleEn": "Shadow 规则",
-    "empty": "— 暂无规则。用自然语言写下本书的设定 / 约束，保存后自动编译成可检查的 checklist —",
-    "help": "每条规则会被 LLM 编译成原子 checklist；机械项（字数 / 出场 / 禁用词）零误报，语义项交由审阅引擎判断。本书简介与字段作为辅助依据，不必在此重复。",
-    "placeholder": "例：全文第三人称限知 / 主角第五章前不知身世 / 目标字数 3000",
-    "enabled": "启用",
-    "deleteTitle": "删除规则",
-    "compiling": "编译中…",
-    "judgingGuide": "判定指引 · {{kind}}"
   },
   "userMenu": {
     "accountMenu": "账户菜单",
@@ -1434,7 +1353,9 @@
     }
   },
   "auth": {
-    "brand": { "cn": "灵感" },
+    "brand": {
+      "cn": "灵感"
+    },
     "signIn": "登录",
     "signUp": "注册",
     "signInShort": "登录",
@@ -1477,8 +1398,6 @@
       "featureStorylineEm": "多视角",
       "featureStorylineTitleB": "叙事",
       "featureStorylineSub": "时间轴 · 叙事弧 · 跨线索引",
-      "featureShadowTitle": "Shadow · 离线 AI 校读",
-      "featureShadowSub": "人物年龄 / 视角越界 / 设定矛盾",
       "brandVersion": "Drifting Writing Studio · v{{version}}",
       "footer": "本地优先 · 云端同步"
     },
@@ -1845,7 +1764,10 @@
       "storylineChapters": "排序故事线内章节",
       "chapters": "排序章节",
       "cellMetaGroup": "单元格右侧",
-      "duplicatesGroup": "多线章节"
+      "duplicatesGroup": "多线章节",
+      "elementDisplayGroup": "元素显示",
+      "visualIndex": "视觉索引",
+      "nameList": "名称列表"
     }
   },
   "rightSidebar": {
@@ -1960,98 +1882,6 @@
       "moreUnappearedElements": "还有 {{count}} 个未出场",
       "storylineDistribution": "故事线分布",
       "floatingStoryline": "漂浮 / 未归线"
-    }
-  },
-  "shadowPanel": {
-    "ruleFallback": "规则",
-    "chapterFallback": "章节",
-    "untitledChapter": "未命名章节",
-    "phase": {
-      "gather": "收集",
-      "resolve": "规则",
-      "check": "取证",
-      "emit": "批注",
-      "decide": "结论"
-    },
-    "consultedKind": {
-      "node": "章节",
-      "element": "设定",
-      "storyline": "故事线",
-      "category": "类别"
-    },
-    "ops": {
-      "reviews": "复审",
-      "passRate": "通过率",
-      "avgDuration": "平均耗时",
-      "todos": "待办",
-      "active": "{{count}} 个审阅进行中 / 排队中",
-      "topRules": "规则触发"
-    },
-    "time": {
-      "justNow": "刚刚",
-      "minutesAgo": "{{count}} 分钟前",
-      "hoursAgo": "{{count}} 小时前",
-      "daysAgo": "{{count}} 天前"
-    },
-    "status": {
-      "passedByUser": "已通过",
-      "queued": "排队中…",
-      "running": "审阅中…",
-      "stopped": "已终止",
-      "failed": "失败",
-      "passed": "通过",
-      "todos": "待办 {{open}} · 已解决 {{handled}}/{{total}}",
-      "todosCleared": "待办归零",
-      "superseded": "已被复审取代",
-      "findings": "{{count}} 处待改"
-    },
-    "confirm": {
-      "sweepBook": "将对全书以下 {{count}} 个已完成章节重新审阅：\n\n{{list}}\n\n可能消耗较多 token 与时间。继续？"
-    },
-    "empty": {
-      "title": "暂无 shadow 任务",
-      "sub": "标记章节「已完成」即触发审阅",
-      "allArchived": "全部已归档",
-      "noArchived": "无已归档任务",
-      "noTrace": "无轨迹记录",
-      "runningTrace": "审阅进行中…"
-    },
-    "actions": {
-      "reviewWholeBookTitle": "对全书已完成章节重新审阅（整书回归）",
-      "reviewWholeBook": "复审全书",
-      "archiveCompletedTitle": "归档已处理的任务（已通过/待办已清空/已终止；不含未解决与运行中）",
-      "archiveCompleted": "归档已完成",
-      "deletePermanently": "彻底删除",
-      "stopReview": "终止审阅",
-      "archive": "归档",
-      "forcePassTitle": "解决全部待办并标记本章完成",
-      "forcePass": "强制通过（解决 {{count}} 项）",
-      "pass": "通过",
-      "rerun": "重跑",
-      "openChapter": "打开章节 →"
-    },
-    "archived": {
-      "label": "已归档",
-      "expand": "展开已归档",
-      "collapse": "收起已归档",
-      "clearTitle": "清空已归档",
-      "clear": "清空"
-    },
-    "stale": {
-      "listSeparator": "、",
-      "changedUnknown": "依赖已改动",
-      "changed": "依据 {{names}} 已改动",
-      "manyChanged": "依据 {{names}} 等 {{count}} 项已改动",
-      "needsReview": "需复审 · {{count}}",
-      "reviewAllTitle": "重新审阅全部需复审章节",
-      "reviewAll": "复审全部",
-      "reviewOneTitle": "重新审阅本章",
-      "reviewOne": "复审"
-    },
-    "job": {
-      "verdicts": "结论（{{count}}）",
-      "consultedTitle": "本次审阅实际查证的设定/章节（精确依赖边，仅观察）",
-      "consulted": "实际查证（{{count}}）"
     }
   },
   "topTimeline": {
@@ -2265,73 +2095,6 @@
       "selectionChanged": "选区已发生变化，无法应用修改。"
     }
   },
-  "evolveSection": {
-    "kicker": "演化 · EVOLVE",
-    "actions": {
-      "dryRun": "仅检测",
-      "evolve": "一键演化",
-      "stop": "停止",
-      "stopTitle": "停止本次演化（已暂存的改动保留待审）"
-    },
-    "controls": {
-      "engine": "改稿引擎",
-      "approval": "审批",
-      "needApproval": "需批准",
-      "auto": "自动",
-      "includeDrafts": "含草稿章"
-    },
-    "emptyHint": "— 改了该设定后，一键把所有引用它的章节正文改去适应（canon → 正文） —",
-    "status": {
-      "preparing": "准备中…"
-    },
-    "stop": {
-      "converged": "已收敛 · 矛盾清零",
-      "maxRounds": "到轮次上限 · 仍有残余",
-      "stalled": "停滞 · 未净收缩",
-      "noScope": "无出场章",
-      "dryRun": "仅检测",
-      "needsConfirmation": "规模较大 · 待确认",
-      "outOfScope": "本质改写 · 需逐场手动",
-      "aborted": "已手动停止 · 已暂存待审"
-    },
-    "trace": {
-      "summary": "过程 · {{count}} 步（critic / editor 动作与 tool call）",
-      "phase": {
-        "detect": "探测",
-        "edit": "改稿",
-        "verify": "复验"
-      },
-      "actor": {
-        "critic": "审",
-        "editor": "改"
-      }
-    },
-    "changed": {
-      "summary": "将演化这 {{count}} 项改动：",
-      "empty": "（空）",
-      "dismissTitle": "此改动无需演化——标记为已落地，从清单移除（再次编辑该字段会重新出现）",
-      "dismiss": "不演化"
-    },
-    "result": {
-      "stats": "{{rounds}}轮 · 化解 {{resolved}} · 残余 {{residual}} · 暂存 {{staged}} 块改动",
-      "errors": "{{count}} 章失败(已隔离)",
-      "confirmAndEvolve": "确认并演化（{{count}} 受影响）",
-      "worklistTitle": "出场清单 · {{count}} 章（逐场重构，非矛盾清单）",
-      "appearanceCount": "{{count}} 处出场",
-      "appearance": "出场",
-      "residualTitle": "需手动 · {{count}} 处残余矛盾",
-      "stagedNote": "已暂存 {{count}} 块改动 → 到对应章节逐块审阅（✓ 接受 / ✗ 驳回）。"
-    },
-    "activity": {
-      "title": "演化记录 · {{count}} 章（发现与改动）",
-      "summary": "发现 {{found}} 矛盾 · 改 {{edits}} 块",
-      "found": "发现",
-      "edit": "改动"
-    },
-    "common": {
-      "jumpToChapter": "跳到该章"
-    }
-  },
   "referencesPanel": {
     "loading": "加载中…",
     "relationKind": {
@@ -2428,7 +2191,6 @@
     },
     "color": {
       "todo": "TODO",
-      "shadow": "SHADOW",
       "copilot": "COPILOT",
       "manual": "COMMENT"
     },
@@ -2466,7 +2228,7 @@
       "toTodo": "转 TODO",
       "unmarkExceptionTitle": "取消例外标记",
       "unmarkException": "取消例外",
-      "markExceptionTitle": "标为例外：Shadow 审阅时把这段视为有意，不再报错",
+      "markExceptionTitle": "标为有意例外，供协作者与 Agent 上下文识别",
       "markException": "标为例外",
       "cancelComment": "取消批注",
       "add": "添加"
@@ -2524,36 +2286,6 @@
   "patchesSection": {
     "add": "＋ 新建",
     "empty": "— 尚无补丁。在章节里选中文本 → 右键「新建补丁」可锚定到此元素 —"
-  },
-  "arcSection": {
-    "title": "弧线 · ARC",
-    "shadowBadge": "Shadow",
-    "shadowBadgeTitle": "弧线派生属于 Shadow 模块（影）的只读分析能力；provider 与模型在“设置 → Shadow Agent”中选择。",
-    "actions": {
-      "derive": "派生弧线",
-      "rerun": "重新派生"
-    },
-    "includeDrafts": "包含草稿章（默认仅已完成章）",
-    "running": "派生中…（逐章抽取 → 蒸馏 → 综合，约 1-2 分钟）",
-    "failed": "✗ 派生失败：{{error}}",
-    "empty": "— 从正文派生该元素的跨章发展轨迹（只读分析，不改稿） —",
-    "axis": {
-      "narrativeOrder": "叙事序",
-      "bookOrder": "书序"
-    },
-    "coverageTitle": "覆盖 {{count}} 个出场章；截至{{axis}}位置 n{{order}}（n = {{axis}}，非读者章号）",
-    "coverageLine": "覆盖 {{count}} 章 · 截至 n{{order}}",
-    "skipped": " · 跳过 {{count}}",
-    "overall": "整体弧线",
-    "patchOverlayTitle": "作者 patch「{{title}}」{{status}}",
-    "patchOverlayHit": "·命中",
-    "patchOverlayMiss": "·未对上",
-    "tensionsTitle": "张力 · 待确认",
-    "tensionKind": {
-      "contrast": "前后对比",
-      "possible-drift": "疑似漂移",
-      "uncommitted-evolution": "未记录的演化"
-    }
   },
   "edgeKindManager": {
     "title": "全部关联类型",
@@ -2791,8 +2523,7 @@
       "bio": "传 · biography",
       "bioTitle": "记 · 传",
       "facts": "字段 · facts",
-      "patches": "补丁",
-      "arc": "弧线 · ARC"
+      "patches": "补丁"
     },
     "meta": {
       "facts": "alias / 类目 / 生年 / 首次出场 …"
@@ -2861,8 +2592,6 @@
     },
     "status": {
       "draft": "草稿",
-      "waitingReview": "等待 AI 审阅",
-      "revising": "修订中",
       "finished": "已完成",
       "discarded": "已弃用",
       "drifting": "漂浮中",

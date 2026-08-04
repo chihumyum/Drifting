@@ -7,7 +7,7 @@
 // text-level anchoring (a comment pinned to a phrase highlights just that
 // phrase; a whole-block anchor highlights the block).
 //
-// Colour is per source/kind (manual / shadow / copilot / todo) via four fixed
+// Colour is per source/kind (manual / copilot / todo) via three fixed
 // highlight names, each styled by a `::highlight(...)` rule in index.css.
 import {
   commentBlockIds,
@@ -35,7 +35,6 @@ interface HighlightRegistryLike {
 const HIGHLIGHT_NAME: Record<string, string> = {
   todo: 'comment-hl-todo',
   manual: 'comment-hl-manual',
-  shadow: 'comment-hl-shadow',
   copilot: 'comment-hl-copilot',
 };
 

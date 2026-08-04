@@ -81,7 +81,7 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(rail).toContain('data-display-mode={displayMode}');
     expect(settings).toContain("export type OutlineRailMode = 'always' | 'auto' | 'hidden';");
     expect(settings).toContain("OUTLINE_RAIL_MODE_DEFAULT: OutlineRailMode = 'auto'");
-    expect(settings).toContain('version: 26');
+    expect(settings).toContain('version: 27');
     expect(preferences).toContain("'outlineRailMode'");
     expect(topBar).not.toContain('outlineCollapsed');
     expect(uiStore).not.toContain('outlineCollapsed');

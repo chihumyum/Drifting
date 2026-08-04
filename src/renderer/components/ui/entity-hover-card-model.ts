@@ -34,8 +34,6 @@ type DataStoreSnapshot = ReturnType<typeof useDataStore.getState>;
 
 const STATUS_KEYS = {
   draft: 'editorTopBar.status.draft',
-  waiting_review: 'editorTopBar.status.waitingReview',
-  revising: 'editorTopBar.status.revising',
   finished: 'editorTopBar.status.finished',
   discarded: 'editorTopBar.status.discarded',
   drifting: 'editorTopBar.status.drifting',

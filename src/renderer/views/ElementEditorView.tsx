@@ -25,8 +25,6 @@ import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy'
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { ReferencesPanel } from '../components/editor/ReferencesPanel';
 import { PatchesSection } from '../components/editor/PatchesSection';
-import { ArcSection } from '../components/editor/ArcSection';
-import { EvolveSection } from '../components/editor/EvolveSection';
 import { LibraryItemFullscreenPreview } from '../components/rightBars/MemoMaterialPanel';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
@@ -267,7 +265,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
 
   // Outline = framework anchors for every section of the element editor, in
   // document order: 概述 → 记·传 (with its body headings nested as sub-structure)
-  // → 字段 → 关联 → 补丁 → 弧线 → 演化. Sections carry no ordinal — the order is
+  // → 字段 → 关联 → 补丁. Sections carry no ordinal — the order is
   // the only ranking. Built before the early return below so the scrollspy hook
   // always runs (Rules of Hooks).
   const frameworkItems: OutlineEntry[] = [
@@ -287,8 +285,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
       text: t('referencesPanel.sections.relations'),
     },
     { id: 'el-patches', level: 2, kind: 'section', text: t('elementEditor.sections.patches') },
-    { id: 'el-arc', level: 2, kind: 'section', text: t('elementEditor.sections.arc') },
-    { id: 'el-evolve', level: 2, kind: 'section', text: t('evolveSection.kicker') },
   ];
   // Scrollspy needs the FLAT id list (framework anchors + every heading),
   // not just the nested tree's roots.
@@ -1052,16 +1048,6 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
               {elementId && projectId && (
                 <div id="el-patches" style={{ scrollMarginTop: 24 }}>
                   <PatchesSection elementId={elementId} projectId={projectId} />
-                </div>
-              )}
-              {elementId && projectId && (
-                <div id="el-arc" style={{ scrollMarginTop: 24 }}>
-                  <ArcSection elementId={elementId} projectId={projectId} />
-                </div>
-              )}
-              {elementId && projectId && (
-                <div id="el-evolve" style={{ scrollMarginTop: 24 }}>
-                  <EvolveSection elementId={elementId} projectId={projectId} />
                 </div>
               )}
             </article>

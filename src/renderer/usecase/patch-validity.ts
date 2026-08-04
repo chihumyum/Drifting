@@ -5,7 +5,7 @@
  * A patch created by selecting a span of chapter prose stores that span in
  * `textAnchorJson` (a CommentTextAnchor). When the author later deletes or
  * rewrites that text out of the source chapter, the patch's evidence is gone:
- * it can no longer sanction a divergence, so Shadow / the agent must stop
+ * it can no longer sanction a divergence, so the Agent must stop
  * treating it as canon. We mark such patches `invalidatedAt` (and clear it
  * again if the text reappears — e.g. an undo), then let the read-side filters
  * exclude them. The patch row itself is kept (badged in the element editor) so

@@ -681,9 +681,7 @@ export function BottomTimeline() {
     const defaultColor = '#2D4A6B';
     const clipColor = storyline?.color || defaultColor;
     const leftPosition = orderToPosition(order);
-    // Mutually-exclusive status classes. waiting_review / revising are
-    // visually treated as draft until the AI-review pipeline ships its own
-    // affordances.
+    // Mutually-exclusive author-facing status classes.
     const status = node.writingStatus;
     const stateClass =
       status === 'finished'

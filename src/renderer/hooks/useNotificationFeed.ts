@@ -3,8 +3,8 @@ import { events } from '../lib/events';
 import { useNotificationStore } from '../store/notification-store';
 
 /**
- * Wires the global `ai-task` event stream (emitted by Copilot directly and by
- * useShadowJobs for Shadow) into the notification store. Mounted once in App
+ * Wires the global `ai-task` event stream emitted by Copilot into the
+ * notification store. Mounted once in App
  * (always present) so task history is collected regardless of whether the topbar
  * pill is rendered on this platform.
  */

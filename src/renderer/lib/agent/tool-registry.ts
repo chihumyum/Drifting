@@ -2,7 +2,7 @@
  * Canonical Agent tool catalog and provider-exposure policy.
  *
  * `runAgentTool` remains the renderer-owned dispatcher. This catalog describes
- * every dispatcher surface (General, deprecated aliases, Shadow internals) plus
+ * every dispatcher surface (General and deprecated aliases) plus
  * runtime-only virtual tools. Providers only receive canonical entries selected
  * by an explicit policy; aliases are metadata and are never emitted twice.
  *
@@ -962,7 +962,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'create_comment',
-    description: '创建批注、TODO 或 Shadow exception，可锚定实体或正文块。',
+    description: '创建批注、TODO 或作者例外说明，可锚定实体或正文块。',
     parametersSchema: Type.Object(
       {
         body: str('批注正文'),
@@ -1047,113 +1047,6 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'never',
     revertStrategy: 'irreversible',
     aliases: ['delete character', '删除元素'],
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Renderer-only Shadow contracts
-// ---------------------------------------------------------------------------
-
-const shadowFinding = Type.Object(
-  {
-    message: Type.Optional(Type.String()),
-    reason: Type.Optional(Type.String()),
-    blockId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-    blockIds: Type.Optional(Type.Array(Type.String())),
-    ruleId: Type.Optional(Type.String()),
-    itemId: Type.Optional(Type.String()),
-  },
-  { additionalProperties: true },
-);
-
-const SHADOW_INTERNAL_TOOL_SPECS: InternalToolSpec[] = [
-  {
-    name: 'shadow_read_chapter_snapshot',
-    description: 'Shadow pipeline internal: read the locked chapter and canon snapshot.',
-    parametersSchema: Type.Object(
-      { chapterId: str('Canonical chapter id') },
-      { additionalProperties: false },
-    ),
-    scope: 'shadow-internal',
-    access: 'read',
-    risk: 'none',
-    effect: 'none',
-    concurrency: 'parallel',
-    approval: 'automatic',
-    retry: 'safe',
-    revertStrategy: 'not_applicable',
-    certificationNote:
-      'Existing renderer-owned Shadow gather contract; internal-only and never eligible for the General Agent provider menu.',
-  },
-  {
-    name: 'shadow_read_rules',
-    description: 'Shadow pipeline internal: read enabled project review rules.',
-    parametersSchema: Type.Object(
-      {
-        projectId: Type.Optional(Type.String()),
-        chapterId: Type.Optional(Type.String()),
-      },
-      { additionalProperties: false },
-    ),
-    scope: 'shadow-internal',
-    access: 'read',
-    risk: 'none',
-    effect: 'none',
-    concurrency: 'parallel',
-    approval: 'automatic',
-    retry: 'safe',
-    revertStrategy: 'not_applicable',
-    certificationNote:
-      'Existing renderer-owned Shadow resolve contract; internal-only and project-scoped by the active context.',
-  },
-  {
-    name: 'shadow_eval_semantic_batch',
-    description: 'Shadow pipeline internal: run one semantic assertion batch.',
-    parametersSchema: Type.Object(
-      {
-        assertions: Type.Array(Type.String()),
-        chapterId: str('Canonical chapter id'),
-        projectId: Type.Optional(Type.String()),
-        facts: Type.Optional(Type.Record(Type.String(), Type.String())),
-        summary: Type.Optional(Type.String()),
-        ruleKind: Type.Optional(Type.String()),
-        judgingGuide: Type.Optional(Type.String()),
-      },
-      { additionalProperties: false },
-    ),
-    scope: 'shadow-internal',
-    access: 'read',
-    risk: 'medium',
-    effect: 'external',
-    concurrency: 'parallel',
-    approval: 'automatic',
-    retry: 'inspect_before_retry',
-    revertStrategy: 'not_applicable',
-    certificationNote:
-      'Existing renderer-owned Shadow check contract; may call the configured judge provider but cannot mutate authored state.',
-    resultBudgetChars: 24_000,
-  },
-  {
-    name: 'shadow_commit_review',
-    description: 'Shadow pipeline internal: atomically commit findings and review status.',
-    parametersSchema: Type.Object(
-      {
-        chapterId: str('Canonical chapter id'),
-        findings: Type.Array(shadowFinding),
-        status: Type.Union([Type.Literal('finished'), Type.Literal('draft')]),
-      },
-      { additionalProperties: false },
-    ),
-    scope: 'shadow-internal',
-    access: 'write',
-    risk: 'medium',
-    effect: 'review',
-    concurrency: 'exclusive_entity',
-    approval: 'automatic',
-    retry: 'inspect_before_retry',
-    revertStrategy: 'exact_inverse',
-    certificationNote:
-      'Existing renderer-owned Shadow commit boundary; internal-only and excluded from every General Agent provider policy.',
   },
 ];
 
@@ -1433,7 +1326,6 @@ function freezeCatalogEntry(tool: RegisteredTool): RegisteredTool {
 export const AGENT_TOOL_CATALOG: readonly RegisteredTool[] = Object.freeze([
   ...GENERAL_READ_TOOL_SPECS.map(registerReadTool).map(freezeCatalogEntry),
   ...GENERAL_WRITE_TOOL_SPECS.map(registerWriteTool).map(freezeCatalogEntry),
-  ...SHADOW_INTERNAL_TOOL_SPECS.map(registerInternalTool).map(freezeCatalogEntry),
   ...RUNTIME_VIRTUAL_TOOL_SPECS.map(registerInternalTool).map(freezeCatalogEntry),
 ]);
 

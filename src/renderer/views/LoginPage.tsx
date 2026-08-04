@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, Layers3, Moon, Route, ShieldCheck, Sun } from 'lucide-react';
+import { BookOpen, Layers3, Moon, Route, Sun } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { useSettingsStore } from '../store/settings-store';
 import { authClient } from '../lib/auth-client';
@@ -265,15 +265,6 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                   {t('auth.hero.featureStorylineTitleB')}
                 </span>
                 <span className="si-feat__sub">{t('auth.hero.featureStorylineSub')}</span>
-              </div>
-            </div>
-            <div className="si-feat">
-              <span className="si-feat__mark">
-                <ShieldCheck size={18} aria-hidden="true" />
-              </span>
-              <div className="si-feat__body">
-                <span className="si-feat__title">{t('auth.hero.featureShadowTitle')}</span>
-                <span className="si-feat__sub">{t('auth.hero.featureShadowSub')}</span>
               </div>
             </div>
           </div>

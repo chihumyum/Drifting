@@ -1144,7 +1144,7 @@ function buildPatches(projectId, elements, chapters, mentionTargets) {
       const block = chapter.blocks[(2 + n * 5) % chapter.blocks.length];
       const title = `${element.name}：第${String(chapter.bookOrder / 5).padStart(2, '0')}章沉淀 ${n + 1}`;
       const paragraphs = [
-        `${chapter.title}之后，${element.name}的状态发生局部变化。这个 patch 不覆盖基础设定，只把章节中已经发生的事实沉淀为可供后续 Shadow、Agent 或人工查阅的增量正史。`,
+        `${chapter.title}之后，${element.name}的状态发生局部变化。这个 patch 不覆盖基础设定，只把章节中已经发生的事实沉淀为可供后续 Agent 或人工查阅的增量正史。`,
         `来源段落显示：${block.text.slice(0, 140)}…… 该段把${element.name}和${chapter.title}中的证据链连接起来，后续若正文改写，应检查这个 patch 是否仍然有效。`,
       ];
       const doc = plainDoc(paragraphs, `${element.id}-patch-${n + 1}`, mentionTargets);
@@ -1299,8 +1299,6 @@ function purgeProject(db, projectId) {
     'comment_action',
     'comment',
     'library_item',
-    'shadow_job',
-    'project_rule',
     'local_sync_mutation',
     'book_node',
     'element',

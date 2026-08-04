@@ -97,22 +97,22 @@ describe('DriftingAgentModelDriver', () => {
     expect(message).not.toContain('provider.invalid');
   });
 
-  it('keeps workload attribution when Shadow reuses the provider router', async () => {
+  it('keeps workload attribution for a General Agent review task', async () => {
     const complete = vi.fn(async () => ({
       text: 'ready',
       finishReason: 'stop',
       usage: { inputTokens: 2, outputTokens: 1 },
     }));
     const driver = new DriftingAgentModelDriver({
-      featureLabel: 'Shadow Agent',
-      feature: 'shadow-review',
+      featureLabel: 'General Agent',
+      feature: 'general-review',
       createClient: async () => ({ supportsTools: true, complete }),
     });
 
     await collect(driver);
 
     expect(complete).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: expect.objectContaining({ feature: 'shadow-review' }) }),
+      expect.objectContaining({ metadata: expect.objectContaining({ feature: 'general-review' }) }),
     );
   });
 

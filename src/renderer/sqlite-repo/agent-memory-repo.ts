@@ -1,6 +1,6 @@
 /**
  * Local SQLite repo for Agent Memory — the small, evolving store of author-level
- * guidance that BOTH the General agent and the Shadow review engine read as
+ * guidance that the General Agent reads as
  * auxiliary context (see domain/agent-memory.ts for the model + boundaries).
  *
  * Mutating usecases and the Agent's certified domain strategy persist a sync

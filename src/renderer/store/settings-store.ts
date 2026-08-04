@@ -145,11 +145,6 @@ export const AGENT_TOOL_SEARCH_OPTIONS: { value: AgentToolSearch; label: string 
  */
 export type AgentEditMode = 'auto' | 'approve';
 
-// Which engine drives /goal evolve's prose edits. 'agent-sdk' is retained only
-// as a persisted-value/future-transport compatibility token; this Tauri build
-// coerces it to the renderer-native, BYOK-compatible 'shadow-fc' engine.
-export type EvolveEditorEngine = 'agent-sdk' | 'shadow-fc';
-
 /**
  * The model picker's catalog (shared by Settings and the input-bar switcher).
  * `short` is the compact label for the narrow in-panel picker. Tier aliases
@@ -169,7 +164,7 @@ export const AGENT_EFFORT_OPTIONS: { value: AgentEffort; label: string; short: s
   { value: 'max', label: 'Max', short: 'Max' },
 ];
 export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
-/** Per-project Copilot/Shadow output language. 'auto' = follow manuscriptLocale. */
+/** Per-project Copilot output language. 'auto' = follow manuscriptLocale. */
 export type CopilotOutputLang = LocaleCode | 'auto';
 export type DateFormat = 'cjk' | 'iso' | 'us';
 
@@ -311,25 +306,6 @@ interface SettingsState {
   copilotByokModel: string;
   setCopilotByokModel: (m: string) => void;
 
-  // Shadow (影) provider config — governs BOTH chapter-CI review and element-arc
-  // derivation. Credentials are shared globally through `byok.<provider>`, while
-  // this slice stores only Shadow's independent provider/model routing choice.
-  shadowAiMode: AiMode;
-  setShadowAiMode: (m: AiMode) => void;
-  shadowTier: ModelTier;
-  setShadowTier: (t: ModelTier) => void;
-  shadowByokProvider: AgentProviderId;
-  setShadowByokProvider: (p: AgentProviderId) => void;
-  shadowByokModel: string;
-  setShadowByokModel: (m: string) => void;
-  // When on, marking a chapter「已完成」auto-runs a shadow review first
-  // (waiting_review → finished/draft). Off = mark finished directly, no review;
-  // the user reviews by hand (复审 / 复审全书). Deps-change re-review is NEVER
-  // automatic — it only surfaces as the「需复审」reminder (see useStaleReviews),
-  // which the user can ignore or act on regardless of this toggle.
-  shadowAutoRun: boolean;
-  setShadowAutoRun: (on: boolean) => void;
-
   // General Agent credential token. Current BYOK-only builds coerce this to
   // `apikey`; the actual provider/model are chosen in the chat composer.
   agentAuth: AgentAuth;
@@ -356,14 +332,6 @@ interface SettingsState {
   // permissions are independent and always handled before execution.
   agentEditMode: AgentEditMode;
   setAgentEditMode: (m: AgentEditMode) => void;
-  // /goal evolve's OWN edit-surface mode (it's a Shadow-module op, not the general
-  // agent) + which engine edits the prose. Kept separate from agentEditMode so the
-  // general agent's preference doesn't govern a batch cross-chapter evolve.
-  shadowEditMode: AgentEditMode;
-  setShadowEditMode: (m: AgentEditMode) => void;
-  evolveEditorEngine: EvolveEditorEngine;
-  setEvolveEditorEngine: (e: EvolveEditorEngine) => void;
-
   // Copilot (任务自动化, 没有续写)
   /**
    * The single switch for AUTOMATIC Copilot. When on, background tasks run on
@@ -423,7 +391,7 @@ interface SettingsState {
   copilotInlineEditAllowNewContent: boolean;
   setCopilotInlineEditAllowNewContent: (on: boolean) => void;
   /**
-   * Per-project output language for Copilot (and future Shadow) generation,
+   * Per-project output language for Copilot generation,
    * keyed by projectId. 'auto'/unset follows manuscriptLocale. Keeps the
    * 副手 from drifting into the wrong language (e.g. English in a Chinese
    * novel). Synced to the server (so the server resolves output language for
@@ -553,29 +521,6 @@ export const useSettingsStore = create<SettingsState>()(
       setCopilotByokProvider: (p) => set({ copilotByokProvider: p }),
       copilotByokModel: '',
       setCopilotByokModel: (m) => set({ copilotByokModel: m }),
-      // Shadow has its own route but uses the same provider credentials as every
-      // other AI surface. Provider changes atomically select a certified model so
-      // a synced stale model id can never be sent to the wrong endpoint.
-      shadowAiMode: 'byok',
-      setShadowAiMode: () => set({ shadowAiMode: 'byok' }),
-      shadowTier: 'standard',
-      setShadowTier: (t) => set({ shadowTier: t }),
-      shadowAutoRun: true,
-      setShadowAutoRun: (on) => set({ shadowAutoRun: on }),
-      shadowByokProvider: 'deepseek',
-      setShadowByokProvider: (provider) =>
-        set((state) => {
-          const shadowByokProvider = normalizeAgentProvider(provider);
-          return {
-            shadowByokProvider,
-            shadowByokModel: normalizeAgentProviderModel(shadowByokProvider, state.shadowByokModel),
-          };
-        }),
-      shadowByokModel: 'deepseek-v4-flash',
-      setShadowByokModel: (m) =>
-        set((state) => ({
-          shadowByokModel: normalizeAgentProviderModel(state.shadowByokProvider, m),
-        })),
       agentAuth: 'apikey',
       setAgentAuth: (auth) => set({ agentAuth: auth === 'hosted' ? 'apikey' : auth }),
       agentProvider: DEFAULT_AGENT_PROVIDER,
@@ -632,12 +577,6 @@ export const useSettingsStore = create<SettingsState>()(
       setAgentToolSearch: (t) => set({ agentToolSearch: t }),
       agentEditMode: 'auto',
       setAgentEditMode: (m) => set({ agentEditMode: m }),
-      // Default 'approve': a batch cross-chapter evolve on a fallible critic warrants
-      // explicit per-block review. Shadow-FC works on every supported Tauri target.
-      shadowEditMode: 'approve',
-      setShadowEditMode: (m) => set({ shadowEditMode: m }),
-      evolveEditorEngine: 'shadow-fc',
-      setEvolveEditorEngine: (e) => set({ evolveEditorEngine: e }),
       copilotTier: 'standard',
       setCopilotTier: (t) => set({ copilotTier: t }),
 
@@ -713,7 +652,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 26,
+      version: 27,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           appearanceSkin?: 'classic' | 'modern';
@@ -889,16 +828,6 @@ export const useSettingsStore = create<SettingsState>()(
             delete drop[k];
           }
         }
-        if (version < 11) {
-          // Shadow gets its own model-routing slice (was previously not wired —
-          // review + arc used hardcoded model constants). Additive: the default
-          // state supplies the values, but seed them explicitly so the field is
-          // present even before any setter runs. Independent of Copilot by design.
-          if (next.shadowAiMode === undefined) next.shadowAiMode = 'hosted';
-          if (next.shadowTier === undefined) next.shadowTier = 'standard';
-          if (next.shadowByokProvider === undefined) next.shadowByokProvider = 'deepseek';
-          if (next.shadowByokModel === undefined) next.shadowByokModel = 'deepseek-v4-flash';
-        }
         if (version < 12) {
           // 'inlineEdit' is no longer a task: inline-edit (⇧⌘I) is a MANUAL
           // feature, always available, never gated by a switch. Drop its stale
@@ -916,12 +845,6 @@ export const useSettingsStore = create<SettingsState>()(
             ...next,
             copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig>,
           };
-        }
-        if (version < 13) {
-          // The desktop-only General Agent runtime was removed during the Tauri
-          // migration. Keep evolve functional by moving every persisted engine
-          // choice to the renderer-native Shadow function-calling editor.
-          next.evolveEditorEngine = 'shadow-fc';
         }
         if (version < 14) {
           // The application now has one modern UI. Preserve the only visual
@@ -999,13 +922,22 @@ export const useSettingsStore = create<SettingsState>()(
           next.agentThinking = normalizeAgentProviderThinking(provider, model, next.agentThinking);
           next.agentEffort = normalizeAgentProviderEffort(provider, model, next.agentEffort);
         }
-        if (version < 25) {
-          const provider = normalizeAgentProvider(next.shadowByokProvider);
-          next.shadowByokProvider = provider;
-          next.shadowByokModel = normalizeAgentProviderModel(provider, next.shadowByokModel);
-        }
         if (version < 26) {
           next.outlineRailMode = OUTLINE_RAIL_MODE_DEFAULT;
+        }
+        if (version < 27) {
+          const retired = next as unknown as Record<string, unknown>;
+          for (const key of [
+            'shadowAiMode',
+            'shadowTier',
+            'shadowByokProvider',
+            'shadowByokModel',
+            'shadowAutoRun',
+            'shadowEditMode',
+            'evolveEditorEngine',
+          ]) {
+            delete retired[key];
+          }
         }
         return next;
       },
@@ -1017,11 +949,6 @@ export const useSettingsStore = create<SettingsState>()(
       merge: (persisted, current) => {
         const persistedSettings = persisted as Partial<SettingsState> | undefined;
         const merged = { ...current, ...persistedSettings };
-        merged.shadowByokProvider = normalizeAgentProvider(merged.shadowByokProvider);
-        merged.shadowByokModel = normalizeAgentProviderModel(
-          merged.shadowByokProvider,
-          merged.shadowByokModel,
-        );
         merged.agentProvider = normalizeAgentProvider(merged.agentProvider);
         merged.agentModel = normalizeAgentProviderModel(merged.agentProvider, merged.agentModel);
         merged.agentThinking = normalizeAgentProviderThinking(
@@ -1038,13 +965,19 @@ export const useSettingsStore = create<SettingsState>()(
         merged.agentToolSearch = normalizeAgentToolSearch(persistedSettings?.agentToolSearch);
         if (APP_CONFIG.BYOK_ONLY) {
           if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';
-          if (merged.shadowAiMode === 'hosted') merged.shadowAiMode = 'byok';
           if (merged.agentAuth === 'hosted') merged.agentAuth = 'apikey';
         }
-        // `merge` runs on every hydration, including stores already marked v14
-        // or hand-edited values that bypassed the one-time migration.
-        if (merged.evolveEditorEngine === 'agent-sdk') {
-          merged.evolveEditorEngine = 'shadow-fc';
+        const retired = merged as unknown as Record<string, unknown>;
+        for (const key of [
+          'shadowAiMode',
+          'shadowTier',
+          'shadowByokProvider',
+          'shadowByokModel',
+          'shadowAutoRun',
+          'shadowEditMode',
+          'evolveEditorEngine',
+        ]) {
+          delete retired[key];
         }
         if (
           merged.editorFontSource !== 'system-serif' &&

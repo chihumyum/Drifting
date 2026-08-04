@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 describe('Agent edit review cache reconciliation', () => {
-  it('retires post-write review UI during persisted-state migration without removing Shadow staging', () => {
+  it('retires post-write review UI during persisted-state migration without removing legacy staging', () => {
     const migrated = retireLegacyAgentReviewPersistence({
       pending: {
         'node:node-1': {
@@ -36,10 +36,10 @@ describe('Agent edit review cache reconciliation', () => {
               effectId: EFFECT_ID,
             },
             {
-              blockId: 'shadow-block',
+              blockId: 'legacy-block',
               op: 'changed',
-              oldText: 'Shadow before',
-              newText: 'Shadow after',
+              oldText: 'Legacy before',
+              newText: 'Legacy after',
               afterPrevId: null,
             },
           ],
@@ -64,7 +64,7 @@ describe('Agent edit review cache reconciliation', () => {
         'node:node-1': {
           entityType: 'node',
           id: 'node-1',
-          changes: [{ blockId: 'shadow-block' }],
+          changes: [{ blockId: 'legacy-block' }],
         },
       },
       reviewBatches: {},

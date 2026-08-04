@@ -191,7 +191,7 @@ Agent memory is cross-session writing guidance, not canon and not project
 facts.
 
 - An Agent-created memory always starts as `source=agent,status=pending`.
-- Pending memory is never injected into model or Shadow context.
+- Pending memory is never injected into model context.
 - Only a pending Agent proposal is writable in place.
 - Active author-approved guidance is read-only to the Agent.
 - Evolving active guidance creates a new pending row with `supersedesId`; it

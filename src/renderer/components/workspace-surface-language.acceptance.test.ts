@@ -50,7 +50,6 @@ describe('workspace surface language acceptance', () => {
     const notification = source('src/renderer/components/notifications/NotificationPill.tsx');
     const topTimeline = source('src/renderer/components/topBars/TopTimeline/TopTimeline.tsx');
     const copilot = source('src/renderer/components/copilot/CopilotBottomMenu.tsx');
-    const shadow = source('src/renderer/components/ShadowQuickMenu.tsx');
     const footer = source('src/renderer/components/BottomStatusBar.tsx');
     const footerCss = source('src/styles/bottom-status-bar.css');
     const shellCss = source('src/styles/index.css');
@@ -116,14 +115,15 @@ describe('workspace surface language acceptance', () => {
       rightTopbar.indexOf('<UserAvatar'),
     );
     expect(userMenu).toContain("setActiveSettingsPage('copilot')");
-    expect(userMenu).toContain("setActiveSettingsPage('shadow')");
+    expect(userMenu).not.toContain("setActiveSettingsPage('shadow')");
     expect(userMenu).toContain('<CopilotQuickSettings');
-    expect(userMenu).toContain('<ShadowQuickSettings');
+    expect(userMenu).not.toContain('<ShadowQuickSettings');
     expect(userMenu).toContain('dismissOnEscape={activeSettingsPage === null}');
     expect(copilot).toContain('export function CopilotQuickSettings');
     expect(copilot).not.toContain('<GhostIconButton');
-    expect(shadow).toContain('export function ShadowQuickSettings');
-    expect(shadow).not.toContain('<GhostIconButton');
+    expect(
+      existsSync(resolve(process.cwd(), 'src/renderer/components/ShadowQuickMenu.tsx')),
+    ).toBe(false);
 
     expect(footer).toContain('<footer className="bsb app-plane"');
     expect(footer.match(/<button/g)).toHaveLength(1);
@@ -247,9 +247,7 @@ describe('workspace surface language acceptance', () => {
     expect(tabs).not.toContain('indicatorStyle');
     expect(tabs).not.toContain('tab-indicator');
     expect(tabs).not.toContain('is-accent');
-    expect(block(rightHeader, 'id="shadow"', "active={isActive('agent', 'shadow')}")).not.toContain(
-      'accent',
-    );
+    expect(rightHeader).not.toContain('id="shadow"');
     expect(timeline).not.toContain('useSlidingIndicator');
     expect(timeline).toContain("behavior: 'auto'");
     expect(timeline).not.toContain("transition: 'background");

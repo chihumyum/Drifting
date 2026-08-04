@@ -352,7 +352,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
 
   // Generalized in-place kind flip (note | todo | exception). convertToTodo /
   // revertToNote are the note↔todo special cases; this also reaches 'exception'
-  // — a manual, block-anchored "this is intentional" the Shadow engine reads so
+  // — a manual, block-anchored "this is intentional" note the Agent can read so
   // it won't re-flag the passage. Block anchor + body are preserved; same
   // optimistic-update + sync path as the note/todo flips.
   const setCommentKind = useCallback(

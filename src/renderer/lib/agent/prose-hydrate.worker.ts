@@ -1,7 +1,7 @@
 /**
  * Prose-hydration worker. Rebuilding a chapter's Y.Doc (apply snapshot + every
  * update) and converting it to ProseMirror JSON is the single heaviest CPU burst
- * on the render thread during a shadow review — and it's an atomic call that
+ * on the render thread during a large closed-document read — and it's an atomic call that
  * cooperative yielding can't split. It's also a PURE transform with serializable
  * I/O (binary blobs in → JSON string out), so it moves cleanly off-thread.
  *

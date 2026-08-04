@@ -7,10 +7,10 @@ describe('AnthropicProvider', () => {
       const body = JSON.parse(String(init?.body));
       expect(body).toMatchObject({
         model: 'claude-sonnet-5',
-        tool_choice: { type: 'tool', name: 'return_shadow' },
+        tool_choice: { type: 'tool', name: 'return_result' },
       });
       expect(body.tools[0]).toMatchObject({
-        name: 'return_shadow',
+        name: 'return_result',
         input_schema: { type: 'object' },
       });
       return new Response(
@@ -19,7 +19,7 @@ describe('AnthropicProvider', () => {
             {
               type: 'tool_use',
               id: 'tool-1',
-              name: 'return_shadow',
+              name: 'return_result',
               input: { ok: true },
             },
           ],
@@ -37,14 +37,14 @@ describe('AnthropicProvider', () => {
         messages: [{ role: 'user', content: 'check' }],
         tools: [
           {
-            name: 'return_shadow',
+            name: 'return_result',
             description: 'return result',
             parametersSchema: { type: 'object' },
           },
         ],
       }),
     ).resolves.toMatchObject({
-      toolCall: { id: 'tool-1', name: 'return_shadow', arguments: { ok: true } },
+      toolCall: { id: 'tool-1', name: 'return_result', arguments: { ok: true } },
       finishReason: 'tool_use',
       usage: { inputTokens: 12, outputTokens: 4, cachedTokens: 3 },
     });

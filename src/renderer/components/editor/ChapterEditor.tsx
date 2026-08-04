@@ -60,7 +60,7 @@ interface ChapterEditorProps {
   // 编辑选项
   editableTitle?: boolean;
   editableSummary?: boolean;
-  // Read-only prose body (chapter locked during shadow review).
+  // Optional read-only prose body.
   readOnly?: boolean;
 
   // 样式选项
@@ -162,7 +162,7 @@ export function ChapterEditor({
       onContentUpdate(nodeId, pmJson, outlineJson, wordCount);
       // Re-evaluate text-anchored patches sourced from this chapter against the
       // freshly-serialized doc: if the author just deleted the text a patch was
-      // anchored to, the patch is invalidated (and dropped from Shadow/canon).
+      // anchored to, the patch is invalidated (and dropped from Agent canon context).
       void recheckChapterPatchValidity(projectId, nodeId, pmJson);
     },
     [nodeId, projectId, onContentUpdate],

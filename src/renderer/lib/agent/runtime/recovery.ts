@@ -1533,25 +1533,6 @@ function parseStoredRoute(value: unknown, path: string): AgentRuntimeRoute {
       ...(value.chapterId ? { chapterId: value.chapterId } : {}),
     };
   }
-  if (value.kind === 'shadow') {
-    const operation = value.operation;
-    if (
-      !isNonEmptyString(value.projectId) ||
-      (value.chapterId !== undefined && !isNonEmptyString(value.chapterId)) ||
-      (operation !== 'review' &&
-        operation !== 'evolve-critic' &&
-        operation !== 'evolve-edit' &&
-        operation !== 'eval')
-    ) {
-      corruption('EVENT_PAYLOAD_INVALID', `${path} has invalid shadow fields.`);
-    }
-    return {
-      kind: 'shadow',
-      projectId: value.projectId,
-      operation,
-      ...(value.chapterId ? { chapterId: value.chapterId } : {}),
-    };
-  }
   corruption('EVENT_PAYLOAD_INVALID', `${path}.kind is unsupported.`);
 }
 

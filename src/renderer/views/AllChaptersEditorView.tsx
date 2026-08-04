@@ -19,7 +19,6 @@ import { AllChaptersFindPanel, type FindChapter } from '../components/search/All
 import { useShortcutsStore } from '../store/shortcuts-store';
 import { matchesAccelerator } from '../lib/shortcuts';
 import { isChapter, CHAPTER_WRITING_STATUSES, type ChapterNode, type WritingStatus } from '../domain/book-node';
-import { enqueueShadowReview } from '../lib/shadow/job-recorder';
 import { deriveActSegments, type BookAct } from '../domain/book-act';
 import type { NodeContent } from '../domain/node-content';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
@@ -680,16 +679,7 @@ export function AllChaptersEditorView() {
         const next = action.slice(SET_STATUS_ACTION_PREFIX.length) as WritingStatus;
         if (!CHAPTER_WRITING_STATUSES.includes(next as never) || next === target.writingStatus) return;
         try {
-          // Mirror NodeEditorView: marking a chapter 'finished' optionally runs
-          // it through shadow review first (gated by shadowAutoRun) — lock it to
-          // waiting_review + enqueue; otherwise set the status directly.
-          const autoReviewOnFinish = useSettingsStore.getState().shadowAutoRun;
-          if (next === 'finished' && autoReviewOnFinish) {
-            await updateNode(target.id, { writingStatus: 'waiting_review' });
-            await enqueueShadowReview(target.id, projectId);
-          } else {
-            await updateNode(target.id, { writingStatus: next });
-          }
+          await updateNode(target.id, { writingStatus: next });
         } catch (error) {
           log.error('[AllChapters] Failed to set writing status', error);
         }

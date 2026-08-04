@@ -572,7 +572,7 @@ export interface UseEntityEditorConfig {
   // mounted by the caller (ChapterEditor) and keys off the same nodeId.
   enableInlineCopilot?: boolean;
 
-  // When false, the prose body is read-only (e.g. a chapter locked during shadow
+  // When false, the prose body is read-only (e.g. a locked chapter
   // review). Defaults to true. The caller keys the editor on this so toggling it
   // remounts + re-creates the editor with the new editable state.
   editable?: boolean;

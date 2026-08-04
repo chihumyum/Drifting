@@ -30,7 +30,7 @@
 
 1. 建立 mobile primitives：breakpoint/target tokens、`44/48px` 热区、mobile sheet、action menu、safe-area 与 keyboard inset utilities。
 2. 重做 app shell：手机默认只显示稿纸，左右工具成为互斥 sheet；定义紧凑 topbar 与 editor-width footer。
-3. 打通编辑主链：选章、写作、查找、评论、Copilot/Shadow review、保存与 IME。
+3. 打通编辑主链：选章、写作、查找、评论、Copilot/General Agent review、保存与 IME。
 4. 为 Graph、Timeline、Plot Planner 设计触摸优先的降维交互，而不是复刻桌面画布。
 5. 在至少一台 iPhone 与一台 Android 真机上关闭视觉/触摸/键盘/恢复 acceptance，再扩大移动功能面。
 

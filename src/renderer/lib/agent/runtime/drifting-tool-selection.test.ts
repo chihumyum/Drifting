@@ -635,24 +635,22 @@ describe('Drifting runtime tool selection', () => {
     expect(strategy.select(request('rename a chapter title', ['rename_node']))).toEqual([]);
   });
 
-  it('never indexes internal, unavailable, or explicitly denied tools', () => {
+  it('never indexes unavailable or explicitly denied catalog tools', () => {
     const policy: AgentProviderToolPolicy = {
-      scopes: ['general', 'shadow-internal', 'runtime-virtual'],
+      scopes: ['general'],
       accesses: ['read', 'write'],
       certifications: ['unavailable', 'read-certified', 'write-certified', 'internal-certified'],
       denyNames: ['read_node'],
     };
     const strategy = createDriftingToolSelectionStrategy({ policy });
     const selected = strategy.select(
-      request('shadow_commit_review delete_element read_node', [
-        'shadow_commit_review',
+      request('delete_element read_node', [
         'delete_element',
         'read_node',
         'get_project_brief',
       ]),
     );
 
-    expect(selected).not.toContain('shadow_commit_review');
     expect(selected).not.toContain('delete_element');
     expect(selected).not.toContain('read_node');
   });
