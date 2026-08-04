@@ -45,6 +45,7 @@
     "eval:agent:extensions": "node src/renderer/lib/agent/runtime/acceptance/milestone-i-provider-extension.acceptance.mjs --output=docs/agent-runtime/acceptance/milestone-i-provider-extension.json",
     "eval:agent:extensions:live": "node scripts/run-agent-provider-live-canary.mjs",
     "eval:agent:shadow-runtime": "vitest run src/renderer/lib/agent/runtime/completion-tool.test.ts src/renderer/lib/agent/runtime/acceptance/shadow-shared-runtime.acceptance.test.ts && vitest run --config vitest.eval.config.ts src/renderer/lib/shadow/eval/smoke.eval.ts",
+    "eval:agent:openai-native": "node src/renderer/lib/agent/runtime/acceptance/openai-native-transport.acceptance.mjs --output=docs/agent-runtime/acceptance/openai-native-transport.json",
     "eval:agent:endurance:4h": "node scripts/agent-endurance-soak.mjs --profile=4h",
     "eval:agent:endurance:12h": "node scripts/agent-endurance-soak.mjs --profile=12h",
     "eval:agent:native:verify": "node scripts/agent-native-artifact-smoke.mjs",

@@ -1,4 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const nativeMocks = vi.hoisted(() => ({
+  isTauriRuntime: vi.fn(() => false),
+  request: vi.fn(),
+}));
+
+vi.mock('../../../../platform', () => ({
+  isTauriRuntime: nativeMocks.isTauriRuntime,
+  platform: { openAIResponses: { request: nativeMocks.request } },
+}));
 import { AIError } from '../../../ai/types';
 import { publicModelDriverErrorMessage } from '../errors';
 import type { AgentModelRequest, AgentModelStreamEvent } from '../types';
@@ -33,6 +43,11 @@ async function collect(driver: DriftingAgentModelDriver): Promise<AgentModelStre
 }
 
 describe('DriftingAgentModelDriver', () => {
+  beforeEach(() => {
+    nativeMocks.isTauriRuntime.mockReturnValue(false);
+    nativeMocks.request.mockReset();
+  });
+
   it('resolves credentials lazily and builds a fresh client for each turn', async () => {
     const createClient = vi.fn(async () => ({
       supportsTools: true,
@@ -128,6 +143,34 @@ describe('DriftingAgentModelDriver', () => {
     for await (const event of driver.stream({ ...request(), provider, model })) events.push(event);
     expect(createProviderDriver).toHaveBeenCalledWith(provider, model);
     expect(events[0]).toEqual({ type: 'text_delta', text: `${provider}:${model}` });
+  });
+
+  it('routes OpenAI through native Responses transport inside Tauri', async () => {
+    nativeMocks.isTauriRuntime.mockReturnValue(true);
+    nativeMocks.request.mockResolvedValue(
+      new Response(
+        'data: {"type":"response.completed","response":{"status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1}}}\n\ndata: [DONE]\n\n',
+        { status: 200 },
+      ),
+    );
+    const driver = new DriftingAgentModelDriver();
+    const events: AgentModelStreamEvent[] = [];
+
+    for await (const event of driver.stream({
+      ...request(),
+      provider: 'openai',
+      model: 'gpt-5.6-luna',
+    })) {
+      events.push(event);
+    }
+
+    expect(nativeMocks.request).toHaveBeenCalledOnce();
+    expect(JSON.parse(nativeMocks.request.mock.calls[0]![0])).toMatchObject({
+      model: 'gpt-5.6-luna',
+      stream: true,
+      store: false,
+    });
+    expect(events[events.length - 1]).toEqual({ type: 'finish', reason: 'end_turn' });
   });
 
   it('rejects a model from another provider before constructing a client', async () => {

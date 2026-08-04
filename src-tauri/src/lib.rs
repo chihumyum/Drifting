@@ -9,6 +9,7 @@ mod image_pipeline;
 mod mcp_http;
 mod mcp_stdio;
 mod native_capabilities;
+mod openai_responses;
 mod secure_storage;
 mod state;
 mod system_fonts;
@@ -109,6 +110,7 @@ pub fn run() {
         .manage(close_coordinator)
         .manage(mcp_http::McpHttpState::default())
         .manage(mcp_stdio::McpStdioState::default())
+        .manage(openai_responses::OpenAIResponsesState::default())
         .invoke_handler(tauri::generate_handler![
             commands::app_get_info,
             commands::app_get_path,
@@ -129,8 +131,11 @@ pub fn run() {
             mcp_stdio::mcp_stdio_notify,
             mcp_stdio::mcp_stdio_stop,
             mcp_stdio::mcp_stdio_status,
+            openai_responses::openai_responses_stream,
+            openai_responses::openai_responses_cancel,
             system_fonts::typography_list_system_fonts,
             secure_storage::keychain_get,
+            secure_storage::keychain_has,
             secure_storage::keychain_set,
             secure_storage::keychain_delete,
             native_capabilities::material_open_local,

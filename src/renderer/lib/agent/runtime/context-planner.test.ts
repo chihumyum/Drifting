@@ -769,6 +769,102 @@ describe('provider-neutral Agent context planner', () => {
     });
   });
 
+  it('retains an entire parallel tool batch when only one read becomes stale', async () => {
+    const readCall = (sourceId: string, ordinal: number, callId: string, path: string) =>
+      row(
+        sourceId,
+        ordinal,
+        0,
+        'tool_call',
+        JSON.stringify({
+          type: 'tool_call',
+          callId,
+          name: 'read_file',
+          arguments: { path },
+          rawArguments: JSON.stringify({ path }),
+        }),
+        { callId, toolName: 'read_file', toolAccess: 'read' },
+      );
+    const readResult = (sourceId: string, ordinal: number, callId: string) =>
+      row(
+        sourceId,
+        ordinal,
+        0,
+        'tool_result',
+        JSON.stringify({ callId, name: 'read_file', ok: true, content: `${callId}正文` }),
+        { callId, toolName: 'read_file', toolAccess: 'read' },
+      );
+    const rows = [
+      row('system', 0, null, 'system_policy', 'policy'),
+      row('user', 1, 0, 'user', '给米拉写起源故事'),
+      readCall('element-call', 2, 'element', '要素「米拉·索恩」'),
+      readCall('lana-call', 3, 'lana', '灵感「米拉·索恩」'),
+      readCall('outline-call', 4, 'outline', '灵感「故事大纲_b01」'),
+      readResult('element-result', 5, 'element'),
+      readResult('lana-result', 6, 'lana'),
+      readResult('outline-result', 7, 'outline'),
+      row(
+        'write-call',
+        8,
+        0,
+        'tool_call',
+        JSON.stringify({
+          type: 'tool_call',
+          callId: 'write-lana',
+          name: 'edit_file',
+          arguments: {
+            path: '灵感「米拉·索恩」',
+            replacements: [{ oldText: '旧故事', newText: '新的起源故事' }],
+          },
+        }),
+        { callId: 'write-lana', toolName: 'edit_file', toolAccess: 'write' },
+      ),
+      row(
+        'write-result',
+        9,
+        0,
+        'tool_result',
+        JSON.stringify({
+          callId: 'write-lana',
+          name: 'edit_file',
+          ok: true,
+          content: '灵感「米拉·索恩」已更新。',
+        }),
+        { callId: 'write-lana', toolName: 'edit_file', toolAccess: 'write' },
+      ),
+      row('write-receipt', 10, 0, 'write_receipt', '灵感「米拉·索恩」已可靠保存。'),
+    ];
+
+    const planned = await planAgentContext({
+      contextWindowTokens: 60_000,
+      requestedOutputTokens: 5_000,
+      fixedInputTokens: 0,
+      sourceRows: rows,
+      durableWriteEvidence: [
+        {
+          evidenceSourceId: 'write-receipt',
+          turnOrdinal: 0,
+          callId: 'write-lana',
+          toolName: 'edit_file',
+        },
+      ],
+    });
+
+    for (const sourceId of [
+      'element-call',
+      'lana-call',
+      'outline-call',
+      'element-result',
+      'lana-result',
+      'outline-result',
+    ]) {
+      expect(sourceSegment(planned, sourceId)).toMatchObject({
+        classification: 'compressible',
+        pinReason: 'recent_turn',
+      });
+    }
+  });
+
   it('drops a successful side-effect-free write while retaining an unresolved write', async () => {
     const toolRow = (
       sourceId: string,

@@ -21,10 +21,15 @@ type FetchLike = typeof fetch;
 type ResponsesItem = Record<string, unknown>;
 
 export interface OpenAIResponsesAgentDriverOptions {
-  apiKey: string;
+  apiKey?: string;
   defaultModel?: string;
   endpoint?: string;
   fetch?: FetchLike;
+  transport?: OpenAIResponsesTransport;
+}
+
+export interface OpenAIResponsesTransport {
+  request(body: string, signal: AbortSignal): Promise<Response>;
 }
 
 interface OpenAIFunctionCallState {
@@ -43,19 +48,22 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
     context: resolveAgentProviderContextProfile('openai', 'gpt-5.6-sol'),
   } as const;
 
-  private readonly apiKey: string;
+  private readonly apiKey: string | null;
   private readonly defaultModel: string;
   private readonly endpoint: string;
   private readonly fetchImpl: FetchLike;
+  private readonly transport?: OpenAIResponsesTransport;
   private readonly replayByCallId = new Map<string, readonly ResponsesItem[]>();
   private readonly nonReasoningCallIds = new Set<string>();
 
   constructor(options: OpenAIResponsesAgentDriverOptions) {
-    if (!options.apiKey.trim()) throw new Error('OpenAI API key is empty');
-    this.apiKey = options.apiKey;
+    const apiKey = options.apiKey?.trim() ?? '';
+    if (!apiKey && !options.transport) throw new Error('OpenAI API key is empty');
+    this.apiKey = apiKey || null;
     this.defaultModel = options.defaultModel ?? 'gpt-5.6-sol';
     this.endpoint = options.endpoint ?? 'https://api.openai.com/v1/responses';
     this.fetchImpl = options.fetch ?? fetch;
+    this.transport = options.transport;
   }
 
   async *stream(request: AgentModelRequest): AsyncIterable<AgentModelStreamEvent> {
@@ -81,56 +89,55 @@ export class OpenAIResponsesAgentDriver implements AgentModelDriver {
         : reasoningProfile.defaultEffort
       : 'none';
 
+    const input = projectResponsesInput(
+      request.context,
+      configuredReasoningEnabled ? this.replayByCallId : EMPTY_RESPONSES_REPLAY,
+    );
+    assertResponsesToolClosure(input);
+    const body = JSON.stringify({
+      model,
+      instructions: requirePlannedSystem(request.context.systemPrompt),
+      input,
+      max_output_tokens: request.maxOutputTokens,
+      stream: true,
+      store: false,
+      reasoning: {
+        effort,
+        ...(reasoningEnabled ? { summary: 'auto', context: 'current_turn' } : {}),
+      },
+      ...(reasoningEnabled ? { include: ['reasoning.encrypted_content'] } : {}),
+      ...(request.tools.length > 0
+        ? {
+            tools: request.tools.map((tool) => ({
+              type: 'function',
+              name: tool.name,
+              description: tool.description,
+              parameters: tool.inputSchema,
+            })),
+            tool_choice: openAIToolChoice(request.toolChoice),
+          }
+        : {}),
+    });
+
     let response: Response;
     try {
-      response = await this.fetchImpl(this.endpoint, {
-        method: 'POST',
-        redirect: 'error',
-        headers: {
-          authorization: `Bearer ${this.apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          instructions: requirePlannedSystem(request.context.systemPrompt),
-          input: projectResponsesInput(
-            request.context,
-            configuredReasoningEnabled
-              ? this.replayByCallId
-              : EMPTY_RESPONSES_REPLAY,
-          ),
-          max_output_tokens: request.maxOutputTokens,
-          stream: true,
-          store: false,
-          reasoning: {
-            effort,
-            ...(reasoningEnabled
-              ? { summary: 'auto', context: 'current_turn' }
-              : {}),
-          },
-          ...(reasoningEnabled
-            ? { include: ['reasoning.encrypted_content'] }
-            : {}),
-          ...(request.tools.length > 0
-            ? {
-                tools: request.tools.map((tool) => ({
-                  type: 'function',
-                  name: tool.name,
-                  description: tool.description,
-                  parameters: tool.inputSchema,
-                })),
-                tool_choice: openAIToolChoice(request.toolChoice),
-              }
-            : {}),
-        }),
-        signal: request.signal,
-      });
+      response = this.transport
+        ? await this.transport.request(body, request.signal)
+        : await this.fetchImpl(this.endpoint, {
+            method: 'POST',
+            redirect: 'error',
+            headers: {
+              authorization: `Bearer ${this.apiKey!}`,
+              'content-type': 'application/json',
+            },
+            body,
+            signal: request.signal,
+          });
     } catch (error) {
       if (request.signal.aborted) throw abortError();
-      void error;
-      throw new AgentModelDriverError('OpenAI request could not be started.');
+      throw requestStartError(error);
     }
-    if (!response.ok) throw responseError(response.status);
+    if (!response.ok) throw responseError(response);
 
     const callsByItemId = new Map<string, OpenAIFunctionCallState>();
     const callIds = new Set<string>();
@@ -355,7 +362,42 @@ function resolveSharedResponsesReplay(
       'OpenAI reasoning replay state is incomplete for the active tool loop.',
     );
   }
+  const replayCallIds = responseFunctionCallIds(values[0]!);
+  if (
+    replayCallIds.length !== callIds.length ||
+    replayCallIds.some((callId, index) => callId !== callIds[index])
+  ) {
+    throw new AgentModelDriverError(
+      'OpenAI reasoning replay cannot partially retain a parallel tool batch.',
+    );
+  }
   return values[0];
+}
+
+function assertResponsesToolClosure(input: readonly ResponsesItem[]): void {
+  const pending = new Set<string>();
+  for (const item of input) {
+    if (item.type === 'function_call') {
+      const callId = nonBlankString(item.call_id, 'tool call id');
+      if (pending.has(callId)) {
+        throw new AgentModelDriverError('OpenAI tool replay contains a duplicate call id.');
+      }
+      pending.add(callId);
+      continue;
+    }
+    if (item.type !== 'function_call_output') continue;
+    const callId = nonBlankString(item.call_id, 'tool call id');
+    if (!pending.delete(callId)) {
+      throw new AgentModelDriverError(
+        'OpenAI tool replay contains an output without its function call.',
+      );
+    }
+  }
+  if (pending.size > 0) {
+    throw new AgentModelDriverError(
+      'OpenAI tool replay is missing a function call output.',
+    );
+  }
 }
 
 function assertActiveResponsesReplay(
@@ -462,7 +504,13 @@ async function* parseSseJson(
   try {
     while (true) {
       if (signal.aborted) throw abortError();
-      const next = await reader.read();
+      let next: ReadableStreamReadResult<Uint8Array>;
+      try {
+        next = await reader.read();
+      } catch (error) {
+        if (signal.aborted) throw abortError();
+        throw responseStreamError(error);
+      }
       if (next.done) break;
       totalBytes += next.value.byteLength;
       if (totalBytes > 32 * 1024 * 1024) {
@@ -565,12 +613,64 @@ function optionalNonNegativeInteger(value: unknown): number {
   return value === undefined ? 0 : nonNegativeInteger(value, 'cached tokens');
 }
 
-function responseError(status: number): AgentModelDriverError {
-  if (status === 401 || status === 403) {
-    return new AgentModelDriverError('OpenAI authentication failed.');
+function responseError(response: Response): AgentModelDriverError {
+  const status = response.status;
+  const errorCode = response.headers.get('x-drifting-openai-error-code');
+  const requestId = response.headers.get('x-request-id');
+  const suffix =
+    requestId && /^[A-Za-z0-9_.:-]{1,200}$/.test(requestId)
+      ? ` Request ID: ${requestId}.`
+      : '';
+  if (errorCode === 'quota_exhausted') {
+    return new AgentModelDriverError(`OpenAI quota or billing access is unavailable.${suffix}`);
   }
-  if (status === 429) return new AgentModelDriverError('OpenAI rate limit reached.');
-  return new AgentModelDriverError('OpenAI request failed.');
+  if (errorCode === 'model_unavailable' || status === 404) {
+    return new AgentModelDriverError(
+      `The selected OpenAI model is unavailable to this API key.${suffix}`,
+    );
+  }
+  if (status === 401 || status === 403) {
+    return new AgentModelDriverError(`OpenAI authentication or project access failed.${suffix}`);
+  }
+  if (status === 429) {
+    return new AgentModelDriverError(`OpenAI rate limit reached.${suffix}`, true);
+  }
+  return new AgentModelDriverError(`OpenAI request failed with HTTP ${status}.${suffix}`);
+}
+
+function requestStartError(error: unknown): AgentModelDriverError {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('OPENAI_CREDENTIAL_MISSING')) {
+    return new AgentModelDriverError('OpenAI API key is not configured in Keychain.');
+  }
+  if (message.includes('OPENAI_CREDENTIAL_UNAVAILABLE')) {
+    return new AgentModelDriverError(
+      'OpenAI API key could not be read from Keychain. Check the macOS access prompt.',
+    );
+  }
+  if (message.includes('OPENAI_NETWORK_TIMEOUT')) {
+    return new AgentModelDriverError('OpenAI request timed out in the native runtime.', true);
+  }
+  if (message.includes('OPENAI_NETWORK_FAILED')) {
+    return new AgentModelDriverError(
+      'OpenAI could not be reached from the native runtime. Check the network or proxy.',
+      true,
+    );
+  }
+  if (message.includes('OPENAI_REQUEST_CANCELLED')) return abortError();
+  if (message.includes('OPENAI_STREAM_TOO_LARGE')) {
+    return new AgentModelDriverError('OpenAI stream exceeded the response limit.');
+  }
+  if (message.includes('OPENAI_STREAM_FAILED')) {
+    return new AgentModelDriverError('OpenAI response stream was interrupted.', true);
+  }
+  return new AgentModelDriverError('OpenAI request could not be started.');
+}
+
+function responseStreamError(error: unknown): AgentModelDriverError {
+  const projected = requestStartError(error);
+  if (projected.publicMessage !== 'OpenAI request could not be started.') return projected;
+  return new AgentModelDriverError('OpenAI response stream was interrupted.', true);
 }
 
 function invalidPlannedContext(): never {

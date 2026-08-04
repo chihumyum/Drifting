@@ -69,6 +69,8 @@ export interface AuthPlatformApi {
 
 export interface KeychainPlatformApi {
   get(key: string): Promise<string | null>;
+  /** Existence-only status. It must not release or decrypt a secret to JS. */
+  has(key: string): Promise<boolean>;
   set(key: string, value: string): Promise<boolean>;
   delete(key: string): Promise<boolean>;
 }
@@ -180,6 +182,11 @@ export interface McpHttpPlatformApi {
   cancel(requestId: string): Promise<boolean>;
 }
 
+export interface OpenAIResponsesPlatformApi {
+  /** Native fixed-origin Responses transport; the API key never enters JS. */
+  request(body: string, signal: AbortSignal): Promise<Response>;
+}
+
 export interface PlatformApi {
   readonly app: AppPlatformApi;
   readonly window: WindowPlatformApi;
@@ -192,4 +199,5 @@ export interface PlatformApi {
   readonly aiLog: AILogPlatformApi;
   readonly mcpStdio: McpStdioPlatformApi;
   readonly mcpHttp: McpHttpPlatformApi;
+  readonly openAIResponses: OpenAIResponsesPlatformApi;
 }

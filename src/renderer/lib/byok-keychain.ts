@@ -18,7 +18,7 @@ function keyOf(provider: BYOKProvider): string {
 }
 
 // Settings has several consumers for the active provider (provider row,
-// Copilot warning, Shadow status), and React Strict Mode intentionally mounts
+// Copilot warnings), and React Strict Mode intentionally mounts
 // effects twice in development. Coalesce only concurrent reads so one logical
 // lookup produces one OS prompt without retaining secrets beyond the caller's
 // own lifetime.
@@ -39,6 +39,12 @@ function readSecret(key: string): Promise<string | null> {
 }
 
 export const byokKeychain = {
+  async has(provider: BYOKProvider): Promise<boolean> {
+    if (await platform.keychain.has(keyOf(provider))) return true;
+    return provider === 'anthropic'
+      ? platform.keychain.has(LEGACY_AGENT_ANTHROPIC_KEY_ID)
+      : false;
+  },
   async get(provider: BYOKProvider): Promise<string | null> {
     const current = await readSecret(keyOf(provider));
     if (current || provider !== 'anthropic') return current;
@@ -84,14 +90,4 @@ function migrateLegacyAgentAnthropicKey(): Promise<string | null> {
   };
   void migration.then(clear, clear);
   return migration;
-}
-
-/**
- * Mask helper — UI-only. Renders the last 4 chars so users can confirm
- * which key they actually saved.
- */
-export function maskBYOK(raw: string | null): string {
-  if (!raw) return '';
-  const tail = raw.length > 4 ? raw.slice(-4) : raw;
-  return `${'•'.repeat(Math.max(6, Math.min(20, raw.length - 4)))}${tail}`;
 }

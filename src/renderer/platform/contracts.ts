@@ -227,6 +227,25 @@ export interface McpHttpResponseResult {
   body: string;
 }
 
+export interface OpenAIResponsesRequestInput {
+  /** Transport-only cancellation identity; never an OpenAI response id. */
+  requestId: string;
+  /** Responses API JSON body. Authorization is injected by native code. */
+  body: string;
+  timeoutMs: number;
+}
+
+export type OpenAIResponsesStreamEvent =
+  | {
+      type: 'started';
+      status: number;
+      requestId: string | null;
+      errorCode: string | null;
+      errorMessage: string | null;
+    }
+  | { type: 'chunk'; bytes: number[] | Uint8Array }
+  | { type: 'finished' };
+
 export interface TauriCommandContract {
   app_get_info: { args: undefined; result: AppInfo };
   app_get_path: { args: { name: string }; result: string };
@@ -245,6 +264,7 @@ export interface TauriCommandContract {
   lifecycle_complete_flush: { args: { requestId: number }; result: boolean };
   typography_list_system_fonts: { args: undefined; result: SystemFontFamily[] };
   keychain_get: { args: { key: string }; result: string | null };
+  keychain_has: { args: { key: string }; result: boolean };
   keychain_set: { args: { key: string; value: string }; result: boolean };
   keychain_delete: { args: { key: string }; result: boolean };
   material_open_local: { args: { filePath: string }; result: OpenResult };
@@ -337,6 +357,11 @@ export interface TauriCommandContract {
     result: McpHttpResponseResult;
   };
   mcp_http_cancel: { args: { requestId: string }; result: boolean };
+  openai_responses_stream: {
+    args: { input: OpenAIResponsesRequestInput; onEvent: unknown };
+    result: void;
+  };
+  openai_responses_cancel: { args: { requestId: string }; result: boolean };
 }
 
 export interface TauriEventContract {

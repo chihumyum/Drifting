@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-08-04
+Updated: 2026-08-05
 
 This document is the current human-readable milestone boundary. Historical
 `P*_*.md` reports remain evidence for their original checkout and must not be
@@ -87,6 +87,18 @@ MCP transport/security, durable grant and generation-lifecycle contract is in
 implementation and 162-test deterministic acceptance are recorded in
 [`MILESTONE_I_EXIT_REPORT.md`](MILESTONE_I_EXIT_REPORT.md) and
 [`milestone-i-provider-extension.json`](milestone-i-provider-extension.json).
+
+The 2026-08-05 OpenAI transport correction moved GPT-5.6 Responses traffic out
+of WKWebView and into a fixed-origin cancellable Rust host. OpenAI API keys are
+now injected from native Keychain storage, passive Models & API status uses an
+existence-only query, and redacted HTTP/model/quota/network failures preserve a
+safe OpenAI request id. Focused deterministic evidence is in
+[`openai-native-transport.json`](openai-native-transport.json); the paid Luna
+canary passed the provider wire, production Rust HTTP builder, and a
+reasoning-on three-parallel-read → durable-write → final-response replay. The
+complete dated evidence is recorded in
+[`OPENAI_NATIVE_TRANSPORT_RUN_2026-08-05.md`](OPENAI_NATIVE_TRANSPORT_RUN_2026-08-05.md)
+because network/account entitlement is not a deterministic release gate.
 
 Milestone J, native and endurance acceptance, is complete for the automated
 scope. Its build-vs-interaction and accelerated-vs-wall-clock evidence contract

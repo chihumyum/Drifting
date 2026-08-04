@@ -42,6 +42,35 @@ fn get_value(_app: &AppHandle, key: &str) -> Result<Option<String>, String> {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn has_value(_app: &AppHandle, key: &str) -> Result<bool, String> {
+    use security_framework::item::{ItemClass, ItemSearchOptions};
+
+    // Query attributes only and explicitly skip items that would require
+    // authentication. Reading kSecValueData here would turn a passive Settings
+    // status check into a macOS password prompt.
+    let result = ItemSearchOptions::new()
+        .class(ItemClass::generic_password())
+        .service(KEYCHAIN_SERVICE)
+        .account(key)
+        .load_attributes(true)
+        .skip_authenticated_items(true)
+        .limit(1)
+        .search();
+    match result {
+        Ok(items) => Ok(!items.is_empty()),
+        Err(error) if error.code() == -25300 => Ok(false), // errSecItemNotFound
+        Err(_) => Err("secure storage status check failed".into()),
+    }
+}
+
+#[cfg(any(target_os = "ios", target_os = "windows", target_os = "linux"))]
+fn has_value(app: &AppHandle, key: &str) -> Result<bool, String> {
+    // These stores do not expose the macOS attribute-only query. Keep the
+    // secret native and return only existence to the renderer.
+    get_value(app, key).map(|value| value.is_some())
+}
+
 #[cfg(any(
     target_os = "macos",
     target_os = "ios",
@@ -101,6 +130,11 @@ fn delete_value(app: &AppHandle, key: &str) -> Result<bool, String> {
         .map_err(|_| "secure storage delete failed".into())
 }
 
+#[cfg(target_os = "android")]
+fn has_value(app: &AppHandle, key: &str) -> Result<bool, String> {
+    get_value(app, key).map(|value| value.is_some())
+}
+
 #[cfg(not(any(
     target_os = "macos",
     target_os = "ios",
@@ -134,6 +168,24 @@ fn delete_value(_app: &AppHandle, _key: &str) -> Result<bool, String> {
     Err("secure storage is unavailable on this target".into())
 }
 
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "windows",
+    target_os = "linux",
+    target_os = "android"
+)))]
+fn has_value(_app: &AppHandle, _key: &str) -> Result<bool, String> {
+    Err("secure storage is unavailable on this target".into())
+}
+
+pub(crate) fn read_secret(app: &AppHandle, key: &str) -> Result<Option<String>, String> {
+    if !key_is_valid(key) {
+        return Err("invalid secure storage key".into());
+    }
+    get_value(app, key)
+}
+
 #[tauri::command]
 pub async fn keychain_get(app: AppHandle, key: String) -> Result<Option<String>, String> {
     if !key_is_valid(&key) {
@@ -141,6 +193,17 @@ pub async fn keychain_get(app: AppHandle, key: String) -> Result<Option<String>,
     }
 
     tauri::async_runtime::spawn_blocking(move || get_value(&app, &key))
+        .await
+        .map_err(|_| "secure storage worker failed".to_string())?
+}
+
+#[tauri::command]
+pub async fn keychain_has(app: AppHandle, key: String) -> Result<bool, String> {
+    if !key_is_valid(&key) {
+        return Err("invalid secure storage key".into());
+    }
+
+    tauri::async_runtime::spawn_blocking(move || has_value(&app, &key))
         .await
         .map_err(|_| "secure storage worker failed".to_string())?
 }

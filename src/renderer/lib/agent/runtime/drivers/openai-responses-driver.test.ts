@@ -307,6 +307,104 @@ describe('OpenAI Responses Agent driver', () => {
     ]);
   });
 
+  it('fails locally instead of sending a partially retained parallel reasoning batch', async () => {
+    const reasoningItem = {
+      id: 'rs_parallel',
+      type: 'reasoning',
+      encrypted_content: 'encrypted-parallel-state',
+      summary: [],
+    };
+    const firstFunction = {
+      id: 'fc_parallel_1',
+      type: 'function_call',
+      call_id: 'parallel-1',
+      name: 'read_object',
+      arguments: '{"target":"one"}',
+      status: 'completed',
+    };
+    const secondFunction = {
+      id: 'fc_parallel_2',
+      type: 'function_call',
+      call_id: 'parallel-2',
+      name: 'read_object',
+      arguments: '{"target":"two"}',
+      status: 'completed',
+    };
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        sse([
+          { type: 'response.output_item.added', item: firstFunction },
+          { type: 'response.output_item.done', item: firstFunction },
+          { type: 'response.output_item.added', item: secondFunction },
+          { type: 'response.output_item.done', item: secondFunction },
+          {
+            type: 'response.completed',
+            response: {
+              status: 'completed',
+              output: [reasoningItem, firstFunction, secondFunction],
+              usage: { input_tokens: 10, output_tokens: 5 },
+            },
+          },
+        ]),
+        { status: 200, headers: { 'content-type': 'text/event-stream' } },
+      ),
+    );
+    const driver = new OpenAIResponsesAgentDriver({ apiKey: 'test', fetch: fetchMock });
+
+    await collect(driver, request());
+
+    await expect(
+      collect(
+        driver,
+        request({
+          iteration: 2,
+          context: {
+            systemPrompt: 'Use only certified tools.',
+            messages: [
+              {
+                type: 'model_message',
+                sourceIds: ['message/user/1'],
+                message: { role: 'user', content: 'Read both objects.' },
+              },
+              {
+                type: 'model_message',
+                sourceIds: ['message/assistant/parallel-2'],
+                message: {
+                  role: 'assistant',
+                  content: [
+                    {
+                      type: 'tool_call',
+                      callId: 'parallel-2',
+                      name: 'read_object',
+                      arguments: { target: 'two' },
+                      rawArguments: '{"target":"two"}',
+                    },
+                  ],
+                },
+              },
+              {
+                type: 'model_message',
+                sourceIds: ['message/tool/parallel-2'],
+                message: {
+                  role: 'tool',
+                  content: [
+                    {
+                      callId: 'parallel-2',
+                      name: 'read_object',
+                      ok: true,
+                      content: 'two result',
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        }),
+      ),
+    ).rejects.toThrow('OpenAI reasoning replay cannot partially retain a parallel tool batch.');
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it('maps thinking off to reasoning effort none without requesting encrypted state', async () => {
     let body: Record<string, unknown> | undefined;
     const driver = new OpenAIResponsesAgentDriver({
@@ -336,6 +434,63 @@ describe('OpenAI Responses Agent driver', () => {
     expect(body).not.toHaveProperty('include');
   });
 
+  it('uses a native transport without requiring or serializing an API key', async () => {
+    const transport = {
+      request: vi.fn(async (body: string) => {
+        expect(body).not.toContain('sk-native-secret');
+        return new Response(
+          sse([
+            {
+              type: 'response.completed',
+              response: {
+                status: 'completed',
+                output: [],
+                usage: { input_tokens: 1, output_tokens: 1 },
+              },
+            },
+          ]),
+          { status: 200 },
+        );
+      }),
+    };
+    const driver = new OpenAIResponsesAgentDriver({
+      defaultModel: 'gpt-5.6-luna',
+      transport,
+    });
+
+    await expect(
+      collect(
+        driver,
+        request({ model: 'gpt-5.6-luna', tools: [], reasoning: { enabled: false } }),
+      ),
+    ).resolves.toContainEqual({ type: 'finish', reason: 'end_turn' });
+    expect(transport.request).toHaveBeenCalledOnce();
+    expect(JSON.parse(transport.request.mock.calls[0]![0])).toMatchObject({
+      model: 'gpt-5.6-luna',
+      stream: true,
+      store: false,
+    });
+  });
+
+  it('surfaces native model entitlement and request id without raw response data', async () => {
+    const driver = new OpenAIResponsesAgentDriver({
+      transport: {
+        request: async () =>
+          new Response(null, {
+            status: 404,
+            headers: {
+              'x-drifting-openai-error-code': 'model_unavailable',
+              'x-request-id': 'req_safe_123',
+            },
+          }),
+      },
+    });
+
+    await expect(collect(driver, request())).rejects.toThrow(
+      'The selected OpenAI model is unavailable to this API key. Request ID: req_safe_123.',
+    );
+  });
+
   it('does not leak an authentication response body', async () => {
     const driver = new OpenAIResponsesAgentDriver({
       apiKey: 'secret-key',
@@ -343,7 +498,7 @@ describe('OpenAI Responses Agent driver', () => {
         new Response('Bearer secret-key at https://internal.invalid', { status: 401 }),
     });
     await expect(collect(driver, request())).rejects.toThrow(
-      'OpenAI authentication failed.',
+      'OpenAI authentication or project access failed.',
     );
   });
 });

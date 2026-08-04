@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { Channel, convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { APP_CONFIG } from '../lib/config';
 import { hasPdfSignature, renderPdfThumbnail } from '../lib/pdf-thumbnail';
@@ -9,6 +9,7 @@ import type {
   LifecycleEventPayload,
   NativeBytes,
   NativePlatformCapabilities,
+  OpenAIResponsesStreamEvent,
   PlatformCapabilities,
   PrepareImageResult,
   TauriCommandArgs,
@@ -147,6 +148,100 @@ async function readNativeFileBytes(filePath: string): Promise<ArrayBuffer | null
 function normalizeAssetFileUrl<T extends { ok: boolean }>(result: T): T {
   if (!result.ok || !('filePath' in result) || typeof result.filePath !== 'string') return result;
   return { ...result, fileUrl: convertFileSrc(result.filePath) };
+}
+
+function openAIRequestId(): string {
+  const randomId = globalThis.crypto?.randomUUID?.();
+  if (randomId) return `openai-${randomId}`;
+  return `openai-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function abortException(): DOMException {
+  return new DOMException('OpenAI request was cancelled.', 'AbortError');
+}
+
+function nativeOpenAIResponse(body: string, signal: AbortSignal): Promise<Response> {
+  requireTauriRuntime('openai_responses_stream');
+  if (signal.aborted) return Promise.reject(abortException());
+
+  const requestId = openAIRequestId();
+  let streamController!: ReadableStreamDefaultController<Uint8Array>;
+  let started = false;
+  let finished = false;
+  let settled = false;
+  let resolveStart!: (response: Response) => void;
+  let rejectStart!: (error: unknown) => void;
+
+  const cleanup = () => signal.removeEventListener('abort', onAbort);
+  const fail = (error: unknown) => {
+    if (finished) return;
+    finished = true;
+    cleanup();
+    if (!settled) {
+      settled = true;
+      rejectStart(error);
+    } else {
+      streamController.error(error);
+    }
+  };
+  const cancelNative = () => {
+    void invokeContract('openai_responses_cancel', { requestId }).catch(() => undefined);
+  };
+  const onAbort = () => {
+    cancelNative();
+    fail(abortException());
+  };
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      streamController = controller;
+    },
+    cancel() {
+      finished = true;
+      cancelNative();
+      cleanup();
+    },
+  });
+  const response = new Promise<Response>((resolve, reject) => {
+    resolveStart = resolve;
+    rejectStart = reject;
+  });
+  const onEvent = new Channel<OpenAIResponsesStreamEvent>((event) => {
+    if (finished) return;
+    if (event.type === 'started') {
+      if (started) {
+        fail(new PlatformCommandError('openai_responses_stream', 'duplicate start event'));
+        return;
+      }
+      started = true;
+      const headers = new Headers({ 'content-type': 'text/event-stream' });
+      if (event.requestId) headers.set('x-request-id', event.requestId);
+      if (event.errorCode) headers.set('x-drifting-openai-error-code', event.errorCode);
+      if (event.errorMessage) headers.set('x-drifting-openai-error-message', event.errorMessage);
+      settled = true;
+      resolveStart(new Response(stream, { status: event.status, headers }));
+      return;
+    }
+    if (!started) {
+      fail(new PlatformCommandError('openai_responses_stream', 'stream data preceded start'));
+      return;
+    }
+    if (event.type === 'chunk') {
+      streamController.enqueue(
+        event.bytes instanceof Uint8Array ? event.bytes : Uint8Array.from(event.bytes),
+      );
+      return;
+    }
+    finished = true;
+    cleanup();
+    streamController.close();
+  });
+
+  signal.addEventListener('abort', onAbort, { once: true });
+  void invokeContract('openai_responses_stream', {
+    input: { requestId, body, timeoutMs: 600_000 },
+    onEvent,
+  }).catch(fail);
+  return response;
 }
 
 function isMobilePlatform(platform: string): boolean {
@@ -379,6 +474,7 @@ export const tauriPlatform: PlatformApi = {
 
   keychain: {
     get: (key) => invokeContract('keychain_get', { key }),
+    has: (key) => invokeContract('keychain_has', { key }),
     set: (key, value) => invokeContract('keychain_set', { key, value }),
     delete: (key) => invokeContract('keychain_delete', { key }),
   },
@@ -527,5 +623,9 @@ export const tauriPlatform: PlatformApi = {
   mcpHttp: {
     request: (input) => invokeContract('mcp_http_request', { input }),
     cancel: (requestId) => invokeContract('mcp_http_cancel', { requestId }),
+  },
+
+  openAIResponses: {
+    request: nativeOpenAIResponse,
   },
 };

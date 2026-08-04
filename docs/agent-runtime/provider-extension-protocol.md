@@ -21,6 +21,11 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   `none`; thinking-on maps to the selected `low` through `max` effort. Requests
   use `store: false`, request encrypted reasoning content, and replay the exact
   response output items only inside the active tool loop.
+- One assistant response is one opaque reasoning replay unit. If it contains
+  parallel tool calls, context retirement retains or compacts the complete
+  overlapping call/result batch; it never removes one call/result pair while
+  replaying its siblings. The OpenAI adapter verifies the complete replay call
+  set and matching `function_call_output` closure before network dispatch.
 - All three adapters project into the same `thinking_delta`, `text_delta`,
   complete tool-call arguments, usage and terminal-finish events. Provider
   opaque replay state never becomes portable canonical conversation history;
@@ -42,6 +47,11 @@ MCP servers, dynamic tools, secrets, permissions and lifecycle ownership.
   catalog. The planner may reserve or reduce that budget, never enlarge it.
 - Provider API keys are independent native Keychain entries. They do not enter
   SQLite, localStorage, the sync service, MCP configuration or logs.
+- OpenAI Responses calls leave the WebView entirely: renderer code sends only
+  the bounded JSON body over a cancellable Tauri channel, while the fixed-origin
+  Rust host reads `byok.openai` and injects Authorization natively. A Keychain,
+  connection, HTTP/model-entitlement, quota or stream failure is projected to a
+  stable redacted class plus an OpenAI request id when one exists.
 
 ## 2. MCP configuration and discovery
 
@@ -81,6 +91,16 @@ exactly one matching response. A `404` on an established session invalidates
 the session and requires reconnect; the failed request is never replayed.
 Session deletion on close is best effort.
 
+### OpenAI Responses
+
+All Tauri targets use the dedicated native Rust Responses host for General
+Agent OpenAI turns. It is fixed to `https://api.openai.com/v1/responses`, allows
+only the certified GPT-5.6 Sol/Terra/Luna models, requires `stream: true` and
+`store: false`, rejects redirects, bounds request/error/stream bytes and
+forwards author cancellation. It is not the configurable MCP HTTP transport.
+The renderer reconstructs an ordered `ReadableStream` from Tauri channel bytes;
+it never receives an Authorization header or the OpenAI credential.
+
 ## 4. Generation lifecycle and failure isolation
 
 One `(project, server, configRevision)` owns exactly one transport, client and
@@ -111,8 +131,9 @@ can revoke each grant explicitly.
 ## 6. Product and data flow
 
 1. Settings normalizes provider/model/thinking/effort against the certified
-   model profile, freezes all four for a requested turn and reads its Keychain
-   key lazily.
+   model profile and freezes all four for a requested turn. OpenAI credentials
+   are read lazily by the native Responses host; other certified adapters keep
+   their existing lazy credential path.
 2. Project activation reads MCP configuration/grants from device-local SQLite,
    resolves only referenced secrets from Keychain and registers healthy tools.
 3. The runtime freezes selected built-in/dynamic definitions for one iteration,
@@ -124,7 +145,10 @@ can revoke each grant explicitly.
    not currently synchronized by Drifting Server. localStorage is not an
    extension or permission authority.
 
-The Agent settings surface provides server create/edit/delete, enable/disable,
+The Models & API surface queries credential existence rather than credential
+data when it renders; on macOS the query requests Keychain attributes only and
+skips authentication UI. Decrypting a key is limited to an explicit provider
+operation. The Agent settings surface provides server create/edit/delete, enable/disable,
 health, reconnect, discovered-tool policy and grant revocation. Existing secret
 fields remain blank when editing; blank means retain the Keychain value.
 

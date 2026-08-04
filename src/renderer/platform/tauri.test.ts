@@ -5,9 +5,18 @@ const tauriMocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   listen: vi.fn(),
   unlisten: vi.fn(),
+  channels: [] as Array<{ onmessage: (event: unknown) => void }>,
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
+  Channel: class MockChannel {
+    onmessage: (event: unknown) => void;
+
+    constructor(onmessage: (event: unknown) => void) {
+      this.onmessage = onmessage;
+      tauriMocks.channels.push(this);
+    }
+  },
   convertFileSrc: tauriMocks.convertFileSrc,
   invoke: tauriMocks.invoke,
 }));
@@ -23,6 +32,101 @@ import {
   NATIVE_OAUTH_REDIRECT_URI,
   NATIVE_OAUTH_STATE_TTL_MS,
 } from './native-oauth-state';
+
+describe('tauri native OpenAI and Keychain status transport', () => {
+  beforeEach(() => {
+    tauriMocks.invoke.mockReset();
+    tauriMocks.channels.length = 0;
+    Object.defineProperty(globalThis, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {},
+    });
+  });
+
+  it('checks Keychain existence without invoking the secret read command', async () => {
+    tauriMocks.invoke.mockResolvedValue(true);
+
+    await expect(tauriPlatform.keychain.has('byok.openai')).resolves.toBe(true);
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('keychain_has', {
+      key: 'byok.openai',
+    });
+    expect(tauriMocks.invoke).not.toHaveBeenCalledWith('keychain_get', expect.anything());
+  });
+
+  it('reconstructs an ordered Responses stream from native channel bytes', async () => {
+    const ssePayload =
+      'data: {"type":"response.completed","response":{"output":[],"usage":{"input_tokens":1,"output_tokens":1}}}\n\n';
+    tauriMocks.invoke.mockImplementation(async (command: string, args?: unknown) => {
+      if (command !== 'openai_responses_stream') {
+        throw new Error(`unexpected command: ${command}`);
+      }
+      const payload = args as {
+        input: { body: string; requestId: string; timeoutMs: number };
+        onEvent: { onmessage: (event: unknown) => void };
+      };
+      expect(payload.input.body).toBe('{"model":"gpt-5.6-luna"}');
+      expect(JSON.stringify(payload)).not.toContain('Authorization');
+      payload.onEvent.onmessage({
+        type: 'started',
+        status: 200,
+        requestId: 'req_native_1',
+        errorCode: null,
+        errorMessage: null,
+      });
+      payload.onEvent.onmessage({
+        type: 'chunk',
+        bytes: Array.from(new TextEncoder().encode(ssePayload)),
+      });
+      payload.onEvent.onmessage({ type: 'finished' });
+      return undefined;
+    });
+
+    const response = await tauriPlatform.openAIResponses.request(
+      '{"model":"gpt-5.6-luna"}',
+      new AbortController().signal,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-request-id')).toBe('req_native_1');
+    await expect(response.text()).resolves.toBe(ssePayload);
+  });
+
+  it('forwards AbortSignal cancellation to the active native request', async () => {
+    tauriMocks.invoke.mockImplementation(async (command: string, args?: unknown) => {
+      if (command === 'openai_responses_cancel') return true;
+      if (command !== 'openai_responses_stream') {
+        throw new Error(`unexpected command: ${command}`);
+      }
+      const payload = args as {
+        onEvent: { onmessage: (event: unknown) => void };
+      };
+      payload.onEvent.onmessage({
+        type: 'started',
+        status: 200,
+        requestId: 'req_native_abort',
+        errorCode: null,
+        errorMessage: null,
+      });
+      return new Promise(() => undefined);
+    });
+    const controller = new AbortController();
+    const response = await tauriPlatform.openAIResponses.request(
+      '{"model":"gpt-5.6-luna"}',
+      controller.signal,
+    );
+    const read = response.body!.getReader().read();
+
+    controller.abort();
+
+    await expect(read).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.waitFor(() => {
+      expect(tauriMocks.invoke).toHaveBeenCalledWith(
+        'openai_responses_cancel',
+        expect.objectContaining({ requestId: expect.stringMatching(/^openai-/) }),
+      );
+    });
+  });
+});
 
 describe('tauri General Agent capability', () => {
   beforeEach(() => {

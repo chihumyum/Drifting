@@ -1590,6 +1590,37 @@ function activeTurnDurableWriteSourceIds(input: {
 }
 
 /**
+ * Provider reasoning state is emitted once for one assistant response, not once
+ * per individual tool call. Parallel calls from that response therefore share
+ * one opaque replay batch. Retain the whole overlapping call/result topology
+ * unit unless every tool row in it is discardable; otherwise a provider replay
+ * can restore a dropped call without its matching result.
+ *
+ * Sequential tool pairs remain independent because their intervals do not
+ * overlap and groupAgentContextRowsByToolTopology returns separate units.
+ */
+function replaySafeDiscardableToolSourceIds(input: {
+  rows: readonly AgentContextSourceRow[];
+  candidateSourceIds: ReadonlySet<string>;
+}): Set<string> {
+  const safe = new Set(input.candidateSourceIds);
+  for (const unit of groupAgentContextRowsByToolTopology(input.rows)) {
+    const toolSourceIds = unit.flatMap((row) =>
+      row.kind === 'tool_call' || row.kind === 'tool_result' ? [row.sourceId] : [],
+    );
+    if (
+      toolSourceIds.length === 0 ||
+      toolSourceIds.every((sourceId) => safe.has(sourceId)) ||
+      toolSourceIds.every((sourceId) => !safe.has(sourceId))
+    ) {
+      continue;
+    }
+    for (const sourceId of toolSourceIds) safe.delete(sourceId);
+  }
+  return safe;
+}
+
+/**
  * Keep only the newest complete read of one authored object in provider
  * context. Canonical history remains untouched, but an older full read cannot
  * be more current than a later successful full read of the same target. This
@@ -2200,7 +2231,7 @@ export async function planAgentContext(
       toolPairs,
       durablyCoveredSourceIds: coveredWriteSourceIds,
     });
-    const discardableToolSourceIds = new Set([
+    const candidateDiscardableToolSourceIds = new Set([
       ...[...coveredWriteSourceIds].filter(
         (sourceId) => !activeDurableWriteSourceIds.has(sourceId),
       ),
@@ -2208,6 +2239,10 @@ export async function planAgentContext(
       ...staleReadSourceIds({ toolPairs, durablyCoveredWriteSourceIds: coveredWriteSourceIds }),
       ...supersededReadSourceIds(toolPairs),
     ]);
+    const discardableToolSourceIds = replaySafeDiscardableToolSourceIds({
+      rows,
+      candidateSourceIds: candidateDiscardableToolSourceIds,
+    });
     const classifications = new Map(
       rows.map((row) => [
         row.sourceId,

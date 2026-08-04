@@ -24,6 +24,7 @@ import {
 } from '../agent-provider-contract';
 import { AnthropicMessagesAgentDriver } from './anthropic-messages-driver';
 import { OpenAIResponsesAgentDriver } from './openai-responses-driver';
+import { isTauriRuntime, platform } from '../../../../platform';
 
 export interface DriftingAgentModelDriverOptions {
   createClient?: () => Promise<AgentCompletionClient | LLMClient>;
@@ -148,6 +149,12 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
         return new AnthropicMessagesAgentDriver({ apiKey, defaultModel: model });
       }
       if (!this.hasLegacyClientOverride() && provider === 'openai') {
+        if (isTauriRuntime()) {
+          return new OpenAIResponsesAgentDriver({
+            defaultModel: model,
+            transport: platform.openAIResponses,
+          });
+        }
         const apiKey = await createCredentialChain().getApiKey('openai');
         return new OpenAIResponsesAgentDriver({ apiKey, defaultModel: model });
       }

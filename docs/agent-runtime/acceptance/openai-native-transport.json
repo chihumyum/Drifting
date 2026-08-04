@@ -1,0 +1,56 @@
+{
+  "suite": "openai-native-responses-and-keychain-status",
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-04T18:07:54.391Z",
+  "nodeVersion": "v24.4.0",
+  "platform": "darwin",
+  "sourceSetSha256": "sha256:ff113ec1ba5e628c4c31ace3753646ee81ca4f8d190b41b0825e6311d54334c6",
+  "vitest": {
+    "files": 4,
+    "tests": 38,
+    "passedTests": 38,
+    "passed": true
+  },
+  "typecheck": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "lint": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "rustOpenAITransport": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "rustSecureStorage": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "rustCheck": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "rustFormat": {
+    "exitCode": 0,
+    "signal": null,
+    "passed": true
+  },
+  "evidence": {
+    "responseHost": "fixed-native-https-api.openai.com-v1-responses",
+    "authorization": "native-keychain-injection-never-renderer",
+    "rendererTransport": "ordered-tauri-channel-with-abort-forwarding",
+    "settingsStatus": "existence-only; macos-attributes-with-authentication-ui-skipped",
+    "workspaceTypecheck": "full-tsc-noEmit",
+    "paidLiveCanary": "explicit-separate-command-only"
+  },
+  "boundaries": {
+    "macosPromptUI": "OS password-dialog behavior requires interactive acceptance"
+  },
+  "passed": true
+}

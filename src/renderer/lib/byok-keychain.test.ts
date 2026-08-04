@@ -2,12 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  has: vi.fn(),
   set: vi.fn(),
   delete: vi.fn(),
 }));
 
 vi.mock('../platform', () => ({
-  platform: { keychain: { get: mocks.get, set: mocks.set, delete: mocks.delete } },
+  platform: {
+    keychain: { get: mocks.get, has: mocks.has, set: mocks.set, delete: mocks.delete },
+  },
 }));
 
 describe('BYOK keychain reads', () => {
@@ -34,6 +37,25 @@ describe('BYOK keychain reads', () => {
 
     resolveRead('secret');
     await expect(Promise.all([first, second])).resolves.toEqual(['secret', 'secret']);
+  });
+
+  it('checks status without reading the credential value', async () => {
+    mocks.has.mockResolvedValue(true);
+    const { byokKeychain } = await import('./byok-keychain');
+
+    await expect(byokKeychain.has('openai')).resolves.toBe(true);
+    expect(mocks.has).toHaveBeenCalledWith('byok.openai');
+    expect(mocks.get).not.toHaveBeenCalled();
+  });
+
+  it('recognizes the legacy Anthropic entry without decrypting it', async () => {
+    mocks.has.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const { byokKeychain } = await import('./byok-keychain');
+
+    await expect(byokKeychain.has('anthropic')).resolves.toBe(true);
+    expect(mocks.has).toHaveBeenNthCalledWith(1, 'byok.anthropic');
+    expect(mocks.has).toHaveBeenNthCalledWith(2, 'byok.agent.anthropic');
+    expect(mocks.get).not.toHaveBeenCalled();
   });
 
   it('does not retain a resolved secret in the read coalescer', async () => {

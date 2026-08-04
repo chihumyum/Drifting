@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { byokKeychain, maskBYOK, type BYOKProvider } from '../../lib/byok-keychain';
+import { byokKeychain, type BYOKProvider } from '../../lib/byok-keychain';
 import { apiClient } from '../../lib/axios-config';
 import { isByokOnly } from '../../lib/config';
 import { getCopilotCapability } from '../../lib/copilot/capability';
@@ -2520,21 +2520,23 @@ function ProviderRow({
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
-  const [stored, setStored] = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
+  const selectedAgentProvider = useSettingsStore((state) => state.agentProvider);
+  const selectedAgentModel = useSettingsStore((state) => state.agentModel);
 
-  // Hydrate from the OS keychain on mount. The renderer never holds the
-  // secret in any persisted store — only this local state for masking.
+  // Settings needs existence only. On macOS this is an attribute-only native
+  // query, so merely scrolling this panel into view never asks to decrypt keys.
   useEffect(() => {
     if (!credentialsActive) return;
     let cancelled = false;
     void byokKeychain
-      .get(provider)
+      .has(provider)
       .then((value) => {
-        if (!cancelled) setStored(value);
+        if (!cancelled) setConnected(value);
       })
       .catch(() => {
-        if (!cancelled) setStored(null);
+        if (!cancelled) setConnected(false);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -2544,19 +2546,60 @@ function ProviderRow({
     };
   }, [credentialsActive, provider]);
 
-  const connected = !!stored;
-  const masked = useMemo(() => maskBYOK(stored), [stored]);
-
   const [testState, setTestState] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
   const [testMsg, setTestMsg] = useState('');
 
   const testConnection = async () => {
-    if (!stored) return;
+    if (!connected) return;
     setTestState('testing');
     setTestMsg('');
     try {
-      // Send the key for THIS row (not the active one) so the user can verify a
-      // specific provider's key. Server makes a tiny call and reports ok/fail.
+      if (provider === 'openai') {
+        const certifiedModels = agentProviderOption('openai').models;
+        const model =
+          selectedAgentProvider === 'openai' &&
+          certifiedModels.some((candidate) => candidate.value === selectedAgentModel)
+            ? selectedAgentModel
+            : certifiedModels[0]!.value;
+        const response = await platform.openAIResponses.request(
+          JSON.stringify({
+            model,
+            instructions: 'Return exactly OK.',
+            input: 'Drifting native connectivity check.',
+            max_output_tokens: 32,
+            stream: true,
+            store: false,
+            reasoning: { effort: 'none' },
+          }),
+          new AbortController().signal,
+        );
+        if (!response.ok) {
+          setTestState('fail');
+          setTestMsg(
+            response.headers.get('x-drifting-openai-error-message') ??
+              t('settings.byokProvider.invalidKey'),
+          );
+          return;
+        }
+        const stream = await response.text();
+        if (!/"type"\s*:\s*"response\.completed"/.test(stream)) {
+          setTestState('fail');
+          setTestMsg(t('settings.byokProvider.requestFailed'));
+          return;
+        }
+        setTestState('ok');
+        return;
+      }
+
+      // Other provider tests retain their existing explicit-action path. No
+      // secret is read while Settings is only being viewed.
+      const stored = await byokKeychain.get(provider);
+      if (!stored) {
+        setConnected(false);
+        setTestState('fail');
+        setTestMsg(t('settings.byokProvider.invalidKey'));
+        return;
+      }
       const res = await apiClient.request<{ ok?: boolean; message?: string }>({
         method: 'POST',
         url: '/api/ai/byok/test',
@@ -2578,10 +2621,10 @@ function ProviderRow({
     const value = draft.trim();
     if (!value) {
       await byokKeychain.clear(provider);
-      setStored(null);
+      setConnected(false);
     } else {
       await byokKeychain.set(provider, value);
-      setStored(value);
+      setConnected(true);
     }
     setDraft('');
     setEditing(false);
@@ -2590,7 +2633,7 @@ function ProviderRow({
 
   const disconnect = async () => {
     await byokKeychain.clear(provider);
-    setStored(null);
+    setConnected(false);
     events.emit('byok:keys-changed');
   };
 
@@ -2639,7 +2682,7 @@ function ProviderRow({
                   autoFocus
                 />
               ) : (
-                <code>{masked}</code>
+                <code>••••••••••••</code>
               )}
               {!editing && (
                 <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
@@ -3034,7 +3077,7 @@ const BYOK_PROVIDER_LABEL: Record<BYOKProvider, string> = {
   google: 'Google',
 };
 
-// Live keychain-connected status for one BYOK provider. Re-reads on mount and on
+// Live keychain-connected status for one BYOK provider. Re-checks on mount and on
 // any 'byok:keys-changed' (ProviderRow connect/disconnect) so indicators that
 // don't own ProviderRow's local state stay in sync. null = still loading.
 function useByokConnected(provider: BYOKProvider, credentialsActive: boolean): boolean | null {
@@ -3044,9 +3087,9 @@ function useByokConnected(provider: BYOKProvider, credentialsActive: boolean): b
     let cancelled = false;
     const read = () => {
       void byokKeychain
-        .get(provider)
-        .then((k) => {
-          if (!cancelled) setConnected(!!k);
+        .has(provider)
+        .then((exists) => {
+          if (!cancelled) setConnected(exists);
         })
         .catch(() => {
           if (!cancelled) setConnected(false);
