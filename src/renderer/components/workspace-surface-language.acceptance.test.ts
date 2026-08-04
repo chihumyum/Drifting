@@ -351,6 +351,53 @@ describe('workspace surface language acceptance', () => {
     }
   });
 
+  it('keeps unaffiliated chapters as the final storyline-style group instead of a footer', () => {
+    const chapterPanel = source('src/renderer/components/leftBars/ChapterPanel.tsx');
+    const store = source('src/renderer/store/ui-store.ts');
+    const designSystem = source('docs/design-system.md');
+    const unaffiliatedGroup = block(
+      chapterPanel,
+      '{/* Unaffiliated is deliberately appended after every persisted',
+      '{!hasStorylines && (',
+    );
+    const realGroupsIndex = chapterPanel.indexOf('{storylines.map((storyline) => {');
+    const unaffiliatedGroupIndex = chapterPanel.indexOf('key={UNAFFILIATED_GROUP_ID}');
+
+    expect(realGroupsIndex).toBeGreaterThanOrEqual(0);
+    expect(unaffiliatedGroupIndex).toBeGreaterThan(realGroupsIndex);
+    expect(chapterPanel).not.toContain("from '../ui/CollapsibleFooter'");
+    expect(chapterPanel).not.toContain('<CollapsibleFooter');
+    expect(chapterPanel).toContain(
+      'return new Set([...storylines.map((s) => s.id), UNAFFILIATED_GROUP_ID]);',
+    );
+    expect(chapterPanel).toContain(
+      'const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());',
+    );
+    expect(unaffiliatedGroup).toContain('<GroupHeaderCell');
+    expect(unaffiliatedGroup).toContain("name={t('leftSidebar.groups.unaffiliated')}");
+    expect(unaffiliatedGroup).toContain(
+      'collapsed={collapsedGroupIds.has(UNAFFILIATED_GROUP_ID)}',
+    );
+    expect(unaffiliatedGroup).toContain(
+      'onToggleCollapsed={() => toggleGroupCollapsed(UNAFFILIATED_GROUP_ID)}',
+    );
+    expect(unaffiliatedGroup).toContain('onAdd={() => void handleCreateNode(null)}');
+    expect(unaffiliatedGroup).toContain('unaffiliatedChapters.map((node) => renderNodeCard(node))');
+    expect(chapterPanel).toContain(
+      "const UNAFFILIATED_STRIPE_COLOR = 'hsl(var(--ink-4))';",
+    );
+    expect(chapterPanel).toContain(
+      'const stripeColor = storyline?.color ?? UNAFFILIATED_STRIPE_COLOR;',
+    );
+    expect(chapterPanel).not.toContain("const stripeColor = storyline?.color ?? 'transparent';");
+    expect(store).not.toContain('chapterUnaffiliatedFooterHeight');
+    expect(designSystem).toContain(
+      '“未归属”复用普通故事线组的 header、计数、折叠与新增章节交互',
+    );
+    expect(designSystem).toContain('固定追加在全部真实故事线之后');
+    expect(designSystem).toContain('左侧 label 使用与组头一致的 `--ink-4` 中性灰');
+  });
+
   it('keeps the shared entity hover preview shadow clear of its hovered cell', () => {
     const css = source('src/styles/index.css');
     const hoverCard = source('src/renderer/components/ui/EntityHoverCard.tsx');

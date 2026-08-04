@@ -11,17 +11,16 @@ import { ChevronUp } from 'lucide-react';
 
 /**
  * Shared collapsible footer drawer used by the sidebar panels:
- * ChapterPanel「未归属」, DriftPanel「休眠」, TodoPanel「已完成」,
- * ShadowPanel「已归档」. One implementation so the four stay in lockstep — a
+ * MemoMaterialPanel「已完成」and ShadowPanel「已归档」. One implementation keeps
+ * both in lockstep: a
  * 28px header strip pinned to the bottom of the panel, a chevron-left
  * disclosure toggle (a real <button>, so it's keyboard- and screen-reader
  * reachable), and a top-edge drag handle that resizes the expanded height,
  * clamped between `minHeight` and 90% of the parent panel.
  *
- * Both the expand state and the height can be controlled or left internal:
- * ChapterPanel feeds a persisted height in from the ui-store; ShadowPanel
- * controls the expand state so it can fold the drawer shut after a bulk
- * delete. Everyone else just lets the component own both.
+ * Both the expand state and the height can be controlled or left internal.
+ * ShadowPanel controls the expand state so it can fold the drawer shut after
+ * a bulk delete; other consumers can let the component own both.
  */
 
 export const COLLAPSIBLE_FOOTER_HEADER_HEIGHT = 28;

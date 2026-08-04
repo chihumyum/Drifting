@@ -195,12 +195,6 @@ interface UiState {
   elementCategoryFooterHeight: number | null;
   setElementCategoryFooterHeight: (height: number | null) => void;
 
-  // Resized height of the ChapterPanel 未归属 footer when expanded. null =
-  // default ratio (40% of the panel). Persisted so the layout sticks across
-  // sessions; only meaningful while the footer is expanded.
-  chapterUnaffiliatedFooterHeight: number | null;
-  setChapterUnaffiliatedFooterHeight: (height: number | null) => void;
-
   // Whether the BottomTimeline 未归属 lane is currently visible. Persisted so
   // toggling the lane sticks across sessions; the lane itself is meaningful
   // only when the project has at least one storyline (see BottomTimeline).
@@ -542,9 +536,6 @@ export const useUiStore = create<UiState>()(
 
       elementCategoryFooterHeight: null,
       setElementCategoryFooterHeight: (height) => set({ elementCategoryFooterHeight: height }),
-      chapterUnaffiliatedFooterHeight: null,
-      setChapterUnaffiliatedFooterHeight: (height) =>
-        set({ chapterUnaffiliatedFooterHeight: height }),
       bottomTimelineUnaffiliatedVisible: false,
       setBottomTimelineUnaffiliatedVisible: (visible) =>
         set({ bottomTimelineUnaffiliatedVisible: visible }),
@@ -1275,7 +1266,6 @@ export const useUiStore = create<UiState>()(
         plotPlannerOpen: state.plotPlannerOpen,
         plotPlannerHeight: state.plotPlannerHeight,
         elementCategoryFooterHeight: state.elementCategoryFooterHeight,
-        chapterUnaffiliatedFooterHeight: state.chapterUnaffiliatedFooterHeight,
         bottomTimelineUnaffiliatedVisible: state.bottomTimelineUnaffiliatedVisible,
         driftSortMode: state.driftSortMode,
         chapterGlobalSortMode: state.chapterGlobalSortMode,

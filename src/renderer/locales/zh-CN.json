@@ -1788,7 +1788,6 @@
       "noElements": "还没有元素。",
       "noChapters": "还没有章节。",
       "noStorylines": "还没有故事线。",
-      "noUnaffiliatedChapters": "没有未归属章节。",
       "noDrifts": "还没有灵感。"
     },
     "meta": {
@@ -1803,8 +1802,6 @@
       "addElementToGroup": "在此分组新建元素",
       "newChapterInStoryline": "在此故事线中新建章节",
       "unaffiliated": "未归属",
-      "expandUnaffiliated": "展开未归属",
-      "collapseUnaffiliated": "收起未归属",
       "newDriftInGroup": "在此新建灵感",
       "newSubGroup": "新建子分组",
       "clickCollapseRename": "单击折叠 · 双击重命名",

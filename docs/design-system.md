@@ -54,6 +54,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - 侧栏中的高密度 TODO/资料列表使用 `.workspace-list` 与 `.workspace-list-row`：cell 保留简单的四边 border、`2px` 小圆角和略浅于 panel 的灰色底，彼此留出小间距；hover/focus 只轻微提高底色，不增加阴影或位移。
 - 左栏的章节、元素与漂流 cell 选中态复用顶部文档 Tab 的 `--surface` 背景，并以 `--ink-1` 文字和现有字重表达焦点；不再使用蓝色 `--accent` wash。hover 与 TODO/Library card 共用 `--workspace-cell-hover-bg` 的轻微提亮，不再叠加黑色 wash。
 - 章节 panel 的全书/故事线视图切换使用纯文本摘要：全书模式显示总章数，故事线模式显示故事线数与总章数。文字本身是点击区域，只以文字颜色变化表达 hover/focus，不绘制 switch、底框或背景。
+- 章节 panel 按故事线分组时，“未归属”复用普通故事线组的 header、计数、折叠与新增章节交互，并固定追加在全部真实故事线之后；其章节继续服从故事线内排序，左侧 label 使用与组头一致的 `--ink-4` 中性灰，不留透明空槽。它与其他组共用同一个滚动容器，不再使用独立的底部 footer、展开抽屉或高度状态。
 - 标签、状态 chip、菜单、popover、dialog 和预览内容保持小圆角；头像、状态点、spinner 与 switch 可以保留其语义形状。它们不计作一级页面模块，也不应被无差别的全局 `border-radius: 0` 误伤。
 - 不使用 inset-left vertical accent bar；强调状态继续使用背景 wash、细分隔线、字重或语义颜色。
 

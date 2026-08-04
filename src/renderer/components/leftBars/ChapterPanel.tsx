@@ -8,9 +8,7 @@ import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { EntityHoverCard } from '../ui/EntityHoverCard';
 import { useHoverPreview, type EntityHoverTarget } from '../ui/entity-hover-card-model';
-import { AgentCountBadge } from './AgentCountBadge';
 import { aggregateActivity } from './agentActivityBubble';
-import { CollapsibleFooter } from '../ui/CollapsibleFooter';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
@@ -24,6 +22,14 @@ import { events } from '../../lib/events';
 
 const log = loglevel.getLogger('ChapterPanel');
 log.setLevel(loglevel.levels.ERROR);
+
+// Synthetic id used only by the local collapse model. The unaffiliated bucket
+// is rendered as the final storyline-style group, but it is not a persisted
+// Storyline entity and must never be sent to storyline use cases.
+const UNAFFILIATED_GROUP_ID = '__unaffiliated__';
+// Match the synthetic group's chapter labels to the neutral ink-4 marker used
+// by its group header in both light and dark themes.
+const UNAFFILIATED_STRIPE_COLOR = 'hsl(var(--ink-4))';
 
 // 宽度低于此值时隐藏 cell 右侧的 meta（日期/字数），优先保证 title 显示。
 const META_HIDE_WIDTH = 200;
@@ -87,10 +93,10 @@ export function ChapterPanel() {
     userId: userId ?? '',
   });
 
-  const [collapsedStorylineIds, setCollapsedStorylineIds] = useState<Set<string>>(new Set());
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
 
-  const toggleStorylineCollapsed = useCallback((id: string) => {
-    setCollapsedStorylineIds((prev) => {
+  const toggleGroupCollapsed = useCallback((id: string) => {
+    setCollapsedGroupIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -105,9 +111,9 @@ export function ChapterPanel() {
   // and "all collapsed" based on current state.
   useEffect(() => {
     const handler = () => {
-      setCollapsedStorylineIds((prev) => {
+      setCollapsedGroupIds((prev) => {
         if (prev.size === 0) {
-          return new Set(storylines.map((s) => s.id));
+          return new Set([...storylines.map((s) => s.id), UNAFFILIATED_GROUP_ID]);
         }
         return new Set();
       });
@@ -170,10 +176,9 @@ export function ChapterPanel() {
     [bookNodes, globalSortMode, buildChapterComparator],
   );
 
-  // Chapters in this project with no primary storyline — surfaced as the
-  // "未归属" footer in storyline-grouping mode. Follows the storyline-inner
-  // sort mode so the bucket feels like a sibling of the storyline lists
-  // above it.
+  // Chapters in this project with no primary storyline. The bucket follows
+  // the storyline-inner sort mode and is rendered as the final sibling group
+  // after every real storyline.
   const unaffiliatedChapters = useMemo(
     () =>
       bookNodes
@@ -182,10 +187,6 @@ export function ChapterPanel() {
         .sort(buildChapterComparator(storylineInnerSortMode)),
     [bookNodes, primaryStorylineByNode, storylineInnerSortMode, buildChapterComparator],
   );
-  // Drag-resize the unaffiliated footer's height while expanded. Persisted
-  // in ui-store; null = use CollapsibleFooter's default height.
-  const footerHeight = useUiStore((s) => s.chapterUnaffiliatedFooterHeight);
-  const setFooterHeight = useUiStore((s) => s.setChapterUnaffiliatedFooterHeight);
   // Per-cell context menu — reuses the editor top-bar three-dot menu items
   // via EntityCellContextMenu so the two surfaces stay in lockstep.
   const dispatchEntityAction = useEntityCellAction();
@@ -262,9 +263,9 @@ export function ChapterPanel() {
     [bookNodes, createNode, openEntity],
   );
 
-  // Cell layout: [storyline color stripe] [title] [date]. The stripe slot
-  // is always rendered (so titles align) but goes transparent for
-  // unaffiliated chapters per the "未归属 chapter 不加颜色" spec.
+  // Cell layout: [storyline color stripe] [title] [date]. The stripe slot is
+  // always rendered so titles align; unaffiliated chapters use a quiet neutral
+  // gray instead of disappearing into a transparent slot.
   const renderNodeCard = (node: BookNode) => {
     const selected = node.id === selectedNodeId;
     const agentBusy = `node:${node.id}` in agentActive;
@@ -275,7 +276,7 @@ export function ChapterPanel() {
       (`node:${node.id}` in agentTouched || `node:${node.id}` in agentPending);
     const primaryId = primaryStorylineByNode[node.id] ?? null;
     const storyline = primaryId ? storylineById.get(primaryId) : undefined;
-    const stripeColor = storyline?.color ?? 'transparent';
+    const stripeColor = storyline?.color ?? UNAFFILIATED_STRIPE_COLOR;
     // Agent status rides the leading stripe while working — accent (lit) and
     // blinking. Once the run is done the stripe is swapped for a plain "M"
     // marker (below); at rest it keeps the storyline color.
@@ -401,9 +402,8 @@ export function ChapterPanel() {
   const hasNodes = bookNodes.length > 0;
   const hasStorylines = storylines.length > 0;
 
-  // Agent activity rolled up over the unaffiliated bucket — surfaced on the
-  // footer header so changes hidden inside the (default-collapsed) drawer still
-  // register (#17).
+  // Agent activity rolls up to the synthetic group exactly like activity in a
+  // real storyline, so collapsed chapters still register on its header (#17).
   const unaffiliatedActivity = aggregateActivity(
     agentActive,
     agentTouched,
@@ -452,7 +452,7 @@ export function ChapterPanel() {
         <>
           {storylines.map((storyline) => {
             const sNodes = nodesByStoryline[storyline.id] ?? [];
-            const collapsed = collapsedStorylineIds.has(storyline.id);
+            const collapsed = collapsedGroupIds.has(storyline.id);
             const color = storyline.color || 'hsl(var(--ink-4))';
             // Bubble agent activity from this storyline's chapters up to its
             // group header (#17).
@@ -472,7 +472,7 @@ export function ChapterPanel() {
                   count={sNodes.length}
                   color={color}
                   collapsed={collapsed}
-                  onToggleCollapsed={() => toggleStorylineCollapsed(storyline.id)}
+                  onToggleCollapsed={() => toggleGroupCollapsed(storyline.id)}
                   onClick={() => openEntity({ entityType: 'storyline', id: storyline.id })}
                   onDoubleClick={() => promoteCurrentTab()}
                   onContextMenu={(event) => {
@@ -500,6 +500,31 @@ export function ChapterPanel() {
             );
           })}
 
+          {/* Unaffiliated is deliberately appended after every persisted
+              storyline. It shares the same header, spacing, collapse model,
+              inner sorting and scroll container instead of owning a pinned
+              footer surface. */}
+          <div
+            key={UNAFFILIATED_GROUP_ID}
+            className="left-sb-group"
+            style={{ marginBottom: 10 }}
+          >
+            <GroupHeaderCell
+              name={t('leftSidebar.groups.unaffiliated')}
+              count={unaffiliatedChapters.length}
+              color="hsl(var(--ink-4))"
+              collapsed={collapsedGroupIds.has(UNAFFILIATED_GROUP_ID)}
+              onToggleCollapsed={() => toggleGroupCollapsed(UNAFFILIATED_GROUP_ID)}
+              addButtonTitle={t('leftSidebar.actions.newChapter')}
+              onAdd={() => void handleCreateNode(null)}
+              agentBusy={unaffiliatedActivity.busy}
+              agentDoneCount={unaffiliatedActivity.doneCount}
+            />
+
+            {!collapsedGroupIds.has(UNAFFILIATED_GROUP_ID) &&
+              unaffiliatedChapters.map((node) => renderNodeCard(node))}
+          </div>
+
           {!hasStorylines && (
             <div
               style={{
@@ -517,61 +542,6 @@ export function ChapterPanel() {
         </>
       )}
       </div>
-
-      {/* Unaffiliated footer — only in storyline-grouping mode. Always visible
-          (parallels DriftPanel's resting footer), default collapsed; expanding
-          lists the chapters without a primary storyline. The top edge is a
-          drag handle when expanded so the user can pull the footer up to claim
-          more of the panel for the unaffiliated bucket. */}
-      {viewMode === 'storyline' && (
-        <CollapsibleFooter
-          label={t('leftSidebar.groups.unaffiliated')}
-          count={unaffiliatedChapters.length}
-          headerExtra={
-            !unaffiliatedActivity.busy && unaffiliatedActivity.doneCount > 0 ? (
-              <AgentCountBadge
-                count={unaffiliatedActivity.doneCount}
-                title={t('agentActivity.unviewedChanges')}
-              />
-            ) : unaffiliatedActivity.busy ? (
-              <span
-                aria-hidden
-                className="agent-glyph-busy"
-                title={t('agentActivity.working')}
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: 2,
-                  background: 'hsl(var(--accent))',
-                  flexShrink: 0,
-                }}
-              />
-            ) : null
-          }
-          height={footerHeight}
-          onHeightChange={setFooterHeight}
-          expandTitle={t('leftSidebar.groups.expandUnaffiliated')}
-          collapseTitle={t('leftSidebar.groups.collapseUnaffiliated')}
-          bodyStyle={{ padding: '4px 0 12px' }}
-        >
-          {unaffiliatedChapters.length > 0 ? (
-            unaffiliatedChapters.map((node) => renderNodeCard(node))
-          ) : (
-            <div
-              style={{
-                fontSize: 11.5,
-                fontFamily: 'var(--font-sans)',
-                fontStyle: 'italic',
-                color: 'hsl(var(--ink-4))',
-                padding: '16px 20px',
-                textAlign: 'center',
-              }}
-            >
-              {t('leftSidebar.empty.noUnaffiliatedChapters')}
-            </div>
-          )}
-        </CollapsibleFooter>
-      )}
 
       {hoverPreview && (
         <EntityHoverCard

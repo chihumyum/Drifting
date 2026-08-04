@@ -1788,7 +1788,6 @@
       "noElements": "No elements yet.",
       "noChapters": "No chapters yet.",
       "noStorylines": "No storylines yet.",
-      "noUnaffiliatedChapters": "No unaffiliated chapters.",
       "noDrifts": "No drifts yet."
     },
     "meta": {
@@ -1803,8 +1802,6 @@
       "addElementToGroup": "New element in this group",
       "newChapterInStoryline": "New chapter in this storyline",
       "unaffiliated": "Unaffiliated",
-      "expandUnaffiliated": "Expand unaffiliated",
-      "collapseUnaffiliated": "Collapse unaffiliated",
       "newDriftInGroup": "New drift here",
       "newSubGroup": "New subgroup",
       "clickCollapseRename": "Click to collapse · double-click to rename",
