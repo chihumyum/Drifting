@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import loglevel from 'loglevel';
@@ -17,6 +18,7 @@ import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { ElementGroupPicker } from './ElementGroupPicker';
 import { EntityHoverCard } from '../ui/EntityHoverCard';
+import { ElementIdentityTile } from '../ui/ElementIdentityTile';
 import { useHoverPreview, type EntityHoverTarget } from '../ui/entity-hover-card-model';
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
@@ -52,6 +54,8 @@ export function ElementPanel() {
   const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
   const showDate = sidebarWidth >= DATE_HIDE_WIDTH;
   const sortMode = useUiStore((s) => s.elementSortMode);
+  const categorySortMode = useUiStore((s) => s.elementCategorySortMode);
+  const viewMode = useUiStore((s) => s.elementPanelViewMode);
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
@@ -142,6 +146,8 @@ export function ElementPanel() {
   // virtual "未分类" group at the tail.
   const hasUncategorized = useMemo(() => bookElements.some((el) => !el.categoryId), [bookElements]);
 
+  // Outer category order is independent from the element order inside each
+  // category. Synthetic "未分类" remains pinned after every real category.
   const categoryIds = useMemo(() => {
     const ids = new Set<string>();
     bookElementCategories.forEach((category) => {
@@ -164,7 +170,7 @@ export function ElementPanel() {
       if (labelA === 'others') return 1;
       if (labelB === 'others') return -1;
 
-      if (sortMode === 'createdAt') {
+      if (categorySortMode === 'createdAt') {
         const ca = categoryById.get(a)?.createdAt;
         const cb = categoryById.get(b)?.createdAt;
         // Categories synthesised purely from element rows (no real category
@@ -188,7 +194,7 @@ export function ElementPanel() {
     bookElements,
     getCategoryLabel,
     hasUncategorized,
-    sortMode,
+    categorySortMode,
     categoryById,
   ]);
 
@@ -449,6 +455,54 @@ export function ElementPanel() {
     );
   };
 
+  const renderCompactElement = (element: BookElement) => {
+    const selected = element.id === selectedBookElementId;
+    const agentBusy = `element:${element.id}` in agentActive;
+    const agentAdded = !agentBusy && `element:${element.id}` in agentAdditions;
+    const agentChanged =
+      !agentBusy &&
+      !agentAdded &&
+      (`element:${element.id}` in agentTouched || `element:${element.id}` in agentPending);
+    const agentState = agentBusy
+      ? ('busy' as const)
+      : agentAdded
+        ? ('added' as const)
+        : agentChanged
+          ? ('changed' as const)
+          : null;
+    const agentStateLabel = agentBusy
+      ? t('agentActivity.working')
+      : agentAdded || agentChanged
+        ? t(agentAdded ? 'agentActivity.addedHere' : 'agentActivity.changedHere')
+        : undefined;
+    return (
+      <ElementIdentityTile
+        key={element.id}
+        element={element}
+        selected={selected}
+        agentState={agentState}
+        agentStateLabel={agentStateLabel}
+        onActivate={() => {
+          if (agentChanged) useAgentActivityStore.getState().clearTouched('element', element.id);
+          openEntity({ entityType: 'element', id: element.id });
+        }}
+        onPromote={promoteCurrentTab}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setContextMenu({
+            x: event.clientX,
+            y: event.clientY,
+            entityType: 'element',
+            id: element.id,
+          });
+        }}
+        onPreviewEnter={(anchor) => hoverEnter({ kind: 'element', id: element.id }, anchor)}
+        onPreviewLeave={hoverLeave}
+      />
+    );
+  };
+
   const hasElements = bookElements.length > 0;
 
   return (
@@ -474,30 +528,64 @@ export function ElementPanel() {
         >
           {categoryIds.map((categoryId) => {
             const isUncategorized = categoryId === UNCATEGORIZED_ID;
+            const categoryElements = elementsByCategory[categoryId] ?? [];
+            const categoryHasElements = categoryElements.length > 0;
+            const categoryCollapsed = !categoryHasElements || collapsedCategoryIds.has(categoryId);
+            const categoryColor = isUncategorized
+              ? UNCATEGORIZED_COLOR
+              : getCategoryColor(categoryId);
+            const compactIndex = viewMode === 'compact';
             // Bubble agent activity from this category's elements up to its
             // group header (#17).
             const activity = aggregateActivity(
               agentActive,
               agentTouched,
-              (elementsByCategory[categoryId] ?? []).map((el) => entityKey('element', el.id)),
+              categoryElements.map((el) => entityKey('element', el.id)),
             );
             return (
-              <div key={categoryId} style={{ marginBottom: 8 }}>
+              <div
+                key={categoryId}
+                className={`left-sb-group${
+                  compactIndex
+                    ? ` element-category-section--compact ${
+                        categoryCollapsed ? 'is-collapsed' : 'is-expanded'
+                      }`
+                    : ''
+                }`}
+                style={
+                  compactIndex
+                    ? ({ '--element-category-color': categoryColor } as CSSProperties)
+                    : { marginBottom: 8 }
+                }
+              >
                 <GroupHeaderCell
                   name={getCategoryLabel(categoryId)}
-                  count={(elementsByCategory[categoryId] ?? []).length}
-                  color={isUncategorized ? UNCATEGORIZED_COLOR : getCategoryColor(categoryId)}
-                  collapsed={collapsedCategoryIds.has(categoryId)}
-                  onToggleCollapsed={() => toggleCategoryCollapsed(categoryId)}
+                  count={categoryElements.length}
+                  color={categoryColor}
+                  collapsed={categoryCollapsed}
+                  onToggleCollapsed={() => {
+                    if (categoryHasElements) toggleCategoryCollapsed(categoryId);
+                  }}
+                  collapseDisabled={compactIndex && !categoryHasElements}
+                  collapseChrome={compactIndex ? 'frame' : 'chevron'}
                   onClick={
                     // The "未分类" bucket isn't a real category — there's no
-                    // editor page to open. Click is a no-op except for the
-                    // toggle handled by the disclosure caret.
-                    isUncategorized
+                    // editor page to open. In compact mode the category label
+                    // owns collapse; list mode keeps whole-row editor opening.
+                    isUncategorized || compactIndex
                       ? undefined
                       : () => openEntity({ entityType: 'category', id: categoryId })
                   }
-                  onDoubleClick={isUncategorized ? undefined : () => promoteCurrentTab()}
+                  onDoubleClick={
+                    isUncategorized
+                      ? undefined
+                      : () => {
+                          if (compactIndex) {
+                            openEntity({ entityType: 'category', id: categoryId });
+                          }
+                          promoteCurrentTab();
+                        }
+                  }
                   onContextMenu={
                     isUncategorized
                       ? undefined
@@ -519,6 +607,7 @@ export function ElementPanel() {
                   // we don't surface that affordance — users should pick a real
                   // category. Setting onAdd to undefined hides the + button.
                   onAdd={isUncategorized ? undefined : () => void handleCreateElement(categoryId)}
+                  addButtonVisibility={compactIndex ? 'always' : 'hover'}
                   sticky
                   agentBusy={activity.busy}
                   agentDoneCount={activity.doneCount}
@@ -530,30 +619,54 @@ export function ElementPanel() {
                   agentSelfAdded={!isUncategorized && `category:${categoryId}` in agentAdditions}
                 />
 
-                {!collapsedCategoryIds.has(categoryId) &&
+                {!categoryCollapsed &&
                   (() => {
                     const groups = groupedByCategory[categoryId] ?? [];
-                    return groups.map((group) => {
+                    const lastNamedGroupIndex = groups.reduce(
+                      (lastIndex, group, groupIndex) =>
+                        group.groupName !== null ? groupIndex : lastIndex,
+                      -1,
+                    );
+                    return groups.map((group, groupIndex) => {
+                      const groupName = group.groupName;
+                      const isNamedGroup = groupName !== null;
                       const cards = group.items.map((element) =>
-                        renderElementCard(element, categoryId),
+                        compactIndex
+                          ? renderCompactElement(element)
+                          : renderElementCard(element, categoryId),
                       );
                       return (
-                        <div key={`${categoryId}::${group.groupName ?? '__ungrouped__'}`}>
-                          {group.groupName !== null && (
+                        <div
+                          key={`${categoryId}::${groupName ?? '__ungrouped__'}`}
+                          className={`element-category-group${
+                            groupIndex === lastNamedGroupIndex
+                              ? ' element-category-group--last-named'
+                              : ''
+                          }${isNamedGroup ? '' : ' element-category-group--ungrouped'}`}
+                        >
+                          {groupName !== null && (
                             <ElementGroupHeader
-                              name={group.groupName}
+                              name={groupName}
                               count={group.items.length}
+                              compact={compactIndex}
                               canAdd={categoryId !== UNCATEGORIZED_ID}
                               onRename={(next) => void handleRenameElementGroup(group.items, next)}
                               onAddElement={() =>
-                                void handleCreateElementInGroup(
-                                  categoryId,
-                                  group.groupName as string,
-                                )
+                                void handleCreateElementInGroup(categoryId, groupName)
                               }
                             />
                           )}
-                          {cards}
+                          {compactIndex ? (
+                            <div
+                              className={`element-identity-flow${
+                                isNamedGroup ? ' element-identity-flow--grouped' : ''
+                              }`}
+                            >
+                              {cards}
+                            </div>
+                          ) : (
+                            cards
+                          )}
                         </div>
                       );
                     });
@@ -633,23 +746,24 @@ export function ElementPanel() {
 // Concise secondary-group (groupName) header inside a category. Keeps the
 // minimal label style (rule tick + name + count) but adds: double-click to
 // rename the whole group, and a hover-revealed "+" to create an element
-// directly inside it. Self-contained hover state — avoids touching the global
-// .left-sb-group CSS (which would also flip the category header's + button).
+// directly inside it. The shared inline-header hover selector scopes reveal to
+// this label row, so a category hover cannot reveal every nested group action.
 function ElementGroupHeader({
   name,
   count,
+  compact,
   canAdd,
   onRename,
   onAddElement,
 }: {
   name: string;
   count: number;
+  compact: boolean;
   canAdd: boolean;
   onRename: (next: string) => void;
   onAddElement: () => void;
 }) {
   const { t } = useTranslation();
-  const [hovered, setHovered] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(name);
   // Guards against onBlur double-committing after Enter, or committing on
@@ -658,7 +772,7 @@ function ElementGroupHeader({
 
   if (renaming) {
     return (
-      <div style={{ padding: '2px 10px 0 26px' }}>
+      <div style={{ padding: compact ? '4px 8px 2px' : '2px 10px 0 26px' }}>
         <input
           autoFocus
           value={draft}
@@ -700,8 +814,7 @@ function ElementGroupHeader({
 
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="left-sb-inline-group-header"
       onDoubleClick={() => {
         setDraft(name);
         handledRef.current = false;
@@ -712,7 +825,7 @@ function ElementGroupHeader({
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        padding: '2px 10px 0 26px',
+        padding: compact ? '5px 8px 1px' : '2px 10px 0 26px',
         fontFamily: 'var(--font-mono)',
         fontSize: 9,
         lineHeight: 1.2,
@@ -733,16 +846,15 @@ function ElementGroupHeader({
       {canAdd && (
         <button
           type="button"
+          className="left-sb-group-add left-sb-inline-add-button"
           title={t('leftSidebar.groups.addElementToGroup')}
           onClick={(e) => {
             e.stopPropagation();
             onAddElement();
           }}
-          // Always rendered so the row height stays constant; hover only flips
-          // opacity / interactivity (rendering it conditionally made the 15px
-          // button push the row taller on hover — the height jump).
+          // Always rendered so the row height stays constant; the shared CSS
+          // only reveals it while this exact label row is hovered/focused.
           style={{
-            marginLeft: 'auto',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -750,22 +862,9 @@ function ElementGroupHeader({
             height: 15,
             borderRadius: 3,
             border: 'none',
-            background: 'transparent',
-            color: 'hsl(var(--ink-4))',
             cursor: 'pointer',
             padding: 0,
             flexShrink: 0,
-            opacity: hovered ? 1 : 0,
-            pointerEvents: hovered ? 'auto' : 'none',
-            transition: 'opacity 0.12s, background 0.12s, color 0.12s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-            e.currentTarget.style.color = 'hsl(var(--ink-1))';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = 'hsl(var(--ink-4))';
           }}
         >
           <Plus size={11} strokeWidth={1.8} />

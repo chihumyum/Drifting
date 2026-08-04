@@ -416,7 +416,7 @@ export function DriftPanel() {
               depth < MAX_DRIFT_GROUP_DEPTH - 1 ? (
                 <button
                   type="button"
-                  className="left-sb-group-add"
+                  className="left-sb-group-add left-sb-inline-add-button"
                   title={t('leftSidebar.groups.newSubGroup')}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -428,21 +428,6 @@ export function DriftPanel() {
                     justifyContent: 'center',
                     width: 18,
                     height: 18,
-                    borderRadius: 3,
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'hsl(var(--ink-4))',
-                    cursor: 'pointer',
-                    padding: 0,
-                    transition: 'opacity 0.12s, background 0.12s, color 0.12s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-                    e.currentTarget.style.color = 'hsl(var(--ink-1))';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = 'hsl(var(--ink-4))';
                   }}
                 >
                   <FolderPlus size={12} strokeWidth={1.6} />
@@ -461,6 +446,7 @@ export function DriftPanel() {
       // double-click renames, right-click opens the group menu.
       header = (
         <div
+          className="left-sb-inline-group-header"
           onClick={() => toggleCollapsed(group.id)}
           onDoubleClick={() => setRenamingGroupId(group.id)}
           onContextMenu={openGroupMenu}
@@ -490,35 +476,19 @@ export function DriftPanel() {
           <span style={{ flexShrink: 0 }}>· {descIds.length}</span>
           <button
             type="button"
-            className="left-sb-group-add"
+            className="left-sb-group-add left-sb-inline-add-button"
             title={t('leftSidebar.groups.newDriftInGroup')}
             onClick={(event) => {
               event.stopPropagation();
               void createDriftInGroup(group.id);
             }}
             style={{
-              marginLeft: 'auto',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               width: 15,
               height: 15,
-              borderRadius: 3,
-              border: 'none',
-              background: 'transparent',
-              color: 'hsl(var(--ink-4))',
-              cursor: 'pointer',
-              padding: 0,
               flexShrink: 0,
-              transition: 'opacity 0.12s, background 0.12s, color 0.12s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-              e.currentTarget.style.color = 'hsl(var(--ink-1))';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = 'hsl(var(--ink-4))';
             }}
           >
             <Plus size={11} strokeWidth={1.8} />

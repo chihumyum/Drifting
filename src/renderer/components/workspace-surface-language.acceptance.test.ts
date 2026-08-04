@@ -358,7 +358,7 @@ describe('workspace surface language acceptance', () => {
       '{/* Unaffiliated is deliberately appended after every persisted',
       '{!hasStorylines && (',
     );
-    const realGroupsIndex = chapterPanel.indexOf('{storylines.map((storyline) => {');
+    const realGroupsIndex = chapterPanel.indexOf('{sortedStorylines.map((storyline) => {');
     const unaffiliatedGroupIndex = chapterPanel.indexOf('key={UNAFFILIATED_GROUP_ID}');
 
     expect(realGroupsIndex).toBeGreaterThanOrEqual(0);
@@ -481,7 +481,7 @@ describe('workspace surface language acceptance', () => {
 
     expect(shellCss).toContain('--workspace-border:');
     expect(shellCss).toContain('--workspace-local-border:');
-    expect(shellCss).toContain('--workspace-card-border:');
+    expect(shellCss).not.toContain('--workspace-card-border:');
     expect(shellCss).toContain('--workspace-subtle-border:');
     expect(shellCss).not.toContain('--workspace-level-1-bg:');
     expect(shellCss).not.toContain('--workspace-level-2-bg:');
@@ -529,7 +529,8 @@ describe('workspace surface language acceptance', () => {
     expect(localDivider).toContain('left: 0;');
     expect(localDivider).toContain('height: 0.5px;');
     expect(localDivider).toContain('background: var(--workspace-local-border);');
-    expect(listRow).toContain('border: 1px solid var(--workspace-card-border);');
+    expect(listRow).toContain('border: 0;');
+    expect(listRow).not.toContain('workspace-card-border');
     expect(listRow).toContain('background: color-mix');
     expect(listRow).toContain('box-shadow: none;');
     expect(todo).toContain("padding: '6px 12px 12px'");

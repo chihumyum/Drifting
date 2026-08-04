@@ -59,6 +59,7 @@ export function ChapterPanel() {
   const persistedViewMode = useUiStore((s) => s.chapterPanelViewMode);
   const globalSortMode = useUiStore((s) => s.chapterGlobalSortMode);
   const storylineInnerSortMode = useUiStore((s) => s.chapterStorylineInnerSortMode);
+  const storylineOuterSortMode = useUiStore((s) => s.chapterStorylineOuterSortMode);
   // 0-storyline mode collapses to a single book-order view. Forcing it here
   // (rather than mutating the persisted setting) keeps the user's preference
   // intact for when they later add storylines.
@@ -125,6 +126,22 @@ export function ChapterPanel() {
   const storylineById = useMemo(
     () => new Map(storylines.map((s) => [s.id, s])),
     [storylines],
+  );
+  const sortedStorylines = useMemo(
+    () =>
+      storylines.slice().sort((a, b) => {
+        if (storylineOuterSortMode === 'alphabet') {
+          const byName = a.name.localeCompare(b.name, undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          });
+          if (byName !== 0) return byName;
+        }
+        const byStorylineOrder = a.orderKey - b.orderKey;
+        if (byStorylineOrder !== 0) return byStorylineOrder;
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      }),
+    [storylines, storylineOuterSortMode],
   );
   const nodeById = useMemo(() => new Map(bookNodes.map((n) => [n.id, n])), [bookNodes]);
 
@@ -450,7 +467,7 @@ export function ChapterPanel() {
 
       {viewMode === 'storyline' && (
         <>
-          {storylines.map((storyline) => {
+          {sortedStorylines.map((storyline) => {
             const sNodes = nodesByStoryline[storyline.id] ?? [];
             const collapsed = collapsedGroupIds.has(storyline.id);
             const color = storyline.color || 'hsl(var(--ink-4))';

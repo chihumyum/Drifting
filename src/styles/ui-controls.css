@@ -640,7 +640,7 @@
 }
 
 .workspace-list-row {
-  border: 1px solid var(--workspace-card-border);
+  border: 0;
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, hsl(var(--page)) 55%, var(--workspace-ui-bg));
   box-shadow: none;
@@ -708,11 +708,238 @@
 
 .left-sb-group-add {
   opacity: 0;
+  pointer-events: none;
 }
 
-.left-sb-group:hover .left-sb-group-add,
-.left-sb-group:focus-within .left-sb-group-add {
+.left-sb-group-add--always {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.left-sb-group-header:hover .left-sb-group-add,
+.left-sb-group-header:focus-within .left-sb-group-add,
+.left-sb-inline-group-header:hover .left-sb-group-add,
+.left-sb-inline-group-header:focus-within .left-sb-group-add {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.left-sb-inline-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  margin-left: -4px;
+}
+
+.left-sb-inline-add-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 3px;
+  padding: 0;
+  background: transparent;
+  color: hsl(var(--ink-4));
+  cursor: pointer;
+  transition:
+    opacity 120ms ease,
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.left-sb-inline-add-button--frame,
+.left-sb-group-header--frame .left-sb-inline-actions {
+  background: var(--chrome-bg);
+}
+
+.left-sb-group-header--frame .left-sb-inline-actions {
+  margin-left: -8px;
+  padding: 0 4px 0 2px;
+}
+
+.left-sb-inline-add-button:hover {
+  background: hsl(var(--paper-deep));
+  color: hsl(var(--ink-1));
+}
+
+/* Element compact text index --------------------------------------------
+   Category color becomes the expanded frame around a dense, content-shaped
+   text flow. Collapsing hides the frame; GroupHeaderCell returns the same
+   color as its compact square marker. Neither state adds a tinted surface. */
+.element-category-section--compact {
+  --element-category-color: hsl(var(--rule));
+  position: relative;
+  box-sizing: border-box;
+  margin: 0 6px 10px 4px;
+  padding-bottom: 7px;
+  background: transparent;
+  transition:
+    padding-bottom 120ms ease,
+    margin-bottom 120ms ease;
+}
+
+.element-category-section--compact::before {
+  content: '';
+  position: absolute;
+  inset: 13px 0 0;
+  border: 1px solid var(--element-category-color);
+  border-top: 0;
+  border-radius: 0 0 3px 3px;
+  opacity: 1;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.element-category-section--compact.is-collapsed {
+  margin-bottom: 2px;
+  padding-bottom: 0;
+}
+
+.element-category-section--compact.is-collapsed::before {
+  opacity: 0;
+}
+
+/* The synthetic top edge runs through the sticky header, then the label's
+   chrome background masks its middle. The ::after side connectors live in the
+   same sticky layer, so its opaque background cannot cut a gap at the corners. */
+.left-sb-group-header--frame {
+  position: relative;
+  min-height: 26px;
+  box-sizing: border-box;
+}
+
+.left-sb-group-header--frame.is-expanded::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--element-category-color);
+  pointer-events: none;
+}
+
+.left-sb-group-header--frame.is-expanded::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-right: 1px solid var(--element-category-color);
+  border-left: 1px solid var(--element-category-color);
+  pointer-events: none;
+}
+
+.left-sb-group-header--frame.is-expanded > * {
+  position: relative;
+  z-index: 1;
+}
+
+.element-identity-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 4px;
+  padding: 4px 8px 1px;
+}
+
+/* A low-contrast hairline marks the exact card extent of a named element
+   group. Ungrouped identities deliberately omit it, so the final named group
+   has a visible ending without introducing another surface or semantic wash. */
+.element-identity-flow--grouped {
+  position: relative;
+  padding-bottom: 5px;
+}
+
+/* Consecutive named groups use the same vertical rhythm as label-to-cards.
+   Only the semantic boundary between the final named group and trailing
+   ungrouped cards receives an extra gap. */
+.element-category-group--last-named + .element-category-group--ungrouped {
+  margin-top: 3px;
+}
+
+.element-identity-flow--grouped::before {
+  content: '';
+  position: absolute;
+  inset: 0 4px;
+  border: 1px solid hsl(var(--rule) / 0.55);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.element-identity-tile {
+  --element-identity-basis: 78px;
+  position: relative;
+  display: flex;
+  flex: 1 1 var(--element-identity-basis);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 5px 7px;
+  color: hsl(var(--ink-1));
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.element-identity-tile:hover {
+  color: hsl(var(--ink-1));
+}
+
+.element-identity-tile.is-selected {
+  background: hsl(var(--surface));
+  box-shadow: none;
+  color: hsl(var(--ink-1));
+}
+
+.element-identity-tile:focus-visible {
+  outline: 2px solid hsl(var(--ink-1) / 0.72);
+  outline-offset: 1px;
+}
+
+.element-identity-tile__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.element-identity-tile__agent {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 2px;
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-2));
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.element-identity-tile__agent--busy {
+  width: 7px;
+  height: 7px;
+  border: 0;
+  border-radius: 50%;
+  background: hsl(var(--accent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .element-identity-tile {
+    transition: none;
+  }
 }
 
 .super-element-overlay .super-element-reset,

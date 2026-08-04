@@ -51,11 +51,14 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 ## Dense content and semantic controls
 
-- 侧栏中的高密度 TODO/资料列表使用 `.workspace-list` 与 `.workspace-list-row`：cell 保留简单的四边 border、`2px` 小圆角和略浅于 panel 的灰色底，彼此留出小间距；hover/focus 只轻微提高底色，不增加阴影或位移。
-- 左栏的章节、元素与漂流 cell 选中态复用顶部文档 Tab 的 `--surface` 背景，并以 `--ink-1` 文字和现有字重表达焦点；不再使用蓝色 `--accent` wash。hover 与 TODO/Library card 共用 `--workspace-cell-hover-bg` 的轻微提亮，不再叠加黑色 wash。
+- 侧栏中的高密度 TODO/资料列表使用 `.workspace-list` 与 `.workspace-list-row`：cell 不绘制 border，保留 `2px` 小圆角和略浅于 panel 的灰色底，彼此留出小间距；hover/focus 只轻微提高底色，不增加阴影或位移。以后左右栏新增的卡片型条目也必须直接复用这套背景与 `--workspace-cell-hover-bg`，不另造中性色、边框或 hover wash。
+- 左栏的章节、元素与漂流 cell 选中态复用顶部文档 Tab 的 `--surface` 背景，并以 `--ink-1` 文字和现有字重表达焦点；不再使用蓝色 `--accent` wash。紧凑元素卡的选中态只使用该高亮底色，不绘制 category 色或中性双层 border；键盘 `focus-visible` 轮廓仍独立保留。hover 与 TODO/Library card 共用 `--workspace-cell-hover-bg` 的轻微提亮，不再叠加黑色 wash。
 - 章节 panel 的全书/故事线视图切换使用纯文本摘要：全书模式显示总章数，故事线模式显示故事线数与总章数。文字本身是点击区域，只以文字颜色变化表达 hover/focus，不绘制 switch、底框或背景。
 - 章节 panel 按故事线分组时，“未归属”复用普通故事线组的 header、计数、折叠与新增章节交互，并固定追加在全部真实故事线之后；其章节继续服从故事线内排序，左侧 label 使用与组头一致的 `--ink-4` 中性灰，不留透明空槽。它与其他组共用同一个滚动容器，不再使用独立的底部 footer、展开抽屉或高度状态。
+- 章节与元素 panel 的排序菜单把内外两层作为独立偏好：故事线内章节使用阅读/叙事顺序，外层故事线使用持久化的 `orderKey` 故事线顺序或名称顺序；类目内元素与外层类目分别选择名称/创建时间。不要按子项数量或最近更新自动排列外层容器，避免写作过程中整栏频繁跳位。“未归属”与“未分类”始终固定在真实故事线/类目之后；已有元素排序偏好迁移时同时初始化新的外层类目偏好，之后两者独立持久化。
 - 元素 panel 不再设置 category footer、横向 chip 导航或独立高度状态。category header、元素 cell 与“未分类”组全部留在同一个纵向滚动面内；sticky header 负责持续表达当前结构，不在底部重复一套可视 category 状态。
+- `GroupHeaderCell` 的新增动作使用紧随 label/count 的共享 inline slot：category 的 `+` 在紧凑索引中常驻，章节故事线与一级灵感 group 继续在当前 header hover/focus 时显示；element group 与二级灵感 group 也把动态 `+` 放在各自 label/count 之后。显隐选择器只命中当前 header，父 group hover 不得连带揭示后代按钮。
+- 元素 panel 提供可持久化的“紧凑索引 / 名称列表”两种纯文字显示模式。紧凑索引中，展开的 category 以自身颜色的 `1px` 细框包住全部内容；顶边不是完整横线，而是由 category 文本 label 两侧分别发出，并由 sticky header 同层的竖向接缝连接左右边与底边，label 使用普通 `--chrome-bg` 切开中段，整个容器保持透明且不叠加色洗。展开 header 不显示 Chevron 或静态色块，点击文本 label 直接收起；收起后彩框消失，同一 category 色回到 label 前的方形标记，形成“色块展开成内容边框”的状态形变，双击仍可打开 category。没有 element 的 category 永远保持方形色块状态，label 禁止展开；通过 `+` 加入第一个 element 后才获得彩框。具名 element group 在彩色 category 框内再以低对比度的 `1px --rule` 中性细线框住其文字卡片，不增加底色；连续具名 group 不加额外 margin，其间距与 group label 到下方卡片的距离相同，只有最后一个具名 group 与随后未分组卡片之间增加语义间距。未分组元素不画 group 框。文字卡片直接复用素材库/TODO 卡片的无边框 `.workspace-list-row` 背景、圆角和 hover token，不再定义独立卡片色；选中时只切换到 `--surface` 高亮。卡片使用 wrapping flex flow：名称估算宽度决定其初始 `flex-basis`，同行剩余空间由卡片共同吸收，因此短名称可在一行容纳更多项、长名称获得更多阅读空间，最后一行也不遗留固定方块造成的空洞；栏宽不足时自然退回单列。完整名称直接显示并允许换行，Agent 活动只占末端小状态标记。
 - 标签、状态 chip、菜单、popover、dialog 和预览内容保持小圆角；头像、状态点、spinner 与 switch 可以保留其语义形状。它们不计作一级页面模块，也不应被无差别的全局 `border-radius: 0` 误伤。
 - 不使用 inset-left vertical accent bar；强调状态继续使用背景 wash、细分隔线、字重或语义颜色。
 
@@ -74,9 +77,9 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 静态结构契约由以下测试保护：
 
 ```bash
-pnpm --dir client exec vitest run src/renderer/components/workspace-surface-language.acceptance.test.ts src/renderer/components/project-dashboard-scroll.acceptance.test.ts src/renderer/components/workspace-titlebar-alignment.acceptance.test.ts src/renderer/components/left-sidebar-tab-density.acceptance.test.ts src/renderer/components/leftBars/element-panel-no-category-footer.acceptance.test.ts
+pnpm --dir client exec vitest run src/renderer/components/workspace-surface-language.acceptance.test.ts src/renderer/components/project-dashboard-scroll.acceptance.test.ts src/renderer/components/workspace-titlebar-alignment.acceptance.test.ts src/renderer/components/left-sidebar-tab-density.acceptance.test.ts src/renderer/components/leftBars/element-panel-no-category-footer.acceptance.test.ts src/renderer/components/leftBars/element-panel-compact-index.acceptance.test.ts src/renderer/components/leftBars/left-sidebar-outer-sort.acceptance.test.ts
 ```
 
-测试覆盖 footer 的 DOM、状态职责与唯一 Timeline 开关、元素 panel 已移除的 category footer 及其状态/样式/文案边界、topbar command ownership、Super 菜单、账户二级设置页、不透明 macOS 窗口配置、顶栏与左右栏的统一灰色 token、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS titlebar 几何、iOS 或 Android 上的视觉、触摸和动效验收。
+测试覆盖 footer 的 DOM、状态职责与唯一 Timeline 开关、元素 panel 已移除的 category footer、紧凑索引的持久化模式/纯文字内容/流式宽度/素材库与 TODO 的无边框卡片背景复用/label 两侧 category 边框及 sticky 接缝/收起色块形变/空 category 禁止展开/纯背景选中态/连续 group 节奏与未分组边界/category 常驻新增按钮及章节、灵感、element group 的 inline 动态按钮、章节/元素内外层排序解耦及末尾虚拟组约束、topbar command ownership、Super 菜单、账户二级设置页、不透明 macOS 窗口配置、顶栏与左右栏的统一灰色 token、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS titlebar 几何、iOS 或 Android 上的视觉、触摸和动效验收。
 
 移动端起点、缺口和设备验收边界记录在 [`mobile-ui-foundation.md`](mobile-ui-foundation.md)。

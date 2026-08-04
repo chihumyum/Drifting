@@ -10,6 +10,9 @@ import type {
   DriftSortMode,
   ChapterGlobalSortMode,
   ChapterStorylineInnerSortMode,
+  ChapterStorylineOuterSortMode,
+  ElementCategorySortMode,
+  ElementPanelViewMode,
   ElementSortMode,
   NodeCellMeta,
 } from '../../store/ui-store';
@@ -181,8 +184,14 @@ export function LeftSidebarSubHeader() {
   const setChapterGlobalSortMode = useUiStore((s) => s.setChapterGlobalSortMode);
   const chapterStorylineInnerSortMode = useUiStore((s) => s.chapterStorylineInnerSortMode);
   const setChapterStorylineInnerSortMode = useUiStore((s) => s.setChapterStorylineInnerSortMode);
+  const chapterStorylineOuterSortMode = useUiStore((s) => s.chapterStorylineOuterSortMode);
+  const setChapterStorylineOuterSortMode = useUiStore((s) => s.setChapterStorylineOuterSortMode);
   const elementSortMode = useUiStore((s) => s.elementSortMode);
   const setElementSortMode = useUiStore((s) => s.setElementSortMode);
+  const elementCategorySortMode = useUiStore((s) => s.elementCategorySortMode);
+  const setElementCategorySortMode = useUiStore((s) => s.setElementCategorySortMode);
+  const elementPanelViewMode = useUiStore((s) => s.elementPanelViewMode);
+  const setElementPanelViewMode = useUiStore((s) => s.setElementPanelViewMode);
   const chapterCellMeta = useUiStore((s) => s.chapterCellMeta);
   const setChapterCellMeta = useUiStore((s) => s.setChapterCellMeta);
   const driftCellMeta = useUiStore((s) => s.driftCellMeta);
@@ -214,10 +223,31 @@ export function LeftSidebarSubHeader() {
     ],
     [t],
   );
+  const chapterStorylineOuterSortOptions = useMemo<SortMenuOption<ChapterStorylineOuterSortMode>[]>(
+    () => [
+      { value: 'storylineOrder', label: t('leftSidebar.sort.storylineOrder') },
+      { value: 'alphabet', label: t('leftSidebar.sort.alphabet') },
+    ],
+    [t],
+  );
   const elementSortOptions = useMemo<SortMenuOption<ElementSortMode>[]>(
     () => [
       { value: 'alphabet', label: t('leftSidebar.sort.alphabet') },
       { value: 'createdAt', label: t('leftSidebar.sort.createdAt') },
+    ],
+    [t],
+  );
+  const elementCategorySortOptions = useMemo<SortMenuOption<ElementCategorySortMode>[]>(
+    () => [
+      { value: 'alphabet', label: t('leftSidebar.sort.alphabet') },
+      { value: 'createdAt', label: t('leftSidebar.sort.createdAt') },
+    ],
+    [t],
+  );
+  const elementViewOptions = useMemo<SortMenuOption<ElementPanelViewMode>[]>(
+    () => [
+      { value: 'compact', label: t('leftSidebar.sort.compactIndex') },
+      { value: 'list', label: t('leftSidebar.sort.nameList') },
     ],
     [t],
   );
@@ -241,16 +271,16 @@ export function LeftSidebarSubHeader() {
     [t],
   );
 
-  // Chapter panel splits into two menus depending on layout — global view
-  // gets the four-option set; storyline view's menu controls the inner sort
-  // (storylines themselves stay in their natural order, per design).
+  // Chapter panel splits into two menus depending on layout. Storyline view
+  // keeps chapter order as the primary group and exposes outer storyline order
+  // as an independent radio group in the same menu.
   const chapterIsStoryline =
     activeLeftPanel === 'nodes' && nodesViewMode === 'storyline' && storylines.length > 0;
   const sortMenuTitle =
     activeLeftPanel === 'drift'
       ? t('leftSidebar.sort.drifts')
       : activeLeftPanel === 'elements'
-        ? t('leftSidebar.sort.elements')
+        ? t('leftSidebar.sort.categoryElements')
         : chapterIsStoryline
           ? t('leftSidebar.sort.storylineChapters')
           : t('leftSidebar.sort.chapters');
@@ -491,6 +521,12 @@ export function LeftSidebarSubHeader() {
           title={sortMenuTitle}
           groups={[
             sortMenuGroup({
+              title: t('leftSidebar.sort.outerStorylinesGroup'),
+              options: chapterStorylineOuterSortOptions,
+              value: chapterStorylineOuterSortMode,
+              onChange: setChapterStorylineOuterSortMode,
+            }),
+            sortMenuGroup({
               title: t('leftSidebar.sort.duplicatesGroup'),
               options: chapterDuplicateOptions,
               value: chapterStorylinePrimaryOnly ? 'primary' : 'all',
@@ -514,6 +550,20 @@ export function LeftSidebarSubHeader() {
           value={elementSortMode}
           onChange={setElementSortMode}
           title={sortMenuTitle}
+          groups={[
+            sortMenuGroup({
+              title: t('leftSidebar.sort.outerCategoriesGroup'),
+              options: elementCategorySortOptions,
+              value: elementCategorySortMode,
+              onChange: setElementCategorySortMode,
+            }),
+            sortMenuGroup({
+              title: t('leftSidebar.sort.elementDisplayGroup'),
+              options: elementViewOptions,
+              value: elementPanelViewMode,
+              onChange: setElementPanelViewMode,
+            }),
+          ]}
         />
       )}
     </div>

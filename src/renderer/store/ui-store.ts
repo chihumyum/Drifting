@@ -11,8 +11,10 @@ export type SidebarType = 'left' | 'right';
 export type DriftSortMode = 'createdAt' | 'updatedAt' | 'title';
 export type ChapterGlobalSortMode = 'bookOrder' | 'narrativeOrder' | 'createdAt' | 'updatedAt';
 export type ChapterStorylineInnerSortMode = 'bookOrder' | 'narrativeOrder';
+export type ChapterStorylineOuterSortMode = 'storylineOrder' | 'alphabet';
 export type ElementSortMode = 'alphabet' | 'createdAt';
-export type ElementPanelViewMode = 'visual' | 'list';
+export type ElementCategorySortMode = 'alphabet' | 'createdAt';
+export type ElementPanelViewMode = 'compact' | 'list';
 
 // What the right edge of a node cell (章节 / 灵感) shows. The 章节 and 灵感
 // panels each keep their own preference (toggled from their respective
@@ -229,16 +231,20 @@ interface UiState {
   setChapterPanelViewMode: (mode: 'global' | 'storyline') => void;
 
   // Left-panel sort modes — selected from the SortMenu attached to the
-  // sub-header. Each panel has its own preference; ChapterPanel splits global
-  // vs. storyline-inner since the available modes differ between layouts.
+  // sub-header. Each panel has its own preference; grouped Chapter/Element
+  // views keep outer-container ordering independent from inner-item ordering.
   driftSortMode: DriftSortMode;
   setDriftSortMode: (mode: DriftSortMode) => void;
   chapterGlobalSortMode: ChapterGlobalSortMode;
   setChapterGlobalSortMode: (mode: ChapterGlobalSortMode) => void;
   chapterStorylineInnerSortMode: ChapterStorylineInnerSortMode;
   setChapterStorylineInnerSortMode: (mode: ChapterStorylineInnerSortMode) => void;
+  chapterStorylineOuterSortMode: ChapterStorylineOuterSortMode;
+  setChapterStorylineOuterSortMode: (mode: ChapterStorylineOuterSortMode) => void;
   elementSortMode: ElementSortMode;
   setElementSortMode: (mode: ElementSortMode) => void;
+  elementCategorySortMode: ElementCategorySortMode;
+  setElementCategorySortMode: (mode: ElementCategorySortMode) => void;
   elementPanelViewMode: ElementPanelViewMode;
   setElementPanelViewMode: (mode: ElementPanelViewMode) => void;
 
@@ -562,9 +568,13 @@ export const useUiStore = create<UiState>()(
       setChapterGlobalSortMode: (mode) => set({ chapterGlobalSortMode: mode }),
       chapterStorylineInnerSortMode: 'bookOrder',
       setChapterStorylineInnerSortMode: (mode) => set({ chapterStorylineInnerSortMode: mode }),
+      chapterStorylineOuterSortMode: 'storylineOrder',
+      setChapterStorylineOuterSortMode: (mode) => set({ chapterStorylineOuterSortMode: mode }),
       elementSortMode: 'alphabet',
       setElementSortMode: (mode) => set({ elementSortMode: mode }),
-      elementPanelViewMode: 'visual',
+      elementCategorySortMode: 'alphabet',
+      setElementCategorySortMode: (mode) => set({ elementCategorySortMode: mode }),
+      elementPanelViewMode: 'compact',
       setElementPanelViewMode: (mode) => set({ elementPanelViewMode: mode }),
 
       chapterCellMeta: 'date',
@@ -1225,7 +1235,9 @@ export const useUiStore = create<UiState>()(
         driftSortMode: state.driftSortMode,
         chapterGlobalSortMode: state.chapterGlobalSortMode,
         chapterStorylineInnerSortMode: state.chapterStorylineInnerSortMode,
+        chapterStorylineOuterSortMode: state.chapterStorylineOuterSortMode,
         elementSortMode: state.elementSortMode,
+        elementCategorySortMode: state.elementCategorySortMode,
         elementPanelViewMode: state.elementPanelViewMode,
         chapterCellMeta: state.chapterCellMeta,
         driftCellMeta: state.driftCellMeta,
@@ -1279,7 +1291,28 @@ export const useUiStore = create<UiState>()(
       // which was renamed 'reference' → 'memo-material' when the placeholder
       // view was clarified.
       merge: (persisted, current) => {
-        const merged = { ...current, ...(persisted as Partial<UiState>) };
+        const persistedState = persisted as Partial<UiState> | undefined;
+        const merged = { ...current, ...persistedState };
+        if (
+          persistedState &&
+          !Object.prototype.hasOwnProperty.call(persistedState, 'elementCategorySortMode')
+        ) {
+          // Before outer/inner sorting split, elementSortMode drove both
+          // category order and the elements inside each category.
+          merged.elementCategorySortMode = merged.elementSortMode;
+        }
+        if (
+          merged.chapterStorylineOuterSortMode !== 'storylineOrder' &&
+          merged.chapterStorylineOuterSortMode !== 'alphabet'
+        ) {
+          merged.chapterStorylineOuterSortMode = 'storylineOrder';
+        }
+        if (
+          merged.elementCategorySortMode !== 'alphabet' &&
+          merged.elementCategorySortMode !== 'createdAt'
+        ) {
+          merged.elementCategorySortMode = 'alphabet';
+        }
         // Retired Shadow selections fall back to the Agent group.
         if ((merged.activeRightPanel as string) === 'shadow') {
           merged.activeRightPanel = 'library';
@@ -1295,8 +1328,15 @@ export const useUiStore = create<UiState>()(
         if (merged.rightPanelGroup !== 'agent' && merged.rightPanelGroup !== 'content') {
           merged.rightPanelGroup = 'content';
         }
-        if (merged.elementPanelViewMode !== 'visual' && merged.elementPanelViewMode !== 'list') {
-          merged.elementPanelViewMode = 'visual';
+        // The first local iteration called the text index "visual". Preserve
+        // that persisted preference while retiring the portrait-based name.
+        if ((merged.elementPanelViewMode as string) === 'visual') {
+          merged.elementPanelViewMode = 'compact';
+        } else if (
+          merged.elementPanelViewMode !== 'compact' &&
+          merged.elementPanelViewMode !== 'list'
+        ) {
+          merged.elementPanelViewMode = 'compact';
         }
         const allowedSuper = new Set(['none', 'element', 'graph', 'memo-material']);
         if ((merged.activeSuperView as string) === 'reference') {

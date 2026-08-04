@@ -4,16 +4,14 @@ import { useTranslation } from 'react-i18next';
 
 import { AgentCountBadge } from './AgentCountBadge';
 
-// Single source for the left-sidebar group-header cell. Storyline groups in
-// ChapterPanel and category groups in ElementPanel both render the same
-// row: [chevron] [color dot] [NAME · count] [hover-revealed + button].
+// Single source for the left-sidebar group-header cell. Storyline groups keep
+// the ordinary [chevron] [color dot] row; compact Element categories opt into
+// a frame mode where the label toggles and the dot only returns when collapsed.
 //
 // The component is purely presentational — it doesn't own collapse or
 // add-affordance state, just renders the chrome and forwards the toggles.
-// Callers add hover affordances by wrapping in a `.left-sb-group` element
-// (or any container with the .left-sb-group class) so the existing
-// `.left-sb-group:hover .left-sb-group-add { opacity: 1 }` rule keeps
-// working without per-panel duplication.
+// Hover-only actions are scoped to this header itself. That prevents hovering
+// a parent group from revealing add buttons in every nested descendant.
 
 export interface GroupHeaderCellProps {
   name: string;
@@ -25,6 +23,12 @@ export interface GroupHeaderCellProps {
   glyph?: ReactNode;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  collapseDisabled?: boolean;
+  // Element compact-index categories replace the ordinary chevron with a
+  // state morph: expanded color becomes the surrounding category frame;
+  // collapsed color returns as the small leading square and the label itself
+  // becomes the disclosure control. Other callers keep the default chrome.
+  collapseChrome?: 'chevron' | 'frame';
   // Whole-row click — typically "open this group's entity editor".
   onClick?: () => void;
   onDoubleClick?: () => void;
@@ -33,11 +37,15 @@ export interface GroupHeaderCellProps {
   // skipped entirely (useful for read-only group headers).
   addButtonTitle?: string;
   onAdd?: () => void;
+  addButtonVisibility?: 'hover' | 'always';
   // Optional sticky positioning for headers that should stay visible while
   // the user scrolls their group's body (ElementPanel category headers do
   // this so the group label remains in view).
   sticky?: boolean;
-  // Optional extra slot rendered between the count and the + button.
+  // Semantic group surfaces may tint the sticky slab while preserving the
+  // shared header geometry. Omitted callers keep the ordinary chrome plane.
+  stickyBackground?: string;
+  // Optional inline action rendered after the count and before the primary +.
   rightExtra?: ReactNode;
   // Agent activity bubbled up from this group's child cells (#17). While a child
   // is busy the color dot blinks accent; once the run finishes and leaves
@@ -59,12 +67,16 @@ export function GroupHeaderCell({
   glyph,
   collapsed,
   onToggleCollapsed,
+  collapseDisabled = false,
+  collapseChrome = 'chevron',
   onClick,
   onDoubleClick,
   onContextMenu,
   addButtonTitle,
   onAdd,
+  addButtonVisibility = 'hover',
   sticky = false,
+  stickyBackground,
   rightExtra,
   agentBusy = false,
   agentDoneCount = 0,
@@ -72,15 +84,23 @@ export function GroupHeaderCell({
   agentSelfAdded = false,
 }: GroupHeaderCellProps) {
   const { t } = useTranslation();
+  const showRestingColorMarker = collapseChrome === 'chevron' || collapsed;
+  const frameControlBackground =
+    collapseChrome === 'frame' && !collapsed ? 'var(--chrome-bg)' : 'transparent';
   return (
     <div
+      className={`left-sb-group-header${
+        collapseChrome === 'frame'
+          ? ` left-sb-group-header--frame ${collapsed ? 'is-collapsed' : 'is-expanded'}`
+          : ''
+      }`}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
       style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-start',
         gap: 8,
         padding: '4px 12px 4px 14px',
         cursor: onClick ? 'pointer' : 'default',
@@ -93,7 +113,7 @@ export function GroupHeaderCell({
               // sticky header reads as part of the panel surface, matching
               // surrounding element cells (which are transparent over the
               // same chrome background).
-              background: 'var(--chrome-bg)',
+              background: stickyBackground ?? 'var(--chrome-bg)',
             }
           : {}),
       }}
@@ -112,39 +132,42 @@ export function GroupHeaderCell({
           color: 'hsl(var(--ink-3))',
         }}
       >
-        <button
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleCollapsed();
-          }}
-          title={collapsed ? 'Expand' : 'Collapse'}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 14,
-            height: 14,
-            border: 'none',
-            background: 'transparent',
-            color: 'hsl(var(--ink-4))',
-            cursor: 'pointer',
-            padding: 0,
-            flexShrink: 0,
-          }}
-        >
-          {collapsed ? (
-            <ChevronRight size={11} strokeWidth={2} />
-          ) : (
-            <ChevronDown size={11} strokeWidth={2} />
-          )}
-        </button>
+        {collapseChrome === 'chevron' && (
+          <button
+            type="button"
+            disabled={collapseDisabled}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (collapseDisabled) return;
+              onToggleCollapsed();
+            }}
+            title={collapseDisabled ? undefined : collapsed ? 'Expand' : 'Collapse'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 14,
+              height: 14,
+              border: 'none',
+              background: 'transparent',
+              color: 'hsl(var(--ink-4))',
+              cursor: collapseDisabled ? 'default' : 'pointer',
+              padding: 0,
+              flexShrink: 0,
+            }}
+          >
+            {collapsed ? (
+              <ChevronRight size={11} strokeWidth={2} />
+            ) : (
+              <ChevronDown size={11} strokeWidth={2} />
+            )}
+          </button>
+        )}
         {!agentBusy && (agentSelfAdded || agentSelfChanged) ? (
           <span
             aria-hidden
             title={t(
-              agentSelfAdded
-                ? 'agentActivity.groupBodyAdded'
-                : 'agentActivity.groupBodyChanged',
+              agentSelfAdded ? 'agentActivity.groupBodyAdded' : 'agentActivity.groupBodyChanged',
             )}
             style={{
               width: 7,
@@ -179,7 +202,7 @@ export function GroupHeaderCell({
           >
             {glyph}
           </span>
-        ) : (
+        ) : showRestingColorMarker || agentBusy ? (
           <span
             aria-hidden
             className={agentBusy ? 'agent-glyph-busy' : undefined}
@@ -194,70 +217,109 @@ export function GroupHeaderCell({
               flexShrink: 0,
             }}
           />
+        ) : null}
+        {collapseChrome === 'frame' ? (
+          <button
+            type="button"
+            className="left-sb-group-header__frame-label"
+            aria-disabled={collapseDisabled}
+            aria-expanded={collapseDisabled ? false : !collapsed}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (collapseDisabled) return;
+              onToggleCollapsed();
+            }}
+            title={collapseDisabled ? undefined : collapsed ? 'Expand' : 'Collapse'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              minWidth: 0,
+              border: 0,
+              marginLeft: collapsed ? 0 : -6,
+              padding: collapsed ? 0 : '0 6px',
+              background: frameControlBackground,
+              cursor: collapseDisabled ? 'default' : 'pointer',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9.5,
+                textTransform: 'uppercase',
+                letterSpacing: '0.12em',
+                color: 'hsl(var(--ink-3))',
+                fontWeight: 500,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {name}
+            </span>
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9.5,
+                color: 'hsl(var(--ink-4))',
+                flexShrink: 0,
+              }}
+            >
+              · {count}
+            </span>
+          </button>
+        ) : (
+          <>
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9.5,
+                textTransform: 'uppercase',
+                letterSpacing: '0.12em',
+                color: 'hsl(var(--ink-3))',
+                fontWeight: 500,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {name}
+            </span>
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9.5,
+                color: 'hsl(var(--ink-4))',
+                flexShrink: 0,
+              }}
+            >
+              · {count}
+            </span>
+          </>
         )}
-        <span
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
-            textTransform: 'uppercase',
-            letterSpacing: '0.12em',
-            color: 'hsl(var(--ink-3))',
-            fontWeight: 500,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {name}
-        </span>
-        <span
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
-            color: 'hsl(var(--ink-4))',
-            flexShrink: 0,
-          }}
-        >
-          · {count}
-        </span>
+
+        {(rightExtra || (addButtonTitle && onAdd)) && (
+          <span className="left-sb-inline-actions">
+            {rightExtra}
+            {addButtonTitle && onAdd && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onAdd();
+                }}
+                title={addButtonTitle}
+                className={`left-sb-group-add left-sb-inline-add-button${
+                  addButtonVisibility === 'always' ? ' left-sb-group-add--always' : ''
+                }${collapseChrome === 'frame' ? ' left-sb-inline-add-button--frame' : ''}`}
+                style={{ width: 18, height: 18 }}
+              >
+                <Plus size={12} strokeWidth={1.6} />
+              </button>
+            )}
+          </span>
+        )}
       </div>
-
-      {rightExtra}
-
-      {addButtonTitle && onAdd && (
-        <button
-          onClick={(event) => {
-            event.stopPropagation();
-            onAdd();
-          }}
-          title={addButtonTitle}
-          className="left-sb-group-add"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 18,
-            height: 18,
-            borderRadius: 3,
-            border: 'none',
-            background: 'transparent',
-            color: 'hsl(var(--ink-4))',
-            cursor: 'pointer',
-            padding: 0,
-            transition: 'opacity 0.12s, background 0.12s, color 0.12s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-            e.currentTarget.style.color = 'hsl(var(--ink-1))';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = 'hsl(var(--ink-4))';
-          }}
-        >
-          <Plus size={12} strokeWidth={1.6} />
-        </button>
-      )}
     </div>
   );
 }
