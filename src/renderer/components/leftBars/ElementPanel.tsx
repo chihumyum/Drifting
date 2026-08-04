@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import loglevel from 'loglevel';
@@ -79,24 +79,6 @@ export function ElementPanel() {
   });
 
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set());
-
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const categorySectionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const footerScrollRef = useRef<HTMLDivElement | null>(null);
-  const footerChipRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
-
-  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  // While a manual chip click is in effect, ignore scroll-driven updates so
-  // the highlighted chip stays put even when the section can't fully scroll
-  // to the anchor (e.g. last category near the end of the list).
-  const manualActiveLockUntilRef = useRef<number>(0);
-
-  // Footer height. null means "use natural one-row height + horizontal scroll".
-  // Once dragged taller than the natural row, the inner scroll switches to
-  // vertical with chips wrapping onto multiple lines. Persisted in ui-store.
-  const footerHeight = useUiStore((s) => s.elementCategoryFooterHeight);
-  const setFooterHeight = useUiStore((s) => s.setElementCategoryFooterHeight);
-  const minFooterHeightRef = useRef<number>(0);
   // Per-cell context menu — reuses the editor top-bar three-dot menu items
   // via EntityCellContextMenu so element & category context options stay in
   // lockstep with what the editor exposes.
@@ -129,103 +111,6 @@ export function ElementPanel() {
       }
       return next;
     });
-  }, []);
-
-  // Track which category section is currently at the top of the scroll
-  // viewport, so the footer chip can highlight it.
-  const updateActiveFromScroll = useCallback(() => {
-    if (Date.now() < manualActiveLockUntilRef.current) return;
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const containerRect = container.getBoundingClientRect();
-    // anchor a little below the top edge so the highlight flips as a category
-    // header crosses past it
-    const anchorY = containerRect.top + 8;
-
-    let bestId: string | null = null;
-    let bestTop = -Infinity;
-    categorySectionRefs.current.forEach((el, id) => {
-      const rect = el.getBoundingClientRect();
-      // pick the last section whose top is at or above the anchor
-      if (rect.top <= anchorY && rect.top > bestTop) {
-        bestTop = rect.top;
-        bestId = id;
-      }
-    });
-    // fallback: first visible section
-    if (!bestId) {
-      let firstId: string | null = null;
-      let firstTop = Infinity;
-      categorySectionRefs.current.forEach((el, id) => {
-        const rect = el.getBoundingClientRect();
-        if (rect.bottom > containerRect.top && rect.top < firstTop) {
-          firstTop = rect.top;
-          firstId = id;
-        }
-      });
-      bestId = firstId;
-    }
-    setActiveCategoryId((prev) => (prev === bestId ? prev : bestId));
-  }, []);
-
-  // Auto-scroll the footer so the active chip stays in view.
-  useEffect(() => {
-    if (!activeCategoryId) return;
-    const footer = footerScrollRef.current;
-    const chip = footerChipRefs.current.get(activeCategoryId);
-    if (!footer || !chip) return;
-    const footerRect = footer.getBoundingClientRect();
-    const chipRect = chip.getBoundingClientRect();
-    if (chipRect.left < footerRect.left + 8) {
-      footer.scrollBy({ left: chipRect.left - footerRect.left - 16, behavior: 'smooth' });
-    } else if (chipRect.right > footerRect.right - 8) {
-      footer.scrollBy({ left: chipRect.right - footerRect.right + 16, behavior: 'smooth' });
-    }
-  }, [activeCategoryId]);
-
-  const startFooterResize = useCallback(
-    (event: React.MouseEvent) => {
-      if (!footerScrollRef.current) return;
-      event.preventDefault();
-      const startY = event.clientY;
-      const startHeight = footerScrollRef.current.offsetHeight;
-      const min = minFooterHeightRef.current || startHeight;
-
-      const onMove = (ev: MouseEvent) => {
-        const next = startHeight + (startY - ev.clientY);
-        const max = Math.max(min, Math.round(window.innerHeight * 0.5));
-        const clamped = Math.max(min, Math.min(max, next));
-        // Snap back to "natural" when within a couple px of the min.
-        setFooterHeight(clamped <= min + 2 ? null : clamped);
-      };
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-      };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-      document.body.style.cursor = 'ns-resize';
-      document.body.style.userSelect = 'none';
-    },
-    [setFooterHeight],
-  );
-
-  const scrollToCategory = useCallback((categoryId: string) => {
-    // Lock the highlight to the clicked chip first. If the section can fully
-    // scroll to the anchor, normal tracking would arrive at the same chip
-    // once the lock expires; if it can't (last category near the bottom), the
-    // chip stays selected until the user manually scrolls again.
-    setActiveCategoryId(categoryId);
-    manualActiveLockUntilRef.current = Date.now() + 700;
-    const section = categorySectionRefs.current.get(categoryId);
-    const container = scrollContainerRef.current;
-    if (!section || !container) return;
-    const sectionRect = section.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
-    const delta = sectionRect.top - containerRect.top;
-    container.scrollBy({ top: delta, behavior: 'smooth' });
   }, []);
 
   // Sub-header collapse-all toggles between "expand all" and "collapse all".
@@ -306,35 +191,6 @@ export function ElementPanel() {
     sortMode,
     categoryById,
   ]);
-
-  // Lower bound for the resize gesture = natural one-row footer height.
-  // Prefer measuring directly when footerHeight is null (the footer is at its
-  // natural size). Otherwise derive it from a single chip's height plus the
-  // footer's own padding — measuring offsetHeight while an explicit
-  // height is applied would lock min to the persisted value, causing later
-  // drags to jump straight past the 2-row size.
-  useLayoutEffect(() => {
-    if (!footerScrollRef.current) return;
-    if (footerHeight == null) {
-      minFooterHeightRef.current = footerScrollRef.current.offsetHeight;
-      return;
-    }
-    const firstChip = footerChipRefs.current.values().next().value;
-    if (firstChip) {
-      // footer paddingTop + paddingBottom
-      minFooterHeightRef.current = firstChip.offsetHeight + 6 + 6;
-    }
-  }, [footerHeight, categoryIds.length]);
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    updateActiveFromScroll();
-    container.addEventListener('scroll', updateActiveFromScroll, { passive: true });
-    return () => {
-      container.removeEventListener('scroll', updateActiveFromScroll);
-    };
-  }, [updateActiveFromScroll, categoryIds, collapsedCategoryIds]);
 
   const elementsByCategory = useMemo(() => {
     const grouped: Record<string, BookElement[]> = {};
@@ -458,7 +314,7 @@ export function ElementPanel() {
     return out;
   }, [groupedByCategory]);
 
-  const renderElementCard = (element: BookElement, categoryId: string, elementIndex: number) => {
+  const renderElementCard = (element: BookElement, categoryId: string) => {
     const selected = element.id === selectedBookElementId;
     const agentBusy = `element:${element.id}` in agentActive;
     const agentAdded = !agentBusy && `element:${element.id}` in agentAdditions;
@@ -477,8 +333,6 @@ export function ElementPanel() {
     return (
       <div
         key={element.id}
-        data-category-id={categoryId}
-        data-element-index={elementIndex}
         style={{
           // Aligned with ChapterPanel renderNodeCard so all three left-bar
           // entity cells share the same row metrics — only the leading
@@ -608,7 +462,6 @@ export function ElementPanel() {
         }}
       >
         <div
-          ref={scrollContainerRef}
           className="left-panel-scroll"
           style={{
             flex: 1,
@@ -629,15 +482,7 @@ export function ElementPanel() {
               (elementsByCategory[categoryId] ?? []).map((el) => entityKey('element', el.id)),
             );
             return (
-              <div
-                key={categoryId}
-                ref={(el) => {
-                  if (el) categorySectionRefs.current.set(categoryId, el);
-                  else categorySectionRefs.current.delete(categoryId);
-                }}
-                data-category-section={categoryId}
-                style={{ marginBottom: 8 }}
-              >
+              <div key={categoryId} style={{ marginBottom: 8 }}>
                 <GroupHeaderCell
                   name={getCategoryLabel(categoryId)}
                   count={(elementsByCategory[categoryId] ?? []).length}
@@ -688,13 +533,10 @@ export function ElementPanel() {
                 {!collapsedCategoryIds.has(categoryId) &&
                   (() => {
                     const groups = groupedByCategory[categoryId] ?? [];
-                    let elementIndex = 0;
                     return groups.map((group) => {
-                      const cards = group.items.map((element) => {
-                        const card = renderElementCard(element, categoryId, elementIndex);
-                        elementIndex += 1;
-                        return card;
-                      });
+                      const cards = group.items.map((element) =>
+                        renderElementCard(element, categoryId),
+                      );
                       return (
                         <div key={`${categoryId}::${group.groupName ?? '__ungrouped__'}`}>
                           {group.groupName !== null && (
@@ -735,103 +577,6 @@ export function ElementPanel() {
             </div>
           )}
         </div>
-
-        {/* Category footer — horizontal chips; highlights the section currently
-            scrolled into view and lets the user jump between categories. */}
-        {categoryIds.length > 0 && (
-          <div
-            ref={footerScrollRef}
-            className="left-panel-cat-footer"
-            style={{
-              position: 'relative',
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: footerHeight == null ? 'center' : 'flex-start',
-              flexWrap: footerHeight == null ? 'nowrap' : 'wrap',
-              alignContent: 'flex-start',
-              gap: 4,
-              padding: '6px 8px',
-              overflowX: footerHeight == null ? 'auto' : 'hidden',
-              overflowY: footerHeight == null ? 'hidden' : 'auto',
-              borderTop: '1px solid var(--workspace-subtle-border)',
-              background: 'var(--workspace-ui-bg)',
-              whiteSpace: footerHeight == null ? 'nowrap' : 'normal',
-              height: footerHeight ?? undefined,
-            }}
-          >
-            {/* Invisible drag handle on the top edge — no extra UI. */}
-            <div
-              onMouseDown={startFooterResize}
-              title={t('leftSidebar.groups.resizeFooter')}
-              style={{
-                position: 'absolute',
-                top: -3,
-                left: 0,
-                right: 0,
-                height: 6,
-                cursor: 'ns-resize',
-                zIndex: 5,
-              }}
-            />
-            {categoryIds.map((categoryId) => {
-              const active = categoryId === activeCategoryId;
-              const color =
-                categoryId === UNCATEGORIZED_ID
-                  ? UNCATEGORIZED_COLOR
-                  : getCategoryColor(categoryId);
-              return (
-                <button
-                  key={categoryId}
-                  ref={(el) => {
-                    if (el) footerChipRefs.current.set(categoryId, el);
-                    else footerChipRefs.current.delete(categoryId);
-                  }}
-                  onClick={() => scrollToCategory(categoryId)}
-                  title={getCategoryLabel(categoryId)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    flexShrink: 0,
-                    padding: '3px 8px',
-                    border: '1px solid',
-                    borderColor: active ? 'hsl(var(--ink-1))' : 'hsl(var(--rule))',
-                    borderRadius: 3,
-                    background: active ? 'hsl(var(--ink-1))' : 'transparent',
-                    color: active ? 'hsl(var(--paper))' : 'hsl(var(--ink-3))',
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 9.5,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.1em',
-                    transition: 'background 0.12s, color 0.12s, border-color 0.12s',
-                  }}
-                >
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: 2,
-                      background: color,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span
-                    style={{
-                      maxWidth: 96,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {getCategoryLabel(categoryId)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {hoverPreview && (

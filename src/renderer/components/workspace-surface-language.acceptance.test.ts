@@ -539,7 +539,8 @@ describe('workspace surface language acceptance', () => {
     expect(library).toContain("padding: '6px 12px 12px'");
     expect(library).toContain('gap: 6');
     expect(collapsibleFooter).toContain("borderTop: '1px solid var(--workspace-subtle-border)'");
-    expect(elementPanel).toContain("borderTop: '1px solid var(--workspace-subtle-border)'");
+    expect(elementPanel).not.toContain('left-panel-cat-footer');
+    expect(elementPanel).not.toContain("borderTop: '1px solid var(--workspace-subtle-border)'");
   });
 
   it('keeps Settings and Super Views on flat edge-aligned shells', () => {

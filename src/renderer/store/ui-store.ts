@@ -190,11 +190,6 @@ interface UiState {
   plotPlannerHeight: number | null;
   setPlotPlannerHeight: (height: number | null) => void;
 
-  // Resized height of the ElementPanel category footer. null = natural
-  // one-row height (horizontal scroll mode).
-  elementCategoryFooterHeight: number | null;
-  setElementCategoryFooterHeight: (height: number | null) => void;
-
   // Whether the BottomTimeline 未归属 lane is currently visible. Persisted so
   // toggling the lane sticks across sessions; the lane itself is meaningful
   // only when the project has at least one storyline (see BottomTimeline).
@@ -534,8 +529,6 @@ export const useUiStore = create<UiState>()(
       bottomTimelineHidden: false,
       setBottomTimelineHidden: (hidden) => set({ bottomTimelineHidden: hidden }),
 
-      elementCategoryFooterHeight: null,
-      setElementCategoryFooterHeight: (height) => set({ elementCategoryFooterHeight: height }),
       bottomTimelineUnaffiliatedVisible: false,
       setBottomTimelineUnaffiliatedVisible: (visible) =>
         set({ bottomTimelineUnaffiliatedVisible: visible }),
@@ -1265,7 +1258,6 @@ export const useUiStore = create<UiState>()(
         bottomTimelineHidden: state.bottomTimelineHidden,
         plotPlannerOpen: state.plotPlannerOpen,
         plotPlannerHeight: state.plotPlannerHeight,
-        elementCategoryFooterHeight: state.elementCategoryFooterHeight,
         bottomTimelineUnaffiliatedVisible: state.bottomTimelineUnaffiliatedVisible,
         driftSortMode: state.driftSortMode,
         chapterGlobalSortMode: state.chapterGlobalSortMode,
