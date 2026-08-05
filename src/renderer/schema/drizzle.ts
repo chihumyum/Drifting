@@ -1895,6 +1895,32 @@ export const YjsDocumentRevisionTable = sqliteTable('yjs_document_revision', {
 });
 
 /**
+ * Durable author of every semantic Yjs revision.
+ *
+ * This is intentionally separate from the compactable update log. An Agent
+ * must still be able to attribute a stale read after snapshots prune the
+ * underlying update rows. Exact Agent identity is present for General Agent
+ * commands; user, remote, system and legacy revisions remain explicit instead
+ * of being guessed from the absence of an Agent receipt.
+ */
+export const YjsDocumentRevisionProvenanceTable = sqliteTable(
+  'yjs_document_revision_provenance',
+  {
+    docId: text('document_id').notNull(),
+    revision: integer('revision').notNull(),
+    sourceKind: text('source_kind').notNull(),
+    agentSessionId: text('agent_session_id'),
+    agentTurnId: text('agent_turn_id'),
+    agentCallId: text('agent_call_id'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.docId, t.revision] }),
+    index('idx_yjs_revision_provenance_doc_revision').on(t.docId, t.revision),
+  ],
+);
+
+/**
  * Durable idempotency/reconciliation receipt for provider-neutral prose
  * commands. The referenced update row may later be compacted, so updateId is a
  * watermark rather than a foreign key.

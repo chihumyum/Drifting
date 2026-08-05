@@ -1,12 +1,25 @@
 {
-  "schemaVersion": 12,
+  "schemaVersion": 13,
   "source": "drifting-final-product-contract",
   "product": {
     "runtimeHost": "tauri-renderer",
     "providerNeutralProtocol": true,
     "contextWindowTokens": 200000,
     "maxContextWindowTokens": 1000000,
-    "dynamicToolRegistration": "project-scoped-runtime"
+    "dynamicToolRegistration": "project-scoped-runtime",
+    "concurrency": {
+      "admissionPolicy": "unbounded-user-owned",
+      "activeTurnCardinality": "one-per-conversation",
+      "projectScope": "same-mounted-project",
+      "controlRouting": "session-and-turn-scoped",
+      "readScheduling": "concurrent",
+      "writeScheduling": "shared-reader-writer-barrier",
+      "staleWritePolicy": "revision-cas-stop-after-two-conflicts-per-target-turn",
+      "yjsCollaboratorIdentity": "session-turn-call-origin",
+      "yjsRevisionProvenance": "durable-per-revision-agent-user-remote-system-legacy",
+      "conflictAttribution": "self-other-agent-user-mixed-external",
+      "restartBehavior": "durable-plans-manual-resume-no-active-turn-replay"
+    }
   },
   "installedModelTools": {
     "total": 45,

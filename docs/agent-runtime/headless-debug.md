@@ -117,6 +117,21 @@ It reads `DEEPSEEK_AI_API_KEY` from `private-service/.env` through the isolated
 launcher and verifies read-before-edit plus the requested mutation. It is not
 part of the network-free milestone gate.
 
+To exercise two paid DeepSeek General Agent sessions against the same
+synthetic chapter and one real file-backed Yjs/SQLite product composition:
+
+```bash
+pnpm --dir client eval:agent:concurrency:live
+```
+
+The harness forces both sessions to finish the same-revision read before their
+first write request, then verifies one model-visible `other-agent` conflict,
+one reread/retry, both final edits, and exact per-session Yjs revision
+provenance. It never opens or mutates an author's project database and does not
+print or persist the API key, prompts, provider answers, or synthetic prose.
+The latest recorded run is
+[`acceptance/concurrent-agent-deepseek-live-2026-08-05.json`](acceptance/concurrent-agent-deepseek-live-2026-08-05.json).
+
 For multi-provider wire conformance, concrete MCP stdio/Streamable HTTP,
 generation replacement, durable exact grants, native bridge contracts and
 real-file SQLite restart/fault regression:

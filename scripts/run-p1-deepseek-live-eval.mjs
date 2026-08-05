@@ -18,11 +18,13 @@ const evalFiles = {
   p1: 'src/renderer/lib/agent/runtime/eval/p1-deepseek-live.eval.ts',
   'product-canary': 'src/renderer/lib/agent/runtime/eval/agent-product-canary.live.eval.ts',
   'writing-canary': 'src/renderer/lib/agent/runtime/eval/agent-writing-canary.live.eval.ts',
+  'concurrent-writing-canary':
+    'src/renderer/lib/agent/runtime/eval/agent-concurrent-writing-canary.live.eval.ts',
 };
 const evalFile = evalFiles[suite];
 if (!evalFile) {
   console.error(
-    'DRIFTING_AGENT_LIVE_SUITE must be "p1", "product-canary", or "writing-canary".',
+    'DRIFTING_AGENT_LIVE_SUITE must be "p1", "product-canary", "writing-canary", or "concurrent-writing-canary".',
   );
   process.exitCode = 1;
   process.exit();

@@ -1,6 +1,6 @@
 # General Agent functional acceptance checklist
 
-Updated: 2026-08-03
+Updated: 2026-08-05
 
 This is the durable acceptance index for General Agent changes. A milestone is
 not accepted from a test count alone: every applicable row needs an evidence
@@ -201,8 +201,9 @@ plus receipt, inverse/permission behavior and restart visibility.
 | DUR-04 | Core | E2 | SQLite is authoritative; localStorage deletion changes no durable Agent decision. |
 | DUR-05 | Core | E2 | Yjs and SQLite revision disagreement fails or reconciles explicitly, never overwrites silently. |
 | DUR-06 | Core | E2 | Two independent sessions reading the same project do not share messages, controls, summaries or permissions. |
-| DUR-07 | Expansion | E2+E4 | Multiple General Agent sessions execute concurrently; writes serialize/conflict by entity revision while reads continue. |
-| DUR-08 | Expansion | E2 | App restart restores multiple active session plans independently without global “current Agent” state. |
+| DUR-07 | Core | E1+E2 | Same-project General Agent sessions execute concurrently without an App admission cap; exact-session controls and activity stay isolated, reads continue, writes share the reader/writer barrier, durable Yjs revisions attribute self/other-Agent/user/mixed/external sources without guessing, and a second same-target stale conflict stops retries for that turn. |
+| DUR-07M | Core | E4 | In the native App, start, observe, steer and stop at least two sibling conversations independently while their history-row running indicators remain accurate. |
+| DUR-08 | Expansion | E2 | App restart restores multiple active session plans independently without global “current Agent” state; active provider requests are not replayed automatically. |
 
 ## J. MCP, provider extension and security
 

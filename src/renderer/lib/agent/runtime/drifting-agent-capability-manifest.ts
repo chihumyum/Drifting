@@ -31,8 +31,9 @@ import {
 import { AGENT_AUTHOR_CONTROL_CONTRACT } from './system-prompt';
 import { AGENT_PROVIDER_OPTIONS } from './agent-provider-contract';
 import { DRIFTING_MCP_PROTOCOL_VERSION } from './mcp-transport';
+import { DRIFTING_AGENT_CONCURRENCY_CONTRACT } from './agent-concurrency-contract';
 
-export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 12 as const;
+export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 13 as const;
 
 export type DriftingAgentToolOwner = 'workspace-runtime' | 'drifting-runtime' | 'long-task-runtime';
 
@@ -63,6 +64,7 @@ export interface DriftingAgentCapabilityManifest {
     contextWindowTokens: number;
     maxContextWindowTokens: number;
     dynamicToolRegistration: 'project-scoped-runtime';
+    concurrency: typeof DRIFTING_AGENT_CONCURRENCY_CONTRACT;
   };
   installedModelTools: {
     total: number;
@@ -233,6 +235,7 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
       contextWindowTokens: DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS,
       maxContextWindowTokens: DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS,
       dynamicToolRegistration: 'project-scoped-runtime',
+      concurrency: DRIFTING_AGENT_CONCURRENCY_CONTRACT,
     },
     installedModelTools: {
       total: installed.length,

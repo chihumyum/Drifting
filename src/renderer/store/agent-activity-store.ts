@@ -21,6 +21,13 @@ export interface ActivityMark {
   op: ToolEntityRef['op'];
 }
 
+/** Canonical owner of one activity signal. Tool call ids are provider-local and
+ * therefore must never be used as a cross-session key on their own. */
+export interface AgentActivityScope {
+  sessionId: string;
+  turnId: string;
+}
+
 /** A resolved set of change spots (block uuids materialized into a Set). */
 interface SpotSet {
   summary: boolean;
@@ -48,10 +55,10 @@ interface AgentActivityState {
   /** entityKey → mark, for entities written/created this run (breathing dot). */
   touched: Record<string, TouchedMark>;
 
-  onToolUse: (id: string, name: string, input: unknown) => void;
-  onToolResult: (id: string, ok: boolean, text: string) => void;
-  /** A turn finished — stop all pulses (leave the breathing dots). */
-  onTurnEnd: () => void;
+  onToolUse: (scope: AgentActivityScope, id: string, name: string, input: unknown) => void;
+  onToolResult: (scope: AgentActivityScope, id: string, ok: boolean, text: string) => void;
+  /** One turn finished — stop only its pulses (leave siblings + breathing dots). */
+  onTurnEnd: (scope: AgentActivityScope) => void;
   /** The user viewed one changed spot — clears the dot once all spots are seen. */
   markSpotSeen: (entityType: ActivityMark['entityType'], id: string, spot: SeenSpot) => void;
   /** The user opened/looked at an entity — clear its breathing dot outright. */
@@ -73,6 +80,17 @@ function allSeen(spots: SpotSet, seen: SpotSet): boolean {
 // Pending tool calls by tool-use id, so onToolResult can recover the args (and,
 // for create_*, read the new id out of the result). Module-level — not state.
 const pending = new Map<string, { name: string; input: unknown }>();
+const pendingKeysByScope = new Map<string, Set<string>>();
+const activeOwners = new Map<string, Map<string, ActivityMark>>();
+const activeKeysByScope = new Map<string, Set<string>>();
+
+function activityScopeKey(scope: AgentActivityScope): string {
+  return `${scope.sessionId}\u0000${scope.turnId}`;
+}
+
+function scopedCallKey(scope: AgentActivityScope, callId: string): string {
+  return `${activityScopeKey(scope)}\u0000${callId}`;
+}
 
 // Only entity types with a left-panel CELL get a pulse/breathing dot — those are
 // the ones the user can see and click to dismiss. Storylines/categories have no
@@ -84,19 +102,36 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
   active: {},
   touched: {},
 
-  onToolUse: (id, name, input) => {
-    pending.set(id, { name, input });
+  onToolUse: (scope, id, name, input) => {
+    const ownerKey = activityScopeKey(scope);
+    const callKey = scopedCallKey(scope, id);
+    pending.set(callKey, { name, input });
+    const pendingKeys = pendingKeysByScope.get(ownerKey) ?? new Set<string>();
+    pendingKeys.add(callKey);
+    pendingKeysByScope.set(ownerKey, pendingKeys);
     const ref = toolEntityRef(name, input);
     if (!ref || !hasCell(ref.entityType)) return;
     const key = entityKey(ref.entityType, ref.id);
+    const mark = { entityType: ref.entityType, id: ref.id, op: ref.op };
+    const owners = activeOwners.get(key) ?? new Map<string, ActivityMark>();
+    owners.set(ownerKey, mark);
+    activeOwners.set(key, owners);
+    const activeKeys = activeKeysByScope.get(ownerKey) ?? new Set<string>();
+    activeKeys.add(key);
+    activeKeysByScope.set(ownerKey, activeKeys);
     set((s) => ({
-      active: { ...s.active, [key]: { entityType: ref.entityType, id: ref.id, op: ref.op } },
+      active: { ...s.active, [key]: mark },
     }));
   },
 
-  onToolResult: (id, ok, text) => {
-    const p = pending.get(id);
-    pending.delete(id);
+  onToolResult: (scope, id, ok, text) => {
+    const ownerKey = activityScopeKey(scope);
+    const callKey = scopedCallKey(scope, id);
+    const p = pending.get(callKey);
+    pending.delete(callKey);
+    const pendingKeys = pendingKeysByScope.get(ownerKey);
+    pendingKeys?.delete(callKey);
+    if (pendingKeys?.size === 0) pendingKeysByScope.delete(ownerKey);
     if (!p || !ok) return;
     const ref = toolEntityRef(p.name, p.input, text);
     // Added is durable editor presentation, not a turn-lifetime activity dot:
@@ -131,9 +166,38 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
     });
   },
 
-  onTurnEnd: () => {
-    pending.clear();
-    set((s) => (Object.keys(s.active).length ? { active: {} } : s));
+  onTurnEnd: (scope) => {
+    const ownerKey = activityScopeKey(scope);
+    for (const callKey of pendingKeysByScope.get(ownerKey) ?? []) {
+      pending.delete(callKey);
+    }
+    pendingKeysByScope.delete(ownerKey);
+    const ownedKeys = activeKeysByScope.get(ownerKey);
+    if (!ownedKeys?.size) return;
+    activeKeysByScope.delete(ownerKey);
+    set((s) => {
+      const active = { ...s.active };
+      let changed = false;
+      for (const key of ownedKeys) {
+        const owners = activeOwners.get(key);
+        owners?.delete(ownerKey);
+        if (!owners?.size) {
+          activeOwners.delete(key);
+          if (key in active) {
+            delete active[key];
+            changed = true;
+          }
+          continue;
+        }
+        const remainingOwners = [...owners.values()];
+        const remaining = remainingOwners[remainingOwners.length - 1];
+        if (remaining) {
+          active[key] = remaining;
+          changed = true;
+        }
+      }
+      return changed ? { active } : s;
+    });
   },
 
   markSpotSeen: (entityType, id, spot) => {
@@ -167,6 +231,9 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
 
   clearAll: () => {
     pending.clear();
+    pendingKeysByScope.clear();
+    activeOwners.clear();
+    activeKeysByScope.clear();
     set({ active: {}, touched: {} });
   },
 }));

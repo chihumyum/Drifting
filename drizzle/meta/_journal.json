@@ -568,6 +568,13 @@
       "when": 1786377600000,
       "tag": "0080_retire_shadow_arc_evolve",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "6",
+      "when": 1786550400000,
+      "tag": "0082_yjs_revision_provenance",
+      "breakpoints": true
     }
   ]
 }

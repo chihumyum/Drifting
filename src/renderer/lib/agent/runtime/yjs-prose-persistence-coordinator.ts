@@ -19,7 +19,10 @@ import * as Y from 'yjs';
 
 import { getDb, type DbClient, type DbExecutor } from '../../../lib/db';
 import { getLiveYDoc } from '../../../lib/yjs-doc-registry';
-import { createPersistedYjsUpdateOrigin } from '../../../lib/yjs-persistence-origin';
+import {
+  createPersistedYjsUpdateOrigin,
+  type PersistedYjsUpdateCollaborator,
+} from '../../../lib/yjs-persistence-origin';
 import {
   YjsProseCommandReceiptTable,
 } from '../../../schema/drizzle';
@@ -121,6 +124,7 @@ export interface CommitPreparedYjsProseCommandInput
   command: PreparedYjsProsePersistenceCommand;
   direction: YjsProseUpdateDirection;
   expectedRevision: number;
+  collaborator?: PersistedYjsUpdateCollaborator;
 }
 
 export interface YjsProseCommitResult {
@@ -483,6 +487,7 @@ export class YjsProsePersistenceCoordinator {
             docId,
             blockIdMigration.update,
             revision,
+            { kind: 'system' },
           );
           revision = appended.revision;
           await repo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc), {
@@ -657,6 +662,18 @@ export class YjsProsePersistenceCoordinator {
         input.command.base.docId,
         update,
         revision,
+        {
+          kind: 'agent',
+          ...(input.collaborator
+            ? {
+                collaborator: {
+                  sessionId: input.collaborator.sessionId,
+                  turnId: input.collaborator.turnId,
+                  callId: input.collaborator.callId,
+                },
+              }
+            : {}),
+        },
       );
       await repo.upsertSnapshot(
         input.command.base.docId,
@@ -805,7 +822,7 @@ export class YjsProsePersistenceCoordinator {
       Y.applyUpdate(
         live,
         updateFor(input.command.prepared, input.direction),
-        createPersistedYjsUpdateOrigin(receipt.updateId, receipt.id),
+        createPersistedYjsUpdateOrigin(receipt.updateId, receipt.id, input.collaborator),
       );
       return (await hashYjsProseState(live)) !== receipt.resultStateHash;
     } catch (cause) {

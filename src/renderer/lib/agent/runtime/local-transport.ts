@@ -1,9 +1,11 @@
 import type {
+  AgentAbortInput,
   AgentCancelPendingControlInput,
   AgentEventEnvelope,
   AgentListPendingControlsInput,
   AgentPendingControl,
   AgentPermissionResolutionInput,
+  AgentResetSessionInput,
   AgentStartInput,
   AgentStartRoute,
   AgentSteeringInput,
@@ -58,6 +60,8 @@ export interface LocalGeneralAgentTransportDependencies {
 
 interface ActiveTurn {
   turnId: string;
+  routeKey: string;
+  sessionId?: string;
   controller: AbortController;
   control?: AgentRuntimeControlChannel;
 }
@@ -162,8 +166,8 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   private readonly sessions = new Map<string, LocalSessionState>();
   private readonly routeSessionIds = new Map<string, string>();
   private readonly seenTurnIds = new Set<string>();
-  private active: ActiveTurn | null = null;
-  private lastSessionId: string | null = null;
+  private readonly activeTurns = new Map<string, ActiveTurn>();
+  private readonly activeRouteTurns = new Map<string, string>();
 
   constructor(dependencies: LocalGeneralAgentTransportDependencies) {
     this.persistence = dependencies.persistence;
@@ -234,12 +238,6 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   }
 
   async start(input: AgentStartInput): Promise<GeneralAgentResult> {
-    if (this.active) {
-      return transportError(
-        'AGENT_TURN_ALREADY_RUNNING',
-        `Agent turn "${this.active.turnId}" is still running.`,
-      );
-    }
     const route = resolveRoute(input);
     if (!route) {
       return transportError(
@@ -265,16 +263,24 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         `Agent turn id "${turnId}" has already been used.`,
       );
     }
+    const routeKey = routeKeyFor(route);
+    const routeTurnId = this.activeRouteTurns.get(routeKey);
+    if (routeTurnId) {
+      return transportError(
+        'AGENT_ROUTE_ALREADY_RUNNING',
+        `Agent turn "${routeTurnId}" is still running for this conversation.`,
+      );
+    }
     this.seenTurnIds.add(turnId);
     const controller = new AbortController();
-    const active: ActiveTurn = { turnId, controller };
-    this.active = active;
-    const routeKey = routeKeyFor(route);
+    const active: ActiveTurn = { turnId, routeKey, controller };
+    this.activeTurns.set(turnId, active);
+    this.activeRouteTurns.set(routeKey, turnId);
     let candidateSessionId: string;
     try {
       candidateSessionId = this.createId('session');
     } catch {
-      if (this.active === active) this.active = null;
+      this.releaseActiveTurn(active);
       return transportError('AGENT_ID_UNAVAILABLE', 'Secure runtime id generation is unavailable.');
     }
 
@@ -302,7 +308,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         };
         this.sessions.set(session.id, session);
       } catch (error) {
-        if (this.active === active) this.active = null;
+        this.releaseActiveTurn(active);
         return transportError(persistenceErrorCode(error), persistenceErrorMessage(error));
       }
     } else {
@@ -313,13 +319,13 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         candidateSessionId,
       );
       if (!resolved.ok) {
-        if (this.active === active) this.active = null;
+        this.releaseActiveTurn(active);
         return resolved.result;
       }
       session = resolved.session;
     }
     this.routeSessionIds.set(routeKey, session.id);
-    this.lastSessionId = session.id;
+    active.sessionId = session.id;
     const control = new AgentRuntimeControlChannel(session.id, turnId);
     active.control = control;
     const projector = new LegacyAgentEventProjector(session.id);
@@ -353,7 +359,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       if (terminalEntry) this.publishJournal(terminalEntry);
       terminalEntry = null;
       for (const event of terminalEvents) {
-        if (event.type === 'done' && this.active === active) this.active = null;
+        if (event.type === 'done') this.releaseActiveTurn(active);
         this.publish({ turnId, event });
       }
       terminalEvents = [];
@@ -421,7 +427,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
       })
       .catch((error: unknown) => {
         acknowledgeStart(false);
-        if (this.active === active) this.active = null;
+        this.releaseActiveTurn(active);
         if (!didStart) return;
         // The immutable computational terminal was already appended, but the
         // normalized message/checkpoint commit failed. Project it live as a
@@ -438,7 +444,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         this.publish({ turnId, event: { type: 'done' } });
       })
       .finally(() => {
-        if (this.active === active) this.active = null;
+        this.releaseActiveTurn(active);
       });
 
     return (await started)
@@ -447,8 +453,8 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   }
 
   async resolvePermission(input: AgentPermissionResolutionInput): Promise<GeneralAgentResult> {
-    const control = this.active?.control;
-    if (!control || control.turnId !== input.turnId) {
+    const control = this.activeTurns.get(input.turnId)?.control;
+    if (!control || control.sessionId !== input.sessionId) {
       return transportError(
         'AGENT_CONTINUATION_REQUIRED',
         'The original Agent execution stack is unavailable; this permission cannot be resumed directly.',
@@ -458,8 +464,8 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   }
 
   async submitUserInput(input: AgentUserInputResponseInput): Promise<GeneralAgentResult> {
-    const control = this.active?.control;
-    if (!control || control.turnId !== input.turnId) {
+    const control = this.activeTurns.get(input.turnId)?.control;
+    if (!control || control.sessionId !== input.sessionId) {
       return transportError(
         'AGENT_CONTINUATION_REQUIRED',
         'The original Agent execution stack is unavailable; this answer was not accepted.',
@@ -469,8 +475,8 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   }
 
   async steer(input: AgentSteeringInput): Promise<GeneralAgentResult> {
-    const control = this.active?.control;
-    if (!control || control.turnId !== input.turnId) {
+    const control = this.activeTurns.get(input.turnId)?.control;
+    if (!control) {
       return transportError(
         'AGENT_CONTROL_NOT_ACTIVE',
         'There is no matching active Agent turn to steer.',
@@ -480,8 +486,8 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   }
 
   async stopAfterTool(input: AgentStopAfterToolInput): Promise<GeneralAgentResult> {
-    const control = this.active?.control;
-    if (!control || control.turnId !== input.turnId) {
+    const control = this.activeTurns.get(input.turnId)?.control;
+    if (!control) {
       return transportError(
         'AGENT_CONTROL_NOT_ACTIVE',
         'There is no matching active Agent turn to stop.',
@@ -493,10 +499,9 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   async listPendingControls(
     input: AgentListPendingControlsInput,
   ): Promise<GeneralAgentResult<AgentPendingControl[]>> {
-    const activePending =
-      this.active?.control?.sessionId === input.sessionId
-        ? this.active.control.pendingControl()
-        : null;
+    const activePending = [...this.activeTurns.values()]
+      .find((active) => active.control?.sessionId === input.sessionId)
+      ?.control?.pendingControl() ?? null;
     if (activePending) return { ok: true, value: [activePending] };
     if (!this.persistence?.listPendingControls) {
       return { ok: true, value: [] };
@@ -512,7 +517,8 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
   }
 
   async cancelPendingControl(input: AgentCancelPendingControlInput): Promise<GeneralAgentResult> {
-    const activePending = this.active?.control?.pendingControl();
+    const active = this.activeTurns.get(input.turnId);
+    const activePending = active?.control?.pendingControl();
     if (
       activePending &&
       activePending.sessionId === input.sessionId &&
@@ -521,7 +527,7 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
         activePending.userInputRequest?.requestId === input.requestId)
     ) {
       return runControlCommand(() =>
-        this.active!.control!.requestCancellation(
+        active!.control!.requestCancellation(
           input.reason ?? 'Recovered control cancelled by user',
         ),
       );
@@ -540,8 +546,24 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     }
   }
 
-  async abort(): Promise<GeneralAgentResult> {
-    const active = this.active;
+  async abort(input: AgentAbortInput = {}): Promise<GeneralAgentResult> {
+    let active: ActiveTurn | undefined;
+    if (input.turnId) {
+      active = this.activeTurns.get(input.turnId);
+      if (!active) {
+        return transportError(
+          'AGENT_CONTROL_NOT_ACTIVE',
+          `There is no active Agent turn "${input.turnId}" to abort.`,
+        );
+      }
+    } else if (this.activeTurns.size === 1) {
+      active = this.activeTurns.values().next().value;
+    } else if (this.activeTurns.size > 1) {
+      return transportError(
+        'AGENT_TURN_REQUIRED',
+        'A turnId is required when more than one Agent turn is active.',
+      );
+    }
     if (active?.control) {
       const result = await runControlCommand(() =>
         active.control!.requestCancellation('Agent turn aborted by user'),
@@ -552,21 +574,29 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
     return { ok: true, value: undefined };
   }
 
-  async resetSession(): Promise<GeneralAgentResult> {
-    if (this.active) {
+  async resetSession(input: AgentResetSessionInput = {}): Promise<GeneralAgentResult> {
+    let sessionId = input.sessionId;
+    if (!sessionId && this.sessions.size === 1) {
+      sessionId = this.sessions.keys().next().value;
+    }
+    if (!sessionId && this.sessions.size > 1) {
       return transportError(
-        'AGENT_TURN_ALREADY_RUNNING',
-        'Cannot reset the Agent session while a turn is running.',
+        'AGENT_SESSION_REQUIRED',
+        'A sessionId is required when more than one Agent session is loaded.',
       );
     }
-    if (this.lastSessionId) {
-      const session = this.sessions.get(this.lastSessionId);
-      this.sessions.delete(this.lastSessionId);
-      if (session && this.routeSessionIds.get(session.routeKey) === session.id) {
-        this.routeSessionIds.delete(session.routeKey);
-      }
+    if (!sessionId) return { ok: true, value: undefined };
+    if ([...this.activeTurns.values()].some((active) => active.sessionId === sessionId)) {
+      return transportError(
+        'AGENT_TURN_ALREADY_RUNNING',
+        `Cannot reset Agent session "${sessionId}" while its turn is running.`,
+      );
     }
-    this.lastSessionId = null;
+    const session = this.sessions.get(sessionId);
+    this.sessions.delete(sessionId);
+    if (session && this.routeSessionIds.get(session.routeKey) === session.id) {
+      this.routeSessionIds.delete(session.routeKey);
+    }
     return { ok: true, value: undefined };
   }
 
@@ -651,6 +681,15 @@ export class LocalGeneralAgentTransport implements GeneralAgentTransport {
 
   private nowIso(): string {
     return new Date(this.wallNowMs()).toISOString();
+  }
+
+  private releaseActiveTurn(active: ActiveTurn): void {
+    if (this.activeTurns.get(active.turnId) === active) {
+      this.activeTurns.delete(active.turnId);
+    }
+    if (this.activeRouteTurns.get(active.routeKey) === active.turnId) {
+      this.activeRouteTurns.delete(active.routeKey);
+    }
   }
 }
 

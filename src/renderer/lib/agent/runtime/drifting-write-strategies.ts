@@ -60,6 +60,7 @@ import {
   type YjsProseCommandReceipt,
   type YjsProsePersistenceCoordinator,
 } from './yjs-prose-persistence-coordinator';
+import type { PersistedYjsUpdateCollaborator } from '../../../lib/yjs-persistence-origin';
 import { createDriftingElementPatchWriteStrategy } from './drifting-element-patch-write-strategy';
 import type {
   AgentRuntimeElementPatchReceiptRepository,
@@ -552,6 +553,7 @@ function nodeFieldStrategy(field: 'title' | 'summary'): DriftingWriteStrategy {
 
 interface ProseExecution {
   command: PreparedYjsProsePersistenceCommand;
+  collaborator: PersistedYjsUpdateCollaborator;
   nodeId: string;
   /** Omitted for legacy/node commands so existing durable payloads stay valid. */
   entityType?: ProseEntityType;
@@ -700,6 +702,12 @@ function proseWriteStrategy(
         reversibility: 'exact',
         execution: {
           command,
+          collaborator: {
+            kind: 'agent',
+            sessionId: request.sessionId,
+            turnId: request.turnId,
+            callId: request.callId,
+          },
           nodeId: entity.id,
           ...(entity.entityType === 'node' ? {} : { entityType: entity.entityType }),
           projectId: entity.projectId,
@@ -906,6 +914,12 @@ function proseWriteStrategy(
         coordinator,
         {
           command,
+          collaborator: {
+            kind: 'agent',
+            sessionId: effect.sessionId,
+            turnId: effect.turnId,
+            callId: effect.callId,
+          },
           nodeId: payload.nodeId,
           ...(prosePayloadEntityType(payload) === 'node'
             ? {}
@@ -1574,6 +1588,7 @@ async function commitProseCommand(
     command: execution.command,
     direction,
     expectedRevision,
+    collaborator: execution.collaborator,
     ...(beforeLiveMerge ? { beforeLiveMerge } : {}),
     async persistProjection(tx, projection) {
       if (entityType === 'node') {
@@ -1844,6 +1859,7 @@ function parseProseExecution(value: unknown): ProseExecution {
     !value ||
     typeof value !== 'object' ||
     !(value as { command?: unknown }).command ||
+    !isPersistedAgentCollaborator((value as { collaborator?: unknown }).collaborator) ||
     typeof (value as { nodeId?: unknown }).nodeId !== 'string' ||
     typeof (value as { projectId?: unknown }).projectId !== 'string' ||
     typeof (value as { beforeContentJson?: unknown }).beforeContentJson !==
@@ -1855,6 +1871,22 @@ function parseProseExecution(value: unknown): ProseExecution {
     throw new Error('The prepared prose execution capability is missing');
   }
   return value as ProseExecution;
+}
+
+function isPersistedAgentCollaborator(
+  value: unknown,
+): value is PersistedYjsUpdateCollaborator {
+  return (
+    Boolean(value) &&
+    typeof value === 'object' &&
+    (value as { kind?: unknown }).kind === 'agent' &&
+    typeof (value as { sessionId?: unknown }).sessionId === 'string' &&
+    Boolean((value as { sessionId: string }).sessionId.trim()) &&
+    typeof (value as { turnId?: unknown }).turnId === 'string' &&
+    Boolean((value as { turnId: string }).turnId.trim()) &&
+    typeof (value as { callId?: unknown }).callId === 'string' &&
+    Boolean((value as { callId: string }).callId.trim())
+  );
 }
 
 function parseProsePayload(value: unknown): PersistedProseCommandPayload {

@@ -42,6 +42,7 @@
     "eval:agent:context": "node src/renderer/lib/agent/runtime/acceptance/milestone-f-context-engineering.acceptance.mjs --output=docs/agent-runtime/acceptance/milestone-f-context-engineering.json",
     "eval:agent:writing": "node src/renderer/lib/agent/runtime/acceptance/milestone-h-writing-intelligence.acceptance.mjs --output=docs/agent-runtime/acceptance/milestone-h-writing-intelligence.json",
     "eval:agent:writing:live": "cross-env DRIFTING_AGENT_LIVE_SUITE=writing-canary node scripts/run-p1-deepseek-live-eval.mjs",
+    "eval:agent:concurrency:live": "cross-env DRIFTING_AGENT_LIVE_SUITE=concurrent-writing-canary node scripts/run-p1-deepseek-live-eval.mjs",
     "eval:agent:extensions": "node src/renderer/lib/agent/runtime/acceptance/milestone-i-provider-extension.acceptance.mjs --output=docs/agent-runtime/acceptance/milestone-i-provider-extension.json",
     "eval:agent:extensions:live": "node scripts/run-agent-provider-live-canary.mjs",
     "eval:agent:openai-native": "node src/renderer/lib/agent/runtime/acceptance/openai-native-transport.acceptance.mjs --output=docs/agent-runtime/acceptance/openai-native-transport.json",

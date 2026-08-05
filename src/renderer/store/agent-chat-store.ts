@@ -218,10 +218,12 @@ interface AgentChatState {
   runs: Record<string, RunState>;
   prompt: string;
   convList: AgentConversationSummary[];
-  /** The single in-flight turn (main runs one at a time); null when idle. */
+  /** Compatibility pointer to the most recently foregrounded in-flight turn. */
   runningTurnId: string | null;
-  /** The conversation that in-flight turn belongs to; null when idle. */
+  /** Compatibility pointer paired with runningTurnId. */
   runningConvId: string | null;
+  /** Canonical concurrency state: conversation id → its one active turn id. */
+  runningTurns: Record<string, string>;
   /**
    * Synchronous startup mutex held before any repository/provider await.
    * Without it, double Send/Continue can both pass the idle guard and overwrite
@@ -254,10 +256,12 @@ export const selectMessages = (s: AgentChatState): ChatMsg[] =>
   s.activeConvId ? (s.runs[s.activeConvId]?.messages ?? EMPTY_MESSAGES) : EMPTY_MESSAGES;
 /** Is the displayed conversation the one with the in-flight turn? */
 export const selectRunning = (s: AgentChatState): boolean =>
-  s.runningConvId !== null && s.runningConvId === s.activeConvId;
-/** A turn is running, but in a DIFFERENT conversation than the one displayed. */
+  s.activeConvId !== null && Boolean(s.runningTurns[s.activeConvId]);
+/** At least one turn is running in a different conversation than the one displayed. */
 export const selectOtherRunning = (s: AgentChatState): boolean =>
-  s.runningConvId !== null && s.runningConvId !== s.activeConvId;
+  Object.keys(s.runningTurns).some((convId) => convId !== s.activeConvId);
+export const selectOtherRunningConversationId = (s: AgentChatState): string | null =>
+  Object.keys(s.runningTurns).find((convId) => convId !== s.activeConvId) ?? null;
 export const selectControlStatus = (s: AgentChatState): AgentControlStatus | null =>
   s.activeConvId ? (s.runs[s.activeConvId]?.controlStatus ?? null) : null;
 export const selectPendingControl = (s: AgentChatState): AgentPendingControl | null =>
@@ -273,7 +277,12 @@ export const selectAgentTaskContinuationReason = (
   s: AgentChatState,
 ): AgentTaskContinuationReason | null => {
   const run = s.activeConvId ? s.runs[s.activeConvId] : undefined;
-  if (s.starting || s.runningConvId !== null || run?.pendingControl || s.prompt?.trim()) {
+  if (
+    s.starting ||
+    (s.activeConvId !== null && Boolean(s.runningTurns[s.activeConvId])) ||
+    run?.pendingControl ||
+    s.prompt?.trim()
+  ) {
     return null;
   }
   if (
@@ -311,6 +320,28 @@ export const selectCanContinueAgentTask = (s: AgentChatState): boolean =>
 const turnConv = new Map<string, string>();
 const automaticContinuationTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+function runningPointers(runningTurns: Record<string, string>): {
+  runningTurnId: string | null;
+  runningConvId: string | null;
+} {
+  const entries = Object.entries(runningTurns);
+  const latest = entries[entries.length - 1];
+  return latest
+    ? { runningConvId: latest[0], runningTurnId: latest[1] }
+    : { runningConvId: null, runningTurnId: null };
+}
+
+function withoutRunningTurn(
+  state: Pick<AgentChatState, 'runningTurns'>,
+  convId: string,
+  turnId: string,
+): Pick<AgentChatState, 'runningTurns' | 'runningTurnId' | 'runningConvId'> | null {
+  if (state.runningTurns[convId] !== turnId) return null;
+  const runningTurns = { ...state.runningTurns };
+  delete runningTurns[convId];
+  return { runningTurns, ...runningPointers(runningTurns) };
+}
+
 export interface AgentConversationLoadToken {
   generation: number;
   projectId: string;
@@ -345,6 +376,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   convList: [],
   runningTurnId: null,
   runningConvId: null,
+  runningTurns: {},
   starting: false,
 
   setPrompt: (p) => set({ prompt: p }),
@@ -367,19 +399,22 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     }
     conversationLoadGuard.invalidate();
     conversationStartGuard.invalidate();
-    const leavingConvId = get().runningConvId ?? get().activeConvId;
+    const leavingConvId = get().activeConvId;
     if (leavingConvId) {
       pauseAutomaticContinuationForConversation(leavingConvId, 'author_navigated');
     }
     // Switching CONVERSATIONS within a project keeps a background turn alive, but
     // switching PROJECTS cannot: the tool bridge (useAgentToolBridge) is bound to
     // the currently-viewed project, so a background turn's tool calls would run
-    // against the wrong project's data. Until the bridge is turn/project-aware
-    // (the prerequisite for true concurrency), abort an in-flight turn on a real
-    // project change. The tagged terminal journal entry persists its partial
-    // transcript and clears the running pointers.
-    if (get().runningConvId) {
-      void generalAgentTransport.abort();
+    // against the wrong project's data. Until the bridge is turn/project-aware,
+    // cross-project concurrency stays fail-closed: abort every foreign turn on
+    // a real project change. Same-project sibling conversations remain fully
+    // concurrent. Tagged terminal journal entries persist their partial
+    // transcripts and clear only their own running pointers.
+    for (const [convId, turnId] of Object.entries(get().runningTurns)) {
+      if (get().runs[convId]?.projectId !== projectId) {
+        void generalAgentTransport.abort({ turnId });
+      }
     }
     // `runs` (keyed by convId) is intentionally preserved across the switch so an
     // already-finished conversation re-opens instantly without a DB round-trip.
@@ -419,11 +454,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     if (s.starting || !submittedPrompt.trim() || !s.boundProjectId) return;
     const displayedRun = s.activeConvId ? s.runs[s.activeConvId] : undefined;
     if (displayedRun?.pendingControl?.requiresContinuation) return;
-    if (s.runningConvId) {
-      if (s.activeConvId !== s.runningConvId || !s.runningTurnId) {
-        return;
-      }
-      const liveRun = s.runs[s.runningConvId];
+    const activeTurnId = s.activeConvId ? s.runningTurns[s.activeConvId] : undefined;
+    if (s.activeConvId && activeTurnId) {
+      const activeConversationId = s.activeConvId;
+      const liveRun = s.runs[activeConversationId];
       const text = submittedPrompt.trim();
       const pending = liveRun?.pendingControl;
       if (pending?.requiresContinuation) return;
@@ -437,7 +471,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
               text,
             })
           : await generalAgentTransport.steer({
-              turnId: s.runningTurnId,
+              turnId: activeTurnId,
               text,
             });
       if (response.ok) {
@@ -447,7 +481,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
             : current,
         );
       } else {
-        appendRunError(s.runningConvId, response.error);
+        appendRunError(activeConversationId, response.error);
       }
       return;
     }
@@ -536,6 +570,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         runs: { ...st.runs, [cid]: run },
         activeConvId: cid,
         prompt: options?.runtimePrompt === undefined ? '' : st.prompt,
+        runningTurns: { ...st.runningTurns, [cid]: turnId },
         runningTurnId: turnId,
         runningConvId: cid,
       }));
@@ -552,14 +587,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       }
       const discardPreparedTurn = (): void => {
         turnConv.delete(turnId);
-        set((state) =>
-          state.runningTurnId === turnId
-            ? {
-                runningTurnId: null,
-                runningConvId: null,
-              }
-            : state,
-        );
+        set((state) => withoutRunningTurn(state, cid, turnId) ?? state);
       };
       if (!isCurrentStart()) {
         discardPreparedTurn();
@@ -581,7 +609,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // Drain rejected edits only once all cancellable preflight reads are done.
       // The visible transcript keeps the original user text; only the provider
       // prompt receives this system context.
-      const reverts = useAgentEditStore.getState().drainReverts(projectId);
+      const reverts = useAgentEditStore
+        .getState()
+        .drainReverts(projectId, run.runtimeSessionId);
       // Durable write-review decisions are first-class pinned context rows in
       // the product composition. Do not duplicate them into every user prompt;
       // that legacy path grew long tasks quadratically and blurred authorship.
@@ -641,13 +671,12 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
                 },
               }
             : st.runs;
-          const clearing = st.runningTurnId === turnId;
+          const cleared = withoutRunningTurn(st, cid, turnId);
           return {
             runs,
-            ...(clearing
+            ...(cleared
               ? {
-                  runningTurnId: null,
-                  runningConvId: null,
+                  ...cleared,
                   starting: false,
                 }
               : {}),
@@ -698,13 +727,14 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
 
   stopAfterTool: async () => {
     const s = get();
-    const convId = s.runningConvId ?? s.activeConvId;
+    const convId = s.activeConvId;
     if (convId) pauseAutomaticContinuationForConversation(convId, 'author_stopped');
-    if (!s.runningTurnId || !s.runningConvId) return;
+    const turnId = convId ? s.runningTurns[convId] : undefined;
+    if (!convId || !turnId) return;
     const response = await generalAgentTransport.stopAfterTool({
-      turnId: s.runningTurnId,
+      turnId,
     });
-    if (!response.ok) appendRunError(s.runningConvId, response.error);
+    if (!response.ok) appendRunError(convId, response.error);
   },
 
   cancelRecoveredControl: async () => {
@@ -741,9 +771,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
 
   abort: () => {
     const s = get();
-    const convId = s.runningConvId ?? s.activeConvId;
+    const convId = s.activeConvId;
     if (convId) pauseAutomaticContinuationForConversation(convId, 'author_stopped');
-    void generalAgentTransport.abort();
+    const turnId = convId ? s.runningTurns[convId] : undefined;
+    if (turnId) void generalAgentTransport.abort({ turnId });
   },
 
   newConversation: () => {
@@ -753,7 +784,6 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     }
     conversationLoadGuard.invalidate();
     conversationStartGuard.invalidate();
-    void generalAgentTransport.resetSession();
     const pid = get().boundProjectId;
     if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
     // Switch the view to a fresh, empty chat. A background turn (if any) keeps
@@ -901,16 +931,21 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   deleteConversation: async (id) => {
     cancelAutomaticContinuationTimer(id);
     conversationLoadGuard.invalidate();
-    if (get().runningConvId === id && get().starting) {
+    if (get().runningTurns[id] && get().starting) {
       conversationStartGuard.invalidate();
     }
-    // Abort + clear the in-flight turn if it belongs to the conversation we're
-    // deleting (main runs a single query, so abort targets exactly this turn).
-    if (get().runningConvId === id) {
-      void generalAgentTransport.abort();
-      const tid = get().runningTurnId;
-      if (tid) turnConv.delete(tid);
-      set({ runningTurnId: null, runningConvId: null });
+    // Abort only this conversation's turn; sibling conversations keep running.
+    const deletingTurnId = get().runningTurns[id];
+    if (deletingTurnId) {
+      const deletingSessionId = get().runs[id]?.runtimeSessionId;
+      void generalAgentTransport.abort({ turnId: deletingTurnId });
+      turnConv.delete(deletingTurnId);
+      if (deletingSessionId) {
+        useAgentActivityStore
+          .getState()
+          .onTurnEnd({ sessionId: deletingSessionId, turnId: deletingTurnId });
+      }
+      set((state) => withoutRunningTurn(state, id, deletingTurnId) ?? state);
     }
     try {
       await repo.softDelete(id, new Date().toISOString());
@@ -939,13 +974,18 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     for (const [convId, run] of Object.entries(get().runs)) {
       if (run.projectId === pid) cancelAutomaticContinuationTimer(convId);
     }
-    // Abort + clear the in-flight turn (main runs a single query, so abort
-    // targets exactly it) — its conversation is about to be deleted too.
-    if (get().runningConvId) {
-      void generalAgentTransport.abort();
-      const tid = get().runningTurnId;
-      if (tid) turnConv.delete(tid);
-      set({ runningTurnId: null, runningConvId: null });
+    // Abort every turn owned by this project, leaving other project caches alone.
+    const clearingTurns = Object.entries(get().runningTurns).filter(
+      ([convId]) => get().runs[convId]?.projectId === pid,
+    );
+    for (const [convId, turnId] of clearingTurns) {
+      const sessionId = get().runs[convId]?.runtimeSessionId;
+      void generalAgentTransport.abort({ turnId });
+      turnConv.delete(turnId);
+      if (sessionId) {
+        useAgentActivityStore.getState().onTurnEnd({ sessionId, turnId });
+      }
+      set((state) => withoutRunningTurn(state, convId, turnId) ?? state);
     }
     try {
       await repo.softDeleteAllByProject(pid, new Date().toISOString());
@@ -1141,7 +1181,7 @@ function settleAutomaticContinuationAfterPlanRefresh(convId: string, terminalTur
       pauseAutomaticContinuationForConversation(convId, 'author_input_pending');
       return;
     }
-    if (current.starting || current.runningConvId || currentRun.pendingControl) {
+    if (current.starting || current.runningTurns[convId] || currentRun.pendingControl) {
       pauseAutomaticContinuationForConversation(convId, 'author_stopped');
       return;
     }
@@ -1310,12 +1350,12 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
     // can then find and replay its durable journal on the next launch.
     void persistConv(convId);
   }
-  if (run && run.projectId === st.boundProjectId && st.runningConvId === convId) {
+  if (run && run.projectId === st.boundProjectId && st.runningTurns[convId] === turnId) {
     const activity = useAgentActivityStore.getState();
     if (ev.type === 'tool_call_ready') {
-      activity.onToolUse(ev.callId, ev.name, ev.arguments);
+      activity.onToolUse({ sessionId: entry.sessionId, turnId }, ev.callId, ev.name, ev.arguments);
     } else if (ev.type === 'tool_result') {
-      activity.onToolResult(ev.callId, ev.ok, ev.content);
+      activity.onToolResult({ sessionId: entry.sessionId, turnId }, ev.callId, ev.ok, ev.content);
     }
   }
 
@@ -1324,10 +1364,8 @@ function handleEvent(entry: AgentRuntimeJournalEntry): void {
       void refreshLongTaskPlanState(convId, run.projectId, entry.sessionId, turnId);
     }
     turnConv.delete(turnId);
-    useAgentActivityStore.getState().onTurnEnd();
-    useAgentChatStore.setState((s) =>
-      s.runningTurnId === turnId ? { runningTurnId: null, runningConvId: null } : s,
-    );
+    useAgentActivityStore.getState().onTurnEnd({ sessionId: entry.sessionId, turnId });
+    useAgentChatStore.setState((s) => withoutRunningTurn(s, convId, turnId) ?? s);
     // setState is synchronous, so persistConv sees the finalized transcript.
     void persistConv(convId);
   }

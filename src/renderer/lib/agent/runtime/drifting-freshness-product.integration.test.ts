@@ -351,6 +351,104 @@ describe('Drifting product freshness path', () => {
     expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(0);
   });
 
+  it('stops one same-turn target after two concurrent stale conflicts', async () => {
+    const sharedTurnId = 'turn:collaboration-conflicts';
+    const writeInSharedTurn = (
+      callId: string,
+      nodeTitle: string,
+      title: string,
+      token: AgentRuntimeExpectedRevision,
+    ): AgentToolExecutionRequest => {
+      const base = fixture.writeRequest(callId, 'rename_node', {
+        node: nodeTitle,
+        title,
+        expectedRevision: token,
+      });
+      return {
+        ...base,
+        turnId: sharedTurnId,
+        idempotencyKey: `${SESSION_ID}:${sharedTurnId}:${callId}`,
+      };
+    };
+
+    const firstRead = fixture.readRequest('collaboration-read-1', 'read_node', {
+      node: 'Chapter One',
+      prose: false,
+    });
+    fixture.seedToolCall(firstRead);
+    const firstToken = expectedRevision(
+      readEnvelope(await fixture.readRuntime.execute(firstRead)),
+    );
+    await fixture.manualNodeUpdate('node-1', {
+      title: 'Manual title one',
+      updatedAt: '2026-07-30T00:00:01.000Z',
+    });
+    const firstConflict = writeInSharedTurn(
+      'collaboration-write-1',
+      'Manual title one',
+      'Agent title one',
+      firstToken,
+    );
+    fixture.seedToolCall(firstConflict);
+    await expect(fixture.writeRuntime.execute(firstConflict)).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('changed after read_node'),
+    });
+
+    const secondRead = fixture.readRequest('collaboration-read-2', 'read_node', {
+      node: 'Manual title one',
+      prose: false,
+    });
+    fixture.seedToolCall(secondRead);
+    const secondToken = expectedRevision(
+      readEnvelope(await fixture.readRuntime.execute(secondRead)),
+    );
+    await fixture.manualNodeUpdate('node-1', {
+      title: 'Manual title two',
+      updatedAt: '2026-07-30T00:00:02.000Z',
+    });
+    const secondConflict = writeInSharedTurn(
+      'collaboration-write-2',
+      'Manual title two',
+      'Agent title two',
+      secondToken,
+    );
+    fixture.seedToolCall(secondConflict);
+    await expect(fixture.writeRuntime.execute(secondConflict)).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('changed after read_node'),
+    });
+
+    const currentRead = fixture.readRequest('collaboration-read-3', 'read_node', {
+      node: 'Manual title two',
+      prose: false,
+    });
+    fixture.seedToolCall(currentRead);
+    const currentToken = expectedRevision(
+      readEnvelope(await fixture.readRuntime.execute(currentRead)),
+    );
+    const blocked = writeInSharedTurn(
+      'collaboration-write-3',
+      'Manual title two',
+      'Must not land',
+      currentToken,
+    );
+    fixture.seedToolCall(blocked);
+    await expect(fixture.writeRuntime.execute(blocked)).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('AGENT_COLLABORATION_CONFLICT_LIMIT'),
+    });
+
+    expect(fixture.node('node-1').title).toBe('Manual title two');
+    expect(fixture.writeUsecaseCalls).toBe(0);
+    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(0);
+    expect(
+      fixture.scalar(
+        "SELECT count(*) FROM agent_runtime_write_effect WHERE phase = 'failed' AND error_code = 'AGENT_COLLABORATION_CONFLICT_LIMIT'",
+      ),
+    ).toBe(1);
+  });
+
   it('keeps a hard-authorized write final without exposing a post-write inverse review', async () => {
     const read = fixture.readRequest('inverse-read', 'read_node', {
       node: 'Chapter One',

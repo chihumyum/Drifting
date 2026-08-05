@@ -20,6 +20,10 @@ import {
 import { canonicalAgentRuntimeJson } from '../../../sqlite-repo/agent-runtime-persistence-repo';
 import { createElementPatchRepository } from '../../../sqlite-repo/element-patch-repo';
 import { createAgentMemoryRepository } from '../../../sqlite-repo/agent-memory-repo';
+import {
+  createYjsRepository,
+  type YjsRepository,
+} from '../../../sqlite-repo/yjs-repo';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
 import {
@@ -74,6 +78,18 @@ import {
   describeAgentWriteTarget,
   describeWorkspaceDomainWriteResult,
 } from './workspace-domain-language';
+import { proseDocId, type ProseEntityType } from '../../yjs-doc-id';
+import {
+  AgentWriteCollaborationGuard,
+  AgentWriteCollaborationConflictError,
+  AgentWriteCollaborationConflictLimitError,
+  type AgentWriteCollaborationTarget,
+} from './agent-write-collaboration-guard';
+import {
+  attributeYjsRevisionConflict,
+  UNKNOWN_AGENT_WRITE_CONFLICT_ATTRIBUTION,
+  type AgentWriteConflictAttribution,
+} from './agent-write-conflict-attribution';
 
 export interface DriftingWriteToolRuntimeOptions {
   repository?: AgentRuntimeWriteEffectRepository;
@@ -96,6 +112,11 @@ export interface DriftingWriteToolRuntimeOptions {
   elementPatchReceipts?: AgentRuntimeElementPatchReceiptRepository;
   elementPatchPersistSyncMutation?: typeof persistSyncMutationInTransaction;
   elementPatchNotifySyncCommitted?: typeof notifySyncMutationCommitted;
+  collaborationGuard?: AgentWriteCollaborationGuard;
+  revisionProvenance?: Pick<
+    YjsRepository,
+    'getRevision' | 'listRevisionProvenance'
+  >;
 }
 
 export interface AgentWriteReviewDecisionResult {
@@ -139,6 +160,11 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
   ) => Promise<AgentToolExecutionRequest>;
   private readonly elementPatchDb: DbExecutor | undefined;
   private readonly resolveStrategy: (name: string) => DriftingWriteStrategy | undefined;
+  private readonly collaborationGuard: AgentWriteCollaborationGuard;
+  private readonly revisionProvenance: Pick<
+    YjsRepository,
+    'getRevision' | 'listRevisionProvenance'
+  >;
 
   constructor(options: DriftingWriteToolRuntimeOptions = {}) {
     this.repository = options.repository ?? createAgentRuntimeWriteEffectRepository();
@@ -150,6 +176,9 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     this.dispatch = options.dispatch ?? runAgentTool;
     this.prepareRequest = options.prepareRequest ?? (async (request) => request);
     this.elementPatchDb = options.elementPatchDb;
+    this.collaborationGuard = options.collaborationGuard ?? new AgentWriteCollaborationGuard();
+    this.revisionProvenance =
+      options.revisionProvenance ?? createYjsRepository(options.elementPatchDb);
     this.resolveStrategy =
       options.resolveStrategy ??
       ((name) =>
@@ -875,6 +904,34 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       if (replay) return replay;
     }
 
+    // A committed or already-entered effect must replay from its immutable
+    // receipt even when a sibling conversation has since renamed or deleted
+    // the authored target. Collaboration checks only guard a write that has
+    // not crossed the mutation boundary yet; they never weaken idempotency.
+    let collaborationTarget: AgentWriteCollaborationTarget | null = null;
+    if (this.freshness && (effect.phase === 'claimed' || effect.phase === 'confirmed')) {
+      try {
+        collaborationTarget = await resolveAgentWriteCollaborationTarget(
+          request,
+          this.elementPatchDb,
+        );
+        this.collaborationGuard.assertAllowed(collaborationTarget);
+      } catch (error) {
+        await this.repository.transitionEffect({
+          effectId,
+          expectedPhase: effect.phase,
+          nextPhase: 'failed',
+          errorCode:
+            error instanceof AgentWriteCollaborationConflictLimitError
+              ? error.code
+              : 'WRITE_COLLABORATION_TARGET_REJECTED',
+          errorMessage: publicWriteError(error),
+          at: this.now(),
+        });
+        throw error;
+      }
+    }
+
     if (this.freshness && expectedRevision) {
       try {
         if (effect.phase === 'claimed' || effect.phase === 'confirmed') {
@@ -885,17 +942,29 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
           writeExpectation = await this.assertDurableWriteExpectation(effect, expectedRevision);
         }
       } catch (error) {
+        const surfacedError = await this.attributeConcurrentWriteConflict(
+          error,
+          request,
+          collaborationTarget,
+          expectedRevision,
+        );
+        if (collaborationTarget && isConcurrentAgentWriteConflict(error)) {
+          this.collaborationGuard.recordConflict(
+            collaborationTarget,
+            writeConflictAttribution(surfacedError),
+          );
+        }
         if (effect.phase === 'claimed' || effect.phase === 'confirmed') {
           await this.repository.transitionEffect({
             effectId,
             expectedPhase: effect.phase,
             nextPhase: 'failed',
             errorCode: 'WRITE_FRESHNESS_REJECTED',
-            errorMessage: publicWriteError(error),
+            errorMessage: publicWriteError(surfacedError),
             at: this.now(),
           });
         }
-        throw error;
+        throw surfacedError;
       }
     }
 
@@ -943,17 +1012,29 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         })
       ).effect;
     } catch (error) {
+      const surfacedError = await this.attributeConcurrentWriteConflict(
+        error,
+        request,
+        collaborationTarget,
+        expectedRevision,
+      );
+      if (collaborationTarget && isConcurrentAgentWriteConflict(error)) {
+        this.collaborationGuard.recordConflict(
+          collaborationTarget,
+          writeConflictAttribution(surfacedError),
+        );
+      }
       if (effect.phase === 'claimed' || effect.phase === 'confirmed') {
         await this.repository.transitionEffect({
           effectId,
           expectedPhase: effect.phase,
           nextPhase: 'failed',
           errorCode: 'WRITE_PREPARATION_FAILED',
-          errorMessage: publicWriteError(error),
+          errorMessage: publicWriteError(surfacedError),
           at: this.now(),
         });
       }
-      throw error;
+      throw surfacedError;
     }
 
     try {
@@ -981,14 +1062,28 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
           at: this.now(),
         })
       ).effect;
-      return this.settleCommittedEffect(
+      const settled = await this.settleCommittedEffect(
         effect,
         tool,
         handlerResult,
         strategy,
         context,
       );
+      if (collaborationTarget) this.collaborationGuard.recordSuccess(collaborationTarget);
+      return settled;
     } catch (error) {
+      const surfacedError = await this.attributeConcurrentWriteConflict(
+        error,
+        request,
+        collaborationTarget,
+        expectedRevision,
+      );
+      if (collaborationTarget && isConcurrentAgentWriteConflict(error)) {
+        this.collaborationGuard.recordConflict(
+          collaborationTarget,
+          writeConflictAttribution(surfacedError),
+        );
+      }
       if (effect.phase === 'mutation_started') {
         if (isDeterministicStaleWriteError(error)) {
           await this.repository.transitionEffect({
@@ -996,7 +1091,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
             expectedPhase: 'mutation_started',
             nextPhase: 'failed',
             errorCode: error.code,
-            errorMessage: publicWriteError(error),
+            errorMessage: publicWriteError(surfacedError),
             at: this.now(),
           });
         } else {
@@ -1005,13 +1100,53 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
             expectedPhase: 'mutation_started',
             nextPhase: 'uncertain',
             errorCode: 'WRITE_EFFECT_UNCERTAIN',
-            errorMessage: publicWriteError(error),
+            errorMessage: publicWriteError(surfacedError),
             at: this.now(),
           });
         }
       }
-      throw error;
+      throw surfacedError;
     }
+  }
+
+  private async attributeConcurrentWriteConflict(
+    error: unknown,
+    request: AgentToolExecutionRequest,
+    target: AgentWriteCollaborationTarget | null,
+    expectedRevision: AgentRuntimeExpectedRevision | null,
+  ): Promise<unknown> {
+    if (
+      !target ||
+      !expectedRevision ||
+      !isConcurrentAgentWriteConflict(error) ||
+      !isProseFreshnessKind(target.entityKind)
+    ) {
+      return error;
+    }
+    const expected = parseYjsRevision(expectedRevision.revision);
+    const entityType = proseEntityTypeFromFreshnessKind(target.entityKind);
+    if (expected === null || !entityType) return error;
+    const docId = proseDocId(entityType, target.entityId);
+    let attribution = UNKNOWN_AGENT_WRITE_CONFLICT_ATTRIBUTION;
+    try {
+      const [currentRevision, provenance] = await Promise.all([
+        this.revisionProvenance.getRevision(docId),
+        this.revisionProvenance.listRevisionProvenance(docId, expected),
+      ]);
+      attribution = attributeYjsRevisionConflict({
+        expectedRevision: expected,
+        currentRevision,
+        provenance,
+        currentAgent: {
+          sessionId: request.sessionId,
+          turnId: request.turnId,
+        },
+      });
+    } catch {
+      // The original CAS failure remains authoritative. Missing provenance is
+      // surfaced as unknown instead of being guessed to be a user edit.
+    }
+    return new AgentWriteCollaborationConflictError(target, attribution);
   }
 
   private async validateExpectedRevision(
@@ -1856,6 +1991,26 @@ function isDeterministicStaleWriteError(error: unknown): error is Error & {
   );
 }
 
+function isConcurrentAgentWriteConflict(error: unknown): boolean {
+  if (error instanceof AgentWriteCollaborationConflictError) return true;
+  if (isDeterministicStaleWriteError(error)) return true;
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code: unknown }).code)
+      : '';
+  if (/^(?:STALE_|YJS_REVISION_CONFLICT)/u.test(code)) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return /STALE_EDIT_TARGET|changed (?:after it was read|after read_node|before this revision|before command preparation)|state vector changed/iu.test(
+    message,
+  );
+}
+
+function writeConflictAttribution(error: unknown): AgentWriteConflictAttribution {
+  return error instanceof AgentWriteCollaborationConflictError
+    ? error.attribution
+    : UNKNOWN_AGENT_WRITE_CONFLICT_ATTRIBUTION;
+}
+
 function assertExpectedReceiptProvenance(
   receipt: PersistedAgentRuntimeReadReceipt | null,
   request: Pick<AgentToolExecutionRequest, 'sessionId' | 'context'>,
@@ -1888,6 +2043,19 @@ interface WriteFreshnessTarget {
   entityKind: FreshnessEntityKind;
   entityId: string;
   currentRevision: string;
+}
+
+async function resolveAgentWriteCollaborationTarget(
+  request: AgentToolExecutionRequest,
+  db?: DbExecutor,
+): Promise<AgentWriteCollaborationTarget> {
+  const target = await resolveWriteFreshnessTarget(request, db);
+  return {
+    sessionId: request.sessionId,
+    turnId: request.turnId,
+    entityKind: target.entityKind,
+    entityId: target.entityId,
+  };
 }
 
 async function resolveWriteFreshnessTarget(
@@ -2256,13 +2424,30 @@ function proseReadToolNames(
     : ['read_node'];
 }
 
-function isProseFreshnessKind(kind: FreshnessEntityKind): boolean {
+function isProseFreshnessKind(kind: string): boolean {
   return (
     kind === 'node_prose' ||
     kind === 'element_prose' ||
     kind === 'storyline_prose' ||
     kind === 'category_prose'
   );
+}
+
+function proseEntityTypeFromFreshnessKind(
+  kind: string,
+): ProseEntityType | null {
+  switch (kind) {
+    case 'node_prose':
+      return 'node';
+    case 'element_prose':
+      return 'element';
+    case 'storyline_prose':
+      return 'storyline';
+    case 'category_prose':
+      return 'category';
+    default:
+      return null;
+  }
 }
 
 function effectiveWriteCommand(
@@ -2585,6 +2770,12 @@ function publicWriteError(error: unknown): string {
 }
 
 function publicWorkspaceWriteError(error: unknown): string {
+  if (
+    error instanceof AgentWriteCollaborationConflictError ||
+    error instanceof AgentWriteCollaborationConflictLimitError
+  ) {
+    return error.message;
+  }
   const message = publicWriteError(error);
   if (
     /\b(?:Yjs|freshness|expectedRevision|revision|state\s*(?:vector|hash)|read_node|receipt)\b/i.test(

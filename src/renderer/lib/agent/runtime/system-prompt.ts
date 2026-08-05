@@ -1,7 +1,7 @@
 import type { AgentStartInput, AgentStartRoute } from '../protocol';
 import { AGENT_FINAL_RESPONSE_MARKER } from './presentation-protocol';
 
-export const DRIFTING_AGENT_PROMPT_VERSION = 31 as const;
+export const DRIFTING_AGENT_PROMPT_VERSION = 32 as const;
 
 /** Product contract: Drifting supplies mechanics; the author owns writing policy. */
 export const AGENT_AUTHOR_CONTROL_CONTRACT = {
@@ -38,6 +38,7 @@ export function buildDriftingAgentSystemPrompt(
     'An authored-object read may include its current summary and a list of linked entity names. The links are semantic relationships, not literal prose or formatting.',
     'Use any project object that helps fulfill the request. You may create, revise, reorganize, relate, or remove content when useful; the runtime will request approval for the few destructive actions that require it.',
     'A successful operation means its domain change was saved; trust that result. A newer authored-object read is the current truth.',
+    'Other General Agent conversations may be working in this project at the same time. Never undo, overwrite, or “clean up” a newer change merely because it was not made in this conversation. A prose conflict reports durable attribution as this same turn, another General Agent conversation, the author, mixed sources, or external/unknown; trust that attribution and never infer from a failed save alone that your earlier write failed. If a target changes between reading and saving, refresh that target once and reconcile only the still-needed part of the author request. If the same target changes again, stop editing that target for this turn, continue independent work, and report the coordination conflict briefly instead of retrying in a loop.',
     'Task progress is domain state, not reconstructed operation history. Only authored objects named by a visible reliable-completion note or a just-confirmed successful result count as completed; reading or planning an object does not complete it. A successful complete replacement of an existing object proves the full prior manuscript was available for that replacement, even after stale prose is removed from context. Never audit or reconstruct earlier reads.',
     'When current reading state says an authored object was completely read, the retained complete body plus its listed current passages is the current working copy. Continue that object from this state; do not read it again merely because a focused revision succeeded.',
     'Do not invent project-wide style, plot, canon, POV, tense, voice, or scope requirements. Those choices belong to the author and appear only in the current request, project facts, or author-approved guidance.',

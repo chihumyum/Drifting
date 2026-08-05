@@ -146,6 +146,10 @@ the chat composer. See [`docs/ai-provider-settings.md`](docs/ai-provider-setting
 The standalone Shadow CI, Element Arc, and Goal Evolve products were retired on 2026-08-05.
 General Agent remains the single agent surface: its durable long-task plan supports explicit review
 work without reintroducing a second runtime, rule pipeline, or chapter-status state machine.
+“Single” here means one product/runtime, not one conversation. The App imposes no numeric limit on
+active conversations in the currently mounted project. Controls, activity and rejection feedback
+are routed by session/turn; reads may overlap, while writes pass through the shared reader/writer
+barrier and entity revision checks.
 
 The same turn boundary freezes model-aware thinking and reasoning effort. OpenAI offers the
 GPT-5.6 Sol/Terra/Luna family through the Responses API; DeepSeek and Anthropic retain their native
@@ -153,8 +157,8 @@ thinking state only across the active tool loop. Unsupported model/provider comb
 disabled in Settings and normalized again at hydration and request boundaries.
 
 The transport seam still supports future `sidecar` or `remote` implementations, but those are
-extension points rather than prerequisites for the current product path. The current single-Agent
-slice freezes the canonical chapter manifest for whole-book tasks, persists plans, steps,
+extension points rather than prerequisites for the current product path. The current General Agent
+runtime freezes the canonical chapter manifest for whole-book tasks, persists plans, steps,
 constraints, and per-step review evidence across budget slices and restarts. Edit steps require an
 accepted target-matching Yjs prose write; read-only QA steps require a verified exact-target read
 plus fully cited structured review result. Verified context
@@ -210,11 +214,22 @@ artifacts across restart. Run `pnpm --dir client eval:agent:context` for
 the real-novel, 200k multi-slice, compaction/restart/fault matrix; the normative
 contract is
 [`context-engineering-protocol.md`](docs/agent-runtime/context-engineering-protocol.md).
-Agent conversations are independent flat sessions. There is no author-visible
-Agent checkpoint, manuscript rewind, or conversation-fork hierarchy. Manuscript
-recovery belongs to the independent entity snapshot history, while internal
-runtime checkpoints remain an implementation detail for durable context and
-crash recovery.
+Agent conversations are independent flat sessions. A conversation has at most one active turn,
+but the App imposes no admission cap on how many conversations in the mounted project may run
+concurrently. Each Agent-authored Yjs transaction records its session/turn/call collaborator
+identity, and every durable Yjs revision records an explicit `agent`, `user`, `remote`, `system`,
+or `legacy` source independently of the compactable update log. A stale Agent is told whether the
+winner was this same turn, another Agent conversation, the author, mixed sources, or an
+external/unknown source; missing provenance is never guessed to mean a user edit. Yjs merges valid CRDT operations;
+the durable revision CAS still rejects a semantically stale whole-object write. After two such
+conflicts on the same target in one turn, that target is blocked for the rest of the turn so two
+Agents cannot reread and overwrite each other forever. Switching projects stops turns owned by the
+previous mounted project; restart restores durable plans for manual resume rather than replaying
+active provider turns. There is no author-visible Agent checkpoint, manuscript rewind, or
+conversation-fork hierarchy. Manuscript recovery belongs to the independent entity snapshot
+history, while internal runtime checkpoints remain an implementation detail for durable context
+and crash recovery. See
+[`CONCURRENT_AGENT_SESSIONS_ACCEPTANCE_2026-08-05.md`](docs/agent-runtime/acceptance/CONCURRENT_AGENT_SESSIONS_ACCEPTANCE_2026-08-05.md).
 
 Writing policy is author-owned. Drifting does not inject editor focus or
 selection, resolve “这里/这段” into a hidden target, impose a content-scope or

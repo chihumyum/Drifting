@@ -19,6 +19,41 @@ const USAGE = {
   costUsd: 0,
 };
 
+class ConcurrentTransportDriver implements AgentModelDriver {
+  readonly id = 'concurrent-transport-driver';
+  activeStreams = 0;
+  maxActiveStreams = 0;
+  private releaseBarrier: () => void = () => undefined;
+  private readonly barrier = new Promise<void>((resolve) => {
+    this.releaseBarrier = resolve;
+  });
+
+  async *stream(_request: AgentModelRequest) {
+    this.activeStreams += 1;
+    this.maxActiveStreams = Math.max(this.maxActiveStreams, this.activeStreams);
+    try {
+      await this.barrier;
+      yield { type: 'text_delta' as const, text: 'done' };
+      yield { type: 'usage' as const, usage: USAGE };
+      yield { type: 'finish' as const, reason: 'end_turn' as const };
+    } finally {
+      this.activeStreams -= 1;
+    }
+  }
+
+  async waitUntilActive(count: number): Promise<void> {
+    for (let index = 0; index < 100; index += 1) {
+      if (this.activeStreams >= count) return;
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+    throw new Error(`Expected ${count} concurrent provider streams`);
+  }
+
+  release(): void {
+    this.releaseBarrier();
+  }
+}
+
 async function waitForDone(events: AgentEventEnvelope[], count: number): Promise<void> {
   for (let index = 0; index < 100; index += 1) {
     if (events.filter((event) => event.event.type === 'done').length >= count) return;
@@ -28,6 +63,83 @@ async function waitForDone(events: AgentEventEnvelope[], count: number): Promise
 }
 
 describe('LocalGeneralAgentTransport', () => {
+  it('imposes no app admission cap and requires scoped control while conversations overlap', async () => {
+    const driver = new ConcurrentTransportDriver();
+    let sessionOrdinal = 0;
+    const transport = new LocalGeneralAgentTransport({
+      driver,
+      createId: (kind) =>
+        kind === 'session' ? `session-${(sessionOrdinal += 1)}` : `generated-${kind}`,
+    });
+    const events: AgentEventEnvelope[] = [];
+    const journal: AgentRuntimeJournalEntry[] = [];
+    transport.subscribeEvents((event) => events.push(event));
+    transport.subscribeJournal((entry) => journal.push(entry));
+
+    const initialCount = 40;
+    const starts = Array.from({ length: initialCount }, (_, index) =>
+      transport.start({
+        prompt: `task ${index}`,
+        turnId: `turn-${index}`,
+        route: {
+          kind: 'chat',
+          projectId: 'project-1',
+          conversationId: `conversation-${index}`,
+        },
+      }),
+    );
+    await driver.waitUntilActive(initialCount);
+    expect(await Promise.all(starts)).toEqual(
+      Array.from({ length: initialCount }, () => ({ ok: true, value: undefined })),
+    );
+
+    await expect(transport.abort()).resolves.toMatchObject({
+      ok: false,
+      code: 'AGENT_TURN_REQUIRED',
+    });
+    await expect(transport.abort({ turnId: 'turn-0' })).resolves.toEqual({
+      ok: true,
+      value: undefined,
+    });
+    await expect(
+      transport.start({
+        prompt: 'same route',
+        turnId: 'turn-same-route',
+        route: { kind: 'chat', projectId: 'project-1', conversationId: 'conversation-0' },
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'AGENT_ROUTE_ALREADY_RUNNING' });
+    const extra = transport.start({
+      prompt: 'extra task beyond the former internal ceiling',
+      turnId: 'turn-extra',
+      route: { kind: 'chat', projectId: 'project-1', conversationId: 'conversation-extra' },
+    });
+    await driver.waitUntilActive(initialCount + 1);
+    await expect(extra).resolves.toEqual({ ok: true, value: undefined });
+
+    driver.release();
+    await waitForDone(events, initialCount + 1);
+    expect(driver.maxActiveStreams).toBe(initialCount + 1);
+    const firstEvents = events.filter((event) => event.turnId === 'turn-0');
+    const secondEvents = events.filter((event) => event.turnId === 'turn-1');
+    expect(firstEvents[firstEvents.length - 1]?.event.type).toBe('done');
+    expect(secondEvents[secondEvents.length - 1]?.event.type).toBe('done');
+    expect(
+      journal.find(
+        (entry) => entry.turnId === 'turn-0' && entry.event.type === 'turn_finished',
+      )?.event,
+    ).toMatchObject({ outcome: 'aborted' });
+    expect(
+      journal.find(
+        (entry) => entry.turnId === 'turn-1' && entry.event.type === 'turn_finished',
+      )?.event,
+    ).toMatchObject({ outcome: 'completed' });
+    expect(
+      journal.find(
+        (entry) => entry.turnId === 'turn-extra' && entry.event.type === 'turn_finished',
+      )?.event,
+    ).toMatchObject({ outcome: 'completed' });
+  });
+
   it('projects an interactive permission wait and validates the full resolution binding', async () => {
     const driver = new ScriptedFakeDriver({
       rounds: [

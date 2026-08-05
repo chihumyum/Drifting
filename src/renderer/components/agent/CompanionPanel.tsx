@@ -35,6 +35,7 @@ import {
   selectPendingControl,
   selectRunning,
   selectOtherRunning,
+  selectOtherRunningConversationId,
 } from '../../store/agent-chat-store';
 import { useProjectStore } from '../../store/project-store';
 import { useAgentMemory } from '../../usecase/useAgentMemory';
@@ -869,8 +870,8 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   // panel unmounting (tab switches) and streaming keeps flowing while unmounted.
   const messages = useAgentChatStore(selectMessages);
   const prompt = useAgentChatStore((s) => s.prompt);
-  // `running` = the displayed conversation has the in-flight turn. `otherRunning`
-  // = a turn is running, but in a different conversation than the one shown.
+  // Every conversation owns at most one turn; sibling conversations may run in
+  // parallel and remain visible through history/background indicators.
   const running = useAgentChatStore(selectRunning);
   const otherRunning = useAgentChatStore(selectOtherRunning);
   const starting = useAgentChatStore((s) => s.starting);
@@ -879,7 +880,8 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const continuationReason = useAgentChatStore(selectAgentTaskContinuationReason);
   const automaticContinuation = useAgentChatStore(selectAutomaticContinuation);
   const contextUsage = useAgentChatStore(selectContextUsage);
-  const runningConvId = useAgentChatStore((s) => s.runningConvId);
+  const runningConvId = useAgentChatStore(selectOtherRunningConversationId);
+  const runningTurns = useAgentChatStore((s) => s.runningTurns);
   const convList = useAgentChatStore((s) => s.convList);
   const activeConvId = useAgentChatStore((s) => s.activeConvId);
   const setPrompt = useAgentChatStore((s) => s.setPrompt);
@@ -1241,7 +1243,10 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                 style={{ ...historyItem, ...(c.id === activeConvId ? historyItemActive : null) }}
               >
                 <button type="button" style={historyLoadButton} onClick={() => handleLoad(c.id)}>
-                  <span style={historyTitle}>{c.title || t('agentPanel.history.untitled')}</span>
+                  <span style={historyTitle}>
+                    {runningTurns[c.id] && <span className="agt-otherrun__dot" />}
+                    {c.title || t('agentPanel.history.untitled')}
+                  </span>
                   <span style={historyTime}>{relTime(c.updatedAt)}</span>
                 </button>
                 <button
@@ -1437,16 +1442,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                   </button>
                 )}
               </>
-            ) : otherRunning ? (
-              <button
-                type="button"
-                className="agt-send"
-                disabled
-                style={{ opacity: 0.45, cursor: 'not-allowed' }}
-                title={t('agentPanel.running.disabledTitle')}
-              >
-                {t('agentPanel.composer.send')}
-              </button>
             ) : (
               <button
                 type="button"
@@ -1904,6 +1899,6 @@ const panelCss = `
 .agt-otherrun { display: flex; align-items: center; gap: 7px; width: 100%; margin: 0 0 8px; padding: 6px 10px; border: 1px solid hsl(var(--accent) / 0.3); border-radius: 1px; background: hsl(var(--accent) / 0.06); color: hsl(var(--ink-2)); font-size: 11.5px; cursor: pointer; text-align: left; transition: background 0.12s, border-color 0.12s; }
 .agt-otherrun:hover { background: hsl(var(--accent) / 0.12); border-color: hsl(var(--accent) / 0.5); }
 .agt-otherrun__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agt-otherrun__dot { width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--accent)); flex-shrink: 0; animation: agtOtherRunPulse 1.4s ease-in-out infinite; }
+.agt-otherrun__dot { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: hsl(var(--accent)); flex-shrink: 0; animation: agtOtherRunPulse 1.4s ease-in-out infinite; }
 @keyframes agtOtherRunPulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
 `;

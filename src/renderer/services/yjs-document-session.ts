@@ -271,7 +271,9 @@ export class YjsDocumentSession {
           }, 'seed');
         });
         const fullState = Y.encodeStateAsUpdate(this.ydoc);
-        await this.repo.upsertSnapshot(this.docId, fullState);
+        await this.repo.upsertSnapshot(this.docId, fullState, {
+          source: { kind: 'system' },
+        });
       }
     } else if (this.dependencies.isSyncEnabled()) {
       try {
@@ -309,11 +311,19 @@ export class YjsDocumentSession {
     }
 
     const isLocalEdit = origin !== 'remote' && origin !== 'seed' && origin !== 'restore';
+    const revisionSource =
+      origin === 'agent' || origin === 'agent-revert'
+        ? ({ kind: 'agent' } as const)
+        : ({ kind: 'user' } as const);
     const updateCopy = new Uint8Array(update);
 
     this.enqueueWrite(async () => {
       if (isLocalEdit) {
-        const persistedId = await this.repo.appendUpdate(this.docId, updateCopy);
+        const persistedId = await this.repo.appendUpdate(
+          this.docId,
+          updateCopy,
+          revisionSource,
+        );
         // This is the only safe compaction coverage source: the update was both
         // applied to this unique Y.Doc and durably appended by this queue.
         this.snapshotCoveredUpdateId = Math.max(

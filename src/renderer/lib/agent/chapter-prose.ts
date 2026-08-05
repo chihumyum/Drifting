@@ -389,10 +389,14 @@ async function writeProseDoc(
       }, AGENT_ORIGIN);
       doc.off('update', onUpdate);
 
-      for (const u of diff) await yrepo.appendUpdate(docId, u);
+      for (const u of diff) {
+        await yrepo.appendUpdate(docId, u, { kind: 'agent' });
+      }
       const coveredId = await yrepo.maxUpdateId(docId);
       const fullState = Y.encodeStateAsUpdate(doc);
-      await yrepo.upsertSnapshot(docId, fullState);
+      await yrepo.upsertSnapshot(docId, fullState, {
+        source: { kind: 'agent' },
+      });
       // Time-machine trail for closed-doc agent writes (live-doc writes are
       // captured by useYjsDoc's own snapshot path).
       maybeCaptureSnapshotHistory(docId, fullState);
@@ -605,9 +609,13 @@ export async function unlinkEntityFromChapterProse(
       }, AGENT_ORIGIN);
       doc.off('update', onUpdate);
       if (changed) {
-        for (const u of diff) await yrepo.appendUpdate(docId, u);
+        for (const u of diff) {
+          await yrepo.appendUpdate(docId, u, { kind: 'agent' });
+        }
         const coveredId = await yrepo.maxUpdateId(docId);
-        await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc));
+        await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc), {
+          source: { kind: 'agent' },
+        });
         await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
         await persistNodeContentProjection(
           projectId,
@@ -772,11 +780,15 @@ export async function revertEntityBlock(
         REVERT_ORIGIN,
       );
       doc.off('update', onUpdate);
-      for (const u of diff) await yrepo.appendUpdate(docId, u);
+      for (const u of diff) {
+        await yrepo.appendUpdate(docId, u, { kind: 'agent' });
+      }
       if (diff.length > 0) {
         const coveredId = await yrepo.maxUpdateId(docId);
         const fullState = Y.encodeStateAsUpdate(doc);
-        await yrepo.upsertSnapshot(docId, fullState);
+        await yrepo.upsertSnapshot(docId, fullState, {
+          source: { kind: 'agent' },
+        });
         await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
       }
       await persistProjection(doc);

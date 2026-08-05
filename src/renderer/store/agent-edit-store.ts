@@ -87,6 +87,8 @@ export type AgentBlockReviewDecision = 'accepted' | 'reverted';
  */
 export interface RevertRecord {
   projectId: string;
+  /** Durable General Agent owner. Missing only for legacy/manual staging. */
+  sessionId?: string;
   entityType: ActivityEntityType;
   id: string;
   blockId: string;
@@ -182,9 +184,9 @@ interface AgentEditState {
     id: string,
     change: AgentBlockChange,
   ) => void;
-  /** Take (and clear) the queued reverts for a project, to inject into the next
-   *  turn's prompt. Leaves other projects' reverts untouched. */
-  drainReverts: (projectId: string) => RevertRecord[];
+  /** Take queued reverts belonging to this exact Agent session. Legacy rows
+   * without an owner are delivered only when sessionId is absent. */
+  drainReverts: (projectId: string, sessionId?: string | null) => RevertRecord[];
   /** Drop an entity's whole pending set (e.g. the user dismissed it). */
   clear: (entityType: ActivityEntityType, id: string) => void;
   /** New prompt / project switch — forget everything. */
@@ -463,11 +465,13 @@ export const useAgentEditStore = create<AgentEditState>()(
       },
 
       recordRevert: (projectId, entityType, id, change) => {
+        const sessionId = agentSessionIdFromEffectId(change.effectId);
         set((s) => ({
           pendingReverts: [
             ...s.pendingReverts,
             {
               projectId,
+              ...(sessionId ? { sessionId } : {}),
               entityType,
               id,
               blockId: change.blockId,
@@ -479,10 +483,13 @@ export const useAgentEditStore = create<AgentEditState>()(
         }));
       },
 
-      drainReverts: (projectId) => {
+      drainReverts: (projectId, sessionId = null) => {
         const all = get().pendingReverts;
-        const mine = all.filter((r) => r.projectId === projectId);
-        if (mine.length) set({ pendingReverts: all.filter((r) => r.projectId !== projectId) });
+        const owns = (record: RevertRecord): boolean =>
+          record.projectId === projectId &&
+          (sessionId ? record.sessionId === sessionId : !record.sessionId);
+        const mine = all.filter(owns);
+        if (mine.length) set({ pendingReverts: all.filter((record) => !owns(record)) });
         return mine;
       },
 
@@ -545,6 +552,14 @@ export const useAgentEditStore = create<AgentEditState>()(
     },
   ),
 );
+
+function agentSessionIdFromEffectId(effectId: string | undefined): string | null {
+  const prefix = 'agent-write:';
+  if (!effectId?.startsWith(prefix)) return null;
+  const separator = effectId.indexOf(':', prefix.length);
+  if (separator <= prefix.length) return null;
+  return effectId.slice(prefix.length, separator);
+}
 
 /**
  * Retire review batches created by the superseded pre-v1 protocol at hydration

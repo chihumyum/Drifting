@@ -20,10 +20,25 @@ Runtime-discovered project MCP/plugin tools are additional and generation-bound.
 | Closed domain lifecycle operations | 43 |
 | Standard context window | 200,000 tokens |
 | Max context request | 1,000,000 tokens |
+| App concurrency cap | none |
 
 The direct catalog count deliberately does not describe the complete user-facing
 write surface. The workspace facade exposes fewer natural verbs while routing
 certified hidden domain operations through the same durable write coordinator.
+
+## Conversation concurrency
+
+- Admission policy: `unbounded-user-owned`
+- Active turn cardinality: `one-per-conversation`
+- Project scope: `same-mounted-project`
+- Control routing: `session-and-turn-scoped`
+- Read scheduling: `concurrent`
+- Write scheduling: `shared-reader-writer-barrier`
+- Stale-write policy: `revision-cas-stop-after-two-conflicts-per-target-turn`
+- Yjs collaborator identity: `session-turn-call-origin`
+- Yjs revision provenance: `durable-per-revision-agent-user-remote-system-legacy`
+- Conflict attribution: `self-other-agent-user-mixed-external`
+- Restart behavior: `durable-plans-manual-resume-no-active-turn-replay`
 
 ## Direct certified writes
 

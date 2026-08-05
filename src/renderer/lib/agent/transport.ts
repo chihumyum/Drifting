@@ -1,9 +1,11 @@
 import type {
+  AgentAbortInput,
   AgentCancelPendingControlInput,
   AgentEventEnvelope,
   AgentListPendingControlsInput,
   AgentPendingControl,
   AgentPermissionResolutionInput,
+  AgentResetSessionInput,
   AgentStartInput,
   AgentSteeringInput,
   AgentStopAfterToolInput,
@@ -49,8 +51,8 @@ export interface GeneralAgentTransport {
   cancelPendingControl(
     input: AgentCancelPendingControlInput,
   ): Promise<GeneralAgentResult>;
-  abort(): Promise<GeneralAgentResult>;
-  resetSession(): Promise<GeneralAgentResult>;
+  abort(input?: AgentAbortInput): Promise<GeneralAgentResult>;
+  resetSession(input?: AgentResetSessionInput): Promise<GeneralAgentResult>;
   /**
    * Canonical, lossless runtime stream. Product UI should consume this journal
    * instead of the legacy renderer projection below.
@@ -151,8 +153,8 @@ export const generalAgentTransport: GeneralAgentTransport = {
   stopAfterTool: (input) => activeTransport.stopAfterTool(input),
   listPendingControls: (input) => activeTransport.listPendingControls(input),
   cancelPendingControl: (input) => activeTransport.cancelPendingControl(input),
-  abort: () => activeTransport.abort(),
-  resetSession: () => activeTransport.resetSession(),
+  abort: (input) => activeTransport.abort(input),
+  resetSession: (input) => activeTransport.resetSession(input),
   subscribeJournal: (callback) => {
     const subscription: JournalRelaySubscription = { callback, cleanup: null };
     if (!bindJournalRelay(subscription)) return unsupportedResult();

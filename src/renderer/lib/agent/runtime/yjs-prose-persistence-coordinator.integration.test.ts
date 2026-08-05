@@ -36,6 +36,10 @@ const migrationSql = readFileSync(
   new URL('../../../../../drizzle/0062_yjs_document_revision.sql', import.meta.url),
   'utf8',
 ).replaceAll('--> statement-breakpoint', '');
+const provenanceMigrationSql = readFileSync(
+  new URL('../../../../../drizzle/0082_yjs_revision_provenance.sql', import.meta.url),
+  'utf8',
+).replaceAll('--> statement-breakpoint', '');
 
 class NodeSqliteGateway implements DatabasePlatformApi {
   readonly database = new DatabaseSync(':memory:');
@@ -85,6 +89,7 @@ class NodeSqliteGateway implements DatabasePlatformApi {
       VALUES ('node-1', '{"type":"doc","content":[]}', '[]', '{}', 'before', 'before');
     `);
     this.database.exec(migrationSql);
+    this.database.exec(provenanceMigrationSql);
   }
 
   async open(_databaseName: string): Promise<DatabaseOpenResult> {
@@ -369,6 +374,42 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     }
   });
 
+  it('keeps exact user and Agent revision provenance after update compaction', async () => {
+    const { database } = setup();
+    const repo = createYjsRepository(database);
+    const docId = 'node-content:provenance';
+
+    await repo.upsertSnapshot(docId, createState([paragraph('p-1', 'seed')]), {
+      source: { kind: 'system' },
+    });
+    await repo.appendUpdate(docId, Uint8Array.of(1, 2, 3), { kind: 'user' });
+    await repo.appendUpdateCas(docId, Uint8Array.of(4, 5, 6), 2, {
+      kind: 'agent',
+      collaborator: {
+        sessionId: 'session-b',
+        turnId: 'turn-b',
+        callId: 'call-b',
+      },
+    });
+    await repo.deleteUpdatesUpTo(docId, await repo.maxUpdateId(docId));
+
+    expect(await repo.listRevisionProvenance(docId, 0)).toEqual([
+      expect.objectContaining({ revision: 1, source: { kind: 'system' } }),
+      expect.objectContaining({ revision: 2, source: { kind: 'user' } }),
+      expect.objectContaining({
+        revision: 3,
+        source: {
+          kind: 'agent',
+          collaborator: {
+            sessionId: 'session-b',
+            turnId: 'turn-b',
+            callId: 'call-b',
+          },
+        },
+      }),
+    ]);
+  });
+
   it('commits seed -> closed commands, survives compaction, and replays receipts without a duplicate write', async () => {
     const { coordinator, database } = setup();
     const seed = createState([
@@ -507,10 +548,14 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
       Y.encodeStateAsUpdate(live),
     );
     let persistedOriginCount = 0;
+    const persistedCollaborators: unknown[] = [];
     let accidentalAppendCount = 0;
     live.on('update', (_update, origin) => {
-      if (readPersistedYjsUpdateOrigin(origin)) persistedOriginCount += 1;
-      else accidentalAppendCount += 1;
+      const persisted = readPersistedYjsUpdateOrigin(origin);
+      if (persisted) {
+        persistedOriginCount += 1;
+        persistedCollaborators.push(persisted.collaborator);
+      } else accidentalAppendCount += 1;
     });
 
     const base = await coordinator.readBase('node-content:node-1');
@@ -528,6 +573,12 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
       command,
       direction: 'forward',
       expectedRevision: 1,
+      collaborator: {
+        kind: 'agent',
+        sessionId: 'session-a',
+        turnId: 'turn-a',
+        callId: 'call-a',
+      },
       ...persistenceHooks(),
       beforeLiveMerge() {
         beforeMergeBlockIds.push(
@@ -542,8 +593,24 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     expect(beforeMergeBlockIds).toEqual([['base-a', 'base-b']]);
     expect(rollbackPresentation).not.toHaveBeenCalled();
     expect(persistedOriginCount).toBe(1);
+    expect(persistedCollaborators).toEqual([
+      { kind: 'agent', sessionId: 'session-a', turnId: 'turn-a', callId: 'call-a' },
+    ]);
     expect(accidentalAppendCount).toBe(0);
     expect(queryCount(gateway!, 'yjs_updates')).toBe(1);
+    expect(await repo.listRevisionProvenance('node-content:node-1', 1)).toEqual([
+      expect.objectContaining({
+        revision: 2,
+        source: {
+          kind: 'agent',
+          collaborator: {
+            sessionId: 'session-a',
+            turnId: 'turn-a',
+            callId: 'call-a',
+          },
+        },
+      }),
+    ]);
     const liveBlocks = snapshotYjsProseBlocks(live);
     expect(liveBlocks[liveBlocks.length - 1]?.id).toBe('agent-live');
     live.destroy();

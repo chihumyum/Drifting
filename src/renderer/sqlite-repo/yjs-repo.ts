@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gt, lte, sql } from 'drizzle-orm';
 import { getDb, type DbExecutor } from '../lib/db';
 import {
+  YjsDocumentRevisionProvenanceTable,
   YjsDocumentRevisionTable,
   yjsSnapshots,
   yjsUpdates,
@@ -25,6 +26,26 @@ export interface YjsUpdateRevisionResult {
   revision: number;
 }
 
+export interface YjsRevisionAgentIdentity {
+  sessionId: string;
+  turnId: string;
+  callId: string;
+}
+
+export type YjsRevisionSource =
+  | { kind: 'agent'; collaborator?: YjsRevisionAgentIdentity }
+  | { kind: 'user' }
+  | { kind: 'remote' }
+  | { kind: 'system' }
+  | { kind: 'legacy' };
+
+export interface YjsRevisionProvenanceRow {
+  docId: string;
+  revision: number;
+  source: YjsRevisionSource;
+  createdAt: string;
+}
+
 export class YjsDocumentRevisionConflictError extends Error {
   readonly code = 'STALE_REVISION';
 
@@ -47,7 +68,11 @@ export interface YjsRepository {
    * Append a local update and advance the durable per-document revision in one
    * transaction. The revision survives update-log compaction.
    */
-  appendUpdate(docId: string, updateBlob: Uint8Array): Promise<number>;
+  appendUpdate(
+    docId: string,
+    updateBlob: Uint8Array,
+    source?: YjsRevisionSource,
+  ): Promise<number>;
   /**
    * Compare-and-increment the durable revision while appending an update.
    * Used by prepared Agent prose commands after their state vector/hash checks.
@@ -56,16 +81,22 @@ export interface YjsRepository {
     docId: string,
     updateBlob: Uint8Array,
     expectedRevision: number,
+    source?: YjsRevisionSource,
   ): Promise<YjsUpdateRevisionResult>;
   getSnapshot(docId: string): Promise<YjsSnapshotRow | null>;
   upsertSnapshot(
     docId: string,
     stateBlob: Uint8Array,
-    options?: { advanceRevision?: boolean },
+    options?: { advanceRevision?: boolean; source?: YjsRevisionSource },
   ): Promise<void>;
   hasDocState(docId: string): Promise<boolean>;
   /** Monotonic generation, independent from compactable update row ids. */
   getRevision(docId: string): Promise<number>;
+  /** Durable authors for revisions strictly newer than `afterRevision`. */
+  listRevisionProvenance(
+    docId: string,
+    afterRevision: number,
+  ): Promise<YjsRevisionProvenanceRow[]>;
   /** Highest update id currently stored for this doc, or 0 if none. */
   maxUpdateId(docId: string): Promise<number>;
   /**
@@ -111,6 +142,69 @@ function assertRevision(revision: number, path: string): void {
   }
 }
 
+function assertAgentIdentity(identity: YjsRevisionAgentIdentity): void {
+  if (!identity.sessionId.trim() || !identity.turnId.trim() || !identity.callId.trim()) {
+    throw new Error('Yjs Agent revision identity must be complete');
+  }
+}
+
+function provenanceValues(
+  docId: string,
+  revision: number,
+  source: YjsRevisionSource,
+  createdAt: string,
+): typeof YjsDocumentRevisionProvenanceTable.$inferInsert {
+  if (source.kind === 'agent' && source.collaborator) {
+    assertAgentIdentity(source.collaborator);
+  }
+  return {
+    docId,
+    revision,
+    sourceKind: source.kind,
+    agentSessionId:
+      source.kind === 'agent' ? source.collaborator?.sessionId ?? null : null,
+    agentTurnId:
+      source.kind === 'agent' ? source.collaborator?.turnId ?? null : null,
+    agentCallId:
+      source.kind === 'agent' ? source.collaborator?.callId ?? null : null,
+    createdAt,
+  };
+}
+
+function provenanceFromRow(
+  row: typeof YjsDocumentRevisionProvenanceTable.$inferSelect,
+): YjsRevisionProvenanceRow {
+  let source: YjsRevisionSource;
+  if (row.sourceKind === 'agent') {
+    source =
+      row.agentSessionId && row.agentTurnId && row.agentCallId
+        ? {
+            kind: 'agent',
+            collaborator: {
+              sessionId: row.agentSessionId,
+              turnId: row.agentTurnId,
+              callId: row.agentCallId,
+            },
+          }
+        : { kind: 'agent' };
+  } else if (
+    row.sourceKind === 'user' ||
+    row.sourceKind === 'remote' ||
+    row.sourceKind === 'system' ||
+    row.sourceKind === 'legacy'
+  ) {
+    source = { kind: row.sourceKind };
+  } else {
+    source = { kind: 'legacy' };
+  }
+  return {
+    docId: row.docId,
+    revision: row.revision,
+    source,
+    createdAt: row.createdAt,
+  };
+}
+
 export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
   const dbProvider = (): DbExecutor => dbOverride ?? getDb();
   const runAtomic = <T>(work: (tx: DbExecutor) => Promise<T>): Promise<T> =>
@@ -143,6 +237,7 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
     executor: DbExecutor,
     docId: string,
     now: string,
+    source: YjsRevisionSource,
     expectedRevision?: number,
   ): Promise<{ previousRevision: number; revision: number }> => {
     if (expectedRevision !== undefined) {
@@ -173,6 +268,9 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
         actualRevision,
       );
     }
+    await executor
+      .insert(YjsDocumentRevisionProvenanceTable)
+      .values(provenanceValues(docId, revision, source, now));
     return { previousRevision: revision - 1, revision };
   };
 
@@ -198,7 +296,11 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
     }));
   };
 
-  const appendUpdate = async (docId: string, updateBlob: Uint8Array): Promise<number> => {
+  const appendUpdate = async (
+    docId: string,
+    updateBlob: Uint8Array,
+    source: YjsRevisionSource = { kind: 'user' },
+  ): Promise<number> => {
     return runAtomic(async (executor) => {
       const now = new Date().toISOString();
       const inserted = await executor
@@ -213,7 +315,7 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
       if (!inserted[0]) {
         throw new Error(`Failed to append yjs update for doc ${docId}`);
       }
-      await advanceRevision(executor, docId, now);
+      await advanceRevision(executor, docId, now, source);
       return inserted[0].id;
     });
   };
@@ -222,6 +324,7 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
     docId: string,
     updateBlob: Uint8Array,
     expectedRevision: number,
+    source: YjsRevisionSource = { kind: 'system' },
   ): Promise<YjsUpdateRevisionResult> => {
     assertRevision(expectedRevision, 'expectedRevision');
     return runAtomic(async (executor) => {
@@ -230,6 +333,7 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
         executor,
         docId,
         now,
+        source,
         expectedRevision,
       );
       const inserted = await executor
@@ -278,7 +382,7 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
   const upsertSnapshot = async (
     docId: string,
     stateBlob: Uint8Array,
-    options: { advanceRevision?: boolean } = {},
+    options: { advanceRevision?: boolean; source?: YjsRevisionSource } = {},
   ): Promise<void> => {
     await runAtomic(async (executor) => {
       const now = new Date().toISOString();
@@ -306,7 +410,12 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
           },
         });
       if (options.advanceRevision !== false && stateChanged) {
-        await advanceRevision(executor, docId, now);
+        await advanceRevision(
+          executor,
+          docId,
+          now,
+          options.source ?? { kind: 'system' },
+        );
       } else {
         await ensureRevisionRow(executor, docId, now);
       }
@@ -328,6 +437,24 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
 
   const getRevision = async (docId: string): Promise<number> =>
     getRevisionFrom(dbProvider(), docId);
+
+  const listRevisionProvenance = async (
+    docId: string,
+    afterRevision: number,
+  ): Promise<YjsRevisionProvenanceRow[]> => {
+    assertRevision(afterRevision, 'afterRevision');
+    const rows = await dbProvider()
+      .select()
+      .from(YjsDocumentRevisionProvenanceTable)
+      .where(
+        and(
+          eq(YjsDocumentRevisionProvenanceTable.docId, docId),
+          gt(YjsDocumentRevisionProvenanceTable.revision, afterRevision),
+        ),
+      )
+      .orderBy(asc(YjsDocumentRevisionProvenanceTable.revision));
+    return rows.map(provenanceFromRow);
+  };
 
   const maxUpdateId = async (docId: string): Promise<number> => {
     const rows = await dbProvider()
@@ -357,6 +484,7 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
     upsertSnapshot,
     hasDocState,
     getRevision,
+    listRevisionProvenance,
     maxUpdateId,
     deleteUpdatesUpTo,
   };

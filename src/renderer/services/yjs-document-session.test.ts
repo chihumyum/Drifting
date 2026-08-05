@@ -33,6 +33,7 @@ function createHarness(options: { updates?: YjsUpdateRow[]; snapshotError?: Erro
     upsertSnapshot: vi.fn(async () => undefined),
     hasDocState: vi.fn(async () => false),
     getRevision: vi.fn(async () => 0),
+    listRevisionProvenance: vi.fn(async () => []),
     maxUpdateId: vi.fn(async () => 999_999),
     deleteUpdatesUpTo: vi.fn(async () => 0),
   };

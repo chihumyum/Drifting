@@ -170,6 +170,8 @@ interface WorkspaceReadCoverage {
   totalChars: number;
   ranges: Array<{ start: number; end: number }>;
   completeContent?: string;
+  /** Exact canonical prose read that produced this model-visible page. */
+  freshness?: ReadFreshness;
 }
 
 export interface WorkspaceAuthoredReadState {
@@ -632,13 +634,24 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       request,
     );
     if (deferredWorkingCopy) return deferredWorkingCopy;
-    const content = await this.renderEntry(entry, request);
+    let proseFreshness: ReadFreshness | null = null;
+    const content = await this.renderEntry(entry, request, (read) => {
+      proseFreshness = read.freshness;
+    });
     const offset = boundedInteger(request.arguments.offset, 0, 0, content.length);
     const limit = boundedInteger(request.arguments.limit, DEFAULT_READ_LIMIT, 1, 32_000);
     const page = sliceCodePoints(content, offset, limit);
     const nextOffset = Math.min(codePointLength(content), offset + codePointLength(page));
     const totalChars = codePointLength(content);
-    await this.recordReadCoverage(request, path, content, offset, nextOffset, totalChars);
+    await this.recordReadCoverage(
+      request,
+      path,
+      content,
+      offset,
+      nextOffset,
+      totalChars,
+      proseFreshness,
+    );
     // A node's stored wordCount is only a projection and old imported drafts
     // can legitimately have an empty Yjs truth plus a stale non-zero counter.
     // Once this call has paid to read the live body, report the live count so
@@ -897,6 +910,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
   private async renderEntry(
     entry: WorkspaceEntry,
     request: AgentToolExecutionRequest,
+    observeProseRead?: (read: CanonicalReadResult) => void,
   ): Promise<string> {
     const target = entry.target;
     if (target.kind === 'overview') {
@@ -976,6 +990,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         prose ? 'node-prose' : 'node-header',
       );
       if (target.kind === 'node_prose') {
+        observeProseRead?.(read);
         return compactProseBlocks(read.value)
           .map((block) => block.displayText)
           .join('\n\n');
@@ -1005,6 +1020,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
           { node: target.elementId, kind: 'element', prose: true },
           'element-body',
         );
+        observeProseRead?.(read);
         return compactProseBlocks(read.value)
           .map((block) => block.displayText)
           .join('\n\n');
@@ -1041,6 +1057,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
           { node: target.storylineId, kind: 'storyline', prose: true },
           'storyline-body',
         );
+        observeProseRead?.(read);
         return compactProseBlocks(read.value)
           .map((block) => block.displayText)
           .join('\n\n');
@@ -1072,6 +1089,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       'category',
     );
     if (target.kind === 'category_body') {
+      observeProseRead?.(read);
       return compactProseBlocks(read.value)
         .map((block) => block.displayText)
         .join('\n\n');
@@ -1108,6 +1126,12 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     const target = entry.target;
     const proseTarget = workspaceProseTarget(target);
     if (proseTarget) {
+      const entityKind = `${proseTarget.entityType}_prose`;
+      const citedExpectedRevision = expectedRevisionFromFreshness(
+        this.readCoverage.get(this.readCoverageKey(request, entry.path))?.freshness,
+        entityKind,
+        proseTarget.id,
+      );
       const read = await this.canonicalRead(
         request,
         'read_node',
@@ -1118,6 +1142,36 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         },
         'edit-source',
       );
+      const currentExpectedRevision = expectedRevisionFrom(
+        read,
+        entityKind,
+        proseTarget.id,
+      );
+      // Do not silently replace the model-visible read with this hidden
+      // preparation read. If another collaborator advanced Yjs in between,
+      // preserve the cited receipt so the certified write path can attribute
+      // the conflict as self, another Agent, author, mixed, or unknown. The
+      // mutation never reaches strategy preparation on this stale branch.
+      if (
+        citedExpectedRevision &&
+        citedExpectedRevision.revision !== currentExpectedRevision.revision
+      ) {
+        return {
+          expectedRevision: citedExpectedRevision,
+          command: {
+            name: 'edit_prose_file',
+            arguments: {
+              entity: proseTarget.id,
+              kind:
+                proseTarget.entityType === 'node'
+                  ? proseTarget.nodeKind
+                  : proseTarget.entityType,
+              replacements,
+              expectedRevision: citedExpectedRevision,
+            },
+          },
+        };
+      }
       const blocks = compactProseBlocks(read.value);
       const current = blocks.map((block) => block.displayText).join('\n\n');
       const normalized = normalizeWorkspaceProseReplacements(
@@ -1131,11 +1185,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         next,
         normalized.skippedStaleTargets,
       );
-      const expectedRevision = expectedRevisionFrom(
-        read,
-        `${proseTarget.entityType}_prose`,
-        proseTarget.id,
-      );
+      const expectedRevision = currentExpectedRevision;
       const authoredReadState =
         proseTarget.entityType === 'node'
           ? {
@@ -1720,6 +1770,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     start: number,
     end: number,
     totalChars: number,
+    freshness?: ReadFreshness | null,
   ): Promise<void> {
     const key = this.readCoverageKey(request, path);
     const fingerprint = await workspaceContentFingerprint(content);
@@ -1728,6 +1779,9 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       previous?.fingerprint === fingerprint && previous.totalChars === totalChars
         ? [...previous.ranges, { start, end }]
         : [{ start, end }];
+    const sameContent =
+      previous?.fingerprint === fingerprint && previous.totalChars === totalChars;
+    const retainedFreshness = freshness ?? (sameContent ? previous?.freshness : undefined);
     ranges.sort((left, right) => left.start - right.start || left.end - right.end);
     const merged: Array<{ start: number; end: number }> = [];
     for (const range of ranges) {
@@ -1748,6 +1802,16 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       totalChars,
       ranges: merged,
       ...(completeContent !== undefined ? { completeContent } : {}),
+      ...(retainedFreshness
+        ? {
+            freshness: {
+              receiptId: retainedFreshness.receiptId,
+              observations: retainedFreshness.observations.map((observation) => ({
+                ...observation,
+              })),
+            },
+          }
+        : {}),
     });
     while (this.readCoverage.size > MAX_TRACKED_READ_COVERAGE) {
       const oldest = this.readCoverage.keys().next().value as string | undefined;
@@ -2907,14 +2971,28 @@ function expectedRevisionFrom(
   entityKind: string,
   entityId: string,
 ): Record<string, string> {
-  const observation = read.freshness?.observations.find(
-    (candidate) => candidate.entityKind === entityKind && candidate.entityId === entityId,
+  const expected = expectedRevisionFromFreshness(
+    read.freshness ?? undefined,
+    entityKind,
+    entityId,
   );
-  if (!read.freshness || !observation) {
+  if (!expected) {
     throw new Error('The runtime could not obtain an exact revision for this file; retry the edit');
   }
+  return expected;
+}
+
+function expectedRevisionFromFreshness(
+  freshness: ReadFreshness | undefined,
+  entityKind: string,
+  entityId: string,
+): Record<string, string> | null {
+  const observation = freshness?.observations.find(
+    (candidate) => candidate.entityKind === entityKind && candidate.entityId === entityId,
+  );
+  if (!freshness || !observation) return null;
   return {
-    receiptId: read.freshness.receiptId,
+    receiptId: freshness.receiptId,
     observationId: observation.id,
     revision: observation.revision,
   };

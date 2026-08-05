@@ -12,6 +12,9 @@ import {
   BUDGET_CONTINUATION_PROMPT,
   selectAgentTaskContinuationReason,
   selectCanContinueAgentTask,
+  selectOtherRunning,
+  selectOtherRunningConversationId,
+  selectRunning,
   useAgentChatStore,
 } from './agent-chat-store';
 import {
@@ -421,10 +424,32 @@ describe('agent chat canonical journal projection', () => {
     ]);
   });
 
+  it('selects the displayed turn independently from sibling conversations', () => {
+    const state = {
+      activeConvId: 'conversation-a',
+      runningTurns: {
+        'conversation-a': 'turn-a',
+        'conversation-b': 'turn-b',
+      },
+    } as unknown as Parameters<typeof selectRunning>[0];
+
+    expect(selectRunning(state)).toBe(true);
+    expect(selectOtherRunning(state)).toBe(true);
+    expect(selectOtherRunningConversationId(state)).toBe('conversation-b');
+
+    const siblingOnly = {
+      ...state,
+      runningTurns: { 'conversation-b': 'turn-b' },
+    };
+    expect(selectRunning(siblingOnly)).toBe(false);
+    expect(selectOtherRunning(siblingOnly)).toBe(true);
+  });
+
   it('offers an explicit one-shot continuation only after an idle budget terminal', () => {
     const state = {
       activeConvId: 'conversation-1',
       runningConvId: null,
+      runningTurns: {},
       runs: {
         'conversation-1': {
           projectId: 'project-1',
@@ -448,6 +473,7 @@ describe('agent chat canonical journal projection', () => {
       selectCanContinueAgentTask({
         ...state,
         runningConvId: 'conversation-1',
+        runningTurns: { 'conversation-1': 'turn-running' },
       }),
     ).toBe(false);
     expect(
@@ -476,6 +502,7 @@ describe('agent chat canonical journal projection', () => {
     const state = {
       activeConvId: 'conversation-1',
       runningConvId: null,
+      runningTurns: {},
       starting: false,
       runs: {
         'conversation-1': {
@@ -580,6 +607,7 @@ describe('agent chat canonical journal projection', () => {
           convList: [],
           runningTurnId: null,
           runningConvId: null,
+          runningTurns: {},
           starting: false,
         },
         true,
@@ -595,6 +623,7 @@ describe('agent chat canonical journal projection', () => {
         activeConvId: null,
         runningTurnId: null,
         runningConvId: null,
+        runningTurns: {},
         starting: false,
       });
       expect(useAgentChatStore.getState().runs['conversation-origin']?.messages).toEqual([]);
@@ -609,6 +638,7 @@ describe('agent chat canonical journal projection', () => {
       expect(useAgentChatStore.getState()).toMatchObject({
         runningTurnId: null,
         runningConvId: null,
+        runningTurns: {},
         starting: false,
       });
       expect(useAgentChatStore.getState().runs['conversation-origin']?.messages).toEqual([]);

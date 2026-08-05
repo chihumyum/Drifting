@@ -6,6 +6,8 @@ import { useAgentEditStore } from './agent-edit-store';
 
 const initialDataState = useDataStore.getState();
 const timestamp = '2026-08-02T00:00:00.000Z';
+const scopeA = { sessionId: 'session-a', turnId: 'turn-a' };
+const scopeB = { sessionId: 'session-b', turnId: 'turn-b' };
 
 describe('General Agent Added activity', () => {
   beforeEach(() => {
@@ -43,11 +45,12 @@ describe('General Agent Added activity', () => {
 
   it('persists Added presentation after the workspace create result commits', () => {
     const activity = useAgentActivityStore.getState();
-    activity.onToolUse('create-call', 'write_file', {
+    activity.onToolUse(scopeA, 'create-call', 'write_file', {
       path: '/drifts/潮痕/prose.md',
       content: '潮水退去。',
     });
     activity.onToolResult(
+      scopeA,
       'create-call',
       true,
       JSON.stringify({
@@ -63,5 +66,18 @@ describe('General Agent Added activity', () => {
       revealBlockIds: null,
     });
     expect(useAgentActivityStore.getState().touched['node:node-added']?.op).toBe('create');
+  });
+
+  it('keeps a sibling session pulse when another turn with the same call id finishes', () => {
+    const activity = useAgentActivityStore.getState();
+    const input = { path: '/drifts/潮痕/prose.md', content: '潮水退去。' };
+    activity.onToolUse(scopeA, 'same-provider-call', 'write_file', input);
+    activity.onToolUse(scopeB, 'same-provider-call', 'write_file', input);
+
+    activity.onTurnEnd(scopeA);
+    expect(useAgentActivityStore.getState().active['node:node-added']).toBeDefined();
+
+    activity.onTurnEnd(scopeB);
+    expect(useAgentActivityStore.getState().active['node:node-added']).toBeUndefined();
   });
 });

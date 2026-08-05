@@ -191,4 +191,24 @@ describe('Agent edit review block decisions', () => {
     ).toBe(false);
     expect(useAgentEditStore.getState().autoRevealGuards['review-empty']).toBeUndefined();
   });
+
+  it('delivers rejected edit feedback only to the Agent session that authored it', () => {
+    const store = useAgentEditStore.getState();
+    store.recordRevert('project-1', 'node', 'node-1', {
+      ...changes[0],
+      effectId: 'agent-write:session-a:turn-a:call-a',
+    });
+    store.recordRevert('project-1', 'node', 'node-1', {
+      ...changes[1],
+      effectId: 'agent-write:session-b:turn-b:call-b',
+    });
+
+    expect(store.drainReverts('project-1', 'session-a')).toEqual([
+      expect.objectContaining({ sessionId: 'session-a', blockId: 'block-a' }),
+    ]);
+    expect(store.drainReverts('project-1', 'session-a')).toEqual([]);
+    expect(store.drainReverts('project-1', 'session-b')).toEqual([
+      expect.objectContaining({ sessionId: 'session-b', blockId: 'block-b' }),
+    ]);
+  });
 });

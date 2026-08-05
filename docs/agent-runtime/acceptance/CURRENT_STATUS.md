@@ -123,8 +123,8 @@ a comment and a TODO; direct SQLite comparison found no unrelated chapter or
 Yjs mutation. Earlier failures in creation guidance, canonical result paths,
 stable edit-tool visibility, literal occurrence search, category resolution,
 typed summary initialization and persisted word counts were fixed before that
-pass. This is E3 evidence; E4 interaction, paid 1M, concurrent General Agent
-sessions and the exact historical three-turn write sequence remain open.
+pass. This is E3 evidence; E4 interaction, paid 1M and the exact historical
+three-turn write sequence remain open.
 
 The 2026-08-03 reasoning-on long-book campaign then used a deliberately vague
 author prompt, `--thinking adaptive` and no effort override against a disposable
@@ -178,6 +178,22 @@ Yjs writes, and shared comment model remain the supported composition.
 - The General Agent runs in the Tauri renderer through the provider-neutral
   local runtime and executes authored writes through renderer-owned use cases,
   durable receipts and live Yjs prose coordination.
+- One Agent product now permits any number of concurrent active conversations
+  in the currently mounted project; there is no App admission cap.
+  Session/turn-scoped controls and activity are independent; reads overlap;
+  writes cross one shared reader/writer barrier and revision CAS. Yjs
+  transaction origins identify the Agent session, turn and call, while a
+  non-compactable per-revision ledger distinguishes exact Agent, local author,
+  remote, system and legacy sources. Stale prose feedback tells the model
+  whether the winner was this turn, another Agent conversation, the author,
+  mixed sources or external/unknown; absence is never treated as proof of a
+  user edit. A second stale conflict on the same target stops that target for
+  the remainder of the turn instead of permitting an Agent-Agent overwrite loop.
+  Project switching still stops turns from the previous mounted project, and
+  restart restores plans for manual resume rather than replaying active
+  provider requests. Deterministic evidence and the local Claude Code study are
+  in
+  [`CONCURRENT_AGENT_SESSIONS_ACCEPTANCE_2026-08-05.md`](CONCURRENT_AGENT_SESSIONS_ACCEPTANCE_2026-08-05.md).
 - Models & API is the only writable BYOK credential surface. Copilot owns its
   provider/model route; General Agent selects its route in the chat composer.
   Both lazily resolve the shared native `byok.<provider>` Keychain entries.
@@ -237,7 +253,8 @@ Yjs writes, and shared comment model remain the supported composition.
   and revision provenance. Oversized results are hash-verified SQLite artifacts
   paged by Unicode code point across restart.
 - Agent chats have no author-visible checkpoint, conversation rewind or branch
-  identity. A new chat is an independent flat session; no editor focus or
+  identity. A new chat is an independent flat session and may run beside any
+  number of sibling chats in the same mounted project; no editor focus or
   historical checkpoint payload is inherited. Runtime commit records and
   compaction checkpoints remain internal recovery mechanics, not user branches.
 - Drifting's entity history independently captures changed node, element,

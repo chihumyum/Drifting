@@ -77,6 +77,17 @@ export interface AgentStopAfterToolInput {
   turnId: string;
 }
 
+/** Exact active turn to cancel. Omitting this is supported only by legacy
+ * single-turn callers; concurrent product surfaces must always provide it. */
+export interface AgentAbortInput {
+  turnId?: string;
+}
+
+/** Exact session whose in-memory route/history binding should be retired. */
+export interface AgentResetSessionInput {
+  sessionId?: string;
+}
+
 export interface AgentPendingControl {
   sessionId: string;
   turnId: string;

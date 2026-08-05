@@ -88,10 +88,14 @@ async function applyProseState(docId: string, stateBlob: Uint8Array): Promise<st
         );
         doc.off('update', onUpdate);
 
-        for (const u of diff) await yrepo.appendUpdate(docId, u);
+        for (const u of diff) {
+          await yrepo.appendUpdate(docId, u, { kind: 'user' });
+        }
         const coveredId = await yrepo.maxUpdateId(docId);
         const fullState = Y.encodeStateAsUpdate(doc);
-        await yrepo.upsertSnapshot(docId, fullState);
+        await yrepo.upsertSnapshot(docId, fullState, {
+          source: { kind: 'user' },
+        });
         maybeCaptureSnapshotHistory(docId, fullState, 'restore');
         await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
         return JSON.stringify(yDocToProsemirrorJSON(doc, 'default'));

@@ -553,7 +553,9 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
       // Persist only after the complete catch-up, so the editor remains in its
       // existing loading state instead of becoming editable halfway through.
       const fullState = Y.encodeStateAsUpdate(ydoc);
-      await r.upsertSnapshot(docId, fullState);
+      await r.upsertSnapshot(docId, fullState, {
+        source: { kind: 'remote' },
+      });
       // The durable snapshot must land before the cursor advances. If a later
       // page or the process fails, leaving the old cursor simply replays
       // idempotent Yjs updates; advancing first could skip data not in SQLite.

@@ -447,6 +447,75 @@ describe('DriftingWorkspaceToolRuntime', () => {
     expect(readRuntime.execute).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the model-visible prose revision when another collaborator edits before prepare', async () => {
+    let readIndex = 0;
+    const execute = vi.fn(async (input: AgentToolExecutionRequest) => {
+      expect(input.name).toBe('read_node');
+      const firstRead = readIndex === 0;
+      readIndex += 1;
+      return {
+        ok: true as const,
+        data: {
+          result: firstRead
+            ? 'chapter "第一章 雨夜" · draft\n\n1\tSLOT_A\n2\tSLOT_B'
+            : 'chapter "第一章 雨夜" · draft\n\n1\tAGENT_A_DONE\n2\tSLOT_B',
+          freshness: {
+            receiptId: firstRead ? 'public-read-receipt' : 'prepare-read-receipt',
+            observations: [
+              {
+                id: firstRead ? 'public-read-observation' : 'prepare-read-observation',
+                entityKind: 'node_prose',
+                entityId: NODE_ID,
+                revision: firstRead ? 'yjs:7' : 'yjs:8',
+              },
+            ],
+          },
+        },
+      };
+    });
+    const runtime = createRuntime({ listDefinitions: () => [], execute });
+
+    await expect(
+      runtime.execute(
+        request('read_file', { path: '/chapters/第一章 雨夜/prose.md' }),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { content: 'SLOT_A\n\nSLOT_B' },
+    });
+
+    const prepared = await runtime.prepareEditRequest(
+      request(
+        'edit_file',
+        {
+          path: '/chapters/第一章 雨夜/prose.md',
+          replacements: [{ oldText: 'SLOT_B', newText: 'AGENT_B_DONE' }],
+        },
+        'write',
+      ),
+    );
+
+    expect(prepared.arguments.expectedRevision).toEqual({
+      receiptId: 'public-read-receipt',
+      observationId: 'public-read-observation',
+      revision: 'yjs:7',
+    });
+    expect(workspaceCommandFromArguments(prepared.arguments)).toEqual({
+      name: 'edit_prose_file',
+      arguments: {
+        entity: NODE_ID,
+        kind: 'chapter',
+        replacements: [{ oldText: 'SLOT_B', newText: 'AGENT_B_DONE', replaceAll: false }],
+        expectedRevision: {
+          receiptId: 'public-read-receipt',
+          observationId: 'public-read-observation',
+          revision: 'yjs:7',
+        },
+      },
+    });
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps exact current-revision edits when sibling rows are stale or already satisfied', async () => {
     const runtime = createRuntime(fakeReadRuntime());
     const prepared = await runtime.prepareEditRequest(

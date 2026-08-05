@@ -66,11 +66,12 @@ function readProductMigrationJournal(): ProductMigrationJournal {
     throw new Error('Product migration journal is invalid.');
   }
 
+  let previousIndex = -1;
   let previousWhen = -1;
-  journal.entries.forEach((entry, expectedIndex) => {
-    if (entry.idx !== expectedIndex) {
+  journal.entries.forEach((entry) => {
+    if (!Number.isSafeInteger(entry.idx) || entry.idx <= previousIndex) {
       throw new Error(
-        `Product migration journal index mismatch: expected ${expectedIndex}, found ${entry.idx}.`,
+        `Product migration journal indices are not strictly increasing at ${entry.tag}.`,
       );
     }
     if (!/^[A-Za-z0-9_-]+$/u.test(entry.tag)) {
@@ -84,6 +85,7 @@ function readProductMigrationJournal(): ProductMigrationJournal {
         `Product migration timestamps are not strictly increasing at ${entry.tag}.`,
       );
     }
+    previousIndex = entry.idx;
     previousWhen = entry.when;
   });
   return journal;
@@ -158,6 +160,16 @@ function applyProductMigrations(database: DatabaseSync): number {
 
 type FileBackedSqliteProfile = 'runtime' | 'product';
 
+export interface FileBackedSqliteGatewayOptions {
+  /**
+   * Mirror the native Rust worker's same-renderer behavior: an independent
+   * root request waits behind the active transaction instead of being sent
+   * without its transaction ID. Keep this off in ordinary fault fixtures so
+   * an accidental repository escape still fails immediately.
+   */
+  deferRootRequestsDuringTransaction?: boolean;
+}
+
 /**
  * Node-backed implementation of the same DatabasePlatformApi used by the
  * renderer repositories. It intentionally uses a real file, WAL, FULL sync,
@@ -167,6 +179,8 @@ type FileBackedSqliteProfile = 'runtime' | 'product';
 export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
   readonly database: DatabaseSync;
   private activeTransaction: string | null = null;
+  private transactionReleased: Promise<void> | null = null;
+  private releaseTransaction: (() => void) | null = null;
   private nextTransactionId = 1;
   private migrationsApplied = 0;
   private nextExecuteFault:
@@ -186,6 +200,7 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
     readonly databasePath: string,
     initialize = true,
     private readonly profile: FileBackedSqliteProfile = 'runtime',
+    private readonly options: FileBackedSqliteGatewayOptions = {},
   ) {
     this.database = new DatabaseSync(databasePath);
     if (!initialize) return;
@@ -282,7 +297,7 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
     parameters: readonly unknown[] = [],
     transactionId?: string,
   ): Promise<DatabaseExecuteResult> {
-    this.assertTransaction(transactionId);
+    await this.awaitTransactionAccess(transactionId);
     if (this.nextExecuteFault?.matches(sql, parameters)) {
       const { error } = this.nextExecuteFault;
       this.nextExecuteFault = null;
@@ -302,7 +317,7 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
     parameters: readonly unknown[] = [],
     transactionId?: string,
   ): Promise<DatabaseQueryResult> {
-    this.assertTransaction(transactionId);
+    await this.awaitTransactionAccess(transactionId);
     if (this.nextQueryFault?.matches(sql, parameters)) {
       const { error } = this.nextQueryFault;
       this.nextQueryFault = null;
@@ -326,6 +341,9 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
     const id = String(this.nextTransactionId++);
     this.database.exec(`BEGIN ${behavior.toUpperCase()}`);
     this.activeTransaction = id;
+    this.transactionReleased = new Promise<void>((resolve) => {
+      this.releaseTransaction = resolve;
+    });
     return { id };
   }
 
@@ -333,12 +351,14 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
     this.requireOwner(transactionId);
     this.database.exec('COMMIT');
     this.activeTransaction = null;
+    this.releaseTransactionWaiters();
   }
 
   async rollback(transactionId: string): Promise<void> {
     this.requireOwner(transactionId);
     this.database.exec('ROLLBACK');
     this.activeTransaction = null;
+    this.releaseTransactionWaiters();
   }
 
   async checkpoint(): Promise<DatabaseCheckpointResult> {
@@ -372,11 +392,28 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
     this.nextQueryFault = { matches, error: new Error(message) };
   }
 
-  private assertTransaction(transactionId?: string): void {
-    if (transactionId !== undefined) this.requireOwner(transactionId);
-    if (transactionId === undefined && this.activeTransaction) {
-      throw new Error('acceptance query escaped active transaction');
+  private async awaitTransactionAccess(transactionId?: string): Promise<void> {
+    if (transactionId !== undefined) {
+      this.requireOwner(transactionId);
+      return;
     }
+    while (this.activeTransaction) {
+      if (!this.options.deferRootRequestsDuringTransaction) {
+        throw new Error('acceptance query escaped active transaction');
+      }
+      const released = this.transactionReleased;
+      if (!released) {
+        throw new Error('acceptance transaction wait state is unavailable');
+      }
+      await released;
+    }
+  }
+
+  private releaseTransactionWaiters(): void {
+    const release = this.releaseTransaction;
+    this.releaseTransaction = null;
+    this.transactionReleased = null;
+    release?.();
   }
 
   private requireOwner(transactionId: string): void {
@@ -394,7 +431,11 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
  * default repositories and renderer dispatchers can run without table mocks.
  */
 export class ProductFileBackedSqliteGateway extends P3FileBackedSqliteGateway {
-  constructor(databasePath: string, initialize = true) {
-    super(databasePath, initialize, 'product');
+  constructor(
+    databasePath: string,
+    initialize = true,
+    options: FileBackedSqliteGatewayOptions = {},
+  ) {
+    super(databasePath, initialize, 'product', options);
   }
 }

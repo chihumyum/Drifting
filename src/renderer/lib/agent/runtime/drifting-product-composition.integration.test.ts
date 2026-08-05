@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as Y from 'yjs';
 
 import type { AgentRuntimeNodeWriteGuard } from '../../../domain/agent-runtime-freshness';
 import type { BookNode } from '../../../domain/book-node';
@@ -1015,6 +1016,176 @@ describe.sequential('Drifting Agent product composition', () => {
         }),
       ]),
     );
+    harness.driver.assertExhausted();
+  });
+
+  it('tells the Agent that a stale Yjs write lost to the author', async () => {
+    const turnId = 'turn-user-provenance-conflict';
+    const readCallId = 'provenance-read';
+    const writeCallId = 'provenance-write';
+    const freshness = expectedRevision(turnId, readCallId, 1, 'yjs:0');
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'read prose before the author edit',
+        steps: toolCallSteps(readCallId, 'read_node', {
+          node: NODE_TITLE,
+          prose: true,
+        }),
+      },
+      {
+        name: 'pause before stale write',
+        steps: [
+          { op: 'wait', gate: 'author-edited-prose' },
+          ...toolCallSteps(writeCallId, 'append_paragraph', {
+            entity: NODE_TITLE,
+            text: 'This stale paragraph must not be written.',
+            expectedRevision: freshness,
+          }),
+        ],
+      },
+      {
+        name: 'observe attributed conflict',
+        steps: finalSteps('I preserved the author\'s newer edit.'),
+      },
+    ]);
+
+    const repo = createYjsRepository(harness.database);
+    const seedState = await createYjsProseSeedState(CONTENT_JSON);
+    await repo.upsertSnapshot(DOC_ID, seedState, { advanceRevision: false });
+    const running = harness.runTurn(
+      turnId,
+      'Read Chapter One and append one paragraph unless the author changes it.',
+    );
+    await harness.driver.waitUntilGate('author-edited-prose');
+
+    const userDoc = new Y.Doc({ gc: false });
+    Y.applyUpdate(userDoc, seedState, 'load');
+    const beforeUserEdit = Y.encodeStateVector(userDoc);
+    userDoc.transact(() => {
+      const paragraph = new Y.XmlElement('paragraph');
+      const text = new Y.XmlText();
+      text.insert(0, 'A newer paragraph from the author.');
+      paragraph.insert(0, [text]);
+      const prose = userDoc.getXmlFragment('default');
+      prose.insert(prose.length, [paragraph]);
+    }, 'manual-user-test');
+    await repo.appendUpdate(
+      DOC_ID,
+      Y.encodeStateAsUpdate(userDoc, beforeUserEdit),
+      { kind: 'user' },
+    );
+    userDoc.destroy();
+
+    harness.driver.release('author-edited-prose');
+    await running;
+    const visibleContext = JSON.stringify(
+      harness.driver.calls[2]?.context.messages ?? [],
+    );
+    expect(visibleContext).toContain(
+      'The author changed this authored object after the cited read.',
+    );
+    expect(visibleContext).not.toContain(
+      'That earlier write may have succeeded',
+    );
+    expect(await repo.getRevision(DOC_ID)).toBe(2);
+    const provenance = await repo.listRevisionProvenance(DOC_ID, 0);
+    expect(provenance).toEqual([
+      expect.objectContaining({ revision: 1, source: { kind: 'user' } }),
+      expect.objectContaining({ revision: 2, source: { kind: 'system' } }),
+    ]);
+    expect(provenance.some((entry) => entry.source.kind === 'agent')).toBe(false);
+    harness.driver.assertExhausted();
+  });
+
+  it('tells the Agent that a stale Yjs write lost to another Agent conversation', async () => {
+    const turnId = 'turn-agent-provenance-conflict';
+    const readCallId = 'agent-provenance-read';
+    const writeCallId = 'agent-provenance-write';
+    const freshness = expectedRevision(turnId, readCallId, 1, 'yjs:0');
+    harness = await ProductAgentHarness.create([
+      {
+        name: 'read prose before the sibling Agent edit',
+        steps: toolCallSteps(readCallId, 'read_node', {
+          node: NODE_TITLE,
+          prose: true,
+        }),
+      },
+      {
+        name: 'pause before stale Agent write',
+        steps: [
+          { op: 'wait', gate: 'sibling-agent-edited-prose' },
+          ...toolCallSteps(writeCallId, 'append_paragraph', {
+            entity: NODE_TITLE,
+            text: 'This stale paragraph must not be written either.',
+            expectedRevision: freshness,
+          }),
+        ],
+      },
+      {
+        name: 'observe sibling Agent attribution',
+        steps: finalSteps('I preserved the sibling Agent\'s newer edit.'),
+      },
+    ]);
+
+    const repo = createYjsRepository(harness.database);
+    const seedState = await createYjsProseSeedState(CONTENT_JSON);
+    await repo.upsertSnapshot(DOC_ID, seedState, { advanceRevision: false });
+    const running = harness.runTurn(
+      turnId,
+      'Read Chapter One and append one paragraph unless another Agent changes it.',
+    );
+    await harness.driver.waitUntilGate('sibling-agent-edited-prose');
+
+    const siblingDoc = new Y.Doc({ gc: false });
+    Y.applyUpdate(siblingDoc, seedState, 'load');
+    const beforeSiblingEdit = Y.encodeStateVector(siblingDoc);
+    siblingDoc.transact(() => {
+      const paragraph = new Y.XmlElement('paragraph');
+      const text = new Y.XmlText();
+      text.insert(0, 'A newer paragraph from a sibling Agent.');
+      paragraph.insert(0, [text]);
+      const prose = siblingDoc.getXmlFragment('default');
+      prose.insert(prose.length, [paragraph]);
+    }, 'sibling-agent-test');
+    await repo.appendUpdate(
+      DOC_ID,
+      Y.encodeStateAsUpdate(siblingDoc, beforeSiblingEdit),
+      {
+        kind: 'agent',
+        collaborator: {
+          sessionId: 'session-sibling-agent',
+          turnId: 'turn-sibling-agent',
+          callId: 'call-sibling-agent',
+        },
+      },
+    );
+    siblingDoc.destroy();
+
+    harness.driver.release('sibling-agent-edited-prose');
+    await running;
+    const visibleContext = JSON.stringify(
+      harness.driver.calls[2]?.context.messages ?? [],
+    );
+    expect(visibleContext).toContain(
+      'Another General Agent conversation changed this authored object after the cited read.',
+    );
+    expect(visibleContext).not.toContain(
+      'The author changed this authored object',
+    );
+    expect(await repo.listRevisionProvenance(DOC_ID, 0)).toEqual([
+      expect.objectContaining({
+        revision: 1,
+        source: {
+          kind: 'agent',
+          collaborator: {
+            sessionId: 'session-sibling-agent',
+            turnId: 'turn-sibling-agent',
+            callId: 'call-sibling-agent',
+          },
+        },
+      }),
+      expect.objectContaining({ revision: 2, source: { kind: 'system' } }),
+    ]);
     harness.driver.assertExhausted();
   });
 

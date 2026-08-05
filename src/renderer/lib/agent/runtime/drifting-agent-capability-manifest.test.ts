@@ -143,10 +143,23 @@ describe('Drifting Agent capability manifest', () => {
 
   it('does not publish the removed user checkpoint or conversation-fork surface', () => {
     const manifest = buildDriftingAgentCapabilityManifest();
-    expect(manifest.schemaVersion).toBe(12);
+    expect(manifest.schemaVersion).toBe(13);
     expect(manifest.product).toMatchObject({
       contextWindowTokens: 200_000,
       maxContextWindowTokens: 1_000_000,
+      concurrency: {
+        admissionPolicy: 'unbounded-user-owned',
+        activeTurnCardinality: 'one-per-conversation',
+        projectScope: 'same-mounted-project',
+        controlRouting: 'session-and-turn-scoped',
+        readScheduling: 'concurrent',
+        writeScheduling: 'shared-reader-writer-barrier',
+        staleWritePolicy: 'revision-cas-stop-after-two-conflicts-per-target-turn',
+        yjsCollaboratorIdentity: 'session-turn-call-origin',
+        yjsRevisionProvenance: 'durable-per-revision-agent-user-remote-system-legacy',
+        conflictAttribution: 'self-other-agent-user-mixed-external',
+        restartBehavior: 'durable-plans-manual-resume-no-active-turn-replay',
+      },
     });
     expect('userCheckpoint' in manifest).toBe(false);
   });
