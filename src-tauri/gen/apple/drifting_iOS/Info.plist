@@ -19,12 +19,12 @@
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
-			<key>CFBundleURLName</key>
-			<string>drifting</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>drifting</string>
 			</array>
+			<key>CFBundleURLName</key>
+			<string>drifting</string>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
