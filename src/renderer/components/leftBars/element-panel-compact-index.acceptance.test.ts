@@ -56,7 +56,7 @@ describe('ElementPanel compact text index', () => {
     expect(tileRule).not.toContain('44px');
   });
 
-  it('morphs category color between an expanded frame and a collapsed square marker', () => {
+  it('uses one minus/square disclosure while the category label opens its editor', () => {
     const panel = source('src/renderer/components/leftBars/ElementPanel.tsx');
     const header = source('src/renderer/components/leftBars/GroupHeaderCell.tsx');
     const css = source('src/styles/ui-controls.css');
@@ -64,6 +64,16 @@ describe('ElementPanel compact text index', () => {
       css,
       '.element-category-section--compact {',
       '.element-identity-flow {',
+    );
+    const frameDisclosure = block(
+      header,
+      "{collapseChrome === 'frame' && (",
+      '{!agentBusy && (agentSelfAdded || agentSelfChanged)',
+    );
+    const frameLabel = block(
+      header,
+      'className="left-sb-group-header__frame-label"',
+      '</button>\n        ) : (',
     );
 
     expect(categoryBody).toContain('background: transparent;');
@@ -86,12 +96,22 @@ describe('ElementPanel compact text index', () => {
     expect(panel).toContain('collapseDisabled={compactIndex && !categoryHasElements}');
     expect(panel).toContain("addButtonVisibility={compactIndex ? 'always' : 'hover'}");
     expect(panel).not.toContain('stickyBackground=');
-    expect(header).toContain("collapseChrome === 'chevron' || collapsed");
+    expect(header).toContain("const showRestingColorMarker = collapseChrome === 'chevron'");
     expect(header).toContain("collapseChrome === 'chevron' &&");
     expect(header).toContain("collapseChrome === 'frame' ?");
+    expect(frameDisclosure).toContain('className="left-sb-group-header__frame-disclosure"');
+    expect(frameDisclosure).toContain('disabled={collapseDisabled}');
+    expect(frameDisclosure).toContain('aria-expanded={!collapsed}');
+    expect(frameDisclosure).toContain('onToggleCollapsed();');
+    expect(frameDisclosure).toContain('left-sb-group-header__frame-color-square');
+    expect(frameDisclosure).toContain('<Minus size={11} strokeWidth={1.8} />');
     expect(header).toContain('className="left-sb-group-header__frame-label"');
-    expect(header).toContain('aria-disabled={collapseDisabled}');
-    expect(header).toContain('aria-expanded={collapseDisabled ? false : !collapsed}');
+    expect(frameLabel).toContain('aria-disabled={!onClick}');
+    expect(frameLabel).toContain('onClick?.();');
+    expect(frameLabel).not.toContain('onToggleCollapsed');
+    expect(frameLabel).not.toContain('aria-expanded');
+    expect(panel).not.toContain('isUncategorized || compactIndex');
+    expect(panel).toContain("openEntity({ entityType: 'category', id: categoryId })");
     expect(header).toContain('showRestingColorMarker || agentBusy');
   });
 
@@ -180,6 +200,7 @@ describe('ElementPanel compact text index', () => {
     expect(card).toContain('{content.title}');
     expect(docs).toContain('紧凑索引 / 名称列表');
     expect(docs).toContain('wrapping flex flow');
-    expect(docs).toContain('色块展开成内容边框');
+    expect(docs).toContain('固定 disclosure hit area');
+    expect(docs).toContain('文本 label 单击进入 editor');
   });
 });

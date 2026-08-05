@@ -570,9 +570,9 @@ export function ElementPanel() {
                   collapseChrome={compactIndex ? 'frame' : 'chevron'}
                   onClick={
                     // The "未分类" bucket isn't a real category — there's no
-                    // editor page to open. In compact mode the category label
-                    // owns collapse; list mode keeps whole-row editor opening.
-                    isUncategorized || compactIndex
+                    // editor page to open. Real category labels always open
+                    // their editor; the leading minus/square owns disclosure.
+                    isUncategorized
                       ? undefined
                       : () => openEntity({ entityType: 'category', id: categoryId })
                   }

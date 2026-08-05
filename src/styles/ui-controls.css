@@ -810,6 +810,32 @@
   box-sizing: border-box;
 }
 
+.left-sb-group-header__frame-disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--chrome-bg);
+  cursor: pointer;
+}
+
+.left-sb-group-header__frame-disclosure:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.left-sb-group-header__frame-color-square {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
 .left-sb-group-header--frame.is-expanded::before {
   content: '';
   position: absolute;

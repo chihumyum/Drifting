@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight, Minus, Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -6,7 +6,7 @@ import { AgentCountBadge } from './AgentCountBadge';
 
 // Single source for the left-sidebar group-header cell. Storyline groups keep
 // the ordinary [chevron] [color dot] row; compact Element categories opt into
-// a frame mode where the label toggles and the dot only returns when collapsed.
+// a frame mode where one leading disclosure morphs between minus and color dot.
 //
 // The component is purely presentational — it doesn't own collapse or
 // add-affordance state, just renders the chrome and forwards the toggles.
@@ -26,8 +26,8 @@ export interface GroupHeaderCellProps {
   collapseDisabled?: boolean;
   // Element compact-index categories replace the ordinary chevron with a
   // state morph: expanded color becomes the surrounding category frame;
-  // collapsed color returns as the small leading square and the label itself
-  // becomes the disclosure control. Other callers keep the default chrome.
+  // collapsed color returns as the small leading square in the exact position
+  // occupied by the expanded minus. The label remains an editor link.
   collapseChrome?: 'chevron' | 'frame';
   // Whole-row click — typically "open this group's entity editor".
   onClick?: () => void;
@@ -84,7 +84,7 @@ export function GroupHeaderCell({
   agentSelfAdded = false,
 }: GroupHeaderCellProps) {
   const { t } = useTranslation();
-  const showRestingColorMarker = collapseChrome === 'chevron' || collapsed;
+  const showRestingColorMarker = collapseChrome === 'chevron';
   const frameControlBackground =
     collapseChrome === 'frame' && !collapsed ? 'var(--chrome-bg)' : 'transparent';
   return (
@@ -163,6 +163,28 @@ export function GroupHeaderCell({
             )}
           </button>
         )}
+        {collapseChrome === 'frame' && (
+          <button
+            type="button"
+            className="left-sb-group-header__frame-disclosure"
+            disabled={collapseDisabled}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Expand' : 'Collapse'}
+            title={collapseDisabled ? undefined : collapsed ? 'Expand' : 'Collapse'}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (collapseDisabled) return;
+              onToggleCollapsed();
+            }}
+            style={{ color }}
+          >
+            {collapsed ? (
+              <span className="left-sb-group-header__frame-color-square" />
+            ) : (
+              <Minus size={11} strokeWidth={1.8} />
+            )}
+          </button>
+        )}
         {!agentBusy && (agentSelfAdded || agentSelfChanged) ? (
           <span
             aria-hidden
@@ -222,14 +244,11 @@ export function GroupHeaderCell({
           <button
             type="button"
             className="left-sb-group-header__frame-label"
-            aria-disabled={collapseDisabled}
-            aria-expanded={collapseDisabled ? false : !collapsed}
+            aria-disabled={!onClick}
             onClick={(event) => {
               event.stopPropagation();
-              if (collapseDisabled) return;
-              onToggleCollapsed();
+              onClick?.();
             }}
-            title={collapseDisabled ? undefined : collapsed ? 'Expand' : 'Collapse'}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -239,7 +258,7 @@ export function GroupHeaderCell({
               marginLeft: collapsed ? 0 : -6,
               padding: collapsed ? 0 : '0 6px',
               background: frameControlBackground,
-              cursor: collapseDisabled ? 'default' : 'pointer',
+              cursor: onClick ? 'pointer' : 'default',
             }}
           >
             <span
