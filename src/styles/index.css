@@ -1423,6 +1423,22 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   min-width: 0;
   max-width: var(--editor-max-width, 720px);
 }
+
+/* Temporary visual experiment: treat the editor as one continuous page-white
+   plane instead of a raised sheet on a gray surround. Scoped to editor shells
+   so Dashboard, Super Views, sidebars, Timeline and the footer stay unchanged. */
+.editor-shell,
+.editor-shell .editor-bar,
+.editor-shell .editor-body,
+.editor-shell .editor-scroll {
+  background: hsl(var(--page));
+}
+
+.editor-shell .page {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
 /* Comment rail — anchored to the right edge of .editor-body, mirrors the
    semantic outline rail on the left. Absolute positioning means the
    manuscript never reflows around either rail, including when TOC mode changes.
