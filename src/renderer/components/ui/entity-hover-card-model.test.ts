@@ -94,6 +94,7 @@ describe('buildEntityHoverCardContent', () => {
         bookElements: [
           {
             id: 'element-1',
+            name: 'Mira Vale',
             categoryId: 'category-1',
             groupName: 'Allies',
             aliases: ['Mira', 'Lady Mira', 'The Heir', 'M.'],
@@ -111,6 +112,7 @@ describe('buildEntityHoverCardContent', () => {
     );
 
     expect(content).toEqual({
+      title: 'Mira Vale',
       summary: 'An element summary',
       meta: [
         { text: 'Characters', color: '#B84A62' },
@@ -144,11 +146,7 @@ describe('buildEntityHoverCardContent', () => {
 
     expect(content).toEqual({
       summary: 'A storyline summary',
-      meta: [
-        { text: '2 chapters' },
-        { text: '2.0k words' },
-        { text: 'Tone：Suspenseful' },
-      ],
+      meta: [{ text: '2 chapters' }, { text: '2.0k words' }, { text: 'Tone：Suspenseful' }],
     });
   });
 

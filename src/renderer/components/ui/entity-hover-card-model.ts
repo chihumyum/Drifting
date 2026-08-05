@@ -26,6 +26,7 @@ export interface EntityHoverMetaItem {
 }
 
 export interface EntityHoverCardContent {
+  title?: string;
   summary: string | null | undefined;
   meta: EntityHoverMetaItem[];
 }
@@ -52,7 +53,9 @@ function kvMeta(raw: string): EntityHoverMetaItem[] {
     const cleanKey = key.trim();
     const cleanValue = value.trim();
     if (!cleanKey && !cleanValue) return [];
-    return [{ text: cleanKey && cleanValue ? `${cleanKey}：${cleanValue}` : cleanKey || cleanValue }];
+    return [
+      { text: cleanKey && cleanValue ? `${cleanKey}：${cleanValue}` : cleanKey || cleanValue },
+    ];
   });
 }
 
@@ -102,7 +105,7 @@ export function buildEntityHoverCardContent(
       while (group && !seen.has(group.id)) {
         seen.add(group.id);
         groupPath.unshift(group.name);
-        group = group.parentGroupId ? groupsById.get(group.parentGroupId) ?? null : null;
+        group = group.parentGroupId ? (groupsById.get(group.parentGroupId) ?? null) : null;
       }
       if (groupPath.length > 0) meta.push({ text: groupPath.join(' / '), color });
     }
@@ -125,7 +128,7 @@ export function buildEntityHoverCardContent(
     const aliases = compactAliases(element.aliases);
     if (aliases) meta.push({ text: aliases });
     meta.push(...kvMeta(element.kvJson));
-    return { summary: element.summary, meta };
+    return { title: element.name, summary: element.summary, meta };
   }
 
   if (target.kind === 'storyline') {

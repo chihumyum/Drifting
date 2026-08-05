@@ -1,19 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
 import { useDataStore } from '../../store/data-store';
-import {
-  buildEntityHoverCardContent,
-  type EntityHoverTarget,
-} from './entity-hover-card-model';
+import { buildEntityHoverCardContent, type EntityHoverTarget } from './entity-hover-card-model';
 import {
   computeEntityHoverCardPosition,
   type EntityHoverCardPlacement,
@@ -34,10 +24,7 @@ export function EntityHoverCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<EntityHoverCardPosition | null>(null);
-  const content = useMemo(
-    () => buildEntityHoverCardContent(target, state, t),
-    [state, t, target],
-  );
+  const content = useMemo(() => buildEntityHoverCardContent(target, state, t), [state, t, target]);
 
   const updatePosition = useCallback(() => {
     const card = cardRef.current;
@@ -141,6 +128,20 @@ export function EntityHoverCard({
           scrollbarColor: 'hsl(var(--rule-strong)) transparent',
         }}
       >
+        {content.title && (
+          <div
+            style={{
+              marginBottom: 8,
+              color: 'hsl(var(--ink-1))',
+              fontSize: 12.5,
+              fontWeight: 600,
+              lineHeight: 1.3,
+              overflowWrap: 'anywhere',
+            }}
+          >
+            {content.title}
+          </div>
+        )}
         {content.meta.length > 0 && (
           <div
             style={{
