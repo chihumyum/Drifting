@@ -255,7 +255,7 @@ describe('Anthropic Messages Agent driver', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('sends adaptive effort and replays signed thinking blocks across a tool round', async () => {
+  it('replays signed thinking across a tool result followed by author steering', async () => {
     const bodies: Record<string, unknown>[] = [];
     let call = 0;
     const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
@@ -380,11 +380,19 @@ describe('Anthropic Messages Agent driver', () => {
                     ok: true,
                     content: '{"matches":[]}',
                   },
-                ],
+                  ],
+                },
               },
-            },
-          ],
-        },
+              {
+                type: 'model_message',
+                sourceIds: ['message/user/steering/1'],
+                message: {
+                  role: 'user',
+                  content: 'Keep the continuation inside the established world.',
+                },
+              },
+            ],
+          },
       }),
     );
 
@@ -420,6 +428,10 @@ describe('Anthropic Messages Agent driver', () => {
             is_error: false,
           },
         ],
+      },
+      {
+        role: 'user',
+        content: 'Keep the continuation inside the established world.',
       },
     ]);
   });

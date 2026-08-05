@@ -118,7 +118,7 @@ describe('OpenAI Responses Agent driver', () => {
     expect(body).not.toHaveProperty('include');
   });
 
-  it('uses GPT-5.6 Responses reasoning and replays encrypted reasoning items across tools', async () => {
+  it('replays encrypted reasoning across a tool result followed by author steering', async () => {
     const bodies: Record<string, unknown>[] = [];
     const reasoningItem = {
       id: 'rs_1',
@@ -269,6 +269,14 @@ describe('OpenAI Responses Agent driver', () => {
                   ],
                 },
               },
+              {
+                type: 'model_message',
+                sourceIds: ['message/user/steering/1'],
+                message: {
+                  role: 'user',
+                  content: 'Keep the continuation inside the established world.',
+                },
+              },
             ],
           },
         }),
@@ -304,7 +312,69 @@ describe('OpenAI Responses Agent driver', () => {
         call_id: 'call-1',
         output: '{"matches":["rain"]}',
       },
+      {
+        role: 'user',
+        content: 'Keep the continuation inside the established world.',
+      },
     ]);
+  });
+
+  it('still fails locally when an active reasoning tool call has no replay state', async () => {
+    const fetchMock = vi.fn();
+    const driver = new OpenAIResponsesAgentDriver({ apiKey: 'test', fetch: fetchMock });
+
+    await expect(
+      collect(
+        driver,
+        request({
+          iteration: 2,
+          context: {
+            systemPrompt: 'Use only certified tools.',
+            messages: [
+              {
+                type: 'model_message',
+                sourceIds: ['message/user/1'],
+                message: { role: 'user', content: 'Search rain.' },
+              },
+              {
+                type: 'model_message',
+                sourceIds: ['message/assistant/1/tool'],
+                message: {
+                  role: 'assistant',
+                  content: [
+                    {
+                      type: 'tool_call',
+                      callId: 'missing-replay',
+                      name: 'search',
+                      arguments: { query: 'rain' },
+                      rawArguments: '{"query":"rain"}',
+                    },
+                  ],
+                },
+              },
+              {
+                type: 'model_message',
+                sourceIds: ['message/tool/1'],
+                message: {
+                  role: 'tool',
+                  content: [
+                    {
+                      callId: 'missing-replay',
+                      name: 'search',
+                      ok: true,
+                      content: '{"matches":[]}',
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        }),
+      ),
+    ).rejects.toThrow(
+      'OpenAI reasoning replay state is unavailable for the active tool loop.',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('fails locally instead of sending a partially retained parallel reasoning batch', async () => {

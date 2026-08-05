@@ -418,8 +418,11 @@ function assertActiveResponsesReplay(
     );
     if (callIds.length > 0) activeCallIds = callIds;
   }
+  // Same-turn author steering is projected as a trailing user message and
+  // deliberately starts a new reasoning segment. With no active calls there
+  // is nothing to require; retained calls must still fail closed when their
+  // exact provider replay state is missing.
   if (
-    activeCallIds.length === 0 ||
     activeCallIds.some(
       (callId) =>
         !replayByCallId.has(callId) && !nonReasoningCallIds.has(callId),
