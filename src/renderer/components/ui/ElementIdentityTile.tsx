@@ -66,7 +66,7 @@ export function ElementIdentityTile({
       onFocus={(event) => onPreviewEnter(event.currentTarget)}
       onBlur={onPreviewLeave}
     >
-      <span className="element-identity-tile__label">{label}</span>
+      <span className="element-panel-item-label element-identity-tile__label">{label}</span>
 
       {agentState && (
         <span

@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, Minus, Plus } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AgentCountBadge } from './AgentCountBadge';
@@ -36,7 +36,9 @@ export interface GroupHeaderCellProps {
   // Title shown as the + button tooltip. When omitted, the + button is
   // skipped entirely (useful for read-only group headers).
   addButtonTitle?: string;
-  onAdd?: () => void;
+  onAdd?: (event: MouseEvent<HTMLButtonElement>) => void;
+  addButtonHasPopup?: 'menu' | 'dialog';
+  addButtonExpanded?: boolean;
   addButtonVisibility?: 'hover' | 'always';
   // Optional sticky positioning for headers that should stay visible while
   // the user scrolls their group's body (ElementPanel category headers do
@@ -74,6 +76,8 @@ export function GroupHeaderCell({
   onContextMenu,
   addButtonTitle,
   onAdd,
+  addButtonHasPopup,
+  addButtonExpanded,
   addButtonVisibility = 'hover',
   sticky = false,
   stickyBackground,
@@ -176,7 +180,7 @@ export function GroupHeaderCell({
               if (collapseDisabled) return;
               onToggleCollapsed();
             }}
-            style={{ color }}
+            style={{ color: collapsed ? color : 'hsl(var(--ink-4))' }}
           >
             {collapsed ? (
               <span className="left-sb-group-header__frame-color-square" />
@@ -325,12 +329,16 @@ export function GroupHeaderCell({
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
-                  onAdd();
+                  onAdd(event);
                 }}
                 title={addButtonTitle}
+                aria-haspopup={addButtonHasPopup}
+                aria-expanded={addButtonHasPopup ? addButtonExpanded : undefined}
                 className={`left-sb-group-add left-sb-inline-add-button${
                   addButtonVisibility === 'always' ? ' left-sb-group-add--always' : ''
-                }${collapseChrome === 'frame' ? ' left-sb-inline-add-button--frame' : ''}`}
+                }${addButtonExpanded ? ' left-sb-group-add--expanded' : ''}${
+                  collapseChrome === 'frame' ? ' left-sb-inline-add-button--frame' : ''
+                }`}
                 style={{ width: 18, height: 18 }}
               >
                 <Plus size={12} strokeWidth={1.6} />

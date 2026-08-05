@@ -711,7 +711,8 @@
   pointer-events: none;
 }
 
-.left-sb-group-add--always {
+.left-sb-group-add--always,
+.left-sb-group-add--expanded {
   opacity: 1;
   pointer-events: auto;
 }
@@ -898,6 +899,19 @@
   pointer-events: none;
 }
 
+.element-panel-item-label {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+}
+
+.element-panel-item-label.is-selected,
+.element-identity-tile.is-selected .element-panel-item-label {
+  font-weight: 500;
+}
+
 .element-identity-tile {
   --element-identity-basis: 78px;
   position: relative;
@@ -932,9 +946,6 @@
 .element-identity-tile__label {
   flex: 1;
   min-width: 0;
-  font-size: 11.5px;
-  font-weight: 500;
-  line-height: 1.25;
   overflow-wrap: anywhere;
 }
 

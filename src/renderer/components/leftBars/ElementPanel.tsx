@@ -15,6 +15,7 @@ import { useElementCategory } from '../../usecase/useElementCategory';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
+import { ElementCategoryCreateMenu } from './ElementCategoryCreateMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { ElementGroupPicker } from './ElementGroupPicker';
 import { EntityHoverCard } from '../ui/EntityHoverCard';
@@ -99,6 +100,8 @@ export function ElementPanel() {
     y: number;
     elementId: string;
   } | null>(null);
+  const categoryCreateAnchorRef = useRef<HTMLButtonElement>(null);
+  const [categoryCreateCategoryId, setCategoryCreateCategoryId] = useState<string | null>(null);
   const {
     preview: hoverPreview,
     onEnter: hoverEnter,
@@ -423,12 +426,11 @@ export function ElementPanel() {
 
         {/* Name */}
         <div
+          className={`element-panel-item-label${selected ? ' is-selected' : ''}`}
           style={{
             flex: 1,
             minWidth: 0,
             color: 'inherit',
-            fontWeight: selected ? 500 : 400,
-            letterSpacing: '-0.005em',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -601,12 +603,23 @@ export function ElementPanel() {
                         }
                   }
                   addButtonTitle={
-                    isUncategorized ? undefined : t('leftSidebar.groups.newElementInCategory')
+                    isUncategorized ? undefined : t('elementCategoryCreateMenu.openCreateMenu')
                   }
-                  // Creating a new element in "未分类" means categoryId=null;
-                  // we don't surface that affordance — users should pick a real
-                  // category. Setting onAdd to undefined hides the + button.
-                  onAdd={isUncategorized ? undefined : () => void handleCreateElement(categoryId)}
+                  // "未分类" has no real category, so it cannot own a creation
+                  // menu. A real category's single + branches to element/group
+                  // creation without adding a second permanent icon.
+                  onAdd={
+                    isUncategorized
+                      ? undefined
+                      : (event) => {
+                          categoryCreateAnchorRef.current = event.currentTarget;
+                          setCategoryCreateCategoryId((current) =>
+                            current === categoryId ? null : categoryId,
+                          );
+                        }
+                  }
+                  addButtonHasPopup={isUncategorized ? undefined : 'menu'}
+                  addButtonExpanded={categoryCreateCategoryId === categoryId}
                   addButtonVisibility={compactIndex ? 'always' : 'hover'}
                   sticky
                   agentBusy={activity.busy}
@@ -740,6 +753,20 @@ export function ElementPanel() {
             />
           );
         })()}
+
+      {categoryCreateCategoryId && (
+        <ElementCategoryCreateMenu
+          key={categoryCreateCategoryId}
+          anchorRef={categoryCreateAnchorRef}
+          categoryName={getCategoryLabel(categoryCreateCategoryId)}
+          existingGroupNames={groupNamesByCategory[categoryCreateCategoryId] ?? []}
+          onCreateElement={() => void handleCreateElement(categoryCreateCategoryId)}
+          onCreateGroup={(groupName) =>
+            void handleCreateElementInGroup(categoryCreateCategoryId, groupName)
+          }
+          onClose={() => setCategoryCreateCategoryId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -904,6 +904,19 @@
     "createGroup": "Create group \"{{name}}\"",
     "noGroup": "No group"
   },
+  "elementCategoryCreateMenu": {
+    "openCreateMenu": "Add to this category",
+    "title": "Add to \"{{name}}\"",
+    "newElement": "New element",
+    "newGroup": "New group…",
+    "groupTitle": "New group",
+    "groupNameLabel": "Group name",
+    "groupNamePlaceholder": "Enter a group name",
+    "groupCreatesFirstElement": "The group is created together with its first element.",
+    "duplicateGroup": "A group with this name already exists.",
+    "createGroup": "Create and open first element",
+    "back": "Back to create menu"
+  },
   "trashPanel": {
     "noProject": "Open a project first.",
     "proTitle": "Trash · Pro",
@@ -1715,7 +1728,6 @@
       "drifts": "{{count}} drifts"
     },
     "groups": {
-      "newElementInCategory": "New element in this category",
       "renameElementGroupTitle": "Double-click to rename group",
       "addElementToGroup": "New element in this group",
       "newChapterInStoryline": "New chapter in this storyline",

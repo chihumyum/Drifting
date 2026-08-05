@@ -904,6 +904,19 @@
     "createGroup": "新建分组「{{name}}」",
     "noGroup": "无分组"
   },
+  "elementCategoryCreateMenu": {
+    "openCreateMenu": "添加到此类目",
+    "title": "新增至「{{name}}」",
+    "newElement": "新建元素",
+    "newGroup": "新建分组…",
+    "groupTitle": "新建分组",
+    "groupNameLabel": "分组名称",
+    "groupNamePlaceholder": "输入分组名称",
+    "groupCreatesFirstElement": "分组会随首个元素一起创建。",
+    "duplicateGroup": "已有同名分组。",
+    "createGroup": "创建并打开首个元素",
+    "back": "返回新增菜单"
+  },
   "trashPanel": {
     "noProject": "请先打开一个项目。",
     "proTitle": "回收站 · Pro",
@@ -1715,7 +1728,6 @@
       "drifts": "{{count}} 条灵感"
     },
     "groups": {
-      "newElementInCategory": "在此类目新建元素",
       "renameElementGroupTitle": "双击重命名分组",
       "addElementToGroup": "在此分组新建元素",
       "newChapterInStoryline": "在此故事线中新建章节",
