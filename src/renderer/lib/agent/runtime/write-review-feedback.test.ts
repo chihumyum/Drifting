@@ -107,6 +107,7 @@ describe('Agent write review feedback', () => {
     expect(rows[0]?.content).toContain('章节「12」正文');
     expect(rows[0]?.content).toContain('已有可靠完成证据并属于当前稿件');
     expect(rows[0]?.content).toContain('读取或计划不算完成');
+    expect(rows[0]?.content).toContain('若只改摘要、关系、批注、待办或其他独立字段');
     expect(rows[0]?.content).not.toMatch(/本轮|保存的修改/u);
     expect(rows[0]?.content).not.toContain('清理测试痕迹并收紧正文');
     expect(rows[0]?.content).not.toContain('/chapters/12/prose.md');
@@ -157,6 +158,70 @@ describe('Agent write review feedback', () => {
     expect(content).not.toContain('按当前正文完成后续修正');
     expect(content).not.toContain('3 个原文片段仍待重新定位');
     expect(rows.flatMap((row) => row.durableWriteCoverage ?? [])).toHaveLength(2);
+  });
+
+  it('retires deferred summary work once the named authored summary is durably saved', async () => {
+    const requestedSummary = '奥伦：南园芳汶的退休佣兵。';
+    const body = effect(
+      'effect-profile-body',
+      'write_object',
+      {
+        target: '要素「Grey Banker」设定',
+        content: '奥伦的人物档案。',
+        remainingWork: `要素「Grey Banker」摘要仍需单独更新为：${requestedSummary}`,
+      },
+      'turn-profile',
+    );
+    const summary = effect(
+      'effect-profile-summary',
+      'write_object',
+      {
+        target: '要素「Grey Banker」摘要',
+        content: requestedSummary,
+      },
+      'turn-profile',
+    );
+    const repository = {
+      loadSnapshot: async () => ({
+        effects: [body, summary],
+        reviews: [review('review-profile-body', body.id, 'accepted_effect', 1)],
+        turnOrdinalsById: { 'turn-profile': 3 },
+      }),
+    } as unknown as AgentRuntimeWriteEffectRepository;
+
+    const rows = await loadAgentWriteReviewContextRows('session-1', repository);
+    const content = rows.map((row) => row.content).join('\n');
+
+    expect(content).toContain('要素「Grey Banker」设定已有可靠完成证据');
+    expect(content).not.toContain('仍待完成');
+    expect(content).not.toContain('仍需单独更新');
+  });
+
+  it('describes a genuinely partial save without also calling the whole step complete', async () => {
+    const body = effect(
+      'effect-profile-partial',
+      'write_object',
+      {
+        target: '要素「Grey Banker」设定',
+        content: '奥伦的人物档案。',
+        remainingWork: '要素「Grey Banker」摘要仍需单独更新为：奥伦：退休佣兵。',
+      },
+      'turn-profile',
+    );
+    const repository = {
+      loadSnapshot: async () => ({
+        effects: [body],
+        reviews: [review('review-profile-partial', body.id, 'pending', 1)],
+        turnOrdinalsById: { 'turn-profile': 3 },
+      }),
+    } as unknown as AgentRuntimeWriteEffectRepository;
+
+    const rows = await loadAgentWriteReviewContextRows('session-1', repository);
+    const content = rows.map((row) => row.content).join('\n');
+
+    expect(content).toContain('当前已保存的部分属于稿件');
+    expect(content).toContain('仍待完成');
+    expect(content).not.toContain('已有可靠完成证据并属于当前稿件');
   });
 
   it('collapses same-target unsettled decisions into one current domain state', async () => {
@@ -462,8 +527,9 @@ describe('Agent write review feedback', () => {
     ]);
     expect(rows[0]?.content).toContain('执行进度中已有可靠完成证据的对象');
     expect(rows[0]?.content).toContain('读取或计划不算完成');
+    expect(rows[0]?.content).toContain('独立字段，直接处理该字段');
     expect(rows[0]?.content).not.toMatch(/本轮|已修改/u);
-    expect(rows[0]?.content).toContain('批注或待办「old」');
+    expect(rows[0]?.content).toContain('批注或待办「old」已删除');
     expect(rows[0]?.content).not.toContain('delete_file');
     expect(rows[0]?.content).not.toContain(pending.id);
     expect(rows[0]?.content).not.toContain('章节「02」正文');
@@ -561,14 +627,12 @@ describe('Agent write review feedback', () => {
     if (!planned.ok) return;
     expect(
       planned.plan.segments.filter(
-        (segment) =>
-          segment.type === 'source' && segment.row.callId === committed.callId,
+        (segment) => segment.type === 'source' && segment.row.callId === committed.callId,
       ),
     ).toEqual([]);
     expect(
       planned.plan.segments.find(
-        (segment) =>
-          segment.type === 'source' && segment.row.kind === 'write_receipt',
+        (segment) => segment.type === 'source' && segment.row.kind === 'write_receipt',
       ),
     ).toMatchObject({ classification: 'pinned', pinReason: 'semantic' });
   });
@@ -586,7 +650,7 @@ describe('Agent write review feedback', () => {
             summary: '旧摘要',
             completeBodyRead: true,
             focusedBodyEdit: true,
-            currentPassages: ['她终于突破了那面墙。'],
+            currentPassages: ['她终于突破了那面[墙](人物.md#奥伦)。'],
           },
         },
         'turn-current',
@@ -621,11 +685,9 @@ describe('Agent write review feedback', () => {
       }),
     } as unknown as AgentRuntimeWriteEffectRepository;
 
-    const rows = await loadAgentAuthoredReadProgressContextRows(
-      'session-1',
-      repository,
-      { currentTurnId: 'turn-current' },
-    );
+    const rows = await loadAgentAuthoredReadProgressContextRows('session-1', repository, {
+      currentTurnId: 'turn-current',
+    });
 
     expect(rows).toEqual([
       expect.objectContaining({
@@ -637,6 +699,8 @@ describe('Agent write review feedback', () => {
     expect(rows[0]?.content).toContain('章节「11」正文已在本轮完整通读');
     expect(rows[0]?.content).toContain('当前摘要：已对齐的当前摘要');
     expect(rows[0]?.content).toContain('当前修改后的正文片段：「她终于突破了那面墙。」');
+    expect(rows[0]?.content).toContain('更新摘要、关系、批注、待办或其他独立字段不需要重读正文');
+    expect(rows[0]?.content).not.toContain('人物.md');
     expect(rows[0]?.content).not.toMatch(/edit_file|\/chapters|effect-|revision|Yjs|SQLite/iu);
   });
 });

@@ -829,7 +829,7 @@ function newestRichReadSourceIds(rows: readonly AgentContextSourceRow[]): Set<st
     if (
       row.kind !== 'tool_result' ||
       row.toolAccess !== 'read' ||
-      row.toolName !== 'read_file' ||
+      (row.toolName !== 'read_object' && row.toolName !== 'read_file') ||
       !row.callId ||
       retainedReadOutcome(row.content) !== 'success' ||
       !semanticReadBoundary(row.content)
@@ -992,7 +992,7 @@ function fitContinuationText(value: string, maxCodePoints: number): string {
 }
 
 function compactReadTarget(toolName: string, args: Record<string, unknown>): string {
-  const named = ['path', 'query', 'pattern', 'node', 'entity', 'name', 'title', 'id']
+  const named = ['target', 'collection', 'within', 'query', 'pattern', 'node', 'entity', 'name', 'title', 'id', 'path']
     .map((key) => args[key])
     .find((value): value is string => typeof value === 'string' && value.trim().length > 0);
   if (named) return semanticAuthoredTarget([...named.trim()].slice(0, 240).join(''));

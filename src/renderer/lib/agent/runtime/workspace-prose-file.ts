@@ -1,8 +1,12 @@
-import type {
-  YjsProseBlock,
-  YjsProseNode,
-  YjsProseOperation,
-  YjsProseTextNode,
+import { yDocToProsemirrorJSON } from 'y-prosemirror';
+import * as Y from 'yjs';
+
+import {
+  replaceYjsProseBlocks,
+  type YjsProseBlock,
+  type YjsProseNode,
+  type YjsProseOperation,
+  type YjsProseTextNode,
 } from './yjs-prose-command';
 import {
   normalizeAgentMarkdownLink,
@@ -78,13 +82,8 @@ export function normalizeWorkspaceProseReplacements(
         ? normalizedOld
         : null;
     const unwrappedOld =
-      directOld === null &&
-      accidentalWrapper
-        ? resolveModelFacingOldText(
-            current,
-            accidentalWrapper.inner,
-            replacement.replaceAll,
-          )
+      directOld === null && accidentalWrapper
+        ? resolveModelFacingOldText(current, accidentalWrapper.inner, replacement.replaceAll)
         : null;
     const projectedOld =
       directOld === null && unwrappedOld === null
@@ -114,10 +113,7 @@ export function normalizeWorkspaceProseReplacements(
     const normalized = {
       ...replacement,
       oldText,
-      newText: restoreAuthoredTextAnnotations(
-        oldText,
-        authoredNew,
-      ),
+      newText: restoreAuthoredTextAnnotations(oldText, authoredNew),
     };
     if (normalized.oldText === normalized.newText) continue;
     try {
@@ -166,7 +162,11 @@ function matchingQuoteWrapper(
     ["'", "'"],
   ] as const;
   for (const [open, close] of pairs) {
-    if (value.length > open.length + close.length && value.startsWith(open) && value.endsWith(close)) {
+    if (
+      value.length > open.length + close.length &&
+      value.startsWith(open) &&
+      value.endsWith(close)
+    ) {
       return { open, close, inner: value.slice(open.length, -close.length) };
     }
   }
@@ -263,9 +263,7 @@ function internalAuthoredLinks(value: string): Array<{
   label: string;
 }> {
   return [...value.matchAll(/\[([^\]\n]+)\]\(([^)\n]+)\)/gu)].flatMap((match) =>
-    isInternalAuthoredLink(match[2] ?? '')
-      ? [{ raw: match[0], label: match[1] ?? '' }]
-      : [],
+    isInternalAuthoredLink(match[2] ?? '') ? [{ raw: match[0], label: match[1] ?? '' }] : [],
   );
 }
 
@@ -276,7 +274,9 @@ function isInternalAuthoredLink(destination: string): boolean {
 
 function authoredLinkDomainTarget(destination: string, fallbackLabel: string): string {
   const normalized = destination.trim();
-  const fragment = normalized.includes('#') ? normalized.slice(normalized.lastIndexOf('#') + 1) : '';
+  const fragment = normalized.includes('#')
+    ? normalized.slice(normalized.lastIndexOf('#') + 1)
+    : '';
   const pathSegments = normalized.split('#', 1)[0]!.split('/').filter(Boolean);
   const pathName = pathSegments[pathSegments.length - 1]?.replace(/\.md$/iu, '');
   const candidate = fragment || pathName || fallbackLabel;
@@ -298,18 +298,18 @@ function stripInlinePresentation(value: string): string {
 
 export function parseWorkspaceTextReplacements(value: unknown): WorkspaceTextReplacement[] {
   if (!Array.isArray(value) || value.length === 0) {
-    throw new Error('edit_file requires at least one exact replacement');
+    throw new Error('At least one authored passage change is required');
   }
   return value.map((raw, index) => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-      throw new Error(`replacements[${index}] must be an object`);
+      throw new Error(`Authored change ${index + 1} is invalid`);
     }
     const row = raw as Record<string, unknown>;
     if (typeof row.oldText !== 'string' || row.oldText.length === 0) {
-      throw new Error(`replacements[${index}].oldText must be non-empty`);
+      throw new Error(`Authored change ${index + 1} needs the current passage`);
     }
     if (typeof row.newText !== 'string') {
-      throw new Error(`replacements[${index}].newText must be a string`);
+      throw new Error(`Authored change ${index + 1} needs revised text`);
     }
     return {
       oldText: normalizeLineEndings(row.oldText),
@@ -330,14 +330,14 @@ export function applyWorkspaceTextReplacements(
     );
     if (matches.length === 0) {
       throw new Error(
-        'STALE_EDIT_TARGET: The text to replace was not found in the current file. ' +
-          'Re-read the latest file and copy the current text; do not retry the identical edit. ' +
+        'STALE_EDIT_TARGET: The current passage has changed. ' +
+          'Locate it once more only if this specific revision still matters; do not retry the identical change. ' +
           previewText(replacement.oldText),
       );
     }
     if (!replacement.replaceAll && matches.length !== 1) {
       throw new Error(
-        `The text to replace occurs ${matches.length} times. Include more surrounding text or set replaceAll=true.`,
+        `The current passage occurs ${matches.length} times. Include more surrounding prose, or use allOccurrences only when every occurrence should change.`,
       );
     }
     const selected = replacement.replaceAll ? matches : matches.slice(0, 1);
@@ -400,20 +400,16 @@ function findReplacementMatches(content: string, oldText: string): ReplacementMa
 
   const comparableContent = comparableEditText(content);
   const comparableOldText = comparableEditText(oldText);
-  if (
-    (comparableContent.changed || comparableOldText.changed) &&
-    comparableOldText.text
-  ) {
-    const comparableMatches = occurrenceIndexes(
-      comparableContent.text,
-      comparableOldText.text,
-    ).map((index) => {
-      const start = comparableContent.starts[index]!;
-      const finalIndex = index + comparableOldText.text.length - 1;
-      let end = comparableContent.ends[finalIndex]!;
-      end = includeInvisibleLineEndWhitespace(content, end);
-      return { start, end };
-    });
+  if ((comparableContent.changed || comparableOldText.changed) && comparableOldText.text) {
+    const comparableMatches = occurrenceIndexes(comparableContent.text, comparableOldText.text).map(
+      (index) => {
+        const start = comparableContent.starts[index]!;
+        const finalIndex = index + comparableOldText.text.length - 1;
+        let end = comparableContent.ends[finalIndex]!;
+        end = includeInvisibleLineEndWhitespace(content, end);
+        return { start, end };
+      },
+    );
     if (comparableMatches.length > 0) return comparableMatches;
   }
 
@@ -435,8 +431,7 @@ function findReplacementMatches(content: string, oldText: string): ReplacementMa
       while (start > 0 && isSemanticBoundaryIgnorable(content[start - 1]!)) start -= 1;
     }
     if (
-      (semanticOldText.ends[semanticOldText.ends.length - 1] ?? oldText.length) <
-      oldText.length
+      (semanticOldText.ends[semanticOldText.ends.length - 1] ?? oldText.length) < oldText.length
     ) {
       while (end < content.length && isSemanticBoundaryIgnorable(content[end]!)) end += 1;
     }
@@ -504,10 +499,7 @@ function comparableEditText(value: string): ComparableEditText {
   let changed = false;
   for (let index = 0; index < value.length; ) {
     const whitespaceEnd = horizontalWhitespaceRunEnd(value, index);
-    if (
-      whitespaceEnd > index &&
-      (index === 0 || value[index - 1] === '\n')
-    ) {
+    if (whitespaceEnd > index && (index === 0 || value[index - 1] === '\n')) {
       changed = true;
       index = whitespaceEnd;
       continue;
@@ -679,6 +671,35 @@ export async function planWorkspaceProseFileWrite(input: {
   };
 }
 
+/**
+ * Materialize a newly created authored prose body through the exact same
+ * schema-safe Markdown and Yjs node mapping used by later whole-body writes.
+ *
+ * Structural object creation still persists `contentJson` as the never-opened
+ * Yjs seed, but that seed must already contain the formatted nodes and stable
+ * block ids that the first Y.Doc will adopt.
+ */
+export async function createWorkspaceProseContentJson(input: {
+  content: string;
+  idempotencyKey: string;
+}): Promise<string> {
+  const operation = await planWorkspaceProseFileWrite({
+    blocks: [],
+    content: input.content,
+    idempotencyKey: input.idempotencyKey,
+  });
+  if (operation.kind !== 'insert' || operation.afterBlockId !== null) {
+    throw new Error('New authored prose did not produce an initial block insertion');
+  }
+  const doc = new Y.Doc({ gc: false });
+  try {
+    replaceYjsProseBlocks(doc, operation.blocks);
+    return JSON.stringify(yDocToProsemirrorJSON(doc, 'default'));
+  } finally {
+    doc.destroy();
+  }
+}
+
 function renderWorkspaceProseBlock(block: YjsProseBlock): string {
   return renderAgentProseMarkdownBlock(workspaceBlockToAgentMarkdown(block));
 }
@@ -697,9 +718,7 @@ function agentMarkdownBlockMatchKey(block: AgentMarkdownBlock): string {
 function isSchemaAllowedWorkspaceBlock(block: YjsProseBlock): boolean {
   if (block.type === 'heading') return headingLevel(block) !== null;
   return (
-    block.type === 'paragraph' ||
-    block.type === 'blockquote' ||
-    block.type === 'horizontalRule'
+    block.type === 'paragraph' || block.type === 'blockquote' || block.type === 'horizontalRule'
   );
 }
 
@@ -750,9 +769,7 @@ function yjsNodesToAgentInline(nodes: readonly YjsProseNode[]): AgentMarkdownInl
   return inline;
 }
 
-function yjsMarksToAgentMarkdown(
-  marks: YjsProseTextNode['marks'],
-): AgentMarkdownMarks {
+function yjsMarksToAgentMarkdown(marks: YjsProseTextNode['marks']): AgentMarkdownMarks {
   if (!marks) return {};
   const linkRecord = marks.link;
   const link =
@@ -768,10 +785,7 @@ function yjsMarksToAgentMarkdown(
   };
 }
 
-function blockWithAgentMarkdown(
-  block: YjsProseBlock,
-  parsed: AgentMarkdownBlock,
-): YjsProseBlock {
+function blockWithAgentMarkdown(block: YjsProseBlock, parsed: AgentMarkdownBlock): YjsProseBlock {
   if (parsed.type !== block.type) {
     return makeBlock(block.id, parsed, undefined);
   }
@@ -790,10 +804,7 @@ function blockWithAgentMarkdown(
           ...(parsed.inline.length > 0
             ? {
                 content: agentInlineHasFormatting(parsed.inline)
-                  ? preserveOpaqueInlineMarks(
-                      current,
-                      agentMarkdownInlineToYjs(parsed.inline),
-                    )
+                  ? preserveOpaqueInlineMarks(current, agentMarkdownInlineToYjs(parsed.inline))
                   : replaceMarkedText(current, agentInlinePlainText(parsed.inline)),
               }
             : {}),
@@ -939,7 +950,11 @@ function preserveOpaqueInlineMarks(
   const oldText = yjsInlinePlainText(previous);
   const newText = yjsInlinePlainText(desired);
   let prefix = 0;
-  while (prefix < oldText.length && prefix < newText.length && oldText[prefix] === newText[prefix]) {
+  while (
+    prefix < oldText.length &&
+    prefix < newText.length &&
+    oldText[prefix] === newText[prefix]
+  ) {
     prefix += 1;
   }
   let suffix = 0;
@@ -1051,9 +1066,7 @@ function makeBlock(
         {
           kind: 'element',
           type: 'paragraph',
-          ...(block.inline.length > 0
-            ? { content: agentMarkdownInlineToYjs(block.inline) }
-            : {}),
+          ...(block.inline.length > 0 ? { content: agentMarkdownInlineToYjs(block.inline) } : {}),
         },
       ],
     };
@@ -1069,7 +1082,7 @@ function makeBlock(
   return {
     id,
     type: block.type,
-    ...((attrs || block.type === 'heading')
+    ...(attrs || block.type === 'heading'
       ? {
           attrs: {
             ...(attrs ?? {}),

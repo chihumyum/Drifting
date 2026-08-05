@@ -8,6 +8,7 @@ import type { YjsProseBlock } from './yjs-prose-command';
 import { replaceYjsProseBlocks } from './yjs-prose-command';
 import {
   applyWorkspaceTextReplacements,
+  createWorkspaceProseContentJson,
   normalizeAuthoredTextTransportArtifacts,
   normalizeWorkspaceProseReplacements,
   parseWorkspaceTextReplacements,
@@ -19,6 +20,60 @@ import {
 } from './workspace-prose-file';
 
 describe('workspace prose file editing', () => {
+  it('materializes a deterministic schema-safe TipTap seed for newly created prose', async () => {
+    const input = {
+      content:
+        '## 新档案\n\n这是**粗体**、<u>下划线</u>与[安全链接](https://example.test)。\n\n> 引用\n\n---',
+      idempotencyKey: 'created-authored-prose',
+    };
+    const first = await createWorkspaceProseContentJson(input);
+    const second = await createWorkspaceProseContentJson(input);
+    const document = JSON.parse(first);
+
+    expect(second).toBe(first);
+    expect(document).toMatchObject({
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { id: expect.any(String), level: 2 },
+          content: [{ type: 'text', text: '新档案' }],
+        },
+        {
+          type: 'paragraph',
+          attrs: { id: expect.any(String) },
+          content: expect.arrayContaining([
+            {
+              type: 'text',
+              text: '粗体',
+              marks: [{ type: 'bold', attrs: {} }],
+            },
+            {
+              type: 'text',
+              text: '下划线',
+              marks: [{ type: 'underline', attrs: {} }],
+            },
+            {
+              type: 'text',
+              text: '安全链接',
+              marks: [
+                {
+                  type: 'link',
+                  attrs: { href: 'https://example.test' },
+                },
+              ],
+            },
+          ]),
+        },
+        { type: 'blockquote', attrs: { id: expect.any(String) } },
+        { type: 'horizontalRule', attrs: { id: expect.any(String) } },
+      ],
+    });
+    const schema = getStaticChapterSchema();
+    expect(schema).not.toBeNull();
+    expect(() => ProseMirrorNode.fromJSON(schema!, document)).not.toThrow();
+  });
+
   it('removes provider transport escapes from authored prose without touching Markdown escapes', () => {
     const input = String.raw`\"第一百零一种。\"\他说。\“天亮前。” 保留 \*星号\* 与 \#号。`;
 

@@ -8,38 +8,39 @@ review, and crash-consistency invariants underneath that facade.
 
 ## 1. Product surface
 
-The model receives six ordinary workspace verbs:
+The model receives six ordinary authored-object verbs:
 
-- `list_files`
-- `read_file`
-- `grep`
-- `edit_file`
-- `write_file`
-- `delete_file`
+- `browse_project`
+- `read_object`
+- `search_work`
+- `revise_object`
+- `write_object`
+- `delete_object`
 
-Paths use author-facing names. They do not expose SQLite row ids, Yjs updates,
-block handles, receipt ids, or sync mutations unless a complete JSON resource
-is intentionally addressed by its opaque id.
+Targets use author-facing domain names. They do not expose paths, extensions,
+SQLite row ids, Yjs updates, block handles, receipt ids, or sync mutations.
+Only comments, relations, and author rules keep opaque handles after creation,
+because those handles distinguish otherwise unnamed domain objects.
 
-| Domain | Natural workspace path |
+| Domain | Natural authored target |
 | --- | --- |
-| Chapters | `/chapters/<chapter>/...` |
-| Drifts | `/drifts/<drift>/...` |
-| Elements | `/elements/<category>/<element>/...` |
-| Element categories | `/categories/<category>/...` |
-| Storylines | `/storylines/<storyline>/...` |
-| Storyline membership | `/storylines/<storyline>/chapters.json` |
-| Comments and TODOs | `/comments/<comment-id>.json` |
-| Entity relations | `/relations/<relation-id>.json` |
-| Agent memory | `/memory/<memory-id>.json` |
-| Project facts | `/project/facts.json` |
+| Chapters | `章节「<名称>」` |
+| Drifts | `灵感「<名称>」` |
+| Elements | `要素「<名称>」（分类「<分类>」）` |
+| Element categories | `要素分类「<名称>」` |
+| Storylines | `故事线「<名称>」` |
+| Storyline membership | `故事线「<名称>」章节关系` |
+| Comments and TODOs | `批注或待办「<handle>」` |
+| Entity relations | `实体关系「<handle>」` |
+| Agent memory | `作者规则「<handle>」` |
+| Project facts | `项目事实` |
 
-Creation may use a descriptive placeholder such as `/comments/new.json` or
-`/memory/new.json`. The result returns the canonical path containing the
-deterministic created id. Subsequent operations use that canonical path.
+Creation uses a natural target such as `批注`, `待办`, `实体关系`, or
+`作者规则`. The result returns the canonical semantic target containing the
+created handle. Subsequent operations use that target.
 
-The runtime resolves those paths to hidden domain commands only after checking
-the current project and current workspace snapshot. Hidden commands are an
+The runtime resolves those targets to hidden domain commands only after checking
+the current project and authoritative state. Hidden commands are an
 implementation boundary, not extra concepts the model must plan around. The
 executable list and lifecycle matrix live in
 `drifting-workspace-tool-contract.ts` and are included in the generated
@@ -49,12 +50,12 @@ capability inventory.
 
 | State | Authority | Renderer projection |
 | --- | --- | --- |
-| Chapter, drift, element, category, and storyline prose | live Yjs document plus persisted Yjs state | editor and virtual Markdown files |
+| Chapter, drift, element, category, and storyline prose | live Yjs document plus persisted Yjs state | editor and authored-object projection |
 | Structural metadata | SQLite | Zustand data/project stores |
 | Comments and TODOs | SQLite | comment store/editor decorations |
 | Entity relations | SQLite | relation store and semantic links |
 | Storyline membership and primary assignment | SQLite link graph | storyline/node mapping stores |
-| Agent memory | SQLite | prompt memory reads and virtual JSON files |
+| Agent memory | SQLite | prompt memory and author-rule projection |
 | Review decisions | SQLite ordered review blocks | editor review badges and animations |
 | Cross-device delivery | transactional local sync outbox | server projection after flush |
 
@@ -62,13 +63,19 @@ LocalStorage and Zustand are projections. They cannot independently approve,
 reject, create, delete, or revert an Agent mutation. Prose writes never mutate
 stale `contentJson` as their source of truth.
 
-### Virtual Markdown schema boundary
+### Authored prose schema boundary
 
-Agent-facing prose files are a reversible projection of the current editor
+Agent-facing prose bodies are a reversible projection of the current editor
 schema, not a second prose authority. Reads serialize heading levels 1-3,
 paragraphs, blockquotes, horizontal rules, hard breaks, bold, italic, strike,
 underline, and safe links. Writes parse those forms directly into structured
 Yjs nodes before durable preparation.
+
+The same parser materializes the initial `contentJson` seed when an Agent
+creates a chapter, drift, element, storyline, or element category. Those
+never-opened objects therefore begin with the same formatted nodes and stable
+block ids that later Yjs-backed replacements produce; creation does not pass
+through the plain comment-body serializer.
 
 Markdown presentation that the editor does not configure is unwrapped rather
 than persisted as a hidden or invalid node. Heading levels 4-6, lists and task
@@ -76,7 +83,7 @@ lists, inline/fenced code, tables, images, and arbitrary HTML retain their
 readable text as ordinary paragraphs but lose the unsupported style. Unsafe
 link schemes retain their labels without a link mark. Existing editor-only
 marks such as entity links remain attached to unchanged text even though they
-are intentionally absent from the virtual file.
+are intentionally absent from the model-facing body.
 
 This boundary is schema sanitation only. It does not impose author style,
 voice, canon, target scope, or any other writing policy.
@@ -85,7 +92,7 @@ voice, canon, target scope, or any other writing policy.
 
 Every certified mutation cites an authoritative read observation:
 
-1. a workspace read records the entity kind, entity id, and exact revision;
+1. an authored-object read records the entity kind, entity id, and exact revision;
 2. the write prepares a complete preimage and expected revision;
 3. the mutation transaction reads the current revision again;
 4. a mismatch fails closed and instructs the Agent to reread;
@@ -138,16 +145,13 @@ history is the independent entity snapshot system documented in
 
 ## 6. Structural resources
 
-Nodes, elements, storylines, and categories are complete resources represented
-by directories. Creating the first meaningful file may create the resource and
-its canonical prose/metadata seed. Updating a file updates only the represented
-field.
-
-`delete_file` may delete a structural resource only at the complete resource
-directory path. Deleting `/drifts/Idea/summary.md` must not be interpreted as
-deleting the whole drift; it fails with guidance to delete `/drifts/Idea`.
-Comments, relations, and memories are complete JSON-file resources, so their
-file path is their deletion boundary.
+Nodes, elements, storylines, and categories are complete authored objects.
+`write_object` can create one or replace its complete body; `revise_object`
+changes named passages or a represented field. `delete_object` accepts only a
+complete authored target. A request to remove `灵感「Idea」摘要` is not silently
+promoted into deleting `灵感「Idea」`; the runtime asks for the complete object
+target. Comments, relations, and author rules are already complete domain
+objects, so their canonical semantic target is their deletion boundary.
 
 Structural create/update/delete executes through renderer use cases and the
 same Yjs/SQLite rules as manual editing. The receipt preserves enough typed
@@ -156,7 +160,7 @@ concepts in `metadataJson`.
 
 ## 7. Storyline membership transaction
 
-`/storylines/<storyline>/chapters.json` is a replacement document. Each entry
+`故事线「<名称>」章节关系` represents the complete membership set. Each entry
 names a chapter and whether this storyline is primary for that chapter.
 
 The transaction:
@@ -175,7 +179,7 @@ confirm-before authorization in chat.
 
 ## 8. Comments, TODOs, and relations
 
-Comments and TODOs are one anchored comment domain. Their JSON resource can be
+Comments and TODOs are one anchored comment domain. Each object can be
 created, read, replaced, deleted, and exactly reverted. Ordinary comment/TODO
 creation and update are automatic because they do not rewrite manuscript prose.
 Deletion is confirm-before.
@@ -200,8 +204,8 @@ facts.
 - `forget` is a confirm-before soft delete so provenance and sync convergence
   survive; its inverse can restore the exact live row while lineage is current.
 
-`/memory.json` is a readable aggregate. Individual mutable resources live at
-`/memory/<memory-id>.json`.
+`作者规则` is the readable aggregate. Individual proposals use
+`作者规则「<handle>」`.
 
 ## 10. Approval policy
 
@@ -214,7 +218,7 @@ facts.
 | Storyline membership replacement | confirm before | chat permission request |
 
 The model cannot forge approval. Authorization binds the exact normalized
-arguments hash to a permission request. A changed path or payload requires a
+arguments hash to a permission request. A changed target or payload requires a
 new decision.
 
 ## 11. Headless acceptance matrix

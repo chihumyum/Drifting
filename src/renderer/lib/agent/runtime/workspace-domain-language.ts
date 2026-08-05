@@ -1,4 +1,5 @@
 import { WORKSPACE_COMPLETE_READ_MODEL_MARKER } from './drifting-workspace-tool-contract';
+import { projectAuthoredTextForModel } from './workspace-prose-file';
 
 interface WorkspaceDomainWriteResult {
   path: string;
@@ -27,10 +28,9 @@ interface WorkspaceDomainWriteResult {
  * Persistence ids and path syntax remain runtime-only provenance.
  */
 export function describeWorkspaceDomainTarget(path: string): string {
-  const segments = path
-    .split('/')
-    .filter(Boolean)
-    .map(decodeWorkspaceSegment);
+  const authoredTarget = path.trim();
+  if (authoredTarget && !authoredTarget.startsWith('/')) return authoredTarget;
+  const segments = path.split('/').filter(Boolean).map(decodeWorkspaceSegment);
   const field = segments[segments.length - 1] ?? '';
   switch (segments[0]) {
     case 'chapters':
@@ -72,13 +72,16 @@ export function describeWorkspaceDomainTarget(path: string): string {
   }
 }
 
-export function describeAgentWriteTarget(
-  toolName: string,
-  arguments_: unknown,
-): string {
+export function describeAgentWriteTarget(toolName: string, arguments_: unknown): string {
   const record = isRecord(arguments_) ? arguments_ : {};
-  if (typeof record.path === 'string' && record.path.trim()) {
-    return describeWorkspaceDomainTarget(record.path);
+  const authoredTarget =
+    typeof record.target === 'string' && record.target.trim()
+      ? record.target
+      : typeof record.path === 'string' && record.path.trim()
+        ? record.path
+        : null;
+  if (authoredTarget) {
+    return describeWorkspaceDomainTarget(authoredTarget);
   }
   if (/project_facts/u.test(toolName)) return '项目规则';
   if (/element_patch/u.test(toolName)) return '正典演化记录';
@@ -92,13 +95,12 @@ export function describeAgentWriteTarget(
   if (/element/u.test(toolName)) {
     return namedTarget('要素', firstString(record, ['element', 'name', 'entity']));
   }
-  const nodeKind = record.kind === 'drift' ? '灵感' : record.kind === 'chapter' ? '章节' : '作品内容';
+  const nodeKind =
+    record.kind === 'drift' ? '灵感' : record.kind === 'chapter' ? '章节' : '作品内容';
   return namedTarget(nodeKind, firstString(record, ['node', 'entity', 'title', 'name']));
 }
 
-export function describeWorkspaceDomainWriteResult(
-  result: WorkspaceDomainWriteResult,
-): string {
+export function describeWorkspaceDomainWriteResult(result: WorkspaceDomainWriteResult): string {
   const authoredPath = result.requestedPath ?? result.path;
   const target = describeWorkspaceDomainTarget(authoredPath);
   const targetIsSummary = authoredPath.endsWith('/summary.md');
@@ -131,7 +133,7 @@ export function describeWorkspaceDomainWriteResult(
       : '当前摘要为空。';
     if (result.authoredReadState.focusedBodyEdit) {
       const passages = result.authoredReadState.currentPassages
-        .map((passage) => passage.replace(/\s+/gu, ' ').trim())
+        .map((passage) => projectAuthoredTextForModel(passage).text.replace(/\s+/gu, ' ').trim())
         .filter(Boolean)
         .slice(0, 8);
       if (passages.length > 0) {
@@ -148,7 +150,9 @@ export function describeWorkspaceDomainWriteResult(
   if (result.operation === 'created' && result.path.startsWith('/categories/')) {
     message += '现在可以在该分类中新建要素。';
   }
-  return `${message}这一步已经完成；直接继续剩余任务，不要为了确认写入而重读。`;
+  return remainingWork
+    ? `${message}当前改动已保存；直接处理上面明确列出的剩余字段，不要重读已经保存的正文。`
+    : `${message}这一步已经完成；直接继续剩余任务，不要为了确认写入而重读。`;
 }
 
 function withSentenceTerminal(value: string): string {
@@ -161,7 +165,7 @@ function modelFacingRemainingWork(value: string | undefined): string | null {
   if (
     /(?:局部修改|正文已变化|目标已不在|重新定位|跳过|未重复执行)/u.test(compact) ||
     /\b(?:stale|skipped|not found|already changed|local edit)\b/iu.test(compact) ||
-    /\b(?:json|path|revision|receipt|writeref|yjs|sqlite|write_file|edit_file)\b/iu.test(
+    /\b(?:json|path|revision|receipt|writeref|yjs|sqlite|write_file|edit_file|write_object|revise_object)\b/iu.test(
       compact,
     )
   ) {

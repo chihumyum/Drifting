@@ -24,6 +24,7 @@ import {
   AgentLongTaskToolRuntime,
   AGENT_LONG_TASK_CONSTRAINT_TOOL,
   AGENT_LONG_TASK_PLAN_TOOL,
+  AGENT_LONG_TASK_READ_TOOL,
   AGENT_LONG_TASK_STEP_TOOL,
   projectAgentLongTaskPlanForProvider,
 } from './long-task-tool-runtime';
@@ -605,6 +606,20 @@ describe('durable Agent long-task runtime', () => {
       prose: '雨水敲着旧窗。',
       ordinal: 91,
     });
+    await expect(
+      repository.applyCommand(test.nextProvenance('update_task_step'), {
+        toolName: 'update_task_step',
+        taskId: plan.task.id,
+        expectedRevision: researchRevision,
+        stepId: researchStep.id,
+        status: 'completed',
+        resultNote: '世界观正文为空，已经补写了正文字段。',
+        resultRef: null,
+      }),
+    ).rejects.toMatchObject({
+      code: 'TASK_READ_EVIDENCE_INVALID',
+      message: expect.stringContaining('不能只用结论文字声称已经修改作品'),
+    });
     plan = (
       await repository.applyCommand(test.nextProvenance('update_task_step'), {
         toolName: 'update_task_step',
@@ -1058,6 +1073,45 @@ describe('durable Agent long-task runtime', () => {
     await test.gateway.close();
   });
 
+  it('adopts an exact write made earlier in the same turn when the checklist is created late', async () => {
+    const test = await fixture();
+    const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
+      createId: idFactory(),
+    });
+    const reviewId = await createAcceptedWriteReview(test, {
+      chapterId: 'node-secret-1',
+      chapterName: '第一章 雨夜',
+    });
+    const planProvenance = {
+      ...test.nextProvenance('update_task_plan'),
+      createdAt: '2026-08-01T00:00:00.000Z',
+    };
+    const plan = (await repository.applyCommand(planProvenance, createCommand())).plan;
+
+    expect(plan.task.createdAt).toBe(NOW);
+    const completed = await repository.applyCommand(
+      {
+        ...test.nextProvenance('update_task_step'),
+        createdAt: '2026-08-01T00:00:01.000Z',
+      },
+      {
+        toolName: 'update_task_step',
+        taskId: plan.task.id,
+        expectedRevision: plan.task.revision,
+        stepId: plan.steps[0]!.id,
+        status: 'completed',
+        resultNote: '清单出现前已经完成第一章。',
+        resultRef: null,
+      },
+    );
+    expect(completed.plan.steps[0]).toMatchObject({
+      status: 'completed',
+      resultRef: reviewId.replace('accepted-review:', 'accepted-effect:'),
+      reviewEvidence: { acceptedTargetEvidence: true },
+    });
+    await test.gateway.close();
+  });
+
   it('rolls the plan back when its exactly-once receipt cannot commit', async () => {
     const test = await fixture();
     const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
@@ -1430,18 +1484,15 @@ describe('durable Agent long-task runtime', () => {
       chapterName: '第二章 来客',
     });
 
-    const completedFirst = await repository.applyCommand(
-      test.nextProvenance('update_task_step'),
-      {
-        toolName: 'update_task_step',
-        taskId: created.plan.task.id,
-        expectedRevision: 0,
-        stepId: first!.id,
-        status: 'completed',
-        resultNote: '第一章完成',
-        resultRef: firstReview,
-      },
-    );
+    const completedFirst = await repository.applyCommand(test.nextProvenance('update_task_step'), {
+      toolName: 'update_task_step',
+      taskId: created.plan.task.id,
+      expectedRevision: 0,
+      stepId: first!.id,
+      status: 'completed',
+      resultNote: '第一章完成',
+      resultRef: firstReview,
+    });
     expect(completedFirst.plan.task.revision).toBe(1);
 
     await expect(
@@ -1456,18 +1507,15 @@ describe('durable Agent long-task runtime', () => {
       }),
     ).rejects.toMatchObject({ code: 'TASK_WRITE_EVIDENCE_INVALID' });
 
-    const completedSecond = await repository.applyCommand(
-      test.nextProvenance('update_task_step'),
-      {
-        toolName: 'update_task_step',
-        taskId: created.plan.task.id,
-        expectedRevision: 0,
-        stepId: second!.id,
-        status: 'completed',
-        resultNote: '第二章完成',
-        resultRef: secondReview,
-      },
-    );
+    const completedSecond = await repository.applyCommand(test.nextProvenance('update_task_step'), {
+      toolName: 'update_task_step',
+      taskId: created.plan.task.id,
+      expectedRevision: 0,
+      stepId: second!.id,
+      status: 'completed',
+      resultNote: '第二章完成',
+      resultRef: secondReview,
+    });
     expect(completedSecond.plan).toMatchObject({
       task: { revision: 2, status: 'completed' },
       steps: [
@@ -1483,55 +1531,46 @@ describe('durable Agent long-task runtime', () => {
     const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
       createId: idFactory(),
     });
-    const created = await repository.applyCommand(
-      test.nextProvenance('update_task_plan'),
-      {
-        toolName: 'update_task_plan',
-        operation: 'create',
-        objective: '整理开头并记录后来发现的工作',
-        scopeKind: 'explicit_targets',
-        chapterManifest: [],
-        steps: [
-          {
-            title: '整理开头',
-            target: { kind: 'book', name: '开头', resolvedTargetId: null },
-          },
-        ],
-        constraints: [],
-      },
-    );
+    const created = await repository.applyCommand(test.nextProvenance('update_task_plan'), {
+      toolName: 'update_task_plan',
+      operation: 'create',
+      objective: '整理开头并记录后来发现的工作',
+      scopeKind: 'explicit_targets',
+      chapterManifest: [],
+      steps: [
+        {
+          title: '整理开头',
+          target: { kind: 'book', name: '开头', resolvedTargetId: null },
+        },
+      ],
+      constraints: [],
+    });
     await createAcceptedWriteReview(test, {
       chapterId: 'node-secret-1',
       chapterName: '第一章 雨夜',
     });
-    const appended = await repository.applyCommand(
-      test.nextProvenance('update_task_plan'),
-      {
-        toolName: 'update_task_plan',
-        operation: 'append_steps',
-        taskId: created.plan.task.id,
-        expectedRevision: 0,
-        steps: [
-          {
-            title: '记录刚刚完成的补充整理',
-            target: { kind: 'project', name: '项目', resolvedTargetId: null },
-          },
-        ],
-      },
-    );
+    const appended = await repository.applyCommand(test.nextProvenance('update_task_plan'), {
+      toolName: 'update_task_plan',
+      operation: 'append_steps',
+      taskId: created.plan.task.id,
+      expectedRevision: 0,
+      steps: [
+        {
+          title: '记录刚刚完成的补充整理',
+          target: { kind: 'project', name: '项目', resolvedTargetId: null },
+        },
+      ],
+    });
     const appendedStep = appended.plan.steps[1]!;
-    const completed = await repository.applyCommand(
-      test.nextProvenance('update_task_step'),
-      {
-        toolName: 'update_task_step',
-        taskId: created.plan.task.id,
-        expectedRevision: 1,
-        stepId: appendedStep.id,
-        status: 'completed',
-        resultNote: '补充整理已完成',
-        resultRef: null,
-      },
-    );
+    const completed = await repository.applyCommand(test.nextProvenance('update_task_step'), {
+      toolName: 'update_task_step',
+      taskId: created.plan.task.id,
+      expectedRevision: 1,
+      stepId: appendedStep.id,
+      status: 'completed',
+      resultNote: '补充整理已完成',
+      resultRef: null,
+    });
     const boundRef = completed.plan.steps[1]!.resultRef;
     expect(boundRef).toMatch(/^accepted-effect:/u);
 
@@ -1855,6 +1894,7 @@ describe('durable Agent long-task runtime', () => {
       .find((candidate) => candidate.name === AGENT_LONG_TASK_PLAN_TOOL)!;
     expect(definition.inputSchema).toMatchObject({ type: 'object' });
     expect((definition.inputSchema as { anyOf?: unknown }).anyOf).toBeUndefined();
+    expect(JSON.stringify(definition.inputSchema)).not.toContain('research');
     const constraintDefinition = runtime
       .listDefinitions({
         route: {
@@ -1910,6 +1950,37 @@ describe('durable Agent long-task runtime', () => {
         ],
       }),
     ).toMatchObject({ ok: true });
+
+    const boundedProvenance = test.nextProvenance('update_task_plan');
+    await expect(
+      runtime.execute({
+        sessionId: SESSION_ID,
+        turnId: TURN_ID,
+        callId: boundedProvenance.callId,
+        idempotencyKey: boundedProvenance.idempotencyKey,
+        name: AGENT_LONG_TASK_PLAN_TOOL,
+        access: 'write',
+        arguments: {
+          operation: 'create',
+          scopeKind: 'whole_book_chapters',
+          objective: '润色开头六章',
+        },
+        context: {
+          route: {
+            kind: 'chat',
+            projectId: PROJECT_ID,
+            conversationId: 'conversation-long-task',
+          },
+        },
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/TASK_PLAN_INVALID.*explicit_targets/u),
+    });
+    expect(
+      test.gateway.database.prepare('SELECT count(*) AS count FROM agent_runtime_task').get(),
+    ).toEqual({ count: 0 });
 
     const provenance = test.nextProvenance('update_task_plan');
     const result = await runtime.execute({
@@ -1977,6 +2048,13 @@ describe('durable Agent long-task runtime', () => {
     expect(frozen?.chapterManifest).toHaveLength(2);
     expect(frozen?.steps).toHaveLength(2);
     const providerProjection = projectAgentLongTaskPlanForProvider(frozen!);
+    expect(providerProjection.continuation.instruction).toContain(
+      'This focus is not a scope restriction',
+    );
+    expect(providerProjection.continuation.instruction).not.toContain('at most one');
+    expect(providerProjection.continuation.instruction).not.toContain(
+      'Do not read or modify later',
+    );
     expect(providerProjection.frozenChapterManifest.entries).toEqual([
       { ordinal: 0, name: '第一章 雨夜' },
       { ordinal: 1, name: '第二章 来客' },
@@ -2130,8 +2208,15 @@ describe('durable Agent long-task runtime', () => {
           } | null;
         }>;
       };
+      continuation: {
+        instruction: string;
+      };
     };
     expect(pinnedPlan.stepWindow.steps[0]?.reviewEvidence?.acceptedTargetEvidence).toBe(true);
+    expect(pinnedPlan.continuation.instruction).toContain(
+      'This focused projection is not a scope restriction',
+    );
+    expect(pinnedPlan.continuation.instruction).not.toContain('at most one');
 
     const oldest = plan.steps[0]!;
     const completed = await repository.applyCommand(test.nextProvenance('update_task_step'), {
@@ -2219,6 +2304,75 @@ describe('durable Agent long-task runtime', () => {
     await test.gateway.close();
   });
 
+  it('normalizes a grouped step title to its one persisted authored target', async () => {
+    const test = await fixture();
+    const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
+      createId: idFactory(),
+    });
+    const runtime = new AgentLongTaskToolRuntime({ repository, now: () => NOW });
+    const provenance = test.nextProvenance('update_task_plan');
+    const context = {
+      route: {
+        kind: 'chat' as const,
+        projectId: PROJECT_ID,
+        conversationId: 'conversation-long-task',
+      },
+    };
+
+    const result = await runtime.execute({
+      sessionId: SESSION_ID,
+      turnId: TURN_ID,
+      callId: provenance.callId,
+      idempotencyKey: provenance.idempotencyKey,
+      name: AGENT_LONG_TASK_PLAN_TOOL,
+      access: 'write',
+      arguments: {
+        operation: 'create',
+        scopeKind: 'explicit_targets',
+        objective: '整理奥伦、凯尔、米拉、伊莱亚斯四人的档案',
+        steps: [
+          {
+            title: '根据开头章节补全奥伦、凯尔、米拉、伊莱亚斯四人的资料',
+            target: { kind: 'element', name: '奥伦' },
+          },
+          {
+            title: '补全凯尔资料',
+            target: { kind: 'element', name: '凯尔' },
+          },
+          {
+            title: '补全米拉资料',
+            target: { kind: 'element', name: '米拉' },
+          },
+          {
+            title: '补全伊莱亚斯资料',
+            target: { kind: 'element', name: '伊莱亚斯' },
+          },
+        ],
+      },
+      context,
+      signal: new AbortController().signal,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        steps: [
+          { title: '整理要素「奥伦」' },
+          { title: '补全凯尔资料' },
+          { title: '补全米拉资料' },
+          { title: '补全伊莱亚斯资料' },
+        ],
+      },
+    });
+    expect(result.ok && result.modelData).toContain(
+      '当前交付：1. [待处理] 整理要素「奥伦」（奥伦）',
+    );
+    expect(result.ok && result.modelData).not.toContain(
+      '根据开头章节补全奥伦、凯尔、米拉、伊莱亚斯四人的资料',
+    );
+    await test.gateway.close();
+  });
+
   it('exposes strict name-first tools and pins resumable progress plus active constraints', async () => {
     const test = await fixture();
     const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
@@ -2291,6 +2445,21 @@ describe('durable Agent long-task runtime', () => {
               name: '第二章',
             },
           },
+          {
+            title: '读取人物资料',
+            target: {
+              kind: 'category',
+              name: '人物',
+            },
+          },
+          {
+            title: '完成后复核改稿',
+            workKind: 'review',
+            target: {
+              kind: 'project',
+              name: '全书',
+            },
+          },
         ],
         constraints: ['保持第一人称叙事'],
       },
@@ -2305,14 +2474,45 @@ describe('durable Agent long-task runtime', () => {
           objective: '润色整本书',
           revision: 0,
         },
+        steps: [
+          { title: '润色第一章', workKind: 'edit' },
+          { title: '润色第二章', workKind: 'edit' },
+        ],
         activeConstraints: [{ body: '保持第一人称叙事' }],
       },
     });
     expect(JSON.stringify(result)).not.toContain('internal:');
     expect(JSON.stringify(result)).not.toContain('resolvedTargetId');
     expect(result.ok && result.modelData).toContain('任务清单：润色整本书');
-    expect(result.ok && result.modelData).toContain('1. [待处理] 润色第一章');
+    expect(result.ok && result.modelData).toContain('当前交付：1. [待处理] 润色第一章');
+    expect(result.ok && result.modelData).not.toContain('润色第二章');
+    expect(result.ok && result.modelData).not.toContain('读取人物资料');
+    expect(result.ok && result.modelData).not.toContain('完成后复核改稿');
     expect(result.ok && result.modelData).not.toMatch(/taskId|revision|stepId/u);
+
+    const repeatActiveProvenance = test.nextProvenance('update_task_plan');
+    const repeatActive = await runtime.execute({
+      ...request,
+      callId: repeatActiveProvenance.callId,
+      idempotencyKey: repeatActiveProvenance.idempotencyKey,
+      arguments: { operation: 'set_status', status: 'active' },
+    });
+    expect(repeatActive).toMatchObject({
+      ok: true,
+      data: { task: { status: 'active', revision: 0 } },
+    });
+
+    const repeatObjectiveProvenance = test.nextProvenance('update_task_plan');
+    const repeatObjective = await runtime.execute({
+      ...request,
+      callId: repeatObjectiveProvenance.callId,
+      idempotencyKey: repeatObjectiveProvenance.idempotencyKey,
+      arguments: { operation: 'set_objective', objective: '润色整本书' },
+    });
+    expect(repeatObjective).toMatchObject({
+      ok: true,
+      data: { task: { objective: '润色整本书', revision: 0 } },
+    });
 
     const hook = createAgentLongTaskSupplementalRowsHook(repository);
     const hookInput: AgentRuntimeContextPlanningHookInput = {
@@ -2336,6 +2536,16 @@ describe('durable Agent long-task runtime', () => {
       {
         turnOrdinal: 0,
         callId: provenance.callId,
+        toolName: 'update_task_plan',
+      },
+      {
+        turnOrdinal: 0,
+        callId: repeatActiveProvenance.callId,
+        toolName: 'update_task_plan',
+      },
+      {
+        turnOrdinal: 0,
+        callId: repeatObjectiveProvenance.callId,
         toolName: 'update_task_plan',
       },
     ]);
@@ -2454,6 +2664,97 @@ describe('durable Agent long-task runtime', () => {
     expect(semanticStepResult.ok && semanticStepResult.modelData).not.toMatch(
       /taskId|revision|stepId/u,
     );
+
+    const closePlanProvenance = test.nextProvenance('update_task_plan');
+    const closedEditPlan = await runtime.execute({
+      ...request,
+      callId: closePlanProvenance.callId,
+      idempotencyKey: closePlanProvenance.idempotencyKey,
+      arguments: { operation: 'set_status', status: 'failed' },
+    });
+    if (!closedEditPlan.ok) throw new Error(closedEditPlan.error);
+    const reviewPlanProvenance = test.nextProvenance('update_task_plan');
+    const standaloneReview = await runtime.execute({
+      ...request,
+      callId: reviewPlanProvenance.callId,
+      idempotencyKey: reviewPlanProvenance.idempotencyKey,
+      arguments: {
+        operation: 'create',
+        scopeKind: 'explicit_targets',
+        objective: '审阅第一章并提交审稿报告',
+        steps: [
+          {
+            title: '形成第一章审阅意见',
+            workKind: 'review',
+            target: { kind: 'chapter', name: '第一章' },
+          },
+        ],
+      },
+    });
+    expect(standaloneReview).toMatchObject({
+      ok: true,
+      data: { steps: [{ workKind: 'review' }] },
+    });
+
+    await test.gateway.close();
+  });
+
+  it('shows an in-progress later item before an earlier pending item', async () => {
+    const test = await fixture();
+    const repository = createAgentRuntimeLongTaskRepository(test.gateway.client(), {
+      createId: idFactory(),
+    });
+    const plan = (
+      await repository.applyCommand(test.nextProvenance('update_task_plan'), {
+        toolName: 'update_task_plan',
+        operation: 'create',
+        objective: '先核对，再清理',
+        scopeKind: 'explicit_targets',
+        workKind: 'edit',
+        chapterManifest: [],
+        steps: [
+          {
+            title: '核对设定',
+            workKind: 'research',
+            target: { kind: 'book', name: '开头', resolvedTargetId: null },
+          },
+          {
+            title: '清理测试垃圾',
+            workKind: 'edit',
+            target: { kind: 'project', name: '测试残留', resolvedTargetId: null },
+          },
+        ],
+        constraints: [],
+      })
+    ).plan;
+    await repository.applyCommand(test.nextProvenance('update_task_step'), {
+      toolName: 'update_task_step',
+      taskId: plan.task.id,
+      expectedRevision: plan.task.revision,
+      stepId: plan.steps[1]!.id,
+      status: 'in_progress',
+      resultNote: null,
+      resultRef: null,
+    });
+    const runtime = new AgentLongTaskToolRuntime({ repository, now: () => NOW });
+    const result = await runtime.execute({
+      sessionId: SESSION_ID,
+      turnId: TURN_ID,
+      callId: 'read-active-later-step',
+      idempotencyKey: 'read-active-later-step',
+      name: AGENT_LONG_TASK_READ_TOOL,
+      access: 'read',
+      arguments: {},
+      context: {
+        route: {
+          kind: 'chat',
+          projectId: PROJECT_ID,
+          conversationId: 'conversation-long-task',
+        },
+      },
+      signal: new AbortController().signal,
+    });
+    expect(result.ok && result.modelData).toContain('当前交付：2. [进行中] 清理测试垃圾');
     await test.gateway.close();
   });
 });

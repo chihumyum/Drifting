@@ -250,7 +250,7 @@ empty/malformed or search-omitted calls receive one schema-visible repair iterat
 
 This is still not full Claude Code parity. The generated
 [`agent-capabilities.md`](docs/agent-runtime/acceptance/agent-capabilities.md) is the authoritative
-inventory for installed model tools, direct catalog certification, workspace-facade operations,
+inventory for installed model tools, direct catalog certification, authored-object operations,
 provider/MCP platform and deferred product capabilities. Runtime-discovered MCP tools use
 project-scoped configuration, strict discovery/schema validation, exact durable grants and
 generation-isolated lifecycle ownership. Desktop stdio runs in a bounded native child host;

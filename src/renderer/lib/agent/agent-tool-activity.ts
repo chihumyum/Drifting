@@ -1,11 +1,11 @@
 type ActivityLanguage = 'zh' | 'en';
 
-type ActivityVerb = 'browse' | 'read' | 'edit' | 'create' | 'delete';
+type ActivityVerb = 'browse' | 'read' | 'edit' | 'write' | 'create' | 'delete';
 
 /**
  * A tool card is born before its streamed JSON arguments are complete. Domain
  * labels such as "查看作品结构" would therefore be guesses at that stage (the
- * path helper has to fall back to `/`). Keep the row absent until its real input
+ * target helper has to fall back to the project root). Keep the row absent until its real input
  * is available; a short delay is preferable to visibly renaming a placeholder.
  */
 export function shouldDisplayAgentToolActivity(input: {
@@ -21,9 +21,8 @@ export function shouldDisplayAgentToolActivity(input: {
 }
 
 /**
- * Translate the runtime's project-workspace illusion into author-facing domain
- * language. Virtual paths stay useful to the model, but never leak into the
- * ordinary progress feed as if Drifting were editing host files.
+ * Translate the runtime's authored-object operations into author-facing domain
+ * language. Storage identities never leak into the ordinary progress feed.
  */
 export function describeAgentToolActivity(
   toolName: string,
@@ -32,27 +31,47 @@ export function describeAgentToolActivity(
 ): string | null {
   const args = asRecord(input);
   const lang: ActivityLanguage = language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
-  if (toolName === 'grep') {
+  if (toolName === 'search_work' || toolName === 'grep') {
     const query = stringValue(args.query);
     if (!query) return lang === 'zh' ? '检索小说内容' : 'Search the novel';
     return lang === 'zh'
       ? `检索小说内容“${query}”`
       : `Search the novel for “${query}”`;
   }
-  if (toolName === 'list_files') {
-    return describeWorkspacePath(stringValue(args.path) || '/', 'browse', lang);
+  if (toolName === 'browse_project' || toolName === 'list_files') {
+    return describeWorkspacePath(
+      stringValue(args.collection) || stringValue(args.path) || '/',
+      'browse',
+      lang,
+    );
   }
-  if (toolName === 'read_file') {
-    return describeWorkspacePath(stringValue(args.path) || '/', 'read', lang);
+  if (toolName === 'read_object' || toolName === 'read_file') {
+    return describeWorkspacePath(
+      stringValue(args.target) || stringValue(args.path) || '/',
+      'read',
+      lang,
+    );
   }
-  if (toolName === 'edit_file') {
-    return describeWorkspacePath(stringValue(args.path) || '/', 'edit', lang);
+  if (toolName === 'revise_object' || toolName === 'edit_file') {
+    return describeWorkspacePath(
+      stringValue(args.target) || stringValue(args.path) || '/',
+      'edit',
+      lang,
+    );
   }
-  if (toolName === 'write_file') {
-    return describeWorkspacePath(stringValue(args.path) || '/', 'create', lang);
+  if (toolName === 'write_object' || toolName === 'write_file') {
+    return describeWorkspacePath(
+      stringValue(args.target) || stringValue(args.path) || '/',
+      'write',
+      lang,
+    );
   }
-  if (toolName === 'delete_file') {
-    return describeWorkspacePath(stringValue(args.path) || '/', 'delete', lang);
+  if (toolName === 'delete_object' || toolName === 'delete_file') {
+    return describeWorkspacePath(
+      stringValue(args.target) || stringValue(args.path) || '/',
+      'delete',
+      lang,
+    );
   }
 
   const target = firstString(args, [
@@ -119,6 +138,9 @@ function describeWorkspacePath(
   verb: ActivityVerb,
   lang: ActivityLanguage,
 ): string {
+  if (rawPath.trim() && !rawPath.trim().startsWith('/')) {
+    return phrase(verb, rawPath.trim(), lang);
+  }
   const path = normalizePath(rawPath);
   if (path === '/') return phrase(verb, lang === 'zh' ? '作品结构' : 'project structure', lang);
   if (path === '/README.md') return lang === 'zh' ? '了解作品' : 'Review the project';
@@ -206,6 +228,7 @@ function phrase(verb: ActivityVerb, target: string, lang: ActivityLanguage): str
       browse: '查看',
       read: '读取',
       edit: '修改',
+      write: '写作',
       create: '创建',
       delete: '删除',
     };
@@ -216,6 +239,7 @@ function phrase(verb: ActivityVerb, target: string, lang: ActivityLanguage): str
     browse: 'Review',
     read: 'Read',
     edit: 'Edit',
+    write: 'Write',
     create: 'Create',
     delete: 'Delete',
   };

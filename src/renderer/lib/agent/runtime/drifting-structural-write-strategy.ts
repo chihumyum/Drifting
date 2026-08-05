@@ -9,7 +9,11 @@ import type {
 } from '../../../domain/agent-runtime-entity-write-receipt';
 import { snapshotAgentRuntimeEntity } from '../../../domain/agent-runtime-entity-write-receipt';
 import type { BookElement, BookElementCategory } from '../../../domain/book-element';
-import { findElementNameConflict, makeUniqueElementName } from '../../../domain/book-element';
+import {
+  allElementNames,
+  findElementNameConflict,
+  makeUniqueElementName,
+} from '../../../domain/book-element';
 import type { BookNode } from '../../../domain/book-node';
 import { makeUniqueNodeTitle } from '../../../domain/book-node';
 import {
@@ -58,13 +62,18 @@ import {
 } from '../../../sqlite-repo/comment-repo';
 import { createProjectRepository } from '../../../sqlite-repo/project-repo';
 import { createStorylineRepository } from '../../../sqlite-repo/storyline-repo';
+import { useAgentEditStore } from '../../../store/agent-edit-store';
 import { useDataStore, type EntityRelationLink } from '../../../store/data-store';
 import type { EntityAtomicTransactionRunner } from '../../../usecase/synced-entity-commands';
 import { effectiveAgentEditMode } from '../agent-edit-mode';
+import { computeBlockChanges, type AgentBlockChange } from '../block-diff';
+import { revertEntityBlock } from '../chapter-prose';
+import type { ProseEntityType } from '../../yjs-doc-id';
 import { throwIfAgentAborted } from './errors';
 import { deterministicAgentEntityId, hashEntityWriteValue } from './entity-write-revision';
 import type { DriftingWriteStrategy } from './drifting-write-strategies';
 import type { AgentToolExecutionRequest } from './types';
+import { createWorkspaceProseContentJson } from './workspace-prose-file';
 
 export const DRIFTING_STRUCTURAL_WRITE_TOOLS = [
   'create_node',
@@ -137,6 +146,96 @@ interface StructuralWritePayload {
     reviewId: string;
     mode: 'auto' | 'approve';
   };
+}
+
+interface StructuralCreatedProseReview {
+  entityType: ProseEntityType;
+  entityId: string;
+  changes: AgentBlockChange[];
+}
+
+const EMPTY_PROSE_CONTENT_JSON = '{"type":"doc","content":[]}';
+
+/**
+ * A structural create owns reviewable prose only when its initial body contains
+ * textual blocks with stable ids. Auto mode continues through the Added reveal;
+ * approve mode is promoted by the write runtime into a durable block review.
+ */
+export function structuralCreatedProseReviewMode(
+  value: unknown,
+): 'auto' | 'approve' | null {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    (value as { kind?: unknown }).kind !== 'structural_write_command'
+  ) {
+    return null;
+  }
+  const payload = value as StructuralWritePayload;
+  return createdProseReview(payload) ? payload.reviewSnapshot.mode : null;
+}
+
+function createdProseReview(
+  payload: StructuralWritePayload,
+): StructuralCreatedProseReview | null {
+  if (
+    !payload.mutation ||
+    typeof payload.mutation !== 'object' ||
+    !payload.reviewSnapshot ||
+    typeof payload.reviewSnapshot !== 'object' ||
+    payload.reviewSnapshot.effectId !== payload.effectId ||
+    payload.reviewSnapshot.reviewId !== `agent-review:${payload.effectId}` ||
+    (payload.reviewSnapshot.mode !== 'auto' &&
+      payload.reviewSnapshot.mode !== 'approve')
+  ) {
+    throw new Error('The structural create lost its prose-review provenance');
+  }
+
+  let entityType: ProseEntityType;
+  let contentJson: string;
+  switch (payload.mutation.kind) {
+    case 'create_node':
+      if (payload.toolName !== 'create_node' || payload.entityKind !== 'node') {
+        throw new Error('The created node review conflicts with its structural payload');
+      }
+      entityType = 'node';
+      contentJson = payload.mutation.contentJson;
+      break;
+    case 'create_element':
+      if (payload.toolName !== 'create_element' || payload.entityKind !== 'element') {
+        throw new Error('The created element review conflicts with its structural payload');
+      }
+      entityType = 'element';
+      contentJson = payload.mutation.value.contentJson;
+      break;
+    case 'create_storyline':
+      if (payload.toolName !== 'create_storyline' || payload.entityKind !== 'storyline') {
+        throw new Error('The created storyline review conflicts with its structural payload');
+      }
+      entityType = 'storyline';
+      contentJson = payload.mutation.value.contentJson;
+      break;
+    case 'create_category':
+      if (payload.toolName !== 'create_category' || payload.entityKind !== 'category') {
+        throw new Error('The created category review conflicts with its structural payload');
+      }
+      entityType = 'category';
+      contentJson = payload.mutation.value.contentJson;
+      break;
+    default:
+      return null;
+  }
+
+  const changes = computeBlockChanges(
+    EMPTY_PROSE_CONTENT_JSON,
+    contentJson,
+  ).filter(
+    (change) => change.op === 'new' && change.newText.trim().length > 0,
+  );
+  return changes.length > 0
+    ? { entityType, entityId: payload.entityId, changes }
+    : null;
 }
 
 function numericChapterOrdinal(title: string): number | null {
@@ -259,6 +358,65 @@ export function createDriftingStructuralWriteStrategy(
       };
     },
 
+    async projectReview(effect, _context, blockDecisions) {
+      const payload = parsePayload(effect.forward, toolName);
+      assertEffect(effect, payload);
+      const review = createdProseReview(payload);
+      if (!review || payload.reviewSnapshot.mode !== 'approve') return;
+      const state = useAgentEditStore.getState();
+      state.recordReview(
+        review.entityType,
+        review.entityId,
+        review.changes,
+        'approve',
+        payload.reviewSnapshot,
+      );
+      if (blockDecisions) {
+        useAgentEditStore
+          .getState()
+          .syncReviewBlockDecisions(payload.reviewSnapshot.reviewId, blockDecisions);
+      }
+    },
+
+    async reviewBlocks(effect) {
+      const payload = parsePayload(effect.forward, toolName);
+      assertEffect(effect, payload);
+      const review = createdProseReview(payload);
+      return review
+        ? review.changes.map((change, ordinal) => ({
+            blockId: change.blockId,
+            ordinal,
+          }))
+        : [];
+    },
+
+    async applyReviewBlockInverse(effect, blockId, context, signal) {
+      throwIfAgentAborted(signal);
+      const payload = parsePayload(effect.forward, toolName);
+      assertEffect(effect, payload);
+      const review = createdProseReview(payload);
+      const change = review?.changes.find(
+        (candidate) => candidate.blockId === blockId,
+      );
+      if (!review || !change) {
+        throw new Error(
+          `The durable created-prose review has no block "${blockId}"`,
+        );
+      }
+      await revertEntityBlock(
+        review.entityType,
+        review.entityId,
+        change,
+        context,
+      );
+      throwIfAgentAborted(signal);
+      return {
+        kind: 'structural_created_prose_block_revert',
+        reviewId: payload.reviewSnapshot.reviewId,
+        blockId,
+      };
+    },
+
     async applyInverse(effect, _context, signal) {
       throwIfAgentAborted(signal);
       const payload = parsePayload(effect.inverse, toolName);
@@ -321,7 +479,10 @@ async function preparePayload(
     const timestamp = now();
     if (toolName === 'create_node') {
       const kind = request.arguments.kind === 'chapter' ? 'chapter' : 'drift';
-      const contentJson = createPlainCommentDoc(String(request.arguments.body ?? ''));
+      const contentJson = await createWorkspaceProseContentJson({
+        content: String(request.arguments.body ?? ''),
+        idempotencyKey: request.idempotencyKey,
+      });
       const nodes = await createBookNodeSqliteRepository(projectId, db).findAll();
       const title = makeUniqueNodeTitle(
         requiredString(request.arguments.title, 'create_node requires title'),
@@ -385,13 +546,17 @@ async function preparePayload(
       const conflict = findElementNameConflict([name, ...aliases], elements, projectId);
       if (conflict) throw new Error(`Element name "${conflict.conflictingName}" already exists`);
       const id = await deterministicAgentEntityId(request.idempotencyKey, 'element');
+      const contentJson = await createWorkspaceProseContentJson({
+        content: String(request.arguments.body ?? ''),
+        idempotencyKey: request.idempotencyKey,
+      });
       const value: BookElement = {
         id,
         projectId,
         categoryId: category.id,
         name,
         summary: String(request.arguments.summary ?? ''),
-        contentJson: createPlainCommentDoc(String(request.arguments.body ?? '')),
+        contentJson,
         kvJson: stringifyKv(parseFacts(request.arguments.facts)),
         aliases,
         groupName:
@@ -412,6 +577,10 @@ async function preparePayload(
     if (toolName === 'create_storyline') {
       const storylines = await createStorylineRepository(projectId, db).getStorylinesByProject();
       const id = await deterministicAgentEntityId(request.idempotencyKey, 'storyline');
+      const contentJson = await createWorkspaceProseContentJson({
+        content: String(request.arguments.body ?? ''),
+        idempotencyKey: request.idempotencyKey,
+      });
       const value: Storyline = {
         id,
         projectId,
@@ -423,7 +592,7 @@ async function preparePayload(
         color: '#8B7355',
         summary: String(request.arguments.summary ?? ''),
         orderKey: storylines.reduce((maximum, item) => Math.max(maximum, item.orderKey), 0) + 1,
-        contentJson: createPlainCommentDoc(String(request.arguments.body ?? '')),
+        contentJson,
         kvJson: project.storylineTemplateKvJson || '[]',
         nodeContentTemplateJson: '{}',
         createdAt: timestamp,
@@ -443,11 +612,15 @@ async function preparePayload(
         throw new Error(`Category "${name}" already exists`);
       }
       const id = await deterministicAgentEntityId(request.idempotencyKey, 'category');
+      const contentJson = await createWorkspaceProseContentJson({
+        content: String(request.arguments.body ?? ''),
+        idempotencyKey: request.idempotencyKey,
+      });
       const value: BookElementCategory = {
         id,
         projectId,
         name,
-        contentJson: createPlainCommentDoc(String(request.arguments.body ?? '')),
+        contentJson,
         elementTemplateJson: '{}',
         elementTemplateKvJson: '[]',
         color: '#8B7355',
@@ -1029,8 +1202,8 @@ async function assertStructuralDeleteAllowed(
     if (relations.length > 0) {
       throw new Error(
         `This entity still has curated relations: ${relations
-          .map((relation) => `/relations/${workspacePathSegment(relation.id)}.json`)
-          .join(', ')}. Remove those exact files before deleting the entity.`,
+          .map((relation) => `实体关系「${relation.id}」`)
+          .join('、')}。Remove those relations before deleting the entity.`,
       );
     }
   }
@@ -1055,10 +1228,8 @@ async function assertStructuralDeleteAllowed(
     if (comments.length > 0) {
       throw new Error(
         `This entity still has attached comments or TODOs: ${comments
-          .map((comment) => `/comments/${workspacePathSegment(comment.id)}.json`)
-          .join(
-            ', ',
-          )}. Delete those exact files, or edit their target fields to retarget them, before deleting the entity.`,
+          .map((comment) => `批注或待办「${comment.id}」`)
+          .join('、')}。Delete them, or assign them to another authored object, before deleting the entity.`,
       );
     }
   }
@@ -1088,11 +1259,8 @@ async function assertStructuralDeleteAllowed(
     if (children.length > 0) {
       throw new Error(
         `This category still contains elements: ${children
-          .map(
-            (child) =>
-              `/elements/${workspacePathSegment(child.categoryName)}/${workspacePathSegment(child.elementName)}`,
-          )
-          .join(', ')}. Move or delete those exact resources before deleting the category.`,
+          .map((child) => `要素「${child.elementName}」（分类「${child.categoryName}」）`)
+          .join('、')}。Move or delete those elements before deleting the category.`,
       );
     }
   }
@@ -1119,20 +1287,12 @@ async function assertStructuralDeleteAllowed(
       throw new Error(
         `This entity still has storyline memberships in: ${[
           ...new Set(
-            memberships.map(
-              (membership) =>
-                `/storylines/${workspacePathSegment(membership.storylineName)}/chapters.json`,
-            ),
+            memberships.map((membership) => `故事线「${membership.storylineName}」章节关系`),
           ),
-        ].join(', ')}. Edit those exact files to unlink it before deleting the entity.`,
+        ].join('、')}。Remove those storyline memberships before deleting the entity.`,
       );
     }
   }
-}
-
-function workspacePathSegment(value: string): string {
-  const cleaned = value.trim() || '(untitled)';
-  return cleaned.replaceAll('%', '%25').replaceAll('/', '%2F').replaceAll('\\', '%5C');
 }
 
 async function hardDeleteCreatedEntity(
@@ -1529,12 +1689,23 @@ function resolveNode(projectId: string, value: unknown) {
 }
 
 function resolveElement(projectId: string, value: unknown) {
-  return resolveNamed(
-    useDataStore.getState().bookElements.filter((item) => item.projectId === projectId),
-    value,
-    (item) => item.name,
-    'element',
+  const elements = useDataStore
+    .getState()
+    .bookElements.filter((item) => item.projectId === projectId);
+  const reference = requiredString(value, 'element reference is required');
+  const direct = elements.find((element) => element.id === reference);
+  if (direct) return direct;
+  const matches = elements.filter((element) =>
+    allElementNames(element).some((name) => sameName(name, reference)),
   );
+  if (matches.length !== 1) {
+    throw new Error(
+      matches.length === 0
+        ? `No element named "${reference}" exists in this project`
+        : `element reference "${reference}" is ambiguous`,
+    );
+  }
+  return matches[0]!;
 }
 
 function resolveStoryline(projectId: string, value: unknown) {
@@ -1562,8 +1733,7 @@ function resolveCategory(projectId: string, value: unknown) {
       });
       if (containedMatches.length === 1) return containedMatches[0]!;
       throw new Error(
-        `${error.message}. Create it first with write_file at ` +
-          `"/categories/${reference}/body.md", then retry the same element path.`,
+        `${error.message}. Create 要素分类「${reference}」 first with write_object, then retry the same element.`,
       );
     }
     throw error;

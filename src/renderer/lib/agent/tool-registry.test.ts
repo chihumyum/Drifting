@@ -14,6 +14,10 @@ import {
   selectProviderTools,
   toAITools,
 } from './tool-registry';
+import {
+  canonicalDriftingWorkspaceProviderToolName,
+  DRIFTING_WORKSPACE_PROVIDER_TOOLS,
+} from './runtime/drifting-workspace-tool-contract';
 
 const P1_READ_NAMES = [
   'get_overview',
@@ -92,26 +96,54 @@ function dispatcherNamesFromSource(): string[] {
 }
 
 describe('canonical Agent tool catalog', () => {
-  it('teaches the filesystem facade one-write creation forms without sampling existing data', () => {
-    const tool = getRegisteredTool('write_file');
-    expect(tool?.description).toContain('/drifts/<title>/prose.md');
-    expect(tool?.description).toContain('The Chinese product label for a drift node is 灵感.');
-    expect(tool?.description).toContain('灵感, 漂移, inspiration, and drift always mean a drift node');
-    expect(tool?.description).toContain('/elements/<category>/<name>/body.md');
-    expect(tool?.description).toContain('/comments/<descriptive-name>.json');
-    expect(tool?.description).toContain('/relations/<descriptive-name>.json');
-    expect(tool?.description).toContain('never pre-create them');
-    expect(tool?.description).toContain('a clearly labeled 摘要 or Summary section');
-    expect(tool?.description).toContain('initializes the independent summary field');
-    expect(tool?.description).toContain('势力 -> 势力与组织');
-    expect(tool?.description).toContain('separate A-to-C and B-to-C files');
-    expect(tool?.description).toContain('list /elements once and reuse a suitable existing category');
-    expect(tool?.description).toContain('Never put creation and writes that reference the new resource');
-    expect(tool?.description).toContain('do not inspect unrelated existing resources');
+  it('exposes one domain-native authored-object surface without storage vocabulary', () => {
+    expect(DRIFTING_WORKSPACE_PROVIDER_TOOLS).toEqual([
+      'browse_project',
+      'read_object',
+      'search_work',
+      'revise_object',
+      'write_object',
+      'delete_object',
+    ]);
+
+    const write = getRegisteredTool('write_object');
+    expect(write?.description).toContain('第二章');
+    expect(write?.description).toContain('灵感「雨夜片段」');
+    expect(write?.description).toContain('实体关系');
+    expect(write?.description).toContain('作者规则');
+    expect(Object.keys(write?.parametersSchema.properties ?? {})).toEqual([
+      'target',
+      'body',
+      'attributes',
+      'summary',
+    ]);
+
+    const modelSurface = DRIFTING_WORKSPACE_PROVIDER_TOOLS.map((name) => {
+      const tool = getRegisteredTool(name);
+      return {
+        name: tool?.name,
+        description: tool?.description,
+        parametersSchema: tool?.parametersSchema,
+      };
+    });
+    expect(JSON.stringify(modelSurface)).not.toMatch(
+      /\b(?:filesystem|file|directory|path|oldText|newText|replacements|list_files|read_file|grep|edit_file|write_file|delete_file)\b|\.(?:md|json)\b/iu,
+    );
   });
 
-  it('documents literal occurrence counts for narrow workspace grep', () => {
-    expect(getRegisteredTool('grep')?.description).toContain('exact occurrence count');
+  it('keeps retired filesystem names outside the registry while translating durable history', () => {
+    const legacy = {
+      list_files: 'browse_project',
+      read_file: 'read_object',
+      grep: 'search_work',
+      edit_file: 'revise_object',
+      write_file: 'write_object',
+      delete_file: 'delete_object',
+    } as const;
+    for (const [retired, canonical] of Object.entries(legacy)) {
+      expect(getRegisteredTool(retired)).toBeUndefined();
+      expect(canonicalDriftingWorkspaceProviderToolName(retired)).toBe(canonical);
+    }
   });
 
   it('covers every runAgentTool handler exactly once, including the deprecated alias', () => {
@@ -199,8 +231,8 @@ describe('canonical Agent tool catalog', () => {
     expect(AGENT_READ_TOOLS).toHaveLength(18);
   });
 
-  it('keeps whole-file prose replacement on the inline-review path', () => {
-    expect(getRegisteredTool('write_file')).toMatchObject({
+  it('keeps complete prose replacement on the inline-review path', () => {
+    expect(getRegisteredTool('write_object')).toMatchObject({
       approval: 'review_after',
       revertStrategy: 'exact_inverse',
     });

@@ -84,7 +84,7 @@ implementation and current regression evidence are recorded in
 Milestone I, provider and extension platform, is complete. Its provider wire,
 MCP transport/security, durable grant and generation-lifecycle contract is in
 [`../provider-extension-protocol.md`](../provider-extension-protocol.md). The
-implementation and 162-test deterministic acceptance are recorded in
+implementation and refreshed 196-test deterministic acceptance are recorded in
 [`MILESTONE_I_EXIT_REPORT.md`](MILESTONE_I_EXIT_REPORT.md) and
 [`milestone-i-provider-extension.json`](milestone-i-provider-extension.json).
 
@@ -133,7 +133,7 @@ author prompt, `--thinking adaptive` and no effort override against a disposable
 driven fixes added transactional pre-effect provider resampling, hierarchical
 64k compaction with a two-paid-chunk pass budget, one bounded soft-recent
 recovery, tolerant but conservative exact prose matching, consistent element
-whole-file projections, and literal broad grep for metadata, relations and
+whole-object projections, and literal broad search for metadata, relations and
 punctuation. The final vague `继续。` turn completed naturally, committed a
 138,375-byte checkpoint with 16 verified summaries and passed SQLite
 `quick_check`. Exact session, failure and context metrics are in
@@ -164,6 +164,19 @@ reloaded a manuscript. Exact run metrics and the isolated-clone boundary are
 recorded in
 [`GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04.md`](GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04.md).
 
+The authored-object follow-up on 2026-08-04 replaced the provider's virtual
+filesystem contract with six author-domain verbs and exercised vague
+character-profile work on paid `deepseek-v4-flash` against disposable database
+copies. A forced 26k debug window crossed the full compactor, deleted a visible
+test relation, saved an element body and its independently named summary,
+completed the first durable target and resumed the second without rereading the
+saved body. Paid failures led to alias-consistent relation endpoints,
+summary-only safety, atomic one-target checklist titles, explicit
+`已保存`/`已删除` durable state and retirement of fulfilled summary work. The
+remaining verbose literary deliberation is attributed to the selected weak
+model unless a runtime ambiguity provably caused it; it is not enforced with a
+scope or tool-round guard.
+
 ## Current product boundary
 
 On 2026-08-05 the standalone Shadow CI product, Element Arc lens, and Goal
@@ -172,7 +185,7 @@ routes, internal tools, eval corpus, and client-side usage accounting no longer
 ship. Migration `0080_retire_shadow_arc_evolve.sql` maps legacy review states
 back to `draft`, preserves old generated comments as ordinary API comments, and
 drops the four feature-only local tables. General Agent's durable
-`workKind=review`, long-task plan, existing read/write tools, `element_patch`, live
+`workKind=review`, long-task plan, authored-object tools, `element_patch`, live
 Yjs writes, and shared comment model remain the supported composition.
 
 - The General Agent runs in the Tauri renderer through the provider-neutral
@@ -197,14 +210,18 @@ Yjs writes, and shared comment model remain the supported composition.
 - Models & API is the only writable BYOK credential surface. Copilot owns its
   provider/model route; General Agent selects its route in the chat composer.
   Both lazily resolve the shared native `byok.<provider>` Keychain entries.
-- Ordinary model turns use the virtual workspace facade; the generated
-  inventory separately records its natural provider verbs and hidden domain
-  operations so direct-catalog counts do not understate user-facing capability.
-- The virtual workspace is an implementation seam, not model memory. Named
-  authored targets resolve directly; successful writes replace raw tool
+- Ordinary model turns use the authored-object facade: `browse_project`,
+  `read_object`, `search_work`, `revise_object`, `write_object`, and
+  `delete_object`. The generated inventory separately records these natural
+  provider verbs and hidden domain operations so direct-catalog counts do not
+  understate user-facing capability.
+- The authored-object projection is an implementation seam, not model memory.
+  Named authored targets resolve directly; successful writes replace raw tool
   arguments and stale pre-write evidence with bounded semantic current state.
-  Serialization, revision, review and storage identities remain runtime-owned.
-- Virtual prose Markdown is now schema-locked in both directions. H1-H3,
+  Paths, extensions, serialization, revision, review and storage identities
+  remain runtime-owned and are absent from fresh provider schemas.
+- Authored prose interchange is schema-locked in both directions, including
+  initial chapter/drift/element/storyline/category creation seeds. H1-H3,
   blockquote, horizontal rule, hard break, bold, italic, strike, underline and
   safe links map directly to the configured TipTap/Yjs structures. Unsupported
   Markdown presentation is stripped while readable text remains ordinary
@@ -212,7 +229,7 @@ Yjs writes, and shared comment model remain the supported composition.
 - The generated nine-domain CRUD matrix closes 43 applicable lifecycle
   operations. Storyline membership is a guarded complete-graph transaction;
   comments/TODOs, relations, structural entities, project facts, and writing
-  memory all have natural workspace paths and lineage-guarded exact inverses.
+  memory all have natural authored targets and lineage-guarded exact inverses.
 - SQLite/Yjs remain authoritative. Every SQLite-backed domain mutation writes
   its typed receipt and sync outbox in the same transaction; renderer and
   localStorage state are projections only.

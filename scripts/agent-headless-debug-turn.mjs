@@ -66,7 +66,7 @@ function truncate(value, max = 800) {
 }
 
 const THINKING_MECHANICS =
-  /\b(?:JSON|Yjs|SQLite|callId|taskId|stepId|schema|serialization|escaping|expectedRevision)\b|\b(?:virtual|filesystem|file) path\b|\brevision (?:id|token|number|receipt)\b|\/(?:chapters|drifts|elements)\/|\b(?:prose|body)\.md\b|虚拟路径|文件路径|版本号|序列化|转义|数据库|工具参数/giu;
+  /\b(?:JSON|Yjs|SQLite|TipTap|ProseMirror|callId|taskId|stepId|schema|serialization|escaping|expectedRevision|receipt|transport|storage)\b|\b(?:list_files|read_file|grep|edit_file|write_file|delete_file)\b|\b(?:file|directory|filesystem|virtual path)\b|\b(?:tool|function) (?:call|name|argument|schema)\b|\brevision (?:id|token|number|receipt)\b|\/(?:chapters|drifts|elements|storylines|categories|comments|relations|memory|project)\/|\.(?:md|json|txt)\b|虚拟路径|文件路径|文件系统|目录|版本号|序列化|转义|数据库|持久化|工具参数|工具调用/giu;
 const THINKING_REREAD =
   /\b(?:re-?read|read (?:all|each|the) .* again|fresh reads?|read .* fully)\b|重新(?:通读|读取|读)|再(?:通读|读取|读)(?:一遍|一次)?|重新确认正文/giu;
 const THINKING_RUNTIME_META =
@@ -113,6 +113,53 @@ function auditThinking(state, iteration, value) {
   }
 }
 
+function normalizedAuthoredTarget(arguments_) {
+  if (!arguments_ || typeof arguments_ !== 'object') return '';
+  const target = typeof arguments_.target === 'string' ? arguments_.target : '';
+  return target
+    .normalize('NFKC')
+    .replace(/([」”"])\s*[（(]别名[：:][^）)]*[）)]/gu, '$1')
+    .replace(/(?:正文|设定|说明)$/u, '')
+    .replace(/\s+/gu, '')
+    .trim();
+}
+
+function auditDomainToolCall(state, event) {
+  const name = event.name;
+  const isRead = name === 'read_object';
+  const isSearch = name === 'search_work';
+  const isBrowse = name === 'browse_project';
+  const isMutation =
+    name === 'write_object' || name === 'revise_object' || name === 'delete_object';
+  if (isRead) state.domainAudit.readCalls += 1;
+  if (isSearch) state.domainAudit.searchCalls += 1;
+  if (isBrowse) state.domainAudit.browseCalls += 1;
+  if (isMutation) {
+    state.domainAudit.mutationCalls += 1;
+    state.domainAudit.firstMutationSeen = true;
+    state.domainAudit.maxDiscoveryStreak = Math.max(
+      state.domainAudit.maxDiscoveryStreak,
+      state.domainAudit.currentDiscoveryStreak,
+    );
+    state.domainAudit.currentDiscoveryStreak = 0;
+    const target = normalizedAuthoredTarget(event.arguments);
+    if (target) state.domainAudit.mutatedTargets.add(target);
+    return;
+  }
+  if (isRead || isSearch || isBrowse) {
+    state.domainAudit.currentDiscoveryStreak += 1;
+    if (!state.domainAudit.firstMutationSeen) {
+      state.domainAudit.discoveryCallsBeforeFirstMutation += 1;
+    }
+  }
+  if (isRead) {
+    const target = normalizedAuthoredTarget(event.arguments);
+    if (target && state.domainAudit.mutatedTargets.has(target)) {
+      state.domainAudit.postMutationRereads += 1;
+    }
+  }
+}
+
 function printAudit(state) {
   if (!state.showThinking || state.auditPrinted) return;
   state.auditPrinted = true;
@@ -148,6 +195,19 @@ function printAudit(state) {
         `iterations=${state.thinkingAudit.oversizedIterations.join(',')}`,
     );
   }
+  state.domainAudit.maxDiscoveryStreak = Math.max(
+    state.domainAudit.maxDiscoveryStreak,
+    state.domainAudit.currentDiscoveryStreak,
+  );
+  console.log(
+    `[domain-audit] browse_calls=${state.domainAudit.browseCalls} ` +
+      `read_calls=${state.domainAudit.readCalls} ` +
+      `search_calls=${state.domainAudit.searchCalls} ` +
+      `mutation_calls=${state.domainAudit.mutationCalls} ` +
+      `discovery_before_first_mutation=${state.domainAudit.discoveryCallsBeforeFirstMutation} ` +
+      `max_discovery_streak=${state.domainAudit.maxDiscoveryStreak} ` +
+      `post_mutation_rereads=${state.domainAudit.postMutationRereads}`,
+  );
 }
 
 function flushThinking(state, iteration) {
@@ -225,6 +285,7 @@ function printEvent(payload, state) {
       break;
     case 'tool_call_ready':
       flushThinking(state, event.iteration);
+      auditDomainToolCall(state, event);
       {
         const signature = `${event.name}:${JSON.stringify(event.arguments)}`;
         state.toolCallCounts.set(signature, (state.toolCallCounts.get(signature) ?? 0) + 1);
@@ -325,6 +386,18 @@ async function main() {
       characterMatchExamples: [],
       iterations: [],
       oversizedIterations: [],
+    },
+    domainAudit: {
+      browseCalls: 0,
+      readCalls: 0,
+      searchCalls: 0,
+      mutationCalls: 0,
+      discoveryCallsBeforeFirstMutation: 0,
+      currentDiscoveryStreak: 0,
+      maxDiscoveryStreak: 0,
+      postMutationRereads: 0,
+      firstMutationSeen: false,
+      mutatedTargets: new Set(),
     },
     toolCallCounts: new Map(),
     auditPrinted: false,

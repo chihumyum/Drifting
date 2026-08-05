@@ -50,6 +50,7 @@ import {
   type AgentToolResultBlock,
   type AgentToolRuntime,
   type AgentToolSelectionHints,
+  type AgentToolSelectionRequest,
   type AgentToolSelectionStrategy,
   type AgentToolValidationResult,
 } from './types';
@@ -1432,6 +1433,7 @@ export class AgentRuntime {
         (toolSearch === 'on' ||
           (toolSearch === 'auto' && definitions.length > AGENT_RUNTIME_TOOL_SEARCH_LIMIT));
       let iterationDefinitions = synthesisOnly ? [] : definitions;
+      let selectorForcedToolName: string | null = null;
       if (shouldSearch) {
         if (!this.toolSelector) {
           throw new AgentRuntimeError(
@@ -1466,19 +1468,22 @@ export class AgentRuntime {
           availableDefinitionsByName.has(name),
         );
         let selectedNames: readonly string[];
+        const selectionRequest: AgentToolSelectionRequest = {
+          definitions,
+          context,
+          iteration,
+          hints: selectionHints,
+          query: buildAgentToolSearchQuery(input.prompt, messages),
+          successfulReadNamesInPreviousBatch: [...successfulReadNamesInPreviousBatch],
+          successfulReadNamesSinceLastWrite: [...successfulReadNamesSinceLastWrite],
+          pendingResultPage: pendingResultRefs.size > 0,
+          repairToolNames,
+          limit: AGENT_RUNTIME_TOOL_SEARCH_LIMIT,
+        };
         try {
-          selectedNames = this.toolSelector.select({
-            definitions,
-            context,
-            iteration,
-            hints: selectionHints,
-            query: buildAgentToolSearchQuery(input.prompt, messages),
-            successfulReadNamesInPreviousBatch: [...successfulReadNamesInPreviousBatch],
-            successfulReadNamesSinceLastWrite: [...successfulReadNamesSinceLastWrite],
-            pendingResultPage: pendingResultRefs.size > 0,
-            repairToolNames,
-            limit: AGENT_RUNTIME_TOOL_SEARCH_LIMIT,
-          });
+          selectedNames = this.toolSelector.select(selectionRequest);
+          selectorForcedToolName =
+            this.toolSelector.forceTool?.(selectionRequest, selectedNames) ?? null;
         } catch {
           throw new AgentRuntimeError(
             'INTERNAL_ERROR',
@@ -1507,6 +1512,12 @@ export class AgentRuntime {
             );
           }
         }
+        if (selectorForcedToolName && !requested.has(selectorForcedToolName)) {
+          throw new AgentRuntimeError(
+            'INTERNAL_ERROR',
+            `Tool selection forced unselected name "${selectorForcedToolName}"`,
+          );
+        }
         const leasedNames = [
           ...repairToolNames,
           ...selectedNames.filter((name) => !repairToolNames.includes(name)),
@@ -1529,9 +1540,19 @@ export class AgentRuntime {
           }
           return definition;
         });
+        if (
+          selectorForcedToolName &&
+          !iterationDefinitions.some((definition) => definition.name === selectorForcedToolName)
+        ) {
+          throw new AgentRuntimeError(
+            'INTERNAL_ERROR',
+            `Tool selection lease omitted forced name "${selectorForcedToolName}"`,
+          );
+        }
       }
       if (forceCompletionTool) {
         iterationDefinitions = [availableDefinitionsByName.get(completionToolName!)!];
+        selectorForcedToolName = null;
       }
       // Protect a separate synthesis round whenever this provider request can
       // actually start more tool work. A tool-free/direct-answer request has
@@ -1632,7 +1653,9 @@ export class AgentRuntime {
           ? {
               toolChoice: forceCompletionTool
                 ? ({ force: completionToolName! } as const)
-                : ('auto' as const),
+                : selectorForcedToolName
+                  ? ({ force: selectorForcedToolName } as const)
+                  : ('auto' as const),
             }
           : {}),
         context: deepFreeze(clonePortableData(plannedContext.envelope.providerContext)),

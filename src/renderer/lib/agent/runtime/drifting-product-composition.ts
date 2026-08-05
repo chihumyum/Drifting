@@ -252,7 +252,6 @@ export function createDriftingAgentProductComposition(
     readRuntime: readTools,
     getContext,
     persistence: repositories.runtime,
-    writeEffects: repositories.writeEffects,
   });
   const tools = createDriftingWriteToolRuntime({
     repository: repositories.writeEffects,
@@ -388,7 +387,26 @@ export function createDriftingAgentProductComposition(
 }
 
 function normalizeEntityName(value: string): string {
-  return value.trim().normalize('NFKC').toLocaleLowerCase('en-US');
+  return value
+    .trim()
+    .normalize('NFKC')
+    .toLocaleLowerCase('en-US')
+    .replace(/[\p{P}\p{S}\s]+/gu, '');
+}
+
+function authoredLongTaskTargetName(
+  kind: 'book' | 'project' | 'chapter' | 'drift' | 'element' | 'storyline' | 'category' | 'other',
+  value: string,
+): string {
+  const name = value.trim();
+  const patterns: Partial<Record<typeof kind, RegExp>> = {
+    chapter: /^章节[「“"](.+?)[」”"](?:正文|摘要|标题)?$/u,
+    drift: /^(?:灵感|漂移)[「“"](.+?)[」”"](?:正文|摘要|标题)?$/u,
+    element: /^(?:人物|角色|地点|区域|组织|势力|物品|道具|要素)[「“"](.+?)[」”"](?:正文|设定|说明|摘要|名称|别名|事实|分组|分类|完整档案)?$/u,
+    storyline: /^故事线[「“"](.+?)[」”"](?:正文|设定|说明|摘要|名称|事实|章节关系|章节|完整档案)?$/u,
+    category: /^要素分类[「“"](.+?)[」”"](?:正文|设定|说明|完整档案)?$/u,
+  };
+  return patterns[kind]?.exec(name)?.[1]?.trim() || name;
 }
 
 function resolveUniqueNamedId(
@@ -449,6 +467,7 @@ export function resolveDriftingLongTaskTarget(input: {
   name: string;
 }): string | null {
   if (input.kind === 'other') return null;
+  const authoredName = authoredLongTaskTargetName(input.kind, input.name);
   if (input.kind === 'book' || input.kind === 'project') {
     const projectState = useProjectStore.getState();
     const projects = [
@@ -461,7 +480,7 @@ export function resolveDriftingLongTaskTarget(input: {
       projects
         .filter((project) => project.id === input.projectId)
         .map((project) => ({ id: project.id, names: [project.name] })),
-      input.name,
+      authoredName,
     );
   }
 
@@ -471,7 +490,7 @@ export function resolveDriftingLongTaskTarget(input: {
       state.bookNodes
         .filter((node) => node.projectId === input.projectId && node.kind === input.kind)
         .map((node) => ({ id: node.id, names: [node.title] })),
-      input.name,
+      authoredName,
     );
   }
   if (input.kind === 'element') {
@@ -482,7 +501,7 @@ export function resolveDriftingLongTaskTarget(input: {
           id: element.id,
           names: [element.name, ...element.aliases],
         })),
-      input.name,
+      authoredName,
     );
   }
   if (input.kind === 'category') {
@@ -490,7 +509,7 @@ export function resolveDriftingLongTaskTarget(input: {
       state.bookElementCategories
         .filter((category) => category.projectId === input.projectId)
         .map((category) => ({ id: category.id, names: [category.name] })),
-      input.name,
+      authoredName,
     );
   }
   return resolveUniqueNamedId(
@@ -500,6 +519,6 @@ export function resolveDriftingLongTaskTarget(input: {
         id: storyline.id,
         names: [storyline.name],
       })),
-    input.name,
+    authoredName,
   );
 }

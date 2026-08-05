@@ -15,7 +15,7 @@ Runtime-discovered project MCP/plugin tools are additional and generation-bound.
 | Direct catalog writes | 34 |
 | Direct write-certified | 15 |
 | Direct unavailable | 19 |
-| Workspace hidden domain operations | 25 |
+| Authored-object hidden domain operations | 25 |
 | Domain lifecycle contracts | 9 |
 | Closed domain lifecycle operations | 43 |
 | Standard context window | 200,000 tokens |
@@ -23,7 +23,7 @@ Runtime-discovered project MCP/plugin tools are additional and generation-bound.
 | App concurrency cap | none |
 
 The direct catalog count deliberately does not describe the complete user-facing
-write surface. The workspace facade exposes fewer natural verbs while routing
+write surface. The authored-object facade exposes fewer natural verbs while routing
 certified hidden domain operations through the same durable write coordinator.
 
 ## Conversation concurrency
@@ -48,25 +48,25 @@ certified hidden domain operations through the same durable write coordinator.
 
 `add_relation`, `create_category`, `create_element`, `create_node`, `create_storyline`, `delete_comment`, `delete_element`, `forget`, `link_chapter_to_storyline`, `remember`, `remove_relation`, `set_comment_kind`, `set_comment_status`, `set_entity_body`, `set_primary_storyline`, `set_summary`, `unlink_chapter_from_storyline`, `update_category`, `update_relation_kind`
 
-## Workspace facade
+## Authored-object facade
 
-Provider tools: `list_files`, `read_file`, `grep`, `edit_file`, `write_file`, `delete_file`
+Provider tools: `browse_project`, `read_object`, `search_work`, `revise_object`, `write_object`, `delete_object`
 
 Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, `update_element`, `update_storyline`, `update_project_facts`, `create_node`, `delete_node`, `create_element`, `delete_element`, `create_storyline`, `delete_storyline`, `create_category`, `update_category`, `delete_category`, `create_comment`, `update_comment`, `delete_comment`, `add_relation`, `update_relation_kind`, `remove_relation`, `set_storyline_membership`, `remember`, `update_memory`, `forget`
 
 ## Domain CRUD closure
 
-| Domain | Workspace paths | Create | Read | Update | Delete | Revert |
+| Domain | Authored targets | Create | Read | Update | Delete | Revert |
 | --- | --- | --- | --- | --- | --- | --- |
-| `node` | `/chapters/<chapter>/**`, `/drifts/<drift>/**` | closed | closed | closed | closed | closed |
-| `element` | `/elements/<category>/<element>/**` | closed | closed | closed | closed | closed |
-| `storyline` | `/storylines/<storyline>/**` | closed | closed | closed | closed | closed |
-| `category` | `/categories/<category>/**` | closed | closed | closed | closed | closed |
-| `comment_todo` | `/comments/<commentId>.json` | closed | closed | closed | closed | closed |
-| `entity_relation` | `/relations/<relationId>.json` | closed | closed | closed | closed | closed |
-| `storyline_membership` | `/storylines/<storyline>/chapters.json` | closed | closed | closed | closed | closed |
-| `agent_memory` | `/memory.json`, `/memory/<memoryId>.json` | closed | closed | closed | closed | closed |
-| `project_facts` | `/project/facts.json` | not_applicable | closed | closed | not_applicable | closed |
+| `node` | `章节「<名称>」`, `灵感「<名称>」` | closed | closed | closed | closed | closed |
+| `element` | `要素「<名称>」（分类「<分类>」）` | closed | closed | closed | closed | closed |
+| `storyline` | `故事线「<名称>」` | closed | closed | closed | closed | closed |
+| `category` | `要素分类「<名称>」` | closed | closed | closed | closed | closed |
+| `comment_todo` | `批注或待办「<handle>」` | closed | closed | closed | closed | closed |
+| `entity_relation` | `实体关系「<handle>」` | closed | closed | closed | closed | closed |
+| `storyline_membership` | `故事线「<名称>」章节关系` | closed | closed | closed | closed | closed |
+| `agent_memory` | `作者规则`, `作者规则「<handle>」` | closed | closed | closed | closed | closed |
+| `project_facts` | `项目事实` | not_applicable | closed | closed | not_applicable | closed |
 
 ## Installed built-in tools
 
@@ -74,39 +74,39 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | --- | --- | --- | --- | --- |
 | `append_paragraph` | write | catalog-direct | drifting-runtime | write-certified |
 | `ask_user` | read | runtime-control | drifting-runtime | internal-certified |
+| `browse_project` | read | authored-object-facade | workspace-runtime | internal-certified |
 | `create_comment` | write | catalog-direct | drifting-runtime | write-certified |
 | `create_element_patch` | write | catalog-direct | drifting-runtime | write-certified |
 | `delete_element_patch` | write | catalog-direct | drifting-runtime | write-certified |
-| `delete_file` | write | workspace-facade | drifting-runtime | internal-certified |
+| `delete_object` | write | authored-object-facade | drifting-runtime | internal-certified |
 | `edit_block` | write | catalog-direct | drifting-runtime | write-certified |
 | `edit_blocks` | write | catalog-direct | drifting-runtime | write-certified |
-| `edit_file` | write | workspace-facade | drifting-runtime | internal-certified |
 | `get_element_patches` | read | catalog-direct | drifting-runtime | read-certified |
 | `get_entity_relations` | read | catalog-direct | drifting-runtime | read-certified |
 | `get_overview` | read | catalog-direct | drifting-runtime | read-certified |
 | `get_project_brief` | read | catalog-direct | drifting-runtime | read-certified |
 | `get_storyline` | read | catalog-direct | drifting-runtime | read-certified |
-| `grep` | read | workspace-facade | workspace-runtime | internal-certified |
 | `insert_blocks` | write | catalog-direct | drifting-runtime | write-certified |
 | `list_comments` | read | catalog-direct | drifting-runtime | read-certified |
 | `list_elements` | read | catalog-direct | drifting-runtime | read-certified |
-| `list_files` | read | workspace-facade | workspace-runtime | internal-certified |
 | `list_materials` | read | catalog-direct | drifting-runtime | read-certified |
 | `list_memory` | read | catalog-direct | drifting-runtime | read-certified |
 | `list_nodes` | read | catalog-direct | drifting-runtime | read-certified |
 | `lookup_block` | read | catalog-direct | drifting-runtime | read-certified |
 | `read_block` | read | catalog-direct | drifting-runtime | read-certified |
 | `read_element` | read | catalog-direct | drifting-runtime | read-certified |
-| `read_file` | read | workspace-facade | workspace-runtime | internal-certified |
 | `read_material` | read | catalog-direct | drifting-runtime | read-certified |
 | `read_node` | read | catalog-direct | drifting-runtime | read-certified |
+| `read_object` | read | authored-object-facade | workspace-runtime | internal-certified |
 | `read_task_plan` | read | long-task-runtime | long-task-runtime | runtime-certified |
 | `read_tool_result` | read | runtime-control | drifting-runtime | internal-certified |
 | `remove_blocks` | write | catalog-direct | drifting-runtime | write-certified |
 | `rename_node` | write | catalog-direct | drifting-runtime | write-certified |
 | `replace_block_range` | write | catalog-direct | drifting-runtime | write-certified |
+| `revise_object` | write | authored-object-facade | drifting-runtime | internal-certified |
 | `search_project` | read | catalog-direct | drifting-runtime | read-certified |
 | `search_prose` | read | catalog-direct | drifting-runtime | read-certified |
+| `search_work` | read | authored-object-facade | workspace-runtime | internal-certified |
 | `set_node_summary` | write | catalog-direct | drifting-runtime | write-certified |
 | `update_element` | write | catalog-direct | drifting-runtime | write-certified |
 | `update_element_patch` | write | catalog-direct | drifting-runtime | write-certified |
@@ -116,7 +116,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `update_task_plan` | write | long-task-runtime | long-task-runtime | runtime-certified |
 | `update_task_step` | write | long-task-runtime | long-task-runtime | runtime-certified |
 | `where_does_entity_appear` | read | catalog-direct | drifting-runtime | read-certified |
-| `write_file` | write | workspace-facade | drifting-runtime | internal-certified |
+| `write_object` | write | authored-object-facade | drifting-runtime | internal-certified |
 
 ## Long-task execution contract
 

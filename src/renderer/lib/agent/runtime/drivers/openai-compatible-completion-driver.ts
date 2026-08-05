@@ -65,9 +65,9 @@ const DEFAULT_DRIVER_ID = 'openai-compatible-completion';
 const DEFAULT_FEATURE = 'general-agent';
 const DEFAULT_PROVIDER_ATTEMPT_RETRY: RetryConfig = {
   ...DEFAULT_RETRY,
-  maxAttempts: 4,
+  maxAttempts: 6,
   baseDelayMs: 250,
-  maxDelayMs: 2_000,
+  maxDelayMs: 4_000,
 };
 
 type ProviderSampleRecovery =
@@ -85,6 +85,10 @@ type ProviderSampleRecovery =
     }
   | {
       reason: 'missing_reasoning_content';
+      availableToolNames: readonly string[];
+    }
+  | {
+      reason: 'invalid_response';
       availableToolNames: readonly string[];
     };
 
@@ -711,6 +715,26 @@ function withProviderSampleRecovery(
   }
   const { reasoningEffort: _discardedReasoningEffort, ...actionRequest } = request;
   void _discardedReasoningEffort;
+  if (recovery.reason === 'invalid_response') {
+    return {
+      ...actionRequest,
+      thinking: false,
+      terminalRequirements: {
+        finishReason: true,
+        usage: true,
+      },
+      ...(request.tools?.length ? { toolChoice: 'required' as const } : {}),
+      messages: [
+        ...request.messages,
+        {
+          role: 'user',
+          content: JSON.stringify(
+            providerSampleRecoveryInstruction(recovery, providerAttempt),
+          ),
+        },
+      ],
+    };
+  }
   return {
     ...actionRequest,
     thinking: false,
@@ -773,6 +797,16 @@ function providerSampleRecoveryInstruction(
         availableTools: [...recovery.availableToolNames],
         instruction:
           'The previous reasoning-enabled sample emitted a tool call without the provider-required reasoning field, so it was discarded. This is a non-reasoning action-serialization recovery call. Reuse the gathered evidence, do not restart analysis or broaden discovery, and emit exactly one complete useful tool call using only availableTools.',
+      };
+    case 'invalid_response':
+      return {
+        type: 'drifting_runtime_provider_retry',
+        provenance: { origin: 'drifting_runtime' },
+        cause: 'previous_sample_was_invalid',
+        retryAttempt: providerAttempt,
+        availableTools: [...recovery.availableToolNames],
+        instruction:
+          'The previous sample was invalid and was discarded before any action escaped. Continue from the authored evidence already gathered. Emit exactly one complete, small, useful author-domain tool call using only availableTools. Do not reconstruct a large checklist or batch several actions in this recovery sample; the remaining work can continue in later iterations. Do not discuss the discarded sample, retry, provider, or operation mechanics.',
       };
   }
 }
@@ -842,6 +876,12 @@ function providerSampleRecovery(
   if (isMissingReasoningToolCallError(error)) {
     return {
       reason: 'missing_reasoning_content',
+      availableToolNames: [...availableToolNames],
+    };
+  }
+  if (error instanceof AIError && error.kind === 'parse') {
+    return {
+      reason: 'invalid_response',
       availableToolNames: [...availableToolNames],
     };
   }

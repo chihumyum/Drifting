@@ -7,6 +7,7 @@ import type {
 import { snapshotElementPatch } from '../../../domain/agent-runtime-element-patch-receipt';
 import type { PersistedAgentRuntimeWriteExpectation } from '../../../domain/agent-runtime-freshness';
 import type { PersistedAgentRuntimeWriteEffect } from '../../../domain/agent-runtime-write-effect';
+import { allElementNames } from '../../../domain/book-element';
 import { createPlainCommentDoc } from '../../../domain/comment';
 import {
   getDb,
@@ -813,7 +814,9 @@ function resolveProjectElement(projectId: string, value: unknown) {
   if (direct) return direct;
   const matches = elements.filter(
     (element) =>
-      element.name.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
+      allElementNames(element).some(
+        (name) => name.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
+      ),
   );
   if (matches.length !== 1) {
     throw new Error(

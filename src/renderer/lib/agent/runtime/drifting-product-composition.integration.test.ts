@@ -38,6 +38,7 @@ import type { AgentToolContext, AgentWriteApi } from '../tool-handlers';
 import { ProductFileBackedSqliteGateway } from './acceptance/p3-file-backed-sqlite';
 import {
   createDriftingAgentProductComposition,
+  resolveDriftingLongTaskTarget,
   type DriftingAgentProductComposition,
 } from './drifting-product-composition';
 import { getDriftingWriteStrategy } from './drifting-write-strategies';
@@ -566,6 +567,33 @@ describe.sequential('Drifting Agent product composition', () => {
     setAgentEditModeOverride(null);
   });
 
+  it('resolves author-facing checklist labels to canonical targets', () => {
+    const chapter: BookNode = {
+      id: NODE_ID,
+      projectId: PROJECT_ID,
+      kind: 'chapter',
+      title: NODE_TITLE,
+      summary: INITIAL_SUMMARY,
+      bookOrder: 0,
+      narrativeOrder: null,
+      driftGroupId: null,
+      writingStatus: 'draft',
+      position: { x: 0, y: 0 },
+      wordCount: 3,
+      createdAt: INITIAL_REVISION,
+      updatedAt: INITIAL_REVISION,
+    };
+    useDataStore.setState({ bookNodes: [chapter] });
+
+    expect(
+      resolveDriftingLongTaskTarget({
+        projectId: PROJECT_ID,
+        kind: 'chapter',
+        name: `章节「${NODE_TITLE}」`,
+      }),
+    ).toBe(NODE_ID);
+  });
+
   it('keeps safe metadata writes automatic when inline prose review is enabled', async () => {
     const turnId = 'turn-hard-approval';
     const readCallId = 'summary-read-approved';
@@ -736,19 +764,19 @@ describe.sequential('Drifting Agent product composition', () => {
     setAgentEditModeOverride('approve');
     harness = await ProductAgentHarness.create([
       {
-        name: 'read virtual prose before mixed review',
-        steps: toolCallSteps('workspace-reviewed-read', 'read_file', {
-          path: `/chapters/${NODE_TITLE}`,
+        name: 'read authored prose before mixed review',
+        steps: toolCallSteps('workspace-reviewed-read', 'read_object', {
+          target: `章节「${NODE_TITLE}」`,
         }),
       },
       {
         name: 'create two reviewable prose blocks',
-        steps: toolCallSteps(writeCallId, 'edit_file', {
-          path: `/chapters/${NODE_TITLE}`,
-          replacements: [
+        steps: toolCallSteps(writeCallId, 'revise_object', {
+          target: `章节「${NODE_TITLE}」`,
+          changes: [
             {
-              oldText: 'Before the Agent.',
-              newText: replacement,
+              currentText: 'Before the Agent.',
+              revisedText: replacement,
             },
           ],
         }),
@@ -1189,7 +1217,7 @@ describe.sequential('Drifting Agent product composition', () => {
     harness.driver.assertExhausted();
   });
 
-  it('edits a virtual prose file with semantic model output and an automatic reveal', async () => {
+  it('edits authored prose with semantic model output and an automatic reveal', async () => {
     const turnId = 'turn-workspace-edit';
     const writeCallId = 'workspace-edit';
     const replacement = 'After the quiet Agent.\n\nA newly inserted paragraph.';
@@ -1197,26 +1225,26 @@ describe.sequential('Drifting Agent product composition', () => {
     const reviewId = `agent-review:${effectId}`;
     harness = await ProductAgentHarness.create([
       {
-        name: 'read the virtual manuscript file',
+        name: 'read the authored chapter',
         expectRequest: (request) => {
           expect(request.tools.map((tool) => tool.name)).toEqual([
-            'list_files',
-            'read_file',
-            'write_file',
-            'delete_file',
-            'grep',
-            'edit_file',
+            'browse_project',
+            'read_object',
+            'write_object',
+            'delete_object',
+            'search_work',
+            'revise_object',
             'ask_user',
           ]);
           expect(request.tools.map((tool) => tool.name)).not.toContain('read_node');
           expect(request.tools.map((tool) => tool.name)).not.toContain('edit_blocks');
         },
-        steps: toolCallSteps('workspace-read', 'read_file', {
-          path: `/chapters/${NODE_TITLE}`,
+        steps: toolCallSteps('workspace-read', 'read_object', {
+          target: `章节「${NODE_TITLE}」`,
         }),
       },
       {
-        name: 'edit the virtual manuscript file',
+        name: 'revise the authored chapter',
         expectRequest: (request) => {
           const visibleContext = JSON.stringify(request.context.messages);
           expect(visibleContext).toContain('Before the Agent.');
@@ -1225,12 +1253,12 @@ describe.sequential('Drifting Agent product composition', () => {
           expect(visibleContext).not.toContain('receiptId');
           expect(visibleContext).not.toContain('node_prose');
         },
-        steps: toolCallSteps(writeCallId, 'edit_file', {
-          path: `/chapters/${NODE_TITLE}`,
-          replacements: [
+        steps: toolCallSteps(writeCallId, 'revise_object', {
+          target: `章节「${NODE_TITLE}」`,
+          changes: [
             {
-              oldText: 'Before the Agent.',
-              newText: replacement,
+              currentText: 'Before the Agent.',
+              revisedText: replacement,
             },
           ],
         }),
@@ -1247,7 +1275,7 @@ describe.sequential('Drifting Agent product composition', () => {
     expect(snapshot?.toolCalls.filter((call) => call.callId === writeCallId)).toEqual([
       expect.objectContaining({
         callId: writeCallId,
-        name: 'edit_file',
+        name: 'revise_object',
         status: 'completed',
         errorCode: null,
       }),
@@ -1257,7 +1285,7 @@ describe.sequential('Drifting Agent product composition', () => {
     ).toMatchObject({ name: 'read_node', access: 'read', status: 'completed' });
     expect(await harness.composition.repositories.writeEffects.getEffect(effectId)).toMatchObject({
       phase: 'result_committed',
-      toolName: 'edit_file',
+      toolName: 'revise_object',
       authorization: { kind: 'automatic', requestId: null },
       arguments: {
         path: `/chapters/${NODE_TITLE}/prose.md`,
@@ -1289,8 +1317,8 @@ describe.sequential('Drifting Agent product composition', () => {
     const providerTranscript = snapshot?.messages
       .map((message) => JSON.stringify(message.content))
       .join('\n');
-    expect(providerTranscript).toContain('read_file');
-    expect(providerTranscript).toContain('edit_file');
+    expect(providerTranscript).toContain('read_object');
+    expect(providerTranscript).toContain('revise_object');
     expect(providerTranscript).not.toContain('read_node');
     expect(providerTranscript).not.toContain('receiptId');
     expect(providerTranscript).not.toContain('expectedRevision');
@@ -1310,16 +1338,16 @@ describe.sequential('Drifting Agent product composition', () => {
     setAgentEditModeOverride('approve');
     harness = await ProductAgentHarness.create([
       {
-        name: 'read prose before whole-file replacement',
-        steps: toolCallSteps('workspace-whole-prose-read', 'read_file', {
-          path: `/chapters/${NODE_TITLE}/prose.md`,
+        name: 'read prose before complete replacement',
+        steps: toolCallSteps('workspace-whole-prose-read', 'read_object', {
+          target: `章节「${NODE_TITLE}」`,
         }),
       },
       {
-        name: 'replace the complete prose file',
-        steps: toolCallSteps(writeCallId, 'write_file', {
-          path: `/chapters/${NODE_TITLE}/prose.md`,
-          content: replacement,
+        name: 'replace the complete authored prose',
+        steps: toolCallSteps(writeCallId, 'write_object', {
+          target: `章节「${NODE_TITLE}」`,
+          body: replacement,
         }),
       },
       {
@@ -1335,7 +1363,7 @@ describe.sequential('Drifting Agent product composition', () => {
     );
     expect(await harness.composition.repositories.writeEffects.getEffect(effectId)).toMatchObject({
       phase: 'result_committed',
-      toolName: 'write_file',
+      toolName: 'write_object',
       authorization: { kind: 'automatic', requestId: null },
     });
     expect(await harness.composition.repositories.writeEffects.getReview(reviewId)).toMatchObject({
@@ -1364,15 +1392,15 @@ describe.sequential('Drifting Agent product composition', () => {
     harness = await ProductAgentHarness.create([
       {
         name: 'read prose before prose and summary replacement',
-        steps: toolCallSteps('workspace-prose-summary-read', 'read_file', {
-          path: `/chapters/${NODE_TITLE}/prose.md`,
+        steps: toolCallSteps('workspace-prose-summary-read', 'read_object', {
+          target: `章节「${NODE_TITLE}」`,
         }),
       },
       {
         name: 'replace prose and summary as one authored change',
-        steps: toolCallSteps(writeCallId, 'write_file', {
-          path: `/chapters/${NODE_TITLE}/prose.md`,
-          content: replacement,
+        steps: toolCallSteps(writeCallId, 'write_object', {
+          target: `章节「${NODE_TITLE}」`,
+          body: replacement,
           summary,
         }),
       },
@@ -1424,15 +1452,15 @@ describe.sequential('Drifting Agent product composition', () => {
     harness = await ProductAgentHarness.create([
       {
         name: 'read prose before the injected transaction fault',
-        steps: toolCallSteps('workspace-prose-summary-fault-read', 'read_file', {
-          path: `/chapters/${NODE_TITLE}/prose.md`,
+        steps: toolCallSteps('workspace-prose-summary-fault-read', 'read_object', {
+          target: `章节「${NODE_TITLE}」`,
         }),
       },
       {
         name: 'attempt prose and summary replacement across the transaction fault',
-        steps: toolCallSteps(writeCallId, 'write_file', {
-          path: `/chapters/${NODE_TITLE}/prose.md`,
-          content: '这段正文不应留下。',
+        steps: toolCallSteps(writeCallId, 'write_object', {
+          target: `章节「${NODE_TITLE}」`,
+          body: '这段正文不应留下。',
           summary: '这个摘要也不应留下。',
         }),
       },
@@ -1465,36 +1493,36 @@ describe.sequential('Drifting Agent product composition', () => {
     harness = await ProductAgentHarness.create([
       {
         name: 'edit element prose',
-        steps: toolCallSteps('edit-element-prose', 'edit_file', {
-          path: '/elements/People/Fixture Element/body.md',
-          replacements: [
+        steps: toolCallSteps('edit-element-prose', 'revise_object', {
+          target: '人物「Fixture Element」',
+          changes: [
             {
-              oldText: 'Before element prose.',
-              newText: 'After element prose.',
+              currentText: 'Before element prose.',
+              revisedText: 'After element prose.',
             },
           ],
         }),
       },
       {
         name: 'edit storyline prose',
-        steps: toolCallSteps('edit-storyline-prose', 'edit_file', {
-          path: '/storylines/Fixture Storyline/body.md',
-          replacements: [
+        steps: toolCallSteps('edit-storyline-prose', 'revise_object', {
+          target: '故事线「Fixture Storyline」',
+          changes: [
             {
-              oldText: 'Before storyline prose.',
-              newText: 'After storyline prose.',
+              currentText: 'Before storyline prose.',
+              revisedText: 'After storyline prose.',
             },
           ],
         }),
       },
       {
         name: 'edit category prose',
-        steps: toolCallSteps('edit-category-prose', 'edit_file', {
-          path: '/categories/People/body.md',
-          replacements: [
+        steps: toolCallSteps('edit-category-prose', 'revise_object', {
+          target: '要素分类「People」',
+          changes: [
             {
-              oldText: 'Before category prose.',
-              newText: 'After category prose.',
+              currentText: 'Before category prose.',
+              revisedText: 'After category prose.',
             },
           ],
         }),
@@ -1558,15 +1586,15 @@ describe.sequential('Drifting Agent product composition', () => {
     harness = await ProductAgentHarness.create([
       {
         name: 'read the requested drift',
-        steps: toolCallSteps('read-drift', 'read_file', {
-          path: `/drifts/${DRIFT_TITLE}/prose.md`,
+        steps: toolCallSteps('read-drift', 'read_object', {
+          target: `灵感「${DRIFT_TITLE}」`,
         }),
       },
       {
         name: 'append to the requested drift',
-        steps: toolCallSteps('edit-drift', 'edit_file', {
-          path: `/drifts/${DRIFT_TITLE}/prose.md`,
-          replacements: [{ oldText: original, newText: `${original}\n\n${appended}` }],
+        steps: toolCallSteps('edit-drift', 'revise_object', {
+          target: `灵感「${DRIFT_TITLE}」`,
+          changes: [{ currentText: original, revisedText: `${original}\n\n${appended}` }],
         }),
       },
       {
@@ -1671,6 +1699,82 @@ describe.sequential('Drifting Agent product composition', () => {
           toKind: 'patch',
           toId: PATCH_ID,
           kind: 'evidence_for',
+        },
+      },
+    });
+  });
+
+  it('resolves an element relation endpoint through an authored alias', async () => {
+    harness = await ProductAgentHarness.create([]);
+    useDataStore.setState((state) => ({
+      bookElements: state.bookElements.map((element) =>
+        element.id === ELEMENT_ID
+          ? { ...element, aliases: ['Fixture Alias'] }
+          : element,
+      ),
+    }));
+    const request: AgentToolExecutionRequest = {
+      sessionId: SESSION_ID,
+      turnId: 'turn-relation-alias-endpoint',
+      callId: 'add-alias-relation',
+      idempotencyKey: `${SESSION_ID}:turn-relation-alias-endpoint:add-alias-relation`,
+      name: 'add_relation',
+      arguments: {
+        fromKind: 'element',
+        from: 'Fixture Alias',
+        toKind: 'node',
+        to: NODE_TITLE,
+        kind: 'appears_in',
+      },
+      access: 'write',
+      context: {
+        route: {
+          kind: 'chat',
+          projectId: PROJECT_ID,
+          conversationId: CONVERSATION_ID,
+        },
+      },
+      signal: new AbortController().signal,
+    };
+    const strategy = getDriftingWriteStrategy('add_relation', {
+      freshness: harness.composition.repositories.freshness,
+      elementPatchDb: harness.database,
+    });
+    if (!strategy) throw new Error('Missing structural relation strategy');
+
+    const prepared = await strategy.prepare(
+      request,
+      { projectId: PROJECT_ID, write: {} as AgentWriteApi },
+      {
+        id: 'relation-alias-expectation',
+        effectId: `agent-write:${request.idempotencyKey}`,
+        projectId: PROJECT_ID,
+        sessionId: SESSION_ID,
+        writeTurnId: request.turnId,
+        writeToolCallId: 'tool-call-relation-alias-endpoint',
+        observationId: 'project-observation',
+        readReceiptId: 'project-read-receipt',
+        readTurnId: request.turnId,
+        readToolCallId: 'project-read-call',
+        entityKind: 'project',
+        entityId: PROJECT_ID,
+        expectedRevision: INITIAL_REVISION,
+        expectedStateVector: null,
+        expectedStateHash: null,
+        createdAt: INITIAL_REVISION,
+      },
+    );
+
+    expect(prepared.forward).toMatchObject({
+      toolName: 'add_relation',
+      mutation: {
+        kind: 'add_relation',
+        value: {
+          fromKind: 'element',
+          fromId: ELEMENT_ID,
+          toKind: 'node',
+          toId: NODE_ID,
+          kind: 'appears_in',
         },
       },
     });

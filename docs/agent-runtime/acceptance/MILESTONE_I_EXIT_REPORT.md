@@ -2,6 +2,8 @@
 
 Date: 2026-08-02
 
+Evidence refreshed: 2026-08-05
+
 Status: **complete**
 
 ## Delivered
@@ -45,10 +47,10 @@ Machine evidence is in
 
 `pnpm --dir client eval:agent:extensions` passed:
 
-- 19 Vitest files, 162/162 tests;
-- provider conformance: 57 tests;
+- 19 Vitest files, 196/196 tests;
+- provider conformance: 82 tests;
 - MCP protocol/lifecycle: 28 tests;
-- durable authority/product composition: 77 tests;
+- durable authority/product composition: 86 tests;
 - TypeScript typecheck, scoped ESLint and generated capability drift gate;
 - Rust MCP tests and `cargo check`;
 - a real temporary Node stdio child, real loopback HTTP socket and real

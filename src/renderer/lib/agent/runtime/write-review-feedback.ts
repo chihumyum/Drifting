@@ -5,6 +5,7 @@ import {
 import type { AgentContextSupplementalPinnedRow } from './context-message-adapter';
 import { describeAgentWriteTarget } from './workspace-domain-language';
 import { workspaceAuthoredReadStateFromArguments } from './drifting-workspace-tool-runtime';
+import { projectAuthoredTextForModel } from './workspace-prose-file';
 
 const MAX_FEEDBACK_ITEMS = 20;
 const SETTLED_REVIEW_STATUSES = new Set([
@@ -28,9 +29,7 @@ function isSettledReviewStatus(status: string): boolean {
   return SETTLED_REVIEW_STATUSES.has(status);
 }
 
-function blockReviewDecisionCounts(
-  note: unknown,
-): { accepted: number; reverted: number } | null {
+function blockReviewDecisionCounts(note: unknown): { accepted: number; reverted: number } | null {
   if (!note || typeof note !== 'object' || Array.isArray(note)) return null;
   const record = note as Record<string, unknown>;
   if (record.kind !== 'block_review' || record.schemaVersion !== 1) return null;
@@ -114,9 +113,7 @@ export async function buildAgentWriteReviewFeedback(
         return [];
     }
   });
-  return lines.length > 0
-    ? ['[Current author review decisions]', ...lines].join('\n')
-    : '';
+  return lines.length > 0 ? ['[Current author review decisions]', ...lines].join('\n') : '';
 }
 
 /**
@@ -202,7 +199,11 @@ export async function loadAgentWriteReviewContextRows(
     sourceId: `write-review:${state.latest.review.id}`,
     turnOrdinal: state.latest.turnOrdinal,
     kind: 'write_review',
-    content: modelFacingReviewState(state.latest.review, state.latest.effect),
+    content: modelFacingReviewState(
+      state.latest.review,
+      state.latest.effect,
+      unresolvedModelFacingRemainingWork(state.latest.effect.arguments, snapshot.effects),
+    ),
     durableWriteCoverage: state.coverage,
   }));
   if (archivedStates.length === 0) return exactRows;
@@ -213,10 +214,8 @@ export async function loadAgentWriteReviewContextRows(
       kind: 'write_review',
       content:
         `执行进度中已有可靠完成证据的对象：${summarizeDomainTargets(archivedStates.map((state) => state.target))}。` +
-        '读取或计划不算完成；只处理作者目标本身。',
-      durableWriteCoverage: uniqueWriteCoverage(
-        archivedStates.flatMap((state) => state.coverage),
-      ),
+        '读取或计划不算完成；只处理作者目标本身。不要为确认而重读；独立的摘要、关系、批注或待办可以直接处理。',
+      durableWriteCoverage: uniqueWriteCoverage(archivedStates.flatMap((state) => state.coverage)),
     },
     ...exactRows,
   ];
@@ -295,11 +294,9 @@ export async function loadAgentDurableWriteReceiptContextRows(
     );
   }
   const latestCommitted = [...latestCommittedByTarget.values()];
-  const targets = latestCommitted.map(({ effect }) =>
-    describeAgentWriteTarget(effect.toolName, effect.arguments),
-  );
+  const targets = latestCommitted.map(({ effect }) => durableDomainState(effect));
   const remainingWork = latestCommitted.flatMap(({ effect }) => {
-    const summary = modelFacingRemainingWork(effect.arguments);
+    const summary = unresolvedModelFacingRemainingWork(effect.arguments, snapshot.effects);
     return summary ? [summary] : [];
   });
 
@@ -313,7 +310,7 @@ export async function loadAgentDurableWriteReceiptContextRows(
         (remainingWork.length > 0
           ? `当前尚需处理：${summarizeDomainTargets(remainingWork)}。`
           : '') +
-        '读取或计划不算完成；只处理作者目标本身；不要只为确认而重读。',
+        '读取或计划不算完成；只处理作者目标本身。不要为确认而重读；后续若只改摘要、关系、批注、待办或其他独立字段，直接处理该字段。',
       durableWriteCoverage: committed.flatMap(({ effect, turnOrdinal, toolPairIsCanonical }) =>
         toolPairIsCanonical
           ? [
@@ -346,13 +343,9 @@ export async function loadAgentAuthoredReadProgressContextRows(
   const inapplicableEffectIds = new Set(
     snapshot.reviews
       .filter((review) =>
-        [
-          'rejected',
-          'revert_started',
-          'reverted',
-          'revert_failed',
-          'revert_unavailable',
-        ].includes(review.status),
+        ['rejected', 'revert_started', 'reverted', 'revert_failed', 'revert_unavailable'].includes(
+          review.status,
+        ),
       )
       .map((review) => review.effectId),
   );
@@ -399,10 +392,8 @@ export async function loadAgentAuthoredReadProgressContextRows(
     byTarget.set(candidate.state.targetKey, {
       target: candidate.state.target,
       summary: candidate.state.summary,
-      completeBodyRead:
-        (previous?.completeBodyRead ?? false) || candidate.state.completeBodyRead,
-      focusedBodyEdit:
-        (previous?.focusedBodyEdit ?? false) || candidate.state.focusedBodyEdit,
+      completeBodyRead: (previous?.completeBodyRead ?? false) || candidate.state.completeBodyRead,
+      focusedBodyEdit: (previous?.focusedBodyEdit ?? false) || candidate.state.focusedBodyEdit,
       currentPassages: uniqueStrings([
         ...(previous?.currentPassages ?? []),
         ...candidate.state.currentPassages,
@@ -415,12 +406,12 @@ export async function loadAgentAuthoredReadProgressContextRows(
     .filter((state) => state.completeBodyRead)
     .slice(-MAX_FEEDBACK_ITEMS)
     .map((state) => {
-      const summary = [...state.summary.replace(/\s+/gu, ' ').trim()]
-        .slice(0, 1_200)
-        .join('');
+      const summary = [...state.summary.replace(/\s+/gu, ' ').trim()].slice(0, 1_200).join('');
       const passages = state.focusedBodyEdit
         ? state.currentPassages
-            .map((passage) => passage.replace(/\s+/gu, ' ').trim())
+            .map((passage) =>
+              projectAuthoredTextForModel(passage).text.replace(/\s+/gu, ' ').trim(),
+            )
             .filter(Boolean)
             .slice(-8)
         : [];
@@ -436,7 +427,7 @@ export async function loadAgentAuthoredReadProgressContextRows(
                 .map((passage) => `「${[...passage].slice(0, 320).join('')}」`)
                 .join('；')}。`
             : '') +
-          '只有出现新的具体疑点时才需要再次查看正文。',
+          '只有新的具体编辑决定必须依赖当前正文措辞时才需要再次查看；更新摘要、关系、批注、待办或其他独立字段不需要重读正文。',
       };
     });
 }
@@ -456,9 +447,9 @@ function modelFacingReviewState(
     errorMessage?: string | null;
   },
   effect: { toolName: string; arguments: unknown },
+  remaining: string | null = modelFacingRemainingWork(effect.arguments),
 ): string {
   const target = describeAgentWriteTarget(effect.toolName, effect.arguments);
-  const remaining = modelFacingRemainingWork(effect.arguments);
   const remainingSuffix = remaining ? `仍待完成：${remaining}。` : '';
   const blockDecisions = blockReviewDecisionCounts(review.decisionNote);
   if (review.status === 'accepted_effect' && blockDecisions?.reverted) {
@@ -468,7 +459,9 @@ function modelFacingReviewState(
     case 'pending':
     case 'accepted':
     case 'accepted_effect':
-      return `${target}已有可靠完成证据并属于当前稿件。${remainingSuffix}读取或计划不算完成；只处理作者目标本身；只在确实还要改这个对象时查看正文。`;
+      return remaining
+        ? `${target}当前已保存的部分属于稿件。${remainingSuffix}只处理上面明确列出的剩余字段；不要为确认而再次查看正文。`
+        : `${target}已有可靠完成证据并属于当前稿件。读取或计划不算完成；只处理作者目标本身。不要为确认而再次查看；后续若只改摘要、关系、批注、待办或其他独立字段，直接处理该字段。仅当新的具体编辑决定必须依赖当前正文措辞时才查看正文。`;
     case 'rejected':
     case 'revert_started':
       return `${target}的改动已被作者拒绝，正在还原。依赖它继续编辑前先读取当前内容。`;
@@ -490,11 +483,92 @@ function summarizeDomainTargets(targets: readonly string[]): string {
   return `${visible.join('、') || '作品内容'}${hidden > 0 ? `等另 ${hidden} 项` : ''}`;
 }
 
+function durableDomainState(effect: { toolName: string; arguments: unknown }): string {
+  const target = describeAgentWriteTarget(effect.toolName, effect.arguments);
+  return `${target}${isDurableDelete(effect) ? '已删除' : '已保存'}`;
+}
+
+function isDurableDelete(effect: { toolName: string; arguments: unknown }): boolean {
+  if (/^(?:delete|remove)_/u.test(effect.toolName)) return true;
+  if (
+    !effect.arguments ||
+    typeof effect.arguments !== 'object' ||
+    Array.isArray(effect.arguments)
+  ) {
+    return false;
+  }
+  const command = (effect.arguments as Record<string, unknown>).__workspaceCommand;
+  if (!command || typeof command !== 'object' || Array.isArray(command)) return false;
+  const name = (command as Record<string, unknown>).name;
+  return typeof name === 'string' && /^(?:delete|remove)_/u.test(name);
+}
+
 function modelFacingRemainingWork(arguments_: unknown): string | null {
   return (
     modelFacingWorkField(arguments_) ??
     (hiddenSummaryWasCleared(arguments_) ? '当前摘要为空，需要补写' : null)
   );
+}
+
+function unresolvedModelFacingRemainingWork(
+  arguments_: unknown,
+  effects: readonly {
+    toolName: string;
+    arguments: unknown;
+    phase?: string;
+  }[],
+): string | null {
+  const remaining = modelFacingRemainingWork(arguments_);
+  if (!remaining) return null;
+  const deferred = deferredSummaryRequest(arguments_);
+  if (!deferred) return remaining;
+  const fulfilled = effects.some((effect) => {
+    if (effect.phase !== undefined && effect.phase !== 'result_committed') return false;
+    if (describeAgentWriteTarget(effect.toolName, effect.arguments) !== deferred.target) {
+      return false;
+    }
+    return authoredSummaryValue(effect.arguments) === deferred.summary;
+  });
+  return fulfilled ? null : remaining;
+}
+
+function deferredSummaryRequest(arguments_: unknown): { target: string; summary: string } | null {
+  if (!arguments_ || typeof arguments_ !== 'object' || Array.isArray(arguments_)) return null;
+  const value = (arguments_ as Record<string, unknown>).remainingWork;
+  if (typeof value !== 'string') return null;
+  const match = value.match(/((?:要素|故事线)「[^」]+」摘要)仍需单独更新为：([\s\S]+)$/u);
+  if (!match?.[1] || !match[2]) return null;
+  return {
+    target: match[1].trim(),
+    summary: normalizeAuthoredValue(match[2]),
+  };
+}
+
+function authoredSummaryValue(arguments_: unknown): string | null {
+  if (!arguments_ || typeof arguments_ !== 'object' || Array.isArray(arguments_)) return null;
+  const record = arguments_ as Record<string, unknown>;
+  for (const key of ['content', 'summary', 'body'] as const) {
+    if (typeof record[key] === 'string') return normalizeAuthoredValue(record[key]);
+  }
+  const command = record.__workspaceCommand;
+  if (!command || typeof command !== 'object' || Array.isArray(command)) return null;
+  const commandArguments = (command as Record<string, unknown>).arguments;
+  if (
+    !commandArguments ||
+    typeof commandArguments !== 'object' ||
+    Array.isArray(commandArguments)
+  ) {
+    return null;
+  }
+  const summary = (commandArguments as Record<string, unknown>).summary;
+  return typeof summary === 'string' ? normalizeAuthoredValue(summary) : null;
+}
+
+function normalizeAuthoredValue(value: string): string {
+  return value
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .replace(/[。；;\s]+$/u, '');
 }
 
 /**
@@ -510,7 +584,11 @@ function hiddenSummaryWasCleared(arguments_: unknown): boolean {
   const commandRecord = command as Record<string, unknown>;
   if (commandRecord.name !== 'set_node_summary') return false;
   const commandArguments = commandRecord.arguments;
-  if (!commandArguments || typeof commandArguments !== 'object' || Array.isArray(commandArguments)) {
+  if (
+    !commandArguments ||
+    typeof commandArguments !== 'object' ||
+    Array.isArray(commandArguments)
+  ) {
     return false;
   }
   return (commandArguments as Record<string, unknown>).summary === '';
@@ -525,7 +603,7 @@ function modelFacingWorkField(arguments_: unknown): string | null {
     !compact ||
     /(?:局部修改|正文已变化|目标已不在|重新定位|跳过|未重复执行)/u.test(compact) ||
     /\b(?:stale|skipped|not found|already changed|local edit)\b/iu.test(compact) ||
-    /\b(?:json|path|revision|receipt|writeref|yjs|sqlite|write_file|edit_file)\b/iu.test(
+    /\b(?:json|path|revision|receipt|writeref|yjs|sqlite|write_file|edit_file|write_object|revise_object)\b/iu.test(
       compact,
     )
   ) {

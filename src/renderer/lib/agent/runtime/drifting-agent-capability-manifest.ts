@@ -33,12 +33,12 @@ import { AGENT_PROVIDER_OPTIONS } from './agent-provider-contract';
 import { DRIFTING_MCP_PROTOCOL_VERSION } from './mcp-transport';
 import { DRIFTING_AGENT_CONCURRENCY_CONTRACT } from './agent-concurrency-contract';
 
-export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 13 as const;
+export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 16 as const;
 
 export type DriftingAgentToolOwner = 'workspace-runtime' | 'drifting-runtime' | 'long-task-runtime';
 
 export type DriftingAgentToolSurface =
-  | 'workspace-facade'
+  | 'authored-object-facade'
   | 'catalog-direct'
   | 'runtime-control'
   | 'long-task-runtime';
@@ -79,7 +79,7 @@ export interface DriftingAgentCapabilityManifest {
     certifiedNames: string[];
     unavailableNames: string[];
   };
-  workspaceFacade: {
+  authoredObjectFacade: {
     providerTools: string[];
     hiddenDomainOperations: string[];
   };
@@ -182,7 +182,7 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
     catalogCapability(
       requiredCatalogTool(name),
       workspaceReadNames.has(name) ? 'workspace-runtime' : 'drifting-runtime',
-      'workspace-facade',
+      'authored-object-facade',
     ),
   );
   const directEntries = listProviderTools({ allowWrite: true }).map((tool) =>
@@ -250,7 +250,7 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
       certifiedNames: certifiedWrites,
       unavailableNames: unavailableWrites,
     },
-    workspaceFacade: {
+    authoredObjectFacade: {
       providerTools: [...DRIFTING_WORKSPACE_PROVIDER_TOOLS],
       hiddenDomainOperations: [...DRIFTING_WORKSPACE_COMMAND_NAMES],
     },

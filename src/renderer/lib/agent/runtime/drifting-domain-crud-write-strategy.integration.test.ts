@@ -20,8 +20,15 @@ import {
   StorylineTable,
 } from '../../../schema/drizzle';
 import { createAgentMemoryRepository } from '../../../sqlite-repo/agent-memory-repo';
+import { createBookContentRepository } from '../../../sqlite-repo/content-repo';
+import { createBookNodeSqliteRepository } from '../../../sqlite-repo/node-repo';
+import { createYjsRepository } from '../../../sqlite-repo/yjs-repo';
+import { useAgentEditStore } from '../../../store/agent-edit-store';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
+import { useSettingsStore } from '../../../store/settings-store';
+import { proseDocId } from '../../yjs-doc-id';
+import { setAgentEditModeOverride } from '../agent-edit-mode';
 import type { AgentToolContext } from '../tool-handlers';
 import { ProductFileBackedSqliteGateway } from './acceptance/p3-file-backed-sqlite';
 import {
@@ -29,6 +36,7 @@ import {
   type DriftingAgentProductComposition,
 } from './drifting-product-composition';
 import { getDriftingWriteStrategy } from './drifting-write-strategies';
+import { createYjsProseSeedState } from './yjs-prose-command';
 import type {
   AgentModelDriver,
   AgentRuntimeContext,
@@ -63,6 +71,7 @@ const LATEST_MIGRATION_TIMESTAMP =
 
 const initialDataState = useDataStore.getState();
 const initialProjectState = useProjectStore.getState();
+const initialAgentEditMode = useSettingsStore.getState().agentEditMode;
 
 const unusedDriver: AgentModelDriver = {
   id: 'domain-crud-unused-driver',
@@ -75,10 +84,16 @@ describe('workspace domain CRUD transactions', () => {
   let fixture: DomainCrudFixture;
 
   beforeEach(async () => {
+    setAgentEditModeOverride(null);
+    useSettingsStore.getState().setAgentEditMode(initialAgentEditMode);
+    useAgentEditStore.getState().clearAll();
     fixture = await DomainCrudFixture.create();
   });
 
   afterEach(async () => {
+    setAgentEditModeOverride(null);
+    useSettingsStore.getState().setAgentEditMode(initialAgentEditMode);
+    useAgentEditStore.getState().clearAll();
     useDataStore.setState(initialDataState, true);
     useProjectStore.setState(initialProjectState, true);
     await fixture.close();
@@ -86,6 +101,9 @@ describe('workspace domain CRUD transactions', () => {
 
   it('materializes the prose word count when a new chapter or drift is created', async () => {
     const prose = '# 灰港\n\n潮声越过旧码头。The tide turns twice.';
+    // The leading H1 repeats the semantic object title and is normalized out
+    // before Yjs becomes canonical, so the persisted count is body-only.
+    const persistedProse = '潮声越过旧码头。The tide turns twice.';
     const created = await fixture.write('node-create-with-prose', 'write_file', {
       path: '/drifts/灰港/prose.md',
       content: prose,
@@ -97,17 +115,237 @@ describe('workspace domain CRUD transactions', () => {
         result: {
           path: '/drifts/灰港/prose.md',
           operation: 'created',
-          wordCount: countWords(prose),
+          wordCount: countWords(persistedProse),
         },
       },
     });
     if (!created.ok) throw new Error(created.error);
-    expect(created.modelData).toContain(`当前 ${countWords(prose)} 字`);
+    expect(created.modelData).toContain(`当前 ${countWords(persistedProse)} 字`);
     expect(
       fixture.scalar(
         "SELECT word_count FROM book_node WHERE title = '灰港' AND deleted_at IS NULL",
       ),
-    ).toBe(countWords(prose));
+    ).toBe(countWords(persistedProse));
+  });
+
+  it('keeps every textual block of a newly created object pending in approve mode', async () => {
+    const callId = 'reviewed-created-drift';
+    const effectId = `agent-write:${SESSION_ID}:turn:${callId}:${callId}`;
+    const reviewId = `agent-review:${effectId}`;
+    const body = '# 待审标题\n\n第一段。\n\n第二段。';
+    useSettingsStore.getState().setAgentEditMode('approve');
+
+    const created = await fixture.write(callId, 'write_object', {
+      target: '灵感「待审潮痕」',
+      body,
+    });
+
+    expect(created).toMatchObject({
+      ok: true,
+      data: {
+        result: { operation: 'created' },
+        review: { id: reviewId, status: 'pending' },
+      },
+    });
+    const blocks = await fixture.composition.repositories.writeEffects.listReviewBlocks(
+      reviewId,
+    );
+    expect(blocks).toHaveLength(3);
+    expect(blocks.map((block) => block.ordinal)).toEqual([0, 1, 2]);
+
+    const editorState = useAgentEditStore.getState();
+    const reviewBatch = editorState.reviewBatches[reviewId];
+    expect(reviewBatch).toMatchObject({
+      effectId,
+      reviewId,
+      entityType: 'node',
+    });
+    expect(
+      reviewBatch?.changes.map((change) => ({
+        op: change.op,
+        newText: change.newText,
+        mode: change.mode,
+        reviewId: change.reviewId,
+      })),
+    ).toEqual([
+      { op: 'new', newText: '待审标题', mode: 'approve', reviewId },
+      { op: 'new', newText: '第一段。', mode: 'approve', reviewId },
+      { op: 'new', newText: '第二段。', mode: 'approve', reviewId },
+    ]);
+
+    const node = useDataStore
+      .getState()
+      .bookNodes.find((candidate) => candidate.title === '待审潮痕');
+    if (!node || !reviewBatch) throw new Error('The reviewed created drift is missing');
+    const contentRepository = createBookContentRepository(fixture.database);
+    const nodeRepository = createBookNodeSqliteRepository(PROJECT_ID, fixture.database);
+    const initialContent = await contentRepository.findByNodeId(node.id);
+    if (!initialContent) throw new Error('The reviewed created prose is missing');
+    await createYjsRepository(fixture.database).upsertSnapshot(
+      proseDocId('node', node.id),
+      await createYjsProseSeedState(initialContent.contentJson),
+      { advanceRevision: false },
+    );
+    fixture.context.write = {
+      updateContentByNodeId: async (
+        id: string,
+        updates: { contentJson?: string },
+      ) => contentRepository.updateByNodeId(id, updates),
+      updateNode: async (id: string, updates: { wordCount?: number }) => {
+        const updated = await nodeRepository.update(id, {
+          ...updates,
+          updatedAt: '2026-08-02T00:10:00.000Z',
+        });
+        if (!updated) throw new Error('The reviewed node projection could not be updated');
+        useDataStore.setState((state) => ({
+          bookNodes: state.bookNodes.map((candidate) =>
+            candidate.id === id ? updated : candidate,
+          ),
+        }));
+        return updated;
+      },
+    } as unknown as AgentToolContext['write'];
+
+    const rejectedChange = reviewBatch.changes.find(
+      (change) => change.newText === '第二段。',
+    );
+    if (!rejectedChange) throw new Error('The rejectable created block is missing');
+    await expect(
+      fixture.composition.tools.rejectReviewBlock(
+        reviewId,
+        rejectedChange.blockId,
+        'Reject one block from newly created prose',
+      ),
+    ).resolves.toMatchObject({
+      review: { status: 'pending' },
+      block: { status: 'reverted' },
+    });
+    for (const change of reviewBatch.changes) {
+      if (change.blockId === rejectedChange.blockId) continue;
+      await fixture.composition.tools.acceptReviewBlock(
+        reviewId,
+        change.blockId,
+        'Accept remaining newly created prose',
+      );
+    }
+
+    expect(
+      await fixture.composition.repositories.writeEffects.getReview(reviewId),
+    ).toMatchObject({ status: 'accepted_effect' });
+    const settledContent = await contentRepository.findByNodeId(node.id);
+    expect(settledContent?.contentJson).toContain('第一段。');
+    expect(settledContent?.contentJson).not.toContain('第二段。');
+    expect(await nodeRepository.findById(node.id)).not.toBeNull();
+  });
+
+  it('uses the schema-safe Markdown adapter for every newly created authored prose object', async () => {
+    const body = '## 初始档案\n\n这是**粗体**与<u>下划线</u>。\n\n> 引用';
+    useSettingsStore.getState().setAgentEditMode('approve');
+
+    const creations = [
+      ['formatted-category-create', {
+        target: '要素分类「信件」',
+        body,
+      }],
+      ['formatted-element-create', {
+        target: '要素「远方来函」（分类「信件」）',
+        body,
+      }],
+      ['formatted-storyline-create', {
+        target: '故事线「格式故事线」',
+        body,
+      }],
+      ['formatted-drift-create', {
+        target: '灵感「格式灵感」',
+        body,
+      }],
+      ['formatted-chapter-create', {
+        target: '章节「格式章节」',
+        body,
+      }],
+    ] as const;
+
+    for (const [callId, args] of creations) {
+      const result = await fixture.write(callId, 'write_object', args);
+      expect(result, JSON.stringify(result)).toMatchObject({
+        ok: true,
+        data: { review: { status: 'pending' } },
+      });
+      if (!result.ok) throw new Error(result.error);
+      const reviewId = (result.data as { review?: { id?: unknown } }).review?.id;
+      if (typeof reviewId !== 'string') {
+        throw new Error(`The ${callId} create did not expose its durable review`);
+      }
+      const blocks = await fixture.composition.repositories.writeEffects.listReviewBlocks(
+        reviewId,
+      );
+      expect(blocks.map((block) => block.ordinal)).toEqual([0, 1, 2]);
+    }
+
+    const createdBodies = [
+      fixture.text(
+        "SELECT content_json FROM element_category WHERE name = '信件' AND deleted_at IS NULL",
+      ),
+      fixture.text(
+        "SELECT content_json FROM element WHERE name = '远方来函' AND deleted_at IS NULL",
+      ),
+      fixture.text(
+        "SELECT content_json FROM storylines WHERE name = '格式故事线' AND deleted_at IS NULL",
+      ),
+      fixture.text(
+        "SELECT nc.content_json FROM node_content nc JOIN book_node n ON n.id = nc.node_id WHERE n.title = '格式灵感' AND n.deleted_at IS NULL",
+      ),
+      fixture.text(
+        "SELECT nc.content_json FROM node_content nc JOIN book_node n ON n.id = nc.node_id WHERE n.title = '格式章节' AND n.deleted_at IS NULL",
+      ),
+    ];
+
+    for (const contentJson of createdBodies) {
+      expect(JSON.parse(contentJson)).toMatchObject({
+        type: 'doc',
+        content: [
+          {
+            type: 'heading',
+            attrs: { id: expect.any(String), level: 2 },
+            content: [{ type: 'text', text: '初始档案' }],
+          },
+          {
+            type: 'paragraph',
+            attrs: { id: expect.any(String) },
+            content: expect.arrayContaining([
+              {
+                type: 'text',
+                text: '粗体',
+                marks: [{ type: 'bold', attrs: {} }],
+              },
+              {
+                type: 'text',
+                text: '下划线',
+                marks: [{ type: 'underline', attrs: {} }],
+              },
+            ]),
+          },
+          { type: 'blockquote', attrs: { id: expect.any(String) } },
+        ],
+      });
+    }
+  });
+
+  it('keeps entity receipts owned by the authored-object facade', async () => {
+    const result = await fixture.write('authored-project-facts', 'write_object', {
+      target: '项目事实',
+      attributes: [{ name: '气候', value: '终年多雨' }],
+    });
+
+    expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
+    expect(fixture.text(`SELECT kv_json FROM project WHERE id = '${PROJECT_ID}'`)).toContain(
+      '终年多雨',
+    );
+    expect(
+      fixture.scalar(
+        "SELECT count(*) FROM agent_runtime_entity_write_receipt WHERE tool_name = 'update_project_facts'",
+      ),
+    ).toBe(1);
   });
 
   it('places a newly created numbered chapter into an available reading-order gap', async () => {
@@ -470,7 +708,7 @@ describe('workspace domain CRUD transactions', () => {
       }),
     ).resolves.toMatchObject({
       ok: false,
-      error: expect.stringContaining('read-only'),
+      error: expect.stringContaining('cannot be overwritten directly'),
     });
 
     const proposal = await fixture.write('memory-supersede', 'write_file', {
@@ -633,7 +871,7 @@ describe('workspace domain CRUD transactions', () => {
       ),
     ).resolves.toMatchObject({
       ok: false,
-      error: expect.stringContaining('complete resource'),
+      error: expect.stringContaining('complete 灵感「Idea」'),
     });
     expect(useDataStore.getState().bookNodes).toEqual(
       expect.arrayContaining([expect.objectContaining({ title: 'Idea' })]),
@@ -937,6 +1175,7 @@ describe('workspace domain CRUD transactions', () => {
     );
     const relationPath = (relation as { data: { result: { canonicalPath: string } } }).data.result
       .canonicalPath;
+    const relationId = relationPath.slice('/relations/'.length, -'.json'.length);
     await expect(
       fixture.write(
         'delete-blocked-by-relation',
@@ -944,7 +1183,10 @@ describe('workspace domain CRUD transactions', () => {
         { path: '/chapters/Chapter One' },
         'author_approved',
       ),
-    ).resolves.toMatchObject({ ok: false, error: expect.stringContaining(relationPath) });
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining(`实体关系「${relationId}」`),
+    });
     await fixture.write(
       'delete-blocker-relation-remove',
       'delete_file',
@@ -963,6 +1205,7 @@ describe('workspace domain CRUD transactions', () => {
     });
     const commentPath = (comment as { data: { result: { canonicalPath: string } } }).data.result
       .canonicalPath;
+    const commentId = commentPath.slice('/comments/'.length, -'.json'.length);
     await expect(
       fixture.write(
         'delete-blocked-by-comment',
@@ -970,7 +1213,10 @@ describe('workspace domain CRUD transactions', () => {
         { path: '/chapters/Chapter One' },
         'author_approved',
       ),
-    ).resolves.toMatchObject({ ok: false, error: expect.stringContaining(commentPath) });
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining(`批注或待办「${commentId}」`),
+    });
     await fixture.write(
       'delete-blocker-comment-remove',
       'delete_file',
@@ -987,7 +1233,7 @@ describe('workspace domain CRUD transactions', () => {
       ),
     ).resolves.toMatchObject({
       ok: false,
-      error: expect.stringContaining('/storylines/Main/chapters.json'),
+      error: expect.stringContaining('故事线「Main」章节关系'),
     });
   });
 });
@@ -1050,7 +1296,13 @@ class DomainCrudFixture {
 
   async write(
     callId: string,
-    name: 'write_file' | 'edit_file' | 'delete_file',
+    name:
+      | 'write_object'
+      | 'revise_object'
+      | 'delete_object'
+      | 'write_file'
+      | 'edit_file'
+      | 'delete_file',
     arguments_: Record<string, unknown>,
     authorization: 'automatic' | 'author_approved' = 'automatic',
   ): Promise<AgentToolExecutionResult> {
@@ -1175,7 +1427,17 @@ class DomainCrudFixture {
 
   private async request(
     callId: string,
-    name: 'write_file' | 'edit_file' | 'delete_file' | 'list_files' | 'read_file',
+    name:
+      | 'write_object'
+      | 'revise_object'
+      | 'delete_object'
+      | 'browse_project'
+      | 'read_object'
+      | 'write_file'
+      | 'edit_file'
+      | 'delete_file'
+      | 'list_files'
+      | 'read_file',
     access: 'read' | 'write',
     arguments_: Record<string, unknown>,
   ): Promise<AgentToolExecutionRequest> {

@@ -132,6 +132,25 @@ describe('Agent edit review block decisions', () => {
     ]);
   });
 
+  it('leaves a fully reviewed new file in approve mode instead of seeding auto reveal', () => {
+    const store = useAgentEditStore.getState();
+    store.recordReview('node', 'node-added', changes, 'approve', {
+      effectId: 'effect-created',
+      reviewId: 'review-created',
+    });
+    store.recordAddition('node', 'node-added');
+
+    expect(store.beginAdditionReveal('node', 'node-added', changes)).toEqual([]);
+    expect(useAgentEditStore.getState().pending['node:node-added']?.changes).toEqual(
+      changes.map((change) => ({
+        ...change,
+        mode: 'approve',
+        effectId: 'effect-created',
+        reviewId: 'review-created',
+      })),
+    );
+  });
+
   it('atomically replaces a pre-live auto guard with its canonical review projection', () => {
     const store = useAgentEditStore.getState();
     store.stageAutoRevealGuard('node', 'node-1', 'review-guarded', [

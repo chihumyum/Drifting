@@ -7,10 +7,7 @@
  * rows.
  */
 
-import {
-  WORKSPACE_COMPLETE_READ_MODEL_MARKER,
-  WORKSPACE_NOOP_WRITE_MODEL_MARKER,
-} from './drifting-workspace-tool-contract';
+import { WORKSPACE_NOOP_WRITE_MODEL_MARKER } from './drifting-workspace-tool-contract';
 
 export const AGENT_CONTEXT_CHECKPOINT_VERSION = 2 as const;
 export const AGENT_CONTEXT_CHECKPOINT_FORMAT = 'drifting.agent-context-checkpoint' as const;
@@ -1198,7 +1195,7 @@ function recentExactSourceIds(input: {
 
 function isAuthoredReadUnit(rows: readonly AgentContextSourceRow[]): boolean {
   return rows.some(
-    (row) => row.toolAccess === 'read' && row.toolName === 'read_file',
+    (row) => row.toolAccess === 'read' && isAuthoredObjectReadTool(row.toolName),
   );
 }
 
@@ -1462,6 +1459,9 @@ function authoredToolTargetFingerprint(row: AgentContextSourceRow): string | nul
   if (!arguments_ || typeof arguments_ !== 'object' || Array.isArray(arguments_)) return null;
   const record = arguments_ as Record<string, unknown>;
   const targetKeys = [
+    'target',
+    'collection',
+    'within',
     'path',
     'node',
     'entity',
@@ -1516,16 +1516,10 @@ function staleReadSourceIds(input: {
       return [];
     }
     const target = authoredToolTargetFingerprint(pair.call);
-    const resultContent = parsedToolPayload(pair.result)?.content;
     return target
       ? [{
           ordinal: pair.call.ordinal,
-          turnOrdinal: pair.call.turnOrdinal,
           target,
-          focusedEdit: pair.call.toolName === 'edit_file',
-          completeReadCarriedForward:
-            typeof resultContent === 'string' &&
-            resultContent.includes(WORKSPACE_COMPLETE_READ_MODEL_MARKER),
         }]
       : [];
   });
@@ -1533,7 +1527,8 @@ function staleReadSourceIds(input: {
   for (const pair of input.toolPairs) {
     if (
       pair.call.toolAccess !== 'read' ||
-      (pair.call.toolName !== 'read_file' && pair.call.toolName !== 'grep')
+      (!isAuthoredObjectReadTool(pair.call.toolName) &&
+        !isAuthoredObjectSearchTool(pair.call.toolName))
     ) {
       continue;
     }
@@ -1547,13 +1542,14 @@ function staleReadSourceIds(input: {
     if (laterWrites.length === 0) {
       continue;
     }
-    const keepCurrentWorkingCopy =
-      pair.call.toolName === 'read_file' &&
-      laterWrites.every(
-        (write) => write.turnOrdinal === pair.call.turnOrdinal && write.focusedEdit,
-      ) &&
-      laterWrites.some((write) => write.completeReadCarriedForward);
-    if (keepCurrentWorkingCopy) continue;
+    // Once an authored object has been durably changed, the body that was read
+    // before that change is no longer a working copy. Keeping it through a
+    // compaction makes the provider compare committed current-state evidence
+    // with obsolete prose and can trigger a second, duplicate editing pass.
+    // The semantic read-progress row and durable write result carry forward
+    // what was completed. If another prose pass is genuinely needed, a fresh
+    // read is the only reliable source because focused replacements cannot
+    // reconstruct the entire current body.
     stale.add(pair.call.sourceId);
     stale.add(pair.result.sourceId);
   }
@@ -1647,7 +1643,7 @@ function supersededReadSourceIds(toolPairs: readonly ToolPair[]): Set<string> {
 function completeReadTargetFingerprint(pair: ToolPair): string | null {
   if (
     pair.call.toolAccess !== 'read' ||
-    pair.call.toolName !== 'read_file' ||
+    !isAuthoredObjectReadTool(pair.call.toolName) ||
     parsedToolPayload(pair.result)?.ok !== true
   ) {
     return null;
@@ -1656,13 +1652,21 @@ function completeReadTargetFingerprint(pair: ToolPair): string | null {
   const arguments_ = call?.arguments;
   if (!arguments_ || typeof arguments_ !== 'object' || Array.isArray(arguments_)) return null;
   const record = arguments_ as Record<string, unknown>;
-  const offset = record.offset;
-  if (offset !== undefined && offset !== 0) return null;
+  const cursor = record.cursor ?? record.offset;
+  if (cursor !== undefined && cursor !== 0) return null;
   const result = parsedToolPayload(pair.result);
   const content = typeof result?.content === 'string' ? result.content : '';
   if (!content || /这份内容尚未读完|"truncated"\s*:\s*true/iu.test(content)) return null;
   const target = authoredToolTargetFingerprint(pair.call);
   return target ? canonicalJson({ toolName: pair.call.toolName, target }) : null;
+}
+
+function isAuthoredObjectReadTool(name: string | undefined): boolean {
+  return name === 'read_object' || name === 'read_file';
+}
+
+function isAuthoredObjectSearchTool(name: string | undefined): boolean {
+  return name === 'search_work' || name === 'grep';
 }
 
 async function applySummaryBatch(input: {

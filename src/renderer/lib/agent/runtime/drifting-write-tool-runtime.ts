@@ -24,7 +24,9 @@ import {
   createYjsRepository,
   type YjsRepository,
 } from '../../../sqlite-repo/yjs-repo';
+import { allElementNames } from '../../../domain/book-element';
 import { useDataStore } from '../../../store/data-store';
+import { useAgentEditStore } from '../../../store/agent-edit-store';
 import { useProjectStore } from '../../../store/project-store';
 import {
   getActiveAgentToolContext,
@@ -44,6 +46,7 @@ import {
   type DriftingWriteStrategy,
   type PreparedDriftingWriteEffect,
 } from './drifting-write-strategies';
+import { structuralCreatedProseReviewMode } from './drifting-structural-write-strategy';
 import type { YjsProsePersistenceCoordinator } from './yjs-prose-persistence-coordinator';
 import { getDb, type DbExecutor } from '../../../lib/db';
 import type { AgentRuntimeElementPatchReceiptRepository } from '../../../sqlite-repo/agent-runtime-element-patch-receipt-repo';
@@ -62,8 +65,10 @@ import type {
   AgentToolRuntime,
 } from './types';
 import {
+  canonicalDriftingWorkspaceProviderToolName,
   DRIFTING_WORKSPACE_DELETE_TOOL,
   DRIFTING_WORKSPACE_EDIT_TOOL,
+  DRIFTING_WORKSPACE_READ_TOOLS,
   DRIFTING_WORKSPACE_WRITE_TOOL,
   isWorkspaceNoopWriteSignal,
   workspaceAuthoredReadStateFromArguments,
@@ -78,6 +83,7 @@ import {
   describeAgentWriteTarget,
   describeWorkspaceDomainWriteResult,
 } from './workspace-domain-language';
+import { toolEntityRef } from '../tool-entity-ref';
 import { proseDocId, type ProseEntityType } from '../../yjs-doc-id';
 import {
   AgentWriteCollaborationGuard,
@@ -179,9 +185,9 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     this.collaborationGuard = options.collaborationGuard ?? new AgentWriteCollaborationGuard();
     this.revisionProvenance =
       options.revisionProvenance ?? createYjsRepository(options.elementPatchDb);
-    this.resolveStrategy =
+    const resolveStrategy =
       options.resolveStrategy ??
-      ((name) =>
+      ((name: string) =>
         getDriftingWriteStrategy(name, {
           freshness: this.freshness,
           ...(options.elementPatchDb ? { elementPatchDb: options.elementPatchDb } : {}),
@@ -203,6 +209,8 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
           ...(options.readNodeContent ? { readNodeContent: options.readNodeContent } : {}),
           dispatch: this.dispatch,
         }));
+    this.resolveStrategy = (name) =>
+      resolveStrategy(canonicalDriftingWorkspaceProviderToolName(name) ?? name);
   }
 
   listDefinitions(context: AgentRuntimeContext): readonly AgentToolDefinition[] {
@@ -234,6 +242,14 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     if (direct) return direct.name;
     const delegated = this.readRuntime.resolveCanonicalName?.(name, context);
     if (delegated) return delegated;
+    const canonicalWorkspaceName = canonicalDriftingWorkspaceProviderToolName(name);
+    if (canonicalWorkspaceName && canonicalWorkspaceName !== name) {
+      return this.listDefinitions(context).some(
+        (definition) => definition.name === canonicalWorkspaceName,
+      )
+        ? canonicalWorkspaceName
+        : undefined;
+    }
     const registered = getRegisteredTool(name);
     if (!registered || registered.name === name) return undefined;
     return this.listDefinitions(context).some(
@@ -248,7 +264,12 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       return this.readRuntime.execute(request);
     }
     throwIfAgentAborted(request.signal);
-    const tool = getRegisteredTool(request.name);
+    const canonicalWorkspaceName = canonicalDriftingWorkspaceProviderToolName(request.name);
+    const effectivePublicRequest =
+      canonicalWorkspaceName && canonicalWorkspaceName !== request.name
+        ? { ...request, name: canonicalWorkspaceName }
+        : request;
+    const tool = getRegisteredTool(effectivePublicRequest.name);
     const workspaceFacade = isWorkspaceWriteFacade(tool);
     if (
       !tool ||
@@ -263,10 +284,14 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       };
     }
     try {
-      const effectiveRequest = await this.prepareRequest(request);
-      if (effectiveRequest.name !== tool.name) {
+      const preparedRequest = await this.prepareRequest(effectivePublicRequest);
+      if (preparedRequest.name !== tool.name) {
         throw new Error('Runtime request preparation cannot change the public tool name');
       }
+      const effectiveRequest =
+        request.name !== preparedRequest.name
+          ? { ...preparedRequest, name: request.name }
+          : preparedRequest;
       const strategy = this.resolveStrategy(tool.name);
       if (!strategy) {
         return {
@@ -888,7 +913,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       turnId: request.turnId,
       toolCallId: runtimeToolCallId(request),
       callId: request.callId,
-      toolName: tool.name,
+      toolName: request.name,
       idempotencyKey: request.idempotencyKey,
       authorization,
       toolCallArguments,
@@ -1269,8 +1294,9 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
   ): Promise<AgentToolExecutionResult | null> {
     switch (effect.phase) {
       case 'result_committed': {
+        const result = persistedExecutionResult(effect.result);
+        projectWorkspaceCreatedAddition(effect, result);
         if (effect.authorization) {
-          const result = persistedExecutionResult(effect.result);
           const descriptor = activeEditorReview(effect, tool);
           if (!descriptor) return result;
           const review = await this.ensureCommittedReview(
@@ -1285,7 +1311,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
         // Compatibility for effects created before central authorization. A
         // crash could leave their deterministic review row missing.
         return withCanonicalReviewStatus(
-          persistedExecutionResult(effect.result),
+          result,
           await this.ensureLegacyCommittedReview(effect),
         );
       }
@@ -1397,6 +1423,10 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       result,
       at: this.now(),
     });
+    // Added presentation must come from the canonical local result, not the
+    // provider-facing `modelData`. The latter is intentionally natural prose
+    // and no longer exposes storage fields such as `operation: "created"`.
+    projectWorkspaceCreatedAddition(effect, result);
     if (descriptor) {
       // The repository intentionally requires a result-committed effect before
       // it will create the review row. Projection remains last, so the badge
@@ -1660,17 +1690,20 @@ export function createDriftingWriteToolRuntime(
 }
 
 export function resolveDriftingCertifiedToolAccess(name: string): 'read' | 'write' | undefined {
+  if (name === 'read_tool_result' || name === 'ask_user') {
+    return 'read';
+  }
+  const canonicalWorkspaceName = canonicalDriftingWorkspaceProviderToolName(name);
+  const tool = getRegisteredTool(canonicalWorkspaceName ?? name);
   if (
-    name === 'read_tool_result' ||
-    name === 'ask_user' ||
-    name === 'list_files' ||
-    name === 'read_file' ||
-    name === 'grep'
+    tool?.scope === 'runtime-virtual' &&
+    DRIFTING_WORKSPACE_READ_TOOLS.includes(
+      tool.name as (typeof DRIFTING_WORKSPACE_READ_TOOLS)[number],
+    )
   ) {
     return 'read';
   }
-  if (workspaceFacadeName(name)) return 'write';
-  const tool = getRegisteredTool(name);
+  if (tool && workspaceFacadeName(tool.name)) return 'write';
   if (
     !tool ||
     tool.scope !== 'general' ||
@@ -1683,10 +1716,11 @@ export function resolveDriftingCertifiedToolAccess(name: string): 'read' | 'writ
 }
 
 function workspaceFacadeName(name: string): boolean {
+  const canonical = canonicalDriftingWorkspaceProviderToolName(name);
   return (
-    name === DRIFTING_WORKSPACE_EDIT_TOOL ||
-    name === DRIFTING_WORKSPACE_WRITE_TOOL ||
-    name === DRIFTING_WORKSPACE_DELETE_TOOL
+    canonical === DRIFTING_WORKSPACE_EDIT_TOOL ||
+    canonical === DRIFTING_WORKSPACE_WRITE_TOOL ||
+    canonical === DRIFTING_WORKSPACE_DELETE_TOOL
   );
 }
 
@@ -1704,7 +1738,9 @@ function isWorkspaceWriteFacade(
 }
 
 function requireReconciliationTool(effect: PersistedAgentRuntimeWriteEffect): RegisteredTool {
-  const tool = getRegisteredTool(effect.toolName);
+  const tool = getRegisteredTool(
+    canonicalDriftingWorkspaceProviderToolName(effect.toolName) ?? effect.toolName,
+  );
   const workspaceFacade = isWorkspaceWriteFacade(tool);
   if (
     !tool ||
@@ -2259,7 +2295,10 @@ function resolveProjectElement(projectId: string, value: unknown) {
   const direct = elements.find((element) => element.id === ref);
   if (direct) return direct;
   const matches = elements.filter(
-    (element) => element.name.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
+    (element) =>
+      allElementNames(element).some(
+        (name) => name.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
+      ),
   );
   if (matches.length !== 1) {
     throw new Error(
@@ -2489,7 +2528,9 @@ function workspaceVisibleWriteResult(
   const remainingWork = recordString(arguments_, 'remainingWork');
   const authoredReadState = workspaceAuthoredReadStateFromArguments(arguments_);
   if (!path) throw new Error('The workspace write lost its public path');
-  if (effect.toolName === DRIFTING_WORKSPACE_DELETE_TOOL) {
+  const canonicalToolName =
+    canonicalDriftingWorkspaceProviderToolName(effect.toolName) ?? effect.toolName;
+  if (canonicalToolName === DRIFTING_WORKSPACE_DELETE_TOOL) {
     return {
       path,
       updated: true,
@@ -2498,7 +2539,7 @@ function workspaceVisibleWriteResult(
       ...(remainingWork ? { remainingWork } : {}),
     };
   }
-  if (effect.toolName === DRIFTING_WORKSPACE_WRITE_TOOL) {
+  if (canonicalToolName === DRIFTING_WORKSPACE_WRITE_TOOL) {
     const command = workspaceCommandFromArguments(arguments_);
     const created = Boolean(
       command?.name.startsWith('create_') ||
@@ -2674,6 +2715,45 @@ function workspaceModelWriteResult(
   return describeWorkspaceDomainWriteResult(result);
 }
 
+/**
+ * Project a successful workspace create into the persisted first-open Added
+ * reveal state. This runs after `result_committed` and also on idempotent result
+ * replay, closing the gap where model-facing natural language contained no
+ * machine-readable `operation` field.
+ */
+function projectWorkspaceCreatedAddition(
+  effect: PersistedAgentRuntimeWriteEffect,
+  executionResult: AgentToolExecutionResult,
+): void {
+  if (
+    !executionResult.ok ||
+    !workspaceFacadeName(effect.toolName) ||
+    !executionResult.data ||
+    typeof executionResult.data !== 'object' ||
+    Array.isArray(executionResult.data)
+  ) {
+    return;
+  }
+  const visibleResult = (executionResult.data as { result?: unknown }).result;
+  if (
+    !visibleResult ||
+    typeof visibleResult !== 'object' ||
+    Array.isArray(visibleResult) ||
+    (visibleResult as { operation?: unknown }).operation !== 'created'
+  ) {
+    return;
+  }
+  const toolName =
+    canonicalDriftingWorkspaceProviderToolName(effect.toolName) ?? effect.toolName;
+  const ref = toolEntityRef(
+    toolName,
+    effect.arguments,
+    JSON.stringify(visibleResult),
+  );
+  if (ref?.op !== 'create') return;
+  useAgentEditStore.getState().recordAddition(ref.entityType, ref.id);
+}
+
 function workspaceResultPathSegment(value: string): string {
   return value
     .trim()
@@ -2695,15 +2775,18 @@ function activeEditorReview(
   tool: RegisteredTool,
 ): { id: string; mode: 'auto' | 'approve' } | null {
   if (tool.approval !== 'review_after') return null;
-  if (
-    !effect.forward ||
-    typeof effect.forward !== 'object' ||
-    Array.isArray(effect.forward) ||
-    (effect.forward as { kind?: unknown }).kind !== 'yjs_prose'
-  ) {
-    // `edit_file` is a facade over several independently certified writes.
-    // Only its Yjs prose expansion has an editor block-diff surface; title,
-    // summary, and other non-prose writes complete without a fake chat review.
+  if (!effect.forward || typeof effect.forward !== 'object' || Array.isArray(effect.forward)) {
+    return null;
+  }
+  const kind = (effect.forward as { kind?: unknown }).kind;
+  const structuralMode =
+    kind === 'structural_write_command'
+      ? structuralCreatedProseReviewMode(effect.forward)
+      : null;
+  if (kind !== 'yjs_prose' && structuralMode !== 'approve') {
+    // Auto-mode structural creates use the Added first-open reveal. An approve-
+    // mode create with textual prose joins the durable block-review path below;
+    // metadata-only writes still complete without a fake editor review.
     return null;
   }
   const reviewSnapshot = (effect.forward as { reviewSnapshot?: unknown })
@@ -2777,15 +2860,34 @@ function publicWorkspaceWriteError(error: unknown): string {
     return error.message;
   }
   const message = publicWriteError(error);
+  if (/INCOMPLETE_AUTHORED_OBJECT_READ/iu.test(message)) {
+    return 'The complete current body must be read before replacing this authored object. Continue from the returned reading cursor, or make only the focused passage revision that is needed.';
+  }
+  if (/STALE_EDIT_TARGET/iu.test(message)) {
+    return 'The requested passage changed before this revision could be applied. Continue the creative task; locate that passage once more only if this specific change still matters.';
+  }
+  if (/read-only|cannot be overwritten directly/iu.test(message)) {
+    return 'This authored object cannot be overwritten directly because its current version is approved or read-only. Create a new author-owned version when the work should evolve.';
+  }
   if (
     /\b(?:Yjs|freshness|expectedRevision|revision|state\s*(?:vector|hash)|read_node|receipt)\b/i.test(
       message,
     )
   ) {
-    return 'The file changed while it was being edited. Read the current file and apply the replacement again.';
+    return 'The authored object changed while it was being revised. Read its current state and apply the intended revision again.';
   }
   if (/\b(?:nodeId|entityId|docId|commandId)\b/i.test(message)) {
-    return 'The file could not be saved safely. Read the current file before retrying.';
+    return 'The authored object could not be saved safely. Read its current state before retrying.';
+  }
+  if (
+    /\b(?:filesystem|file|directory|path|json|list_files|read_file|grep|write_file|edit_file|delete_file)\b/iu.test(
+      message,
+    ) ||
+    /\/(?:chapters|drifts|elements|storylines|categories|comments|relations|memory)(?:\/|\b)/iu.test(
+      message,
+    )
+  ) {
+    return 'The requested authored-object change could not be applied. Read the current object state, then retry the still-needed editorial change once.';
   }
   return message;
 }

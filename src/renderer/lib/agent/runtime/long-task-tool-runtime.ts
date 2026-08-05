@@ -85,25 +85,50 @@ const STEP_STATUSES = [
   'failed',
 ] as const satisfies readonly AgentRuntimeTaskStepStatus[];
 
+const WHOLE_MANUSCRIPT_OBJECTIVE_PATTERN =
+  /(?:全书|整本|整部|所有章节|全部章节|每一章|整个作品|全部正文|whole\s+(?:book|manuscript)|entire\s+(?:book|manuscript)|all\s+chapters|every\s+chapter)/iu;
+
+function objectiveExplicitlyCoversWholeManuscript(objective: string): boolean {
+  return WHOLE_MANUSCRIPT_OBJECTIVE_PATTERN.test(objective.normalize('NFKC'));
+}
+
 const targetSchema = Type.Object(
   {
     kind: Type.Union(TARGET_KINDS.map((kind) => Type.Literal(kind))),
-    name: Type.String({ minLength: 1, maxLength: 240 }),
+    name: Type.String({
+      minLength: 1,
+      maxLength: 240,
+      description:
+        'One exact authored target name. Never combine several characters, chapters, or elements into a fabricated name; create one step per named primary object. A cross-object cleanup deliverable may instead target the current project.',
+    }),
   },
   { additionalProperties: false },
 );
 
 const workKindSchema = Type.Union([Type.Literal('edit'), Type.Literal('review')]);
-const stepWorkKindSchema = Type.Union([
+const persistedStepWorkKindSchema = Type.Union([
   Type.Literal('edit'),
   Type.Literal('review'),
   Type.Literal('research'),
 ]);
+const providerStepWorkKindSchema = Type.Union([Type.Literal('edit'), Type.Literal('review')], {
+  description:
+    'Use edit for an author-visible saved result. Use review only for a standalone critique, diagnostic, or review report explicitly requested by the author. Reading, evidence gathering, and ordinary before/after self-checks happen inside the relevant edit and are never checklist items.',
+});
 
-const stepSeedSchema = Type.Object(
+const persistedStepSeedSchema = Type.Object(
   {
     title: Type.String({ minLength: 1, maxLength: 500 }),
-    workKind: Type.Optional(stepWorkKindSchema),
+    workKind: Type.Optional(persistedStepWorkKindSchema),
+    target: targetSchema,
+  },
+  { additionalProperties: false },
+);
+
+const providerStepSeedSchema = Type.Object(
+  {
+    title: Type.String({ minLength: 1, maxLength: 500 }),
+    workKind: Type.Optional(providerStepWorkKindSchema),
     target: targetSchema,
   },
   { additionalProperties: false },
@@ -139,7 +164,7 @@ const updatePlanCommandSchema = Type.Union([
       scopeKind: Type.Literal('explicit_targets'),
       objective: Type.String({ minLength: 1, maxLength: 4_000 }),
       workKind: Type.Optional(workKindSchema),
-      steps: Type.Array(stepSeedSchema, {
+      steps: Type.Array(persistedStepSeedSchema, {
         minItems: 1,
         maxItems: 128,
       }),
@@ -170,7 +195,7 @@ const updatePlanCommandSchema = Type.Union([
       operation: Type.Literal('append_steps'),
       taskId: Type.String({ minLength: 1, maxLength: 240 }),
       expectedRevision: Type.Integer({ minimum: 0 }),
-      steps: Type.Array(stepSeedSchema, {
+      steps: Type.Array(persistedStepSeedSchema, {
         minItems: 1,
         maxItems: 128,
       }),
@@ -234,7 +259,7 @@ const updatePlanProviderSchema = Type.Object(
     objective: Type.Optional(Type.String({ minLength: 1, maxLength: 4_000 })),
     workKind: Type.Optional(workKindSchema),
     steps: Type.Optional(
-      Type.Array(stepSeedSchema, {
+      Type.Array(providerStepSeedSchema, {
         minItems: 1,
         maxItems: 128,
       }),
@@ -264,7 +289,7 @@ const updatePlanSemanticCommandSchema = Type.Union([
       scopeKind: Type.Literal('explicit_targets'),
       objective: Type.String({ minLength: 1, maxLength: 4_000 }),
       workKind: Type.Optional(workKindSchema),
-      steps: Type.Array(stepSeedSchema, { minItems: 1, maxItems: 128 }),
+      steps: Type.Array(providerStepSeedSchema, { minItems: 1, maxItems: 128 }),
       constraints: Type.Optional(
         Type.Array(Type.String({ minLength: 1, maxLength: 2_000 }), { maxItems: 32 }),
       ),
@@ -286,7 +311,7 @@ const updatePlanSemanticCommandSchema = Type.Union([
   Type.Object(
     {
       operation: Type.Literal('append_steps'),
-      steps: Type.Array(stepSeedSchema, { minItems: 1, maxItems: 128 }),
+      steps: Type.Array(providerStepSeedSchema, { minItems: 1, maxItems: 128 }),
     },
     { additionalProperties: false },
   ),
@@ -576,10 +601,7 @@ function validation(schema: TSchema, input: Record<string, unknown>) {
   };
 }
 
-function validationEither(
-  schemas: readonly TSchema[],
-  input: Record<string, unknown>,
-) {
+function validationEither(schemas: readonly TSchema[], input: Record<string, unknown>) {
   for (const schema of schemas) {
     const checked = validation(schema, input);
     if (checked.ok) return checked;
@@ -633,10 +655,7 @@ function nextActionableStep(plan: AgentRuntimeTaskPlan) {
   );
 }
 
-function resolveChecklistStep(
-  plan: AgentRuntimeTaskPlan,
-  selector: string | number,
-) {
+function resolveChecklistStep(plan: AgentRuntimeTaskPlan, selector: string | number) {
   if (typeof selector === 'number') {
     const step = plan.steps.find((candidate) => candidate.ordinal === selector - 1);
     if (step) return step;
@@ -778,7 +797,7 @@ export function projectAgentLongTaskPlanForProvider(
     continuation: {
       nextStepId: nextActionableStep(plan)?.id ?? null,
       instruction:
-        'Resume this same task after compaction or restart. Continue in_progress first, then pending work; revisit blocked review steps only after their status changes. Never repeat completed steps; continue until the plan is complete or progress is genuinely blocked.',
+        'Resume this same task after compaction or restart. Prioritize the current in_progress item, otherwise the first pending item. Reuse evidence already returned and gather whatever concrete authored evidence is genuinely needed for this deliverable; avoid repeating the same discovery without a new reason. This focus is not a scope restriction: inspect or modify related authored objects when cross-object work requires it. Adopt reliable saved-change notes, never repeat saved work, and mark the current item completed once its authored result is saved. Continue until the checklist is complete or progress is genuinely blocked.',
     },
   };
 }
@@ -804,11 +823,23 @@ function taskPlanModelData(
   if (projection.chapterManifestState?.status === 'drifted') {
     lines.push('作品章节清单已经变化，需要先更新这份任务清单。');
   }
-  for (const step of projection.steps) {
-    const target = step.target?.name ? `（${step.target.name}）` : '';
-    const availability = step.target && 'availability' in step.target ? '，当前已不存在' : '';
+  const next =
+    projection.steps.find((step) => step.status === 'in_progress') ??
+    projection.steps.find((step) => step.status === 'pending') ??
+    projection.steps.find((step) => step.status === 'blocked');
+  if (next) {
+    const target = next.target?.name ? `（${next.target.name}）` : '';
+    const availability = next.target && 'availability' in next.target ? '，当前已不存在' : '';
+    const workKind =
+      next.workKind === 'research'
+        ? ' [只读结论]'
+        : next.workKind === 'review'
+          ? ' [审阅结论]'
+          : '';
     lines.push(
-      `${step.ordinal + 1}. [${statusLabel[step.status] ?? step.status}] ${step.title}${target}${availability}${step.resultNote ? ` — ${step.resultNote}` : ''}`,
+      `当前交付：${next.ordinal + 1}. [${statusLabel[next.status] ?? next.status}]${workKind} ${next.title}${target}${availability}${next.resultNote ? ` — ${next.resultNote}` : ''}`,
+      '其余交付项已排队；优先完成并登记当前项。这只是执行焦点，不是范围限制：跨对象工作确有需要时，可以读取或修改相关作者对象。',
+      '优先复用已经返回的作品证据；按当前交付实际需要获取具体证据，避免没有新理由地重复盘点。可靠的已保存结果无需重做。',
     );
   }
   if (projection.activeConstraints.length > 0) {
@@ -817,11 +848,77 @@ function taskPlanModelData(
       ...projection.activeConstraints.map((constraint) => `- ${constraint.body}`),
     );
   }
-  const next = projection.steps.find(
-    (step) => step.status === 'in_progress' || step.status === 'pending',
-  );
-  if (next) lines.push(`下一项：${next.ordinal + 1}. ${next.title}`);
   return lines.join('\n');
+}
+
+function normalizedProviderStepWorkKind(
+  step: ProviderStepSeed,
+  objective: string,
+): ProviderStepSeed['workKind'] {
+  if (step.workKind !== 'review') {
+    return step.workKind ?? inferredReadOnlyStepKind(step.title);
+  }
+  const task = `${objective} ${step.title}`.normalize('NFKC');
+  const includesMutation = includesAuthoredMutation(task);
+  const explicitlyRequestsReviewDeliverable =
+    /(?:评审报告|审稿报告|审阅意见|诊断报告|点评|批评|评估报告|分析报告)/u.test(task);
+  return includesMutation && !explicitlyRequestsReviewDeliverable ? 'research' : 'review';
+}
+
+function normalizedProviderStepTitle(
+  step: ProviderStepSeed & { workKind: NonNullable<ProviderStepSeed['workKind']> },
+  siblingTargetNames: readonly string[],
+): string {
+  const title = step.title.trim();
+  if (!['chapter', 'drift', 'element', 'storyline', 'category'].includes(step.target.kind)) {
+    return title;
+  }
+  const ownName = step.target.name.trim();
+  const foreignTargets = siblingTargetNames.filter(
+    (name) => name !== ownName && name.length > 0 && title.includes(name),
+  );
+  if (foreignTargets.length < 2) return title;
+  const action =
+    step.workKind === 'review' ? '审阅' : step.workKind === 'research' ? '调查' : '整理';
+  const targetLabel: Record<string, string> = {
+    chapter: '章节',
+    drift: '灵感',
+    element: '要素',
+    storyline: '故事线',
+    category: '要素分类',
+  };
+  return `${action}${targetLabel[step.target.kind]}「${ownName}」`;
+}
+
+function includesAuthoredMutation(value: string): boolean {
+  return /(?:修改|改写|润色|整理|清理|补写|补齐|创建|新建|删除|更新|修复|重构|建立|新增|追加|插入|移除|改名|合并)/u.test(
+    value.normalize('NFKC'),
+  );
+}
+
+function inferredReadOnlyStepKind(title: string): 'research' | undefined {
+  const normalized = title.normalize('NFKC').trim();
+  if (
+    !/^(?:读取|阅读|查阅|浏览|搜索|检索|查找|收集|盘点|核对|检查|复核|自检|验收|确认)/u.test(
+      normalized,
+    )
+  ) {
+    return undefined;
+  }
+  return includesAuthoredMutation(normalized) ? undefined : 'research';
+}
+
+function isProcessOnlyEditStep(
+  step: ProviderStepSeed & { workKind: NonNullable<ProviderStepSeed['workKind']> },
+): boolean {
+  if (step.workKind === 'research') return true;
+  if (step.workKind !== 'edit') return false;
+  const normalized = step.title.normalize('NFKC').trim();
+  return (
+    /^(?:读取|阅读|查阅|浏览|搜索|检索|查找|收集|盘点|核对|检查|复核|自检|验收|确认)/u.test(
+      normalized,
+    ) && !includesAuthoredMutation(normalized)
+  );
 }
 
 export class AgentLongTaskToolRuntime implements AgentToolRuntime {
@@ -856,7 +953,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_LONG_TASK_PLAN_TOOL,
         description:
-          'Create or maintain the current writing-task checklist. create requires scopeKind and objective; explicit_targets also requires one named step per authored target, while whole_book_chapters automatically uses the current chapter order and must omit steps. append_steps adds named work, set_objective renames the task, reconcile_manifest refreshes a changed whole-book chapter list, and set_status changes the whole checklist status. Drifting resolves the active checklist and concurrency details automatically.',
+          'Create or maintain the current writing-task checklist. A checklist contains unfinished author-facing deliverables, never separate steps for reading, browsing, searching, gathering evidence, or ordinary before/after self-checks; do those while completing the relevant edit deliverable. Use review only when the author explicitly requested a standalone critique, diagnostic, or review report with cited evidence. create requires scopeKind and objective. Use whole_book_chapters only when the objective explicitly says every chapter or the entire manuscript; it automatically uses the complete current chapter order and must omit steps. With explicit_targets, make one step per exact named primary authored object; never invent a compound element such as A/B/C档案. A genuinely cross-object cleanup may use one project target. If work was already saved before this checklist became available, include only unfinished deliverables; reliable saved-change notes remain the truth. append_steps adds named work, set_objective renames the task, reconcile_manifest refreshes a changed whole-book chapter list, and set_status changes the whole checklist status. Drifting resolves the active checklist and concurrency details automatically.',
         inputSchema: updatePlanProviderSchema,
         access: 'write',
         validateInput: (input) =>
@@ -865,10 +962,11 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       {
         name: AGENT_LONG_TASK_STEP_TOOL,
         description:
-          'Change one item in the current writing-task checklist. Identify it by its one-based number, exact title, or authored target name. Only one item may be in_progress, but already-finished pending work may be marked completed directly. For review completion, include the structured reviewResult with exact authored quotes; for research completion, include a short resultNote. Drifting binds saved reads and edits automatically.',
+          'Change one item in the current writing-task checklist. Identify it by its one-based number, exact title, or authored target name. Only one item may be in_progress, but already-finished pending work may be marked completed directly. After a saved change satisfies an item, mark it completed before starting unrelated discovery; reliable saved-change notes remain valid across compaction and must not be repeated. For a standalone review completion, include the structured reviewResult with exact authored quotes. A read-only conclusion inherited from an older checklist completes with a short resultNote. Drifting binds saved reads and edits automatically.',
         inputSchema: updateStepProviderSchema,
         access: 'write',
-        validateInput: (input) => validationEither([updateStepProviderSchema, updateStepSchema], input),
+        validateInput: (input) =>
+          validationEither([updateStepProviderSchema, updateStepSchema], input),
       },
       {
         name: AGENT_LONG_TASK_CONSTRAINT_TOOL,
@@ -1052,10 +1150,29 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
   private async resolveSteps(
     projectId: string,
     input: readonly ProviderStepSeed[],
+    objective: string,
+    taskWorkKind: 'edit' | 'review',
   ): Promise<AgentRuntimeTaskStepSeed[]> {
+    const normalized = input.map((step) => ({
+      ...step,
+      workKind: normalizedProviderStepWorkKind(step, objective) ?? taskWorkKind,
+    }));
+    const deliverables =
+      taskWorkKind === 'edit' && includesAuthoredMutation(objective)
+        ? normalized.filter((step) => !isProcessOnlyEditStep(step))
+        : normalized;
+    if (deliverables.length === 0) {
+      throw new AgentRuntimeLongTaskConflictError(
+        'TASK_PLAN_INVALID',
+        '编辑任务清单只能列作者可验收的保存结果。请把阅读、资料收集和普通自检放进相关修改步骤，而不是单列清单项。',
+      );
+    }
+    const siblingTargetNames = [
+      ...new Set(deliverables.map((step) => step.target.name.trim()).filter(Boolean)),
+    ];
     return Promise.all(
-      input.map(async (step) => ({
-        title: step.title.trim(),
+      deliverables.map(async (step) => ({
+        title: normalizedProviderStepTitle(step, siblingTargetNames),
         workKind: step.workKind,
         target: step.target
           ? {
@@ -1125,10 +1242,7 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       ? await this.repository.getPlan(scope, taskId)
       : await this.repository.getOpenPlan(scope);
     if (!plan) {
-      throw new AgentRuntimeLongTaskConflictError(
-        'TASK_NOT_FOUND',
-        '当前没有可更新的任务清单。',
-      );
+      throw new AgentRuntimeLongTaskConflictError('TASK_NOT_FOUND', '当前没有可更新的任务清单。');
     }
     return {
       taskId: taskId ?? plan.task.id,
@@ -1145,6 +1259,12 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
       const input = request.arguments as unknown as UpdatePlanInput;
       if (input.operation === 'create') {
         if (input.scopeKind === 'whole_book_chapters') {
+          if (!objectiveExplicitlyCoversWholeManuscript(input.objective)) {
+            throw new AgentRuntimeLongTaskConflictError(
+              'TASK_PLAN_INVALID',
+              '这不是明确覆盖每一章的整本任务。开头若干章或其他有限范围请改用 explicit_targets，并为每个作者对象列一个步骤。',
+            );
+          }
           const chapterManifest = await this.freezeWholeBookChapterManifest(projectId);
           return {
             toolName: AGENT_LONG_TASK_PLAN_TOOL,
@@ -1175,7 +1295,12 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
           scopeKind: input.scopeKind,
           workKind: input.workKind ?? 'edit',
           chapterManifest: [],
-          steps: await this.resolveSteps(projectId, input.steps),
+          steps: await this.resolveSteps(
+            projectId,
+            input.steps,
+            input.objective,
+            input.workKind ?? 'edit',
+          ),
           constraints: (input.constraints ?? []).map((body) => ({
             body: body.trim(),
             source: 'agent' as const,
@@ -1194,7 +1319,12 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
           operation: 'append_steps',
           taskId: identity.taskId,
           expectedRevision: identity.expectedRevision,
-          steps: await this.resolveSteps(projectId, input.steps),
+          steps: await this.resolveSteps(
+            projectId,
+            input.steps,
+            identity.plan.task.objective,
+            identity.plan.task.workKind,
+          ),
         };
       }
       if (input.operation === 'set_objective') {

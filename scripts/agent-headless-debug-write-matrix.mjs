@@ -6,14 +6,14 @@ const PROJECT_TEST_NODE = 'agent wrote this';
 const MARKER = `[AGENT-HEADLESS-EVAL:${Date.now().toString(36)}]`;
 
 const PROVIDER_WRITES = new Set([
-  'edit_file',
-  'write_file',
-  'delete_file',
+  'revise_object',
+  'write_object',
+  'delete_object',
   'create_element_patch',
   'update_element_patch',
   'delete_element_patch',
 ]);
-const FILE_MUTATION_TOOLS = ['edit_file', 'write_file'];
+const OBJECT_MUTATION_TOOLS = ['revise_object', 'write_object'];
 
 const COMMON = [
   '这是隔离数据库副本上的真实 renderer 写入验收。',
@@ -24,44 +24,44 @@ const COMMON = [
 const SCENARIOS = [
   {
     id: 'set-node-summary',
-    write: 'write_file',
-    read: 'read_file',
-    prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」的 summary.md，然后把该文件的完整内容替换为「${MARKER} temporary summary」。`,
+    write: 'write_object',
+    read: 'read_object',
+    prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」的摘要，然后把摘要完整替换为「${MARKER} temporary summary」。`,
   },
   {
     id: 'edit-block',
-    write: 'edit_file',
-    read: 'read_file',
+    write: 'revise_object',
+    read: 'read_object',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，仅在第1段末尾追加「 ${MARKER}」，其余原文不变。`,
   },
   {
     id: 'edit-blocks',
-    write: 'edit_file',
-    read: 'read_file',
+    write: 'revise_object',
+    read: 'read_object',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，在同一次改动中分别于第1段和第2段末尾追加「 ${MARKER} one」与「 ${MARKER} two」，其余原文不变。`,
   },
   {
     id: 'append-paragraph',
-    write: 'edit_file',
-    read: 'read_file',
+    write: 'revise_object',
+    read: 'read_object',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，在末尾追加一个新段落，内容恰好为「${MARKER} appended paragraph」。`,
   },
   {
     id: 'insert-blocks',
-    write: 'edit_file',
-    read: 'read_file',
+    write: 'revise_object',
+    read: 'read_object',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，在第1段后依次插入两个新段落「${MARKER} inserted one」和「${MARKER} inserted two」，其余原文不变。`,
   },
   {
     id: 'remove-blocks',
-    write: 'edit_file',
-    read: 'read_file',
+    write: 'revise_object',
+    read: 'read_object',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，删除第3段，保留其他段落及其顺序。`,
   },
   {
     id: 'replace-block-range',
-    write: 'edit_file',
-    read: 'read_file',
+    write: 'revise_object',
+    read: 'read_object',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，把第2至第3段整体替换为两个段落「${MARKER} range one」和「${MARKER} range two」，第1段不变。`,
   },
   {
@@ -78,36 +78,36 @@ const SCENARIOS = [
   },
   {
     id: 'update-element',
-    write: ['edit_file', 'write_file'],
-    read: 'read_file',
-    prompt: `${COMMON} 请读取 /elements/人物/Grey Banker/summary.md，只在现有摘要末尾追加「 ${MARKER}」，其他文件不变。`,
+    write: ['revise_object', 'write_object'],
+    read: 'read_object',
+    prompt: `${COMMON} 请读取人物「Grey Banker」的摘要，只在现有摘要末尾追加「 ${MARKER}」，其他内容不变。`,
   },
   {
     id: 'update-storyline',
-    write: ['edit_file', 'write_file'],
-    read: 'read_file',
-    prompt: `${COMMON} 请读取 /storylines/Mortals/summary.md，只在现有摘要末尾追加「 ${MARKER}」，其他文件不变。`,
+    write: ['revise_object', 'write_object'],
+    read: 'read_object',
+    prompt: `${COMMON} 请读取故事线「Mortals」的摘要，只在现有摘要末尾追加「 ${MARKER}」，其他内容不变。`,
   },
   {
     id: 'update-project-facts',
-    write: 'edit_file',
-    read: 'read_file',
-    prompt: `${COMMON} 请读取 /project/facts.json，新增一个键「__agent_headless_eval__」，值为「${MARKER}」，保留所有已有事实。`,
+    write: 'write_object',
+    read: 'read_object',
+    prompt: `${COMMON} 请读取项目事实，新增一条名称为「__agent_headless_eval__」、内容为「${MARKER}」的事实，保留所有已有事实。`,
   },
   {
     id: 'create-comment',
-    write: 'write_file',
-    read: 'list_files',
-    prompt: `${COMMON} 请先浏览 /comments，然后创建一条指向章节「${PROJECT_TEST_NODE}」的 note 批注，正文为「${MARKER} temporary comment」。`,
+    write: 'write_object',
+    read: 'browse_project',
+    prompt: `${COMMON} 请先浏览批注，然后创建一条指向章节「${PROJECT_TEST_NODE}」的普通批注，正文为「${MARKER} temporary comment」。`,
   },
   // Keep rename last because metadata writes are automatic rather than inline
-  // editor reviews. The changed path must not invalidate later scenarios in
+  // editor reviews. The changed authored name must not invalidate later scenarios in
   // the disposable database.
   {
     id: 'rename-node',
-    write: 'write_file',
-    read: 'read_file',
-    prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」的 title.txt，然后把标题改为「${PROJECT_TEST_NODE} ${MARKER}」。`,
+    write: 'write_object',
+    read: 'read_object',
+    prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」的标题，然后把标题改为「${PROJECT_TEST_NODE} ${MARKER}」。`,
   },
 ];
 
@@ -243,9 +243,9 @@ async function runScenario(options, scenario) {
   const reviews = results.map(parseReviewFromToolResult).filter(Boolean);
   const declaredWriteNames = Array.isArray(scenario.write) ? scenario.write : [scenario.write];
   const expectedWriteNames = declaredWriteNames.some((name) =>
-    FILE_MUTATION_TOOLS.includes(name),
+    OBJECT_MUTATION_TOOLS.includes(name),
   )
-    ? FILE_MUTATION_TOOLS
+    ? OBJECT_MUTATION_TOOLS
     : declaredWriteNames;
   let successfulWriteResult = null;
   let reviewWasReverted = false;
@@ -331,7 +331,7 @@ async function main() {
   if (!options.projectId) throw new Error('--project is required');
   if (!options.disposableDb) {
     throw new Error(
-      '--disposable-db is required because structured workspace writes may not create an inline review',
+      '--disposable-db is required because structured authored-object writes may not create an inline review',
     );
   }
   if (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs < 1_000) {

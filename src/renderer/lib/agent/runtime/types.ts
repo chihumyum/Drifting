@@ -497,6 +497,15 @@ export interface AgentToolSelectionRequest {
  */
 export interface AgentToolSelectionStrategy {
   select(request: AgentToolSelectionRequest): readonly string[];
+  /**
+   * Optionally require one of the selected tools for this iteration. This is
+   * an orchestration affordance, not a different executable surface: the
+   * returned canonical name must already be present in `selectedNames`.
+   */
+  forceTool?(
+    request: AgentToolSelectionRequest,
+    selectedNames: readonly string[],
+  ): string | null;
 }
 
 /** Coordinates write effects across concurrently running runtime instances. */

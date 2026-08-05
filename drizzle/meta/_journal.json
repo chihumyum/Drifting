@@ -570,6 +570,13 @@
       "breakpoints": true
     },
     {
+      "idx": 81,
+      "version": "6",
+      "when": 1786464000000,
+      "tag": "0081_agent_authored_object_facade",
+      "breakpoints": true
+    },
+    {
       "idx": 82,
       "version": "6",
       "when": 1786550400000,

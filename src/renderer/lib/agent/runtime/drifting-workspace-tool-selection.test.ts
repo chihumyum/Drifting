@@ -12,12 +12,12 @@ const definition = (name: string, access: 'read' | 'write'): AgentToolDefinition
 });
 
 const definitions = [
-  definition('list_files', 'read'),
-  definition('read_file', 'read'),
-  definition('grep', 'read'),
-  definition('edit_file', 'write'),
-  definition('write_file', 'write'),
-  definition('delete_file', 'write'),
+  definition('browse_project', 'read'),
+  definition('read_object', 'read'),
+  definition('search_work', 'read'),
+  definition('revise_object', 'write'),
+  definition('write_object', 'write'),
+  definition('delete_object', 'write'),
   definition('ask_user', 'read'),
   definition('read_task_plan', 'read'),
   definition('update_task_plan', 'write'),
@@ -34,17 +34,17 @@ const definitions = [
 ];
 
 describe('Drifting workspace-first tool selection', () => {
-  it('shows only the filesystem facade for an ordinary prose edit', () => {
+  it('shows only the authored-object facade for an ordinary prose edit', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
       request('随便找个章节润色一下'),
     );
     expect(selected).toEqual([
-      'list_files',
-      'read_file',
-      'write_file',
-      'delete_file',
-      'grep',
-      'edit_file',
+      'browse_project',
+      'read_object',
+      'write_object',
+      'delete_object',
+      'search_work',
+      'revise_object',
       'ask_user',
     ]);
     expect(selected).not.toContain('read_node');
@@ -58,12 +58,12 @@ describe('Drifting workspace-first tool selection', () => {
     expect(selected).toEqual([
       'update_task_plan',
       'update_task_constraint',
-      'list_files',
-      'read_file',
-      'write_file',
-      'delete_file',
-      'grep',
-      'edit_file',
+      'browse_project',
+      'read_object',
+      'write_object',
+      'delete_object',
+      'search_work',
+      'revise_object',
     ]);
   });
 
@@ -76,12 +76,12 @@ describe('Drifting workspace-first tool selection', () => {
 
     expect(selected).toEqual([
       'update_task_plan',
-      'list_files',
-      'read_file',
-      'write_file',
-      'delete_file',
-      'grep',
-      'edit_file',
+      'browse_project',
+      'read_object',
+      'write_object',
+      'delete_object',
+      'search_work',
+      'revise_object',
       'ask_user',
     ]);
   });
@@ -92,9 +92,9 @@ describe('Drifting workspace-first tool selection', () => {
     );
 
     expect(selected).toEqual([
-      'read_file',
-      'write_file',
-      'edit_file',
+      'read_object',
+      'write_object',
+      'revise_object',
       'ask_user',
     ]);
   });
@@ -106,11 +106,40 @@ describe('Drifting workspace-first tool selection', () => {
 
     expect(selected).toEqual([
       'update_task_plan',
-      'read_file',
-      'write_file',
-      'edit_file',
+      'read_object',
+      'write_object',
+      'delete_object',
+      'search_work',
+      'revise_object',
       'ask_user',
     ]);
+  });
+
+  it('does not mistake 开头六章 for a direct request targeting only 第六章', () => {
+    const strategy = createDriftingWorkspaceToolSelectionStrategy();
+    const initialRequest = request(
+        '把开头六章和相关设定彻底顺一遍。该润色的润色，摘要该补的补；把奥伦、凯尔、米拉、伊莱亚斯之间的关系和待办也整理好，缺什么就建，明显的测试垃圾就删。最后自己复查一遍，没做完别停。',
+      );
+    const selected = strategy.select(initialRequest);
+
+    expect(selected).toEqual([
+      'update_task_plan',
+      'browse_project',
+      'read_object',
+      'write_object',
+      'delete_object',
+      'search_work',
+      'revise_object',
+      'ask_user',
+    ]);
+    expect(strategy.forceTool?.(initialRequest, selected)).toBeNull();
+
+    const catalogRequest = request(
+      'original request:\n把开头六章和相关设定彻底顺一遍。该润色的润色，摘要该补的补；把奥伦、凯尔、米拉、伊莱亚斯之间的关系和待办也整理好，缺什么就建，明显的测试垃圾就删。最后自己复查一遍，没做完别停。\nrecent work:\n现有章节\n章节「00」\n章节「01」\n章节「03」\n章节「04」\n章节「05」\n章节「06」',
+    );
+    catalogRequest.iteration = 3;
+    const catalogSelected = strategy.select(catalogRequest);
+    expect(strategy.forceTool?.(catalogRequest, catalogSelected)).toBe('update_task_plan');
   });
 
   it('offers durable planning for a fuzzy multi-stage campaign without an explicit chapter count', () => {
@@ -122,12 +151,12 @@ describe('Drifting workspace-first tool selection', () => {
 
     expect(selected).toEqual([
       'update_task_plan',
-      'list_files',
-      'read_file',
-      'write_file',
-      'delete_file',
-      'grep',
-      'edit_file',
+      'browse_project',
+      'read_object',
+      'write_object',
+      'delete_object',
+      'search_work',
+      'revise_object',
       'ask_user',
     ]);
   });
@@ -141,14 +170,25 @@ describe('Drifting workspace-first tool selection', () => {
 
     expect(selected).toEqual([
       'update_task_plan',
-      'list_files',
-      'read_file',
-      'write_file',
-      'delete_file',
-      'grep',
-      'edit_file',
+      'browse_project',
+      'read_object',
+      'write_object',
+      'delete_object',
+      'search_work',
+      'revise_object',
       'ask_user',
     ]);
+  });
+
+  it('forces an early checklist for a named multi-character cleanup campaign', () => {
+    const strategy = createDriftingWorkspaceToolSelectionStrategy();
+    const input = request(
+      '把奥伦、凯尔、米拉、伊莱亚斯这组人物档案整理到能用：根据开头相关章节补全资料和核心关系，把明显乱码或测试留下的关系、批注和空壳实体清掉；拿不准但需要后续处理的建待办。做完自己检查。',
+    );
+    const selected = strategy.select(input);
+
+    expect(selected).toEqual(['update_task_plan']);
+    expect(strategy.forceTool?.(input, selected)).toBe('update_task_plan');
   });
 
   it('recognizes the natural 前半本 phrasing used by the post-fix paid stress run', () => {
@@ -160,12 +200,12 @@ describe('Drifting workspace-first tool selection', () => {
 
     expect(selected).toEqual([
       'update_task_plan',
-      'list_files',
-      'read_file',
-      'write_file',
-      'delete_file',
-      'grep',
-      'edit_file',
+      'browse_project',
+      'read_object',
+      'write_object',
+      'delete_object',
+      'search_work',
+      'revise_object',
       'ask_user',
     ]);
   });
@@ -188,18 +228,18 @@ describe('Drifting workspace-first tool selection', () => {
     };
 
     expect(createDriftingWorkspaceToolSelectionStrategy().select(input)).toEqual([
-      'read_task_plan',
       'update_task_plan',
       'update_task_step',
-      'list_files',
-      'read_file',
-      'delete_file',
-      'write_file',
-      'edit_file',
+      'browse_project',
+      'read_object',
+      'search_work',
+      'write_object',
+      'revise_object',
+      'delete_object',
     ]);
   });
 
-  it('pairs an active durable step with workspace read and edit', () => {
+  it('pairs an active durable step with authored-object read and edit', () => {
     const input = request('继续');
     input.hints = {
       longTask: {
@@ -214,13 +254,41 @@ describe('Drifting workspace-first tool selection', () => {
       },
     };
     expect(createDriftingWorkspaceToolSelectionStrategy().select(input)).toEqual([
-      'read_task_plan',
       'update_task_plan',
       'update_task_step',
-      'read_file',
-      'write_file',
-      'grep',
-      'edit_file',
+      'read_object',
+      'write_object',
+      'revise_object',
+      'delete_object',
+      'ask_user',
+    ]);
+  });
+
+  it('does not expose later cleanup discovery while the current element is being completed', () => {
+    const input = request(
+      '把奥伦、凯尔、米拉、伊莱亚斯的档案补全，再清理测试关系和空壳实体。',
+    );
+    input.hints = {
+      longTask: {
+        status: 'active',
+        scopeKind: 'explicit_targets',
+        objective: '补全四个人物档案并清理测试残留',
+        nextStep: {
+          title: '补全奥伦人物资料与核心关系',
+          status: 'pending',
+          target: { kind: 'element', name: '奥伦' },
+        },
+      },
+    };
+
+    expect(createDriftingWorkspaceToolSelectionStrategy().select(input)).toEqual([
+      'update_task_plan',
+      'update_task_step',
+      'read_object',
+      'write_object',
+      'revise_object',
+      'delete_object',
+      'ask_user',
     ]);
   });
 
@@ -239,35 +307,35 @@ describe('Drifting workspace-first tool selection', () => {
       },
     };
     expect(createDriftingWorkspaceToolSelectionStrategy().select(input)).toEqual([
-      'read_task_plan',
       'update_task_plan',
       'update_task_step',
-      'list_files',
-      'read_file',
-      'delete_file',
-      'write_file',
-      'edit_file',
+      'browse_project',
+      'read_object',
+      'search_work',
+      'write_object',
+      'revise_object',
+      'delete_object',
     ]);
   });
 
-  it('does not mistake workspace result text for author intent', () => {
+  it('does not mistake prior result text for author intent', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
       request(
-        'original request:\n请浏览章节并给出建议，不要修改任何内容。\nrecent work:\n/comments.json Editorial comments; writable edit files',
+        'original request:\n请浏览章节并给出建议，不要修改任何内容。\nrecent work:\n现有批注可以阅读，也可以修改',
       ),
     );
-    expect(selected).toEqual(['list_files', 'read_file', 'grep', 'ask_user']);
-    expect(selected).not.toContain('edit_file');
+    expect(selected).toEqual(['browse_project', 'read_object', 'search_work', 'ask_user']);
+    expect(selected).not.toContain('revise_object');
     expect(selected).not.toContain('get_overview');
     expect(selected).not.toContain('create_comment');
   });
 
-  it('keeps edit_file available for a scoped negative instruction', () => {
+  it('keeps revise_object available for a scoped negative instruction', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
       request('在第十二章开头插入一个独立段落，不要修改其他内容。'),
     );
-    expect(selected).toContain('edit_file');
-    expect(selected).not.toContain('list_files');
+    expect(selected).toContain('revise_object');
+    expect(selected).not.toContain('browse_project');
   });
 
   it('opens an explicitly named chapter without exposing project inventory first', () => {
@@ -275,9 +343,9 @@ describe('Drifting workspace-first tool selection', () => {
       request('第六章读起来有点散，帮我收紧一下，把人物动机和前后衔接顺一遍。'),
     );
     expect(selected).toEqual([
-      'read_file',
-      'write_file',
-      'edit_file',
+      'read_object',
+      'write_object',
+      'revise_object',
       'ask_user',
     ]);
   });
@@ -286,7 +354,7 @@ describe('Drifting workspace-first tool selection', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
       request('第八章有点松散，清掉明显测试痕迹，收紧正文，摘要也同步。'),
     );
-    expect(selected).toEqual(['read_file', 'write_file', 'edit_file', 'ask_user']);
+    expect(selected).toEqual(['read_object', 'write_object', 'revise_object', 'ask_user']);
   });
 
   it('restores discovery after a directly named target cannot be resolved', () => {
@@ -295,7 +363,7 @@ describe('Drifting workspace-first tool selection', () => {
         'original request:\n润色第六章。\nrecent work:\n第六章 not found',
       ),
     );
-    expect(selected).toContain('list_files');
+    expect(selected).toContain('browse_project');
   });
 
   it('restores discovery after the semantic reader reports a missing chapter', () => {
@@ -304,29 +372,29 @@ describe('Drifting workspace-first tool selection', () => {
         'original request:\n整理第十三章。\nrecent work:\n未找到第十三章。当前作品已有章节：章节「12」。第十三章尚未创建。',
       ),
     );
-    expect(selected).toContain('list_files');
+    expect(selected).toContain('browse_project');
   });
 
   it('does not turn a stale paragraph edit into project-wide discovery', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
       request(
-        'original request:\n收紧第九章并同步摘要。\nrecent work:\nSTALE_EDIT_TARGET: The text to replace was not found in the current file.',
+        'original request:\n收紧第九章并同步摘要。\nrecent work:\n目标段落已变化，未能应用这处局部修改。',
       ),
     );
-    expect(selected).toEqual(['read_file', 'write_file', 'edit_file', 'ask_user']);
+    expect(selected).toEqual(['read_object', 'write_object', 'revise_object', 'ask_user']);
   });
 
-  it('keeps write_file and edit_file together for a mixed file mutation turn', () => {
+  it('keeps write_object and revise_object together for a mixed object mutation turn', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
-      request('先用 edit_file 改正文，再用 write_file 设置 summary.md 的完整内容。'),
+      request('先局部修改正文，再设置完整摘要。'),
     );
     expect(selected).toEqual([
-      'list_files',
-      'read_file',
-      'write_file',
-      'delete_file',
-      'grep',
-      'edit_file',
+      'browse_project',
+      'read_object',
+      'write_object',
+      'delete_object',
+      'search_work',
+      'revise_object',
       'ask_user',
     ]);
   });
@@ -334,27 +402,27 @@ describe('Drifting workspace-first tool selection', () => {
   it('keeps both mutation verbs available for an ambiguous follow-up edit', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(request('改一下内容。'));
     expect(selected).toEqual([
-      'list_files',
-      'read_file',
-      'write_file',
-      'delete_file',
-      'grep',
-      'edit_file',
+      'browse_project',
+      'read_object',
+      'write_object',
+      'delete_object',
+      'search_work',
+      'revise_object',
       'ask_user',
     ]);
   });
 
-  it('keeps delete_file available for a vague executable continuation', () => {
+  it('keeps delete_object available for a vague executable continuation', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
       request('继续，别再从头看了。'),
     );
     expect(selected).toEqual([
-      'list_files',
-      'read_file',
-      'write_file',
-      'delete_file',
-      'grep',
-      'edit_file',
+      'browse_project',
+      'read_object',
+      'write_object',
+      'delete_object',
+      'search_work',
+      'revise_object',
       'ask_user',
     ]);
   });
@@ -363,23 +431,23 @@ describe('Drifting workspace-first tool selection', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
       request('把这个 TODO 标记为已完成'),
     );
-    expect(selected).toContain('write_file');
+    expect(selected).toContain('write_object');
     expect(selected).not.toContain('create_comment');
   });
 
-  it('keeps edit_file visible for a compound create plus comment task', () => {
+  it('keeps revise_object visible for a compound create plus comment task', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
       request(
         '创建一条灵感和两个实体，添加关系、批注与待办；不要修改任何现有章节。完成后回读并修正发现的问题。',
       ),
     );
     expect(selected).toEqual([
-      'list_files',
-      'read_file',
-      'write_file',
-      'delete_file',
-      'grep',
-      'edit_file',
+      'browse_project',
+      'read_object',
+      'write_object',
+      'delete_object',
+      'search_work',
+      'revise_object',
       'ask_user',
     ]);
   });
@@ -388,7 +456,7 @@ describe('Drifting workspace-first tool selection', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(
       request('只阅读并分析现有批注，不要修改任何内容。'),
     );
-    expect(selected).toEqual(['list_files', 'read_file', 'grep', 'ask_user']);
+    expect(selected).toEqual(['browse_project', 'read_object', 'search_work', 'ask_user']);
   });
 
   it('recalls the certified delete tool for an explicit element-patch deletion', () => {

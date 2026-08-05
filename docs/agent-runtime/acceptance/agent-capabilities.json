@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 13,
+  "schemaVersion": 16,
   "source": "drifting-final-product-contract",
   "product": {
     "runtimeHost": "tauri-renderer",
@@ -49,6 +49,17 @@
         "revertStrategy": "not_applicable"
       },
       {
+        "name": "browse_project",
+        "access": "read",
+        "owner": "workspace-runtime",
+        "surface": "authored-object-facade",
+        "certification": "internal-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
         "name": "create_comment",
         "access": "write",
         "owner": "drifting-runtime",
@@ -82,10 +93,10 @@
         "revertStrategy": "exact_inverse"
       },
       {
-        "name": "delete_file",
+        "name": "delete_object",
         "access": "write",
         "owner": "drifting-runtime",
-        "surface": "workspace-facade",
+        "surface": "authored-object-facade",
         "certification": "internal-certified",
         "risk": "high",
         "effect": "destructive",
@@ -109,17 +120,6 @@
         "owner": "drifting-runtime",
         "surface": "catalog-direct",
         "certification": "write-certified",
-        "risk": "medium",
-        "effect": "prose",
-        "approval": "review_after",
-        "revertStrategy": "exact_inverse"
-      },
-      {
-        "name": "edit_file",
-        "access": "write",
-        "owner": "drifting-runtime",
-        "surface": "workspace-facade",
-        "certification": "internal-certified",
         "risk": "medium",
         "effect": "prose",
         "approval": "review_after",
@@ -181,17 +181,6 @@
         "revertStrategy": "not_applicable"
       },
       {
-        "name": "grep",
-        "access": "read",
-        "owner": "workspace-runtime",
-        "surface": "workspace-facade",
-        "certification": "internal-certified",
-        "risk": "none",
-        "effect": "none",
-        "approval": "automatic",
-        "revertStrategy": "not_applicable"
-      },
-      {
         "name": "insert_blocks",
         "access": "write",
         "owner": "drifting-runtime",
@@ -219,17 +208,6 @@
         "owner": "drifting-runtime",
         "surface": "catalog-direct",
         "certification": "read-certified",
-        "risk": "none",
-        "effect": "none",
-        "approval": "automatic",
-        "revertStrategy": "not_applicable"
-      },
-      {
-        "name": "list_files",
-        "access": "read",
-        "owner": "workspace-runtime",
-        "surface": "workspace-facade",
-        "certification": "internal-certified",
         "risk": "none",
         "effect": "none",
         "approval": "automatic",
@@ -302,17 +280,6 @@
         "revertStrategy": "not_applicable"
       },
       {
-        "name": "read_file",
-        "access": "read",
-        "owner": "workspace-runtime",
-        "surface": "workspace-facade",
-        "certification": "internal-certified",
-        "risk": "none",
-        "effect": "none",
-        "approval": "automatic",
-        "revertStrategy": "not_applicable"
-      },
-      {
         "name": "read_material",
         "access": "read",
         "owner": "drifting-runtime",
@@ -329,6 +296,17 @@
         "owner": "drifting-runtime",
         "surface": "catalog-direct",
         "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "read_object",
+        "access": "read",
+        "owner": "workspace-runtime",
+        "surface": "authored-object-facade",
+        "certification": "internal-certified",
         "risk": "none",
         "effect": "none",
         "approval": "automatic",
@@ -390,6 +368,17 @@
         "revertStrategy": "exact_inverse"
       },
       {
+        "name": "revise_object",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "authored-object-facade",
+        "certification": "internal-certified",
+        "risk": "medium",
+        "effect": "prose",
+        "approval": "review_after",
+        "revertStrategy": "exact_inverse"
+      },
+      {
         "name": "search_project",
         "access": "read",
         "owner": "drifting-runtime",
@@ -406,6 +395,17 @@
         "owner": "drifting-runtime",
         "surface": "catalog-direct",
         "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "search_work",
+        "access": "read",
+        "owner": "workspace-runtime",
+        "surface": "authored-object-facade",
+        "certification": "internal-certified",
         "risk": "none",
         "effect": "none",
         "approval": "automatic",
@@ -511,10 +511,10 @@
         "revertStrategy": "not_applicable"
       },
       {
-        "name": "write_file",
+        "name": "write_object",
         "access": "write",
         "owner": "drifting-runtime",
-        "surface": "workspace-facade",
+        "surface": "authored-object-facade",
         "certification": "internal-certified",
         "risk": "medium",
         "effect": "canon",
@@ -566,14 +566,14 @@
       "update_relation_kind"
     ]
   },
-  "workspaceFacade": {
+  "authoredObjectFacade": {
     "providerTools": [
-      "list_files",
-      "read_file",
-      "grep",
-      "edit_file",
-      "write_file",
-      "delete_file"
+      "browse_project",
+      "read_object",
+      "search_work",
+      "revise_object",
+      "write_object",
+      "delete_object"
     ],
     "hiddenDomainOperations": [
       "edit_prose_file",
@@ -609,17 +609,17 @@
     "entries": [
       {
         "domain": "node",
-        "workspacePaths": [
-          "/chapters/<chapter>/**",
-          "/drifts/<drift>/**"
+        "authoredTargets": [
+          "章节「<名称>」",
+          "灵感「<名称>」"
         ],
         "operations": {
           "create": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "create_node"
@@ -630,9 +630,9 @@
           "read": {
             "status": "closed",
             "providerTools": [
-              "list_files",
-              "read_file",
-              "grep"
+              "browse_project",
+              "read_object",
+              "search_work"
             ],
             "hiddenCommands": [],
             "approval": "automatic",
@@ -641,9 +641,9 @@
           "update": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "edit_prose_file",
@@ -656,9 +656,9 @@
           "delete": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "delete_node"
@@ -683,16 +683,16 @@
       },
       {
         "domain": "element",
-        "workspacePaths": [
-          "/elements/<category>/<element>/**"
+        "authoredTargets": [
+          "要素「<名称>」（分类「<分类>」）"
         ],
         "operations": {
           "create": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "create_element"
@@ -703,9 +703,9 @@
           "read": {
             "status": "closed",
             "providerTools": [
-              "list_files",
-              "read_file",
-              "grep"
+              "browse_project",
+              "read_object",
+              "search_work"
             ],
             "hiddenCommands": [],
             "approval": "automatic",
@@ -714,9 +714,9 @@
           "update": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "edit_prose_file",
@@ -728,9 +728,9 @@
           "delete": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "delete_element"
@@ -754,16 +754,16 @@
       },
       {
         "domain": "storyline",
-        "workspacePaths": [
-          "/storylines/<storyline>/**"
+        "authoredTargets": [
+          "故事线「<名称>」"
         ],
         "operations": {
           "create": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "create_storyline"
@@ -774,9 +774,9 @@
           "read": {
             "status": "closed",
             "providerTools": [
-              "list_files",
-              "read_file",
-              "grep"
+              "browse_project",
+              "read_object",
+              "search_work"
             ],
             "hiddenCommands": [],
             "approval": "automatic",
@@ -785,9 +785,9 @@
           "update": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "edit_prose_file",
@@ -799,9 +799,9 @@
           "delete": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "delete_storyline"
@@ -825,16 +825,16 @@
       },
       {
         "domain": "category",
-        "workspacePaths": [
-          "/categories/<category>/**"
+        "authoredTargets": [
+          "要素分类「<名称>」"
         ],
         "operations": {
           "create": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "create_category"
@@ -845,9 +845,9 @@
           "read": {
             "status": "closed",
             "providerTools": [
-              "list_files",
-              "read_file",
-              "grep"
+              "browse_project",
+              "read_object",
+              "search_work"
             ],
             "hiddenCommands": [],
             "approval": "automatic",
@@ -856,9 +856,9 @@
           "update": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "edit_prose_file",
@@ -870,9 +870,9 @@
           "delete": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "delete_category"
@@ -896,16 +896,16 @@
       },
       {
         "domain": "comment_todo",
-        "workspacePaths": [
-          "/comments/<commentId>.json"
+        "authoredTargets": [
+          "批注或待办「<handle>」"
         ],
         "operations": {
           "create": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "create_comment"
@@ -916,8 +916,8 @@
           "read": {
             "status": "closed",
             "providerTools": [
-              "list_files",
-              "read_file"
+              "browse_project",
+              "read_object"
             ],
             "hiddenCommands": [],
             "approval": "automatic",
@@ -926,9 +926,9 @@
           "update": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "update_comment"
@@ -939,9 +939,9 @@
           "delete": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "delete_comment"
@@ -964,16 +964,16 @@
       },
       {
         "domain": "entity_relation",
-        "workspacePaths": [
-          "/relations/<relationId>.json"
+        "authoredTargets": [
+          "实体关系「<handle>」"
         ],
         "operations": {
           "create": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "add_relation"
@@ -984,8 +984,8 @@
           "read": {
             "status": "closed",
             "providerTools": [
-              "list_files",
-              "read_file"
+              "browse_project",
+              "read_object"
             ],
             "hiddenCommands": [],
             "approval": "automatic",
@@ -994,9 +994,9 @@
           "update": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "update_relation_kind"
@@ -1007,9 +1007,9 @@
           "delete": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "remove_relation"
@@ -1032,16 +1032,16 @@
       },
       {
         "domain": "storyline_membership",
-        "workspacePaths": [
-          "/storylines/<storyline>/chapters.json"
+        "authoredTargets": [
+          "故事线「<名称>」章节关系"
         ],
         "operations": {
           "create": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "set_storyline_membership"
@@ -1052,8 +1052,8 @@
           "read": {
             "status": "closed",
             "providerTools": [
-              "list_files",
-              "read_file"
+              "browse_project",
+              "read_object"
             ],
             "hiddenCommands": [],
             "approval": "automatic",
@@ -1062,9 +1062,9 @@
           "update": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "set_storyline_membership"
@@ -1075,9 +1075,9 @@
           "delete": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "set_storyline_membership"
@@ -1098,17 +1098,17 @@
       },
       {
         "domain": "agent_memory",
-        "workspacePaths": [
-          "/memory.json",
-          "/memory/<memoryId>.json"
+        "authoredTargets": [
+          "作者规则",
+          "作者规则「<handle>」"
         ],
         "operations": {
           "create": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "remember"
@@ -1119,8 +1119,8 @@
           "read": {
             "status": "closed",
             "providerTools": [
-              "list_files",
-              "read_file"
+              "browse_project",
+              "read_object"
             ],
             "hiddenCommands": [],
             "approval": "automatic",
@@ -1129,9 +1129,9 @@
           "update": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "update_memory"
@@ -1142,9 +1142,9 @@
           "delete": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "forget"
@@ -1167,8 +1167,8 @@
       },
       {
         "domain": "project_facts",
-        "workspacePaths": [
-          "/project/facts.json"
+        "authoredTargets": [
+          "项目事实"
         ],
         "operations": {
           "create": {
@@ -1181,7 +1181,7 @@
           "read": {
             "status": "closed",
             "providerTools": [
-              "read_file"
+              "read_object"
             ],
             "hiddenCommands": [],
             "approval": "automatic",
@@ -1190,9 +1190,9 @@
           "update": {
             "status": "closed",
             "providerTools": [
-              "edit_file",
-              "write_file",
-              "delete_file"
+              "revise_object",
+              "write_object",
+              "delete_object"
             ],
             "hiddenCommands": [
               "update_project_facts"

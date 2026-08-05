@@ -8,6 +8,11 @@ import type {
   AgentToolPermissionPolicyDecision,
   AgentToolPermissionPolicyRequest,
 } from './types';
+import {
+  canonicalDriftingWorkspaceProviderToolName,
+  DRIFTING_WORKSPACE_EDIT_TOOL,
+  DRIFTING_WORKSPACE_WRITE_TOOL,
+} from './drifting-workspace-tool-contract';
 
 export interface DriftingAgentPermissionPolicyOptions {
   resolveTool?: (name: string) => RegisteredTool | undefined;
@@ -44,10 +49,10 @@ export function createDriftingAgentPermissionPolicy(
         return { decision: 'allow', scope: 'once' };
       }
 
-      // The provider sees a small filesystem-like facade, but author approval
-      // follows the domain operation behind the path. Creating or relabelling
+      // The provider sees a small authored-object facade, while author approval
+      // follows the resolved domain operation. Creating or relabelling
       // a curated entity relation is graph authorship and must pause before it
-      // mutates, just like deleting the relation through delete_file.
+      // mutates, just like deleting the relation through delete_object.
       if (isWorkspaceGuardedGraphMutation(request)) {
         return {
           decision: 'ask',
@@ -104,15 +109,21 @@ export function createDriftingAgentPermissionPolicy(
 function isWorkspaceGuardedGraphMutation(
   request: AgentToolPermissionPolicyRequest,
 ): boolean {
-  if (request.toolName !== 'write_file' && request.toolName !== 'edit_file') {
+  const toolName = canonicalDriftingWorkspaceProviderToolName(request.toolName);
+  if (
+    toolName !== DRIFTING_WORKSPACE_WRITE_TOOL &&
+    toolName !== DRIFTING_WORKSPACE_EDIT_TOOL
+  ) {
     return false;
   }
-  const path = request.arguments.path;
-  if (typeof path !== 'string') return false;
-  const normalized = `/${path.trim()}`.replace(/\/{2,}/g, '/').replace(/\/$/u, '');
+  const target = request.arguments.target ?? request.arguments.path;
+  if (typeof target !== 'string') return false;
+  const normalized = `/${target.trim()}`.replace(/\/{2,}/g, '/').replace(/\/$/u, '');
   return (
     normalized === '/relations' ||
     normalized.startsWith('/relations/') ||
-    /^\/storylines\/[^/]+\/chapters\.json$/u.test(normalized)
+    /^(?:\/)?(?:关系|实体关系)(?:[「“"']|$)/u.test(normalized) ||
+    /^\/storylines\/[^/]+\/chapters\.json$/u.test(normalized) ||
+    /故事线.+章节关系/u.test(normalized)
   );
 }

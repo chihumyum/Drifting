@@ -6,7 +6,6 @@ import type { Comment } from '../../../domain/comment';
 import { useDataStore } from '../../../store/data-store';
 import type { EntityRelationLink } from '../../../store/data-store';
 import type { AgentToolContext } from '../tool-handlers';
-import type { AgentRuntimeWriteEffectRepository } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
 import {
   DriftingWorkspaceToolRuntime,
   WorkspaceNoopWriteSignal,
@@ -62,11 +61,11 @@ afterEach(() => {
 });
 
 describe('DriftingWorkspaceToolRuntime', () => {
-  it('projects canonical entities as natural virtual files and renders prose without handles', async () => {
+  it('projects canonical entities as authored objects and renders prose without handles', async () => {
     const readRuntime = fakeReadRuntime();
     const runtime = createRuntime(readRuntime);
 
-    const root = await runtime.execute(request('list_files', {}));
+    const root = await runtime.execute(request('browse_project', {}));
     expect(root).toMatchObject({
       ok: true,
       data: {
@@ -79,12 +78,12 @@ describe('DriftingWorkspaceToolRuntime', () => {
     expect(JSON.stringify(root)).not.toContain('/chapters/第一章 雨夜/prose.md');
     expect(root).toMatchObject({
       ok: true,
-      modelData: expect.stringContaining('作品内容目录'),
+      modelData: expect.stringContaining('作品包含'),
     });
     if (root.ok) expect(root.modelData).not.toMatch(/\/chapters|Directory|Creation guide/iu);
     if (root.ok) expect(root.modelData).not.toContain('Element category canon');
 
-    const listed = await runtime.execute(request('list_files', { path: '/chapters' }));
+    const listed = await runtime.execute(request('browse_project', { collection: '章节' }));
     expect(listed).toMatchObject({
       ok: true,
       data: {
@@ -106,7 +105,9 @@ describe('DriftingWorkspaceToolRuntime', () => {
       expect(listed.modelData).not.toMatch(/\/chapters|prose\.md|title\.txt|meta\.json/iu);
     }
 
-    const chapter = await runtime.execute(request('list_files', { path: '第一章 雨夜' }));
+    const chapter = await runtime.execute(
+      request('browse_project', { collection: '章节「第一章 雨夜」' }),
+    );
     expect(chapter).toMatchObject({
       ok: true,
       data: {
@@ -142,7 +143,20 @@ describe('DriftingWorkspaceToolRuntime', () => {
   });
 
   it('opens named domain collections without making the model choose a browse verb', async () => {
-    const runtime = createRuntime(fakeReadRuntime());
+    const readRuntime = fakeReadRuntime();
+    const readNode = readRuntime.execute;
+    readRuntime.execute = vi.fn(async (input: AgentToolExecutionRequest) =>
+      input.name === 'list_memory'
+        ? {
+            ok: true as const,
+            data: {
+              result: { memories: [] },
+              freshness: { receiptId: 'memory-receipt', observations: [] },
+            },
+          }
+        : readNode(input),
+    );
+    const runtime = createRuntime(readRuntime);
 
     await expect(runtime.execute(request('read_file', { path: '/' }))).resolves.toMatchObject({
       ok: true,
@@ -160,6 +174,57 @@ describe('DriftingWorkspaceToolRuntime', () => {
       data: { path: '/drifts', files: expect.any(Array) },
       modelData: expect.stringContaining('灵感'),
     });
+    await expect(
+      runtime.execute(request('browse_project', { collection: '素材' })),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { path: '/materials', files: expect.any(Array) },
+    });
+    await expect(
+      runtime.execute(request('browse_project', { collection: '项目信息' })),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { path: '/project', files: expect.any(Array) },
+    });
+    await expect(
+      runtime.execute(request('browse_project', { collection: '项目规则' })),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { path: '/memory', files: expect.any(Array) },
+    });
+  });
+
+  it('returns a long authored body without injecting a model workflow', async () => {
+    const runtime = createRuntime(fakeReadRuntime(`1\t${'雨'.repeat(1_600)}`));
+
+    const result = await runtime.execute(
+      request('read_object', { target: '章节「第一章 雨夜」' }),
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.modelData).not.toContain('当前长篇工作对象');
+      expect(result.modelData).not.toContain('先完成这篇的实际取舍或修改');
+      expect(result.modelData).not.toContain('修改清单');
+      expect(result.modelData).not.toMatch(/file|path|directory/iu);
+    }
+  });
+
+  it('states explicitly when an authored body is genuinely unfilled', async () => {
+    const runtime = createRuntime(fakeReadRuntime(''));
+
+    const result = await runtime.execute(
+      request('read_object', { target: '章节「第一章 雨夜」' }),
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: { content: '', truncated: false },
+      modelData: expect.stringContaining('正文：尚未填写。'),
+    });
+    if (result.ok) {
+      expect(result.modelData).not.toContain('尚未读完');
+    }
   });
 
   it('opens a quoted 灵感 name without exposing its virtual directory', async () => {
@@ -191,6 +256,371 @@ describe('DriftingWorkspaceToolRuntime', () => {
     });
   });
 
+  it('bundles an element summary and resolves its authored field labels', async () => {
+    const category: BookElementCategory = {
+      id: 'people-category',
+      projectId: PROJECT_ID,
+      name: '人物',
+      contentJson: '{}',
+      elementTemplateJson: '{}',
+      elementTemplateKvJson: '[]',
+      color: '#7386a8',
+      layoutMode: 'auto',
+      gridX: null,
+      gridY: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    const element: BookElement = {
+      id: 'grey-banker',
+      projectId: PROJECT_ID,
+      categoryId: category.id,
+      name: 'Grey Banker',
+      summary: 'A retired banker carrying one last debt.',
+      contentJson: '{}',
+      kvJson: '[]',
+      aliases: ['奥伦', 'Grey'],
+      groupName: null,
+      portraitAssetId: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    const relation: EntityRelationLink = {
+      id: 'grey-opening-relation',
+      projectId: PROJECT_ID,
+      fromKind: 'element',
+      fromId: element.id,
+      toKind: 'node',
+      toId: NODE_ID,
+      kind: '出场于',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    useDataStore.setState({
+      bookElementCategories: [category],
+      bookElements: [element],
+      entityRelations: [relation],
+    });
+    const execute = vi.fn(async (input: AgentToolExecutionRequest) => ({
+      ok: true as const,
+      data: {
+        result:
+          input.name === 'read_node'
+            ? 'element "Grey Banker"\n\n1\tHe counts every favor twice.'
+            : input.name === 'search_prose'
+              ? {
+                  matches: [
+                    {
+                      kind: 'chapter',
+                      title: '第一章 雨夜',
+                      snippet: '奥伦在雨夜替凯尔挡住追兵。',
+                      block: 2,
+                      score: 90,
+                      matchedTerms: ['奥伦'],
+                    },
+                  ],
+                }
+              : input.name === 'search_project'
+                ? { matches: [] }
+            : {
+                name: element.name,
+                summary: element.summary,
+                aliases: [],
+                facts: [],
+                groupName: null,
+                category: category.name,
+              },
+        freshness: {
+          receiptId: 'element-receipt',
+          observations:
+            input.name === 'read_node' || input.name === 'read_element'
+              ? [
+                  {
+                    id: 'element-observation',
+                    entityKind: input.name === 'read_node' ? 'element_prose' : 'element',
+                    entityId: element.id,
+                    revision: 'element:1',
+                  },
+                ]
+              : [],
+        },
+      },
+    }));
+    const runtime = createRuntime({ listDefinitions: () => [], execute });
+
+    await expect(
+      runtime.execute(request('read_object', { target: '人物「Grey Banker」' })),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        path: '/elements/人物/Grey Banker/body.md',
+        content: 'He counts every favor twice.',
+        summary: element.summary,
+      },
+      modelData: expect.stringContaining('要素「Grey Banker」（别名：奥伦、Grey）设定'),
+    });
+    const dossier = await runtime.execute(
+      request('read_object', { target: '要素「Grey Banker」（别名：奥伦、Grey）' }),
+    );
+    expect(dossier).toMatchObject({
+      ok: true,
+      modelData: expect.stringContaining('作品中的相关片段（当前正文证据，无需另行打开来源）'),
+    });
+    if (dossier.ok) {
+      expect(dossier.modelData).toContain('奥伦在雨夜替凯尔挡住追兵。');
+      expect(dossier.modelData).toContain('当前直接关系');
+      expect(dossier.modelData).toContain(
+        '实体关系「grey-opening-relation」：Grey Banker（别名：奥伦、Grey） —出场于→ 第一章 雨夜',
+      );
+      expect(dossier.modelData).not.toMatch(/\/chapters|prose\.md|search_prose/u);
+    }
+    const catalog = await runtime.execute(
+      request('browse_project', { collection: '要素分类「人物」' }),
+    );
+    expect(catalog).toMatchObject({
+      ok: true,
+      modelData: expect.stringContaining('要素「Grey Banker」（别名：奥伦、Grey）'),
+    });
+    const categories = await runtime.execute(
+      request('browse_project', { collection: '实体' }),
+    );
+    expect(categories).toMatchObject({
+      ok: true,
+      data: { path: '/elements' },
+      modelData: expect.stringContaining('要素分类「人物」'),
+    });
+    if (categories.ok) {
+      expect(categories.modelData).not.toContain('要素分类「人物」（别名：奥伦、Grey）');
+    }
+    await expect(
+      runtime.execute(request('read_object', { target: '人物「奥伦」' })),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { path: '/elements/人物/Grey Banker/body.md' },
+      modelData: expect.stringContaining('要素「Grey Banker」（别名：奥伦、Grey）设定'),
+    });
+    const naturalSummaryWrite = await runtime.prepareWriteRequest(
+      request(
+        'write_object',
+        {
+          target: '奥伦',
+          summary: 'A concise current profile.',
+        },
+        'write',
+      ),
+    );
+    expect(naturalSummaryWrite).toMatchObject({
+      arguments: {
+        path: '/elements/人物/Grey Banker/summary.md',
+        content: 'A concise current profile.',
+        __workspaceCommand: {
+          name: 'update_element',
+          arguments: {
+            element: element.id,
+            summary: 'A concise current profile.',
+          },
+        },
+      },
+    });
+    expect(naturalSummaryWrite.arguments).not.toHaveProperty('summary');
+    await expect(
+      runtime.execute(request('read_object', { target: '人物「Grey Banker」摘要' })),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: {
+        path: '/elements/人物/Grey Banker/summary.md',
+        content: element.summary,
+      },
+    });
+    const quotedBareSummaryWrite = await runtime.prepareWriteRequest(
+      request(
+        'write_object',
+        {
+          target: '「Grey Banker」摘要',
+          summary: 'A summary through a tolerant authored label.',
+        },
+        'write',
+      ),
+    );
+    expect(quotedBareSummaryWrite).toMatchObject({
+      arguments: {
+        path: '/elements/人物/Grey Banker/summary.md',
+        content: 'A summary through a tolerant authored label.',
+        __workspaceCommand: {
+          name: 'update_element',
+          arguments: {
+            element: element.id,
+            summary: 'A summary through a tolerant authored label.',
+          },
+        },
+      },
+    });
+    await runtime.execute(
+      request('read_object', { target: '人物「Grey Banker」摘要' }),
+    );
+    const summaryWrite = await runtime.prepareWriteRequest(
+      request(
+        'revise_object',
+        {
+          target: '人物「Grey Banker」摘要',
+          changes: [
+            {
+              currentText: element.summary,
+              revisedText: `${element.summary} He is done waiting.`,
+            },
+          ],
+        },
+        'write',
+      ),
+    );
+    expect(summaryWrite).toMatchObject({
+      arguments: {
+        path: '/elements/人物/Grey Banker/summary.md',
+        __workspaceCommand: {
+          name: 'update_element',
+          arguments: {
+            element: element.id,
+            summary: `${element.summary} He is done waiting.`,
+          },
+        },
+      },
+    });
+    expect(workspaceAuthoredReadStateFromArguments(summaryWrite.arguments)).toEqual({
+      targetKey: `element:${element.id}`,
+      target: '要素「Grey Banker」设定',
+      summary: `${element.summary} He is done waiting.`,
+      completeBodyRead: false,
+      focusedBodyEdit: false,
+      currentPassages: [],
+    });
+
+    await runtime.execute(
+      request('read_object', { target: '要素「Grey Banker」摘要' }),
+    );
+    const summaryOnlyWrite = await runtime.prepareWriteRequest(
+      request(
+        'write_object',
+        {
+          target: '要素「Grey Banker」摘要',
+          summary: 'The current authored summary.',
+        },
+        'write',
+      ),
+    );
+    expect(summaryOnlyWrite).toMatchObject({
+      arguments: {
+        path: '/elements/人物/Grey Banker/summary.md',
+        content: 'The current authored summary.',
+        __workspaceCommand: {
+          name: 'update_element',
+          arguments: {
+            element: element.id,
+            summary: 'The current authored summary.',
+          },
+        },
+      },
+    });
+    expect(summaryOnlyWrite.arguments).not.toHaveProperty('summary');
+    expect(summaryOnlyWrite.arguments).not.toHaveProperty('remainingWork');
+    expect(workspaceAuthoredReadStateFromArguments(summaryOnlyWrite.arguments)).toEqual({
+      targetKey: `element:${element.id}`,
+      target: '要素「Grey Banker」设定',
+      summary: 'The current authored summary.',
+      completeBodyRead: false,
+      focusedBodyEdit: false,
+      currentPassages: [],
+    });
+
+    await runtime.execute(
+      request('read_object', { target: '要素「Grey Banker」摘要' }),
+    );
+    const placeholderBodyWrite = await runtime.prepareWriteRequest(
+      request(
+        'write_object',
+        {
+          target: '要素「Grey Banker」摘要',
+          body: '要素「Grey Banker」摘要',
+          summary: 'The domain-specific summary wins.',
+        },
+        'write',
+      ),
+    );
+    expect(workspaceCommandFromArguments(placeholderBodyWrite.arguments)).toMatchObject({
+      name: 'update_element',
+      arguments: { summary: 'The domain-specific summary wins.' },
+    });
+    expect(placeholderBodyWrite.arguments.content).toBe(
+      'The domain-specific summary wins.',
+    );
+
+    const profileWrite = await runtime.prepareWriteRequest(
+      request(
+        'write_object',
+        {
+          target: '要素「Grey Banker」（别名：奥伦、Grey）',
+          body: 'He counts every favor three times.',
+          summary: 'A sharper current summary.',
+        },
+        'write',
+      ),
+    );
+    expect(profileWrite).toMatchObject({
+      arguments: {
+        path: '/elements/人物/Grey Banker/body.md',
+        content: 'He counts every favor three times.',
+        remainingWork: expect.stringContaining(
+          '要素「Grey Banker」摘要仍需单独更新为：A sharper current summary.',
+        ),
+        __workspaceCommand: {
+          name: 'edit_prose_file',
+          arguments: {
+            entity: element.id,
+            kind: 'element',
+            content: 'He counts every favor three times.',
+          },
+        },
+      },
+    });
+    expect(profileWrite.arguments).not.toHaveProperty('summary');
+    expect(workspaceAuthoredReadStateFromArguments(profileWrite.arguments)).toEqual({
+      targetKey: `element:${element.id}`,
+      target: '要素「Grey Banker」设定',
+      summary: element.summary,
+      completeBodyRead: true,
+      focusedBodyEdit: false,
+      currentPassages: [],
+    });
+
+    // Existing authored objects accept the same bare canonical name on write
+    // that read_object already accepts. A name-only target must never fall
+    // through to the new-object parser and make the model restate a type.
+    await runtime.execute(request('read_object', { target: 'Grey Banker' }));
+    const bareNameWrite = await runtime.prepareWriteRequest(
+      request(
+        'write_object',
+        {
+          target: 'Grey Banker',
+          body: 'He counts every favor four times.',
+        },
+        'write',
+      ),
+    );
+    expect(bareNameWrite).toMatchObject({
+      arguments: {
+        path: '/elements/人物/Grey Banker/body.md',
+        content: 'He counts every favor four times.',
+        __workspaceCommand: {
+          name: 'edit_prose_file',
+          arguments: {
+            entity: element.id,
+            kind: 'element',
+            content: 'He counts every favor four times.',
+          },
+        },
+      },
+    });
+  });
+
   it('reports a missing ordinal as authored state instead of a virtual path failure', async () => {
     const runtime = createRuntime(fakeReadRuntime());
 
@@ -204,6 +634,79 @@ describe('DriftingWorkspaceToolRuntime', () => {
       modelData: expect.stringMatching(
         /第十三章尚未创建。如果当前任务包含它，可以直接按作者已有素材写出正文并同时建立摘要。/u,
       ),
+    });
+  });
+
+  it('treats a missing named entity as absent instead of inviting spelling retries', async () => {
+    const runtime = createRuntime(fakeReadRuntime());
+
+    const result = await runtime.execute(
+      request('read_object', { target: '人物「凯尔·维尔」设定' }),
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: { missing: true, content: '' },
+      modelData: expect.stringContaining(
+        '人物「凯尔·维尔」尚未建立。当前任务需要它时可以直接创建；无需继续尝试这个名称的其他写法。',
+      ),
+    });
+    if (result.ok) expect(result.modelData).not.toMatch(/path|file|directory|json/iu);
+  });
+
+  it('resolves punctuation variants and aliases to one canonical entity', async () => {
+    const category: BookElementCategory = {
+      id: 'people-category',
+      projectId: PROJECT_ID,
+      name: '人物',
+      contentJson: '{}',
+      elementTemplateJson: '{}',
+      elementTemplateKvJson: '[]',
+      color: '#7386a8',
+      layoutMode: 'auto',
+      gridX: null,
+      gridY: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    const element: BookElement = {
+      id: 'grey-banker',
+      projectId: PROJECT_ID,
+      categoryId: category.id,
+      name: '奥伦维尔',
+      summary: '背着旧债上路。',
+      contentJson: '{}',
+      kvJson: '[]',
+      aliases: ['奥伦'],
+      groupName: null,
+      portraitAssetId: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    useDataStore.setState({ bookElementCategories: [category], bookElements: [element] });
+    const runtime = createRuntime(fakeReadRuntime('1\t他背着旧债上路。'));
+
+    await expect(
+      runtime.execute(request('read_object', { target: '人物「奥伦·维尔」' })),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { path: '/elements/人物/奥伦维尔/body.md' },
+      modelData: expect.stringContaining('要素「奥伦维尔」（别名：奥伦）设定'),
+    });
+    const aliasRuntime = createRuntime(fakeReadRuntime('1\t他背着旧债上路。'));
+    await expect(
+      aliasRuntime.execute(request('read_object', { target: '人物「奥伦」' })),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { path: '/elements/人物/奥伦维尔/body.md' },
+    });
+    const bareAliasRuntime = createRuntime(fakeReadRuntime('1\t他背着旧债上路。'));
+    await expect(
+      bareAliasRuntime.execute(request('read_object', { target: '奥伦' })),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { path: '/elements/人物/奥伦维尔/body.md' },
+      modelData: expect.stringContaining('要素「奥伦维尔」（别名：奥伦）设定'),
     });
   });
 
@@ -355,7 +858,7 @@ describe('DriftingWorkspaceToolRuntime', () => {
             name: '空分类',
             type: 'directory',
             writable: true,
-            description: expect.stringContaining('/elements/空分类/<element-name>/body.md'),
+            description: expect.stringContaining('空要素分类'),
           }),
         ],
       },
@@ -363,7 +866,7 @@ describe('DriftingWorkspaceToolRuntime', () => {
     });
 
     await expect(
-      runtime.execute(request('list_files', { path: '/elements/空分类' })),
+      runtime.execute(request('browse_project', { collection: '要素分类「空分类」' })),
     ).resolves.toMatchObject({
       ok: true,
       data: { path: '/elements/空分类', files: [], total: 0, truncated: false },
@@ -374,7 +877,7 @@ describe('DriftingWorkspaceToolRuntime', () => {
   it('describes comment and relation creation in author language without serialization forms', async () => {
     const runtime = createRuntime(fakeReadRuntime());
 
-    const comments = await runtime.execute(request('list_files', { path: '/comments' }));
+    const comments = await runtime.execute(request('browse_project', { collection: '批注' }));
     expect(comments).toMatchObject({
       ok: true,
       modelData: expect.stringContaining('可新建一条批注或待办，并说明内容及其对象'),
@@ -383,7 +886,7 @@ describe('DriftingWorkspaceToolRuntime', () => {
       expect(comments.modelData).not.toMatch(/\/comments|\.json|targetKind/iu);
     }
 
-    const relations = await runtime.execute(request('list_files', { path: '/relations' }));
+    const relations = await runtime.execute(request('browse_project', { collection: '实体关系' }));
     expect(relations).toMatchObject({
       ok: true,
       modelData: expect.stringContaining('可用准确的实体名称和关系类型建立一条实体关系'),
@@ -392,7 +895,7 @@ describe('DriftingWorkspaceToolRuntime', () => {
       expect(relations.modelData).not.toMatch(/\/relations|\.json|fromKind/iu);
     }
 
-    const elements = await runtime.execute(request('list_files', { path: '/elements' }));
+    const elements = await runtime.execute(request('browse_project', { collection: '要素' }));
     expect(elements).toMatchObject({
       ok: true,
       modelData: expect.stringContaining('新建要素时先选择或建立分类'),
@@ -402,17 +905,287 @@ describe('DriftingWorkspaceToolRuntime', () => {
     }
   });
 
-  it('turns multiple same-file replacements into one hidden atomic file-edit command', async () => {
+  it('summarizes and searches comments semantically instead of forcing numbered reads', async () => {
+    const commentId = 'todo-grey-shure';
+    const comment: Comment = {
+      id: commentId,
+      projectId: PROJECT_ID,
+      kind: 'todo',
+      targetKind: 'node',
+      targetId: NODE_ID,
+      targetBlockId: null,
+      anchorJson: JSON.stringify({ selectedText: '奥伦没有回答凯尔。' }),
+      authorKind: 'user',
+      authorId: null,
+      authorName: null,
+      bodyJson: JSON.stringify({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: '核对奥伦与凯尔是否已经和解' }],
+          },
+        ],
+      }),
+      status: 'open',
+      priority: null,
+      source: 'manual',
+      metadataJson: null,
+      targetBlockIdsJson: '[]',
+      resolvedAt: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    useDataStore.setState({ comments: [comment] });
+    const readRuntime = fakeReadRuntime();
+    const runtime = createRuntime(readRuntime);
+
+    const catalog = await runtime.execute(
+      request('browse_project', { collection: '批注或待办' }),
+    );
+    expect(catalog).toMatchObject({
+      ok: true,
+      modelData: expect.stringContaining('待办 · 未完成 · 第一章 雨夜 · 核对奥伦与凯尔是否已经和解'),
+    });
+    if (catalog.ok) {
+      expect(catalog.modelData).toContain(`批注或待办「${commentId}」`);
+      expect(catalog.modelData).toContain('引用片段：奥伦没有回答凯尔。');
+      expect(catalog.modelData).not.toMatch(/\/comments|\.json|bodyJson|targetId/iu);
+    }
+
+    const found = await runtime.execute(
+      request('search_work', { query: '奥伦', within: '批注或待办' }),
+    );
+    expect(found).toMatchObject({
+      ok: true,
+      data: { total: 1, matches: [{ path: `/comments/${commentId}.json` }] },
+      modelData: expect.stringContaining('核对奥伦与凯尔是否已经和解'),
+    });
+    expect(readRuntime.execute).not.toHaveBeenCalled();
+  });
+
+  it('keeps large note catalogs bounded and directs semantic search across the full set', async () => {
+    const comments: Comment[] = Array.from({ length: 30 }, (_, index) => ({
+      id: `catalog-note-${String(index).padStart(2, '0')}`,
+      projectId: PROJECT_ID,
+      kind: 'todo',
+      targetKind: 'node',
+      targetId: NODE_ID,
+      targetBlockId: null,
+      anchorJson: '{}',
+      authorKind: 'user',
+      authorId: null,
+      authorName: null,
+      bodyJson: JSON.stringify({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: `核对人物关系 ${index}` }],
+          },
+        ],
+      }),
+      status: 'open',
+      priority: null,
+      source: 'manual',
+      metadataJson: null,
+      targetBlockIdsJson: '[]',
+      resolvedAt: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    }));
+    useDataStore.setState({ comments });
+    const readRuntime = fakeReadRuntime();
+    const runtime = createRuntime(readRuntime);
+
+    const result = await runtime.execute(
+      request('browse_project', { collection: '批注或待办' }),
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: { files: expect.any(Array), total: 30, truncated: true },
+      modelData: expect.stringContaining('可按人物、主题或明显的测试词搜索全部内容'),
+    });
+    if (result.ok) {
+      const files =
+        result.data && typeof result.data === 'object' && !Array.isArray(result.data)
+          ? (result.data as Record<string, unknown>).files
+          : [];
+      expect(Array.isArray(files) ? files : []).toHaveLength(24);
+      expect(result.modelData).not.toContain('catalog-note-24');
+      expect(result.modelData).not.toContain('目录');
+    }
+    expect(readRuntime.execute).not.toHaveBeenCalled();
+  });
+
+  it('renders notes and relations as domain fields instead of serialized objects', async () => {
+    const commentId = 'todo-domain-view';
+    const relationId = 'relation-domain-view';
+    const comment: Comment = {
+      id: commentId,
+      projectId: PROJECT_ID,
+      kind: 'todo',
+      targetKind: 'node',
+      targetId: NODE_ID,
+      targetBlockId: null,
+      anchorJson: '{}',
+      authorKind: 'ai',
+      authorId: null,
+      authorName: 'Agent',
+      bodyJson: '{}',
+      status: 'open',
+      priority: null,
+      source: 'api',
+      metadataJson: null,
+      targetBlockIdsJson: '[]',
+      resolvedAt: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    const relation: EntityRelationLink = {
+      id: relationId,
+      projectId: PROJECT_ID,
+      fromKind: 'node',
+      fromId: NODE_ID,
+      toKind: 'node',
+      toId: NODE_ID,
+      kind: '映照',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    useDataStore.setState({ comments: [comment], entityRelations: [relation] });
+    const execute = vi.fn(async (input: AgentToolExecutionRequest) => {
+      if (input.name === 'list_comments') {
+        return {
+          ok: true as const,
+          data: {
+            result: {
+              comments: [
+                {
+                  id: commentId,
+                  kind: 'todo',
+                  body: '核对第一章时间线',
+                  status: 'open',
+                  targetKind: 'node',
+                  target: '第一章 雨夜',
+                  createdAt: comment.createdAt,
+                },
+              ],
+            },
+            freshness: { receiptId: 'comments-receipt', observations: [] },
+          },
+        };
+      }
+      if (input.name === 'get_entity_relations') {
+        return {
+          ok: true as const,
+          data: {
+            result: { relations: [] },
+            freshness: { receiptId: 'relations-receipt', observations: [] },
+          },
+        };
+      }
+      return { ok: false as const, error: `unexpected read ${input.name}` };
+    });
+    const runtime = createRuntime({ listDefinitions: () => [], execute });
+
+    const note = await runtime.execute(
+      request('read_object', { target: `批注或待办「${commentId}」` }),
+    );
+    expect(note).toMatchObject({
+      ok: true,
+      modelData: expect.stringContaining('类型：待办'),
+    });
+    if (note.ok) {
+      expect(note.modelData).toContain('内容：核对第一章时间线');
+      expect(note.modelData).toContain('对象：第一章 雨夜');
+      expect(note.modelData).not.toMatch(/[{}]|\.json|projectId|createdAt/iu);
+    }
+
+    const linked = await runtime.execute(
+      request('read_object', { target: `实体关系「${relationId}」` }),
+    );
+    expect(linked).toMatchObject({
+      ok: true,
+      modelData: expect.stringContaining('起点：第一章 雨夜'),
+    });
+    if (linked.ok) {
+      expect(linked.modelData).toContain('终点：第一章 雨夜');
+      expect(linked.modelData).toContain('类型：映照');
+      expect(linked.modelData).not.toMatch(/[{}]|fromKind|toKind|\.json/iu);
+    }
+  });
+
+  it('revises the visible default relation label when the stored kind is empty', async () => {
+    const relationId = 'relation-default-kind';
+    const relation: EntityRelationLink = {
+      id: relationId,
+      projectId: PROJECT_ID,
+      fromKind: 'node',
+      fromId: NODE_ID,
+      toKind: 'node',
+      toId: NODE_ID,
+      kind: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    useDataStore.setState({ entityRelations: [relation] });
+    const execute = vi.fn(async (_input: AgentToolExecutionRequest) => ({
+      ok: true as const,
+      data: {
+        result: {},
+        freshness: {
+          receiptId: 'relation-receipt',
+          observations: [
+            {
+              id: 'relation-observation',
+              entityKind: 'relation',
+              entityId: relationId,
+              revision: relation.updatedAt,
+            },
+          ],
+        },
+      },
+    }));
+    const runtime = createRuntime({ listDefinitions: () => [], execute });
+
+    const prepared = await runtime.prepareWriteRequest(
+      request(
+        'revise_object',
+        {
+          target: `实体关系「${relationId}」`,
+          changes: [{ currentText: '关联', revisedText: '身份：能力者' }],
+        },
+        'write',
+      ),
+    );
+
+    expect(workspaceCommandFromArguments(prepared.arguments)).toEqual({
+      name: 'update_relation_kind',
+      arguments: {
+        relationId,
+        kind: '身份：能力者',
+        expectedRevision: {
+          receiptId: 'relation-receipt',
+          observationId: 'relation-observation',
+          revision: relation.updatedAt,
+        },
+      },
+    });
+  });
+
+  it('turns multiple passage revisions into one hidden atomic prose command', async () => {
     const readRuntime = fakeReadRuntime();
     const runtime = createRuntime(readRuntime);
     const prepared = await runtime.prepareEditRequest(
       request(
-        'edit_file',
+        'revise_object',
         {
-          path: '/chapters/第一章 雨夜/prose.md',
-          replacements: [
-            { oldText: '雨落旧宅', newText: '暴雨压住旧宅' },
-            { oldText: '她没有回头。', newText: '她停了一瞬，仍没有回头。' },
+          target: '章节「第一章 雨夜」',
+          changes: [
+            { currentText: '雨落旧宅', revisedText: '暴雨压住旧宅' },
+            { currentText: '她没有回头。', revisedText: '她停了一瞬，仍没有回头。' },
           ],
         },
         'write',
@@ -476,20 +1249,18 @@ describe('DriftingWorkspaceToolRuntime', () => {
     const runtime = createRuntime({ listDefinitions: () => [], execute });
 
     await expect(
-      runtime.execute(
-        request('read_file', { path: '/chapters/第一章 雨夜/prose.md' }),
-      ),
+      runtime.execute(request('read_object', { target: '章节「第一章 雨夜」' })),
     ).resolves.toMatchObject({
       ok: true,
       data: { content: 'SLOT_A\n\nSLOT_B' },
     });
 
-    const prepared = await runtime.prepareEditRequest(
+    const prepared = await runtime.prepareWriteRequest(
       request(
-        'edit_file',
+        'revise_object',
         {
-          path: '/chapters/第一章 雨夜/prose.md',
-          replacements: [{ oldText: 'SLOT_B', newText: 'AGENT_B_DONE' }],
+          target: '章节「第一章 雨夜」',
+          changes: [{ currentText: 'SLOT_B', revisedText: 'AGENT_B_DONE' }],
         },
         'write',
       ),
@@ -514,6 +1285,142 @@ describe('DriftingWorkspaceToolRuntime', () => {
       },
     });
     expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('maps domain-native creation requests to every hidden authored-object command', async () => {
+    const category: BookElementCategory = {
+      id: 'category-people',
+      projectId: PROJECT_ID,
+      name: '人物',
+      contentJson: '{}',
+      elementTemplateJson: '{}',
+      elementTemplateKvJson: '[]',
+      color: '#888888',
+      layoutMode: 'auto',
+      gridX: null,
+      gridY: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    useDataStore.setState({ bookElementCategories: [category] });
+    const execute = vi.fn(async (input: AgentToolExecutionRequest) => {
+      const entityKind = input.name === 'list_memory' ? 'memory_set' : 'project';
+      return {
+        ok: true as const,
+        data: {
+          result: input.name === 'list_memory' ? { memories: [] } : {},
+          freshness: {
+            receiptId: `${entityKind}-receipt`,
+            observations: [
+              {
+                id: `${entityKind}-observation`,
+                entityKind,
+                entityId: PROJECT_ID,
+                revision: '2026-08-01T00:00:00.000Z',
+              },
+            ],
+          },
+        },
+      };
+    });
+    const runtime = createRuntime({ listDefinitions: () => [], execute });
+    const create = async (arguments_: Record<string, unknown>) =>
+      workspaceCommandFromArguments(
+        (
+          await runtime.prepareWriteRequest(request('write_object', arguments_, 'write'))
+        ).arguments,
+      );
+
+    await expect(
+      create({ target: '灵感「雨夜片段」', body: '雨声切开旧城。', summary: '一段雨夜灵感。' }),
+    ).resolves.toMatchObject({
+      name: 'create_node',
+      arguments: { kind: 'drift', title: '雨夜片段', body: '雨声切开旧城。' },
+    });
+    await expect(
+      create({ target: '人物「林弦」', body: '林弦习惯在说谎前摸一下袖口。' }),
+    ).resolves.toMatchObject({
+      name: 'create_element',
+      arguments: { category: '人物', name: '林弦' },
+    });
+    await expect(
+      create({ target: '故事线「返乡」', body: '林弦沿旧铁路返乡。' }),
+    ).resolves.toMatchObject({
+      name: 'create_storyline',
+      arguments: { name: '返乡' },
+    });
+    await expect(
+      create({ target: '要素分类「遗物」', body: '承载人物过去的物件。' }),
+    ).resolves.toMatchObject({
+      name: 'create_category',
+      arguments: { name: '遗物' },
+    });
+    await expect(
+      create({
+        target: '待办',
+        body: '核对第一章时间线',
+        attributes: [
+          { name: '类型', value: '奥伦凯尔线的后续设定落实' },
+          { name: '对象类型', value: '章节' },
+          { name: '对象', value: '第一章 雨夜' },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      name: 'create_comment',
+      arguments: {
+        kind: 'todo',
+        body: '核对第一章时间线',
+        targetKind: 'node',
+        target: '第一章 雨夜',
+      },
+    });
+    await expect(
+      create({
+        target: '实体关系',
+        attributes: [
+          { name: '起点类型', value: '人物' },
+          { name: '起点', value: '林弦' },
+          { name: '终点类型', value: '章节' },
+          { name: '终点', value: '第一章 雨夜' },
+          { name: '关系', value: '登场于' },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      name: 'add_relation',
+      arguments: {
+        fromKind: 'element',
+        from: '林弦',
+        toKind: 'node',
+        to: '第一章 雨夜',
+        kind: '登场于',
+      },
+    });
+    await expect(
+      create({ target: '作者规则', body: '对话尽量克制，避免解释人物情绪。' }),
+    ).resolves.toMatchObject({
+      name: 'remember',
+      arguments: { kind: 'directive', body: '对话尽量克制，避免解释人物情绪。' },
+    });
+    await expect(
+      create({
+        target: '项目事实',
+        attributes: [{ name: '南园气候', value: '终年潮湿多雨' }],
+      }),
+    ).resolves.toMatchObject({
+      name: 'update_project_facts',
+      arguments: { facts: [{ key: '南园气候', value: '终年潮湿多雨' }] },
+    });
+  });
+
+  it('maps a domain-native destructive request to the guarded hidden delete command', async () => {
+    const runtime = createRuntime(fakeReadRuntime());
+    const prepared = await runtime.prepareWriteRequest(
+      request('delete_object', { target: '章节「第一章 雨夜」' }, 'write'),
+    );
+    expect(workspaceCommandFromArguments(prepared.arguments)).toMatchObject({
+      name: 'delete_node',
+      arguments: { node: NODE_ID },
+    });
   });
 
   it('keeps exact current-revision edits when sibling rows are stale or already satisfied', async () => {
@@ -688,13 +1595,13 @@ describe('DriftingWorkspaceToolRuntime', () => {
     try {
       await runtime.prepareWriteRequest(
         request(
-          'edit_file',
+          'revise_object',
           {
-            path: '第一章 雨夜',
-            replacements: [
+            target: '章节「第一章 雨夜」',
+            changes: [
               {
-                oldText: '她没有回头。',
-                newText: '她没有回头。',
+                currentText: '她没有回头。',
+                revisedText: '她没有回头。',
               },
             ],
           },
@@ -883,36 +1790,36 @@ describe('DriftingWorkspaceToolRuntime', () => {
     const runtime = createRuntime(fakeReadRuntime(`1\t${original}`));
 
     const firstPage = await runtime.execute(
-      request('read_file', {
-        path: '/chapters/第一章 雨夜/prose.md',
-        offset: 0,
-        limit: 32_000,
+      request('read_object', {
+        target: '章节「第一章 雨夜」',
+        cursor: 0,
+        maxCharacters: 32_000,
       }),
     );
     expect(firstPage).toMatchObject({
       ok: true,
       data: { truncated: true, nextOffset: 32_000, totalChars: 40_000 },
-      modelData: expect.stringContaining('[这份内容尚未读完；从第 32000 个字符继续。]'),
+      modelData: expect.stringContaining('[这份内容尚未读完；继续读取时使用 cursor 32000。]'),
     });
 
     await expect(
       runtime.prepareWriteRequest(
         request(
-          'write_file',
+          'write_object',
           {
-            path: '/chapters/第一章 雨夜/prose.md',
-            content: original.slice(0, 20_000),
+            target: '章节「第一章 雨夜」',
+            body: original.slice(0, 20_000),
           },
           'write',
         ),
       ),
-    ).rejects.toThrow(/INCOMPLETE_WHOLE_FILE_READ/);
+    ).rejects.toThrow(/INCOMPLETE_AUTHORED_OBJECT_READ/);
 
     const finalPage = await runtime.execute(
-      request('read_file', {
-        path: '/chapters/第一章 雨夜/prose.md',
-        offset: 32_000,
-        limit: 32_000,
+      request('read_object', {
+        target: '章节「第一章 雨夜」',
+        cursor: 32_000,
+        maxCharacters: 32_000,
       }),
     );
     expect(finalPage).toMatchObject({
@@ -923,10 +1830,10 @@ describe('DriftingWorkspaceToolRuntime', () => {
     await expect(
       runtime.prepareWriteRequest(
         request(
-          'write_file',
+          'write_object',
           {
-            path: '/chapters/第一章 雨夜/prose.md',
-            content: original.slice(0, -2),
+            target: '章节「第一章 雨夜」',
+            body: original.slice(0, -2),
           },
           'write',
         ),
@@ -1073,53 +1980,17 @@ describe('DriftingWorkspaceToolRuntime', () => {
     });
   });
 
-  it('defers one redundant whole-body read to the durable current working copy', async () => {
+  it('returns a fresh complete body when the model explicitly reads after a durable edit', async () => {
     const readRuntime = fakeReadRuntime();
-    const writeEffects = {
-      loadSnapshot: vi.fn(async () => ({
-        effects: [
-          {
-            id: 'effect-current-working-copy',
-            turnId: 'workspace-turn',
-            phase: 'result_committed',
-            arguments: {
-              __workspaceAuthoredReadState: {
-                targetKey: `node:${NODE_ID}`,
-                target: '章节「第一章 雨夜」正文',
-                summary: '她冒雨抵达旧宅。',
-                completeBodyRead: true,
-                focusedBodyEdit: true,
-                currentPassages: ['她始终没有回头。'],
-              },
-            },
-          },
-        ],
-        reviews: [],
-      })),
-    } as unknown as AgentRuntimeWriteEffectRepository;
     const runtime = new DriftingWorkspaceToolRuntime({
       readRuntime,
-      writeEffects,
       getContext: () => ({ projectId: PROJECT_ID, write: {} }) as unknown as AgentToolContext,
     });
 
-    const deferred = await runtime.execute(request('read_file', { path: '第一章 雨夜' }));
-
-    expect(deferred).toMatchObject({
-      ok: true,
-      data: {
-        currentWorkingCopy: true,
-        summary: '她冒雨抵达旧宅。',
-        currentPassages: ['她始终没有回头。'],
-      },
-      modelData: expect.stringContaining('这次无需再次载入'),
-    });
-    expect(readRuntime.execute).not.toHaveBeenCalled();
-
-    const explicitSecondRead = await runtime.execute(
+    const freshRead = await runtime.execute(
       request('read_file', { path: '第一章 雨夜' }),
     );
-    expect(explicitSecondRead).toMatchObject({
+    expect(freshRead).toMatchObject({
       ok: true,
       data: { content: '# 雨落旧宅\n\n她没有回头。' },
     });
@@ -1307,25 +2178,27 @@ describe('DriftingWorkspaceToolRuntime', () => {
         },
       },
     });
-    expect(execute).toHaveBeenCalledTimes(2);
+    expect(
+      execute.mock.calls.filter(([input]) => input.name === 'read_node'),
+    ).toHaveLength(2);
   });
 
-  it('does not turn an invalid grep path into a false negative', async () => {
+  it('does not turn an unavailable search scope into a false negative', async () => {
     const runtime = createRuntime(fakeReadRuntime());
 
     await expect(
-      runtime.execute(request('grep', { query: '雨', path: '/missing-chapter' })),
+      runtime.execute(request('search_work', { query: '雨', within: '不存在的章节' })),
     ).resolves.toMatchObject({
       ok: false,
-      error: expect.stringContaining('No virtual file or directory'),
+      error: expect.stringContaining('requested authored object or collection is unavailable'),
     });
   });
 
-  it('reports exact literal occurrence counts for one file or entity directory', async () => {
+  it('reports exact literal occurrence counts for one authored object', async () => {
     const runtime = createRuntime(fakeReadRuntime('1\t# 回归\n2\t旧标记与旧标记。\n3\t新标记。'));
 
     const found = await runtime.execute(
-      request('grep', { query: '旧标记', path: '/chapters/第一章 雨夜' }),
+      request('search_work', { query: '旧标记', within: '章节「第一章 雨夜」' }),
     );
     expect(found).toMatchObject({
       ok: true,
@@ -1335,16 +2208,16 @@ describe('DriftingWorkspaceToolRuntime', () => {
         exact: true,
         matches: [{}, {}],
       },
-      modelData: expect.stringContaining('Exact literal occurrences: 2'),
+      modelData: expect.stringContaining('精确出现次数：2'),
     });
 
     const missing = await runtime.execute(
-      request('grep', { query: '不存在', path: '/chapters/第一章 雨夜/prose.md' }),
+      request('search_work', { query: '不存在', within: '章节「第一章 雨夜」' }),
     );
     expect(missing).toMatchObject({
       ok: true,
       data: { total: 0, exact: true, matches: [] },
-      modelData: expect.stringContaining('Exact literal occurrences: 0'),
+      modelData: expect.stringContaining('精确出现次数：0'),
     });
   });
 
@@ -1424,7 +2297,7 @@ describe('DriftingWorkspaceToolRuntime', () => {
     });
   });
 
-  it('searches current relation JSON literally instead of returning an empty prose search', async () => {
+  it('searches current entity relations instead of returning an empty prose search', async () => {
     const relation: EntityRelationLink = {
       id: 'relation-current',
       projectId: PROJECT_ID,
@@ -1441,7 +2314,7 @@ describe('DriftingWorkspaceToolRuntime', () => {
     const runtime = createRuntime(readRuntime);
 
     await expect(
-      runtime.execute(request('grep', { query: '自省', path: '/relations' })),
+      runtime.execute(request('search_work', { query: '自省', within: '实体关系' })),
     ).resolves.toMatchObject({
       ok: true,
       data: {
@@ -1449,6 +2322,92 @@ describe('DriftingWorkspaceToolRuntime', () => {
         total: 1,
         matches: [{ path: '/relations/relation-current.json' }],
       },
+    });
+    expect(readRuntime.execute).not.toHaveBeenCalled();
+  });
+
+  it('projects element aliases into relation browsing and exact relation search', async () => {
+    const category: BookElementCategory = {
+      id: 'people-category',
+      projectId: PROJECT_ID,
+      name: '人物',
+      contentJson: '{}',
+      elementTemplateJson: '{}',
+      elementTemplateKvJson: '[]',
+      color: '#7386a8',
+      layoutMode: 'auto',
+      gridX: null,
+      gridY: null,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    const elements: BookElement[] = [
+      {
+        id: 'grey-banker',
+        projectId: PROJECT_ID,
+        categoryId: category.id,
+        name: 'Grey Banker',
+        summary: '',
+        contentJson: '{}',
+        kvJson: '[]',
+        aliases: ['奥伦', 'Grey'],
+        groupName: null,
+        portraitAssetId: null,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+      },
+      {
+        id: 'shul-banker',
+        projectId: PROJECT_ID,
+        categoryId: category.id,
+        name: 'Shul Banker',
+        summary: '',
+        contentJson: '{}',
+        kvJson: '[]',
+        aliases: ['凯尔', 'Shul'],
+        groupName: null,
+        portraitAssetId: null,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+      },
+    ];
+    const relation: EntityRelationLink = {
+      id: 'banker-allies',
+      projectId: PROJECT_ID,
+      fromKind: 'element',
+      fromId: elements[0]!.id,
+      toKind: 'element',
+      toId: elements[1]!.id,
+      kind: '旧日同盟',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    useDataStore.setState({
+      bookElementCategories: [category],
+      bookElements: elements,
+      entityRelations: [relation],
+    });
+    const readRuntime = fakeReadRuntime();
+    const runtime = createRuntime(readRuntime);
+
+    const catalog = await runtime.execute(
+      request('browse_project', { collection: '实体关系' }),
+    );
+    expect(catalog).toMatchObject({
+      ok: true,
+      modelData: expect.stringContaining('Grey Banker（别名：奥伦、Grey）'),
+    });
+    if (catalog.ok) {
+      expect(catalog.modelData).toContain('Shul Banker（别名：凯尔、Shul）');
+      expect(catalog.modelData).not.toMatch(/\/relations|\.json|fromId|toId/iu);
+    }
+
+    await expect(
+      runtime.execute(request('search_work', { query: '奥伦', within: '实体关系' })),
+    ).resolves.toMatchObject({
+      ok: true,
+      data: { total: 1, matches: [{ path: '/relations/banker-allies.json' }] },
+      modelData: expect.stringContaining('Grey Banker（别名：奥伦、Grey）'),
     });
     expect(readRuntime.execute).not.toHaveBeenCalled();
   });
@@ -1516,10 +2475,10 @@ describe('DriftingWorkspaceToolRuntime', () => {
 
     const prepared = await runtime.prepareWriteRequest(
       request(
-        'write_file',
+        'write_object',
         {
-          path: `/relations/${relationId}.json`,
-          content: JSON.stringify({ kind: 'explains' }),
+          target: `实体关系「${relationId}」`,
+          attributes: [{ name: 'kind', value: 'explains' }],
         },
         'write',
       ),

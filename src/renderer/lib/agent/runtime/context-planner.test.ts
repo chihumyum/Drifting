@@ -761,8 +761,8 @@ describe('provider-neutral Agent context planner', () => {
       ],
     });
 
-    expect(sourceSegment(planned, 'read-call')).toBeDefined();
-    expect(sourceSegment(planned, 'read-result')).toBeDefined();
+    expect(sourceSegment(planned, 'read-call')).toBeUndefined();
+    expect(sourceSegment(planned, 'read-result')).toBeUndefined();
     expect(sourceSegment(planned, 'read-progress')).toMatchObject({
       classification: 'pinned',
       pinReason: 'semantic',
@@ -770,7 +770,7 @@ describe('provider-neutral Agent context planner', () => {
   });
 
   it('retains an entire parallel tool batch when only one read becomes stale', async () => {
-    const readCall = (sourceId: string, ordinal: number, callId: string, path: string) =>
+    const readCall = (sourceId: string, ordinal: number, callId: string, target: string) =>
       row(
         sourceId,
         ordinal,
@@ -779,11 +779,11 @@ describe('provider-neutral Agent context planner', () => {
         JSON.stringify({
           type: 'tool_call',
           callId,
-          name: 'read_file',
-          arguments: { path },
-          rawArguments: JSON.stringify({ path }),
+          name: 'read_object',
+          arguments: { target },
+          rawArguments: JSON.stringify({ target }),
         }),
-        { callId, toolName: 'read_file', toolAccess: 'read' },
+        { callId, toolName: 'read_object', toolAccess: 'read' },
       );
     const readResult = (sourceId: string, ordinal: number, callId: string) =>
       row(
@@ -791,8 +791,8 @@ describe('provider-neutral Agent context planner', () => {
         ordinal,
         0,
         'tool_result',
-        JSON.stringify({ callId, name: 'read_file', ok: true, content: `${callId}正文` }),
-        { callId, toolName: 'read_file', toolAccess: 'read' },
+        JSON.stringify({ callId, name: 'read_object', ok: true, content: `${callId}正文` }),
+        { callId, toolName: 'read_object', toolAccess: 'read' },
       );
     const rows = [
       row('system', 0, null, 'system_policy', 'policy'),
@@ -811,13 +811,11 @@ describe('provider-neutral Agent context planner', () => {
         JSON.stringify({
           type: 'tool_call',
           callId: 'write-lana',
-          name: 'edit_file',
-          arguments: {
-            path: '灵感「米拉·索恩」',
-            replacements: [{ oldText: '旧故事', newText: '新的起源故事' }],
-          },
+          name: 'write_object',
+          arguments: { target: '灵感「米拉·索恩」', body: '新的起源故事' },
+          rawArguments: JSON.stringify({ target: '灵感「米拉·索恩」', body: '新的起源故事' }),
         }),
-        { callId: 'write-lana', toolName: 'edit_file', toolAccess: 'write' },
+        { callId: 'write-lana', toolName: 'write_object', toolAccess: 'write' },
       ),
       row(
         'write-result',
@@ -826,11 +824,11 @@ describe('provider-neutral Agent context planner', () => {
         'tool_result',
         JSON.stringify({
           callId: 'write-lana',
-          name: 'edit_file',
+          name: 'write_object',
           ok: true,
           content: '灵感「米拉·索恩」已更新。',
         }),
-        { callId: 'write-lana', toolName: 'edit_file', toolAccess: 'write' },
+        { callId: 'write-lana', toolName: 'write_object', toolAccess: 'write' },
       ),
       row('write-receipt', 10, 0, 'write_receipt', '灵感「米拉·索恩」已可靠保存。'),
     ];
@@ -845,7 +843,7 @@ describe('provider-neutral Agent context planner', () => {
           evidenceSourceId: 'write-receipt',
           turnOrdinal: 0,
           callId: 'write-lana',
-          toolName: 'edit_file',
+          toolName: 'write_object',
         },
       ],
     });

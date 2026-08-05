@@ -8,7 +8,7 @@ import { canonicalAgentRuntimeJson } from '../../../sqlite-repo/agent-runtime-pe
 import type { AgentContextSupplementalPinnedRow } from './context-message-adapter';
 import type { AgentRuntimeContextPlanningHookInput } from './runtime-context-planning';
 
-export const AGENT_LONG_TASK_PINNED_STEP_LIMIT = 48 as const;
+export const AGENT_LONG_TASK_PINNED_STEP_LIMIT = 1 as const;
 
 function projectManifestStateForContext(state: AgentRuntimeTaskChapterManifestState) {
   return {
@@ -70,10 +70,7 @@ function pinnedStepWindow(
       : pending >= 0
         ? pending
         : plan.steps.findIndex((step) => step.status === 'blocked');
-  const offset =
-    firstActionable < 0
-      ? Math.max(0, plan.steps.length - AGENT_LONG_TASK_PINNED_STEP_LIMIT)
-      : Math.max(0, firstActionable - 4);
+  const offset = firstActionable < 0 ? Math.max(0, plan.steps.length - 1) : firstActionable;
   return {
     offset,
     rows: plan.steps.slice(offset, offset + AGENT_LONG_TASK_PINNED_STEP_LIMIT).map((step) => {
@@ -113,10 +110,11 @@ function pinnedStepWindow(
 
 /**
  * Loads the current or most recently settled task and emits exact session-wide
- * runtime facts. Both rows
- * are semantic-pinned by the context planner, so verified compaction cannot
- * summarize or discard the current progress pointer or active constraints.
- * The full plan remains in SQLite and can be paged with read_task_plan.
+ * runtime facts. Both rows are semantic-pinned by the context planner, so
+ * verified compaction cannot summarize or discard the current progress pointer
+ * or active constraints. Only the current deliverable is shown to the model;
+ * the complete checklist remains durable for the product UI and advances one
+ * item at a time.
  */
 export function createAgentLongTaskSupplementalRowsHook(
   repository: AgentRuntimeLongTaskRepository,
@@ -169,7 +167,7 @@ export function createAgentLongTaskSupplementalRowsHook(
         kind: 'task_plan',
         durableWriteCoverage: planCoverage,
         content: canonicalAgentRuntimeJson({
-          schemaVersion: 3,
+          schemaVersion: 4,
           task: {
             taskId: plan.task.id,
             objective: plan.task.objective,
@@ -189,16 +187,12 @@ export function createAgentLongTaskSupplementalRowsHook(
             limit: AGENT_LONG_TASK_PINNED_STEP_LIMIT,
             returned: window.rows.length,
             total: plan.steps.length,
-            nextOffset:
-              window.offset + window.rows.length < plan.steps.length
-                ? window.offset + window.rows.length
-                : null,
+            currentStepOnly: true,
             steps: window.rows,
           },
           continuation: {
-            readTool: 'read_task_plan',
             instruction:
-              'Continue the same task from the first in_progress step, otherwise the first pending step. Revisit blocked review steps only after their status changes. Never repeat completed steps. Compaction and restart preserve task continuity; continue until the plan is complete or genuinely blocked.',
+              'Prioritize the current authored deliverable shown here. Reuse evidence already returned and gather whatever concrete authored evidence is genuinely needed; avoid repeating discovery without a new reason. This focused projection is not a scope restriction: related authored objects may be inspected or modified when cross-object work requires it. Adopt reliable saved-change notes as progress, never repeat saved work, and mark this item completed once its authored result is saved. Compaction and restart preserve this handoff; continue until the checklist is complete or genuinely blocked.',
           },
         }),
       },

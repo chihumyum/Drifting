@@ -9,6 +9,9 @@ export function isBroadAutonomousProjectCampaign(request: string): boolean {
     /(?:这|本|整|当前)?(?:本书|小说|作品|项目)|(?:前|后|上|下)半(?:本|部|段)?|开头(?:这)?(?:一)?部分|现有(?:章节|资料|人物|关系)/iu.test(
       request,
     ) ||
+    /(?:这|该|上述|以下|这批|这一组|这组).{0,16}(?:人物|角色|要素)(?:档案|资料|关系)?/u.test(
+      request,
+    ) ||
     /\b(?:this|the|current) (?:book|novel|manuscript|project)|\b(?:first|second) half\b/iu.test(
       request,
     );

@@ -15,7 +15,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(32);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(45);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).not.toContain('The canonical project name is "019f-opaque-project-id"');
@@ -32,13 +32,26 @@ describe('Drifting General Agent system prompt', () => {
     const system = prompt({ projectName: 'Book' });
 
     expect(system).toContain('authored chapters, 灵感, elements, storylines, notes, relations');
-    expect(system).toContain('Operations are invisible capabilities over those creative-domain objects');
-    expect(system).toContain('reason and speak in the author\'s domain');
+    expect(system).toContain(
+      'Operations are invisible capabilities over those creative-domain objects',
+    );
+    expect(system).toContain("reason and speak in the author's domain");
+    expect(system).toContain('Capability targets are author-facing object references');
     expect(system).toContain('The Chinese product label for a drift node is 灵感.');
     expect(system).toContain('灵感, 漂移, inspiration, and drift all mean that domain object');
     expect(system).toContain('Use 灵感 in Chinese author-facing responses.');
     expect(system).toContain('Never create an element category named 灵感');
     expect(system).toContain('links are semantic relationships, not literal prose or formatting');
+    expect(system).toContain(
+      'current direct relations and a compact set of related manuscript excerpts',
+    );
+    expect(system).toContain('replace broad chapter gathering');
+    expect(system).toContain('Search results are current authored excerpts');
+    expect(system).toContain('do not reread every source merely to verify returned excerpts');
+    expect(system).toContain('An explicit empty-body result means the body is genuinely unfilled');
+    expect(system).toContain(
+      'never read adjacent chapters solely because their numbers are consecutive',
+    );
     expect(system).toContain('A successful operation means its domain change was saved');
     expect(system).toContain('trust that result');
     expect(system).toContain('Other General Agent conversations may be working');
@@ -53,8 +66,33 @@ describe('Drifting General Agent system prompt', () => {
     expect(system).toContain('reading or planning an object does not complete it');
     expect(system).toContain('proves the full prior manuscript was available');
     expect(system).toContain('Never audit or reconstruct earlier reads');
-    expect(system).toContain('the retained complete body plus its listed current passages');
-    expect(system).toContain('do not read it again merely because a focused revision succeeded');
+    expect(system).toContain('the body read before that revision is obsolete');
+    expect(system).toContain('Review and research items may report only verified reading findings');
+    expect(system).toContain(
+      'Read the authored object again only when a new concrete editorial uncertainty',
+    );
+    expect(system).toContain(
+      'Updating its summary, relations, notes, or another independent field',
+    );
+    expect(system).toContain('Checklist items are deliverables');
+    expect(system).toContain('not an inventory of reading, browsing, or searching');
+    expect(system).toContain('perform ordinary before/after self-checks inside the relevant edit');
+    expect(system).toContain('only when the author explicitly requested a standalone critique');
+    expect(system).toContain('finish every explicitly named primary object');
+    expect(system).toContain('Do not interrupt a primary-object edit');
+    expect(system).toContain('do not open its endpoints merely to justify deleting that relation');
+    expect(system).toContain('Preserve every uncertain object or meaningful note');
+    expect(system).toContain('move on without debating both choices');
+    expect(system).toContain('Treat reliable saved-change notes as partial progress');
+    expect(system).toContain('mark that item completed before starting unrelated discovery');
+    expect(system).not.toContain('finish one long authored body immediately after reading it');
+    expect(system).not.toContain('batching several full chapters for later editing wastes context');
+    expect(system).toContain('first/opening N chapters means exactly the first N chapter entries');
+    expect(system).toContain('must not acquire unrelated chapter items');
+    expect(system).toContain('引用正文 is only its anchored excerpt');
+    expect(system).toContain(
+      'An excerpt never proves that the complete target draft is stored in the note',
+    );
     expect(system).toContain('Keep reasoning brief and about the work itself');
     expect(system).toContain('story, character, continuity, structure, language');
     expect(system).toContain('Reason only until the next concrete editorial decision');
@@ -64,16 +102,17 @@ describe('Drifting General Agent system prompt', () => {
     expect(system).toContain('rehearse completed decisions');
     expect(system).toContain('inspect only concrete unresolved evidence');
     expect(system).toContain('Do not narrate operations or internal locations');
-    expect(system).toContain('Tool syntax and text matching are Drifting transport details');
-    expect(system).toContain('Never analyze quoting, escaping, character-level matching');
-    expect(system).toContain('localize that passage at most once only when it still matters');
+    expect(system).toContain('Never analyze operation syntax, quoting, escaping');
+    expect(system).toContain('character-level matching, persistence, or execution history');
+    expect(system).toContain('locate that passage at most once only when it still matters');
     expect(system).not.toContain('list_files');
     expect(system).not.toContain('read_file');
     expect(system).not.toContain('edit_file');
     expect(system).toContain('literal marker FINAL_RESPONSE:');
-    expect(system).toContain('Never emit the marker before more workspace work.');
+    expect(system).toContain('Never emit the marker before more project work.');
     expect(system).toContain('no provisional guesses, duplicated opening');
     expect(system).toContain('Only operations exposed in the current iteration are executable.');
+    expect(system).toContain('A checklist-only prelude is intentional.');
     expect(system).not.toContain('use a streaming working set');
     expect(system).not.toContain('consult neighboring chapter summaries first');
     expect(system).not.toContain('explicit private checklist');

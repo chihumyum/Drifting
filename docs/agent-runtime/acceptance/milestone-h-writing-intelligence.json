@@ -3,8 +3,8 @@
   "schemaVersion": 2,
   "nodeVersion": "v22.23.1",
   "platform": "darwin",
-  "gitHead": "d436616087db9840a46ffe609865d7965d9198c7",
-  "sourceSetSha256": "sha256:e4dac2a5e0b11ae663c3b8e8cec07edf3800e9ae38f20c0b17a7bcc2f38bc97d",
+  "gitHead": "4355e375fef1a0101355d6d6f1a0c7d2551e9957",
+  "sourceSetSha256": "sha256:04065e4581f927fb2c0a1b52adddc4bf58de40141a2fd93f2e6a25d2630ddad5",
   "evidence": {
     "productWritingDefaults": "none",
     "editorContextInjected": false,
@@ -30,8 +30,8 @@
       "discovered": 6
     },
     "tests": {
-      "total": 35,
-      "passed": 35,
+      "total": 39,
+      "passed": 39,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -63,8 +63,8 @@
         "requiredFiles": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 11,
-          "passed": 11,
+          "total": 15,
+          "passed": 15,
           "failed": 0,
           "pending": 0
         },

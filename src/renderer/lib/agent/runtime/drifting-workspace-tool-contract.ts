@@ -5,14 +5,14 @@
  * headless capability tooling can load the exact production names in Node.
  */
 export const DRIFTING_WORKSPACE_READ_TOOLS = [
-  'list_files',
-  'read_file',
-  'grep',
+  'browse_project',
+  'read_object',
+  'search_work',
 ] as const;
 
-export const DRIFTING_WORKSPACE_EDIT_TOOL = 'edit_file' as const;
-export const DRIFTING_WORKSPACE_WRITE_TOOL = 'write_file' as const;
-export const DRIFTING_WORKSPACE_DELETE_TOOL = 'delete_file' as const;
+export const DRIFTING_WORKSPACE_EDIT_TOOL = 'revise_object' as const;
+export const DRIFTING_WORKSPACE_WRITE_TOOL = 'write_object' as const;
+export const DRIFTING_WORKSPACE_DELETE_TOOL = 'delete_object' as const;
 /** Stable semantic receipt used to retire side-effect-free write pairs from
  * provider context without exposing runtime mechanics. */
 export const WORKSPACE_NOOP_WRITE_MODEL_MARKER = '已经是所需内容，无需修改' as const;
@@ -28,6 +28,35 @@ export const DRIFTING_WORKSPACE_PROVIDER_TOOLS = [
   ...DRIFTING_WORKSPACE_READ_TOOLS,
   ...DRIFTING_WORKSPACE_WRITE_TOOLS,
 ] as const;
+
+/**
+ * Crash recovery may encounter durable turns created before the authored-object
+ * facade shipped. Keep that translation here, outside the tool registry, so a
+ * fresh provider catalog cannot discover or autocomplete the retired surface.
+ */
+const LEGACY_DRIFTING_WORKSPACE_TOOL_NAMES = {
+  list_files: 'browse_project',
+  read_file: 'read_object',
+  grep: 'search_work',
+  edit_file: 'revise_object',
+  write_file: 'write_object',
+  delete_file: 'delete_object',
+} as const satisfies Record<string, DriftingWorkspaceProviderToolName>;
+
+export function canonicalDriftingWorkspaceProviderToolName(
+  name: string,
+): DriftingWorkspaceProviderToolName | null {
+  if (
+    DRIFTING_WORKSPACE_PROVIDER_TOOLS.includes(
+      name as DriftingWorkspaceProviderToolName,
+    )
+  ) {
+    return name as DriftingWorkspaceProviderToolName;
+  }
+  return LEGACY_DRIFTING_WORKSPACE_TOOL_NAMES[
+    name as keyof typeof LEGACY_DRIFTING_WORKSPACE_TOOL_NAMES
+  ] ?? null;
+}
 
 /** Hidden domain commands produced only after a workspace path is resolved. */
 export const DRIFTING_WORKSPACE_COMMAND_NAMES = [
@@ -96,7 +125,7 @@ export interface DriftingDomainCrudContract {
     | 'storyline_membership'
     | 'agent_memory'
     | 'project_facts';
-  workspacePaths: readonly string[];
+  authoredTargets: readonly string[];
   operations: Readonly<
     Record<DriftingDomainCrudOperation, DriftingDomainCrudOperationContract>
   >;
@@ -149,7 +178,7 @@ const notApplicable: DriftingDomainCrudOperationContract = {
 };
 
 /**
- * Executable product lifecycle matrix behind the small filesystem-like model
+ * Executable product lifecycle matrix behind the small authored-object model
  * surface. `revert: closed` means the same hidden commands have immutable
  * receipts plus a guarded exact inverse; it does not advertise a second model
  * tool or an author-visible whole-session rewind surface.
@@ -157,10 +186,10 @@ const notApplicable: DriftingDomainCrudOperationContract = {
 export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract[] = [
   {
     domain: 'node',
-    workspacePaths: ['/chapters/<chapter>/**', '/drifts/<drift>/**'],
+    authoredTargets: ['章节「<名称>」', '灵感「<名称>」'],
     operations: {
       create: closedWrite(['create_node'], 'automatic', 'yjs_sqlite'),
-      read: closedRead(['list_files', 'read_file', 'grep'], 'yjs_sqlite'),
+      read: closedRead(['browse_project', 'read_object', 'search_work'], 'yjs_sqlite'),
       update: closedWrite(
         ['edit_prose_file', 'rename_node', 'set_node_summary'],
         'automatic_or_inline_review',
@@ -175,10 +204,10 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
   },
   {
     domain: 'element',
-    workspacePaths: ['/elements/<category>/<element>/**'],
+    authoredTargets: ['要素「<名称>」（分类「<分类>」）'],
     operations: {
       create: closedWrite(['create_element'], 'automatic', 'yjs_sqlite'),
-      read: closedRead(['list_files', 'read_file', 'grep'], 'yjs_sqlite'),
+      read: closedRead(['browse_project', 'read_object', 'search_work'], 'yjs_sqlite'),
       update: closedWrite(
         ['edit_prose_file', 'update_element'],
         'automatic_or_inline_review',
@@ -193,10 +222,10 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
   },
   {
     domain: 'storyline',
-    workspacePaths: ['/storylines/<storyline>/**'],
+    authoredTargets: ['故事线「<名称>」'],
     operations: {
       create: closedWrite(['create_storyline'], 'automatic', 'yjs_sqlite'),
-      read: closedRead(['list_files', 'read_file', 'grep'], 'yjs_sqlite'),
+      read: closedRead(['browse_project', 'read_object', 'search_work'], 'yjs_sqlite'),
       update: closedWrite(
         ['edit_prose_file', 'update_storyline'],
         'automatic_or_inline_review',
@@ -211,10 +240,10 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
   },
   {
     domain: 'category',
-    workspacePaths: ['/categories/<category>/**'],
+    authoredTargets: ['要素分类「<名称>」'],
     operations: {
       create: closedWrite(['create_category'], 'automatic', 'yjs_sqlite'),
-      read: closedRead(['list_files', 'read_file', 'grep'], 'yjs_sqlite'),
+      read: closedRead(['browse_project', 'read_object', 'search_work'], 'yjs_sqlite'),
       update: closedWrite(
         ['edit_prose_file', 'update_category'],
         'automatic_or_inline_review',
@@ -229,10 +258,10 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
   },
   {
     domain: 'comment_todo',
-    workspacePaths: ['/comments/<commentId>.json'],
+    authoredTargets: ['批注或待办「<handle>」'],
     operations: {
       create: closedWrite(['create_comment'], 'automatic'),
-      read: closedRead(['list_files', 'read_file']),
+      read: closedRead(['browse_project', 'read_object']),
       update: closedWrite(['update_comment'], 'automatic'),
       delete: closedWrite(['delete_comment'], 'confirm_before'),
       revert: exactRevert(['create_comment', 'update_comment', 'delete_comment']),
@@ -240,10 +269,10 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
   },
   {
     domain: 'entity_relation',
-    workspacePaths: ['/relations/<relationId>.json'],
+    authoredTargets: ['实体关系「<handle>」'],
     operations: {
       create: closedWrite(['add_relation'], 'confirm_before'),
-      read: closedRead(['list_files', 'read_file']),
+      read: closedRead(['browse_project', 'read_object']),
       update: closedWrite(['update_relation_kind'], 'confirm_before'),
       delete: closedWrite(['remove_relation'], 'confirm_before'),
       revert: exactRevert(['add_relation', 'update_relation_kind', 'remove_relation']),
@@ -251,10 +280,10 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
   },
   {
     domain: 'storyline_membership',
-    workspacePaths: ['/storylines/<storyline>/chapters.json'],
+    authoredTargets: ['故事线「<名称>」章节关系'],
     operations: {
       create: closedWrite(['set_storyline_membership'], 'confirm_before'),
-      read: closedRead(['list_files', 'read_file']),
+      read: closedRead(['browse_project', 'read_object']),
       update: closedWrite(['set_storyline_membership'], 'confirm_before'),
       delete: closedWrite(['set_storyline_membership'], 'confirm_before'),
       revert: exactRevert(['set_storyline_membership']),
@@ -262,10 +291,10 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
   },
   {
     domain: 'agent_memory',
-    workspacePaths: ['/memory.json', '/memory/<memoryId>.json'],
+    authoredTargets: ['作者规则', '作者规则「<handle>」'],
     operations: {
       create: closedWrite(['remember'], 'automatic'),
-      read: closedRead(['list_files', 'read_file']),
+      read: closedRead(['browse_project', 'read_object']),
       update: closedWrite(['update_memory'], 'automatic'),
       delete: closedWrite(['forget'], 'confirm_before'),
       revert: exactRevert(['remember', 'update_memory', 'forget']),
@@ -273,10 +302,10 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
   },
   {
     domain: 'project_facts',
-    workspacePaths: ['/project/facts.json'],
+    authoredTargets: ['项目事实'],
     operations: {
       create: notApplicable,
-      read: closedRead(['read_file']),
+      read: closedRead(['read_object']),
       update: closedWrite(['update_project_facts'], 'automatic'),
       delete: notApplicable,
       revert: exactRevert(['update_project_facts']),

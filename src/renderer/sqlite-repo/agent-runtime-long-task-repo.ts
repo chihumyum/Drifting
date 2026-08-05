@@ -102,6 +102,17 @@ function reviewText(value: unknown, label: string, maxLength: number): string {
   return normalized;
 }
 
+function assertNonEditResultNoteDoesNotClaimMutation(value: string | null): void {
+  if (!value) return;
+  const mutation =
+    /(?:已|已经|现已|刚刚)\s*(?:补写|写入|改写|修改|更新|新建|创建|添加|删除|移除|清理|调整|建立)|(?:补写|写入|改写|修改|更新|新建|创建|添加|删除|移除|清理|调整|建立)\s*(?:了|完成|完毕|成功)|\bI\s+(?:have\s+)?(?:written|wrote|updated|created|deleted|removed|edited|rewritten|added)\b/iu;
+  if (!mutation.test(value)) return;
+  throw new AgentRuntimeLongTaskConflictError(
+    'TASK_READ_EVIDENCE_INVALID',
+    '检查或研究步骤不能只用结论文字声称已经修改作品。先执行真实的作者对象写入，并将这项工作记录为编辑步骤；检查结论只能描述已读取的当前内容。',
+  );
+}
+
 function normalizeTaskStepReviewResult(value: unknown): AgentRuntimeTaskStepReviewResult {
   const row = reviewRecord(value, 'reviewResult');
   if (row.schemaVersion !== 1) {
@@ -697,7 +708,7 @@ function writeEvidenceMatchesStepTarget(
   if (!target || target.kind === 'book' || target.kind === 'project') return true;
   const identity = collectTaskWriteEvidenceIdentity(evidence);
   if (target.resolvedTargetId && identity.ids.has(target.resolvedTargetId)) return true;
-  const targetName = stableTaskText(target.name);
+  const targetName = stableTaskText(authoredTaskTargetName(target.kind, target.name));
   const pathMatches = identity.paths.some((segments) => {
     if (segments.length < 2) return false;
     if (target.kind === 'chapter') {
@@ -736,6 +747,21 @@ function writeEvidenceMatchesStepTarget(
     }
     return normalized.includes(keyword) || keyword.includes(normalized);
   });
+}
+
+function authoredTaskTargetName(
+  kind: NonNullable<PersistedAgentRuntimeTaskStep['target']>['kind'],
+  value: string,
+): string {
+  const name = value.trim();
+  const patterns: Partial<Record<typeof kind, RegExp>> = {
+    chapter: /^章节[「“"](.+?)[」”"](?:正文|摘要|标题)?$/u,
+    drift: /^(?:灵感|漂移)[「“"](.+?)[」”"](?:正文|摘要|标题)?$/u,
+    element: /^(?:人物|角色|地点|区域|组织|势力|物品|道具|要素)[「“"](.+?)[」”"](?:正文|设定|说明|摘要|名称|别名|事实|分组|分类|完整档案)?$/u,
+    storyline: /^故事线[「“"](.+?)[」”"](?:正文|设定|说明|摘要|名称|事实|章节关系|章节|完整档案)?$/u,
+    category: /^要素分类[「“"](.+?)[」”"](?:正文|设定|说明|完整档案)?$/u,
+  };
+  return patterns[kind]?.exec(name)?.[1]?.trim() || name;
 }
 
 function evaluateTaskStepReviewEvidence(input: {
@@ -2004,6 +2030,17 @@ export function createAgentRuntimeLongTaskRepository(
                 );
               }
             }
+            const creationTurnRows = await tx
+              .select({ acceptedAt: AgentRuntimeTurnTable.acceptedAt })
+              .from(AgentRuntimeTurnTable)
+              .where(
+                and(
+                  eq(AgentRuntimeTurnTable.id, provenance.turnId),
+                  eq(AgentRuntimeTurnTable.sessionId, provenance.sessionId),
+                ),
+              )
+              .limit(1);
+            const taskEvidenceBoundaryAt = creationTurnRows[0]?.acceptedAt ?? at;
             const openRows = await tx
               .select({ id: AgentRuntimeTaskTable.id })
               .from(AgentRuntimeTaskTable)
@@ -2031,7 +2068,11 @@ export function createAgentRuntimeLongTaskRepository(
               workKind,
               status: 'active',
               revision: 0,
-              createdAt: at,
+              // A provider can discover that a campaign needs durable memory
+              // only after making useful edits. Start the evidence boundary at
+              // the accepted turn, so an exact write from earlier in this same
+              // turn can be adopted without admitting work from older turns.
+              createdAt: taskEvidenceBoundaryAt,
               updatedAt: at,
               endedAt: null,
             });
@@ -2102,12 +2143,14 @@ export function createAgentRuntimeLongTaskRepository(
               } else if (command.operation === 'set_objective') {
                 const objective = requireNonBlank(command.objective, 'objective');
                 if (objective === plan.task.objective) {
-                  throw new AgentRuntimeLongTaskConflictError(
-                    'TASK_PLAN_INVALID',
-                    'Task objective update is a no-op.',
-                  );
+                  // Providers sometimes pair create with an identical
+                  // set_objective in the same response. The authored task is
+                  // already in the requested state: keep the revision stable
+                  // and record the semantic receipt below instead of turning
+                  // harmless redundancy into a recovery loop.
+                } else {
+                  await bumpRevision(tx, taskId, command.expectedRevision, at, { objective });
                 }
-                await bumpRevision(tx, taskId, command.expectedRevision, at, { objective });
               } else if (command.operation === 'reconcile_manifest') {
                 manifestReconciliation = await reconcileChapterManifest(
                   tx,
@@ -2117,70 +2160,73 @@ export function createAgentRuntimeLongTaskRepository(
                   at,
                 );
               } else {
-                if (
-                  command.status === plan.task.status ||
-                  !canTransitionAgentRuntimeTask(plan.task.status, command.status)
-                ) {
+                if (command.status === plan.task.status) {
+                  // Providers may pair create with an explicit set_status=active
+                  // in the same batch. Creation is already active, so replay the
+                  // semantic intent without manufacturing a visible failure or
+                  // advancing the revision.
+                } else if (!canTransitionAgentRuntimeTask(plan.task.status, command.status)) {
                   throw new AgentRuntimeLongTaskConflictError(
                     'INVALID_TASK_TRANSITION',
                     `Task cannot transition from ${plan.task.status} to ${command.status}.`,
                   );
-                }
-                if (command.status === 'completed') {
-                  const manifestState = await loadManifestState(tx, scope, plan);
-                  if (manifestState.status === 'drifted') {
-                    throw new AgentRuntimeLongTaskConflictError(
-                      'TASK_MANIFEST_DRIFT',
-                      'The current chapter set differs from the frozen task manifest. Read the plan, call reconcile_manifest with the current revision, then complete every current chapter step.',
-                    );
+                } else {
+                  if (command.status === 'completed') {
+                    const manifestState = await loadManifestState(tx, scope, plan);
+                    if (manifestState.status === 'drifted') {
+                      throw new AgentRuntimeLongTaskConflictError(
+                        'TASK_MANIFEST_DRIFT',
+                        'The current chapter set differs from the frozen task manifest. Read the plan, call reconcile_manifest with the current revision, then complete every current chapter step.',
+                      );
+                    }
+                    assertFrozenChapterManifestCoverage({
+                      scopeKind: plan.task.scopeKind,
+                      chapterManifest: plan.chapterManifest,
+                      steps: plan.steps,
+                    });
+                    if (
+                      plan.steps.some(
+                        (step) => step.status !== 'completed' && step.status !== 'retired',
+                      )
+                    ) {
+                      throw new AgentRuntimeLongTaskConflictError(
+                        'INVALID_TASK_TRANSITION',
+                        'Task cannot complete while any current step is not completed.',
+                      );
+                    }
+                    if (
+                      plan.steps.some(
+                        (step) =>
+                          step.status === 'completed' &&
+                          step.workKind === 'review' &&
+                          !step.readEvidence,
+                      )
+                    ) {
+                      throw new AgentRuntimeLongTaskConflictError(
+                        'TASK_READ_EVIDENCE_INVALID',
+                        'Task cannot complete because one or more review steps lost verified read evidence.',
+                      );
+                    }
+                    if (
+                      plan.steps.some(
+                        (step) =>
+                          step.status === 'completed' &&
+                          step.workKind === 'research' &&
+                          !step.readEvidence,
+                      )
+                    ) {
+                      throw new AgentRuntimeLongTaskConflictError(
+                        'TASK_READ_EVIDENCE_INVALID',
+                        'Task cannot complete because one or more research steps lost verified read evidence.',
+                      );
+                    }
                   }
-                  assertFrozenChapterManifestCoverage({
-                    scopeKind: plan.task.scopeKind,
-                    chapterManifest: plan.chapterManifest,
-                    steps: plan.steps,
+                  await bumpRevision(tx, taskId, command.expectedRevision, at, {
+                    status: command.status,
+                    endedAt:
+                      command.status === 'completed' || command.status === 'failed' ? at : null,
                   });
-                  if (
-                    plan.steps.some(
-                      (step) => step.status !== 'completed' && step.status !== 'retired',
-                    )
-                  ) {
-                    throw new AgentRuntimeLongTaskConflictError(
-                      'INVALID_TASK_TRANSITION',
-                      'Task cannot complete while any current step is not completed.',
-                    );
-                  }
-                  if (
-                    plan.steps.some(
-                      (step) =>
-                        step.status === 'completed' &&
-                        step.workKind === 'review' &&
-                        !step.readEvidence,
-                    )
-                  ) {
-                    throw new AgentRuntimeLongTaskConflictError(
-                      'TASK_READ_EVIDENCE_INVALID',
-                      'Task cannot complete because one or more review steps lost verified read evidence.',
-                    );
-                  }
-                  if (
-                    plan.steps.some(
-                      (step) =>
-                        step.status === 'completed' &&
-                        step.workKind === 'research' &&
-                        !step.readEvidence,
-                    )
-                  ) {
-                    throw new AgentRuntimeLongTaskConflictError(
-                      'TASK_READ_EVIDENCE_INVALID',
-                      'Task cannot complete because one or more research steps lost verified read evidence.',
-                    );
-                  }
                 }
-                await bumpRevision(tx, taskId, command.expectedRevision, at, {
-                  status: command.status,
-                  endedAt:
-                    command.status === 'completed' || command.status === 'failed' ? at : null,
-                });
               }
             } else if (command.toolName === 'update_task_step') {
               const currentRevision = mutableStepRevision(
@@ -2272,6 +2318,9 @@ export function createAgentRuntimeLongTaskRepository(
                   'TASK_READ_EVIDENCE_INVALID',
                   'reviewResult is only valid when completing a review task step.',
                 );
+              }
+              if (step.workKind !== 'edit' && command.status === 'completed') {
+                assertNonEditResultNoteDoesNotClaimMutation(effectiveResultNote);
               }
               const finalizesExplicitTask =
                 command.status === 'completed' &&

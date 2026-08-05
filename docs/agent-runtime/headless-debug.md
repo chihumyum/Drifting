@@ -234,9 +234,8 @@ cancelling the renderer lease, so a runaway paid run still leaves evidence.
 
 Named missing chapters are returned as ordinary writable manuscript state. If
 a matching outline paragraph exists, the bridge gives that complete paragraph
-in the same result. The model should not need to list directories, open an
-entire outline, or learn a virtual filename before creating the chapter and its
-summary.
+in the same result. The model should not need to inventory the whole project or
+learn any storage name before creating the chapter and its summary.
 
 ## Reversible write matrix
 
@@ -321,10 +320,20 @@ Run the focused adapter gate with:
 pnpm --dir client exec vitest run \
   src/renderer/lib/agent/markdown-prose-adapter.test.ts \
   src/renderer/lib/agent/serialize.test.ts \
-  src/renderer/lib/agent/runtime/workspace-prose-file.test.ts
+  src/renderer/lib/agent/runtime/workspace-prose-file.test.ts \
+  src/renderer/lib/agent/runtime/drifting-domain-crud-write-strategy.integration.test.ts
 ```
 
-## Acceptance snapshot (2026-08-01)
+The domain CRUD integration case additionally proves that first-write creation
+of chapters/drifts, elements, storylines, and categories stores the same
+formatted, stable-id TipTap seed as later authored-body edits.
+
+## Historical acceptance snapshot (2026-08-01)
+
+This snapshot records the bridge that existed on that date. Its file-named
+provider facade was retired on 2026-08-04 in favor of authored-object tools;
+the failure and durability evidence remains useful, but the listed tool names
+are not current product capability.
 
 The real `雾港纪事` test project was exercised through this bridge, with the
 mounted Tauri renderer and the configured DeepSeek BYOK provider:
@@ -454,6 +463,15 @@ the clean audit shown above: no mechanics, runtime metadata, character matching,
 reread intent, oversized reasoning or duplicate calls. Exact prompts, session
 ids, failure-driven corrections and the isolation boundary are in
 [`acceptance/GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04.md`](acceptance/GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04.md).
+
+The later authored-object campaign adds one interpretation rule for these
+audits: separate provider quality from runtime abstraction. A long thinking
+pass about character evidence is a model-efficiency observation. Thinking
+about paths, escaping, serialization or storage is a domain-facade failure;
+thinking caused by a contradictory task title, stale delete state or ambiguous
+saved/remaining receipt is a runtime failure. The 26k forced-compaction canary
+used this distinction and fixed the latter cases without adding a scope guard,
+tool-round quota or token quota.
 
 ## Safety and fidelity
 

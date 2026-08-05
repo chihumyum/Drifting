@@ -247,7 +247,7 @@ function workspaceResultRecord(resultText: string | undefined): Record<string, u
   }
 }
 
-/** Resolve a provider-facing workspace path back to the sidebar entity it owns. */
+/** Resolve the runtime's private storage identity back to the sidebar entity it owns. */
 function workspaceEntityFromPath(path: string): Pick<ToolEntityRef, 'entityType' | 'id'> | null {
   const parts = path
     .trim()
@@ -290,12 +290,65 @@ function workspaceEntityFromPath(path: string): Pick<ToolEntityRef, 'entityType'
   return null;
 }
 
+function workspaceEntityFromAuthoredTarget(
+  value: string,
+): Pick<ToolEntityRef, 'entityType' | 'id'> | null {
+  const target = value.trim();
+  const state = useDataStore.getState();
+  const labeled = /^(章节|灵感|漂移|人物|角色|地点|区域|组织|势力|物品|道具|要素|故事线|要素分类)[「“"](.+?)[」”"](?:正文|摘要|标题|设定|说明)?$/u.exec(
+    target,
+  );
+  const label = labeled?.[1];
+  const name = (labeled?.[2] ?? target).replace(/(?:正文|摘要|标题)$/u, '').trim();
+  const normalized = name.toLocaleLowerCase();
+  if (label === '章节' || /^第.+章$/u.test(target)) {
+    const node = state.bookNodes.find(
+      (candidate) =>
+        candidate.kind === 'chapter' && candidate.title.trim().toLocaleLowerCase() === normalized,
+    );
+    return node ? { entityType: 'node', id: node.id } : null;
+  }
+  if (label === '灵感' || label === '漂移') {
+    const node = state.bookNodes.find(
+      (candidate) =>
+        candidate.kind === 'drift' && candidate.title.trim().toLocaleLowerCase() === normalized,
+    );
+    return node ? { entityType: 'node', id: node.id } : null;
+  }
+  if (label === '故事线') {
+    const storyline = state.storylines.find(
+      (candidate) => candidate.name.trim().toLocaleLowerCase() === normalized,
+    );
+    return storyline ? { entityType: 'storyline', id: storyline.id } : null;
+  }
+  if (label === '要素分类') {
+    const category = state.bookElementCategories.find(
+      (candidate) => candidate.name.trim().toLocaleLowerCase() === normalized,
+    );
+    return category ? { entityType: 'category', id: category.id } : null;
+  }
+  if (label && /人物|角色|地点|区域|组织|势力|物品|道具|要素/u.test(label)) {
+    const element = state.bookElements.find(
+      (candidate) => candidate.name.trim().toLocaleLowerCase() === normalized,
+    );
+    return element ? { entityType: 'element', id: element.id } : null;
+  }
+  return null;
+}
+
 function workspaceToolEntityRef(
   name: string,
   input: Record<string, unknown>,
   resultText?: string,
 ): ToolEntityRef | null {
-  if (name !== 'write_file' && name !== 'edit_file' && name !== 'delete_file') {
+  if (
+    name !== 'write_object' &&
+    name !== 'revise_object' &&
+    name !== 'delete_object' &&
+    name !== 'write_file' &&
+    name !== 'edit_file' &&
+    name !== 'delete_file'
+  ) {
     return null;
   }
   const result = workspaceResultRecord(resultText);
@@ -303,12 +356,15 @@ function workspaceToolEntityRef(
     (typeof result?.path === 'string' && result.path) ||
     (typeof input.path === 'string' && input.path) ||
     '';
-  const target = path ? workspaceEntityFromPath(path) : null;
+  const authoredTarget = typeof input.target === 'string' ? input.target : '';
+  const target =
+    (path ? workspaceEntityFromPath(path) : null) ||
+    (authoredTarget ? workspaceEntityFromAuthoredTarget(authoredTarget) : null);
   if (!target) return null;
   const op: ActivityOp =
-    name === 'delete_file'
+    name === 'delete_object' || name === 'delete_file'
       ? 'delete'
-      : name === 'write_file' && result?.operation === 'created'
+      : (name === 'write_object' || name === 'write_file') && result?.operation === 'created'
         ? 'create'
         : 'write';
   return {

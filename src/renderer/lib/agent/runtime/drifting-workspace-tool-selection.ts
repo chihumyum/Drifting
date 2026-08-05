@@ -1,30 +1,38 @@
 import {
   AGENT_LONG_TASK_CONSTRAINT_TOOL,
   AGENT_LONG_TASK_PLAN_TOOL,
-  AGENT_LONG_TASK_READ_TOOL,
   AGENT_LONG_TASK_STEP_TOOL,
 } from './long-task-tool-runtime';
 import { isBroadAutonomousProjectCampaign } from './long-task-intent';
+import {
+  DRIFTING_WORKSPACE_DELETE_TOOL,
+  DRIFTING_WORKSPACE_EDIT_TOOL,
+  DRIFTING_WORKSPACE_READ_TOOLS,
+  DRIFTING_WORKSPACE_WRITE_TOOL,
+} from './drifting-workspace-tool-contract';
 import type {
   AgentToolDefinition,
   AgentToolSelectionRequest,
   AgentToolSelectionStrategy,
 } from './types';
 
-const WORKSPACE_CORE = ['list_files', 'read_file', 'grep'] as const;
-const WORKSPACE_EDIT = 'edit_file';
-const WORKSPACE_WRITE = 'write_file';
-const WORKSPACE_DELETE = 'delete_file';
+const WORKSPACE_CORE = DRIFTING_WORKSPACE_READ_TOOLS;
+const WORKSPACE_BROWSE = 'browse_project';
+const WORKSPACE_READ = 'read_object';
+const WORKSPACE_SEARCH = 'search_work';
+const WORKSPACE_EDIT = DRIFTING_WORKSPACE_EDIT_TOOL;
+const WORKSPACE_WRITE = DRIFTING_WORKSPACE_WRITE_TOOL;
+const WORKSPACE_DELETE = DRIFTING_WORKSPACE_DELETE_TOOL;
 const ASK_USER = 'ask_user';
 const RESULT_PAGE = 'read_tool_result';
-const MAX_VISIBLE_TOOLS = 8;
+const MAX_VISIBLE_TOOLS = 12;
 
 /**
- * Product selector for the filesystem-like workspace facade.
+ * Product selector for the authored-object facade.
  *
  * The broad domain catalog remains installed for certification, reviews, and
- * rare explicit operations, but ordinary writing turns see four familiar
- * workspace verbs instead of a database-shaped menu of entities and receipts.
+ * rare explicit operations, while ordinary writing turns see the compact
+ * authored-object facade instead of a database-shaped menu of entities and receipts.
  */
 export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelectionStrategy {
   return {
@@ -48,30 +56,59 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
       const needsDiscovery = !directTarget || createIntent || directTargetResolutionFailed(request.query);
       const directAuthoredEdit =
         directTarget &&
+        !offerPlan &&
         !createIntent &&
         !activeTask &&
         !directTargetResolutionFailed(request.query);
       const result: string[] = [];
 
+      // When the author has already named every primary object, planning does
+      // not need discovery. Give the provider one job for this iteration so a
+      // malformed forced plan cannot be accompanied by speculative reads of
+      // every named object. Validation recovery retries the same semantic tool;
+      // the full authored-object facade returns as soon as the plan is durable.
+      if (offerPlan && !activeTask && hasPlanReadyAuthoredTargets(request.query)) {
+        append(result, available, AGENT_LONG_TASK_PLAN_TOOL, limit);
+        return result;
+      }
+
       if (activeTask) {
-        append(result, available, AGENT_LONG_TASK_READ_TOOL, limit);
-        // The active-task surface must retain the task-level mutation tool as
-        // well as the step tool. Without it the model can advance individual
-        // steps but cannot extend/reconcile/complete the durable plan, so a
-        // successful long task is forced to end in an internally-active state.
+        // The provider sees only the current deliverable. Relevance-route its
+        // tool menu from that item rather than from the original campaign, so
+        // a later cleanup step does not pull browse/delete into an earlier
+        // character or chapter edit. This is not a mutation guard: advancing
+        // the durable plan immediately exposes the next item's capabilities.
+        const nextStep = request.hints.longTask?.nextStep;
+        const currentStepQuery = [
+          nextStep?.title ?? '',
+          nextStep?.workKind ?? '',
+          nextStep?.target?.name ?? '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        const projectStep = !nextStep?.target || nextStep.target.kind === 'project';
+        const currentStepCreates = mentionsCreate(currentStepQuery);
         append(result, available, AGENT_LONG_TASK_PLAN_TOOL, limit);
         append(result, available, AGENT_LONG_TASK_STEP_TOOL, limit);
-        if (needsDiscovery) append(result, available, 'list_files', limit);
-        append(result, available, 'read_file', limit);
-        if (deleteIntent) append(result, available, WORKSPACE_DELETE, limit);
-        // Keep the ordinary workspace verbs stable throughout an active task.
-        // A later step may discover that it needs a new summary/resource or a
-        // focused correction even when those verbs were absent from the
-        // original wording.
+        if (projectStep || currentStepCreates) {
+          append(result, available, WORKSPACE_BROWSE, limit);
+        }
+        append(result, available, WORKSPACE_READ, limit);
+        if (
+          projectStep ||
+          nextStep?.workKind === 'research' ||
+          nextStep?.workKind === 'review'
+        ) {
+          append(result, available, WORKSPACE_SEARCH, limit);
+        }
         append(result, available, WORKSPACE_WRITE, limit);
-        if (!deleteIntent) append(result, available, 'grep', limit);
         append(result, available, WORKSPACE_EDIT, limit);
-        if (deleteIntent) append(result, available, 'grep', limit);
+        // A focused read may reveal a directly attached duplicate or test
+        // relation even when the checklist title says only “整理”. Keep the
+        // semantic delete verb available so the model never guesses that an
+        // empty revision means deletion.
+        append(result, available, WORKSPACE_DELETE, limit);
+        append(result, available, ASK_USER, limit);
         return result;
       }
 
@@ -92,7 +129,7 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
       // authored object. This is relevance routing, not a mutation scope: a
       // later request can expose any project operation it actually needs.
       if (directAuthoredEdit && !mentionsElementPatch(query)) {
-        append(result, available, 'read_file', limit);
+        append(result, available, WORKSPACE_READ, limit);
         if (!explicitlyReadOnly(query)) {
           append(result, available, WORKSPACE_WRITE, limit);
           if (mentionsResourceDelete(query)) {
@@ -100,20 +137,20 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
           }
           append(result, available, WORKSPACE_EDIT, limit);
         }
-        if (mentionsSearch(query)) append(result, available, 'grep', limit);
+        if (mentionsSearch(query)) append(result, available, WORKSPACE_SEARCH, limit);
         append(result, available, ASK_USER, limit);
         return result;
       }
 
-      if (needsDiscovery) append(result, available, 'list_files', limit);
-      append(result, available, 'read_file', limit);
+      if (needsDiscovery) append(result, available, WORKSPACE_BROWSE, limit);
+      append(result, available, WORKSPACE_READ, limit);
       const patchIntent = mentionsElementPatch(query);
       const commentIntent = mentionsComment(query);
       const readOnly = explicitlyReadOnly(query);
       const ordinaryWorkspaceMutation = !readOnly && !patchIntent;
-      // Keep both file mutation verbs stable for an ordinary edit. After
-      // reading a document, providers commonly choose a whole-file write even
-      // when the author only said “改一下内容”; hiding write_file in that later
+      // Keep both object-mutation verbs stable for an ordinary edit. After
+      // reading an object, providers commonly choose a complete rewrite even
+      // when the author only said “改一下内容”; hiding write_object in that later
       // iteration turns a valid model action into UNKNOWN_TOOL.
       if (
         !readOnly &&
@@ -121,14 +158,14 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
       ) {
         append(result, available, WORKSPACE_WRITE, limit);
       }
-      // Keep the complete filesystem mutation surface available throughout an
+      // Keep the complete authored-object mutation surface available throughout an
       // ordinary executable turn. A vague continuation can discover obsolete
-      // resources only after reading; hiding delete_file based solely on the
+      // resources only after reading; hiding delete_object based solely on the
       // original wording makes that newly discovered work impossible.
       if (ordinaryWorkspaceMutation) {
         append(result, available, WORKSPACE_DELETE, limit);
       }
-      append(result, available, 'grep', limit);
+      append(result, available, WORKSPACE_SEARCH, limit);
       // Keep the ordinary workspace capability stable, like Claude Code's
       // always-available Edit tool. Inferring whether prose is writable from
       // natural-language verbs is brittle: “insert this, but change nothing
@@ -161,12 +198,46 @@ export function createDriftingWorkspaceToolSelectionStrategy(): AgentToolSelecti
       append(result, available, ASK_USER, limit);
       return result;
     },
+    forceTool(request, selectedNames): string | null {
+      if (request.pendingResultPage || request.hints.longTask?.status === 'active') return null;
+      const query = intentQuery(request);
+      if (!looksLikeLongTask(query) || !selectedNames.includes(AGENT_LONG_TASK_PLAN_TOOL)) {
+        return null;
+      }
+      return hasPlanReadyAuthoredTargets(request.query) ? AGENT_LONG_TASK_PLAN_TOOL : null;
+    },
   };
+}
+
+function hasPlanReadyAuthoredTargets(query: string): boolean {
+  const original = originalRequestFromSearchQuery(query);
+  if (authoredReferenceCount(original) >= 2) return true;
+  const recentWork = query.indexOf('\nrecent work:\n');
+  if (recentWork < 0) return false;
+  return authoredReferenceCount(query.slice(recentWork)) >= 2;
+}
+
+function authoredReferenceCount(value: string): number {
+  const references = [
+    ...value.matchAll(/(?:章节|灵感|要素|故事线|批注或待办|实体关系)[「“"]([^」”"]+)[」”"]/gu),
+  ].map((match) => match[0]);
+  for (const match of value.matchAll(
+    /(?:^|[，。；：\s])(?:把|将)?([\p{Script=Han}A-Za-z0-9·._-]+(?:、[\p{Script=Han}A-Za-z0-9·._-]+){1,})这(?:一)?组(?:人物|角色|要素)(?:档案|资料|关系)?/gu,
+  )) {
+    references.push(
+      ...(match[1] ?? '')
+        .split('、')
+        .map((name) => name.trim())
+        .filter(Boolean)
+        .map((name) => `人物「${name}」`),
+    );
+  }
+  return new Set(references).size;
 }
 
 function hasDirectAuthoredTarget(query: string, request: AgentToolSelectionRequest): boolean {
   if (request.hints.longTask?.nextStep?.target?.name) return true;
-  return /(?:第\s*)?[零〇一二两三四五六七八九十百千0-9]+\s*章|\/chapters\/[^\s/]+|(?:章节|灵感|漂移|人物|角色|地点|组织|要素|故事线)[「“"'][^」”"']+[」”"']/iu.test(
+  return /第\s*[零〇一二两三四五六七八九十百千0-9]+\s*章|(?:^|[\s，。；：、（(])\d+\s*章(?:$|[\s，。；：、）)])|\/chapters\/[^\s/]+|(?:章节|灵感|漂移|人物|角色|地点|组织|要素|故事线)[「“"'][^」”"']+[」”"']/iu.test(
     query,
   );
 }
@@ -216,6 +287,11 @@ function looksLikeLongTask(query: string): boolean {
     return true;
   }
 
+  const broadChapterCount = explicitBroadChapterCount(query);
+  if (broadChapterCount !== null && broadChapterCount >= 4) {
+    return true;
+  }
+
   if (isBroadAutonomousProjectCampaign(query)) {
     return true;
   }
@@ -246,6 +322,13 @@ function looksLikeLongTask(query: string): boolean {
   return /(?:开头|前面|前部|前期|后面|后部|后期|中间|中部|最近|现有)?\s*(?:几|多|若干|数|好几)(?:个)?\s*章|(?:开头|前面|前部|后面|后部|中间).{0,8}(?:章节|正文)|(?:multiple|several|a\s+few|opening|early|later)\s+chapters?/i.test(
     query,
   );
+}
+
+function explicitBroadChapterCount(query: string): number | null {
+  const match = /(?:开头|前面|前部|后面|后部|中间|中部|现有)\s*(?:的)?\s*([零〇一二两三四五六七八九十百千0-9]+)\s*(?:个)?\s*章/iu.exec(
+    query,
+  );
+  return match ? chapterOrdinal(match[1] ?? '') : null;
 }
 
 function explicitChapterRangeSize(query: string): number | null {
@@ -327,7 +410,7 @@ function mentionsCreate(query: string): boolean {
 }
 
 function mentionsWholeFileWrite(query: string): boolean {
-  return /\bwrite_file\b|完整内容|整(?:个)?文件|全文替换|whole[-\s]?file|replace\s+(?:the\s+)?(?:whole|entire)\s+(?:file|contents?)/i.test(
+  return /\bwrite_object\b|完整内容|完整正文|全文替换|complete\s+(?:rewrite|body)|replace\s+(?:the\s+)?(?:whole|entire)\s+(?:body|chapter|object|contents?)/i.test(
     query,
   );
 }

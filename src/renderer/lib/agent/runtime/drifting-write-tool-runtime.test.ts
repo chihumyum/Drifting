@@ -10,6 +10,7 @@ import type {
   PersistedAgentRuntimeWriteReviewBlock,
 } from '../../../domain/agent-runtime-write-effect';
 import type { AgentRuntimeWriteEffectRepository } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
+import { useAgentEditStore } from '../../../store/agent-edit-store';
 import { useDataStore } from '../../../store/data-store';
 import type { AgentToolContext, AgentWriteApi } from '../tool-handlers';
 import type { DriftingWriteStrategy } from './drifting-write-strategies';
@@ -21,6 +22,7 @@ import type { AgentToolExecutionRequest, AgentToolRuntime } from './types';
 const initialDataState = useDataStore.getState();
 
 beforeEach(() => {
+  useAgentEditStore.getState().clearAll();
   useDataStore.setState({
     ...initialDataState,
     bookNodes: [
@@ -44,6 +46,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  useAgentEditStore.getState().clearAll();
   useDataStore.setState(initialDataState, true);
 });
 
@@ -60,9 +63,9 @@ describe('DriftingWriteToolRuntime', () => {
         .listDefinitions(request('rename_node', {}).context)
         .map((definition) => definition.name),
     ).toEqual([
-      'edit_file',
-      'write_file',
-      'delete_file',
+      'revise_object',
+      'write_object',
+      'delete_object',
       'update_element',
       'rename_node',
       'set_node_summary',
@@ -534,6 +537,100 @@ describe('DriftingWriteToolRuntime', () => {
       error: 'Tool "delete_element" is not write-certified',
     });
     expect(repository.allEffects()).toEqual([]);
+  });
+
+  it('records and reprojects Added from the canonical committed create result', async () => {
+    const repository = memoryRepository();
+    const applyForward = vi.fn(async () => {
+      useDataStore.setState((state) => ({
+        bookNodes: [
+          ...state.bookNodes,
+          {
+            id: 'node-added',
+            projectId: 'project-1',
+            kind: 'drift' as const,
+            title: '潮痕',
+            summary: '',
+            narrativeOrder: null,
+            driftGroupId: null,
+            position: { x: 0, y: 0 },
+            wordCount: 5,
+            bookOrder: null,
+            writingStatus: 'drifting' as const,
+            createdAt: iso(1),
+            updatedAt: iso(1),
+          },
+        ],
+      }));
+      return { entityId: 'node-added', nodeId: 'node-added' };
+    });
+    const strategy: DriftingWriteStrategy = {
+      prepare: async () => ({
+        observedRevision: null,
+        preimage: { kind: 'missing' },
+        forward: { kind: 'created' },
+        inverse: { kind: 'delete' },
+        reversibility: 'exact',
+      }),
+      applyForward,
+      captureEffect: async (_request, _context, result) => result,
+      applyInverse: async () => ({ ok: true }),
+    };
+    const runtime = createRuntime(
+      repository,
+      {},
+      undefined,
+      () => strategy,
+      async (writeRequest) => ({
+        ...writeRequest,
+        arguments: {
+          path: '/drifts/潮痕/prose.md',
+          __workspaceCommand: {
+            name: 'create_node',
+            arguments: {
+              kind: 'drift',
+              title: '潮痕',
+              content: '潮水退去。',
+            },
+          },
+        },
+      }),
+    );
+    const input = await authorizedRequest('write_object', {
+      target: '灵感「潮痕」',
+      body: '潮水退去。',
+    });
+
+    const result = await runtime.execute(input);
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        result: {
+          path: '/drifts/潮痕/prose.md',
+          operation: 'created',
+        },
+      },
+      modelData: expect.any(String),
+    });
+    if (result.ok) {
+      expect(result.modelData).not.toContain('"operation"');
+    }
+    expect(useAgentEditStore.getState().additions['node:node-added']).toEqual({
+      entityType: 'node',
+      id: 'node-added',
+      revealBlockIds: null,
+    });
+    expect(applyForward).toHaveBeenCalledOnce();
+
+    useAgentEditStore.getState().clearAll();
+    await expect(runtime.execute(input)).resolves.toEqual(result);
+    expect(useAgentEditStore.getState().additions['node:node-added']).toEqual({
+      entityType: 'node',
+      id: 'node-added',
+      revealBlockIds: null,
+    });
+    expect(applyForward).toHaveBeenCalledOnce();
   });
 
   it('settles a workspace no-op as success without claiming a durable effect', async () => {

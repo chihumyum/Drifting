@@ -72,6 +72,7 @@ import {
   type DriftingStructuralWriteTool,
 } from './drifting-structural-write-strategy';
 import {
+  canonicalDriftingWorkspaceProviderToolName,
   DRIFTING_WORKSPACE_DELETE_TOOL,
   DRIFTING_WORKSPACE_EDIT_TOOL,
   DRIFTING_WORKSPACE_WRITE_TOOL,
@@ -206,6 +207,7 @@ export function getDriftingWriteStrategy(
   toolName: string,
   options: DriftingWriteStrategyOptions = {},
 ): DriftingWriteStrategy | undefined {
+  toolName = canonicalDriftingWorkspaceProviderToolName(toolName) ?? toolName;
   if (
     toolName === DRIFTING_WORKSPACE_EDIT_TOOL ||
     toolName === DRIFTING_WORKSPACE_WRITE_TOOL ||

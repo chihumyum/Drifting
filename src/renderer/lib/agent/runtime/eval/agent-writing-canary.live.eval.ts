@@ -16,7 +16,7 @@ import type {
 const LIVE_EVAL_ENABLED = process.env.DRIFTING_AGENT_LIVE_EVAL === '1';
 const DEFAULT_MODEL = 'deepseek-v4-flash';
 const PROJECT_ID = 'writing-canary-project';
-const PATH = '/chapters/雨夜/prose.md';
+const TARGET = '章节「雨夜」';
 const SELECTED_TEXT = '她把伞靠在门边，没有回头。';
 
 class WritingCanaryTools implements AgentToolRuntime {
@@ -26,32 +26,32 @@ class WritingCanaryTools implements AgentToolRuntime {
 
   listDefinitions(): readonly AgentToolDefinition[] {
     return [
-      definition('read_file', 'Read one current manuscript file.', 'read', {
+      definition('read_object', 'Read one current authored object.', 'read', {
         type: 'object',
         additionalProperties: false,
-        properties: { path: { type: 'string' } },
-        required: ['path'],
+        properties: { target: { type: 'string' } },
+        required: ['target'],
       }),
-      definition('edit_file', 'Replace exact current text in one manuscript file.', 'write', {
+      definition('revise_object', 'Revise current passages in one authored object.', 'write', {
         type: 'object',
         additionalProperties: false,
         properties: {
-          path: { type: 'string' },
-          replacements: {
+          target: { type: 'string' },
+          changes: {
             type: 'array',
             minItems: 1,
             items: {
               type: 'object',
               additionalProperties: false,
               properties: {
-                oldText: { type: 'string' },
-                newText: { type: 'string' },
+                currentText: { type: 'string' },
+                revisedText: { type: 'string' },
               },
-              required: ['oldText', 'newText'],
+              required: ['currentText', 'revisedText'],
             },
           },
         },
-        required: ['path', 'replacements'],
+        required: ['target', 'changes'],
       }),
     ];
   }
@@ -61,31 +61,31 @@ class WritingCanaryTools implements AgentToolRuntime {
     if (request.context.route.projectId !== PROJECT_ID) {
       return { ok: false, error: 'CROSS_PROJECT_DENIED' };
     }
-    if (request.arguments.path !== PATH) return { ok: false, error: 'PATH_NOT_FOUND' };
-    if (request.name === 'read_file') {
+    if (request.arguments.target !== TARGET) return { ok: false, error: 'TARGET_NOT_FOUND' };
+    if (request.name === 'read_object') {
       this.read = true;
-      return { ok: true, data: { path: PATH, content: this.text } };
+      return { ok: true, data: { target: TARGET, body: this.text } };
     }
-    if (request.name !== 'edit_file') return { ok: false, error: 'UNKNOWN_TOOL' };
+    if (request.name !== 'revise_object') return { ok: false, error: 'UNKNOWN_TOOL' };
     if (!this.read) return { ok: false, error: 'READ_REQUIRED_BEFORE_EDIT' };
-    const replacements = request.arguments.replacements;
-    if (!Array.isArray(replacements)) return { ok: false, error: 'INVALID_REPLACEMENTS' };
-    for (const replacement of replacements) {
-      if (!replacement || typeof replacement !== 'object') {
-        return { ok: false, error: 'INVALID_REPLACEMENT' };
+    const changes = request.arguments.changes;
+    if (!Array.isArray(changes)) return { ok: false, error: 'INVALID_CHANGES' };
+    for (const change of changes) {
+      if (!change || typeof change !== 'object') {
+        return { ok: false, error: 'INVALID_CHANGE' };
       }
-      const oldText = (replacement as Record<string, unknown>).oldText;
-      const newText = (replacement as Record<string, unknown>).newText;
+      const currentText = (change as Record<string, unknown>).currentText;
+      const revisedText = (change as Record<string, unknown>).revisedText;
       if (
-        typeof oldText !== 'string' ||
-        typeof newText !== 'string' ||
-        !this.text.includes(oldText)
+        typeof currentText !== 'string' ||
+        typeof revisedText !== 'string' ||
+        !this.text.includes(currentText)
       ) {
-        return { ok: false, error: 'OLD_TEXT_NOT_FOUND' };
+        return { ok: false, error: 'CURRENT_TEXT_NOT_FOUND' };
       }
-      this.text = this.text.replace(oldText, newText);
+      this.text = this.text.replace(currentText, revisedText);
     }
-    return { ok: true, data: { saved: true, path: PATH, replacements: replacements.length } };
+    return { ok: true, data: { saved: true, target: TARGET, changes: changes.length } };
   }
 }
 
@@ -114,7 +114,7 @@ describe.skipIf(!LIVE_EVAL_ENABLED)('DeepSeek author-directed writing canary', (
       }
       const model = process.env.DEEPSEEK_AGENT_MODEL ?? DEFAULT_MODEL;
       const prompt =
-        '先读取当前正文，然后只润色我选中的这句话。必须调用 edit_file 落下改动；不要改剧情，不要修改相邻段落。';
+        '读一下章节「雨夜」，把“她把伞靠在门边，没有回头。”润色得更有压抑感，别动剧情和相邻段落。';
       const tools = new WritingCanaryTools();
       const entries: AgentRuntimeJournalEntry[] = [];
       const journal: AgentJournalSink = {
@@ -165,15 +165,15 @@ describe.skipIf(!LIVE_EVAL_ENABLED)('DeepSeek author-directed writing canary', (
 
       const terminal = [...entries].reverse().find((entry) => entry.event.type === 'turn_finished');
       expect(terminal?.event).toMatchObject({ type: 'turn_finished', outcome: 'completed' });
-      expect(tools.trace.map((call) => call.name)).toEqual(['read_file', 'edit_file']);
+      expect(tools.trace.map((call) => call.name)).toEqual(['read_object', 'revise_object']);
       const edit = tools.trace[1]?.arguments;
-      expect(edit?.path).toBe(PATH);
-      const replacements = edit?.replacements;
-      expect(Array.isArray(replacements)).toBe(true);
+      expect(edit?.target).toBe(TARGET);
+      const changes = edit?.changes;
+      expect(Array.isArray(changes)).toBe(true);
       expect(
-        (replacements as Array<Record<string, unknown>>).every(
-          (replacement) =>
-            typeof replacement.oldText === 'string' && SELECTED_TEXT.includes(replacement.oldText),
+        (changes as Array<Record<string, unknown>>).every(
+          (change) =>
+            typeof change.currentText === 'string' && SELECTED_TEXT.includes(change.currentText),
         ),
       ).toBe(true);
       expect(tools.text).toContain('雨压得很低。');

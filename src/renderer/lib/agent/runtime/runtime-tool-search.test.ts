@@ -535,6 +535,35 @@ describe('AgentRuntime tool search integration', () => {
     expect(driver.requests[0]?.tools.map((tool) => tool.name)).toEqual(['read_node', 'edit_node']);
   });
 
+  it('honors a selector-required orchestration tool without disabling model reasoning', async () => {
+    const definitions = [definition('update_task_plan', 'write'), definition('read_node')];
+    const driver = new RecordingDriver((request) =>
+      request.iteration === 1 ? toolCall('plan-1', 'update_task_plan') : endTurn(),
+    );
+    const runtime = new AgentRuntime({
+      driver,
+      tools: toolRuntime(definitions),
+      toolSelector: {
+        select: () => ['update_task_plan', 'read_node'],
+        forceTool: (request) => (request.iteration === 1 ? 'update_task_plan' : null),
+      },
+    });
+
+    await runtime.runTurn(
+      runInput({
+        prompt: '整理开头六章，做完别停。',
+        systemPrompt: 'base policy',
+        toolSearch: 'on',
+        reasoning: { enabled: true },
+      }),
+    );
+
+    expect(driver.requests[0]?.toolChoice).toEqual({ force: 'update_task_plan' });
+    expect(driver.requests[0]?.reasoning).toEqual({ enabled: true });
+    expect(driver.requests[0]?.executionMode).toBeUndefined();
+    expect(driver.requests[1]?.toolChoice).toBe('auto');
+  });
+
   it('never nudges a read-only request toward mutation', async () => {
     const definitions = [definition('read_node'), definition('edit_node', 'write')];
     const driver = new RecordingDriver((request) =>

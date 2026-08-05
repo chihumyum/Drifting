@@ -1048,6 +1048,16 @@ describe('OpenAICompatibleCompletionDriver', () => {
 
     expect(client.requests).toHaveLength(2);
     expect(client.requests.map((sent) => sent.metadata?.agentProviderAttempt)).toEqual([1, 2]);
+    expect(client.requests[0]?.thinking).toBe(true);
+    expect(client.requests[1]?.thinking).toBe(false);
+    expect(client.requests[1]?.toolChoice).toBe('required');
+    const recoveryMessages = client.requests[1]?.messages ?? [];
+    expect(
+      JSON.parse(recoveryMessages[recoveryMessages.length - 1]?.content ?? '{}'),
+    ).toMatchObject({
+      type: 'drifting_runtime_provider_retry',
+      cause: 'previous_sample_was_invalid',
+    });
     expect(events).toContainEqual({
       type: 'tool_call_start',
       callId: 'valid-call',

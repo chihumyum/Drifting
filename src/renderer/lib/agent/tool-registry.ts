@@ -1050,33 +1050,34 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
 ];
 
+
 // ---------------------------------------------------------------------------
 // Runtime-only virtual contracts
 // ---------------------------------------------------------------------------
 
 const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   {
-    name: 'edit_file',
+    name: 'revise_object',
     description:
-      'Revise a few local passages in one authored document. Quote enough current prose to identify each passage; Drifting reconciles harmless quote-style and paragraph-spacing drift. Put independent changes to the same document in one call. For a chapter-scale rewrite after a complete read, prefer write_file with the complete revised prose and optional summary. Never spend reasoning on transport escaping or character-by-character matching.',
+      'Revise one or more passages in an authored chapter, 灵感, entity, storyline, note, relation, or author rule. Supply each current passage and its revised version. Combine independent changes to the same authored object in one call. For a complete rewrite after reading the whole object, use write_object.',
     parametersSchema: Type.Object(
       {
-        path: Type.String({
+        target: Type.String({
           minLength: 1,
           description:
-            'Authored field target. Use 第九章 for its prose and 章节「09」摘要 (the label returned by a chapter read) for its summary.',
+            'Authored object or field. Use 第九章 for its prose and 章节「09」摘要 for its summary.',
         }),
-        replacements: Type.Array(
+        changes: Type.Array(
           Type.Object(
             {
-              oldText: Type.String({
+              currentText: Type.String({
                 minLength: 1,
-                description: 'Exact text currently present in the file',
+                description: 'Current authored passage being revised',
               }),
-              newText: Type.String({ description: 'Replacement text; may be empty' }),
-              replaceAll: Type.Optional(
+              revisedText: Type.String({ description: 'Revised passage; may be empty' }),
+              allOccurrences: Type.Optional(
                 Type.Boolean({
-                  description: 'Replace every occurrence instead of requiring exactly one match',
+                  description: 'Apply the same revision to every occurrence of the current passage',
                 }),
               ),
             },
@@ -1095,28 +1096,43 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
-    aliases: ['edit workspace file', '修改文件', '编辑小说'],
+    aliases: ['revise authored object', '修改作品内容', '编辑小说'],
     certificationNote:
-      'Runtime-certified facade over independently certified writes: resolves the path, performs the exact dependent read, injects freshness, batches same-file prose changes, and delegates to the durable strategy.',
+      'Runtime-certified domain facade over independently certified writes: resolves the authored target, performs the dependent read, injects freshness, batches same-object prose changes, and delegates to the durable strategy.',
   },
   {
-    name: 'write_file',
+    name: 'write_object',
     description:
-      'Create one authored project object or replace one complete authored document. Use the natural authored name: for example 第二章, 灵感「雨夜片段」, 人物「林弦」, or 故事线「返乡」。For a new chapter or 灵感, content is the complete prose and summary is its separate optional summary. Create referenced objects before dependent relations or notes. Replacing an existing document requires a complete prior read; use edit_file for focused revisions.',
+      'Create one authored project object or replace one complete authored body. Use the natural authored name: for example 第二章, 灵感「雨夜片段」, 人物「林弦」, 故事线「返乡」, 项目事实, 批注, 待办, 实体关系, or 作者规则. Body and summary are separate authored fields. A new object or a complete chapter/灵感 replacement may include summary here; for an existing element or storyline, save its body first and then write its named 摘要 field separately. When target explicitly names 摘要, put the new value in summary and omit body. For 项目事实, attributes are the fact names and values to add or update. To create a relation, set target exactly to 实体关系 and provide 起点类型/起点/终点类型/终点/关系; Drifting assigns its identity, so do not invent a relation name or handle. To create a note, TODO, or author rule, set target exactly to 批注, 待办, or 作者规则; that target already determines its kind, body is its text, and attributes may optionally use 对象类型/对象. Create referenced objects before dependent relations or notes. Replacing an existing body requires a complete prior read; use revise_object for focused revisions.',
     parametersSchema: Type.Object(
       {
-        path: Type.String({
+        target: Type.String({
           minLength: 1,
           description:
-            'Natural authored target name, such as 第二章 or 灵感「雨夜片段」',
+            'Natural authored target name, such as 第二章 or 灵感「雨夜片段」; use exactly 实体关系, 批注, 待办, or 作者规则 when creating those object kinds',
         }),
-        content: Type.String({
-          description: 'Complete authored prose or document content',
-        }),
+        body: Type.Optional(Type.String({
+          description: 'Complete authored prose or structured object body',
+        })),
+        attributes: Type.Optional(
+          Type.Array(
+            Type.Object(
+              {
+                name: Type.String({ minLength: 1, description: 'Domain attribute name' }),
+                value: Type.String({ description: 'Domain attribute value' }),
+              },
+              { additionalProperties: false },
+            ),
+            {
+              description:
+                'Optional named domain attributes. For 项目事实 each entry is one fact. With target 实体关系 use 起点类型, 起点, 终点类型, 终点, and 关系. For a note or TODO optionally use 对象类型/对象; its target already determines 批注 or 待办.',
+            },
+          ),
+        ),
         summary: Type.Optional(
           Type.String({
             description:
-              'Separate summary to save with a created object or a complete chapter/灵感 replacement',
+              'Summary value. Also use this field when target explicitly names an existing 摘要; omit body in that case',
           }),
         ),
       },
@@ -1127,24 +1143,24 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     risk: 'medium',
     effect: 'canon',
     concurrency: 'exclusive_project',
-    // The facade is path-sensitive. Structured creates/metadata writes stay
-    // automatic because they do not produce a prose review snapshot, while a
-    // whole-file replacement of existing prose must enter the same inline
-    // editor review path as edit_file.
+    // The facade is target-sensitive. New and existing prose both enter the
+    // configured inline review mode; metadata-only writes complete without a
+    // fake prose review. Destructive structure still has its separate
+    // confirm-before policy.
     approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
-    aliases: ['create workspace file', '新建内容', '创建小说实体'],
+    aliases: ['write authored object', '新建内容', '创建小说实体'],
     certificationNote:
-      'Runtime-certified workspace facade: path parsing and dependent reads are runtime-owned; structural creates commit atomically, while replacement writes to live prose retain the editor block-review surface and exact inverse.',
+      'Runtime-certified domain facade: authored-target resolution and dependent reads are runtime-owned; structural creates commit atomically, and both initial and replacement prose retain the editor block-review surface and exact inverse.',
   },
   {
-    name: 'delete_file',
+    name: 'delete_object',
     description:
-      'Delete one complete authored object, such as a chapter, 灵感, entity, storyline, comment, TODO, relation, or author rule. Use the exact authored target returned by the work catalog.',
+      'Delete one complete authored object, such as a chapter, 灵感, entity, storyline, comment, TODO, relation, or author rule. Use the exact authored target returned by the project catalog.',
     parametersSchema: Type.Object(
       {
-        path: Type.String({
+        target: Type.String({
           minLength: 1,
           description:
             'Exact authored object returned by the work catalog',
@@ -1160,17 +1176,17 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     approval: 'confirm_before',
     retry: 'never',
     revertStrategy: 'exact_inverse',
-    aliases: ['delete workspace resource', '删除小说实体'],
+    aliases: ['delete authored object', '删除小说实体'],
     certificationNote:
-      'Runtime-certified destructive facade: resolves one project-owned resource, requires central author confirmation, records an immutable preimage, and uses a guarded exact restore inverse.',
+      'Runtime-certified destructive domain facade: resolves one project-owned object, requires central author confirmation, records an immutable preimage, and uses a guarded exact restore inverse.',
   },
   {
-    name: 'list_files',
+    name: 'browse_project',
     description:
       'View one level of the work catalog: chapters, 灵感, entities, storylines, comments, relations, rules, or materials. Use this only when the author did not name an exact target or a named target is missing.',
     parametersSchema: Type.Object(
       {
-        path: Type.Optional(
+        collection: Type.Optional(
           Type.String({
             description: 'Authored collection or object to browse; omit for the top-level catalog',
           }),
@@ -1186,29 +1202,30 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     approval: 'automatic',
     retry: 'safe',
     revertStrategy: 'not_applicable',
+    aliases: ['browse authored project', '浏览作品'],
     certificationNote:
-      'Runtime-certified project-scoped projection of canonical Drifting entities into stable virtual paths; it exposes no host filesystem capability.',
+      'Runtime-certified project-scoped catalog of canonical Drifting objects; internal identities and storage layout are not provider-visible.',
     resultBudgetChars: 24_000,
   },
   {
-    name: 'read_file',
+    name: 'read_object',
     description:
-      'Read one authored chapter, 灵感, entity, summary, or other project document. A chapter read returns its current summary together with its prose. When the author says 第八章, pass 第八章 directly—never read /, chapters, or search the project to resolve that ordinal. Large documents continue at nextOffset until truncated is false.',
+      'Read one authored chapter, 灵感, entity, summary, or other project object when it is the work target or a concrete search result needs surrounding context. Reading a person or other element returns its profile, direct relations, and compact current manuscript evidence in one domain view; use that evidence instead of gathering whole chapters. A chapter read returns its current summary together with its prose, and an unfilled body is reported explicitly. Search excerpts are already current authored evidence; never reread their source merely to verify them. When the author says 第八章, pass 第八章 directly—do not browse or search merely to resolve that ordinal. Large objects return a continuation cursor until the complete body has been read.',
     parametersSchema: Type.Object(
       {
-        path: Type.String({
+        target: Type.String({
           minLength: 1,
           description:
             'Authored target name, such as 第八章 or 灵感碎片; name 正文 or 摘要 only when selecting that specific authored field',
         }),
-        offset: Type.Optional(
-          Type.Integer({ minimum: 0, description: 'Unicode character offset' }),
+        cursor: Type.Optional(
+          Type.Integer({ minimum: 0, description: 'Continuation cursor returned by an earlier read' }),
         ),
-        limit: Type.Optional(
+        maxCharacters: Type.Optional(
           Type.Integer({
             minimum: 1,
             maximum: 32_000,
-            description: 'Maximum characters to return, default 16000',
+            description: 'Maximum authored characters to return, default 16000',
           }),
         ),
       },
@@ -1222,18 +1239,19 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     approval: 'automatic',
     retry: 'safe',
     revertStrategy: 'not_applicable',
+    aliases: ['read authored object', '阅读作品对象'],
     certificationNote:
-      'Runtime-certified path resolver over project-filtered read-certified Drifting tools; internal receipts and entity handles are not provider-visible.',
+      'Runtime-certified authored-target resolver over project-filtered Drifting reads; internal receipts and entity handles are not provider-visible.',
     resultBudgetChars: 32_000,
   },
   {
-    name: 'grep',
+    name: 'search_work',
     description:
-      'Search literal text in titles, canon, and current manuscript text across this work; the query is not a regular expression. Optionally narrow the search to one authored object or collection.',
+      'Find current authored evidence across the work: titles, manuscript text, entity and storyline records, comments, TODOs, and relations. Returned matches are usable current excerpts, not an index that requires opening every source. Use this first for a person or subject spanning multiple objects, then read a complete object only when specific surrounding context is still needed. The query is literal text, not a regular expression. Narrow to one authored object or collection when useful, for example 批注或待办 or 实体关系.',
     parametersSchema: Type.Object(
       {
         query: Type.String({ minLength: 1, description: 'Text to search for' }),
-        path: Type.Optional(Type.String({ description: 'Optional authored object or collection' })),
+        within: Type.Optional(Type.String({ description: 'Optional authored object or collection' })),
         limit: Type.Optional(
           Type.Integer({ minimum: 1, maximum: 100, description: 'Maximum matches' }),
         ),
@@ -1248,6 +1266,7 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
     approval: 'automatic',
     retry: 'safe',
     revertStrategy: 'not_applicable',
+    aliases: ['search authored project', '搜索作品'],
     certificationNote:
       'Runtime-certified search facade over project-filtered metadata and live Yjs prose search; it performs no mutation.',
     resultBudgetChars: 20_000,
