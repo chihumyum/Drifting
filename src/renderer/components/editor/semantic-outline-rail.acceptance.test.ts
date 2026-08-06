@@ -62,7 +62,7 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(zh).not.toContain('用 H1 / H2 / H3 标题构建大纲');
   });
 
-  it('offers persisted always, auto-hide, and hidden modes beside Entity Link', () => {
+  it('offers persisted show and hide choices beside Entity Link', () => {
     const topBar = source('src/renderer/components/editor/EditorTopBar.tsx');
     const rail = source('src/renderer/components/editor/EditorOutlineRail.tsx');
     const settings = source('src/renderer/store/settings-store.ts');
@@ -70,70 +70,79 @@ describe('semantic outline rail acceptance wiring', () => {
     const uiStore = source('src/renderer/store/ui-store.ts');
     const app = source('src/renderer/App.tsx');
 
-    expect(topBar).toContain("['always', 'auto', 'hidden']");
+    expect(topBar).toContain("['visible', 'hidden']");
     expect(topBar).toContain('role="menuitemradio"');
     expect(topBar).toContain('editor-bar__icon--outline');
     expect(topBar.indexOf('<OutlineRailModeMenu')).toBeLessThan(
       topBar.indexOf('editor-bar__icon--reflink'),
     );
     expect(rail).toContain("if (outlineRailMode === 'hidden') return null;");
-    expect(rail).toContain("displayMode === 'always'");
-    expect(rail).toContain('data-display-mode={displayMode}');
-    expect(settings).toContain("export type OutlineRailMode = 'always' | 'auto' | 'hidden';");
-    expect(settings).toContain("OUTLINE_RAIL_MODE_DEFAULT: OutlineRailMode = 'auto'");
-    expect(settings).toContain('version: 27');
+    expect(rail).not.toContain('data-display-mode');
+    expect(settings).toContain("export type OutlineRailMode = 'visible' | 'hidden';");
+    expect(settings).toContain("OUTLINE_RAIL_MODE_DEFAULT: OutlineRailMode = 'visible'");
+    expect(settings).toContain("value === 'always' || value === 'auto'");
     expect(preferences).toContain("'outlineRailMode'");
     expect(topBar).not.toContain('outlineCollapsed');
     expect(uiStore).not.toContain('outlineCollapsed');
     expect(app).not.toContain("classList.add('is-scrolling')");
   });
 
-  it('uses one accessible scrollbar coordinate for TOC and review markers', () => {
+  it('keeps the TOC on the left and one ordinary always-visible scrollbar on the right', () => {
     const rail = source('src/renderer/components/editor/EditorOutlineRail.tsx');
+    const model = source('src/renderer/components/editor/outline-rail-model.ts');
     const css = source('src/styles/index.css');
     const app = source('src/renderer/App.tsx');
     const semanticRailCss = css.slice(
-      css.indexOf('Semantic outline scrollbar'),
+      css.indexOf('Semantic TOC rail'),
       css.indexOf('Scene + Beat headers'),
     );
+    const editorScrollbarCss = css.slice(
+      css.indexOf('.editor-scroll {'),
+      css.indexOf('/* `.editor-scroll--comments`'),
+    );
 
-    expect(rail).toContain('role="scrollbar"');
     expect(rail).toContain('data-density={plan.mode}');
     expect(rail).toContain('data-placement="edge"');
-    expect(rail).not.toContain('edgeMode');
-    expect(rail).not.toContain('planOutlineRailPlacement');
-    expect(rail).toContain('SCROLL_ACTIVE_IDLE_MS');
-    expect(rail).toContain('(geometry.clientHeight / geometry.scrollHeight) * trackHeight');
-    expect(rail).toContain('outlineVisibleLabelRange(');
-    expect(rail).toContain('className="editor__toc-viewport-range"');
-    expect(rail).toContain('setSemanticTargetId(id)');
     expect(rail).toContain('visibleOutlineIds(');
+    expect(rail).toContain("visible ? 'is-visible' : ''");
     expect(rail).toContain('omissionRevealEntries(');
-    expect(rail).not.toContain('pointerY');
+    expect(rail).not.toContain('role="scrollbar"');
+    expect(rail).not.toContain('editor__toc-track');
+    expect(rail).not.toContain('editor__toc-thumb');
+    expect(rail).not.toContain('editor__toc-viewport-range');
+    expect(rail).not.toContain('handleTrackPointerDown');
+    expect(rail).not.toContain('handleTrackKeyDown');
+    expect(model).not.toContain('outlineVisibleLabelRange');
     expect(semanticRailCss).not.toContain('scale(');
     expect(semanticRailCss).toContain('.editor__toc-rail--edge .editor__toc-tag');
     expect(semanticRailCss).toMatch(
-      /\.editor__toc-rail--edge \.editor__toc-labels,[\s\S]*?\.editor__toc-viewport-range\s*\{\s*opacity:\s*0;/,
-    );
-    expect(semanticRailCss).toMatch(
       /\.editor__toc-rail\s*\{[\s\S]*?left:\s*0;[\s\S]*?width:\s*min\(190px/,
     );
-    expect(semanticRailCss).toContain('.editor__toc-rail.is-active .editor__toc-labels');
-    expect(semanticRailCss).toContain('.editor__toc-viewport-range');
     expect(semanticRailCss).toMatch(
-      /\.editor__toc-viewport-range\s*\{[\s\S]*?border-radius:\s*0;/,
+      /\.editor__toc-rail--edge \.editor__toc-tag,[\s\S]*?left:\s*12px;/,
     );
-    expect(semanticRailCss).toMatch(/\.editor__toc-thumb\s*\{[\s\S]*?border-radius:\s*0;/);
-    expect(semanticRailCss).toMatch(/\.editor__toc-thumb\s*\{[\s\S]*?box-shadow:\s*none;/);
-    expect(semanticRailCss).not.toContain('0 0 0 1px hsl(var(--surface)');
+    expect(semanticRailCss).toContain('.editor__toc-rail.is-active .editor__toc-labels');
+    expect(semanticRailCss).not.toContain('.editor__toc-track');
+    expect(semanticRailCss).not.toContain('.editor__toc-viewport-range');
+    expect(semanticRailCss).not.toContain('.editor__toc-thumb');
     expect(semanticRailCss).not.toMatch(
       /\.editor__toc-tag\.is-(?:visible|primary)\s*\{[^}]*background/,
     );
     expect(css).not.toContain('toc-dock');
-    expect(css).toContain('scrollbar-width: none;');
-    expect(css).toContain('.editor-scroll::-webkit-scrollbar');
-    expect(css).toMatch(/\.editor-scroll\s*\{[\s\S]*?overflow-x:\s*hidden;/);
-    expect(css).toMatch(/\.editor-scroll\s*\{[\s\S]*?overscroll-behavior:\s*none;/);
+    expect(editorScrollbarCss).toContain('overflow-y: scroll;');
+    expect(editorScrollbarCss).toContain('overflow-x: hidden;');
+    expect(editorScrollbarCss).toContain('overscroll-behavior: none;');
+    expect(editorScrollbarCss).toContain('scrollbar-gutter: stable;');
+    expect(editorScrollbarCss).toContain('scrollbar-width: thin;');
+    expect(editorScrollbarCss).toContain('.editor-scroll::-webkit-scrollbar');
+    expect(editorScrollbarCss).toMatch(
+      /\.editor-scroll::-webkit-scrollbar\s*\{[\s\S]*?width:\s*8px;/,
+    );
+    expect(editorScrollbarCss).toMatch(
+      /\.editor-scroll::-webkit-scrollbar-thumb\s*\{[\s\S]*?background:\s*hsl\(var\(--rule\)\);/,
+    );
+    expect(editorScrollbarCss).not.toContain('scrollbar-width: none;');
+    expect(editorScrollbarCss).not.toContain('display: none;');
     expect(rail).toContain('root.scrollBy({ top: event.deltaY });');
     expect(rail).not.toContain('left: event.deltaX');
     const workspaceStage = app.slice(app.indexOf('className="workspace-stage"'));
@@ -143,21 +152,20 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(css).not.toContain('.editor__toc-overlay');
   });
 
-  it('keeps durable documentation aligned with the three density modes', () => {
+  it('keeps durable documentation aligned with the separated TOC and scrollbar', () => {
     const doc = source('docs/editor/semantic-outline-rail.md');
     expect(doc).toContain('1. `all`');
     expect(doc).toContain('2. `active-branch`');
     expect(doc).toContain('3. `windowed`');
-    expect(doc).toContain('editor area’s left edge');
-    expect(doc).toContain('right of the scrollbar');
-    expect(doc).toContain('plain-text');
-    expect(doc).toContain('two scrollbar layers');
-    expect(doc).toContain('1. `always`');
-    expect(doc).toContain('2. `auto`');
-    expect(doc).toContain('3. `hidden`');
-    expect(doc).toContain('immediately beside the Entity Link');
+    expect(doc).toContain("editor area's left edge");
+    expect(doc).toContain("right edge");
+    expect(doc).toContain('existing plain-text TOC tags');
+    expect(doc).toContain('retired dual-layer implementation is absent');
+    expect(doc).toContain('1. `visible`');
+    expect(doc).toContain('2. `hidden`');
+    expect(doc).toMatch(/immediately beside the\s+Entity Link/);
     expect(doc).toContain('do not synthesize the entity name');
-    expect(doc).toMatch(/leaves its TOC label\s+lane blank/);
+    expect(doc).toMatch(/TOC label lane (?:stays|is)\s+blank/);
     expect(doc).toContain('physical-device');
   });
 });

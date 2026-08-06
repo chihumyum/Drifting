@@ -861,7 +861,6 @@
   "editorOutline": {
     "aria": "Outline",
     "sectionCount": "{{count}} sections",
-    "scrollbar": "Manuscript structure scrollbar",
     "hiddenItems": "{{count}} distant outline items; hover to reveal"
   },
   "relationPicker": {
@@ -2593,7 +2592,7 @@
     "actions": {
       "collapsePlotPlanner": "Collapse plot planner",
       "expandPlotPlanner": "Expand plot planner",
-      "outlineRailDisplay": "TOC scrollbar",
+      "outlineRailDisplay": "TOC rail",
       "hideReferenceLinks": "Hide reference link styling",
       "showReferenceLinks": "Show reference link styling",
       "noComments": "No comments",
@@ -2602,9 +2601,8 @@
       "more": "More actions"
     },
     "outlineRailMode": {
-      "always": "Always visible",
-      "auto": "Auto-hide",
-      "hidden": "Hidden"
+      "visible": "Show TOC",
+      "hidden": "Hide TOC"
     },
     "status": {
       "draft": "Draft",

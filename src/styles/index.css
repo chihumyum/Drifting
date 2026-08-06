@@ -1367,11 +1367,11 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
    Editor spread layout — TOC | manuscript | margin comments
    ============================================================ */
 .editor-scroll {
-  /* 全宽填充 .editor-body，正文由内部 .editor__spread 居中。原生滚动条隐藏；
-     左侧 semantic outline rail 是唯一可见的文稿滚动坐标。 */
+  /* 全宽填充 .editor-body，正文由内部 .editor__spread 居中。右侧保留始终
+     可见的普通滚动条；左侧 semantic TOC rail 只负责结构导航。 */
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
+  overflow-y: scroll;
   /* A vertical trackpad fling often carries a small deltaX. Keep the
      manuscript on a strict vertical axis so hitting the bottom cannot expose
      WebKit's horizontal rubber-band as a left/right page shake. */
@@ -1383,7 +1383,9 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   position: relative;
   min-height: 0;
   align-self: stretch;
-  scrollbar-width: none;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--rule)) transparent;
 }
 /* Typewriter scrolling needs virtual room below the real document so the last
    prose line can reach the configured viewport anchor. This spacer is visual
@@ -1402,9 +1404,18 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   caret-color: transparent;
 }
 .editor-scroll::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+  width: 8px;
+  height: 8px;
+}
+.editor-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.editor-scroll::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: hsl(var(--rule));
+}
+.editor-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--ink-4));
 }
 /* `.editor-scroll--comments` 不再需要单独的宽度 —— `.editor-scroll` 已全宽，
    评论栏由 `.editor__spread` 内部的 flex 居中容纳 .page + .editor__margin。 */
@@ -1995,27 +2006,18 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 
 /* ============================================================
    Review lanes inside the semantic TOC rail. Comment/Agent ticks retain their
-   existing colours and jump behaviour, but no longer form a second ruler on
-   the manuscript's right edge.
+   existing colours and jump behaviour in a narrow left-edge marker lane.
    ============================================================ */
 .editor__scrollmap {
   position: absolute;
   top: 8px;
   left: 0;
   bottom: 8px;
-  /* Review ticks share the scrollbar itself instead of creating a wide gap
-     between the thumb and its TOC labels. */
+  /* Review ticks stay compact beside the TOC labels. */
   width: 8px;
   z-index: 9;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.16s ease;
-}
-.editor-body[data-outline-rail-active='true'] .editor__scrollmap {
   opacity: 0.92;
-}
-.editor-body[data-outline-rail-active='false'] .editor__scrollmap-tick {
-  pointer-events: none;
 }
 .editor__scrollmap-tick {
   position: absolute;
@@ -2645,7 +2647,7 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 }
 
 /* ============================================================
-   Semantic outline scrollbar — manuscript structure + viewport + review map
+   Semantic TOC rail — manuscript structure + viewport highlighting
 
    Labels remain attached to measured document positions. The renderer only
    spreads colliding glyph boxes and progressively drops density: all rows →
@@ -2812,95 +2814,8 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   letter-spacing: 0.08em;
 }
 
-.editor__toc-track {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 8px;
-  cursor: ns-resize;
-  pointer-events: auto;
-  touch-action: none;
-  opacity: 0.4;
-  transition: opacity 0.16s ease;
-}
-.editor__toc-rail.is-active .editor__toc-track,
-.editor__toc-track:focus-visible {
-  opacity: 1;
-}
-.editor__toc-track::before {
-  content: '';
-  position: absolute;
-  top: 8px;
-  right: 3px;
-  bottom: 8px;
-  width: 1px;
-  background: hsl(var(--rule) / 0.7);
-  opacity: 0.5;
-  transition: opacity 0.12s ease;
-}
-.editor__toc-track:hover::before,
-.editor__toc-track:focus-visible::before,
-.editor__toc-rail.is-dragging .editor__toc-track::before {
-  opacity: 1;
-}
-.editor__toc-track:focus-visible {
-  outline: 1px solid hsl(var(--accent) / 0.5);
-  outline-offset: 2px;
-}
-.editor__toc-viewport-range {
-  position: absolute;
-  right: 0;
-  width: 8px;
-  min-height: 14px;
-  border-radius: 0;
-  background: hsl(var(--accent) / 0.14);
-  pointer-events: none;
-  transition:
-    top 0.16s ease,
-    height 0.16s ease,
-    opacity 0.16s ease,
-    background 0.12s ease;
-  z-index: 0;
-}
-.editor__toc-rail.is-active .editor__toc-viewport-range {
-  background: hsl(var(--accent) / 0.26);
-}
-.editor__toc-thumb {
-  position: absolute;
-  right: 2px;
-  width: 4px;
-  min-height: 2px;
-  border-radius: 0;
-  background: hsl(var(--accent) / 0.42);
-  box-shadow: none;
-  pointer-events: auto;
-  z-index: 1;
-  transition:
-    background 0.12s ease,
-    width 0.12s ease;
-}
-.editor__toc-track:hover .editor__toc-thumb,
-.editor__toc-track:focus-visible .editor__toc-thumb,
-.editor__toc-rail.is-dragging .editor__toc-thumb {
-  right: 1px;
-  width: 6px;
-  background: hsl(var(--accent) / 0.72);
-}
-
-/* The rail always occupies the editor area's left edge. TOC text sits to the
-   thumb's right. Auto mode exposes it during scroll/direct interaction; the
-   always mode supplies .is-active continuously. */
-.editor__toc-rail--edge .editor__toc-labels,
-.editor__toc-rail--edge .editor__toc-viewport-range {
-  opacity: 0;
-}
-.editor__toc-rail--edge.is-active .editor__toc-labels,
-.editor__toc-rail--edge:focus-within .editor__toc-labels,
-.editor__toc-rail--edge.is-active .editor__toc-viewport-range,
-.editor__toc-rail--edge:focus-within .editor__toc-viewport-range {
-  opacity: 1;
-}
+/* The TOC rail occupies the editor area's left edge independently from the
+   ordinary scrollbar on the right. */
 .editor__toc-rail--edge .editor__toc-tag,
 .editor__toc-rail--edge .editor__toc-omission {
   right: auto;
@@ -2915,15 +2830,6 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   max-width: calc(100% - 14px);
   text-align: left;
 }
-.editor__toc-rail--edge .editor__toc-track {
-  right: auto;
-  left: 0;
-}
-.editor__toc-rail--edge:not(.is-active):not(:focus-within) .editor__toc-tag,
-.editor__toc-rail--edge:not(.is-active):not(:focus-within) .editor__toc-omission {
-  pointer-events: none;
-}
-
 /* A distant omission restores nearby real TOC tags on hover/focus. This is a
    compact traversal aid, not a magnification animation or the retired panel. */
 .editor__toc-omission-reveal {

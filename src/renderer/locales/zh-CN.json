@@ -861,7 +861,6 @@
   "editorOutline": {
     "aria": "大纲",
     "sectionCount": "{{count}} 节",
-    "scrollbar": "文稿结构滚动条",
     "hiddenItems": "远处 {{count}} 个目录项，悬停展开"
   },
   "relationPicker": {
@@ -2593,7 +2592,7 @@
     "actions": {
       "collapsePlotPlanner": "收起情节规划",
       "expandPlotPlanner": "展开情节规划",
-      "outlineRailDisplay": "TOC 滚动条",
+      "outlineRailDisplay": "TOC 轨道",
       "hideReferenceLinks": "隐藏引用链接样式",
       "showReferenceLinks": "显示引用链接样式",
       "noComments": "无批注",
@@ -2602,9 +2601,8 @@
       "more": "更多操作"
     },
     "outlineRailMode": {
-      "always": "常驻",
-      "auto": "自动隐藏",
-      "hidden": "隐藏"
+      "visible": "显示 TOC",
+      "hidden": "隐藏 TOC"
     },
     "status": {
       "draft": "草稿",

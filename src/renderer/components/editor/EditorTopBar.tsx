@@ -66,7 +66,7 @@ export function getStatusSectionLabel(kind: NodeStatusKind, translate?: Translat
 /*
   Shared editor top bar:
   - Breadcrumb area on the left, built from <EditorCrumb> children
-  - The semantic outline scrollbar toggle sits beside Entity Link highlighting
+  - The semantic TOC rail visibility control sits beside Entity Link highlighting
   - Free-form right slot for contextual controls and non-word-count metadata
   - Integrated three-dot menu driven by `editorType` + `onMenuAction`
 */
@@ -199,11 +199,10 @@ export function EditorTopBar({
   );
 }
 
-const OUTLINE_RAIL_MODES: readonly OutlineRailMode[] = ['always', 'auto', 'hidden'];
+const OUTLINE_RAIL_MODES: readonly OutlineRailMode[] = ['visible', 'hidden'];
 
 const OUTLINE_RAIL_MODE_LABEL_KEYS: Record<OutlineRailMode, string> = {
-  always: 'editorTopBar.outlineRailMode.always',
-  auto: 'editorTopBar.outlineRailMode.auto',
+  visible: 'editorTopBar.outlineRailMode.visible',
   hidden: 'editorTopBar.outlineRailMode.hidden',
 };
 
@@ -220,7 +219,7 @@ function OutlineRailModeMenu({ translate }: { translate: Translate }) {
       <button
         ref={buttonRef}
         type="button"
-        className={`editor-bar__icon editor-bar__icon--outline${mode !== 'hidden' ? ' editor-bar__icon--active' : ''}`}
+        className={`editor-bar__icon editor-bar__icon--outline${mode === 'visible' ? ' editor-bar__icon--active' : ''}`}
         title={title}
         aria-label={title}
         aria-expanded={isOpen}

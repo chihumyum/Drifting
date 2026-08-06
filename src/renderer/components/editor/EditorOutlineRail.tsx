@@ -1,6 +1,4 @@
 import {
-  type KeyboardEvent,
-  type PointerEvent,
   type WheelEvent,
   useCallback,
   useEffect,
@@ -11,13 +9,12 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { useSettingsStore, type OutlineRailMode } from '../../store/settings-store';
+import { useSettingsStore } from '../../store/settings-store';
 
 import {
   flattenOutlineEntries,
   layoutOutlineRailLabels,
   outlineActivePathIds,
-  outlineVisibleLabelRange,
   planOutlineRail,
   visibleOutlineIds,
   type FlatOutlineEntry,
@@ -38,15 +35,8 @@ interface RailGeometry {
   offsets: Record<string, number>;
   fractions: Record<string, number>;
   contentHeight: number;
-  scrollHeight: number;
   clientHeight: number;
   scrollTop: number;
-}
-
-interface DragState {
-  pointerId: number;
-  startY: number;
-  startScrollTop: number;
 }
 
 interface OmissionReveal {
@@ -58,19 +48,12 @@ const EMPTY_GEOMETRY: RailGeometry = {
   offsets: {},
   fractions: {},
   contentHeight: 1,
-  scrollHeight: 1,
   clientHeight: 1,
   scrollTop: 0,
 };
 
-const TRACK_INSET = 8;
-const MIN_THUMB_PX = 28;
 const OMISSION_REVEAL_LIMIT = 10;
 const OMISSION_REVEAL_WIDTH = 190;
-const SCROLL_ACTIVE_IDLE_MS = 900;
-const SEMANTIC_TARGET_IDLE_MS = 1600;
-const SEMANTIC_RANGE_MIN_PX = 14;
-const SEMANTIC_RANGE_PADDING_PX = 6;
 
 function selectorEscape(value: string): string {
   return typeof CSS !== 'undefined' && 'escape' in CSS
@@ -107,7 +90,6 @@ function entryTier(entry: FlatOutlineEntry): 'l1' | 'l2' | 'l3' | 'l4' | 'l5' {
 function sameGeometry(a: RailGeometry, b: RailGeometry): boolean {
   if (
     Math.abs(a.contentHeight - b.contentHeight) > 0.5 ||
-    Math.abs(a.scrollHeight - b.scrollHeight) > 0.5 ||
     Math.abs(a.clientHeight - b.clientHeight) > 0.5 ||
     Math.abs(a.scrollTop - b.scrollTop) > 0.5
   ) {
@@ -149,7 +131,7 @@ function omissionRevealEntries(label: OutlineRailOmissionLabel): FlatOutlineEntr
 export function EditorOutlineRail(props: Props) {
   const outlineRailMode = useSettingsStore((state) => state.outlineRailMode);
   if (outlineRailMode === 'hidden') return null;
-  return <VisibleEditorOutlineRail {...props} displayMode={outlineRailMode} />;
+  return <VisibleEditorOutlineRail {...props} />;
 }
 
 function VisibleEditorOutlineRail({
@@ -159,26 +141,18 @@ function VisibleEditorOutlineRail({
   onItemClick,
   emptyHint,
   secondaryItems,
-  displayMode,
-}: Props & { displayMode: Exclude<OutlineRailMode, 'hidden'> }) {
+}: Props) {
   const { t } = useTranslation();
   const railRef = useRef<HTMLElement | null>(null);
   const bodyElRef = useRef<HTMLElement | null>(null);
   const scrollElRef = useRef<HTMLElement | null>(null);
   const closeRevealTimerRef = useRef<number | null>(null);
-  const scrollIdleTimerRef = useRef<number | null>(null);
-  const semanticTargetTimerRef = useRef<number | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const measureFrameRef = useRef<number | null>(null);
-  const dragRef = useRef<DragState | null>(null);
   const [bodyEl, setBodyEl] = useState<HTMLElement | null>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
   const [railHeight, setRailHeight] = useState(0);
   const [geometry, setGeometry] = useState<RailGeometry>(EMPTY_GEOMETRY);
-  const [dragging, setDragging] = useState(false);
-  const [scrollActive, setScrollActive] = useState(false);
-  const [interacting, setInteracting] = useState(false);
-  const [semanticTargetId, setSemanticTargetId] = useState<string | null>(null);
   const [omissionReveal, setOmissionReveal] = useState<OmissionReveal | null>(null);
 
   const flat = useMemo(
@@ -246,7 +220,6 @@ function VisibleEditorOutlineRail({
       offsets,
       fractions,
       contentHeight: scrollHeight,
-      scrollHeight,
       clientHeight,
       scrollTop,
     };
@@ -261,34 +234,10 @@ function VisibleEditorOutlineRail({
     });
   }, [measure]);
 
-  const markScrollActive = useCallback(() => {
-    setScrollActive(true);
-    if (scrollIdleTimerRef.current != null) {
-      window.clearTimeout(scrollIdleTimerRef.current);
-    }
-    scrollIdleTimerRef.current = window.setTimeout(() => {
-      scrollIdleTimerRef.current = null;
-      setScrollActive(false);
-    }, SCROLL_ACTIVE_IDLE_MS);
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (scrollIdleTimerRef.current != null) {
-        window.clearTimeout(scrollIdleTimerRef.current);
-      }
-      if (semanticTargetTimerRef.current != null) {
-        window.clearTimeout(semanticTargetTimerRef.current);
-      }
-    },
-    [],
-  );
-
   useEffect(() => {
     if (!scrollEl) return undefined;
     scheduleMeasure();
     const onScroll = () => {
-      markScrollActive();
       if (scrollFrameRef.current != null) return;
       scrollFrameRef.current = window.requestAnimationFrame(() => {
         scrollFrameRef.current = null;
@@ -296,7 +245,6 @@ function VisibleEditorOutlineRail({
           const next = {
             ...previous,
             scrollTop: scrollEl.scrollTop,
-            scrollHeight: Math.max(1, scrollEl.scrollHeight),
             clientHeight: Math.max(1, scrollEl.clientHeight),
             contentHeight: Math.max(1, scrollEl.scrollHeight),
           };
@@ -333,7 +281,7 @@ function VisibleEditorOutlineRail({
       scrollFrameRef.current = null;
       measureFrameRef.current = null;
     };
-  }, [flatKey, markScrollActive, measure, scheduleMeasure, scrollEl]);
+  }, [flatKey, measure, scheduleMeasure, scrollEl]);
 
   const primaryId = useMemo(
     () =>
@@ -368,124 +316,12 @@ function VisibleEditorOutlineRail({
     () => layoutOutlineRailLabels(plan.labels, railHeight),
     [plan.labels, railHeight],
   );
-  const semanticRange = useMemo(() => {
-    const targetRange = semanticTargetId
-      ? outlineVisibleLabelRange(laidOut, new Set([semanticTargetId]))
-      : null;
-    return targetRange ?? outlineVisibleLabelRange(laidOut, visibleIds);
-  }, [laidOut, semanticTargetId, visibleIds]);
-
-  useEffect(() => {
-    if (!semanticTargetId || !visibleIds.has(semanticTargetId)) return undefined;
-    const target = semanticTargetId;
-    if (semanticTargetTimerRef.current != null) {
-      window.clearTimeout(semanticTargetTimerRef.current);
-      semanticTargetTimerRef.current = null;
-    }
-    const frame = window.requestAnimationFrame(() => {
-      setSemanticTargetId((current) => (current === target ? null : current));
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [semanticTargetId, visibleIds]);
-
-  const maxScroll = Math.max(0, geometry.scrollHeight - geometry.clientHeight);
-  const trackHeight = Math.max(0, railHeight - TRACK_INSET * 2);
-  const thumbHeight =
-    maxScroll === 0
-      ? trackHeight
-      : Math.min(
-          trackHeight,
-          Math.max(MIN_THUMB_PX, (geometry.clientHeight / geometry.scrollHeight) * trackHeight),
-        );
-  const thumbTravel = Math.max(0, trackHeight - thumbHeight);
-  const thumbTop =
-    TRACK_INSET + (maxScroll > 0 ? (geometry.scrollTop / maxScroll) * thumbTravel : 0);
-  let semanticRangeTop = 0;
-  let semanticRangeHeight = 0;
-  if (semanticRange && railHeight > TRACK_INSET * 2) {
-    semanticRangeTop = Math.max(TRACK_INSET, semanticRange.firstY - SEMANTIC_RANGE_PADDING_PX);
-    const bottom = Math.min(
-      railHeight - TRACK_INSET,
-      semanticRange.nextY == null
-        ? railHeight - TRACK_INSET
-        : semanticRange.nextY - SEMANTIC_RANGE_PADDING_PX,
-    );
-    semanticRangeHeight = Math.max(SEMANTIC_RANGE_MIN_PX, bottom - semanticRangeTop);
-    if (semanticRangeTop + semanticRangeHeight > railHeight - TRACK_INSET) {
-      semanticRangeTop = Math.max(
-        TRACK_INSET,
-        railHeight - TRACK_INSET - semanticRangeHeight,
-      );
-    }
-  }
-
-  const setScrollFromTrackY = useCallback(
-    (clientY: number) => {
-      const rail = railRef.current;
-      const root = scrollElRef.current;
-      if (!rail || !root || maxScroll <= 0) return;
-      const rect = rail.getBoundingClientRect();
-      const localY = clientY - rect.top - TRACK_INSET - thumbHeight / 2;
-      root.scrollTop =
-        (Math.min(thumbTravel, Math.max(0, localY)) / Math.max(1, thumbTravel)) * maxScroll;
-    },
-    [maxScroll, thumbHeight, thumbTravel],
-  );
-
-  const handleTrackPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    const root = scrollElRef.current;
-    if (event.button !== 0 || !root) return;
-    event.preventDefault();
-    const target = event.target as HTMLElement;
-    if (!target.closest('.editor__toc-thumb')) setScrollFromTrackY(event.clientY);
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = {
-      pointerId: event.pointerId,
-      startY: event.clientY,
-      startScrollTop: root.scrollTop,
-    };
-    setDragging(true);
-  };
-
-  const handleTrackPointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    const root = scrollElRef.current;
-    if (!drag || drag.pointerId !== event.pointerId || !root || maxScroll <= 0) return;
-    const delta = event.clientY - drag.startY;
-    root.scrollTop = drag.startScrollTop + (delta / Math.max(1, thumbTravel)) * maxScroll;
-  };
-
-  const stopDragging = (event: PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.pointerId !== event.pointerId) return;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    dragRef.current = null;
-    setDragging(false);
-  };
-
-  const handleTrackKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const root = scrollElRef.current;
-    if (!root) return;
-    let next: number | null = null;
-    if (event.key === 'ArrowUp') next = root.scrollTop - 48;
-    if (event.key === 'ArrowDown') next = root.scrollTop + 48;
-    if (event.key === 'PageUp') next = root.scrollTop - root.clientHeight * 0.85;
-    if (event.key === 'PageDown') next = root.scrollTop + root.clientHeight * 0.85;
-    if (event.key === 'Home') next = 0;
-    if (event.key === 'End') next = maxScroll;
-    if (next == null) return;
-    event.preventDefault();
-    root.scrollTop = Math.min(maxScroll, Math.max(0, next));
-  };
-
   const handleWheel = (event: WheelEvent<HTMLElement>) => {
     const root = scrollElRef.current;
     if (!root) return;
     event.preventDefault();
-    // The rail represents one vertical document coordinate. Trackpad flings
-    // commonly include a small deltaX; forwarding it would move the hidden
-    // horizontal scroll offset and make the manuscript shake at a Y boundary.
+    // Keep wheel input over a TOC label connected to the manuscript while
+    // preserving the editor's strict vertical axis.
     root.scrollBy({ top: event.deltaY });
   };
 
@@ -508,17 +344,6 @@ function VisibleEditorOutlineRail({
     [clearRevealClose],
   );
 
-  const railActive =
-    displayMode === 'always' || scrollActive || dragging || interacting || omissionReveal != null;
-  useLayoutEffect(() => {
-    const body = bodyElRef.current;
-    if (!body) return undefined;
-    body.dataset.outlineRailActive = railActive ? 'true' : 'false';
-    return () => {
-      delete body.dataset.outlineRailActive;
-    };
-  }, [bodyEl, railActive]);
-
   const openOmissionReveal = (
     label: OutlineRailOmissionLabel,
     target: HTMLElement,
@@ -528,37 +353,17 @@ function VisibleEditorOutlineRail({
   };
 
   const jumpToEntry = (id: string) => {
-    setSemanticTargetId(id);
-    if (semanticTargetTimerRef.current != null) {
-      window.clearTimeout(semanticTargetTimerRef.current);
-    }
-    semanticTargetTimerRef.current = window.setTimeout(() => {
-      semanticTargetTimerRef.current = null;
-      setSemanticTargetId(null);
-    }, SEMANTIC_TARGET_IDLE_MS);
     onItemClick?.(id);
   };
 
   return (
     <nav
       ref={attachRail}
-      className={`editor__toc-rail editor__toc-rail--edge${
-        dragging ? ' is-dragging' : ''
-      }${scrollActive ? ' is-scroll-active' : ''}${railActive ? ' is-active' : ''}`}
+      className="editor__toc-rail editor__toc-rail--edge is-active"
       aria-label={`${title} · ${t('editorOutline.aria')}`}
       data-density={plan.mode}
-      data-display-mode={displayMode}
       data-placement="edge"
       onWheel={handleWheel}
-      onPointerEnter={() => setInteracting(true)}
-      onPointerLeave={() => setInteracting(false)}
-      onFocusCapture={() => setInteracting(true)}
-      onBlurCapture={(event) => {
-        const next = event.relatedTarget;
-        if (!(next instanceof Node) || !event.currentTarget.contains(next)) {
-          setInteracting(false);
-        }
-      }}
     >
       <div className="editor__toc-labels">
         {flat.length === 0 && emptyHint && (
@@ -621,39 +426,6 @@ function VisibleEditorOutlineRail({
             </button>
           );
         })}
-      </div>
-
-      <div
-        className="editor__toc-track"
-        role="scrollbar"
-        tabIndex={0}
-        aria-orientation="vertical"
-        aria-valuemin={0}
-        aria-valuemax={Math.round(maxScroll)}
-        aria-valuenow={Math.round(Math.min(maxScroll, geometry.scrollTop))}
-        aria-label={t('editorOutline.scrollbar')}
-        onPointerDown={handleTrackPointerDown}
-        onPointerMove={handleTrackPointerMove}
-        onPointerUp={stopDragging}
-        onPointerCancel={stopDragging}
-        onKeyDown={handleTrackKeyDown}
-      >
-        {semanticRange && semanticRangeHeight > 0 ? (
-          <span
-            className="editor__toc-viewport-range"
-            style={{
-              top: `${semanticRangeTop}px`,
-              height: `${semanticRangeHeight}px`,
-            }}
-            data-visible-count={semanticRange.count}
-            aria-hidden
-          />
-        ) : null}
-        <span
-          className="editor__toc-thumb"
-          style={{ top: `${thumbTop}px`, height: `${thumbHeight}px` }}
-          aria-hidden
-        />
       </div>
 
       {omissionReveal && typeof document !== 'undefined'

@@ -37,13 +37,15 @@ export const TYPEWRITER_POSITION_MIN = 25;
 export const TYPEWRITER_POSITION_MAX = 75;
 export const TYPEWRITER_POSITION_DEFAULT = 50;
 export const CARET_COLOR_DEFAULT = '#6b7fa6';
-export type OutlineRailMode = 'always' | 'auto' | 'hidden';
-export const OUTLINE_RAIL_MODE_DEFAULT: OutlineRailMode = 'auto';
+export type OutlineRailMode = 'visible' | 'hidden';
+export const OUTLINE_RAIL_MODE_DEFAULT: OutlineRailMode = 'visible';
 
 export function normalizeOutlineRailMode(value: unknown): OutlineRailMode {
-  return value === 'always' || value === 'auto' || value === 'hidden'
-    ? value
-    : OUTLINE_RAIL_MODE_DEFAULT;
+  if (value === 'hidden') return 'hidden';
+  // `always` and `auto` are persisted by the retired dual-scrollbar modes.
+  // Both now mean that the independent left TOC rail is visible.
+  if (value === 'visible' || value === 'always' || value === 'auto') return 'visible';
+  return OUTLINE_RAIL_MODE_DEFAULT;
 }
 
 export function normalizeCaretColor(color: unknown): string {

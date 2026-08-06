@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   flattenOutlineEntries,
   layoutOutlineRailLabels,
-  outlineVisibleLabelRange,
   planOutlineRail,
   visibleOutlineIds,
   type OutlineEntry,
@@ -86,64 +85,6 @@ describe('semantic outline rail density planning', () => {
     const crowded = layoutOutlineRailLabels(crowdedPlan.labels, 100);
     expect(crowded[1].y - crowded[0].y).toBeGreaterThanOrEqual(17);
     expect(crowded[2].y - crowded[1].y).toBeGreaterThanOrEqual(17);
-  });
-
-  it('keeps a stepwise outer range around the visible TOC labels', () => {
-    const flat = flattenOutlineEntries([chapter(1), chapter(2), chapter(3)]);
-    const plan = planOutlineRail(flat, 'chapter-2', 240, {
-      'chapter-1': 0.1,
-      'chapter-2': 0.5,
-      'chapter-3': 0.9,
-    });
-    const laidOut = layoutOutlineRailLabels(plan.labels, 240);
-
-    expect(outlineVisibleLabelRange(laidOut, new Set(['chapter-2']))).toEqual({
-      firstY: 120,
-      nextY: 208.8,
-      count: 1,
-    });
-    const spread = outlineVisibleLabelRange(
-      laidOut,
-      new Set(['chapter-1', 'chapter-3']),
-    );
-    expect(spread?.firstY).toBeCloseTo(31.2);
-    expect(spread?.nextY).toBeNull();
-    expect(spread?.count).toBe(2);
-  });
-
-  it('extends a nested selection to the next chapter label boundary', () => {
-    const flat = flattenOutlineEntries([
-      {
-        id: 'chapter-00',
-        kind: 'chapter',
-        level: 2,
-        text: '00',
-        children: [
-          { id: 'scene-1', kind: 'heading', level: 1, text: 'Act one' },
-          { id: 'scene-2', kind: 'heading', level: 1, text: 'Act two' },
-        ],
-      },
-      { id: 'chapter-01', kind: 'chapter', level: 2, text: '01' },
-    ]);
-    const yById = new Map([
-      ['chapter-00', 50],
-      ['scene-1', 80],
-      ['scene-2', 110],
-      ['chapter-01', 190],
-    ]);
-    const laidOut = flat.map((entry) => ({
-      label: {
-        type: 'entry' as const,
-        key: entry.id,
-        entry,
-        preferredFraction: 0,
-      },
-      y: yById.get(entry.id) ?? 0,
-    }));
-
-    expect(
-      outlineVisibleLabelRange(laidOut, new Set(['chapter-00', 'scene-2'])),
-    ).toEqual({ firstY: 50, nextY: 190, count: 2 });
   });
 
   it('selects every section intersecting the viewport plus its ancestor path', () => {

@@ -50,7 +50,7 @@ describe('preferences sync', () => {
     useSettingsStore.setState({
       agentToolSearch: 'off',
       agentMaxContext: false,
-      outlineRailMode: 'auto',
+      outlineRailMode: 'visible',
       entityLinkColorMode: 'contextual',
       entityLinkKindColors: { ...DEFAULT_ENTITY_LINK_KIND_COLORS },
     });
@@ -64,11 +64,12 @@ describe('preferences sync', () => {
     vi.unstubAllGlobals();
   });
 
-  it('normalizes the three outline-rail modes and rejects malformed values', () => {
-    expect(normalizeOutlineRailMode('always')).toBe('always');
-    expect(normalizeOutlineRailMode('auto')).toBe('auto');
+  it('normalizes the TOC rail visibility and migrates retired display modes', () => {
+    expect(normalizeOutlineRailMode('visible')).toBe('visible');
     expect(normalizeOutlineRailMode('hidden')).toBe('hidden');
-    expect(normalizeOutlineRailMode('legacy')).toBe('auto');
+    expect(normalizeOutlineRailMode('always')).toBe('visible');
+    expect(normalizeOutlineRailMode('auto')).toBe('visible');
+    expect(normalizeOutlineRailMode('legacy')).toBe('visible');
   });
 
   it('normalizes and applies the server value during the initial pull', async () => {
@@ -150,7 +151,7 @@ describe('preferences sync', () => {
     });
   });
 
-  it('pulls and pushes the outline-rail display mode', async () => {
+  it('pulls and pushes the left TOC rail visibility', async () => {
     api.get.mockResolvedValue({
       data: {
         entries: [
@@ -167,11 +168,11 @@ describe('preferences sync', () => {
     await startPreferencesSync();
     expect(useSettingsStore.getState().outlineRailMode).toBe('hidden');
 
-    useSettingsStore.getState().setOutlineRailMode('always');
+    useSettingsStore.getState().setOutlineRailMode('visible');
     await flushPreferencesSync();
 
     expect(api.post).toHaveBeenCalledWith('/api/preferences', {
-      patches: [{ key: 'outlineRailMode', value: 'always' }],
+      patches: [{ key: 'outlineRailMode', value: 'visible' }],
     });
   });
 

@@ -49,13 +49,6 @@ export interface LaidOutOutlineRailLabel {
   y: number;
 }
 
-export interface OutlineVisibleLabelRange {
-  firstY: number;
-  /** Position of the first rendered label after the selected interval. */
-  nextY: number | null;
-  count: number;
-}
-
 export const OUTLINE_RAIL_LABEL_PITCH = 17;
 const OUTLINE_RAIL_VERTICAL_INSET = 9;
 
@@ -285,28 +278,6 @@ export function layoutOutlineRailLabels(
   }
 
   return labels.map((label, index) => ({ label, y: y[index] }));
-}
-
-/**
- * Stepwise semantic range for the outer rail layer. A selected TOC item owns
- * the rail interval up to (but not including) the next rendered label, rather
- * than only the few pixels around its own centre.
- */
-export function outlineVisibleLabelRange(
-  laidOut: LaidOutOutlineRailLabel[],
-  ids: ReadonlySet<string>,
-): OutlineVisibleLabelRange | null {
-  const selectedIndexes = laidOut.flatMap((item, index) =>
-    item.label.type === 'entry' && ids.has(item.label.entry.id) ? [index] : [],
-  );
-  if (selectedIndexes.length === 0) return null;
-  const firstIndex = selectedIndexes[0];
-  const lastIndex = selectedIndexes[selectedIndexes.length - 1];
-  return {
-    firstY: laidOut[firstIndex].y,
-    nextY: laidOut[lastIndex + 1]?.y ?? null,
-    count: selectedIndexes.length,
-  };
 }
 
 /** Sequential section ranges intersecting the current editor viewport. */
