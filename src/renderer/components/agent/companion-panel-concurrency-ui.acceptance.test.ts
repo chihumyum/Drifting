@@ -8,7 +8,7 @@ function source(path: string): string {
 
 describe('General Agent sibling-conversation activity UI', () => {
   it('keeps the idle sibling composer clear while retaining history-row indicators', () => {
-    const panel = source('src/renderer/components/agent/CompanionPanel.tsx');
+    const panel = source('src/renderer/features/agent/desktop/DesktopAgentPanel.tsx');
     const en = JSON.parse(source('src/renderer/locales/en.json'));
     const zh = JSON.parse(source('src/renderer/locales/zh-CN.json'));
 

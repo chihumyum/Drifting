@@ -81,7 +81,7 @@ describe('shared menu surface style', () => {
     }
 
     const actRail = source('src/renderer/components/BottomTimeline/ActRail.tsx');
-    const material = source('src/renderer/components/rightBars/MemoMaterialPanel.tsx');
+    const material = source('src/renderer/features/library/LibraryItemCard.tsx');
     const editor = source('src/renderer/hooks/useEntityEditor.ts');
     expect(
       actRail.match(/className="menu-surface menu-surface--compact actrail__menu"/g),
@@ -114,11 +114,11 @@ describe('shared menu surface style', () => {
 
     const richMenus = [
       'src/renderer/components/topBars/UserMenu.tsx',
-      'src/renderer/components/agent/CompanionPanel.tsx',
+      'src/renderer/features/agent/desktop/DesktopAgentPanel.tsx',
       'src/renderer/components/ui/RelationKindMenu.tsx',
-      'src/renderer/components/BottomTimeline/BottomTimeline.tsx',
-      'src/renderer/views/StoryGraphView.tsx',
-      'src/renderer/views/SuperViews/SuperMemoMaterialView.tsx',
+      'src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx',
+      'src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx',
+      'src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx',
     ];
     for (const path of richMenus) {
       expect(source(path), path).toContain('menu-surface menu-surface--rich');
@@ -154,7 +154,7 @@ describe('shared menu surface style', () => {
     expect(source('src/renderer/components/topBars/UserMenu.tsx')).toContain(
       "'menu-surface--panel' : 'menu-surface--wide'",
     );
-    expect(source('src/renderer/components/agent/CompanionPanel.tsx')).toContain(
+    expect(source('src/renderer/features/agent/desktop/DesktopAgentPanel.tsx')).toContain(
       'menu-surface--panel agt-history-menu',
     );
     expect(source('src/renderer/components/ui/RelationKindMenu.tsx')).toContain(
@@ -163,7 +163,7 @@ describe('shared menu surface style', () => {
     expect(source('src/renderer/components/editor/PatchEditorCard.tsx')).toContain(
       'menu-surface--wide patch-card__anchor-pop',
     );
-    expect(source('src/renderer/views/SuperViews/SuperMemoMaterialView.tsx')).toContain(
+    expect(source('src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx')).toContain(
       'menu-surface--panel entity-filter-popover',
     );
 
@@ -176,7 +176,7 @@ describe('shared menu surface style', () => {
       ['src/styles/bottom-timeline.css', '.btl-cmenu {'],
       ['src/styles/super-view-header.css', '.relation-kind-menu {'],
       ['src/styles/graph-view.css', '.graph-head__unplaced-popover {'],
-      ['src/styles/index.css', '.menu-surface.patch-card__anchor-pop {'],
+      ['src/styles/entity-editors.css', '.menu-surface.patch-card__anchor-pop {'],
     ] as const;
     for (const [path, selector] of legacyOuterRules) {
       expect(rule(source(path), selector), `${path} ${selector}`).not.toMatch(

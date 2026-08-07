@@ -4,13 +4,17 @@
 
 当前代码**具备开始开发移动端 UI 的架构基础，但不具备宣称移动端 UI 已完成的产品基础**。
 
-这次 surface 重构让编辑器、左右工具栏与底部入口的所有权更清楚，也减少了依赖桌面浮岛间距的布局耦合；它是合适的移动端起点。不过，响应式缩窄并不等于移动交互设计。现阶段不能把能编译、能在窄窗口显示或存在 touch handler 当作 iOS/Android 可用性证据。
+桌面 UI 现在由 `shells/desktop/DesktopAppShell` 独立组合；共享项目运行时位于 `app/providers/ProjectRuntimeProvider`，feature 通过 `WorkspaceNavigator` 端口导航，不再直接依赖桌面 `ui-store`。Graph、Super Views 与 Bottom Timeline 等指针密集型实现也已经迁入 desktop 路径。这使未来新增平级 `MobileAppShell` 时不需要继续给桌面组件堆叠 `isMobile` 分支。
+
+本次只完成结构隔离和代码级验收，没有开发移动端 shell。响应式缩窄仍不等于移动交互设计，现阶段不能把能编译、能在窄窗口显示或存在 touch handler 当作 iOS/Android 可用性证据。完整所有权和依赖规则见 [`renderer-ui-architecture.md`](renderer-ui-architecture.md)。
 
 ## What is already reusable
 
 | Layer                  | Current evidence                                                                                                                           | Assessment                                  |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
 | Native target          | Tauri 项目包含 iOS/Android target、mobile capability、统一 renderer platform contract、SQLite、secure storage、deep link 与 lifecycle 边界 | 可以复用，不需要另起一套移动数据层          |
+| Application runtime    | `ProjectRuntimeProvider` 集中项目启动、Yjs、同步、Agent 与 use case 生命周期；不依赖 desktop shell                                        | 可由 Desktop/Mobile 两个 shell 共同使用     |
+| Navigation contract    | `WorkspaceNavigator` 隔离 feature 与 desktop router/ui-store；架构测试禁止 feature 反向依赖 desktop                                      | 移动端可以实现自己的导航 adapter            |
 | Shell viewport         | `100dvh`、四向 safe-area tokens、移动端 sidebar overlay、中心列 `min-width: 0`                                                             | 能承载手机壳层，但还不是完成的移动导航      |
 | Responsive entry pages | Sign-in、Dashboard、Project Picker、Settings 与 Agent context 有窄屏断点                                                                   | 登录和项目入口具备继续细化的基础            |
 | Overlay primitives     | menu/popover portal 到 `body` 并固定定位；modal、menu、button、tab 已有共享 primitive                                                      | 可以演化为 sheet、action menu 与移动 dialog |
@@ -36,4 +40,4 @@
 
 ## Acceptance boundary
 
-本文档与静态测试只确认“可以开始开发”的结构前提。除非真实 iOS 与 Android 设备完成手工验收，不得把当前状态描述为 mobile-ready、touch-ready 或 mobile-native UX complete。
+本轮按约定只执行 TypeScript、lint、Vitest、renderer build 与能力清单检查；桌面 UI 由用户后续手工回归。本文档与静态测试只确认“可以开始开发”的结构前提。除非未来真实 iOS 与 Android 设备完成手工验收，不得把当前状态描述为 mobile-ready、touch-ready 或 mobile-native UX complete。

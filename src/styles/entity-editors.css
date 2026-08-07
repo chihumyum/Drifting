@@ -1,0 +1,1311 @@
+/* Authored entity editor, references, patches and structured field surfaces. */
+/* Long-form body shared by element / storyline / category editors. */
+.elem-body {
+  font-family: var(--font-sans);
+  font-size: var(--entity-body-font-size, 16px);
+  line-height: 1.7;
+  color: hsl(var(--ink-1));
+  text-wrap: pretty;
+}
+.elem-body .ProseMirror {
+  outline: none;
+  min-height: 120px;
+}
+.elem-body .ProseMirror p {
+  margin: 0 0 var(--editor-paragraph-spacing, 1em);
+}
+.elem-body .ProseMirror em {
+  font-style: italic;
+  color: hsl(var(--ink-2));
+}
+
+/* ============================================================
+   Entity references — manual relations + inline mention backlinks
+   on entity editors. Visual: index-card + paper chip, no dark fills.
+   ============================================================ */
+.refs-section {
+  margin-top: 0;
+}
+
+.refs-section__header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 36px 0 16px;
+  padding: 0 0 6px;
+  border-bottom: 1px dotted hsl(var(--rule));
+}
+.refs-section__title {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 16px;
+  color: hsl(var(--ink-2));
+  letter-spacing: 0.005em;
+}
+.refs-section__count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: hsl(var(--ink-4));
+}
+.refs-section__action {
+  margin-left: auto;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  transition:
+    color 0.12s,
+    border-color 0.12s;
+}
+.refs-section__action:hover {
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent) / 0.35);
+}
+
+.refs-empty {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 13px;
+  color: hsl(var(--ink-4));
+  padding: 2px 0 4px;
+}
+
+/* Manual relation cards — editable grid. Each card carries the linked entity's
+   kind + name (click → navigate), a direction arrow, and an inline-editable
+   relation-kind tag (e.g. 「宿敌」). */
+.refs-rel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+.refs-rel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 11px 11px;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 1px;
+  background: transparent;
+  transition:
+    border-color 0.12s,
+    background 0.12s;
+}
+.refs-rel-card:hover {
+  border-color: hsl(var(--ink-4));
+  background: hsl(var(--surface));
+}
+.refs-rel-card__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.refs-rel-card__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+}
+.refs-rel-card__dir {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: hsl(var(--ink-5));
+}
+.refs-rel-card__remove {
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1;
+  color: hsl(var(--ink-5));
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.12s,
+    color 0.12s;
+}
+.refs-rel-card:hover .refs-rel-card__remove {
+  opacity: 1;
+}
+.refs-rel-card__remove:hover {
+  color: hsl(var(--accent));
+}
+.refs-rel-card__title {
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 15px;
+  color: hsl(var(--ink-1));
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.12s;
+}
+.refs-rel-card__title:hover {
+  color: hsl(var(--accent));
+}
+.refs-rel-card__tag {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 2px 9px;
+  border: 1px solid var(--ref-color, hsl(var(--rule-strong)));
+  border-radius: 1px;
+  background: hsl(var(--surface));
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: hsl(var(--ink-2));
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    color 0.12s,
+    border-color 0.12s;
+}
+.refs-rel-card__tag:hover {
+  color: hsl(var(--ink-1));
+}
+.refs-rel-card__tag--empty {
+  border-style: dashed;
+  border-color: hsl(var(--rule-strong));
+  background: transparent;
+  color: hsl(var(--ink-4));
+}
+.refs-rel-card__tag-input {
+  align-self: stretch;
+  padding: 2px 8px;
+  border: 1px solid hsl(var(--ink-3));
+  border-radius: 1px;
+  background: hsl(var(--page));
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: hsl(var(--ink-1));
+  outline: 0;
+}
+.refs-rel-card--add {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 78px;
+  border-style: dashed;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+  cursor: pointer;
+}
+.refs-rel-card--add:hover {
+  border-style: solid;
+  border-color: hsl(var(--accent) / 0.5);
+  color: hsl(var(--accent));
+  background: transparent;
+}
+
+/* Mention cards — inline backlinks / outgoing reference rows. */
+.refs-cards {
+  display: flex;
+  flex-direction: column;
+}
+.refs-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 6px 9px 4px;
+  border-bottom: 1px dotted hsl(var(--rule));
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.refs-card:hover {
+  background: hsl(var(--rule) / 0.35);
+}
+.refs-card:last-child {
+  border-bottom: 0;
+}
+.refs-card__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 60px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+}
+.refs-card__kind-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ref-color, hsl(var(--ink-4)));
+  flex-shrink: 0;
+}
+.refs-card__title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 14.5px;
+  color: hsl(var(--ink-1));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.refs-card__meta {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: hsl(var(--ink-4));
+}
+.refs-card__arrow {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 12px;
+  color: hsl(var(--ink-5));
+  opacity: 0;
+  transition:
+    opacity 0.12s,
+    transform 0.12s;
+}
+.refs-card:hover .refs-card__arrow {
+  opacity: 1;
+  color: hsl(var(--accent));
+  transform: translateX(2px);
+}
+
+/* Link picker — paper-deep envelope with mono filter chips. */
+.refs-picker {
+  margin: 4px 0 10px;
+  padding: 10px 12px 12px;
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 4px;
+}
+.refs-picker__filters {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.refs-picker__filter {
+  padding: 3px 9px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--ink-4));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 0.12s,
+    background 0.12s,
+    border-color 0.12s;
+}
+.refs-picker__filter:hover {
+  color: hsl(var(--ink-2));
+  border-color: hsl(var(--ink-4));
+}
+.refs-picker__filter--active {
+  color: hsl(var(--ink-1));
+  background: hsl(var(--page));
+  border-color: hsl(var(--ink-3));
+}
+.refs-picker__input {
+  width: 100%;
+  padding: 6px 10px;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 13px;
+  color: hsl(var(--ink-1));
+  background: hsl(var(--page));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 3px;
+  outline: 0;
+  transition: border-color 0.12s;
+}
+.refs-picker__input::placeholder {
+  color: hsl(var(--ink-4));
+  font-style: italic;
+}
+.refs-picker__input:focus {
+  border-color: hsl(var(--ink-3));
+}
+.refs-picker__list {
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+.refs-picker__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.refs-picker__item:hover {
+  background: hsl(var(--paper-deep) / 0.6);
+}
+.refs-picker__item-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 60px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+}
+.refs-picker__item-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 13.5px;
+  color: hsl(var(--ink-1));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.refs-picker__empty {
+  padding: 6px 4px;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 12px;
+  color: hsl(var(--ink-4));
+}
+
+/* Kind palette — driven by data-kind="..." attribute */
+.refs-kind-element {
+  --ref-color: hsl(var(--el-person));
+}
+.refs-kind-node {
+  --ref-color: hsl(var(--story-2));
+}
+.refs-kind-category {
+  --ref-color: hsl(var(--story-3));
+}
+.refs-kind-storyline {
+  --ref-color: hsl(var(--story-6));
+}
+.refs-kind-patch {
+  --ref-color: hsl(var(--el-period));
+}
+
+.refs-loading {
+  padding: 18px 4px;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 13px;
+  color: hsl(var(--ink-4));
+}
+
+/* ============================================================
+   Element patches — sidecar annotations to an element. Shares the
+   refs-section header and adopts a folded index-card visual.
+   ============================================================ */
+/* Flat patch entry: no card border, body is the visual main; head row
+   carries toggle + (small) title + (small) source anchor + delete. Visual
+   separation between patches is a subtle bottom rule, not a box. */
+.patch-card {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid hsl(var(--rule));
+}
+.patch-card:last-child {
+  border-bottom: 0;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+.patch-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 6px;
+}
+.patch-card__toggle {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: hsl(var(--ink-4));
+  cursor: pointer;
+  width: 14px;
+  text-align: center;
+}
+.patch-card__toggle:hover {
+  color: hsl(var(--accent));
+}
+.patch-card__title {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-family: var(--font-sans);
+  /* The patch's primary identifier — leads the row, so it reads as the title. */
+  font-size: 13px;
+  color: hsl(var(--ink-2));
+  padding: 0;
+}
+.patch-card__title::placeholder {
+  color: hsl(var(--ink-5));
+  font-style: normal;
+}
+.patch-card__anchor-link,
+.patch-card__anchor-empty {
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: hsl(var(--ink-4));
+  cursor: pointer;
+}
+.patch-card__anchor-empty {
+  cursor: default;
+  color: hsl(var(--ink-5));
+}
+.patch-card__anchor-link:hover {
+  color: hsl(var(--accent));
+}
+.patch-card__delete {
+  background: transparent;
+  border: 0;
+  padding: 0 2px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: hsl(var(--ink-5));
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.12s,
+    color 0.12s;
+}
+.patch-card:hover .patch-card__delete {
+  opacity: 1;
+}
+.patch-card__delete:hover {
+  color: hsl(var(--accent));
+}
+/* Anchor-edit ✎ trigger + popover. The popover portals to body and receives
+   fixed viewport coordinates from AnchoredPopover, escaping sidebar clipping. */
+.patch-card__anchor-edit-slot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.patch-card__anchor-edit {
+  background: transparent;
+  border: 0;
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: hsl(var(--ink-5));
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.12s,
+    color 0.12s;
+}
+.patch-card:hover .patch-card__anchor-edit {
+  opacity: 1;
+}
+.patch-card__anchor-edit:focus-visible,
+.patch-card__delete:focus-visible {
+  opacity: 1;
+}
+.patch-card__anchor-edit:hover,
+.patch-card__anchor-edit[aria-expanded='true'] {
+  color: hsl(var(--accent));
+  opacity: 1;
+}
+.menu-surface.patch-card__anchor-pop {
+  z-index: var(--z-popover);
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 6px;
+  /* Open animation — keep subtle to match the rest of the rail */
+  animation: patch-card-pop-in 0.14s ease-out;
+}
+@keyframes patch-card-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.patch-card__anchor-pop-kicker {
+  padding: 0 12px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: hsl(var(--ink-5));
+}
+.patch-card__anchor-pop-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+.patch-card__anchor-pop-empty {
+  padding: 6px 12px;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 12px;
+  color: hsl(var(--ink-5));
+}
+.patch-card__anchor-pop-sep {
+  height: 0;
+  margin: 4px 8px;
+  border-top: 1px dotted hsl(var(--rule));
+}
+.patch-card__anchor-pop-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: 0;
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 13px;
+  color: hsl(var(--ink-2));
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.1s;
+}
+.patch-card__anchor-pop-item:hover {
+  background: hsl(var(--ink-1) / 0.04);
+  color: hsl(var(--ink-1));
+}
+.patch-card__anchor-pop-item--current {
+  color: hsl(var(--ink-1));
+}
+.patch-card__anchor-pop-item--detach {
+  color: hsl(var(--ink-4));
+}
+.patch-card__anchor-pop-item--detach.patch-card__anchor-pop-item--current {
+  color: hsl(var(--ink-2));
+}
+.patch-card__anchor-pop-mark {
+  flex-shrink: 0;
+  width: 10px;
+  /* Nudge the ✓ down to sit on the title's baseline now that the item is
+     top-aligned (to make room for the wrapping summary line below). */
+  margin-top: 1px;
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 11px;
+  color: hsl(var(--accent));
+}
+.patch-card__anchor-pop-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.patch-card__anchor-pop-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Chapter summary preview under the title — clamped to two lines so a long
+   summary doesn't blow out the popover height. */
+.patch-card__anchor-pop-summary {
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1.4;
+  color: hsl(var(--ink-4));
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.patch-card__anchor-pop-tail {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: hsl(var(--ink-5));
+}
+
+.patch-card__anchor-link--missing {
+  color: hsl(var(--ink-4));
+  font-style: italic;
+}
+.patch-card__anchor-disclosure {
+  display: inline-block;
+  width: 10px;
+  margin-right: 2px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: hsl(var(--ink-4));
+}
+.patch-card__snapshot {
+  margin: 4px 0 6px 22px;
+  padding: 6px 8px;
+  background: hsl(var(--ink-1) / 0.025);
+  border-radius: var(--radius-xs);
+}
+.patch-card__snapshot-body {
+  margin: 0;
+  padding: 6px 8px;
+  background: hsl(var(--ink-1) / 0.03);
+  border-radius: 3px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.55;
+  color: hsl(var(--ink-3));
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+}
+/* Original block is gone — strike through the patch body so the reader
+   sees at a glance that this patch's anchoring prose is no longer in the
+   manuscript. Title stays normal so the patch remains scannable. */
+.patch-card--source-missing .patch-card__body,
+.patch-card--source-missing .patch-card__body .ProseMirror {
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--ink-5) / 0.6);
+  color: hsl(var(--ink-4));
+}
+
+/* Invalidated — the anchored source text was deleted from its chapter, so this
+   patch is no longer fed to consistency review. A small pill flags it; the
+   title is dimmed so it reads as inactive but stays editable (the user can
+   re-anchor or delete it deliberately). */
+.patch-card__invalid-badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 1px;
+  background: hsl(var(--accent) / 0.12);
+  color: hsl(var(--accent));
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+/* Clickable variant — expands the original-text snapshot below. */
+.patch-card__invalid-badge--btn {
+  border: 0;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+.patch-card__invalid-badge--btn:hover {
+  background: hsl(var(--accent) / 0.2);
+}
+.patch-card--invalidated .patch-card__title {
+  color: hsl(var(--ink-4));
+}
+/* Label above the original-text snapshot when it's shown for an invalidated
+   patch (distinguishes it from the block-level "block deleted" snapshot). */
+.patch-card__snapshot-kicker {
+  margin: 0 0 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: hsl(var(--ink-4));
+}
+
+.patch-card__body {
+  padding: 2px 0 4px 22px; /* Indent body slightly to align under title */
+}
+.patch-card__body .ProseMirror {
+  outline: none;
+  min-height: 1.6em;
+  font-family: var(--font-sans);
+  /* Body is the primary read-target — bigger than title + anchor combined. */
+  font-size: 15px;
+  line-height: 1.7;
+  color: hsl(var(--ink-1));
+}
+.patch-card__body .ProseMirror p {
+  margin: 0 0 0.6em;
+}
+.patch-card__body .ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+/* ============================================================
+   Authored-content typography
+
+   Entity pages contain both author-owned text and application chrome. Only
+   author-owned fields follow the selected content font: entity names,
+   summaries, long-form bodies, fact values, relation text, patches, quoted
+   manuscript snapshots, and their review diffs. Section labels, actions,
+   pickers, sidebars, dialogs, and node/list cards keep the unified UI face.
+   ============================================================ */
+.page--entity .elem-hero__name,
+.page--entity .elem-hero__alias,
+.page--entity .elem-hero__summary,
+.page--entity .elem-hero__fact-v,
+.page--entity .elem-body,
+.page--entity .kv-editor__value,
+.page--entity .field-review__body,
+.page--entity .refs-rel-card__title,
+.page--entity .refs-rel-card__tag,
+.page--entity .refs-rel-card__tag-input,
+.page--entity .refs-card__title,
+.page--entity .patch-card__title,
+.page--entity .patch-card__review-diff,
+.page--entity .patch-card__review-diff-title,
+.page--entity .patch-card__snapshot-body,
+.page--entity .patch-card__body .ProseMirror,
+.page--entity .mgr-row__title,
+.page--entity .mgr-row__summary:not(.mgr-row__summary--empty) {
+  font-family: var(--font-content);
+}
+
+.page--entity .field-diff__del {
+  font-family: inherit;
+}
+
+/* List chrome stays on the unified UI face even when its authored title and
+   summary use the selected content font. */
+.page--entity .mgr-row__title-mark {
+  font-family: var(--font-ui);
+}
+
+/* ============================================================
+   Color picker — swatch row used in storyline / category hero
+   ============================================================ */
+.col-pick {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0 2px;
+}
+.col-pick__sw {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  background: var(--c, hsl(var(--ink-5)));
+  cursor: pointer;
+  position: relative;
+  border: 2px solid hsl(var(--page));
+  box-shadow: 0 0 0 1px hsl(var(--rule-strong));
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+.col-pick__sw:hover {
+  border-color: hsl(var(--ink-2));
+}
+.col-pick__sw--active {
+  box-shadow: 0 0 0 1.5px var(--c);
+}
+.col-pick__sw--active::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: hsl(var(--paper));
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ============================================================
+   Management editors — shared list/row/toolbar
+   (storyline editor's chapter list + category editor's element list)
+   ============================================================ */
+.mgr-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 4px 14px;
+  border-bottom: 1px dotted hsl(var(--rule));
+  margin: 8px 0 4px;
+  flex-wrap: wrap;
+}
+.mgr-toolbar__chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.mgr-toolbar__actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.mgr-toolbar__btn {
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--ink-4));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 2px;
+  cursor: pointer;
+  background: transparent;
+  transition:
+    color 0.12s,
+    background 0.12s,
+    border-color 0.12s;
+}
+.mgr-toolbar__btn:hover {
+  color: hsl(var(--ink-1));
+  border-color: hsl(var(--ink-3));
+}
+.mgr-toolbar__btn--accent {
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent) / 0.4);
+}
+.mgr-toolbar__btn--accent:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--paper));
+  border-color: hsl(var(--accent));
+}
+.mgr-toolbar__btn-glyph {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-right: 2px;
+}
+
+.mgr-list {
+  display: flex;
+  flex-direction: column;
+}
+.mgr-row {
+  display: grid;
+  grid-template-columns: 14px 38px 1fr auto 28px;
+  align-items: start;
+  gap: 14px;
+  padding: 14px 6px 14px 4px;
+  border-bottom: 1px dotted hsl(var(--rule));
+  cursor: pointer;
+  position: relative;
+  transition: background 0.12s;
+}
+.mgr-row:hover {
+  background: hsl(var(--rule) / 0.4);
+}
+.mgr-row::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  background: var(--s-color, hsl(var(--accent)));
+  opacity: 0;
+  border-radius: 1px;
+  transition: opacity 0.15s;
+}
+.mgr-row:hover::before {
+  opacity: 1;
+}
+
+.mgr-row__status {
+  margin-top: 7px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--s-color, hsl(var(--ink-5)));
+  border: 1.5px solid hsl(var(--page));
+  box-shadow: 0 0 0 1px hsl(var(--rule-strong));
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.mgr-row__status:hover {
+  transform: scale(1.15);
+}
+.mgr-row__status--draft {
+  background: hsl(var(--page));
+  border: 1.5px solid var(--s-color, hsl(var(--accent)));
+  box-shadow: 0 0 0 1px hsl(var(--rule));
+}
+.mgr-row__status--todo {
+  background: hsl(var(--page));
+  border: 1.2px dotted var(--s-color, hsl(var(--ink-4)));
+  box-shadow: none;
+  opacity: 0.65;
+}
+
+.mgr-row__num {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--ink-4));
+  padding-top: 7px;
+  white-space: nowrap;
+}
+
+.mgr-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.mgr-row__title {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-weight: 400;
+  color: hsl(var(--ink-1));
+  letter-spacing: 0.005em;
+  line-height: 1.2;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mgr-row__title-mark {
+  font-style: italic;
+  color: var(--s-color, hsl(var(--accent)));
+  font-size: 15px;
+}
+.mgr-row__summary {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 13.5px;
+  color: hsl(var(--ink-3));
+  line-height: 1.55;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  max-width: 560px;
+}
+.mgr-row__summary--empty {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: hsl(var(--ink-5));
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.mgr-row__meta {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: hsl(var(--ink-4));
+  display: flex;
+  gap: 14px;
+  margin-top: 1px;
+}
+.mgr-row__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.mgr-row__meta b {
+  color: hsl(var(--ink-2));
+  font-weight: 500;
+  font-family: var(--font-sans);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11.5px;
+  font-style: italic;
+}
+.mgr-row__wc {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding-top: 4px;
+  white-space: nowrap;
+}
+.mgr-row__wc-v {
+  font-family: var(--font-sans);
+  font-size: 19px;
+  color: hsl(var(--ink-1));
+  font-weight: 400;
+  line-height: 1;
+}
+.mgr-row__wc-v em {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: hsl(var(--ink-4));
+  margin-left: 2px;
+  letter-spacing: 0.06em;
+}
+.mgr-row__wc-k {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--ink-4));
+}
+.mgr-row__open {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  align-self: center;
+  border-radius: 2px;
+  color: hsl(var(--ink-4));
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 16px;
+  transition:
+    color 0.12s,
+    background 0.12s;
+}
+.mgr-row__open:hover {
+  color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.08);
+}
+
+.mgr-add {
+  margin: 14px 0 4px;
+  padding: 14px;
+  border: 1px dashed hsl(var(--rule-strong));
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: hsl(var(--ink-4));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition:
+    color 0.12s,
+    border-color 0.12s,
+    background 0.12s;
+}
+.mgr-add:hover {
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent) / 0.4);
+  background: hsl(var(--accent) / 0.08);
+}
+.mgr-add__glyph {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 18px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Empty state at the bottom of an empty mgr-list */
+.mgr-empty {
+  padding: 24px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: hsl(var(--ink-5));
+  text-align: center;
+}
+
+/* ============ KV editor ============ */
+/* Generic key/value table used on Project / Storyline / Element / Category. */
+.kv-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kv-editor__empty {
+  padding: 16px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: hsl(var(--ink-5));
+  text-align: center;
+}
+.kv-editor__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kv-editor__row {
+  display: grid;
+  grid-template-columns: 160px 1fr 24px;
+  gap: 8px;
+  align-items: start;
+}
+.kv-editor__key,
+.kv-editor__value {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  background: transparent;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  padding: 6px 8px;
+  color: hsl(var(--ink-1));
+  resize: none;
+  outline: none;
+  transition:
+    border-color 0.12s,
+    background 0.12s;
+}
+.kv-editor__key {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: hsl(var(--ink-3));
+}
+.kv-editor__value {
+  min-height: 32px;
+  field-sizing: content;
+}
+.kv-editor__key:focus,
+.kv-editor__value:focus {
+  border-color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.04);
+}
+.kv-editor__key:disabled,
+.kv-editor__value:disabled {
+  color: hsl(var(--ink-4));
+  border-style: dashed;
+  cursor: default;
+}
+.kv-editor__remove {
+  border: none;
+  background: transparent;
+  color: hsl(var(--ink-5));
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 3px;
+  align-self: center;
+}
+.kv-editor__remove:hover {
+  color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.08);
+}
+.kv-editor__add {
+  align-self: flex-start;
+  margin-top: 6px;
+  border: 1px dashed hsl(var(--rule));
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+  padding: 6px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition:
+    color 0.12s,
+    border-color 0.12s,
+    background 0.12s;
+}
+.kv-editor__add:hover {
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent) / 0.4);
+  background: hsl(var(--accent) / 0.08);
+}
+.kv-editor[data-variant='template'] .kv-editor__key {
+  color: hsl(var(--ink-2));
+}
+
+/* Cmd+I inline-copilot popover spinner */
+@keyframes copilot-inline-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Notification bell spinner — used by SourceIcon in the history dropdown rows. */
+@keyframes drift-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Blink animation for the running-task icon in the circle button. */
+@keyframes notif-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.18;
+  }
+}
+.notif-blink-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  animation: notif-blink 1.2s ease-in-out infinite;
+}
+.notif-blink-icon--text {
+  font-size: 14px;
+  line-height: 1;
+  font-style: normal;
+}
+
+/* Pop-in animation for the result icon shown briefly after a task finishes. */
+@keyframes notif-flash-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.notif-flash-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  animation: notif-flash-pop 0.24s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}

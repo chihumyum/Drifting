@@ -13,7 +13,7 @@ import { ElementNameConflictError } from '../domain/book-element';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useProjectAsset } from '../usecase/useProjectAsset';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
-import { CommentRail } from '../components/editor/CommentRail';
+import { DesktopCommentRail as CommentRail } from '../features/comments/desktop/DesktopCommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings, type OutlineEntry } from '../components/editor/outline-rail-model';

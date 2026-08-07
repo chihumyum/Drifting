@@ -36,4 +36,25 @@ export default tseslint.config(
       'react-hooks/set-state-in-effect': 'warn',
     },
   },
+  {
+    files: ['src/renderer/features/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '**/shells/desktop/**',
+                '**/hooks/useProjectNavigation',
+                '**/store/ui-store',
+              ],
+              message:
+                'Shared features must use shell-neutral contracts such as WorkspaceNavigator.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

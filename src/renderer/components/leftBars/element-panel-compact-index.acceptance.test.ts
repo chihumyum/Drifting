@@ -251,8 +251,8 @@ describe('ElementPanel compact text index', () => {
   });
 
   it('keeps the shared hover/focus preview as secondary element context', () => {
-    const model = source('src/renderer/components/ui/entity-hover-card-model.ts');
-    const card = source('src/renderer/components/ui/EntityHoverCard.tsx');
+    const model = source('src/renderer/features/entities/hover/entity-hover-card-model.ts');
+    const card = source('src/renderer/features/entities/hover/EntityHoverCard.tsx');
     const docs = source('docs/design-system.md');
 
     expect(model).toContain('return { title: element.name, summary: element.summary, meta };');

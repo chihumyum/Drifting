@@ -18,10 +18,19 @@ function between(text: string, start: string, end: string): string {
 
 describe('central AI provider settings acceptance', () => {
   it('keeps every writable provider credential inside Models & API', async () => {
-    const text = await source('/src/renderer/components/modals/SettingsModal.tsx');
-    const models = between(text, 'function ModelsPanel(', 'const COPILOT_DEBOUNCE_MIN_SEC');
-    const copilot = between(text, 'function CopilotPanel(', 'function AgentMemorySection(');
-    const agent = between(text, 'function AgentPanel(', 'function KeysPanel(');
+    const text = await source(
+      '/src/renderer/features/settings/desktop/DesktopSettingsModal.tsx',
+    );
+    const intelligence = await source(
+      '/src/renderer/features/settings/panels/IntelligenceSettingsPanels.tsx',
+    );
+    const agent = await source('/src/renderer/features/settings/panels/AgentSettingsPanel.tsx');
+    const models = between(
+      intelligence,
+      'export function ModelsPanel(',
+      'export function CopilotPanel(',
+    );
+    const copilot = intelligence.slice(intelligence.indexOf('export function CopilotPanel('));
 
     expect(text).toContain("id: 'models'");
     expect(models.match(/<ProviderRow/g)).toHaveLength(4);
@@ -32,10 +41,16 @@ describe('central AI provider settings acceptance', () => {
   });
 
   it('leaves feature routing with each consumer and General Agent selection in chat', async () => {
-    const settings = await source('/src/renderer/components/modals/SettingsModal.tsx');
-    const companion = await source('/src/renderer/components/agent/CompanionPanel.tsx');
-    const copilot = between(settings, 'function CopilotPanel(', 'function AgentMemorySection(');
-    const agent = between(settings, 'function AgentPanel(', 'function KeysPanel(');
+    const settings = await source(
+      '/src/renderer/features/settings/desktop/DesktopSettingsModal.tsx',
+    );
+    const companion = await source('/src/renderer/features/agent/desktop/DesktopAgentPanel.tsx');
+    const intelligence = await source(
+      '/src/renderer/features/settings/panels/IntelligenceSettingsPanels.tsx',
+    );
+    const agent = await source('/src/renderer/features/settings/panels/AgentSettingsPanel.tsx');
+    const composer = await source('/src/renderer/features/agent/AgentComposerConfig.tsx');
+    const copilot = intelligence.slice(intelligence.indexOf('export function CopilotPanel('));
 
     expect(copilot).toContain('setCopilotByokProvider');
     expect(copilot).toContain('<CopilotByokModelPicker />');
@@ -43,8 +58,8 @@ describe('central AI provider settings acceptance', () => {
     expect(settings).not.toContain('setShadowByokModel');
     expect(agent).not.toContain('setAgentProvider');
     expect(agent).not.toContain('setAgentModel');
-    expect(companion).toContain('setAgentProvider');
-    expect(companion).toContain('setAgentModel');
+    expect(composer).toContain('setAgentProvider');
+    expect(composer).toContain('setAgentModel');
     expect(companion).toContain("railId: 'models'");
   });
 });

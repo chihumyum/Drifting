@@ -14,7 +14,7 @@ import { useEntityYjsDoc } from '../../hooks/useEntityYjsDoc';
 import { useFieldReview } from '../../hooks/useFieldReview';
 import { FieldReview } from './FieldReview';
 import loglevel from 'loglevel';
-import { countWords } from '@/renderer/lib/word-count';
+import { countWords } from '../../lib/word-count';
 import { recheckChapterPatchValidity } from '../../usecase/patch-validity';
 import { PatchCreateModal } from './PatchCreateModal';
 import {

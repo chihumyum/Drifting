@@ -1,0 +1,584 @@
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useProjectStore } from '../../../store/project-store';
+import { useAgentChatStore } from '../../../store/agent-chat-store';
+import { createAgentConversationRepository, type AgentConversationUsage } from '../../../sqlite-repo/agent-conversation-repo';
+import { approvePendingMemory, createMemory, listLiveMemories, softDeleteMemory } from '../../../usecase/useAgentMemory';
+import type { AgentMemory, AgentMemoryKind } from '../../../domain/agent-memory';
+import { AgentExtensionsSettings } from '../../../components/agent/AgentExtensionsSettings';
+import { generalAgentTransport } from '../../../lib/agent/transport';
+import {
+  SettingsGroupHeader,
+  SettingsPanelHeader,
+  SettingsSectionHeader,
+  SettingsSegment,
+  type SettingsRegisterRef,
+} from '../SettingsPrimitives';
+
+const fmtUsageTok = (n: number): string =>
+  n >= 1_000_000
+    ? `${(n / 1_000_000).toFixed(1)}M`
+    : n >= 1000
+      ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k`
+      : String(n);
+const fmtUsageUsd = (n: number): string => `$${n.toFixed(n > 0 && n < 0.01 ? 4 : 2)}`;
+const fmtConvTime = (iso: string): string => {
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    return d.toDateString() === now.toDateString()
+      ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : d.toLocaleDateString([], { month: '2-digit', day: '2-digit' });
+  } catch {
+    return '';
+  }
+};
+
+// Author-facing management of the agent's saved memories (preferences / vetoes /
+// directives — see domain/agent-memory). The fuller surface vs the agt-menu mini
+// list: view + approve a pending memory + delete. Open-gated load like the usage
+// section; all setState in async callbacks (clear of set-state-in-effect).
+function AgentMemorySection({ open }: { open: boolean }) {
+  const { t } = useTranslation();
+  const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
+  const [memories, setMemories] = useState<AgentMemory[]>([]);
+  const [draftKind, setDraftKind] = useState<AgentMemoryKind>('preference');
+  const [draftBody, setDraftBody] = useState('');
+
+  useEffect(() => {
+    if (!open || !projectId) return;
+    let cancelled = false;
+    void listLiveMemories(projectId)
+      .then((rows) => {
+        if (!cancelled) setMemories(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setMemories([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId]);
+
+  const reload = () => {
+    if (!projectId) return;
+    void listLiveMemories(projectId)
+      .then(setMemories)
+      .catch(() => setMemories([]));
+  };
+
+  // Hide dismissed (retired/superseded); show active + pending.
+  const visible = memories.filter((m) => m.status !== 'dismissed');
+
+  const kindLabel = (k: AgentMemory['kind']) =>
+    k === 'veto'
+      ? t('settings.agentMemory.kind.veto')
+      : k === 'directive'
+        ? t('settings.agentMemory.kind.directive')
+        : t('settings.agentMemory.kind.preference');
+
+  const approve = (id: string) => {
+    if (!projectId) return;
+    void approvePendingMemory(projectId, id).then(reload);
+  };
+  const remove = (id: string) => {
+    if (!projectId) return;
+    if (!window.confirm(t('settings.agentMemory.deleteConfirm'))) return;
+    void softDeleteMemory(projectId, id).then(reload);
+  };
+  // Manual add — author-authored, active immediately (it's the author's own).
+  const add = () => {
+    const body = draftBody.trim();
+    if (!body || !projectId) return;
+    void createMemory(projectId, {
+      kind: draftKind,
+      body,
+      source: 'author',
+      status: 'active',
+    }).then(() => {
+      setDraftBody('');
+      reload();
+    });
+  };
+
+  return (
+    <div className="set-sec">
+      <SettingsSectionHeader title={t('settings.agentMemory.title')} hint="MEMORY" />
+      <p className="set-panel__sub" style={{ marginTop: -2, marginBottom: 12 }}>
+        {t('settings.agentMemory.desc')}
+      </p>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <select
+          className="set-input"
+          style={{ flexShrink: 0, width: 84 }}
+          value={draftKind}
+          onChange={(e) => setDraftKind(e.target.value as AgentMemoryKind)}
+        >
+          <option value="preference">{t('settings.agentMemory.kind.preference')}</option>
+          <option value="directive">{t('settings.agentMemory.kind.directive')}</option>
+          <option value="veto">{t('settings.agentMemory.kind.veto')}</option>
+        </select>
+        <input
+          className="set-input"
+          style={{ flex: 1, minWidth: 0 }}
+          placeholder={t('settings.agentMemory.placeholder')}
+          value={draftBody}
+          onChange={(e) => setDraftBody(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') add();
+          }}
+        />
+        <button
+          className="set-btn set-btn--primary"
+          style={{ flexShrink: 0 }}
+          disabled={!draftBody.trim()}
+          onClick={add}
+        >
+          {t('settings.agentMemory.add')}
+        </button>
+      </div>
+      {visible.length === 0 ? (
+        <div
+          style={{
+            border: '1px dashed hsl(var(--rule))',
+            borderRadius: 5,
+            padding: '16px',
+            color: 'hsl(var(--ink-4))',
+            fontSize: 12.5,
+          }}
+        >
+          {t('settings.agentMemory.empty')}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {visible.map((m) => {
+            const pending = m.status === 'pending';
+            return (
+              <div
+                key={m.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  border: '1px solid hsl(var(--rule))',
+                  borderRadius: 5,
+                  background: 'hsl(var(--surface))',
+                  padding: '10px 12px',
+                }}
+              >
+                <span
+                  style={{
+                    flexShrink: 0,
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9.5,
+                    letterSpacing: '0.04em',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    marginTop: 1,
+                    color: m.kind === 'veto' ? 'hsl(var(--accent))' : 'hsl(var(--ink-3))',
+                    background:
+                      m.kind === 'veto' ? 'hsl(var(--accent) / 0.1)' : 'hsl(var(--ink-1) / 0.07)',
+                  }}
+                >
+                  {kindLabel(m.kind)}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: 'hsl(var(--ink-1))', lineHeight: 1.5 }}>
+                    {m.body}
+                  </div>
+                  {pending && (
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 9.5,
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        color: 'hsl(var(--accent))',
+                        marginTop: 4,
+                      }}
+                    >
+                      {t('settings.agentMemory.pending')}
+                    </div>
+                  )}
+                </div>
+                <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
+                  {pending && (
+                    <button className="set-btn" onClick={() => approve(m.id)}>
+                      {t('settings.agentMemory.approve')}
+                    </button>
+                  )}
+                  <button className="set-btn set-btn--danger" onClick={() => remove(m.id)}>
+                    {t('settings.common.delete')}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function monthStartISO(): string {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+}
+
+function AgentUsageSection({ open }: { open: boolean }) {
+  const { t } = useTranslation();
+  const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
+  const [rows, setRows] = useState<AgentConversationUsage[]>([]);
+  // Two reporting windows: this-month vs all-time.
+  // Defaults to all-time: usage entries written before per-turn timestamps existed
+  // are undated, so they only surface under 累计 — landing there shows real numbers
+  // instead of a misleading 本月 = 0 until fresh, dated turns accrue.
+  const [scope, setScope] = useState<'month' | 'all'>('all');
+
+  // Reload on open / project / scope change (the modal stays mounted while
+  // closed). All setState happens in the async callbacks, never synchronously.
+  useEffect(() => {
+    if (!open || !projectId) return;
+    let cancelled = false;
+    const since = scope === 'month' ? monthStartISO() : undefined;
+    void createAgentConversationRepository()
+      .usageByProject(projectId, { since })
+      .then((u) => {
+        if (!cancelled) setRows(u);
+      })
+      .catch(() => {
+        if (!cancelled) setRows([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId, scope]);
+
+  // Totals sum EVERY conversation in-window, deleted or not — the spend was real,
+  // so deleting a chat must not shrink the usage figures.
+  const totals = rows.reduce(
+    (a, r) => ({
+      input: a.input + r.inputTokens,
+      output: a.output + r.outputTokens,
+      cost: a.cost + r.costUsd,
+      turns: a.turns + r.turns,
+    }),
+    { input: 0, output: 0, cost: 0, turns: 0 },
+  );
+  const withUsage = rows.filter((r) => r.inputTokens + r.outputTokens > 0);
+  // The manageable history list is live conversations only (all of them, not
+  // window-scoped — you manage every chat regardless of when it was last used).
+  const live = rows.filter((r) => !r.deletedAt);
+  const scopeLabel =
+    scope === 'month' ? t('settings.agentUsage.month') : t('settings.agentUsage.all');
+
+  // Soft-delete through the chat store so the right-rail Companion (if bound to
+  // this project) drops the conversation too — abort an in-flight turn, clear the
+  // active pointer, refresh its list. Persistence (repo.softDelete) runs even when
+  // the store isn't bound, so deletion is safe either way. We only MARK the row
+  // deleted locally (not remove it) so its usage stays in the totals above.
+  const handleDelete = (id: string) => {
+    void useAgentChatStore.getState().deleteConversation(id);
+    const now = new Date().toISOString();
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, deletedAt: now } : r)));
+  };
+
+  // Bulk soft-delete behind a confirm — clearing all is easy to fire by accident.
+  const handleClearAll = () => {
+    if (live.length === 0) return;
+    if (!window.confirm(t('settings.agentUsage.clearConfirm', { count: live.length }))) return;
+    void useAgentChatStore.getState().clearConversations();
+    const now = new Date().toISOString();
+    setRows((rs) => rs.map((r) => (r.deletedAt ? r : { ...r, deletedAt: now })));
+  };
+
+  const card = (label: string, value: string, sub?: string) => (
+    <div
+      style={{
+        flex: 1,
+        border: '1px solid hsl(var(--rule))',
+        borderRadius: 5,
+        background: 'hsl(var(--surface))',
+        padding: '14px 16px',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 9.5,
+          textTransform: 'uppercase',
+          letterSpacing: '0.14em',
+          color: 'hsl(var(--ink-4))',
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontFamily: 'var(--font-sans)',
+          fontSize: 30,
+          color: 'hsl(var(--ink-1))',
+          marginTop: 6,
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {value}
+      </div>
+      {sub && (
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'hsl(var(--ink-4))',
+            marginTop: 2,
+          }}
+        >
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      <SettingsGroupHeader
+        label={t('settings.agentUsage.usage')}
+        hint="USAGE"
+        desc={t('settings.agentUsage.usageDesc')}
+      />
+
+      {!projectId ? (
+        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>
+          {t('settings.agentUsage.noProjectUsage')}
+        </div>
+      ) : (
+        <>
+          <div style={{ marginBottom: 12 }}>
+            <SettingsSegment<'month' | 'all'>
+              value={scope}
+              options={[
+                { value: 'month', label: t('settings.agentUsage.month') },
+                { value: 'all', label: t('settings.agentUsage.all') },
+              ]}
+              onChange={setScope}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {card(
+              t('settings.agentUsage.tokenCard', { scope: scopeLabel }),
+              fmtUsageTok(totals.input + totals.output),
+              `↑${fmtUsageTok(totals.input)} ↓${fmtUsageTok(totals.output)}`,
+            )}
+            {card(
+              t('settings.agentUsage.costCard', { scope: scopeLabel }),
+              fmtUsageUsd(totals.cost),
+            )}
+            {card(
+              t('settings.agentUsage.conversationsTurns'),
+              `${withUsage.length} / ${totals.turns}`,
+            )}
+          </div>
+        </>
+      )}
+
+      <SettingsGroupHeader
+        label={t('settings.agentUsage.history')}
+        hint="HISTORY"
+        desc={t('settings.agentUsage.historyDesc')}
+      />
+
+      {projectId && live.length > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '2px 0 8px' }}>
+          <button
+            type="button"
+            onClick={handleClearAll}
+            style={{
+              border: '1px solid hsl(var(--rule))',
+              background: 'transparent',
+              color: 'hsl(var(--ink-3))',
+              cursor: 'pointer',
+              fontSize: 12,
+              padding: '4px 10px',
+              borderRadius: 5,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'hsl(var(--ink-1))';
+              e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'hsl(var(--ink-3))';
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            {t('settings.agentUsage.clearHistory')}
+          </button>
+        </div>
+      )}
+
+      {!projectId ? (
+        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>
+          {t('settings.agentUsage.noProjectHistory')}
+        </div>
+      ) : live.length === 0 ? (
+        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13, padding: '8px 0' }}>
+          {t('settings.agentUsage.noHistory')}
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            border: '1px solid hsl(var(--rule))',
+            borderRadius: 5,
+            overflow: 'hidden',
+          }}
+        >
+          {live.map((r, i) => (
+            <div
+              key={r.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 12px',
+                borderTop: i === 0 ? 'none' : '1px solid hsl(var(--rule))',
+                fontSize: 12.5,
+              }}
+            >
+              <span
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  color: 'hsl(var(--ink-1))',
+                }}
+              >
+                {r.title || t('settings.agentUsage.untitled')}
+              </span>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10.5,
+                  color: 'hsl(var(--ink-4))',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {fmtConvTime(r.updatedAt)}
+              </span>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  color: 'hsl(var(--ink-3))',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {r.inputTokens + r.outputTokens > 0
+                  ? `↑${fmtUsageTok(r.inputTokens)} ↓${fmtUsageTok(r.outputTokens)}`
+                  : '—'}
+              </span>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  color: 'hsl(var(--ink-4))',
+                  minWidth: 56,
+                  textAlign: 'right',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {r.costUsd > 0 ? fmtUsageUsd(r.costUsd) : '—'}
+              </span>
+              <button
+                type="button"
+                title={t('settings.agentUsage.deleteConversation')}
+                onClick={() => handleDelete(r.id)}
+                style={{
+                  flexShrink: 0,
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'hsl(var(--ink-4))',
+                  cursor: 'pointer',
+                  fontSize: 15,
+                  lineHeight: 1,
+                  padding: '2px 4px',
+                  borderRadius: 4,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'hsl(var(--ink-1))';
+                  e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'hsl(var(--ink-4))';
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+export function AgentPanel({ open, registerRef }: { open: boolean; registerRef: SettingsRegisterRef }) {
+  const { t } = useTranslation();
+
+  if (!generalAgentTransport.capability.available) {
+    return (
+      <section className="set-panel" ref={registerRef} id="agent">
+        <SettingsPanelHeader
+          kicker={t('settings.agent.kicker')}
+          title={t('settings.agent.unavailableTitle')}
+          sub={t('settings.agent.unavailableReason')}
+        />
+        <div className="set-sec">
+          <SettingsSectionHeader title={t('settings.agent.unavailableStatus')} hint="TAURI · UNSUPPORTED" />
+          <p className="set-row__desc">{t('settings.agent.unavailableFuture')}</p>
+        </div>
+        <AgentMemorySection open={open} />
+        <AgentUsageSection open={open} />
+      </section>
+    );
+  }
+
+  return (
+    <section className="set-panel" ref={registerRef} id="agent">
+      <SettingsPanelHeader
+        kicker={t('settings.agent.kicker')}
+        title={t('settings.agent.title')}
+        sub={
+          <>
+            {t('settings.agent.sub')}
+            <span className="set-italic"> {t('settings.agent.credentialPrivacy')}</span>
+          </>
+        }
+      />
+
+      <div className="set-sec">
+        <SettingsSectionHeader title={t('settings.agent.chatConfigTitle')} hint="RIGHT PANEL" />
+        <p className="set-row__desc">{t('settings.agent.chatConfigDesc')}</p>
+        <button
+          className="set-btn"
+          onClick={() =>
+            document
+              .getElementById('models')
+              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        >
+          {t('settings.common.manageKeys')}
+        </button>
+      </div>
+
+      <AgentMemorySection open={open} />
+
+      <AgentExtensionsSettings open={open} />
+
+      <AgentUsageSection open={open} />
+    </section>
+  );
+}

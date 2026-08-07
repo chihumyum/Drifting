@@ -8,7 +8,7 @@ function source(path: string): string {
 
 describe('General Agent thinking disclosure', () => {
   it('keeps hydrated thinking history collapsed while opening a live stream', () => {
-    const panel = source('src/renderer/components/agent/CompanionPanel.tsx');
+    const panel = source('src/renderer/features/agent/AgentMessageViews.tsx');
 
     expect(panel).toContain(
       'const [open, setOpen] = useState(() => msg.streaming === true);',

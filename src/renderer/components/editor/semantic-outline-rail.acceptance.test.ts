@@ -68,7 +68,7 @@ describe('semantic outline rail acceptance wiring', () => {
     const settings = source('src/renderer/store/settings-store.ts');
     const preferences = source('src/renderer/services/preferences-sync.service.ts');
     const uiStore = source('src/renderer/store/ui-store.ts');
-    const app = source('src/renderer/App.tsx');
+    const workspace = source('src/renderer/shells/desktop/DesktopWorkspace.tsx');
 
     expect(topBar).toContain("['visible', 'hidden']");
     expect(topBar).toContain('role="menuitemradio"');
@@ -84,17 +84,19 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(preferences).toContain("'outlineRailMode'");
     expect(topBar).not.toContain('outlineCollapsed');
     expect(uiStore).not.toContain('outlineCollapsed');
-    expect(app).not.toContain("classList.add('is-scrolling')");
+    expect(workspace).not.toContain("classList.add('is-scrolling')");
   });
 
   it('keeps the TOC on the left and one ordinary always-visible scrollbar on the right', () => {
     const rail = source('src/renderer/components/editor/EditorOutlineRail.tsx');
     const model = source('src/renderer/components/editor/outline-rail-model.ts');
     const css = source('src/styles/index.css');
-    const app = source('src/renderer/App.tsx');
-    const semanticRailCss = css.slice(
-      css.indexOf('Semantic TOC rail'),
-      css.indexOf('Scene + Beat headers'),
+    const commentsReviewCss = source('src/styles/comments-review.css');
+    const workspace = source('src/renderer/shells/desktop/DesktopWorkspace.tsx');
+    const desktopShellCss = source('src/styles/desktop-shell.css');
+    const semanticRailCss = commentsReviewCss.slice(
+      commentsReviewCss.indexOf('Semantic TOC rail'),
+      commentsReviewCss.indexOf('Scene + Beat headers'),
     );
     const editorScrollbarCss = css.slice(
       css.indexOf('.editor-scroll {'),
@@ -128,7 +130,7 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(semanticRailCss).not.toMatch(
       /\.editor__toc-tag\.is-(?:visible|primary)\s*\{[^}]*background/,
     );
-    expect(css).not.toContain('toc-dock');
+    expect(commentsReviewCss).not.toContain('toc-dock');
     expect(editorScrollbarCss).toContain('overflow-y: scroll;');
     expect(editorScrollbarCss).toContain('overflow-x: hidden;');
     expect(editorScrollbarCss).toContain('overscroll-behavior: none;');
@@ -145,11 +147,13 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(editorScrollbarCss).not.toContain('display: none;');
     expect(rail).toContain('root.scrollBy({ top: event.deltaY });');
     expect(rail).not.toContain('left: event.deltaX');
-    const workspaceStage = app.slice(app.indexOf('className="workspace-stage"'));
-    expect(workspaceStage).toContain("overflowY: 'hidden'");
-    expect(workspaceStage).not.toContain("overflowY: 'auto'");
-    expect(css).toMatch(/\.editor__scrollmap\s*\{[\s\S]*?left:\s*0;/);
-    expect(css).not.toContain('.editor__toc-overlay');
+    expect(workspace).toContain('className="workspace-stage desktop-workspace-stage"');
+    expect(desktopShellCss).toMatch(
+      /\.desktop-workspace-stage\s*\{[\s\S]*?overflow:\s*hidden;/,
+    );
+    expect(desktopShellCss).not.toMatch(/\.desktop-workspace-stage\s*\{[^}]*overflow-y:\s*auto;/);
+    expect(commentsReviewCss).toMatch(/\.editor__scrollmap\s*\{[\s\S]*?left:\s*0;/);
+    expect(commentsReviewCss).not.toContain('.editor__toc-overlay');
   });
 
   it('keeps durable documentation aligned with the separated TOC and scrollbar', () => {

@@ -18,7 +18,7 @@ function cssBlock(css: string, selector: string): string {
 
 describe('workspace titlebar centerline', () => {
   it('keeps native traffic lights and renderer controls on the calibrated macOS row', () => {
-    const app = source('src/renderer/App.tsx');
+    const appEffects = source('src/renderer/app/effects/AppEffects.tsx');
     const topbar = source('src/renderer/views/AppTopbar.tsx');
     const leftTopbar = source('src/renderer/components/topBars/LeftSidebarTopBar.tsx');
     const shellCss = source('src/styles/index.css');
@@ -44,7 +44,7 @@ describe('workspace titlebar centerline', () => {
     const expectedPosition = { x: 18, y: 22 };
     expect(baseConfig.app.windows[0]?.trafficLightPosition).toEqual(expectedPosition);
     expect(macConfig.app.windows[0]?.trafficLightPosition).toEqual(expectedPosition);
-    expect(app).toContain('.setTrafficLightPosition({ x: 18, y: 22 })');
+    expect(appEffects).toContain('.setTrafficLightPosition({ x: 18, y: 22 })');
     expect(doc).toContain('macOS 红绿灯固定为 `x: 18, y: 22`');
   });
 });

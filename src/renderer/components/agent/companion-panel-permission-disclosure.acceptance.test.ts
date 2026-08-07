@@ -8,7 +8,7 @@ function source(path: string): string {
 
 describe('General Agent permission disclosure', () => {
   it('shows a natural domain action before a collapsed raw-argument disclosure', () => {
-    const panel = source('src/renderer/components/agent/CompanionPanel.tsx');
+    const panel = source('src/renderer/features/agent/AgentMessageViews.tsx');
     const naturalDescription = panel.indexOf('describeAgentPermissionAction(');
     const rawDisclosure = panel.indexOf(
       "<summary>{t('agentPanel.control.arguments')}</summary>",
@@ -21,7 +21,7 @@ describe('General Agent permission disclosure', () => {
   });
 
   it('keeps the dangerous-operation switch explicit and off by default', () => {
-    const panel = source('src/renderer/components/agent/CompanionPanel.tsx');
+    const panel = source('src/renderer/features/agent/AgentComposerConfig.tsx');
     const settings = source('src/renderer/store/settings-store.ts');
 
     expect(panel).toContain('agentAllowDangerousOperations');

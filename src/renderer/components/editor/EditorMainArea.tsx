@@ -18,8 +18,11 @@ import { AllChaptersEditorView } from '../../views/AllChaptersEditorView';
 import { ProjectDashboard } from '../../views/ProjectDashboard';
 import { pruneEditorSelectionMemory } from '../../lib/editor-selection-memory';
 import { isStructuralEntityKind } from '../../domain/entity-kinds';
-import { EntityHoverCard } from '../ui/EntityHoverCard';
-import { useHoverPreview, type EntityHoverTarget } from '../ui/entity-hover-card-model';
+import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
+import {
+  useHoverPreview,
+  type EntityHoverTarget,
+} from '../../features/entities/hover/entity-hover-card-model';
 
 // EditorMainArea sits where <Outlet /> used to be. Its job is to decide
 // whether the editor surface should render a single matched route element

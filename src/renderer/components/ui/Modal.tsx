@@ -1,7 +1,6 @@
 import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
-import { GhostIconButton } from './GhostIconButton';
+import { DialogActions, DialogBody, DialogHeader } from './DialogContent';
 
 interface ModalRootProps {
   children: ReactNode;
@@ -67,59 +66,6 @@ export function ModalCard({ children, className = '', style, width = 520 }: Moda
   );
 }
 
-interface ModalHeaderProps {
-  title: ReactNode;
-  subtitle?: ReactNode;
-  description?: ReactNode;
-  kicker?: ReactNode;
-  onClose?: () => void;
-  closeLabel?: string;
-}
-
-export function ModalHeader({
-  title,
-  subtitle,
-  description,
-  kicker,
-  onClose,
-  closeLabel = 'Close',
-}: ModalHeaderProps) {
-  return (
-    <header className="modal-header">
-      <div className="modal-header__copy">
-        {kicker && <div className="modal-header__kicker">{kicker}</div>}
-        <div className="modal-header__title">{title}</div>
-        {subtitle && <div className="modal-header__subtitle">{subtitle}</div>}
-        {description && <div className="modal-header__description">{description}</div>}
-      </div>
-      {onClose && (
-        <GhostIconButton
-          icon={<X size={16} strokeWidth={1.6} />}
-          onClick={onClose}
-          title={closeLabel}
-          aria-label={closeLabel}
-        />
-      )}
-    </header>
-  );
-}
-
-export function ModalBody({
-  children,
-  className = '',
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return <div className={`modal-body ${className}`.trim()}>{children}</div>;
-}
-
-export function ModalActions({
-  children,
-  className = '',
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return <footer className={`modal-actions ${className}`.trim()}>{children}</footer>;
-}
+export const ModalHeader = DialogHeader;
+export const ModalBody = DialogBody;
+export const ModalActions = DialogActions;

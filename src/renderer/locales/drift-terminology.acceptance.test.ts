@@ -53,7 +53,7 @@ describe('Drift Chinese terminology acceptance', () => {
     const workspace = source('src/renderer/lib/agent/runtime/drifting-workspace-tool-runtime.ts');
     const prompt = source('src/renderer/lib/agent/runtime/system-prompt.ts');
 
-    expect(activity).toContain("drifts: ['灵感', 'inspirations']");
+    expect(activity).toContain("list_inspirations: ['查看灵感列表', 'Review inspirations']");
     expect(workspace).toContain("'/drifts': '灵感'");
     expect(prompt).toContain('The Chinese product label for a drift node is 灵感.');
     expect(prompt).toContain('Use 灵感 in Chinese author-facing responses.');

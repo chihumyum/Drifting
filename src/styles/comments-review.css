@@ -1,0 +1,1753 @@
+/* Comments, review lanes, inline review cards and snapshot surfaces. */
+/* Comment rail — anchored to the right edge of .editor-body, mirrors the
+   semantic outline rail on the left. Absolute positioning means the
+   manuscript never reflows around either rail, including when TOC mode changes.
+   The rail container is transparent + pointer-events:none so the user can
+   click/select manuscript text underneath the rail's empty regions. Only
+   the actual cards/chips re-enable pointer events. */
+.editor__margin {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 240px;
+  padding: 28px 14px 12px 12px;
+  z-index: 6;
+  background: transparent;
+  pointer-events: none;
+  animation: editor-margin-fade-in 0.16s ease;
+  /* Clip cards anchored to off-screen blocks. Card top values are
+     scroll-relative (block viewport pos), so cards for blocks far above/below
+     the viewport land outside the rail's box — without clipping they leak
+     into the document and grow its scroll height, producing a spurious
+     extra scrollbar. The cards beyond the bounds are off-screen anyway. */
+  overflow: hidden;
+}
+.editor__margin .mnote,
+.editor__margin .comment-chip {
+  pointer-events: auto;
+}
+@keyframes editor-margin-fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.mnote {
+  background: hsl(var(--surface));
+  background-image: linear-gradient(hsl(var(--accent) / 0.04), hsl(var(--accent) / 0.04));
+  border: 1px solid hsl(var(--rule));
+  border-radius: 4px;
+  padding: 9px 11px 10px;
+  position: absolute;
+  /* Fallback so a card never paints at top:auto before CommentRail writes its
+     real `top` imperatively. The JS write (inline style) overrides this. */
+  top: 28px;
+  left: 0;
+  right: 0;
+  cursor: default;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  color: hsl(var(--ink-2));
+  box-shadow: 0 1px 3px hsl(var(--ink-1) / 0.06);
+  transition:
+    box-shadow 0.15s,
+    border-color 0.15s;
+  z-index: 1;
+}
+.mnote:hover {
+  border-color: hsl(var(--rule-strong));
+  box-shadow: 0 10px 22px -12px hsl(var(--ink-1) / 0.28);
+  z-index: 5;
+}
+.mnote--resolved {
+  background-image: none;
+  opacity: 0.72;
+}
+/* Card has been promoted to a TODO (comment.kind = 'todo'). Keeps the
+   block anchor + body intact; the rail visually nudges to checklist-style
+   so the author can tell which annotations are tasks vs. plain notes.
+   Story-4 (ochre) reads as "pending task" against the cooler default
+   accent — strong enough to register against the surface, light enough
+   not to fight with the body text.
+
+   The tint is layered as a background-image so the underlying surface
+   stays opaque. Using the `background:` shorthand here would reset
+   background-color (inherited from .mnote = hsl(var(--surface))) and the
+   card would render semi-transparent against whatever sits behind the
+   editor rail. */
+.mnote--todo {
+  border-color: hsl(var(--rule)); /* ochre tint + glyph carry the TODO identity */
+  background-color: hsl(var(--surface));
+  background-image: linear-gradient(hsl(var(--story-4) / 0.12), hsl(var(--story-4) / 0.12));
+}
+.mnote--todo:hover {
+  background-image: linear-gradient(hsl(var(--story-4) / 0.18), hsl(var(--story-4) / 0.18));
+}
+.mnote--todo .mnote__head-glyph,
+.mnote--todo .mnote__head-l > span:last-child {
+  color: hsl(var(--story-4));
+}
+/* Plain notes carry a 胭脂 (rouge/pink) identity — distinct from the app-wide
+   blue accent (which now reads as "agent-changed" on the overview ruler) and
+   from the ochre of TODOs. The accent bar is dropped (no left stripe); the
+   pink lives in the § glyph and the primary action instead, so the card reads
+   quieter. Resolved notes keep their dimmed gray bar cue. */
+.mnote--manual:not(.mnote--todo):not(.mnote--resolved) {
+  border-left: 1px solid hsl(var(--rule));
+}
+.mnote--manual:not(.mnote--todo) .mnote__head-glyph {
+  color: hsl(var(--comment));
+}
+.mnote--manual:not(.mnote--todo) .mnote__head-r .mnote__icon-btn:hover {
+  color: hsl(var(--comment));
+}
+.mnote--manual:not(.mnote--todo) .mnote__btn--primary {
+  background: hsl(var(--comment));
+  border-color: hsl(var(--comment));
+  color: hsl(var(--accent-foreground));
+}
+.mnote--manual:not(.mnote--todo) .mnote__btn--primary:hover {
+  background: hsl(var(--comment) / 0.85);
+  border-color: hsl(var(--comment) / 0.85);
+}
+/* Copilot suggestions carry a solid 群青 (abyss blue) identity — the accept
+   button + glyph are blue; a faint blue tint backs the card. */
+.mnote--copilot {
+  border-left: 1px solid hsl(var(--rule));
+  background-color: hsl(var(--surface));
+  background-image: linear-gradient(hsl(var(--story-2) / 0.1), hsl(var(--story-2) / 0.1));
+}
+.mnote--copilot:hover {
+  background-image: linear-gradient(hsl(var(--story-2) / 0.16), hsl(var(--story-2) / 0.16));
+}
+.mnote--copilot .mnote__head-glyph,
+.mnote--copilot .mnote__head-l > span:last-child {
+  color: hsl(var(--story-2));
+}
+.mnote--copilot .mnote__btn--primary {
+  background: hsl(var(--story-2));
+  border-color: hsl(var(--story-2));
+  color: hsl(var(--accent-foreground));
+}
+.mnote--copilot .mnote__btn--primary:hover {
+  background: hsl(var(--story-2) / 0.85);
+  border-color: hsl(var(--story-2) / 0.85);
+}
+
+/* Copilot capability subtitle (between title and evidence quote). */
+.mnote__subtitle {
+  font-size: 10.5px;
+  color: hsl(var(--ink-3));
+  margin: 1px 0 3px;
+}
+
+/* Copilot suggestion body preview — the element's initial summary (element
+   candidate) or the patch body. A soft background wash (no left bar) so the
+   author sees what they're accepting without expanding anything. */
+.mnote__evidence {
+  font-size: 12px;
+  line-height: 1.5;
+  color: hsl(var(--ink-2));
+  margin: 4px 0 2px;
+  padding: 6px 8px;
+  background: hsl(var(--ink-1) / 0.04);
+  border-radius: 5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* New-comment composer matches the note identity so creating → created reads as
+   one color, not blue→pink. */
+.mnote--composer {
+  border-left-color: hsl(var(--comment));
+  z-index: 8;
+}
+.mnote--composer .mnote__btn--primary {
+  background: hsl(var(--comment));
+  border-color: hsl(var(--comment));
+  color: hsl(var(--accent-foreground));
+}
+.mnote--composer .mnote__btn--primary:hover {
+  background: hsl(var(--comment) / 0.85);
+  border-color: hsl(var(--comment) / 0.85);
+}
+.mnote--composer .mnote__textarea:focus {
+  border-color: hsl(var(--comment));
+}
+.mnote__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+  margin-bottom: 4px;
+}
+.mnote__head-l {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mnote__head-r {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mnote__head-r .mnote__icon-btn {
+  width: 16px;
+  height: 16px;
+  border: none;
+  color: hsl(var(--ink-4));
+}
+.mnote__head-r .mnote__icon-btn:hover {
+  color: hsl(var(--accent));
+  border: none;
+}
+.mnote__head-glyph {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 11px;
+  color: hsl(var(--accent));
+}
+.mnote__head-conf {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: hsl(var(--ink-4));
+}
+.mnote__title {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: hsl(var(--ink));
+  line-height: 1.42;
+  word-break: break-word;
+}
+.mnote__quote {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 11.5px;
+  color: hsl(var(--ink-3));
+  padding: 5px 7px;
+  border-radius: var(--radius-xs);
+  background: hsl(var(--ink-1) / 0.03);
+  margin-top: 6px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.mnote__actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 7px;
+  flex-wrap: wrap;
+}
+.mnote__btn,
+.mnote__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-radius: 2px;
+  border: 1px solid hsl(var(--rule-strong));
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  background: transparent;
+}
+.mnote__btn {
+  padding: 3px 6px;
+}
+.mnote__icon-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+}
+.mnote__btn:hover,
+.mnote__icon-btn:hover {
+  color: hsl(var(--ink));
+  border-color: hsl(var(--ink-4));
+}
+.mnote__btn:disabled,
+.mnote__icon-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.mnote__btn--primary {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  border-color: hsl(var(--accent));
+}
+/* Compact variant for the "revert to note" affordance — same shape as
+   .mnote__icon-btn but inline with the actions row instead of the head
+   chrome. Used by the TODO downgrade button (icon only, no label). */
+.mnote__btn--ghost {
+  padding: 3px 6px;
+  border-color: hsl(var(--rule));
+  color: hsl(var(--ink-4));
+}
+.mnote__btn--ghost:hover {
+  color: hsl(var(--ink-2));
+  border-color: hsl(var(--ink-4));
+}
+.mnote__btn--primary:hover {
+  background: hsl(var(--story-1));
+  color: hsl(var(--accent-foreground));
+  border-color: hsl(var(--story-1));
+}
+.mnote__textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 74px;
+  margin-top: 8px;
+  padding: 7px 8px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  background: hsl(var(--page));
+  color: hsl(var(--ink));
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  outline: none;
+}
+.mnote__textarea:focus {
+  border-color: hsl(var(--accent));
+}
+.mnote__leader {
+  position: absolute;
+  right: 100%;
+  width: 14px;
+  height: 1px;
+  background: hsl(var(--rule-strong));
+  top: 14px;
+}
+.mnote:hover .mnote__leader {
+  background: hsl(var(--accent));
+}
+/* Comment hover highlight — painted via the CSS Custom Highlight API (see
+   lib/comment-highlight.ts), NOT a CSS class: ProseMirror strips externally-
+   added classes from its nodes, and a highlight can wash an arbitrary DOM Range
+   (a sub-text phrase OR whole blocks). Coloured per family. Background only — no
+   left bar (user preference). Only `background-color`/`color`/text-decoration
+   are honoured inside ::highlight(). */
+::highlight(comment-hl-manual) {
+  background-color: hsl(var(--comment) / 0.24);
+}
+::highlight(comment-hl-copilot) {
+  background-color: hsl(var(--story-2) / 0.26);
+}
+::highlight(comment-hl-todo) {
+  background-color: hsl(var(--story-4) / 0.32);
+}
+
+/* Whole-book Cmd+F find highlights (通览全书) — painted across live + static +
+   offscreen chapter rows via the CSS Custom Highlight API (lib/all-chapters-
+   find.ts). Reuses the editor find-bar tints so it reads as the same find
+   feature. ::highlight() only honours background-color/color/text-decoration, so
+   the current match leans on a stronger background (no ring possible here). */
+::highlight(book-find) {
+  background-color: var(--search-find-match-bg, hsl(42 60% 58% / 0.35));
+}
+::highlight(book-find-current) {
+  background-color: var(--search-find-match-cur-bg, hsl(28 85% 52% / 0.55));
+  color: hsl(var(--ink-1));
+}
+
+/* ============================================================
+   Per-comment chip (collapsed card)
+   ============================================================ */
+/* When the user minimizes a card it renders as this compact control in place
+   of the full card, at the same y position. Click to expand back. Lives
+   on the right edge of the rail so multiple chips line up neatly without
+   competing for horizontal space with expanded cards. */
+.comment-chip {
+  position: absolute;
+  top: 28px; /* fallback; CommentRail writes the real top imperatively */
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 2px;
+  border: 1px solid hsl(var(--rule-strong));
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  z-index: 2;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.comment-chip:hover {
+  background: hsl(var(--accent) / 0.1);
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent));
+  z-index: 6;
+}
+/* Collapsed-chip identity matches the card family (icon + ring colour). */
+.comment-chip--manual {
+  border-color: hsl(var(--comment));
+  color: hsl(var(--comment));
+}
+.comment-chip--copilot {
+  border-color: hsl(var(--story-2));
+  color: hsl(var(--story-2));
+}
+.comment-chip--todo {
+  border-color: hsl(var(--story-4));
+  color: hsl(var(--story-4));
+}
+.comment-chip--resolved,
+.comment-chip--orphan {
+  opacity: 0.55;
+}
+.comment-chip--active {
+  animation: comment-chip-pulse 1.4s ease-in-out infinite;
+}
+@keyframes comment-chip-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px hsl(var(--accent) / 0.4),
+      0 0 8px hsl(var(--accent) / 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px hsl(var(--accent) / 0.65),
+      0 0 18px hsl(var(--accent) / 0.7);
+  }
+}
+
+/* ============================================================
+   Block-less comment / TODO stack
+   ============================================================ */
+/* Entity-level notes (no prose block to anchor to) live at the bottom of the
+   rail. Collapsed to a single chip (like a normal comment's collapsed state);
+   click to lay the cards out directly in a floating column — no wrapper box, no
+   header. Anchored at the bottom so the expanded column grows UPWARD. */
+/* left/right: 0 so loose cards span the same width as block-anchored cards
+   (.mnote, also left/right:0) — otherwise the stack's inset made them narrower. */
+.mnote-stack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  pointer-events: auto;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- collapsed: a single chip, sized + placed to match .comment-chip --- */
+.mnote-stack__ball {
+  position: relative;
+  align-self: flex-end;
+  margin-right: 8px; /* matches .comment-chip { right: 8px } */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 2px;
+  border: 1px solid hsl(var(--rule-strong));
+  background: hsl(var(--surface));
+  color: hsl(var(--story-4));
+  cursor: pointer;
+  box-shadow: none;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.mnote-stack__ball:hover {
+  background: hsl(var(--story-4) / 0.1);
+  border-color: hsl(var(--story-4));
+  box-shadow: none;
+}
+.mnote-stack__ball-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 1px;
+  background: hsl(var(--story-4));
+  color: hsl(var(--ink-1) / 0.85);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+/* --- expanded: floating column of full cards, no wrapper/header --- */
+.mnote-stack--open {
+  max-height: 64%;
+}
+/* Expanded-stack header bar: [+ new entity comment] [collapse], right-aligned
+   to match the collapsed ball's column. */
+.mnote-stack__bar {
+  align-self: flex-end;
+  margin-right: 8px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+}
+.mnote-stack__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 2px;
+  border: 1px solid hsl(var(--rule-strong));
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  box-shadow: none;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+.mnote-stack__btn:hover {
+  background: hsl(var(--accent) / 0.1);
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent));
+}
+/* Inline entity-comment composer sits flat in the stack list. */
+.mnote--entity-composer {
+  cursor: default;
+}
+.mnote-stack__list {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* Loose cards flow in the stack instead of floating to a block position. */
+.mnote-stack .mnote--loose {
+  position: static;
+  top: auto;
+  left: auto;
+  right: auto;
+}
+
+/* ============================================================
+   Review lanes inside the semantic TOC rail. Comment/Agent ticks retain their
+   existing colours and jump behaviour in a narrow left-edge marker lane.
+   ============================================================ */
+.editor__scrollmap {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  bottom: 8px;
+  /* Review ticks stay compact beside the TOC labels. */
+  width: 8px;
+  z-index: 9;
+  pointer-events: none;
+  opacity: 0.92;
+}
+.editor__scrollmap-tick {
+  position: absolute;
+  height: 4px;
+  margin-top: -2px; /* center the tick on its fractional position */
+  padding: 0;
+  border: none;
+  border-radius: 0; /* sharp rectangles, VSCode-style — no rounding */
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0.85;
+  transition: opacity 0.12s ease;
+}
+.editor__scrollmap-tick:hover {
+  opacity: 1;
+}
+/* Three vertical lanes for agent ticks (VSCode-git layout):
+   new = left, changed = middle, deleted = right. */
+.editor__scrollmap-tick--lane0 {
+  left: 0;
+  width: 2px;
+}
+.editor__scrollmap-tick--lane1 {
+  left: 3px;
+  width: 2px;
+}
+.editor__scrollmap-tick--lane2 {
+  left: 6px;
+  width: 2px;
+}
+/* Comment ticks: a horizontal bar spanning all three lanes, above agent ticks. */
+.editor__scrollmap-tick--span {
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 3px;
+  z-index: 2;
+}
+
+/* Agent-edit op colours: new = 苔绿 moss green, changed = 群青 ink blue,
+   deleted = muted destructive red. Each drops once its block's reveal has played. */
+.editor__scrollmap-tick--agent-new {
+  background: hsl(var(--story-3));
+}
+.editor__scrollmap-tick--agent-changed {
+  background: hsl(var(--story-2));
+}
+.editor__scrollmap-tick--agent-deleted {
+  background: hsl(var(--story-1));
+}
+
+/* Comment family colours (the spanning bar). */
+.editor__scrollmap-tick--c-manual {
+  background: hsl(var(--comment)); /* 胭脂 rouge */
+}
+.editor__scrollmap-tick--c-copilot {
+  background: hsl(var(--story-2)); /* 群青 abyss blue */
+}
+.editor__scrollmap-tick--c-todo {
+  background: hsl(var(--story-4)); /* 赭黄 ochre */
+}
+.editor__scrollmap-tick--resolved {
+  background: hsl(var(--rule-strong));
+  opacity: 0.5;
+}
+
+/* The block jumped to (scrollbar tick / patch card / block-anchored TODO) is
+   flashed via the Web Animations API in lib/scroll-to-block.ts (flashBlock) —
+   a CSS class can't be used because ProseMirror strips externally-added classes
+   off the blocks it manages. */
+
+/* ============================================================
+   Agent-change highlight — a faint background tint (NO left accent bar; the
+   design forbids vertical stripes) on blocks (and the summary) the agent edited,
+   fading once the user reads them.
+   ============================================================ */
+.agent-change-block,
+.agent-change-summary {
+  background-color: hsl(var(--story-3) / 0.07);
+  border-radius: 3px;
+  transition: background-color 0.5s ease;
+}
+.agent-change-block--seen,
+.agent-change-summary--seen {
+  background-color: transparent;
+}
+
+/* ============================================================
+   Agent-edit reveal (#4) — the agent's edit already landed in the doc;
+   this overlay crossfades the OLD text (deletions tinted red) into the
+   NEW text (insertions tinted green) over the real block, then fades to
+   reveal it. The layer lives inside .editor__spread so native scrolling
+   composites it with the prose instead of leaving a fixed-layer trail.
+   Plus the approve-mode inline ✓ / ✗ controls (#3).
+   ============================================================ */
+.agent-edit-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+/* Agent prose is durable before auto reveal, for existing edits as well as
+   newly created files. It must not paint its completed body underneath the
+   typewriter. A ProseMirror node decoration owns this class so reconciliation
+   cannot strip the mask. Opacity preserves exact block geometry for overlay
+   anchoring and long-document scroll. */
+.agent-auto-reveal-pending {
+  opacity: 0 !important;
+}
+.agent-reveal {
+  display: block;
+  z-index: 61;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  transition: opacity 0.3s ease;
+}
+.agent-reveal--fade {
+  opacity: 0;
+}
+/* Deleted chars erase off a red ground (struck so they read as removed);
+   inserted chars type onto a green one. */
+.agent-reveal__del {
+  color: hsl(var(--story-1));
+  background: hsl(var(--story-1) / 0.18);
+  border-radius: 2px;
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--story-1) / 0.7);
+}
+.agent-reveal__ins {
+  color: hsl(var(--story-3));
+  background: hsl(var(--story-3) / 0.18);
+  border-radius: 2px;
+}
+/* Blinking typewriter caret at the active edit point. */
+.agent-reveal__caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: hsl(var(--ink-2));
+  animation: agentRevealCaret 0.9s steps(1) infinite;
+}
+@keyframes agentRevealCaret {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.agent-approve {
+  z-index: 62;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 3px;
+  border-radius: 2px;
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--rule));
+  box-shadow: none;
+  pointer-events: auto;
+}
+.agent-approve__tag {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: hsl(var(--ink-3));
+  padding: 0 3px;
+}
+.agent-approve__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 1px;
+  cursor: pointer;
+  background: transparent;
+  color: hsl(var(--ink-2));
+}
+.agent-approve__btn--ok:hover {
+  background: hsl(var(--story-3) / 0.18);
+  color: hsl(var(--story-3));
+}
+.agent-approve__btn--no:hover {
+  background: hsl(var(--story-1) / 0.18);
+  color: hsl(var(--story-1));
+}
+.agent-approve__btn:disabled {
+  cursor: wait;
+  opacity: 0.45;
+}
+
+.agent-review-all {
+  position: fixed;
+  z-index: 63;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 2px;
+  background: hsl(var(--surface));
+  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.32);
+  pointer-events: auto;
+}
+.agent-review-all__count {
+  padding: 0 5px;
+  color: hsl(var(--ink-3));
+  font-size: 11px;
+  white-space: nowrap;
+}
+.agent-review-all button {
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 1px;
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.agent-review-all button:hover:not(:disabled) {
+  background: hsl(var(--story-1) / 0.12);
+  color: hsl(var(--story-1));
+}
+.agent-review-all .agent-review-all__accept {
+  background: hsl(var(--story-3) / 0.15);
+  color: hsl(var(--story-3));
+}
+.agent-review-all .agent-review-all__accept:hover:not(:disabled) {
+  background: hsl(var(--story-3) / 0.23);
+  color: hsl(var(--story-3));
+}
+.agent-review-all button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+/* ============================================================
+   Agent-edit IN-PLACE diff (#3 approve mode) — real editor decorations, so the
+   diff reflows + scrolls with the prose (no overlay): insertions inline green,
+   deletions a red struck widget, plus whole-block fallbacks.
+   ============================================================ */
+.agent-diff-ins {
+  background: hsl(var(--story-3) / 0.18);
+  color: hsl(var(--story-3));
+  border-radius: 2px;
+}
+.agent-diff-del {
+  color: hsl(var(--story-1));
+  background: hsl(var(--story-1) / 0.18);
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--story-1) / 0.7);
+  border-radius: 2px;
+}
+.agent-diff-changed {
+  background: hsl(var(--story-2) / 0.12);
+  border-radius: 2px;
+}
+.agent-diff-deleted-block {
+  color: hsl(var(--story-1));
+  background: hsl(var(--story-1) / 0.1);
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--story-1) / 0.6);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin: 2px 0;
+  opacity: 0.85;
+}
+
+/* ============================================================
+   Agent NON-PROSE field review (#3 fields) — summary / kv / template kv edits.
+   A form field can't carry ProseMirror decorations, so the change renders as a
+   PLAIN diff line (no card/border) where the field would be — red/green token
+   diff sharing the prose-reveal palette, plus a small ✓/✗ in approve mode. The
+   diff itself carries the meaning (a new kv reads as a green "key：value"), so
+   there's no explanatory label. auto mode lingers briefly then types in.
+   ============================================================ */
+.field-review-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 6px;
+}
+.field-review {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.field-review__body {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: hsl(var(--ink-2));
+}
+.field-review__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+.field-review__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  color: hsl(var(--ink-4));
+}
+.field-review__btn--ok:hover {
+  background: hsl(var(--story-3) / 0.16);
+  color: hsl(var(--story-3));
+}
+.field-review__btn--no:hover {
+  background: hsl(var(--story-1) / 0.16);
+  color: hsl(var(--story-1));
+}
+/* The kv key prefix (neutral when the value merely changed; the op class tints
+   it green/red for new/deleted so the whole "key：value" reads as one diff). */
+.field-kv-key {
+  color: hsl(var(--ink-3));
+}
+/* Agent-created patch awaiting review — faint green wash + a thin keep/discard
+   bar at the top of the card. Reuses .field-review__btn for the ✓/✗. */
+.patch-card--proposed {
+  background: hsl(var(--story-3) / 0.05);
+}
+.patch-card__review {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px 3px 12px;
+  border-bottom: 1px solid hsl(var(--story-3) / 0.16);
+}
+.patch-card__review-tag {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--story-3));
+}
+.patch-card__review-actions {
+  display: inline-flex;
+  gap: 1px;
+  margin-left: auto;
+}
+/* Soft-deleted patch awaiting confirmation — faint red wash, body dimmed +
+   struck so it reads as "about to be removed". */
+.patch-card--removing {
+  background: hsl(var(--story-1) / 0.05);
+}
+/* Body/title diff shown in place of the editor while an UPDATE is under review. */
+.patch-card__review-diff {
+  padding: 6px 12px 2px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.patch-card__review-diff-title {
+  font-size: 11px;
+  color: hsl(var(--ink-3));
+  margin-bottom: 2px;
+}
+.patch-card--removing .patch-card__title,
+.patch-card--removing .patch-card__body {
+  opacity: 0.5;
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--story-1) / 0.5);
+}
+.patch-card__review-tag--del {
+  color: hsl(var(--story-1));
+}
+
+/* Token diff — same red(del)/green(ins) language as the prose reveal. */
+.field-diff {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.field-diff__del {
+  color: hsl(var(--story-1));
+  background: hsl(var(--story-1) / 0.14);
+  border-radius: 2px;
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--story-1) / 0.7);
+}
+.field-diff__ins {
+  color: hsl(var(--story-3));
+  background: hsl(var(--story-3) / 0.14);
+  border-radius: 2px;
+  text-decoration: none;
+}
+
+/* ============================================================
+   Copilot active / stale states
+   ============================================================ */
+/* Going stale (past the 5s Tab-accept window) does NOT restyle the card — only
+   the accept button's pulse stops (the glow class is gated on the active state).
+   Only resolved/open changes a card's overall look. */
+
+/* Active accept button — pulses to telegraph "Tab will hit me". The pulse
+   fades on its own when the parent removes the class at the end of the
+   active window. */
+.mnote__btn--glow {
+  animation: mnote-btn-glow 1.4s ease-in-out infinite;
+}
+@keyframes mnote-btn-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px hsl(var(--accent) / 0.4),
+      0 0 10px hsl(var(--accent) / 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px hsl(var(--accent) / 0.7),
+      0 0 22px hsl(var(--accent) / 0.75);
+  }
+}
+
+/* ============================================================
+   Block snapshot quote + orphan handling
+   ============================================================ */
+/* Selected fragment inside the quoted snapshot — bold + accent tint, so the
+   reader's eye lands on the part that was actually commented on, even with
+   ±60 chars of surrounding context. */
+.mnote__quote-hit {
+  font-weight: 700;
+  background: hsl(var(--accent) / 0.18);
+  color: hsl(var(--ink));
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* Small pill replacing the quote when the source block was deleted. Clicks
+   open the snapshot modal so the user can recover context. */
+.mnote__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 6px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 2px;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  align-self: flex-start;
+}
+.mnote__tag:hover:not(:disabled) {
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent));
+}
+.mnote__tag:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+/* Same pill, flagged when the source block is gone (orphan). */
+.mnote__tag--orphan {
+  border-color: hsl(var(--ink-5));
+  color: hsl(var(--ink-4));
+}
+
+/* Orphan card — slightly muted, no left-border accent, no leader line.
+   Bottom-stacked positioning is set inline by CommentRail. */
+.mnote--orphan {
+  border-left-color: hsl(var(--ink-5));
+  background: hsl(var(--ink-5) / 0.04);
+}
+.mnote--orphan .mnote__title {
+  color: hsl(var(--ink-2));
+}
+
+/* ============================================================
+   Snapshot inspection modal
+   ============================================================ */
+.snapshot-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: hsl(var(--ink-1) / 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-popover);
+}
+.snapshot-modal {
+  width: min(560px, 90vw);
+  max-height: 80vh;
+  background: hsl(var(--page));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 2px;
+  padding: 14px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 24px 60px -20px hsl(var(--ink-1) / 0.45);
+}
+.snapshot-modal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--ink-4));
+}
+.snapshot-modal__body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  color: hsl(var(--ink));
+  white-space: pre-wrap;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* One paragraph per snapshotted block. Multi-block comments list each in order. */
+.snapshot-modal__block {
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid hsl(var(--rule));
+}
+.snapshot-modal__block:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+/* A block that's since been edited away / deleted from the live doc. */
+.snapshot-modal__block--gone {
+  color: hsl(var(--ink-3));
+}
+.snapshot-modal__flag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+  border-radius: 2px;
+  background: hsl(var(--ink-5) / 0.14);
+  color: hsl(var(--ink-4));
+}
+.snapshot-modal__empty {
+  color: hsl(var(--ink-4));
+  font-style: italic;
+}
+.editor-comment-menu {
+  position: fixed;
+  z-index: var(--z-context-menu);
+}
+/* 「格式」row carries a right-aligned chevron hinting at its hover flyout. */
+.editor-comment-menu button.has-flyout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.editor-comment-menu__chevron {
+  opacity: 0.45;
+  font-size: 13px;
+  line-height: 1;
+}
+/* The 「格式」 flyout — a child .editor-comment-menu repositioned beside the
+   parent via position:fixed (see appendFormatFlyout). Stacks above the menu so
+   it never tucks behind it; column layout matches the slash menu's list. */
+.editor-comment-menu__flyout {
+  flex-direction: column;
+  z-index: calc(var(--z-context-menu) + 1);
+}
+/* Active format (mark/block already applied to the selection), snapshotted at
+   open time. */
+.editor-comment-menu button.is-active {
+  color: hsl(var(--ink-1));
+  background: var(--menu-item-hover-bg);
+  font-weight: 500;
+}
+/* Divider between block transforms and inline marks. flex:none so the 1px row
+   isn't collapsed by the flyout's flex column. */
+.editor-comment-menu__sep {
+  flex: none;
+}
+
+/* ============================================================
+   Semantic TOC rail — manuscript structure + viewport highlighting
+
+   Labels remain attached to measured document positions. The renderer only
+   spreads colliding glyph boxes and progressively drops density: all rows →
+   current root descendants → a window with hoverable omission handles.
+   ============================================================ */
+.editor__toc-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(190px, calc(100% - 8px));
+  display: block;
+  z-index: 7;
+  overflow: visible;
+  background: transparent;
+  pointer-events: none;
+  user-select: none;
+}
+.editor__toc-labels {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+  opacity: 0.44;
+  transition: opacity 0.16s ease;
+}
+.editor__toc-rail.is-active .editor__toc-labels,
+.editor__toc-rail:focus-within .editor__toc-labels {
+  opacity: 1;
+}
+.editor__toc-tag,
+.editor__toc-omission {
+  position: absolute;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  max-width: calc(100% - 14px);
+  min-height: 15px;
+  margin: 0;
+  padding: 1px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: hsl(var(--ink-4));
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translateY(-50%);
+  transition:
+    top 0.18s ease,
+    color 0.12s ease,
+    background 0.12s ease,
+    opacity 0.12s ease;
+}
+.editor__toc-tag:hover,
+.editor__toc-tag:focus-visible,
+.editor__toc-omission:hover,
+.editor__toc-omission:focus-visible {
+  z-index: 12;
+  color: hsl(var(--ink-1));
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+.editor__toc-tag-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.editor__toc-tag-num {
+  flex: none;
+  color: hsl(var(--accent));
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+.editor__toc-tag-branch {
+  flex: none;
+  color: hsl(var(--ink-5));
+  font-size: 9px;
+}
+
+/* Five structural levels stay uniform across every editor. Their compact rail
+   treatment preserves the existing "deeper = quieter" hierarchy. */
+.editor__toc-tag--l1 {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0.025em;
+  color: hsl(var(--ink-3));
+}
+.editor__toc-tag--l1::before {
+  content: '';
+  width: 10px;
+  height: 1px;
+  background: hsl(var(--rule-strong));
+}
+.editor__toc-tag--l2 {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 550;
+  color: hsl(var(--ink-2));
+}
+.editor__toc-tag--l3 {
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  font-weight: 400;
+  color: hsl(var(--ink-3));
+}
+.editor__toc-tag--l4 {
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-style: italic;
+  color: hsl(var(--ink-4));
+}
+.editor__toc-tag--l5 {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.01em;
+  color: hsl(var(--ink-5));
+}
+
+/* Viewport intersection and the primary reading location are expressed only
+   through text colour/weight. Tags never acquire a chip, frame, or wash. */
+.editor__toc-tag.is-visible {
+  color: hsl(var(--ink-2));
+}
+.editor__toc-tag.is-active-path:not(.is-primary) {
+  color: hsl(var(--accent) / 0.82);
+}
+.editor__toc-tag.is-primary {
+  z-index: 5;
+  color: hsl(var(--accent));
+  font-weight: 600;
+}
+.editor__toc-omission {
+  min-width: 22px;
+  justify-content: center;
+  padding-inline: 5px;
+  color: hsl(var(--ink-4));
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+.editor__toc-omission.is-revealing {
+  opacity: 0;
+}
+.editor__toc-empty {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  max-width: calc(100% - 14px);
+  color: hsl(var(--ink-5));
+  font-family: var(--font-mono);
+  font-size: 8px;
+  line-height: 1.35;
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* The TOC rail occupies the editor area's left edge independently from the
+   ordinary scrollbar on the right. */
+.editor__toc-rail--edge .editor__toc-tag,
+.editor__toc-rail--edge .editor__toc-omission {
+  right: auto;
+  left: 12px;
+  max-width: calc(100% - 14px);
+  justify-content: flex-start;
+  text-align: left;
+}
+.editor__toc-rail--edge .editor__toc-empty {
+  right: auto;
+  left: 12px;
+  max-width: calc(100% - 14px);
+  text-align: left;
+}
+/* A distant omission restores nearby real TOC tags on hover/focus. This is a
+   compact traversal aid, not a magnification animation or the retired panel. */
+.editor__toc-omission-reveal {
+  position: fixed;
+  width: 190px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  padding: 3px 5px 3px 24px;
+  border: 0;
+  background: transparent;
+  z-index: calc(var(--z-context-menu) + 2);
+}
+.editor__toc-omission-reveal--edge {
+  align-items: flex-start;
+  padding: 3px 24px 3px 5px;
+}
+.editor__toc-reveal-item {
+  display: block;
+  max-width: 100%;
+  padding: 2px 7px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  line-height: 1.35;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.editor__toc-reveal-item:hover,
+.editor__toc-reveal-item:focus-visible {
+  color: hsl(var(--accent));
+  background: transparent;
+  outline: none;
+}
+.editor__toc-omission-reveal--edge .editor__toc-reveal-item {
+  text-align: left;
+}
+.editor__toc-reveal-item--l1 {
+  font-size: 10px;
+  font-style: italic;
+}
+.editor__toc-reveal-item--root {
+  color: hsl(var(--ink-2));
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.editor__toc-reveal-item--l2 {
+  color: hsl(var(--ink-2));
+  font-size: 10.5px;
+  font-weight: 550;
+}
+.editor__toc-reveal-item--l4 {
+  font-size: 9px;
+  font-style: italic;
+}
+.editor__toc-reveal-item--l5 {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+}
+
+/* Scene + Beat headers — render inside .page__body for non-chapter editors,
+   and as anchors for static section TOCs in element/storyline/category. */
+.page__scene {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: hsl(var(--ink-3));
+  margin: 36px 0 18px;
+  padding: 0 0 6px;
+  border-bottom: 1px dotted hsl(var(--rule));
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-weight: 500;
+}
+.page__scene:first-of-type {
+  margin-top: 8px;
+}
+.page__scene-title {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0.005em;
+  color: hsl(var(--ink-2));
+  text-transform: none;
+}
+.page__scene-meta {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: hsl(var(--ink-4));
+  letter-spacing: 0.08em;
+}
+.page__beat {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 500;
+  color: hsl(var(--ink-4));
+  margin: 24px 0 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.page__beat::before {
+  content: '';
+  width: 14px;
+  height: 1px;
+  background: hsl(var(--ink-5));
+  align-self: center;
+}
+
+/* ============================================================
+   Generic entity hero — header block used by element / storyline /
+   category editors. Portrait swatch + kicker + name + alias + facts.
+   ============================================================ */
+.elem-hero {
+  display: flex;
+  gap: 22px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid hsl(var(--rule));
+}
+.elem-portrait-wrap {
+  width: 132px;
+  flex: 0 0 132px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.elem-portrait {
+  width: 132px;
+  height: 132px;
+  background: hsl(var(--paper-deep));
+  border-radius: 3px;
+  border: 0;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  outline: none;
+}
+.elem-portrait-wrap .elem-portrait {
+  width: 100%;
+}
+.elem-portrait::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0,
+    transparent 9px,
+    rgba(0, 0, 0, 0.04) 9px,
+    rgba(0, 0, 0, 0.04) 11px
+  );
+}
+.elem-portrait--image {
+  background: transparent;
+  cursor: zoom-in;
+}
+.elem-portrait--image::before {
+  display: none;
+}
+.elem-portrait:focus-visible {
+  box-shadow: 0 0 0 2px hsl(var(--accent) / 0.24);
+}
+.elem-portrait__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.elem-portrait__hint {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 6px;
+}
+.elem-portrait__actions {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
+}
+.elem-portrait:hover .elem-portrait__actions,
+.elem-portrait:focus-within .elem-portrait__actions,
+.elem-portrait--busy .elem-portrait__actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.elem-portrait__action {
+  min-width: 0;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, hsl(var(--rule)) 70%, hsl(var(--paper)) 30%);
+  border-radius: 1px;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink));
+  box-shadow: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.elem-portrait__action:hover:not(:disabled) {
+  background: hsl(var(--paper));
+  border-color: hsl(var(--accent));
+}
+.elem-portrait__action:disabled {
+  cursor: progress;
+  opacity: 0.68;
+}
+.elem-portrait__action span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.elem-portrait__action--icon {
+  width: 24px;
+  flex: 0 0 24px;
+  padding: 0;
+}
+.elem-portrait__icon {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+}
+.elem-portrait__icon--spin {
+  animation: drift-spin 0.9s linear infinite;
+}
+.elem-portrait__error {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.35;
+  color: hsl(var(--danger, var(--accent)));
+  overflow-wrap: anywhere;
+}
+.elem-portrait__retry {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.elem-portrait--storyline {
+  background: linear-gradient(
+    135deg,
+    var(--s-color, hsl(var(--accent))) 0%,
+    color-mix(in srgb, var(--s-color, hsl(var(--accent))) 40%, hsl(var(--paper))) 60%,
+    hsl(var(--paper)) 100%
+  );
+}
+.elem-portrait--category {
+  background: linear-gradient(
+    135deg,
+    var(--c-color, hsl(var(--accent))) 0%,
+    color-mix(in srgb, var(--c-color, hsl(var(--accent))) 35%, hsl(var(--paper))) 70%,
+    hsl(var(--paper)) 100%
+  );
+}
+.elem-portrait--storyline .elem-portrait__hint,
+.elem-portrait--category .elem-portrait__hint {
+  color: hsl(var(--paper));
+  mix-blend-mode: difference;
+}
+.elem-hero__main {
+  flex: 1;
+  min-width: 0;
+}
+.elem-hero__kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: hsl(var(--ink-4));
+  margin-bottom: 8px;
+}
+.elem-hero__kicker-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+.elem-hero__name {
+  font-family: var(--font-sans);
+  font-size: 38px;
+  font-weight: 500;
+  font-style: normal;
+  color: hsl(var(--ink-1));
+  line-height: 1.3;
+  margin: 0;
+  letter-spacing: -0.005em;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  width: 100%;
+}
+.elem-hero__name::placeholder {
+  color: hsl(var(--ink-4));
+  font-style: normal;
+}
+.elem-hero__alias {
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-size: 14.5px;
+  color: hsl(var(--ink-3));
+  margin-top: 6px;
+}
+.elem-hero__alias-sep {
+  color: hsl(var(--ink-5));
+  margin: 0 6px;
+}
+.elem-hero__summary {
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-size: calc(var(--entity-body-font-size, 16px) - 4px);
+  color: hsl(var(--ink-3));
+  margin-top: 10px;
+  line-height: 1.55;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  width: 100%;
+  resize: none;
+  overflow: hidden;
+}
+.elem-hero__summary::placeholder {
+  color: hsl(var(--ink-4));
+  font-style: normal;
+}
+.elem-hero__facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  margin-top: 14px;
+  font-size: 12px;
+  align-items: baseline;
+}
+.elem-hero__fact-k {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--ink-4));
+}
+.elem-hero__fact-v {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 13px;
+  color: hsl(var(--ink-2));
+}

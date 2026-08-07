@@ -6,8 +6,11 @@ import type { BookNode } from '../../domain/book-node';
 import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
-import { EntityHoverCard } from '../ui/EntityHoverCard';
-import { useHoverPreview, type EntityHoverTarget } from '../ui/entity-hover-card-model';
+import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
+import {
+  useHoverPreview,
+  type EntityHoverTarget,
+} from '../../features/entities/hover/entity-hover-card-model';
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { useDataStore } from '../../store/data-store';

@@ -25,7 +25,7 @@ const TEST_GROUPS = {
 const TEST_FILES = [...new Set(Object.values(TEST_GROUPS).flat())];
 const LINT_FILES = [
   'scripts/generate-agent-capabilities.ts',
-  'src/renderer/components/agent/CompanionPanel.tsx',
+  'src/renderer/features/agent/desktop/DesktopAgentPanel.tsx',
   'src/renderer/lib/agent/product-project-context.ts',
   'src/renderer/lib/agent/protocol.ts',
   'src/renderer/lib/agent/runtime/acceptance/milestone-h-writing-intelligence.acceptance.test.ts',

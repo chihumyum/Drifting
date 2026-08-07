@@ -11,7 +11,7 @@ import { useDataStore } from '../store/data-store';
 import { commentBelongsToEntity, commentIdsRelatedToEntity } from '../domain/comment';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
-import { CommentRail } from '../components/editor/CommentRail';
+import { DesktopCommentRail as CommentRail } from '../features/comments/desktop/DesktopCommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';

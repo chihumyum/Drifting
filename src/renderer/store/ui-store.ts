@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type {
+  WorkspaceEntityType,
+  WorkspaceTarget,
+} from '../features/workspace/navigation/workspace-target';
 
 export type SidebarType = 'left' | 'right';
 
@@ -21,16 +25,7 @@ export type ElementPanelViewMode = 'compact' | 'list';
 // SortMenu); this is just the shared value type.
 export type NodeCellMeta = 'date' | 'wordCount' | 'both' | 'none';
 
-export type TabEntityType =
-  | 'node'
-  | 'storyline'
-  | 'element'
-  | 'category'
-  // Singleton tabs that don't correspond to a user-entity. Each project has
-  // at most one of each; their id is the constant SINGLETON_TAB_ID. Routed
-  // to /home and /editor/all respectively.
-  | 'dashboard'
-  | 'all-chapters';
+export type TabEntityType = WorkspaceEntityType;
 
 // Stable id used for singleton (per-project, one-of-a-kind) tabs. Pairing
 // with the entityType discriminator yields a unique tabKey within the project.
@@ -40,10 +35,7 @@ export function isSingletonTabType(t: TabEntityType): boolean {
   return t === 'dashboard' || t === 'all-chapters';
 }
 
-export interface TabRef {
-  entityType: TabEntityType;
-  id: string;
-}
+export type TabRef = WorkspaceTarget;
 
 // Leaf — a single entity occupying a tab slot. The on-screen rendering of
 // a leaf is whatever view component matches its entityType.

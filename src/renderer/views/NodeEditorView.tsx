@@ -14,7 +14,7 @@ import {
 } from '../domain/book-node';
 import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
-import { CommentRail } from '../components/editor/CommentRail';
+import { DesktopCommentRail as CommentRail } from '../features/comments/desktop/DesktopCommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { PlotPlannerDock } from '../components/editor/PlotPlannerDock';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';

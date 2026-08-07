@@ -18,9 +18,12 @@ import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { ElementCategoryCreateMenu } from './ElementCategoryCreateMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { ElementGroupPicker } from './ElementGroupPicker';
-import { EntityHoverCard } from '../ui/EntityHoverCard';
+import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
 import { ElementIdentityTile } from '../ui/ElementIdentityTile';
-import { useHoverPreview, type EntityHoverTarget } from '../ui/entity-hover-card-model';
+import {
+  useHoverPreview,
+  type EntityHoverTarget,
+} from '../../features/entities/hover/entity-hover-card-model';
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';

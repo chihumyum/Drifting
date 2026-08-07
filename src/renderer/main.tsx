@@ -8,6 +8,9 @@ import { Buffer } from 'buffer';
 // from the device-local font selected for chapter prose.
 import '@fontsource-variable/inter-tight';
 import '../styles/index.css';
+import '../styles/comments-review.css';
+import '../styles/entity-editors.css';
+import '../styles/desktop-shell.css';
 import '../styles/ui-controls.css';
 import '../styles/workspace-navigation.css';
 import '../styles/settings.css';

@@ -14,7 +14,7 @@ const TEST_FILES = [
   'src/renderer/platform/tauri.test.ts',
 ];
 const LINT_FILES = [
-  'src/renderer/components/modals/SettingsModal.tsx',
+  'src/renderer/features/settings/desktop/DesktopSettingsModal.tsx',
   'src/renderer/lib/agent/runtime/drivers/drifting-agent-driver.ts',
   'src/renderer/lib/agent/runtime/drivers/drifting-agent-driver.test.ts',
   'src/renderer/lib/agent/runtime/drivers/openai-responses-driver.ts',

@@ -24,13 +24,11 @@ import {
 import type { EditorCommentRequest } from '../../hooks/useEntityEditor';
 import {
   commentBelongsToEntity,
-  commentBlockIds,
   commentColorKey,
   commentIdsRelatedToEntity,
   createPlainCommentDoc,
   extractTextFromCommentBody,
   getBlockSnapshotsFromAnchor,
-  getTextAnchorFromAnchor,
   type Comment,
   type CommentColorKey,
   type CommentTargetKind,
@@ -48,6 +46,15 @@ import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useComment } from '../../usecase/useComment';
+import {
+  COPILOT_ACTIVE_MS,
+  COPILOT_FRESH_MS,
+  commentBlockSelector as blockSelector,
+  compareCommentsByCreatedAt as commentSort,
+  flashedCopilotIds,
+  hasCommentSourceDiverged as originalDiverged,
+} from '../../features/comments/comment-rail-model';
+import { CommentSnapshotModal } from '../../features/comments/CommentSnapshotModal';
 
 interface CommentRailProps {
   projectId: string;
@@ -56,65 +63,6 @@ interface CommentRailProps {
   scrollEl: HTMLElement | null;
   pendingRequest: EditorCommentRequest | null;
   onPendingRequestChange: (request: EditorCommentRequest | null) => void;
-}
-
-// How long a fresh copilot comment is keyboard-targetable. After this it goes
-// stale: Tab/Esc no longer routes here (so a Tab burst can't accidentally
-// accept an old suggestion when a new one arrives), but mouse-click still
-// works and the card remains visible.
-const COPILOT_ACTIVE_MS = 5000;
-
-// A copilot suggestion only flashes its Tab hint if it was created within this
-// window — so one re-loaded from the DB on tab reopen / remount never re-flashes.
-const COPILOT_FRESH_MS = 8000;
-
-// Ids that have ALREADY flashed their Tab hint, persisted across CommentRail
-// remounts for the app session (module scope). Combined with the recency gate
-// above, this guarantees a given suggestion flashes at most once — reopening the
-// tab won't replay the hint.
-const flashedCopilotIds = new Set<string>();
-
-function blockSelector(blockId: string): string {
-  return `[data-block-id="${CSS.escape(blockId)}"]`;
-}
-
-function commentSort(a: Comment, b: Comment): number {
-  return a.createdAt.localeCompare(b.createdAt);
-}
-
-// Whether the prose a comment was written against has since diverged from its
-// creation-time snapshot — drives the "view original" affordance (no point
-// offering it while the live prose still matches). Anchor-aware:
-//   • text anchor → diverged iff the exact anchored text no longer appears in
-//     its (live) span blocks, OR a span block was deleted. So edits ELSEWHERE in
-//     the block don't false-positive a text-pinned comment.
-//   • whole-block anchor → diverged iff any snapshotted block's text changed or
-//     the block was deleted.
-function originalDiverged(comment: Comment, scrollEl: HTMLElement | null): boolean {
-  if (!scrollEl) return false;
-  // Whitespace-normalize both sides: snapshots captured by automated writers
-  // via docToBlocks/collectText) and live DOM textContent can differ only in
-  // whitespace for unchanged prose — comparing raw would false-positive.
-  const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
-  const ids = commentBlockIds(comment);
-  const textAnchor = getTextAnchorFromAnchor(comment.anchorJson);
-  if (textAnchor) {
-    if (ids.length === 0) return false;
-    if (ids.some((id) => !scrollEl.querySelector(blockSelector(id)))) return true; // block gone
-    const liveText = norm(
-      ids.map((id) => scrollEl.querySelector(blockSelector(id))?.textContent ?? '').join(' '),
-    );
-    return !liveText.includes(norm(textAnchor.text));
-  }
-  const snapshots = getBlockSnapshotsFromAnchor(comment.anchorJson);
-  if (snapshots.length === 0) return false;
-  for (const snap of snapshots) {
-    if (snap.blockId == null || !snap.blockText) continue; // un-verifiable — ignore
-    const el = scrollEl.querySelector(blockSelector(snap.blockId));
-    if (!el) return true; // block deleted
-    if (norm(el.textContent ?? '') !== norm(snap.blockText)) return true; // block edited
-  }
-  return false;
 }
 
 // Per-family rail micro-icon (head glyph + collapsed chip) — manual / copilot /
@@ -136,75 +84,6 @@ const COLOR_LABEL_KEY: Record<CommentColorKey, string> = {
   copilot: 'commentRail.color.copilot',
   manual: 'commentRail.color.manual',
 };
-
-interface SnapshotModalProps {
-  /** Original text of each anchored block, captured at creation (anchor v3). */
-  snapshots: { blockId: string | null; blockText: string }[];
-  /** Block ids still present in the live doc — used to flag edited/deleted ones. */
-  liveBlockIds: Set<string>;
-  onClose: () => void;
-}
-
-// On-demand view of the comment's source blocks AS THEY WERE when the comment
-// was made. Manual cards no longer show prose inline (per design) — this is the
-// click-to-view escape hatch, and the only way to recover the text once a block
-// is edited or deleted.
-function SnapshotModal({ snapshots, liveBlockIds, onClose }: SnapshotModalProps) {
-  const { t } = useTranslation();
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
-
-  return (
-    <div className="snapshot-modal__overlay" onClick={onClose} role="presentation">
-      <div
-        className="snapshot-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label={t('commentRail.snapshot.aria')}
-      >
-        <div className="snapshot-modal__head">
-          <span>{t('commentRail.snapshot.title', { count: snapshots.length })}</span>
-          <button
-            type="button"
-            className="mnote__icon-btn"
-            onClick={onClose}
-            aria-label={t('commentRail.actions.close')}
-          >
-            <X size={12} />
-          </button>
-        </div>
-        <div className="snapshot-modal__body">
-          {snapshots.map((snap, i) => {
-            const gone = snap.blockId != null && !liveBlockIds.has(snap.blockId);
-            return (
-              <p
-                key={snap.blockId ?? `snap-${i}`}
-                className={`snapshot-modal__block${gone ? ' snapshot-modal__block--gone' : ''}`}
-              >
-                {gone && (
-                  <span className="snapshot-modal__flag">{t('commentRail.snapshot.changed')}</span>
-                )}
-                {snap.blockText || (
-                  <span className="snapshot-modal__empty">
-                    {t('commentRail.snapshot.emptyBlock')}
-                  </span>
-                )}
-              </p>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function CommentRail({
   projectId,
@@ -1205,7 +1084,7 @@ export function CommentRail({
         {renderLooseStack()}
       </aside>
       {snapshotComment && snapshotPayload.length > 0 && (
-        <SnapshotModal
+        <CommentSnapshotModal
           snapshots={snapshotPayload}
           liveBlockIds={liveBlockIds}
           onClose={() => setSnapshotForId(null)}

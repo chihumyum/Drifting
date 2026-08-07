@@ -1,0 +1,74 @@
+/* Desktop shell geometry. Feature styles live with their existing owners;
+   this file only defines the desktop window composition and app-level status. */
+.desktop-app-shell {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.desktop-workspace-row {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.desktop-workspace-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.desktop-workspace-stage {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+.desktop-workspace-dock {
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.desktop-sidebar-panel-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-fullscreen-status {
+  display: grid;
+  width: 100vw;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-1));
+}
+
+.app-fullscreen-status__content {
+  width: min(440px, 100%);
+  text-align: center;
+}
+
+.app-fullscreen-status__title {
+  font-family: var(--font-sans);
+  font-size: 22px;
+}
+
+.app-fullscreen-status__detail {
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+  color: hsl(var(--ink-3));
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.app-fullscreen-status__action {
+  margin-top: 18px;
+}

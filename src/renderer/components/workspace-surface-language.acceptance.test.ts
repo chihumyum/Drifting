@@ -16,27 +16,22 @@ function block(text: string, start: string, end: string): string {
 
 describe('workspace surface language acceptance', () => {
   it('places the full-width footer below the three-column workspace row', () => {
-    const app = source('src/renderer/App.tsx');
-    const centerColumn = block(app, '<main\n          className="app-mid"', '</main>');
-    const workspaceRow = block(
-      app,
-      '<div className="app-row"',
-      '{/* Writing/sync status and its Timeline toggle',
-    );
-    const footerShell = block(
-      app,
-      '{/* Writing/sync status and its Timeline toggle',
-      '{/* Overlays / Modals',
+    const workspace = source('src/renderer/shells/desktop/DesktopWorkspace.tsx');
+    const centerColumn = block(
+      workspace,
+      '<main className="app-mid desktop-workspace-main">',
+      '</main>',
     );
 
-    expect(centerColumn).toContain('className="workspace-stage"');
-    expect(centerColumn).toContain('className="workspace-dock"');
+    expect(centerColumn).toContain('className="workspace-stage desktop-workspace-stage"');
+    expect(centerColumn).toContain('className="workspace-dock desktop-workspace-dock"');
     expect(centerColumn).not.toContain('<BottomStatusBar />');
-    expect(workspaceRow).toContain('<Sidebar sidebarType="left">');
-    expect(workspaceRow).toContain('<main\n          className="app-mid"');
-    expect(workspaceRow).toContain('<Sidebar sidebarType="right">');
-    expect(workspaceRow).not.toContain('<BottomStatusBar />');
-    expect(footerShell).toContain('<BottomStatusBar />');
+    expect(workspace).toContain('<Sidebar sidebarType="left">');
+    expect(workspace).toContain('<main className="app-mid desktop-workspace-main">');
+    expect(workspace).toContain('<Sidebar sidebarType="right">');
+    expect(workspace.indexOf('<BottomStatusBar />')).toBeGreaterThan(
+      workspace.indexOf('<Sidebar sidebarType="right">'),
+    );
   });
 
   it('keeps All Chapters first-class while consolidating the three Super views', () => {
@@ -211,7 +206,7 @@ describe('workspace surface language acceptance', () => {
   it('keeps the desktop coplanar and the manuscript independently raised', () => {
     const css = source('src/styles/index.css');
     const sidebar = source('src/renderer/components/Sidebar.tsx');
-    const rightPanels = source('src/renderer/components/rightBars/RightSidebarPanels.tsx');
+    const rightPanels = source('src/renderer/shells/desktop/DesktopRightSidebar.tsx');
     const shell = block(
       css,
       'Coplanar workspace + manuscript elevation',
@@ -281,7 +276,7 @@ describe('workspace surface language acceptance', () => {
     const leftSubheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
     const rightHeader = source('src/renderer/components/rightBars/RightSidebarHeader.tsx');
     const todo = source('src/renderer/components/rightBars/TodoPanel.tsx');
-    const library = source('src/renderer/components/rightBars/MemoMaterialPanel.tsx');
+    const library = source('src/renderer/features/library/LibraryPanel.tsx');
     const compactChrome = block(controls, '/* Sidebar chrome', '.panel-tab-tray {');
 
     expect(compactChrome).toContain('height: 28px;');
@@ -404,12 +399,12 @@ describe('workspace surface language acceptance', () => {
 
   it('keeps the shared entity hover preview shadow clear of its hovered cell', () => {
     const css = source('src/styles/index.css');
-    const hoverCard = source('src/renderer/components/ui/EntityHoverCard.tsx');
+    const hoverCard = source('src/renderer/features/entities/hover/EntityHoverCard.tsx');
     const consumers = [
       source('src/renderer/components/leftBars/ChapterPanel.tsx'),
       source('src/renderer/components/leftBars/ElementPanel.tsx'),
       source('src/renderer/components/leftBars/DriftPanel.tsx'),
-      source('src/renderer/components/BottomTimeline/BottomTimeline.tsx'),
+      source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx'),
     ];
 
     expect(css).toContain(
@@ -455,13 +450,13 @@ describe('workspace surface language acceptance', () => {
     const shellCss = source('src/styles/index.css');
     const timelineCss = source('src/styles/bottom-timeline.css');
     const controls = source('src/styles/ui-controls.css');
-    const bottomTimeline = source('src/renderer/components/BottomTimeline/BottomTimeline.tsx');
+    const bottomTimeline = source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx');
     const leftHeader = source('src/renderer/components/leftBars/LeftSidebarHeader.tsx');
     const leftSubheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
     const elementPanel = source('src/renderer/components/leftBars/ElementPanel.tsx');
     const rightHeader = source('src/renderer/components/rightBars/RightSidebarHeader.tsx');
     const todo = source('src/renderer/components/rightBars/TodoPanel.tsx');
-    const library = source('src/renderer/components/rightBars/MemoMaterialPanel.tsx');
+    const library = source('src/renderer/features/library/LibraryPanel.tsx');
     const collapsibleFooter = source('src/renderer/components/ui/CollapsibleFooter.tsx');
     const timeline = block(timelineCss, '.btl {', '.btl__resize {');
     const timelineHead = block(timelineCss, '.btl__head {', '.btl__head-left {');
@@ -549,7 +544,9 @@ describe('workspace surface language acceptance', () => {
   });
 
   it('keeps Settings and Super Views on flat edge-aligned shells', () => {
-    const settingsComponent = source('src/renderer/components/modals/SettingsModal.tsx');
+    const settingsComponent = source(
+      'src/renderer/features/settings/desktop/DesktopSettingsModal.tsx',
+    );
     const settingsCss = source('src/styles/settings.css');
     const superCss = source('src/styles/super-view-header.css');
 
@@ -592,9 +589,9 @@ describe('workspace surface language acceptance', () => {
   });
 
   it('replaces decorative left color bars and card grids with wash and hairlines', () => {
-    const graphView = source('src/renderer/views/StoryGraphView.tsx');
+    const graphView = source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx');
     const graphCss = source('src/styles/graph-view.css');
-    const timeline = source('src/renderer/components/BottomTimeline/BottomTimeline.tsx');
+    const timeline = source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx');
     const timelineCss = source('src/styles/bottom-timeline.css');
     const planner = source('src/styles/plot-planner.css');
 

@@ -19,7 +19,7 @@ describe('retired Shadow, Element Arc, and Goal Evolve product boundary', () => 
       expect(existsSync(resolve(core, path)), path).toBe(false);
     }
 
-    const settings = read('src/renderer/components/modals/SettingsModal.tsx');
+    const settings = read('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx');
     const sidebar = read('src/renderer/components/rightBars/RightSidebarHeader.tsx');
     const agentGuidance = read('../AGENTS.md');
     expect(settings).not.toContain('function ShadowPanel(');

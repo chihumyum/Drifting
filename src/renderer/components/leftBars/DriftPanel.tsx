@@ -24,8 +24,11 @@ import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { DRIFT_MOVE_TO_GROUP_ACTION } from '../editor/EditorTopBar';
 import { SimpleContextMenu, type SimpleMenuItem } from './SimpleContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
-import { EntityHoverCard } from '../ui/EntityHoverCard';
-import { useHoverPreview, type EntityHoverTarget } from '../ui/entity-hover-card-model';
+import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
+import {
+  useHoverPreview,
+  type EntityHoverTarget,
+} from '../../features/entities/hover/entity-hover-card-model';
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
