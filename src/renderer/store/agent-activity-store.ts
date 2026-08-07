@@ -12,7 +12,7 @@
  * by the left panels (cell effects) and the left tab switcher (aggregate badge).
  */
 import { create } from 'zustand';
-import { toolEntityRef, entityKey, type ToolEntityRef } from '../lib/agent/tool-entity-ref';
+import { toolEntityRefs, entityKey, type ToolEntityRef } from '../lib/agent/tool-entity-ref';
 import { useAgentEditStore } from './agent-edit-store';
 
 export interface ActivityMark {
@@ -79,7 +79,10 @@ function allSeen(spots: SpotSet, seen: SpotSet): boolean {
 
 // Pending tool calls by tool-use id, so onToolResult can recover the args (and,
 // for create_*, read the new id out of the result). Module-level — not state.
-const pending = new Map<string, { name: string; input: unknown }>();
+const pending = new Map<
+  string,
+  { name: string; input: unknown; preflightRefs: ToolEntityRef[] }
+>();
 const pendingKeysByScope = new Map<string, Set<string>>();
 const activeOwners = new Map<string, Map<string, ActivityMark>>();
 const activeKeysByScope = new Map<string, Set<string>>();
@@ -92,11 +95,17 @@ function scopedCallKey(scope: AgentActivityScope, callId: string): string {
   return `${activityScopeKey(scope)}\u0000${callId}`;
 }
 
-// Only entity types with a left-panel CELL get a pulse/breathing dot — those are
-// the ones the user can see and click to dismiss. Storylines/categories have no
-// cell, so they're surfaced only as result chips (collectTurnEntityRefs), never
-// as an undismissable tab badge.
-const hasCell = (t: ActivityMark['entityType']): boolean => t === 'node' || t === 'element';
+// Every tracked structural entity has a left-sidebar destination: nodes and
+// elements have item rows; storylines and categories have group-header rows.
+const hasCell = (_t: ActivityMark['entityType']): boolean => true;
+
+function mergeRefs(...groups: readonly ToolEntityRef[][]): ToolEntityRef[] {
+  const byKey = new Map<string, ToolEntityRef>();
+  for (const group of groups) {
+    for (const ref of group) byKey.set(entityKey(ref.entityType, ref.id), ref);
+  }
+  return [...byKey.values()];
+}
 
 export const useAgentActivityStore = create<AgentActivityState>((set) => ({
   active: {},
@@ -105,23 +114,28 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
   onToolUse: (scope, id, name, input) => {
     const ownerKey = activityScopeKey(scope);
     const callKey = scopedCallKey(scope, id);
-    pending.set(callKey, { name, input });
+    // Resolve targets before execution. Delete/update tools may remove or rename
+    // the only state needed to identify their comment host or relation endpoints.
+    const refs = toolEntityRefs(name, input);
+    pending.set(callKey, { name, input, preflightRefs: refs });
     const pendingKeys = pendingKeysByScope.get(ownerKey) ?? new Set<string>();
     pendingKeys.add(callKey);
     pendingKeysByScope.set(ownerKey, pendingKeys);
-    const ref = toolEntityRef(name, input);
-    if (!ref || !hasCell(ref.entityType)) return;
-    const key = entityKey(ref.entityType, ref.id);
-    const mark = { entityType: ref.entityType, id: ref.id, op: ref.op };
-    const owners = activeOwners.get(key) ?? new Map<string, ActivityMark>();
-    owners.set(ownerKey, mark);
-    activeOwners.set(key, owners);
     const activeKeys = activeKeysByScope.get(ownerKey) ?? new Set<string>();
-    activeKeys.add(key);
+    const marks: Record<string, ActivityMark> = {};
+    for (const ref of refs) {
+      if (!hasCell(ref.entityType)) continue;
+      const key = entityKey(ref.entityType, ref.id);
+      const mark = { entityType: ref.entityType, id: ref.id, op: ref.op };
+      const owners = activeOwners.get(key) ?? new Map<string, ActivityMark>();
+      owners.set(ownerKey, mark);
+      activeOwners.set(key, owners);
+      activeKeys.add(key);
+      marks[key] = mark;
+    }
+    if (!Object.keys(marks).length) return;
     activeKeysByScope.set(ownerKey, activeKeys);
-    set((s) => ({
-      active: { ...s.active, [key]: mark },
-    }));
+    set((s) => ({ active: { ...s.active, ...marks } }));
   },
 
   onToolResult: (scope, id, ok, text) => {
@@ -133,37 +147,37 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
     pendingKeys?.delete(callKey);
     if (pendingKeys?.size === 0) pendingKeysByScope.delete(ownerKey);
     if (!p || !ok) return;
-    const ref = toolEntityRef(p.name, p.input, text);
-    // Added is durable editor presentation, not a turn-lifetime activity dot:
-    // keep it across reload/project navigation until the author's first-open
-    // full-prose reveal completes. This also covers storyline/category group
-    // rows, which intentionally do not enter the cell activity maps below.
-    if (ref?.op === 'create') {
-      useAgentEditStore.getState().recordAddition(ref.entityType, ref.id);
+    const refs = mergeRefs(p.preflightRefs, toolEntityRefs(p.name, p.input, text));
+    for (const ref of refs) {
+      // Added is reserved for creation of the sidebar entity itself. Comment
+      // and relation refs deliberately use op='write', so their hosts get M.
+      if (ref.op === 'create') {
+        useAgentEditStore.getState().recordAddition(ref.entityType, ref.id);
+      }
+      // Only successful writes/creates leave M; reads changed nothing and a
+      // deleted sidebar entity has nowhere to display a marker.
+      if (ref.op === 'read' || ref.op === 'delete' || !hasCell(ref.entityType)) continue;
+      const key = entityKey(ref.entityType, ref.id);
+      const incoming = ref.spots ?? { structural: true };
+      set((s) => {
+        const prev = s.touched[key];
+        // Accumulate spots across the run (block A then B → both tracked); a fresh
+        // entry starts with nothing seen.
+        const spots: SpotSet = {
+          summary: (prev?.spots.summary ?? false) || incoming.summary === true,
+          blocks: new Set([...(prev?.spots.blocks ?? []), ...(incoming.blocks ?? [])]),
+          structural: (prev?.spots.structural ?? false) || incoming.structural === true,
+        };
+        const mark: TouchedMark = {
+          entityType: ref.entityType,
+          id: ref.id,
+          op: ref.op,
+          spots,
+          seen: prev?.seen ?? emptySpots(),
+        };
+        return { touched: { ...s.touched, [key]: mark } };
+      });
     }
-    // Only writes/creates to a cell-bearing entity leave a breathing dot — not
-    // reads (nothing changed) nor deletes (the entity is gone).
-    if (!ref || ref.op === 'read' || ref.op === 'delete' || !hasCell(ref.entityType)) return;
-    const key = entityKey(ref.entityType, ref.id);
-    const incoming = ref.spots ?? { structural: true };
-    set((s) => {
-      const prev = s.touched[key];
-      // Accumulate spots across the run (block A then B → both tracked); a fresh
-      // entry starts with nothing seen.
-      const spots: SpotSet = {
-        summary: (prev?.spots.summary ?? false) || incoming.summary === true,
-        blocks: new Set([...(prev?.spots.blocks ?? []), ...(incoming.blocks ?? [])]),
-        structural: (prev?.spots.structural ?? false) || incoming.structural === true,
-      };
-      const mark: TouchedMark = {
-        entityType: ref.entityType,
-        id: ref.id,
-        op: ref.op,
-        spots,
-        seen: prev?.seen ?? emptySpots(),
-      };
-      return { touched: { ...s.touched, [key]: mark } };
-    });
   },
 
   onTurnEnd: (scope) => {

@@ -143,7 +143,7 @@ describe('Drifting Agent capability manifest', () => {
 
   it('does not publish the removed user checkpoint or conversation-fork surface', () => {
     const manifest = buildDriftingAgentCapabilityManifest();
-    expect(manifest.schemaVersion).toBe(16);
+    expect(manifest.schemaVersion).toBe(17);
     expect(manifest.product).toMatchObject({
       contextWindowTokens: 200_000,
       maxContextWindowTokens: 1_000_000,
@@ -162,6 +162,7 @@ describe('Drifting Agent capability manifest', () => {
       },
     });
     expect('userCheckpoint' in manifest).toBe(false);
+    expect('authoredObjectFacade' in manifest).toBe(false);
   });
 
   it('publishes certified providers, concrete MCP transports, and exact durable grants', () => {
@@ -215,7 +216,7 @@ describe('Drifting Agent capability manifest', () => {
       projectRules: 'author-editable-project-facts',
       standingGuidance: 'author-created-or-author-approved-active-memory',
       guidanceLifecycle: 'author-editable-and-deletable',
-      executionSafety: 'data-integrity-review-and-destructive-confirmation-only',
+      executionSafety: 'data-integrity-review-and-author-configurable-destructive-confirmation',
     });
   });
 

@@ -37,7 +37,6 @@ import {
 import {
   getRegisteredTool,
   isCertifiedTool,
-  listProviderTools,
   type RegisteredTool,
 } from '../tool-registry';
 import { DriftingReadToolRuntime } from './drifting-read-tool-runtime';
@@ -65,15 +64,15 @@ import type {
   AgentToolRuntime,
 } from './types';
 import {
-  canonicalDriftingWorkspaceProviderToolName,
-  DRIFTING_WORKSPACE_DELETE_TOOL,
-  DRIFTING_WORKSPACE_EDIT_TOOL,
-  DRIFTING_WORKSPACE_READ_TOOLS,
-  DRIFTING_WORKSPACE_WRITE_TOOL,
   isWorkspaceNoopWriteSignal,
   workspaceAuthoredReadStateFromArguments,
   workspaceCommandFromArguments,
 } from './drifting-workspace-tool-runtime';
+import {
+  DRIFTING_DOMAIN_WRITE_TOOLS,
+  isDriftingDomainReadToolName,
+  isDriftingDomainWriteToolName,
+} from './drifting-workspace-tool-contract';
 import { hashAgentPermissionArguments } from './control-plane';
 import {
   agentMemorySetRevision,
@@ -108,8 +107,8 @@ export interface DriftingWriteToolRuntimeOptions {
   readRuntime?: AgentToolRuntime;
   now?: () => string;
   dispatch?: typeof runAgentTool;
-  /** Runtime-owned facade expansion performed after public schema validation
-   * and permission, but before the durable effect is claimed. */
+  /** Runtime-owned domain command preparation performed after public schema
+   * validation and permission, but before the durable effect is claimed. */
   prepareRequest?: (request: AgentToolExecutionRequest) => Promise<AgentToolExecutionRequest>;
   resolveStrategy?: (name: string) => DriftingWriteStrategy | undefined;
   proseCoordinator?: YjsProsePersistenceCoordinator;
@@ -209,27 +208,18 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
           ...(options.readNodeContent ? { readNodeContent: options.readNodeContent } : {}),
           dispatch: this.dispatch,
         }));
-    this.resolveStrategy = (name) =>
-      resolveStrategy(canonicalDriftingWorkspaceProviderToolName(name) ?? name);
+    this.resolveStrategy = resolveStrategy;
   }
 
   listDefinitions(context: AgentRuntimeContext): readonly AgentToolDefinition[] {
-    const reads = this.readRuntime.listDefinitions(context);
-    const workspaceWrites = [
-      DRIFTING_WORKSPACE_EDIT_TOOL,
-      DRIFTING_WORKSPACE_WRITE_TOOL,
-      DRIFTING_WORKSPACE_DELETE_TOOL,
-    ].map((name) => {
+    void context;
+    return DRIFTING_DOMAIN_WRITE_TOOLS.map((name) => {
       const tool = getRegisteredTool(name);
-      if (!isWorkspaceWriteFacade(tool)) {
-        throw new Error(`The ${name} runtime contract is unavailable`);
+      if (!isDomainWriteTool(tool)) {
+        throw new Error(`The ${name} domain runtime contract is unavailable`);
       }
       return writeDefinition(tool);
     });
-    const writes = listProviderTools({ allowWrite: true })
-      .filter((tool) => tool.access === 'write')
-      .map((tool) => writeDefinition(tool));
-    return [...reads, ...workspaceWrites, ...writes];
   }
 
   resolveCanonicalName(
@@ -240,23 +230,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       (definition) => definition.name === name,
     );
     if (direct) return direct.name;
-    const delegated = this.readRuntime.resolveCanonicalName?.(name, context);
-    if (delegated) return delegated;
-    const canonicalWorkspaceName = canonicalDriftingWorkspaceProviderToolName(name);
-    if (canonicalWorkspaceName && canonicalWorkspaceName !== name) {
-      return this.listDefinitions(context).some(
-        (definition) => definition.name === canonicalWorkspaceName,
-      )
-        ? canonicalWorkspaceName
-        : undefined;
-    }
-    const registered = getRegisteredTool(name);
-    if (!registered || registered.name === name) return undefined;
-    return this.listDefinitions(context).some(
-      (definition) => definition.name === registered.name,
-    )
-      ? registered.name
-      : undefined;
+    return undefined;
   }
 
   async execute(request: AgentToolExecutionRequest): Promise<AgentToolExecutionResult> {
@@ -264,27 +238,15 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       return this.readRuntime.execute(request);
     }
     throwIfAgentAborted(request.signal);
-    const canonicalWorkspaceName = canonicalDriftingWorkspaceProviderToolName(request.name);
-    const effectivePublicRequest =
-      canonicalWorkspaceName && canonicalWorkspaceName !== request.name
-        ? { ...request, name: canonicalWorkspaceName }
-        : request;
-    const tool = getRegisteredTool(effectivePublicRequest.name);
-    const workspaceFacade = isWorkspaceWriteFacade(tool);
-    if (
-      !tool ||
-      (tool.scope !== 'general' && !workspaceFacade) ||
-      tool.access !== 'write' ||
-      (tool.certification !== 'write-certified' && !workspaceFacade) ||
-      !isCertifiedTool(tool)
-    ) {
+    const tool = getRegisteredTool(request.name);
+    if (!isExecutableCertifiedWriteTool(tool)) {
       return {
         ok: false,
         error: `Tool "${request.name}" is not write-certified`,
       };
     }
     try {
-      const preparedRequest = await this.prepareRequest(effectivePublicRequest);
+      const preparedRequest = await this.prepareRequest(request);
       if (preparedRequest.name !== tool.name) {
         throw new Error('Runtime request preparation cannot change the public tool name');
       }
@@ -313,7 +275,9 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       if (isWorkspaceNoopWriteSignal(error)) return error.result;
       return {
         ok: false,
-        error: workspaceFacade ? publicWorkspaceWriteError(error) : publicWriteError(error),
+        error: isDomainWriteTool(tool)
+          ? publicDomainWriteError(error)
+          : publicWriteError(error),
       };
     }
   }
@@ -1384,8 +1348,10 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     }
     const descriptor = activeEditorReview(effect, tool);
     const reviewId = descriptor?.id ?? null;
+    const useDomainPresentation =
+      domainWriteName(tool.name) && hasPreparedDomainEnvelope(effect.arguments);
     const visibleResult =
-      workspaceFacadeName(tool.name)
+      useDomainPresentation
         ? workspaceVisibleWriteResult(effect, handlerResult)
         : handlerResult;
     const result: AgentToolExecutionResult = {
@@ -1393,13 +1359,13 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       data: {
         result: visibleResult,
         writeRef: reviewId ?? effect.id,
-        ...(workspaceFacadeName(tool.name) ? {} : { effectId: effect.id }),
+        ...(useDomainPresentation ? {} : { effectId: effect.id }),
         authorization: { kind: effect.authorization.kind },
         ...(reviewId
           ? { review: { id: reviewId, status: 'pending' } }
           : {}),
       },
-      ...(workspaceFacadeName(tool.name)
+      ...(useDomainPresentation
         ? {
             modelData: workspaceModelWriteResult(
               visibleResult as ReturnType<typeof workspaceVisibleWriteResult>,
@@ -1449,8 +1415,10 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
     handlerResult: unknown,
   ): Promise<AgentToolExecutionResult> {
     const reviewId = writeReviewId(effect.id);
+    const useDomainPresentation =
+      domainWriteName(tool.name) && hasPreparedDomainEnvelope(effect.arguments);
     const visibleResult =
-      workspaceFacadeName(tool.name)
+      useDomainPresentation
         ? workspaceVisibleWriteResult(effect, handlerResult)
         : handlerResult;
     const result: AgentToolExecutionResult = {
@@ -1458,10 +1426,10 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
       data: {
         result: visibleResult,
         writeRef: reviewId,
-        ...(workspaceFacadeName(tool.name) ? {} : { effectId: effect.id }),
+        ...(useDomainPresentation ? {} : { effectId: effect.id }),
         review: { id: reviewId, status: 'pending' },
       },
-      ...(workspaceFacadeName(tool.name)
+      ...(useDomainPresentation
         ? {
             modelData: workspaceModelWriteResult(
               visibleResult as ReturnType<typeof workspaceVisibleWriteResult>,
@@ -1693,62 +1661,39 @@ export function resolveDriftingCertifiedToolAccess(name: string): 'read' | 'writ
   if (name === 'read_tool_result' || name === 'ask_user') {
     return 'read';
   }
-  const canonicalWorkspaceName = canonicalDriftingWorkspaceProviderToolName(name);
-  const tool = getRegisteredTool(canonicalWorkspaceName ?? name);
-  if (
-    tool?.scope === 'runtime-virtual' &&
-    DRIFTING_WORKSPACE_READ_TOOLS.includes(
-      tool.name as (typeof DRIFTING_WORKSPACE_READ_TOOLS)[number],
-    )
-  ) {
-    return 'read';
-  }
-  if (tool && workspaceFacadeName(tool.name)) return 'write';
-  if (
-    !tool ||
-    tool.scope !== 'general' ||
-    !isCertifiedTool(tool) ||
-    (tool.certification !== 'read-certified' && tool.certification !== 'write-certified')
-  ) {
-    return undefined;
-  }
-  return tool.access;
+  if (isDriftingDomainReadToolName(name)) return 'read';
+  if (isDriftingDomainWriteToolName(name)) return 'write';
+  return undefined;
 }
 
-function workspaceFacadeName(name: string): boolean {
-  const canonical = canonicalDriftingWorkspaceProviderToolName(name);
-  return (
-    canonical === DRIFTING_WORKSPACE_EDIT_TOOL ||
-    canonical === DRIFTING_WORKSPACE_WRITE_TOOL ||
-    canonical === DRIFTING_WORKSPACE_DELETE_TOOL
-  );
+function domainWriteName(name: string): boolean {
+  return isDriftingDomainWriteToolName(name);
 }
 
-function isWorkspaceWriteFacade(
+function isDomainWriteTool(
   tool: RegisteredTool | null | undefined,
 ): tool is RegisteredTool {
   return Boolean(
     tool &&
-      workspaceFacadeName(tool.name) &&
-      tool.scope === 'runtime-virtual' &&
+      domainWriteName(tool.name) &&
       tool.access === 'write' &&
-      tool.certification === 'internal-certified' &&
+      (tool.certification === 'internal-certified' || tool.certification === 'write-certified') &&
       isCertifiedTool(tool),
   );
 }
 
+/** Hidden certified commands remain executable by the renderer coordinator so
+ * domain tools can delegate to the existing transactional strategies. They are
+ * deliberately absent from listDefinitions and therefore never provider-facing. */
+function isExecutableCertifiedWriteTool(
+  tool: RegisteredTool | null | undefined,
+): tool is RegisteredTool {
+  return Boolean(tool && tool.access === 'write' && isCertifiedTool(tool));
+}
+
 function requireReconciliationTool(effect: PersistedAgentRuntimeWriteEffect): RegisteredTool {
-  const tool = getRegisteredTool(
-    canonicalDriftingWorkspaceProviderToolName(effect.toolName) ?? effect.toolName,
-  );
-  const workspaceFacade = isWorkspaceWriteFacade(tool);
-  if (
-    !tool ||
-    (tool.scope !== 'general' && !workspaceFacade) ||
-    tool.access !== 'write' ||
-    (tool.certification !== 'write-certified' && !workspaceFacade) ||
-    !isCertifiedTool(tool)
-  ) {
+  const tool = getRegisteredTool(effect.toolName);
+  if (!isExecutableCertifiedWriteTool(tool)) {
     throw new Error(`Tool "${effect.toolName}" is not certified for write reconciliation`);
   }
   return tool;
@@ -2493,14 +2438,18 @@ function effectiveWriteCommand(
   name: string,
   arguments_: unknown,
 ): { name: string; arguments: Record<string, unknown> } {
-  if (!workspaceFacadeName(name)) {
-    return { name, arguments: requireRecord(arguments_, 'Write arguments are invalid') };
-  }
   const command = workspaceCommandFromArguments(arguments_);
-  if (!command) {
-    throw new Error(`${name} has no runtime-prepared workspace command`);
-  }
-  return command;
+  return command ?? { name, arguments: requireRecord(arguments_, 'Write arguments are invalid') };
+}
+
+function hasPreparedDomainEnvelope(value: unknown): boolean {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      typeof (value as { path?: unknown }).path === 'string' &&
+      (value as { path: string }).path.length > 0,
+  );
 }
 
 function workspaceVisibleWriteResult(
@@ -2528,9 +2477,12 @@ function workspaceVisibleWriteResult(
   const remainingWork = recordString(arguments_, 'remainingWork');
   const authoredReadState = workspaceAuthoredReadStateFromArguments(arguments_);
   if (!path) throw new Error('The workspace write lost its public path');
-  const canonicalToolName =
-    canonicalDriftingWorkspaceProviderToolName(effect.toolName) ?? effect.toolName;
-  if (canonicalToolName === DRIFTING_WORKSPACE_DELETE_TOOL) {
+  const command = effectiveWriteCommand(effect.toolName, arguments_);
+  const deleted =
+    command.name.startsWith('delete_') ||
+    command.name === 'remove_relation' ||
+    command.name === 'forget';
+  if (deleted) {
     return {
       path,
       updated: true,
@@ -2539,12 +2491,11 @@ function workspaceVisibleWriteResult(
       ...(remainingWork ? { remainingWork } : {}),
     };
   }
-  if (canonicalToolName === DRIFTING_WORKSPACE_WRITE_TOOL) {
-    const command = workspaceCommandFromArguments(arguments_);
+  {
     const created = Boolean(
-      command?.name.startsWith('create_') ||
-        command?.name === 'add_relation' ||
-        command?.name === 'remember',
+      command.name.startsWith('create_') ||
+        command.name === 'add_relation' ||
+        command.name === 'remember',
     );
     const entityId =
       recordString(handlerResult, 'entityId') ??
@@ -2557,13 +2508,13 @@ function workspaceVisibleWriteResult(
         ? recordString(handlerResult, 'entityId')
         : null);
     const wordCount =
-      nodeId && (command?.name === 'create_node' || command?.name === 'edit_prose_file')
+      nodeId && (command.name === 'create_node' || command.name === 'edit_prose_file')
         ? (state.bookNodes.find((node) => node.id === nodeId && node.projectId === effect.projectId)
             ?.wordCount ?? null)
         : null;
     const createdEntityPath = (() => {
       if (!created || !entityId) return null;
-      if (command?.name === 'create_node') {
+      if (command.name === 'create_node') {
         const node = state.bookNodes.find(
           (item) => item.id === entityId && item.projectId === effect.projectId,
         );
@@ -2571,7 +2522,7 @@ function workspaceVisibleWriteResult(
           ? `/${node.kind === 'chapter' ? 'chapters' : 'drifts'}/${workspaceResultPathSegment(node.title)}/prose.md`
           : null;
       }
-      if (command?.name === 'create_element') {
+      if (command.name === 'create_element') {
         const element = state.bookElements.find(
           (item) => item.id === entityId && item.projectId === effect.projectId,
         );
@@ -2584,7 +2535,7 @@ function workspaceVisibleWriteResult(
           ? `/elements/${workspaceResultPathSegment(category.name)}/${workspaceResultPathSegment(element.name)}/body.md`
           : null;
       }
-      if (command?.name === 'create_storyline') {
+      if (command.name === 'create_storyline') {
         const storyline = state.storylines.find(
           (item) => item.id === entityId && item.projectId === effect.projectId,
         );
@@ -2592,7 +2543,7 @@ function workspaceVisibleWriteResult(
           ? `/storylines/${workspaceResultPathSegment(storyline.name)}/body.md`
           : null;
       }
-      if (command?.name === 'create_category') {
+      if (command.name === 'create_category') {
         const category = state.bookElementCategories.find(
           (item) => item.id === entityId && item.projectId === effect.projectId,
         );
@@ -2603,11 +2554,11 @@ function workspaceVisibleWriteResult(
       return null;
     })();
     const canonicalCandidate =
-      entityId && command?.name === 'remember'
+      entityId && command.name === 'remember'
         ? `/memory/${workspaceResultPathSegment(entityId)}.json`
-        : entityId && command?.name === 'create_comment'
+        : entityId && command.name === 'create_comment'
           ? `/comments/${workspaceResultPathSegment(entityId)}.json`
-          : entityId && command?.name === 'add_relation'
+          : entityId && command.name === 'add_relation'
             ? `/relations/${workspaceResultPathSegment(entityId)}.json`
             : createdEntityPath;
     const canonicalPath = canonicalCandidate && canonicalCandidate !== path
@@ -2624,15 +2575,15 @@ function workspaceVisibleWriteResult(
       ...(wordCount !== null ? { wordCount } : {}),
       ...(changeSummary ? { changeSummary } : {}),
       ...(remainingWork ? { remainingWork } : {}),
-      ...(created && typeof command?.arguments.summary === 'string' && command.arguments.summary.trim()
+      ...(created && typeof command.arguments.summary === 'string' && command.arguments.summary.trim()
         ? { summaryInitialized: true as const }
         : {}),
-      ...(!created && typeof command?.arguments.summary === 'string'
+      ...(!created && typeof command.arguments.summary === 'string'
         ? { summaryUpdated: true as const }
         : {}),
       ...(canonicalPath ? { canonicalPath } : {}),
       ...(authoredReadState ? { authoredReadState } : {}),
-      ...(command?.name === 'create_category' && categoryPath
+      ...(command.name === 'create_category' && categoryPath
         ? {
             guidance:
               `The category now exists. Create an element in it by writing ` +
@@ -2641,20 +2592,6 @@ function workspaceVisibleWriteResult(
         : {}),
     };
   }
-  const replacements = Array.isArray(arguments_.replacements) ? arguments_.replacements.length : 0;
-  const skippedStale = Number(arguments_.skippedStaleReplacements ?? 0);
-  if (replacements <= 0) {
-    throw new Error('The workspace edit lost its public result summary');
-  }
-  return {
-    path,
-    updated: true,
-    replacements,
-    ...(authoredReadState ? { authoredReadState } : {}),
-    ...(changeSummary ? { changeSummary } : {}),
-    ...(remainingWork ? { remainingWork } : {}),
-    ...(Number.isSafeInteger(skippedStale) && skippedStale > 0 ? { skippedStale } : {}),
-  };
 }
 
 function parseYjsRevision(value: string): number | null {
@@ -2727,7 +2664,7 @@ function projectWorkspaceCreatedAddition(
 ): void {
   if (
     !executionResult.ok ||
-    !workspaceFacadeName(effect.toolName) ||
+    !domainWriteName(effect.toolName) ||
     !executionResult.data ||
     typeof executionResult.data !== 'object' ||
     Array.isArray(executionResult.data)
@@ -2743,15 +2680,19 @@ function projectWorkspaceCreatedAddition(
   ) {
     return;
   }
-  const toolName =
-    canonicalDriftingWorkspaceProviderToolName(effect.toolName) ?? effect.toolName;
   const ref = toolEntityRef(
-    toolName,
+    effect.toolName,
     effect.arguments,
     JSON.stringify(visibleResult),
   );
   if (ref?.op !== 'create') return;
-  useAgentEditStore.getState().recordAddition(ref.entityType, ref.id);
+  try {
+    useAgentEditStore.getState().recordAddition(ref.entityType, ref.id);
+  } catch {
+    // Added is a rebuildable local presentation. A full/unavailable
+    // localStorage must never turn a durable result_committed create back into
+    // a model-visible failure and invite a duplicate retry.
+  }
 }
 
 function workspaceResultPathSegment(value: string): string {
@@ -2852,7 +2793,7 @@ function publicWriteError(error: unknown): string {
   return 'Agent write failed';
 }
 
-function publicWorkspaceWriteError(error: unknown): string {
+function publicDomainWriteError(error: unknown): string {
   if (
     error instanceof AgentWriteCollaborationConflictError ||
     error instanceof AgentWriteCollaborationConflictLimitError

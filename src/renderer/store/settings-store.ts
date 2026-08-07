@@ -142,8 +142,9 @@ export const AGENT_TOOL_SEARCH_OPTIONS: { value: AgentToolSearch; label: string 
  *  - 'auto':    play the colored reveal and settle the visual batch.
  *  - 'approve': keep the inline diff and accept/reject badge; rejection runs the
  *               canonical guarded inverse.
- * This does not grant structural authority. Destructive graph/entity operations
- * keep their independent confirm-before permission policy.
+ * This does not grant structural authority. Destructive operations keep their
+ * independent permission policy unless the author explicitly enables the
+ * separate dangerous-operation override.
  */
 export type AgentEditMode = 'auto' | 'approve';
 
@@ -331,9 +332,16 @@ interface SettingsState {
   // How committed Agent prose edits surface in the editor: `auto` plays the
   // colored reveal and settles, while `approve` keeps an inline diff/badge whose
   // rejection calls the canonical guarded inverse. Destructive structural
-  // permissions are independent and always handled before execution.
+  // permissions are independent and handled by the setting below.
   agentEditMode: AgentEditMode;
   setAgentEditMode: (m: AgentEditMode) => void;
+  /**
+   * Explicit author override for pre-execution destructive confirmations.
+   * Certification, project isolation, freshness checks, receipts and guarded
+   * write execution remain mandatory when this is enabled.
+   */
+  agentAllowDangerousOperations: boolean;
+  setAgentAllowDangerousOperations: (on: boolean) => void;
   // Copilot (任务自动化, 没有续写)
   /**
    * The single switch for AUTOMATIC Copilot. When on, background tasks run on
@@ -579,6 +587,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAgentToolSearch: (t) => set({ agentToolSearch: t }),
       agentEditMode: 'auto',
       setAgentEditMode: (m) => set({ agentEditMode: m }),
+      agentAllowDangerousOperations: false,
+      setAgentAllowDangerousOperations: (on) => set({ agentAllowDangerousOperations: on }),
       copilotTier: 'standard',
       setCopilotTier: (t) => set({ copilotTier: t }),
 
@@ -654,7 +664,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 27,
+      version: 28,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           appearanceSkin?: 'classic' | 'modern';
@@ -941,6 +951,9 @@ export const useSettingsStore = create<SettingsState>()(
             delete retired[key];
           }
         }
+        if (version < 28) {
+          next.agentAllowDangerousOperations = false;
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -965,6 +978,8 @@ export const useSettingsStore = create<SettingsState>()(
         );
         merged.agentMaxContext = merged.agentMaxContext === true;
         merged.agentToolSearch = normalizeAgentToolSearch(persistedSettings?.agentToolSearch);
+        merged.agentAllowDangerousOperations =
+          persistedSettings?.agentAllowDangerousOperations === true;
         if (APP_CONFIG.BYOK_ONLY) {
           if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';
           if (merged.agentAuth === 'hosted') merged.agentAuth = 'apikey';

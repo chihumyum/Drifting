@@ -1130,7 +1130,9 @@
       "notSupported": "Not supported",
       "edits": "Edits",
       "reviewEdits": "Review prose edits",
-      "reviewEditsTitle": "When enabled, Agent writes prose into the editor and shows the colored diff with accept/reject controls in place. When disabled, the edit completes through the reveal animation automatically. Destructive structural actions such as deleting entities or changing relationships always ask before execution.",
+      "reviewEditsTitle": "When enabled, Agent writes prose into the editor and shows the colored diff with accept/reject controls in place. When disabled, the edit completes through the reveal animation automatically. Deletions use the separate permission setting below.",
+      "dangerousOperations": "Allow dangerous actions",
+      "dangerousOperationsTitle": "When enabled, Agent can delete chapters, inspirations, elements, relationships, notes, and other objects without asking each time. This affects only later calls; project isolation, argument validation, concurrency checks, and durable receipts remain enforced.",
       "memory": "Rules",
       "memoryTitle": "Long-term preferences / directives / vetoes controlled by you; only active entries are injected into later chats.",
       "manageMemory": "Manage rules",
@@ -1210,18 +1212,10 @@
     },
     "turnChanges": "Turn changes",
     "jumpLatest": "Jump to latest",
-    "running": {
-      "switchTitle": "Switch to the running chat",
-      "otherConversation": "another chat",
-      "message": "Agent is working in \"{{title}}\" · View",
-      "disabledTitle": "Agent is working in another chat. You can continue after it finishes."
-    },
     "control": {
       "permissionTitle": "Agent requests an action",
-      "destructiveHint": "This changes the story structure and needs your confirmation",
-      "arguments": "View full arguments",
-      "editPreview": "Write after approval",
-      "replaceAll": "Replace every match",
+      "destructiveHint": "This deletes or replaces existing content and needs your confirmation",
+      "arguments": "View raw arguments",
       "deny": "Deny",
       "allow": {
         "once": "Allow once",

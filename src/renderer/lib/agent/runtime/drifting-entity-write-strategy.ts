@@ -430,7 +430,11 @@ async function preparePayload(
       request.arguments.targetBlockId.trim()
         ? request.arguments.targetBlockId.trim()
         : null,
-    anchorJson: '{}',
+    anchorJson:
+      typeof request.arguments.anchorJson === 'string' &&
+      request.arguments.anchorJson.trim()
+        ? request.arguments.anchorJson
+        : '{}',
     authorKind: 'ai',
     authorId: null,
     authorName: 'General Agent',

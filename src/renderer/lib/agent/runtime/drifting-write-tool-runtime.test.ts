@@ -17,6 +17,7 @@ import type { DriftingWriteStrategy } from './drifting-write-strategies';
 import { hashAgentPermissionArguments } from './control-plane';
 import { DriftingWriteToolRuntime } from './drifting-write-tool-runtime';
 import { WorkspaceNoopWriteSignal } from './drifting-workspace-tool-runtime';
+import { DRIFTING_DOMAIN_WRITE_TOOLS } from './drifting-workspace-tool-contract';
 import type { AgentToolExecutionRequest, AgentToolRuntime } from './types';
 
 const initialDataState = useDataStore.getState();
@@ -60,38 +61,18 @@ describe('DriftingWriteToolRuntime', () => {
 
     expect(
       runtime
-        .listDefinitions(request('rename_node', {}).context)
+        .listDefinitions(request('rename_chapter', {}).context)
         .map((definition) => definition.name),
-    ).toEqual([
-      'revise_object',
-      'write_object',
-      'delete_object',
-      'update_element',
-      'rename_node',
-      'set_node_summary',
-      'edit_block',
-      'edit_blocks',
-      'append_paragraph',
-      'remove_blocks',
-      'replace_block_range',
-      'insert_blocks',
-      'update_storyline',
-      'update_project_facts',
-      'create_element_patch',
-      'update_element_patch',
-      'delete_element_patch',
-      'create_comment',
-    ]);
+    ).toEqual(DRIFTING_DOMAIN_WRITE_TOOLS);
 
-    const input = await authorizedRequest('rename_node', {
-      node: 'Chapter One',
+    const input = await authorizedRequest('rename_chapter', {
+      chapter: 'Chapter One',
       title: 'Opening',
     });
     const first = await runtime.execute(input);
     expect(first).toMatchObject({
       ok: true,
       data: {
-        effectId: `agent-write:${input.idempotencyKey}`,
         writeRef: `agent-write:${input.idempotencyKey}`,
         authorization: { kind: 'automatic' },
       },
@@ -124,10 +105,10 @@ describe('DriftingWriteToolRuntime', () => {
     });
     const runtime = createRuntime(repository, { renameNode });
     const input = await authorizedRequest(
-      'rename_node',
+      'rename_chapter',
       {
-      node: 'Chapter One',
-      title: 'Opening',
+        chapter: 'Chapter One',
+        title: 'Opening',
       },
       'author_approved',
     );
@@ -139,7 +120,7 @@ describe('DriftingWriteToolRuntime', () => {
     expect(repository.effect(`agent-write:${input.idempotencyKey}`)).toMatchObject({
       authorization: {
         kind: 'author_approved',
-        requestId: 'turn-1:call-rename_node:permission',
+        requestId: 'turn-1:call-rename_chapter:permission',
         argumentsHash: input.authorization?.argumentsHash,
       },
     });
@@ -153,12 +134,12 @@ describe('DriftingWriteToolRuntime', () => {
       updateNode(id, { title });
     });
     const runtime = createRuntime(repository, { renameNode });
-    const missing = request('rename_node', {
-      node: 'Chapter One',
+    const missing = request('rename_chapter', {
+      chapter: 'Chapter One',
       title: 'Opening',
     });
     const mismatched = {
-      ...(await authorizedRequest('rename_node', missing.arguments)),
+      ...(await authorizedRequest('rename_chapter', missing.arguments)),
       authorization: {
         kind: 'automatic' as const,
         requestId: null,
@@ -186,8 +167,8 @@ describe('DriftingWriteToolRuntime', () => {
       updateNode('node-1', { title: 'Maybe committed' });
       throw new Error('process boundary lost');
     });
-    const input = await authorizedRequest('rename_node', {
-      node: 'Chapter One',
+    const input = await authorizedRequest('rename_chapter', {
+      chapter: 'Chapter One',
       title: 'Maybe committed',
     });
 
@@ -213,8 +194,8 @@ describe('DriftingWriteToolRuntime', () => {
       updateNode(id, { title });
     });
     const runtime = createRuntime(repository, { renameNode });
-    const input = await authorizedRequest('rename_node', {
-      node: 'Chapter One',
+    const input = await authorizedRequest('rename_chapter', {
+      chapter: 'Chapter One',
       title: 'Opening',
     });
 
@@ -265,10 +246,9 @@ describe('DriftingWriteToolRuntime', () => {
       applyInverse: async () => ({ ok: true }),
     };
     const runtime = createRuntime(repository, {}, undefined, () => strategy);
-    const input = await authorizedRequest('edit_block', {
-      entity: 'Chapter One',
-      block: 1,
-      text: 'Changed',
+    const input = await authorizedRequest('revise_chapter', {
+      chapter: 'Chapter One',
+      changes: [{ currentText: 'Before', revisedText: 'Changed' }],
     });
     const effectId = `agent-write:${input.idempotencyKey}`;
     const reviewId = `agent-review:${effectId}`;
@@ -343,15 +323,15 @@ describe('DriftingWriteToolRuntime', () => {
       applyInverse: async () => ({ ok: true }),
     };
     const runtime = createRuntime(repository, {}, undefined, () => strategy);
-    const input = await authorizedRequest('edit_block', {
-      entity: 'Chapter One',
-      block: 1,
-      text: 'Changed',
+    const input = await authorizedRequest('revise_chapter', {
+      chapter: 'Chapter One',
+      changes: [{ currentText: 'Before', revisedText: 'Changed' }],
     });
 
     await expect(runtime.execute(input)).resolves.toEqual({
       ok: false,
-      error: 'response lost after prose receipt commit',
+      error:
+        'The authored object changed while it was being revised. Read its current state and apply the intended revision again.',
     });
     expect(repository.effect(`agent-write:${input.idempotencyKey}`).phase).toBe('uncertain');
 
@@ -360,8 +340,9 @@ describe('DriftingWriteToolRuntime', () => {
       ok: true,
       data: {
         result: {
-          stateHash: 'after',
-          revision: 'yjs:1',
+          path: '/chapters/Chapter One/prose.md',
+          operation: 'updated',
+          updated: true,
         },
         writeRef: `agent-write:${input.idempotencyKey}`,
         authorization: { kind: 'automatic' },
@@ -412,10 +393,9 @@ describe('DriftingWriteToolRuntime', () => {
       applyInverse: async () => ({ ok: true }),
     };
     const runtime = createRuntime(repository, {}, undefined, () => strategy);
-    const input = await authorizedRequest('edit_block', {
-      entity: 'Chapter One',
-      block: 1,
-      text: 'Changed',
+    const input = await authorizedRequest('revise_chapter', {
+      chapter: 'Chapter One',
+      changes: [{ currentText: 'Before', revisedText: 'Changed' }],
     });
     const effectId = `agent-write:${input.idempotencyKey}`;
     const reviewId = `agent-review:${effectId}`;
@@ -508,10 +488,9 @@ describe('DriftingWriteToolRuntime', () => {
       applyInverse: async () => ({ ok: true }),
     };
     const runtime = createRuntime(repository, {}, undefined, () => strategy);
-    const input = await authorizedRequest('edit_block', {
-      entity: 'Chapter One',
-      block: 1,
-      text: 'Changed',
+    const input = await authorizedRequest('revise_chapter', {
+      chapter: 'Chapter One',
+      changes: [{ currentText: 'Before', revisedText: 'Changed' }],
     });
     const reviewId = `agent-review:agent-write:${input.idempotencyKey}`;
     await runtime.execute(input);
@@ -530,11 +509,11 @@ describe('DriftingWriteToolRuntime', () => {
   it('fails closed on an unavailable write before claiming an effect', async () => {
     const repository = memoryRepository();
     const runtime = createRuntime(repository, {});
-    const unavailable = request('delete_element', { element: 'Someone' });
+    const unavailable = request('set_entity_body', { entity: 'Someone', body: 'Text' });
 
     await expect(runtime.execute(unavailable)).resolves.toEqual({
       ok: false,
-      error: 'Tool "delete_element" is not write-certified',
+      error: 'Tool "set_entity_body" is not write-certified',
     });
     expect(repository.allEffects()).toEqual([]);
   });
@@ -596,8 +575,8 @@ describe('DriftingWriteToolRuntime', () => {
         },
       }),
     );
-    const input = await authorizedRequest('write_object', {
-      target: '灵感「潮痕」',
+    const input = await authorizedRequest('create_inspiration', {
+      title: '潮痕',
       body: '潮水退去。',
     });
 
@@ -633,6 +612,85 @@ describe('DriftingWriteToolRuntime', () => {
     expect(applyForward).toHaveBeenCalledOnce();
   });
 
+  it('keeps a committed create successful when the rebuildable Added projection is full', async () => {
+    const repository = memoryRepository();
+    const applyForward = vi.fn(async () => {
+      useDataStore.setState((state) => ({
+        bookNodes: [
+          ...state.bookNodes,
+          {
+            id: 'node-quota-safe',
+            projectId: 'project-1',
+            kind: 'chapter' as const,
+            title: 'Quota Safe',
+            summary: '',
+            narrativeOrder: null,
+            driftGroupId: null,
+            position: { x: 0, y: 0 },
+            wordCount: 4,
+            bookOrder: 2,
+            writingStatus: 'draft' as const,
+            createdAt: iso(1),
+            updatedAt: iso(1),
+          },
+        ],
+      }));
+      return { entityId: 'node-quota-safe', nodeId: 'node-quota-safe' };
+    });
+    const strategy: DriftingWriteStrategy = {
+      prepare: async () => ({
+        observedRevision: null,
+        preimage: { kind: 'missing' },
+        forward: { kind: 'created' },
+        inverse: { kind: 'delete' },
+        reversibility: 'exact',
+      }),
+      applyForward,
+      captureEffect: async (_request, _context, result) => result,
+      applyInverse: async () => ({ ok: true }),
+    };
+    const runtime = createRuntime(
+      repository,
+      {},
+      undefined,
+      () => strategy,
+      async (writeRequest) => ({
+        ...writeRequest,
+        arguments: {
+          path: '/chapters/Quota Safe/prose.md',
+          __workspaceCommand: {
+            name: 'create_node',
+            arguments: {
+              kind: 'chapter',
+              title: 'Quota Safe',
+              content: 'Already committed.',
+            },
+          },
+        },
+      }),
+    );
+    const input = await authorizedRequest('create_chapter', {
+      title: 'Quota Safe',
+      body: 'Already committed.',
+    });
+    const addition = vi
+      .spyOn(useAgentEditStore.getState(), 'recordAddition')
+      .mockImplementation(() => {
+        throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      });
+
+    try {
+      await expect(runtime.execute(input)).resolves.toMatchObject({ ok: true });
+      expect(repository.effect(`agent-write:${input.idempotencyKey}`).phase).toBe(
+        'result_committed',
+      );
+      await expect(runtime.execute(input)).resolves.toMatchObject({ ok: true });
+      expect(applyForward).toHaveBeenCalledOnce();
+    } finally {
+      addition.mockRestore();
+    }
+  });
+
   it('settles a workspace no-op as success without claiming a durable effect', async () => {
     const repository = memoryRepository();
     const runtime = createRuntime(
@@ -647,9 +705,9 @@ describe('DriftingWriteToolRuntime', () => {
 
     await expect(
       runtime.execute(
-        request('edit_file', {
-          path: 'Chapter One',
-          replacements: [{ oldText: 'Same', newText: 'Same' }],
+        request('revise_chapter', {
+          chapter: 'Chapter One',
+          changes: [{ currentText: 'Same', revisedText: 'Same' }],
         }),
       ),
     ).resolves.toMatchObject({
@@ -688,6 +746,42 @@ function createRuntime(
     listDefinitions: () => [],
     execute: async () => ({ ok: false, error: 'not a read test' }),
   };
+  const prepare =
+    prepareRequest ??
+    (async (writeRequest: AgentToolExecutionRequest) => {
+      if (writeRequest.name === 'rename_chapter') {
+        return {
+          ...writeRequest,
+          arguments: {
+            path: `/chapters/${String(writeRequest.arguments.chapter)}/title.txt`,
+            __workspaceCommand: {
+              name: 'rename_node',
+              arguments: {
+                node: writeRequest.arguments.chapter,
+                title: writeRequest.arguments.title,
+              },
+            },
+          },
+        };
+      }
+      if (writeRequest.name === 'revise_chapter') {
+        return {
+          ...writeRequest,
+          arguments: {
+            path: `/chapters/${String(writeRequest.arguments.chapter)}/prose.md`,
+            __workspaceCommand: {
+              name: 'edit_prose_file',
+              arguments: {
+                entity: 'node-1',
+                kind: 'chapter',
+                replacements: [],
+              },
+            },
+          },
+        };
+      }
+      return writeRequest;
+    });
   return new DriftingWriteToolRuntime({
     repository: repository.api,
     freshness: null,
@@ -696,7 +790,7 @@ function createRuntime(
     now: incrementingClock(),
     ...(dispatch ? { dispatch } : {}),
     ...(resolveStrategy ? { resolveStrategy } : {}),
-    ...(prepareRequest ? { prepareRequest } : {}),
+    prepareRequest: prepare,
   });
 }
 

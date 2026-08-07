@@ -1464,18 +1464,26 @@ function authoredToolTargetFingerprint(row: AgentContextSourceRow): string | nul
     'within',
     'path',
     'node',
+    'chapter',
+    'inspiration',
     'entity',
     'element',
     'storyline',
     'category',
     'comment',
     'relation',
+    'relationId',
+    'commentId',
+    'ruleId',
+    'patchId',
     'memory',
     'id',
     'name',
     'title',
     'from',
     'to',
+    'fromName',
+    'toName',
   ] as const;
   const target = Object.fromEntries(
     targetKeys.flatMap((key) => {
@@ -1662,11 +1670,21 @@ function completeReadTargetFingerprint(pair: ToolPair): string | null {
 }
 
 function isAuthoredObjectReadTool(name: string | undefined): boolean {
-  return name === 'read_object' || name === 'read_file';
+  return (
+    name === 'read_chapter' ||
+    name === 'read_inspiration' ||
+    name === 'read_element' ||
+    name === 'read_storyline' ||
+    name === 'read_element_category'
+  );
 }
 
 function isAuthoredObjectSearchTool(name: string | undefined): boolean {
-  return name === 'search_work' || name === 'grep';
+  return (
+    name === 'search_prose' ||
+    name === 'search_project' ||
+    name === 'find_element_appearances'
+  );
 }
 
 async function applySummaryBatch(input: {

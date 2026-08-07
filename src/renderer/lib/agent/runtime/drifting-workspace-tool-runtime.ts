@@ -34,29 +34,26 @@ import {
 import { stripRedundantLeadingAuthoredTitle } from './normalize-new-authored-prose';
 import { describeWorkspaceDomainTarget } from './workspace-domain-language';
 import {
-  canonicalDriftingWorkspaceProviderToolName,
-  DRIFTING_WORKSPACE_DELETE_TOOL,
-  DRIFTING_WORKSPACE_EDIT_TOOL,
-  DRIFTING_WORKSPACE_READ_TOOLS,
-  DRIFTING_WORKSPACE_WRITE_TOOL,
+  DRIFTING_DOMAIN_READ_TOOLS,
+  isDriftingDomainDirectWriteToolName,
+  isDriftingDomainReadToolName,
+  isDriftingDomainWriteToolName,
   WORKSPACE_NOOP_WRITE_MODEL_MARKER,
   isDriftingWorkspaceCommandName,
   type DriftingWorkspaceCommandName,
-  type DriftingWorkspaceReadToolName,
+  type DriftingDomainReadToolName,
 } from './drifting-workspace-tool-contract';
 
 export {
-  canonicalDriftingWorkspaceProviderToolName,
-  DRIFTING_WORKSPACE_DELETE_TOOL,
-  DRIFTING_WORKSPACE_EDIT_TOOL,
-  DRIFTING_WORKSPACE_READ_TOOLS,
-  DRIFTING_WORKSPACE_WRITE_TOOL,
+  DRIFTING_DOMAIN_PROVIDER_TOOLS,
+  DRIFTING_DOMAIN_READ_TOOLS,
+  DRIFTING_DOMAIN_WRITE_TOOLS,
   WORKSPACE_COMPLETE_READ_MODEL_MARKER,
   WORKSPACE_NOOP_WRITE_MODEL_MARKER,
 } from './drifting-workspace-tool-contract';
 
 /**
- * Preparing a workspace facade can prove that the requested authored state is
+ * Preparing a domain write can prove that the requested authored state is
  * already current. That is a successful, side-effect-free write outcome, not
  * a failed mutation for the model to debug. The outer write coordinator owns
  * this signal so no durable effect is claimed for work that never mutates.
@@ -80,13 +77,6 @@ export function isWorkspaceNoopWriteSignal(
   error: unknown,
 ): error is WorkspaceNoopWriteSignal {
   return error instanceof WorkspaceNoopWriteSignal;
-}
-
-function canonicalWorkspaceFacadeRequest(
-  request: AgentToolExecutionRequest,
-): AgentToolExecutionRequest {
-  const name = canonicalDriftingWorkspaceProviderToolName(request.name);
-  return name && name !== request.name ? { ...request, name } : request;
 }
 
 type WorkspaceTarget =
@@ -170,9 +160,24 @@ interface CompactProseBlock {
   rawText: string;
 }
 
+interface PreparedCommentTextAnchor {
+  targetBlockId: string;
+  anchorJson: string;
+}
+
 interface WorkspaceCommand {
   name: DriftingWorkspaceCommandName;
   arguments: Record<string, unknown>;
+}
+
+interface PreparedDomainWrite {
+  path: string;
+  expectedRevision: Record<string, string>;
+  command: WorkspaceCommand;
+  changeSummary?: string;
+  remainingWork?: string;
+  authoredReadState?: WorkspaceAuthoredReadState;
+  skippedStale?: number;
 }
 
 interface WorkspaceReadCoverage {
@@ -200,6 +205,7 @@ const MAX_TRACKED_READ_COVERAGE = 512;
 const MAX_CACHED_COMPLETE_READS = 32;
 const WORKSPACE_COMMAND_ARGUMENT = '__workspaceCommand';
 const WORKSPACE_AUTHORED_READ_STATE_ARGUMENT = '__workspaceAuthoredReadState';
+const DOMAIN_RUNTIME_CONTROL_TOOLS = new Set(['ask_user', 'read_tool_result']);
 
 export function workspaceAuthoredReadStateFromArguments(
   value: unknown,
@@ -249,7 +255,7 @@ export interface DriftingWorkspaceToolRuntimeOptions {
 }
 
 /**
- * Provider-facing authored-object facade over Drifting's structured model.
+ * Provider-facing domain tools over Drifting's structured authoring model.
  * Reads still flow through certified Drifting reads (and therefore live Yjs);
  * writes become hidden domain commands with runtime-owned freshness evidence.
  */
@@ -269,274 +275,798 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
 
   listDefinitions(context: AgentRuntimeContext): readonly AgentToolDefinition[] {
     this.requireProject(context);
-    return DRIFTING_WORKSPACE_READ_TOOLS.map((name) => workspaceDefinition(name));
+    const controls = this.readRuntime
+      .listDefinitions(context)
+      .filter((definition) => DOMAIN_RUNTIME_CONTROL_TOOLS.has(definition.name));
+    return [...DRIFTING_DOMAIN_READ_TOOLS.map((name) => domainDefinition(name)), ...controls];
   }
 
   async execute(request: AgentToolExecutionRequest): Promise<AgentToolExecutionResult> {
     throwIfAgentAborted(request.signal);
-    const effectiveRequest = canonicalWorkspaceFacadeRequest(request);
     if (request.access !== 'read') {
       return {
         ok: false,
-        error: `Workspace read runtime denied write tool "${request.name}"`,
+        error: `Domain read runtime denied write tool "${request.name}"`,
       };
     }
-    if (
-      !DRIFTING_WORKSPACE_READ_TOOLS.includes(
-        effectiveRequest.name as DriftingWorkspaceReadToolName,
-      )
-    ) {
-      return { ok: false, error: `Unknown workspace read tool "${request.name}"` };
+    if (DOMAIN_RUNTIME_CONTROL_TOOLS.has(request.name)) {
+      return this.readRuntime.execute(request);
+    }
+    if (!isDriftingDomainReadToolName(request.name)) {
+      return { ok: false, error: `Unknown domain read tool "${request.name}"` };
     }
 
     try {
-      const projectId = this.requireProject(effectiveRequest.context);
-      if (effectiveRequest.name === 'browse_project') {
-        const data = await this.listFiles(
-          projectId,
-          effectiveRequest.arguments.collection ?? effectiveRequest.arguments.path,
-          effectiveRequest,
-        );
-        return { ok: true, data, modelData: workspaceReadModelData(data) };
+      const projectId = this.requireProject(request.context);
+      const args = request.arguments;
+      let data: unknown;
+      switch (request.name) {
+        case 'get_project_overview':
+          data = (await this.canonicalRead(request, 'get_overview', {}, 'project-overview')).value;
+          break;
+        case 'get_project_facts':
+          data = await this.readFile(projectId, domainReadFileRequest(request, '/project/facts.json'));
+          break;
+        case 'list_chapters':
+          data = await this.listFiles(projectId, '/chapters', request);
+          break;
+        case 'read_chapter':
+          data = await this.readFile(
+            projectId,
+            domainReadFileRequest(
+              request,
+              `/chapters/${pathSegment(requiredDomainName(args.chapter, 'chapter'))}/prose.md`,
+            ),
+          );
+          break;
+        case 'list_inspirations':
+          data = await this.listFiles(projectId, '/drifts', request);
+          break;
+        case 'read_inspiration':
+          data = await this.readFile(
+            projectId,
+            domainReadFileRequest(
+              request,
+              `/drifts/${pathSegment(requiredDomainName(args.inspiration, 'inspiration'))}/prose.md`,
+            ),
+          );
+          break;
+        case 'list_element_categories':
+          data = await this.listFiles(projectId, '/categories', request);
+          break;
+        case 'read_element_category':
+          data = await this.readFile(
+            projectId,
+            domainReadFileRequest(
+              request,
+              `/categories/${pathSegment(requiredDomainName(args.category, 'category'))}/body.md`,
+            ),
+          );
+          break;
+        case 'find_element_appearances':
+          data = (
+            await this.canonicalRead(
+              request,
+              'where_does_entity_appear',
+              { kind: 'element', name: requiredDomainName(args.element, 'element') },
+              'element-appearances',
+            )
+          ).value;
+          break;
+        case 'list_storylines':
+          data = await this.listFiles(projectId, '/storylines', request);
+          break;
+        case 'read_storyline':
+          data = await this.readFile(
+            projectId,
+            domainReadFileRequest(
+              request,
+              `/storylines/${pathSegment(requiredDomainName(args.storyline, 'storyline'))}/body.md`,
+            ),
+          );
+          break;
+        case 'list_relations':
+          data = await this.listFiles(projectId, '/relations', request);
+          break;
+        case 'list_entity_relations':
+          data = (
+            await this.canonicalRead(
+              request,
+              'get_entity_relations',
+              {
+                kind: relationKindForDomainType(args.entityType),
+                name: requiredDomainName(args.entity, 'entity'),
+              },
+              'entity-relations',
+            )
+          ).value;
+          break;
+        case 'list_comments': {
+          const targetType = optionalDomainText(args.targetType);
+          const targetName = optionalDomainText(args.targetName);
+          if (Boolean(targetType) !== Boolean(targetName)) {
+            throw new Error('targetType and targetName must be provided together');
+          }
+          data = (
+            await this.canonicalRead(
+              request,
+              'list_comments',
+              {
+                ...(targetType && targetName
+                  ? {
+                      kind: relationKindForDomainType(targetType),
+                      entity: requiredDomainName(targetName, 'targetName'),
+                    }
+                  : {}),
+                ...(args.status !== undefined ? { status: args.status } : {}),
+                ...(args.onlyTodos !== undefined ? { onlyTodos: args.onlyTodos } : {}),
+              },
+              'comments',
+            )
+          ).value;
+          break;
+        }
+        case 'list_author_rules':
+          data = await this.listFiles(projectId, '/memory', request);
+          break;
+        default:
+          return this.readRuntime.execute(request);
       }
-      if (effectiveRequest.name === 'read_object') {
-        const data = await this.readFile(projectId, {
-          ...effectiveRequest,
-          arguments: {
-            path: effectiveRequest.arguments.target ?? effectiveRequest.arguments.path,
-            ...(effectiveRequest.arguments.cursor !== undefined ||
-            effectiveRequest.arguments.offset !== undefined
-              ? {
-                  offset:
-                    effectiveRequest.arguments.cursor ?? effectiveRequest.arguments.offset,
-                }
-              : {}),
-            ...(effectiveRequest.arguments.maxCharacters !== undefined ||
-            effectiveRequest.arguments.limit !== undefined
-              ? {
-                  limit:
-                    effectiveRequest.arguments.maxCharacters ?? effectiveRequest.arguments.limit,
-                }
-              : {}),
-          },
-        });
-        return { ok: true, data, modelData: workspaceReadModelData(data) };
-      }
-      const data = await this.grep(projectId, {
-        ...effectiveRequest,
-        arguments: {
-          query: effectiveRequest.arguments.query,
-          ...(effectiveRequest.arguments.within !== undefined ||
-          effectiveRequest.arguments.path !== undefined
-            ? {
-                path:
-                  effectiveRequest.arguments.within ?? effectiveRequest.arguments.path,
-              }
-            : {}),
-          ...(effectiveRequest.arguments.limit !== undefined
-            ? { limit: effectiveRequest.arguments.limit }
-            : {}),
-        },
-      });
       return { ok: true, data, modelData: workspaceReadModelData(data) };
     } catch (error) {
       if (isAgentAbort(error, request.signal)) throw error;
       return {
         ok: false,
-        error: publicWorkspaceReadError(error),
+        error: publicDomainReadError(error),
       };
     }
   }
 
-  /** Convert a public workspace mutation into one certified hidden command. */
+  /** Convert a simple public domain mutation into one certified hidden command. */
   async prepareWriteRequest(
     request: AgentToolExecutionRequest,
   ): Promise<AgentToolExecutionRequest> {
-    request = canonicalWorkspaceFacadeRequest(request);
-    if (
-      request.name !== DRIFTING_WORKSPACE_EDIT_TOOL &&
-      request.name !== DRIFTING_WORKSPACE_WRITE_TOOL &&
-      request.name !== DRIFTING_WORKSPACE_DELETE_TOOL
-    ) {
-      return request;
-    }
+    if (!isDriftingDomainWriteToolName(request.name)) return request;
     throwIfAgentAborted(request.signal);
     const projectId = this.requireProject(request.context);
-    if (request.name === DRIFTING_WORKSPACE_WRITE_TOOL) {
-      let path = normalizeWorkspaceWritePath(
-        request.arguments.target ?? request.arguments.path,
-        projectId,
-      );
-      const summaryArgument =
-        typeof request.arguments.summary === 'string'
-          ? normalizeAuthoredTextTransportArtifacts(request.arguments.summary).trim()
-          : undefined;
-      // `write_object({ target: "奥伦", summary: "..." })` already states a
-      // complete author-domain intention. Resolve it to that existing
-      // object's summary field instead of making the provider learn a second
-      // target spelling or accidentally treating the omitted body as a body
-      // replacement. New-object creation still requires an authored body.
-      if (
-        summaryArgument !== undefined &&
-        request.arguments.body === undefined &&
-        request.arguments.content === undefined &&
-        !path.endsWith('/summary.md')
-      ) {
-        const resolvedObjectPath = resolveWorkspacePath(projectId, path);
-        const objectEntry =
-          findWorkspaceEntry(projectId, resolvedObjectPath) ??
-          primaryWorkspaceEntry(projectId, resolvedObjectPath, false);
-        if (objectEntry && authoredObjectSummary(objectEntry, projectId) !== null) {
-          path = objectEntry.path.replace(/\/(?:body|prose)\.md$/u, '/summary.md');
-        }
-      }
-      const writesNamedSummary = path.endsWith('/summary.md');
-      const rawContent = workspaceDomainWriteBody(
-        path,
-        request.arguments.target,
-        writesNamedSummary && summaryArgument !== undefined
-          ? summaryArgument
-          : request.arguments.body ?? request.arguments.content,
-        request.arguments.attributes,
-      );
-      const content = isAuthoredWorkspaceTextPath(path)
-        ? normalizeAuthoredTextTransportArtifacts(rawContent)
-        : rawContent;
-      // `summary` is a companion field when the target is an object's body,
-      // but it is the value itself when the author explicitly names 摘要.
-      // Accepting that natural shape prevents an omitted legacy `body` from
-      // being interpreted as an intentional summary clear. If both are
-      // present for a named summary, the domain-specific value wins and any
-      // model-generated body placeholder is ignored.
-      const summary = writesNamedSummary ? undefined : summaryArgument;
-      const resolvedPath = resolveWorkspacePath(projectId, path);
-      const existing =
-        findWorkspaceEntry(projectId, resolvedPath) ??
-        (await this.resolveDynamicMemoryEntry(projectId, resolvedPath, request));
-      const existingProseTarget = existing
-        ? workspaceProseTarget(existing.target)
-        : null;
-      const deferStructuredSummary = Boolean(
-        existing &&
-        summary !== undefined &&
-        existingProseTarget?.entityType !== 'node'
-      );
-      const effectiveSummary = deferStructuredSummary ? undefined : summary;
-      const publicPath = existing?.path ?? path;
-      const prepared = await (async () => {
-        try {
-          if (path === '/project/facts.json' && request.arguments.attributes !== undefined) {
-            return this.prepareProjectFactAttributes(
-              workspaceDomainAttributes(request.arguments.attributes, false),
-              request,
-            );
-          }
-          return existing
-            ? await this.prepareWholeFileCommand(existing, content, request, effectiveSummary)
-            : await this.prepareCreateCommand(path, content, request, effectiveSummary);
-        } catch (error) {
-          if (existing && isWorkspaceNoopPreparationError(error)) {
-            throw new WorkspaceNoopWriteSignal(publicPath);
-          }
-          throw error;
-        }
-      })();
-      const changeSummary =
-        ('changeSummary' in prepared ? prepared.changeSummary : undefined) ??
-        (isAuthoredProseBodyPath(publicPath)
-          ? undefined
-          : normalizeChangeSummary(request.arguments.changeSummary) ??
-            defaultAuthoredChangeSummary(publicPath));
-      const deferredSummaryWork =
-        deferStructuredSummary && summary !== undefined && existing
-          ? `${describeWorkspaceDomainTarget(existing.path.replace(/\/body\.md$/u, '/summary.md'))}仍需单独更新为：${sliceCodePoints(summary, 0, 1_200)}`
-          : undefined;
-      const remainingWork = [
-        'remainingWork' in prepared ? prepared.remainingWork : undefined,
-        deferredSummaryWork,
-      ]
-        .filter((value): value is string => Boolean(value))
-        .join('；');
-      if (existing) this.invalidateReadCoverage(request, existing.path);
-      return {
-        ...request,
-        arguments: {
-          path: publicPath,
-          content,
-          ...(effectiveSummary !== undefined ? { summary: effectiveSummary } : {}),
-          ...(changeSummary ? { changeSummary } : {}),
-          ...(remainingWork ? { remainingWork } : {}),
-          expectedRevision: prepared.expectedRevision,
-          ...('authoredReadState' in prepared && prepared.authoredReadState
-            ? { [WORKSPACE_AUTHORED_READ_STATE_ARGUMENT]: prepared.authoredReadState }
-            : {}),
-          [WORKSPACE_COMMAND_ARGUMENT]: prepared.command,
-        },
-      };
-    }
-    if (request.name === DRIFTING_WORKSPACE_DELETE_TOOL) {
-      const path =
-        request.arguments.target !== undefined
-          ? resolveWorkspaceCompleteObjectPath(projectId, request.arguments.target)
-          : resolveWorkspacePath(projectId, request.arguments.path);
-      const prepared = await this.prepareDeleteCommand(path, request);
-      return {
-        ...request,
-        arguments: {
+    return isDriftingDomainDirectWriteToolName(request.name)
+      ? this.prepareDirectDomainWrite(request, projectId)
+      : this.prepareWrappedDomainWrite(request, projectId);
+  }
+
+  private async prepareDirectDomainWrite(
+    request: AgentToolExecutionRequest,
+    projectId: string,
+  ): Promise<AgentToolExecutionRequest> {
+    const args = request.arguments;
+    let path: string;
+    let expectedRevision: Record<string, string>;
+    let commandArguments: Record<string, unknown> = { ...args };
+
+    switch (request.name) {
+      case 'create_element': {
+        const category = requiredDomainName(args.category, 'category');
+        const name = requiredDomainName(args.name, 'element');
+        path = `/elements/${pathSegment(category)}/${pathSegment(name)}/body.md`;
+        const prepared = await this.prepareCreateCommand(
           path,
-          expectedRevision: prepared.expectedRevision,
-          [WORKSPACE_COMMAND_ARGUMENT]: prepared.command,
-        },
-      };
+          normalizeDomainBody(args.body),
+          request,
+          optionalDomainText(args.summary),
+        );
+        expectedRevision = prepared.expectedRevision;
+        commandArguments = {
+          ...prepared.command.arguments,
+          ...(Array.isArray(args.aliases) ? { aliases: args.aliases } : {}),
+          ...(args.groupName !== undefined ? { groupName: args.groupName } : {}),
+          ...(Array.isArray(args.facts) ? { facts: args.facts } : {}),
+        };
+        break;
+      }
+      case 'update_element': {
+        const entry = requireDomainBodyEntry(
+          projectId,
+          'element',
+          requiredDomainName(args.element, 'element'),
+        );
+        if (entry.target.kind !== 'element_body') throw new Error('The element target is invalid');
+        const read = await this.canonicalRead(
+          request,
+          'read_element',
+          { element: entry.target.elementId },
+          'update-element',
+        );
+        path = entry.path;
+        expectedRevision = expectedRevisionFrom(read, 'element', entry.target.elementId);
+        commandArguments = {
+          ...args,
+          element: entry.target.elementId,
+          expectedRevision,
+        };
+        break;
+      }
+      case 'delete_element': {
+        path = resolveWorkspaceCompleteObjectPath(
+          projectId,
+          `要素「${requiredDomainName(args.element, 'element')}」`,
+        );
+        const prepared = await this.prepareDeleteCommand(path, request);
+        expectedRevision = prepared.expectedRevision;
+        commandArguments = prepared.command.arguments;
+        break;
+      }
+      case 'create_storyline': {
+        const name = requiredDomainName(args.name, 'storyline');
+        path = `/storylines/${pathSegment(name)}/body.md`;
+        const prepared = await this.prepareCreateCommand(
+          path,
+          normalizeDomainBody(args.body),
+          request,
+          optionalDomainText(args.summary),
+        );
+        expectedRevision = prepared.expectedRevision;
+        commandArguments = prepared.command.arguments;
+        break;
+      }
+      case 'update_storyline': {
+        const entry = requireDomainBodyEntry(
+          projectId,
+          'storyline',
+          requiredDomainName(args.storyline, 'storyline'),
+        );
+        if (entry.target.kind !== 'storyline_body') {
+          throw new Error('The storyline target is invalid');
+        }
+        const read = await this.canonicalRead(
+          request,
+          'get_storyline',
+          { storyline: entry.target.storylineId },
+          'update-storyline',
+        );
+        path = entry.path;
+        expectedRevision = expectedRevisionFrom(read, 'storyline', entry.target.storylineId);
+        commandArguments = {
+          ...args,
+          storyline: entry.target.storylineId,
+          expectedRevision,
+        };
+        break;
+      }
+      case 'create_comment': {
+        const read = await this.canonicalRead(request, 'get_project_brief', {}, 'create-comment');
+        expectedRevision = expectedRevisionFrom(read, 'project', projectId);
+        path = `/comments/new-${pathSegment(request.idempotencyKey)}.json`;
+        const hasTargetType = args.targetType !== undefined;
+        const hasTargetName = args.targetName !== undefined;
+        if (hasTargetType !== hasTargetName) {
+          throw new Error('targetType and targetName must be provided together');
+        }
+        const targetText = optionalDomainText(args.targetText);
+        if (targetText && !hasTargetType) {
+          throw new Error('targetText requires targetType and targetName');
+        }
+        const preparedAnchor = targetText
+          ? await this.prepareCommentTextAnchor(
+              projectId,
+              requiredDomainName(args.targetType, 'targetType'),
+              requiredDomainName(args.targetName, 'targetName'),
+              targetText,
+              request,
+            )
+          : null;
+        // Internal compatibility for already-prepared callers. The public
+        // create_comment schema exposes targetText, not this storage handle.
+        const legacyTargetBlockId = optionalDomainText(args.targetBlockId);
+        commandArguments = {
+          body: args.body,
+          ...(args.kind !== undefined ? { kind: args.kind } : {}),
+          ...(hasTargetType
+            ? {
+                targetKind: relationKindForDomainType(args.targetType),
+                target: requiredDomainName(args.targetName, 'targetName'),
+              }
+            : {}),
+          ...(preparedAnchor ??
+            (legacyTargetBlockId ? { targetBlockId: legacyTargetBlockId } : {})),
+          expectedRevision,
+        };
+        break;
+      }
+      case 'delete_comment': {
+        const commentId = requiredDomainName(args.commentId, 'commentId');
+        const read = await this.canonicalRead(request, 'list_comments', {}, 'delete-comment');
+        expectedRevision = expectedRevisionFrom(read, 'comment', commentId);
+        path = `/comments/${pathSegment(commentId)}.json`;
+        commandArguments = { commentId, expectedRevision };
+        break;
+      }
+      case 'update_project_facts': {
+        const fields = factsRecord(args.facts);
+        const prepared = await this.prepareProjectFactAttributes(fields, request);
+        path = '/project/facts.json';
+        expectedRevision = prepared.expectedRevision;
+        commandArguments = prepared.command.arguments;
+        break;
+      }
+      case 'create_element_patch':
+      case 'update_element_patch':
+      case 'delete_element_patch': {
+        const elementName = requiredDomainName(args.element, 'element');
+        const elementEntry = requireDomainBodyEntry(projectId, 'element', elementName);
+        if (elementEntry.target.kind !== 'element_body') {
+          throw new Error('The element target is invalid');
+        }
+        const read = await this.canonicalRead(
+          request,
+          'get_element_patches',
+          { element: elementEntry.target.elementId },
+          `${request.name}-freshness`,
+        );
+        const entityKind =
+          request.name === 'create_element_patch' ? 'element_patch_set' : 'element_patch';
+        const entityId =
+          request.name === 'create_element_patch'
+            ? elementEntry.target.elementId
+            : requiredDomainName(args.patchId, 'patchId');
+        expectedRevision = expectedRevisionFrom(read, entityKind, entityId);
+        path =
+          request.name === 'create_element_patch'
+            ? `${elementEntry.path}#patches`
+            : `${elementEntry.path}#patch:${entityId}`;
+        commandArguments = {
+          ...args,
+          element: elementEntry.target.elementId,
+          expectedRevision,
+        };
+        break;
+      }
+      default:
+        throw new Error(`Unsupported direct domain write "${request.name}"`);
     }
-    const requestedEntry = requireWorkspaceFileEntry(
-      projectId,
-      request.arguments.target ?? request.arguments.path,
-      true,
-    );
-    if (!requestedEntry.writable) {
-      throw new Error(
-        `${describeWorkspaceDomainTarget(requestedEntry.path)} cannot be overwritten directly. Create a new author-owned version when the existing object is approved or read-only.`,
-      );
+
+    return {
+      ...request,
+      arguments: { ...commandArguments, path, expectedRevision },
+    };
+  }
+
+  private async prepareWrappedDomainWrite(
+    request: AgentToolExecutionRequest,
+    projectId: string,
+  ): Promise<AgentToolExecutionRequest> {
+    const args = request.arguments;
+    let prepared: PreparedDomainWrite;
+
+    switch (request.name) {
+      case 'create_chapter':
+      case 'create_inspiration': {
+        const title = requiredDomainName(args.title, 'title');
+        const path = `/${request.name === 'create_chapter' ? 'chapters' : 'drifts'}/${pathSegment(title)}/prose.md`;
+        const created = await this.prepareCreateCommand(
+          path,
+          normalizeDomainBody(args.body),
+          request,
+          optionalDomainText(args.summary),
+        );
+        prepared = { path, ...created };
+        break;
+      }
+      case 'rename_chapter':
+      case 'rename_inspiration': {
+        const isChapter = request.name === 'rename_chapter';
+        const name = requiredDomainName(
+          isChapter ? args.chapter : args.inspiration,
+          isChapter ? 'chapter' : 'inspiration',
+        );
+        const path = `/${isChapter ? 'chapters' : 'drifts'}/${pathSegment(name)}/title.txt`;
+        prepared = await this.prepareExistingWholeFile(
+          projectId,
+          path,
+          requiredDomainName(args.title, 'title'),
+          request,
+        );
+        break;
+      }
+      case 'set_chapter_summary':
+      case 'set_inspiration_summary': {
+        const isChapter = request.name === 'set_chapter_summary';
+        const name = requiredDomainName(
+          isChapter ? args.chapter : args.inspiration,
+          isChapter ? 'chapter' : 'inspiration',
+        );
+        const path = `/${isChapter ? 'chapters' : 'drifts'}/${pathSegment(name)}/summary.md`;
+        prepared = await this.prepareExistingWholeFile(
+          projectId,
+          path,
+          String(args.summary ?? ''),
+          request,
+        );
+        break;
+      }
+      case 'revise_chapter':
+      case 'revise_inspiration':
+      case 'revise_element':
+      case 'revise_storyline': {
+        const path = domainProsePath(projectId, request.name, args);
+        prepared = await this.prepareExistingRevision(projectId, path, args.changes, request);
+        break;
+      }
+      case 'replace_chapter_body':
+      case 'replace_inspiration_body':
+      case 'replace_element_body':
+      case 'replace_storyline_body':
+      case 'replace_element_category_body': {
+        const path = domainProsePath(projectId, request.name, args);
+        prepared = await this.prepareExistingWholeFile(
+          projectId,
+          path,
+          normalizeDomainBody(args.body),
+          request,
+          request.name === 'replace_chapter_body' ? optionalDomainText(args.summary) : undefined,
+        );
+        break;
+      }
+      case 'delete_chapter':
+      case 'delete_inspiration':
+      case 'delete_storyline':
+      case 'delete_element_category': {
+        const path = domainCompleteObjectPath(projectId, request.name, args);
+        const deleted = await this.prepareDeleteCommand(path, request);
+        prepared = { path, ...deleted };
+        break;
+      }
+      case 'create_element_category': {
+        const name = requiredDomainName(args.name, 'category');
+        const path = `/categories/${pathSegment(name)}/body.md`;
+        const created = await this.prepareCreateCommand(
+          path,
+          normalizeDomainBody(args.body),
+          request,
+        );
+        prepared = { path, ...created };
+        break;
+      }
+      case 'update_element_category': {
+        const category = requiredDomainName(args.category, 'category');
+        const path = `/categories/${pathSegment(category)}/meta.json`;
+        const content = prettyJson({
+          ...(args.name !== undefined ? { name: args.name } : {}),
+          ...(args.templateFacts !== undefined ? { templateFacts: args.templateFacts } : {}),
+        });
+        prepared = await this.prepareExistingWholeFile(projectId, path, content, request);
+        break;
+      }
+      case 'add_chapter_to_storyline':
+      case 'remove_chapter_from_storyline':
+      case 'set_chapter_primary_storyline':
+      case 'replace_storyline_chapters':
+        prepared = await this.prepareStorylineMembershipDomainWrite(request, projectId);
+        break;
+      case 'create_relation': {
+        const fromType = relationKindForDomainType(args.fromType);
+        const toType = relationKindForDomainType(args.toType);
+        assertDomainRelationEndpoint(projectId, args.fromType, args.fromName);
+        assertDomainRelationEndpoint(projectId, args.toType, args.toName);
+        const read = await this.canonicalRead(request, 'get_project_brief', {}, 'create-relation');
+        const expectedRevision = expectedRevisionFrom(read, 'project', projectId);
+        const path = `/relations/new-${pathSegment(request.idempotencyKey)}.json`;
+        prepared = {
+          path,
+          expectedRevision,
+          command: {
+            name: 'add_relation',
+            arguments: {
+              fromKind: fromType,
+              from: requiredDomainName(args.fromName, 'fromName'),
+              toKind: toType,
+              to: requiredDomainName(args.toName, 'toName'),
+              ...(args.relationType !== undefined ? { kind: args.relationType } : {}),
+              expectedRevision,
+            },
+          },
+        };
+        break;
+      }
+      case 'update_relation': {
+        const relationId = requiredDomainName(args.relationId, 'relationId');
+        const path = `/relations/${pathSegment(relationId)}.json`;
+        prepared = await this.prepareExistingWholeFile(
+          projectId,
+          path,
+          prettyJson({ kind: String(args.relationType ?? '') }),
+          request,
+        );
+        break;
+      }
+      case 'delete_relation': {
+        const relationId = requiredDomainName(args.relationId, 'relationId');
+        const path = `/relations/${pathSegment(relationId)}.json`;
+        const deleted = await this.prepareDeleteCommand(path, request);
+        prepared = { path, ...deleted };
+        break;
+      }
+      case 'update_comment': {
+        const commentId = requiredDomainName(args.commentId, 'commentId');
+        const read = await this.canonicalRead(request, 'list_comments', {}, 'update-comment');
+        const expectedRevision = expectedRevisionFrom(read, 'comment', commentId);
+        const path = `/comments/${pathSegment(commentId)}.json`;
+        prepared = {
+          path,
+          expectedRevision,
+          command: {
+            name: 'update_comment',
+            arguments: { ...args, commentId, expectedRevision },
+          },
+        };
+        break;
+      }
+      case 'create_author_rule': {
+        const read = await this.canonicalRead(request, 'list_memory', {}, 'create-author-rule');
+        const expectedRevision = expectedRevisionFrom(read, 'memory_set', projectId);
+        const path = `/memory/new-${pathSegment(request.idempotencyKey)}.json`;
+        prepared = {
+          path,
+          expectedRevision,
+          command: { name: 'remember', arguments: { ...args, expectedRevision } },
+        };
+        break;
+      }
+      case 'update_author_rule':
+      case 'delete_author_rule': {
+        const ruleId = requiredDomainName(args.ruleId, 'ruleId');
+        const read = await this.canonicalRead(request, 'list_memory', {}, `${request.name}-read`);
+        const expectedRevision = expectedRevisionFrom(read, 'memory', ruleId);
+        const currentRule = recordArray(read.value, 'memories').find(
+          (candidate) => String(candidate.memoryId ?? '') === ruleId,
+        );
+        if (!currentRule) throw new Error(`No author rule "${ruleId}" exists in this project`);
+        const path = `/memory/${pathSegment(ruleId)}.json`;
+        prepared = {
+          path,
+          expectedRevision,
+          command:
+            request.name === 'delete_author_rule'
+              ? { name: 'forget', arguments: { memoryId: ruleId, expectedRevision } }
+              : {
+                  name: 'update_memory',
+                  arguments: {
+                    memoryId: ruleId,
+                    kind: args.kind ?? currentRule.kind,
+                    body: args.body ?? currentRule.body,
+                    ...(currentRule.targetKind !== undefined
+                      ? { targetKind: currentRule.targetKind }
+                      : {}),
+                    ...(currentRule.target !== undefined ? { target: currentRule.target } : {}),
+                    ...(currentRule.targetBlockId !== undefined
+                      ? { targetBlockId: currentRule.targetBlockId }
+                      : {}),
+                    ...(currentRule.supersedesId !== undefined
+                      ? { supersedesId: currentRule.supersedesId }
+                      : {}),
+                    expectedRevision,
+                  },
+                },
+        };
+        break;
+      }
+      default:
+        throw new Error(`Unsupported wrapped domain write "${request.name}"`);
     }
-    const replacements =
-      request.arguments.changes !== undefined
-        ? parseWorkspaceDomainChanges(request.arguments.changes)
-        : parseWorkspaceTextReplacements(request.arguments.replacements);
-    const entry = this.resolveUniqueReadProseEditTarget(
-      requestedEntry,
-      replacements,
-      request,
-    );
-    const path = entry.path;
-    let prepared: Awaited<ReturnType<DriftingWorkspaceToolRuntime['prepareWorkspaceCommand']>>;
+
+    return this.wrapDomainCommand(request, prepared);
+  }
+
+  private async prepareExistingWholeFile(
+    projectId: string,
+    path: string,
+    content: string,
+    request: AgentToolExecutionRequest,
+    summary?: string,
+  ): Promise<PreparedDomainWrite> {
+    const entry = requireWorkspaceFileEntry(projectId, path, true);
     try {
-      prepared = await this.prepareWorkspaceCommand(entry, replacements, request);
+      const prepared = await this.prepareWholeFileCommand(entry, content, request, summary);
+      this.invalidateReadCoverage(request, entry.path);
+      return { path: entry.path, ...prepared };
     } catch (error) {
       if (isWorkspaceNoopPreparationError(error)) {
-        throw new WorkspaceNoopWriteSignal(path);
+        throw new WorkspaceNoopWriteSignal(entry.path);
       }
       throw error;
     }
-    const preparedReplacements =
-      prepared.command.name === 'edit_prose_file'
-        ? prepared.command.arguments.replacements
-        : replacements;
-    this.invalidateReadCoverage(request, path);
-    const changeSummary = isAuthoredProseBodyPath(path)
-      ? prepared.changeSummary
-      : normalizeChangeSummary(request.arguments.changeSummary) ??
-        prepared.changeSummary ??
-        defaultAuthoredChangeSummary(path);
+  }
+
+  private async prepareExistingRevision(
+    projectId: string,
+    path: string,
+    rawChanges: unknown,
+    request: AgentToolExecutionRequest,
+  ): Promise<PreparedDomainWrite> {
+    const requestedEntry = requireWorkspaceFileEntry(projectId, path, true);
+    const replacements = parseWorkspaceDomainChanges(rawChanges);
+    const entry = this.resolveUniqueReadProseEditTarget(requestedEntry, replacements, request);
+    try {
+      const prepared = await this.prepareWorkspaceCommand(entry, replacements, request);
+      this.invalidateReadCoverage(request, entry.path);
+      return { path: entry.path, ...prepared };
+    } catch (error) {
+      if (isWorkspaceNoopPreparationError(error)) {
+        throw new WorkspaceNoopWriteSignal(entry.path);
+      }
+      throw error;
+    }
+  }
+
+  private async prepareCommentTextAnchor(
+    projectId: string,
+    targetType: string,
+    targetName: string,
+    targetText: string,
+    request: AgentToolExecutionRequest,
+  ): Promise<PreparedCommentTextAnchor> {
+    const entry = domainCommentProseEntry(projectId, targetType, targetName);
+    const target = workspaceProseTarget(entry.target);
+    if (!target) {
+      throw new Error('The requested comment target has no prose body');
+    }
+    const kind = target.entityType === 'node' ? target.nodeKind : target.entityType;
+    const read = await this.canonicalRead(
+      request,
+      'read_node',
+      { node: target.id, kind, prose: true },
+      'comment-anchor-prose',
+    );
+    const occurrences = compactProseBlocks(read.value).flatMap((block) => {
+      const offsets: number[] = [];
+      let cursor = 0;
+      while (cursor <= block.rawText.length - targetText.length) {
+        const offset = block.rawText.indexOf(targetText, cursor);
+        if (offset < 0) break;
+        offsets.push(offset);
+        cursor = offset + Math.max(1, targetText.length);
+      }
+      return offsets.map((offset) => ({ block, offset }));
+    });
+    if (occurrences.length !== 1) {
+      throw new Error(
+        occurrences.length === 0
+          ? 'targetText was not found in the current live prose'
+          : `targetText matched ${occurrences.length} places; provide a longer unique excerpt`,
+      );
+    }
+    const occurrence = occurrences[0]!;
+    const lookup = await this.canonicalRead(
+      request,
+      'lookup_block',
+      { node: target.id, kind, ordinal: occurrence.block.block },
+      'comment-anchor-block-id',
+    );
+    const match = recordArray(lookup.value, 'matches').find(
+      (candidate) => Number(candidate.block) === occurrence.block.block,
+    );
+    const targetBlockId = optionalDomainText(match?.blockId);
+    if (!targetBlockId) {
+      throw new Error(
+        'The matched prose block has no stable blockId yet; open this entity once and retry',
+      );
+    }
+    // Re-read the resolved stable handle from live Yjs. If prose changed during
+    // preparation, fail closed instead of creating a comment on the wrong block.
+    const live = await this.canonicalRead(
+      request,
+      'read_block',
+      { node: target.id, kind, blockId: targetBlockId },
+      'comment-anchor-live-block',
+    );
+    const liveBlock = asRecord(live.value);
+    const blockText = typeof liveBlock.text === 'string' ? liveBlock.text : '';
+    const liveOffset = blockText.indexOf(targetText);
+    if (liveBlock.found !== true || liveOffset < 0 || blockText.indexOf(targetText, liveOffset + 1) >= 0) {
+      throw new Error('The target prose changed while the comment anchor was being prepared; retry');
+    }
+    return {
+      targetBlockId,
+      anchorJson: JSON.stringify({
+        selectedText: targetText,
+        blockText,
+        blockSelectionFrom: liveOffset,
+        blockSelectionTo: liveOffset + targetText.length,
+        blockSnapshots: [{ blockId: targetBlockId, blockText }],
+        textAnchor: {
+          startBlockId: targetBlockId,
+          startOffset: liveOffset,
+          endBlockId: targetBlockId,
+          endOffset: liveOffset + targetText.length,
+          text: targetText,
+        },
+      }),
+    };
+  }
+
+  private async prepareStorylineMembershipDomainWrite(
+    request: AgentToolExecutionRequest,
+    projectId: string,
+  ): Promise<PreparedDomainWrite> {
+    const storylineName = requiredDomainName(request.arguments.storyline, 'storyline');
+    const entry = requireDomainBodyEntry(projectId, 'storyline', storylineName);
+    if (entry.target.kind !== 'storyline_body') {
+      throw new Error('The storyline target is invalid');
+    }
+    const read = await this.canonicalRead(
+      request,
+      'get_storyline',
+      { storyline: entry.target.storylineId },
+      'storyline-membership',
+    );
+    const expectedRevision = expectedRevisionFrom(
+      read,
+      'storyline_membership',
+      entry.target.storylineId,
+    );
+    const current = recordArray(asRecord(read.value), 'chapters').map((row) => ({
+      chapter: requiredDomainName(row.title, 'chapter'),
+      isPrimary: row.isPrimary === true,
+    }));
+    const requestedChapter =
+      request.name === 'replace_storyline_chapters'
+        ? null
+        : requiredDomainName(request.arguments.chapter, 'chapter');
+    let chapters: Array<{ chapter: string; isPrimary: boolean }>;
+    if (request.name === 'replace_storyline_chapters') {
+      const primaryByName = new Map(current.map((row) => [row.chapter, row.isPrimary]));
+      chapters = stringList(request.arguments.chapters, 'chapters').map((chapter) => ({
+        chapter,
+        isPrimary: primaryByName.get(chapter) === true,
+      }));
+    } else if (request.name === 'add_chapter_to_storyline') {
+      chapters = current.some((row) => authoredNamesEqual(row.chapter, requestedChapter!))
+        ? current
+        : [...current, { chapter: requestedChapter!, isPrimary: false }];
+    } else if (request.name === 'remove_chapter_from_storyline') {
+      chapters = current.filter((row) => !authoredNamesEqual(row.chapter, requestedChapter!));
+    } else {
+      chapters = current.map((row) => ({
+        ...row,
+        isPrimary: authoredNamesEqual(row.chapter, requestedChapter!),
+      }));
+      if (!chapters.some((row) => authoredNamesEqual(row.chapter, requestedChapter!))) {
+        chapters.push({ chapter: requestedChapter!, isPrimary: true });
+      }
+    }
+    if (canonicalAgentRuntimeJson(chapters) === canonicalAgentRuntimeJson(current)) {
+      throw new WorkspaceNoopWriteSignal(
+        `/storylines/${pathSegment(storylineName)}/chapters.json`,
+      );
+    }
+    const path = `/storylines/${pathSegment(storylineName)}/chapters.json`;
+    return {
+      path,
+      expectedRevision,
+      command: {
+        name: 'set_storyline_membership',
+        arguments: {
+          storyline: entry.target.storylineId,
+          chapters,
+          expectedRevision,
+        },
+      },
+    };
+  }
+
+  private wrapDomainCommand(
+    request: AgentToolExecutionRequest,
+    prepared: PreparedDomainWrite,
+  ): AgentToolExecutionRequest {
     return {
       ...request,
       arguments: {
-        path,
-        replacements: preparedReplacements,
-        ...(changeSummary ? { changeSummary } : {}),
-        ...(prepared.remainingWork ? { remainingWork: prepared.remainingWork } : {}),
-        ...(prepared.skippedStale ? { skippedStaleReplacements: prepared.skippedStale } : {}),
+        path: prepared.path,
         expectedRevision: prepared.expectedRevision,
+        ...(prepared.changeSummary ? { changeSummary: prepared.changeSummary } : {}),
+        ...(prepared.remainingWork ? { remainingWork: prepared.remainingWork } : {}),
+        ...(prepared.skippedStale
+          ? { skippedStaleReplacements: prepared.skippedStale }
+          : {}),
         ...(prepared.authoredReadState
           ? { [WORKSPACE_AUTHORED_READ_STATE_ARGUMENT]: prepared.authoredReadState }
           : {}),
@@ -579,11 +1109,6 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         arguments: { facts: changed, expectedRevision },
       },
     };
-  }
-
-  /** @deprecated compatibility for older product composition/tests. */
-  async prepareEditRequest(request: AgentToolExecutionRequest): Promise<AgentToolExecutionRequest> {
-    return this.prepareWriteRequest(request);
   }
 
   private async listFiles(
@@ -888,7 +1413,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     try {
       const searched = await this.grep(projectId, {
         ...request,
-        name: 'search_work',
+        name: 'find_element_appearances',
         arguments: { query, path: '/', limit: 24 },
         access: 'read',
       });
@@ -910,12 +1435,12 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       }
     } catch {
       // The element itself remains readable when optional cross-work evidence
-      // is unavailable; the provider can still use search_work explicitly.
+      // is unavailable; the provider can still call the explicit search tools.
     }
     try {
       const searchedNotes = await this.grep(projectId, {
         ...request,
-        name: 'search_work',
+        name: 'find_element_appearances',
         arguments: { query, path: '/comments', limit: 6 },
         access: 'read',
       });
@@ -1971,9 +2496,6 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     if (!current) {
       return this.prepareEmptyScalarFileCommand(entry, content, request);
     }
-    if (current !== content && scalarWholeFileReadCoverageRequired(target)) {
-      await this.requireCompleteWholeFileRead(entry.path, current, request);
-    }
     return this.prepareWorkspaceCommand(
       entry,
       [{ oldText: current, newText: content, replaceAll: false }],
@@ -2058,7 +2580,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
     const target = describeWorkspaceDomainTarget(path);
     throw new Error(
       `INCOMPLETE_AUTHORED_OBJECT_READ: ${target} cannot be completely rewritten yet because its current body has not been fully read. ` +
-        'Continue read_object with the returned cursor until the complete body is available, or use revise_object for a focused passage change. The authored object was not changed.',
+        'Continue the matching domain read with its returned cursor until the complete body is available, or use the matching revise tool for a focused passage change. The text was not changed.',
     );
   }
 
@@ -2605,10 +3127,10 @@ export function workspaceCommandFromArguments(arguments_: unknown): WorkspaceCom
   };
 }
 
-function workspaceDefinition(name: DriftingWorkspaceReadToolName): AgentToolDefinition {
+function domainDefinition(name: DriftingDomainReadToolName): AgentToolDefinition {
   const tool = getRegisteredTool(name);
-  if (!tool || tool.scope !== 'runtime-virtual' || tool.access !== 'read') {
-    throw new Error(`Workspace tool contract "${name}" is unavailable`);
+  if (!tool || tool.access !== 'read') {
+    throw new Error(`Domain tool contract "${name}" is unavailable`);
   }
   return {
     name,
@@ -2626,6 +3148,209 @@ function workspaceDefinition(name: DriftingWorkspaceReadToolName): AgentToolDefi
       };
     },
   };
+}
+
+function domainReadFileRequest(
+  request: AgentToolExecutionRequest,
+  path: string,
+): AgentToolExecutionRequest {
+  return {
+    ...request,
+    arguments: {
+      path,
+      ...(request.arguments.cursor !== undefined
+        ? { offset: request.arguments.cursor }
+        : {}),
+      ...(request.arguments.maxCharacters !== undefined
+        ? { limit: request.arguments.maxCharacters }
+        : {}),
+    },
+  };
+}
+
+function requiredDomainName(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`${field} must be a non-empty name`);
+  }
+  return value.trim();
+}
+
+function optionalDomainText(value: unknown): string | undefined {
+  return typeof value === 'string'
+    ? normalizeAuthoredTextTransportArtifacts(value).trim()
+    : undefined;
+}
+
+function normalizeDomainBody(value: unknown): string {
+  return typeof value === 'string'
+    ? normalizeAuthoredTextTransportArtifacts(value)
+    : '';
+}
+
+function factsRecord(value: unknown): Record<string, string> {
+  if (!Array.isArray(value)) throw new Error('facts must be a non-empty key/value list');
+  const result: Record<string, string> = {};
+  for (const row of value) {
+    const record = asRecord(row);
+    const key = requiredDomainName(record.key, 'fact key');
+    result[key] = typeof record.value === 'string' ? record.value : String(record.value ?? '');
+  }
+  if (Object.keys(result).length === 0) throw new Error('facts must not be empty');
+  return result;
+}
+
+function stringList(value: unknown, field: string): string[] {
+  if (!Array.isArray(value)) throw new Error(`${field} must be an array of names`);
+  const result = value.map((item) => requiredDomainName(item, field));
+  if (new Set(result.map((item) => item.normalize('NFKC').toLocaleLowerCase())).size !== result.length) {
+    throw new Error(`${field} must not contain duplicate names`);
+  }
+  return result;
+}
+
+function relationKindForDomainType(value: unknown): 'node' | 'element' | 'storyline' | 'category' {
+  switch (value) {
+    case 'chapter':
+    case 'inspiration':
+      return 'node';
+    case 'element':
+      return 'element';
+    case 'storyline':
+      return 'storyline';
+    case 'element_category':
+      return 'category';
+    default:
+      throw new Error('entityType must be chapter, inspiration, element, storyline, or element_category');
+  }
+}
+
+function assertDomainRelationEndpoint(
+  projectId: string,
+  type: unknown,
+  nameValue: unknown,
+): void {
+  const name = requiredDomainName(nameValue, 'relation endpoint');
+  const path =
+    type === 'chapter'
+      ? `/chapters/${pathSegment(name)}/prose.md`
+      : type === 'inspiration'
+        ? `/drifts/${pathSegment(name)}/prose.md`
+        : type === 'storyline'
+          ? `/storylines/${pathSegment(name)}/body.md`
+          : type === 'element_category'
+            ? `/categories/${pathSegment(name)}/body.md`
+            : type === 'element'
+              ? requireDomainBodyEntry(projectId, 'element', name).path
+              : '';
+  if (!path || !findWorkspaceEntry(projectId, path)) {
+    throw new Error(`${String(type)} "${name}" does not exist in this project`);
+  }
+}
+
+function requireDomainBodyEntry(
+  projectId: string,
+  kind: 'element' | 'storyline',
+  name: string,
+): WorkspaceEntry {
+  if (kind === 'storyline') {
+    return requireWorkspaceFileEntry(
+      projectId,
+      `/storylines/${pathSegment(name)}/body.md`,
+      false,
+    );
+  }
+  const entries = buildWorkspaceEntries(projectId).filter(
+    (entry) => entry.target.kind === 'element_body',
+  );
+  const state = useDataStore.getState();
+  const matches = entries.filter((entry) => {
+    const target = entry.target;
+    if (target.kind !== 'element_body') return false;
+    const element = state.bookElements.find((item) => item.id === target.elementId);
+    return (element ? allElementNames(element) : [target.elementName]).some((candidate) =>
+      authoredNamesEqual(candidate, name),
+    );
+  });
+  if (matches.length !== 1) {
+    throw new Error(
+      matches.length === 0
+        ? `No element named "${name}" exists in this project`
+        : `Element name "${name}" is ambiguous`,
+    );
+  }
+  return matches[0]!;
+}
+
+function domainCommentProseEntry(
+  projectId: string,
+  targetType: string,
+  targetName: string,
+): WorkspaceEntry {
+  switch (targetType) {
+    case 'chapter':
+      return requireWorkspaceFileEntry(
+        projectId,
+        `/chapters/${pathSegment(targetName)}/prose.md`,
+        false,
+      );
+    case 'inspiration':
+      return requireWorkspaceFileEntry(
+        projectId,
+        `/drifts/${pathSegment(targetName)}/prose.md`,
+        false,
+      );
+    case 'element':
+      return requireDomainBodyEntry(projectId, 'element', targetName);
+    case 'storyline':
+      return requireDomainBodyEntry(projectId, 'storyline', targetName);
+    case 'element_category':
+      return requireWorkspaceFileEntry(
+        projectId,
+        `/categories/${pathSegment(targetName)}/body.md`,
+        false,
+      );
+    default:
+      throw new Error(`Unsupported comment targetType "${targetType}"`);
+  }
+}
+
+function domainProsePath(
+  projectId: string,
+  toolName: string,
+  args: Record<string, unknown>,
+): string {
+  if (toolName.includes('chapter')) {
+    return `/chapters/${pathSegment(requiredDomainName(args.chapter, 'chapter'))}/prose.md`;
+  }
+  if (toolName.includes('inspiration')) {
+    return `/drifts/${pathSegment(requiredDomainName(args.inspiration, 'inspiration'))}/prose.md`;
+  }
+  if (toolName.includes('element_category')) {
+    return `/categories/${pathSegment(requiredDomainName(args.category, 'category'))}/body.md`;
+  }
+  if (toolName.includes('element')) {
+    return requireDomainBodyEntry(
+      projectId,
+      'element',
+      requiredDomainName(args.element, 'element'),
+    ).path;
+  }
+  return `/storylines/${pathSegment(requiredDomainName(args.storyline, 'storyline'))}/body.md`;
+}
+
+function domainCompleteObjectPath(
+  projectId: string,
+  toolName: string,
+  args: Record<string, unknown>,
+): string {
+  const label = toolName === 'delete_chapter'
+    ? `章节「${requiredDomainName(args.chapter, 'chapter')}」`
+    : toolName === 'delete_inspiration'
+      ? `灵感「${requiredDomainName(args.inspiration, 'inspiration')}」`
+      : toolName === 'delete_storyline'
+        ? `故事线「${requiredDomainName(args.storyline, 'storyline')}」`
+        : `要素分类「${requiredDomainName(args.category, 'category')}」`;
+  return resolveWorkspaceCompleteObjectPath(projectId, label);
 }
 
 function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
@@ -3527,7 +4252,7 @@ function sameWorkspaceProseDomainKind(
  * needs to reason about that transport representation. */
 function parseWorkspaceDomainChanges(value: unknown): WorkspaceTextReplacement[] {
   if (!Array.isArray(value)) {
-    throw new Error('revise_object requires at least one authored change');
+    throw new Error('A focused revision requires at least one change.');
   }
   return parseWorkspaceTextReplacements(
     value.map((raw) => {
@@ -3539,120 +4264,6 @@ function parseWorkspaceDomainChanges(value: unknown): WorkspaceTextReplacement[]
       };
     }),
   );
-}
-
-function workspaceDomainWriteBody(
-  path: string,
-  publicTarget: unknown,
-  body: unknown,
-  attributes: unknown,
-): string {
-  const authoredBody = typeof body === 'string' ? body : '';
-  const legacyStructuredBody = publicTarget === undefined && attributes === undefined;
-  if (
-    legacyStructuredBody &&
-    (/^\/(?:relations|comments|memory)\/[^/]+\.json$/u.test(path))
-  ) {
-    return authoredBody;
-  }
-  const fields = workspaceDomainAttributes(attributes, path !== '/project/facts.json');
-  if (path === '/project/facts.json' && Object.keys(fields).length > 0) {
-    return JSON.stringify(
-      Object.entries(fields).map(([key, value]) => ({ key, value })),
-    );
-  }
-  if (/^\/relations\/[^/]+\.json$/u.test(path)) {
-    return JSON.stringify({
-      ...fields,
-      ...(!fields.kind && authoredBody.trim() ? { kind: authoredBody.trim() } : {}),
-    });
-  }
-  if (/^\/comments\/[^/]+\.json$/u.test(path)) {
-    const target = String(publicTarget ?? '').trim();
-    const authoredKind = /待办|todo/iu.test(target)
-      ? 'todo'
-      : /批注|note/iu.test(target) && !/批注或待办/iu.test(target)
-        ? 'note'
-        : undefined;
-    return JSON.stringify({
-      ...fields,
-      ...(authoredKind ? { kind: authoredKind } : {}),
-      body: authoredBody,
-    });
-  }
-  if (/^\/memory\/[^/]+\.json$/u.test(path)) {
-    return JSON.stringify({ ...fields, kind: 'directive', body: authoredBody });
-  }
-  if (Object.keys(fields).length > 0) {
-    throw new Error(
-      'Named attributes apply only to project facts, relations, notes, TODOs, and author rules; prose objects use body and summary.',
-    );
-  }
-  return authoredBody;
-}
-
-function workspaceDomainAttributes(
-  value: unknown,
-  normalizeDomainFields = true,
-): Record<string, string> {
-  if (value === undefined) return {};
-  if (!Array.isArray(value)) {
-    throw new Error('Named domain attributes must be provided as name/value entries.');
-  }
-  const output: Record<string, string> = {};
-  for (const raw of value) {
-    const field = asRecord(raw);
-    const name = typeof field.name === 'string' ? field.name.trim() : '';
-    const fieldValue = typeof field.value === 'string' ? field.value : null;
-    if (!name || fieldValue === null) {
-      throw new Error('Every named domain attribute requires a name and string value.');
-    }
-    const normalizedName = normalizeDomainFields ? domainAttributeName(name) : name;
-    output[normalizedName] = normalizeDomainFields
-      ? domainAttributeValue(normalizedName, fieldValue)
-      : fieldValue;
-  }
-  return output;
-}
-
-function domainAttributeName(name: string): string {
-  const aliases: Readonly<Record<string, string>> = {
-    类型: 'kind',
-    关系: 'kind',
-    关系类型: 'kind',
-    对象类型: 'targetKind',
-    目标类型: 'targetKind',
-    对象: 'target',
-    目标: 'target',
-    起点类型: 'fromKind',
-    来源类型: 'fromKind',
-    起点: 'from',
-    来源: 'from',
-    终点类型: 'toKind',
-    目标实体类型: 'toKind',
-    终点: 'to',
-    目标实体: 'to',
-  };
-  return aliases[name] ?? name;
-}
-
-function domainAttributeValue(name: string, value: string): string {
-  const normalized = value.trim();
-  if (name === 'kind') {
-    if (/^(?:批注|评论|note)$/iu.test(normalized)) return 'note';
-    if (/^(?:待办|todo)$/iu.test(normalized)) return 'todo';
-    if (/^(?:作者规则|写作规则|directive)$/iu.test(normalized)) return 'directive';
-    return value;
-  }
-  if (name !== 'targetKind' && name !== 'fromKind' && name !== 'toKind') return value;
-  if (/^(?:章节|灵感|漂移|章节或灵感|node)$/iu.test(normalized)) return 'node';
-  if (/^(?:人物|角色|要素|实体|element)$/iu.test(normalized)) return 'element';
-  if (/^(?:故事线|storyline)$/iu.test(normalized)) return 'storyline';
-  if (/^(?:要素分类|分类|category)$/iu.test(normalized)) return 'category';
-  if (/^(?:批注|待办|批注或待办|comment)$/iu.test(normalized)) return 'comment';
-  if (/^(?:作品|项目|project)$/iu.test(normalized)) return 'project';
-  if (/^(?:素材|资料|library_item)$/iu.test(normalized)) return 'library_item';
-  return value;
 }
 
 function countApplicableWorkspaceReplacements(
@@ -3673,21 +4284,6 @@ function countApplicableWorkspaceReplacements(
   return matches;
 }
 
-function scalarWholeFileReadCoverageRequired(target: WorkspaceTarget): boolean {
-  switch (target.kind) {
-    case 'node_summary':
-    case 'node_title':
-    case 'element_summary':
-    case 'element_name':
-    case 'element_group':
-    case 'storyline_summary':
-    case 'storyline_name':
-      return true;
-    default:
-      return false;
-  }
-}
-
 function normalizeEntityKind(kind: string): string {
   return kind === 'node' ? 'chapter' : kind;
 }
@@ -3705,10 +4301,10 @@ function normalizeVirtualPath(value: unknown): string {
   return normalized;
 }
 
-function publicWorkspaceReadError(error: unknown): string {
+function publicDomainReadError(error: unknown): string {
   const message = error instanceof Error ? error.message : 'The project object could not be read';
   if (/requires a non-empty query/iu.test(message)) {
-    return 'search_work requires a non-empty query.';
+    return 'Project search requires a non-empty query.';
   }
   if (
     /(?:virtual|workspace|file|directory|path)/iu.test(message) ||
@@ -3720,24 +4316,6 @@ function publicWorkspaceReadError(error: unknown): string {
     return 'The requested authored object or collection is unavailable. Use its author-facing name, or browse the relevant project collection if the author did not name an exact target.';
   }
   return message;
-}
-
-function isAuthoredWorkspaceTextPath(path: string): boolean {
-  return path.endsWith('.md') || path.endsWith('.txt');
-}
-
-function isAuthoredProseBodyPath(path: string): boolean {
-  return path.endsWith('/prose.md') || path.endsWith('/body.md');
-}
-
-function normalizeChangeSummary(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const compact = value.replace(/\s+/gu, ' ').trim().slice(0, 240);
-  if (!compact) return undefined;
-  if (/\b(?:json|path|revision|receipt|writeref|yjs|sqlite|write_file|edit_file)\b/iu.test(compact)) {
-    return undefined;
-  }
-  return compact.replace(/[。；;\s]+$/u, '');
 }
 
 function defaultAuthoredChangeSummary(path: string): string | undefined {
@@ -3791,45 +4369,6 @@ function describeStaleAuthoredTargets(targets: readonly string[]): string {
  * prose/body command; this only removes product-internal filename trivia from
  * the public write contract.
  */
-function normalizeWorkspaceWritePath(value: unknown, projectId: string): string {
-  const path = normalizeVirtualPath(value);
-  const semanticHandle = resolveSemanticHandleAlias(path);
-  if (semanticHandle) return semanticHandle;
-  const entries = buildWorkspaceEntries(projectId);
-  const semanticField = resolveSemanticAuthoredFieldAlias(entries, path);
-  if (semanticField) return semanticField;
-  const bareSummaryField = resolveBareAuthoredSummaryAlias(entries, path);
-  if (bareSummaryField) return bareSummaryField;
-  const semanticObject = resolveSemanticAuthoredObjectAlias(entries, path);
-  if (semanticObject) {
-    const primary = primaryWorkspaceEntry(projectId, semanticObject);
-    if (primary) return primary.path;
-  }
-  const bareAuthoredObject = resolveBareAuthoredObjectAlias(entries, path);
-  if (bareAuthoredObject) {
-    const primary = primaryWorkspaceEntry(projectId, bareAuthoredObject);
-    if (primary) return primary.path;
-  }
-  const semantic = semanticAuthoredCreationPath(projectId, path);
-  if (semantic) return semantic;
-  const collection = semanticCollectionPath(path);
-  if (collection === '/comments') return '/comments/new.json';
-  if (collection === '/relations') return '/relations/new.json';
-  if (collection === '/memory') return '/memory/new.json';
-  if (collection) return collection;
-  const segments = path.split('/').filter(Boolean);
-  if (segments.length === 2 && (segments[0] === 'chapters' || segments[0] === 'drifts')) {
-    return `${path}/prose.md`;
-  }
-  if (segments.length === 2 && (segments[0] === 'storylines' || segments[0] === 'categories')) {
-    return `${path}/body.md`;
-  }
-  if (segments.length === 3 && segments[0] === 'elements') {
-    return `${path}/body.md`;
-  }
-  return path;
-}
-
 function semanticAuthoredCreationPath(projectId: string, path: string): string | null {
   const chapterLabel = /^\/章节[「“"](.+?)[」”"]$/u.exec(path)?.[1]?.trim();
   const naturalChapter = /^\/(第[〇零一二三四五六七八九十百两\d]+章)$/u.exec(path)?.[1];

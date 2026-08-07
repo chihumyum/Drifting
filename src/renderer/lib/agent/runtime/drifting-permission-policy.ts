@@ -8,14 +8,15 @@ import type {
   AgentToolPermissionPolicyDecision,
   AgentToolPermissionPolicyRequest,
 } from './types';
-import {
-  canonicalDriftingWorkspaceProviderToolName,
-  DRIFTING_WORKSPACE_EDIT_TOOL,
-  DRIFTING_WORKSPACE_WRITE_TOOL,
-} from './drifting-workspace-tool-contract';
 
 export interface DriftingAgentPermissionPolicyOptions {
   resolveTool?: (name: string) => RegisteredTool | undefined;
+  /**
+   * Author-controlled override for destructive pre-execution prompts. This
+   * never bypasses certification, schema validation, freshness or write
+   * receipts; it only turns an otherwise valid confirmation into allow-once.
+   */
+  allowDangerousOperations?: () => boolean;
 }
 
 /**
@@ -48,23 +49,15 @@ export function createDriftingAgentPermissionPolicy(
       if (tool.access === 'read') {
         return { decision: 'allow', scope: 'once' };
       }
-
-      // The provider sees a small authored-object facade, while author approval
-      // follows the resolved domain operation. Creating or relabelling
-      // a curated entity relation is graph authorship and must pause before it
-      // mutates, just like deleting the relation through delete_object.
-      if (isWorkspaceGuardedGraphMutation(request)) {
-        return {
-          decision: 'ask',
-          reason: 'Changing an authored story-graph relationship requires author approval before execution.',
-          allowedScopes: ['once'],
-        };
-      }
+      const allowDangerousOperations = options.allowDangerousOperations?.() === true;
 
       if (
         tool.revertStrategy === 'irreversible' ||
         tool.revertStrategy === 'unavailable'
       ) {
+        if (allowDangerousOperations) {
+          return { decision: 'allow', scope: 'once' };
+        }
         return {
           decision: 'ask',
           reason: `${tool.name} may not have a safe automatic inverse.`,
@@ -72,6 +65,9 @@ export function createDriftingAgentPermissionPolicy(
         };
       }
       if (tool.approval === 'confirm_before') {
+        if (allowDangerousOperations) {
+          return { decision: 'allow', scope: 'once' };
+        }
         return {
           decision: 'ask',
           reason: `${tool.name} requires author approval before execution.`,
@@ -104,26 +100,4 @@ export function createDriftingAgentPermissionPolicy(
       };
     },
   };
-}
-
-function isWorkspaceGuardedGraphMutation(
-  request: AgentToolPermissionPolicyRequest,
-): boolean {
-  const toolName = canonicalDriftingWorkspaceProviderToolName(request.toolName);
-  if (
-    toolName !== DRIFTING_WORKSPACE_WRITE_TOOL &&
-    toolName !== DRIFTING_WORKSPACE_EDIT_TOOL
-  ) {
-    return false;
-  }
-  const target = request.arguments.target ?? request.arguments.path;
-  if (typeof target !== 'string') return false;
-  const normalized = `/${target.trim()}`.replace(/\/{2,}/g, '/').replace(/\/$/u, '');
-  return (
-    normalized === '/relations' ||
-    normalized.startsWith('/relations/') ||
-    /^(?:\/)?(?:关系|实体关系)(?:[「“"']|$)/u.test(normalized) ||
-    /^\/storylines\/[^/]+\/chapters\.json$/u.test(normalized) ||
-    /故事线.+章节关系/u.test(normalized)
-  );
 }

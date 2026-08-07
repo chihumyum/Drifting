@@ -156,6 +156,11 @@ tokens versus `11` persisted TipTap/Yjs text words); it is outside this
 concurrency milestone and was left untouched to avoid overwriting the other
 in-progress worktree change.
 
+Sibling activity is intentionally projected only through each running
+conversation's history-row indicator. Opening an idle sibling conversation
+keeps its composer clear: no cross-conversation working banner is inserted
+above the input.
+
 ## Remaining manual boundary
 
 DUR-07M remains E4: use the native App to launch at least two conversations,

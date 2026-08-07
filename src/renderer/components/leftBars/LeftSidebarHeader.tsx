@@ -15,12 +15,15 @@ const FULL_TABS_MIN_WIDTH = 220;
 
 type TabPanel = 'nodes' | 'elements' | 'drift';
 
-/** Which left panel an agent-touched entity surfaces in. Only node/element are
- *  tracked (the entity types with a clickable cell — see agent-activity-store). */
+/** Which left panel an agent-touched entity surfaces in. Storyline/category
+ * group headers live in the same panel as their chapter/element children. */
 function panelForMark(m: ActivityMark, nodeKind: Map<string, string>): TabPanel | null {
   switch (m.entityType) {
     case 'element':
+    case 'category':
       return 'elements';
+    case 'storyline':
+      return 'nodes';
     case 'node':
       return nodeKind.get(m.id) === 'drift' ? 'drift' : 'nodes';
     default:

@@ -93,7 +93,8 @@ describe('certified element patch runtime', () => {
     const first = await fixture.runtime(interrupted).execute(request);
     expect(first).toEqual({
       ok: false,
-      error: 'simulated process death after patch receipt',
+      error:
+        'The authored object changed while it was being revised. Read its current state and apply the intended revision again.',
     });
     expect((await base.getEffect(`agent-write:${request.idempotencyKey}`))?.phase).toBe(
       'uncertain',
@@ -296,9 +297,8 @@ describe('certified element patch runtime', () => {
     fixture.seedToolCall(cross);
     expect(await fixture.runtime().execute(cross)).toMatchObject({
       ok: false,
-      error: expect.stringContaining(
-        'get_element_patches receipt from this project and session',
-      ),
+      error:
+        'The authored object changed while it was being revised. Read its current state and apply the intended revision again.',
     });
 
     const latest = (await fixture.patch(patch.id))!;

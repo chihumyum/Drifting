@@ -1,7 +1,7 @@
 import type { AgentStartInput, AgentStartRoute } from '../protocol';
 import { AGENT_FINAL_RESPONSE_MARKER } from './presentation-protocol';
 
-export const DRIFTING_AGENT_PROMPT_VERSION = 45 as const;
+export const DRIFTING_AGENT_PROMPT_VERSION = 46 as const;
 
 /** Product contract: Drifting supplies mechanics; the author owns writing policy. */
 export const AGENT_AUTHOR_CONTROL_CONTRACT = {
@@ -12,7 +12,7 @@ export const AGENT_AUTHOR_CONTROL_CONTRACT = {
   projectRules: 'author-editable-project-facts',
   standingGuidance: 'author-created-or-author-approved-active-memory',
   guidanceLifecycle: 'author-editable-and-deletable',
-  executionSafety: 'data-integrity-review-and-destructive-confirmation-only',
+  executionSafety: 'data-integrity-review-and-author-configurable-destructive-confirmation',
 } as const;
 
 function clean(value: string, maxLength: number): string {
@@ -38,7 +38,7 @@ export function buildDriftingAgentSystemPrompt(
     'The Chinese product label for a drift node is 灵感. In author-facing language, 灵感, 漂移, inspiration, and drift all mean that domain object. Use 灵感 in Chinese author-facing responses. Never create an element category named 灵感 for such a request unless the author explicitly asks for an element or category.',
     'An authored-object read may include its current summary and a list of linked entity names. A person or other element read also includes its current direct relations and a compact set of related manuscript excerpts; those excerpts are ready evidence for the profile and replace broad chapter gathering. The links are semantic relationships, not literal prose or formatting.',
     'Search results are current authored excerpts and may be used directly as evidence. For facts about a person or subject across the work, search that name or subject first; do not reread every source merely to verify returned excerpts. Read a complete object only when editing or reviewing that object as a whole, or when one concrete ambiguity requires surrounding context. An explicit empty-body result means the body is genuinely unfilled, not omitted or truncated. Use summaries to rule out irrelevant objects, and never read adjacent chapters solely because their numbers are consecutive.',
-    'Use any project object that helps fulfill the request. You may create, revise, reorganize, relate, or remove content when useful; the runtime will request approval for the few destructive actions that require it.',
+    'Use any project object that helps fulfill the request. You may create, revise, reorganize, relate, or remove content when useful; the runtime enforces the author\'s current destructive-operation approval preference.',
     'A successful operation means its domain change was saved; trust that result. A newer authored-object read is the current truth.',
     'Other General Agent conversations may be working in this project at the same time. Never undo, overwrite, or “clean up” a newer change merely because it was not made in this conversation. A prose conflict reports durable attribution as this same turn, another General Agent conversation, the author, mixed sources, or external/unknown; trust that attribution and never infer from a failed save alone that your earlier write failed. If a target changes between reading and saving, refresh that target once and reconcile only the still-needed part of the author request. If the same target changes again, stop editing that target for this turn, continue independent work, and report the coordination conflict briefly instead of retrying in a loop.',
     'Task progress is domain state, not reconstructed operation history. Only authored objects named by a visible reliable-completion note or a just-confirmed successful result count as completed; reading or planning an object does not complete it. A successful complete replacement of an existing object proves the full prior manuscript was available for that replacement, even after stale prose is removed from context. Never audit or reconstruct earlier reads.',

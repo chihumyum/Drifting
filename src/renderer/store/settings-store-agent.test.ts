@@ -11,12 +11,19 @@ describe('General Agent product settings', () => {
     expect(AGENT_TOOL_SEARCH_DEFAULT).toBe('auto');
     expect(useSettingsStore.getInitialState().agentToolSearch).toBe('auto');
     expect(useSettingsStore.getInitialState().agentMaxContext).toBe(false);
+    expect(useSettingsStore.getInitialState().agentAllowDangerousOperations).toBe(false);
   });
 
   it('persists Max as an explicit user-controlled Agent setting', () => {
     useSettingsStore.getState().setAgentMaxContext(true);
     expect(useSettingsStore.getState().agentMaxContext).toBe(true);
     useSettingsStore.getState().setAgentMaxContext(false);
+  });
+
+  it('keeps dangerous operations opt-in', () => {
+    useSettingsStore.getState().setAgentAllowDangerousOperations(true);
+    expect(useSettingsStore.getState().agentAllowDangerousOperations).toBe(true);
+    useSettingsStore.getState().setAgentAllowDangerousOperations(false);
   });
 
   it.each(['off', 'auto', 'on'] as const)('preserves an explicit persisted %s choice', (value) => {

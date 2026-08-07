@@ -34,8 +34,6 @@ import {
   selectMessages,
   selectPendingControl,
   selectRunning,
-  selectOtherRunning,
-  selectOtherRunningConversationId,
 } from '../../store/agent-chat-store';
 import { useProjectStore } from '../../store/project-store';
 import { useAgentMemory } from '../../usecase/useAgentMemory';
@@ -62,13 +60,13 @@ import type {
   AgentConversationSummary,
 } from '../../domain/agent-conversation';
 import {
+  describeAgentPermissionAction,
   describeAgentToolActivity,
   shouldDisplayAgentToolActivity,
 } from '../../lib/agent/agent-tool-activity';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { AgentContextIndicator } from './AgentContextIndicator';
 import { DRIFTING_AGENT_MAX_CONTEXT_WINDOW_TOKENS } from '../../lib/agent/runtime/drifting-agent-product-contract';
-import { FieldDiff } from '../editor/FieldReview';
 import '../../../styles/agent-panel.css';
 
 const STREAM_FOLLOW_BOTTOM_THRESHOLD_PX = 16;
@@ -139,7 +137,7 @@ function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
   const visibleResult = semanticTool && msg.status !== 'error' ? '' : (msg.result ?? '');
   const hasBody = !!visibleInput || !!visibleResult;
   // `tool_call_started` intentionally has no arguments yet. Showing a semantic
-  // label at that point can only guess (for example list_files defaults to `/`),
+  // label at that point can only guess a placeholder target,
   // then visibly rename itself once the real JSON arrives. Wait for ready/error;
   // the author sees one truthful action a moment later instead of a placeholder.
   if (
@@ -190,8 +188,8 @@ function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
 
 function ThinkingRow({ msg }: { msg: Extract<ChatMsg, { kind: 'thinking' }> }) {
   const { t } = useTranslation();
-  // Open while the model is thinking; auto-collapse once the block finishes.
-  const [open, setOpen] = useState(true);
+  // Only a live thinking block starts open; hydrated history stays collapsed.
+  const [open, setOpen] = useState(() => msg.streaming === true);
   const wasStreaming = useRef(msg.streaming);
   useEffect(() => {
     if (wasStreaming.current && !msg.streaming) setOpen(false);
@@ -232,6 +230,12 @@ function ComposerConfig() {
   const setAgentMaxContext = useSettingsStore((s) => s.setAgentMaxContext);
   const agentEditMode = useSettingsStore((s) => s.agentEditMode);
   const setAgentEditMode = useSettingsStore((s) => s.setAgentEditMode);
+  const agentAllowDangerousOperations = useSettingsStore(
+    (s) => s.agentAllowDangerousOperations,
+  );
+  const setAgentAllowDangerousOperations = useSettingsStore(
+    (s) => s.setAgentAllowDangerousOperations,
+  );
 
   const projectId = useProjectStore((s) => s.currentProject?.id ?? '');
   const memory = useAgentMemory(projectId);
@@ -365,6 +369,16 @@ function ComposerConfig() {
               <Switch
                 checked={agentEditMode === 'approve'}
                 onCheckedChange={(checked) => setAgentEditMode(checked ? 'approve' : 'auto')}
+              />
+            </div>
+            <div
+              className="agt-menu__row"
+              title={t('agentPanel.config.dangerousOperationsTitle')}
+            >
+              <span>{t('agentPanel.config.dangerousOperations')}</span>
+              <Switch
+                checked={agentAllowDangerousOperations}
+                onCheckedChange={setAgentAllowDangerousOperations}
               />
             </div>
             <div className="agt-menu__divider" />
@@ -734,7 +748,7 @@ function RuntimeControlCard({
 
   const permission = pending.permissionRequest;
   if (pending.status === 'waiting_permission' && permission) {
-    const activity = describeAgentToolActivity(
+    const description = describeAgentPermissionAction(
       permission.toolName,
       permission.arguments,
       i18n.language,
@@ -748,17 +762,19 @@ function RuntimeControlCard({
     return (
       <div className="agt-control-card" role="alertdialog">
         <strong>{t('agentPanel.control.permissionTitle')}</strong>
-        <span>
-          {activity ?? <code>{permission.toolName}</code>}
-          {activity
-            ? ` · ${t('agentPanel.control.destructiveHint', {
-                defaultValue: '这项操作会改变作品结构，需要你先确认',
-              })}`
-            : permission.reason
-              ? ` · ${permission.reason}`
-              : ''}
-        </span>
-        <EditFilePermissionPreview arguments_={permission.arguments} />
+        <div className="agt-control-card__description">
+          <span>{description?.summary ?? <code>{permission.toolName}</code>}</span>
+          {description?.details.map((detail, index) => (
+            <small key={`${index}:${detail}`}>{detail}</small>
+          ))}
+          <small>
+            {description
+              ? t('agentPanel.control.destructiveHint', {
+                  defaultValue: '这项操作会删除或替换现有内容，需要你先确认',
+                })
+              : permission.reason ?? ''}
+          </small>
+        </div>
         <details>
           <summary>{t('agentPanel.control.arguments')}</summary>
           <pre>{argumentsText}</pre>
@@ -793,34 +809,6 @@ function RuntimeControlCard({
     );
   }
   return null;
-}
-
-function EditFilePermissionPreview({ arguments_ }: { arguments_: Record<string, unknown> }) {
-  const { t } = useTranslation();
-  const path = typeof arguments_.path === 'string' ? arguments_.path : '';
-  const replacements = Array.isArray(arguments_.replacements)
-    ? arguments_.replacements.flatMap((value) => {
-        if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
-        const row = value as Record<string, unknown>;
-        return typeof row.oldText === 'string' && typeof row.newText === 'string'
-          ? [{ oldText: row.oldText, newText: row.newText, replaceAll: row.replaceAll === true }]
-          : [];
-      })
-    : [];
-  if (!path || replacements.length === 0) return null;
-  return (
-    <div className="agt-permission-edit">
-      <div className="agt-permission-edit__path">
-        {t('agentPanel.control.editPreview')} <code>{path}</code>
-      </div>
-      {replacements.map((replacement, index) => (
-        <div key={`${index}:${replacement.oldText}`} className="agt-permission-edit__diff">
-          <FieldDiff oldText={replacement.oldText} newText={replacement.newText} />
-          {replacement.replaceAll && <small>{t('agentPanel.control.replaceAll')}</small>}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function TodoList({ items }: { items: Extract<ChatMsg, { kind: 'todos' }>['items'] }) {
@@ -871,16 +859,14 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const messages = useAgentChatStore(selectMessages);
   const prompt = useAgentChatStore((s) => s.prompt);
   // Every conversation owns at most one turn; sibling conversations may run in
-  // parallel and remain visible through history/background indicators.
+  // parallel and remain visible through history-row indicators.
   const running = useAgentChatStore(selectRunning);
-  const otherRunning = useAgentChatStore(selectOtherRunning);
   const starting = useAgentChatStore((s) => s.starting);
   const controlStatus = useAgentChatStore(selectControlStatus);
   const pendingControl = useAgentChatStore(selectPendingControl);
   const continuationReason = useAgentChatStore(selectAgentTaskContinuationReason);
   const automaticContinuation = useAgentChatStore(selectAutomaticContinuation);
   const contextUsage = useAgentChatStore(selectContextUsage);
-  const runningConvId = useAgentChatStore(selectOtherRunningConversationId);
   const runningTurns = useAgentChatStore((s) => s.runningTurns);
   const convList = useAgentChatStore((s) => s.convList);
   const activeConvId = useAgentChatStore((s) => s.activeConvId);
@@ -1015,9 +1001,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const sessionName = activeConv
     ? activeConv.title || t('common.untitled')
     : t('agentPanel.newConversation');
-  // Title of the conversation whose turn is running in the background (if any),
-  // for the "switch to the running conversation" banner.
-  const runningConv = otherRunning ? (convList.find((c) => c.id === runningConvId) ?? null) : null;
   const editingHeader = editingHeaderId !== null && editingHeaderId === activeConvId;
   const automaticContinuationActive =
     automaticContinuation?.status === 'armed' ||
@@ -1244,7 +1227,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
               >
                 <button type="button" style={historyLoadButton} onClick={() => handleLoad(c.id)}>
                   <span style={historyTitle}>
-                    {runningTurns[c.id] && <span className="agt-otherrun__dot" />}
+                    {runningTurns[c.id] && <span className="agt-history__running-dot" />}
                     {c.title || t('agentPanel.history.untitled')}
                   </span>
                   <span style={historyTime}>{relTime(c.updatedAt)}</span>
@@ -1366,21 +1349,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
       )}
 
       <div style={inputArea}>
-        {otherRunning && runningConvId && (
-          <button
-            type="button"
-            className="agt-otherrun"
-            onClick={() => handleLoad(runningConvId)}
-            title={t('agentPanel.running.switchTitle')}
-          >
-            <span className="agt-otherrun__dot" />
-            <span className="agt-otherrun__text">
-              {t('agentPanel.running.message', {
-                title: runningConv?.title || t('agentPanel.running.otherConversation'),
-              })}
-            </span>
-          </button>
-        )}
         <div className="agt-composer">
           <textarea
             ref={taRef}
@@ -1896,9 +1864,6 @@ const panelCss = `
 .agt-entity-chip:hover { background: hsl(var(--accent) / 0.08); border-color: hsl(var(--accent) / 0.5); }
 .agt-entity-chip__glyph { color: hsl(var(--accent)); font-family: var(--font-sans); font-style: italic; }
 .agt-entity-chip__op { font-size: 9.5px; opacity: 0.55; }
-.agt-otherrun { display: flex; align-items: center; gap: 7px; width: 100%; margin: 0 0 8px; padding: 6px 10px; border: 1px solid hsl(var(--accent) / 0.3); border-radius: 1px; background: hsl(var(--accent) / 0.06); color: hsl(var(--ink-2)); font-size: 11.5px; cursor: pointer; text-align: left; transition: background 0.12s, border-color 0.12s; }
-.agt-otherrun:hover { background: hsl(var(--accent) / 0.12); border-color: hsl(var(--accent) / 0.5); }
-.agt-otherrun__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agt-otherrun__dot { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: hsl(var(--accent)); flex-shrink: 0; animation: agtOtherRunPulse 1.4s ease-in-out infinite; }
-@keyframes agtOtherRunPulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
+.agt-history__running-dot { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: hsl(var(--accent)); flex-shrink: 0; animation: agtHistoryRunPulse 1.4s ease-in-out infinite; }
+@keyframes agtHistoryRunPulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
 `;

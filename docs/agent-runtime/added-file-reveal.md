@@ -1,12 +1,13 @@
 # General Agent newly-created prose presentation
 
 This document defines the author-facing presentation contract for prose entities
-created through the General Agent authored-object facade.
+created through the General Agent domain tools.
 
 ## Status contract
 
-- A successful `write_object` create for a chapter, drift, element, storyline, or
-  category records a persisted Added presentation keyed by the resolved domain
+- A successful `create_chapter`, `create_inspiration`, `create_element`,
+  `create_storyline`, or `create_element_category` call records a persisted Added
+  presentation keyed by the resolved domain
   entity id. The projection is derived from the canonical local
   `result_committed` payload (`data.result.operation === "created"`), never from
   provider-facing `modelData`; replaying that durable result reprojects a
@@ -70,7 +71,7 @@ The following tests cover the contract:
 - `src/renderer/store/agent-activity-store.test.ts`: a committed create result
   records the persistent Added projection.
 - `src/renderer/lib/agent/runtime/drifting-write-tool-runtime.test.ts`: a
-  `write_object` create records Added even when provider-facing `modelData` is
+  domain create records Added even when provider-facing `modelData` is
   natural language, and idempotent result replay restores the projection
   without applying the write twice.
 - `src/renderer/lib/agent/runtime/drifting-domain-crud-write-strategy.integration.test.ts`:

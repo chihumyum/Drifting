@@ -9,13 +9,8 @@ import type {
 } from '../../../domain/agent-runtime-entity-write-receipt';
 import { snapshotAgentRuntimeEntity } from '../../../domain/agent-runtime-entity-write-receipt';
 import type { BookElement, BookElementCategory } from '../../../domain/book-element';
-import {
-  allElementNames,
-  findElementNameConflict,
-  makeUniqueElementName,
-} from '../../../domain/book-element';
+import { allElementNames, findElementNameConflict } from '../../../domain/book-element';
 import type { BookNode } from '../../../domain/book-node';
-import { makeUniqueNodeTitle } from '../../../domain/book-node';
 import {
   createPlainCommentDoc,
   type Comment,
@@ -29,7 +24,6 @@ import type { PersistedAgentRuntimeWriteExpectation } from '../../../domain/agen
 import type { PersistedAgentRuntimeWriteEffect } from '../../../domain/agent-runtime-write-effect';
 import { stringifyKv, type KvEntry } from '../../../domain/kv';
 import type { Storyline } from '../../../domain/storyline';
-import { makeUniqueStorylineName } from '../../../domain/storyline';
 import { getDb, type DbExecutor, type DbTransaction } from '../../../lib/db';
 import { countWordsInPmJson } from '../../word-count';
 import {
@@ -484,11 +478,10 @@ async function preparePayload(
         idempotencyKey: request.idempotencyKey,
       });
       const nodes = await createBookNodeSqliteRepository(projectId, db).findAll();
-      const title = makeUniqueNodeTitle(
-        requiredString(request.arguments.title, 'create_node requires title'),
-        nodes,
-        projectId,
-      );
+      const title = requiredString(request.arguments.title, 'create_node requires title');
+      if (nodes.some((node) => sameName(node.title, title))) {
+        throw new Error(`A chapter or inspiration named "${title}" already exists`);
+      }
       const id = await deterministicAgentEntityId(request.idempotencyKey, 'node');
       const maxOrder = nodes
         .filter((node) => node.kind === kind)
@@ -541,10 +534,14 @@ async function preparePayload(
       const category = resolveCategory(projectId, request.arguments.category);
       const elements = await createBookElementSqliteRepository(projectId, db).findAll();
       const requestedName = requiredString(request.arguments.name, 'create_element requires name');
-      const name = makeUniqueElementName(requestedName, elements, projectId);
       const aliases = stringArray(request.arguments.aliases);
-      const conflict = findElementNameConflict([name, ...aliases], elements, projectId);
+      const conflict = findElementNameConflict(
+        [requestedName, ...aliases],
+        elements,
+        projectId,
+      );
       if (conflict) throw new Error(`Element name "${conflict.conflictingName}" already exists`);
+      const name = requestedName;
       const id = await deterministicAgentEntityId(request.idempotencyKey, 'element');
       const contentJson = await createWorkspaceProseContentJson({
         content: String(request.arguments.body ?? ''),
@@ -576,6 +573,10 @@ async function preparePayload(
     }
     if (toolName === 'create_storyline') {
       const storylines = await createStorylineRepository(projectId, db).getStorylinesByProject();
+      const name = requiredString(request.arguments.name, 'create_storyline requires name');
+      if (storylines.some((storyline) => sameName(storyline.name, name))) {
+        throw new Error(`Storyline "${name}" already exists`);
+      }
       const id = await deterministicAgentEntityId(request.idempotencyKey, 'storyline');
       const contentJson = await createWorkspaceProseContentJson({
         content: String(request.arguments.body ?? ''),
@@ -584,11 +585,7 @@ async function preparePayload(
       const value: Storyline = {
         id,
         projectId,
-        name: makeUniqueStorylineName(
-          requiredString(request.arguments.name, 'create_storyline requires name'),
-          storylines,
-          projectId,
-        ),
+        name,
         color: '#8B7355',
         summary: String(request.arguments.summary ?? ''),
         orderKey: storylines.reduce((maximum, item) => Math.max(maximum, item.orderKey), 0) + 1,
@@ -648,6 +645,7 @@ async function preparePayload(
     }
     const fromId = await resolveEntityId(db, projectId, fromKind, request.arguments.from);
     const toId = await resolveEntityId(db, projectId, toKind, request.arguments.to);
+    assertDifferentRelationEndpoints(fromKind, fromId, toKind, toId);
     const id = await deterministicAgentEntityId(request.idempotencyKey, 'relation');
     const value: AgentRuntimeEntityRelationSnapshotValue = {
       id,
@@ -759,6 +757,7 @@ async function preparePayload(
     request.arguments.to === undefined
       ? before.toId
       : await resolveEntityId(db, projectId, toKind, request.arguments.to);
+  assertDifferentRelationEndpoints(fromKind, fromId, toKind, toId);
   const kindValue =
     request.arguments.kind === undefined
       ? before.kind
@@ -1733,7 +1732,7 @@ function resolveCategory(projectId: string, value: unknown) {
       });
       if (containedMatches.length === 1) return containedMatches[0]!;
       throw new Error(
-        `${error.message}. Create 要素分类「${reference}」 first with write_object, then retry the same element.`,
+        `${error.message}. Create 要素分类「${reference}」 first with create_element_category, then retry the same element.`,
       );
     }
     throw error;
@@ -2096,6 +2095,17 @@ function notifyCommittedSafely(
 function requiredString(value: unknown, message: string): string {
   if (typeof value !== 'string' || !value.trim()) throw new Error(message);
   return value.trim();
+}
+
+function assertDifferentRelationEndpoints(
+  fromKind: string,
+  fromId: string,
+  toKind: string,
+  toId: string,
+): void {
+  if (fromKind === toKind && fromId === toId) {
+    throw new Error('A relation must connect two different authored objects');
+  }
 }
 
 function sameName(left: string, right: string): boolean {

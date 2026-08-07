@@ -114,56 +114,96 @@ describe('Drifting Agent permission policy', () => {
     });
   });
 
-  it('asks before a workspace facade changes relations or storyline membership', async () => {
-    const policy = createDriftingAgentPermissionPolicy({
-      resolveTool: () =>
-        tool({
-          name: 'write_file',
-          scope: 'runtime-virtual',
-          certification: 'internal-certified',
-        }),
-    });
+  it('allows non-destructive relation changes but guards full membership replacement', async () => {
+    const policy = createDriftingAgentPermissionPolicy();
     await expect(
       policy.decide(
         request({
-          toolName: 'write_file',
+          toolName: 'create_relation',
           arguments: {
-            path: '/relations/new.json',
-            content: '{}',
-          },
-        }),
-      ),
-    ).resolves.toMatchObject({
-      decision: 'ask',
-      allowedScopes: ['once'],
-    });
-
-    await expect(
-      policy.decide(
-        request({
-          toolName: 'write_file',
-          arguments: {
-            path: '/storylines/Main/chapters.json',
-            content: '[]',
-          },
-        }),
-      ),
-    ).resolves.toMatchObject({
-      decision: 'ask',
-      allowedScopes: ['once'],
-    });
-
-    await expect(
-      policy.decide(
-        request({
-          toolName: 'write_file',
-          arguments: {
-            path: '/drifts/new/prose.md',
-            content: 'text',
+            fromType: 'storyline',
+            fromName: '主线',
+            toType: 'chapter',
+            toName: '第一章',
+            relationType: '包含章节',
           },
         }),
       ),
     ).resolves.toEqual({ decision: 'allow', scope: 'once' });
+
+    await expect(
+      policy.decide(
+        request({
+          toolName: 'update_relation',
+          arguments: {
+            relationId: 'relation-1',
+            relationType: '挚友',
+          },
+        }),
+      ),
+    ).resolves.toEqual({ decision: 'allow', scope: 'once' });
+
+    await expect(
+      policy.decide(
+        request({
+          toolName: 'replace_storyline_chapters',
+          arguments: {
+            storyline: 'Main',
+            chapters: [],
+          },
+        }),
+      ),
+    ).resolves.toMatchObject({
+      decision: 'ask',
+      allowedScopes: ['once'],
+    });
+
+    await expect(
+      policy.decide(
+        request({
+          toolName: 'create_inspiration',
+          arguments: {
+            title: 'new',
+            body: 'text',
+          },
+        }),
+      ),
+    ).resolves.toEqual({ decision: 'allow', scope: 'once' });
+  });
+
+  it('uses the live dangerous-operation override only for confirmation gates', async () => {
+    let allowed = false;
+    const policy = createDriftingAgentPermissionPolicy({
+      allowDangerousOperations: () => allowed,
+      resolveTool: () =>
+        tool({
+          approval: 'confirm_before',
+          risk: 'critical',
+        }),
+    });
+
+    await expect(policy.decide(request())).resolves.toMatchObject({
+      decision: 'ask',
+    });
+    allowed = true;
+    await expect(policy.decide(request())).resolves.toEqual({
+      decision: 'allow',
+      scope: 'once',
+    });
+
+    const irreversible = createDriftingAgentPermissionPolicy({
+      allowDangerousOperations: () => true,
+      resolveTool: () =>
+        tool({
+          approval: 'automatic',
+          revertStrategy: 'irreversible',
+          reversible: false,
+        }),
+    });
+    await expect(irreversible.decide(request())).resolves.toEqual({
+      decision: 'allow',
+      scope: 'once',
+    });
   });
 
   it('denies unknown, uncertified, and access-mismatched tools', async () => {

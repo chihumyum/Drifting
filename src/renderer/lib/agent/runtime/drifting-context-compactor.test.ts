@@ -198,11 +198,11 @@ describe('Drifting context compactor', () => {
         'tool_call',
         JSON.stringify({
           type: 'tool_call',
-          name: 'read_file',
+          name: 'read_chapter',
           callId: 'read-chapter',
-          arguments: { path: '第十章' },
+          arguments: { chapter: '第十章' },
         }),
-        { callId: 'read-chapter', toolName: 'read_file', toolAccess: 'read' },
+        { callId: 'read-chapter', toolName: 'read_chapter', toolAccess: 'read' },
       ),
       row(
         'read-result',
@@ -211,11 +211,11 @@ describe('Drifting context compactor', () => {
         'tool_result',
         JSON.stringify({
           callId: 'read-chapter',
-          name: 'read_file',
+          name: 'read_chapter',
           ok: true,
           content: chapter,
         }),
-        { callId: 'read-chapter', toolName: 'read_file', toolAccess: 'read' },
+        { callId: 'read-chapter', toolName: 'read_chapter', toolAccess: 'read' },
       ),
     ];
     const compactor = createDriftingContextCompactor({
@@ -254,12 +254,12 @@ describe('Drifting context compactor', () => {
         'tool_call',
         JSON.stringify({
           type: 'tool_call',
-          name: 'read_file',
+          name: 'read_chapter',
           callId,
-          arguments: { path: '第七章' },
-          rawArguments: JSON.stringify({ path: '第七章' }),
+          arguments: { chapter: '第七章' },
+          rawArguments: JSON.stringify({ chapter: '第七章' }),
         }),
-        { callId, toolName: 'read_file', toolAccess: 'read' },
+        { callId, toolName: 'read_chapter', toolAccess: 'read' },
       );
     const result = (
       sourceId: string,
@@ -275,11 +275,11 @@ describe('Drifting context compactor', () => {
         'tool_result',
         JSON.stringify({
           callId,
-          name: 'read_file',
+          name: 'read_chapter',
           ok: true,
           content: `章节「07」正文\n字数：${wordCount}\n摘要（章节「07」摘要）：${summary}\n\n# 第一幕\n\n${summary}的开头。`,
         }),
-        { callId, toolName: 'read_file', toolAccess: 'read' },
+        { callId, toolName: 'read_chapter', toolAccess: 'read' },
       );
     const rows = [
       call('old-call', 0, 'old-read'),

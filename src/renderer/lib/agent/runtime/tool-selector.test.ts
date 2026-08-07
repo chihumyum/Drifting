@@ -78,9 +78,7 @@ describe('local Agent tool selector', () => {
       Math.min(selected.length, MAX_SELECTED_AGENT_TOOLS),
     );
     expect(selected.map((tool) => tool.name)).not.toContain('ask_user');
-    expect(selected.map((tool) => tool.name)).not.toContain(
-      'delete_element',
-    );
+    expect(selected.map((tool) => tool.name)).toContain('delete_element');
     expect(selected.map((tool) => tool.name)).not.toContain('read_node');
   });
 
@@ -150,7 +148,7 @@ describe('local Agent tool selector', () => {
       catalog: [
         syntheticTool('beta_tool'),
         syntheticTool('alpha_tool'),
-        ...Array.from({ length: 10 }, (_, index) =>
+        ...Array.from({ length: MAX_SELECTED_AGENT_TOOLS + 4 }, (_, index) =>
           syntheticTool(`extra_${String(index).padStart(2, '0')}`),
         ),
       ],
@@ -158,7 +156,7 @@ describe('local Agent tool selector', () => {
       searchMetadata: Object.fromEntries([
         ['alpha_tool', { searchIntents: ['shared routing phrase'] }],
         ['beta_tool', { searchIntents: ['shared routing phrase'] }],
-        ...Array.from({ length: 10 }, (_, index) => [
+        ...Array.from({ length: MAX_SELECTED_AGENT_TOOLS + 4 }, (_, index) => [
           `extra_${String(index).padStart(2, '0')}`,
           { searchIntents: ['shared routing phrase'] },
         ]),

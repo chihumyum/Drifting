@@ -63,12 +63,16 @@ async function readLocalAgentAuthStatus(): Promise<GeneralAgentAuthStatus> {
 export function createDriftingLocalAgentTransport(): GeneralAgentTransport {
   return createDriftingAgentProductComposition({
     authStatus: readLocalAgentAuthStatus,
+    allowDangerousOperations: () =>
+      useSettingsStore.getState().agentAllowDangerousOperations,
     ...debugRuntimeOverrides,
   }).transport;
 }
 
 const driftingProductComposition = createDriftingAgentProductComposition({
   authStatus: readLocalAgentAuthStatus,
+  allowDangerousOperations: () =>
+    useSettingsStore.getState().agentAllowDangerousOperations,
   ...debugRuntimeOverrides,
 });
 

@@ -165,7 +165,7 @@ function modelFacingRemainingWork(value: string | undefined): string | null {
   if (
     /(?:局部修改|正文已变化|目标已不在|重新定位|跳过|未重复执行)/u.test(compact) ||
     /\b(?:stale|skipped|not found|already changed|local edit)\b/iu.test(compact) ||
-    /\b(?:json|path|revision|receipt|writeref|yjs|sqlite|write_file|edit_file|write_object|revise_object)\b/iu.test(
+    /\b(?:json|path|revision|receipt|writeref|yjs|sqlite)\b/iu.test(
       compact,
     )
   ) {

@@ -81,9 +81,9 @@ describe.skipIf(!enabled)('General Agent live provider canary', () => {
       const driver = makeDriver('openai', model, requiredKey('openai'));
       const systemPrompt = [
         'This is a deterministic parallel replay canary.',
-        'First emit exactly three read_object calls in one response, one for each target:',
+        'First emit exactly three read_chapter calls in one response, one for each chapter:',
         'canary-a, canary-b, canary-c. Do not wait between them.',
-        'After their results, call write_object exactly once for canary-b.',
+        'After their results, call replace_chapter_body exactly once for canary-b.',
         'After the write result, answer exactly: parallel-replay-complete',
       ].join(' ');
       const userMessage: AgentModelMessage = {
@@ -91,27 +91,27 @@ describe.skipIf(!enabled)('General Agent live provider canary', () => {
         content: 'Run every canary stage now.',
       };
       const readTool = {
-        name: 'read_object',
-        description: 'Read one synthetic canary object.',
+        name: 'read_chapter',
+        description: 'Read one synthetic canary chapter.',
         inputSchema: {
           type: 'object',
           properties: {
-            target: { type: 'string', enum: ['canary-a', 'canary-b', 'canary-c'] },
+            chapter: { type: 'string', enum: ['canary-a', 'canary-b', 'canary-c'] },
           },
-          required: ['target'],
+          required: ['chapter'],
           additionalProperties: false,
         },
       };
       const writeTool = {
-        name: 'write_object',
-        description: 'Write the synthetic middle canary object.',
+        name: 'replace_chapter_body',
+        description: 'Replace the synthetic middle canary chapter body.',
         inputSchema: {
           type: 'object',
           properties: {
-            target: { type: 'string', const: 'canary-b' },
+            chapter: { type: 'string', const: 'canary-b' },
             body: { type: 'string', const: 'updated-canary-b' },
           },
-          required: ['target', 'body'],
+          required: ['chapter', 'body'],
           additionalProperties: false,
         },
       };
@@ -134,8 +134,8 @@ describe.skipIf(!enabled)('General Agent live provider canary', () => {
       });
       const readCalls = streamedToolCalls(readEvents);
       expect(readCalls).toHaveLength(3);
-      expect(readCalls.every((call) => call.name === 'read_object')).toBe(true);
-      expect(readCalls.map((call) => call.arguments.target).sort()).toEqual([
+      expect(readCalls.every((call) => call.name === 'read_chapter')).toBe(true);
+      expect(readCalls.map((call) => call.arguments.chapter).sort()).toEqual([
         'canary-a',
         'canary-b',
         'canary-c',
@@ -147,7 +147,7 @@ describe.skipIf(!enabled)('General Agent live provider canary', () => {
           callId: call.callId,
           name: call.name,
           ok: true,
-          content: `current-${String(call.arguments.target)}`,
+          content: `current-${String(call.arguments.chapter)}`,
         })),
       };
 
@@ -156,13 +156,13 @@ describe.skipIf(!enabled)('General Agent live provider canary', () => {
         iteration: 2,
         context: providerContext(systemPrompt, [userMessage, readAssistant, readResults]),
         tools: [writeTool],
-        toolChoice: { force: 'write_object' },
+        toolChoice: { force: 'replace_chapter_body' },
       });
       const writeCalls = streamedToolCalls(writeEvents);
       expect(writeCalls).toHaveLength(1);
       expect(writeCalls[0]).toMatchObject({
-        name: 'write_object',
-        arguments: { target: 'canary-b', body: 'updated-canary-b' },
+        name: 'replace_chapter_body',
+        arguments: { chapter: 'canary-b', body: 'updated-canary-b' },
       });
       const writeCall = writeCalls[0]!;
       const canonicalMessages: AgentModelMessage[] = [
@@ -186,7 +186,7 @@ describe.skipIf(!enabled)('General Agent live provider canary', () => {
         systemPrompt,
         messages: canonicalMessages,
         resolveToolAccess: (name) =>
-          name === 'read_object' ? 'read' : name === 'write_object' ? 'write' : null,
+          name === 'read_chapter' ? 'read' : name === 'replace_chapter_body' ? 'write' : null,
         supplementalRows: [
           {
             sourceId: 'parallel-replay/write-receipt',
@@ -197,7 +197,7 @@ describe.skipIf(!enabled)('General Agent live provider canary', () => {
               {
                 turnOrdinal: 0,
                 callId: writeCall.callId,
-                toolName: 'write_object',
+                toolName: 'replace_chapter_body',
               },
             ],
           },
@@ -212,7 +212,7 @@ describe.skipIf(!enabled)('General Agent live provider canary', () => {
       const projectedReadCalls = planned.envelope.providerContext.messages.flatMap((entry) =>
         entry.type === 'model_message' && entry.message.role === 'assistant'
           ? entry.message.content.flatMap((block) =>
-              block.type === 'tool_call' && block.name === 'read_object' ? [block.callId] : [],
+              block.type === 'tool_call' && block.name === 'read_chapter' ? [block.callId] : [],
             )
           : [],
       );

@@ -21,7 +21,13 @@ import type {
 import type { AgentRuntimeControlChannel } from './control-plane';
 
 export const AGENT_RUNTIME_SCHEMA_VERSION = 1 as const;
-export const AGENT_RUNTIME_TOOL_SEARCH_LIMIT = 8 as const;
+/** Above this count, the generic runtime asks its product strategy which tools
+ * to expose. Drifting's strategy intentionally returns its full domain set. */
+export const AGENT_RUNTIME_TOOL_SEARCH_AUTO_THRESHOLD = 8 as const;
+/** Drifting exposes explicit domain verbs instead of compressing them behind
+ * generic object tools. Keep the runtime ceiling above the complete built-in
+ * catalog while still bounding dynamic MCP/plugin expansion. */
+export const AGENT_RUNTIME_TOOL_SEARCH_LIMIT = 128 as const;
 export const AGENT_CONTEXT_USAGE_SCHEMA_VERSION = 2 as const;
 
 export const AGENT_CONTEXT_USAGE_CATEGORY_KEYS = [

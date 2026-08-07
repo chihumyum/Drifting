@@ -19,6 +19,7 @@ import {
 import { sharedAgentRuntimeScheduler } from './scheduler';
 import {
   AGENT_RUNTIME_SCHEMA_VERSION,
+  AGENT_RUNTIME_TOOL_SEARCH_AUTO_THRESHOLD,
   AGENT_RUNTIME_TOOL_SEARCH_LIMIT,
   AGENT_RUNTIME_UNKNOWN_TOOL_ERROR_CODE,
   agentRuntimeUnknownToolResultContent,
@@ -1431,7 +1432,8 @@ export class AgentRuntime {
       const shouldSearch =
         !synthesisOnly &&
         (toolSearch === 'on' ||
-          (toolSearch === 'auto' && definitions.length > AGENT_RUNTIME_TOOL_SEARCH_LIMIT));
+          (toolSearch === 'auto' &&
+            definitions.length > AGENT_RUNTIME_TOOL_SEARCH_AUTO_THRESHOLD));
       let iterationDefinitions = synthesisOnly ? [] : definitions;
       let selectorForcedToolName: string | null = null;
       if (shouldSearch) {

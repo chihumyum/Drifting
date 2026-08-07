@@ -71,13 +71,11 @@ import {
   DRIFTING_STRUCTURAL_WRITE_TOOLS,
   type DriftingStructuralWriteTool,
 } from './drifting-structural-write-strategy';
+import { workspaceCommandFromArguments } from './drifting-workspace-tool-runtime';
 import {
-  canonicalDriftingWorkspaceProviderToolName,
-  DRIFTING_WORKSPACE_DELETE_TOOL,
-  DRIFTING_WORKSPACE_EDIT_TOOL,
-  DRIFTING_WORKSPACE_WRITE_TOOL,
-  workspaceCommandFromArguments,
-} from './drifting-workspace-tool-runtime';
+  isDriftingDomainDirectWriteToolName,
+  isDriftingDomainWriteToolName,
+} from './drifting-workspace-tool-contract';
 import {
   parseWorkspaceTextReplacements,
   planWorkspaceProseFileEdit,
@@ -207,14 +205,20 @@ export function getDriftingWriteStrategy(
   toolName: string,
   options: DriftingWriteStrategyOptions = {},
 ): DriftingWriteStrategy | undefined {
-  toolName = canonicalDriftingWorkspaceProviderToolName(toolName) ?? toolName;
   if (
-    toolName === DRIFTING_WORKSPACE_EDIT_TOOL ||
-    toolName === DRIFTING_WORKSPACE_WRITE_TOOL ||
-    toolName === DRIFTING_WORKSPACE_DELETE_TOOL
+    isDriftingDomainWriteToolName(toolName) &&
+    !isDriftingDomainDirectWriteToolName(toolName)
   ) {
     return workspaceEditStrategy(options);
   }
+  return getCertifiedDriftingWriteStrategy(toolName, options);
+}
+
+/** Resolve the hidden certified command without re-entering its public domain wrapper. */
+function getCertifiedDriftingWriteStrategy(
+  toolName: string,
+  options: DriftingWriteStrategyOptions,
+): DriftingWriteStrategy | undefined {
   if (structuralWriteTools.has(toolName) && options.freshness) {
     return createDriftingStructuralWriteStrategy(
       toolName as DriftingStructuralWriteTool,
@@ -335,7 +339,7 @@ function workspaceEditStrategy(
     if (!command) {
       throw new Error('The workspace write has no runtime-prepared command');
     }
-    const strategy = getDriftingWriteStrategy(command.name, options);
+    const strategy = getCertifiedDriftingWriteStrategy(command.name, options);
     if (!strategy) {
       throw new Error(`The workspace command "${command.name}" is not certified`);
     }

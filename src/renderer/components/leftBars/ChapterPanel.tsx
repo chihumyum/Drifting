@@ -478,6 +478,10 @@ export function ChapterPanel() {
               agentTouched,
               sNodes.map((n) => entityKey('node', n.id)),
             );
+            const selfKey = entityKey('storyline', storyline.id);
+            const agentSelfBusy = selfKey in agentActive;
+            const agentSelfChanged =
+              selfKey in agentTouched || selfKey in agentPending;
             return (
               <div
                 key={storyline.id}
@@ -490,7 +494,14 @@ export function ChapterPanel() {
                   color={color}
                   collapsed={collapsed}
                   onToggleCollapsed={() => toggleGroupCollapsed(storyline.id)}
-                  onClick={() => openEntity({ entityType: 'storyline', id: storyline.id })}
+                  onClick={() => {
+                    if (agentSelfChanged) {
+                      useAgentActivityStore
+                        .getState()
+                        .clearTouched('storyline', storyline.id);
+                    }
+                    openEntity({ entityType: 'storyline', id: storyline.id });
+                  }}
                   onDoubleClick={() => promoteCurrentTab()}
                   onContextMenu={(event) => {
                     event.preventDefault();
@@ -503,12 +514,9 @@ export function ChapterPanel() {
                   }}
                   addButtonTitle={t('leftSidebar.groups.newChapterInStoryline')}
                   onAdd={() => void handleCreateNode(storyline.id)}
-                  agentBusy={activity.busy}
+                  agentBusy={activity.busy || agentSelfBusy}
                   agentDoneCount={activity.doneCount}
-                  agentSelfChanged={
-                    `storyline:${storyline.id}` in agentTouched ||
-                    `storyline:${storyline.id}` in agentPending
-                  }
+                  agentSelfChanged={agentSelfChanged}
                   agentSelfAdded={`storyline:${storyline.id}` in agentAdditions}
                 />
 

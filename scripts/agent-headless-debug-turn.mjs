@@ -1,6 +1,24 @@
 #!/usr/bin/env node
 
+import { readFileSync } from 'node:fs';
+
 const DEFAULT_URL = 'http://127.0.0.1:4317';
+const CAPABILITY_MANIFEST = JSON.parse(
+  readFileSync(
+    new URL('../docs/agent-runtime/acceptance/agent-capabilities.json', import.meta.url),
+    'utf8',
+  ),
+);
+const DOMAIN_READ_TOOLS = new Set(
+  CAPABILITY_MANIFEST.installedModelTools.entries
+    .filter((tool) => tool.surface === 'domain-tools' && tool.access === 'read')
+    .map((tool) => tool.name),
+);
+const DOMAIN_WRITE_TOOLS = new Set(
+  CAPABILITY_MANIFEST.installedModelTools.entries
+    .filter((tool) => tool.surface === 'domain-tools' && tool.access === 'write')
+    .map((tool) => tool.name),
+);
 
 function parseArgs(argv) {
   const options = {
@@ -115,8 +133,24 @@ function auditThinking(state, iteration, value) {
 
 function normalizedAuthoredTarget(arguments_) {
   if (!arguments_ || typeof arguments_ !== 'object') return '';
-  const target = typeof arguments_.target === 'string' ? arguments_.target : '';
-  return target
+  const targetKey = [
+    'target',
+    'chapter',
+    'inspiration',
+    'element',
+    'storyline',
+    'category',
+    'entity',
+    'material',
+    'name',
+    'relationId',
+    'commentId',
+    'patchId',
+    'ruleId',
+  ].find((key) => typeof arguments_[key] === 'string');
+  if (!targetKey) return '';
+  const target = arguments_[targetKey];
+  return `${targetKey}:` + target
     .normalize('NFKC')
     .replace(/([」”"])\s*[（(]别名[：:][^）)]*[）)]/gu, '$1')
     .replace(/(?:正文|设定|说明)$/u, '')
@@ -126,11 +160,11 @@ function normalizedAuthoredTarget(arguments_) {
 
 function auditDomainToolCall(state, event) {
   const name = event.name;
-  const isRead = name === 'read_object';
-  const isSearch = name === 'search_work';
-  const isBrowse = name === 'browse_project';
-  const isMutation =
-    name === 'write_object' || name === 'revise_object' || name === 'delete_object';
+  const isDomainRead = DOMAIN_READ_TOOLS.has(name);
+  const isSearch = name === 'search_prose' || name === 'search_project';
+  const isBrowse = name === 'get_project_overview' || name.startsWith('list_');
+  const isRead = isDomainRead && !isSearch && !isBrowse;
+  const isMutation = DOMAIN_WRITE_TOOLS.has(name);
   if (isRead) state.domainAudit.readCalls += 1;
   if (isSearch) state.domainAudit.searchCalls += 1;
   if (isBrowse) state.domainAudit.browseCalls += 1;

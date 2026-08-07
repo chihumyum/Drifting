@@ -132,6 +132,8 @@ export interface CreateDriftingAgentProductCompositionOptions {
   readResultBudgetCharsCap?: number;
   createId?: (kind: RuntimeIdKind) => string;
   authStatus?: () => Promise<GeneralAgentAuthStatus>;
+  /** Live author preference for bypassing destructive confirmation prompts. */
+  allowDangerousOperations?: () => boolean;
   /** Runtime-discovered MCP/plugin tools, project-filtered by the registry. */
   dynamicTools?: DynamicAgentToolRegistry;
 }
@@ -301,7 +303,13 @@ export function createDriftingAgentProductComposition(
     tools: toolRuntime,
     toolSelector: createDriftingWorkspaceToolSelectionStrategy(),
     permissionPolicy: createDynamicAwareAgentPermissionPolicy(
-      createAgentLongTaskAwarePermissionPolicy(createDriftingAgentPermissionPolicy()),
+      createAgentLongTaskAwarePermissionPolicy(
+        createDriftingAgentPermissionPolicy({
+          ...(options.allowDangerousOperations
+            ? { allowDangerousOperations: options.allowDangerousOperations }
+            : {}),
+        }),
+      ),
       dynamicTools,
       createDurableDynamicPermissionAuthority(repositories.extensions),
     ),

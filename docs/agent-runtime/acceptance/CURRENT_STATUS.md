@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-08-05
+Updated: 2026-08-06
 
 This document is the current human-readable milestone boundary. Historical
 `P*_*.md` reports remain evidence for their original checkout and must not be
@@ -177,6 +177,21 @@ remaining verbose literary deliberation is attributed to the selected weak
 model unless a runtime ambiguity provably caused it; it is not enforced with a
 scope or tool-round guard.
 
+The 2026-08-06 empty-project `deepseek-v4-flash` novel campaign produced 34
+chapters, 201,483 persisted words, 41 elements, 32 inspirations and 75
+relations, but it did not meet the requested final-quality bar. Its 14 sessions
+and 1,246 persisted tool calls exposed 31 historical failures, including five
+creates whose durable success was incorrectly reported as failure after a
+rebuildable Added projection hit localStorage quota. The minimal post-run patch
+keeps `result_committed` authoritative across projection failure, rejects
+silent duplicate-name suffixing, removes full-prose coverage from scalar
+title/summary changes, and rejects self-relations. Three focused files pass
+39/39 tests. The immutable run evidence and ordered remaining work are in
+[`GENERAL_AGENT_PEAK_PERSON_NOVEL_RUN_2026-08-06.md`](GENERAL_AGENT_PEAK_PERSON_NOVEL_RUN_2026-08-06.md)
+and
+[`GENERAL_AGENT_PEAK_PERSON_REMEDIATION_PLAN_2026-08-06.md`](GENERAL_AGENT_PEAK_PERSON_REMEDIATION_PLAN_2026-08-06.md).
+No paid long-form rerun has yet validated the patch.
+
 ## Current product boundary
 
 On 2026-08-05 the standalone Shadow CI product, Element Arc lens, and Goal
@@ -210,13 +225,33 @@ Yjs writes, and shared comment model remain the supported composition.
 - Models & API is the only writable BYOK credential surface. Copilot owns its
   provider/model route; General Agent selects its route in the chat composer.
   Both lazily resolve the shared native `byok.<provider>` Keychain entries.
-- Ordinary model turns use the authored-object facade: `browse_project`,
-  `read_object`, `search_work`, `revise_object`, `write_object`, and
-  `delete_object`. The generated inventory separately records these natural
-  provider verbs and hidden domain operations so direct-catalog counts do not
-  understate user-facing capability.
-- The authored-object projection is an implementation seam, not model memory.
-  Named authored targets resolve directly; successful writes replace raw tool
+- Ordinary model turns use the complete generated set of explicit domain tools
+  for chapters, inspirations, elements, categories, storylines, memberships,
+  relations, comments/TODOs, project facts, author rules, and element patches.
+  Generic authored-object and virtual-file verbs have no provider definition,
+  alias, or recovery translation. The generated inventory is the authority for
+  the exact provider surface and counts, separately from runtime-only certified
+  commands.
+- `create_comment` uses authored exact text rather than provider-visible block
+  ids for block anchoring. The runtime resolves one unique occurrence against
+  live Yjs, re-reads the stable block handle, persists the shared precise-text
+  anchor, and rejects missing, ambiguous, unstable or id-less targets. Entity-
+  level comments remain supported when `targetText` is omitted.
+- Successful comment create/update/delete activity pulses its anchored host and
+  leaves only a Modified marker. Relation create/update/delete pulses and marks
+  both endpoints, retaining preflight endpoint refs across deletion. These
+  projections never record Added; storyline/category endpoints use their group
+  header rows. Deterministic store/mapping coverage is closed, while native
+  visual timing remains part of the existing E4 tool-activity boundary.
+- Entity-relation creation and relabelling are automatic; deletion and
+  potentially destructive full-set membership replacement ask first by default.
+  The composer exposes an opt-in dangerous-operation override that removes those
+  prompts only for later calls while certification, schema validation,
+  freshness, project isolation, durable receipts and guarded execution remain
+  mandatory. Permission cards lead with a natural-language domain action and
+  keep the exact JSON arguments collapsed underneath.
+- The domain projection is an implementation seam, not model memory. Named
+  authored inputs resolve directly; successful writes replace raw tool
   arguments and stale pre-write evidence with bounded semantic current state.
   Paths, extensions, serialization, revision, review and storage identities
   remain runtime-owned and are absent from fresh provider schemas.
@@ -226,8 +261,8 @@ Yjs writes, and shared comment model remain the supported composition.
   safe links map directly to the configured TipTap/Yjs structures. Unsupported
   Markdown presentation is stripped while readable text remains ordinary
   prose; editor-only entity-link marks survive edits to unchanged text.
-- The generated nine-domain CRUD matrix closes 43 applicable lifecycle
-  operations. Storyline membership is a guarded complete-graph transaction;
+- The generated domain CRUD matrix closes every applicable lifecycle
+  operation. Storyline membership is a guarded complete-graph transaction;
   comments/TODOs, relations, structural entities, project facts, and writing
   memory all have natural authored targets and lineage-guarded exact inverses.
 - SQLite/Yjs remain authoritative. Every SQLite-backed domain mutation writes

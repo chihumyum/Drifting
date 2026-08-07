@@ -544,6 +544,11 @@ export function ElementPanel() {
               agentTouched,
               categoryElements.map((el) => entityKey('element', el.id)),
             );
+            const selfKey = entityKey('category', categoryId);
+            const agentSelfBusy = !isUncategorized && selfKey in agentActive;
+            const agentSelfChanged =
+              !isUncategorized &&
+              (selfKey in agentTouched || selfKey in agentPending);
             return (
               <div
                 key={categoryId}
@@ -576,7 +581,14 @@ export function ElementPanel() {
                     // their editor; the leading minus/square owns disclosure.
                     isUncategorized
                       ? undefined
-                      : () => openEntity({ entityType: 'category', id: categoryId })
+                      : () => {
+                          if (agentSelfChanged) {
+                            useAgentActivityStore
+                              .getState()
+                              .clearTouched('category', categoryId);
+                          }
+                          openEntity({ entityType: 'category', id: categoryId });
+                        }
                   }
                   onDoubleClick={
                     isUncategorized
@@ -622,13 +634,9 @@ export function ElementPanel() {
                   addButtonExpanded={categoryCreateCategoryId === categoryId}
                   addButtonVisibility={compactIndex ? 'always' : 'hover'}
                   sticky
-                  agentBusy={activity.busy}
+                  agentBusy={activity.busy || agentSelfBusy}
                   agentDoneCount={activity.doneCount}
-                  agentSelfChanged={
-                    !isUncategorized &&
-                    (`category:${categoryId}` in agentTouched ||
-                      `category:${categoryId}` in agentPending)
-                  }
+                  agentSelfChanged={agentSelfChanged}
                   agentSelfAdded={!isUncategorized && `category:${categoryId}` in agentAdditions}
                 />
 

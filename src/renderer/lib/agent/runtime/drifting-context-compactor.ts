@@ -829,7 +829,11 @@ function newestRichReadSourceIds(rows: readonly AgentContextSourceRow[]): Set<st
     if (
       row.kind !== 'tool_result' ||
       row.toolAccess !== 'read' ||
-      (row.toolName !== 'read_object' && row.toolName !== 'read_file') ||
+      (row.toolName !== 'read_chapter' &&
+        row.toolName !== 'read_inspiration' &&
+        row.toolName !== 'read_element' &&
+        row.toolName !== 'read_storyline' &&
+        row.toolName !== 'read_element_category') ||
       !row.callId ||
       retainedReadOutcome(row.content) !== 'success' ||
       !semanticReadBoundary(row.content)

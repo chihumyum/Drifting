@@ -596,11 +596,11 @@ describe('provider-neutral Agent context planner', () => {
         JSON.stringify({
           type: 'tool_call',
           callId,
-          name: 'edit_file',
+          name: 'revise_chapter',
           arguments: { path, replacements },
           rawArguments: JSON.stringify({ path, replacements }),
         }),
-        { callId, toolName: 'edit_file', toolAccess: 'write' },
+        { callId, toolName: 'revise_chapter', toolAccess: 'write' },
       );
     const result = (callId: string, ordinal: number, ok: boolean) =>
       row(
@@ -608,8 +608,8 @@ describe('provider-neutral Agent context planner', () => {
         ordinal,
         0,
         'tool_result',
-        JSON.stringify({ callId, name: 'edit_file', ok, content: ok ? 'updated' : 'stale' }),
-        { callId, toolName: 'edit_file', toolAccess: 'write' },
+        JSON.stringify({ callId, name: 'revise_chapter', ok, content: ok ? 'updated' : 'stale' }),
+        { callId, toolName: 'revise_chapter', toolAccess: 'write' },
       );
     const rows = [
       row('system', 0, null, 'system_policy', 'policy'),
@@ -622,19 +622,19 @@ describe('provider-neutral Agent context planner', () => {
         JSON.stringify({
           type: 'tool_call',
           callId: 'stale-read',
-          name: 'read_file',
+          name: 'read_chapter',
           arguments: { path: '/chapters/03/' },
           rawArguments: '{"path":"/chapters/03/"}',
         }),
-        { callId: 'stale-read', toolName: 'read_file', toolAccess: 'read' },
+        { callId: 'stale-read', toolName: 'read_chapter', toolAccess: 'read' },
       ),
       row(
         'stale-read-result',
         3,
         0,
         'tool_result',
-        JSON.stringify({ callId: 'stale-read', name: 'read_file', ok: true, content: '旧正文' }),
-        { callId: 'stale-read', toolName: 'read_file', toolAccess: 'read' },
+        JSON.stringify({ callId: 'stale-read', name: 'read_chapter', ok: true, content: '旧正文' }),
+        { callId: 'stale-read', toolName: 'read_chapter', toolAccess: 'read' },
       ),
       call('failed-same-target', 4, '/chapters/03/prose.md', [
         { oldText: '旧'.repeat(2_000), newText: '新'.repeat(2_000) },
@@ -659,7 +659,7 @@ describe('provider-neutral Agent context planner', () => {
           evidenceSourceId: 'review-evidence',
           turnOrdinal: 0,
           callId: 'recovered',
-          toolName: 'edit_file',
+          toolName: 'revise_chapter',
         },
       ],
     });
@@ -691,8 +691,8 @@ describe('provider-neutral Agent context planner', () => {
         2,
         0,
         'tool_call',
-        JSON.stringify({ name: 'read_file', arguments: { path: '第五章' } }),
-        { callId: 'read', toolName: 'read_file', toolAccess: 'read' },
+        JSON.stringify({ name: 'read_chapter', arguments: { chapter: '第五章' } }),
+        { callId: 'read', toolName: 'read_chapter', toolAccess: 'read' },
       ),
       row(
         'read-result',
@@ -701,11 +701,11 @@ describe('provider-neutral Agent context planner', () => {
         'tool_result',
         JSON.stringify({
           callId: 'read',
-          name: 'read_file',
+          name: 'read_chapter',
           ok: true,
           content: '章节「05」正文\n完整正文'.repeat(1_000),
         }),
-        { callId: 'read', toolName: 'read_file', toolAccess: 'read' },
+        { callId: 'read', toolName: 'read_chapter', toolAccess: 'read' },
       ),
       row(
         'write-call',
@@ -713,13 +713,13 @@ describe('provider-neutral Agent context planner', () => {
         0,
         'tool_call',
         JSON.stringify({
-          name: 'edit_file',
+          name: 'revise_chapter',
           arguments: {
-            path: '第五章',
-            replacements: [{ oldText: '旧句', newText: '当前新句' }],
+            chapter: '第五章',
+            changes: [{ currentText: '旧句', revisedText: '当前新句' }],
           },
         }),
-        { callId: 'write', toolName: 'edit_file', toolAccess: 'write' },
+        { callId: 'write', toolName: 'revise_chapter', toolAccess: 'write' },
       ),
       row(
         'write-result',
@@ -728,13 +728,13 @@ describe('provider-neutral Agent context planner', () => {
         'tool_result',
         JSON.stringify({
           callId: 'write',
-          name: 'edit_file',
+          name: 'revise_chapter',
           ok: true,
           content:
             `章节「05」正文已修改。${WORKSPACE_COMPLETE_READ_MODEL_MARKER}，之后的修改已计入当前稿件。` +
             '当前修改后的正文片段：「当前新句」。',
         }),
-        { callId: 'write', toolName: 'edit_file', toolAccess: 'write' },
+        { callId: 'write', toolName: 'revise_chapter', toolAccess: 'write' },
       ),
       row('review', 6, 0, 'write_review', '章节「05」正文已有可靠完成证据。'),
       row(
@@ -756,7 +756,7 @@ describe('provider-neutral Agent context planner', () => {
           evidenceSourceId: 'review',
           turnOrdinal: 0,
           callId: 'write',
-          toolName: 'edit_file',
+          toolName: 'revise_chapter',
         },
       ],
     });
@@ -770,7 +770,13 @@ describe('provider-neutral Agent context planner', () => {
   });
 
   it('retains an entire parallel tool batch when only one read becomes stale', async () => {
-    const readCall = (sourceId: string, ordinal: number, callId: string, target: string) =>
+    const readCall = (
+      sourceId: string,
+      ordinal: number,
+      callId: string,
+      name: 'read_element' | 'read_inspiration',
+      arguments_: Record<string, string>,
+    ) =>
       row(
         sourceId,
         ordinal,
@@ -779,30 +785,35 @@ describe('provider-neutral Agent context planner', () => {
         JSON.stringify({
           type: 'tool_call',
           callId,
-          name: 'read_object',
-          arguments: { target },
-          rawArguments: JSON.stringify({ target }),
+          name,
+          arguments: arguments_,
+          rawArguments: JSON.stringify(arguments_),
         }),
-        { callId, toolName: 'read_object', toolAccess: 'read' },
+        { callId, toolName: name, toolAccess: 'read' },
       );
-    const readResult = (sourceId: string, ordinal: number, callId: string) =>
+    const readResult = (
+      sourceId: string,
+      ordinal: number,
+      callId: string,
+      name: 'read_element' | 'read_inspiration',
+    ) =>
       row(
         sourceId,
         ordinal,
         0,
         'tool_result',
-        JSON.stringify({ callId, name: 'read_object', ok: true, content: `${callId}正文` }),
-        { callId, toolName: 'read_object', toolAccess: 'read' },
+        JSON.stringify({ callId, name, ok: true, content: `${callId}正文` }),
+        { callId, toolName: name, toolAccess: 'read' },
       );
     const rows = [
       row('system', 0, null, 'system_policy', 'policy'),
       row('user', 1, 0, 'user', '给米拉写起源故事'),
-      readCall('element-call', 2, 'element', '要素「米拉·索恩」'),
-      readCall('lana-call', 3, 'lana', '灵感「米拉·索恩」'),
-      readCall('outline-call', 4, 'outline', '灵感「故事大纲_b01」'),
-      readResult('element-result', 5, 'element'),
-      readResult('lana-result', 6, 'lana'),
-      readResult('outline-result', 7, 'outline'),
+      readCall('element-call', 2, 'element', 'read_element', { element: '米拉·索恩' }),
+      readCall('lana-call', 3, 'lana', 'read_inspiration', { inspiration: '米拉·索恩' }),
+      readCall('outline-call', 4, 'outline', 'read_inspiration', { inspiration: '故事大纲_b01' }),
+      readResult('element-result', 5, 'element', 'read_element'),
+      readResult('lana-result', 6, 'lana', 'read_inspiration'),
+      readResult('outline-result', 7, 'outline', 'read_inspiration'),
       row(
         'write-call',
         8,
@@ -811,11 +822,11 @@ describe('provider-neutral Agent context planner', () => {
         JSON.stringify({
           type: 'tool_call',
           callId: 'write-lana',
-          name: 'write_object',
-          arguments: { target: '灵感「米拉·索恩」', body: '新的起源故事' },
-          rawArguments: JSON.stringify({ target: '灵感「米拉·索恩」', body: '新的起源故事' }),
+          name: 'replace_inspiration_body',
+          arguments: { inspiration: '米拉·索恩', body: '新的起源故事' },
+          rawArguments: JSON.stringify({ inspiration: '米拉·索恩', body: '新的起源故事' }),
         }),
-        { callId: 'write-lana', toolName: 'write_object', toolAccess: 'write' },
+        { callId: 'write-lana', toolName: 'replace_inspiration_body', toolAccess: 'write' },
       ),
       row(
         'write-result',
@@ -824,11 +835,11 @@ describe('provider-neutral Agent context planner', () => {
         'tool_result',
         JSON.stringify({
           callId: 'write-lana',
-          name: 'write_object',
+          name: 'replace_inspiration_body',
           ok: true,
           content: '灵感「米拉·索恩」已更新。',
         }),
-        { callId: 'write-lana', toolName: 'write_object', toolAccess: 'write' },
+        { callId: 'write-lana', toolName: 'replace_inspiration_body', toolAccess: 'write' },
       ),
       row('write-receipt', 10, 0, 'write_receipt', '灵感「米拉·索恩」已可靠保存。'),
     ];
@@ -843,7 +854,7 @@ describe('provider-neutral Agent context planner', () => {
           evidenceSourceId: 'write-receipt',
           turnOrdinal: 0,
           callId: 'write-lana',
-          toolName: 'write_object',
+          toolName: 'replace_inspiration_body',
         },
       ],
     });
@@ -940,19 +951,19 @@ describe('provider-neutral Agent context planner', () => {
         JSON.stringify({
           type: 'tool_call',
           callId: prefix,
-          name: 'read_file',
-          arguments: { path: '第七章' },
-          rawArguments: '{"path":"第七章"}',
+          name: 'read_chapter',
+          arguments: { chapter: '第七章' },
+          rawArguments: '{"chapter":"第七章"}',
         }),
-        { callId: prefix, toolName: 'read_file', toolAccess: 'read' },
+        { callId: prefix, toolName: 'read_chapter', toolAccess: 'read' },
       ),
       row(
         `${prefix}-result`,
         ordinal + 1,
         0,
         'tool_result',
-        JSON.stringify({ callId: prefix, name: 'read_file', ok: true, content }),
-        { callId: prefix, toolName: 'read_file', toolAccess: 'read' },
+        JSON.stringify({ callId: prefix, name: 'read_chapter', ok: true, content }),
+        { callId: prefix, toolName: 'read_chapter', toolAccess: 'read' },
       ),
     ] as const;
     const rows = [
@@ -998,18 +1009,18 @@ describe('provider-neutral Agent context planner', () => {
         'tool_call',
         JSON.stringify({
           callId: 'read-old',
-          name: 'read_file',
-          arguments: { path: '第三章' },
+          name: 'read_chapter',
+          arguments: { chapter: '第三章' },
         }),
-        { callId: 'read-old', toolName: 'read_file', toolAccess: 'read' },
+        { callId: 'read-old', toolName: 'read_chapter', toolAccess: 'read' },
       ),
       row(
         'read-old-result',
         7,
         2,
         'tool_result',
-        JSON.stringify({ callId: 'read-old', name: 'read_file', ok: true, content: '旧正文' }),
-        { callId: 'read-old', toolName: 'read_file', toolAccess: 'read' },
+        JSON.stringify({ callId: 'read-old', name: 'read_chapter', ok: true, content: '旧正文' }),
+        { callId: 'read-old', toolName: 'read_chapter', toolAccess: 'read' },
       ),
     ] as const;
     const currentRead = [
@@ -1020,10 +1031,10 @@ describe('provider-neutral Agent context planner', () => {
         'tool_call',
         JSON.stringify({
           callId: 'read-current',
-          name: 'read_file',
-          arguments: { path: '第三章' },
+          name: 'read_chapter',
+          arguments: { chapter: '第三章' },
         }),
-        { callId: 'read-current', toolName: 'read_file', toolAccess: 'read' },
+        { callId: 'read-current', toolName: 'read_chapter', toolAccess: 'read' },
       ),
       row(
         'read-current-result',
@@ -1032,11 +1043,11 @@ describe('provider-neutral Agent context planner', () => {
         'tool_result',
         JSON.stringify({
           callId: 'read-current',
-          name: 'read_file',
+          name: 'read_chapter',
           ok: true,
           content: '章节「03」正文\n' + '新'.repeat(1_000),
         }),
-        { callId: 'read-current', toolName: 'read_file', toolAccess: 'read' },
+        { callId: 'read-current', toolName: 'read_chapter', toolAccess: 'read' },
       ),
     ] as const;
     const rows = [
@@ -1103,10 +1114,10 @@ describe('provider-neutral Agent context planner', () => {
           JSON.stringify({
             type: 'tool_call',
             callId,
-            name: 'read_file',
-            arguments: { path: `第${chapter}章` },
+            name: 'read_chapter',
+            arguments: { chapter: `第${chapter}章` },
           }),
-          { callId, toolName: 'read_file', toolAccess: 'read' },
+          { callId, toolName: 'read_chapter', toolAccess: 'read' },
         ),
         row(
           `${callId}-result`,
@@ -1115,11 +1126,11 @@ describe('provider-neutral Agent context planner', () => {
           'tool_result',
           JSON.stringify({
             callId,
-            name: 'read_file',
+            name: 'read_chapter',
             ok: true,
             content: `章节「${chapter}」正文\n${'章'.repeat(6_000)}`,
           }),
-          { callId, toolName: 'read_file', toolAccess: 'read' },
+          { callId, toolName: 'read_chapter', toolAccess: 'read' },
         ),
       );
     }

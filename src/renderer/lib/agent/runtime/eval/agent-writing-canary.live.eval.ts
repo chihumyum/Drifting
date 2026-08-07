@@ -16,7 +16,7 @@ import type {
 const LIVE_EVAL_ENABLED = process.env.DRIFTING_AGENT_LIVE_EVAL === '1';
 const DEFAULT_MODEL = 'deepseek-v4-flash';
 const PROJECT_ID = 'writing-canary-project';
-const TARGET = '章节「雨夜」';
+const CHAPTER = '雨夜';
 const SELECTED_TEXT = '她把伞靠在门边，没有回头。';
 
 class WritingCanaryTools implements AgentToolRuntime {
@@ -26,17 +26,17 @@ class WritingCanaryTools implements AgentToolRuntime {
 
   listDefinitions(): readonly AgentToolDefinition[] {
     return [
-      definition('read_object', 'Read one current authored object.', 'read', {
+      definition('read_chapter', 'Read one current chapter.', 'read', {
         type: 'object',
         additionalProperties: false,
-        properties: { target: { type: 'string' } },
-        required: ['target'],
+        properties: { chapter: { type: 'string' } },
+        required: ['chapter'],
       }),
-      definition('revise_object', 'Revise current passages in one authored object.', 'write', {
+      definition('revise_chapter', 'Revise current passages in one chapter.', 'write', {
         type: 'object',
         additionalProperties: false,
         properties: {
-          target: { type: 'string' },
+          chapter: { type: 'string' },
           changes: {
             type: 'array',
             minItems: 1,
@@ -51,7 +51,7 @@ class WritingCanaryTools implements AgentToolRuntime {
             },
           },
         },
-        required: ['target', 'changes'],
+        required: ['chapter', 'changes'],
       }),
     ];
   }
@@ -61,12 +61,12 @@ class WritingCanaryTools implements AgentToolRuntime {
     if (request.context.route.projectId !== PROJECT_ID) {
       return { ok: false, error: 'CROSS_PROJECT_DENIED' };
     }
-    if (request.arguments.target !== TARGET) return { ok: false, error: 'TARGET_NOT_FOUND' };
-    if (request.name === 'read_object') {
+    if (request.arguments.chapter !== CHAPTER) return { ok: false, error: 'TARGET_NOT_FOUND' };
+    if (request.name === 'read_chapter') {
       this.read = true;
-      return { ok: true, data: { target: TARGET, body: this.text } };
+      return { ok: true, data: { chapter: CHAPTER, body: this.text } };
     }
-    if (request.name !== 'revise_object') return { ok: false, error: 'UNKNOWN_TOOL' };
+    if (request.name !== 'revise_chapter') return { ok: false, error: 'UNKNOWN_TOOL' };
     if (!this.read) return { ok: false, error: 'READ_REQUIRED_BEFORE_EDIT' };
     const changes = request.arguments.changes;
     if (!Array.isArray(changes)) return { ok: false, error: 'INVALID_CHANGES' };
@@ -85,7 +85,7 @@ class WritingCanaryTools implements AgentToolRuntime {
       }
       this.text = this.text.replace(currentText, revisedText);
     }
-    return { ok: true, data: { saved: true, target: TARGET, changes: changes.length } };
+    return { ok: true, data: { saved: true, chapter: CHAPTER, changes: changes.length } };
   }
 }
 
@@ -165,9 +165,9 @@ describe.skipIf(!LIVE_EVAL_ENABLED)('DeepSeek author-directed writing canary', (
 
       const terminal = [...entries].reverse().find((entry) => entry.event.type === 'turn_finished');
       expect(terminal?.event).toMatchObject({ type: 'turn_finished', outcome: 'completed' });
-      expect(tools.trace.map((call) => call.name)).toEqual(['read_object', 'revise_object']);
+      expect(tools.trace.map((call) => call.name)).toEqual(['read_chapter', 'revise_chapter']);
       const edit = tools.trace[1]?.arguments;
-      expect(edit?.target).toBe(TARGET);
+      expect(edit?.chapter).toBe(CHAPTER);
       const changes = edit?.changes;
       expect(Array.isArray(changes)).toBe(true);
       expect(

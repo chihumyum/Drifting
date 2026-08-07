@@ -4,80 +4,29 @@ import { Value } from '@sinclair/typebox/value';
 import { describe, expect, it } from 'vitest';
 
 import {
-  AGENT_READ_TOOLS,
   AGENT_TOOL_CATALOG,
-  GENERAL_READ_ONLY_PROVIDER_POLICY,
   getRegisteredTool,
-  isToolAllowedByPolicy,
-  listProviderTools,
   registeredDispatchNames,
-  selectProviderTools,
-  toAITools,
 } from './tool-registry';
 import {
-  canonicalDriftingWorkspaceProviderToolName,
-  DRIFTING_WORKSPACE_PROVIDER_TOOLS,
+  DRIFTING_DOMAIN_PROVIDER_TOOLS,
+  DRIFTING_DOMAIN_READ_TOOLS,
+  DRIFTING_DOMAIN_WRITE_TOOLS,
 } from './runtime/drifting-workspace-tool-contract';
 
-const P1_READ_NAMES = [
-  'get_overview',
-  'get_project_brief',
-  'list_elements',
-  'read_element',
-  'get_element_patches',
-  'read_node',
-  'get_storyline',
-  'get_entity_relations',
-  'where_does_entity_appear',
-  'search_prose',
-  'search_project',
-  'list_comments',
-  'list_memory',
-  'list_materials',
-  'read_material',
-] as const;
-
-const P3_AUDITED_READ_NAMES = [
-  'list_nodes',
-  'read_block',
-  'lookup_block',
-] as const;
-
-const P3_CERTIFIED_WRITE_NAMES = [
-  'rename_node',
-  'set_node_summary',
-] as const;
-
-const P5_PROSE_WRITE_NAMES = [
-  'edit_block',
-  'edit_blocks',
-  'append_paragraph',
-  'remove_blocks',
-  'replace_block_range',
-  'insert_blocks',
-] as const;
-
-const P5_ELEMENT_PATCH_WRITE_NAMES = [
-  'create_element_patch',
-  'update_element_patch',
-  'delete_element_patch',
-] as const;
-
-const P6_ENTITY_WRITE_NAMES = [
-  'update_element',
-  'update_storyline',
-  'update_project_facts',
-  'create_comment',
-] as const;
-
-const CERTIFIED_WRITE_NAMES = [
-  'update_element',
-  ...P3_CERTIFIED_WRITE_NAMES,
-  ...P5_PROSE_WRITE_NAMES,
-  'update_storyline',
-  'update_project_facts',
-  ...P5_ELEMENT_PATCH_WRITE_NAMES,
-  'create_comment',
+const RETIRED_GENERIC_TOOLS = [
+  'browse_project',
+  'read_object',
+  'search_work',
+  'revise_object',
+  'write_object',
+  'delete_object',
+  'list_files',
+  'read_file',
+  'grep',
+  'edit_file',
+  'write_file',
+  'delete_file',
 ] as const;
 
 function dispatcherNamesFromSource(): string[] {
@@ -88,102 +37,204 @@ function dispatcherNamesFromSource(): string[] {
   const marker = 'export async function runAgentTool';
   const start = source.indexOf(marker);
   if (start < 0) throw new Error(`Missing ${marker}`);
+  return [...source.slice(start).matchAll(/case\s+['"]([^'"]+)['"]\s*:/gu)].map(
+    (match) => match[1],
+  );
+}
+
+function schemaPropertyNames(schema: unknown): string[] {
+  if (!schema || typeof schema !== 'object') return [];
+  const record = schema as Record<string, unknown>;
+  const properties =
+    record.properties && typeof record.properties === 'object'
+      ? Object.keys(record.properties as Record<string, unknown>)
+      : [];
   return [
-    ...source
-      .slice(start)
-      .matchAll(/case\s+['"]([^'"]+)['"]\s*:/gu),
-  ].map((match) => match[1]);
+    ...properties,
+    ...Object.values(record).flatMap((value) =>
+      Array.isArray(value)
+        ? value.flatMap(schemaPropertyNames)
+        : schemaPropertyNames(value),
+    ),
+  ];
+}
+
+function objectSchemaDepth(schema: unknown, parentDepth = 0): number {
+  if (!schema || typeof schema !== 'object') return parentDepth;
+  const record = schema as Record<string, unknown>;
+  const depth = record.type === 'object' ? parentDepth + 1 : parentDepth;
+  let maximum = depth;
+  for (const value of Object.values(record)) {
+    const entries = Array.isArray(value) ? value : [value];
+    for (const entry of entries) {
+      maximum = Math.max(maximum, objectSchemaDepth(entry, depth));
+    }
+  }
+  return maximum;
+}
+
+function objectUnionBranches(schema: unknown): number {
+  if (!schema || typeof schema !== 'object') return 0;
+  const record = schema as Record<string, unknown>;
+  let count = 0;
+  for (const key of ['anyOf', 'oneOf']) {
+    const variants = Array.isArray(record[key]) ? record[key] : [];
+    count += variants.filter(
+      (variant) =>
+        variant &&
+        typeof variant === 'object' &&
+        !Array.isArray(variant) &&
+        (variant as Record<string, unknown>).type === 'object',
+    ).length;
+  }
+  for (const value of Object.values(record)) {
+    const entries = Array.isArray(value) ? value : [value];
+    for (const entry of entries) count += objectUnionBranches(entry);
+  }
+  return count;
 }
 
 describe('canonical Agent tool catalog', () => {
-  it('exposes one domain-native authored-object surface without storage vocabulary', () => {
-    expect(DRIFTING_WORKSPACE_PROVIDER_TOOLS).toEqual([
-      'browse_project',
-      'read_object',
-      'search_work',
-      'revise_object',
-      'write_object',
-      'delete_object',
-    ]);
+  it('installs only explicit domain tools and removes every generic object/filesystem verb', () => {
+    expect(DRIFTING_DOMAIN_READ_TOOLS).toHaveLength(22);
+    expect(DRIFTING_DOMAIN_WRITE_TOOLS).toHaveLength(43);
+    expect(DRIFTING_DOMAIN_PROVIDER_TOOLS).toHaveLength(65);
+    expect(new Set(DRIFTING_DOMAIN_PROVIDER_TOOLS).size).toBe(65);
 
-    const write = getRegisteredTool('write_object');
-    expect(write?.description).toContain('第二章');
-    expect(write?.description).toContain('灵感「雨夜片段」');
-    expect(write?.description).toContain('实体关系');
-    expect(write?.description).toContain('作者规则');
-    expect(Object.keys(write?.parametersSchema.properties ?? {})).toEqual([
-      'target',
-      'body',
-      'attributes',
-      'summary',
-    ]);
-
-    const modelSurface = DRIFTING_WORKSPACE_PROVIDER_TOOLS.map((name) => {
-      const tool = getRegisteredTool(name);
-      return {
-        name: tool?.name,
-        description: tool?.description,
-        parametersSchema: tool?.parametersSchema,
-      };
-    });
-    expect(JSON.stringify(modelSurface)).not.toMatch(
-      /\b(?:filesystem|file|directory|path|oldText|newText|replacements|list_files|read_file|grep|edit_file|write_file|delete_file)\b|\.(?:md|json)\b/iu,
-    );
-  });
-
-  it('keeps retired filesystem names outside the registry while translating durable history', () => {
-    const legacy = {
-      list_files: 'browse_project',
-      read_file: 'read_object',
-      grep: 'search_work',
-      edit_file: 'revise_object',
-      write_file: 'write_object',
-      delete_file: 'delete_object',
-    } as const;
-    for (const [retired, canonical] of Object.entries(legacy)) {
-      expect(getRegisteredTool(retired)).toBeUndefined();
-      expect(canonicalDriftingWorkspaceProviderToolName(retired)).toBe(canonical);
+    for (const name of DRIFTING_DOMAIN_PROVIDER_TOOLS) {
+      expect(getRegisteredTool(name), name).toMatchObject({ name });
+    }
+    for (const name of RETIRED_GENERIC_TOOLS) {
+      expect(getRegisteredTool(name), name).toBeUndefined();
+      expect(DRIFTING_DOMAIN_PROVIDER_TOOLS).not.toContain(name);
     }
   });
 
-  it('covers every runAgentTool handler exactly once, including the deprecated alias', () => {
+  it('keeps every public domain schema free of storage and freshness plumbing', () => {
+    const forbidden = new Set([
+      'path',
+      'attributes',
+      'expectedRevision',
+      'receiptId',
+      'observationId',
+      'revision',
+      'oldText',
+      'newText',
+      'replacements',
+    ]);
+
+    for (const name of DRIFTING_DOMAIN_PROVIDER_TOOLS) {
+      const tool = getRegisteredTool(name)!;
+      expect(tool.parametersSchema).toMatchObject({
+        type: 'object',
+        additionalProperties: false,
+      });
+      expect(
+        schemaPropertyNames(tool.parametersSchema).filter((property) =>
+          forbidden.has(property),
+        ),
+        name,
+      ).toEqual([]);
+      expect(Object.keys(tool.parametersSchema.properties ?? {}).length, name).toBeLessThanOrEqual(8);
+      expect(objectSchemaDepth(tool.parametersSchema), name).toBeLessThanOrEqual(2);
+      expect(objectUnionBranches(tool.parametersSchema), name).toBe(0);
+      expect(tool.description, name).not.toMatch(
+        /\b(?:Yjs|SQLite|path|file|revision|receipt|node|drift)\b/iu,
+      );
+    }
+  });
+
+  it('accepts narrow domain arguments and rejects the retired generic shapes', () => {
+    const valid: Readonly<Record<string, Record<string, unknown>>> = {
+      read_chapter: { chapter: '第一章 雨夜' },
+      create_chapter: { title: '第二章 清晨', body: '天亮了。' },
+      create_element: { category: '人物', name: '奥伦', summary: '退休银行家。' },
+      update_element: { element: '奥伦', summary: '背负最后一笔债。' },
+      revise_element: {
+        element: '奥伦',
+        changes: [{ currentText: '他没有回头。', revisedText: '他终究回了头。' }],
+      },
+      create_relation: {
+        fromType: 'element',
+        fromName: '奥伦',
+        toType: 'chapter',
+        toName: '第一章 雨夜',
+        relationType: '出场于',
+      },
+      update_relation: { relationId: 'relation-1', relationType: '保护' },
+      delete_relation: { relationId: 'relation-1' },
+      create_comment: {
+        body: '核对这一处伏笔。',
+        kind: 'todo',
+        targetType: 'chapter',
+        targetName: '第一章 雨夜',
+        targetText: '她把钥匙放回了桌上。',
+      },
+      list_comments: {
+        targetType: 'chapter',
+        targetName: '第一章 雨夜',
+        status: 'open',
+        onlyTodos: true,
+      },
+      create_author_rule: { kind: 'veto', body: '不要使用全知视角。' },
+    };
+
+    for (const [name, args] of Object.entries(valid)) {
+      const schema = getRegisteredTool(name)!.parametersSchema;
+      expect(Value.Check(schema, args), name).toBe(true);
+      expect(Value.Check(schema, { target: '某对象', attributes: [] }), name).toBe(false);
+    }
+    expect(
+      Value.Check(getRegisteredTool('create_comment')!.parametersSchema, {
+        body: '不要让模型操作内部句柄。',
+        targetType: 'chapter',
+        targetName: '第一章 雨夜',
+        targetBlockId: 'block-internal-only',
+      }),
+    ).toBe(false);
+  });
+
+  it('requires confirmation only for destructive domain operations', () => {
+    for (const name of [
+      'create_relation',
+      'update_relation',
+      'add_chapter_to_storyline',
+      'set_chapter_primary_storyline',
+      'update_comment',
+    ]) {
+      expect(getRegisteredTool(name)?.approval, name).toBe('automatic');
+    }
+    for (const name of [
+      'delete_chapter',
+      'delete_inspiration',
+      'delete_element',
+      'delete_element_category',
+      'delete_storyline',
+      'remove_chapter_from_storyline',
+      'replace_storyline_chapters',
+      'delete_relation',
+      'delete_comment',
+      'delete_author_rule',
+      'delete_element_patch',
+    ]) {
+      expect(getRegisteredTool(name)?.approval, name).toBe('confirm_before');
+    }
+  });
+
+  it('covers every hidden runAgentTool handler exactly once', () => {
     const dispatcherNames = dispatcherNamesFromSource();
     const catalogDispatchNames = AGENT_TOOL_CATALOG.filter(
       (tool) => tool.scope !== 'runtime-virtual',
     ).flatMap(registeredDispatchNames);
 
     expect(new Set(dispatcherNames).size).toBe(dispatcherNames.length);
-    expect(new Set(catalogDispatchNames).size).toBe(
-      catalogDispatchNames.length,
-    );
+    expect(new Set(catalogDispatchNames).size).toBe(catalogDispatchNames.length);
     expect(catalogDispatchNames.sort()).toEqual(dispatcherNames.sort());
-    expect(getRegisteredTool('set_element_body')).toBe(
-      getRegisteredTool('set_entity_body'),
-    );
-    expect(getRegisteredTool('set_entity_body')?.aliases).toContain(
-      'set_element_body',
-    );
   });
 
-  it('classifies the full surface with no unclassified entry', () => {
+  it('classifies every catalog entry and keeps canonical names unique', () => {
     const canonicalNames = AGENT_TOOL_CATALOG.map((tool) => tool.name);
     expect(new Set(canonicalNames).size).toBe(canonicalNames.length);
-
-    expect(
-      AGENT_TOOL_CATALOG.filter(
-        (tool) => tool.scope === 'general' && tool.access === 'read',
-      ),
-    ).toHaveLength(18);
-    expect(
-      AGENT_TOOL_CATALOG.filter(
-        (tool) => tool.scope === 'general' && tool.access === 'write',
-      ),
-    ).toHaveLength(34);
-    expect(
-      AGENT_TOOL_CATALOG.filter(
-        (tool) => tool.scope === 'runtime-virtual',
-      ),
-    ).toHaveLength(8);
 
     for (const tool of AGENT_TOOL_CATALOG) {
       expect(tool.name).not.toBe('');
@@ -199,299 +250,6 @@ describe('canonical Agent tool catalog', () => {
       expect(tool.revertStrategy).not.toBeUndefined();
       expect(tool.certification).not.toBeUndefined();
       expect(tool.certificationNote).not.toBe('');
-      expect(Array.isArray(tool.aliases)).toBe(true);
-      expect(Array.isArray(tool.handlerAliases)).toBe(true);
     }
-  });
-
-  it('preserves the P1 reads and certifies the three audited pure reads', () => {
-    for (const name of P1_READ_NAMES) {
-      expect(getRegisteredTool(name)).toMatchObject({
-        name,
-        scope: 'general',
-        access: 'read',
-        risk: 'none',
-        effect: 'none',
-        certification: 'read-certified',
-      });
-    }
-    for (const name of P3_AUDITED_READ_NAMES) {
-      expect(getRegisteredTool(name)).toMatchObject({
-        name,
-        scope: 'general',
-        access: 'read',
-        risk: 'none',
-        effect: 'none',
-        certification: 'read-certified',
-      });
-      expect(getRegisteredTool(name)?.certificationNote).toContain(
-        'P3 read audit',
-      );
-    }
-    expect(AGENT_READ_TOOLS).toHaveLength(18);
-  });
-
-  it('keeps complete prose replacement on the inline-review path', () => {
-    expect(getRegisteredTool('write_object')).toMatchObject({
-      approval: 'review_after',
-      revertStrategy: 'exact_inverse',
-    });
-  });
-
-  it('certifies only writes with durable receipts and exact guarded inverses', () => {
-    const writes = AGENT_TOOL_CATALOG.filter(
-      (tool) => tool.scope === 'general' && tool.access === 'write',
-    );
-    expect(writes).toHaveLength(34);
-    expect(
-      writes.filter((tool) => tool.certification === 'unavailable'),
-    ).toHaveLength(19);
-    expect(
-      writes
-        .filter((tool) => tool.certification === 'write-certified')
-        .map((tool) => tool.name),
-    ).toEqual(CERTIFIED_WRITE_NAMES);
-    for (const name of P3_CERTIFIED_WRITE_NAMES) {
-      const tool = getRegisteredTool(name);
-      expect(tool).toMatchObject({
-        approval: 'automatic',
-        retry: 'inspect_before_retry',
-        revertStrategy: 'exact_inverse',
-        certification: 'write-certified',
-      });
-      expect(
-        Value.Check(tool!.parametersSchema, {
-          node: '第一章',
-          ...(name === 'rename_node'
-            ? { title: '序章' }
-            : { summary: '新的梗概' }),
-        }),
-      ).toBe(false);
-      expect(
-        Value.Check(tool!.parametersSchema, {
-          node: '第一章',
-          ...(name === 'rename_node'
-            ? { title: '序章' }
-            : { summary: '新的梗概' }),
-          expectedRevision: {
-            receiptId: 'agent-read:session:turn:call',
-            observationId: 'agent-observation:session:turn:call:0',
-            revision: '2026-07-30T00:00:00.000Z',
-          },
-        }),
-      ).toBe(true);
-    }
-    for (const name of P5_PROSE_WRITE_NAMES) {
-      const tool = getRegisteredTool(name)!;
-      expect(tool).toMatchObject({
-        effect: 'prose',
-        approval: 'review_after',
-        revertStrategy: 'exact_inverse',
-        certification: 'write-certified',
-      });
-      expect(tool.certificationNote).toContain('P5 Yjs prose');
-      const properties = (
-        tool.parametersSchema as unknown as {
-          properties: Record<string, unknown>;
-        }
-      ).properties;
-      expect(properties.expectedRevision).toBeDefined();
-      expect(
-        Value.Check(tool.parametersSchema, proseArguments(name, false)),
-      ).toBe(false);
-      expect(
-        Value.Check(tool.parametersSchema, proseArguments(name, true)),
-      ).toBe(true);
-    }
-    for (const name of P5_ELEMENT_PATCH_WRITE_NAMES) {
-      const tool = getRegisteredTool(name)!;
-      expect(tool).toMatchObject({
-        approval: name === 'delete_element_patch' ? 'confirm_before' : 'automatic',
-        revertStrategy: 'exact_inverse',
-        certification: 'write-certified',
-      });
-      const mutationArguments =
-        name === 'create_element_patch'
-          ? { element: '柳青', body: '立场发生变化' }
-          : name === 'update_element_patch'
-            ? { patchId: 'patch-1', title: '新的演化标题' }
-            : { patchId: 'patch-1' };
-      expect(
-        Value.Check(tool.parametersSchema, mutationArguments),
-      ).toBe(false);
-      expect(
-        Value.Check(tool.parametersSchema, {
-          ...mutationArguments,
-          expectedRevision: {
-            receiptId: 'agent-read:session:turn:call',
-            observationId: 'agent-observation:session:turn:call:0',
-            revision: `element-patch:sha256:${'0'.repeat(64)}`,
-          },
-        }),
-      ).toBe(true);
-    }
-    for (const name of P6_ENTITY_WRITE_NAMES) {
-      const tool = getRegisteredTool(name)!;
-      expect(tool).toMatchObject({
-        approval: 'automatic',
-        retry: 'inspect_before_retry',
-        revertStrategy: 'exact_inverse',
-        certification: 'write-certified',
-      });
-      expect(tool.certificationNote).toContain(
-        'P6 entity-write certification',
-      );
-      const properties = (
-        tool.parametersSchema as unknown as {
-          properties: Record<string, unknown>;
-        }
-      ).properties;
-      expect(properties.expectedRevision).toBeDefined();
-    }
-  });
-
-  it('keeps exact, compensating, irreversible, and unavailable write policy distinct', () => {
-    const writes = AGENT_TOOL_CATALOG.filter(
-      (tool) => tool.scope === 'general' && tool.access === 'write',
-    );
-    const exact = writes.filter(
-      (tool) => tool.revertStrategy === 'exact_inverse',
-    );
-    const compensating = writes.filter(
-      (tool) => tool.revertStrategy === 'compensating',
-    );
-    const irreversible = writes.filter(
-      (tool) => tool.revertStrategy === 'irreversible',
-    );
-
-    expect(exact.length).toBeGreaterThan(0);
-    expect(compensating.length).toBeGreaterThan(0);
-    expect(irreversible.map((tool) => tool.name).sort()).toEqual([
-      'delete_comment',
-      'delete_element',
-    ]);
-
-    for (const tool of exact) {
-      expect(tool.reversible).toBe(true);
-    }
-    for (const tool of compensating) {
-      expect(tool.reversible).toBe(true);
-      expect(tool.certification).toBe('unavailable');
-    }
-    for (const tool of irreversible) {
-      expect(tool).toMatchObject({
-        approval: 'confirm_before',
-        retry: 'never',
-        reversible: false,
-        certification: 'unavailable',
-      });
-    }
-
-    for (const tool of writes) {
-      if (tool.certification === 'write-certified') {
-        expect(tool.revertStrategy).toBe('exact_inverse');
-        expect(['automatic', 'review_after', 'confirm_before']).toContain(tool.approval);
-        if (tool.approval === 'review_after') {
-          expect(P5_PROSE_WRITE_NAMES).toContain(tool.name);
-        }
-        if (tool.approval === 'confirm_before') {
-          expect(tool.name).toBe('delete_element_patch');
-        }
-      } else {
-        expect(tool.certification).toBe('unavailable');
-        expect(tool.certificationNote).toContain('unavailable');
-      }
-    }
-  });
-
-  it('exposes only canonical tools allowed and certified by provider policy', () => {
-    const reads = listProviderTools();
-    expect(reads).toEqual(AGENT_READ_TOOLS);
-    expect(
-      reads.every((tool) =>
-        isToolAllowedByPolicy(tool, GENERAL_READ_ONLY_PROVIDER_POLICY),
-      ),
-    ).toBe(true);
-    expect(reads.every((tool) => tool.access === 'read')).toBe(true);
-    expect(reads.every((tool) => tool.scope === 'general')).toBe(true);
-
-    // Asking for writes admits only the independently certified subset.
-    expect(
-      listProviderTools({ allowWrite: true })
-        .filter((tool) => tool.access === 'write')
-        .map((tool) => tool.name),
-    ).toEqual(CERTIFIED_WRITE_NAMES);
-
-    const providerNames = toAITools(AGENT_TOOL_CATALOG).map(
-      (tool) => tool.name,
-    );
-    expect(providerNames).toEqual(reads.map((tool) => tool.name));
-    expect(new Set(providerNames).size).toBe(providerNames.length);
-    expect(providerNames).not.toContain('set_element_body');
-    expect(providerNames).not.toContain('read_tool_result');
-    expect(providerNames).not.toContain('ask_user');
-  });
-
-  it('cannot leak an unavailable write through a permissive-looking policy', () => {
-    const result = selectProviderTools({
-      scopes: ['general'],
-      accesses: ['read', 'write'],
-      certifications: [
-        'unavailable',
-        'protocol-conformant',
-        'read-certified',
-        'write-certified',
-      ],
-    });
-
-    expect(result).toHaveLength(33);
-    expect(
-      result
-        .filter((tool) => tool.access === 'write')
-        .map((tool) => tool.name),
-    ).toEqual(CERTIFIED_WRITE_NAMES);
-    expect(
-      result.some((tool) => tool.certification === 'unavailable'),
-    ).toBe(false);
   });
 });
-
-function proseArguments(
-  name: (typeof P5_PROSE_WRITE_NAMES)[number],
-  withFreshness: boolean,
-): Record<string, unknown> {
-  const target = {
-    entity: '第一章',
-    ...(withFreshness
-      ? {
-          expectedRevision: {
-            receiptId: 'agent-read:session:turn:call',
-            observationId: 'agent-observation:session:turn:call:1',
-            revision: 'yjs:7',
-          },
-        }
-      : {}),
-  };
-  switch (name) {
-    case 'edit_block':
-      return { ...target, block: 1, text: '新段落' };
-    case 'edit_blocks':
-      return {
-        ...target,
-        edits: [{ block: 1, text: '新段落' }],
-      };
-    case 'append_paragraph':
-      return { ...target, text: '新增段落' };
-    case 'remove_blocks':
-      return { ...target, blockNumbers: [1] };
-    case 'replace_block_range':
-      return {
-        ...target,
-        fromBlock: 1,
-        toBlock: 2,
-        blocks: ['替换段落'],
-      };
-    case 'insert_blocks':
-      return { ...target, afterBlock: 1, blocks: ['插入段落'] };
-  }
-}

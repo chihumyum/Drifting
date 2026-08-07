@@ -7,6 +7,7 @@ import type {
   CreateAgentRuntimeEntityWriteReceipt,
   PersistedAgentRuntimeEntityWriteReceipt,
 } from '../domain/agent-runtime-entity-write-receipt';
+import { isDriftingDomainWriteToolName } from '../lib/agent/runtime/drifting-workspace-tool-contract';
 import { getDb, type DbExecutor } from '../lib/db';
 import { hashEntityWriteValue } from '../lib/agent/runtime/entity-write-revision';
 import {
@@ -92,7 +93,7 @@ function effectOwnsReceiptTool(
   toolName: AgentRuntimeEntityWriteTool,
 ): boolean {
   if (effect.toolName === toolName) return true;
-  if (!AUTHORED_OBJECT_FACADE_TOOLS.has(effect.toolName)) {
+  if (!isDriftingDomainWriteToolName(effect.toolName)) {
     return false;
   }
   const arguments_ = parseStoredJson(effect.argumentsJson, effect.toolName);
@@ -100,16 +101,6 @@ function effectOwnsReceiptTool(
   const command = arguments_.__workspaceCommand;
   return isRecord(command) && command.name === toolName;
 }
-
-const AUTHORED_OBJECT_FACADE_TOOLS = new Set([
-  'revise_object',
-  'write_object',
-  'delete_object',
-  // Durable rows created before the authored-object facade remain valid.
-  'edit_file',
-  'write_file',
-  'delete_file',
-]);
 
 function integrityError(receiptId: string, detail: string): never {
   throw new AgentRuntimeEntityWriteReceiptError(

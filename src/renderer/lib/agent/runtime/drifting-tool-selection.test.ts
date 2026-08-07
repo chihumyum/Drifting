@@ -651,7 +651,7 @@ describe('Drifting runtime tool selection', () => {
       ]),
     );
 
-    expect(selected).not.toContain('delete_element');
+    expect(selected).toContain('delete_element');
     expect(selected).not.toContain('read_node');
   });
 

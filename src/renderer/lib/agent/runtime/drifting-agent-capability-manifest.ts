@@ -1,4 +1,4 @@
-import { AGENT_TOOL_CATALOG, getRegisteredTool, listProviderTools } from '../tool-registry';
+import { AGENT_TOOL_CATALOG, getRegisteredTool } from '../tool-registry';
 import type {
   AgentToolAccess,
   AgentToolApproval,
@@ -20,9 +20,9 @@ import {
 } from './literary-context-summary';
 import {
   DRIFTING_DOMAIN_CRUD_CONTRACTS,
+  DRIFTING_DOMAIN_PROVIDER_TOOLS,
+  DRIFTING_DOMAIN_READ_TOOLS,
   DRIFTING_WORKSPACE_COMMAND_NAMES,
-  DRIFTING_WORKSPACE_PROVIDER_TOOLS,
-  DRIFTING_WORKSPACE_READ_TOOLS,
 } from './drifting-workspace-tool-contract';
 import {
   AGENT_LONG_TASK_EXECUTION_CONTRACT,
@@ -33,13 +33,12 @@ import { AGENT_PROVIDER_OPTIONS } from './agent-provider-contract';
 import { DRIFTING_MCP_PROTOCOL_VERSION } from './mcp-transport';
 import { DRIFTING_AGENT_CONCURRENCY_CONTRACT } from './agent-concurrency-contract';
 
-export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 16 as const;
+export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 17 as const;
 
 export type DriftingAgentToolOwner = 'workspace-runtime' | 'drifting-runtime' | 'long-task-runtime';
 
 export type DriftingAgentToolSurface =
-  | 'authored-object-facade'
-  | 'catalog-direct'
+  | 'domain-tools'
   | 'runtime-control'
   | 'long-task-runtime';
 
@@ -79,7 +78,7 @@ export interface DriftingAgentCapabilityManifest {
     certifiedNames: string[];
     unavailableNames: string[];
   };
-  authoredObjectFacade: {
+  domainToolSurface: {
     providerTools: string[];
     hiddenDomainOperations: string[];
   };
@@ -177,19 +176,16 @@ function assertUniqueInstalledNames(
  * runtimes so this pure projection cannot silently become a second registry.
  */
 export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityManifest {
-  const workspaceReadNames = new Set<string>(DRIFTING_WORKSPACE_READ_TOOLS);
-  const workspaceEntries = DRIFTING_WORKSPACE_PROVIDER_TOOLS.map((name) =>
+  const domainReadNames = new Set<string>(DRIFTING_DOMAIN_READ_TOOLS);
+  const domainEntries = DRIFTING_DOMAIN_PROVIDER_TOOLS.map((name) =>
     catalogCapability(
       requiredCatalogTool(name),
-      workspaceReadNames.has(name) ? 'workspace-runtime' : 'drifting-runtime',
-      'authored-object-facade',
+      domainReadNames.has(name) ? 'workspace-runtime' : 'drifting-runtime',
+      'domain-tools',
     ),
   );
-  const directEntries = listProviderTools({ allowWrite: true }).map((tool) =>
-    catalogCapability(tool, 'drifting-runtime', 'catalog-direct'),
-  );
   const controlEntries = RUNTIME_CONTROL_TOOL_NAMES.map((name) =>
-    catalogCapability(requiredCatalogTool(name), 'drifting-runtime', 'runtime-control'),
+    catalogCapability(requiredCatalogTool(name), 'workspace-runtime', 'runtime-control'),
   );
   const longTaskEntries: DriftingAgentInstalledToolCapability[] =
     AGENT_LONG_TASK_TOOL_CONTRACTS.map((tool) => ({
@@ -204,8 +200,7 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
       revertStrategy: 'runtime-owned',
     }));
   const installed = [
-    ...workspaceEntries,
-    ...directEntries,
+    ...domainEntries,
     ...controlEntries,
     ...longTaskEntries,
   ].sort((left, right) => left.name.localeCompare(right.name, 'en'));
@@ -250,8 +245,8 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
       certifiedNames: certifiedWrites,
       unavailableNames: unavailableWrites,
     },
-    authoredObjectFacade: {
-      providerTools: [...DRIFTING_WORKSPACE_PROVIDER_TOOLS],
+    domainToolSurface: {
+      providerTools: [...DRIFTING_DOMAIN_PROVIDER_TOOLS],
       hiddenDomainOperations: [...DRIFTING_WORKSPACE_COMMAND_NAMES],
     },
     domainCrud: {

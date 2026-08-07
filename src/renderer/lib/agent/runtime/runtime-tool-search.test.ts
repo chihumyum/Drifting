@@ -12,6 +12,7 @@ import type {
   AgentToolSelectionRequest,
   AgentToolSelectionStrategy,
 } from './types';
+import { AGENT_RUNTIME_TOOL_SEARCH_LIMIT } from './types';
 
 const ROUTE = { kind: 'test', projectId: 'project-1' } as const;
 const USAGE: AgentModelStreamEvent = {
@@ -408,13 +409,17 @@ describe('AgentRuntime tool search integration', () => {
 
   it('fails closed when a selector exceeds the hard limit or returns a non-executable name', async () => {
     for (const selected of [
-      Array.from({ length: 9 }, (_, index) => `tool_${index}`),
+      Array.from({ length: AGENT_RUNTIME_TOOL_SEARCH_LIMIT + 1 }, (_, index) => `tool_${index}`),
       ['not_executable'],
     ]) {
       const driver = new RecordingDriver(() => endTurn());
       const runtime = new AgentRuntime({
         driver,
-        tools: toolRuntime(Array.from({ length: 9 }, (_, index) => definition(`tool_${index}`))),
+        tools: toolRuntime(
+          Array.from({ length: AGENT_RUNTIME_TOOL_SEARCH_LIMIT + 1 }, (_, index) =>
+            definition(`tool_${index}`),
+          ),
+        ),
         toolSelector: { select: () => selected },
       });
 

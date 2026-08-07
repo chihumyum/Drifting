@@ -66,6 +66,16 @@ const fact = Type.Object(
 );
 const facts = (description: string) => Type.Array(fact, { minItems: 1, description });
 const optionalFacts = (description: string) => Type.Optional(Type.Array(fact, { description }));
+const domainEntityType = Type.Union(
+  [
+    Type.Literal('chapter'),
+    Type.Literal('inspiration'),
+    Type.Literal('element'),
+    Type.Literal('storyline'),
+    Type.Literal('element_category'),
+  ],
+  { description: '实体类型；只能使用列出的稳定值' },
+);
 
 const proseEntityTarget = {
   kind: Type.Optional(
@@ -296,7 +306,7 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'search_prose',
-    description: '在章节/drift 正文与元素正文里做大小写不敏感全文检索。',
+    description: '在章节、灵感与写作要素正文里做大小写不敏感全文检索。',
     parametersSchema: Type.Object(
       {
         query: str('要在正文中查找的文本'),
@@ -315,18 +325,24 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
   },
   {
     name: 'search_project',
-    description: '跨章节/drift 标题、元素名/简介/别名与故事线名做快速元数据检索，不搜索正文。',
+    description: '跨章节、灵感标题、要素名/简介/别名与故事线名做快速资料检索，不搜索正文。',
     parametersSchema: Type.Object({ query: str('要检索的文本') }, { additionalProperties: false }),
     aliases: ['project search', '项目搜索'],
   },
   {
     name: 'list_comments',
-    description: '列出项目批注、TODO 与作者标记，可按实体、状态或 onlyTodos 过滤。',
+    description: '列出项目批注、TODO 与作者标记，可按目标、状态或是否仅看 TODO 过滤。',
     parametersSchema: Type.Object(
       {
-        kind: Type.Optional(str('可选实体类型：node/element/storyline/category')),
-        entity: Type.Optional(str('可选实体名称；与 kind 配合')),
-        status: Type.Optional(str('可选状态：open/resolved/converted')),
+        targetType: Type.Optional(domainEntityType),
+        targetName: optionalStr('目标实体纯名称；与 targetType 一起提供'),
+        status: Type.Optional(
+          Type.Union([
+            Type.Literal('open'),
+            Type.Literal('resolved'),
+            Type.Literal('converted'),
+          ]),
+        ),
         onlyTodos: Type.Optional(Type.Boolean({ description: '只返回 TODO' })),
       },
       { additionalProperties: false },
@@ -376,7 +392,6 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
         groupName: optionalStr('新分组名'),
         category: optionalStr('新类目名称'),
         facts: optionalFacts('替换元素结构化事实'),
-        expectedRevision,
       },
       { additionalProperties: false },
     ),
@@ -417,9 +432,11 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     parametersSchema: Type.Object(
       {
         category: str('类目名称'),
-        name: optionalStr('元素名称'),
+        name: str('元素名称'),
         summary: optionalStr('简介'),
+        body: optionalStr('初始长正文'),
         aliases: Type.Optional(Type.Array(Type.String())),
+        groupName: optionalStr('可选分组名'),
         facts: optionalFacts('新元素的结构化事实'),
       },
       { additionalProperties: false },
@@ -431,6 +448,9 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'compensating',
     aliases: ['create character', '创建元素'],
+    certification: 'write-certified',
+    certificationNote:
+      'Domain create certification: runtime-owned project freshness, deterministic identity, atomic entity/prose/outbox receipt, review projection and guarded exact inverse.',
   },
   {
     name: 'rename_node',
@@ -633,7 +653,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'graph',
     concurrency: 'exclusive_entity',
-    approval: 'confirm_before',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['link storyline', '章节加入故事线'],
@@ -669,7 +689,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'graph',
     concurrency: 'exclusive_entity',
-    approval: 'confirm_before',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['primary storyline', '设置主故事线'],
@@ -690,7 +710,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'medium',
     effect: 'graph',
     concurrency: 'exclusive_project',
-    approval: 'confirm_before',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['create relation', '添加关系'],
@@ -723,7 +743,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     risk: 'low',
     effect: 'graph',
     concurrency: 'exclusive_project',
-    approval: 'confirm_before',
+    approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['relabel relation', '修改关系类型'],
@@ -732,16 +752,23 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     name: 'create_storyline',
     description: '创建一条新故事线。',
     parametersSchema: Type.Object(
-      { name: optionalStr('故事线名'), summary: optionalStr('梗概') },
+      {
+        name: str('故事线名'),
+        summary: optionalStr('梗概'),
+        body: optionalStr('初始长正文'),
+      },
       { additionalProperties: false },
     ),
     risk: 'medium',
     effect: 'canon',
     concurrency: 'exclusive_project',
-    approval: 'automatic',
+    approval: 'review_after',
     retry: 'inspect_before_retry',
     revertStrategy: 'compensating',
     aliases: ['new storyline', '创建故事线'],
+    certification: 'write-certified',
+    certificationNote:
+      'Domain create certification: runtime-owned project freshness, deterministic identity, atomic storyline/prose/outbox receipt, review projection and guarded exact inverse.',
   },
   {
     name: 'update_storyline',
@@ -752,7 +779,6 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
         name: optionalStr('新名称'),
         summary: optionalStr('新梗概'),
         facts: optionalFacts('按 key 合并的结构化事实'),
-        expectedRevision,
       },
       { additionalProperties: false },
     ),
@@ -803,7 +829,6 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     parametersSchema: Type.Object(
       {
         facts: facts('按 key 合并的项目事实'),
-        expectedRevision,
       },
       { additionalProperties: false },
     ),
@@ -901,7 +926,6 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
         title: optionalStr('补丁标题'),
         body: optionalStr('补丁正文'),
         sourceChapter: optionalStr('变化发生的章节名'),
-        expectedRevision,
       },
       { additionalProperties: false },
     ),
@@ -921,10 +945,10 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     description: '按 patchId 更新元素补丁标题或正文。',
     parametersSchema: Type.Object(
       {
+        element: str('要素名'),
         patchId: str('来自 get_element_patches 的 patchId'),
         title: optionalStr('新标题'),
         body: optionalStr('新正文'),
-        expectedRevision,
       },
       { additionalProperties: false },
     ),
@@ -941,11 +965,11 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'delete_element_patch',
-    description: '按 patchId 删除元素补丁；执行前必须由作者确认。',
+    description: '按 patchId 删除元素补丁；默认在执行前由作者确认。',
     parametersSchema: Type.Object(
       {
+        element: str('要素名'),
         patchId: str('来自 get_element_patches 的 patchId'),
-        expectedRevision,
       },
       { additionalProperties: false },
     ),
@@ -958,19 +982,27 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     aliases: ['remove evolution', '删除元素补丁'],
     certification: 'write-certified',
     certificationNote:
-      'P5 element-patch deletion certification: exact patch freshness, pre-execution author confirmation, atomic delete/outbox receipt, crash reconciliation, dependency guard, and exact restore inverse.',
+      'P5 element-patch deletion certification: exact patch freshness, default pre-execution author confirmation with an explicit dangerous-operation override, atomic delete/outbox receipt, crash reconciliation, dependency guard, and exact restore inverse.',
   },
   {
     name: 'create_comment',
-    description: '创建批注、TODO 或作者例外说明，可锚定实体或正文块。',
+    description:
+      '创建批注、TODO 或作者例外说明。要挂到正文块时，传目标实体和能唯一定位该块的原文片段。',
     parametersSchema: Type.Object(
       {
         body: str('批注正文'),
-        kind: optionalStr('note（默认）| todo | exception'),
-        targetKind: optionalStr('node / element / storyline / ...'),
-        target: optionalStr('目标实体名称'),
-        targetBlockId: optionalStr('可选正文块 uuid'),
-        expectedRevision,
+        kind: Type.Optional(
+          Type.Union([
+            Type.Literal('note'),
+            Type.Literal('todo'),
+            Type.Literal('exception'),
+          ]),
+        ),
+        targetType: Type.Optional(domainEntityType),
+        targetName: optionalStr('目标实体纯名称；与 targetType 一起提供'),
+        targetText: optionalStr(
+          '目标正文块中可唯一定位该块的原文片段；运行时解析为稳定 blockId，不要传 blockId',
+        ),
       },
       { additionalProperties: false },
     ),
@@ -987,7 +1019,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'delete_comment',
-    description: '按 commentId 删除批注或 TODO，并在执行前请求作者确认。',
+    description: '按 commentId 删除批注或 TODO；默认在执行前请求作者确认。',
     parametersSchema: Type.Object(
       { commentId: str('来自 list_comments 的 commentId') },
       { additionalProperties: false },
@@ -997,8 +1029,11 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     concurrency: 'exclusive_project',
     approval: 'confirm_before',
     retry: 'never',
-    revertStrategy: 'irreversible',
+    revertStrategy: 'exact_inverse',
     aliases: ['delete todo', '删除批注'],
+    certification: 'write-certified',
+    certificationNote:
+      'Domain delete certification: runtime-owned comment freshness, immutable preimage, atomic delete receipt and guarded exact restore inverse.',
   },
   {
     name: 'set_comment_status',
@@ -1038,16 +1073,403 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'delete_element',
-    description: '删除一个元素；执行前必须由作者明确确认。',
+    description: '删除一个元素；默认在执行前由作者明确确认。',
     parametersSchema: Type.Object({ element: str('元素名') }, { additionalProperties: false }),
     risk: 'critical',
     effect: 'destructive',
     concurrency: 'exclusive_project',
     approval: 'confirm_before',
     retry: 'never',
-    revertStrategy: 'irreversible',
+    revertStrategy: 'exact_inverse',
     aliases: ['delete character', '删除元素'],
+    certification: 'write-certified',
+    certificationNote:
+      'Domain delete certification: runtime-owned element freshness, dependency guard, immutable preimage, atomic delete receipt and guarded exact restore inverse.',
   },
+];
+
+const domainCursor = Type.Optional(
+  Type.Integer({ minimum: 0, description: '上一次读取返回的 cursor；首次读取省略' }),
+);
+const domainReadLimit = Type.Optional(
+  Type.Integer({
+    minimum: 1,
+    maximum: 32_000,
+    description: '本次最多返回的字符数；默认 16000',
+  }),
+);
+const domainTextChanges = Type.Array(
+  Type.Object(
+    {
+      currentText: Type.String({ minLength: 1, description: '当前正文中的原文' }),
+      revisedText: Type.String({ description: '替换后的文字；可为空字符串' }),
+      allOccurrences: Type.Optional(
+        Type.Boolean({ description: '是否替换该对象内的所有相同原文；默认 false' }),
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  { minItems: 1, maxItems: 100, description: '按当前原文精确修改的列表' },
+);
+function domainRuntimeReadSpec(
+  name: string,
+  description: string,
+  parametersSchema: TSchema = noArgs,
+  resultBudgetChars = DEFAULT_RESULT_BUDGET_CHARS,
+): InternalToolSpec {
+  return {
+    name,
+    description,
+    parametersSchema,
+    scope: 'runtime-virtual',
+    access: 'read',
+    risk: 'none',
+    effect: 'none',
+    concurrency: 'parallel',
+    approval: 'automatic',
+    retry: 'safe',
+    revertStrategy: 'not_applicable',
+    aliases: [],
+    certificationNote:
+      'Runtime-certified domain read: resolves one explicit author-domain target and delegates to project-scoped canonical reads.',
+    resultBudgetChars,
+  };
+}
+
+function domainRuntimeWriteSpec(
+  name: string,
+  description: string,
+  parametersSchema: TSchema,
+  options: {
+    risk?: AgentToolRisk;
+    effect?: AgentToolEffect;
+    concurrency?: AgentToolConcurrency;
+    approval?: AgentToolApproval;
+    retry?: AgentToolRetry;
+    revertStrategy?: AgentToolRevertStrategy;
+  } = {},
+): InternalToolSpec {
+  return {
+    name,
+    description,
+    parametersSchema,
+    scope: 'runtime-virtual',
+    access: 'write',
+    risk: options.risk ?? 'medium',
+    effect: options.effect ?? 'canon',
+    concurrency: options.concurrency ?? 'exclusive_entity',
+    approval: options.approval ?? 'automatic',
+    retry: options.retry ?? 'inspect_before_retry',
+    revertStrategy: options.revertStrategy ?? 'exact_inverse',
+    aliases: [],
+    certificationNote:
+      'Runtime-certified domain write: the public schema contains only author-domain fields; freshness, identity resolution, durable receipts and guarded inverse remain runtime-owned.',
+  };
+}
+
+const DOMAIN_RUNTIME_READ_TOOL_SPECS: InternalToolSpec[] = [
+  domainRuntimeReadSpec(
+    'get_project_overview',
+    '读取项目概览：书名、简介、章节、灵感、故事线与写作要素目录。',
+    noArgs,
+    24_000,
+  ),
+  domainRuntimeReadSpec('get_project_facts', '读取项目级事实与写作约束。'),
+  domainRuntimeReadSpec('list_chapters', '按阅读顺序列出全部章节。', noArgs, 20_000),
+  domainRuntimeReadSpec(
+    'read_chapter',
+    '读取一章的当前正文与摘要；较长正文按返回的 cursor 继续。',
+    Type.Object(
+      { chapter: str('章节名'), cursor: domainCursor, maxCharacters: domainReadLimit },
+      { additionalProperties: false },
+    ),
+    32_000,
+  ),
+  domainRuntimeReadSpec('list_inspirations', '列出全部自由灵感节点。', noArgs, 20_000),
+  domainRuntimeReadSpec(
+    'read_inspiration',
+    '读取一个灵感的当前正文与摘要。',
+    Type.Object(
+      { inspiration: str('灵感名'), cursor: domainCursor, maxCharacters: domainReadLimit },
+      { additionalProperties: false },
+    ),
+    32_000,
+  ),
+  domainRuntimeReadSpec('list_element_categories', '列出写作要素分类。', noArgs, 20_000),
+  domainRuntimeReadSpec(
+    'read_element_category',
+    '读取一个写作要素分类的正文与模板事实。',
+    Type.Object(
+      { category: str('要素分类名'), cursor: domainCursor, maxCharacters: domainReadLimit },
+      { additionalProperties: false },
+    ),
+    32_000,
+  ),
+  domainRuntimeReadSpec(
+    'find_element_appearances',
+    '查找一个写作要素在哪些章节或灵感正文中出现。',
+    Type.Object({ element: str('要素名') }, { additionalProperties: false }),
+    20_000,
+  ),
+  domainRuntimeReadSpec('list_storylines', '列出全部故事线。', noArgs, 20_000),
+  domainRuntimeReadSpec(
+    'read_storyline',
+    '读取一条故事线的正文、摘要、事实和成员章节。',
+    Type.Object(
+      { storyline: str('故事线名'), cursor: domainCursor, maxCharacters: domainReadLimit },
+      { additionalProperties: false },
+    ),
+    32_000,
+  ),
+  domainRuntimeReadSpec('list_relations', '列出项目内的实体关系。', noArgs, 20_000),
+  domainRuntimeReadSpec(
+    'list_entity_relations',
+    '列出与一个具体实体相连的入向和出向关系。',
+    Type.Object(
+      { entityType: domainEntityType, entity: str('实体名，不要包含类型包装') },
+      { additionalProperties: false },
+    ),
+    20_000,
+  ),
+  domainRuntimeReadSpec('list_author_rules', '列出 Agent 保存的作者偏好、否决和长期指令。'),
+];
+
+const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
+  domainRuntimeWriteSpec(
+    'create_chapter',
+    '新建一章；标题必填，正文和摘要可同时初始化。',
+    Type.Object(
+      { title: str('章节标题'), body: optionalStr('初始正文'), summary: optionalStr('初始摘要') },
+      { additionalProperties: false },
+    ),
+    { effect: 'canon', concurrency: 'exclusive_project', approval: 'review_after' },
+  ),
+  domainRuntimeWriteSpec(
+    'rename_chapter',
+    '重命名一章。',
+    Type.Object({ chapter: str('当前章节名'), title: str('新标题') }, { additionalProperties: false }),
+  ),
+  domainRuntimeWriteSpec(
+    'set_chapter_summary',
+    '设置一章的摘要。',
+    Type.Object({ chapter: str('章节名'), summary: str('新摘要') }, { additionalProperties: false }),
+  ),
+  domainRuntimeWriteSpec(
+    'revise_chapter',
+    '按当前原文局部修改一章正文。',
+    Type.Object({ chapter: str('章节名'), changes: domainTextChanges }, { additionalProperties: false }),
+    { effect: 'prose', approval: 'review_after' },
+  ),
+  domainRuntimeWriteSpec(
+    'replace_chapter_body',
+    '完整替换一章正文；必须先通读该章。可同时更新摘要。',
+    Type.Object(
+      { chapter: str('章节名'), body: str('完整新正文'), summary: optionalStr('同时设置的新摘要') },
+      { additionalProperties: false },
+    ),
+    { risk: 'high', effect: 'prose', approval: 'review_after', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'delete_chapter',
+    '删除一章；默认在执行前请求作者确认。',
+    Type.Object({ chapter: str('章节名') }, { additionalProperties: false }),
+    { risk: 'critical', effect: 'destructive', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'create_inspiration',
+    '新建一个自由灵感节点。',
+    Type.Object(
+      { title: str('灵感标题'), body: optionalStr('初始正文'), summary: optionalStr('初始摘要') },
+      { additionalProperties: false },
+    ),
+    { effect: 'canon', concurrency: 'exclusive_project', approval: 'review_after' },
+  ),
+  domainRuntimeWriteSpec(
+    'rename_inspiration',
+    '重命名一个灵感节点。',
+    Type.Object({ inspiration: str('当前灵感名'), title: str('新标题') }, { additionalProperties: false }),
+  ),
+  domainRuntimeWriteSpec(
+    'set_inspiration_summary',
+    '设置一个灵感节点的摘要。',
+    Type.Object({ inspiration: str('灵感名'), summary: str('新摘要') }, { additionalProperties: false }),
+  ),
+  domainRuntimeWriteSpec(
+    'revise_inspiration',
+    '按当前原文局部修改一个灵感节点。',
+    Type.Object({ inspiration: str('灵感名'), changes: domainTextChanges }, { additionalProperties: false }),
+    { effect: 'prose', approval: 'review_after' },
+  ),
+  domainRuntimeWriteSpec(
+    'replace_inspiration_body',
+    '完整替换一个灵感节点的正文；必须先通读。',
+    Type.Object({ inspiration: str('灵感名'), body: str('完整新正文') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'prose', approval: 'review_after', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'delete_inspiration',
+    '删除一个灵感节点；默认请求作者确认。',
+    Type.Object({ inspiration: str('灵感名') }, { additionalProperties: false }),
+    { risk: 'critical', effect: 'destructive', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'revise_element',
+    '按当前原文局部修改一个写作要素的长正文。',
+    Type.Object({ element: str('要素名'), changes: domainTextChanges }, { additionalProperties: false }),
+    { effect: 'prose', approval: 'review_after' },
+  ),
+  domainRuntimeWriteSpec(
+    'replace_element_body',
+    '完整替换一个写作要素的长正文；必须先通读。',
+    Type.Object({ element: str('要素名'), body: str('完整新正文') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'prose', approval: 'review_after', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'create_element_category',
+    '新建写作要素分类。',
+    Type.Object({ name: str('分类名'), body: optionalStr('分类说明正文') }, { additionalProperties: false }),
+    { concurrency: 'exclusive_project', approval: 'review_after' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_element_category',
+    '更新写作要素分类的名称或新要素模板事实。',
+    Type.Object(
+      { category: str('当前分类名'), name: optionalStr('新分类名'), templateFacts: optionalFacts('完整的模板事实') },
+      { additionalProperties: false },
+    ),
+  ),
+  domainRuntimeWriteSpec(
+    'replace_element_category_body',
+    '完整替换写作要素分类说明正文。',
+    Type.Object({ category: str('分类名'), body: str('完整新正文') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'prose', approval: 'review_after', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'delete_element_category',
+    '删除一个空的写作要素分类；默认请求作者确认。',
+    Type.Object({ category: str('分类名') }, { additionalProperties: false }),
+    { risk: 'critical', effect: 'destructive', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'revise_storyline',
+    '按当前原文局部修改一条故事线的长正文。',
+    Type.Object({ storyline: str('故事线名'), changes: domainTextChanges }, { additionalProperties: false }),
+    { effect: 'prose', approval: 'review_after' },
+  ),
+  domainRuntimeWriteSpec(
+    'replace_storyline_body',
+    '完整替换一条故事线的长正文；必须先通读。',
+    Type.Object({ storyline: str('故事线名'), body: str('完整新正文') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'prose', approval: 'review_after', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'delete_storyline',
+    '删除一条故事线；默认请求作者确认。',
+    Type.Object({ storyline: str('故事线名') }, { additionalProperties: false }),
+    { risk: 'critical', effect: 'destructive', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'add_chapter_to_storyline',
+    '把一章加入一条故事线。',
+    Type.Object({ chapter: str('章节名'), storyline: str('故事线名') }, { additionalProperties: false }),
+    { effect: 'graph' },
+  ),
+  domainRuntimeWriteSpec(
+    'remove_chapter_from_storyline',
+    '把一章从一条故事线移除；默认请求作者确认。',
+    Type.Object({ chapter: str('章节名'), storyline: str('故事线名') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'graph', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'set_chapter_primary_storyline',
+    '设置一章的主故事线，必要时自动加入该故事线。',
+    Type.Object({ chapter: str('章节名'), storyline: str('故事线名') }, { additionalProperties: false }),
+    { effect: 'graph' },
+  ),
+  domainRuntimeWriteSpec(
+    'replace_storyline_chapters',
+    '用给定的完整章节列表替换故事线成员；可能移除旧关系。',
+    Type.Object(
+      { storyline: str('故事线名'), chapters: Type.Array(Type.String(), { description: '按阅读顺序排列的完整章节名列表' }) },
+      { additionalProperties: false },
+    ),
+    { risk: 'high', effect: 'graph', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'create_relation',
+    '在两个已存在的实体之间新建关系。名称参数只传纯名称，不要包含「」类型包装。',
+    Type.Object(
+      {
+        fromType: domainEntityType,
+        fromName: str('起点实体纯名称'),
+        toType: domainEntityType,
+        toName: str('终点实体纯名称'),
+        relationType: optionalStr('关系标签，例如包含章节、敌对、隶属'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_relation',
+    '按 relationId 修改关系标签。',
+    Type.Object(
+      { relationId: str('来自 list_relations 或 list_entity_relations'), relationType: str('新关系标签；空字符串表示清空') },
+      { additionalProperties: false },
+    ),
+    { effect: 'graph', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'delete_relation',
+    '按 relationId 删除一条实体关系；默认请求作者确认。',
+    Type.Object({ relationId: str('来自 list_relations 或 list_entity_relations') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'destructive', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_comment',
+    '更新批注或 TODO 的文字、类型或状态；只修改传入的字段。',
+    Type.Object(
+      {
+        commentId: str('来自 list_comments'),
+        body: optionalStr('新文字'),
+        kind: Type.Optional(Type.Union([Type.Literal('note'), Type.Literal('todo'), Type.Literal('exception')])),
+        status: Type.Optional(Type.Union([Type.Literal('open'), Type.Literal('resolved')])),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'annotation', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'create_author_rule',
+    '保存一条作者长期偏好、否决或指令。',
+    Type.Object(
+      {
+        kind: Type.Union([Type.Literal('preference'), Type.Literal('veto'), Type.Literal('directive')]),
+        body: str('自包含的规则文字'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'memory', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'update_author_rule',
+    '更新一条 Agent 创建的作者规则。',
+    Type.Object(
+      {
+        ruleId: str('来自 list_author_rules 的 memoryId'),
+        kind: Type.Optional(Type.Union([Type.Literal('preference'), Type.Literal('veto'), Type.Literal('directive')])),
+        body: optionalStr('新规则文字'),
+      },
+      { additionalProperties: false },
+    ),
+    { effect: 'memory', concurrency: 'exclusive_project' },
+  ),
+  domainRuntimeWriteSpec(
+    'delete_author_rule',
+    '删除一条 Agent 创建的作者规则；默认请求作者确认。',
+    Type.Object({ ruleId: str('来自 list_author_rules 的 memoryId') }, { additionalProperties: false }),
+    { risk: 'high', effect: 'memory', concurrency: 'exclusive_project', approval: 'confirm_before', retry: 'never' },
+  ),
 ];
 
 
@@ -1056,221 +1478,8 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
 // ---------------------------------------------------------------------------
 
 const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
-  {
-    name: 'revise_object',
-    description:
-      'Revise one or more passages in an authored chapter, 灵感, entity, storyline, note, relation, or author rule. Supply each current passage and its revised version. Combine independent changes to the same authored object in one call. For a complete rewrite after reading the whole object, use write_object.',
-    parametersSchema: Type.Object(
-      {
-        target: Type.String({
-          minLength: 1,
-          description:
-            'Authored object or field. Use 第九章 for its prose and 章节「09」摘要 for its summary.',
-        }),
-        changes: Type.Array(
-          Type.Object(
-            {
-              currentText: Type.String({
-                minLength: 1,
-                description: 'Current authored passage being revised',
-              }),
-              revisedText: Type.String({ description: 'Revised passage; may be empty' }),
-              allOccurrences: Type.Optional(
-                Type.Boolean({
-                  description: 'Apply the same revision to every occurrence of the current passage',
-                }),
-              ),
-            },
-            { additionalProperties: false },
-          ),
-          { minItems: 1, maxItems: 100 },
-        ),
-      },
-      { additionalProperties: false },
-    ),
-    scope: 'runtime-virtual',
-    access: 'write',
-    risk: 'medium',
-    effect: 'prose',
-    concurrency: 'exclusive_entity',
-    approval: 'review_after',
-    retry: 'inspect_before_retry',
-    revertStrategy: 'exact_inverse',
-    aliases: ['revise authored object', '修改作品内容', '编辑小说'],
-    certificationNote:
-      'Runtime-certified domain facade over independently certified writes: resolves the authored target, performs the dependent read, injects freshness, batches same-object prose changes, and delegates to the durable strategy.',
-  },
-  {
-    name: 'write_object',
-    description:
-      'Create one authored project object or replace one complete authored body. Use the natural authored name: for example 第二章, 灵感「雨夜片段」, 人物「林弦」, 故事线「返乡」, 项目事实, 批注, 待办, 实体关系, or 作者规则. Body and summary are separate authored fields. A new object or a complete chapter/灵感 replacement may include summary here; for an existing element or storyline, save its body first and then write its named 摘要 field separately. When target explicitly names 摘要, put the new value in summary and omit body. For 项目事实, attributes are the fact names and values to add or update. To create a relation, set target exactly to 实体关系 and provide 起点类型/起点/终点类型/终点/关系; Drifting assigns its identity, so do not invent a relation name or handle. To create a note, TODO, or author rule, set target exactly to 批注, 待办, or 作者规则; that target already determines its kind, body is its text, and attributes may optionally use 对象类型/对象. Create referenced objects before dependent relations or notes. Replacing an existing body requires a complete prior read; use revise_object for focused revisions.',
-    parametersSchema: Type.Object(
-      {
-        target: Type.String({
-          minLength: 1,
-          description:
-            'Natural authored target name, such as 第二章 or 灵感「雨夜片段」; use exactly 实体关系, 批注, 待办, or 作者规则 when creating those object kinds',
-        }),
-        body: Type.Optional(Type.String({
-          description: 'Complete authored prose or structured object body',
-        })),
-        attributes: Type.Optional(
-          Type.Array(
-            Type.Object(
-              {
-                name: Type.String({ minLength: 1, description: 'Domain attribute name' }),
-                value: Type.String({ description: 'Domain attribute value' }),
-              },
-              { additionalProperties: false },
-            ),
-            {
-              description:
-                'Optional named domain attributes. For 项目事实 each entry is one fact. With target 实体关系 use 起点类型, 起点, 终点类型, 终点, and 关系. For a note or TODO optionally use 对象类型/对象; its target already determines 批注 or 待办.',
-            },
-          ),
-        ),
-        summary: Type.Optional(
-          Type.String({
-            description:
-              'Summary value. Also use this field when target explicitly names an existing 摘要; omit body in that case',
-          }),
-        ),
-      },
-      { additionalProperties: false },
-    ),
-    scope: 'runtime-virtual',
-    access: 'write',
-    risk: 'medium',
-    effect: 'canon',
-    concurrency: 'exclusive_project',
-    // The facade is target-sensitive. New and existing prose both enter the
-    // configured inline review mode; metadata-only writes complete without a
-    // fake prose review. Destructive structure still has its separate
-    // confirm-before policy.
-    approval: 'review_after',
-    retry: 'inspect_before_retry',
-    revertStrategy: 'exact_inverse',
-    aliases: ['write authored object', '新建内容', '创建小说实体'],
-    certificationNote:
-      'Runtime-certified domain facade: authored-target resolution and dependent reads are runtime-owned; structural creates commit atomically, and both initial and replacement prose retain the editor block-review surface and exact inverse.',
-  },
-  {
-    name: 'delete_object',
-    description:
-      'Delete one complete authored object, such as a chapter, 灵感, entity, storyline, comment, TODO, relation, or author rule. Use the exact authored target returned by the project catalog.',
-    parametersSchema: Type.Object(
-      {
-        target: Type.String({
-          minLength: 1,
-          description:
-            'Exact authored object returned by the work catalog',
-        }),
-      },
-      { additionalProperties: false },
-    ),
-    scope: 'runtime-virtual',
-    access: 'write',
-    risk: 'high',
-    effect: 'destructive',
-    concurrency: 'exclusive_project',
-    approval: 'confirm_before',
-    retry: 'never',
-    revertStrategy: 'exact_inverse',
-    aliases: ['delete authored object', '删除小说实体'],
-    certificationNote:
-      'Runtime-certified destructive domain facade: resolves one project-owned object, requires central author confirmation, records an immutable preimage, and uses a guarded exact restore inverse.',
-  },
-  {
-    name: 'browse_project',
-    description:
-      'View one level of the work catalog: chapters, 灵感, entities, storylines, comments, relations, rules, or materials. Use this only when the author did not name an exact target or a named target is missing.',
-    parametersSchema: Type.Object(
-      {
-        collection: Type.Optional(
-          Type.String({
-            description: 'Authored collection or object to browse; omit for the top-level catalog',
-          }),
-        ),
-      },
-      { additionalProperties: false },
-    ),
-    scope: 'runtime-virtual',
-    access: 'read',
-    risk: 'none',
-    effect: 'none',
-    concurrency: 'parallel',
-    approval: 'automatic',
-    retry: 'safe',
-    revertStrategy: 'not_applicable',
-    aliases: ['browse authored project', '浏览作品'],
-    certificationNote:
-      'Runtime-certified project-scoped catalog of canonical Drifting objects; internal identities and storage layout are not provider-visible.',
-    resultBudgetChars: 24_000,
-  },
-  {
-    name: 'read_object',
-    description:
-      'Read one authored chapter, 灵感, entity, summary, or other project object when it is the work target or a concrete search result needs surrounding context. Reading a person or other element returns its profile, direct relations, and compact current manuscript evidence in one domain view; use that evidence instead of gathering whole chapters. A chapter read returns its current summary together with its prose, and an unfilled body is reported explicitly. Search excerpts are already current authored evidence; never reread their source merely to verify them. When the author says 第八章, pass 第八章 directly—do not browse or search merely to resolve that ordinal. Large objects return a continuation cursor until the complete body has been read.',
-    parametersSchema: Type.Object(
-      {
-        target: Type.String({
-          minLength: 1,
-          description:
-            'Authored target name, such as 第八章 or 灵感碎片; name 正文 or 摘要 only when selecting that specific authored field',
-        }),
-        cursor: Type.Optional(
-          Type.Integer({ minimum: 0, description: 'Continuation cursor returned by an earlier read' }),
-        ),
-        maxCharacters: Type.Optional(
-          Type.Integer({
-            minimum: 1,
-            maximum: 32_000,
-            description: 'Maximum authored characters to return, default 16000',
-          }),
-        ),
-      },
-      { additionalProperties: false },
-    ),
-    scope: 'runtime-virtual',
-    access: 'read',
-    risk: 'none',
-    effect: 'none',
-    concurrency: 'parallel',
-    approval: 'automatic',
-    retry: 'safe',
-    revertStrategy: 'not_applicable',
-    aliases: ['read authored object', '阅读作品对象'],
-    certificationNote:
-      'Runtime-certified authored-target resolver over project-filtered Drifting reads; internal receipts and entity handles are not provider-visible.',
-    resultBudgetChars: 32_000,
-  },
-  {
-    name: 'search_work',
-    description:
-      'Find current authored evidence across the work: titles, manuscript text, entity and storyline records, comments, TODOs, and relations. Returned matches are usable current excerpts, not an index that requires opening every source. Use this first for a person or subject spanning multiple objects, then read a complete object only when specific surrounding context is still needed. The query is literal text, not a regular expression. Narrow to one authored object or collection when useful, for example 批注或待办 or 实体关系.',
-    parametersSchema: Type.Object(
-      {
-        query: Type.String({ minLength: 1, description: 'Text to search for' }),
-        within: Type.Optional(Type.String({ description: 'Optional authored object or collection' })),
-        limit: Type.Optional(
-          Type.Integer({ minimum: 1, maximum: 100, description: 'Maximum matches' }),
-        ),
-      },
-      { additionalProperties: false },
-    ),
-    scope: 'runtime-virtual',
-    access: 'read',
-    risk: 'none',
-    effect: 'none',
-    concurrency: 'parallel',
-    approval: 'automatic',
-    retry: 'safe',
-    revertStrategy: 'not_applicable',
-    aliases: ['search authored project', '搜索作品'],
-    certificationNote:
-      'Runtime-certified search facade over project-filtered metadata and live Yjs prose search; it performs no mutation.',
-    resultBudgetChars: 20_000,
-  },
+  ...DOMAIN_RUNTIME_READ_TOOL_SPECS,
+  ...DOMAIN_RUNTIME_WRITE_TOOL_SPECS,
   {
     name: 'ask_user',
     description:

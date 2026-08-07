@@ -1,19 +1,23 @@
 #!/usr/bin/env node
 
+import { readFileSync } from 'node:fs';
+
 const DEFAULT_URL = 'http://127.0.0.1:4317';
 const DEFAULT_TIMEOUT_MS = 240_000;
 const PROJECT_TEST_NODE = 'agent wrote this';
 const MARKER = `[AGENT-HEADLESS-EVAL:${Date.now().toString(36)}]`;
 
-const PROVIDER_WRITES = new Set([
-  'revise_object',
-  'write_object',
-  'delete_object',
-  'create_element_patch',
-  'update_element_patch',
-  'delete_element_patch',
-]);
-const OBJECT_MUTATION_TOOLS = ['revise_object', 'write_object'];
+const CAPABILITY_MANIFEST = JSON.parse(
+  readFileSync(
+    new URL('../docs/agent-runtime/acceptance/agent-capabilities.json', import.meta.url),
+    'utf8',
+  ),
+);
+const PROVIDER_WRITES = new Set(
+  CAPABILITY_MANIFEST.installedModelTools.entries
+    .filter((tool) => tool.surface === 'domain-tools' && tool.access === 'write')
+    .map((tool) => tool.name),
+);
 
 const COMMON = [
   '这是隔离数据库副本上的真实 renderer 写入验收。',
@@ -24,44 +28,44 @@ const COMMON = [
 const SCENARIOS = [
   {
     id: 'set-node-summary',
-    write: 'write_object',
-    read: 'read_object',
+    write: 'set_chapter_summary',
+    read: 'read_chapter',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」的摘要，然后把摘要完整替换为「${MARKER} temporary summary」。`,
   },
   {
     id: 'edit-block',
-    write: 'revise_object',
-    read: 'read_object',
+    write: 'revise_chapter',
+    read: 'read_chapter',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，仅在第1段末尾追加「 ${MARKER}」，其余原文不变。`,
   },
   {
     id: 'edit-blocks',
-    write: 'revise_object',
-    read: 'read_object',
+    write: 'revise_chapter',
+    read: 'read_chapter',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，在同一次改动中分别于第1段和第2段末尾追加「 ${MARKER} one」与「 ${MARKER} two」，其余原文不变。`,
   },
   {
     id: 'append-paragraph',
-    write: 'revise_object',
-    read: 'read_object',
+    write: 'revise_chapter',
+    read: 'read_chapter',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，在末尾追加一个新段落，内容恰好为「${MARKER} appended paragraph」。`,
   },
   {
     id: 'insert-blocks',
-    write: 'revise_object',
-    read: 'read_object',
+    write: 'revise_chapter',
+    read: 'read_chapter',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，在第1段后依次插入两个新段落「${MARKER} inserted one」和「${MARKER} inserted two」，其余原文不变。`,
   },
   {
     id: 'remove-blocks',
-    write: 'revise_object',
-    read: 'read_object',
+    write: 'revise_chapter',
+    read: 'read_chapter',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，删除第3段，保留其他段落及其顺序。`,
   },
   {
     id: 'replace-block-range',
-    write: 'revise_object',
-    read: 'read_object',
+    write: 'revise_chapter',
+    read: 'read_chapter',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」正文，把第2至第3段整体替换为两个段落「${MARKER} range one」和「${MARKER} range two」，第1段不变。`,
   },
   {
@@ -78,26 +82,26 @@ const SCENARIOS = [
   },
   {
     id: 'update-element',
-    write: ['revise_object', 'write_object'],
-    read: 'read_object',
+    write: 'update_element',
+    read: 'read_element',
     prompt: `${COMMON} 请读取人物「Grey Banker」的摘要，只在现有摘要末尾追加「 ${MARKER}」，其他内容不变。`,
   },
   {
     id: 'update-storyline',
-    write: ['revise_object', 'write_object'],
-    read: 'read_object',
+    write: 'update_storyline',
+    read: 'read_storyline',
     prompt: `${COMMON} 请读取故事线「Mortals」的摘要，只在现有摘要末尾追加「 ${MARKER}」，其他内容不变。`,
   },
   {
     id: 'update-project-facts',
-    write: 'write_object',
-    read: 'read_object',
+    write: 'update_project_facts',
+    read: 'get_project_facts',
     prompt: `${COMMON} 请读取项目事实，新增一条名称为「__agent_headless_eval__」、内容为「${MARKER}」的事实，保留所有已有事实。`,
   },
   {
     id: 'create-comment',
-    write: 'write_object',
-    read: 'browse_project',
+    write: 'create_comment',
+    read: 'list_comments',
     prompt: `${COMMON} 请先浏览批注，然后创建一条指向章节「${PROJECT_TEST_NODE}」的普通批注，正文为「${MARKER} temporary comment」。`,
   },
   // Keep rename last because metadata writes are automatic rather than inline
@@ -105,8 +109,8 @@ const SCENARIOS = [
   // the disposable database.
   {
     id: 'rename-node',
-    write: 'write_object',
-    read: 'read_object',
+    write: 'rename_chapter',
+    read: 'read_chapter',
     prompt: `${COMMON} 请读取章节「${PROJECT_TEST_NODE}」的标题，然后把标题改为「${PROJECT_TEST_NODE} ${MARKER}」。`,
   },
 ];
@@ -241,12 +245,7 @@ async function runScenario(options, scenario) {
   const calls = events.filter((event) => event.type === 'tool_call_ready');
   const results = events.filter((event) => event.type === 'tool_result');
   const reviews = results.map(parseReviewFromToolResult).filter(Boolean);
-  const declaredWriteNames = Array.isArray(scenario.write) ? scenario.write : [scenario.write];
-  const expectedWriteNames = declaredWriteNames.some((name) =>
-    OBJECT_MUTATION_TOOLS.includes(name),
-  )
-    ? OBJECT_MUTATION_TOOLS
-    : declaredWriteNames;
+  const expectedWriteNames = [scenario.write];
   let successfulWriteResult = null;
   let reviewWasReverted = false;
   let primaryError = null;

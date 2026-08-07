@@ -1130,7 +1130,9 @@
       "notSupported": "不支持",
       "edits": "改动",
       "reviewEdits": "正文改动需审阅",
-      "reviewEditsTitle": "开启后，Agent 会直接把正文改动写入编辑器，并在原文位置展示彩色 diff 与接受/拒绝按钮；关闭后，改动会自动播放 reveal 动画并完成。删除实体、调整关系等结构性操作始终会在执行前单独确认。",
+      "reviewEditsTitle": "开启后，Agent 会直接把正文改动写入编辑器，并在原文位置展示彩色 diff 与接受/拒绝按钮；关闭后，改动会自动播放 reveal 动画并完成。删除类操作使用下方独立权限设置。",
+      "dangerousOperations": "允许危险操作",
+      "dangerousOperationsTitle": "开启后，Agent 删除章节、灵感、元素、关系、批注或其他对象时不再逐次请求批准。只影响之后发起的操作；项目隔离、参数校验、并发检查与持久化回执仍然生效。",
       "memory": "规则",
       "memoryTitle": "由你管理的长期偏好 / 指令 / 否决；只有生效条目会注入后续对话。",
       "manageMemory": "管理规则",
@@ -1210,18 +1212,10 @@
     },
     "turnChanges": "本轮改动",
     "jumpLatest": "回到最新",
-    "running": {
-      "switchTitle": "切换到正在运行的对话",
-      "otherConversation": "另一个对话",
-      "message": "Agent 正在「{{title}}」中工作 · 查看",
-      "disabledTitle": "Agent 正在另一个对话中工作，完成后可继续"
-    },
     "control": {
       "permissionTitle": "Agent 请求执行操作",
-      "destructiveHint": "这项操作会改变作品结构，需要你先确认",
-      "arguments": "查看完整参数",
-      "editPreview": "批准后写入",
-      "replaceAll": "替换全部匹配项",
+      "destructiveHint": "这项操作会删除或替换现有内容，需要你先确认",
+      "arguments": "查看原始参数",
       "deny": "拒绝",
       "allow": {
         "once": "仅这一次",

@@ -68,8 +68,8 @@ const SLOT_A = 'SLOTA';
 const SLOT_B = 'SLOTB';
 const DONE_A = 'AGENTADONE';
 const DONE_B = 'AGENTBDONE';
-const MODEL_READ_TOOL_NAMES = ['read_object', 'read_file'] as const;
-const MODEL_REVISE_TOOL_NAMES = ['revise_object', 'edit_file'] as const;
+const MODEL_READ_TOOL_NAMES = ['read_chapter'] as const;
+const MODEL_REVISE_TOOL_NAMES = ['revise_chapter'] as const;
 const INITIAL_CONTENT_JSON = JSON.stringify({
   type: 'doc',
   content: [
@@ -452,10 +452,8 @@ describe.skipIf(!LIVE_EVAL_ENABLED)('General Agent concurrent DeepSeek writing c
               if (entry.event.type !== 'tool_result') return '';
               return `${entry.event.name}:${entry.event.ok ? 'ok' : 'failed'}`;
             });
-          expect(trace[0], turnId).toMatch(/^(?:read_object|read_file):ok$/u);
-          expect(trace[trace.length - 1], turnId).toMatch(
-            /^(?:revise_object|edit_file):ok$/u,
-          );
+          expect(trace[0], turnId).toBe('read_chapter:ok');
+          expect(trace[trace.length - 1], turnId).toBe('revise_chapter:ok');
         }
         const losingTrace = toolResults
           .filter((entry) => entry.turnId === conflict.turnId)

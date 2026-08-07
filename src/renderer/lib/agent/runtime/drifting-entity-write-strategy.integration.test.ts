@@ -132,6 +132,17 @@ describe('certified entity write runtime', () => {
         kind: 'todo',
         targetKind: 'element',
         target: '柳青',
+        targetBlockId: 'block-motive',
+        anchorJson: JSON.stringify({
+          selectedText: '他仍然没有回答。',
+          textAnchor: {
+            startBlockId: 'block-motive',
+            startOffset: 0,
+            endBlockId: 'block-motive',
+            endOffset: 9,
+            text: '他仍然没有回答。',
+          },
+        }),
         expectedRevision: commentToken,
       },
     );
@@ -154,6 +165,9 @@ describe('certified entity write runtime', () => {
       metadataJson: null,
       targetKind: 'element',
       targetId: 'element-1',
+      targetBlockId: 'block-motive',
+      targetBlockIdsJson: '["block-motive"]',
+      anchorJson: expect.stringContaining('block-motive'),
     });
     expect(
       fixture.scalar(
@@ -208,7 +222,8 @@ describe('certified entity write runtime', () => {
 
     expect(await fixture.runtime(interrupted).execute(request)).toEqual({
       ok: false,
-      error: 'simulated death after entity receipt',
+      error:
+        'The authored object changed while it was being revised. Read its current state and apply the intended revision again.',
     });
     expect((await base.getEffect(`agent-write:${request.idempotencyKey}`))?.phase).toBe(
       'uncertain',

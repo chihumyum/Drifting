@@ -4,23 +4,30 @@ Status: normative for Milestone D
 
 This document defines how the General Agent experiences a Drifting project as
 a natural writing workspace while the product preserves SQLite, Yjs, sync,
-review, and crash-consistency invariants underneath that facade.
+review, and crash-consistency invariants underneath the domain-tool boundary.
 
 ## 1. Product surface
 
-The model receives six ordinary authored-object verbs:
+The model receives the complete generated set of explicit domain tools.
+Chapters, inspirations, elements, element categories, storylines, storyline
+memberships, relations, comments/TODOs, project facts, author rules, and element
+patches each have their own named operations. Examples include `read_chapter`,
+`revise_chapter`, `create_element`, `update_element`, `create_relation`, and
+`delete_relation`. There is no generic authored-object or virtual-file tool and
+no compatibility alias for one. The generated capability inventory is the
+authoritative complete list and count.
 
-- `browse_project`
-- `read_object`
-- `search_work`
-- `revise_object`
-- `write_object`
-- `delete_object`
+Inputs use one direct domain noun such as `chapter`, `element`, `category`, or
+`relationId`, plus only the fields needed by that operation. They do not expose
+paths, extensions, SQLite row ids, Yjs updates, block handles, revision tokens,
+receipt ids, or sync mutations. Only comments, relations, element patches, and
+author rules keep opaque handles after creation, because those handles
+distinguish otherwise unnamed domain objects.
 
-Targets use author-facing domain names. They do not expose paths, extensions,
-SQLite row ids, Yjs updates, block handles, receipt ids, or sync mutations.
-Only comments, relations, and author rules keep opaque handles after creation,
-because those handles distinguish otherwise unnamed domain objects.
+Acceptance tests keep every provider schema deliberately narrow: no more than
+eight top-level fields, object nesting no deeper than two levels, no union of
+object-shaped argument branches, and no runtime plumbing fields. A small valid
+domain example must pass while a generic authored-object shape must fail.
 
 | Domain | Natural authored target |
 | --- | --- |
@@ -35,9 +42,8 @@ because those handles distinguish otherwise unnamed domain objects.
 | Agent memory | `作者规则「<handle>」` |
 | Project facts | `项目事实` |
 
-Creation uses a natural target such as `批注`, `待办`, `实体关系`, or
-`作者规则`. The result returns the canonical semantic target containing the
-created handle. Subsequent operations use that target.
+Creation returns a canonical semantic result containing the created handle when
+the domain needs one. Subsequent domain operations pass that handle directly.
 
 The runtime resolves those targets to hidden domain commands only after checking
 the current project and authoritative state. Hidden commands are an
@@ -145,13 +151,12 @@ history is the independent entity snapshot system documented in
 
 ## 6. Structural resources
 
-Nodes, elements, storylines, and categories are complete authored objects.
-`write_object` can create one or replace its complete body; `revise_object`
-changes named passages or a represented field. `delete_object` accepts only a
-complete authored target. A request to remove `灵感「Idea」摘要` is not silently
-promoted into deleting `灵感「Idea」`; the runtime asks for the complete object
-target. Comments, relations, and author rules are already complete domain
-objects, so their canonical semantic target is their deletion boundary.
+Nodes, elements, storylines, and categories are complete authored objects. Each
+domain has separate create, metadata-update, passage-revision, whole-body
+replacement, and deletion tools where applicable. Deletion tools accept only a
+complete domain object; a summary update can never be interpreted as deleting
+its owner. Comments, relations, patches, and author rules use their stable
+handles as the deletion boundary.
 
 Structural create/update/delete executes through renderer use cases and the
 same Yjs/SQLite rules as manual editing. The receipt preserves enough typed
@@ -174,20 +179,26 @@ The transaction:
 6. updates renderer mappings only from the committed postimage.
 
 Creation, replacement, clearing, and exact inverse are all the same graph
-operation. Because membership changes story structure, it always requires
-confirm-before authorization in chat.
+operation. A complete membership replacement may remove existing links, so it
+uses confirm-before authorization by default. The explicit author setting for
+dangerous operations can waive that prompt without waiving freshness,
+transaction, receipt, or guarded-inverse checks. The narrower direct add-link
+and set-primary operations are non-destructive and automatic; unlink remains a
+deletion and uses the destructive policy.
 
 ## 8. Comments, TODOs, and relations
 
 Comments and TODOs are one anchored comment domain. Each object can be
 created, read, replaced, deleted, and exactly reverted. Ordinary comment/TODO
 creation and update are automatic because they do not rewrite manuscript prose.
-Deletion is confirm-before.
+Deletion is confirm-before by default and follows the explicit dangerous-operation
+override when the author enables it.
 
 Relations resolve author-facing endpoint names to typed project-owned entities.
-Create, relation-kind update, and delete are all confirm-before because an
-incorrect edge changes the project knowledge graph. Their endpoint ownership
-and target validity are rechecked inside the mutation transaction.
+Create and relation-kind update are non-destructive and execute automatically.
+Delete is confirm-before by default, or automatic only when the author has
+explicitly enabled dangerous operations. Endpoint ownership and target validity
+are still rechecked inside the mutation transaction.
 
 ## 9. Agent memory trust model
 
@@ -214,8 +225,15 @@ facts.
 | Prose edit | review after | write immediately; inline editor badge accepts/rejects blocks or all |
 | Safe metadata, comment/TODO, pending memory proposal | automatic | semantic activity only |
 | Delete structural resource, comment/TODO, or memory | confirm before | chat permission request |
-| Relation create/update/delete | confirm before | chat permission request |
-| Storyline membership replacement | confirm before | chat permission request |
+| Relation create or relation-kind update | automatic | semantic activity only |
+| Relation delete | confirm before | chat permission request |
+| Add storyline membership or set primary | automatic | semantic activity only |
+| Remove membership or replace the complete membership set | confirm before | chat permission request |
+
+When the author enables **Allow dangerous Agent operations**, confirm-before
+deletes and destructive set replacements execute without an additional prompt.
+The setting does not disable schema validation, project isolation, freshness,
+durable receipts, or guarded inverses.
 
 The model cannot forge approval. Authorization binds the exact normalized
 arguments hash to a permission request. A changed target or payload requires a
@@ -237,7 +255,8 @@ prose-owning paths. It verifies:
 - reconciliation after a lost outer acknowledgement;
 - close/reopen persistence and latest migration application;
 - read-before-write stale-state refusal;
-- confirm-before policy for relations and membership;
+- automatic relation create/relabel, destructive-delete confirmation and its
+  explicit author override;
 - typecheck, targeted lint, and generated capability drift checks.
 
 Run:

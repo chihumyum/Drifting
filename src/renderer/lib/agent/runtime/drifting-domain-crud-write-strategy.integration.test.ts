@@ -36,6 +36,10 @@ import {
   type DriftingAgentProductComposition,
 } from './drifting-product-composition';
 import { getDriftingWriteStrategy } from './drifting-write-strategies';
+import type {
+  DriftingDomainReadToolName,
+  DriftingDomainWriteToolName,
+} from './drifting-workspace-tool-contract';
 import { createYjsProseSeedState } from './yjs-prose-command';
 import type {
   AgentModelDriver,
@@ -104,9 +108,9 @@ describe('workspace domain CRUD transactions', () => {
     // The leading H1 repeats the semantic object title and is normalized out
     // before Yjs becomes canonical, so the persisted count is body-only.
     const persistedProse = '潮声越过旧码头。The tide turns twice.';
-    const created = await fixture.write('node-create-with-prose', 'write_file', {
-      path: '/drifts/灰港/prose.md',
-      content: prose,
+    const created = await fixture.write('node-create-with-prose', 'create_inspiration', {
+      title: '灰港',
+      body: prose,
     });
 
     expect(created).toMatchObject({
@@ -128,6 +132,48 @@ describe('workspace domain CRUD transactions', () => {
     ).toBe(countWords(persistedProse));
   });
 
+  it('rejects a second Agent create with an existing node title instead of suffixing it', async () => {
+    const before = fixture.scalar(
+      `SELECT count(*) FROM book_node WHERE project_id = '${PROJECT_ID}' AND deleted_at IS NULL`,
+    );
+
+    await expect(
+      fixture.write('duplicate-chapter-title', 'create_chapter', {
+        title: 'Chapter One',
+        body: 'This retry must not become Chapter One 2.',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('already exists'),
+    });
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM book_node WHERE project_id = '${PROJECT_ID}' AND deleted_at IS NULL`,
+      ),
+    ).toBe(before);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM book_node WHERE project_id = '${PROJECT_ID}' AND title = 'Chapter One 2' AND deleted_at IS NULL`,
+      ),
+    ).toBe(0);
+  });
+
+  it('rejects a relation whose two endpoints are the same authored object', async () => {
+    await expect(
+      fixture.write('self-relation', 'create_relation', {
+        fromType: 'chapter',
+        fromName: 'Chapter One',
+        toType: 'chapter',
+        toName: 'Chapter One',
+        relationType: 'self',
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('two different authored objects'),
+    });
+    expect(fixture.scalar('SELECT count(*) FROM entity_relation')).toBe(0);
+  });
+
   it('keeps every textual block of a newly created object pending in approve mode', async () => {
     const callId = 'reviewed-created-drift';
     const effectId = `agent-write:${SESSION_ID}:turn:${callId}:${callId}`;
@@ -135,8 +181,8 @@ describe('workspace domain CRUD transactions', () => {
     const body = '# 待审标题\n\n第一段。\n\n第二段。';
     useSettingsStore.getState().setAgentEditMode('approve');
 
-    const created = await fixture.write(callId, 'write_object', {
-      target: '灵感「待审潮痕」',
+    const created = await fixture.write(callId, 'create_inspiration', {
+      title: '待审潮痕',
       body,
     });
 
@@ -243,30 +289,19 @@ describe('workspace domain CRUD transactions', () => {
     useSettingsStore.getState().setAgentEditMode('approve');
 
     const creations = [
-      ['formatted-category-create', {
-        target: '要素分类「信件」',
-        body,
-      }],
-      ['formatted-element-create', {
-        target: '要素「远方来函」（分类「信件」）',
-        body,
-      }],
-      ['formatted-storyline-create', {
-        target: '故事线「格式故事线」',
-        body,
-      }],
-      ['formatted-drift-create', {
-        target: '灵感「格式灵感」',
-        body,
-      }],
-      ['formatted-chapter-create', {
-        target: '章节「格式章节」',
-        body,
-      }],
+      ['formatted-category-create', 'create_element_category', { name: '信件', body }],
+      [
+        'formatted-element-create',
+        'create_element',
+        { category: '信件', name: '远方来函', body },
+      ],
+      ['formatted-storyline-create', 'create_storyline', { name: '格式故事线', body }],
+      ['formatted-drift-create', 'create_inspiration', { title: '格式灵感', body }],
+      ['formatted-chapter-create', 'create_chapter', { title: '格式章节', body }],
     ] as const;
 
-    for (const [callId, args] of creations) {
-      const result = await fixture.write(callId, 'write_object', args);
+    for (const [callId, toolName, args] of creations) {
+      const result = await fixture.write(callId, toolName, args);
       expect(result, JSON.stringify(result)).toMatchObject({
         ok: true,
         data: { review: { status: 'pending' } },
@@ -331,10 +366,9 @@ describe('workspace domain CRUD transactions', () => {
     }
   });
 
-  it('keeps entity receipts owned by the authored-object facade', async () => {
-    const result = await fixture.write('authored-project-facts', 'write_object', {
-      target: '项目事实',
-      attributes: [{ name: '气候', value: '终年多雨' }],
+  it('keeps entity receipts owned by the public domain tool', async () => {
+    const result = await fixture.write('authored-project-facts', 'update_project_facts', {
+      facts: [{ key: '气候', value: '终年多雨' }],
     });
 
     expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
@@ -373,9 +407,9 @@ describe('workspace domain CRUD transactions', () => {
       ),
     }));
 
-    const created = await fixture.write('create-missing-chapter-02', 'write_file', {
-      path: '第二章',
-      content: '二章补齐。',
+    const created = await fixture.write('create-missing-chapter-02', 'create_chapter', {
+      title: '02',
+      body: '二章补齐。',
       summary: '奥伦与凯尔在茶镇遭遇异变。',
     });
     expect(created, JSON.stringify(created)).toMatchObject({ ok: true });
@@ -393,14 +427,15 @@ describe('workspace domain CRUD transactions', () => {
   });
 
   it('normalizes a unique contained category and seeds a separate summary from initial body', async () => {
-    await fixture.write('create-organization-category', 'write_file', {
-      path: '/categories/势力与组织/body.md',
-      content: '组织与势力。',
+    await fixture.write('create-organization-category', 'create_element_category', {
+      name: '势力与组织',
+      body: '组织与势力。',
     });
 
-    const created = await fixture.write('create-organization-with-summary', 'write_file', {
-      path: '/elements/势力/灰潮档案局/body.md',
-      content: '## 摘要\n\n负责灰港旧档。\n\n## 详细资料\n\n保管船籍与潮汐记录。',
+    const created = await fixture.write('create-organization-with-summary', 'create_element', {
+      category: '势力',
+      name: '灰潮档案局',
+      body: '## 摘要\n\n负责灰港旧档。\n\n## 详细资料\n\n保管船籍与潮汐记录。',
     });
 
     expect(created).toMatchObject({
@@ -436,13 +471,10 @@ describe('workspace domain CRUD transactions', () => {
   it('atomically replaces the complete storyline graph and restores the exact preimage', async () => {
     const write = await fixture.write(
       'membership-forward',
-      'write_file',
+      'replace_storyline_chapters',
       {
-        path: '/storylines/Main/chapters.json',
-        content: JSON.stringify([
-          { title: 'Chapter One', isPrimary: true },
-          { title: 'Chapter Two', isPrimary: true },
-        ]),
+        storyline: 'Main',
+        chapters: ['Chapter One', 'Chapter Two'],
       },
       'author_approved',
     );
@@ -457,12 +489,12 @@ describe('workspace domain CRUD transactions', () => {
     });
     expect(fixture.memberships()).toEqual([
       { node_id: CHAPTER_ONE_ID, storyline_id: MAIN_STORYLINE_ID, is_primary: 1 },
-      { node_id: CHAPTER_TWO_ID, storyline_id: MAIN_STORYLINE_ID, is_primary: 1 },
-      { node_id: CHAPTER_TWO_ID, storyline_id: SECONDARY_STORYLINE_ID, is_primary: 0 },
+      { node_id: CHAPTER_TWO_ID, storyline_id: MAIN_STORYLINE_ID, is_primary: 0 },
+      { node_id: CHAPTER_TWO_ID, storyline_id: SECONDARY_STORYLINE_ID, is_primary: 1 },
     ]);
     expect(useDataStore.getState().primaryStorylineByNode).toMatchObject({
       [CHAPTER_ONE_ID]: MAIN_STORYLINE_ID,
-      [CHAPTER_TWO_ID]: MAIN_STORYLINE_ID,
+      [CHAPTER_TWO_ID]: SECONDARY_STORYLINE_ID,
     });
     expect(
       fixture.scalar(
@@ -494,13 +526,10 @@ describe('workspace domain CRUD transactions', () => {
     );
     const result = await fixture.write(
       'membership-fault',
-      'write_file',
+      'replace_storyline_chapters',
       {
-        path: '/storylines/Main/chapters.json',
-        content: JSON.stringify([
-          { title: 'Chapter One', isPrimary: true },
-          { title: 'Chapter Two', isPrimary: true },
-        ]),
+        storyline: 'Main',
+        chapters: ['Chapter One', 'Chapter Two'],
       },
       'author_approved',
     );
@@ -517,14 +546,9 @@ describe('workspace domain CRUD transactions', () => {
   });
 
   it('creates, addresses, updates, soft-deletes, and exactly reverts pending Agent memory', async () => {
-    const created = await fixture.write('memory-create', 'write_file', {
-      path: '/memory/new.json',
-      content: JSON.stringify({
-        kind: 'preference',
-        body: 'Keep dialogue terse.',
-        targetKind: 'node',
-        target: 'Chapter One',
-      }),
+    const created = await fixture.write('memory-create', 'create_author_rule', {
+      kind: 'preference',
+      body: 'Keep dialogue terse.',
     });
     expect(created).toMatchObject({
       ok: true,
@@ -542,11 +566,9 @@ describe('workspace domain CRUD transactions', () => {
       body: 'Keep dialogue terse.',
       status: 'pending',
       source: 'agent',
-      targetKind: 'node',
-      targetId: CHAPTER_ONE_ID,
     });
 
-    const directory = await fixture.read('memory-list', 'list_files', { path: '/memory' });
+    const directory = await fixture.read('memory-list', 'list_author_rules', {});
     expect(directory).toMatchObject({
       ok: true,
       data: {
@@ -558,27 +580,10 @@ describe('workspace domain CRUD transactions', () => {
         ],
       },
     });
-    const file = await fixture.read('memory-read', 'read_file', { path: canonicalPath });
-    expect(file).toMatchObject({ ok: true });
-    const fileContent = JSON.parse(
-      String((file as { data: { content: string } }).data.content),
-    ) as Record<string, unknown>;
-    expect(fileContent).toEqual({
-      kind: 'preference',
-      body: 'Keep dialogue terse.',
-      targetKind: 'node',
-      target: 'Chapter One',
-      targetBlockId: null,
-      supersedesId: null,
-    });
-
     await expect(
-      fixture.write('memory-update', 'write_file', {
-        path: canonicalPath,
-        content: JSON.stringify({
-          ...fileContent,
-          body: 'Keep dialogue terse and character-specific.',
-        }),
+      fixture.write('memory-update', 'update_author_rule', {
+        ruleId: memoryId,
+        body: 'Keep dialogue terse and character-specific.',
       }),
     ).resolves.toMatchObject({ ok: true });
     expect((await fixture.memory(memoryId))?.body).toBe(
@@ -589,7 +594,7 @@ describe('workspace domain CRUD transactions', () => {
     expect((await fixture.memory(memoryId))?.body).toBe('Keep dialogue terse.');
 
     await expect(
-      fixture.write('memory-delete', 'delete_file', { path: canonicalPath }, 'author_approved'),
+      fixture.write('memory-delete', 'delete_author_rule', { ruleId: memoryId }, 'author_approved'),
     ).resolves.toMatchObject({ ok: true });
     expect((await fixture.memory(memoryId))?.deletedAt).not.toBeNull();
 
@@ -604,12 +609,9 @@ describe('workspace domain CRUD transactions', () => {
     );
     expect(await fixture.memory(memoryId)).not.toBeNull();
 
-    const disposable = await fixture.write('memory-create-disposable', 'write_file', {
-      path: '/memory/disposable.json',
-      content: JSON.stringify({
-        kind: 'directive',
-        body: 'Temporary guidance.',
-      }),
+    const disposable = await fixture.write('memory-create-disposable', 'create_author_rule', {
+      kind: 'directive',
+      body: 'Temporary guidance.',
     });
     const disposablePath = (disposable as { data: { result: { canonicalPath: string } } }).data
       .result.canonicalPath;
@@ -636,18 +638,19 @@ describe('workspace domain CRUD transactions', () => {
       'lost outer effect acknowledgement',
     );
     const arguments_ = {
-      path: '/memory/recoverable.json',
-      content: JSON.stringify({
-        kind: 'directive',
-        body: 'Preserve the unresolved ending.',
-      }),
+      kind: 'directive',
+      body: 'Preserve the unresolved ending.',
     };
-    const interrupted = await fixture.write('memory-reconcile', 'write_file', arguments_);
+    const interrupted = await fixture.write('memory-reconcile', 'create_author_rule', arguments_);
     expect(interrupted).toMatchObject({ ok: false });
     expect(fixture.scalar('SELECT count(*) FROM agent_memory')).toBe(1);
     expect(fixture.scalar('SELECT count(*) FROM agent_runtime_entity_write_receipt')).toBe(1);
 
-    const recovered = await fixture.replayWrite('memory-reconcile', 'write_file', arguments_);
+    const recovered = await fixture.replayWrite(
+      'memory-reconcile',
+      'create_author_rule',
+      arguments_,
+    );
     expect(recovered).toMatchObject({
       ok: true,
       data: {
@@ -673,13 +676,10 @@ describe('workspace domain CRUD transactions', () => {
     });
   });
 
-  it('keeps approved guidance read-only and evolves it through a pending superseding proposal', async () => {
-    const created = await fixture.write('memory-approved-create', 'write_file', {
-      path: '/memory/voice.json',
-      content: JSON.stringify({
-        kind: 'preference',
-        body: 'Use restrained imagery.',
-      }),
+  it('keeps approved guidance read-only and allows a separate pending proposal', async () => {
+    const created = await fixture.write('memory-approved-create', 'create_author_rule', {
+      kind: 'preference',
+      body: 'Use restrained imagery.',
     });
     const canonicalPath = (created as { data: { result: { canonicalPath: string } } }).data.result
       .canonicalPath;
@@ -689,9 +689,7 @@ describe('workspace domain CRUD transactions', () => {
       updatedAt: '2026-08-02T00:10:00.000Z',
     });
 
-    const directory = await fixture.read('memory-approved-list', 'list_files', {
-      path: '/memory',
-    });
+    const directory = await fixture.read('memory-approved-list', 'list_author_rules', {});
     expect(directory).toMatchObject({
       ok: true,
       data: {
@@ -699,25 +697,19 @@ describe('workspace domain CRUD transactions', () => {
       },
     });
     await expect(
-      fixture.write('memory-approved-overwrite', 'write_file', {
-        path: canonicalPath,
-        content: JSON.stringify({
-          kind: 'preference',
-          body: 'Overwrite approved guidance.',
-        }),
+      fixture.write('memory-approved-overwrite', 'update_author_rule', {
+        ruleId: memoryId,
+        kind: 'preference',
+        body: 'Overwrite approved guidance.',
       }),
     ).resolves.toMatchObject({
       ok: false,
-      error: expect.stringContaining('cannot be overwritten directly'),
+      error: expect.stringContaining('Only a pending Agent proposal can be edited in place'),
     });
 
-    const proposal = await fixture.write('memory-supersede', 'write_file', {
-      path: '/memory/revised-voice.json',
-      content: JSON.stringify({
-        kind: 'preference',
-        body: 'Use restrained imagery except in dream sequences.',
-        supersedesId: memoryId,
-      }),
+    const proposal = await fixture.write('memory-supersede', 'create_author_rule', {
+      kind: 'preference',
+      body: 'Use restrained imagery except in dream sequences.',
     });
     const proposalPath = (proposal as { data: { result: { canonicalPath: string } } }).data.result
       .canonicalPath;
@@ -725,7 +717,6 @@ describe('workspace domain CRUD transactions', () => {
     expect(await fixture.memory(proposalId)).toMatchObject({
       status: 'pending',
       source: 'agent',
-      supersedesId: memoryId,
     });
     expect(await fixture.memory(memoryId)).toMatchObject({
       status: 'active',
@@ -735,27 +726,28 @@ describe('workspace domain CRUD transactions', () => {
 
   it('creates and exactly removes every structural resource class', async () => {
     await expect(
-      fixture.write('create-category-disposable', 'write_file', {
-        path: '/categories/Disposable/body.md',
-        content: 'Disposable category body.',
+      fixture.write('create-category-disposable', 'create_element_category', {
+        name: 'Disposable',
+        body: 'Disposable category body.',
       }),
     ).resolves.toMatchObject({ ok: true });
     await expect(
-      fixture.write('create-element-disposable', 'write_file', {
-        path: '/elements/Disposable/Temporary Person/body.md',
-        content: 'Disposable element body.',
+      fixture.write('create-element-disposable', 'create_element', {
+        category: 'Disposable',
+        name: 'Temporary Person',
+        body: 'Disposable element body.',
       }),
     ).resolves.toMatchObject({ ok: true });
     await expect(
-      fixture.write('create-storyline-disposable', 'write_file', {
-        path: '/storylines/Disposable Arc/body.md',
-        content: 'Disposable storyline body.',
+      fixture.write('create-storyline-disposable', 'create_storyline', {
+        name: 'Disposable Arc',
+        body: 'Disposable storyline body.',
       }),
     ).resolves.toMatchObject({ ok: true });
     await expect(
-      fixture.write('create-node-disposable', 'write_file', {
-        path: '/drifts/Disposable Idea/prose.md',
-        content: 'Disposable drift body.',
+      fixture.write('create-node-disposable', 'create_inspiration', {
+        title: 'Disposable Idea',
+        body: 'Disposable drift body.',
       }),
     ).resolves.toMatchObject({ ok: true });
 
@@ -801,30 +793,29 @@ describe('workspace domain CRUD transactions', () => {
   });
 
   it('updates, guards field deletion, and restores structural resource deletes', async () => {
-    await fixture.write('create-category-lifecycle', 'write_file', {
-      path: '/categories/People/body.md',
-      content: 'People category body.',
+    await fixture.write('create-category-lifecycle', 'create_element_category', {
+      name: 'People',
+      body: 'People category body.',
     });
-    await fixture.write('create-element-lifecycle', 'write_file', {
-      path: '/elements/People/Ada/body.md',
-      content: 'Ada body.',
+    await fixture.write('create-element-lifecycle', 'create_element', {
+      category: 'People',
+      name: 'Ada',
+      body: 'Ada body.',
     });
-    await fixture.write('create-storyline-lifecycle', 'write_file', {
-      path: '/storylines/Side Arc/body.md',
-      content: 'Side arc body.',
+    await fixture.write('create-storyline-lifecycle', 'create_storyline', {
+      name: 'Side Arc',
+      body: 'Side arc body.',
     });
-    await fixture.write('create-node-lifecycle', 'write_file', {
-      path: '/drifts/Idea/prose.md',
-      content: 'Idea body.',
+    await fixture.write('create-node-lifecycle', 'create_inspiration', {
+      title: 'Idea',
+      body: 'Idea body.',
     });
 
     await expect(
-      fixture.write('update-category-lifecycle', 'write_file', {
-        path: '/categories/People/meta.json',
-        content: JSON.stringify({
-          name: 'Cast',
-          templateFacts: [{ key: 'Role', value: 'Unknown' }],
-        }),
+      fixture.write('update-category-lifecycle', 'update_element_category', {
+        category: 'People',
+        name: 'Cast',
+        templateFacts: [{ key: 'Role', value: 'Unknown' }],
       }),
     ).resolves.toMatchObject({ ok: true });
     expect(useDataStore.getState().bookElementCategories).toEqual(
@@ -836,9 +827,9 @@ describe('workspace domain CRUD transactions', () => {
     );
 
     await expect(
-      fixture.write('update-element-lifecycle', 'write_file', {
-        path: '/elements/People/Ada/summary.md',
-        content: 'A precise investigator.',
+      fixture.write('update-element-lifecycle', 'update_element', {
+        element: 'Ada',
+        summary: 'A precise investigator.',
       }),
     ).resolves.toMatchObject({ ok: true });
     expect(useDataStore.getState().bookElements).toEqual(
@@ -852,9 +843,9 @@ describe('workspace domain CRUD transactions', () => {
     );
 
     await expect(
-      fixture.write('update-storyline-lifecycle', 'write_file', {
-        path: '/storylines/Side Arc/summary.md',
-        content: 'A secondary investigation.',
+      fixture.write('update-storyline-lifecycle', 'update_storyline', {
+        storyline: 'Side Arc',
+        summary: 'A secondary investigation.',
       }),
     ).resolves.toMatchObject({ ok: true });
     await fixture.revert('update-storyline-lifecycle');
@@ -862,25 +853,10 @@ describe('workspace domain CRUD transactions', () => {
       expect.arrayContaining([expect.objectContaining({ name: 'Side Arc', summary: '' })]),
     );
 
-    await expect(
-      fixture.write(
-        'delete-node-field-lifecycle',
-        'delete_file',
-        { path: '/drifts/Idea/summary.md' },
-        'author_approved',
-      ),
-    ).resolves.toMatchObject({
-      ok: false,
-      error: expect.stringContaining('complete 灵感「Idea」'),
-    });
-    expect(useDataStore.getState().bookNodes).toEqual(
-      expect.arrayContaining([expect.objectContaining({ title: 'Idea' })]),
-    );
-
     await fixture.write(
       'delete-element-lifecycle',
-      'delete_file',
-      { path: '/elements/People/Ada' },
+      'delete_element',
+      { element: 'Ada' },
       'author_approved',
     );
     expect(useDataStore.getState().bookElements).not.toEqual(
@@ -893,8 +869,8 @@ describe('workspace domain CRUD transactions', () => {
 
     await fixture.write(
       'delete-node-lifecycle',
-      'delete_file',
-      { path: '/drifts/Idea' },
+      'delete_inspiration',
+      { inspiration: 'Idea' },
       'author_approved',
     );
     await fixture.revert('delete-node-lifecycle');
@@ -904,8 +880,8 @@ describe('workspace domain CRUD transactions', () => {
 
     await fixture.write(
       'delete-storyline-lifecycle',
-      'delete_file',
-      { path: '/storylines/Side Arc' },
+      'delete_storyline',
+      { storyline: 'Side Arc' },
       'author_approved',
     );
     await fixture.revert('delete-storyline-lifecycle');
@@ -915,14 +891,14 @@ describe('workspace domain CRUD transactions', () => {
 
     await fixture.write(
       'delete-element-before-category',
-      'delete_file',
-      { path: '/elements/People/Ada' },
+      'delete_element',
+      { element: 'Ada' },
       'author_approved',
     );
     await fixture.write(
       'delete-category-lifecycle',
-      'delete_file',
-      { path: '/categories/People' },
+      'delete_element_category',
+      { category: 'People' },
       'author_approved',
     );
     await fixture.revert('delete-category-lifecycle');
@@ -932,21 +908,18 @@ describe('workspace domain CRUD transactions', () => {
   });
 
   it('provides natural JSON CRUD and guarded inverses for TODOs and relations', async () => {
-    const disposableComment = await fixture.write('comment-create-disposable', 'write_file', {
-      path: '/comments/new.json',
-      content: JSON.stringify({
-        kind: 'todo',
-        body: 'Disposable TODO.',
-        targetKind: 'node',
-        target: 'Chapter One',
-      }),
+    const disposableComment = await fixture.write('comment-create-disposable', 'create_comment', {
+      kind: 'todo',
+      body: 'Disposable TODO.',
+      targetType: 'chapter',
+      targetName: 'Chapter One',
     });
     expect(disposableComment).toMatchObject({
       ok: true,
       data: {
         result: {
           path: expect.stringMatching(/^\/comments\/.+\.json$/u),
-          requestedPath: '/comments/new.json',
+          requestedPath: expect.stringMatching(/^\/comments\/new-.+\.json$/u),
           canonicalPath: expect.stringMatching(/^\/comments\/.+\.json$/u),
         },
       },
@@ -954,45 +927,43 @@ describe('workspace domain CRUD transactions', () => {
     await fixture.revert('comment-create-disposable');
     expect(useDataStore.getState().comments).toHaveLength(0);
 
-    const comment = await fixture.write('comment-create-lifecycle', 'write_file', {
-      path: '/comments/todo.json',
-      content: JSON.stringify({
-        kind: 'todo',
-        body: 'Check the clue.',
-        targetKind: 'node',
-        target: 'Chapter One',
-      }),
+    const comment = await fixture.write('comment-create-lifecycle', 'create_comment', {
+      kind: 'todo',
+      body: 'Check the clue.',
+      targetType: 'chapter',
+      targetName: 'Chapter One',
     });
     const commentPath = (comment as { data: { result: { canonicalPath: string } } }).data.result
       .canonicalPath;
     await expect(
-      fixture.write('comment-retarget-lifecycle', 'edit_file', {
-        path: commentPath,
-        replacements: [
-          {
-            oldText: '"target": "Chapter One"',
-            newText: '"target": "Chapter Two"',
-          },
-        ],
+      fixture.write('comment-body-lifecycle', 'update_comment', {
+        commentId: commentPath.slice('/comments/'.length, -'.json'.length),
+        body: 'Check the clue in Chapter One.',
       }),
     ).resolves.toMatchObject({ ok: true });
     expect(useDataStore.getState().comments).toEqual(
-      expect.arrayContaining([expect.objectContaining({ targetId: CHAPTER_TWO_ID })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetId: CHAPTER_ONE_ID,
+          bodyJson: expect.stringContaining('Check the clue in Chapter One.'),
+        }),
+      ]),
     );
-    await fixture.revert('comment-retarget-lifecycle');
+    await fixture.revert('comment-body-lifecycle');
     expect(useDataStore.getState().comments).toEqual(
-      expect.arrayContaining([expect.objectContaining({ targetId: CHAPTER_ONE_ID })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetId: CHAPTER_ONE_ID,
+          bodyJson: expect.stringContaining('Check the clue.'),
+        }),
+      ]),
     );
     await expect(
-      fixture.write('comment-update-lifecycle', 'write_file', {
-        path: commentPath,
-        content: JSON.stringify({
-          kind: 'note',
-          status: 'resolved',
-          body: 'The clue is consistent.',
-          targetKind: 'node',
-          target: 'Chapter One',
-        }),
+      fixture.write('comment-update-lifecycle', 'update_comment', {
+        commentId: commentPath.slice('/comments/'.length, -'.json'.length),
+        kind: 'note',
+        status: 'resolved',
+        body: 'The clue is consistent.',
       }),
     ).resolves.toMatchObject({ ok: true });
     expect(useDataStore.getState().comments).toEqual(
@@ -1022,8 +993,8 @@ describe('workspace domain CRUD transactions', () => {
     useDataStore.getState().addCommentAction(action);
     await fixture.write(
       'comment-delete-lifecycle',
-      'delete_file',
-      { path: commentPath },
+      'delete_comment',
+      { commentId },
       'author_approved',
     );
     expect(useDataStore.getState().comments).toHaveLength(0);
@@ -1035,24 +1006,23 @@ describe('workspace domain CRUD transactions', () => {
     expect(fixture.scalar('SELECT count(*) FROM comment_action')).toBe(1);
 
     const relationPayload = {
-      fromKind: 'node',
-      from: 'Chapter One',
-      toKind: 'storyline',
-      to: 'Main',
-      kind: 'foreshadows',
+      fromType: 'chapter',
+      fromName: 'Chapter One',
+      toType: 'storyline',
+      toName: 'Main',
+      relationType: 'foreshadows',
     };
     const disposableRelation = await fixture.write(
       'relation-create-disposable',
-      'write_file',
-      { path: '/relations/new.json', content: JSON.stringify(relationPayload) },
-      'author_approved',
+      'create_relation',
+      relationPayload,
     );
     expect(disposableRelation).toMatchObject({
       ok: true,
       data: {
         result: {
           path: expect.stringMatching(/^\/relations\/.+\.json$/u),
-          requestedPath: '/relations/new.json',
+          requestedPath: expect.stringMatching(/^\/relations\/new-.+\.json$/u),
           canonicalPath: expect.stringMatching(/^\/relations\/.+\.json$/u),
         },
       },
@@ -1062,32 +1032,24 @@ describe('workspace domain CRUD transactions', () => {
 
     const relation = await fixture.write(
       'relation-create-lifecycle',
-      'write_file',
-      { path: '/relations/relation.json', content: JSON.stringify(relationPayload) },
-      'author_approved',
+      'create_relation',
+      relationPayload,
     );
     const relationPath = (relation as { data: { result: { canonicalPath: string } } }).data.result
       .canonicalPath;
     await fixture.write(
       'relation-update-lifecycle',
-      'write_file',
+      'update_relation',
       {
-        path: relationPath,
-        content: JSON.stringify({
-          fromKind: 'node',
-          from: 'Chapter Two',
-          toKind: 'storyline',
-          to: 'Secondary',
-          kind: 'contrasts',
-        }),
+        relationId: relationPath.slice('/relations/'.length, -'.json'.length),
+        relationType: 'contrasts',
       },
-      'author_approved',
     );
     expect(useDataStore.getState().entityRelations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          fromId: CHAPTER_TWO_ID,
-          toId: SECONDARY_STORYLINE_ID,
+          fromId: CHAPTER_ONE_ID,
+          toId: MAIN_STORYLINE_ID,
           kind: 'contrasts',
         }),
       ]),
@@ -1104,8 +1066,8 @@ describe('workspace domain CRUD transactions', () => {
     );
     await fixture.write(
       'relation-delete-lifecycle',
-      'delete_file',
-      { path: relationPath },
+      'delete_relation',
+      { relationId: relationPath.slice('/relations/'.length, -'.json'.length) },
       'author_approved',
     );
     expect(useDataStore.getState().entityRelations).toHaveLength(0);
@@ -1113,65 +1075,17 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().entityRelations).toHaveLength(1);
   });
 
-  it('can remove a relation after its annotative source was already deleted', async () => {
-    const comment = await fixture.write('dangling-comment-create', 'write_file', {
-      path: '/comments/dangling.json',
-      content: JSON.stringify({
-        kind: 'todo',
-        body: 'Temporary import note.',
-        targetKind: 'node',
-        target: 'Chapter One',
-      }),
-    });
-    const commentPath = (comment as { data: { result: { canonicalPath: string } } }).data.result
-      .canonicalPath;
-    const commentId = commentPath.slice('/comments/'.length, -'.json'.length);
-    const relation = await fixture.write(
-      'dangling-relation-create',
-      'write_file',
-      {
-        path: '/relations/dangling.json',
-        content: JSON.stringify({
-          fromKind: 'comment',
-          from: commentId,
-          toKind: 'node',
-          to: 'Chapter One',
-          kind: 'about',
-        }),
-      },
-      'author_approved',
-    );
-    const relationPath = (relation as { data: { result: { canonicalPath: string } } }).data.result
-      .canonicalPath;
-    fixture.gateway.database.prepare('DELETE FROM comment WHERE id = ?').run(commentId);
-    useDataStore.getState().removeComment(commentId);
-
-    await expect(
-      fixture.write(
-        'dangling-relation-delete',
-        'delete_file',
-        { path: relationPath },
-        'author_approved',
-      ),
-    ).resolves.toMatchObject({ ok: true });
-    expect(useDataStore.getState().entityRelations).toHaveLength(0);
-  });
-
   it('names every blocking workspace resource when an entity delete is unsafe', async () => {
     const relation = await fixture.write(
       'delete-blocker-relation-create',
-      'write_file',
+      'create_relation',
       {
-        path: '/relations/delete-blocker.json',
-        content: JSON.stringify({
-          fromKind: 'node',
-          from: 'Chapter One',
-          toKind: 'storyline',
-          to: 'Main',
-          kind: 'belongs-to',
-        }),
+        fromType: 'chapter',
+        fromName: 'Chapter One',
+        toType: 'storyline',
+        toName: 'Main',
+        relationType: 'belongs-to',
       },
-      'author_approved',
     );
     const relationPath = (relation as { data: { result: { canonicalPath: string } } }).data.result
       .canonicalPath;
@@ -1179,8 +1093,8 @@ describe('workspace domain CRUD transactions', () => {
     await expect(
       fixture.write(
         'delete-blocked-by-relation',
-        'delete_file',
-        { path: '/chapters/Chapter One' },
+        'delete_chapter',
+        { chapter: 'Chapter One' },
         'author_approved',
       ),
     ).resolves.toMatchObject({
@@ -1189,19 +1103,16 @@ describe('workspace domain CRUD transactions', () => {
     });
     await fixture.write(
       'delete-blocker-relation-remove',
-      'delete_file',
-      { path: relationPath },
+      'delete_relation',
+      { relationId },
       'author_approved',
     );
 
-    const comment = await fixture.write('delete-blocker-comment-create', 'write_file', {
-      path: '/comments/delete-blocker.json',
-      content: JSON.stringify({
-        kind: 'todo',
-        body: 'Keep this evidence.',
-        targetKind: 'node',
-        target: 'Chapter One',
-      }),
+    const comment = await fixture.write('delete-blocker-comment-create', 'create_comment', {
+      kind: 'todo',
+      body: 'Keep this evidence.',
+      targetType: 'chapter',
+      targetName: 'Chapter One',
     });
     const commentPath = (comment as { data: { result: { canonicalPath: string } } }).data.result
       .canonicalPath;
@@ -1209,8 +1120,8 @@ describe('workspace domain CRUD transactions', () => {
     await expect(
       fixture.write(
         'delete-blocked-by-comment',
-        'delete_file',
-        { path: '/chapters/Chapter One' },
+        'delete_chapter',
+        { chapter: 'Chapter One' },
         'author_approved',
       ),
     ).resolves.toMatchObject({
@@ -1219,16 +1130,16 @@ describe('workspace domain CRUD transactions', () => {
     });
     await fixture.write(
       'delete-blocker-comment-remove',
-      'delete_file',
-      { path: commentPath },
+      'delete_comment',
+      { commentId },
       'author_approved',
     );
 
     await expect(
       fixture.write(
         'delete-blocked-by-membership',
-        'delete_file',
-        { path: '/chapters/Chapter One' },
+        'delete_chapter',
+        { chapter: 'Chapter One' },
         'author_approved',
       ),
     ).resolves.toMatchObject({
@@ -1296,13 +1207,7 @@ class DomainCrudFixture {
 
   async write(
     callId: string,
-    name:
-      | 'write_object'
-      | 'revise_object'
-      | 'delete_object'
-      | 'write_file'
-      | 'edit_file'
-      | 'delete_file',
+    name: DriftingDomainWriteToolName,
     arguments_: Record<string, unknown>,
     authorization: 'automatic' | 'author_approved' = 'automatic',
   ): Promise<AgentToolExecutionResult> {
@@ -1313,7 +1218,7 @@ class DomainCrudFixture {
 
   async read(
     callId: string,
-    name: 'list_files' | 'read_file',
+    name: DriftingDomainReadToolName,
     arguments_: Record<string, unknown>,
   ): Promise<AgentToolExecutionResult> {
     const request = await this.request(callId, name, 'read', arguments_);
@@ -1322,7 +1227,7 @@ class DomainCrudFixture {
 
   async replayWrite(
     callId: string,
-    name: 'write_file' | 'delete_file',
+    name: DriftingDomainWriteToolName,
     arguments_: Record<string, unknown>,
     authorization: 'automatic' | 'author_approved' = 'automatic',
   ): Promise<AgentToolExecutionResult> {
@@ -1427,17 +1332,7 @@ class DomainCrudFixture {
 
   private async request(
     callId: string,
-    name:
-      | 'write_object'
-      | 'revise_object'
-      | 'delete_object'
-      | 'browse_project'
-      | 'read_object'
-      | 'write_file'
-      | 'edit_file'
-      | 'delete_file'
-      | 'list_files'
-      | 'read_file',
+    name: DriftingDomainReadToolName | DriftingDomainWriteToolName,
     access: 'read' | 'write',
     arguments_: Record<string, unknown>,
   ): Promise<AgentToolExecutionRequest> {

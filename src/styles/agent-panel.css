@@ -339,6 +339,19 @@
 .agt-control-card code {
   color: hsl(var(--accent));
 }
+.agt-control-card__description {
+  display: grid;
+  gap: 3px;
+}
+.agt-control-card__description > span {
+  color: hsl(var(--ink-1));
+  font-weight: 560;
+}
+.agt-control-card__description > small {
+  color: hsl(var(--ink-3));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .agt-control-card details summary {
   cursor: pointer;
   color: hsl(var(--ink-3));
@@ -354,33 +367,6 @@
   font-size: 10.5px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.agt-permission-edit {
-  display: grid;
-  gap: 6px;
-  max-height: 220px;
-  overflow: auto;
-  padding: 7px 8px;
-  border-radius: 1px;
-  background: hsl(var(--paper) / 0.72);
-}
-.agt-permission-edit__path {
-  color: hsl(var(--ink-3));
-}
-.agt-permission-edit__diff {
-  padding-top: 5px;
-  border-top: 1px solid hsl(var(--rule) / 0.7);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.agt-permission-edit__diff:first-of-type {
-  padding-top: 0;
-  border-top: 0;
-}
-.agt-permission-edit__diff small {
-  display: block;
-  margin-top: 3px;
-  color: hsl(var(--ink-4));
 }
 .agt-control-card__actions {
   display: flex;
