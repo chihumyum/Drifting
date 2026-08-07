@@ -22,9 +22,16 @@ export interface TimelineRailMenuProps {
 export function TimelineRailMenu({ x, y, onAddMarker, onClose }: TimelineRailMenuProps) {
   const { t } = useTranslation();
   return (
-    <ContextMenuSurface x={x} y={y} onClose={onClose} className="tlpin-menu">
+    <ContextMenuSurface
+      x={x}
+      y={y}
+      onClose={onClose}
+      className="menu-surface--compact tlpin-menu"
+    >
       <button
         type="button"
+        role="menuitem"
+        className="menu-surface__item"
         onClick={() => {
           onClose();
           onAddMarker();

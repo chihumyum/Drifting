@@ -90,7 +90,7 @@ export function WorkspaceNavigationButtons() {
         placement="bottom-start"
         role="menu"
         ariaLabel="Super views"
-        className="workspace-super-menu"
+        className="menu-surface menu-surface--compact workspace-super-menu"
         maxHeight={220}
       >
         <div className="workspace-super-menu__group">

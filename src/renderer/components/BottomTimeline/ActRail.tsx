@@ -512,7 +512,7 @@ export function ActRail({
               return (
                 <div
                   ref={menuRef}
-                  className="actrail__menu"
+                  className="menu-surface menu-surface--compact actrail__menu"
                   style={{
                     position: 'fixed',
                     left: Math.min(menu.x, Math.max(8, window.innerWidth - 176)),
@@ -524,6 +524,7 @@ export function ActRail({
                   <button
                     type="button"
                     role="menuitem"
+                    className="menu-surface__item"
                     onClick={() => {
                       setMenu(null);
                       onSplitAt(menu.orderAtCursor);
@@ -539,7 +540,7 @@ export function ActRail({
             return (
               <div
                 ref={menuRef}
-                className="actrail__menu"
+                className="menu-surface menu-surface--compact actrail__menu"
                 style={{
                   position: 'fixed',
                   left: Math.min(menu.x, Math.max(8, window.innerWidth - 176)),
@@ -551,6 +552,7 @@ export function ActRail({
                 <button
                   type="button"
                   role="menuitem"
+                  className="menu-surface__item"
                   onClick={() => {
                     setMenu(null);
                     setEditingId(menu.actId);
@@ -561,6 +563,7 @@ export function ActRail({
                 <button
                   type="button"
                   role="menuitem"
+                  className="menu-surface__item"
                   onClick={() => {
                     setMenu(null);
                     onSplitAt(menu.orderAtCursor);
@@ -576,6 +579,7 @@ export function ActRail({
                       <button
                         type="button"
                         role="menuitem"
+                        className="menu-surface__item"
                         onClick={() => {
                           setMenu(null);
                           if (menuAct?.driftNodeId)
@@ -594,6 +598,7 @@ export function ActRail({
                       <button
                         type="button"
                         role="menuitem"
+                        className="menu-surface__item"
                         onClick={() => {
                           setMenu(null);
                           onUnbindDrift(menu.actId);
@@ -608,6 +613,7 @@ export function ActRail({
                     <button
                       type="button"
                       role="menuitem"
+                      className="menu-surface__item"
                       onClick={() => {
                         setMenu(null);
                         onRequestBind(menu.actId);
@@ -620,7 +626,7 @@ export function ActRail({
                 <button
                   type="button"
                   role="menuitem"
-                  className="is-danger"
+                  className="menu-surface__item menu-surface__item--danger"
                   onClick={() => {
                     setMenu(null);
                     onDeleteAct(menu.actId);

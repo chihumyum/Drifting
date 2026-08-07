@@ -55,6 +55,22 @@
     --z-modal: 12000;
     --z-toast: 100000;
 
+    /* Shared menu chrome. Cursor context menus and button-anchored dropdowns
+       keep separate positioning/interaction owners, but resolve their visual
+       shell and rows through this one token family. */
+    --menu-surface-bg: hsl(var(--surface));
+    --menu-surface-border: hsl(var(--rule-strong));
+    --menu-surface-radius: var(--radius-sm);
+    --menu-surface-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
+    --menu-item-hover-bg: hsl(var(--paper-deep));
+    --menu-item-danger: hsl(var(--destructive));
+    --menu-item-danger-hover-bg: hsl(var(--destructive) / 0.1);
+    --menu-width-compact: 180px;
+    --menu-width-standard: 220px;
+    --menu-width-wide: 280px;
+    --menu-width-panel: 360px;
+    --menu-width-settings: 420px;
+
     /* ─── Drifting-only tokens (full ink scale, paper scale, accents) ─── */
     --paper: 30 8% 96.5%;
     --paper-deep: 30 6% 92%;
@@ -888,84 +904,12 @@ html[data-platform-target='mobile'] .app-mid {
 /* Three-dot actions menu — same visual language as .crumb-dropdown so the
    two popups read as a family. */
 .editor-bar__menu {
-  min-width: 200px;
-  z-index: 60;
-  background: hsl(var(--surface));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 3px;
-  box-shadow: 0 6px 18px rgba(42, 26, 10, 0.12);
-  padding: 5px 4px;
-  font-family: var(--font-sans);
-  text-transform: none;
-  letter-spacing: normal;
+  z-index: var(--z-popover);
 }
-.editor-bar__outline-menu {
-  min-width: 156px;
-}
-.editor-bar__menu-item {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: 6px 10px;
-  border: 0;
-  background: transparent;
-  color: hsl(var(--ink-2));
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 2px;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.editor-bar__menu-item:hover {
-  background: hsl(var(--rule) / 0.55);
-  color: hsl(var(--ink-1));
-}
-.editor-bar__menu-item:focus-visible,
 .crumb-dropdown__item:focus-visible,
 .patch-card__anchor-pop-item:focus-visible {
   outline: 2px solid hsl(var(--accent) / 0.55);
   outline-offset: -2px;
-}
-.editor-bar__menu-item--danger {
-  color: hsl(var(--accent));
-}
-.editor-bar__menu-item--danger:hover {
-  background: hsl(var(--accent) / 0.08);
-  color: hsl(var(--accent));
-}
-.editor-bar__menu-item--status {
-  justify-content: space-between;
-  gap: 8px;
-}
-.editor-bar__menu-item--active {
-  color: hsl(var(--ink-1));
-  font-weight: 500;
-}
-.editor-bar__menu-section-label {
-  padding: 4px 10px 2px;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: hsl(var(--ink-3));
-  text-transform: uppercase;
-}
-/* Non-clickable label at the top of the menu naming its target (e.g. the
-   chapter the all-chapters menu acts on). */
-.editor-bar__menu-header {
-  padding: 6px 10px;
-  font-size: 11px;
-  color: hsl(var(--ink-2));
-  font-weight: 500;
-  max-width: 240px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.editor-bar__menu-divider {
-  height: 1px;
-  margin: 5px 4px;
-  background: hsl(var(--rule));
 }
 
 .editor-crumbs {
@@ -1030,20 +974,8 @@ html[data-platform-target='mobile'] .app-mid {
 }
 
 .crumb-dropdown {
-  z-index: 50;
-  min-width: 240px;
+  z-index: var(--z-popover);
   max-height: 320px;
-  overflow-y: auto;
-  background: hsl(var(--surface));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 3px;
-  box-shadow: 0 6px 18px rgba(42, 26, 10, 0.12);
-  padding: 5px 4px;
-  font-family: var(--font-sans);
-  text-transform: none;
-  letter-spacing: normal;
-  font-size: 13px;
-  color: hsl(var(--ink-1));
   cursor: default;
 }
 .crumb-dropdown::-webkit-scrollbar {
@@ -1057,34 +989,35 @@ html[data-platform-target='mobile'] .app-mid {
 .crumb-dropdown__item {
   display: flex;
   align-items: center;
+  box-sizing: border-box;
   gap: 8px;
-  padding: 5px 8px;
-  border-radius: 2px;
+  min-height: 30px;
+  padding: 6px 8px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   color: hsl(var(--ink-2));
+  font-size: 12.5px;
   transition:
     background 0.12s,
     color 0.12s;
 }
 .crumb-dropdown__item span:not(.crumb-dropdown__dot):not(.crumb-dropdown__num) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 .crumb-dropdown__item:hover {
-  background: hsl(var(--rule) / 0.55);
+  background: var(--menu-item-hover-bg);
   color: hsl(var(--ink-1));
 }
 .crumb-dropdown__item--active {
-  color: hsl(var(--accent));
-  background: hsl(var(--accent) / 0.06);
-  box-shadow: inset 2px 0 0 hsl(var(--accent));
+  color: hsl(var(--ink-1));
+  background: var(--menu-item-hover-bg);
+  font-weight: 500;
 }
 .crumb-dropdown__item--active:hover {
-  background: hsl(var(--accent) / 0.1);
+  background: var(--menu-item-hover-bg);
 }
 
 .crumb-dropdown__dot {
@@ -2589,28 +2522,6 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 .editor-comment-menu {
   position: fixed;
   z-index: var(--z-context-menu);
-  min-width: 112px;
-  padding: 4px;
-  background: hsl(var(--surface));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 4px;
-  box-shadow: 0 12px 28px -14px hsl(var(--ink-1) / 0.36);
-}
-.editor-comment-menu button {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: hsl(var(--ink));
-  font-family: var(--font-sans);
-  font-size: 12px;
-  text-align: left;
-  padding: 6px 8px;
-  border-radius: 3px;
-  cursor: pointer;
-}
-.editor-comment-menu button:hover {
-  background: hsl(var(--accent) / 0.1);
-  color: hsl(var(--accent));
 }
 /* 「格式」row carries a right-aligned chevron hinting at its hover flyout. */
 .editor-comment-menu button.has-flyout {
@@ -2634,16 +2545,14 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 /* Active format (mark/block already applied to the selection), snapshotted at
    open time. */
 .editor-comment-menu button.is-active {
-  color: hsl(var(--accent));
-  font-weight: 600;
+  color: hsl(var(--ink-1));
+  background: var(--menu-item-hover-bg);
+  font-weight: 500;
 }
 /* Divider between block transforms and inline marks. flex:none so the 1px row
    isn't collapsed by the flyout's flex column. */
 .editor-comment-menu__sep {
   flex: none;
-  height: 1px;
-  margin: 4px 6px;
-  background: hsl(var(--rule-strong) / 0.6);
 }
 
 /* ============================================================
@@ -3783,18 +3692,12 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   color: hsl(var(--accent));
   opacity: 1;
 }
-.patch-card__anchor-pop {
-  z-index: 30;
-  min-width: 200px;
-  max-width: 320px;
+.menu-surface.patch-card__anchor-pop {
+  z-index: var(--z-popover);
   max-height: 320px;
   display: flex;
   flex-direction: column;
   padding: 8px 0 6px;
-  background: hsl(var(--page));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 4px;
-  box-shadow: 0 6px 24px hsl(var(--ink-1) / 0.08);
   /* Open animation — keep subtle to match the rest of the rail */
   animation: patch-card-pop-in 0.14s ease-out;
 }

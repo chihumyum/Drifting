@@ -42,16 +42,6 @@
 }
 
 .workspace-super-menu {
-  box-sizing: border-box;
-  width: 172px;
-  padding: 4px;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 2px;
-  background: hsl(var(--surface));
-  box-shadow: 0 12px 28px -16px hsl(var(--ink-1) / 0.38);
-  color: hsl(var(--ink-2));
-  font-family: var(--font-sans);
-  font-size: 12.5px;
   z-index: var(--z-popover);
 }
 
@@ -60,10 +50,10 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 29px;
-  padding: 0 8px;
+  min-height: 30px;
+  padding: 6px 8px;
   border: 0;
-  border-radius: 1px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: hsl(var(--ink-3));
   font: inherit;
@@ -73,7 +63,7 @@
 
 .workspace-super-menu__item:hover,
 .workspace-super-menu__item:focus-visible {
-  background: hsl(var(--paper-deep));
+  background: var(--menu-item-hover-bg);
   color: hsl(var(--ink-1));
   outline: none;
 }

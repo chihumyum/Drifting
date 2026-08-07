@@ -1383,7 +1383,7 @@ export function StoryGraphView() {
                   open={drawerOpen}
                   onClose={() => setDrawerOpen(false)}
                   placement="bottom-start"
-                  className="graph-head__unplaced-popover super-view-head__no-drag"
+                  className="menu-surface menu-surface--rich menu-surface--panel graph-head__unplaced-popover super-view-head__no-drag"
                   role="dialog"
                   ariaLabel={t('bottomTimeline.unplaced.title')}
                   autoFocus={false}

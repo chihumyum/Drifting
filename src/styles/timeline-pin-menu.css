@@ -3,40 +3,4 @@
 
 .tlpin-menu {
   z-index: var(--z-context-menu);
-  min-width: 176px;
-  max-width: 240px;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  background: hsl(var(--paper));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 2px;
-  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
-}
-.tlpin-menu button {
-  appearance: none;
-  border: none;
-  background: none;
-  text-align: left;
-  padding: 6px 10px;
-  border-radius: 0;
-  font-size: 12px;
-  color: hsl(var(--ink-2));
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tlpin-menu button:hover:not(:disabled) {
-  background: hsl(var(--ink-4) / 0.12);
-}
-.tlpin-menu button:disabled {
-  color: hsl(var(--ink-4));
-  cursor: default;
-}
-.tlpin-menu button.is-danger {
-  color: hsl(var(--accent));
-}
-.tlpin-menu button.is-danger:hover {
-  background: hsl(var(--accent) / 0.08);
 }

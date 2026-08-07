@@ -292,7 +292,7 @@ function ComposerConfig() {
         onClose={close}
         placement="top-start"
         maxHeight={360}
-        className="agt-menu"
+        className="menu-surface menu-surface--rich menu-surface--wide agt-menu"
         role="dialog"
         ariaLabel={t('agentPanel.config.aria')}
       >
@@ -1190,6 +1190,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
         role="dialog"
         ariaLabel={t('agentPanel.toolbar.historyTitle')}
         maxHeight={280}
+        className="menu-surface menu-surface--rich menu-surface--panel agt-history-menu"
         style={historyPanel}
         autoFocus={false}
         restoreFocus={false}
@@ -1485,14 +1486,9 @@ const nameInput: React.CSSProperties = {
 };
 
 const historyPanel: React.CSSProperties = {
-  width: 'min(360px, calc(100vw - 16px))',
   maxHeight: 280,
   overflowY: 'auto',
-  background: 'hsl(var(--paper))',
-  border: '1px solid hsl(var(--rule))',
-  borderRadius: 2,
-  boxShadow: '0 10px 26px -14px hsl(var(--ink-1) / 0.5)',
-  zIndex: 20,
+  zIndex: 'var(--z-popover)',
   padding: 4,
 };
 

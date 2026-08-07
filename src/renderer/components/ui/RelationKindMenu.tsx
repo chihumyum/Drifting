@@ -125,7 +125,7 @@ export function RelationKindMenu({
       placement="bottom-end"
       role="menu"
       ariaLabel={t('edgeKindManager.title')}
-      className="relation-kind-menu"
+      className="menu-surface menu-surface--rich menu-surface--settings relation-kind-menu"
       maxHeight={480}
       dismissOnEscape={dismissOnEscape}
     >

@@ -42,27 +42,57 @@ export function TimelinePinMenu({
   };
 
   return (
-    <ContextMenuSurface x={x} y={y} onClose={onClose} className="tlpin-menu">
+    <ContextMenuSurface
+      x={x}
+      y={y}
+      onClose={onClose}
+      className="menu-surface--compact tlpin-menu"
+    >
       {isBound ? (
         <>
-          <button type="button" onClick={run(onOpenDrift)}>
+          <button
+            type="button"
+            role="menuitem"
+            className="menu-surface__item"
+            onClick={run(onOpenDrift)}
+          >
             {t('bottomTimeline.pinMenu.openDrift')}
           </button>
-          <button type="button" onClick={run(onUnbind)}>
+          <button
+            type="button"
+            role="menuitem"
+            className="menu-surface__item"
+            onClick={run(onUnbind)}
+          >
             {t('bottomTimeline.pinMenu.unbind')}
           </button>
         </>
       ) : (
         <>
-          <button type="button" onClick={run(onRequestBind)}>
+          <button
+            type="button"
+            role="menuitem"
+            className="menu-surface__item"
+            onClick={run(onRequestBind)}
+          >
             {t('bottomTimeline.pinMenu.bindDrift')}
           </button>
-          <button type="button" onClick={run(onRename)}>
+          <button
+            type="button"
+            role="menuitem"
+            className="menu-surface__item"
+            onClick={run(onRename)}
+          >
             {t('bottomTimeline.pinMenu.rename')}
           </button>
         </>
       )}
-      <button type="button" className="is-danger" onClick={run(onDelete)}>
+      <button
+        type="button"
+        role="menuitem"
+        className="menu-surface__item menu-surface__item--danger"
+        onClick={run(onDelete)}
+      >
         {t('bottomTimeline.pinMenu.deleteMarker')}
       </button>
     </ContextMenuSurface>

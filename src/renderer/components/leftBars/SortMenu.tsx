@@ -63,80 +63,57 @@ export function SortMenu<T extends string>({
   const extraGroups = (groups ?? []).filter((g) => g.options.length > 0);
 
   return (
-      <AnchoredPopover
-        anchorRef={triggerRef}
-        open={open}
-        onClose={onClose}
-        placement="bottom-end"
-        role="menu"
-        maxHeight={480}
-        style={{
-          minWidth: 180,
-          background: 'hsl(var(--surface))',
-          border: '1px solid hsl(var(--rule))',
-          borderRadius: 2,
-          boxShadow: '0 14px 30px -16px hsl(var(--ink-1) / 0.34)',
-          zIndex: 'var(--z-popover)',
-          fontFamily: 'var(--font-sans)',
-          overflow: 'hidden',
-        }}
-      >
+    <AnchoredPopover
+      anchorRef={triggerRef}
+      open={open}
+      onClose={onClose}
+      placement="bottom-end"
+      role="menu"
+      maxHeight={480}
+      className="menu-surface menu-surface--compact sort-menu"
+      style={{ zIndex: 'var(--z-popover)' }}
+    >
+      {title && <GroupTitle>{title}</GroupTitle>}
 
-        {title && <GroupTitle>{title}</GroupTitle>}
-
-        <div style={{ padding: '4px' }}>
-          {options.map((opt) => (
-            <SortMenuRow
-              key={opt.value}
-              label={opt.label}
-              active={opt.value === value}
-              onSelect={() => {
-                onChange(opt.value);
-                onClose();
-              }}
-            />
-          ))}
-        </div>
-
-        {extraGroups.map((group, i) => (
-          <Fragment key={group.title ?? i}>
-            <div style={{ height: 1, background: 'hsl(var(--rule))' }} />
-            {group.title && <GroupTitle>{group.title}</GroupTitle>}
-            <div style={{ padding: '4px' }}>
-              {group.options.map((opt) => (
-                <SortMenuRow
-                  key={opt.value}
-                  label={opt.label}
-                  active={opt.value === group.value}
-                  onSelect={() => {
-                    group.onChange(opt.value);
-                    onClose();
-                  }}
-                />
-              ))}
-            </div>
-          </Fragment>
+      <div>
+        {options.map((opt) => (
+          <SortMenuRow
+            key={opt.value}
+            label={opt.label}
+            active={opt.value === value}
+            onSelect={() => {
+              onChange(opt.value);
+              onClose();
+            }}
+          />
         ))}
-      </AnchoredPopover>
+      </div>
+
+      {extraGroups.map((group, i) => (
+        <Fragment key={group.title ?? i}>
+          <div className="menu-surface__divider" />
+          {group.title && <GroupTitle>{group.title}</GroupTitle>}
+          <div>
+            {group.options.map((opt) => (
+              <SortMenuRow
+                key={opt.value}
+                label={opt.label}
+                active={opt.value === group.value}
+                onSelect={() => {
+                  group.onChange(opt.value);
+                  onClose();
+                }}
+              />
+            ))}
+          </div>
+        </Fragment>
+      ))}
+    </AnchoredPopover>
   );
 }
 
 function GroupTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        padding: '8px 12px 6px',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 9.5,
-        textTransform: 'uppercase',
-        letterSpacing: '0.12em',
-        color: 'hsl(var(--ink-4))',
-        borderBottom: '1px solid hsl(var(--rule))',
-      }}
-    >
-      {children}
-    </div>
-  );
+  return <div className="menu-surface__section-label">{children}</div>;
 }
 
 function SortMenuRow({
@@ -154,29 +131,9 @@ function SortMenuRow({
       role="menuitemradio"
       aria-checked={active}
       onClick={onSelect}
+      className="menu-surface__item"
       style={{
-        display: 'flex',
-        alignItems: 'center',
         gap: 8,
-        padding: '7px 10px 7px 8px',
-        fontSize: 12.5,
-        color: active ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
-        cursor: 'pointer',
-        borderRadius: 3,
-        transition: 'background 0.12s ease, color 0.12s ease',
-        width: '100%',
-        border: 0,
-        background: 'transparent',
-        font: 'inherit',
-        textAlign: 'left',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-        e.currentTarget.style.color = 'hsl(var(--ink-1))';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = active ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))';
       }}
     >
       <span
@@ -195,9 +152,7 @@ function SortMenuRow({
         style={{
           flex: 1,
           minWidth: 0,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          overflowWrap: 'anywhere',
           fontWeight: active ? 500 : 400,
         }}
       >

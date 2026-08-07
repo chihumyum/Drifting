@@ -114,8 +114,6 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || t('common.local');
   const initial = displayName.charAt(0).toUpperCase();
   const normalizedUiLocale = uiLocale.startsWith('zh') ? 'zh-CN' : 'en';
-  const menuWidth = activeSettingsPage === 'copilot' ? 300 : 248;
-
   return (
     <AnchoredPopover
       anchorRef={triggerRef}
@@ -126,14 +124,11 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
       ariaLabel={activeSettingsPage ? `${activeSettingsPage} settings` : t('userMenu.accountMenu')}
       maxHeight={560}
       dismissOnEscape={activeSettingsPage === null}
+      className={`menu-surface menu-surface--rich ${
+        activeSettingsPage === 'copilot' ? 'menu-surface--panel' : 'menu-surface--wide'
+      } user-menu`}
       style={{
-        width: menuWidth,
-        background: 'hsl(var(--surface))',
-        border: '1px solid hsl(var(--rule))',
-        borderRadius: 2,
-        boxShadow: '0 14px 30px -16px hsl(var(--ink-1) / 0.34)',
         zIndex: 'var(--z-popover)',
-        fontFamily: 'var(--font-sans)',
         overflowY: 'auto',
       }}
     >
@@ -430,8 +425,8 @@ export function UserAvatar({
 function MenuGroup({ children, last }: { children: React.ReactNode; last?: boolean }) {
   return (
     <div
+      className="user-menu__group"
       style={{
-        padding: '6px 4px',
         borderBottom: last ? 'none' : '1px solid hsl(var(--rule))',
       }}
     >
@@ -466,9 +461,7 @@ function MenuItem({ icon, label, meta, tail, onClick }: MenuItemProps) {
         style={{
           flex: 1,
           minWidth: 0,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          overflowWrap: 'anywhere',
         }}
       >
         {label}
@@ -489,43 +482,20 @@ function MenuItem({ icon, label, meta, tail, onClick }: MenuItemProps) {
           )}
     </>
   );
+  const className = `menu-surface__item user-menu__item${
+    onClick ? '' : ' user-menu__item--static'
+  }`;
   const style: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
     gap: 10,
-    width: '100%',
-    padding: '7px 10px',
-    border: 0,
-    background: 'transparent',
-    font: 'inherit',
-    fontSize: 12.5,
-    textAlign: 'left',
-    color: 'hsl(var(--ink-2))',
     cursor: onClick ? 'pointer' : 'default',
-    borderRadius: 3,
-    transition: 'background 0.12s ease, color 0.12s ease',
-  };
-  const handleEnter = (event: React.MouseEvent<HTMLElement>) => {
-    event.currentTarget.style.background = 'hsl(var(--paper-deep))';
-    event.currentTarget.style.color = 'hsl(var(--ink-1))';
-  };
-  const handleLeave = (event: React.MouseEvent<HTMLElement>) => {
-    event.currentTarget.style.background = 'transparent';
-    event.currentTarget.style.color = 'hsl(var(--ink-2))';
   };
 
   return onClick ? (
-    <button
-      type="button"
-      onClick={onClick}
-      style={style}
-      onMouseEnter={handleEnter}
-      onMouseLeave={handleLeave}
-    >
+    <button type="button" onClick={onClick} className={className} style={style}>
       {content}
     </button>
   ) : (
-    <div style={style} onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+    <div className={className} style={style}>
       {content}
     </div>
   );

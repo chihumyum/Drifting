@@ -57,19 +57,19 @@ export function ElementCategoryCreateMenu({
       placement="bottom-start"
       role={mode === 'actions' ? 'menu' : 'dialog'}
       ariaLabel={t('elementCategoryCreateMenu.title', { name: categoryName })}
-      className="editor-bar__menu"
-      style={{ minWidth: 220, zIndex: 'var(--z-popover)', overflow: 'hidden' }}
+      className="menu-surface menu-surface--standard editor-bar__menu"
+      style={{ zIndex: 'var(--z-popover)', overflow: 'hidden' }}
     >
       {mode === 'actions' ? (
         <>
-          <div className="editor-bar__menu-section-label">
+          <div className="menu-surface__section-label">
             {t('elementCategoryCreateMenu.title', { name: categoryName })}
           </div>
           <button
             autoFocus
             type="button"
             role="menuitem"
-            className="editor-bar__menu-item"
+            className="menu-surface__item"
             onClick={() => {
               onClose();
               onCreateElement();
@@ -80,7 +80,7 @@ export function ElementCategoryCreateMenu({
           <button
             type="button"
             role="menuitem"
-            className="editor-bar__menu-item"
+            className="menu-surface__item"
             onClick={() => setMode('group')}
           >
             {t('elementCategoryCreateMenu.newGroup')}
@@ -118,7 +118,7 @@ export function ElementCategoryCreateMenu({
             >
               <ChevronLeft size={13} strokeWidth={1.8} />
             </button>
-            <div className="editor-bar__menu-section-label" style={{ padding: 0 }}>
+            <div className="menu-surface__section-label" style={{ padding: 0 }}>
               {t('elementCategoryCreateMenu.groupTitle')}
             </div>
           </div>
@@ -180,7 +180,7 @@ export function ElementCategoryCreateMenu({
             <button
               type="submit"
               disabled={!canSubmit}
-              className="editor-bar__menu-item"
+              className="menu-surface__item"
               style={{
                 justifyContent: 'center',
                 opacity: canSubmit ? 1 : 0.45,

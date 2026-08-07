@@ -39,6 +39,15 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 - 只有形状本身承担语义时才允许圆形或胶囊：头像、状态点、加载 spinner，以及 switch 的 track/thumb。滚动条 thumb 沿用平台可拖拽形状；普通图标按钮不因此自动获得圆形外壳。
 - Plot Planner 是连续的 mini-Excel：单元格共享 hairline 网格，不是带 gap、阴影和 hover lift 的卡片集合。
 
+## Menu surfaces
+
+- 右键坐标、三点按钮、排序按钮、breadcrumb 与顶栏入口只决定菜单如何定位，不决定菜单长什么样。按钮锚定面继续由 `AnchoredPopover` portal 到 `body` 并使用 `position: fixed`；React 内的坐标锚定菜单优先使用 `ContextMenuSurface`。编辑器 selection menu、ActRail 与资料卡保留各自已有的生命周期 owner，但同样必须 portal 到 `body`、固定定位并使用共享视觉 primitive。
+- 所有动作菜单使用 `.menu-surface`。外壳唯一来源是 `--menu-surface-bg`、`--menu-surface-border`、`--menu-surface-radius` 与 `--menu-surface-shadow`；宽度只能从 compact / standard / wide / panel / settings 五档中选择，对应 `180 / 220 / 280 / 360 / 420px`，窄视口再由浮层 primitive 的 viewport max-width 收缩，不为单个入口另写任意宽度。
+- 普通行使用 `.menu-surface__item`，采用 `12.5px / 18px` UI 字体、`6px 8px` padding 和 `--radius-xs`。单行内容稳定为 `30px`；文本超过一行时允许正常换行，由内容按 `18px` 行高自然撑高，不截断为单行，也不把富表单强制压进固定 cell。
+- section label、header、divider 与 accelerator 分别使用共享的小型层级。当前 breadcrumb 只以背景 wash 与字重显示当前项，不绘制 inset-left accent bar。
+- 账户、Agent 配置/历史、关系类型管理、资料卡摘要和“未放置”内容不是普通动作列表。它们使用 `.menu-surface--rich` 保留表单、摘要、chip 或多列布局，但外壳 token、基础字号、hover wash、圆角阶梯与浮层层级仍与简单菜单一致；不为了视觉整齐把富交互压成 30px 动作行。
+- App 自绘菜单受上述约束；可编辑器在没有非空 selection 或只读时回退的浏览器/系统原生 context menu 不属于 renderer 可定制范围。静态测试能证明 token、class 与 portal/fixed 路径已收敛，不能证明不同平台上的字体栅格化、阴影观感或系统原生菜单外观；这些仍由用户在实际窗口中目测验收。
+
 ## Tabs and motion
 
 - 顶部文档 Tab 与左右栏 Panel Tab 都由自身绘制静态矩形选中态。
@@ -78,8 +87,9 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 ```bash
 pnpm --dir client exec vitest run src/renderer/components/workspace-surface-language.acceptance.test.ts src/renderer/components/project-dashboard-scroll.acceptance.test.ts src/renderer/components/workspace-titlebar-alignment.acceptance.test.ts src/renderer/components/left-sidebar-tab-density.acceptance.test.ts src/renderer/components/leftBars/element-panel-no-category-footer.acceptance.test.ts src/renderer/components/leftBars/element-panel-compact-index.acceptance.test.ts src/renderer/components/leftBars/left-sidebar-outer-sort.acceptance.test.ts
+pnpm --dir client exec vitest run src/renderer/components/menu-surface-style.acceptance.test.ts
 ```
 
-测试覆盖 footer 的 DOM、状态职责与唯一 Timeline 开关、元素 panel 已移除的 category footer、紧凑索引的持久化模式/纯文字内容/流式宽度/素材库与 TODO 的无边框卡片背景复用/label 两侧 category 边框及 sticky 接缝/收起色块形变/空 category 禁止展开/纯背景选中态/连续 group 节奏与未分组边界/category 常驻新增按钮的锚定双路径菜单与首元素建组语义，以及章节、灵感、element group 的 inline 动态按钮、章节/元素内外层排序解耦及末尾虚拟组约束、topbar command ownership、Super 菜单、账户二级设置页、不透明 macOS 窗口配置、顶栏与左右栏的统一灰色 token、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS titlebar 几何、iOS 或 Android 上的视觉、触摸和动效验收。
+测试覆盖 footer 的 DOM、状态职责与唯一 Timeline 开关、元素 panel 已移除的 category footer、紧凑索引的持久化模式/纯文字内容/流式宽度/素材库与 TODO 的无边框卡片背景复用/label 两侧 category 边框及 sticky 接缝/收起色块形变/空 category 禁止展开/纯背景选中态/连续 group 节奏与未分组边界/category 常驻新增按钮的锚定双路径菜单与首元素建组语义，以及章节、灵感、element group 的 inline 动态按钮、章节/元素内外层排序解耦及末尾虚拟组约束、topbar command ownership、Super 菜单、账户二级设置页、动作菜单与富内容 menu/popover 的共享外壳和危险项语义、不透明 macOS 窗口配置、顶栏与左右栏的统一灰色 token、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS titlebar 几何、iOS 或 Android 上的视觉、触摸和动效验收；菜单的实际阴影与字形也需要在真实窗口中目测。
 
 移动端起点、缺口和设备验收边界记录在 [`mobile-ui-foundation.md`](mobile-ui-foundation.md)。

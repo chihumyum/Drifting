@@ -93,7 +93,12 @@ export function EntityCellContextMenu({
   }
 
   return (
-    <ContextMenuSurface x={x} y={y} onClose={onClose}>
+    <ContextMenuSurface
+      x={x}
+      y={y}
+      onClose={onClose}
+      className={hasHeader ? 'menu-surface--wide' : 'menu-surface--standard'}
+    >
       {hasHeader && header && (
         <>
           <div
@@ -169,7 +174,7 @@ export function EntityCellContextMenu({
       )}
       {showStatus && nodeStatusKind && (
         <>
-          <div className="editor-bar__menu-section-label">
+          <div className="menu-surface__section-label">
             {getStatusSectionLabel(nodeStatusKind, t)}
           </div>
           {statusOptions.map((status) => {
@@ -178,7 +183,9 @@ export function EntityCellContextMenu({
               <button
                 key={status}
                 type="button"
-                className={`editor-bar__menu-item editor-bar__menu-item--status${active ? ' editor-bar__menu-item--active' : ''}`}
+                role="menuitemradio"
+                aria-checked={active}
+                className={`menu-surface__item menu-surface__item--status${active ? ' menu-surface__item--active' : ''}`}
                 onClick={() => {
                   if (!active) onAction(`${SET_STATUS_ACTION_PREFIX}${status}`);
                   onClose();
@@ -189,14 +196,15 @@ export function EntityCellContextMenu({
               </button>
             );
           })}
-          {items.length > 0 && <div className="editor-bar__menu-divider" />}
+          {items.length > 0 && <div className="menu-surface__divider" />}
         </>
       )}
       {items.map((item) => (
         <button
           key={item.action}
           type="button"
-          className={`editor-bar__menu-item${item.danger ? ' editor-bar__menu-item--danger' : ''}`}
+          role="menuitem"
+          className={`menu-surface__item${item.danger ? ' menu-surface__item--danger' : ''}`}
           onClick={() => {
             onAction(item.action);
             onClose();
@@ -207,13 +215,14 @@ export function EntityCellContextMenu({
       ))}
       {filledExtraGroups.map((group, gIdx) => (
         <Fragment key={`extra-${gIdx}`}>
-          {(items.length > 0 || gIdx > 0) && <div className="editor-bar__menu-divider" />}
+          {(items.length > 0 || gIdx > 0) && <div className="menu-surface__divider" />}
           {group.map((item) => (
             <button
               key={item.action}
               type="button"
+              role="menuitem"
               disabled={item.disabled}
-              className={`editor-bar__menu-item${item.danger ? ' editor-bar__menu-item--danger' : ''}`}
+              className={`menu-surface__item${item.danger ? ' menu-surface__item--danger' : ''}`}
               style={item.disabled ? { opacity: 0.45, cursor: 'default' } : undefined}
               onClick={() => {
                 if (item.disabled) return;

@@ -588,16 +588,11 @@ function EntityFilterButton({
           onClose={() => setOpen(false)}
           role="dialog"
           ariaLabel={t('memoMaterial.super.entityFilterTitle')}
-          className="entity-filter-popover"
+          className="menu-surface menu-surface--rich menu-surface--panel entity-filter-popover"
           style={{
-            width: 360,
             maxHeight: 440,
             padding: 10,
             overflowY: 'auto',
-            border: '1px solid hsl(var(--rule))',
-            borderRadius: 'var(--radius-sm)',
-            background: 'hsl(var(--paper))',
-            boxShadow: 'var(--shadow-control)',
           }}
         >
           <div style={{ ...kickerStyle, marginBottom: 6 }}>

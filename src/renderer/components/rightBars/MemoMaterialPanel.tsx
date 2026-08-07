@@ -599,7 +599,9 @@ function LibraryItemContextMenuItem({
     <button
       type="button"
       role="menuitem"
-      className={`btl-cmenu__item${variant === 'danger' ? ' is-danger' : ''}`}
+      className={`menu-surface__item btl-cmenu__item${
+        variant === 'danger' ? ' menu-surface__item--danger is-danger' : ''
+      }`}
       onClick={() => onAction(action)}
     >
       <span className="btl-cmenu__glyph" aria-hidden>
@@ -689,7 +691,7 @@ function LibraryItemContextMenu({
     <div
       ref={menuRef}
       role="menu"
-      className="btl-cmenu"
+      className="menu-surface menu-surface--rich menu-surface--wide btl-cmenu"
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
       style={{ left: pos.left, top: pos.top, zIndex: 'var(--z-context-menu)' }}

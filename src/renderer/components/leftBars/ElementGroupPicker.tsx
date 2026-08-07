@@ -52,14 +52,13 @@ export function ElementGroupPicker({
       x={x}
       y={y}
       onClose={onClose}
-      className="editor-bar__menu"
+      className="menu-surface--standard"
       style={{
-        minWidth: 200,
         maxHeight: '60vh',
         overflowY: 'auto',
       }}
     >
-      <div className="editor-bar__menu-section-label">{t('elementGroupPicker.title')}</div>
+      <div className="menu-surface__section-label">{t('elementGroupPicker.title')}</div>
       <div style={{ padding: '2px 8px 6px' }}>
         <input
           autoFocus
@@ -77,7 +76,7 @@ export function ElementGroupPicker({
             boxSizing: 'border-box',
             padding: '4px 8px',
             border: '1px solid hsl(var(--rule-strong))',
-            borderRadius: 4,
+            borderRadius: 2,
             background: 'hsl(var(--paper))',
             color: 'hsl(var(--ink-1))',
             fontSize: 12,
@@ -89,7 +88,8 @@ export function ElementGroupPicker({
       {canCreate && (
         <button
           type="button"
-          className="editor-bar__menu-item"
+          role="menuitem"
+          className="menu-surface__item"
           onClick={() => pick(trimmed)}
         >
           {t('elementGroupPicker.createGroup', { name: trimmed })}
@@ -98,7 +98,8 @@ export function ElementGroupPicker({
 
       <button
         type="button"
-        className="editor-bar__menu-item"
+        role="menuitem"
+        className="menu-surface__item"
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
         onClick={() => pick(null)}
       >
@@ -106,18 +107,17 @@ export function ElementGroupPicker({
         {current == null && <span aria-hidden>✓</span>}
       </button>
 
-      {filtered.length > 0 && <div className="editor-bar__menu-divider" />}
+      {filtered.length > 0 && <div className="menu-surface__divider" />}
       {filtered.map((name) => (
         <button
           key={name}
           type="button"
-          className="editor-bar__menu-item"
+          role="menuitem"
+          className="menu-surface__item"
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
           onClick={() => pick(name)}
         >
-          <span
-            style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-          >
+          <span style={{ overflowWrap: 'anywhere' }}>
             {name}
           </span>
           {current === name && <span aria-hidden>✓</span>}

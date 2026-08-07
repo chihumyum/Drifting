@@ -40,7 +40,7 @@ export function ContextMenuSurface({
   y,
   onClose,
   children,
-  className = 'editor-bar__menu',
+  className,
   style,
   viewportPadding = 8,
   dismissOnScroll = false,
@@ -114,7 +114,9 @@ export function ContextMenuSurface({
   return createPortal(
     <div
       ref={surfaceRef}
-      className={`context-menu-surface ${className}`.trim()}
+      className={['context-menu-surface', role === 'menu' ? 'menu-surface' : null, className]
+        .filter(Boolean)
+        .join(' ')}
       role={role}
       aria-label={ariaLabel}
       onClick={(event) => event.stopPropagation()}

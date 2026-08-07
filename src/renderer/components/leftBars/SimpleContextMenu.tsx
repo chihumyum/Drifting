@@ -33,15 +33,22 @@ export function SimpleContextMenu({ x, y, items, onClose, title }: SimpleContext
   if (items.length === 0) return null;
 
   return (
-    <ContextMenuSurface x={x} y={y} onClose={onClose} style={{ maxHeight: '60vh' }}>
-      {title && <div className="editor-bar__menu-section-label">{title}</div>}
+    <ContextMenuSurface
+      x={x}
+      y={y}
+      onClose={onClose}
+      className="menu-surface--standard"
+      style={{ maxHeight: '60vh' }}
+    >
+      {title && <div className="menu-surface__section-label">{title}</div>}
       {items.map((item) => (
         <div key={item.key}>
-          {item.dividerBefore && <div className="editor-bar__menu-divider" />}
+          {item.dividerBefore && <div className="menu-surface__divider" />}
           <button
             type="button"
+            role="menuitem"
             disabled={item.disabled}
-            className={`editor-bar__menu-item${item.danger ? ' editor-bar__menu-item--danger' : ''}`}
+            className={`menu-surface__item${item.danger ? ' menu-surface__item--danger' : ''}`}
             style={{
               ...(item.indent ? { paddingLeft: 10 + item.indent } : null),
               ...(item.disabled ? { opacity: 0.45, cursor: 'default' } : null),

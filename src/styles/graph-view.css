@@ -157,16 +157,14 @@
   color: hsl(var(--paper));
 }
 .graph-head__unplaced-popover {
-  z-index: 270;
-  min-width: 260px;
-  max-width: 360px;
+  z-index: var(--z-popover);
   max-height: 260px;
   overflow-y: auto;
   padding: 8px 10px;
-  background: hsl(var(--paper));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 2px;
-  box-shadow: 0 12px 28px -14px hsl(var(--ink-1) / 0.26);
+  background: var(--menu-surface-bg);
+  border-color: var(--menu-surface-border);
+  border-radius: var(--menu-surface-radius);
+  box-shadow: var(--menu-surface-shadow);
   display: flex;
   flex-wrap: wrap;
   gap: 4px;

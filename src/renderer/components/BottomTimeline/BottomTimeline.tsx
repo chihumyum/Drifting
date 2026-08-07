@@ -1278,7 +1278,7 @@ export function BottomTimeline() {
                 open={unplacedPopoverOpen}
                 onClose={() => setUnplacedPopoverOpen(false)}
                 placement="top-start"
-                className="btl__unplaced-popover"
+                className="menu-surface menu-surface--rich menu-surface--panel btl__unplaced-popover"
                 role="menu"
                 ariaLabel={t('bottomTimeline.unplaced.title')}
                 maxHeight={320}

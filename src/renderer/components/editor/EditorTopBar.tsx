@@ -233,10 +233,10 @@ function OutlineRailModeMenu({ translate }: { translate: Translate }) {
         open={isOpen}
         onClose={() => setIsOpen(false)}
         placement="bottom-end"
-        className="editor-bar__menu editor-bar__outline-menu"
+        className="menu-surface menu-surface--compact editor-bar__menu editor-bar__outline-menu"
         role="menu"
       >
-        <div className="editor-bar__menu-section-label">
+        <div className="menu-surface__section-label">
           {translate('editorTopBar.actions.outlineRailDisplay')}
         </div>
         {OUTLINE_RAIL_MODES.map((option) => {
@@ -247,7 +247,7 @@ function OutlineRailModeMenu({ translate }: { translate: Translate }) {
               type="button"
               role="menuitemradio"
               aria-checked={active}
-              className={`editor-bar__menu-item editor-bar__menu-item--status${active ? ' editor-bar__menu-item--active' : ''}`}
+              className={`menu-surface__item menu-surface__item--status${active ? ' menu-surface__item--active' : ''}`}
               onClick={() => {
                 if (!active) setMode(option);
                 setIsOpen(false);
@@ -333,7 +333,7 @@ export function EditorCrumb({ children, dotColor, dropdown, onClick }: EditorCru
           onClose={() => setOpen(false)}
           placement="bottom-start"
           maxHeight={320}
-          className="crumb-dropdown"
+          className="menu-surface menu-surface--wide crumb-dropdown"
           role="menu"
         >
           <div onClick={() => setOpen(false)}>{makeCrumbItemsKeyboardAccessible(dropdown)}</div>
@@ -420,18 +420,18 @@ function EditorBarMenu({
         open={isOpen}
         onClose={() => setIsOpen(false)}
         placement="bottom-end"
-        className="editor-bar__menu"
+        className="menu-surface menu-surface--standard editor-bar__menu"
         role="menu"
       >
           {menuHeader && (
             <>
-              <div className="editor-bar__menu-header">{menuHeader}</div>
-              {(showStatus || items.length > 0) && <div className="editor-bar__menu-divider" />}
+              <div className="menu-surface__header">{menuHeader}</div>
+              {(showStatus || items.length > 0) && <div className="menu-surface__divider" />}
             </>
           )}
           {showStatus && nodeStatusKind && (
             <>
-              <div className="editor-bar__menu-section-label">
+              <div className="menu-surface__section-label">
                 {getStatusSectionLabel(nodeStatusKind, translate)}
               </div>
               {statusOptions.map((status) => {
@@ -442,7 +442,7 @@ function EditorBarMenu({
                     type="button"
                     role="menuitemradio"
                     aria-checked={active}
-                    className={`editor-bar__menu-item editor-bar__menu-item--status${active ? ' editor-bar__menu-item--active' : ''}`}
+                    className={`menu-surface__item menu-surface__item--status${active ? ' menu-surface__item--active' : ''}`}
                     onClick={() => {
                       if (!active) onAction(`${SET_STATUS_ACTION_PREFIX}${status}`);
                       setIsOpen(false);
@@ -453,7 +453,7 @@ function EditorBarMenu({
                   </button>
                 );
               })}
-              {items.length > 0 && <div className="editor-bar__menu-divider" />}
+              {items.length > 0 && <div className="menu-surface__divider" />}
             </>
           )}
           {items.map((item) => (
@@ -461,7 +461,7 @@ function EditorBarMenu({
               key={item.action}
               type="button"
               role="menuitem"
-              className={`editor-bar__menu-item${item.danger ? ' editor-bar__menu-item--danger' : ''}`}
+              className={`menu-surface__item${item.danger ? ' menu-surface__item--danger' : ''}`}
               onClick={() => {
                 onAction(item.action);
                 setIsOpen(false);

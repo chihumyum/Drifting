@@ -582,7 +582,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
             onClose={() => setAnchorEditing(false)}
             placement="bottom-end"
             maxHeight={320}
-            className="patch-card__anchor-pop"
+            className="menu-surface menu-surface--rich menu-surface--wide patch-card__anchor-pop"
             role="listbox"
             ariaLabel={t('patchEditorCard.anchor.assignTo')}
           >

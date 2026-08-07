@@ -209,7 +209,8 @@ function positionContextFlyout(
 function appendFormatFlyout(menu: HTMLDivElement, editor: Editor, labelText: string): void {
   const row = document.createElement('button');
   row.type = 'button';
-  row.className = 'has-flyout';
+  row.className = 'menu-surface__item has-flyout';
+  row.setAttribute('role', 'menuitem');
   const label = document.createElement('span');
   label.textContent = labelText;
   const chevron = document.createElement('span');
@@ -220,12 +221,15 @@ function appendFormatFlyout(menu: HTMLDivElement, editor: Editor, labelText: str
 
   const flyout = document.createElement('div');
   // Reuse the menu class so it inherits the menu chrome + teardown selector.
-  flyout.className = `${COMMENT_CONTEXT_MENU_CLASS} editor-comment-menu__flyout`;
+  flyout.className = `${COMMENT_CONTEXT_MENU_CLASS} menu-surface menu-surface--compact editor-comment-menu__flyout`;
+  flyout.setAttribute('role', 'menu');
   flyout.style.display = 'none';
   const addItems = (items: BlockFormatItem[]): void => {
     for (const item of items) {
       const button = document.createElement('button');
       button.type = 'button';
+      button.className = 'menu-surface__item';
+      button.setAttribute('role', 'menuitem');
       button.textContent = item.title;
       // Snapshot active state at open time (the menu closes on click, so it
       // never goes stale): bold/heading/etc. already on the selection.
@@ -240,7 +244,8 @@ function appendFormatFlyout(menu: HTMLDivElement, editor: Editor, labelText: str
   };
   addItems(getBlockFormatItems());
   const separator = document.createElement('div');
-  separator.className = 'editor-comment-menu__sep';
+  separator.className = 'menu-surface__separator editor-comment-menu__sep';
+  separator.setAttribute('role', 'separator');
   flyout.appendChild(separator);
   addItems(getInlineFormatItems());
 
@@ -273,13 +278,16 @@ function appendFormatFlyout(menu: HTMLDivElement, editor: Editor, labelText: str
 function openEditorContextMenu(opts: EditorContextMenuOptions): void {
   removeCommentContextMenu();
   const menu = document.createElement('div');
-  menu.className = COMMENT_CONTEXT_MENU_CLASS;
+  menu.className = `${COMMENT_CONTEXT_MENU_CLASS} menu-surface menu-surface--compact`;
+  menu.setAttribute('role', 'menu');
   menu.style.left = `${opts.clientX}px`;
   menu.style.top = `${opts.clientY}px`;
 
   const addButton = (label: string, onClick: () => void): void => {
     const button = document.createElement('button');
     button.type = 'button';
+    button.className = 'menu-surface__item';
+    button.setAttribute('role', 'menuitem');
     button.textContent = label;
     button.addEventListener('mousedown', (event) => event.preventDefault());
     button.addEventListener('click', () => {

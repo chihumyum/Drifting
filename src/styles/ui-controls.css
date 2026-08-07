@@ -288,6 +288,167 @@
   overflow-y: auto;
 }
 
+/* -------------------------------------------------------------------------
+   Menu visual primitive
+
+   `AnchoredPopover` and `ContextMenuSurface` intentionally remain separate
+   behavior primitives: one follows a button, the other a pointer coordinate.
+   Every action menu uses these classes so trigger type no longer changes its
+   typography, chrome, row rhythm, hover, focus, active, or danger treatment.
+   Rich menus may opt into `menu-surface--rich` and own their inner layout while
+   retaining the same outer shell. */
+.menu-surface {
+  box-sizing: border-box;
+  width: var(--menu-width-compact);
+  max-width: calc(100vw - 16px);
+  padding: 4px;
+  overflow: hidden auto;
+  border: 1px solid var(--menu-surface-border);
+  border-radius: var(--menu-surface-radius);
+  background: var(--menu-surface-bg);
+  box-shadow: var(--menu-surface-shadow);
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.menu-surface--rich {
+  padding: 0;
+}
+
+.menu-surface--compact {
+  width: var(--menu-width-compact);
+}
+
+.menu-surface--standard {
+  width: var(--menu-width-standard);
+}
+
+.menu-surface--wide {
+  width: var(--menu-width-wide);
+}
+
+.menu-surface--panel {
+  width: var(--menu-width-panel);
+}
+
+.menu-surface--settings {
+  width: var(--menu-width-settings);
+}
+
+.menu-surface__item {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 30px;
+  padding: 6px 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: hsl(var(--ink-2));
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+
+.menu-surface__item:hover:not(:disabled),
+.menu-surface__item:focus-visible {
+  background: var(--menu-item-hover-bg);
+  color: hsl(var(--ink-1));
+}
+
+.menu-surface__item:focus-visible {
+  outline: 2px solid hsl(var(--accent) / 0.55);
+  outline-offset: -2px;
+}
+
+.menu-surface__item:disabled,
+.menu-surface__item[aria-disabled='true'] {
+  color: hsl(var(--ink-4));
+  cursor: default;
+  opacity: 0.55;
+}
+
+.menu-surface__item--active,
+.menu-surface__item[aria-checked='true'] {
+  color: hsl(var(--ink-1));
+  font-weight: 500;
+}
+
+.menu-surface__item--status {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.menu-surface__item--danger {
+  color: var(--menu-item-danger);
+}
+
+.menu-surface__item--danger:hover:not(:disabled),
+.menu-surface__item--danger:focus-visible {
+  background: var(--menu-item-danger-hover-bg);
+  color: var(--menu-item-danger);
+}
+
+.menu-surface__item--danger:disabled,
+.menu-surface__item--danger[aria-disabled='true'] {
+  color: hsl(var(--ink-4));
+}
+
+.menu-surface__section-label {
+  padding: 6px 8px 3px;
+  color: hsl(var(--ink-4));
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  line-height: 14px;
+  text-transform: uppercase;
+}
+
+.menu-surface__header {
+  max-width: 280px;
+  padding: 6px 8px;
+  overflow: hidden;
+  color: hsl(var(--ink-2));
+  font-size: 11.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-surface__divider,
+.menu-surface__separator {
+  height: 1px;
+  margin: 4px 2px;
+  background: hsl(var(--rule));
+}
+
+.tab-context-menu__item {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tab-context-menu__accelerator {
+  flex-shrink: 0;
+  color: hsl(var(--ink-4));
+  font-size: 10px;
+}
+
+.user-menu__group {
+  padding: 4px;
+}
+
 .ui-button {
   display: inline-flex;
   align-items: center;
