@@ -905,7 +905,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                             background: 'hsl(var(--surface-elev, var(--surface)))',
                             border: '1px solid hsl(var(--rule))',
                             fontFamily: 'var(--font-content)',
-                            fontStyle: 'italic',
+                            fontStyle: 'normal',
                             fontSize: 12,
                             color: 'hsl(var(--ink-2))',
                           }}
@@ -955,7 +955,7 @@ export function ElementEditorView({ elementIdOverride }: { elementIdOverride?: s
                           outline: 0,
                           padding: '2px 4px',
                           fontFamily: 'var(--font-content)',
-                          fontStyle: 'italic',
+                          fontStyle: 'normal',
                           fontSize: 12,
                           color: 'hsl(var(--ink-3))',
                           minWidth: 80,

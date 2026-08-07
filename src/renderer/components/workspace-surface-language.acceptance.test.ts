@@ -61,6 +61,9 @@ describe('workspace surface language acceptance', () => {
     expect(leftTopbar).toContain('<WorkspaceNavigationButtons />');
     expect(workspaceNavigation.match(/<GhostIconButton/g)).toHaveLength(1);
     expect(workspaceNavigation).toContain('icon={<Home size={16}');
+    expect(workspaceNavigation).toContain(
+      "aria-pressed={baseViewVisible && activeLeaf?.entityType === 'dashboard'}",
+    );
     expect(workspaceNavigation).toContain('className="workspace-all-chapters-trigger"');
     expect(workspaceNavigation).toContain("{t('bottomStatusBar.allChapters')}");
     expect(workspaceNavigation).toContain('const superDestinationActive = activeSuperView !==');
@@ -86,6 +89,9 @@ describe('workspace surface language acceptance', () => {
         '.workspace-super-trigger {',
       ),
     ).toContain('background: transparent;');
+    expect(source('src/styles/ui-controls.css')).not.toContain(
+      ".workspace-header-action[aria-pressed='true']",
+    );
     expect(
       block(
         workspaceNavigationCss,

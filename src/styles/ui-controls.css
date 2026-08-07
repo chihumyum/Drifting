@@ -258,11 +258,6 @@
   background: hsl(var(--paper-deep));
 }
 
-.workspace-header-action[aria-pressed='true'],
-.workspace-header-action[aria-expanded='true'] {
-  color: hsl(var(--ink-1));
-}
-
 .ghost-icon-button--accent {
   color: hsl(var(--accent));
   background: hsl(var(--accent) / 0.1);
