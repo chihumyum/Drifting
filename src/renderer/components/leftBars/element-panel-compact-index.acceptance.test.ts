@@ -134,7 +134,7 @@ describe('ElementPanel compact text index', () => {
     expect(frameLabel).not.toContain('onToggleCollapsed');
     expect(frameLabel).not.toContain('aria-expanded');
     expect(panel).not.toContain('isUncategorized || compactIndex');
-    expect(panel).toContain("openEntity({ entityType: 'category', id: categoryId })");
+    expect(panel).toContain("activateTarget({ entityType: 'category', id: categoryId })");
     expect(header).toContain('showRestingColorMarker || agentBusy');
   });
 

@@ -125,12 +125,24 @@ export function MobileEntityPreviewSheet({
   }, [data, t, target]);
 
   return (
-    <div className="m-entity-preview-sheet" role="presentation" onPointerDown={onClose}>
+    <div
+      className="m-entity-preview-sheet"
+      role="presentation"
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="m-entity-preview-title"
         onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="m-entity-preview-sheet__grab" aria-hidden="true" />
         <header>

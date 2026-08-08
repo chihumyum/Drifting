@@ -28,6 +28,7 @@ import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 import type { EditorType } from '../editor/EditorTopBar';
+import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 
 const log = loglevel.getLogger('ElementPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -51,19 +52,39 @@ const formatShortDate = (input: string | number | Date) => {
   return sameYear ? `${month}/${day}` : `${d.getFullYear() % 100}/${month}/${day}`;
 };
 
-export function ElementPanel() {
+interface ElementPanelProps {
+  presentation?: 'desktop' | 'mobile';
+  activeTarget?: WorkspaceTarget | null;
+  onPreviewTarget?: (target: WorkspaceTarget) => void;
+}
+
+export function ElementPanel({
+  presentation = 'desktop',
+  activeTarget = null,
+  onPreviewTarget,
+}: ElementPanelProps = {}) {
   const { t } = useTranslation();
   const { bookElements, bookElementCategories } = useDataStore();
   const { elementUi } = useUiStore();
   const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
-  const showDate = sidebarWidth >= DATE_HIDE_WIDTH;
+  const showDate = presentation === 'desktop' && sidebarWidth >= DATE_HIDE_WIDTH;
   const sortMode = useUiStore((s) => s.elementSortMode);
   const categorySortMode = useUiStore((s) => s.elementCategorySortMode);
   const viewMode = useUiStore((s) => s.elementPanelViewMode);
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
-  const selectedBookElementId = elementUi.selectedId;
+  const selectedBookElementId =
+    presentation === 'mobile' && activeTarget?.entityType === 'element'
+      ? activeTarget.id
+      : elementUi.selectedId;
+  const activateTarget = useCallback(
+    (target: WorkspaceTarget, options?: { preview?: boolean }) => {
+      if (onPreviewTarget) onPreviewTarget(target);
+      else openEntity(target, options);
+    },
+    [onPreviewTarget, openEntity],
+  );
   const agentActive = useAgentActivityStore((s) => s.active);
   const agentTouched = useAgentActivityStore((s) => s.touched);
   const agentPending = useAgentEditStore((s) => s.pending);
@@ -274,12 +295,12 @@ export function ElementPanel() {
     async (categoryId: string) => {
       try {
         const created = await createElement({ categoryId });
-        openEntity({ entityType: 'element', id: created.id }, { preview: false });
+        activateTarget({ entityType: 'element', id: created.id }, { preview: false });
       } catch (error) {
         log.error('Failed to create element', error);
       }
     },
-    [createElement, openEntity],
+    [activateTarget, createElement],
   );
 
   // "+ element in this group" on a group header. The uncategorized bucket has
@@ -289,12 +310,12 @@ export function ElementPanel() {
       if (categoryId === UNCATEGORIZED_ID) return;
       try {
         const created = await createElement({ categoryId, groupName });
-        openEntity({ entityType: 'element', id: created.id }, { preview: false });
+        activateTarget({ entityType: 'element', id: created.id }, { preview: false });
       } catch (error) {
         log.error('Failed to create element in group', error);
       }
     },
-    [createElement, openEntity],
+    [activateTarget, createElement],
   );
 
   // Rename a secondary group: rewrite groupName on every element currently in
@@ -375,11 +396,9 @@ export function ElementPanel() {
         }}
         onClick={() => {
           if (agentChanged) useAgentActivityStore.getState().clearTouched('element', element.id);
-          openEntity({ entityType: 'element', id: element.id });
+          activateTarget({ entityType: 'element', id: element.id });
         }}
-        onDoubleClick={() => {
-          promoteCurrentTab();
-        }}
+        onDoubleClick={presentation === 'desktop' ? () => promoteCurrentTab() : undefined}
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -489,9 +508,9 @@ export function ElementPanel() {
         agentStateLabel={agentStateLabel}
         onActivate={() => {
           if (agentChanged) useAgentActivityStore.getState().clearTouched('element', element.id);
-          openEntity({ entityType: 'element', id: element.id });
+          activateTarget({ entityType: 'element', id: element.id });
         }}
-        onPromote={promoteCurrentTab}
+        onPromote={presentation === 'desktop' ? promoteCurrentTab : () => undefined}
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -550,8 +569,7 @@ export function ElementPanel() {
             const selfKey = entityKey('category', categoryId);
             const agentSelfBusy = !isUncategorized && selfKey in agentActive;
             const agentSelfChanged =
-              !isUncategorized &&
-              (selfKey in agentTouched || selfKey in agentPending);
+              !isUncategorized && (selfKey in agentTouched || selfKey in agentPending);
             return (
               <div
                 key={categoryId}
@@ -586,19 +604,17 @@ export function ElementPanel() {
                       ? undefined
                       : () => {
                           if (agentSelfChanged) {
-                            useAgentActivityStore
-                              .getState()
-                              .clearTouched('category', categoryId);
+                            useAgentActivityStore.getState().clearTouched('category', categoryId);
                           }
-                          openEntity({ entityType: 'category', id: categoryId });
+                          activateTarget({ entityType: 'category', id: categoryId });
                         }
                   }
                   onDoubleClick={
-                    isUncategorized
+                    isUncategorized || presentation === 'mobile'
                       ? undefined
                       : () => {
                           if (compactIndex) {
-                            openEntity({ entityType: 'category', id: categoryId });
+                            activateTarget({ entityType: 'category', id: categoryId });
                           }
                           promoteCurrentTab();
                         }

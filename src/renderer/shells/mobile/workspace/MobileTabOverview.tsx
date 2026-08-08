@@ -1,13 +1,5 @@
-import {
-  ArrowDown,
-  ArrowLeft,
-  ArrowUp,
-  BookOpen,
-  PanelsTopLeft,
-  Settings,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { ArrowLeft, BookOpen, PanelsTopLeft, Settings, Trash2, X } from 'lucide-react';
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MobilePaper, MobileWorkspaceSessionState } from './mobile-workspace-session';
 import { useMobilePaperPresentation } from './MobilePaperContent';
@@ -18,49 +10,53 @@ function PaperOverviewCard({
   paper,
   active,
   index,
-  count,
   onActivate,
   onClose,
-  onMove,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
 }: {
   paper: MobilePaper;
   active: boolean;
   index: number;
-  count: number;
   onActivate: () => void;
   onClose: () => void;
-  onMove: (to: number) => void;
+  onDragStart: (index: number) => void;
+  onDragMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onDragEnd: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
   const presentation = useMobilePaperPresentation(paper.target);
   return (
-    <article className="m-tab-card" data-active={active ? 'true' : 'false'}>
+    <article className="m-tab-card" data-index={index} data-active={active ? 'true' : 'false'}>
+      <button
+        type="button"
+        className="m-tab-card__drag"
+        aria-label="拖动纸张排序"
+        onPointerDown={(event) => {
+          event.stopPropagation();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          onDragStart(index);
+        }}
+        onPointerMove={onDragMove}
+        onPointerUp={onDragEnd}
+        onPointerCancel={onDragEnd}
+      >
+        <span aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        className="m-tab-card__close"
+        onClick={onClose}
+        aria-label="Close paper"
+      >
+        <X size={17} />
+      </button>
       <button type="button" className="m-tab-card__main" onClick={onActivate}>
         <span style={{ background: presentation.color || 'hsl(var(--ink-4))' }} />
         <small>{presentation.kicker}</small>
         <strong>{presentation.title}</strong>
         <p>{presentation.preview}</p>
       </button>
-      <div className="m-tab-card__actions">
-        <button
-          type="button"
-          disabled={index === 0}
-          onClick={() => onMove(index - 1)}
-          aria-label="Move earlier"
-        >
-          <ArrowUp size={16} />
-        </button>
-        <button
-          type="button"
-          disabled={index === count - 1}
-          onClick={() => onMove(index + 1)}
-          aria-label="Move later"
-        >
-          <ArrowDown size={16} />
-        </button>
-        <button type="button" onClick={onClose} aria-label="Close paper">
-          <X size={17} />
-        </button>
-      </div>
     </article>
   );
 }
@@ -89,6 +85,8 @@ export function MobileTabOverview({
   onBackToShelf: () => void;
 }) {
   const { t } = useTranslation();
+  const draggingIndexRef = useRef<number | null>(null);
+  const [dragging, setDragging] = useState(false);
   const superViews: Array<{ id: MobileSuperViewId; label: string; meta: string }> = [
     { id: 'element', label: t('superElement.title'), meta: t('leftSidebar.tabs.elements') },
     { id: 'graph', label: t('storyGraph.title'), meta: t('dashboard.structure.storylines') },
@@ -98,11 +96,28 @@ export function MobileTabOverview({
       meta: t('rightSidebar.tabs.library'),
     },
   ];
+  const moveDraggedCard = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const from = draggingIndexRef.current;
+    if (from === null) return;
+    const card = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>('.m-tab-card[data-index]');
+    const to = Number(card?.dataset.index);
+    if (!Number.isInteger(to) || to === from) return;
+    onReorder(from, to);
+    draggingIndexRef.current = to;
+  };
+  const endCardDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    draggingIndexRef.current = null;
+    setDragging(false);
+  };
   return (
     <section
       className="m-tab-overview"
       role="dialog"
       aria-modal="true"
+      data-dragging={dragging ? 'true' : 'false'}
       aria-label={t('mobileWorkspace.openPapers', { defaultValue: '打开的纸张' })}
     >
       <header>
@@ -158,10 +173,14 @@ export function MobileTabOverview({
                 paper={paper}
                 active={paper.key === session.activeKey}
                 index={index}
-                count={session.papers.length}
                 onActivate={() => onActivate(paper)}
                 onClose={() => onClosePaper(paper.key)}
-                onMove={(to) => onReorder(index, to)}
+                onDragStart={(from) => {
+                  draggingIndexRef.current = from;
+                  setDragging(true);
+                }}
+                onDragMove={moveDraggedCard}
+                onDragEnd={endCardDrag}
               />
             ))}
           </div>

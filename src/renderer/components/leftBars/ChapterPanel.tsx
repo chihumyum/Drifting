@@ -22,6 +22,7 @@ import { useAuthStore } from '../../store/auth';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
+import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 
 const log = loglevel.getLogger('ChapterPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -37,7 +38,7 @@ const UNAFFILIATED_STRIPE_COLOR = 'hsl(var(--ink-4))';
 // 宽度低于此值时隐藏 cell 右侧的 meta（日期/字数），优先保证 title 显示。
 const META_HIDE_WIDTH = 200;
 
-const formatShortDate =(input: string | number | Date) => {
+const formatShortDate = (input: string | number | Date) => {
   const d = new Date(input);
   if (Number.isNaN(d.getTime())) return '';
   const now = new Date();
@@ -55,7 +56,17 @@ const formatWordCount = (n: number) => {
   return `${Math.round(n / 1000)}k`;
 };
 
-export function ChapterPanel() {
+interface ChapterPanelProps {
+  presentation?: 'desktop' | 'mobile';
+  activeTarget?: WorkspaceTarget | null;
+  onPreviewTarget?: (target: WorkspaceTarget) => void;
+}
+
+export function ChapterPanel({
+  presentation = 'desktop',
+  activeTarget = null,
+  onPreviewTarget,
+}: ChapterPanelProps = {}) {
   const { t } = useTranslation();
   const { bookNodes, storylines, storylineNodeMapping, primaryStorylineByNode } = useDataStore();
   const { nodeUi } = useUiStore();
@@ -69,14 +80,24 @@ export function ChapterPanel() {
   const viewMode = storylines.length === 0 ? 'global' : persistedViewMode;
   const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
   const cellMeta = useUiStore((s) => s.chapterCellMeta);
-  const showMeta = sidebarWidth >= META_HIDE_WIDTH;
+  const showMeta = presentation === 'desktop' && sidebarWidth >= META_HIDE_WIDTH;
   // When on, a chapter linked to multiple storylines is listed only under its
   // primary storyline's group instead of duplicated across every group.
   const primaryOnly = useUiStore((s) => s.chapterStorylinePrimaryOnly);
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
-  const selectedNodeId = nodeUi.selectedId;
+  const selectedNodeId =
+    presentation === 'mobile' && activeTarget?.entityType === 'node'
+      ? activeTarget.id
+      : nodeUi.selectedId;
+  const activateTarget = useCallback(
+    (target: WorkspaceTarget, options?: { preview?: boolean }) => {
+      if (onPreviewTarget) onPreviewTarget(target);
+      else openEntity(target, options);
+    },
+    [onPreviewTarget, openEntity],
+  );
   // Agent activity: which nodes the agent is touching (pulse) / just changed (dot).
   const agentActive = useAgentActivityStore((s) => s.active);
   const agentTouched = useAgentActivityStore((s) => s.touched);
@@ -126,10 +147,7 @@ export function ChapterPanel() {
     return () => events.off('left-sidebar:collapse-all', handler);
   }, [storylines]);
 
-  const storylineById = useMemo(
-    () => new Map(storylines.map((s) => [s.id, s])),
-    [storylines],
-  );
+  const storylineById = useMemo(() => new Map(storylines.map((s) => [s.id, s])), [storylines]);
   const sortedStorylines = useMemo(
     () =>
       storylines.slice().sort((a, b) => {
@@ -153,13 +171,7 @@ export function ChapterPanel() {
   // exposes createdAt / updatedAt. Null narrativeOrder sinks to the end so
   // partially-ordered books stay readable while the user wires up the rest.
   const buildChapterComparator = useCallback(
-    (
-      mode:
-        | 'bookOrder'
-        | 'narrativeOrder'
-        | 'createdAt'
-        | 'updatedAt',
-    ) => {
+    (mode: 'bookOrder' | 'narrativeOrder' | 'createdAt' | 'updatedAt') => {
       return (a: BookNode, b: BookNode) => {
         if (!isChapter(a) || !isChapter(b)) return 0;
         let primary = 0;
@@ -191,8 +203,7 @@ export function ChapterPanel() {
   );
 
   const sortedNodesGlobal = useMemo(
-    () =>
-      bookNodes.filter(isChapter).slice().sort(buildChapterComparator(globalSortMode)),
+    () => bookNodes.filter(isChapter).slice().sort(buildChapterComparator(globalSortMode)),
     [bookNodes, globalSortMode, buildChapterComparator],
   );
 
@@ -210,20 +221,18 @@ export function ChapterPanel() {
   // Per-cell context menu — reuses the editor top-bar three-dot menu items
   // via EntityCellContextMenu so the two surfaces stay in lockstep.
   const dispatchEntityAction = useEntityCellAction();
-  const [contextMenu, setContextMenu] = useState<
-    | {
-        x: number;
-        y: number;
-        nodeId: string;
-        nodeStatusKind: 'chapter' | 'drift';
-        nodeWritingStatus: BookNode['writingStatus'];
-      }
-    | null
-  >(null);
-  const [storylineContextMenu, setStorylineContextMenu] = useState<
-    | { x: number; y: number; storylineId: string }
-    | null
-  >(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    nodeId: string;
+    nodeStatusKind: 'chapter' | 'drift';
+    nodeWritingStatus: BookNode['writingStatus'];
+  } | null>(null);
+  const [storylineContextMenu, setStorylineContextMenu] = useState<{
+    x: number;
+    y: number;
+    storylineId: string;
+  } | null>(null);
   // Hover summary card (same affordance as the element panel's).
   const {
     preview: hoverPreview,
@@ -240,9 +249,7 @@ export function ChapterPanel() {
         .map((id) => nodeById.get(id))
         .filter((n): n is BookNode => Boolean(n))
         .filter(isChapter)
-        .filter(
-          (n) => !primaryOnly || (primaryStorylineByNode[n.id] ?? null) === s.id,
-        )
+        .filter((n) => !primaryOnly || (primaryStorylineByNode[n.id] ?? null) === s.id)
         .sort(cmp);
     });
     return grouped;
@@ -275,12 +282,12 @@ export function ChapterPanel() {
           bookOrder: nextOrder,
           mainStorylineId,
         });
-        openEntity({ entityType: 'node', id: created.id }, { preview: false });
+        activateTarget({ entityType: 'node', id: created.id }, { preview: false });
       } catch (error) {
         log.error('Failed to create node', error);
       }
     },
-    [bookNodes, createNode, openEntity],
+    [activateTarget, bookNodes, createNode],
   );
 
   // Cell layout: [storyline color stripe] [title] [date]. The stripe slot is
@@ -333,11 +340,9 @@ export function ChapterPanel() {
         onClick={() => {
           hoverLeave();
           if (agentChanged) useAgentActivityStore.getState().clearTouched('node', node.id);
-          openEntity({ entityType: 'node', id: node.id });
+          activateTarget({ entityType: 'node', id: node.id });
         }}
-        onDoubleClick={() => {
-          promoteCurrentTab();
-        }}
+        onDoubleClick={presentation === 'desktop' ? () => promoteCurrentTab() : undefined}
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -448,127 +453,118 @@ export function ChapterPanel() {
           padding: '6px 0 24px',
         }}
       >
-      {viewMode === 'global' && (
-        <>
-          {sortedNodesGlobal.map((node) => renderNodeCard(node))}
-          {!hasNodes && (
-            <div
-              style={{
-                fontSize: 12,
-                fontFamily: 'var(--font-sans)',
-                fontStyle: 'italic',
-                color: 'hsl(var(--ink-3))',
-                padding: '40px 20px',
-                textAlign: 'center',
-              }}
-            >
-              {t('leftSidebar.empty.noChapters')}
-            </div>
-          )}
-        </>
-      )}
-
-      {viewMode === 'storyline' && (
-        <>
-          {sortedStorylines.map((storyline) => {
-            const sNodes = nodesByStoryline[storyline.id] ?? [];
-            const collapsed = collapsedGroupIds.has(storyline.id);
-            const color = storyline.color || 'hsl(var(--ink-4))';
-            // Bubble agent activity from this storyline's chapters up to its
-            // group header (#17).
-            const activity = aggregateActivity(
-              agentActive,
-              agentTouched,
-              sNodes.map((n) => entityKey('node', n.id)),
-            );
-            const selfKey = entityKey('storyline', storyline.id);
-            const agentSelfBusy = selfKey in agentActive;
-            const agentSelfChanged =
-              selfKey in agentTouched || selfKey in agentPending;
-            return (
+        {viewMode === 'global' && (
+          <>
+            {sortedNodesGlobal.map((node) => renderNodeCard(node))}
+            {!hasNodes && (
               <div
-                key={storyline.id}
-                className="left-sb-group"
-                style={{ marginBottom: 10 }}
+                style={{
+                  fontSize: 12,
+                  fontFamily: 'var(--font-sans)',
+                  fontStyle: 'italic',
+                  color: 'hsl(var(--ink-3))',
+                  padding: '40px 20px',
+                  textAlign: 'center',
+                }}
               >
-                <GroupHeaderCell
-                  name={storyline.name}
-                  count={sNodes.length}
-                  color={color}
-                  collapsed={collapsed}
-                  onToggleCollapsed={() => toggleGroupCollapsed(storyline.id)}
-                  onClick={() => {
-                    if (agentSelfChanged) {
-                      useAgentActivityStore
-                        .getState()
-                        .clearTouched('storyline', storyline.id);
-                    }
-                    openEntity({ entityType: 'storyline', id: storyline.id });
-                  }}
-                  onDoubleClick={() => promoteCurrentTab()}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setStorylineContextMenu({
-                      x: event.clientX,
-                      y: event.clientY,
-                      storylineId: storyline.id,
-                    });
-                  }}
-                  addButtonTitle={t('leftSidebar.groups.newChapterInStoryline')}
-                  onAdd={() => void handleCreateNode(storyline.id)}
-                  agentBusy={activity.busy || agentSelfBusy}
-                  agentDoneCount={activity.doneCount}
-                  agentSelfChanged={agentSelfChanged}
-                  agentSelfAdded={`storyline:${storyline.id}` in agentAdditions}
-                />
-
-                {!collapsed && sNodes.map((node) => renderNodeCard(node))}
+                {t('leftSidebar.empty.noChapters')}
               </div>
-            );
-          })}
+            )}
+          </>
+        )}
 
-          {/* Unaffiliated is deliberately appended after every persisted
+        {viewMode === 'storyline' && (
+          <>
+            {sortedStorylines.map((storyline) => {
+              const sNodes = nodesByStoryline[storyline.id] ?? [];
+              const collapsed = collapsedGroupIds.has(storyline.id);
+              const color = storyline.color || 'hsl(var(--ink-4))';
+              // Bubble agent activity from this storyline's chapters up to its
+              // group header (#17).
+              const activity = aggregateActivity(
+                agentActive,
+                agentTouched,
+                sNodes.map((n) => entityKey('node', n.id)),
+              );
+              const selfKey = entityKey('storyline', storyline.id);
+              const agentSelfBusy = selfKey in agentActive;
+              const agentSelfChanged = selfKey in agentTouched || selfKey in agentPending;
+              return (
+                <div key={storyline.id} className="left-sb-group" style={{ marginBottom: 10 }}>
+                  <GroupHeaderCell
+                    name={storyline.name}
+                    count={sNodes.length}
+                    color={color}
+                    collapsed={collapsed}
+                    onToggleCollapsed={() => toggleGroupCollapsed(storyline.id)}
+                    onClick={() => {
+                      if (agentSelfChanged) {
+                        useAgentActivityStore.getState().clearTouched('storyline', storyline.id);
+                      }
+                      activateTarget({ entityType: 'storyline', id: storyline.id });
+                    }}
+                    onDoubleClick={
+                      presentation === 'desktop' ? () => promoteCurrentTab() : undefined
+                    }
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setStorylineContextMenu({
+                        x: event.clientX,
+                        y: event.clientY,
+                        storylineId: storyline.id,
+                      });
+                    }}
+                    addButtonTitle={t('leftSidebar.groups.newChapterInStoryline')}
+                    onAdd={() => void handleCreateNode(storyline.id)}
+                    agentBusy={activity.busy || agentSelfBusy}
+                    agentDoneCount={activity.doneCount}
+                    agentSelfChanged={agentSelfChanged}
+                    agentSelfAdded={`storyline:${storyline.id}` in agentAdditions}
+                  />
+
+                  {!collapsed && sNodes.map((node) => renderNodeCard(node))}
+                </div>
+              );
+            })}
+
+            {/* Unaffiliated is deliberately appended after every persisted
               storyline. It shares the same header, spacing, collapse model,
               inner sorting and scroll container instead of owning a pinned
               footer surface. */}
-          <div
-            key={UNAFFILIATED_GROUP_ID}
-            className="left-sb-group"
-            style={{ marginBottom: 10 }}
-          >
-            <GroupHeaderCell
-              name={t('leftSidebar.groups.unaffiliated')}
-              count={unaffiliatedChapters.length}
-              color="hsl(var(--ink-4))"
-              collapsed={collapsedGroupIds.has(UNAFFILIATED_GROUP_ID)}
-              onToggleCollapsed={() => toggleGroupCollapsed(UNAFFILIATED_GROUP_ID)}
-              addButtonTitle={t('leftSidebar.actions.newChapter')}
-              onAdd={() => void handleCreateNode(null)}
-              agentBusy={unaffiliatedActivity.busy}
-              agentDoneCount={unaffiliatedActivity.doneCount}
-            />
+            <div key={UNAFFILIATED_GROUP_ID} className="left-sb-group" style={{ marginBottom: 10 }}>
+              <GroupHeaderCell
+                name={t('leftSidebar.groups.unaffiliated')}
+                count={unaffiliatedChapters.length}
+                color="hsl(var(--ink-4))"
+                collapsed={collapsedGroupIds.has(UNAFFILIATED_GROUP_ID)}
+                onToggleCollapsed={() => toggleGroupCollapsed(UNAFFILIATED_GROUP_ID)}
+                addButtonTitle={t('leftSidebar.actions.newChapter')}
+                onAdd={() => void handleCreateNode(null)}
+                agentBusy={unaffiliatedActivity.busy}
+                agentDoneCount={unaffiliatedActivity.doneCount}
+              />
 
-            {!collapsedGroupIds.has(UNAFFILIATED_GROUP_ID) &&
-              unaffiliatedChapters.map((node) => renderNodeCard(node))}
-          </div>
-
-          {!hasStorylines && (
-            <div
-              style={{
-                fontSize: 12,
-                fontFamily: 'var(--font-sans)',
-                fontStyle: 'italic',
-                color: 'hsl(var(--ink-3))',
-                padding: '40px 20px',
-                textAlign: 'center',
-              }}
-            >
-              {t('leftSidebar.empty.noStorylines')}
+              {!collapsedGroupIds.has(UNAFFILIATED_GROUP_ID) &&
+                unaffiliatedChapters.map((node) => renderNodeCard(node))}
             </div>
-          )}
-        </>
-      )}
+
+            {!hasStorylines && (
+              <div
+                style={{
+                  fontSize: 12,
+                  fontFamily: 'var(--font-sans)',
+                  fontStyle: 'italic',
+                  color: 'hsl(var(--ink-3))',
+                  padding: '40px 20px',
+                  textAlign: 'center',
+                }}
+              >
+                {t('leftSidebar.empty.noStorylines')}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {hoverPreview && (
@@ -612,7 +608,6 @@ export function ChapterPanel() {
           onClose={() => setStorylineContextMenu(null)}
         />
       )}
-
     </div>
   );
 }

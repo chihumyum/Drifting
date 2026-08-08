@@ -34,6 +34,7 @@ describe('mobile standalone routes', () => {
   it('keeps paper navigation, overview and gesture ownership in the mobile shell', () => {
     const paperDeck = rendererSource('shells/mobile/workspace/MobilePaperDeck.tsx');
     const panels = rendererSource('shells/mobile/workspace/MobileWorkspacePanels.tsx');
+    const overview = rendererSource('shells/mobile/workspace/MobileTabOverview.tsx');
     const plotGrid = rendererSource('components/editor/PlotGrid.tsx');
     const session = rendererSource('shells/mobile/workspace/mobile-workspace-session.ts');
     const pinch = rendererSource('shells/mobile/workspace/usePaperPinch.ts');
@@ -53,32 +54,52 @@ describe('mobile standalone routes', () => {
     expect(paperDeck).not.toContain('m-paper-deck__gesture-layer');
     expect(paperDeck).toContain('className="m-paper-cluster"');
     expect(paperDeck).toContain('data-armed={clusterArmed');
-    expect(paperDeck).toContain("phase: 'exit'");
-    expect(paperDeck).toContain("phase: 'settle'");
+    expect(paperDeck).toContain('className="m-paper-row"');
+    expect(paperDeck).toContain('session.papers.map((paper)');
+    expect(paperDeck).toContain('activateNearestPaper');
+    expect(paperDeck).not.toContain("phase: 'exit'");
+    expect(paperDeck).not.toContain("phase: 'settle'");
     expect(paperDeck).toContain("data-full-panel={fullPanel ?? 'none'}");
     expect(panels).toContain('<PanelResizeHandle');
     expect(panels).toContain('className="m-context-tab-rail"');
-    expect(panels).toContain('className="m-structure-shelf"');
-    expect(panels).toContain("setElementView('grid')");
-    expect(panels).toContain('onPreviewTarget({ entityType:');
+    expect(panels).toContain('<ChapterPanel');
+    expect(panels).toContain('<ElementPanel');
+    expect(panels).toContain('<DriftPanel');
+    expect(panels).toContain('presentation="mobile"');
+    expect(panels).toContain('className="m-context-tab-rail__dashboard"');
+    expect(panels).toContain('className="m-tool-workspace__tabs"');
+    expect(panels).toContain('<UserAvatar');
+    expect(panels).not.toContain('m-structure-shelf');
+    expect(panels).not.toContain('whatCanIDo');
     expect(previewSheet).toContain('这里只读预览');
     expect(previewSheet).toContain('插入一张纸');
+    expect(previewSheet).toContain('event.target === event.currentTarget');
+    expect(overview).toContain('className="m-tab-card__close"');
+    expect(overview).toContain('className="m-tab-card__drag"');
+    expect(overview).not.toContain('ArrowUp');
+    expect(overview).not.toContain('ArrowDown');
     expect(panels).toContain('<PlotGridEditor');
     expect(panels).toContain("setOrder('narrative')");
     expect(plotGrid).toContain('onPointerDown={onGripDown}');
     expect(pinch).toContain('paperRevealForMidpoint');
+    expect(pinch).toContain('pinchStrength');
+    expect(pinch).toContain('gesture.strength >= 1.45');
+    expect(pinch).toContain('onOverview?.()');
     expect(pinch).toContain("return 'bottom'");
     expect(pinch).toContain("return 'top'");
     expect(cluster).toContain('paperClusterDestination');
     expect(paperDeck).toContain('paperClusterDestination(drag.start, event.clientY - drag.y)');
-    expect(panels).toContain('!drag.moved && Math.abs(dy) <= 5');
+    expect(panels).toContain('onExtentChange(next)');
+    expect(paperDeck).toContain('extent >= 0.5');
     expect(css).toContain('touch-action: pan-y');
     expect(css).toContain(".m-workspace[data-reveal='bottom']");
     expect(css).toContain('visibility: hidden');
     expect(css).toContain('visibility: visible');
     expect(css).toContain(".m-workspace[data-full-panel='top']");
     expect(css).toContain(".m-workspace[data-full-panel='bottom'] .m-context-workspace--tools");
-    expect(css).toContain('transform 180ms linear');
+    expect(css).toContain('scroll-snap-type: x mandatory');
+    expect(css).toContain('display: flex');
+    expect(css).toContain('height: calc(var(--m-panel-extent) * 100dvh)');
     expect(css).toContain(".m-paper-cluster[data-armed='true']");
     expect(css).not.toContain('touch-action: none;\n  overscroll-behavior');
     expect(zoomGuard).toContain("'gesturestart'");
@@ -136,6 +157,9 @@ describe('mobile standalone routes', () => {
     expect(settings).not.toContain('TrashRailPanel');
     expect(settings).not.toContain('AgentPanel');
     expect(settings).not.toContain('ProjectRuntimeProvider');
+    expect(settings).toContain('className="m-settings set-overlay"');
+    expect(settings).toContain('className="m-settings__content set-main"');
+    expect(settings).not.toContain('LucideIcon');
   });
 
   it('gives mobile settings safe areas, stacked content and touch-sized controls', () => {
@@ -145,6 +169,8 @@ describe('mobile standalone routes', () => {
     expect(css).toContain('var(--safe-area-bottom)');
     expect(css).toContain('min-height: 44px');
     expect(css).toContain('font-size: 16px');
+    expect(css).toContain('overflow-y: auto');
+    expect(css).toContain('touch-action: pan-y');
   });
 
   it('keeps shared and custom overlays inside the native mobile viewport', () => {

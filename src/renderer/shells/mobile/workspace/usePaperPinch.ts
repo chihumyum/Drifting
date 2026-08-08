@@ -12,6 +12,7 @@ interface PinchGesture {
   target: Exclude<PaperReveal, 'focused'>;
   startedFromReveal: boolean;
   progress: number;
+  strength: number;
 }
 
 interface PaperPinchOptions {
@@ -19,6 +20,7 @@ interface PaperPinchOptions {
   reveal: PaperReveal;
   onPreview: (target: Exclude<PaperReveal, 'focused'>, progress: number) => void;
   onCommit: (next: PaperReveal) => void;
+  onOverview?: () => void;
 }
 
 export function paperRevealForMidpoint(midpointY: number, height: number): 'top' | 'bottom' | null {
@@ -40,19 +42,24 @@ export function pinchProgress(
   return Math.max(0, Math.min(1, raw));
 }
 
+export function pinchStrength(startDistance: number, currentDistance: number): number {
+  if (startDistance <= 0) return 0;
+  return Math.max(0, (startDistance - currentDistance) / (startDistance * 0.3));
+}
+
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 export function usePaperPinch(
   ref: RefObject<HTMLElement | null>,
-  { enabled = true, reveal, onPreview, onCommit }: PaperPinchOptions,
+  { enabled = true, reveal, onPreview, onCommit, onOverview }: PaperPinchOptions,
 ) {
-  const optionsRef = useRef({ enabled, reveal, onPreview, onCommit });
+  const optionsRef = useRef({ enabled, reveal, onPreview, onCommit, onOverview });
 
   useEffect(() => {
-    optionsRef.current = { enabled, reveal, onPreview, onCommit };
-  }, [enabled, onCommit, onPreview, reveal]);
+    optionsRef.current = { enabled, reveal, onPreview, onCommit, onOverview };
+  }, [enabled, onCommit, onOverview, onPreview, reveal]);
 
   useEffect(() => {
     const root = ref.current;
@@ -75,6 +82,7 @@ export function usePaperPinch(
         target,
         startedFromReveal: currentReveal !== 'focused',
         progress: currentReveal === 'focused' ? 0 : 1,
+        strength: 0,
       };
     };
 
@@ -90,9 +98,11 @@ export function usePaperPinch(
       beginIfReady();
       if (!gesture || points.size !== 2) return;
       const [a, b] = [...points.values()];
+      const currentDistance = distance(a, b);
+      gesture.strength = pinchStrength(gesture.startDistance, currentDistance);
       gesture.progress = pinchProgress(
         gesture.startDistance,
-        distance(a, b),
+        currentDistance,
         gesture.startedFromReveal,
       );
       if (Math.abs(gesture.progress - (gesture.startedFromReveal ? 1 : 0)) > 0.035) {
@@ -103,6 +113,12 @@ export function usePaperPinch(
     const finish = (event: PointerEvent) => {
       points.delete(event.pointerId);
       if (!gesture || points.size > 1) return;
+      if (!gesture.startedFromReveal && gesture.strength >= 1.45) {
+        optionsRef.current.onCommit('focused');
+        optionsRef.current.onOverview?.();
+        gesture = null;
+        return;
+      }
       const threshold = gesture.startedFromReveal ? 0.62 : 0.38;
       optionsRef.current.onCommit(gesture.progress >= threshold ? gesture.target : 'focused');
       gesture = null;

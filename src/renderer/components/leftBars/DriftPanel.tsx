@@ -33,6 +33,7 @@ import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { events } from '../../lib/events';
+import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 
 const log = loglevel.getLogger('DriftPanel');
 log.setLevel(loglevel.levels.WARN);
@@ -65,19 +66,39 @@ const formatWordCount = (n: number) => {
 type GroupMenu = { x: number; y: number; groupId: string; depth: number };
 type MovePicker = { x: number; y: number; kind: 'drift' | 'group'; id: string };
 
-export function DriftPanel() {
+interface DriftPanelProps {
+  presentation?: 'desktop' | 'mobile';
+  activeTarget?: WorkspaceTarget | null;
+  onPreviewTarget?: (target: WorkspaceTarget) => void;
+}
+
+export function DriftPanel({
+  presentation = 'desktop',
+  activeTarget = null,
+  onPreviewTarget,
+}: DriftPanelProps = {}) {
   const { t } = useTranslation();
   const { bookNodes } = useDataStore();
   const driftGroups = useDataStore((s) => s.driftGroups);
   const { nodeUi } = useUiStore();
   const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
   const cellMeta = useUiStore((s) => s.driftCellMeta);
-  const showMeta = sidebarWidth >= META_HIDE_WIDTH;
+  const showMeta = presentation === 'desktop' && sidebarWidth >= META_HIDE_WIDTH;
   const sortMode = useUiStore((s) => s.driftSortMode);
   const { projectId, openEntity } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id);
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
-  const selectedNodeId = nodeUi.selectedId;
+  const selectedNodeId =
+    presentation === 'mobile' && activeTarget?.entityType === 'node'
+      ? activeTarget.id
+      : nodeUi.selectedId;
+  const activateTarget = useCallback(
+    (target: WorkspaceTarget, options?: { preview?: boolean }) => {
+      if (onPreviewTarget) onPreviewTarget(target);
+      else openEntity(target, options);
+    },
+    [onPreviewTarget, openEntity],
+  );
   const agentActive = useAgentActivityStore((s) => s.active);
   const agentTouched = useAgentActivityStore((s) => s.touched);
   // Persisted pending agent edits — keeps "M" visible after a reload.
@@ -190,15 +211,12 @@ export function DriftPanel() {
   }, [groupChildren]);
 
   const dispatchEntityAction = useEntityCellAction();
-  const [contextMenu, setContextMenu] = useState<
-    | {
-        x: number;
-        y: number;
-        nodeId: string;
-        writingStatus: BookNode['writingStatus'];
-      }
-    | null
-  >(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    nodeId: string;
+    writingStatus: BookNode['writingStatus'];
+  } | null>(null);
   const [groupMenu, setGroupMenu] = useState<GroupMenu | null>(null);
   const [movePicker, setMovePicker] = useState<MovePicker | null>(null);
 
@@ -220,12 +238,12 @@ export function DriftPanel() {
           driftGroupId: groupId,
         });
         expandGroup(groupId);
-        openEntity({ entityType: 'node', id: created.id }, { preview: false });
+        activateTarget({ entityType: 'node', id: created.id }, { preview: false });
       } catch (error) {
         log.error('Failed to create drift in group', error);
       }
     },
-    [projectId, createNode, openEntity, expandGroup],
+    [activateTarget, projectId, createNode, expandGroup],
   );
 
   const createSubGroup = useCallback(
@@ -258,11 +276,7 @@ export function DriftPanel() {
           cursor: 'pointer',
           position: 'relative',
           background: selected ? 'hsl(var(--surface))' : 'transparent',
-          color: selected
-            ? 'hsl(var(--ink-1))'
-            : muted
-              ? 'hsl(var(--ink-3))'
-              : 'hsl(var(--ink-2))',
+          color: selected ? 'hsl(var(--ink-1))' : muted ? 'hsl(var(--ink-3))' : 'hsl(var(--ink-2))',
           fontSize: 12.5,
           lineHeight: 1.35,
           opacity: muted && !selected ? 0.7 : 1,
@@ -283,11 +297,9 @@ export function DriftPanel() {
         onClick={() => {
           hoverLeave();
           if (agentChanged) useAgentActivityStore.getState().clearTouched('node', node.id);
-          openEntity({ entityType: 'node', id: node.id });
+          activateTarget({ entityType: 'node', id: node.id });
         }}
-        onDoubleClick={() => {
-          promoteCurrentTab();
-        }}
+        onDoubleClick={presentation === 'desktop' ? () => promoteCurrentTab() : undefined}
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -716,7 +728,6 @@ export function DriftPanel() {
           items={buildMoveItems(movePicker)}
         />
       )}
-
     </div>
   );
 }

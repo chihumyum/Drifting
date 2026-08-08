@@ -90,15 +90,15 @@ macOS 防火墙、server bind address 和手机的本地网络权限。
 1. 冷启动能进入登录页；登录、注册、OTP/密码重置入口与键盘收起行为正常。
 2. 输入框聚焦时不发生页面缩放；键盘不遮挡当前字段和主操作按钮。
 3. 登录后书架能滚动、搜索/筛选；新建和编辑 Sheet 不越过安全区，删除确认可取消。
-4. 设置页能从列表进入详情、返回、保存；重启后持久化项仍正确。
+4. 设置页沿用桌面 Settings 的视觉语言，能从无额外图标的列表进入详情、返回、纵向滚动和保存；header 顶部无异常留白，重启后持久化项仍正确。
 5. 旋转、刘海/圆角、Home indicator、Android navigation bar 下没有不可操作的控件。
 6. 杀进程后重开、前后台切换、短暂断网恢复时，不出现白屏或重复导航。
 7. 打开项目后进入单纸张移动工作区；正文只有一张完整 paper，桌面左右栏和 tab chrome 不应出现。
-8. 上半区双指向内捏合时 paper 向上半区等比缩小并露出底部工具区；下半区双指向内捏合时向下半区缩小并露出顶部结构区。正文单指滚动、选区和输入不能触发缩放；反向外张应回到单纸编辑态。
-9. 轻点底部 paper cluster 进入 overview；普通上下划过不应改变 paper 缩放状态。按住 cluster 约 280ms 出现武装反馈后，再上下拖动才能连续预览缩放，松手按阈值停靠或复位。缩小态内容仍能滚动、选区与编辑；左右滑动以连续线性位移切换相邻 paper，切回后恢复该 paper 上次的滚动位置，而不是回到顶部。上下 panel 的边界 handle 可继续拖到全屏、收回三成高度或关闭 panel。
-10. paper overview 可以激活、关闭、全部关闭、重排所有 paper，并能进入三个 Super View、通览全书、设置和书架；从设置返回时恢复原工作区 URL。
+8. 上半区双指向内捏合时 paper 向上半区等比缩小、底部工具区从底边连续进入；下半区双指向内捏合时向下半区缩小、顶部结构区从顶边连续进入。普通幅度停靠 panel，继续大幅捏合直接进入 overview。正文单指滚动、选区和输入不能触发缩放；反向外张应回到单纸编辑态。
+9. 轻点底部 paper cluster 进入 overview；普通上下划过不应改变 paper 缩放状态。按住 cluster 约 280ms 出现武装反馈后，再上下拖动才能连续预览缩放，松手按阈值停靠或复位。缩小态内容仍能滚动、选区与编辑；横滑时同一 flex row 内的全部可见 paper 同步移动，松手 `scroll-snap` 到最近页，切回后恢复该 paper 上次的滚动位置。上下 panel 的细线边界 handle 应连续调整 panel 高度和 paper 比例，跨过半屏立即展平为全屏，反向拖动可收回或关闭。
+10. paper overview 可以激活、关闭、全部关闭，并通过卡片拖动在二维网格中重排所有 paper；关闭按钮位于每张卡片右上角，不能出现上下排序箭头。overview 还能进入三个 Super View、通览全书、设置和书架；从设置返回时恢复原工作区 URL。
 11. Super View 内 header 可直接横向切换三个视图，关闭后回到 paper workspace；WebView 本身不应随双指缩放整个页面，元素全景的自有画布应绕双指中点平滑缩放并保持平移；实体打开和共享浮层不得溢出 viewport。
-12. 底部工具区的 TODO、素材库、统计、Agent、时间线和情节页都能切换；时间线可切书序/叙序，情节网格的输入、行列操作与 TSV 粘贴写入当前 node 的 `plotGridJson`，切纸再返回后仍存在。
+12. 顶部结构区的章节、元素、灵感必须复用桌面面板主体：章节和灵感纵向滚动，元素保持桌面分类/网格能力；点 cell 先出现只读 Sheet，点 backdrop 只关闭且不得穿透。底部工具区以顶部横排 tab 切换 TODO、素材库、统计、Agent、时间线和情节，最右侧是桌面同源用户头像菜单；时间线可切书序/叙序，情节网格的输入、行列操作与 TSV 粘贴写入当前 node 的 `plotGridJson`，切纸再返回后仍存在。
 
 自动化说明：macOS UI 自动化可以覆盖登录、书架、项目打开、cluster 轻点、overview、设置和普通按钮/滑动。Apple Simulator 的宿主拖拽在 WebView 中可能合并中间的 `pointermove`；cluster 以 `pointerup` 最终位移为提交依据，纯状态机测试覆盖方向、阈值和收回逻辑，但仍需手工拖动确认连续动画。Apple Simulator 的自动化接口不提供可编排的双指触控，因此第 8 项必须在 Simulator 中按住 Option 手工 pinch，或使用真机验收；单元测试不替代触摸验收。
 
@@ -110,7 +110,7 @@ macOS 防火墙、server bind address 和手机的本地网络权限。
 
 仍保留为人工边界：双指上下半区 pinch、cluster 与 panel handle 的逐帧跟手观感、情节网格 TSV/IME 实际写入、iOS 真机的 IME/安全区/后台恢复，以及全部 Android 验收。当前记录不能替代这些项目，也不能据此宣称移动端整体真机验收完成。
 
-上述记录早于后续的“只读 Sheet 两段式打开、cluster 长按武装、缩小态编辑/滚动、线性切纸、逐纸滚动记忆与画布自有 pinch”重构，因此只是旧版链路的历史证据，不能作为本轮新交互已通过模拟器或真机验收的证明。
+上述记录早于后续的“只读 Sheet 两段式打开与 backdrop 防穿透、桌面结构面板复用、cluster 长按武装、动态 panel 高度、flex row + scroll-snap 切纸、逐纸滚动记忆、pinch 幅度进入 overview 与画布自有 pinch”重构，因此只是旧版链路的历史证据，不能作为本轮新交互已通过模拟器或真机验收的证明。
 
 调试 WebView：iOS 使用 Safari 的 Develop 菜单（真机还需启用 Web Inspector）；Android 在 Chrome
 打开 `chrome://inspect`，选择 `cc.drifting.client` 对应的 WebView。

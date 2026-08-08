@@ -8,24 +8,17 @@ import {
 } from 'react';
 import { Layers3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import type { MobilePaper, MobileWorkspaceSessionState } from './mobile-workspace-session';
-import { adjacentPaper } from './mobile-workspace-session';
 import { MobilePaperContent, useMobilePaperPresentation } from './MobilePaperContent';
 import { MobileEntityPreviewSheet } from './MobileEntityPreviewSheet';
 import { MobileWorkspacePanels } from './MobileWorkspacePanels';
-import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import { paperClusterDestination, paperClusterPreview } from './paper-cluster-gesture';
 import { usePaperPinch, type PaperReveal } from './usePaperPinch';
 
 interface PreviewState {
   target: Exclude<PaperReveal, 'focused'>;
   progress: number;
-}
-
-interface PaperSlideState {
-  target: MobilePaper;
-  direction: -1 | 1;
-  phase: 'exit' | 'entry' | 'settle';
 }
 
 interface ClusterGestureState {
@@ -38,10 +31,10 @@ interface ClusterGestureState {
   cancelled: boolean;
 }
 
-function AdjacentPaperPreview({ paper, side }: { paper: MobilePaper; side: 'left' | 'right' }) {
+function MobilePaperPreview({ paper }: { paper: MobilePaper }) {
   const presentation = useMobilePaperPresentation(paper.target);
   return (
-    <div className={`m-paper-preview m-paper-preview--${side}`} aria-hidden="true">
+    <div className="m-paper-preview" aria-hidden="true">
       <span style={{ background: presentation.color || 'hsl(var(--ink-4))' }} />
       <small>{presentation.kicker}</small>
       <strong>{presentation.title}</strong>
@@ -122,42 +115,109 @@ export function MobilePaperDeck({
 }) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLElement | null>(null);
+  const paperRowRef = useRef<HTMLDivElement | null>(null);
   const clusterDragRef = useRef<ClusterGestureState | null>(null);
-  const paperSwipeRef = useRef<{ x: number; y: number } | null>(null);
-  const slideFrameRef = useRef<number | null>(null);
+  const rowScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const programmaticRowScrollRef = useRef(false);
   const [reveal, setReveal] = useState<PaperReveal>('focused');
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [panelExtent, setPanelExtent] = useState(0);
+  const [panelResizing, setPanelResizing] = useState(false);
   const [fullPanel, setFullPanel] = useState<Exclude<PaperReveal, 'focused'> | null>(null);
   const [previewTarget, setPreviewTarget] = useState<WorkspaceTarget | null>(null);
   const [clusterArmed, setClusterArmed] = useState(false);
-  const [slide, setSlide] = useState<PaperSlideState | null>(null);
 
   const active = session.papers.find((paper) => paper.key === session.activeKey) ?? null;
-  const previous = adjacentPaper(session, -1);
-  const next = adjacentPaper(session, 1);
   const visualReveal = preview?.target ?? reveal;
-  const progress = preview?.progress ?? (reveal === 'focused' ? 0 : 1);
+  const visibleExtent = preview
+    ? preview.progress * (reveal === 'focused' ? 0.3 : panelExtent)
+    : reveal === 'focused'
+      ? 0
+      : panelExtent;
 
   useEffect(
     () => () => {
       if (clusterDragRef.current?.timer) clearTimeout(clusterDragRef.current.timer);
-      if (slideFrameRef.current !== null) cancelAnimationFrame(slideFrameRef.current);
+      if (rowScrollTimerRef.current) clearTimeout(rowScrollTimerRef.current);
     },
     [],
   );
 
+  const alignActivePaper = useCallback(() => {
+    const row = paperRowRef.current;
+    if (!row || !session.activeKey) return;
+    const page = row.querySelector<HTMLElement>(
+      `[data-paper-key="${CSS.escape(session.activeKey)}"]`,
+    );
+    if (!page) return;
+    programmaticRowScrollRef.current = true;
+    row.scrollTo({
+      left: page.offsetLeft - (row.clientWidth - page.offsetWidth) / 2,
+      behavior: 'auto',
+    });
+    requestAnimationFrame(() => {
+      programmaticRowScrollRef.current = false;
+    });
+  }, [session.activeKey]);
+
+  useLayoutEffect(() => {
+    alignActivePaper();
+  }, [alignActivePaper, session.papers.length, visibleExtent]);
+
+  const activateNearestPaper = useCallback(() => {
+    const row = paperRowRef.current;
+    if (!row || programmaticRowScrollRef.current) return;
+    const center = row.scrollLeft + row.clientWidth / 2;
+    let nearest: { paper: MobilePaper; distance: number } | null = null;
+    for (const paper of session.papers) {
+      const page = row.querySelector<HTMLElement>(`[data-paper-key="${CSS.escape(paper.key)}"]`);
+      if (!page) continue;
+      const distance = Math.abs(page.offsetLeft + page.offsetWidth / 2 - center);
+      if (!nearest || distance < nearest.distance) nearest = { paper, distance };
+    }
+    if (nearest && nearest.paper.key !== session.activeKey) onActivate(nearest.paper);
+  }, [onActivate, session.activeKey, session.papers]);
+
   const commitReveal = useCallback((nextReveal: PaperReveal) => {
     setPreview(null);
+    setPanelResizing(false);
     setFullPanel(null);
     setReveal(nextReveal);
+    setPanelExtent(nextReveal === 'focused' ? 0 : 0.3);
   }, []);
 
   usePaperPinch(rootRef, {
-    enabled: fullPanel === null && previewTarget === null && slide === null,
+    enabled: fullPanel === null && previewTarget === null,
     reveal,
-    onPreview: (target, nextProgress) => setPreview({ target, progress: nextProgress }),
+    onPreview: (target, progress) => setPreview({ target, progress }),
     onCommit: commitReveal,
+    onOverview: onOpenOverview,
   });
+
+  const setExtentFromHandle = (panel: Exclude<PaperReveal, 'focused'>, extent: number) => {
+    setPreview(null);
+    setPanelResizing(true);
+    setReveal(panel);
+    setFullPanel(extent >= 0.5 ? panel : null);
+    setPanelExtent(extent >= 0.5 ? 1 : extent);
+  };
+
+  const commitExtentFromHandle = (panel: Exclude<PaperReveal, 'focused'>, extent: number) => {
+    setPanelResizing(false);
+    if (extent <= 0.08) {
+      commitReveal('focused');
+      return;
+    }
+    setPreview(null);
+    setReveal(panel);
+    if (extent >= 0.5) {
+      setFullPanel(panel);
+      setPanelExtent(1);
+      return;
+    }
+    setFullPanel(null);
+    setPanelExtent(extent);
+  };
 
   const clusterMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = clusterDragRef.current;
@@ -195,105 +255,64 @@ export function MobilePaperDeck({
     else commitReveal(destination);
   };
 
-  const beginPaperSlide = useCallback((target: MobilePaper, direction: -1 | 1) => {
-    setSlide((current) => current ?? { target, direction, phase: 'exit' });
-  }, []);
-
-  const paperSwipeUp = (event: ReactPointerEvent<HTMLElement>) => {
-    const start = paperSwipeRef.current;
-    paperSwipeRef.current = null;
-    if (!start) return;
-    const dx = event.clientX - start.x;
-    const dy = event.clientY - start.y;
-    if (Math.abs(dx) > 54 && Math.abs(dx) > Math.abs(dy)) {
-      const target = dx < 0 ? next : previous;
-      if (target) beginPaperSlide(target, dx < 0 ? 1 : -1);
-    }
-  };
-
-  const slideX = slide
-    ? slide.phase === 'exit'
-      ? `${slide.direction * -110}dvw`
-      : slide.phase === 'entry'
-        ? `${slide.direction * 110}dvw`
-        : '0dvw'
-    : '0dvw';
-
   return (
     <main
       ref={rootRef}
       className="m-workspace"
       data-reveal={visualReveal}
-      data-preview={preview ? 'true' : 'false'}
+      data-preview={preview || panelResizing ? 'true' : 'false'}
       data-full-panel={fullPanel ?? 'none'}
-      data-paper-slide={slide?.phase ?? 'none'}
-      style={
-        {
-          '--m-paper-progress': progress,
-          '--m-paper-slide-x': slideX,
-        } as React.CSSProperties
-      }
+      style={{ '--m-panel-extent': visibleExtent } as React.CSSProperties}
     >
       <MobileWorkspacePanels
         projectId={projectId}
         target={active?.target ?? null}
-        fullPanel={fullPanel}
-        onFullPanelChange={(panel, full) => {
-          setPreview(null);
-          setReveal(panel);
-          setFullPanel(full ? panel : null);
+        panelExtent={panelExtent}
+        onPanelExtentChange={setExtentFromHandle}
+        onPanelExtentCommit={commitExtentFromHandle}
+        onOpenDashboard={() => {
+          onOpenPaper({ entityType: 'dashboard', id: 'self' });
+          commitReveal('focused');
         }}
-        onClosePanel={() => commitReveal('focused')}
         onPreviewTarget={setPreviewTarget}
       />
 
       <div className="m-paper-deck">
-        {previous && <AdjacentPaperPreview paper={previous} side="left" />}
-        {next && <AdjacentPaperPreview paper={next} side="right" />}
-
-        <section
-          className="m-paper-deck__paper"
-          aria-label={active ? undefined : t('editorMainArea.emptyHint')}
-          onPointerDown={(event) => {
-            if (visualReveal === 'focused' || slide) return;
-            paperSwipeRef.current = { x: event.clientX, y: event.clientY };
-          }}
-          onPointerUp={paperSwipeUp}
-          onPointerCancel={() => {
-            paperSwipeRef.current = null;
-          }}
-          onTransitionEnd={(event) => {
-            if (
-              event.target !== event.currentTarget ||
-              event.propertyName !== 'transform' ||
-              !slide
-            ) {
-              return;
-            }
-            if (slide.phase === 'exit') {
-              onActivate(slide.target);
-              setSlide({ ...slide, phase: 'entry' });
-              slideFrameRef.current = requestAnimationFrame(() => {
-                slideFrameRef.current = requestAnimationFrame(() => {
-                  setSlide((current) =>
-                    current?.phase === 'entry' ? { ...current, phase: 'settle' } : current,
-                  );
-                });
-              });
-            } else if (slide.phase === 'settle') {
-              setSlide(null);
-            }
-          }}
-        >
-          {active ? (
-            <div className="m-paper-deck__content">
-              <MobilePaperViewport
-                key={active.key}
-                paper={active}
-                onRememberScroll={onRememberScroll}
-              />
-            </div>
-          ) : (
+        {session.papers.length > 0 ? (
+          <div
+            ref={paperRowRef}
+            className="m-paper-row"
+            onScroll={() => {
+              if (programmaticRowScrollRef.current) return;
+              if (rowScrollTimerRef.current) clearTimeout(rowScrollTimerRef.current);
+              rowScrollTimerRef.current = setTimeout(activateNearestPaper, 100);
+            }}
+          >
+            {session.papers.map((paper) => {
+              const isActive = paper.key === session.activeKey;
+              return (
+                <section
+                  key={paper.key}
+                  className="m-paper-row__page"
+                  data-paper-key={paper.key}
+                  data-active={isActive ? 'true' : 'false'}
+                  aria-hidden={isActive ? undefined : 'true'}
+                >
+                  <div className="m-paper-row__paper">
+                    {isActive ? (
+                      <div className="m-paper-deck__content">
+                        <MobilePaperViewport paper={paper} onRememberScroll={onRememberScroll} />
+                      </div>
+                    ) : (
+                      <MobilePaperPreview paper={paper} />
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        ) : (
+          <section className="m-paper-row__empty" aria-label={t('editorMainArea.emptyHint')}>
             <div className="m-paper-empty">
               <Layers3 size={24} aria-hidden="true" />
               <strong>{t('mobileWorkspace.noPapers', { defaultValue: '没有打开的纸张' })}</strong>
@@ -301,11 +320,11 @@ export function MobilePaperDeck({
                 {t('mobileWorkspace.openOverview', { defaultValue: '打开纸张总览' })}
               </button>
             </div>
-          )}
-        </section>
+          </section>
+        )}
       </div>
 
-      {session.papers.length > 0 && (
+      {session.papers.length > 0 && fullPanel === null && (
         <button
           type="button"
           className="m-paper-cluster"

@@ -1,25 +1,10 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import {
-  Bot,
-  BookOpenText,
-  ChartNoAxesColumn,
-  Grid2X2,
-  GripHorizontal,
-  Library,
-  ListTodo,
-  Milestone,
-  Rows3,
-  Shapes,
-  Sparkles,
-  TableProperties,
-} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import { useWorkspaceNavigator } from '../../../features/workspace/navigation/WorkspaceNavigationContext';
@@ -35,6 +20,10 @@ import { PlotGridEditor } from '../../../components/editor/PlotGrid';
 import { serializePlotGrid, type PlotGrid } from '../../../domain/plot-grid';
 import { useBookContent } from '../../../usecase/useBookContent';
 import { useAuthStore } from '../../../store/auth';
+import { ChapterPanel } from '../../../components/leftBars/ChapterPanel';
+import { ElementPanel } from '../../../components/leftBars/ElementPanel';
+import { DriftPanel } from '../../../components/leftBars/DriftPanel';
+import { UserAvatar, UserMenu } from '../../../components/topBars/UserMenu';
 import type { PaperReveal } from './usePaperPinch';
 
 type StructureTab = 'chapters' | 'elements' | 'inspiration';
@@ -43,56 +32,59 @@ type PanelPosition = Exclude<PaperReveal, 'focused'>;
 
 function PanelResizeHandle({
   panel,
-  full,
-  onFullChange,
-  onClose,
+  extent,
+  onExtentChange,
+  onExtentCommit,
 }: {
   panel: PanelPosition;
-  full: boolean;
-  onFullChange: (full: boolean) => void;
-  onClose: () => void;
+  extent: number;
+  onExtentChange: (extent: number) => void;
+  onExtentCommit: (extent: number) => void;
 }) {
-  const dragRef = useRef<{ y: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{ y: number; extent: number; latest: number } | null>(null);
+
+  const extentForPointer = (clientY: number) => {
+    const drag = dragRef.current;
+    if (!drag) return extent;
+    const direction = panel === 'top' ? 1 : -1;
+    return Math.max(
+      0,
+      Math.min(1, drag.extent + (direction * (clientY - drag.y)) / window.innerHeight),
+    );
+  };
 
   const finish = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current;
-    dragRef.current = null;
     if (!drag) return;
+    const next = extentForPointer(event.clientY);
+    dragRef.current = null;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
-    const dy = event.clientY - drag.y;
-    if (!drag.moved && Math.abs(dy) <= 5) {
-      onFullChange(!full);
-      return;
-    }
-    const expands = panel === 'top' ? dy > 40 : dy < -40;
-    const contracts = panel === 'top' ? dy < -40 : dy > 40;
-    if (expands) onFullChange(true);
-    else if (contracts) {
-      if (full) onFullChange(false);
-      else onClose();
-    }
+    onExtentCommit(next);
   };
 
   return (
     <button
       type="button"
       className="m-context-workspace__handle"
-      aria-label={full ? '收起面板' : '展开面板'}
+      aria-label={panel === 'top' ? '调整顶部面板高度' : '调整底部面板高度'}
       onPointerDown={(event) => {
-        dragRef.current = { y: event.clientY, moved: false };
+        dragRef.current = { y: event.clientY, extent, latest: extent };
         event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onPointerMove={(event) => {
         const drag = dragRef.current;
-        if (drag && Math.abs(event.clientY - drag.y) > 5) drag.moved = true;
+        if (!drag) return;
+        const next = extentForPointer(event.clientY);
+        drag.latest = next;
+        onExtentChange(next);
       }}
       onPointerUp={finish}
       onPointerCancel={() => {
+        const drag = dragRef.current;
         dragRef.current = null;
+        if (drag) onExtentCommit(drag.latest);
       }}
-    >
-      <GripHorizontal size={21} aria-hidden="true" />
-    </button>
+    />
   );
 }
 
@@ -104,60 +96,26 @@ function focusedEntity(target: WorkspaceTarget | null): FocusedEntity {
 }
 
 function MobileStructureWorkspace({
-  full,
-  onFullChange,
-  onClose,
+  target,
+  extent,
+  onExtentChange,
+  onExtentCommit,
+  onOpenDashboard,
   onPreviewTarget,
 }: {
-  full: boolean;
-  onFullChange: (full: boolean) => void;
-  onClose: () => void;
+  target: WorkspaceTarget | null;
+  extent: number;
+  onExtentChange: (extent: number) => void;
+  onExtentCommit: (extent: number) => void;
+  onOpenDashboard: () => void;
   onPreviewTarget: (target: WorkspaceTarget) => void;
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<StructureTab>('chapters');
-  const [elementView, setElementView] = useState<'grid' | 'shelf'>('grid');
-  const {
-    bookNodes,
-    bookElements,
-    bookElementCategories,
-    storylines,
-    primaryStorylineByNode,
-    driftGroups,
-  } = useDataStore();
-
-  const chapters = useMemo(
-    () =>
-      bookNodes
-        .filter(isChapter)
-        .slice()
-        .sort((a, b) => a.bookOrder - b.bookOrder),
-    [bookNodes],
-  );
-  const inspiration = useMemo(
-    () =>
-      bookNodes
-        .filter(isDrift)
-        .slice()
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [bookNodes],
-  );
-  const categories = useMemo(() => {
-    const grouped: Array<{
-      category: (typeof bookElementCategories)[number] | null;
-      elements: typeof bookElements;
-    }> = bookElementCategories.map((category) => ({
-      category,
-      elements: bookElements.filter((element) => element.categoryId === category.id),
-    }));
-    const uncategorized = bookElements.filter((element) => element.categoryId === null);
-    if (uncategorized.length > 0) grouped.push({ category: null, elements: uncategorized });
-    return grouped;
-  }, [bookElementCategories, bookElements]);
   const structureTabs = [
-    ['chapters', BookOpenText, t('leftSidebar.tabs.chapters')],
-    ['elements', Shapes, t('leftSidebar.tabs.elements')],
-    ['inspiration', Sparkles, t('leftSidebar.tabs.drifts')],
+    ['chapters', t('leftSidebar.tabs.chapters')],
+    ['elements', t('leftSidebar.tabs.elements')],
+    ['inspiration', t('leftSidebar.tabs.drifts')],
   ] as const;
 
   return (
@@ -167,20 +125,17 @@ function MobileStructureWorkspace({
     >
       <div className="m-context-workspace__landscape">
         <aside className="m-context-tab-rail">
-          <div>
-            <span>{t('mobileWorkspace.whereAmI', { defaultValue: '你在哪里' })}</span>
-            <strong>{t('mobileWorkspace.structure', { defaultValue: '结构' })}</strong>
-          </div>
+          <button type="button" className="m-context-tab-rail__dashboard" onClick={onOpenDashboard}>
+            {t('dashboard.targets.dashboard', { defaultValue: '项目主页' })}
+          </button>
           <nav aria-label={t('leftSidebar.title')}>
-            {structureTabs.map(([id, Icon, label]) => (
+            {structureTabs.map(([id, label]) => (
               <button
                 key={id}
                 type="button"
-                aria-label={label}
                 aria-current={tab === id ? 'page' : undefined}
                 onClick={() => setTab(id)}
               >
-                <Icon size={17} aria-hidden="true" />
                 <span>{label}</span>
               </button>
             ))}
@@ -189,129 +144,34 @@ function MobileStructureWorkspace({
 
         <div className="m-context-workspace__pane">
           {tab === 'chapters' && (
-            <div className="m-structure-shelf" aria-label={t('leftSidebar.tabs.chapters')}>
-              {chapters.map((node, index) => {
-                const storyline = storylines.find(
-                  (item) => item.id === primaryStorylineByNode[node.id],
-                );
-                return (
-                  <button
-                    key={node.id}
-                    type="button"
-                    onClick={() => onPreviewTarget({ entityType: 'node', id: node.id })}
-                  >
-                    <span>{String(index + 1).padStart(2, '0')}</span>
-                    <strong>{node.title || t('common.untitled')}</strong>
-                    <small>{storyline?.name ?? t('nodeEditor.empty.noStoryline')}</small>
-                    <em>{node.wordCount.toLocaleString()} 字</em>
-                  </button>
-                );
-              })}
-            </div>
+            <ChapterPanel
+              presentation="mobile"
+              activeTarget={target}
+              onPreviewTarget={onPreviewTarget}
+            />
           )}
-
           {tab === 'elements' && (
-            <>
-              <div className="m-structure-view-toggle" role="group" aria-label="元素展示方式">
-                <button
-                  type="button"
-                  aria-pressed={elementView === 'grid'}
-                  onClick={() => setElementView('grid')}
-                >
-                  <Grid2X2 size={14} aria-hidden="true" />
-                  分类网格
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={elementView === 'shelf'}
-                  onClick={() => setElementView('shelf')}
-                >
-                  <Rows3 size={14} aria-hidden="true" />
-                  横向列表
-                </button>
-              </div>
-              {elementView === 'grid' ? (
-                <div className="m-structure-groups">
-                  {categories.map(({ category, elements }) => (
-                    <section key={category?.id ?? 'uncategorized'}>
-                      <button
-                        type="button"
-                        disabled={!category}
-                        onClick={() => {
-                          if (category) {
-                            onPreviewTarget({ entityType: 'category', id: category.id });
-                          }
-                        }}
-                      >
-                        <span style={{ background: category?.color || 'hsl(var(--ink-4))' }} />
-                        <strong>{category?.name ?? '未分类'}</strong>
-                        <small>{elements.length}</small>
-                      </button>
-                      <div>
-                        {elements.map((element) => (
-                          <button
-                            key={element.id}
-                            type="button"
-                            onClick={() =>
-                              onPreviewTarget({ entityType: 'element', id: element.id })
-                            }
-                          >
-                            <strong>{element.name || t('common.untitled')}</strong>
-                            <small>{element.summary || '还没有摘要'}</small>
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              ) : (
-                <div className="m-structure-shelf m-structure-shelf--elements">
-                  {bookElements.map((element) => {
-                    const category = bookElementCategories.find(
-                      (item) => item.id === element.categoryId,
-                    );
-                    return (
-                      <button
-                        key={element.id}
-                        type="button"
-                        onClick={() => onPreviewTarget({ entityType: 'element', id: element.id })}
-                      >
-                        <span style={{ background: category?.color || 'hsl(var(--ink-4))' }} />
-                        <strong>{element.name || t('common.untitled')}</strong>
-                        <small>{category?.name ?? '未分类'}</small>
-                        <em>{element.summary || '还没有摘要'}</em>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </>
+            <ElementPanel
+              presentation="mobile"
+              activeTarget={target}
+              onPreviewTarget={onPreviewTarget}
+            />
           )}
-
           {tab === 'inspiration' && (
-            <div className="m-structure-shelf" aria-label={t('leftSidebar.tabs.drifts')}>
-              {inspiration.map((node) => {
-                const group = driftGroups.find((item) => item.id === node.driftGroupId);
-                return (
-                  <button
-                    key={node.id}
-                    type="button"
-                    onClick={() => onPreviewTarget({ entityType: 'node', id: node.id })}
-                  >
-                    <span>
-                      <Sparkles size={13} aria-hidden="true" />
-                    </span>
-                    <strong>{node.title || t('common.untitled')}</strong>
-                    <small>{group?.name ?? '未分组'}</small>
-                    <em>{node.summary || '还没有摘要'}</em>
-                  </button>
-                );
-              })}
-            </div>
+            <DriftPanel
+              presentation="mobile"
+              activeTarget={target}
+              onPreviewTarget={onPreviewTarget}
+            />
           )}
         </div>
       </div>
-      <PanelResizeHandle panel="top" full={full} onFullChange={onFullChange} onClose={onClose} />
+      <PanelResizeHandle
+        panel="top"
+        extent={extent}
+        onExtentChange={onExtentChange}
+        onExtentCommit={onExtentCommit}
+      />
     </section>
   );
 }
@@ -486,57 +346,75 @@ function MobilePlotPlannerWorkspace({
 function MobileToolWorkspace({
   projectId,
   target,
-  full,
-  onFullChange,
-  onClose,
+  extent,
+  onExtentChange,
+  onExtentCommit,
 }: {
   projectId: string;
   target: WorkspaceTarget | null;
-  full: boolean;
-  onFullChange: (full: boolean) => void;
-  onClose: () => void;
+  extent: number;
+  onExtentChange: (extent: number) => void;
+  onExtentCommit: (extent: number) => void;
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<ToolTab>('todo');
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const user = useAuthStore((state) => state.user);
   const focused = focusedEntity(target);
   const data = useDataStore();
   const currentStatsTarget = statsTarget(target);
   const tabs = [
-    ['todo', ListTodo, 'TODO'],
-    ['library', Library, t('rightSidebar.tabs.library')],
-    ['stats', ChartNoAxesColumn, t('rightSidebar.tabs.stats')],
-    ['agent', Bot, 'Agent'],
-    ['timeline', Milestone, t('bottomTimeline.title', { defaultValue: '时间线' })],
-    ['plot', TableProperties, t('editorTopBar.actions.plotPlanner', { defaultValue: '情节' })],
+    ['todo', 'TODO'],
+    ['library', t('rightSidebar.tabs.library')],
+    ['stats', t('rightSidebar.tabs.stats')],
+    ['agent', 'Agent'],
+    ['timeline', t('bottomTimeline.title', { defaultValue: '时间线' })],
+    ['plot', t('editorTopBar.actions.plotPlanner', { defaultValue: '情节' })],
   ] as const;
+  const displayName = user?.name?.trim() || user?.email?.split('@')[0] || t('common.local');
 
   return (
     <section
       className="m-context-workspace m-context-workspace--tools"
       aria-label={t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}
     >
-      <PanelResizeHandle panel="bottom" full={full} onFullChange={onFullChange} onClose={onClose} />
-      <div className="m-context-workspace__landscape">
-        <aside className="m-context-tab-rail">
-          <div>
-            <span>{t('mobileWorkspace.whatCanIDo', { defaultValue: '你能做什么' })}</span>
-            <strong>{t('mobileWorkspace.tools', { defaultValue: '工具' })}</strong>
-          </div>
+      <PanelResizeHandle
+        panel="bottom"
+        extent={extent}
+        onExtentChange={onExtentChange}
+        onExtentCommit={onExtentCommit}
+      />
+      <div className="m-tool-workspace">
+        <header className="m-tool-workspace__tabs">
           <nav aria-label={t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}>
-            {tabs.map(([id, Icon, label]) => (
+            {tabs.map(([id, label]) => (
               <button
                 key={id}
                 type="button"
-                aria-label={label}
                 aria-current={tab === id ? 'page' : undefined}
                 onClick={() => setTab(id)}
               >
-                <Icon size={17} aria-hidden="true" />
-                <span>{label}</span>
+                {label}
               </button>
             ))}
           </nav>
-        </aside>
+          <UserAvatar
+            initial={displayName.charAt(0).toUpperCase()}
+            size={30}
+            fontSize={14}
+            forwardRef={userTriggerRef}
+            title={t('userMenu.accountMenu')}
+            expanded={userMenuOpen}
+            onClick={() => setUserMenuOpen((open) => !open)}
+          />
+          <UserMenu
+            triggerRef={userTriggerRef}
+            open={userMenuOpen}
+            onClose={() => setUserMenuOpen(false)}
+            scope="project"
+          />
+        </header>
         <div className="m-context-workspace__pane m-context-workspace__body">
           {tab === 'todo' && <TodoPanel focused={focused} />}
           {tab === 'library' && <LibraryPanel focused={focused} />}
@@ -572,32 +450,36 @@ function MobileToolWorkspace({
 export function MobileWorkspacePanels({
   projectId,
   target,
-  fullPanel,
-  onFullPanelChange,
-  onClosePanel,
+  panelExtent,
+  onPanelExtentChange,
+  onPanelExtentCommit,
+  onOpenDashboard,
   onPreviewTarget,
 }: {
   projectId: string;
   target: WorkspaceTarget | null;
-  fullPanel: PanelPosition | null;
-  onFullPanelChange: (panel: PanelPosition, full: boolean) => void;
-  onClosePanel: () => void;
+  panelExtent: number;
+  onPanelExtentChange: (panel: PanelPosition, extent: number) => void;
+  onPanelExtentCommit: (panel: PanelPosition, extent: number) => void;
+  onOpenDashboard: () => void;
   onPreviewTarget: (target: WorkspaceTarget) => void;
 }) {
   return (
     <>
       <MobileStructureWorkspace
-        full={fullPanel === 'top'}
-        onFullChange={(full) => onFullPanelChange('top', full)}
-        onClose={onClosePanel}
+        target={target}
+        extent={panelExtent}
+        onExtentChange={(extent) => onPanelExtentChange('top', extent)}
+        onExtentCommit={(extent) => onPanelExtentCommit('top', extent)}
+        onOpenDashboard={onOpenDashboard}
         onPreviewTarget={onPreviewTarget}
       />
       <MobileToolWorkspace
         projectId={projectId}
         target={target}
-        full={fullPanel === 'bottom'}
-        onFullChange={(full) => onFullPanelChange('bottom', full)}
-        onClose={onClosePanel}
+        extent={panelExtent}
+        onExtentChange={(extent) => onPanelExtentChange('bottom', extent)}
+        onExtentCommit={(extent) => onPanelExtentCommit('bottom', extent)}
       />
     </>
   );
