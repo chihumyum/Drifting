@@ -49,3 +49,11 @@
 原生 platform runtime 现在在 `/login` 与 `/register` 选择移动认证 presentation；桌面路由和项目工作区保持原样。移动认证复用既有登录、注册、OTP、密码重置、OAuth callback 和 session adoption 流程，但由 `shells/mobile/standalone/MobileAuthPage` 提供独立入口，并拥有 safe-area、`100dvh`、48px 操作热区和防止移动浏览器输入缩放的 16px 表单字号。
 
 该里程碑只证明移动认证结构、打包和静态交互合同成立。软键盘、系统密码管理器、OTP 自动填充、OAuth deep link 和真实设备视觉仍需 iOS/Android 手工验收。
+
+### Milestone 2: project shelf
+
+`/` 在 mobile target 上进入 `MobileProjectShelfView`，桌面仍使用原 Project Picker。项目加载、搜索、过滤、字数进度、新建、编辑、删除和导航继续复用 `useProject` 与原控制器；移动 presentation 使用单列书籍列表、44/48px 操作热区、显式卡片操作区和底部表单 Sheet，不保留桌面 grid/list 切换或 hover-only 动作。
+
+书架设置入口将在移动全局设置里程碑接通；本阶段不进入 `/project/:projectId`，也不建立移动工作区。静态验收不等于真机滚动、Sheet 手势或安全区视觉验收。
+
+mobile target 打开项目时由 `MobileWorkspaceDeferredView` 明确停在工作区边界，不会错误落入 `DesktopAppShell`。该边界页不挂载 `ProjectRuntimeProvider`、编辑器或任何临时移动工作区；等用户提供新的工作区方案后再整体替换。

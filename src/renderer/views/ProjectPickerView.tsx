@@ -12,6 +12,7 @@ import { BookOpen, Grid2X2, List, Pencil, Plus, Search, Trash2 } from 'lucide-re
 import { DEFAULT_PROJECT_TARGET, useWritingStatsStore } from '../store/writing-stats-store';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
+import { MobileProjectShelfContent } from '../shells/mobile/standalone/MobileProjectShelfContent';
 
 function WindowDragStrip() {
   if (!getPlatformRuntime().desktopWindowControls) return null;
@@ -131,7 +132,11 @@ function displayMetaFor(kvJson: string): ProjectDisplayMeta {
   };
 }
 
-export function ProjectPickerView() {
+interface ProjectPickerViewProps {
+  presentation?: 'desktop' | 'mobile';
+}
+
+export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerViewProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -282,6 +287,62 @@ export function ProjectPickerView() {
     }
   }, [confirmDelete, busy, deleteProject]);
 
+  const userInitial = (user?.name?.trim() || user?.email?.trim() || '·')[0].toUpperCase();
+
+  if (presentation === 'mobile') {
+    return (
+      <div className="pp pp--mobile">
+        <MobileProjectShelfContent
+          loading={loading}
+          rows={filtered}
+          total={decorated.length}
+          counts={counts}
+          filter={filter}
+          query={query}
+          user={user}
+          userInitial={userInitial}
+          avatarRef={avatarRef}
+          menuOpen={menuOpen}
+          onMenuOpenChange={setMenuOpen}
+          onQueryChange={setQuery}
+          onFilterChange={setFilter}
+          onCreate={() => setCreateOpen(true)}
+          onOpen={(project) => handleOpen(project.id)}
+          onEdit={setEditing}
+          onDelete={setConfirmDelete}
+        />
+
+        {confirmDelete && (
+          <DeleteModal
+            project={confirmDelete}
+            busy={busy}
+            onConfirm={handleDelete}
+            onClose={() => (busy ? undefined : setConfirmDelete(null))}
+          />
+        )}
+        {createOpen && (
+          <ProjectFormModal
+            mode="create"
+            busy={busy}
+            onSubmit={handleCreate}
+            onClose={() => (busy ? undefined : setCreateOpen(false))}
+          />
+        )}
+        {editing && (
+          <ProjectFormModal
+            mode="edit"
+            project={editing}
+            busy={busy}
+            onSubmit={handleEdit}
+            onClose={() => (busy ? undefined : setEditing(null))}
+          />
+        )}
+
+        <SyncStatusHUD />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="pp">
@@ -293,8 +354,6 @@ export function ProjectPickerView() {
       </div>
     );
   }
-
-  const userInitial = (user?.name?.trim() || user?.email?.trim() || '·')[0].toUpperCase();
 
   return (
     <div className="pp">
@@ -512,7 +571,7 @@ export function ProjectPickerView() {
 
 /* ─────────────────────────────────────────────────────────── */
 
-interface DecoratedRow {
+export interface DecoratedRow {
   project: ProjectSummary;
   meta: ProjectDisplayMeta;
   status: Status;

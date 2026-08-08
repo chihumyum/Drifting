@@ -11,6 +11,8 @@ import { ProjectDashboard } from '../views/ProjectDashboard';
 import { EditorShell } from '../views/EditorShell';
 import { DesktopAppShell } from '../shells/desktop/DesktopAppShell';
 import { MobileAuthPage } from '../shells/mobile/standalone/MobileAuthPage';
+import { MobileProjectShelfView } from '../shells/mobile/standalone/MobileProjectShelfView';
+import { MobileWorkspaceDeferredView } from '../shells/mobile/MobileWorkspaceDeferredView';
 import { getPlatformRuntime } from '../platform/runtime';
 import {
   DesktopAllChaptersEditorRoute,
@@ -88,7 +90,7 @@ export function AppRoutes() {
         path="/"
         element={
           <ProtectedRoute>
-            <ProjectPickerView />
+            {isMobile ? <MobileProjectShelfView /> : <ProjectPickerView />}
           </ProtectedRoute>
         }
       />
@@ -96,7 +98,7 @@ export function AppRoutes() {
         path="/project/:projectId"
         element={
           <ProtectedRoute>
-            <DesktopAppShell />
+            {isMobile ? <MobileWorkspaceDeferredView /> : <DesktopAppShell />}
           </ProtectedRoute>
         }
       >
