@@ -691,17 +691,22 @@
 }
 
 .pp-modal-backdrop {
+  box-sizing: border-box;
   position: fixed;
   inset: 0;
   z-index: 1000;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: 24px;
   background: hsl(var(--ink-1) / 0.32);
 }
 
 .pp-modal {
+  box-sizing: border-box;
   width: min(100%, 500px) !important;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   border: 1px solid hsl(var(--rule));
   border-radius: 2px;

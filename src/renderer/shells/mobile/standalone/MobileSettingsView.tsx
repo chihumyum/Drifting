@@ -17,7 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { AccountPanel } from '../../../features/settings/panels/AccountSettingsPanel';
 import { SubscriptionPanel } from '../../../features/settings/panels/SubscriptionSettingsPanel';
 import {
@@ -139,6 +139,7 @@ function MobileSettingsPanel({ id }: { id: MobileSettingsId }) {
 export function MobileSettingsView() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSection = searchParams.get('section');
   const active = isMobileSettingsId(requestedSection) ? requestedSection : null;
@@ -147,12 +148,15 @@ export function MobileSettingsView() {
   );
 
   const closeSection = useCallback(() => {
-    setSearchParams({}, { replace: true });
-  }, [setSearchParams]);
+    setSearchParams({}, { replace: true, state: location.state });
+  }, [location.state, setSearchParams]);
 
   const handleBack = () => {
     if (active) closeSection();
-    else navigate('/', { replace: true });
+    else {
+      const from = (location.state as { from?: unknown } | null)?.from;
+      navigate(typeof from === 'string' && from.startsWith('/') ? from : '/', { replace: true });
+    }
   };
 
   return (
@@ -184,7 +188,9 @@ export function MobileSettingsView() {
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setSearchParams({ section: item.id })}
+                      onClick={() =>
+                        setSearchParams({ section: item.id }, { state: location.state })
+                      }
                     >
                       <Icon size={19} strokeWidth={1.65} aria-hidden="true" />
                       <span>{t(item.labelKey)}</span>
@@ -202,7 +208,7 @@ export function MobileSettingsView() {
               <strong>{t('settings.groups.project', { defaultValue: '项目设置' })}</strong>
               <p>
                 {t('settings.mobile.projectDeferred', {
-                  defaultValue: '废纸篓、Agent memory 和项目用量将在移动工作区方案中接入。',
+                  defaultValue: '废纸篓、Agent memory 和项目用量仍保留在桌面端项目设置中。',
                 })}
               </p>
             </div>

@@ -132,11 +132,11 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-28 bg-black/40"
+      className="patch-create-modal__overlay fixed inset-0 z-50 flex items-start justify-center pt-28 bg-black/40"
       onMouseDown={onClose}
     >
       <div
-        className="flex w-[460px] max-h-[72vh] flex-col overflow-hidden rounded-[2px] border border-border bg-card text-card-foreground shadow-lg"
+        className="patch-create-modal flex max-h-[72vh] flex-col overflow-hidden rounded-[2px] border border-border bg-card text-card-foreground shadow-lg"
         onMouseDown={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

@@ -36,7 +36,7 @@ function paeth(a, b, c) {
 }
 
 // Decode an 8-bit PNG (color type 2 RGB or 6 RGBA) → {width, height, data:RGBA}.
-function decodePng(path) {
+export function decodePng(path) {
   const b = readFileSync(path);
   let off = 8; // skip signature
   let width = 0, height = 0, colorType = 0, bitDepth = 0;
@@ -99,7 +99,7 @@ function decodePng(path) {
 }
 
 // Encode an RGBA buffer → PNG file (color type 6, filter None).
-function encodePng(path, width, height, data) {
+export function encodePng(path, width, height, data) {
   const stride = width * 4;
   const raw = Buffer.alloc((stride + 1) * height);
   for (let y = 0; y < height; y++) {

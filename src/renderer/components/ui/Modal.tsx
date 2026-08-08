@@ -56,11 +56,14 @@ interface ModalCardProps {
 }
 
 export function ModalCard({ children, className = '', style, width = 520 }: ModalCardProps) {
+  const preferredWidth = typeof width === 'number' ? `${width}px` : width;
+  const cardStyle = {
+    '--modal-card-width': preferredWidth,
+    ...style,
+  } as CSSProperties;
+
   return (
-    <div
-      className={`modal-card ${className}`.trim()}
-      style={{ width: typeof width === 'number' ? `${width}px` : width, ...style }}
-    >
+    <div className={`modal-card ${className}`.trim()} style={cardStyle}>
       {children}
     </div>
   );

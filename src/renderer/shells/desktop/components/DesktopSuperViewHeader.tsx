@@ -1,9 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import {
-  SuperViewHeader,
-  type SuperViewHeaderProps,
-} from '../../../components/SuperViewHeader';
-import { useUiStore } from '../../../store/ui-store';
+import { SuperViewHeader, type SuperViewHeaderProps } from '../../../components/SuperViewHeader';
+import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 
 type SuperViewId = 'element' | 'graph' | 'memo-material';
 
@@ -16,8 +13,7 @@ const SUPER_VIEW_OPTIONS: Array<{ id: SuperViewId; labelKey: string }> = [
 /** Desktop-owned Super View navigation; the shared header stays store-free. */
 export function DesktopSuperViewHeader({ leftSlot, ...props }: SuperViewHeaderProps) {
   const { t } = useTranslation();
-  const activeSuperView = useUiStore((state) => state.activeSuperView);
-  const setActiveSuperView = useUiStore((state) => state.setActiveSuperView);
+  const { active: activeSuperView, setActive: setActiveSuperView } = useSuperViewNavigation();
 
   return (
     <SuperViewHeader

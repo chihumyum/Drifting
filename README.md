@@ -44,15 +44,36 @@ pnpm --dir client eval:agent:context
 pnpm --dir client eval:agent:writing
 pnpm --dir client eval:agent:p5
 pnpm --dir client tauri:build
-pnpm --dir client tauri:ios:dev
+pnpm --dir client icons:mobile:check
+pnpm mobile:ios:dev
 pnpm --dir client tauri:ios:build
-pnpm --dir client tauri:android:dev
+pnpm mobile:android:dev
 pnpm --dir client tauri:android:build
 ```
 
 The iOS and Android projects are already initialized under `src-tauri/gen/apple` and
 `src-tauri/gen/android`. The `tauri:ios:init` and `tauri:android:init` scripts are only needed when
 initializing a missing target, not for normal development.
+
+### Mobile app icons
+
+`src/assets/icon.icon` is the canonical Apple Icon Composer document. The iOS target compiles that
+multilayer document directly, preserving its material, dark appearance specialization and
+Xcode-generated compatibility renderings instead of selecting the legacy `AppIcon.appiconset` PNGs.
+
+Android uses the same transparent iceberg outline as an adaptive foreground over a separate blue
+gradient background. The foreground uses 90% of Android's central 66×66dp safe zone, and the same
+outline supplies the monochrome layer for themed icons. After changing the Icon Composer artwork,
+run `pnpm --dir client icons:mobile`, then
+`pnpm --dir client icons:mobile:check`. The first command refreshes checked-in native icon
+assets; the second verifies the iOS project wiring, Android layers, safe-zone bounds and density
+matrix. A native rebuild/install is still required before judging the launcher result.
+
+The two root-level mobile development commands select a connected device or prompt for a simulator,
+build and install the native dev app, start it, and keep Vite hot reload attached. They default to the
+local backend at the Mac's detected LAN IPv4 address on port 3000 and fail early when it is not
+reachable. Device setup, explicit target selection, API overrides, inspection, and the manual checklist are documented in
+[`docs/mobile-device-acceptance.md`](docs/mobile-device-acceptance.md).
 
 `tauri:build` injects the public production API origin explicitly. Renderer builds do not load
 ignored `.env*` files and fail if a `VITE_*API_KEY`, `VITE_*SECRET`, or `VITE_*TOKEN` variable would

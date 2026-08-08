@@ -12,7 +12,7 @@ import { EditorShell } from '../views/EditorShell';
 import { DesktopAppShell } from '../shells/desktop/DesktopAppShell';
 import { MobileAuthPage } from '../shells/mobile/standalone/MobileAuthPage';
 import { MobileProjectShelfView } from '../shells/mobile/standalone/MobileProjectShelfView';
-import { MobileWorkspaceDeferredView } from '../shells/mobile/MobileWorkspaceDeferredView';
+import { MobileAppShell } from '../shells/mobile/MobileAppShell';
 import { MobileSettingsView } from '../shells/mobile/standalone/MobileSettingsView';
 import { getPlatformRuntime } from '../platform/runtime';
 import {
@@ -106,9 +106,7 @@ export function AppRoutes() {
       <Route
         path="/project/:projectId"
         element={
-          <ProtectedRoute>
-            {isMobile ? <MobileWorkspaceDeferredView /> : <DesktopAppShell />}
-          </ProtectedRoute>
+          <ProtectedRoute>{isMobile ? <MobileAppShell /> : <DesktopAppShell />}</ProtectedRoute>
         }
       >
         <Route index element={null} />

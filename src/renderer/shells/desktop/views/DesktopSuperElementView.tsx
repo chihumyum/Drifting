@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
-import { useUiStore } from '../../../store/ui-store';
+import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { useAuthStore } from '../../../store/auth';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import { useTimelineMarkers } from '../../../hooks/useTimelineMarkers';
@@ -833,7 +833,7 @@ function CategoryBox({
 
 export function DesktopSuperElementView() {
   const { t } = useTranslation();
-  const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
+  const { setActive: setActiveSuperView } = useSuperViewNavigation();
   const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
   const { openEntity, projectId } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id) ?? '';

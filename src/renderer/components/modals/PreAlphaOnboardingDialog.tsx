@@ -35,33 +35,38 @@ export function PreAlphaOnboardingDialog() {
       closeOnBackdrop={false}
       dismissOnEscape={false}
     >
-      <ModalCard width={560}>
+      <ModalCard className="pre-alpha-guide-modal" width={560}>
         <ModalHeader kicker="PRE-ALPHA" title={t('preAlphaGuide.title')} />
         <ModalBody>
-        <p style={{ margin: 0, color: 'hsl(var(--ink-2))', lineHeight: 1.7 }}>
-          {t('preAlphaGuide.intro')}
-        </p>
-        <div
-          style={{
-            margin: '20px 0',
-            padding: '16px 18px',
-            borderRadius: 2,
-            background: 'hsl(var(--page))',
-          }}
-        >
-          <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
-            <li>{t('preAlphaGuide.trial')}</li>
-            <li>{t('preAlphaGuide.sync')}</li>
-            <li>{t('preAlphaGuide.byok')}</li>
-            <li>{t('preAlphaGuide.backup')}</li>
-          </ul>
-        </div>
-        <p style={{ margin: '0 0 20px', color: 'hsl(var(--ink-2))', lineHeight: 1.65 }}>
-          {t('preAlphaGuide.settingsHint')}
-        </p>
+          <p style={{ margin: 0, color: 'hsl(var(--ink-2))', lineHeight: 1.7 }}>
+            {t('preAlphaGuide.intro')}
+          </p>
+          <div
+            style={{
+              margin: '20px 0',
+              padding: '16px 18px',
+              borderRadius: 2,
+              background: 'hsl(var(--page))',
+            }}
+          >
+            <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
+              <li>{t('preAlphaGuide.trial')}</li>
+              <li>{t('preAlphaGuide.sync')}</li>
+              <li>{t('preAlphaGuide.byok')}</li>
+              <li>{t('preAlphaGuide.backup')}</li>
+            </ul>
+          </div>
+          <p style={{ margin: '0 0 20px', color: 'hsl(var(--ink-2))', lineHeight: 1.65 }}>
+            {t('preAlphaGuide.settingsHint')}
+          </p>
         </ModalBody>
         <ModalActions>
-          <Button variant="primary" onClick={dismiss} autoFocus>
+          <Button
+            className="pre-alpha-guide-modal__continue"
+            variant="primary"
+            onClick={dismiss}
+            autoFocus
+          >
             {t('preAlphaGuide.continue')}
           </Button>
         </ModalActions>

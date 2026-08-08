@@ -238,6 +238,7 @@
   background: hsl(var(--paper));
   color: hsl(var(--ink-4));
   cursor: nwse-resize;
+  touch-action: none;
   opacity: 0;
   transition: opacity 0.14s, color 0.14s, background 0.14s;
   z-index: 4;

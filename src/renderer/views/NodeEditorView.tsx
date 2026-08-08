@@ -946,6 +946,8 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            boxSizing: 'border-box',
+            padding: 12,
             zIndex: 'var(--z-popover)',
           }}
           onClick={() => setShowGroupModal(false)}
@@ -955,8 +957,11 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               background: 'hsl(var(--page))',
               border: '1px solid hsl(var(--rule-strong))',
               borderRadius: 2,
+              boxSizing: 'border-box',
               padding: 24,
-              minWidth: 360,
+              width: 'min(360px, 100%)',
+              minWidth: 0,
+              maxWidth: '100%',
               boxShadow: '0 18px 50px rgba(28, 24, 19, 0.22)',
             }}
             onClick={(e) => e.stopPropagation()}

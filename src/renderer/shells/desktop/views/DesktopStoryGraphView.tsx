@@ -5,7 +5,7 @@ import type { BookNode } from '../../../domain/book-node';
 import { isChapter, isDrift } from '../../../domain/book-node';
 import { spreadTimelineNodes } from '../../../domain/timeline-spread';
 import { useDataStore } from '../../../store/data-store';
-import { useUiStore } from '../../../store/ui-store';
+import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { useAuthStore } from '../../../store/auth';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import { useBookNode } from '../../../usecase/useBookNode';
@@ -141,7 +141,7 @@ export function DesktopStoryGraphView() {
   const { bookNodes, storylines, nodeStorylineMapping, entityRelations, primaryStorylineByNode } =
     useDataStore();
   const bookActs = useDataStore((s) => s.bookActs);
-  const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
+  const { setActive: setActiveSuperView } = useSuperViewNavigation();
   const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
   const { user } = useAuthStore();
   const { projectId, openEntity } = useProjectNavigation();

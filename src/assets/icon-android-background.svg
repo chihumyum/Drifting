@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108">
+  <defs>
+    <linearGradient id="drifting-blue" x1="54" y1="0" x2="54" y2="75.6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3159ff" />
+      <stop offset="1" stop-color="#0525aa" />
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" fill="url(#drifting-blue)" />
+</svg>

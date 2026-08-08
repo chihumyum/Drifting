@@ -195,8 +195,9 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
   // incrementally so a drag crossing the boundary stays exact. Size is applied
   // + re-measured SYNCHRONOUSLY here (no React round-trip, which would lag the
   // grip a frame behind a fast drag); state is committed on release.
-  const onGripDown = (e: React.MouseEvent) => {
+  const onGripDown = (e: React.PointerEvent) => {
     e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
     const planner = plannerRef.current;
     if (!planner) return;
     const nc = Math.max(1, cols.length);
@@ -211,7 +212,7 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
     let lastH = cellH;
     let prevX = e.clientX;
     let prevY = e.clientY;
-    const move = (ev: MouseEvent) => {
+    const move = (ev: PointerEvent) => {
       // Horizontal gain: nc/2 while centered (left margin present), else nc.
       let gainX = nc;
       const wrap = planner.parentElement;
@@ -232,14 +233,16 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
       measureData(); // synchronous reflow → grip follows the cursor with no lag
     };
     const up = () => {
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('mouseup', up);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       setCellW(lastW);
       setCellH(lastH);
       emit({ cellW: lastW, cellH: lastH });
     };
-    window.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', up);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
 
   // Keep --pl-data-* in sync on structural/size changes and content-driven
@@ -350,7 +353,7 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
         <div
           className="pl-resize-grip"
           title={t('plotGrid.resize')}
-          onMouseDown={onGripDown}
+          onPointerDown={onGripDown}
           aria-hidden="true"
         >
           <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">

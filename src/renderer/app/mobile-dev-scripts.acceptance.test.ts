@@ -1,0 +1,57 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+function source(relativePath: string): string {
+  return fs.readFileSync(path.resolve(process.cwd(), relativePath), 'utf8');
+}
+
+describe('mobile dev scripts', () => {
+  it('exposes exactly one convenient root command for each native platform', () => {
+    const rootPackage = JSON.parse(source('../package.json')) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(rootPackage.scripts['mobile:ios:dev']).toBe(
+      'node scripts/run-mobile-dev.mjs ios',
+    );
+    expect(rootPackage.scripts['mobile:android:dev']).toBe(
+      'node scripts/run-mobile-dev.mjs android',
+    );
+  });
+
+  it('keeps mobile defaults reachable and accepts explicit device/options forwarding', () => {
+    const runner = source('scripts/run-mobile-dev.mjs');
+
+    expect(runner).toContain('rawForwardedArgs[0] ===');
+    expect(runner).toContain('rawForwardedArgs.slice(1)');
+    expect(runner).toContain('networkInterfaces()');
+    expect(runner).toContain('return `http://${lanAddress}:3000`');
+    expect(runner).toContain('await assertBackendReachable(env.VITE_API_BASE_URL)');
+    expect(runner).toContain('await findAvailableVitePort()');
+    expect(runner).toContain("['127.0.0.1', '::1', findLanIpv4()]");
+    expect(runner).toContain('isPortAvailable(port, host)');
+    expect(runner).toContain('build: { devUrl: `http://localhost:${vitePort}` }');
+    expect(runner).toContain('env.DRIFTING_VITE_PORT = String(vitePort)');
+    expect(runner).toContain('Start it in another terminal with "pnpm server:up"');
+    expect(runner).toContain('env.NDK_HOME, env.ANDROID_NDK_HOME');
+    expect(runner).toContain("path.join(homedir(), 'Library', 'Android', 'sdk')");
+    expect(runner).toContain("'dev', '--config', devConfig, ...forwardedArgs");
+  });
+
+  it('exposes the Tauri device host through Vite and records manual acceptance', () => {
+    const vite = source('vite.renderer.config.ts');
+    const readme = source('README.md');
+    const runbook = source('docs/mobile-device-acceptance.md');
+
+    expect(vite).toContain('process.env.TAURI_DEV_HOST');
+    expect(vite).toContain('host: tauriDevHost || false');
+    expect(vite).toContain("process.env.DRIFTING_VITE_PORT ?? '5173'");
+    expect(vite).toContain('clientPort: devPort');
+    expect(readme).toContain('docs/mobile-device-acceptance.md');
+    expect(runbook).toContain('pnpm mobile:ios:dev');
+    expect(runbook).toContain('pnpm mobile:android:dev');
+    expect(runbook).toContain('pnpm server:up');
+    expect(runbook).toContain('不能表述为移动端整体已验收');
+  });
+});

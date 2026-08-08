@@ -13,8 +13,8 @@
 | Layer                  | Current evidence                                                                                                                           | Assessment                                  |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
 | Native target          | Tauri 项目包含 iOS/Android target、mobile capability、统一 renderer platform contract、SQLite、secure storage、deep link 与 lifecycle 边界 | 可以复用，不需要另起一套移动数据层          |
-| Application runtime    | `ProjectRuntimeProvider` 集中项目启动、Yjs、同步、Agent 与 use case 生命周期；不依赖 desktop shell                                        | 可由 Desktop/Mobile 两个 shell 共同使用     |
-| Navigation contract    | `WorkspaceNavigator` 隔离 feature 与 desktop router/ui-store；架构测试禁止 feature 反向依赖 desktop                                      | 移动端可以实现自己的导航 adapter            |
+| Application runtime    | `ProjectRuntimeProvider` 集中项目启动、Yjs、同步、Agent 与 use case 生命周期；不依赖 desktop shell                                         | 可由 Desktop/Mobile 两个 shell 共同使用     |
+| Navigation contract    | `WorkspaceNavigator` 隔离 feature 与 desktop router/ui-store；架构测试禁止 feature 反向依赖 desktop                                        | 移动端可以实现自己的导航 adapter            |
 | Shell viewport         | `100dvh`、四向 safe-area tokens、移动端 sidebar overlay、中心列 `min-width: 0`                                                             | 能承载手机壳层，但还不是完成的移动导航      |
 | Responsive entry pages | Sign-in、Dashboard、Project Picker、Settings 与 Agent context 有窄屏断点                                                                   | 登录和项目入口具备继续细化的基础            |
 | Overlay primitives     | menu/popover portal 到 `body` 并固定定位；modal、menu、button、tab 已有共享 primitive                                                      | 可以演化为 sheet、action menu 与移动 dialog |
@@ -42,6 +42,8 @@
 
 本轮按约定只执行 TypeScript、lint、Vitest、renderer build 与能力清单检查；桌面 UI 由用户后续手工回归。本文档与静态测试只确认“可以开始开发”的结构前提。除非未来真实 iOS 与 Android 设备完成手工验收，不得把当前状态描述为 mobile-ready、touch-ready 或 mobile-native UX complete。
 
+真机与模拟器的安装命令、调试方式和逐项人工检查见 [`mobile-device-acceptance.md`](mobile-device-acceptance.md)。该 runbook 只降低启动成本，不改变上述验收边界。
+
 ## Standalone mobile surfaces
 
 ### Milestone 1: authentication entry
@@ -63,3 +65,19 @@ mobile target 打开项目时由 `MobileWorkspaceDeferredView` 明确停在工�
 mobile target 的书架提供独立设置入口，`/settings` 使用列表 → 单面板的移动导航，而不是压缩桌面双栏 rail。账户、订阅、外观、编辑器偏好、语言、模型、Copilot、密钥、同步、隐私和关于继续复用共享 settings panels；移动 host 负责 safe-area、44px 操作热区、单列控制重排和 16px 表单输入。
 
 废纸篓、Agent memory、项目用量等依赖当前项目的页面不出现在工作区外设置中，也不会为了设置页面提前挂载 `ProjectRuntimeProvider`。它们与移动工作区方案一起延后。桌面 Settings modal、快捷键和 scroll-spy 行为保持不变。
+
+### Milestone 4: viewport-safe overlays
+
+全局 `ModalRoot` / `ModalCard` 现在把调用方传入的像 `560px` 这样的值解释为 preferred width，而不是不可收缩的实际宽度。dialog host 拥有明确的 `minmax(0, 1fr)` viewport containing block；移动端再扣除 safe-area 和 12px 最小边距，以 `100dvw` / `100dvh` 限制整体高度。`ModalBody` 独立滚动，header 与 actions 保持可见，actions 在窄屏换行并提供 48px 热区。Pre-Alpha 引导以及所有共享 modal 调用点因此走同一条路径。
+
+Project Picker 的新建/编辑/删除 Sheet、Beta Closed dialog、Global Search、Comment Snapshot、Patch Create 和 Graph new-edge 等自定义浮层也完成了窗口宽度审计：固定数值只保留为上限，实际宽度不得超过 overlay 的可用内容区。Anchored popover 原本已 portal 到 `body` 并使用 viewport clamp，因此不另建一套移动定位逻辑。该阶段没有覆盖移动工作区；其当前实现见 Milestone 5。这些静态约束本身仍不代表工作区浮层已经通过真机触摸验收。
+
+### Milestone 5: paper workspace shell
+
+移动 target 打开项目后由独立 `MobileAppShell` 挂载共享 `ProjectRuntimeProvider`，不再进入 deferred 页面。移动壳层以持久化 paper session 代替桌面 tab store：章节、灵感、故事线、元素、元素分类、项目概览与通览全书共享同一套 `WorkspaceTarget` / `WorkspaceNavigator` 契约，但移动端独立负责打开、激活、关闭、重排、相邻切换和 URL 同步。feature 仍只请求 shell-neutral navigation，不读取移动或桌面 UI store。
+
+编辑态只挂载一张完整 paper，避免在手机内存中同时保活多个 ProseMirror/Yjs editor。双指向内捏合手势以上半区/下半区的起始中点判定揭示底部工具区/顶部结构区；中心死区与缩放阈值避免普通滚动和输入误触。底部 paper cluster 复用同一个 reveal state，可拖动缩放 paper，轻点进入 paper overview。paper 缩小后仅渲染相邻纸张的轻量摘要，并通过横向滑动切换；overview 负责全部 paper 的激活、关闭和顺序管理。
+
+顶部结构区由移动壳层组合章节、元素、灵感入口；底部工具区复用 TODO、素材库、统计、Agent 能力，并提供可切书序/叙序的移动 timeline 与复用同一 `plotGridJson` 的情节网格。上下 panel 的边界 handle 可以从约三成高度继续拉到全屏，再反向拉回或关闭，承载长列表、Agent 对话与 mini-Excel 编辑，而不会重新引入桌面左右栏。Super View 从 overview 进入，复用共享画布/图数据与 desktop 实现，同时通过 `SuperViewNavigationContext` 注入移动端的打开、切换、关闭状态，避免依赖 desktop shell 的 Super View store。overview 支持激活、关闭、全部关闭和重排 paper；设置页记录工作区来源，关闭后返回原 paper URL；书架仍为工作区的独立边界。
+
+机器验收覆盖 paper reducer、持久化归一化、路由解析、pinch 区域/阈值和 renderer import boundary；`pnpm --dir client typecheck`、定向 Vitest 与 renderer production build 是最低门禁。模拟器能验证单点触控、登录、导航、cluster、overview、Super View 与设置链路，但自动化驱动不能合成原生多点触控，因此 pinch 仍需真机或 Simulator 手工按住 Option 验收，不能由 reducer 测试冒充。

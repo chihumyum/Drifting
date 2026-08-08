@@ -758,19 +758,25 @@
 }
 
 .graph-newedge-backdrop {
+  box-sizing: border-box;
   position: fixed;
   inset: 0;
   background: hsl(var(--ink-1) / 0.35);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
+  padding: 16px;
   z-index: 280;
 }
 .graph-newedge {
+  box-sizing: border-box;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong));
   border-radius: 2px;
   padding: 20px 22px 18px;
-  width: 360px;
+  width: min(360px, 100%);
+  min-width: 0;
+  max-width: 100%;
   box-shadow: 0 14px 34px -16px hsl(var(--ink-1) / 0.34);
   font-family: var(--font-sans);
 }

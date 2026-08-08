@@ -7,8 +7,10 @@ const EMBEDDED_SECRET_PATTERN = /^VITE_.*(?:API_KEY|SECRET|TOKEN)$/;
 // https://vitejs.dev/config
 export default defineConfig(({ command }) => {
   const isBuild = command === 'build';
-  const disableAgentDebugHmr =
-    process.env.VITE_DRIFTING_AGENT_DEBUG_DISABLE_HMR === '1';
+  const tauriDevHost = process.env.TAURI_DEV_HOST;
+  const configuredDevPort = Number(process.env.DRIFTING_VITE_PORT ?? '5173');
+  const devPort = Number.isInteger(configuredDevPort) ? configuredDevPort : 5173;
+  const disableAgentDebugHmr = process.env.VITE_DRIFTING_AGENT_DEBUG_DISABLE_HMR === '1';
 
   if (isBuild) {
     if (!process.env.VITE_API_BASE_URL) {
@@ -40,12 +42,24 @@ export default defineConfig(({ command }) => {
     },
     server: {
       // Avoid clashing with private service (http://localhost:3000)
-      port: 5173,
+      port: devPort,
       strictPort: true,
+      // Tauri sets this address for a physical mobile device. Listening only
+      // on localhost installs the dev app successfully but leaves its WebView
+      // unable to reach Vite over the local network.
+      host: tauriDevHost || false,
       // A mounted-renderer long-task canary must not be invalidated by an
       // unrelated source save. This override is only consumed by Vite's local
       // dev server; ordinary development keeps HMR enabled.
-      hmr: !disableAgentDebugHmr,
+      hmr: disableAgentDebugHmr
+        ? false
+        : tauriDevHost
+          ? {
+              protocol: 'ws',
+              host: tauriDevHost,
+              clientPort: devPort,
+            }
+          : true,
     },
     build: {
       rollupOptions: {

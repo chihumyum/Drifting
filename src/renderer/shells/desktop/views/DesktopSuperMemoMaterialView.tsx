@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { isChapter } from '../../../domain/book-node';
-import { useUiStore } from '../../../store/ui-store';
+import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { useAuthStore } from '../../../store/auth';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import { useSuperViewEscapeStack } from '../../../hooks/useSuperViewEscapeStack';
@@ -62,7 +62,7 @@ export function DesktopSuperMemoMaterialView() {
   const { t } = useTranslation();
   const { projectId } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id) ?? '';
-  const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
+  const { setActive: setActiveSuperView } = useSuperViewNavigation();
   const closeView = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
 
   const comments = useDataStore((s) => s.comments);

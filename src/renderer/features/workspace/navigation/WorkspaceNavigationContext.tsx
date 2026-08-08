@@ -22,3 +22,7 @@ export function useWorkspaceNavigator(): WorkspaceNavigator {
   if (!navigator) throw new Error('WorkspaceNavigator is not available outside an app shell');
   return navigator;
 }
+
+export function useOptionalWorkspaceNavigator(): WorkspaceNavigator | null {
+  return useContext(WorkspaceNavigationContext);
+}

@@ -25,6 +25,8 @@
     "db:generate": "drizzle-kit generate",
     "make": "pnpm tauri:build",
     "icons": "node scripts/gen-icons.mjs",
+    "icons:mobile": "node scripts/gen-mobile-icons.mjs",
+    "icons:mobile:check": "node scripts/check-mobile-icons.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "vitest run",

@@ -7,31 +7,14 @@ import {
   focusedLeafOf,
   type TabRef,
 } from '../store/ui-store';
+import { useOptionalWorkspaceNavigator } from '../features/workspace/navigation/WorkspaceNavigationContext';
+import { workspaceUrlFor } from '../features/workspace/navigation/workspace-route';
 
 const DEFAULT_PROJECT = { id: 'default-project', name: 'Default Project' };
 
 // Pure URL builder. Exposed via the module scope so the dedupe check in
 // pushEntityUrl can compare against location.pathname without rebuilding
 // the URL via navigate's internals.
-function urlFor(projectId: string, ref: TabRef): string | null {
-  switch (ref.entityType) {
-    case 'node':
-      return `/project/${projectId}/editor/${ref.id}`;
-    case 'storyline':
-      return `/project/${projectId}/editor/storyline/${ref.id}`;
-    case 'element':
-      return `/project/${projectId}/element/${ref.id}`;
-    case 'category':
-      return `/project/${projectId}/category/${encodeURIComponent(ref.id)}`;
-    case 'dashboard':
-      return `/project/${projectId}/home`;
-    case 'all-chapters':
-      return `/project/${projectId}/editor/all`;
-    default:
-      return null;
-  }
-}
-
 /**
  * Project-aware navigation hook
  * Automatically includes projectId in navigation paths
@@ -40,7 +23,8 @@ export function useProjectNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
   const { projectId } = useParams<{ projectId: string }>();
-  const currentProjectId = projectId || DEFAULT_PROJECT.id;
+  const shellNavigator = useOptionalWorkspaceNavigator();
+  const currentProjectId = shellNavigator?.projectId || projectId || DEFAULT_PROJECT.id;
 
   // Shared helper — the actual URL push for opening an entity as a tab.
   // Kept as a single source of truth so both openEntity (legacy callers)
@@ -53,7 +37,7 @@ export function useProjectNavigation() {
   // to *force* a history entry can use `navigate` directly.
   const pushEntityUrl = useCallback(
     (ref: TabRef) => {
-      const target = urlFor(currentProjectId, ref);
+      const target = workspaceUrlFor(currentProjectId, ref);
       if (!target) return;
       if (target === location.pathname) return;
       navigate(target);
@@ -73,11 +57,15 @@ export function useProjectNavigation() {
   // a hierarchical TOC.
   const openEntity = useCallback(
     (ref: TabRef, options?: { preview?: boolean }) => {
+      if (shellNavigator) {
+        shellNavigator.open(ref, options);
+        return;
+      }
       const preview = options?.preview ?? true;
       useUiStore.getState().openEntityTab(currentProjectId, ref, { preview });
       pushEntityUrl(ref);
     },
-    [currentProjectId, pushEntityUrl],
+    [currentProjectId, pushEntityUrl, shellNavigator],
   );
 
   const navigateToNode = useCallback(
@@ -124,6 +112,10 @@ export function useProjectNavigation() {
   // (see TopTimeline.handleCloseTab for the same "don't re-spawn dashboard"
   // rule).
   const leaveDeletedEntity = useCallback(() => {
+    if (shellNavigator) {
+      shellNavigator.leaveDeletedTarget();
+      return;
+    }
     const project = useUiStore.getState().tabsByProject[currentProjectId];
     const active = project?.openTabs.find((t) => tabKey(t) === project.activeTabKey);
     const leaf = active ? focusedLeafOf(active) : null;
@@ -132,7 +124,7 @@ export function useProjectNavigation() {
     } else {
       navigate(`/project/${currentProjectId}`, { replace: true });
     }
-  }, [currentProjectId, openEntity, navigate]);
+  }, [currentProjectId, openEntity, navigate, shellNavigator]);
 
   const navigateTo = useCallback(
     (path: string) => {
@@ -152,10 +144,14 @@ export function useProjectNavigation() {
   // if the user is currently in the all-chapters reading mode.
   const activateLeafTab = useCallback(
     (ref: TabRef) => {
+      if (shellNavigator) {
+        shellNavigator.activate(ref);
+        return;
+      }
       useUiStore.getState().setActiveTab(currentProjectId, ref);
       pushEntityUrl(ref);
     },
-    [currentProjectId, pushEntityUrl],
+    [currentProjectId, pushEntityUrl, shellNavigator],
   );
 
   return {
