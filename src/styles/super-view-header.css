@@ -128,17 +128,15 @@
 .super-view-head__back {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   color: hsl(var(--ink-3));
   cursor: pointer;
-  padding: 3px 8px 3px 4px;
+  padding: 0;
   border: 0;
   background: transparent;
-  border-radius: 3px;
+  border-radius: 50%;
   transition:
     background 0.12s,
     color 0.12s;
@@ -147,13 +145,6 @@
   color: hsl(var(--ink-1));
   background: hsl(var(--rule));
 }
-.super-view-head__back-glyph {
-  font-family: var(--font-sans);
-  font-style: italic;
-  font-size: 16px;
-  line-height: 1;
-}
-
 .super-view-head__title {
   font-family: var(--font-sans);
   font-size: 17px;
@@ -161,6 +152,42 @@
   color: hsl(var(--ink-1));
   letter-spacing: 0.005em;
   white-space: nowrap;
+}
+
+.super-view-head__switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: var(--radius-sm);
+  background: hsl(var(--paper) / 0.55);
+}
+
+.super-view-head__switcher-option {
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.super-view-head__switcher-option:hover,
+.super-view-head__switcher-option:focus-visible {
+  background: hsl(var(--rule) / 0.55);
+  color: hsl(var(--ink-1));
+  outline: none;
+}
+
+.super-view-head__switcher-option[aria-current='page'] {
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-1));
+  box-shadow: inset 0 0 0 1px hsl(var(--rule));
 }
 .super-view-head__meta {
   font-family: var(--font-mono);

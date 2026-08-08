@@ -24,12 +24,13 @@ import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
 import { TimelinePin } from '../../../components/timeline/TimelinePin';
 import { TimelineRailMenu } from '../../../components/graph/TimelineRailMenu';
 import { DriftPanel, useDriftPanelAnim } from '../../../components/DriftPanel';
-import { SuperViewHeader } from '../../../components/SuperViewHeader';
+import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
 import { SegmentedControl } from '../../../components/ui/SegmentedControl';
 import { FilterChip } from '../../../components/ui/FilterChip';
 import { HeaderChipStrip } from '../../../components/ui/HeaderChipStrip';
+import { RelationKindField } from '../../../components/ui/RelationKindField';
 import {
   RelationKindMenu,
   UNCATEGORIZED_RELATION_KIND as UNCATEGORIZED_KIND,
@@ -39,6 +40,13 @@ import {
   projectStoryGraphEdges as toGraphEdges,
   type StoryGraphEdge as GraphEdge,
 } from '../../../features/graph/story-graph-model';
+import {
+  DEFAULT_STORYLINE_LANE_ID as DEFAULT_LANE_ID,
+  UNAFFILIATED_STORYLINE_LANE_ID as UNAFFILIATED_LANE_ID,
+  canDropChapterOnLane,
+  commitChapterLaneDrop,
+  initializeChapterDrag,
+} from '../../../features/graph/chapter-lane-drag';
 import '../../../../styles/graph-view.css';
 
 const log = loglevel.getLogger('StoryGraphView');
@@ -127,12 +135,6 @@ function colorForKind(kind: string | null): string {
 // Card flex-basis 168 + gap 10. Module-scoped because the cards are
 // fixed-size; if we ever make them responsive we should measure instead.
 const DRIFT_SLOT_WIDTH = 168 + 10;
-
-// Synthetic lane sentinels — see BottomTimeline for the full rationale. The
-// two views render lanes in lockstep so the IDs are duplicated rather than
-// shared (the two files don't share a constants module today).
-const DEFAULT_LANE_ID = '__default__';
-const UNAFFILIATED_LANE_ID = '__unaffiliated__';
 
 export function DesktopStoryGraphView() {
   const { t } = useTranslation();
@@ -231,9 +233,6 @@ export function DesktopStoryGraphView() {
   } | null>(null);
   const [newEdgePair, setNewEdgePair] = useState<{ source: string; target: string } | null>(null);
   const [newEdgeKind, setNewEdgeKind] = useState('');
-  // Suggestions popover for the new-edge dialog's kind input. Default
-  // closed; opens on focus and closes when focus leaves the wrapper.
-  const [newEdgeSuggestOpen, setNewEdgeSuggestOpen] = useState(false);
   // Set of kinds the user has TOGGLED OFF. Default = empty (all visible).
   const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(new Set());
   // Popover targeting a single tile. `anchor` is the tile's viewport rect at
@@ -1070,21 +1069,11 @@ export function DesktopStoryGraphView() {
   const canDropOnStoryline = useCallback(
     (storylineId: string | null) => {
       if (!draggedNode) return false;
-      if (storylineId === DEFAULT_LANE_ID) return true;
-      if (storylineId === UNAFFILIATED_LANE_ID) {
-        // Drawer drag: only 未归属 chapters belong in 未归属. A chapter
-        // with a primary storyline shouldn't escape to the orphan lane
-        // through a narrative-axis placement; the dedicated 转移至未归属
-        // context-menu action covers that intent for axis-to-axis drags.
-        if (draggedFromDrawer) return draggedMainStorylineId == null;
-        return true;
-      }
-      if (!draggedFromDrawer) return true;
-      // Drawer drag with no primary (unaffiliated chapter) is allowed on
-      // any real storyline — the drop handler promotes the target to
-      // primary. Mirrors BottomTimeline's canDropOnStoryline.
-      if (draggedMainStorylineId == null) return true;
-      return storylineId === draggedMainStorylineId;
+      return canDropChapterOnLane({
+        targetLaneId: storylineId,
+        fromDrawer: draggedFromDrawer,
+        primaryStorylineId: draggedMainStorylineId,
+      });
     },
     [draggedNode, draggedFromDrawer, draggedMainStorylineId],
   );
@@ -1092,26 +1081,13 @@ export function DesktopStoryGraphView() {
   const handleTileDragStart = (e: React.DragEvent, node: BookNode) => {
     setDraggedNode(node);
     setDraggedFromDrawer(false);
-    e.dataTransfer.effectAllowed = 'move';
-    // Pin the drag image's grab point to the tile's center so the ghost
-    // tracks the cursor at the SAME spot the drop logic snaps to. Without
-    // this the ghost follows whatever (x, y) the user clicked on (e.g.
-    // bottom-right corner) while the drop centers the tile on the
-    // cursor — the two visuals drift apart.
-    const el = e.currentTarget as HTMLElement;
-    const rect = el.getBoundingClientRect();
-    e.dataTransfer.setDragImage(el, rect.width / 2, rect.height / 2);
+    initializeChapterDrag(e.dataTransfer, node.id, e.currentTarget as HTMLElement);
   };
 
   const handleChipDragStart = (e: React.DragEvent, node: BookNode) => {
     setDraggedNode(node);
     setDraggedFromDrawer(true);
-    e.dataTransfer.effectAllowed = 'move';
-    // Same recipe as tile drags: anchor the chip ghost at its center so
-    // the drag preview aligns with the drop indicator over the tracks.
-    const el = e.currentTarget as HTMLElement;
-    const rect = el.getBoundingClientRect();
-    e.dataTransfer.setDragImage(el, rect.width / 2, rect.height / 2);
+    initializeChapterDrag(e.dataTransfer, node.id, e.currentTarget as HTMLElement);
   };
 
   // Map a mouse Y (in scroll-content coordinates) to the lane whose row
@@ -1168,50 +1144,18 @@ export function DesktopStoryGraphView() {
     if (!canDropOnStoryline(dragOver.storylineId)) return;
     e.preventDefault();
     try {
-      const currentMain = draggedMainStorylineId;
       const targetRow = dragOver.storylineId;
-
-      if (targetRow === DEFAULT_LANE_ID) {
-        // Single-lane mode — only reorder, no storyline membership change.
-        await updateNode(draggedNode.id, { [orderField]: dragOver.order });
-      } else if (targetRow === UNAFFILIATED_LANE_ID) {
-        // Drag INTO 未归属 = clear primary + clear all other memberships per
-        // the "no auto-fallback" rule. Null the primary first so
-        // setNodeStorylines doesn't auto-pin it back into the membership set.
-        await updateNode(draggedNode.id, { mainStorylineId: null });
-        await setNodeStorylines(draggedNode.id, []);
-        await updateNode(draggedNode.id, { [orderField]: dragOver.order });
-      } else if (targetRow && targetRow !== currentMain) {
-        // Real-row → real-row reroute. Two cases collapsed into one:
-        //   (a) target already a secondary membership → promote it
-        //   (b) target is brand new → promote it AND drop the source
-        //       membership so the chapter physically moves to its new
-        //       lane (mirrors BottomTimeline's drag semantics).
-        // Drawer drags only land here when canDropOnStoryline allows
-        // (drawer → main row), so no fromDrawer guard needed.
-        //
-        // To avoid a flicker of a multi-storyline membership — which would
-        // briefly draw a dashed cross-storyline edge — we replace the
-        // membership set in a SINGLE state apply via setNodeStorylines and
-        // override its auto-pin to point at the new target. The follow-up
-        // updateNode call brings the store's primary state into agreement
-        // with the link table; in between, primaryStorylineId() falls back
-        // to the only membership (target), so nothing observably wrong
-        // renders.
-        const existingMemberIds = nodeStorylines(draggedNode.id).map((sl) => sl.id);
-        const nextMemberIds = existingMemberIds.includes(targetRow)
-          ? existingMemberIds.filter((id) => id !== currentMain)
-          : existingMemberIds.filter((id) => id !== currentMain).concat(targetRow);
-        await setNodeStorylines(draggedNode.id, nextMemberIds, {
-          primaryStorylineId: targetRow,
-        });
-        await updateNode(draggedNode.id, {
-          [orderField]: dragOver.order,
-          mainStorylineId: targetRow,
-        });
-      } else {
-        await updateNode(draggedNode.id, { [orderField]: dragOver.order });
-      }
+      if (!targetRow) return;
+      await commitChapterLaneDrop({
+        nodeId: draggedNode.id,
+        targetLaneId: targetRow,
+        targetOrder: dragOver.order,
+        orderField,
+        primaryStorylineId: draggedMainStorylineId,
+        membershipIds: nodeStorylines(draggedNode.id).map((storyline) => storyline.id),
+        updateNode,
+        setNodeStorylines,
+      });
     } catch (err) {
       log.error('Failed to update order on drop', err);
     } finally {
@@ -1271,7 +1215,7 @@ export function DesktopStoryGraphView() {
 
   return (
     <SuperViewShell className="graph-overlay" data-view={viewMode}>
-      <SuperViewHeader
+      <DesktopSuperViewHeader
         title={t('storyGraph.title')}
         meta={totalsLabel}
         onBack={close}
@@ -2293,86 +2237,24 @@ export function DesktopStoryGraphView() {
               <span>{nodeById.get(newEdgePair.target)?.title || t('common.untitled')}</span>
             </div>
             <label className="graph-newedge__label">{t('storyGraph.edge.kindLabel')}</label>
-            <div
+            <RelationKindField
               className="graph-newedge__select"
-              onFocus={() => setNewEdgeSuggestOpen(true)}
-              onBlur={(e) => {
-                // Close only when focus actually leaves the wrapper —
-                // clicking a suggestion (which lives inside) shouldn't
-                // dismiss before the value is committed.
-                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-                  setNewEdgeSuggestOpen(false);
-                }
+              inputClassName="graph-newedge__input"
+              autoFocus
+              value={newEdgeKind}
+              onChange={setNewEdgeKind}
+              options={[...regularKinds, ...driftOnlyKinds].filter(
+                (kind) => kind !== UNCATEGORIZED_KIND,
+              )}
+              resolveOptionColor={resolveKindColor}
+              placeholder={t('storyGraph.edge.kindPlaceholder')}
+              ariaLabel={t('storyGraph.edge.kindLabel')}
+              onSubmit={() => {
+                const trimmed = newEdgeKind.trim();
+                void createEdge(newEdgePair.source, newEdgePair.target, trimmed || null);
+                setNewEdgePair(null);
               }}
-            >
-              <input
-                autoFocus
-                className="graph-newedge__input"
-                type="text"
-                value={newEdgeKind}
-                placeholder={t('storyGraph.edge.kindPlaceholder')}
-                onChange={(e) => setNewEdgeKind(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    // First ESC while the input is focused → just
-                    // blur the field. We stopPropagation so the
-                    // central ESC handler doesn't ALSO see the event
-                    // and close the modal in the same press; a
-                    // second ESC (with focus now on the body) goes
-                    // through the central handler and closes the
-                    // modal as expected.
-                    e.preventDefault();
-                    e.stopPropagation();
-                    (e.currentTarget as HTMLInputElement).blur();
-                    return;
-                  }
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const trimmed = newEdgeKind.trim();
-                    void createEdge(newEdgePair.source, newEdgePair.target, trimmed || null);
-                    setNewEdgePair(null);
-                  }
-                }}
-              />
-              {/* Custom suggestions list — mirrors relation-kind menu rows
-                  so picking a kind here looks like the management menu.
-                  Only opens when the input has focus; filtered against
-                  the current input. */}
-              {newEdgeSuggestOpen &&
-                (() => {
-                  const allKinds = [...regularKinds, ...driftOnlyKinds].filter(
-                    (k) => k !== UNCATEGORIZED_KIND,
-                  );
-                  const filter = newEdgeKind.trim().toLowerCase();
-                  const matches = filter
-                    ? allKinds.filter((k) => k.toLowerCase().includes(filter))
-                    : allKinds;
-                  if (matches.length === 0) return null;
-                  return (
-                    <div className="graph-newedge__suggestions" role="listbox">
-                      {matches.map((k) => (
-                        <button
-                          key={k}
-                          type="button"
-                          className="graph-newedge__suggestion"
-                          onMouseDown={(e) => {
-                            // mousedown (not click) so the input doesn't
-                            // lose focus before we read the value.
-                            e.preventDefault();
-                            setNewEdgeKind(k);
-                          }}
-                        >
-                          <span
-                            className="graph-newedge__suggestion-dot"
-                            style={{ background: resolveKindColor(k) }}
-                          />
-                          <span>{k}</span>
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })()}
-            </div>
+            />
             <div className="graph-newedge__actions">
               <button onClick={() => setNewEdgePair(null)}>{t('common.cancel')}</button>
               <button

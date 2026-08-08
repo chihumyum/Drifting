@@ -22,7 +22,11 @@
 }
 
 .workspace-all-chapters-trigger {
-  white-space: nowrap;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 2px;
 }
 
 .workspace-all-chapters-trigger:hover,
@@ -30,8 +34,7 @@
 .workspace-all-chapters-trigger[data-active='true'],
 .workspace-super-trigger:hover,
 .workspace-super-trigger:focus-visible,
-.workspace-super-trigger[data-active='true'],
-.workspace-super-trigger[aria-expanded='true'] {
+.workspace-super-trigger[data-active='true'] {
   color: hsl(var(--ink-1));
 }
 
@@ -39,36 +42,4 @@
 .workspace-super-trigger:focus-visible {
   outline: 1px solid hsl(var(--rule-strong));
   outline-offset: -1px;
-}
-
-.workspace-super-menu {
-  z-index: var(--z-popover);
-}
-
-.workspace-super-menu__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  min-height: 30px;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  color: hsl(var(--ink-3));
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.workspace-super-menu__item:hover,
-.workspace-super-menu__item:focus-visible {
-  background: var(--menu-item-hover-bg);
-  color: hsl(var(--ink-1));
-  outline: none;
-}
-
-.workspace-super-menu__item[aria-checked='true'] {
-  color: hsl(var(--ink-1));
-  font-weight: 500;
 }

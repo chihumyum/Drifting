@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import '../../styles/drift-panel.css';
 
@@ -175,7 +176,7 @@ export function DriftPanel({
               title={t('driftPanel.collapseTitle', { label: resolvedTabLabel })}
               aria-label={t('driftPanel.collapseTitle', { label: resolvedTabLabel })}
             >
-              ×
+              <X size={14} strokeWidth={1.8} aria-hidden="true" />
             </button>
             <div className="drift-panel__panel" aria-hidden={panelAriaHidden}>
               <div className="drift-panel__hand" ref={handRef} {...handDragHandlers}>

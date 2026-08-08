@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getPlatformRuntime } from '../platform/runtime';
 import '../../styles/super-view-header.css';
@@ -46,11 +47,9 @@ export function SuperViewHeader({
             className="super-view-head__back"
             onClick={onBack}
             title={resolvedBackLabel}
+            aria-label={resolvedBackLabel}
           >
-            <span className="super-view-head__back-glyph" aria-hidden>
-              ‹
-            </span>
-            <span>{resolvedBackLabel}</span>
+            <ArrowLeft size={16} strokeWidth={1.7} aria-hidden="true" />
           </button>
         )}
         <div className="super-view-head__title">

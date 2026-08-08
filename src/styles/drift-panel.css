@@ -67,7 +67,7 @@
   color: hsl(var(--paper));
 }
 
-/* Compact × close button — centered above the open panel. */
+/* Compact icon close button — centered above the open panel. */
 .drift-panel__close {
   pointer-events: none;
   display: grid;
@@ -77,7 +77,7 @@
   margin-bottom: 6px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule-strong, var(--rule)));
-  border-radius: 2px;
+  border-radius: 50%;
   color: hsl(var(--ink-3));
   cursor: pointer;
   font-size: 14px;

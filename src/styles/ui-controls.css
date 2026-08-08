@@ -543,6 +543,51 @@
   box-shadow: 0 12px 32px -14px hsl(var(--ink-1) / 0.42);
 }
 
+/* Relation-kind suggestions are modal-safe: AnchoredPopover portals this
+   surface to body and owns its fixed viewport coordinates. */
+.relation-kind-suggestions {
+  z-index: calc(var(--z-modal) + 1);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: var(--radius-xs);
+  background: hsl(var(--paper));
+  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
+}
+
+.relation-kind-suggestions__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: hsl(var(--ink-1));
+  font-family: var(--font-sans);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.relation-kind-suggestions__option:hover,
+.relation-kind-suggestions__option:focus-visible {
+  background: hsl(var(--rule) / 0.4);
+  outline: none;
+}
+
+.relation-kind-suggestions__marker {
+  width: 16px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;

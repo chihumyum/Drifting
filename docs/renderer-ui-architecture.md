@@ -50,6 +50,16 @@ features
 
 Graph、Super Element 和 Timeline 仍是较大的高内聚交互控制器。它们已整体迁入桌面路径，避免移动端被其鼠标、拖拽、快捷键和空间画布状态耦合；可复用计算分别下沉到 `story-graph-model.ts`、`super-element-category-model.ts`、现有 timeline selectors/hooks 与 domain 模块。后续若修改这些控制器，应优先继续提取纯计算或独立视觉块，不应把桌面状态回流到共享 feature。
 
+### 2026-08-08 桌面交互收敛
+
+- Bottom Timeline 与 Storyline Graph 不再分别定义章节落点、故事线迁移和原生拖放初始化。`features/graph/chapter-lane-drag.ts` 是两种桌面投影共用的纯策略与写入编排；它为 WebKit `DataTransfer` 写入真实 payload，并统一本书、未归属、抽屉和真实故事线的落点语义。
+- `components/ui/RelationKindField.tsx` 统一两个关系创建流程的自由输入与类型建议。建议层通过 `AnchoredPopover` portal 到 `body` 并使用 viewport fixed 坐标，modal 的 `overflow` 不再参与裁切。
+- Library 卡片仍复用 `EntityRelationPicker`，但选择器展开期间卡片解除局部高度上限；Library panel 是该流程唯一的纵向滚动 owner。
+- `DesktopSuperViewHeader` 是桌面 Super View 切换的唯一入口。工作区 `SUPER` 直接进入 `lastActiveSuperView`（首次默认为 Element），三个横向选项只存在于 Super header；共享 `SuperViewHeader` 本身仍不依赖 UI store。
+- 通览全书使用 Iconoir `PageFlip` 图标；Super/Settings 返回与共享 Drift Panel 关闭均使用真实 SVG icon，并保留 title/ARIA 文本而不渲染 glyph 文本。
+
+对应机器验收覆盖 `chapter-lane-drag.test.ts`、`workspace-surface-language.acceptance.test.ts`、`menu-surface-style.acceptance.test.ts` 与 renderer boundary tests。拖拽手感、视觉位置与真实数据回归仍属于用户手工验收边界。
+
 ## Reusable UI and feature pieces
 
 未来的 `MobileAppShell` 可以复用：
@@ -62,6 +72,7 @@ Graph、Super Element 和 Timeline 仍是较大的高内聚交互控制器。它
 - comments 的 rail model、snapshot content 与统一 anchor/review 数据；
 - stats 的 `AllChaptersStats`、`EntityStatsContent` 与 `StatsPrimitives`；
 - entity hover 的内容模型、graph/category 的纯投影与布局模型。
+- `RelationKindField`、关系/素材卡片内容以及其他无桌面 store 的小型输入 primitive；移动端可以换用 sheet host，而不复制输入与筛选逻辑。
 
 “可以复用”不代表移动端必须原样呈现。卡片和内容组件可被 sheet、全屏页或单列导航重新编排；桌面 modal、hover、right-click 和多栏 host 不属于复用合同。
 

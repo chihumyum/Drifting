@@ -7,7 +7,7 @@ import { useUiStore } from '../../../store/ui-store';
 import { useAuthStore } from '../../../store/auth';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import { useSuperViewEscapeStack } from '../../../hooks/useSuperViewEscapeStack';
-import { SuperViewHeader } from '../../../components/SuperViewHeader';
+import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { FilterChip } from '../../../components/ui/FilterChip';
 import { ContextMenuSurface } from '../../../components/ui/ContextMenuSurface';
@@ -278,7 +278,7 @@ export function DesktopSuperMemoMaterialView() {
           filters (KIND chips, entity-target filter) live inside the
           LibraryItemMain section header so the global header stays focused
           on cross-cutting controls. */}
-      <SuperViewHeader
+      <DesktopSuperViewHeader
         title={t('memoMaterial.super.title')}
         meta={t('memoMaterial.super.meta', {
           todos: comments.filter((c) => c.kind === 'todo').length,

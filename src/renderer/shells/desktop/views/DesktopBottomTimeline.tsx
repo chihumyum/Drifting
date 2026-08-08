@@ -32,6 +32,13 @@ import { useUiStore, usePromoteCurrentTab } from '../../../store/ui-store';
 import { useTimelineMarkers } from '../../../hooks/useTimelineMarkers';
 import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
 import { SegmentedControl } from '../../../components/ui/SegmentedControl';
+import {
+  DEFAULT_STORYLINE_LANE_ID as DEFAULT_LANE_ID,
+  UNAFFILIATED_STORYLINE_LANE_ID as UNAFFILIATED_LANE_ID,
+  canDropChapterOnLane,
+  commitChapterLaneDrop,
+  initializeChapterDrag,
+} from '../../../features/graph/chapter-lane-drag';
 import loglevel from 'loglevel';
 import '../../../../styles/bottom-timeline.css';
 const log = loglevel.getLogger('BottomTimeline');
@@ -87,9 +94,6 @@ function readPersistedView(): TimelineView {
 //     All chapters render in one lane labelled "本书".
 //   • UNAFFILIATED_LANE_ID: project has ≥ 1 storyline AND some chapters have
 //     no primary storyline link ("未归属"). Default collapsed.
-const DEFAULT_LANE_ID = '__default__';
-const UNAFFILIATED_LANE_ID = '__unaffiliated__';
-
 function makeSyntheticStoryline(id: string, name: string, color: string): Storyline {
   // Filling in the Storyline shape with empty/placeholder values for fields
   // the lane renderer reads but the synthetic lane doesn't conceptually have.
@@ -139,10 +143,7 @@ export function DesktopBottomTimeline() {
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
-  const {
-    removeNodeFromStoryline,
-    setNodeStorylines,
-  } = useStoryline({
+  const { setNodeStorylines } = useStoryline({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
@@ -399,14 +400,14 @@ export function DesktopBottomTimeline() {
   const handleNodeDragStart = (e: React.DragEvent, node: TimelineNode, storylineId: string) => {
     clearHoverPreview();
     setDraggedNode({ node, storylineId });
-    e.dataTransfer.effectAllowed = 'move';
+    initializeChapterDrag(e.dataTransfer, node.id, e.currentTarget as HTMLElement);
   };
 
   const handleDrawerDragStart = (e: React.DragEvent, node: TimelineNode) => {
     clearHoverPreview();
     const sourceId = primaryStorylineId(node) ?? '';
     setDraggedNode({ node, storylineId: sourceId });
-    e.dataTransfer.effectAllowed = 'move';
+    initializeChapterDrag(e.dataTransfer, node.id, e.currentTarget as HTMLElement);
     // Do NOT close the popover here: re-rendering during dragstart unmounts
     // the chip we just started dragging, and the browser cancels the drag.
     // The popover closes on dragend (handleDragEnd) instead.
@@ -424,21 +425,11 @@ export function DesktopBottomTimeline() {
   );
   const canDropOnStoryline = (rowStorylineId: string) => {
     if (!draggedNode) return false;
-    if (rowStorylineId === DEFAULT_LANE_ID) return true; // default lane: always
-    if (rowStorylineId === UNAFFILIATED_LANE_ID) {
-      // Drawer drag: only 未归属 chapters belong in 未归属 — a chapter with
-      // a primary storyline shouldn't escape to the orphan lane via a
-      // narrative-axis placement. Axis-to-axis drags handle 未归属 via the
-      // dedicated context-menu action instead.
-      if (isDraggedFromDrawer) return draggedNodePrimaryStorylineId == null;
-      return true;
-    }
-    if (!isDraggedFromDrawer) return true; // axis-to-axis drag: any row
-    // Drawer drag with no primary storyline: the chapter is 未归属, so
-    // there's no "main row" to constrain to. Drop is allowed on any real
-    // storyline — the drop handler promotes the target to mainStoryline.
-    if (draggedNodePrimaryStorylineId == null) return true;
-    return rowStorylineId === draggedNodePrimaryStorylineId;
+    return canDropChapterOnLane({
+      targetLaneId: rowStorylineId,
+      fromDrawer: isDraggedFromDrawer,
+      primaryStorylineId: draggedNodePrimaryStorylineId,
+    });
   };
 
   const handleNodeDragOver = (e: React.DragEvent, storylineRowId: string) => {
@@ -469,70 +460,19 @@ export function DesktopBottomTimeline() {
     e.preventDefault();
     clearHoverPreview();
 
-    const { node, storylineId: sourceStorylineId } = draggedNode;
-    const targetOrder = dragOverPosition.order;
-    const currentOrder = orderOf(node);
+    const { node } = draggedNode;
 
     try {
-      const fromDrawer = currentOrder === null;
-      const targetIsDefault = targetStorylineId === DEFAULT_LANE_ID;
-      const targetIsUnaffiliated = targetStorylineId === UNAFFILIATED_LANE_ID;
-      // Drawer drag for an unaffiliated chapter: dropping on a real storyline
-      // is the implicit "assign primary" gesture, so the chapter doesn't get
-      // a narrativeOrder without a home. Default / unaffiliated targets keep
-      // their existing semantics (no membership change).
-      if (
-        fromDrawer &&
-        primaryStorylineId(node) == null &&
-        !targetIsDefault &&
-        !targetIsUnaffiliated
-      ) {
-        await updateNode(node.id, { mainStorylineId: targetStorylineId });
-      }
-      if (!fromDrawer) {
-        const sourceIsSynthetic =
-          sourceStorylineId === DEFAULT_LANE_ID ||
-          sourceStorylineId === UNAFFILIATED_LANE_ID;
-
-        if (targetIsDefault) {
-          // Single-lane mode — no storyline membership state to track. Only
-          // reorder fires below.
-        } else if (targetIsUnaffiliated) {
-          // Drag INTO 未归属 = demote primary (and clear other memberships per
-          // the "no auto-fallback" rule). Order matters: setNodeStorylines
-          // auto-pins the current primary back into the membership set, so
-          // we must null the primary FIRST, otherwise the chapter snaps
-          // straight back to its old storyline.
-          await updateNode(node.id, { mainStorylineId: null });
-          await setNodeStorylines(node.id, []);
-        } else if (sourceIsSynthetic) {
-          // Drag OUT of a synthetic lane onto a real storyline = promote it
-          // to primary. The link repo's setPrimaryStoryline (invoked via
-          // updateNode below with the mainStorylineId signal) creates the
-          // link row if it's missing.
-          await updateNode(node.id, { mainStorylineId: targetStorylineId });
-        } else {
-          // Real-storyline → real-storyline drag may re-route the node's
-          // primary alongside the order update.
-          const isPrimaryStoryline =
-            primaryStorylineId(node) === sourceStorylineId;
-          if (!isPrimaryStoryline) {
-            log.warn('Can only drag from primary storyline');
-            return;
-          }
-          const isTargetInNodeStorylines = node.storylines.some((t) => t.id === targetStorylineId);
-          if (sourceStorylineId !== targetStorylineId) {
-            await updateNode(node.id, { mainStorylineId: targetStorylineId });
-            if (!isTargetInNodeStorylines) {
-              await removeNodeFromStoryline(node.id, sourceStorylineId);
-            }
-          }
-        }
-      }
-
-      if (targetOrder !== currentOrder) {
-        await updateNode(node.id, { [orderField]: targetOrder });
-      }
+      await commitChapterLaneDrop({
+        nodeId: node.id,
+        targetLaneId: targetStorylineId,
+        targetOrder: dragOverPosition.order,
+        orderField,
+        primaryStorylineId: primaryStorylineId(node),
+        membershipIds: node.storylines.map((storyline) => storyline.id),
+        updateNode,
+        setNodeStorylines,
+      });
     } catch (error) {
       log.error('Failed to handle drop:', error);
     } finally {

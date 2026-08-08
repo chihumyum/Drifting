@@ -105,7 +105,6 @@ describe('shared menu surface style', () => {
       'src/renderer/components/editor/EditorTopBar.tsx',
       'src/renderer/components/leftBars/ElementCategoryCreateMenu.tsx',
       'src/renderer/components/leftBars/SortMenu.tsx',
-      'src/renderer/components/topBars/WorkspaceNavigationButtons.tsx',
       'src/renderer/components/editor/PatchEditorCard.tsx',
     ];
     for (const path of anchoredMenus) {
@@ -133,7 +132,6 @@ describe('shared menu surface style', () => {
       'src/renderer/components/graph/TimelineRailMenu.tsx',
       'src/renderer/components/leftBars/SortMenu.tsx',
       'src/renderer/components/topBars/TopTimeline/TabContextMenu.tsx',
-      'src/renderer/components/topBars/WorkspaceNavigationButtons.tsx',
       'src/renderer/hooks/useEntityEditor.ts',
     ];
     for (const path of compact) {
@@ -170,7 +168,6 @@ describe('shared menu surface style', () => {
     const legacyOuterRules = [
       ['src/styles/act-rail.css', '.actrail__menu {'],
       ['src/styles/timeline-pin-menu.css', '.tlpin-menu {'],
-      ['src/styles/workspace-navigation.css', '.workspace-super-menu {'],
       ['src/styles/agent-panel.css', '.agt-menu {'],
       ['src/styles/bottom-timeline.css', '.btl__unplaced-popover {'],
       ['src/styles/bottom-timeline.css', '.btl-cmenu {'],

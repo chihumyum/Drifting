@@ -817,9 +817,8 @@
   color: hsl(var(--ink-4));
   margin-bottom: 4px;
 }
-/* Wrapper so the suggestions popover positions relative to the input. */
 .graph-newedge__select {
-  position: relative;
+  width: 100%;
 }
 .graph-newedge__input {
   width: 100%;
@@ -838,49 +837,6 @@
   border-color: hsl(var(--accent));
 }
 
-/* Suggestions popover — matches relation-kind management rows so picking a
-   kind here visually mirrors the management menu. */
-.graph-newedge__suggestions {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  max-height: 180px;
-  overflow-y: auto;
-  padding: 4px;
-  background: hsl(var(--paper));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 2px;
-  box-shadow: 0 12px 26px -14px hsl(var(--ink-1) / 0.3);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  z-index: 10;
-}
-.graph-newedge__suggestion {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border: 0;
-  background: transparent;
-  border-radius: 4px;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  color: hsl(var(--ink-1));
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.1s;
-}
-.graph-newedge__suggestion:hover {
-  background: hsl(var(--rule) / 0.4);
-}
-.graph-newedge__suggestion-dot {
-  flex-shrink: 0;
-  width: 16px;
-  height: 6px;
-  border-radius: 2px;
-}
 .graph-newedge__actions {
   display: flex;
   justify-content: flex-end;

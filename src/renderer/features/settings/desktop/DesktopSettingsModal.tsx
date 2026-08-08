@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { matchesAccelerator } from '../../../lib/shortcuts';
 import { getPlatformRuntime } from '../../../platform/runtime';
@@ -303,18 +304,11 @@ function SetHead({
           className="set-head__back"
           onClick={onClose}
           title={t('navigation.back')}
+          aria-label={t('navigation.back')}
         >
-          <span className="set-head__back-glyph" aria-hidden>
-            ‹
-          </span>
-          <span>{t('navigation.back')}</span>
+          <ArrowLeft size={16} strokeWidth={1.7} aria-hidden="true" />
         </button>
-        <div className="set-head__title">
-          {t('settings.title')}{' '}
-          <em>
-            {t('settings.title_en')} · {t('settings.esc_close')}
-          </em>
-        </div>
+        <div className="set-head__title">{t('settings.title')}</div>
       </div>
 
       <div className="set-head__search">

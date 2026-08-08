@@ -290,8 +290,12 @@ export function LibraryItemCard({
         onContextMenu={openContextMenu}
         style={{
           padding: '8px 10px',
-          maxHeight: isTextExpanded ? 'none' : 320,
-          overflow: isTextExpanded ? 'visible' : 'hidden',
+          // The relation target picker is part of the card's authored
+          // content, not an inset scroll region. Let the card grow around it
+          // while open; the surrounding library panel remains the sole
+          // vertical scroll owner.
+          maxHeight: isTextExpanded || pickerOpen ? 'none' : 320,
+          overflow: isTextExpanded || pickerOpen ? 'visible' : 'hidden',
           display: 'flex',
           flexDirection: 'column',
           // Prevents the flex-column scroll parent from shrinking each card

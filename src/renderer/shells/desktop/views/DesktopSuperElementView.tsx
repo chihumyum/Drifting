@@ -23,11 +23,12 @@ import { ElementCardPopover, type AnchorRect } from './ElementCardPopover';
 import { useEntityRelations } from '../../../usecase/useEntityRelations';
 import { DriftPanel, useDriftPanelAnim } from '../../../components/DriftPanel';
 import { NodeCardPopover } from '../../../components/graph/NodeCardPopover';
-import { SuperViewHeader } from '../../../components/SuperViewHeader';
+import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { Button } from '../../../components/ui/Button';
 import { FilterChip } from '../../../components/ui/FilterChip';
 import { HeaderChipStrip } from '../../../components/ui/HeaderChipStrip';
+import { RelationKindField } from '../../../components/ui/RelationKindField';
 import {
   RelationKindMenu,
   UNCATEGORIZED_RELATION_KIND as UNCATEGORIZED_KIND,
@@ -921,7 +922,6 @@ export function DesktopSuperElementView() {
     target: { kind: 'element' | 'node'; id: string };
   } | null>(null);
   const [pendingLinkKind, setPendingLinkKind] = useState('');
-  const [pendingLinkSuggestOpen, setPendingLinkSuggestOpen] = useState(false);
   // Sticky band toggle. ON = band detaches from world transform so it can
   // snap to the top/bottom viewport edge when the canvas pans past it; pan
   // and zoom are also clamped so the band's x extent always covers the
@@ -1805,7 +1805,6 @@ export function DesktopSuperElementView() {
           target: { kind, id },
         });
         setPendingLinkKind('');
-        setPendingLinkSuggestOpen(false);
         setLinkSource(null);
         return;
       }
@@ -1859,7 +1858,6 @@ export function DesktopSuperElementView() {
     } finally {
       setPendingLink(null);
       setPendingLinkKind('');
-      setPendingLinkSuggestOpen(false);
     }
   }, [pendingLink, pendingLinkKind, addRelation]);
 
@@ -2143,7 +2141,7 @@ export function DesktopSuperElementView() {
   return (
     <SuperViewShell className="super-element-overlay">
       {/* Header — back + title + filter chips + view-mode toggles. */}
-      <SuperViewHeader
+      <DesktopSuperViewHeader
         title={t('superElement.title')}
         meta={t('superElement.meta', {
           categories: bookElementCategories.length,
@@ -2666,10 +2664,6 @@ export function DesktopSuperElementView() {
           // Distinct existing kinds (named only — never the uncategorised
           // sentinel) for the input's suggestion dropdown.
           const existingKinds = availableKinds.filter((k) => k !== UNCATEGORIZED_KIND);
-          const filter = pendingLinkKind.trim().toLowerCase();
-          const matches = filter
-            ? existingKinds.filter((k) => k.toLowerCase().includes(filter))
-            : existingKinds;
           return (
             <ModalRoot
               onClose={() => setPendingLink(null)}
@@ -2733,108 +2727,29 @@ export function DesktopSuperElementView() {
                   >
                     {t('storyGraph.edge.kindLabel')}
                   </div>
-                  <div
-                    style={{ position: 'relative' }}
-                    onFocus={() => setPendingLinkSuggestOpen(true)}
-                    onBlur={(e) => {
-                      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-                        setPendingLinkSuggestOpen(false);
-                      }
+                  <RelationKindField
+                    autoFocus
+                    value={pendingLinkKind}
+                    onChange={setPendingLinkKind}
+                    options={existingKinds}
+                    resolveOptionColor={resolveKindColor}
+                    placeholder={t('storyGraph.edge.kindPlaceholder')}
+                    ariaLabel={t('storyGraph.edge.kindLabel')}
+                    onSubmit={() => {
+                      void confirmPendingLink();
                     }}
-                  >
-                    <input
-                      autoFocus
-                      type="text"
-                      value={pendingLinkKind}
-                      placeholder={t('storyGraph.edge.kindPlaceholder')}
-                      onChange={(e) => setPendingLinkKind(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          void confirmPendingLink();
-                          return;
-                        }
-                        if (e.key === 'Escape') {
-                          // First ESC blurs the input; central ESC handler
-                          // (window-bubble) gets a second press to close.
-                          e.preventDefault();
-                          e.stopPropagation();
-                          (e.currentTarget as HTMLInputElement).blur();
-                        }
-                      }}
-                      style={{
-                        width: '100%',
-                        border: '1px solid hsl(var(--rule))',
-                        borderRadius: 3,
-                        padding: '6px 10px',
-                        fontFamily: 'var(--font-sans)',
-                        fontSize: 13,
-                        color: 'hsl(var(--ink-1))',
-                        background: 'hsl(var(--paper))',
-                        outline: 'none',
-                      }}
-                    />
-                    {pendingLinkSuggestOpen && matches.length > 0 && (
-                      <div
-                        role="listbox"
-                        style={{
-                          position: 'absolute',
-                          left: 0,
-                          right: 0,
-                          top: 'calc(100% + 4px)',
-                          background: 'hsl(var(--paper))',
-                          border: '1px solid hsl(var(--rule))',
-                          borderRadius: 3,
-                          maxHeight: 160,
-                          overflowY: 'auto',
-                          boxShadow: '0 4px 14px hsl(var(--ink-1) / 0.1)',
-                          zIndex: 'calc(var(--z-modal) + 1)',
-                        }}
-                      >
-                        {matches.map((k) => (
-                          <button
-                            key={k}
-                            type="button"
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              setPendingLinkKind(k);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              width: '100%',
-                              background: 'transparent',
-                              border: 'none',
-                              padding: '6px 10px',
-                              cursor: 'pointer',
-                              fontFamily: 'var(--font-mono)',
-                              fontSize: 10,
-                              color: 'hsl(var(--ink-2))',
-                              letterSpacing: '0.08em',
-                              textAlign: 'left',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'transparent';
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: 6,
-                                height: 6,
-                                borderRadius: 1.5,
-                                background: resolveKindColor(k),
-                              }}
-                            />
-                            {k}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                    inputStyle={{
+                      width: '100%',
+                      border: '1px solid hsl(var(--rule))',
+                      borderRadius: 3,
+                      padding: '6px 10px',
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: 13,
+                      color: 'hsl(var(--ink-1))',
+                      background: 'hsl(var(--paper))',
+                      outline: 'none',
+                    }}
+                  />
                 </div>
                 <ModalActions>
                   <Button

@@ -34,11 +34,14 @@ describe('workspace surface language acceptance', () => {
     );
   });
 
-  it('keeps All Chapters first-class while consolidating the three Super views', () => {
+  it('uses Page Flip for All Chapters and moves Super switching into each Super header', () => {
     const appTopbar = source('src/renderer/views/AppTopbar.tsx');
     const leftTopbar = source('src/renderer/components/topBars/LeftSidebarTopBar.tsx');
     const workspaceNavigation = source(
       'src/renderer/components/topBars/WorkspaceNavigationButtons.tsx',
+    );
+    const superHeader = source(
+      'src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx',
     );
     const rightTopbar = source('src/renderer/components/topBars/RightSidebarTopBar.tsx');
     const userMenu = source('src/renderer/components/topBars/UserMenu.tsx');
@@ -54,29 +57,38 @@ describe('workspace surface language acceptance', () => {
     const allChaptersEditor = source('src/renderer/views/AllChaptersEditorView.tsx');
 
     expect(leftTopbar).toContain('<WorkspaceNavigationButtons />');
-    expect(workspaceNavigation.match(/<GhostIconButton/g)).toHaveLength(1);
+    expect(workspaceNavigation.match(/<GhostIconButton/g)).toHaveLength(2);
     expect(workspaceNavigation).toContain('icon={<Home size={16}');
+    expect(workspaceNavigation).toContain("import { IconoirPageFlip } from '../ui/icons/IconoirPageFlip'");
+    expect(workspaceNavigation).toContain('icon={<IconoirPageFlip width={16} height={16}');
+    expect(source('src/renderer/components/ui/icons/IconoirPageFlip.tsx')).toContain(
+      'Iconoir `page-flip`, MIT licensed',
+    );
     expect(workspaceNavigation).toContain(
       "aria-pressed={baseViewVisible && activeLeaf?.entityType === 'dashboard'}",
     );
-    expect(workspaceNavigation).toContain('className="workspace-all-chapters-trigger"');
-    expect(workspaceNavigation).toContain("{t('bottomStatusBar.allChapters')}");
+    expect(workspaceNavigation).toContain(
+      'className="workspace-all-chapters-trigger workspace-header-action"',
+    );
     expect(workspaceNavigation).toContain('const superDestinationActive = activeSuperView !==');
+    expect(workspaceNavigation).toContain('state.lastActiveSuperView');
+    expect(workspaceNavigation).toContain("lastActiveSuperView ?? ('element' satisfies SuperViewId)");
     expect(workspaceNavigation).toContain('<span>SUPER</span>');
     expect(workspaceNavigation).not.toContain('ChevronDown');
-    expect(workspaceNavigation).not.toContain('label="All Chapters"');
-    expect(workspaceNavigation).toContain("label: 'Elements'");
-    expect(workspaceNavigation).toContain("label: 'Storylines'");
-    expect(workspaceNavigation).toContain("label: 'Library'");
-    expect(workspaceNavigation).toContain('role="menuitemradio"');
-    expect(workspaceNavigation.indexOf('className="workspace-all-chapters-trigger"')).toBeLessThan(
+    expect(workspaceNavigation).not.toContain('<AnchoredPopover');
+    expect(workspaceNavigation).not.toContain('role="menuitemradio"');
+    expect(superHeader).toContain("{ id: 'element', labelKey: 'superElement.title' }");
+    expect(superHeader).toContain("{ id: 'graph', labelKey: 'storyGraph.title' }");
+    expect(superHeader).toContain("{ id: 'memo-material', labelKey: 'memoMaterial.super.title' }");
+    expect(superHeader).toContain('className="super-view-head__switcher-option"');
+    expect(workspaceNavigation.indexOf('className="workspace-all-chapters-trigger')).toBeLessThan(
       workspaceNavigation.indexOf('className="workspace-super-trigger"'),
     );
     expect(workspaceNavigation).not.toContain('BottomStatusBarIcons');
     expect(
       existsSync(resolve(process.cwd(), 'src/renderer/components/BottomStatusBarIcons.tsx')),
     ).toBe(false);
-    expect(workspaceNavigationCss).not.toContain('.workspace-super-menu__group--special');
+    expect(workspaceNavigationCss).not.toContain('.workspace-super-menu');
     expect(
       block(
         workspaceNavigationCss,
@@ -87,20 +99,7 @@ describe('workspace surface language acceptance', () => {
     expect(source('src/styles/ui-controls.css')).not.toContain(
       ".workspace-header-action[aria-pressed='true']",
     );
-    expect(
-      block(
-        workspaceNavigationCss,
-        '.workspace-all-chapters-trigger:hover,',
-        '.workspace-all-chapters-trigger:focus-visible,\n.workspace-super-trigger:focus-visible {',
-      ),
-    ).not.toContain('background:');
-    expect(
-      block(
-        workspaceNavigationCss,
-        '.workspace-super-trigger:hover,',
-        '.workspace-super-trigger:focus-visible {',
-      ),
-    ).not.toContain('background:');
+    expect(workspaceNavigationCss).not.toContain('workspace-super-trigger[aria-expanded');
     expect(notification).not.toContain('e.currentTarget.style.background');
     expect(topTimeline).not.toContain('event.currentTarget.style.background');
     expect(appTopbar).toContain('runtime.isMacDesktop ? 288 : 216');
@@ -556,6 +555,43 @@ describe('workspace surface language acceptance', () => {
     expect(superCss).toMatch(/\.super-view-overlay\s*\{[\s\S]*?padding:\s*0;[\s\S]*?gap:\s*0;/);
     expect(superCss).toMatch(
       /\.super-view-head,[\s\S]*?\.super-view-body\s*\{[\s\S]*?border-radius:\s*0;[\s\S]*?box-shadow:\s*none;/,
+    );
+  });
+
+  it('keeps desktop headers icon-only and lets relation surfaces escape clipping', () => {
+    const sharedHeader = source('src/renderer/components/SuperViewHeader.tsx');
+    const settings = source('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx');
+    const driftPanel = source('src/renderer/components/DriftPanel.tsx');
+    const driftCss = source('src/styles/drift-panel.css');
+    const relationKindField = source('src/renderer/components/ui/RelationKindField.tsx');
+    const superElement = source(
+      'src/renderer/shells/desktop/views/DesktopSuperElementView.tsx',
+    );
+    const storyGraph = source(
+      'src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx',
+    );
+    const libraryCard = source('src/renderer/features/library/LibraryItemCard.tsx');
+
+    expect(sharedHeader).toContain("import { ArrowLeft } from 'lucide-react'");
+    expect(sharedHeader).toContain('<ArrowLeft size={16}');
+    expect(sharedHeader).not.toContain('super-view-head__back-glyph');
+    expect(settings).toContain('<ArrowLeft size={16}');
+    expect(settings).not.toContain("t('settings.title_en')");
+    expect(settings).not.toContain("t('settings.esc_close')");
+    expect(driftPanel).toContain('<X size={14}');
+    expect(driftPanel).not.toContain('>×<');
+    expect(block(driftCss, '.drift-panel__close {', '.drift-panel.is-open')).toContain(
+      'border-radius: 50%;',
+    );
+
+    expect(relationKindField).toContain('<AnchoredPopover');
+    expect(relationKindField).toContain('className="relation-kind-suggestions"');
+    expect(relationKindField).not.toContain("position: 'absolute'");
+    expect(superElement).toContain('<RelationKindField');
+    expect(storyGraph).toContain('<RelationKindField');
+    expect(libraryCard).toContain("maxHeight: isTextExpanded || pickerOpen ? 'none' : 320");
+    expect(libraryCard).toContain(
+      "overflow: isTextExpanded || pickerOpen ? 'visible' : 'hidden'",
     );
   });
 
