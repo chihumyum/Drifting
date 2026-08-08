@@ -24,6 +24,7 @@ import { useFeatureAccessStore } from '../../lib/feature-access';
 import loglevel from 'loglevel';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { CopilotQuickSettings } from '../copilot/CopilotBottomMenu';
+import { getPlatformRuntime } from '../../platform/runtime';
 
 const log = loglevel.getLogger('UserMenu');
 
@@ -94,7 +95,8 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   };
 
   const openFullSettings = () => {
-    events.emit('settings:open', { railId: 'copilot' });
+    if (getPlatformRuntime().isMobile) navigate('/settings?section=copilot');
+    else events.emit('settings:open', { railId: 'copilot' });
     handleClose();
   };
 

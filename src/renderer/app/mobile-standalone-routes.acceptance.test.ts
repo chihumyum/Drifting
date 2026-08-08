@@ -51,4 +51,24 @@ describe('mobile standalone routes', () => {
     expect(css).toContain('min-height: 48px');
     expect(css).toContain("html[data-platform-target='mobile'] .pp-modal");
   });
+
+  it('routes mobile settings outside the project runtime and keeps project settings deferred', () => {
+    const routes = rendererSource('app/AppRoutes.tsx');
+    expect(routes).toContain('isMobile ? <MobileSettingsView /> : <Navigate to="/" replace />');
+    const settings = rendererSource('shells/mobile/standalone/MobileSettingsView.tsx');
+    expect(settings).toContain('<AccountPanel registerRef={REGISTER_NOOP} />');
+    expect(settings).toContain('<ModelsPanel credentialsActive registerRef={REGISTER_NOOP} />');
+    expect(settings).not.toContain('TrashRailPanel');
+    expect(settings).not.toContain('AgentPanel');
+    expect(settings).not.toContain('ProjectRuntimeProvider');
+  });
+
+  it('gives mobile settings safe areas, stacked content and touch-sized controls', () => {
+    const css = fs.readFileSync(path.join(stylesRoot, 'mobile-settings.css'), 'utf8');
+    expect(css).toContain('.m-settings__index');
+    expect(css).toContain('min-height: 100dvh');
+    expect(css).toContain('var(--safe-area-bottom)');
+    expect(css).toContain('min-height: 44px');
+    expect(css).toContain('font-size: 16px');
+  });
 });

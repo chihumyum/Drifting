@@ -307,6 +307,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
           onQueryChange={setQuery}
           onFilterChange={setFilter}
           onCreate={() => setCreateOpen(true)}
+          onSettings={() => navigate('/settings')}
           onOpen={(project) => handleOpen(project.id)}
           onEdit={setEditing}
           onDelete={setConfirmDelete}

@@ -57,3 +57,9 @@
 书架设置入口将在移动全局设置里程碑接通；本阶段不进入 `/project/:projectId`，也不建立移动工作区。静态验收不等于真机滚动、Sheet 手势或安全区视觉验收。
 
 mobile target 打开项目时由 `MobileWorkspaceDeferredView` 明确停在工作区边界，不会错误落入 `DesktopAppShell`。该边界页不挂载 `ProjectRuntimeProvider`、编辑器或任何临时移动工作区；等用户提供新的工作区方案后再整体替换。
+
+### Milestone 3: global settings
+
+mobile target 的书架提供独立设置入口，`/settings` 使用列表 → 单面板的移动导航，而不是压缩桌面双栏 rail。账户、订阅、外观、编辑器偏好、语言、模型、Copilot、密钥、同步、隐私和关于继续复用共享 settings panels；移动 host 负责 safe-area、44px 操作热区、单列控制重排和 16px 表单输入。
+
+废纸篓、Agent memory、项目用量等依赖当前项目的页面不出现在工作区外设置中，也不会为了设置页面提前挂载 `ProjectRuntimeProvider`。它们与移动工作区方案一起延后。桌面 Settings modal、快捷键和 scroll-spy 行为保持不变。

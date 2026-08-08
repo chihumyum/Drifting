@@ -1,0 +1,213 @@
+.m-settings {
+  box-sizing: border-box;
+  min-height: 100dvh;
+  padding:
+    var(--safe-area-top)
+    var(--safe-area-right)
+    var(--safe-area-bottom)
+    var(--safe-area-left);
+  overflow-x: hidden;
+  color: hsl(var(--ink-1));
+  background: hsl(var(--paper-deep));
+  font-family: var(--font-sans);
+}
+
+.m-settings__head {
+  position: sticky;
+  top: var(--safe-area-top);
+  z-index: 2;
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  align-items: center;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper-deep));
+}
+
+.m-settings__head > button {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.m-settings__head > div {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  text-align: center;
+}
+
+.m-settings__head span {
+  color: hsl(var(--ink-4));
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.m-settings__head strong {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-settings__index {
+  width: min(100%, 620px);
+  margin: 0 auto;
+  padding: 18px 14px 32px;
+}
+
+.m-settings__index > section {
+  margin-bottom: 22px;
+}
+
+.m-settings__index h2 {
+  margin: 0 0 7px;
+  color: hsl(var(--ink-4));
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.m-settings__index > section > div {
+  border-top: 1px solid hsl(var(--rule));
+}
+
+.m-settings__index > section > div > button {
+  width: 100%;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: transparent;
+  color: hsl(var(--ink-2));
+  text-align: left;
+}
+
+.m-settings__index > section > div > button > span {
+  font-size: 13px;
+  font-weight: 520;
+}
+
+.m-settings__index > section > div > button > svg:last-child {
+  color: hsl(var(--ink-4));
+}
+
+.m-settings__project-boundary {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  padding: 14px 8px;
+  border-top: 1px solid hsl(var(--rule));
+  border-bottom: 1px solid hsl(var(--rule));
+  color: hsl(var(--ink-4));
+}
+
+.m-settings__project-boundary strong {
+  color: hsl(var(--ink-2));
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.m-settings__project-boundary p {
+  margin: 4px 0 0;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.m-settings__content {
+  min-width: 0;
+  background: hsl(var(--paper));
+}
+
+.m-settings__content .set-panel {
+  box-sizing: border-box;
+  width: min(100%, 680px);
+  max-width: none;
+  min-height: calc(100dvh - var(--safe-area-top) - var(--safe-area-bottom) - 56px);
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.m-settings__content .set-panel__title {
+  font-size: 27px;
+}
+
+.m-settings__content .set-panel__sub {
+  margin-bottom: 24px;
+  font-size: 13px;
+}
+
+.m-settings__content .set-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 12px;
+  padding: 14px 0;
+}
+
+.m-settings__content .set-row__label {
+  font-size: 14px;
+}
+
+.m-settings__content .set-row__control {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.m-settings__content .set-btn,
+.m-settings__content .set-select,
+.m-settings__content button.set-field__edit {
+  min-height: 44px;
+}
+
+.m-settings__content .set-input,
+.m-settings__content input,
+.m-settings__content textarea,
+.m-settings__content select {
+  max-width: 100%;
+  min-width: 0;
+  font-size: 16px;
+}
+
+.m-settings__content .set-input--wide {
+  width: 100%;
+}
+
+.m-settings__content .set-theme-grid,
+.m-settings__content .set-font-options {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 430px) {
+  .m-settings__content .set-row:not(.set-row--top) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .m-settings__content .set-row__control {
+    justify-content: flex-start;
+  }
+
+  .m-settings__content .set-row__control > * {
+    max-width: 100%;
+  }
+
+  .m-settings__content .set-sec__head {
+    align-items: flex-start;
+  }
+
+  .m-settings__content .set-sec__head-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}

@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
-import { BookOpen, MoreHorizontal, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { BookOpen, MoreHorizontal, Pencil, Plus, Search, Settings, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { User } from '../../../store/auth';
 import type { ProjectSummary } from '../../../usecase/useProject';
@@ -23,6 +23,7 @@ interface MobileProjectShelfContentProps {
   onQueryChange: (query: string) => void;
   onFilterChange: (filter: MobileShelfFilter) => void;
   onCreate: () => void;
+  onSettings: () => void;
   onOpen: (project: ProjectSummary) => void;
   onEdit: (project: ProjectSummary) => void;
   onDelete: (project: ProjectSummary) => void;
@@ -43,6 +44,7 @@ export function MobileProjectShelfContent({
   onQueryChange,
   onFilterChange,
   onCreate,
+  onSettings,
   onOpen,
   onEdit,
   onDelete,
@@ -59,6 +61,14 @@ export function MobileProjectShelfContent({
           <h1>{t('projectPicker.header.titleEm')}</h1>
         </div>
         <div className="m-shelf__account">
+          <button
+            type="button"
+            className="m-shelf__settings"
+            onClick={onSettings}
+            aria-label={t('userMenu.settings')}
+          >
+            <Settings size={19} aria-hidden="true" />
+          </button>
           <UserAvatar
             forwardRef={avatarRef}
             initial={userInitial}

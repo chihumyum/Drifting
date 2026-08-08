@@ -13,6 +13,7 @@ import { DesktopAppShell } from '../shells/desktop/DesktopAppShell';
 import { MobileAuthPage } from '../shells/mobile/standalone/MobileAuthPage';
 import { MobileProjectShelfView } from '../shells/mobile/standalone/MobileProjectShelfView';
 import { MobileWorkspaceDeferredView } from '../shells/mobile/MobileWorkspaceDeferredView';
+import { MobileSettingsView } from '../shells/mobile/standalone/MobileSettingsView';
 import { getPlatformRuntime } from '../platform/runtime';
 import {
   DesktopAllChaptersEditorRoute,
@@ -91,6 +92,14 @@ export function AppRoutes() {
         element={
           <ProtectedRoute>
             {isMobile ? <MobileProjectShelfView /> : <ProjectPickerView />}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            {isMobile ? <MobileSettingsView /> : <Navigate to="/" replace />}
           </ProtectedRoute>
         }
       />
