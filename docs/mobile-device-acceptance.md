@@ -100,7 +100,15 @@ macOS 防火墙、server bind address 和手机的本地网络权限。
 11. Super View 内 header 可直接横向切换三个视图，关闭后回到 paper workspace；画布平移/缩放、实体打开和共享浮层不得溢出 viewport。
 12. 底部工具区的 TODO、素材库、统计、Agent、时间线和情节页都能切换；时间线可切书序/叙序，情节网格的输入、行列操作与 TSV 粘贴写入当前 node 的 `plotGridJson`，切纸再返回后仍存在。
 
-自动化说明：macOS UI 自动化可以覆盖登录、书架、项目打开、cluster 拖动/轻点、overview、设置和普通按钮/滑动。Apple Simulator 的自动化接口不提供可编排的双指触控，因此第 8 项必须在 Simulator 中按住 Option 手工 pinch，或使用真机验收；单元测试只验证手势状态机，不替代这项触摸验收。
+自动化说明：macOS UI 自动化可以覆盖登录、书架、项目打开、cluster 轻点、overview、设置和普通按钮/滑动。Apple Simulator 的宿主拖拽在 WebView 中可能合并中间的 `pointermove`；cluster 以 `pointerup` 最终位移为提交依据，纯状态机测试覆盖方向、阈值和收回逻辑，但仍需手工拖动确认连续动画。Apple Simulator 的自动化接口不提供可编排的双指触控，因此第 8 项必须在 Simulator 中按住 Option 手工 pinch，或使用真机验收；单元测试不替代触摸验收。
+
+## 2026-08-08 iOS Simulator acceptance record
+
+目标：`iPhone 17 Pro / iOS 26.1`，dev 包：`cc.drifting.client`，后端：Mac 局域网本地 Server。
+
+已通过自动化操作的链路：密码登录、Pre-Alpha 引导关闭、移动书架、项目打开、章节编辑器聚焦、paper overview、通览全书 paper、paper 重排与单张关闭、cluster 上下拖动与停靠、顶部章节/元素/灵感切换、底部 TODO/素材/统计/Agent/时间线/情节切换、书序/叙序切换、上下 panel 全屏展开与收回、缩小态相邻 paper 横滑和轻点复位、三个 Super View 打开与页头直切、设置列表与外观子页往返、返回书架并重新进入项目恢复会话。运行期间未出现 renderer/dev server 错误。
+
+仍保留为人工边界：双指上下半区 pinch、cluster 与 panel handle 的逐帧跟手观感、情节网格 TSV/IME 实际写入、iOS 真机的 IME/安全区/后台恢复，以及全部 Android 验收。当前记录不能替代这些项目，也不能据此宣称移动端整体真机验收完成。
 
 调试 WebView：iOS 使用 Safari 的 Develop 菜单（真机还需启用 Web Inspector）；Android 在 Chrome
 打开 `chrome://inspect`，选择 `cc.drifting.client` 对应的 WebView。

@@ -2,11 +2,11 @@
 
 ## Verdict
 
-当前代码**具备开始开发移动端 UI 的架构基础，但不具备宣称移动端 UI 已完成的产品基础**。
+当前代码已经具备独立的移动端产品路径：认证、书架、全局设置和 paper workspace 都由 mobile shell 组合，共享项目运行时、领域组件和数据层，不再把桌面 shell 压窄后当作移动端。paper session、上下文 panel、overview 和 Super View 路由已经实现并通过静态门禁与 iOS Simulator 主链路验收。
 
 桌面 UI 现在由 `shells/desktop/DesktopAppShell` 独立组合；共享项目运行时位于 `app/providers/ProjectRuntimeProvider`，feature 通过 `WorkspaceNavigator` 端口导航，不再直接依赖桌面 `ui-store`。Graph、Super Views 与 Bottom Timeline 等指针密集型实现也已经迁入 desktop 路径。这使未来新增平级 `MobileAppShell` 时不需要继续给桌面组件堆叠 `isMobile` 分支。
 
-本次只完成结构隔离和代码级验收，没有开发移动端 shell。响应式缩窄仍不等于移动交互设计，现阶段不能把能编译、能在窄窗口显示或存在 touch handler 当作 iOS/Android 可用性证据。完整所有权和依赖规则见 [`renderer-ui-architecture.md`](renderer-ui-architecture.md)。
+这仍不等于“移动端全部真机完成”：双指 pinch、连续 cluster/panel 拖动、IME、安全区、前后台恢复和 Android 尚保留人工边界。完整所有权和依赖规则见 [`renderer-ui-architecture.md`](renderer-ui-architecture.md)，逐项设备证据见 [`mobile-device-acceptance.md`](mobile-device-acceptance.md)。
 
 ## What is already reusable
 
@@ -21,22 +21,19 @@
 | Pointer groundwork     | 时间线已有 pinch handlers，部分 graph/material/editor 操作使用 Pointer Events                                                              | 说明输入层可扩展，但桌面专属动作仍很多      |
 | Visual hierarchy       | 手机上可收起左右栏，主稿纸成为唯一核心工作面；打开工具时再覆盖出来                                                                         | 与单任务移动工作流方向一致                  |
 
-## Missing product foundations
+## Remaining product acceptance gaps
 
-1. **移动信息架构**：手机不应同时展示三块工作面。需要明确“稿纸 / 左工具 / 右工具”的单屏导航、返回路径，以及 topbar/footer 在手机上的职责。桌面迁入 topbar 的 7 个工作区动作目前会在窄屏隐藏，尚缺恢复它们的 mobile action menu/sheet。
-2. **触摸尺寸系统**：当前仍有大量 `20–36px` 的桌面密度控件；尚无统一的 coarse-pointer target token、`44/48px` 操作热区或相邻目标间距规则。
-3. **软键盘与编辑器**：尚无围绕 `visualViewport`、IME 遮挡、selection/caret 滚动、键盘弹出后的 footer/dock 归位所形成的验收闭环。
-4. **桌面动作替代**：right-click、double-click、hover-only reveal、精细 drag/drop 与鼠标滚轮缩放需要长按、显式菜单、拖拽手柄或移动专用流程。
-5. **高密度模块策略**：Story Graph、Bottom Timeline、Plot Planner、全书编辑和多栏 review 不能只等比压缩；需要各自的移动简化视图或分步操作。
-6. **真实设备证据**：仍需 iOS/Android 上的视觉、触摸、IME、旋转、安全区、后台恢复和性能验收。Web build、静态测试与 simulator compile 都不能替代这些检查。
+1. **连续触摸手势**：上下半区 pinch、cluster 拖动、panel handle 和缩小态横滑仍需 Simulator 手工或真机验收；状态机测试只证明方向和阈值。
+2. **软键盘与编辑器**：仍需围绕 `visualViewport`、IME 遮挡、selection/caret 滚动和键盘弹出后的 cluster 归位形成 iOS/Android 真机闭环。
+3. **高密度模块深层操作**：Story Graph、Timeline、Plot Grid 和 Agent 已可进入，但实体编辑、长按替代、画布触控和 TSV/IME 写入仍需逐项设备回归。
+4. **真实设备证据**：仍需 iOS/Android 上的旋转、安全区、后台恢复、断网恢复和性能验收。Web build、静态测试与 Simulator 主链路不能替代这些检查。
 
-## Recommended implementation order
+## Remaining acceptance order
 
-1. 建立 mobile primitives：breakpoint/target tokens、`44/48px` 热区、mobile sheet、action menu、safe-area 与 keyboard inset utilities。
-2. 重做 app shell：手机默认只显示稿纸，左右工具成为互斥 sheet；定义紧凑 topbar 与 editor-width footer。
-3. 打通编辑主链：选章、写作、查找、评论、Copilot/General Agent review、保存与 IME。
-4. 为 Graph、Timeline、Plot Planner 设计触摸优先的降维交互，而不是复刻桌面画布。
-5. 在至少一台 iPhone 与一台 Android 真机上关闭视觉/触摸/键盘/恢复 acceptance，再扩大移动功能面。
+1. 在 Simulator 手工关闭 pinch、cluster、panel handle、缩小态横滑和画布触控清单。
+2. 在一台 iPhone 上关闭编辑 IME、安全区、前后台与断网恢复清单。
+3. 在 Android 模拟器和一台 Android 真机上重复导航、手势、IME 与系统栏验收。
+4. 根据设备结果再决定 Graph、Timeline、Plot Grid 是否需要进一步的移动专用降维界面。
 
 ## Acceptance boundary
 
@@ -79,5 +76,7 @@ Project Picker 的新建/编辑/删除 Sheet、Beta Closed dialog、Global Searc
 编辑态只挂载一张完整 paper，避免在手机内存中同时保活多个 ProseMirror/Yjs editor。双指向内捏合手势以上半区/下半区的起始中点判定揭示底部工具区/顶部结构区；中心死区与缩放阈值避免普通滚动和输入误触。底部 paper cluster 复用同一个 reveal state，可拖动缩放 paper，轻点进入 paper overview。paper 缩小后仅渲染相邻纸张的轻量摘要，并通过横向滑动切换；overview 负责全部 paper 的激活、关闭和顺序管理。
 
 顶部结构区由移动壳层组合章节、元素、灵感入口；底部工具区复用 TODO、素材库、统计、Agent 能力，并提供可切书序/叙序的移动 timeline 与复用同一 `plotGridJson` 的情节网格。上下 panel 的边界 handle 可以从约三成高度继续拉到全屏，再反向拉回或关闭，承载长列表、Agent 对话与 mini-Excel 编辑，而不会重新引入桌面左右栏。Super View 从 overview 进入，复用共享画布/图数据与 desktop 实现，同时通过 `SuperViewNavigationContext` 注入移动端的打开、切换、关闭状态，避免依赖 desktop shell 的 Super View store。overview 支持激活、关闭、全部关闭和重排 paper；设置页记录工作区来源，关闭后返回原 paper URL；书架仍为工作区的独立边界。
+
+设备回归补充了两项移动宿主约束：cluster 和 panel handle 的最终停靠直接根据 `pointerup` 位移计算，避免 WebKit 合并快速拖动的中间 `pointermove` 后误判为轻点；上下 context workspace 互斥可见，full-bottom panel 额外避让顶部安全区。Super View 页头在手机上把三个入口固定在第一行，视图自身控件在后续行横向滚动。元素全景与叙事结构图继续复用画布；非画布型 TODO/素材库复用同一业务组件，但在 mobile host 中改为上下堆叠。
 
 机器验收覆盖 paper reducer、持久化归一化、路由解析、pinch 区域/阈值和 renderer import boundary；`pnpm --dir client typecheck`、定向 Vitest 与 renderer production build 是最低门禁。模拟器能验证单点触控、登录、导航、cluster、overview、Super View 与设置链路，但自动化驱动不能合成原生多点触控，因此 pinch 仍需真机或 Simulator 手工按住 Option 验收，不能由 reducer 测试冒充。

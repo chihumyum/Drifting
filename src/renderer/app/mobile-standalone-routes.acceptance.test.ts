@@ -37,6 +37,7 @@ describe('mobile standalone routes', () => {
     const plotGrid = rendererSource('components/editor/PlotGrid.tsx');
     const session = rendererSource('shells/mobile/workspace/mobile-workspace-session.ts');
     const pinch = rendererSource('shells/mobile/workspace/usePaperPinch.ts');
+    const cluster = rendererSource('shells/mobile/workspace/paper-cluster-gesture.ts');
     const css = fs.readFileSync(path.join(stylesRoot, 'mobile-workspace.css'), 'utf8');
     expect(session).toContain("case 'open'");
     expect(session).toContain("case 'reorder'");
@@ -51,10 +52,31 @@ describe('mobile standalone routes', () => {
     expect(pinch).toContain('paperRevealForMidpoint');
     expect(pinch).toContain("return 'bottom'");
     expect(pinch).toContain("return 'top'");
+    expect(cluster).toContain('paperClusterDestination');
+    expect(paperDeck).toContain('paperClusterDestination(drag.start, event.clientY - drag.y)');
+    expect(panels).toContain('!drag.moved && Math.abs(dy) <= 5');
     expect(css).toContain('touch-action: pan-y');
     expect(css).toContain(".m-workspace[data-reveal='bottom']");
+    expect(css).toContain('visibility: hidden');
+    expect(css).toContain('visibility: visible');
     expect(css).toContain(".m-workspace[data-full-panel='top']");
+    expect(css).toContain(".m-workspace[data-full-panel='bottom'] .m-context-workspace--tools");
     expect(css).not.toContain('touch-action: none;\n  overscroll-behavior');
+  });
+
+  it('keeps all three Super View destinations directly reachable in the mobile header', () => {
+    const header = rendererSource('shells/desktop/components/DesktopSuperViewHeader.tsx');
+    const memoMaterial = rendererSource('shells/desktop/views/DesktopSuperMemoMaterialView.tsx');
+    const css = fs.readFileSync(path.join(stylesRoot, 'mobile-workspace.css'), 'utf8');
+    expect(header).toContain("id: 'element'");
+    expect(header).toContain("id: 'graph'");
+    expect(header).toContain("id: 'memo-material'");
+    expect(css).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
+    expect(css).toContain('flex: 1 1 calc(100% - 32px)');
+    expect(css).toContain('.m-super-view-host .super-view-head__right');
+    expect(memoMaterial).toContain('className="smm-workspace-split"');
+    expect(css).toContain('.super-mm-overlay .smm-workspace-split');
+    expect(css).toContain('flex-direction: column');
   });
 
   it('keeps mobile auth in the mobile shell path and reuses the auth flow', () => {

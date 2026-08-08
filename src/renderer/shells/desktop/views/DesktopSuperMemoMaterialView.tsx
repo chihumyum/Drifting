@@ -308,7 +308,7 @@ export function DesktopSuperMemoMaterialView() {
       {/* One continuous body surface wraps the rail/main split and drawer
           above the shared status strip. */}
       <div className="super-view-body">
-        <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        <div className="smm-workspace-split" style={{ flex: 1, minHeight: 0, display: 'flex' }}>
           <TodoRail
             openTodos={openTodos}
             commentUsecases={commentUsecases}
@@ -438,6 +438,7 @@ export function DesktopSuperMemoMaterialView() {
 function ToolbarDivider() {
   return (
     <div
+      className="smm-todo-rail"
       style={{
         width: 1,
         height: 20,
@@ -664,6 +665,7 @@ function TodoRail({
 
   return (
     <div
+      className="smm-library-main"
       style={{
         width: TODO_RAIL_WIDTH,
         flexShrink: 0,
@@ -845,6 +847,7 @@ function LibraryItemMain({
           the new-material action on the right. Taller than the default
           SectionHeader because it needs to host the filter group inline. */}
       <div
+        className="smm-library-toolbar"
         style={{
           minHeight: 38,
           flexShrink: 0,
@@ -900,6 +903,7 @@ function LibraryItemMain({
           {totalVisible} / {totalLibraryItems}
         </span>
         <button
+          className="smm-library-toolbar__create"
           onClick={onCompose}
           title={t('memoMaterial.dialog.newMaterial')}
           style={{

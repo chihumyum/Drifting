@@ -56,7 +56,7 @@ function PanelResizeHandle({
     if (!drag) return;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     const dy = event.clientY - drag.y;
-    if (!drag.moved) {
+    if (!drag.moved && Math.abs(dy) <= 5) {
       onFullChange(!full);
       return;
     }

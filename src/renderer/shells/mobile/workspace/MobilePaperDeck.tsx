@@ -5,15 +5,12 @@ import type { MobilePaper, MobileWorkspaceSessionState } from './mobile-workspac
 import { adjacentPaper } from './mobile-workspace-session';
 import { MobilePaperContent, useMobilePaperPresentation } from './MobilePaperContent';
 import { MobileWorkspacePanels } from './MobileWorkspacePanels';
+import { paperClusterDestination, paperClusterPreview } from './paper-cluster-gesture';
 import { usePaperPinch, type PaperReveal } from './usePaperPinch';
 
 interface PreviewState {
   target: Exclude<PaperReveal, 'focused'>;
   progress: number;
-}
-
-function clamp(value: number): number {
-  return Math.max(0, Math.min(1, value));
 }
 
 function AdjacentPaperPreview({ paper, side }: { paper: MobilePaper; side: 'left' | 'right' }) {
@@ -41,7 +38,7 @@ export function MobilePaperDeck({
 }) {
   const { t } = useTranslation();
   const rootRef = useRef<HTMLElement | null>(null);
-  const clusterDragRef = useRef<{ y: number; start: PaperReveal; moved: boolean } | null>(null);
+  const clusterDragRef = useRef<{ y: number; start: PaperReveal } | null>(null);
   const paperSwipeRef = useRef<{ x: number; y: number } | null>(null);
   const [reveal, setReveal] = useState<PaperReveal>('focused');
   const [preview, setPreview] = useState<PreviewState | null>(null);
@@ -70,14 +67,7 @@ export function MobilePaperDeck({
     const drag = clusterDragRef.current;
     if (!drag) return;
     const dy = event.clientY - drag.y;
-    if (Math.abs(dy) > 5) drag.moved = true;
-    if (drag.start === 'focused') {
-      const target = dy < 0 ? 'bottom' : 'top';
-      setPreview({ target, progress: clamp(Math.abs(dy) / 150) });
-      return;
-    }
-    const closingDelta = drag.start === 'bottom' ? Math.max(0, dy) : Math.max(0, -dy);
-    setPreview({ target: drag.start, progress: clamp(1 - closingDelta / 150) });
+    setPreview(paperClusterPreview(drag.start, dy));
   };
 
   const clusterUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -85,13 +75,13 @@ export function MobilePaperDeck({
     if (!drag) return;
     clusterDragRef.current = null;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
-    if (!drag.moved) {
+    const destination = paperClusterDestination(drag.start, event.clientY - drag.y);
+    if (destination === null) {
       setPreview(null);
       onOpenOverview();
       return;
     }
-    const next = preview && preview.progress >= 0.4 ? preview.target : 'focused';
-    commitReveal(next);
+    commitReveal(destination);
   };
 
   const paperSwipeUp = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -173,7 +163,7 @@ export function MobilePaperDeck({
           aria-label={t('mobileWorkspace.paperCluster', { defaultValue: '纸张控制与总览' })}
           onPointerDown={(event) => {
             event.stopPropagation();
-            clusterDragRef.current = { y: event.clientY, start: reveal, moved: false };
+            clusterDragRef.current = { y: event.clientY, start: reveal };
             event.currentTarget.setPointerCapture(event.pointerId);
           }}
           onPointerMove={clusterMove}
