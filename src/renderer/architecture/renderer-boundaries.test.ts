@@ -32,6 +32,14 @@ describe('renderer ownership boundaries', () => {
     }
   });
 
+  it('keeps mobile shell code independent from desktop shell and desktop navigation state', () => {
+    for (const file of sourceFiles('shells/mobile')) {
+      const contents = fs.readFileSync(file, 'utf8');
+      expect(contents, file).not.toMatch(/from ['"][^'"]*shells\/desktop/);
+      expect(contents, file).not.toMatch(/from ['"][^'"]*store\/ui-store/);
+    }
+  });
+
   it('keeps the app entry small and delegates project UI to DesktopAppShell', () => {
     const app = source('App.tsx');
     expect(app.split('\n').length).toBeLessThanOrEqual(120);

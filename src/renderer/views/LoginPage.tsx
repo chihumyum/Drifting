@@ -102,9 +102,10 @@ function LoginQuickToggles() {
 
 interface LoginPageProps {
   initialMode?: Exclude<Mode, 'forgot'>;
+  presentation?: 'desktop' | 'mobile';
 }
 
-export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
+export function LoginPage({ initialMode = 'signin', presentation = 'desktop' }: LoginPageProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const adoptSession = useAuthStore((state) => state.adoptSession);
@@ -207,11 +208,23 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
     }
   };
 
+  const isMobilePresentation = presentation === 'mobile';
+
   return (
-    <div className="signin">
+    <div className={`signin${isMobilePresentation ? ' signin--mobile' : ''}`}>
       <LoginQuickToggles />
+      {isMobilePresentation && (
+        <header className="si-mobile-brand">
+          <div className="si-brand">
+            <span className="si-brand__name">Drifting</span>
+            <span className="si-brand__sep">/</span>
+            <span className="si-brand__cn">{t('auth.brand.cn')}</span>
+          </div>
+          <p>{t('auth.hero.body')}</p>
+        </header>
+      )}
       {/* Brand and product context */}
-      <aside className="si-left">
+      {!isMobilePresentation && <aside className="si-left">
         <div className="si-brand">
           <span className="si-brand__name">Drifting</span>
           <span className="si-brand__sep">/</span>
@@ -278,7 +291,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
           </span>
           <span>{t('auth.hero.footer')}</span>
         </div>
-      </aside>
+      </aside>}
 
       {/* Focused authentication task */}
       <main className="si-right">
@@ -344,11 +357,12 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                 <input
                   className="si-field__input"
                   placeholder={t('auth.fields.penNamePlaceholder')}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={isSubmitting}
-                  required
-                  autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={isSubmitting}
+                required
+                autoComplete="name"
+                autoFocus
                 />
               </div>
             )}
@@ -363,6 +377,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isSubmitting}
                 required
+                autoComplete="email"
                 autoFocus={mode === 'signin'}
               />
             </div>
@@ -382,6 +397,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isSubmitting}
                 required
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                 minLength={mode === 'signup' ? 10 : undefined}
               />
             </div>

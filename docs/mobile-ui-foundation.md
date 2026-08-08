@@ -41,3 +41,11 @@
 ## Acceptance boundary
 
 本轮按约定只执行 TypeScript、lint、Vitest、renderer build 与能力清单检查；桌面 UI 由用户后续手工回归。本文档与静态测试只确认“可以开始开发”的结构前提。除非未来真实 iOS 与 Android 设备完成手工验收，不得把当前状态描述为 mobile-ready、touch-ready 或 mobile-native UX complete。
+
+## Standalone mobile surfaces
+
+### Milestone 1: authentication entry
+
+原生 platform runtime 现在在 `/login` 与 `/register` 选择移动认证 presentation；桌面路由和项目工作区保持原样。移动认证复用既有登录、注册、OTP、密码重置、OAuth callback 和 session adoption 流程，但由 `shells/mobile/standalone/MobileAuthPage` 提供独立入口，并拥有 safe-area、`100dvh`、48px 操作热区和防止移动浏览器输入缩放的 16px 表单字号。
+
+该里程碑只证明移动认证结构、打包和静态交互合同成立。软键盘、系统密码管理器、OTP 自动填充、OAuth deep link 和真实设备视觉仍需 iOS/Android 手工验收。

@@ -10,6 +10,8 @@ import { ProjectPickerView } from '../views/ProjectPickerView';
 import { ProjectDashboard } from '../views/ProjectDashboard';
 import { EditorShell } from '../views/EditorShell';
 import { DesktopAppShell } from '../shells/desktop/DesktopAppShell';
+import { MobileAuthPage } from '../shells/mobile/standalone/MobileAuthPage';
+import { getPlatformRuntime } from '../platform/runtime';
 import {
   DesktopAllChaptersEditorRoute,
   DesktopCategoryEditorRoute,
@@ -63,13 +65,14 @@ function PublicRoute({ children }: { children: ReactNode }) {
 }
 
 export function AppRoutes() {
+  const isMobile = getPlatformRuntime().isMobile;
   return (
     <Routes>
       <Route
         path="/login"
         element={
           <PublicRoute>
-            <LoginPage />
+            {isMobile ? <MobileAuthPage initialMode="signin" /> : <LoginPage />}
           </PublicRoute>
         }
       />
@@ -77,7 +80,7 @@ export function AppRoutes() {
         path="/register"
         element={
           <PublicRoute>
-            <RegisterPage />
+            {isMobile ? <MobileAuthPage initialMode="signup" /> : <RegisterPage />}
           </PublicRoute>
         }
       />
