@@ -106,7 +106,7 @@ macOS 防火墙、server bind address 和手机的本地网络权限。
 
 目标：`iPhone 17 Pro / iOS 26.1`，dev 包：`cc.drifting.client`，后端：Mac 局域网本地 Server。
 
-已通过自动化操作的链路：密码登录、Pre-Alpha 引导关闭、移动书架、项目打开、章节编辑器聚焦、paper overview、通览全书 paper、paper 重排与单张关闭、cluster 上下拖动与停靠、顶部章节/元素/灵感切换、底部 TODO/素材/统计/Agent/时间线/情节切换、书序/叙序切换、上下 panel 全屏展开与收回、缩小态相邻 paper 横滑和轻点复位、三个 Super View 打开与页头直切、设置列表与外观子页往返、返回书架并重新进入项目恢复会话。运行期间未出现 renderer/dev server 错误。
+已通过自动化操作的链路：密码登录、Pre-Alpha 引导完整显示与关闭、移动书架、项目打开、章节编辑器聚焦、paper overview、通览全书 paper、paper 重排与单张关闭、cluster 上下拖动与停靠、顶部章节/元素/灵感切换、底部 TODO/素材/统计/Agent/时间线/情节切换、书序/叙序切换、上下 panel 全屏展开与收回、缩小态相邻 paper 横滑和轻点复位、三个 Super View 打开与页头直切、设置列表与外观子页往返、返回书架并重新进入项目恢复会话。运行期间未出现 renderer/dev server 错误。
 
 仍保留为人工边界：双指上下半区 pinch、cluster 与 panel handle 的逐帧跟手观感、情节网格 TSV/IME 实际写入、iOS 真机的 IME/安全区/后台恢复，以及全部 Android 验收。当前记录不能替代这些项目，也不能据此宣称移动端整体真机验收完成。
 

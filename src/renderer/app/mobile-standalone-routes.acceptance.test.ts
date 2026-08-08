@@ -140,6 +140,8 @@ describe('mobile standalone routes', () => {
     expect(controls).toContain('grid-template-columns: minmax(0, 1fr)');
     expect(controls).toContain('width: min(100%, var(--modal-card-width, 520px))');
     expect(controls).toContain("html[data-platform-target='mobile'] .modal-root");
+    expect(controls).toContain("html[data-platform-target='mobile'] .modal-root__dialog");
+    expect(controls).toContain('height: 100%');
     expect(controls).toContain('max(12px, var(--safe-area-left))');
     expect(controls).toContain('min-height: 48px');
     expect(patchModal).toContain('patch-create-modal__overlay');

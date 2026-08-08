@@ -679,6 +679,11 @@ html[data-platform-target='mobile'] .modal-card {
   max-height: 100%;
 }
 
+html[data-platform-target='mobile'] .modal-root__dialog {
+  height: 100%;
+  min-height: 0;
+}
+
 html[data-platform-target='mobile'] .modal-header {
   padding: 16px 14px 12px;
 }
