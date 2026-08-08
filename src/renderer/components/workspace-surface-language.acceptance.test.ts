@@ -649,15 +649,14 @@ describe('workspace surface language acceptance', () => {
     ).toMatch(/border-radius:\s*0;[\s\S]*?box-shadow:\s*none;/);
   });
 
-  it('records an honest mobile starting point without claiming touch readiness', () => {
+  it('records the shipped mobile product path without claiming touch readiness', () => {
     const readme = source('README.md');
     const mobileDoc = source('docs/mobile-ui-foundation.md');
     const css = source('src/styles/index.css');
 
     expect(readme).toContain('docs/mobile-ui-foundation.md');
-    expect(mobileDoc).toContain(
-      '具备开始开发移动端 UI 的架构基础，但不具备宣称移动端 UI 已完成的产品基础',
-    );
+    expect(mobileDoc).toContain('当前代码已经具备独立的移动端产品路径');
+    expect(mobileDoc).toContain('不得把当前状态描述为 mobile-ready');
     expect(mobileDoc).toContain('44/48px');
     expect(mobileDoc).toContain('visualViewport');
     expect(mobileDoc).toContain('真实 iOS 与 Android 设备完成手工验收');

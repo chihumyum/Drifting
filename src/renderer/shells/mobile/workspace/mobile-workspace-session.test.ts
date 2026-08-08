@@ -45,7 +45,7 @@ describe('mobile workspace paper session', () => {
   });
 
   it('normalizes duplicate and invalid persisted papers', () => {
-    const persisted = { key: 'old', target: chapter('a') };
+    const persisted = { key: 'old', target: chapter('a'), scrollTop: -12 };
     const state = normalizeMobileWorkspaceSession({
       papers: [
         persisted,
@@ -56,7 +56,27 @@ describe('mobile workspace paper session', () => {
       activeKey: 'missing',
     } as never);
     expect(state.papers.map((paper) => paper.key)).toEqual(['node:a', 'node:b']);
+    expect(state.papers.map((paper) => paper.scrollTop)).toEqual([0, 0]);
     expect(state.activeKey).toBe('node:a');
     expect(persisted.key).toBe('old');
+  });
+
+  it('remembers an independent non-negative scroll position for every paper', () => {
+    let state = mobileWorkspaceSessionReducer(EMPTY_MOBILE_WORKSPACE_SESSION, {
+      type: 'open',
+      target: chapter('a'),
+    });
+    state = mobileWorkspaceSessionReducer(state, { type: 'open', target: chapter('b') });
+    state = mobileWorkspaceSessionReducer(state, {
+      type: 'remember-scroll',
+      key: 'node:a',
+      scrollTop: 840,
+    });
+    state = mobileWorkspaceSessionReducer(state, {
+      type: 'remember-scroll',
+      key: 'node:b',
+      scrollTop: -20,
+    });
+    expect(state.papers.map((paper) => paper.scrollTop)).toEqual([840, 0]);
   });
 });

@@ -73,10 +73,12 @@ Project Picker 的新建/编辑/删除 Sheet、Beta Closed dialog、Global Searc
 
 移动 target 打开项目后由独立 `MobileAppShell` 挂载共享 `ProjectRuntimeProvider`，不再进入 deferred 页面。移动壳层以持久化 paper session 代替桌面 tab store：章节、灵感、故事线、元素、元素分类、项目概览与通览全书共享同一套 `WorkspaceTarget` / `WorkspaceNavigator` 契约，但移动端独立负责打开、激活、关闭、重排、相邻切换和 URL 同步。feature 仍只请求 shell-neutral navigation，不读取移动或桌面 UI store。
 
-编辑态只挂载一张完整 paper，避免在手机内存中同时保活多个 ProseMirror/Yjs editor。双指向内捏合手势以上半区/下半区的起始中点判定揭示底部工具区/顶部结构区；中心死区与缩放阈值避免普通滚动和输入误触。底部 paper cluster 复用同一个 reveal state，可拖动缩放 paper，轻点进入 paper overview。paper 缩小后仅渲染相邻纸张的轻量摘要，并通过横向滑动切换；overview 负责全部 paper 的激活、关闭和顺序管理。
+编辑态只挂载一张完整 paper，避免在手机内存中同时保活多个 ProseMirror/Yjs editor。双指向内捏合手势以上半区/下半区的起始中点判定揭示底部工具区/顶部结构区；中心死区与缩放阈值避免普通滚动和输入误触。paper 缩小后不再覆盖一层拦截器，因此原编辑器仍可滚动、选区和编辑，只是随 paper 等比缩小。底部 paper cluster 轻点进入 overview，但垂直缩放拖动必须先长按 280ms 武装，普通划过不会改变 reveal state。缩小态只渲染相邻纸张的轻量摘要，横滑以两段 180ms linear 位移切换真正的 active paper；每张 paper 独立持久化 `scrollTop`，切回时恢复上次阅读/编辑位置。overview 负责全部 paper 的激活、关闭和顺序管理。
 
-顶部结构区由移动壳层组合章节、元素、灵感入口；底部工具区复用 TODO、素材库、统计、Agent 能力，并提供可切书序/叙序的移动 timeline 与复用同一 `plotGridJson` 的情节网格。上下 panel 的边界 handle 可以从约三成高度继续拉到全屏，再反向拉回或关闭，承载长列表、Agent 对话与 mini-Excel 编辑，而不会重新引入桌面左右栏。Super View 从 overview 进入，复用共享画布/图数据与 desktop 实现，同时通过 `SuperViewNavigationContext` 注入移动端的打开、切换、关闭状态，避免依赖 desktop shell 的 Super View store。overview 支持激活、关闭、全部关闭和重排 paper；设置页记录工作区来源，关闭后返回原 paper URL；书架仍为工作区的独立边界。
+顶部结构区不再把桌面左栏竖向列表原样搬到窄屏：左侧是竖排 tab rail，右侧是横向信息面。章节与灵感是可横滑的书架；元素默认是可纵向滚动的分类网格，并保留横向书架列表作为可选视图。点击这些 cell 只会打开移动端只读 Sheet，展示摘要、故事线/分组、状态、字数、关联和更新时间；用户只有在 Sheet 中明确点击“插入一张纸”才会打开编辑器。底部工具区同样使用左侧竖排 tab + 右侧宽内容，复用 TODO、素材库、统计、Agent 能力，并提供可切书序/叙序的移动 timeline 与复用同一 `plotGridJson` 的情节网格。上下 panel 的边界 handle 可以从约三成高度继续拉到全屏，再反向拉回或关闭。
+
+Super View 从 overview 进入，复用共享画布/图数据与 desktop 实现，同时通过 `SuperViewNavigationContext` 注入移动端的打开、切换、关闭状态，避免依赖 desktop shell 的 Super View store。mobile target 从 viewport meta 与 WebKit `gesture*` 事件两层阻止 WebView 默认页面缩放，元素全景则以自己的 Pointer Events 双指状态机更新 canvas pan/zoom，不与宿主页面 zoom 竞争。overview 支持激活、关闭、全部关闭和重排 paper；设置页记录工作区来源，关闭后返回原 paper URL；书架仍为工作区的独立边界。
 
 设备回归补充了两项移动宿主约束：cluster 和 panel handle 的最终停靠直接根据 `pointerup` 位移计算，避免 WebKit 合并快速拖动的中间 `pointermove` 后误判为轻点；上下 context workspace 互斥可见，full-bottom panel 额外避让顶部安全区。Super View 页头在手机上把三个入口固定在第一行，视图自身控件在后续行横向滚动。元素全景与叙事结构图继续复用画布；非画布型 TODO/素材库复用同一业务组件，但在 mobile host 中改为上下堆叠。
 
-机器验收覆盖 paper reducer、持久化归一化、路由解析、pinch 区域/阈值和 renderer import boundary；`pnpm --dir client typecheck`、定向 Vitest 与 renderer production build 是最低门禁。模拟器能验证单点触控、登录、导航、cluster、overview、Super View 与设置链路，但自动化驱动不能合成原生多点触控，因此 pinch 仍需真机或 Simulator 手工按住 Option 验收，不能由 reducer 测试冒充。
+机器验收覆盖 paper reducer、逐纸滚动位置、持久化归一化、路由解析、两段式只读 Sheet 绑定、横向布局合同、pinch 区域/阈值、WebView zoom guard 和 renderer import boundary；`pnpm --dir client typecheck`、定向 Vitest 与 renderer production build 是最低门禁。这些静态与状态机证据不能证明长按时长、线性动画观感、双指画布缩放或 IME 在真机上已验收；原生多点触控仍需真机或 Simulator 手工按住 Option 验收。

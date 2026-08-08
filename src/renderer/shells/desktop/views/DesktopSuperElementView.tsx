@@ -1364,6 +1364,13 @@ export function DesktopSuperElementView() {
   const [zoom, setZoom] = useState(1);
   const isPanningRef = useRef(false);
   const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+  const touchPointsRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{
+    startDistance: number;
+    startZoom: number;
+    worldX: number;
+    worldY: number;
+  } | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   // Refs mirror the latest pan/zoom for the native wheel listener (registered
   // once, no React closure deps) so it always sees fresh values.
@@ -1708,6 +1715,32 @@ export function DesktopSuperElementView() {
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.pointerType === 'touch') {
+        const points = touchPointsRef.current;
+        points.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (points.size === 2) {
+          const [a, b] = [...points.values()];
+          const rect = e.currentTarget.getBoundingClientRect();
+          const midpoint = {
+            x: (a.x + b.x) / 2 - rect.left,
+            y: (a.y + b.y) / 2 - rect.top,
+          };
+          const startZoom = zoomRef.current;
+          pinchRef.current = {
+            startDistance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+            startZoom,
+            worldX: (midpoint.x - panRef.current.x) / startZoom,
+            worldY: (midpoint.y - panRef.current.y) / startZoom,
+          };
+          isPanningRef.current = false;
+          panStartRef.current = null;
+          for (const pointerId of points.keys()) {
+            e.currentTarget.setPointerCapture(pointerId);
+          }
+          setPanningVisual(true);
+          return;
+        }
+      }
       // Middle-click → always pan.
       // Left-click → pan UNLESS the target is an explicitly interactive
       // descendant (element card, edge hit-target, header button, modal,
@@ -1740,13 +1773,39 @@ export function DesktopSuperElementView() {
         panX: panRef.current.x,
         panY: panRef.current.y,
       };
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      e.currentTarget.setPointerCapture(e.pointerId);
       setPanningVisual(true);
     },
     [setPanningVisual],
   );
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.pointerType === 'touch' && touchPointsRef.current.has(e.pointerId)) {
+        touchPointsRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        const pinch = pinchRef.current;
+        if (pinch && touchPointsRef.current.size >= 2) {
+          const [a, b] = [...touchPointsRef.current.values()];
+          const rect = e.currentTarget.getBoundingClientRect();
+          const midpoint = {
+            x: (a.x + b.x) / 2 - rect.left,
+            y: (a.y + b.y) / 2 - rect.top,
+          };
+          const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+          let nextZoom = Math.max(
+            ZOOM_MIN,
+            Math.min(ZOOM_MAX, pinch.startZoom * (distance / pinch.startDistance)),
+          );
+          nextZoom = clampZoomForSticky(nextZoom);
+          panRef.current = {
+            x: clampPanXForSticky(midpoint.x - pinch.worldX * nextZoom, nextZoom),
+            y: clampPanYForSticky(midpoint.y - pinch.worldY * nextZoom, nextZoom),
+          };
+          zoomRef.current = nextZoom;
+          applyTransform();
+          e.preventDefault();
+          return;
+        }
+      }
       if (!isPanningRef.current || !panStartRef.current) return;
       const start = panStartRef.current;
       const rawX = start.panX + (e.clientX - start.x);
@@ -1759,15 +1818,46 @@ export function DesktopSuperElementView() {
       // committed pan state catches up at pointerUp.
       applyTransform();
     },
-    [applyTransform, clampPanXForSticky, clampPanYForSticky],
+    [applyTransform, clampPanXForSticky, clampPanYForSticky, clampZoomForSticky],
   );
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.pointerType === 'touch') {
+        const points = touchPointsRef.current;
+        points.delete(e.pointerId);
+        if (pinchRef.current) {
+          pinchRef.current = null;
+          setPan(panRef.current);
+          setZoom(zoomRef.current);
+          setPanningVisual(false);
+          window.dispatchEvent(new Event('super-element:pan-end'));
+          const remaining = [...points.values()][0];
+          if (remaining) {
+            isPanningRef.current = true;
+            panStartRef.current = {
+              x: remaining.x,
+              y: remaining.y,
+              panX: panRef.current.x,
+              panY: panRef.current.y,
+            };
+            setPanningVisual(true);
+          } else {
+            isPanningRef.current = false;
+            panStartRef.current = null;
+          }
+          try {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          } catch {
+            /* pointer capture may already be gone */
+          }
+          return;
+        }
+      }
       if (!isPanningRef.current) return;
       isPanningRef.current = false;
       panStartRef.current = null;
       try {
-        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        e.currentTarget.releasePointerCapture(e.pointerId);
       } catch {
         /* element may have lost capture mid-drag — ignore */
       }
@@ -2260,6 +2350,7 @@ export function DesktopSuperElementView() {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         style={{
           flex: 1,
           position: 'relative',

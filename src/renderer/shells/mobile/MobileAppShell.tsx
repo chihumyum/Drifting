@@ -20,7 +20,7 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
   const location = useLocation();
   const bookNodes = useDataStore((state) => state.bookNodes);
-  const { state, navigator, open, activate, close, clear, reorder } =
+  const { state, navigator, open, activate, close, clear, reorder, rememberScroll } =
     useMobileWorkspaceSession(projectId);
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [activeSuperView, setActiveSuperView] = useState<MobileSuperViewId | null>(null);
@@ -43,6 +43,8 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
         projectId={projectId}
         session={state}
         onActivate={(paper) => activate(paper.target)}
+        onOpenPaper={open}
+        onRememberScroll={rememberScroll}
         onOpenOverview={() => setOverviewOpen(true)}
       />
 

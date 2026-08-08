@@ -8,11 +8,15 @@ import {
 } from 'react';
 import {
   Bot,
+  BookOpenText,
   ChartNoAxesColumn,
+  Grid2X2,
   GripHorizontal,
   Library,
   ListTodo,
   Milestone,
+  Rows3,
+  Shapes,
   Sparkles,
   TableProperties,
 } from 'lucide-react';
@@ -103,16 +107,24 @@ function MobileStructureWorkspace({
   full,
   onFullChange,
   onClose,
+  onPreviewTarget,
 }: {
   full: boolean;
   onFullChange: (full: boolean) => void;
   onClose: () => void;
+  onPreviewTarget: (target: WorkspaceTarget) => void;
 }) {
   const { t } = useTranslation();
-  const { open } = useWorkspaceNavigator();
   const [tab, setTab] = useState<StructureTab>('chapters');
-  const { bookNodes, bookElements, bookElementCategories, storylines, primaryStorylineByNode } =
-    useDataStore();
+  const [elementView, setElementView] = useState<'grid' | 'shelf'>('grid');
+  const {
+    bookNodes,
+    bookElements,
+    bookElementCategories,
+    storylines,
+    primaryStorylineByNode,
+    driftGroups,
+  } = useDataStore();
 
   const chapters = useMemo(
     () =>
@@ -130,117 +142,174 @@ function MobileStructureWorkspace({
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     [bookNodes],
   );
-  const categories = useMemo(
-    () =>
-      bookElementCategories.map((category) => ({
-        category,
-        elements: bookElements.filter((element) => element.categoryId === category.id),
-      })),
-    [bookElementCategories, bookElements],
-  );
+  const categories = useMemo(() => {
+    const grouped: Array<{
+      category: (typeof bookElementCategories)[number] | null;
+      elements: typeof bookElements;
+    }> = bookElementCategories.map((category) => ({
+      category,
+      elements: bookElements.filter((element) => element.categoryId === category.id),
+    }));
+    const uncategorized = bookElements.filter((element) => element.categoryId === null);
+    if (uncategorized.length > 0) grouped.push({ category: null, elements: uncategorized });
+    return grouped;
+  }, [bookElementCategories, bookElements]);
+  const structureTabs = [
+    ['chapters', BookOpenText, t('leftSidebar.tabs.chapters')],
+    ['elements', Shapes, t('leftSidebar.tabs.elements')],
+    ['inspiration', Sparkles, t('leftSidebar.tabs.drifts')],
+  ] as const;
 
   return (
     <section
       className="m-context-workspace m-context-workspace--structure"
       aria-label={t('leftSidebar.title')}
     >
-      <header>
-        <div>
-          <span>{t('mobileWorkspace.whereAmI', { defaultValue: '你在哪里' })}</span>
-          <strong>{t('mobileWorkspace.structure', { defaultValue: '结构工作区' })}</strong>
-        </div>
-        <nav aria-label={t('leftSidebar.title')}>
-          {(
-            [
-              ['chapters', t('leftSidebar.tabs.chapters')],
-              ['elements', t('leftSidebar.tabs.elements')],
-              ['inspiration', t('leftSidebar.tabs.drifts')],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              aria-current={tab === id ? 'page' : undefined}
-              onClick={() => setTab(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-      </header>
-
-      <div className="m-context-workspace__scroll">
-        {tab === 'chapters' && (
-          <div className="m-structure-list">
-            {chapters.map((node, index) => {
-              const storyline = storylines.find(
-                (item) => item.id === primaryStorylineByNode[node.id],
-              );
-              return (
-                <button
-                  key={node.id}
-                  type="button"
-                  onClick={() => open({ entityType: 'node', id: node.id })}
-                >
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  <div>
-                    <strong>{node.title || t('common.untitled')}</strong>
-                    <small>{storyline?.name ?? t('nodeEditor.empty.noStoryline')}</small>
-                  </div>
-                  <em>{node.wordCount.toLocaleString()}</em>
-                </button>
-              );
-            })}
+      <div className="m-context-workspace__landscape">
+        <aside className="m-context-tab-rail">
+          <div>
+            <span>{t('mobileWorkspace.whereAmI', { defaultValue: '你在哪里' })}</span>
+            <strong>{t('mobileWorkspace.structure', { defaultValue: '结构' })}</strong>
           </div>
-        )}
-        {tab === 'elements' && (
-          <div className="m-structure-groups">
-            {categories.map(({ category, elements }) => (
-              <section key={category.id}>
-                <button
-                  type="button"
-                  onClick={() => open({ entityType: 'category', id: category.id })}
-                >
-                  <span style={{ background: category.color || 'hsl(var(--ink-4))' }} />
-                  <strong>{category.name}</strong>
-                  <small>{elements.length}</small>
-                </button>
-                <div>
-                  {elements.map((element) => (
-                    <button
-                      key={element.id}
-                      type="button"
-                      onClick={() => open({ entityType: 'element', id: element.id })}
-                    >
-                      <strong>{element.name || t('common.untitled')}</strong>
-                      <small>{element.summary}</small>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        )}
-        {tab === 'inspiration' && (
-          <div className="m-structure-list">
-            {inspiration.map((node) => (
+          <nav aria-label={t('leftSidebar.title')}>
+            {structureTabs.map(([id, Icon, label]) => (
               <button
-                key={node.id}
+                key={id}
                 type="button"
-                onClick={() => open({ entityType: 'node', id: node.id })}
+                aria-label={label}
+                aria-current={tab === id ? 'page' : undefined}
+                onClick={() => setTab(id)}
               >
-                <span>
-                  <Sparkles size={13} aria-hidden="true" />
-                </span>
-                <div>
-                  <strong>{node.title || t('common.untitled')}</strong>
-                  <small>{node.summary}</small>
-                </div>
-                <em>{node.wordCount.toLocaleString()}</em>
+                <Icon size={17} aria-hidden="true" />
+                <span>{label}</span>
               </button>
             ))}
-          </div>
-        )}
+          </nav>
+        </aside>
+
+        <div className="m-context-workspace__pane">
+          {tab === 'chapters' && (
+            <div className="m-structure-shelf" aria-label={t('leftSidebar.tabs.chapters')}>
+              {chapters.map((node, index) => {
+                const storyline = storylines.find(
+                  (item) => item.id === primaryStorylineByNode[node.id],
+                );
+                return (
+                  <button
+                    key={node.id}
+                    type="button"
+                    onClick={() => onPreviewTarget({ entityType: 'node', id: node.id })}
+                  >
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <strong>{node.title || t('common.untitled')}</strong>
+                    <small>{storyline?.name ?? t('nodeEditor.empty.noStoryline')}</small>
+                    <em>{node.wordCount.toLocaleString()} 字</em>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {tab === 'elements' && (
+            <>
+              <div className="m-structure-view-toggle" role="group" aria-label="元素展示方式">
+                <button
+                  type="button"
+                  aria-pressed={elementView === 'grid'}
+                  onClick={() => setElementView('grid')}
+                >
+                  <Grid2X2 size={14} aria-hidden="true" />
+                  分类网格
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={elementView === 'shelf'}
+                  onClick={() => setElementView('shelf')}
+                >
+                  <Rows3 size={14} aria-hidden="true" />
+                  横向列表
+                </button>
+              </div>
+              {elementView === 'grid' ? (
+                <div className="m-structure-groups">
+                  {categories.map(({ category, elements }) => (
+                    <section key={category?.id ?? 'uncategorized'}>
+                      <button
+                        type="button"
+                        disabled={!category}
+                        onClick={() => {
+                          if (category) {
+                            onPreviewTarget({ entityType: 'category', id: category.id });
+                          }
+                        }}
+                      >
+                        <span style={{ background: category?.color || 'hsl(var(--ink-4))' }} />
+                        <strong>{category?.name ?? '未分类'}</strong>
+                        <small>{elements.length}</small>
+                      </button>
+                      <div>
+                        {elements.map((element) => (
+                          <button
+                            key={element.id}
+                            type="button"
+                            onClick={() =>
+                              onPreviewTarget({ entityType: 'element', id: element.id })
+                            }
+                          >
+                            <strong>{element.name || t('common.untitled')}</strong>
+                            <small>{element.summary || '还没有摘要'}</small>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ) : (
+                <div className="m-structure-shelf m-structure-shelf--elements">
+                  {bookElements.map((element) => {
+                    const category = bookElementCategories.find(
+                      (item) => item.id === element.categoryId,
+                    );
+                    return (
+                      <button
+                        key={element.id}
+                        type="button"
+                        onClick={() => onPreviewTarget({ entityType: 'element', id: element.id })}
+                      >
+                        <span style={{ background: category?.color || 'hsl(var(--ink-4))' }} />
+                        <strong>{element.name || t('common.untitled')}</strong>
+                        <small>{category?.name ?? '未分类'}</small>
+                        <em>{element.summary || '还没有摘要'}</em>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === 'inspiration' && (
+            <div className="m-structure-shelf" aria-label={t('leftSidebar.tabs.drifts')}>
+              {inspiration.map((node) => {
+                const group = driftGroups.find((item) => item.id === node.driftGroupId);
+                return (
+                  <button
+                    key={node.id}
+                    type="button"
+                    onClick={() => onPreviewTarget({ entityType: 'node', id: node.id })}
+                  >
+                    <span>
+                      <Sparkles size={13} aria-hidden="true" />
+                    </span>
+                    <strong>{node.title || t('common.untitled')}</strong>
+                    <small>{group?.name ?? '未分组'}</small>
+                    <em>{node.summary || '还没有摘要'}</em>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
       <PanelResizeHandle panel="top" full={full} onFullChange={onFullChange} onClose={onClose} />
     </section>
@@ -447,52 +516,54 @@ function MobileToolWorkspace({
       aria-label={t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}
     >
       <PanelResizeHandle panel="bottom" full={full} onFullChange={onFullChange} onClose={onClose} />
-      <header>
-        <div>
-          <span>{t('mobileWorkspace.whatCanIDo', { defaultValue: '你能做什么' })}</span>
-          <strong>{t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}</strong>
-        </div>
-        <nav aria-label={t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}>
-          {tabs.map(([id, Icon, label]) => (
-            <button
-              key={id}
-              type="button"
-              aria-label={label}
-              aria-current={tab === id ? 'page' : undefined}
-              onClick={() => setTab(id)}
-            >
-              <Icon size={17} aria-hidden="true" />
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-      </header>
-      <div className="m-context-workspace__body">
-        {tab === 'todo' && <TodoPanel focused={focused} />}
-        {tab === 'library' && <LibraryPanel focused={focused} />}
-        {tab === 'stats' && (
-          <div className="m-context-workspace__scroll m-context-workspace__stats">
-            <EntityStatsContent
-              target={currentStatsTarget}
-              bookNodes={data.bookNodes}
-              bookActs={data.bookActs}
-              bookElements={data.bookElements}
-              storylines={data.storylines}
-              categories={data.bookElementCategories}
-              storylineNodeMapping={data.storylineNodeMapping}
-              primaryStorylineByNode={data.primaryStorylineByNode}
-            />
+      <div className="m-context-workspace__landscape">
+        <aside className="m-context-tab-rail">
+          <div>
+            <span>{t('mobileWorkspace.whatCanIDo', { defaultValue: '你能做什么' })}</span>
+            <strong>{t('mobileWorkspace.tools', { defaultValue: '工具' })}</strong>
           </div>
-        )}
-        {tab === 'agent' && <CompanionPanel projectId={projectId} />}
-        {tab === 'timeline' && <MobileTimelineWorkspace />}
-        {tab === 'plot' && (
-          <MobilePlotPlannerWorkspace
-            key={target?.id ?? 'none'}
-            projectId={projectId}
-            target={target}
-          />
-        )}
+          <nav aria-label={t('mobileWorkspace.tools', { defaultValue: '工具工作区' })}>
+            {tabs.map(([id, Icon, label]) => (
+              <button
+                key={id}
+                type="button"
+                aria-label={label}
+                aria-current={tab === id ? 'page' : undefined}
+                onClick={() => setTab(id)}
+              >
+                <Icon size={17} aria-hidden="true" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+        </aside>
+        <div className="m-context-workspace__pane m-context-workspace__body">
+          {tab === 'todo' && <TodoPanel focused={focused} />}
+          {tab === 'library' && <LibraryPanel focused={focused} />}
+          {tab === 'stats' && (
+            <div className="m-context-workspace__scroll m-context-workspace__stats">
+              <EntityStatsContent
+                target={currentStatsTarget}
+                bookNodes={data.bookNodes}
+                bookActs={data.bookActs}
+                bookElements={data.bookElements}
+                storylines={data.storylines}
+                categories={data.bookElementCategories}
+                storylineNodeMapping={data.storylineNodeMapping}
+                primaryStorylineByNode={data.primaryStorylineByNode}
+              />
+            </div>
+          )}
+          {tab === 'agent' && <CompanionPanel projectId={projectId} />}
+          {tab === 'timeline' && <MobileTimelineWorkspace />}
+          {tab === 'plot' && (
+            <MobilePlotPlannerWorkspace
+              key={target?.id ?? 'none'}
+              projectId={projectId}
+              target={target}
+            />
+          )}
+        </div>
       </div>
     </section>
   );
@@ -504,12 +575,14 @@ export function MobileWorkspacePanels({
   fullPanel,
   onFullPanelChange,
   onClosePanel,
+  onPreviewTarget,
 }: {
   projectId: string;
   target: WorkspaceTarget | null;
   fullPanel: PanelPosition | null;
   onFullPanelChange: (panel: PanelPosition, full: boolean) => void;
   onClosePanel: () => void;
+  onPreviewTarget: (target: WorkspaceTarget) => void;
 }) {
   return (
     <>
@@ -517,6 +590,7 @@ export function MobileWorkspacePanels({
         full={fullPanel === 'top'}
         onFullChange={(full) => onFullPanelChange('top', full)}
         onClose={onClosePanel}
+        onPreviewTarget={onPreviewTarget}
       />
       <MobileToolWorkspace
         projectId={projectId}

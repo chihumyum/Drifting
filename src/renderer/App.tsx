@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { Component, useEffect } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PreAlphaOnboardingDialog } from './components/modals/PreAlphaOnboardingDialog';
@@ -6,6 +6,8 @@ import loglevel from 'loglevel';
 import { AppEffects } from './app/effects/AppEffects';
 import { FullScreenStatus } from './app/components/FullScreenStatus';
 import { AppRoutes } from './app/AppRoutes';
+import { getPlatformRuntime } from './platform/runtime';
+import { disableMobileWebViewZoom } from './shells/mobile/mobile-webview-zoom';
 
 const log = loglevel.getLogger('App');
 
@@ -48,6 +50,11 @@ function RootErrorFallback({ error, onRetry }: { error: Error; onRetry: () => vo
 }
 
 function AppContents() {
+  useEffect(() => {
+    if (!getPlatformRuntime().isMobile) return;
+    return disableMobileWebViewZoom();
+  }, []);
+
   return (
     <>
       <AppEffects />

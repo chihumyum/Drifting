@@ -38,14 +38,31 @@ describe('mobile standalone routes', () => {
     const session = rendererSource('shells/mobile/workspace/mobile-workspace-session.ts');
     const pinch = rendererSource('shells/mobile/workspace/usePaperPinch.ts');
     const cluster = rendererSource('shells/mobile/workspace/paper-cluster-gesture.ts');
+    const previewSheet = rendererSource('shells/mobile/workspace/MobileEntityPreviewSheet.tsx');
+    const zoomGuard = rendererSource('shells/mobile/mobile-webview-zoom.ts');
+    const superElement = rendererSource('shells/desktop/views/DesktopSuperElementView.tsx');
     const css = fs.readFileSync(path.join(stylesRoot, 'mobile-workspace.css'), 'utf8');
+    const html = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf8');
     expect(session).toContain("case 'open'");
     expect(session).toContain("case 'reorder'");
     expect(session).toContain("case 'clear'");
+    expect(session).toContain("case 'remember-scroll'");
     expect(paperDeck).toContain('<MobilePaperContent');
+    expect(paperDeck).toContain('<MobilePaperViewport');
+    expect(paperDeck).toContain('<MobileEntityPreviewSheet');
+    expect(paperDeck).not.toContain('m-paper-deck__gesture-layer');
     expect(paperDeck).toContain('className="m-paper-cluster"');
+    expect(paperDeck).toContain('data-armed={clusterArmed');
+    expect(paperDeck).toContain("phase: 'exit'");
+    expect(paperDeck).toContain("phase: 'settle'");
     expect(paperDeck).toContain("data-full-panel={fullPanel ?? 'none'}");
     expect(panels).toContain('<PanelResizeHandle');
+    expect(panels).toContain('className="m-context-tab-rail"');
+    expect(panels).toContain('className="m-structure-shelf"');
+    expect(panels).toContain("setElementView('grid')");
+    expect(panels).toContain('onPreviewTarget({ entityType:');
+    expect(previewSheet).toContain('这里只读预览');
+    expect(previewSheet).toContain('插入一张纸');
     expect(panels).toContain('<PlotGridEditor');
     expect(panels).toContain("setOrder('narrative')");
     expect(plotGrid).toContain('onPointerDown={onGripDown}');
@@ -61,7 +78,14 @@ describe('mobile standalone routes', () => {
     expect(css).toContain('visibility: visible');
     expect(css).toContain(".m-workspace[data-full-panel='top']");
     expect(css).toContain(".m-workspace[data-full-panel='bottom'] .m-context-workspace--tools");
+    expect(css).toContain('transform 180ms linear');
+    expect(css).toContain(".m-paper-cluster[data-armed='true']");
     expect(css).not.toContain('touch-action: none;\n  overscroll-behavior');
+    expect(zoomGuard).toContain("'gesturestart'");
+    expect(zoomGuard).toContain('user-scalable=no');
+    expect(html).toContain('maximum-scale=1.0, user-scalable=no');
+    expect(superElement).toContain('const pinchRef = useRef');
+    expect(superElement).toContain('pinch.startZoom * (distance / pinch.startDistance)');
   });
 
   it('keeps all three Super View destinations directly reachable in the mobile header', () => {

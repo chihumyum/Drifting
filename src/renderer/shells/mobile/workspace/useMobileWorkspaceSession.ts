@@ -91,6 +91,10 @@ export function useMobileWorkspaceSession(projectId: string) {
     navigate(`/project/${projectId}`, { replace: true });
   }, [navigate, projectId]);
 
+  const rememberScroll = useCallback((key: string, scrollTop: number) => {
+    dispatch({ type: 'remember-scroll', key, scrollTop });
+  }, []);
+
   const navigator = useMemo<WorkspaceNavigator>(
     () => ({
       projectId,
@@ -117,5 +121,6 @@ export function useMobileWorkspaceSession(projectId: string) {
     close,
     clear,
     reorder: (from: number, to: number) => dispatch({ type: 'reorder', from, to }),
+    rememberScroll,
   };
 }

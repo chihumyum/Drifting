@@ -3,6 +3,7 @@ import type { WorkspaceTarget } from '../../../features/workspace/navigation/wor
 export interface MobilePaper {
   key: string;
   target: WorkspaceTarget;
+  scrollTop: number;
 }
 
 export interface MobileWorkspaceSessionState {
@@ -16,6 +17,7 @@ export type MobileWorkspaceSessionAction =
   | { type: 'close'; key: string }
   | { type: 'clear' }
   | { type: 'reorder'; from: number; to: number }
+  | { type: 'remember-scroll'; key: string; scrollTop: number }
   | { type: 'replace'; state: MobileWorkspaceSessionState };
 
 export const EMPTY_MOBILE_WORKSPACE_SESSION: MobileWorkspaceSessionState = {
@@ -54,7 +56,14 @@ export function normalizeMobileWorkspaceSession(
     const key = mobilePaperKey(target);
     if (seen.has(key)) continue;
     seen.add(key);
-    papers.push({ key, target: { ...target } });
+    papers.push({
+      key,
+      target: { ...target },
+      scrollTop:
+        typeof paper.scrollTop === 'number' && Number.isFinite(paper.scrollTop)
+          ? Math.max(0, paper.scrollTop)
+          : 0,
+    });
   }
   const requestedActive = candidate?.activeKey ?? null;
   return {
@@ -79,7 +88,7 @@ export function mobileWorkspaceSessionReducer(
       const activeIndex = state.papers.findIndex((paper) => paper.key === state.activeKey);
       const insertAt = activeIndex < 0 ? state.papers.length : activeIndex + 1;
       const next = state.papers.slice();
-      next.splice(insertAt, 0, { key, target: action.target });
+      next.splice(insertAt, 0, { key, target: action.target, scrollTop: 0 });
       return { papers: next, activeKey: key };
     }
     case 'activate': {
@@ -112,6 +121,17 @@ export function mobileWorkspaceSessionReducer(
       const [paper] = papers.splice(action.from, 1);
       papers.splice(action.to, 0, paper);
       return { ...state, papers };
+    }
+    case 'remember-scroll': {
+      const scrollTop = Number.isFinite(action.scrollTop) ? Math.max(0, action.scrollTop) : 0;
+      const paper = state.papers.find((item) => item.key === action.key);
+      if (!paper || paper.scrollTop === scrollTop) return state;
+      return {
+        ...state,
+        papers: state.papers.map((item) =>
+          item.key === action.key ? { ...item, scrollTop } : item,
+        ),
+      };
     }
     case 'replace':
       return normalizeMobileWorkspaceSession(action.state);
