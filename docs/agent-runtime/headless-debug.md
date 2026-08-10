@@ -328,150 +328,18 @@ The domain CRUD integration case additionally proves that first-write creation
 of chapters/drifts, elements, storylines, and categories stores the same
 formatted, stable-id TipTap seed as later authored-body edits.
 
-## Historical acceptance snapshot (2026-08-01)
+## Acceptance evidence
 
-This snapshot records the bridge that existed on that date. Its file-named
-provider facade was retired on 2026-08-04 in favor of authored-object tools;
-the failure and durability evidence remains useful, but the listed tool names
-are not current product capability.
+The operator commands above are current. Dated paid-provider and real-project
+results are historical checkout evidence and are indexed in
+[`acceptance/MILESTONE_HISTORY.md`](acceptance/MILESTONE_HISTORY.md). Current
+capability and open-boundary claims live in
+[`acceptance/CURRENT_STATUS.md`](acceptance/CURRENT_STATUS.md).
 
-The real `雾港纪事` test project was exercised through this bridge, with the
-mounted Tauri renderer and the configured DeepSeek BYOK provider:
-
-- ordinary model turns now see a shallow virtual workspace with
-  `list_files`/`read_file`/`grep`/`edit_file`; canonical names stay visible
-  while ids, Yjs versions, freshness receipts, and domain write commands stay
-  inside the renderer;
-- chapter directories resolve directly to their `prose.md`, including natural
-  ordinal aliases such as `第十二章`; exact file edits can span paragraphs and
-  insert, delete, merge, or split them while the renderer preserves stable
-  block identity and commits one live document transaction internally;
-- provider-visible tool results are plain paths, prose, matches, and natural
-  save confirmations. Structured review authority remains available to the
-  local journal and panel without leaking review ids or synchronization fields
-  back into the model conversation;
-- aggregate model iterations, tool calls, input/output tokens, duration, cost,
-  and automatic slices are unlimited by default. The 200k physical context
-  window compacts into durable summaries and resumes the same task;
-- final-response framing streams only author-facing prose. Tool-round drafts
-  and the framing marker never enter the panel or canonical journal;
-- all 18 production read tools returned live project data;
-- all 14 provider-exposed certified writes committed in approve mode and their
-  durable reviews reverted successfully;
-- a 9,415-character chapter result was consumed through offsets 0, 4,000, and
-  9,000 before an `edit_block` reused the original prose freshness receipt;
-- editor normalization advanced the Yjs document independently after that
-  write; rejection rebased the certified inverse over those unrelated changes,
-  restored only the affected block, and removed the evaluation marker;
-- a whole-book task froze the exact 21-chapter manifest, persisted 21 pending
-  steps plus two author constraints, and recovered the same plan/session after
-  renderer restart;
-- a forced multi-slice task recovered after a provider-failed turn without
-  repeating either accepted write, mapped physical failed-turn ordinals back to
-  canonical provider-history ordinals, and completed its two exact-target steps
-  with accepted review evidence at task revision 5;
-- continuous execution paused after two automatic slices with no durable plan
-  progress, while a progressing plan continued until its durable task reached
-  `completed`;
-- a provider-emitted DSML pseudo-tool call in the tool-disabled synthesis round
-  was discarded before it reached the journal or UI; the runtime reported the
-  unfinished slice in ordinary prose instead;
-- accepted write-review decisions were supplied only through first-class pinned
-  context rows, without duplicating them into subsequent user messages;
-- a forced 60k context run exercised full compaction and the subsequent
-  deterministic-summary projection while retaining tool-result facts and the
-  author veto;
-- a first Yjs Agent write racing editor navigation now uses the same
-  deterministic legacy seed on both paths, so equivalent seeds merge
-  idempotently instead of duplicating a chapter; a fresh `雾港纪事` chapter
-  edit and review rejection restored the original at Yjs revision 2;
-- a current `雾港纪事` smoke read `/chapters/12` as an ordinary directory and
-  returned the exact opening sentence from plain `prose.md`; directory context
-  was about 2.5k tokens before loading prose. A separate cross-paragraph file
-  edit inserted an independent marker paragraph, created a durable review, and
-  its exact rejection removed the marker again;
-- invalid arguments, tool-call repair, queued `ask_user`, timeout, client
-  disconnect cancellation, stale-turn recovery, and startup conversation
-  hydration were exercised separately.
-
-The automated gates for the same checkout were `718/718` full Core tests,
-workspace TypeScript typecheck, and ESLint with zero errors.
-This is runtime/tool coverage, not a substitute for the remaining native UI
-smoke on each target.
-
-## Paid write stress extension (2026-08-02)
-
-The bridge was subsequently run against disposable copies of the current
-`雾港纪事` SQLite database with the configured paid DeepSeek route. The primary
-database SHA-256 was checked before and after every mutation campaign, before
-the normal App was reopened. A later SQLite checkpoint may legitimately change
-the physical file hash, so named artifact and row-level comparisons remain the
-final isolation check.
-
-- The certified write matrix passed all 14/14 scenarios, including block and
-  range prose edits, structural/entity/storyline/fact/comment writes, patches
-  and rename. Mixed block review accepted one block and rejected another; the
-  final Yjs readback retained only the accepted marker.
-- A real five-chapter task crossed the Standard 200k compaction boundary,
-  persisted nine summaries, resumed from a roughly 315 KB V3 checkpoint, and
-  reused those summaries after a 3.285-second cold reopen without another
-  provider compaction call.
-- The final compound author workflow created one 1,966-character inspiration
-  draft, two typed entities with independent summaries, exactly three
-  relations, one comment and one TODO, then reread the package through
-  canonical paths. It completed seven model iterations and 36/36 tool calls in
-  67.368 seconds with no failed call.
-- Direct SQLite comparison against the primary fixture found zero chapter-row,
-  Yjs-update, snapshot or revision differences. This is E3 mounted-renderer
-  evidence, not E4 visual/editor interaction evidence.
-
-After the final fixes, the full Core baseline was 136 files / 897 tests;
-typecheck passed; lint reported zero errors and 41 pre-existing warnings; the
-generated capability drift gate passed 9/9 acceptance groups.
-
-### Reasoning-on long-book campaign (2026-08-03)
-
-A later disposable `雾港纪事` campaign used only vague project-level author
-prompts, `--thinking adaptive`, no `--effort`, `--auto-continue` and the real
-paid DeepSeek route. Its one session accumulated 201 model iterations, 1,931
-tool calls, 181 committed effects and 100 full-compactor plans before all 14
-durable steps completed. The final `继续。` turn completed naturally and wrote a
-138,375-byte checkpoint with 16 verified summaries.
-
-Paid failures in earlier turns exposed the 60-second outer compactor timeout,
-serial-small-chunk latency, no-gain recent pins, whole-element projection drift,
-quote/line-end exact-edit misses and broad-grep false matches. The fixed product
-uses a five-minute outer pass, provider-budget-bounded 64k chunks, at most two
-paid summary chunks per pass, one soft-recent recovery, conservative exact-edit
-normalization and literal metadata/relation/punctuation grep. The complete
-operator record is
-[`acceptance/GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md`](acceptance/GENERAL_AGENT_REASONING_STRESS_RUN_2026-08-03.md).
-
-### Domain-reasoning regression (2026-08-04)
-
-The later domain-abstraction campaign ran the real mounted renderer against an
-explicit copied database with `VITE_ENABLE_SYNC=false`, a forced 60k context
-window, `--thinking adaptive`, `--show-thinking` and no effort override. Earlier
-paid attempts exposed semantic no-op failures, stale current-reading state,
-duplicated summary punctuation, numeric-ordinal fallback, wrong-chapter quoted
-passages, mixed passage batches and redundant post-edit reads.
-
-The final vague four-chapter turn completed in three iterations and 120.852
-seconds with 7/7 successful calls. It crossed `drop_discardable`, made eight
-focused prose revisions, left already-correct content unchanged, and recorded
-the clean audit shown above: no mechanics, runtime metadata, character matching,
-reread intent, oversized reasoning or duplicate calls. Exact prompts, session
-ids, failure-driven corrections and the isolation boundary are in
-[`acceptance/GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04.md`](acceptance/GENERAL_AGENT_DOMAIN_REASONING_STRESS_RUN_2026-08-04.md).
-
-The later authored-object campaign adds one interpretation rule for these
-audits: separate provider quality from runtime abstraction. A long thinking
-pass about character evidence is a model-efficiency observation. Thinking
-about paths, escaping, serialization or storage is a domain-facade failure;
-thinking caused by a contradictory task title, stale delete state or ambiguous
-saved/remaining receipt is a runtime failure. The 26k forced-compaction canary
-used this distinction and fixed the latter cases without adding a scope guard,
-tool-round quota or token quota.
+Do not copy dated tool counts, test counts, session metrics, or retired
+provider-facing verbs into this runbook. Record a new dated report only when a
+paid provider, private fixture, native interaction, or other non-reproducible
+run adds evidence that deterministic gates cannot preserve.
 
 ## Safety and fidelity
 

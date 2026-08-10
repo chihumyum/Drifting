@@ -1,71 +1,46 @@
 # Drifting Agent Runtime roadmap
 
-This file is the durable execution ledger for closing the gap between the
-current Drifting Agent Runtime, a Claude Code-grade runtime, and an editor-native
-long-form writing Agent.
+This file is the durable milestone policy and current work ledger. The detailed
+product boundary lives in
+[`acceptance/CURRENT_STATUS.md`](acceptance/CURRENT_STATUS.md); exact capability
+composition lives in the generated inventory.
 
 ## Milestone rule
 
-A milestone is complete only when the same change contains all of the
-following:
+A milestone is complete only when the same change contains:
 
 1. the production implementation;
-2. deterministic tests for the changed contracts;
-3. a headless acceptance path, or a precise explanation of the native/manual
-   evidence that cannot be automated;
-4. updated README, status/exit report, command documentation, and generated
-   capability evidence affected by the change;
+2. deterministic tests for changed contracts;
+3. a headless path, or an explicit native/manual acceptance boundary;
+4. updated README, status, commands, and machine-checkable evidence;
 5. an explicit list of anything still unverified.
 
-Passing unit tests while durable documentation describes older behavior is a
-failed milestone. Capability counts and status prose must be generated from, or
-machine-checked against, the final product composition whenever possible.
+Passing tests while durable documentation still describes previous behavior is
+an open milestone.
 
-## Ordered milestones
+## Current work
 
-| ID  | Milestone                       | Exit condition                                                                                                                                       | Status      |
-| --- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| A   | Capability truth                | Final composition, executable ownership, generated inventory, README and acceptance evidence agree.                                                  | Completed   |
-| B   | Tool-call reliability           | Stable per-iteration tool lease, canonical aliases, strict streamed arguments, recoverable model mistakes, idempotent retries.                       | Completed   |
-| C   | Durable commit and review       | Effects, context adoption, review settlement, restart recovery and concurrent author edits remain unambiguous under fault injection.                 | Completed   |
-| D   | Domain CRUD closure             | Storyline membership, comments/TODOs, relations, memory and guarded structural transactions have complete create/read/update/delete/revert paths.    | Completed   |
-| E   | Long-task execution             | Durable plans can continue, pause, steer, survive restart and finalize without repeating accepted work or silently skipping manifest changes.        | Completed   |
-| F   | Context engineering             | Provider-aware budgeting, literary compaction evaluation, constraint confirmation, evidence retrieval and artifact paging pass long-book acceptance. | Completed   |
-| G   | Agent checkpoint and fork       | Retired: rely on entity snapshot history for manuscript recovery and keep conversations as independent flat sessions.                              | Removed     |
-| H   | Author-owned writing policy     | No hidden writing defaults, editor-focus binding, content-scope guard or canon gate; author rules are ordinary editable project data.               | Completed   |
-| I   | Provider and extension platform | Provider conformance plus concrete MCP transports/configuration, durable grants and extension lifecycle are shipped and isolated.                    | Completed   |
-| J   | Native and endurance acceptance | Desktop/iOS/Android smoke, network/restart/concurrency faults and 4h/12h real-book endurance gates are recorded.                                     | Completed   |
-| K   | Long-task reliability and Max context | Oversized same-turn history compacts without terminal failure, malformed compactor output degrades safely, Max uses declared 1M models, and one durable checklist governs future acceptance. | Completed   |
+| Area                          | Current boundary                                                                                                                                                                    | Exit evidence                                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Native interaction            | Desktop/iOS/Android visual, touch, IME, safe-area, background, and real-device behavior remain manual                                                                               | [`../mobile-device-acceptance.md`](../mobile-device-acceptance.md) and the native QA checklist |
+| Long-form quality rerun       | The post-`雾港纪事` deterministic P0 fixes have not been validated by another paid empty-project long-form campaign                                                                 | Dated run plus remediation report linked from current status                                   |
+| Editing and handoff follow-up | Stable partial edit recovery, relation semantics, equivalent-create recovery, error guidance, trusted word counts, and project-level cross-session handoff remain tracked follow-up | Remediation plan and future deterministic/live evidence                                        |
+| Subagents                     | Deferred; not part of the shipped single-product/multi-conversation runtime                                                                                                         | Generated capability inventory                                                                 |
 
-Milestones are executed in this order unless a discovered correctness bug makes
-an earlier invariant unsafe. Subagents are intentionally not a blocker for the
-single-Agent writing product and remain deferred until the single-Agent gates
-above are closed.
+## Evidence map
 
-## Evidence locations
+- Machine-readable composition:
+  [`acceptance/agent-capabilities.json`](acceptance/agent-capabilities.json)
+- Generated human composition:
+  [`acceptance/agent-capabilities.md`](acceptance/agent-capabilities.md)
+- Current product and verification boundary:
+  [`acceptance/CURRENT_STATUS.md`](acceptance/CURRENT_STATUS.md)
+- Durable functional contract:
+  [`acceptance/GENERAL_AGENT_FUNCTIONAL_CHECKLIST.md`](acceptance/GENERAL_AGENT_FUNCTIONAL_CHECKLIST.md)
+- Completed A-K and P1-P6 history:
+  [`acceptance/MILESTONE_HISTORY.md`](acceptance/MILESTONE_HISTORY.md)
+- Headless operator workflow: [`headless-debug.md`](headless-debug.md)
+- Aggregate commands: [`../../package.json`](../../package.json)
 
-- Generated capability inventory: `acceptance/agent-capabilities.json` and
-  `acceptance/agent-capabilities.md`
-- Current milestone report: `acceptance/CURRENT_STATUS.md`
-- Historical phase reports: `acceptance/P*_*.md`
-- Headless product bridge: `headless-debug.md`
-- Aggregate commands: `package.json`
-
-Historical reports are immutable evidence of what a past gate asserted. They
-may contain a prominent superseded notice, but current capability claims belong
-in the generated inventory and `CURRENT_STATUS.md` rather than being copied by
-hand into every historical report.
-
-## Milestone reports
-
-- A: [`acceptance/MILESTONE_A_EXIT_REPORT.md`](acceptance/MILESTONE_A_EXIT_REPORT.md)
-- B: [`acceptance/MILESTONE_B_EXIT_REPORT.md`](acceptance/MILESTONE_B_EXIT_REPORT.md)
-- C: [`acceptance/MILESTONE_C_EXIT_REPORT.md`](acceptance/MILESTONE_C_EXIT_REPORT.md)
-- D: [`acceptance/MILESTONE_D_EXIT_REPORT.md`](acceptance/MILESTONE_D_EXIT_REPORT.md)
-- E: [`acceptance/MILESTONE_E_EXIT_REPORT.md`](acceptance/MILESTONE_E_EXIT_REPORT.md)
-- F: [`acceptance/MILESTONE_F_EXIT_REPORT.md`](acceptance/MILESTONE_F_EXIT_REPORT.md)
-- G: [`acceptance/MILESTONE_G_EXIT_REPORT.md`](acceptance/MILESTONE_G_EXIT_REPORT.md)
-- H: [`acceptance/MILESTONE_H_EXIT_REPORT.md`](acceptance/MILESTONE_H_EXIT_REPORT.md)
-- I: [`acceptance/MILESTONE_I_EXIT_REPORT.md`](acceptance/MILESTONE_I_EXIT_REPORT.md)
-- J: [`acceptance/MILESTONE_J_EXIT_REPORT.md`](acceptance/MILESTONE_J_EXIT_REPORT.md)
-- K: [`acceptance/MILESTONE_K_EXIT_REPORT.md`](acceptance/MILESTONE_K_EXIT_REPORT.md)
+The former A-K sequence is closed or explicitly removed. It is retained as one
+historical index rather than seventeen current-looking phase reports.

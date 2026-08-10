@@ -81,10 +81,6 @@ pnpm typecheck
 ```
 
 These checks cover preference normalization, color resolution, markup
-attributes, store-backed metadata, and viewport positioning. Native Tauri visual
-behavior remains a manual acceptance boundary.
-
-The broader renderer production check is `pnpm --dir client exec vite
-build`. At this milestone it is blocked outside the Entity Link change by the
-existing unresolved `@/renderer/lib/word-count` import in `ChapterEditor.tsx`;
-the focused suite and workspace typecheck are green.
+attributes, store-backed metadata, and viewport positioning. The broader
+renderer production check is `pnpm --dir client exec vite build`.
+Native Tauri visual behavior remains a manual acceptance boundary.

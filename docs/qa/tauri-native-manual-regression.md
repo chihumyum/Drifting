@@ -69,10 +69,12 @@ OS / API level：
 | OAuth Server           | state、PKCE、HMAC binding、redirect allowlist、过期、一次性兑换、敏感 payload 解析 | 真实 Google、浏览器 cookie、真实 PostgreSQL 竞争、deep link、生产日志 |
 | OAuth renderer         | warm/queued callback、state 不匹配、过期、exchange 失败                            | 冷启动 callback、浏览器取消、断网、系统切换、session 持久化           |
 | 图片 pipeline          | 普通图片、方向、格式嗅探、尺寸/内存上限；macOS ImageIO HEIC/AVIF                   | iOS 真机、Android 系统 codec、照片选择器、R2、两个真实 UI 入口        |
-| General Agent          | P5 聚合覆盖 41 个文件、332 个测试；14 个写工具、冻结全书清单、长任务、compaction、canonical journal | DeepSeek 真调用、桌面/iOS/Android UI、后台恢复、触摸与软键盘          |
+| General Agent          | 生成能力清单、功能 checklist、SQLite/Yjs 故障与恢复、领域写入、长任务、compaction、provider/MCP 合同 | 付费 provider 抽检、桌面/iOS/Android UI、后台恢复、触摸与软键盘     |
 | 构建                   | macOS 测试、iOS/Android Rust 交叉编译、Android APK/Kotlin 编译                     | 安装、权限、后台生命周期、低内存、不同厂商设备                        |
 
-手工回归应集中在右列，不需要重复证明纯函数已经测过的细节。
+精确工具与能力数量以
+`docs/agent-runtime/acceptance/agent-capabilities.md` 为准；本手册
+不复制会随实现变化的计数。手工回归应集中在右列，不需要重复证明纯函数已经测过的细节。
 
 ## 3. 准备
 

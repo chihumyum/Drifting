@@ -102,15 +102,13 @@ macOS 防火墙、server bind address 和手机的本地网络权限。
 
 自动化说明：macOS UI 自动化可以覆盖登录、书架、项目打开、cluster 轻点、overview、设置和普通按钮/滑动。Apple Simulator 的宿主拖拽在 WebView 中可能合并中间的 `pointermove`；cluster 以 `pointerup` 最终位移为提交依据，纯状态机测试覆盖方向、阈值和收回逻辑，但仍需手工拖动确认连续动画。Apple Simulator 的自动化接口不提供可编排的双指触控，因此第 8 项必须在 Simulator 中按住 Option 手工 pinch，或使用真机验收；单元测试不替代触摸验收。
 
-## 2026-08-08 iOS Simulator acceptance record
+## Historical Simulator evidence
 
-目标：`iPhone 17 Pro / iOS 26.1`，dev 包：`cc.drifting.client`，后端：Mac 局域网本地 Server。
-
-已通过自动化操作的链路：密码登录、Pre-Alpha 引导完整显示与关闭、移动书架、项目打开、章节编辑器聚焦、paper overview、通览全书 paper、paper 重排与单张关闭、cluster 上下拖动与停靠、顶部章节/元素/灵感切换、底部 TODO/素材/统计/Agent/时间线/情节切换、书序/叙序切换、上下 panel 全屏展开与收回、缩小态相邻 paper 横滑和轻点复位、三个 Super View 打开与页头直切、设置列表与外观子页往返、返回书架并重新进入项目恢复会话。运行期间未出现 renderer/dev server 错误。
-
-仍保留为人工边界：双指上下半区 pinch、cluster 与 panel handle 的逐帧跟手观感、情节网格 TSV/IME 实际写入、iOS 真机的 IME/安全区/后台恢复，以及全部 Android 验收。当前记录不能替代这些项目，也不能据此宣称移动端整体真机验收完成。
-
-上述记录早于后续的“只读 Sheet 两段式打开与 backdrop 防穿透、桌面结构面板复用、cluster 长按武装、动态 panel 高度、flex row + scroll-snap 切纸、逐纸滚动记忆、pinch 幅度进入 overview 与画布自有 pinch”重构，因此只是旧版链路的历史证据，不能作为本轮新交互已通过模拟器或真机验收的证明。
+2026-08-08 曾在 `iPhone 17 Pro / iOS 26.1` Simulator 上通过当时版本的登录、
+书架、工作区、overview、panel、Super View、设置和返回链路。该记录早于当前
+Sheet、gesture、paper row、scroll restoration、pinch 和 canvas 改造，只能证明
+旧 checkout 的主链路，不能关闭当前清单中的任何真机或新交互项目。完整原始记录
+保留在 Git 历史中。
 
 调试 WebView：iOS 使用 Safari 的 Develop 菜单（真机还需启用 Web Inspector）；Android 在 Chrome
 打开 `chrome://inspect`，选择 `cc.drifting.client` 对应的 WebView。

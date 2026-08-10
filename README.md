@@ -154,143 +154,40 @@ degradation; it must not raise the mobile whole-file memory limit.
 
 ## Current boundary
 
-General Agent is available through the provider-neutral local runtime installed by the renderer on
-every Tauri target. A turn freezes a certified DeepSeek, Anthropic, or OpenAI provider/model pair
-and reads that provider's BYOK credential lazily from native secure storage. It executes tools
-through renderer repositories/use cases and routes prose writes through the live Yjs document. It
-does not require the removed desktop Node/Claude CLI, a sidecar, or a remote runner.
+Drifting uses one General Agent product with independent concurrent
+conversations inside the currently mounted project. The provider-neutral local
+runtime runs on every Tauri target, resolves the selected DeepSeek, Anthropic,
+or OpenAI BYOK credential from native secure storage, and executes domain tools
+through renderer-owned use cases.
 
-Settings has one credential authority: **Models & API** owns the global `byok.<provider>` Keychain
-entries. Copilot keeps its own provider/model route; General Agent chooses its provider/model in
-the chat composer. See [`docs/ai-provider-settings.md`](docs/ai-provider-settings.md).
+Live Yjs is the prose authority. SQLite owns durable Agent history, effects,
+plans, permissions, receipts, and ordered per-block review decisions.
+localStorage and renderer stores are rebuildable presentation only. Long tasks
+freeze a chapter manifest, persist progress and constraints across slices and
+restart, stop at durable tool boundaries, and require explicit author action to
+resume after restart.
 
-The standalone Shadow CI, Element Arc, and Goal Evolve products were retired on 2026-08-05.
-General Agent remains the single agent surface: its durable long-task plan supports explicit review
-work without reintroducing a second runtime, rule pipeline, or chapter-status state machine.
-“Single” here means one product/runtime, not one conversation. The App imposes no numeric limit on
-active conversations in the currently mounted project. Controls, activity and rejection feedback
-are routed by session/turn; reads may overlap, while writes pass through the shared reader/writer
-barrier and entity revision checks.
+The model-facing surface is domain-native: chapters, inspirations, elements,
+categories, storylines, memberships, relations, comments/TODOs, project facts,
+author rules, memory, and element patches use explicit generated tools. Exact
+tool names, counts, provider models, context limits, MCP support, and deferred
+capabilities come only from the generated
+[`agent-capabilities.md`](docs/agent-runtime/acceptance/agent-capabilities.md).
+Standalone Shadow CI, Element Arc, and Goal Evolve are retired.
 
-The same turn boundary freezes model-aware thinking and reasoning effort. OpenAI offers the
-GPT-5.6 Sol/Terra/Luna family through the Responses API; DeepSeek and Anthropic retain their native
-thinking state only across the active tool loop. Unsupported model/provider combinations are
-disabled in Settings and normalized again at hydration and request boundaries.
+Desktop and mobile use separate shells over the same project runtime and domain
+core. Mobile compilation and automated workload-equivalent endurance gates do
+not replace physical-device touch, IME, safe-area, background, or visual
+acceptance.
 
-The transport seam still supports future `sidecar` or `remote` implementations, but those are
-extension points rather than prerequisites for the current product path. The current General Agent
-runtime freezes the canonical chapter manifest for whole-book tasks, persists plans, steps,
-constraints, and per-step review evidence across budget slices and restarts. Edit steps require an
-accepted target-matching Yjs prose write; read-only QA steps require a verified exact-target read
-plus fully cited structured review result. Verified context
-compaction keeps canonical history while pinning current progress and active constraints. Durable
-active-plan hints keep plan, chapter-read, and prose-edit tools available even for a generic
-“continue” request. The Agent Panel streams from the canonical journal and offers an explicit
-same-session continuation while a plan is active or after a budget boundary. Each visible author
-message records its send time, and every terminal Agent turn records its wall-clock work duration;
-canonical recovery restores both after a restart.
+Documentation entry points:
 
-The model-facing virtual workspace remains an internal navigation abstraction. The panel renders
-those calls as novel-domain activity (for example, reading a chapter or inspecting an element),
-not host filesystem operations. Certified prose edits land directly in the live editor: automatic
-mode plays the colored reveal, while review mode keeps the inline diff and accept/reject badge.
-Only destructive structural operations use the chat permission card before execution.
-Inline prose review is durable per block: SQLite is the decision authority, Yjs remains the prose
-authority, and localStorage is only a rebuildable UI projection. A project reopen reconstructs
-pending diffs, partial accept/reject choices, and interrupted guarded inverses from the write
-ledger. Turn context commits are independently idempotent, so a lost SQLite success response does
-not duplicate history or misreport an already-committed manuscript write.
-The six workspace verbs also close the first-class domain lifecycle without making the model
-reason about persistence internals. Nodes, elements, categories, storylines, comments/TODOs,
-relations, storyline membership, project facts, and Agent memory have generated create/read/
-update/delete/revert contracts. SQLite mutations, immutable receipts, and sync outbox rows commit
-atomically; prose remains Yjs-authoritative; destructive graph/resource changes require an exact
-argument-bound permission. Run `pnpm --dir client eval:agent:crud` for the real file-backed
-SQLite/Yjs fault and restart matrix.
-Long tasks additionally detect chapter creation, removal, rename, and reorder
-against their frozen whole-book manifest. The Agent must explicitly reconcile
-that drift before completion: added chapters become pending work, removed
-unfinished chapters remain retired audit history, and a restored identity
-reopens cleanly. Stop waits for the current tool's durable boundary; Steer is
-applied once at the next model iteration; active plans remain manually
-resumable after completion, failure, abort, or budget boundaries. Automatic
-continuation has no aggregate work quota, but pauses after two automatic slices
-without durable progress and never reauthorizes itself after App restart.
-Product-generated continuation prompts remain in model context without
-appearing as author chat messages. Run
-`pnpm --dir client eval:agent:long-task` for the real SQLite migration,
-fault/reopen, product Yjs/context, control, and continuation matrix; the
-normative protocol is
-[`long-task-execution-protocol.md`](docs/agent-runtime/long-task-execution-protocol.md).
-Long-book context is provider-aware rather than a model-name guess. The default
-driver declares a 200k window and 8,192-token response ceiling; a smaller
-provider declaration is never enlarged and an undeclared custom driver falls
-back to 32k. Author goals, vetoes, explicit facts, task state and accepted write
-evidence are hash-bound and pinned across compaction. Structured literary
-summaries require exact source citations, while unresolved contradictory facts
-or instructions block all writes until a durable `ask_user` answer confirms the
-exact conflict IDs. Project/prose search ranks mixed CJK/Latin evidence with
-revision freshness, and oversized results page from hash-verified SQLite
-artifacts across restart. Run `pnpm --dir client eval:agent:context` for
-the real-novel, 200k multi-slice, compaction/restart/fault matrix; the normative
-contract is
-[`context-engineering-protocol.md`](docs/agent-runtime/context-engineering-protocol.md).
-Agent conversations are independent flat sessions. A conversation has at most one active turn,
-but the App imposes no admission cap on how many conversations in the mounted project may run
-concurrently. Each Agent-authored Yjs transaction records its session/turn/call collaborator
-identity, and every durable Yjs revision records an explicit `agent`, `user`, `remote`, `system`,
-or `legacy` source independently of the compactable update log. A stale Agent is told whether the
-winner was this same turn, another Agent conversation, the author, mixed sources, or an
-external/unknown source; missing provenance is never guessed to mean a user edit. Yjs merges valid CRDT operations;
-the durable revision CAS still rejects a semantically stale whole-object write. After two such
-conflicts on the same target in one turn, that target is blocked for the rest of the turn so two
-Agents cannot reread and overwrite each other forever. Switching projects stops turns owned by the
-previous mounted project; restart restores durable plans for manual resume rather than replaying
-active provider turns. There is no author-visible Agent checkpoint, manuscript rewind, or
-conversation-fork hierarchy. Manuscript recovery belongs to the independent entity snapshot
-history, while internal runtime checkpoints remain an implementation detail for durable context
-and crash recovery. See
-[`CONCURRENT_AGENT_SESSIONS_ACCEPTANCE_2026-08-05.md`](docs/agent-runtime/acceptance/CONCURRENT_AGENT_SESSIONS_ACCEPTANCE_2026-08-05.md).
-
-Writing policy is author-owned. Drifting does not inject editor focus or
-selection, resolve “这里/这段” into a hidden target, impose a content-scope or
-canon-patch gate, or add default style/POV/voice rules. The current author
-request, editable project facts, and author-created or approved Agent memory are
-the writing guidance. Project isolation, live Yjs writes, revision checks,
-durable review, and destructive-operation approval remain data-safety
-boundaries. Run
-`pnpm --dir client eval:agent:writing` for the local `雾港纪事` read-only
-corpus, unrestricted-target regression, rule-lifecycle checks and machine
-report; the normative contract is
-[`author-owned-writing-policy.md`](docs/agent-runtime/author-owned-writing-policy.md).
-An optional paid DeepSeek writing canary is available through
-`pnpm --dir client eval:agent:writing:live`.
-Installed tool definitions are frozen for the turn, execution is revision-bound,
-streamed arguments are validated only after complete assembly, and recoverable
-empty/malformed or search-omitted calls receive one schema-visible repair iteration.
-
-This is still not full Claude Code parity. The generated
-[`agent-capabilities.md`](docs/agent-runtime/acceptance/agent-capabilities.md) is the authoritative
-inventory for installed model tools, direct catalog certification, authored-object operations,
-provider/MCP platform and deferred product capabilities. Runtime-discovered MCP tools use
-project-scoped configuration, strict discovery/schema validation, exact durable grants and
-generation-isolated lifecycle ownership. Desktop stdio runs in a bounded native child host;
-Streamable HTTP uses a cancellable native request host on desktop/iOS/Android rather than WebView
-fetch. The settings surface owns health, reconnect, enable/disable, secrets and grant revocation.
-Run `pnpm --dir client eval:agent:extensions`; see the normative
-[`provider-extension-protocol.md`](docs/agent-runtime/provider-extension-protocol.md) and the
-[`current status`](docs/agent-runtime/acceptance/CURRENT_STATUS.md) and
-[`roadmap`](docs/agent-runtime/ROADMAP.md) for the current acceptance boundary and execution order.
-
-Native mobile compilation and long-running restart/fault volume are also
-machine-gated. iOS arm64 Simulator and Android arm64 debug artifacts are built
-and hash-verified; resumable 4h/12h workload-equivalent soaks run fresh-process
-15-minute epochs against the local manuscript oracle and durable fault matrix.
-See [`native-endurance-acceptance.md`](docs/agent-runtime/native-endurance-acceptance.md).
-This evidence does not pretend that a bundle compile proves physical-device
-touch, keyboard, background suspension or visual quality.
-
-See [`src-tauri/UNSUPPORTED.md`](src-tauri/UNSUPPORTED.md) for the explicit platform limitations.
+- [documentation index](docs/README.md)
+- [current Agent status](docs/agent-runtime/acceptance/CURRENT_STATUS.md)
+- [Agent roadmap and open work](docs/agent-runtime/ROADMAP.md)
+- [renderer UI architecture](docs/renderer-ui-architecture.md)
+- [mobile device acceptance](docs/mobile-device-acceptance.md)
+- [explicit Tauri limitations](src-tauri/UNSUPPORTED.md)
 
 ## License
 

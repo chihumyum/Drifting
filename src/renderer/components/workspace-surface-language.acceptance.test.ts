@@ -655,11 +655,11 @@ describe('workspace surface language acceptance', () => {
     const css = source('src/styles/index.css');
 
     expect(readme).toContain('docs/mobile-ui-foundation.md');
-    expect(mobileDoc).toContain('当前代码已经具备独立的移动端产品路径');
-    expect(mobileDoc).toContain('不得把当前状态描述为 mobile-ready');
-    expect(mobileDoc).toContain('44/48px');
+    expect(mobileDoc).toContain('Drifting has a distinct mobile product path');
+    expect(mobileDoc).toContain('Opening a project mounts `MobileAppShell`');
+    expect(mobileDoc).toContain('Only the active paper mounts a full editor');
     expect(mobileDoc).toContain('visualViewport');
-    expect(mobileDoc).toContain('真实 iOS 与 Android 设备完成手工验收');
+    expect(mobileDoc).toContain('physical-device appearance or feel');
     expect(css).toContain("html[data-platform-target='mobile'] .app-root");
     expect(css).toContain('height: 100dvh !important;');
     expect(css).toContain("html[data-platform-target='mobile'] .sidebar-shell");

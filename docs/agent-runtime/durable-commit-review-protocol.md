@@ -107,6 +107,42 @@ history.
 | After all blocks terminal, before UI cleanup | terminal parent review | hydration removes the batch; animation may be lost but content/decision cannot change |
 | After model execution, before turn commit | effects may be committed, turn checkpoint absent | do not adopt provider history; surface commit failure and pin independent effect/review evidence next turn |
 
+## Added first-open presentation
+
+Structural creation has no before-snapshot. A successful domain create derives
+one persisted Added presentation from the canonical `result_committed` payload,
+keyed by the resolved entity id; provider-facing prose is never the authority
+for that marker. Replaying an idempotent committed result may rebuild a missing
+presentation marker but must not execute the mutation again.
+
+The sidebar `A` marker outranks `M` but remains below active tool execution. It
+clears only after every initial textual block completes its first-open reveal,
+or after empty-editor hydration proves there is no prose to reveal. Opening the
+entity alone does not clear it.
+
+Creation captures its review mode for the complete initial prose:
+
+- auto mode treats every textual top-level block as `new` and masks the durable
+  live block before paint until its reveal completes;
+- approve mode persists one ordinary SQLite review block per textual block and
+  uses the same accept/reject and guarded inverse protocol as later edits;
+- an existing durable approve-mode review always outranks rebuildable Added
+  projection state.
+
+Stable block ids come from the schema-safe creation seed. Before those ids are
+materialized, a ProseMirror decoration masks initial textual blocks; after
+materialization, the ordinary block projection takes ownership atomically.
+Long documents reveal on first viewport entry without exposing completed live
+text underneath a duplicate animation. Masking preserves layout geometry.
+
+Added state may be cached in localStorage only as a rebuildable presentation.
+SQLite/Yjs remain authoritative, and presentation failure after a committed
+effect cannot reverse success or invite a duplicate create.
+
+Focused coverage includes `tool-entity-ref.test.ts`, Agent activity/edit store
+tests, `agent-added-file.test.ts`, diff-decoration and animation tests, write
+runtime replay tests, and the domain CRUD/Yjs integration suites.
+
 ## Machine acceptance requirements
 
 Milestone C cannot close from mocked UI tests alone. Its gate must exercise:
