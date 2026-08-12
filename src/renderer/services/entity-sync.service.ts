@@ -22,6 +22,7 @@ import { getDeviceId } from '../lib/device-id';
 import { events, type SyncOperationEvent } from '../lib/events';
 import {
   AgentMemoryTable,
+  AgentWorkingMemoryTable,
   BlockSectionTable,
   BookActTable,
   DriftGroupTable,
@@ -93,6 +94,7 @@ export type EntityType =
   | 'comment'
   | 'commentAction'
   | 'agentMemory'
+  | 'agentWorkingMemory'
   | 'bookAct'
   | 'driftGroup'
   | 'timelineMarker';
@@ -161,6 +163,8 @@ export interface ProjectGraphPayload {
   // Optional: absent from older-server graph responses (partial rollout). Hydrate
   // treats `?? []` and the unflushed-mutation guard keeps local memories safe.
   agentMemories?: Record<string, unknown>[];
+  // Optional during partial rollout; singleton object rather than an array.
+  agentWorkingMemory?: Record<string, unknown> | null;
   // Optional for the same partial-rollout reason as agentMemories.
   bookActs?: Record<string, unknown>[];
   driftGroups?: Record<string, unknown>[];
@@ -251,6 +255,7 @@ const CREATE_DELETE_CANCELLATION_SAFE_TYPES: ReadonlySet<EntityType> = new Set([
   'entityRelation',
   'commentAction',
   'agentMemory',
+  'agentWorkingMemory',
   'bookAct',
   'timelineMarker',
 ]);
@@ -901,6 +906,14 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
         endpoint: `/api/projects/${projectId}/agent-memories/${entityId}`,
       };
 
+    // ---- Agent Working Memory (one rolling Markdown singleton per project) ----
+    case 'agentWorkingMemory':
+      return {
+        method: 'PUT',
+        endpoint: `/api/projects/${projectId}/agent-working-memory`,
+        data: payload,
+      };
+
     // ---- Book Act (幕) ----
     case 'bookAct':
       if (mutationType === 'create') {
@@ -1140,6 +1153,7 @@ export interface PullResult {
   comments?: unknown[];
   commentActions?: unknown[];
   agentMemories?: unknown[];
+  agentWorkingMemory?: unknown;
 }
 
 /**
@@ -1166,6 +1180,7 @@ export async function pullProjectData(projectId: string): Promise<PullResult> {
     comments: graph.comments,
     commentActions: graph.commentActions,
     agentMemories: graph.agentMemories,
+    agentWorkingMemory: graph.agentWorkingMemory,
   };
 }
 
@@ -1844,6 +1859,9 @@ export async function hydrateProjectGraph(
     await tx.delete(CommentActionTable).where(eq(CommentActionTable.projectId, projectId));
     await tx.delete(CommentTable).where(eq(CommentTable.projectId, projectId));
     await tx.delete(AgentMemoryTable).where(eq(AgentMemoryTable.projectId, projectId));
+    await tx
+      .delete(AgentWorkingMemoryTable)
+      .where(eq(AgentWorkingMemoryTable.projectId, projectId));
     await tx.delete(BookActTable).where(eq(BookActTable.projectId, projectId));
     await tx.delete(DriftGroupTable).where(eq(DriftGroupTable.projectId, projectId));
     await tx.delete(TimelineMarkerTable).where(eq(TimelineMarkerTable.projectId, projectId));
@@ -2237,6 +2255,27 @@ export async function hydrateProjectGraph(
     })).filter((row) => row.id && row.projectId);
     if (agentMemories.length > 0) {
       await insertRowsBatched(tx, AgentMemoryTable, agentMemories);
+    }
+
+    const workingMemorySource =
+      graph.agentWorkingMemory && typeof graph.agentWorkingMemory === 'object'
+        ? (graph.agentWorkingMemory as Record<string, unknown>)
+        : null;
+    if (workingMemorySource) {
+      const workingMemory = {
+        projectId: stringValue(workingMemorySource, 'projectId'),
+        contentMd: stringValue(workingMemorySource, 'contentMd'),
+        revision: numberValue(workingMemorySource, 'revision'),
+        approxTokens: numberValue(workingMemorySource, 'approxTokens'),
+        updatedBy: stringValue(workingMemorySource, 'updatedBy', 'agent') || 'agent',
+        lastCompactedAt: nullableStringValue(workingMemorySource, 'lastCompactedAt'),
+        deletedAt: nullableStringValue(workingMemorySource, 'deletedAt'),
+        createdAt: dateText(workingMemorySource.createdAt),
+        updatedAt: dateText(workingMemorySource.updatedAt),
+      };
+      if (workingMemory.projectId) {
+        await tx.insert(AgentWorkingMemoryTable).values(workingMemory);
+      }
     }
 
     // Acts + timeline markers — wipe-and-reinsert like agentMemory; both have

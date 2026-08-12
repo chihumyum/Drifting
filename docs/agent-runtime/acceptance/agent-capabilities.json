@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 17,
+  "schemaVersion": 18,
   "source": "drifting-final-product-contract",
   "product": {
     "runtimeHost": "tauri-renderer",
@@ -22,9 +22,9 @@
     }
   },
   "installedModelTools": {
-    "total": 71,
-    "read": 25,
-    "write": 46,
+    "total": 73,
+    "read": 26,
+    "write": 47,
     "entries": [
       {
         "name": "add_chapter_to_storyline",
@@ -47,6 +47,17 @@
         "effect": "none",
         "approval": "automatic",
         "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "checkpoint_working_memory",
+        "access": "write",
+        "owner": "working-memory-runtime",
+        "surface": "working-memory-runtime",
+        "certification": "internal-certified",
+        "risk": "low",
+        "effect": "memory",
+        "approval": "automatic",
+        "revertStrategy": "unavailable"
       },
       {
         "name": "create_author_rule",
@@ -482,6 +493,17 @@
         "access": "read",
         "owner": "workspace-runtime",
         "surface": "runtime-control",
+        "certification": "internal-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "read_working_memory",
+        "access": "read",
+        "owner": "working-memory-runtime",
+        "surface": "working-memory-runtime",
         "certification": "internal-certified",
         "risk": "none",
         "effect": "none",
@@ -1615,6 +1637,15 @@
     "completionPolicy": "current-manifest-plus-work-kind-evidence",
     "automaticContinuationPrompts": "model-visible-transcript-hidden",
     "stagnantSliceWatchdog": 2
+  },
+  "workingMemory": {
+    "format": "single-rolling-markdown",
+    "filename": "WORKING_MEMORY.md",
+    "scope": "project-shared-general-agent-conversations",
+    "lifecycle": "turn-start-read-and-pre-final-importance-checkpoint",
+    "compaction": "soft-6000-hard-8000-oldest-first-retirement",
+    "concurrency": "sqlite-revision-cas",
+    "sync": "atomic-local-row-plus-outbox"
   },
   "contextEngineering": {
     "providerProfile": {

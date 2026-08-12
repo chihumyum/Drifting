@@ -99,6 +99,11 @@ import {
 import { resolveAgentProviderContextProfile } from './agent-provider-contract';
 import { loadStorylineMembershipSnapshot } from './domain-crud-revision';
 import { createDurableDynamicPermissionAuthority } from './durable-permission-authority';
+import {
+  AgentWorkingMemoryToolRuntime,
+  createAgentWorkingMemoryAwarePermissionPolicy,
+  resolveAgentWorkingMemoryToolAccess,
+} from './working-memory-tool-runtime';
 import { AgentExtensionManager } from './agent-extension-manager';
 import { platform } from '../../../platform';
 
@@ -146,6 +151,7 @@ export interface DriftingAgentProductComposition {
   toolRuntime: AgentToolRuntime;
   workspaceTools: DriftingWorkspaceToolRuntime;
   longTaskTools: AgentLongTaskToolRuntime;
+  workingMemoryTools: AgentWorkingMemoryToolRuntime;
   dynamicTools: DynamicAgentToolRegistry;
   extensionManager: AgentExtensionManager;
   repositories: DriftingAgentProductRepositories;
@@ -157,7 +163,11 @@ export interface DriftingAgentProductComposition {
  * Dynamic tools remain project/generation-bound and are resolved separately.
  */
 export function resolveDriftingBuiltInToolAccess(name: string): 'read' | 'write' | undefined {
-  return resolveDriftingCertifiedToolAccess(name) ?? resolveAgentLongTaskToolAccess(name);
+  return (
+    resolveDriftingCertifiedToolAccess(name) ??
+    resolveAgentLongTaskToolAccess(name) ??
+    resolveAgentWorkingMemoryToolAccess(name)
+  );
 }
 
 /**
@@ -273,6 +283,9 @@ export function createDriftingAgentProductComposition(
     getWholeBookChapterManifest: snapshotDriftingWholeBookChapterManifest,
     resolveCurrentChapterName: resolveDriftingCurrentChapterName,
   });
+  const workingMemoryTools = new AgentWorkingMemoryToolRuntime({
+    ...(options.database ? { database: options.database } : {}),
+  });
   const dynamicTools =
     options.dynamicTools ??
     new DynamicAgentToolRegistry({
@@ -285,7 +298,7 @@ export function createDriftingAgentProductComposition(
       ],
     });
   const toolRuntime = new CompositeAgentToolRuntime(
-    [workspaceTools, tools, longTaskTools],
+    [workspaceTools, tools, longTaskTools, workingMemoryTools],
     dynamicTools,
   );
   const extensionManager = new AgentExtensionManager({
@@ -303,12 +316,14 @@ export function createDriftingAgentProductComposition(
     tools: toolRuntime,
     toolSelector: createDriftingWorkspaceToolSelectionStrategy(),
     permissionPolicy: createDynamicAwareAgentPermissionPolicy(
-      createAgentLongTaskAwarePermissionPolicy(
-        createDriftingAgentPermissionPolicy({
-          ...(options.allowDangerousOperations
-            ? { allowDangerousOperations: options.allowDangerousOperations }
-            : {}),
-        }),
+      createAgentWorkingMemoryAwarePermissionPolicy(
+        createAgentLongTaskAwarePermissionPolicy(
+          createDriftingAgentPermissionPolicy({
+            ...(options.allowDangerousOperations
+              ? { allowDangerousOperations: options.allowDangerousOperations }
+              : {}),
+          }),
+        ),
       ),
       dynamicTools,
       createDurableDynamicPermissionAuthority(repositories.extensions),
@@ -387,6 +402,7 @@ export function createDriftingAgentProductComposition(
     toolRuntime,
     workspaceTools,
     longTaskTools,
+    workingMemoryTools,
     dynamicTools,
     extensionManager,
     repositories,

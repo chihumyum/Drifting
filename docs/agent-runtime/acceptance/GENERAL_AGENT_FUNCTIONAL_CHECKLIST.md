@@ -1,6 +1,6 @@
 # General Agent functional acceptance checklist
 
-Updated: 2026-08-06
+Updated: 2026-08-13
 
 This is the durable acceptance index for General Agent changes. A milestone is
 not accepted from a test count alone: every applicable row needs an evidence
@@ -166,6 +166,8 @@ plus receipt, inverse/permission behavior and restart visibility.
 | LONG-13 | Core  | E3               | A vague project-level writing prompt, with provider-default reasoning enabled and no effort override, exposes durable-plan plus natural workspace tools, crosses repeated compactions, performs multi-resource CRUD/relation work and reaches a verified terminal without a prompt-authored file list or procedural recipe. |
 | LONG-14 | Core  | E1+E3            | Every persisted step title describes its one target. If a model puts several sibling target names into one target-specific title, the runtime projects an atomic target title while retaining the full objective and later steps; no scope guard limits what the model may actually edit.                                   |
 | LONG-15 | Core  | E1               | The durable plan may focus the provider on the current deliverable, but imposes no one-source/evidence quota and no prohibition on reading or changing related authored objects when cross-object work needs them. Repeated weak-model deliberation alone is not converted into a runtime scope guard.                      |
+| LONG-16 | Core  | E1+E2+E4         | One project-scoped `WORKING_MEMORY.md` is injected into every General Agent conversation at turn start and exposes an importance-gated `update`/`noop` checkpoint before final response. Author preview/edit/clear remains available without provider credentials; desktop visuals are manual and no mobile Agent panel is claimed. |
+| LONG-17 | Core  | E1+E2            | Working Memory uses one SQLite revision-CAS row plus the atomic sync outbox, rejects stale author/Agent updates, and deterministically retires the oldest completed `Recent` entries above the 6k soft budget while preserving `Current` and two newest exact entries; content above the 8k protected boundary fails closed. |
 
 ## H. Context engineering
 

@@ -6,6 +6,7 @@ import {
   primaryKey,
   index,
   uniqueIndex,
+  check,
   blob,
   foreignKey,
 } from 'drizzle-orm/sqlite-core';
@@ -1692,6 +1693,33 @@ export const AgentMemoryTable = sqliteTable(
     index('idx_agent_memory_project_status').on(t.projectId, t.status),
     index('idx_agent_memory_project_kind_status').on(t.projectId, t.kind, t.status),
     index('idx_agent_memory_target').on(t.targetKind, t.targetId),
+  ],
+);
+
+// General Agent Working Memory
+// One rolling, user-readable Markdown document per project. It is recent
+// cross-conversation work context, not long-lived author guidance and not an
+// authored-story source of truth. Revision is a local CAS boundary; token
+// counts make automatic rolling compaction deterministic and inspectable.
+export const AgentWorkingMemoryTable = sqliteTable(
+  'agent_working_memory',
+  {
+    projectId: text('project_id')
+      .primaryKey()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    contentMd: text('content_md').notNull().default(''),
+    revision: integer('revision').notNull().default(0),
+    approxTokens: integer('approx_tokens').notNull().default(0),
+    updatedBy: text('updated_by').notNull().default('agent'),
+    lastCompactedAt: text('last_compacted_at'),
+    deletedAt: text('deleted_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    check('agent_working_memory_revision_nonnegative', sql`${t.revision} >= 0`),
+    check('agent_working_memory_tokens_nonnegative', sql`${t.approxTokens} >= 0`),
+    check('agent_working_memory_updated_by', sql`${t.updatedBy} in ('author', 'agent')`),
   ],
 );
 

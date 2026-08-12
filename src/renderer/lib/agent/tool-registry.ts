@@ -1481,6 +1481,45 @@ const RUNTIME_VIRTUAL_TOOL_SPECS: InternalToolSpec[] = [
   ...DOMAIN_RUNTIME_READ_TOOL_SPECS,
   ...DOMAIN_RUNTIME_WRITE_TOOL_SPECS,
   {
+    name: 'read_working_memory',
+    description: '读取同项目所有 General Agent 共享的近期 WORKING_MEMORY.md。',
+    parametersSchema: noArgs,
+    scope: 'runtime-virtual',
+    access: 'read',
+    risk: 'none',
+    effect: 'none',
+    concurrency: 'parallel',
+    approval: 'automatic',
+    retry: 'safe',
+    revertStrategy: 'not_applicable',
+    certificationNote:
+      'Runtime-certified project-scoped rolling Working Memory read.',
+    resultBudgetChars: 32_000,
+  },
+  {
+    name: 'checkpoint_working_memory',
+    description: '最终回复前更新或明确不更新共享 Working Memory。',
+    parametersSchema: Type.Object(
+      {
+        operation: Type.Union([Type.Literal('update'), Type.Literal('noop')]),
+        expectedRevision: Type.Integer({ minimum: 0 }),
+        contentMd: Type.Optional(Type.String({ maxLength: 64_000 })),
+      },
+      { additionalProperties: false },
+    ),
+    scope: 'runtime-virtual',
+    access: 'write',
+    risk: 'low',
+    effect: 'memory',
+    concurrency: 'exclusive_project',
+    approval: 'automatic',
+    retry: 'inspect_before_retry',
+    revertStrategy: 'unavailable',
+    certificationNote:
+      'Runtime-certified project-scoped Markdown checkpoint with revision CAS and bounded compaction.',
+    resultBudgetChars: 12_000,
+  },
+  {
     name: 'ask_user',
     description:
       'Pause the current turn and ask the author one focused question when a real author decision is required. Do not use it for facts available through Drifting read tools.',

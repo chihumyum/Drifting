@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-08-10
+Updated: 2026-08-13
 
 This document is the current human-readable product and verification boundary.
 Historical phase reports and dated provider runs are evidence for their
@@ -91,6 +91,19 @@ pnpm --dir client agent:capabilities:check
   conversation rewind, and conversation-fork hierarchy are not product
   concepts; manuscript recovery belongs to entity snapshot history.
 
+- Every project has one rolling Markdown `WORKING_MEMORY.md` shared across its
+  General Agent conversations. The runtime injects the current revision at turn
+  start and exposes one importance-gated checkpoint (`update` or `noop`) before
+  the final response. It is intentionally recent working context, not project
+  history, canon, manuscript prose, a transcript or the long-term author-rule
+  store. SQLite owns a revision-CAS singleton; local mutation and sync outbox are
+  atomic; 6k/8k soft/hard token bounds retire the oldest completed `Recent`
+  entries while preserving `Current` and the two newest exact entries.
+- The desktop General Agent panel can preview, edit, create and clear Working
+  Memory even before a provider credential is connected. Concurrent Agent/user
+  edits fail closed and preserve an unsaved author draft. This UI is not exposed
+  by the current mobile shell.
+
 ### Providers and extensions
 
 - Models & API is the single writable BYOK credential surface. Copilot and
@@ -115,6 +128,9 @@ pnpm --dir client agent:capabilities:check
 - Compilation, state-machine tests, and Simulator automation do not prove
   physical-device touch, IME, safe-area, background, visual quality, or Android
   device behavior.
+- Working Memory desktop layout, Markdown readability, destructive-clear
+  wording and keyboard interaction still require author visual review. Shared
+  schema/runtime tests do not claim an iOS or Android Agent-panel experience.
 
 ## Current open verification and follow-up
 

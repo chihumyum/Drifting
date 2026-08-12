@@ -40,6 +40,7 @@ pnpm --dir client eval:agent:tool-reliability
 pnpm --dir client eval:agent:durability
 pnpm --dir client eval:agent:crud
 pnpm --dir client eval:agent:long-task
+pnpm --dir client eval:agent:working-memory
 pnpm --dir client eval:agent:context
 pnpm --dir client eval:agent:writing
 pnpm --dir client eval:agent:p5
@@ -166,6 +167,16 @@ localStorage and renderer stores are rebuildable presentation only. Long tasks
 freeze a chapter manifest, persist progress and constraints across slices and
 restart, stop at durable tool boundaries, and require explicit author action to
 resume after restart.
+
+Every project also owns one rolling `WORKING_MEMORY.md` shared by all of its
+General Agent conversations. The current revision is injected at turn start;
+before the final response the Agent must either checkpoint a high-signal update
+or explicitly record a no-op. The document is author-readable, editable and
+clearable in the desktop Agent panel. SQLite revision CAS prevents silent local
+overwrites, sync uses the ordinary atomic outbox boundary, and deterministic
+compaction retires the oldest completed entries after the soft token budget.
+This short-lived context is separate from manuscript truth, project history and
+long-term Agent rules.
 
 The model-facing surface is domain-native: chapters, inspirations, elements,
 categories, storylines, memberships, relations, comments/TODOs, project facts,

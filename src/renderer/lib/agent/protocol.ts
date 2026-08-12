@@ -193,6 +193,12 @@ export interface AgentStartInput {
   projectName?: string;
   projectFacts?: { key: string; value: string }[];
   memories?: { kind: string; body: string }[];
+  /** Recent rolling context shared by every General Agent conversation. */
+  workingMemory?: {
+    contentMd: string;
+    revision: number;
+    approxTokens: number;
+  };
 }
 
 export interface GeneralAgentAuthStatus {

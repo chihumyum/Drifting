@@ -63,10 +63,10 @@ describe('product file-backed migration acceptance', () => {
     expect(
       first.database
         .prepare(
-          "SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name IN ('book_node', 'node_content', 'yjs_updates', 'agent_runtime_write_effect', 'entity_snapshot_history')",
+          "SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name IN ('book_node', 'node_content', 'yjs_updates', 'agent_runtime_write_effect', 'entity_snapshot_history', 'agent_working_memory')",
         )
         .get(),
-    ).toEqual({ count: 5 });
+    ).toEqual({ count: 6 });
     expect(
       first.database
         .prepare(
@@ -85,6 +85,20 @@ describe('product file-backed migration acceptance', () => {
       .prepare("PRAGMA table_info('agent_runtime_task_step')")
       .all() as Array<{ name: string }>;
     expect(taskStepColumns.map((column) => column.name)).toContain('work_kind');
+    const workingMemoryColumns = first.database
+      .prepare("PRAGMA table_info('agent_working_memory')")
+      .all() as Array<{ name: string; pk: number }>;
+    expect(workingMemoryColumns.find((column) => column.name === 'project_id')?.pk).toBe(1);
+    expect(workingMemoryColumns.map((column) => column.name)).toEqual(
+      expect.arrayContaining([
+        'content_md',
+        'revision',
+        'approx_tokens',
+        'updated_by',
+        'last_compacted_at',
+        'deleted_at',
+      ]),
+    );
     await first.close();
 
     const reopened = new ProductFileBackedSqliteGateway(databasePath);

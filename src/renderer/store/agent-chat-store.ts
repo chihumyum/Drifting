@@ -31,6 +31,7 @@ import { useDataStore } from './data-store';
 import { useAgentEditStore, type RevertRecord } from './agent-edit-store';
 import type { ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import { loadActiveMemoryHints } from '../usecase/useAgentMemory';
+import { prepareAgentWorkingMemoryForTurn } from '../usecase/useAgentWorkingMemory';
 import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
 import { createAgentRuntimeLongTaskRepository } from '../sqlite-repo/agent-runtime-long-task-repo';
 import type {
@@ -605,6 +606,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       // Active agent memories (author-approved standing guidance) — injected into
       // the system prompt so past preferences/vetoes/directives keep steering.
       const memories = await loadActiveMemoryHints(projectId).catch(() => []);
+      const workingMemory = await prepareAgentWorkingMemoryForTurn(projectId).catch(() => null);
 
       // Drain rejected edits only once all cancellable preflight reads are done.
       // The visible transcript keeps the original user text; only the provider
@@ -636,6 +638,13 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           resume: run.runtimeSessionId ?? undefined,
           ...projectContext,
           memories,
+          workingMemory: workingMemory
+            ? {
+                contentMd: workingMemory.contentMd,
+                revision: workingMemory.revision,
+                approxTokens: workingMemory.approxTokens,
+              }
+            : { contentMd: '', revision: 0, approxTokens: 0 },
           turnId,
         })
         .catch((error: unknown) => ({

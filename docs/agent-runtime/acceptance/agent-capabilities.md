@@ -9,9 +9,9 @@ Runtime-discovered project MCP/plugin tools are additional and generation-bound.
 
 | Capability | Current value |
 | --- | ---: |
-| Installed built-in model tools | 71 |
-| Installed reads | 25 |
-| Installed writes | 46 |
+| Installed built-in model tools | 73 |
+| Installed reads | 26 |
+| Installed writes | 47 |
 | Direct catalog writes | 34 |
 | Direct write-certified | 19 |
 | Direct unavailable | 15 |
@@ -75,6 +75,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | --- | --- | --- | --- | --- |
 | `add_chapter_to_storyline` | write | domain-tools | drifting-runtime | internal-certified |
 | `ask_user` | read | runtime-control | workspace-runtime | internal-certified |
+| `checkpoint_working_memory` | write | working-memory-runtime | working-memory-runtime | internal-certified |
 | `create_author_rule` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_chapter` | write | domain-tools | drifting-runtime | internal-certified |
 | `create_comment` | write | domain-tools | drifting-runtime | write-certified |
@@ -115,6 +116,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `read_storyline` | read | domain-tools | workspace-runtime | internal-certified |
 | `read_task_plan` | read | long-task-runtime | long-task-runtime | runtime-certified |
 | `read_tool_result` | read | runtime-control | workspace-runtime | internal-certified |
+| `read_working_memory` | read | working-memory-runtime | working-memory-runtime | internal-certified |
 | `remove_chapter_from_storyline` | write | domain-tools | drifting-runtime | internal-certified |
 | `rename_chapter` | write | domain-tools | drifting-runtime | internal-certified |
 | `rename_inspiration` | write | domain-tools | drifting-runtime | internal-certified |
@@ -156,6 +158,16 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 - Completion policy: `current-manifest-plus-work-kind-evidence`
 - Continuation prompt visibility: `model-visible-transcript-hidden`
 - Stagnant automatic slices before pause: 2
+
+## Working Memory contract
+
+- Format: `single-rolling-markdown`
+- Visible document: `WORKING_MEMORY.md`
+- Scope: `project-shared-general-agent-conversations`
+- Lifecycle: `turn-start-read-and-pre-final-importance-checkpoint`
+- Compaction: `soft-6000-hard-8000-oldest-first-retirement`
+- Concurrency: `sqlite-revision-cas`
+- Sync: `atomic-local-row-plus-outbox`
 
 ## Context engineering contract
 

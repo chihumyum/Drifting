@@ -54,6 +54,7 @@ import {
   relTime,
 } from '../../../features/agent/AgentMessageViews';
 import { AgentComposerConfig } from '../../../features/agent/AgentComposerConfig';
+import { AgentWorkingMemoryView } from '../../../features/agent/AgentWorkingMemoryView';
 
 export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   const { t } = useTranslation();
@@ -89,6 +90,7 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   const bindProject = useAgentChatStore((s) => s.bindProject);
 
   const [status, setStatus] = useState<GeneralAgentAuthStatus | null>(null);
+  const [panelView, setPanelView] = useState<'chat' | 'working-memory'>('chat');
   const [showHistory, setShowHistory] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
@@ -312,16 +314,36 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
           ? t('agentPanel.setup.apiKey')
           : t('agentPanel.setup.byok');
     return (
-      <div style={hintBox}>
-        <div style={hintTitle}>{t('agentPanel.setup.title')}</div>
-        <div style={hintText}>{notConnectedText}</div>
-        <button
-          type="button"
-          style={primaryBtn}
-          onClick={() => events.emit('settings:open', { railId: 'models' })}
-        >
-          {t('agentPanel.setup.openSettings')}
-        </button>
+      <div style={fillStyle}>
+        <style>{panelCss}</style>
+        <div style={toolbar}>
+          <strong className="agt-toolbar-view-title">
+            {t(panelView === 'working-memory' ? 'agentPanel.workingMemory.title' : 'agentPanel.setup.title')}
+          </strong>
+          <button
+            type="button"
+            style={ghostBtn}
+            onClick={() =>
+              setPanelView((view) => (view === 'chat' ? 'working-memory' : 'chat'))
+            }
+          >
+            {t(panelView === 'chat' ? 'agentPanel.toolbar.workingMemory' : 'agentPanel.toolbar.chat')}
+          </button>
+        </div>
+        {panelView === 'working-memory' ? (
+          <AgentWorkingMemoryView key={projectId} projectId={projectId} />
+        ) : (
+          <div style={hintBox}>
+            <div style={hintText}>{notConnectedText}</div>
+            <button
+              type="button"
+              style={primaryBtn}
+              onClick={() => events.emit('settings:open', { railId: 'models' })}
+            >
+              {t('agentPanel.setup.openSettings')}
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -331,7 +353,9 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
     <div style={fillStyle}>
       <style>{panelCss}</style>
       <div style={toolbar}>
-        {editingHeader ? (
+        {panelView === 'working-memory' ? (
+          <strong className="agt-toolbar-view-title">{t('agentPanel.workingMemory.title')}</strong>
+        ) : editingHeader ? (
           <input
             style={nameInput}
             value={headerDraft}
@@ -362,31 +386,45 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
           </button>
         )}
         <div style={toolbarRight}>
-          <AgentContextIndicator snapshot={contextUsage} />
-          <button
-            ref={historyTriggerRef}
-            type="button"
-            style={ghostBtn}
-            onClick={() => {
-              setShowHistory((s) => !s);
-            }}
-            title={t('agentPanel.toolbar.historyTitle')}
-            aria-expanded={showHistory}
-            aria-haspopup="dialog"
-          >
-            ☰ {t('agentPanel.toolbar.history')}
-            {convList.length ? ` · ${convList.length}` : ''}
+          <button type="button" style={ghostBtn} onClick={() => setPanelView((view) => view === 'chat' ? 'working-memory' : 'chat')}>
+            {panelView === 'chat'
+              ? t('agentPanel.toolbar.workingMemory')
+              : t('agentPanel.toolbar.chat')}
           </button>
-          <button
-            type="button"
-            style={ghostBtn}
-            onClick={handleNew}
-            title={t('agentPanel.toolbar.newTitle')}
-          >
-            ＋ {t('agentPanel.newConversation')}
-          </button>
+          {panelView === 'chat' && (
+            <>
+              <AgentContextIndicator snapshot={contextUsage} />
+              <button
+                ref={historyTriggerRef}
+                type="button"
+                style={ghostBtn}
+                onClick={() => {
+                  setShowHistory((s) => !s);
+                }}
+                title={t('agentPanel.toolbar.historyTitle')}
+                aria-expanded={showHistory}
+                aria-haspopup="dialog"
+              >
+                ☰ {t('agentPanel.toolbar.history')}
+                {convList.length ? ` · ${convList.length}` : ''}
+              </button>
+              <button
+                type="button"
+                style={ghostBtn}
+                onClick={handleNew}
+                title={t('agentPanel.toolbar.newTitle')}
+              >
+                ＋ {t('agentPanel.newConversation')}
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {panelView === 'working-memory' && <AgentWorkingMemoryView key={projectId} projectId={projectId} />}
+
+      {panelView === 'chat' && (
+        <>
 
       <AnchoredPopover
         anchorRef={historyTriggerRef}
@@ -630,6 +668,8 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

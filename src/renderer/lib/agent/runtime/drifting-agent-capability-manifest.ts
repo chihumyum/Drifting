@@ -32,15 +32,24 @@ import { AGENT_AUTHOR_CONTROL_CONTRACT } from './system-prompt';
 import { AGENT_PROVIDER_OPTIONS } from './agent-provider-contract';
 import { DRIFTING_MCP_PROTOCOL_VERSION } from './mcp-transport';
 import { DRIFTING_AGENT_CONCURRENCY_CONTRACT } from './agent-concurrency-contract';
+import {
+  AGENT_WORKING_MEMORY_CHECKPOINT_TOOL,
+  AGENT_WORKING_MEMORY_READ_TOOL,
+} from './working-memory-tool-contract';
 
-export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 17 as const;
+export const DRIFTING_AGENT_CAPABILITY_MANIFEST_SCHEMA_VERSION = 18 as const;
 
-export type DriftingAgentToolOwner = 'workspace-runtime' | 'drifting-runtime' | 'long-task-runtime';
+export type DriftingAgentToolOwner =
+  | 'workspace-runtime'
+  | 'drifting-runtime'
+  | 'long-task-runtime'
+  | 'working-memory-runtime';
 
 export type DriftingAgentToolSurface =
   | 'domain-tools'
   | 'runtime-control'
-  | 'long-task-runtime';
+  | 'long-task-runtime'
+  | 'working-memory-runtime';
 
 export interface DriftingAgentInstalledToolCapability {
   name: string;
@@ -89,6 +98,15 @@ export interface DriftingAgentCapabilityManifest {
   };
   longTaskTools: string[];
   longTaskExecution: typeof AGENT_LONG_TASK_EXECUTION_CONTRACT;
+  workingMemory: {
+    format: 'single-rolling-markdown';
+    filename: 'WORKING_MEMORY.md';
+    scope: 'project-shared-general-agent-conversations';
+    lifecycle: 'turn-start-read-and-pre-final-importance-checkpoint';
+    compaction: 'soft-6000-hard-8000-oldest-first-retirement';
+    concurrency: 'sqlite-revision-cas';
+    sync: 'atomic-local-row-plus-outbox';
+  };
   contextEngineering: {
     providerProfile: typeof DRIFTING_AGENT_CONTEXT_PROFILE;
     undeclaredProviderWindowTokens: number;
@@ -199,10 +217,21 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
       approval: 'runtime-owned',
       revertStrategy: 'runtime-owned',
     }));
+  const workingMemoryEntries = [
+    AGENT_WORKING_MEMORY_READ_TOOL,
+    AGENT_WORKING_MEMORY_CHECKPOINT_TOOL,
+  ].map((name) =>
+    catalogCapability(
+      requiredCatalogTool(name),
+      'working-memory-runtime',
+      'working-memory-runtime',
+    ),
+  );
   const installed = [
     ...domainEntries,
     ...controlEntries,
     ...longTaskEntries,
+    ...workingMemoryEntries,
   ].sort((left, right) => left.name.localeCompare(right.name, 'en'));
   assertUniqueInstalledNames(installed);
 
@@ -262,6 +291,15 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
     },
     longTaskTools: AGENT_LONG_TASK_TOOL_CONTRACTS.map((tool) => tool.name),
     longTaskExecution: AGENT_LONG_TASK_EXECUTION_CONTRACT,
+    workingMemory: {
+      format: 'single-rolling-markdown',
+      filename: 'WORKING_MEMORY.md',
+      scope: 'project-shared-general-agent-conversations',
+      lifecycle: 'turn-start-read-and-pre-final-importance-checkpoint',
+      compaction: 'soft-6000-hard-8000-oldest-first-retirement',
+      concurrency: 'sqlite-revision-cas',
+      sync: 'atomic-local-row-plus-outbox',
+    },
     contextEngineering: {
       providerProfile: DRIFTING_AGENT_CONTEXT_PROFILE,
       undeclaredProviderWindowTokens: DRIFTING_AGENT_UNDECLARED_PROVIDER_CONTEXT_WINDOW_TOKENS,

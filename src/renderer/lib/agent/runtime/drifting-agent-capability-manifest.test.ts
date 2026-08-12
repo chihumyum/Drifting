@@ -67,6 +67,7 @@ describe('Drifting Agent capability manifest', () => {
       'workspace-runtime': definitionMap(composition.workspaceTools),
       'drifting-runtime': definitionMap(composition.tools),
       'long-task-runtime': definitionMap(composition.longTaskTools),
+      'working-memory-runtime': definitionMap(composition.workingMemoryTools),
     } as const;
     for (const tool of manifest.installedModelTools.entries) {
       expect(owners[tool.owner].get(tool.name)).toBe(tool.access);
@@ -143,7 +144,7 @@ describe('Drifting Agent capability manifest', () => {
 
   it('does not publish the removed user checkpoint or conversation-fork surface', () => {
     const manifest = buildDriftingAgentCapabilityManifest();
-    expect(manifest.schemaVersion).toBe(17);
+    expect(manifest.schemaVersion).toBe(18);
     expect(manifest.product).toMatchObject({
       contextWindowTokens: 200_000,
       maxContextWindowTokens: 1_000_000,
@@ -163,6 +164,18 @@ describe('Drifting Agent capability manifest', () => {
     });
     expect('userCheckpoint' in manifest).toBe(false);
     expect('authoredObjectFacade' in manifest).toBe(false);
+  });
+
+  it('publishes the bounded shared Working Memory lifecycle', () => {
+    expect(buildDriftingAgentCapabilityManifest().workingMemory).toEqual({
+      format: 'single-rolling-markdown',
+      filename: 'WORKING_MEMORY.md',
+      scope: 'project-shared-general-agent-conversations',
+      lifecycle: 'turn-start-read-and-pre-final-importance-checkpoint',
+      compaction: 'soft-6000-hard-8000-oldest-first-retirement',
+      concurrency: 'sqlite-revision-cas',
+      sync: 'atomic-local-row-plus-outbox',
+    });
   });
 
   it('publishes certified providers, concrete MCP transports, and exact durable grants', () => {

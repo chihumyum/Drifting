@@ -52,6 +52,20 @@ describe('Drifting domain tool selection', () => {
     ]));
   });
 
+  it('pins the Working Memory checkpoint and conflict refresh when installed', () => {
+    const input = request();
+    input.definitions = [
+      definition('read_working_memory'),
+      definition('checkpoint_working_memory'),
+      ...input.definitions,
+    ];
+
+    expect(createDriftingWorkspaceToolSelectionStrategy().select(input).slice(0, 2)).toEqual([
+      'checkpoint_working_memory',
+      'read_working_memory',
+    ]);
+  });
+
   it('never selects retired generic object tools even if a stale caller supplies them', () => {
     const selected = createDriftingWorkspaceToolSelectionStrategy().select(request());
     expect(selected).not.toContain('read_object');
