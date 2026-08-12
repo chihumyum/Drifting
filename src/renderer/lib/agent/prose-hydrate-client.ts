@@ -10,6 +10,7 @@
  * falls back to inline — i.e. exactly the previous behavior. So shipping this can
  * never regress correctness; worst case it's a no-op that uses the main thread.
  */
+import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import * as Y from 'yjs';
 
 interface WorkerResponse {
@@ -87,7 +88,6 @@ function hydrateInWorker(snapshot: Uint8Array | null, updates: Uint8Array[]): Pr
 }
 
 async function hydrateInline(snapshot: Uint8Array | null, updates: Uint8Array[]): Promise<string> {
-  const { yDocToProsemirrorJSON } = await import('y-prosemirror');
   const doc = new Y.Doc();
   try {
     if (snapshot) Y.applyUpdate(doc, snapshot, 'load');

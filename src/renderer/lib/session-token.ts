@@ -1,5 +1,6 @@
 import loglevel from 'loglevel';
 import { platform } from '../platform';
+import { runtimeViteEnv } from './vite-runtime-env';
 
 /**
  * Bearer session token store.
@@ -116,12 +117,14 @@ const localDevPersistence: TokenPersistence = {
 };
 
 const apiBaseUrl =
-  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  (runtimeViteEnv.VITE_API_BASE_URL as string | undefined) ||
+  (runtimeViteEnv.VITE_API_URL as string | undefined) ||
+  'http://localhost:3000';
 const persistence = shouldUseLocalDevSessionStorage({
-  dev: import.meta.env.DEV,
-  mode: import.meta.env.MODE,
+  dev: runtimeViteEnv.DEV === true,
+  mode: String(runtimeViteEnv.MODE ?? ''),
   apiBaseUrl,
-  preference: import.meta.env.VITE_DEV_SESSION_STORAGE,
+  preference: runtimeViteEnv.VITE_DEV_SESSION_STORAGE as string | undefined,
 })
   ? localDevPersistence
   : securePersistence;

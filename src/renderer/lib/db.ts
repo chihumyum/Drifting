@@ -35,6 +35,32 @@ export function getDb(): DrizzleDatabase {
   return db;
 }
 
+/**
+ * Install an already-open product client for a bounded Node/headless command.
+ * The desktop renderer still owns normal init/reset. This seam exists so the
+ * developer CLI can reuse repositories whose legacy signatures resolve
+ * `getDb()` while keeping one exact transaction-owning database.
+ */
+export function installHeadlessDatabaseClient(
+  client: DrizzleDatabase,
+  databaseName = 'headless.db',
+): () => void {
+  if (dbInitialized || db) {
+    throw new Error('Cannot install a headless database over an initialized renderer database.');
+  }
+  db = client;
+  dbInitialized = true;
+  currentDbName = databaseName;
+  return () => {
+    if (db !== client) {
+      throw new Error('The installed headless database is no longer the active client.');
+    }
+    dbInitialized = false;
+    currentDbName = null;
+    db = undefined as unknown as DrizzleDatabase;
+  };
+}
+
 export type DbClient = DrizzleDatabase;
 export type DbTransaction = Parameters<Parameters<DbClient['transaction']>[0]>[0];
 export type DbExecutor = DbClient | DbTransaction;

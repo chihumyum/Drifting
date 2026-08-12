@@ -18,6 +18,7 @@
  * (reason 'restore', interval-exempt) — a restore is always undoable by
  * restoring the auto-captured pre-restore row.
  */
+import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import * as Y from 'yjs';
 import loglevel from 'loglevel';
 import {
@@ -57,7 +58,6 @@ function replaceFragmentContent(target: Y.XmlFragment, source: Y.XmlFragment): v
 }
 
 async function applyProseState(docId: string, stateBlob: Uint8Array): Promise<string> {
-  const { yDocToProsemirrorJSON } = await import('y-prosemirror');
   const source = new Y.Doc();
   try {
     Y.applyUpdate(source, stateBlob, 'load');

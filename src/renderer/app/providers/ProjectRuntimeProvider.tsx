@@ -42,7 +42,11 @@ interface ProjectRuntimeProviderProps {
   children: ReactNode;
 }
 
-export function ProjectRuntimeProvider({ projectId, userId, children }: ProjectRuntimeProviderProps) {
+export function ProjectRuntimeProvider({
+  projectId,
+  userId,
+  children,
+}: ProjectRuntimeProviderProps) {
   const { t } = useTranslation();
   const bootKey = `${userId}:${projectId}`;
   const [bootAttempt, setBootAttempt] = useState(0);
@@ -61,6 +65,27 @@ export function ProjectRuntimeProvider({ projectId, userId, children }: ProjectR
   const commentUsecases = useComment({ projectId, userId });
   const contentUsecases = useBookContent({ userId, projectId });
   const projectUsecases = useProject({ userId });
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG !== '1') {
+      return undefined;
+    }
+    let dispose: (() => void) | undefined;
+    let cancelled = false;
+    void import('../../lib/frontend-debug/registry').then(({ registerFrontendDebugSlice }) => {
+      if (cancelled) return;
+      dispose = registerFrontendDebugSlice('project.boot', () => ({
+        projectId,
+        userId,
+        attempt: bootAttempt,
+        status: bootState.key === bootKey ? bootState.status : 'loading',
+      }));
+    });
+    return () => {
+      cancelled = true;
+      dispose?.();
+    };
+  }, [bootAttempt, bootKey, bootState, projectId, userId]);
 
   useAgentToolBridge(projectId, {
     updateElement: elementUsecases.updateElement,

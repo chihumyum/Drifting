@@ -31,6 +31,14 @@ registerCopilotCapability(elementPatchCapability);
 
 installAIDevConsole();
 
+// Kept behind both Vite's compile-time DEV branch and an explicit opt-in. The
+// dynamic module and its global debug registry are absent from release builds.
+if (import.meta.env.DEV && import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG === '1') {
+  void import('./lib/frontend-debug/bridge').then(({ installFrontendDebugBridge }) => {
+    installFrontendDebugBridge();
+  });
+}
+
 if (!(globalThis as { Buffer?: typeof Buffer }).Buffer) {
   (globalThis as { Buffer?: typeof Buffer }).Buffer = Buffer;
 }

@@ -14,6 +14,7 @@
 import type { BYOKProvider } from '../../byok-keychain';
 import { AIError } from '../types';
 import type { CredentialsMode, CredentialsProvider } from './credentials-provider';
+import { runtimeViteEnv } from '../../vite-runtime-env';
 
 export class EnvCredentialsProvider implements CredentialsProvider {
   readonly mode: CredentialsMode = 'byok';
@@ -31,7 +32,7 @@ export class EnvCredentialsProvider implements CredentialsProvider {
 }
 
 function readEnvKey(provider: BYOKProvider): string | undefined {
-  const env = import.meta.env as Record<string, string | undefined>;
+  const env = runtimeViteEnv as Record<string, string | undefined>;
   for (const name of envNames(provider)) {
     const v = env[name];
     if (typeof v === 'string' && v.length > 0) return v;

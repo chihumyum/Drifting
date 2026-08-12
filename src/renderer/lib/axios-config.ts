@@ -11,9 +11,12 @@ import { useAuthStore } from '../store/auth';
 import { getActiveTraceId } from './trace';
 import { getDeviceId } from './device-id';
 import { getSessionToken } from './session-token';
+import { runtimeViteEnv } from './vite-runtime-env';
 
 const BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  (runtimeViteEnv.VITE_API_BASE_URL as string | undefined) ||
+  (runtimeViteEnv.VITE_API_URL as string | undefined) ||
+  'http://localhost:3000';
 
 // 创建 Axios 实例
 export const apiClient = axios.create({

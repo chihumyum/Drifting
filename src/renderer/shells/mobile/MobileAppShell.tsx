@@ -25,6 +25,33 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
   const [activeSuperView, setActiveSuperView] = useState<MobileSuperViewId | null>(null);
   const [frozenProseByKey, setFrozenProseByKey] = useState<Record<string, string>>({});
 
+  useEffect(() => {
+    if (!import.meta.env.DEV || import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG !== '1') {
+      return undefined;
+    }
+    let dispose: (() => void) | undefined;
+    let cancelled = false;
+    void import('../../lib/frontend-debug/registry').then(({ registerFrontendDebugSlice }) => {
+      if (cancelled) return;
+      dispose = registerFrontendDebugSlice('mobile.workspace', () => ({
+        projectId,
+        papers: state.papers.map((paper) => ({
+          key: paper.key,
+          target: paper.target,
+          scrollTop: paper.scrollTop,
+          frozen: Object.prototype.hasOwnProperty.call(frozenProseByKey, paper.key),
+        })),
+        activeKey: state.activeKey,
+        overviewOpen,
+        activeSuperView,
+      }));
+    });
+    return () => {
+      cancelled = true;
+      dispose?.();
+    };
+  }, [activeSuperView, frozenProseByKey, overviewOpen, projectId, state]);
+
   const freezeActivePaper = useCallback((): string | undefined => {
     const active = state.papers.find((paper) => paper.key === state.activeKey);
     if (!active) return undefined;

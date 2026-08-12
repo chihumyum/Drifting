@@ -3,7 +3,13 @@
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+// Vite resolves `?url` to a string in every renderer build. Node/headless
+// domain tooling may import the platform graph without ever rendering a PDF;
+// its loader does not own that Vite transform, so leave pdf.js unconfigured
+// until a real renderer supplies the URL.
+if (typeof pdfWorkerUrl === 'string') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+}
 
 export interface PdfThumbnail {
   bytes: ArrayBuffer;

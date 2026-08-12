@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "name": "chapter-lifecycle",
+  "steps": [
+    {
+      "kind": "workspace.call",
+      "tool": "create_chapter",
+      "input": {
+        "title": "CLI 验收章节",
+        "summary": "由开发 CLI 创建",
+        "body": "潮声从空白页后传来。"
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "read_chapter",
+      "input": { "chapter": "CLI 验收章节" },
+      "expect": { "ok": true }
+    },
+    {
+      "kind": "workspace.call",
+      "tool": "replace_chapter_body",
+      "input": {
+        "chapter": "CLI 验收章节",
+        "body": "潮声覆盖旧岸，正文仍由 Yjs 保存。"
+      },
+      "expect": { "ok": true }
+    }
+  ]
+}

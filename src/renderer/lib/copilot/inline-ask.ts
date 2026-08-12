@@ -18,9 +18,12 @@
 import { AIError, type AIErrorKind } from '../ai/types';
 import { aiByokHeaders } from '../ai/remote/byok-headers';
 import { getSessionToken } from '../session-token';
+import { runtimeViteEnv } from '../vite-runtime-env';
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  (runtimeViteEnv.VITE_API_BASE_URL as string | undefined) ||
+  (runtimeViteEnv.VITE_API_URL as string | undefined) ||
+  'http://localhost:3000';
 
 /** Prose context the answer is grounded in — captured once when the chat opens. */
 export interface InlineAskContext {

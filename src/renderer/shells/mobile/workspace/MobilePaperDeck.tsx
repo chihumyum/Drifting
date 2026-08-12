@@ -166,6 +166,53 @@ export function MobilePaperDeck({
       ? 0
       : panelExtent;
 
+  useEffect(() => {
+    if (!import.meta.env.DEV || import.meta.env.VITE_DRIFTING_FRONTEND_DEBUG !== '1') {
+      return undefined;
+    }
+    let dispose: (() => void) | undefined;
+    let cancelled = false;
+    void import('../../../lib/frontend-debug/registry').then(({ registerFrontendDebugSlice }) => {
+      if (cancelled) return;
+      dispose = registerFrontendDebugSlice('mobile.paper-deck', () => ({
+        activeKey: session.activeKey,
+        visualActiveKey,
+        reveal,
+        visualReveal,
+        preview,
+        panelExtent,
+        visibleExtent,
+        panelResizing,
+        fullPanel,
+        quickSwitch: quickSwitch
+          ? { paperKey: quickSwitch.paperKey, frozenPaperKey: quickSwitch.frozenPaperKey }
+          : null,
+        editorActive,
+        activeRail,
+        clusterArmed,
+        clusterAxis,
+      }));
+    });
+    return () => {
+      cancelled = true;
+      dispose?.();
+    };
+  }, [
+    activeRail,
+    clusterArmed,
+    clusterAxis,
+    editorActive,
+    fullPanel,
+    panelExtent,
+    panelResizing,
+    preview,
+    quickSwitch,
+    reveal,
+    session.activeKey,
+    visibleExtent,
+    visualActiveKey,
+    visualReveal,
+  ]);
 
   useEffect(
     () => () => {

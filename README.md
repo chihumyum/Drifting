@@ -200,6 +200,7 @@ acceptance.
 Documentation entry points:
 
 - [documentation index](docs/README.md)
+- [developer CLI](docs/dev-cli/README.md)
 - [current Agent status](docs/agent-runtime/acceptance/CURRENT_STATUS.md)
 - [Agent roadmap and open work](docs/agent-runtime/ROADMAP.md)
 - [renderer UI architecture](docs/renderer-ui-architecture.md)

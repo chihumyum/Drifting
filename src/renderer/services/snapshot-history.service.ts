@@ -21,6 +21,7 @@
 import * as Y from 'yjs';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
+import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import { parseDocId, type ProseEntityType } from '../lib/yjs-doc-id';
 import {
   createEntitySnapshotRepository,
@@ -137,7 +138,6 @@ async function stateToContentJson(stateBlob: Uint8Array): Promise<string | null>
   const doc = new Y.Doc();
   try {
     Y.applyUpdate(doc, stateBlob, 'load');
-    const { yDocToProsemirrorJSON } = await import('y-prosemirror');
     return JSON.stringify(yDocToProsemirrorJSON(doc, 'default'));
   } catch (err) {
     log.warn('snapshot preview render failed', err);

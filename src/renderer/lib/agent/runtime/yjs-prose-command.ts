@@ -14,8 +14,16 @@
  * existing readers. A Y.Doc/state update is always the input and source of
  * truth.
  */
-import { yDocToProsemirrorJSON } from 'y-prosemirror';
+import { getSchema } from '@tiptap/core';
+import Link from '@tiptap/extension-link';
+import TextAlign from '@tiptap/extension-text-align';
+import Underline from '@tiptap/extension-underline';
+import StarterKit from '@tiptap/starter-kit';
+import { prosemirrorJSONToYDoc, yDocToProsemirrorJSON } from 'y-prosemirror';
 import * as Y from 'yjs';
+
+import { BlockId } from '../../extensions/block-id';
+import { EntityLink } from '../../extensions/entity-link';
 
 const DEFAULT_FRAGMENT = 'default';
 const COMMAND_ORIGIN = 'agent-runtime:yjs-prose-command';
@@ -759,25 +767,6 @@ export async function createYjsProseSeedState(
   document = { ...document, content: normalizedContent };
 
   try {
-    const [
-      { getSchema },
-      { prosemirrorJSONToYDoc },
-      StarterKit,
-      Underline,
-      Link,
-      TextAlign,
-      { BlockId },
-      { EntityLink },
-    ] = await Promise.all([
-      import('@tiptap/core'),
-      import('y-prosemirror'),
-      import('@tiptap/starter-kit').then((module) => module.default),
-      import('@tiptap/extension-underline').then((module) => module.default),
-      import('@tiptap/extension-link').then((module) => module.default),
-      import('@tiptap/extension-text-align').then((module) => module.default),
-      import('../../extensions/block-id'),
-      import('../../extensions/entity-link'),
-    ]);
     const schema = getSchema([
       StarterKit.configure({ underline: false, link: false }),
       Underline,

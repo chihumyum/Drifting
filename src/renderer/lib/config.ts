@@ -1,6 +1,7 @@
 // Configuration for local-first development
 // This file controls whether the app uses online features or runs fully offline
 import loglevel from 'loglevel';
+import { runtimeViteEnv } from './vite-runtime-env';
 
 const log = loglevel.getLogger('ConfigLib');
 log.setLevel(loglevel.levels.ERROR);
@@ -16,13 +17,13 @@ function readBooleanEnv(value: string | undefined, fallback: boolean): boolean {
  */
 export const APP_CONFIG = {
   // Local-only mode: disable all network features when explicitly requested.
-  LOCAL_ONLY_MODE: readBooleanEnv(import.meta.env.VITE_LOCAL_ONLY_MODE, false),
+  LOCAL_ONLY_MODE: readBooleanEnv(runtimeViteEnv.VITE_LOCAL_ONLY_MODE as string | undefined, false),
 
   // Sync configuration
-  ENABLE_SYNC: readBooleanEnv(import.meta.env.VITE_ENABLE_SYNC, true),
+  ENABLE_SYNC: readBooleanEnv(runtimeViteEnv.VITE_ENABLE_SYNC as string | undefined, true),
 
   // Authentication
-  REQUIRE_AUTH: readBooleanEnv(import.meta.env.VITE_REQUIRE_AUTH, true),
+  REQUIRE_AUTH: readBooleanEnv(runtimeViteEnv.VITE_REQUIRE_AUTH as string | undefined, true),
 
   // Pre-Alpha is BYOK-only. Hosted AI is deliberately unavailable regardless
   // of persisted settings or build environment.
@@ -30,7 +31,9 @@ export const APP_CONFIG = {
 
   // API endpoints
   API_BASE_URL:
-    import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000',
+    (runtimeViteEnv.VITE_API_BASE_URL as string | undefined) ||
+    (runtimeViteEnv.VITE_API_URL as string | undefined) ||
+    'http://localhost:3000',
 
   // Database
   DEFAULT_DB_NAME: 'default-project.db',

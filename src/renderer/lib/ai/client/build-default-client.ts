@@ -22,6 +22,7 @@ import { CaptureInterceptor } from '../interceptors/capture-interceptor';
 import type { LLMProvider } from './providers/provider';
 import { AIError } from '../types';
 import type { AgentProviderId } from '../../agent/runtime/agent-provider-contract';
+import { runtimeViteEnv } from '../../vite-runtime-env';
 
 export interface BuildDefaultLLMClientOptions {
   /** Override the logging tag. Defaults to 'ai'. */
@@ -51,7 +52,7 @@ export async function buildDefaultLLMClient(
   // stays; CaptureInterceptor builds the full Markdown trace + writes files
   // to userData/ai-log/. Production builds skip the capture interceptor to
   // avoid disk writes per user request.
-  if (import.meta.env.DEV) {
+  if (runtimeViteEnv.DEV === true) {
     client.use(new CaptureInterceptor({ writeFiles: true }));
   }
   return client;
@@ -59,7 +60,7 @@ export async function buildDefaultLLMClient(
 
 function wrapClient(provider: LLMProvider, logTag: string): LLMClient {
   const client = new LLMClient(provider).use(new LoggingInterceptor(logTag));
-  if (import.meta.env.DEV) client.use(new CaptureInterceptor({ writeFiles: true }));
+  if (runtimeViteEnv.DEV === true) client.use(new CaptureInterceptor({ writeFiles: true }));
   return client;
 }
 
@@ -148,19 +149,19 @@ async function pickProvider(credentials: ChainCredentialsProvider): Promise<LLMP
  * direct-to-provider path so existing builds are unchanged.
  */
 export function isProxyTransport(): boolean {
-  return import.meta.env.VITE_AI_TRANSPORT === 'proxy';
+  return runtimeViteEnv.VITE_AI_TRANSPORT === 'proxy';
 }
 
 const TRUTHY = new Set(['1', 'true', 'enabled', 'on', 'yes']);
 
 function readDeepSeekThinkingFlag(): boolean {
-  const raw = import.meta.env.VITE_DEEPSEEK_THINKING;
+  const raw = runtimeViteEnv.VITE_DEEPSEEK_THINKING;
   if (typeof raw !== 'string') return false;
   return TRUTHY.has(raw.trim().toLowerCase());
 }
 
 function readDeepSeekReasoningEffort(): 'high' | 'max' | undefined {
-  const raw = import.meta.env.VITE_DEEPSEEK_REASONING_EFFORT;
+  const raw = runtimeViteEnv.VITE_DEEPSEEK_REASONING_EFFORT;
   if (typeof raw !== 'string') return undefined;
   const normalized = raw.trim().toLowerCase();
   if (normalized === 'high' || normalized === 'max') return normalized;

@@ -1,4 +1,5 @@
 import JSZip from 'jszip';
+import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import * as Y from 'yjs';
 
 import { extractTextFromCommentBody } from '../../domain/comment';
@@ -274,7 +275,6 @@ async function fetchRemoteProseJson(
     }
 
     if (applied === 0) return fallbackContentJson || '{}';
-    const { yDocToProsemirrorJSON } = await import('y-prosemirror');
     return JSON.stringify(yDocToProsemirrorJSON(ydoc, 'default'));
   } finally {
     ydoc.destroy();

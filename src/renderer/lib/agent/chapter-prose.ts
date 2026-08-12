@@ -24,6 +24,7 @@
  * change), which preserves the ids, marks and inline mentions of every other
  * block without needing a schema round-trip.
  */
+import { yDocToProsemirrorJSON } from 'y-prosemirror';
 import * as Y from 'yjs';
 import { v7 as uuidv7 } from 'uuid';
 
@@ -310,7 +311,6 @@ async function readProseContentJson(
   // object that can't leave the main thread; convert it here (cheap, no hydration).
   const live = getLiveYDoc(docId);
   if (live && live.getXmlFragment('default').length > 0) {
-    const { yDocToProsemirrorJSON } = await import('y-prosemirror');
     return JSON.stringify(yDocToProsemirrorJSON(live, 'default'));
   }
 
@@ -344,7 +344,6 @@ async function writeProseDoc(
   jsonMutate: (currentJson: string) => string,
   readFallbackJson: () => Promise<string>,
 ): Promise<{ contentJson: string; blockIds: string[]; changes: AgentBlockChange[] }> {
-  const { yDocToProsemirrorJSON } = await import('y-prosemirror');
   const toJson = (doc: Y.Doc) => JSON.stringify(yDocToProsemirrorJSON(doc, 'default'));
 
   const live = getLiveYDoc(docId);
@@ -569,7 +568,6 @@ export async function unlinkEntityFromChapterProse(
   targetId: string,
 ): Promise<void> {
   const docId = proseDocId('node', nodeId);
-  const { yDocToProsemirrorJSON } = await import('y-prosemirror');
   const contentRepo = createBookContentRepository();
 
   // Live doc (open editor): mutate in place — the editor's own update/sync handlers
@@ -736,7 +734,6 @@ export async function revertEntityBlock(
   const docId = proseDocId(entityType, id);
   const persistProjection = async (doc: Y.Doc): Promise<void> => {
     if (!context) return;
-    const { yDocToProsemirrorJSON } = await import('y-prosemirror');
     await persistBody(
       context,
       entityType,

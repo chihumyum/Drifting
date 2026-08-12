@@ -1,9 +1,12 @@
 import { createAuthClient } from 'better-auth/react';
 import { emailOTPClient } from 'better-auth/client/plugins';
 import { getSessionToken, setSessionToken } from './session-token';
+import { runtimeViteEnv } from './vite-runtime-env';
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  (runtimeViteEnv.VITE_API_BASE_URL as string | undefined) ||
+  (runtimeViteEnv.VITE_API_URL as string | undefined) ||
+  'http://localhost:3000';
 
 export const authClient = createAuthClient({
   baseURL: API_BASE_URL,
