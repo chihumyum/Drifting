@@ -59,6 +59,7 @@ import { DriftingAgentModelDriver } from './drivers';
 import { createLocalGeneralAgentTransport, type RuntimeIdKind } from './local-transport';
 import { createAgentLongTaskSupplementalRowsHook } from './long-task-context';
 import {
+  AGENT_PROJECT_HANDOFF_READ_TOOL,
   AGENT_LONG_TASK_CONSTRAINT_TOOL,
   AGENT_LONG_TASK_PLAN_TOOL,
   AGENT_LONG_TASK_READ_TOOL,
@@ -67,6 +68,7 @@ import {
   createAgentLongTaskAwarePermissionPolicy,
   resolveAgentLongTaskToolAccess,
 } from './long-task-tool-runtime';
+import { createAgentProjectHandoffService } from './project-handoff';
 import { createRepositoryAgentTransportPersistence } from './repository-transport-persistence';
 import { identifyExplicitAgentUserConstraints } from './runtime-context-planning';
 import type {
@@ -279,6 +281,7 @@ export function createDriftingAgentProductComposition(
   });
   const longTaskTools = new AgentLongTaskToolRuntime({
     repository: repositories.longTasks,
+    projectHandoff: createAgentProjectHandoffService({ database: options.database }),
     resolveTarget: resolveDriftingLongTaskTarget,
     getWholeBookChapterManifest: snapshotDriftingWholeBookChapterManifest,
     resolveCurrentChapterName: resolveDriftingCurrentChapterName,
@@ -292,6 +295,7 @@ export function createDriftingAgentProductComposition(
       reservedNames: [
         ...AGENT_TOOL_CATALOG.map((tool) => tool.name),
         AGENT_LONG_TASK_READ_TOOL,
+        AGENT_PROJECT_HANDOFF_READ_TOOL,
         AGENT_LONG_TASK_PLAN_TOOL,
         AGENT_LONG_TASK_STEP_TOOL,
         AGENT_LONG_TASK_CONSTRAINT_TOOL,
@@ -374,12 +378,7 @@ export function createDriftingAgentProductComposition(
           { currentTurnId: input.turnId },
         );
         const longTaskRows = await longTaskSupplementalRows(input);
-        return [
-          ...writeReceiptRows,
-          ...writeReviewRows,
-          ...readProgressRows,
-          ...longTaskRows,
-        ];
+        return [...writeReceiptRows, ...writeReviewRows, ...readProgressRows, ...longTaskRows];
       },
     },
     persistence: createRepositoryAgentTransportPersistence({
@@ -426,8 +425,10 @@ function authoredLongTaskTargetName(
   const patterns: Partial<Record<typeof kind, RegExp>> = {
     chapter: /^章节[「“"](.+?)[」”"](?:正文|摘要|标题)?$/u,
     drift: /^(?:灵感|漂移)[「“"](.+?)[」”"](?:正文|摘要|标题)?$/u,
-    element: /^(?:人物|角色|地点|区域|组织|势力|物品|道具|要素)[「“"](.+?)[」”"](?:正文|设定|说明|摘要|名称|别名|事实|分组|分类|完整档案)?$/u,
-    storyline: /^故事线[「“"](.+?)[」”"](?:正文|设定|说明|摘要|名称|事实|章节关系|章节|完整档案)?$/u,
+    element:
+      /^(?:人物|角色|地点|区域|组织|势力|物品|道具|要素)[「“"](.+?)[」”"](?:正文|设定|说明|摘要|名称|别名|事实|分组|分类|完整档案)?$/u,
+    storyline:
+      /^故事线[「“"](.+?)[」”"](?:正文|设定|说明|摘要|名称|事实|章节关系|章节|完整档案)?$/u,
     category: /^要素分类[「“"](.+?)[」”"](?:正文|设定|说明|完整档案)?$/u,
   };
   return patterns[kind]?.exec(name)?.[1]?.trim() || name;

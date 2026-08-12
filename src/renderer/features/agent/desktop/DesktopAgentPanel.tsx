@@ -16,9 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  useSettingsStore,
-} from '../../../store/settings-store';
+import { useSettingsStore } from '../../../store/settings-store';
 import {
   useAgentChatStore,
   selectAutomaticContinuation,
@@ -32,14 +30,13 @@ import {
 import { useAgentActivityStore } from '../../../store/agent-activity-store';
 import { useWorkspaceNavigator } from '../../workspace/navigation/WorkspaceNavigationContext';
 import { useAutosizeTextArea } from '../../../hooks/useAutosizeTextArea';
-import {
-  collectTurnEntityRefs,
-  type ToolEntityRef,
-} from '../../../lib/agent/tool-entity-ref';
+import { collectTurnEntityRefs, type ToolEntityRef } from '../../../lib/agent/tool-entity-ref';
 import { events } from '../../../lib/events';
 import type { GeneralAgentAuthStatus } from '../../../lib/agent/protocol';
 import { generalAgentTransport } from '../../../lib/agent/transport';
 import type { AgentConversationSummary } from '../../../domain/agent-conversation';
+import type { AgentProjectHandoffTaskSummary } from '../../../domain/agent-project-handoff';
+import { readAgentProjectHandoff } from '../../../lib/agent/runtime/project-handoff';
 import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
 import { AgentContextIndicator } from '../../../components/agent/AgentContextIndicator';
 import '../../../../styles/agent-panel.css';
@@ -93,6 +90,12 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
   const [panelView, setPanelView] = useState<'chat' | 'working-memory'>('chat');
   const [showHistory, setShowHistory] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
+  const [handoffPreview, setHandoffPreview] = useState<{
+    projectId: string;
+    task: AgentProjectHandoffTaskSummary | null;
+  } | null>(null);
+  const handoffTask =
+    activeConvId === null && handoffPreview?.projectId === projectId ? handoffPreview.task : null;
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
   // Inline rename: the header edits the active conversation; a history row edits
   // whichever entry is `editingItemId`.
@@ -145,6 +148,27 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
     bindProject(projectId);
   }, [projectId, bindProject]);
 
+  // A fresh chat may explicitly pick up another local conversation's durable
+  // work. The projection is read-only and rebuilt from canonical SQLite state;
+  // cancelling the effect prevents a slow previous-project read from flashing
+  // into the newly mounted project.
+  useEffect(() => {
+    if (activeConvId !== null) return;
+    let cancelled = false;
+    void readAgentProjectHandoff({ projectId })
+      .then((handoff) => {
+        if (!cancelled) {
+          setHandoffPreview({ projectId, task: handoff.tasks[0] ?? null });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setHandoffPreview({ projectId, task: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeConvId, projectId]);
+
   // Auto-follow the stream only while pinned to the bottom.
   useEffect(() => {
     if (stickRef.current && logRef.current) {
@@ -182,6 +206,16 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
     stickRef.current = true;
     setAtBottom(true);
   }, [newConversation]);
+
+  const handlePrepareHandoff = useCallback(() => {
+    if (!handoffTask) return;
+    setPrompt(
+      t('agentPanel.handoff.prompt', {
+        conversation: handoffTask.sourceConversationTitle,
+        objective: handoffTask.objective,
+      }),
+    );
+  }, [handoffTask, setPrompt, t]);
 
   const handleLoad = useCallback(
     (id: string) => {
@@ -502,7 +536,28 @@ export function DesktopAgentPanel({ projectId }: { projectId: string }) {
       <div style={logWrap}>
         <div ref={logRef} style={logStyle} onScroll={onScroll}>
           {messages.length === 0 ? (
-            <div style={{ opacity: 0.5 }}>{t('agentPanel.empty.start')}</div>
+            <div className="agt-empty-state">
+              <div className="agt-empty-state__intro">{t('agentPanel.empty.start')}</div>
+              {activeConvId === null && handoffTask && (
+                <section className="agt-handoff-card" aria-label={t('agentPanel.handoff.title')}>
+                  <div className="agt-handoff-card__eyebrow">{t('agentPanel.handoff.eyebrow')}</div>
+                  <strong>{handoffTask.objective}</strong>
+                  <span>
+                    {t('agentPanel.handoff.progress', {
+                      conversation: handoffTask.sourceConversationTitle,
+                      completed: handoffTask.progress.completed,
+                      total: handoffTask.progress.total,
+                    })}
+                  </span>
+                  {handoffTask.sourceSessionRunning && (
+                    <small>{t('agentPanel.handoff.running')}</small>
+                  )}
+                  <button type="button" onClick={handlePrepareHandoff}>
+                    {t('agentPanel.handoff.action')}
+                  </button>
+                </section>
+              )}
+            </div>
           ) : (
             messages.map((m, i) => <MessageView key={i} msg={m} />)
           )}

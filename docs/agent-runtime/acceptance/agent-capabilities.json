@@ -22,8 +22,8 @@
     }
   },
   "installedModelTools": {
-    "total": 77,
-    "read": 27,
+    "total": 78,
+    "read": 28,
     "write": 50,
     "entries": [
       {
@@ -498,6 +498,17 @@
         "effect": "none",
         "approval": "automatic",
         "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "read_project_handoff",
+        "access": "read",
+        "owner": "long-task-runtime",
+        "surface": "long-task-runtime",
+        "certification": "runtime-certified",
+        "risk": "runtime-owned",
+        "effect": "task-state",
+        "approval": "runtime-owned",
+        "revertStrategy": "runtime-owned"
       },
       {
         "name": "read_storyline",
@@ -1738,6 +1749,7 @@
   },
   "longTaskTools": [
     "read_task_plan",
+    "read_project_handoff",
     "update_task_plan",
     "update_task_step",
     "update_task_constraint"

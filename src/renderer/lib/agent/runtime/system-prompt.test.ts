@@ -15,7 +15,7 @@ describe('Drifting General Agent system prompt', () => {
   it('injects the canonical project name without treating projectId as a title', () => {
     const system = prompt({ projectName: '雾港档案' });
 
-    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(47);
+    expect(DRIFTING_AGENT_PROMPT_VERSION).toBe(48);
     expect(system).toContain('The canonical project name is "雾港档案".');
     expect(system).toContain('The project id is an opaque identifier, not a title.');
     expect(system).not.toContain('The canonical project name is "019f-opaque-project-id"');
@@ -61,6 +61,10 @@ describe('Drifting General Agent system prompt', () => {
     expect(system).toContain('refresh that target once');
     expect(system).toContain('stop editing that target for this turn');
     expect(system).toContain('instead of retrying in a loop');
+    expect(system).toContain('explicitly asks to pick up work from another conversation');
+    expect(system).toContain('bounded read-only orientation');
+    expect(system).toContain('do not transfer the source plan, permissions, controls, transcript');
+    expect(system).toContain('do not duplicate its active deliverable');
     expect(system).toContain('Task progress is domain state');
     expect(system).toContain('visible reliable-completion note');
     expect(system).toContain('reading or planning an object does not complete it');

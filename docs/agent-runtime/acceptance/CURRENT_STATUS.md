@@ -43,6 +43,26 @@ pnpm --dir client agent:capabilities:check
   checks, durable receipts, guarded inverses, and the same sync outbox boundary
   used by manual product writes.
 
+### Approved future Ambient design — not shipped
+
+- The target design for Shadow as an Ambient Editor is frozen in
+  [`../../ambient-editor/README.md`](../../ambient-editor/README.md). It is a
+  future subsystem composed on the shared Agent Runtime, not a restored
+  standalone Shadow CI/runtime.
+- The design defines read-only reconciliation over author-owned Editorial
+  Lenses, Canon, and a rebuildable evidence-backed World Model, producing
+  first-class editorial Concerns without pass/fail, gates, or manuscript
+  mutation.
+- No Ambient route, World Model, Review Debt queue, Concern Inbox, provider
+  capability, synced Ambient schema, or background scheduler is currently a
+  shipped Agent capability. The generated inventory remains authoritative.
+- The current retirement guard remains in force: implementation must not
+  restore `src/renderer/lib/shadow`, `shadow_job`, `project_rule`, old review
+  states, old Shadow panels, or old eval corpora.
+- The progressive implementation and evidence gates are defined in
+  [`../../ambient-editor/delivery-and-acceptance.md`](../../ambient-editor/delivery-and-acceptance.md).
+  Design acceptance proves documentation consistency only.
+
 ### Tool and authored-object surface
 
 - Ordinary provider turns receive the complete generated set of narrow,
@@ -99,7 +119,14 @@ pnpm --dir client agent:capabilities:check
 - Agent chats are independent flat sessions. Author-visible Agent checkpoint,
   conversation rewind, and conversation-fork hierarchy are not product
   concepts; manuscript recovery belongs to entity snapshot history.
-
+- An author can explicitly prepare a new desktop chat to pick up work from
+  another chat. `read_project_handoff` rebuilds a bounded project-local,
+  read-only projection from durable plans, active constraints, current authored
+  names, and settled/reviewable write effects. It excludes the current session,
+  deleted chats, other projects, transcripts, prose, internal IDs, permissions,
+  provider state, and control authority. A running source chat is identified so
+  the new chat does not duplicate its active deliverable; every later write
+  still requires a current authored-object read and the normal revision guard.
 - Every project has one rolling Markdown `WORKING_MEMORY.md` shared across its
   General Agent conversations. The runtime injects the current revision at turn
   start and exposes one importance-gated checkpoint (`update` or `noop`) before
@@ -146,16 +173,40 @@ pnpm --dir client agent:capabilities:check
 
 ## Current open verification and follow-up
 
+- Ambient Editor implementation phases 1–7 are open. Phase 0 freezes the target
+  design but ships no behavior; see
+  [`../../ambient-editor/delivery-and-acceptance.md`](../../ambient-editor/delivery-and-acceptance.md).
 - Physical-device desktop/iOS/Android interaction remains open where listed in
   the mobile and native manual checklists.
 - The deterministic P0 fixes discovered by the 2026-08-06 empty-project novel
   run have not been validated by another paid long-form empty-project campaign.
-- Stable partial edit recovery, equivalent-create recovery, actionable domain
-  errors, canonical word counts, and project-level cross-session handoff remain
-  ordered follow-up in
+- Stable partial edit recovery, equivalent-create recovery, remaining
+  actionable domain errors, and canonical word counts
+  remain ordered follow-up in
   [`GENERAL_AGENT_PEAK_PERSON_REMEDIATION_PLAN_2026-08-06.md`](GENERAL_AGENT_PEAK_PERSON_REMEDIATION_PLAN_2026-08-06.md).
 - Subagent orchestration remains deferred. Multiple current conversations are
   supported; that is not subagent delegation.
+
+## Developer CLI
+
+The internal developer CLI is shipped as `pnpm drifting`. It exposes the
+generated General Agent domain reads/writes against an exclusively opened,
+automatically backed-up local database; guarded scalar resource lifecycle for
+projects, acts, drift groups, timeline markers and library items; the existing
+loopback Agent turn/review bridge; real authenticated server HTTP requests; and
+versioned workspace scenarios. JSON envelopes are the default coding-agent
+protocol, and `workspace describe [tool]` exposes the exact production input
+schemas for generated domain reads and writes.
+
+The CLI does not generic-CRUD Yjs/update logs, Agent runtime journals and
+receipts, outbox rows, derived indexes, upload workflow rows, secure
+credentials, or migrations. Exact per-table coverage and exclusions come from
+the generated
+[`dev-cli capability inventory`](../../dev-cli/acceptance/cli-capabilities.md).
+`pnpm drifting:check` verifies generated drift, schema-table accountability,
+offline safety, domain resource invariants, and a real file-backed SQLite/Yjs
+chapter lifecycle. Remote authentication, paid-provider behavior, and native
+device UX remain separate acceptance boundaries.
 
 ## Evidence navigation
 

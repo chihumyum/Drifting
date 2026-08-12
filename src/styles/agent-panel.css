@@ -10,6 +10,64 @@
 
 /* ---- unified composer box ------------------------------------------------ */
 
+.agt-empty-state {
+  display: grid;
+  gap: 14px;
+}
+.agt-empty-state__intro {
+  color: hsl(var(--ink-3));
+  font-size: 12px;
+  line-height: 1.55;
+}
+.agt-handoff-card {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 2px;
+  background: hsl(var(--accent) / 0.07);
+}
+.agt-handoff-card__eyebrow {
+  color: hsl(var(--accent));
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.agt-handoff-card strong {
+  color: hsl(var(--ink-1));
+  font-size: 12px;
+  line-height: 1.45;
+}
+.agt-handoff-card span,
+.agt-handoff-card small {
+  color: hsl(var(--ink-3));
+  font-size: 11px;
+  line-height: 1.45;
+}
+.agt-handoff-card small {
+  color: hsl(var(--danger, 2 68% 52%));
+}
+.agt-handoff-card button {
+  justify-self: start;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid hsl(var(--accent) / 0.35);
+  border-radius: 2px;
+  background: hsl(var(--paper));
+  color: hsl(var(--accent));
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.agt-handoff-card button:hover {
+  background: hsl(var(--accent) / 0.1);
+}
+.agt-handoff-card button:focus-visible {
+  outline: 2px solid hsl(var(--accent) / 0.55);
+  outline-offset: 2px;
+}
+
 .agt-composer {
   display: flex;
   flex-direction: column;

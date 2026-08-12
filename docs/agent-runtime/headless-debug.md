@@ -11,6 +11,13 @@ second runtime: the mounted App still owns the production composition, current
 project stores, renderer use cases, live Yjs writes, durable journal, review
 ledger, provider credential, context planner, and compactor.
 
+The repository-level [`Drifting developer CLI`](../dev-cli/README.md) wraps
+this bridge as `pnpm drifting agent turn|review` and separately provides safe
+offline workspace CRUD, server requests, generated model coverage, and
+versioned scenarios. Offline `workspace call` also reuses the production Agent
+domain runtime, but it requires the App to be closed and creates a SQLite
+backup before every mutation.
+
 The local broker accepts a turn over HTTP, the DEV renderer claims it, and the
 caller receives NDJSON containing every canonical journal entry plus a terminal
 summary. Computer Use remains useful for a final UI smoke; it is no longer the
@@ -73,6 +80,20 @@ The machine report is written to
 [`acceptance/milestone-e-long-task.json`](acceptance/milestone-e-long-task.json),
 and the normative execution state machine lives in
 [`long-task-execution-protocol.md`](long-task-execution-protocol.md).
+
+For the project-level, cross-chat General Agent handoff boundary:
+
+```bash
+pnpm --dir client eval:agent:handoff
+```
+
+This deterministic, offline gate uses the complete product SQLite migrations.
+It verifies current-session, deleted-chat and foreign-project isolation; strips
+transcript text, prose, raw arguments and internal IDs; excludes reverted
+writes; preserves bounded task/constraint/name/write orientation across a file
+database reopen; and checks that tool selection exposes the read-only handoff
+only for explicit pickup requests. It does not prove desktop visual quality or
+any mobile Agent interaction.
 
 For provider-aware Standard 200k/Max 1M budgeting, bounded same-turn literary
 compaction, malformed-output fallback, exact author-constraint retention, ranked

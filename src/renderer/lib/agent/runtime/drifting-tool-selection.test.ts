@@ -150,6 +150,21 @@ describe('Drifting runtime tool selection', () => {
     );
   });
 
+  it('exposes the read-only project handoff only for an explicit cross-session pickup', () => {
+    const strategy = createDriftingToolSelectionStrategy();
+    const names = [...EXECUTABLE_NAMES, 'read_project_handoff'];
+
+    expect(
+      strategy.select(request('接着另一个聊天里没做完的任务，先看看项目交接。', names)),
+    ).toContain('read_project_handoff');
+    expect(
+      strategy.select(request('Pick up the unfinished work from my previous chat.', names)),
+    ).toContain('read_project_handoff');
+    expect(strategy.select(request('开始一个新的任务。', names))).not.toContain(
+      'read_project_handoff',
+    );
+  });
+
   it('keeps the durable task ledger available for a vague autonomous project campaign', () => {
     const strategy = createDriftingToolSelectionStrategy();
     const names = [
@@ -644,11 +659,7 @@ describe('Drifting runtime tool selection', () => {
     };
     const strategy = createDriftingToolSelectionStrategy({ policy });
     const selected = strategy.select(
-      request('delete_element read_node', [
-        'delete_element',
-        'read_node',
-        'get_project_brief',
-      ]),
+      request('delete_element read_node', ['delete_element', 'read_node', 'get_project_brief']),
     );
 
     expect(selected).toContain('delete_element');

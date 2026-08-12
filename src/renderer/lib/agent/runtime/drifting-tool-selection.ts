@@ -7,6 +7,7 @@ import { DRIFTING_TOOL_SEARCH_METADATA } from './tool-search-metadata';
 import { createToolSelector, type ToolSearchMetadataByName } from './tool-selector';
 import type { AgentToolSelectionStrategy } from './types';
 import { isBroadAutonomousProjectCampaign } from './long-task-intent';
+import { AGENT_PROJECT_HANDOFF_READ_TOOL } from './long-task-tool-contract';
 
 const RESULT_PAGE_TOOL = 'read_tool_result';
 const ASK_USER_TOOL = 'ask_user';
@@ -17,6 +18,7 @@ const LONG_TASK_TOOLS = Object.freeze([
   'update_task_step',
 ] as const);
 const LONG_TASK_CONSTRAINT_TOOL = 'update_task_constraint';
+const PROJECT_HANDOFF_TOOL = AGENT_PROJECT_HANDOFF_READ_TOOL;
 const LONG_TASK_PROSE_TOOLS = Object.freeze(['read_node', 'edit_blocks'] as const);
 const MAX_DYNAMIC_TOOLS = 2;
 const MIN_BUILT_IN_TOOL_SLOTS = 2;
@@ -408,6 +410,18 @@ function needsLongTaskLedger(query: string): boolean {
   );
 }
 
+function needsProjectHandoff(query: string): boolean {
+  const request = originalRequest(query).normalize('NFKC');
+  return (
+    /(?:接力|接手|承接|继续|恢复|接着).{0,16}(?:上个|上一|之前|其他|另一个|旧|最近).{0,8}(?:会话|对话|任务|工作)|(?:上个|上一|之前|其他|另一个|旧|最近).{0,12}(?:会话|对话).{0,12}(?:做到哪|进度|任务|工作|继续|接力|接手)/iu.test(
+      request,
+    ) ||
+    /\b(?:pick up|take over|handoff|resume|continue).{0,32}(?:another|other|previous|prior|last|recent).{0,16}(?:chat|conversation|session|task|work)\b/iu.test(
+      request,
+    )
+  );
+}
+
 function needsLongTaskProseMutation(query: string): boolean {
   if (!needsLongTaskLedger(query)) return false;
   const request = originalRequest(query).normalize('NFKC');
@@ -535,6 +549,7 @@ export function createDriftingToolSelectionStrategy(
     RESULT_PAGE_TOOL,
     ...LONG_TASK_TOOLS,
     LONG_TASK_CONSTRAINT_TOOL,
+    PROJECT_HANDOFF_TOOL,
   ]);
 
   const strategy: AgentToolSelectionStrategy = {
@@ -608,6 +623,9 @@ export function createDriftingToolSelectionStrategy(
             : [...LONG_TASK_TOOLS]
           : [];
       const longTaskTools = requestedLongTaskTools.filter((name) => executableNames.has(name));
+      const handoffTools = needsProjectHandoff(request.query)
+        ? [PROJECT_HANDOFF_TOOL].filter((name) => executableNames.has(name))
+        : [];
       const longTaskProseTools =
         activeWholeBookTask || needsLongTaskProseMutation(rankingQuery)
           ? LONG_TASK_PROSE_TOOLS.filter((name) => executableNames.has(name))
@@ -618,7 +636,8 @@ export function createDriftingToolSelectionStrategy(
             (definition.name.startsWith('mcp__') || definition.name.startsWith('plugin__')) &&
             !catalogNames.has(definition.name) &&
             !LONG_TASK_TOOLS.includes(definition.name as (typeof LONG_TASK_TOOLS)[number]) &&
-            definition.name !== LONG_TASK_CONSTRAINT_TOOL,
+            definition.name !== LONG_TASK_CONSTRAINT_TOOL &&
+            definition.name !== PROJECT_HANDOFF_TOOL,
         )
         .map((definition) => ({
           definition,
@@ -645,6 +664,7 @@ export function createDriftingToolSelectionStrategy(
         lookupRecovery.reads.length === 0 &&
         explicitlyNamedTools.length === 0 &&
         longTaskTools.length === 0 &&
+        handoffTools.length === 0 &&
         dynamicDefinitions.length === 0
       ) {
         return narrowReads.slice(0, request.limit);
@@ -654,6 +674,7 @@ export function createDriftingToolSelectionStrategy(
         lookupRecovery.reads.length === 0 &&
         explicitlyNamedTools.length === 0 &&
         longTaskTools.length === 0 &&
+        handoffTools.length === 0 &&
         dynamicDefinitions.length === 0
       ) {
         return pinnedCatalogReads.slice(0, request.limit);
@@ -670,6 +691,7 @@ export function createDriftingToolSelectionStrategy(
         builtInCandidates,
         lookupRecovery.reads.filter((name) => executableNames.has(name)),
       );
+      appendUnique(builtInCandidates, handoffTools);
       appendUnique(builtInCandidates, longTaskTools);
       appendUnique(builtInCandidates, longTaskProseTools);
       for (const tool of selector.select(rankingQuery, request.limit)) {

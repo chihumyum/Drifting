@@ -40,6 +40,7 @@ pnpm --dir client eval:agent:tool-reliability
 pnpm --dir client eval:agent:durability
 pnpm --dir client eval:agent:crud
 pnpm --dir client eval:agent:long-task
+pnpm --dir client eval:agent:handoff
 pnpm --dir client eval:agent:working-memory
 pnpm --dir client eval:agent:context
 pnpm --dir client eval:agent:writing
@@ -168,6 +169,13 @@ freeze a chapter manifest, persist progress and constraints across slices and
 restart, stop at durable tool boundaries, and require explicit author action to
 resume after restart.
 
+When the author explicitly asks a fresh desktop chat to pick up work from
+another chat, General Agent can read a bounded project-local handoff containing
+unfinished objectives, constraints, progress, current authored names, and
+reliable recent writes. The handoff is rebuilt from SQLite, excludes transcript
+text and internal IDs, and never transfers the source chat's plan, permissions,
+provider state, or control.
+
 Every project also owns one rolling `WORKING_MEMORY.md` shared by all of its
 General Agent conversations. The current revision is injected at turn start;
 before the final response the Agent must either checkpoint a high-signal update
@@ -185,6 +193,9 @@ tool names, counts, provider models, context limits, MCP support, and deferred
 capabilities come only from the generated
 [`agent-capabilities.md`](docs/agent-runtime/acceptance/agent-capabilities.md).
 Standalone Shadow CI, Element Arc, and Goal Evolve are retired.
+The replacement direction is a frozen, not-yet-implemented Ambient Editor
+design: [product boundary and document index](docs/ambient-editor/README.md).
+
 Project relation labels are first-class synced definitions with direction,
 endpoint roles, and allowed entity kinds. Existing free-text labels migrate to
 visible `unconfigured` definitions without flipping or deleting edges; authors
@@ -203,6 +214,7 @@ Documentation entry points:
 - [developer CLI](docs/dev-cli/README.md)
 - [current Agent status](docs/agent-runtime/acceptance/CURRENT_STATUS.md)
 - [Agent roadmap and open work](docs/agent-runtime/ROADMAP.md)
+- [Shadow Ambient Editor target design](docs/ambient-editor/README.md)
 - [renderer UI architecture](docs/renderer-ui-architecture.md)
 - [mobile device acceptance](docs/mobile-device-acceptance.md)
 - [explicit Tauri limitations](src-tauri/UNSUPPORTED.md)

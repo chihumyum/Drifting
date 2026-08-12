@@ -6,17 +6,21 @@ dated run reports are evidence for one checkout, not product truth.
 
 ## Start here
 
-| Question                                            | Source                                                                                                                                                                |
-| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| How do I build and run the client?                  | [`../README.md`](../README.md)                                                                                                                                        |
-| What does General Agent support now?                | [`agent-runtime/acceptance/CURRENT_STATUS.md`](agent-runtime/acceptance/CURRENT_STATUS.md)                                                                            |
-| What tools and capability counts ship?              | Generated [`agent-capabilities.md`](agent-runtime/acceptance/agent-capabilities.md) and [`agent-capabilities.json`](agent-runtime/acceptance/agent-capabilities.json) |
-| What is the current milestone policy and open work? | [`agent-runtime/ROADMAP.md`](agent-runtime/ROADMAP.md)                                                                                                                |
-| What are the renderer dependency rules?             | [`renderer-ui-architecture.md`](renderer-ui-architecture.md)                                                                                                          |
-| How do project relation types behave?                | [`relation-types.md`](relation-types.md)                                                                                                                              |
-| What is the mobile product boundary?                | [`mobile-ui-foundation.md`](mobile-ui-foundation.md)                                                                                                                  |
-| What still needs physical-device testing?           | [`mobile-device-acceptance.md`](mobile-device-acceptance.md)                                                                                                          |
-| What is historically complete?                      | [`agent-runtime/acceptance/MILESTONE_HISTORY.md`](agent-runtime/acceptance/MILESTONE_HISTORY.md)                                                                      |
+| Question                                                   | Source                                                                                                                                                                |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| How do I build and run the client?                         | [`../README.md`](../README.md)                                                                                                                                        |
+| What does General Agent support now?                       | [`agent-runtime/acceptance/CURRENT_STATUS.md`](agent-runtime/acceptance/CURRENT_STATUS.md)                                                                            |
+| What tools and capability counts ship?                     | Generated [`agent-capabilities.md`](agent-runtime/acceptance/agent-capabilities.md) and [`agent-capabilities.json`](agent-runtime/acceptance/agent-capabilities.json) |
+| How do coding agents run fast CRUD and E2E checks?         | [`dev-cli/README.md`](dev-cli/README.md) and generated [`cli-capabilities.md`](dev-cli/acceptance/cli-capabilities.md)                                                |
+| How do agents inspect and operate a mobile WebView?        | [`frontend-debug.md`](frontend-debug.md)                                                                                                                             |
+| What is the current milestone policy and open work?        | [`agent-runtime/ROADMAP.md`](agent-runtime/ROADMAP.md)                                                                                                                |
+| What is the frozen target design for Ambient Shadow?       | [`ambient-editor/README.md`](ambient-editor/README.md)                                                                                                                |
+| What should the final Ambient author experience feel like? | [`ambient-editor/product-vision.md`](ambient-editor/product-vision.md)                                                                                                |
+| What are the renderer dependency rules?                    | [`renderer-ui-architecture.md`](renderer-ui-architecture.md)                                                                                                          |
+| How do project relation types behave?                      | [`relation-types.md`](relation-types.md)                                                                                                                              |
+| What is the mobile product boundary?                       | [`mobile-ui-foundation.md`](mobile-ui-foundation.md)                                                                                                                  |
+| What still needs physical-device testing?                  | [`mobile-device-acceptance.md`](mobile-device-acceptance.md)                                                                                                          |
+| What is historically complete?                             | [`agent-runtime/acceptance/MILESTONE_HISTORY.md`](agent-runtime/acceptance/MILESTONE_HISTORY.md)                                                                      |
 
 ## Normative documents
 
@@ -26,6 +30,10 @@ dated run reports are evidence for one checkout, not product truth.
   editor contracts that are not obvious from a screenshot.
 - [`ai-provider-settings.md`](ai-provider-settings.md) defines credential and
   provider-routing ownership.
+- [`ambient-editor/technical-architecture.md`](ambient-editor/technical-architecture.md)
+  and [`ambient-editor/delivery-and-acceptance.md`](ambient-editor/delivery-and-acceptance.md)
+  define the approved future Ambient design and progressive gates. They are
+  design contracts, not evidence that Ambient behavior ships.
 - [`../src-tauri/UNSUPPORTED.md`](../src-tauri/UNSUPPORTED.md) defines explicit
   platform limitations.
 
