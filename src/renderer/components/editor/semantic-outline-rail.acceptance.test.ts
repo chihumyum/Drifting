@@ -34,9 +34,7 @@ describe('semantic outline rail acceptance wiring', () => {
       expect(viewSource, view).not.toContain('outlineRootId');
     }
 
-    expect(source('src/renderer/views/AllChaptersEditorView.tsx')).not.toContain(
-      "kind: 'entity'",
-    );
+    expect(source('src/renderer/views/AllChaptersEditorView.tsx')).not.toContain("kind: 'entity'");
 
     const model = source('src/renderer/components/editor/outline-rail-model.ts');
     expect(model).not.toContain("'entity'");
@@ -149,9 +147,7 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(rail).toContain('root.scrollBy({ top: event.deltaY });');
     expect(rail).not.toContain('left: event.deltaX');
     expect(workspace).toContain('className="workspace-stage desktop-workspace-stage"');
-    expect(desktopShellCss).toMatch(
-      /\.desktop-workspace-stage\s*\{[\s\S]*?overflow:\s*hidden;/,
-    );
+    expect(desktopShellCss).toMatch(/\.desktop-workspace-stage\s*\{[\s\S]*?overflow:\s*hidden;/);
     expect(desktopShellCss).not.toMatch(/\.desktop-workspace-stage\s*\{[^}]*overflow-y:\s*auto;/);
     expect(commentsReviewCss).toMatch(/\.editor__scrollmap\s*\{[\s\S]*?left:\s*0;/);
     expect(commentsReviewCss).not.toContain('.editor__toc-overlay');
@@ -163,7 +159,7 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(doc).toContain('2. `active-branch`');
     expect(doc).toContain('3. `windowed`');
     expect(doc).toContain("editor area's left edge");
-    expect(doc).toContain("right edge");
+    expect(doc).toContain('right edge');
     expect(doc).toContain('existing plain-text TOC tags');
     expect(doc).toContain('retired dual-layer implementation is absent');
     expect(doc).toContain('1. `visible`');
