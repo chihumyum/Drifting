@@ -32,6 +32,8 @@ import {
   ElementCategoryTable,
   ElementPatchTable,
   EntityRelationTable,
+  EntityRelationTypeEndpointKindTable,
+  EntityRelationTypeTable,
   InlineMentionTable,
   LocalSyncMutationTable,
   CommentTable,
@@ -48,14 +50,23 @@ import { useProjectStore } from '../store/project-store';
 import type { BookNode, ChapterWritingStatus, DriftStatus } from '../domain/book-node';
 import { decodeAliases } from '../domain/book-element';
 import type { ProjectAsset } from '../domain/project-asset';
+import { ALL_ENTITY_KINDS, STRUCTURAL_ENTITY_KINDS } from '../domain/entity-kinds';
 import { decodeBlockHashes, decodeBlockIds } from '../domain/block-section';
 import type { BlockSectionSource } from '../domain/block-section';
+import {
+  LEGACY_RELATION_SOURCE_KINDS,
+  LEGACY_RELATION_TARGET_KINDS,
+  legacyRelationType,
+  legacyRelationTypeId,
+  type EntityRelationType,
+} from '../domain/entity-relation-type';
 import { createElementPatchRepository } from '../sqlite-repo/element-patch-repo';
 import { createBlockSectionRepository } from '../sqlite-repo/block-section-repo';
 import { rebuildProjectInlineReferenceIndex } from './reference-index.service';
 import {
   coalescePendingMutation,
   isCreatePayloadConflict,
+  isTerminalPayloadValidationFailure,
 } from './entity-sync-coalescing';
 import {
   isRearmableTrashEntitlementConflict,
@@ -64,10 +75,7 @@ import {
   trashEntitlementConflictMessage,
 } from './entity-sync-entitlement';
 import { flushPendingAtomicSyncTransactions } from './atomic-sync-transaction-tracker';
-import {
-  localMutationGeneration,
-  runGuardedProjectHydration,
-} from './local-mutation-generation';
+import { localMutationGeneration, runGuardedProjectHydration } from './local-mutation-generation';
 import loglevel from 'loglevel';
 import {
   overlayLibraryItemDeviceFields,
@@ -91,6 +99,7 @@ export type EntityType =
   | 'blockSection'
   | 'libraryItem'
   | 'entityRelation'
+  | 'entityRelationType'
   | 'comment'
   | 'commentAction'
   | 'agentMemory'
@@ -144,6 +153,45 @@ type MutationRequest = {
 
 type LocalSyncMutationRow = typeof LocalSyncMutationTable.$inferSelect;
 
+function relationTypeRequestPayload(
+  payload: Record<string, unknown>,
+  mutationType: 'create' | 'update',
+): Record<string, unknown> {
+  const shared = {
+    name: payload.name,
+    description: payload.description,
+    orientation: payload.orientation,
+    sourceRole: payload.sourceRole,
+    targetRole: payload.targetRole,
+    sourceKinds: payload.sourceKinds,
+    targetKinds: payload.targetKinds,
+    updatedAt: payload.updatedAt,
+  };
+  return mutationType === 'create'
+    ? {
+        id: payload.id,
+        normalizedName: payload.normalizedName,
+        createdAt: payload.createdAt,
+        ...shared,
+      }
+    : shared;
+}
+
+export function entityRelationRequestPayload(
+  payload: Record<string, unknown>,
+  mutationType: 'create' | 'update',
+): Record<string, unknown> {
+  const shared = {
+    fromKind: payload.fromKind,
+    fromId: payload.fromId,
+    toKind: payload.toKind,
+    toId: payload.toId,
+    kind: payload.kind,
+    relationTypeId: payload.relationTypeId,
+  };
+  return mutationType === 'create' ? { id: payload.id, ...shared } : shared;
+}
+
 export interface ProjectGraphPayload {
   project: Record<string, unknown>;
   nodes: Record<string, unknown>[];
@@ -154,6 +202,8 @@ export interface ProjectGraphPayload {
   elementCategories: Record<string, unknown>[];
   projectAssets?: Record<string, unknown>[];
   entityRelations: Record<string, unknown>[];
+  entityRelationTypes?: Record<string, unknown>[];
+  entityRelationTypeEndpointKinds?: Record<string, unknown>[];
   inlineMentions: Record<string, unknown>[];
   entityPatches: Record<string, unknown>[];
   blockSections: Record<string, unknown>[];
@@ -184,6 +234,20 @@ function createRequestId(prefix: string): string {
 }
 
 function getErrorMessage(error: unknown): string {
+  const responseData = (error as { response?: { data?: unknown } } | null | undefined)?.response
+    ?.data;
+  if (typeof responseData === 'string' && responseData.trim()) {
+    return responseData.trim();
+  }
+  if (
+    responseData &&
+    typeof responseData === 'object' &&
+    'message' in responseData &&
+    typeof responseData.message === 'string' &&
+    responseData.message.trim()
+  ) {
+    return responseData.message.trim();
+  }
   if (error instanceof Error) return error.message;
   return String(error);
 }
@@ -227,9 +291,7 @@ function mutationFromRow(row: LocalSyncMutationRow): SyncMutation {
 }
 
 async function refreshPendingCount(): Promise<void> {
-  const rows = await getDb()
-    .select({ id: LocalSyncMutationTable.id })
-    .from(LocalSyncMutationTable);
+  const rows = await getDb().select({ id: LocalSyncMutationTable.id }).from(LocalSyncMutationTable);
   pendingCountCache = rows.length;
 }
 
@@ -381,9 +443,7 @@ async function writeSyncMutation(executor: DbExecutor, mutation: SyncMutation): 
   );
 
   if (existing && decision.kind === 'cancel') {
-    await executor
-      .delete(LocalSyncMutationTable)
-      .where(eq(LocalSyncMutationTable.id, existing.id));
+    await executor.delete(LocalSyncMutationTable).where(eq(LocalSyncMutationTable.id, existing.id));
     return;
   }
 
@@ -419,13 +479,12 @@ async function writeSyncMutation(executor: DbExecutor, mutation: SyncMutation): 
   });
 }
 
-async function markLogicalCreateConflict(
+async function markLogicalMutationConflict(
   executor: DbExecutor,
   row: LocalSyncMutationRow,
-  error: unknown,
+  message: string,
 ): Promise<void> {
   const now = new Date().toISOString();
-  const message = `CREATE_PAYLOAD_CONFLICT: ${getErrorMessage(error)}`;
   const logicalEntity = and(
     eq(LocalSyncMutationTable.entityType, row.entityType),
     eq(LocalSyncMutationTable.entityId, row.entityId),
@@ -436,9 +495,9 @@ async function markLogicalCreateConflict(
     inArray(LocalSyncMutationTable.status, ['pending', 'in_flight']),
   );
 
-  // Quarantine the CREATE and every already-queued later operation for the
-  // same logical entity. In particular, do not turn the following UPDATE into
-  // an automatic PATCH against a remote row whose payload did not match.
+  // Quarantine this operation and every already-queued later operation for
+  // the same logical entity. Sending a causal follower after a rejected
+  // payload would reorder durable local intent against unknown remote state.
   await executor
     .update(LocalSyncMutationTable)
     .set({ status: 'conflict', lastError: message, updatedAt: now })
@@ -447,6 +506,30 @@ async function markLogicalCreateConflict(
     .update(LocalSyncMutationTable)
     .set({ retryCount: row.retryCount + 1, updatedAt: now })
     .where(eq(LocalSyncMutationTable.id, row.id));
+}
+
+async function markLogicalCreateConflict(
+  executor: DbExecutor,
+  row: LocalSyncMutationRow,
+  error: unknown,
+): Promise<void> {
+  return markLogicalMutationConflict(
+    executor,
+    row,
+    `CREATE_PAYLOAD_CONFLICT: ${getErrorMessage(error)}`,
+  );
+}
+
+async function markLogicalPayloadValidationConflict(
+  executor: DbExecutor,
+  row: LocalSyncMutationRow,
+  error: unknown,
+): Promise<void> {
+  return markLogicalMutationConflict(
+    executor,
+    row,
+    `PAYLOAD_VALIDATION_CONFLICT: ${getErrorMessage(error)}`,
+  );
 }
 
 async function markLogicalTrashEntitlementConflict(
@@ -587,6 +670,12 @@ async function flushPushQueue(): Promise<void> {
             await markLogicalCreateConflict(db, row, err);
             // Reload the batch. Rows quarantined above are still present in the
             // in-memory batch and must never fall through to PATCH.
+            break;
+          }
+          if (isTerminalPayloadValidationFailure(getRemoteStatus(err))) {
+            await markLogicalPayloadValidationConflict(db, row, err);
+            // The payload is immutable after a network attempt. Quarantine
+            // this entity's causal chain and let unrelated rows continue.
             break;
           }
           if (isTrashEntitlementRejection(mutation.mutationType, getRemoteStatus(err))) {
@@ -838,16 +927,37 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
         return {
           method: 'POST',
           endpoint: `/api/projects/${projectId}/relations`,
-          data: payload,
+          data: payload ? entityRelationRequestPayload(payload, 'create') : payload,
         };
       } else if (mutationType === 'update') {
         return {
           method: 'PATCH',
           endpoint: `/api/projects/${projectId}/relations/${entityId}`,
-          data: payload,
+          data: payload ? entityRelationRequestPayload(payload, 'update') : payload,
         };
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/relations/${entityId}` };
+
+    case 'entityRelationType':
+      if (mutationType === 'create') {
+        if (!payload) return null;
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/relation-types`,
+          data: relationTypeRequestPayload(payload, 'create'),
+        };
+      } else if (mutationType === 'update') {
+        if (!payload) return null;
+        return {
+          method: 'PATCH',
+          endpoint: `/api/projects/${projectId}/relation-types/${entityId}`,
+          data: relationTypeRequestPayload(payload, 'update'),
+        };
+      }
+      return {
+        method: 'DELETE',
+        endpoint: `/api/projects/${projectId}/relation-types/${entityId}`,
+      };
 
     // ---- Comment (notes + TODOs; see drizzle.ts for the anchor matrix) ----
     case 'comment':
@@ -1146,6 +1256,8 @@ export interface PullResult {
   elementCategories?: unknown[];
   categories?: unknown[];
   entityRelations?: unknown[];
+  entityRelationTypes?: unknown[];
+  entityRelationTypeEndpointKinds?: unknown[];
   inlineMentions?: unknown[];
   entityPatches?: unknown[];
   blockSections?: unknown[];
@@ -1173,6 +1285,8 @@ export async function pullProjectData(projectId: string): Promise<PullResult> {
     elementCategories: graph.elementCategories,
     categories: graph.elementCategories,
     entityRelations: graph.entityRelations,
+    entityRelationTypes: graph.entityRelationTypes,
+    entityRelationTypeEndpointKinds: graph.entityRelationTypeEndpointKinds,
     inlineMentions: graph.inlineMentions,
     entityPatches: graph.entityPatches,
     blockSections: graph.blockSections,
@@ -1250,6 +1364,113 @@ function buildStorylineNodeMapping(
     if (!nodes.includes(link.nodeId)) mapping[link.storylineId] = [...nodes, link.nodeId];
   });
   return mapping;
+}
+
+export function projectRelationTypeProjection(graph: ProjectGraphPayload): {
+  types: EntityRelationType[];
+  endpointRows: Array<{ relationTypeId: string; side: 'source' | 'target'; entityKind: string }>;
+  relationTypeIdFor: (row: Record<string, unknown>) => string | null;
+} {
+  const endpointRows = (graph.entityRelationTypeEndpointKinds ?? [])
+    .map((row) => ({
+      relationTypeId: stringValue(row, 'relationTypeId'),
+      side: stringValue(row, 'side') as 'source' | 'target',
+      entityKind: stringValue(row, 'entityKind'),
+    }))
+    .filter(
+      (row) =>
+        row.relationTypeId && (row.side === 'source' || row.side === 'target') && row.entityKind,
+    );
+  const byId = new Map<string, EntityRelationType>();
+  const arrayStrings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+
+  for (const row of graph.entityRelationTypes ?? []) {
+    const id = stringValue(row, 'id');
+    if (!id) continue;
+    const sourceKinds = [
+      ...endpointRows
+        .filter((endpoint) => endpoint.relationTypeId === id && endpoint.side === 'source')
+        .map((endpoint) => endpoint.entityKind),
+      ...arrayStrings(row.sourceKinds),
+    ];
+    const targetKinds = [
+      ...endpointRows
+        .filter((endpoint) => endpoint.relationTypeId === id && endpoint.side === 'target')
+        .map((endpoint) => endpoint.entityKind),
+      ...arrayStrings(row.targetKinds),
+    ];
+    const sourceKindSet = new Set(sourceKinds);
+    const targetKindSet = new Set(targetKinds);
+    const uniqueSourceKinds = ALL_ENTITY_KINDS.filter((kind) =>
+      sourceKindSet.has(kind),
+    ) as EntityRelationType['sourceKinds'];
+    const uniqueTargetKinds = STRUCTURAL_ENTITY_KINDS.filter((kind) =>
+      targetKindSet.has(kind),
+    ) as EntityRelationType['targetKinds'];
+    byId.set(id, {
+      id,
+      projectId: stringValue(row, 'projectId'),
+      name: stringValue(row, 'name'),
+      normalizedName: stringValue(row, 'normalizedName'),
+      description: stringValue(row, 'description'),
+      orientation: stringValue(
+        row,
+        'orientation',
+        'unconfigured',
+      ) as EntityRelationType['orientation'],
+      sourceRole: stringValue(row, 'sourceRole'),
+      targetRole: stringValue(row, 'targetRole'),
+      sourceKinds:
+        uniqueSourceKinds.length > 0 ? uniqueSourceKinds : [...LEGACY_RELATION_SOURCE_KINDS],
+      targetKinds:
+        uniqueTargetKinds.length > 0 ? uniqueTargetKinds : [...LEGACY_RELATION_TARGET_KINDS],
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    });
+  }
+
+  const relationTypeIdFor = (row: Record<string, unknown>): string | null => {
+    const explicit = nullableStringValue(row, 'relationTypeId');
+    if (explicit) return explicit;
+    const kind = nullableStringValue(row, 'kind')?.trim();
+    return kind ? legacyRelationTypeId(stringValue(row, 'projectId'), kind) : null;
+  };
+
+  for (const relation of graph.entityRelations) {
+    const kind = nullableStringValue(relation, 'kind')?.trim();
+    const relationTypeId = relationTypeIdFor(relation);
+    if (!kind || !relationTypeId || byId.has(relationTypeId)) continue;
+    const legacy = legacyRelationType(
+      stringValue(relation, 'projectId'),
+      kind,
+      dateText(relation.createdAt),
+      dateText(relation.updatedAt),
+    );
+    byId.set(relationTypeId, { ...legacy, id: relationTypeId });
+  }
+
+  const types = [...byId.values()];
+  const endpointKeys = new Set(
+    endpointRows.map((row) => `${row.relationTypeId}:${row.side}:${row.entityKind}`),
+  );
+  for (const type of types) {
+    for (const entityKind of type.sourceKinds) {
+      const key = `${type.id}:source:${entityKind}`;
+      if (!endpointKeys.has(key)) {
+        endpointRows.push({ relationTypeId: type.id, side: 'source', entityKind });
+        endpointKeys.add(key);
+      }
+    }
+    for (const entityKind of type.targetKinds) {
+      const key = `${type.id}:target:${entityKind}`;
+      if (!endpointKeys.has(key)) {
+        endpointRows.push({ relationTypeId: type.id, side: 'target', entityKind });
+        endpointKeys.add(key);
+      }
+    }
+  }
+  return { types, endpointRows, relationTypeIdFor };
 }
 
 function applyGraphToStores(graph: ProjectGraphPayload): void {
@@ -1564,6 +1785,8 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
   // picker can render attached chapters / elements / etc. without hitting
   // SQLite. Inline mentions are NOT mirrored to the store — ReferencesPanel
   // queries them directly from the inline_mention table on demand.
+  const relationTypes = projectRelationTypeProjection(graph);
+  dataStore.setEntityRelationTypes(relationTypes.types);
   dataStore.setEntityRelations(
     graph.entityRelations.map((row) => ({
       id: stringValue(row, 'id'),
@@ -1572,6 +1795,7 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       fromId: stringValue(row, 'fromId'),
       toKind: stringValue(row, 'toKind') as any,
       toId: stringValue(row, 'toId'),
+      relationTypeId: relationTypes.relationTypeIdFor(row),
       kind: nullableStringValue(row, 'kind'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
@@ -1658,12 +1882,13 @@ interface EntityRelationKeyInput {
   toKind: string;
   toId: string;
   kind: string | null;
+  relationTypeId?: string | null;
 }
 
 function entityRelationKey(row: EntityRelationKeyInput): string {
-  // Distinct (from, to, kind) is the user-meaningful relation identity — same
-  // pair can carry multiple `kind` values as distinct rows.
-  return `${row.fromKind}:${row.fromId}->${row.toKind}:${row.toId}:${row.kind ?? ''}`;
+  // The semantic type id is authoritative. The mirrored label is only the
+  // compatibility identity for uncategorized/old-client rows.
+  return `${row.fromKind}:${row.fromId}->${row.toKind}:${row.toId}:${row.relationTypeId ?? `legacy:${row.kind ?? ''}`}`;
 }
 
 async function countPendingMutations(projectId?: string): Promise<number> {
@@ -1686,653 +1911,737 @@ export async function hydrateProjectGraph(
   if (!projectId) throw new Error('Cannot hydrate project graph without project.id');
   const db = getDb();
   let deviceSafeGraph = graph;
+  const projectedRelationTypes = projectRelationTypeProjection(graph);
 
   return runGuardedProjectHydration<DbTransaction>({
     projectId,
     expectedGeneration,
     transaction: (work) => db.transaction(work),
     hydrate: async (tx) => {
-    // Successful mutations are deleted from the outbox. Only rows still
-    // referenced by unfinished mutations may survive a server-canonical
-    // hydrate; preserving every local row resurrects remote deletions.
-    const unfinishedMutations = await tx
-      .select({
-        entityType: LocalSyncMutationTable.entityType,
-        entityId: LocalSyncMutationTable.entityId,
-      })
-      .from(LocalSyncMutationTable)
-      .where(eq(LocalSyncMutationTable.projectId, projectId));
-    const unfinishedIds = (entityType: EntityType) =>
-      new Set(
-        unfinishedMutations
-          .filter((mutation) => mutation.entityType === entityType)
-          .map((mutation) => mutation.entityId),
+      // Successful mutations are deleted from the outbox. Only rows still
+      // referenced by unfinished mutations may survive a server-canonical
+      // hydrate; preserving every local row resurrects remote deletions.
+      const unfinishedMutations = await tx
+        .select({
+          entityType: LocalSyncMutationTable.entityType,
+          entityId: LocalSyncMutationTable.entityId,
+        })
+        .from(LocalSyncMutationTable)
+        .where(eq(LocalSyncMutationTable.projectId, projectId));
+      const unfinishedIds = (entityType: EntityType) =>
+        new Set(
+          unfinishedMutations
+            .filter((mutation) => mutation.entityType === entityType)
+            .map((mutation) => mutation.entityId),
+        );
+      const unfinishedRelationIds = unfinishedIds('entityRelation');
+      const unfinishedRelationTypeIds = unfinishedIds('entityRelationType');
+      const unfinishedPatchIds = unfinishedIds('elementPatch');
+      const unfinishedSectionIds = unfinishedIds('blockSection');
+
+      // Inline mentions aren't preserved — they're a pure projection of doc
+      // content and will be rebuilt after hydrate.
+      const allLocalEntityRelations = await tx
+        .select()
+        .from(EntityRelationTable)
+        .where(eq(EntityRelationTable.projectId, projectId));
+      const localEntityRelations = allLocalEntityRelations.filter((row) =>
+        unfinishedRelationIds.has(row.id),
       );
-    const unfinishedRelationIds = unfinishedIds('entityRelation');
-    const unfinishedPatchIds = unfinishedIds('elementPatch');
-    const unfinishedSectionIds = unfinishedIds('blockSection');
+      for (const relation of localEntityRelations) {
+        if (relation.relationTypeId) unfinishedRelationTypeIds.add(relation.relationTypeId);
+      }
+      const allLocalRelationTypes = await tx
+        .select()
+        .from(EntityRelationTypeTable)
+        .where(eq(EntityRelationTypeTable.projectId, projectId));
+      const localRelationTypes = allLocalRelationTypes.filter((row) =>
+        unfinishedRelationTypeIds.has(row.id),
+      );
+      const allLocalEndpointKinds =
+        allLocalRelationTypes.length > 0
+          ? await tx
+              .select()
+              .from(EntityRelationTypeEndpointKindTable)
+              .where(
+                inArray(
+                  EntityRelationTypeEndpointKindTable.relationTypeId,
+                  allLocalRelationTypes.map((row) => row.id),
+                ),
+              )
+          : [];
+      const localEndpointKinds = allLocalEndpointKinds.filter((row) =>
+        unfinishedRelationTypeIds.has(row.relationTypeId),
+      );
 
-    // Inline mentions aren't preserved — they're a pure projection of doc
-    // content and will be rebuilt after hydrate.
-    const allLocalEntityRelations = await tx
-      .select()
-      .from(EntityRelationTable)
-      .where(eq(EntityRelationTable.projectId, projectId));
-    const localEntityRelations = allLocalEntityRelations.filter((row) =>
-      unfinishedRelationIds.has(row.id),
-    );
+      const allLocalPatches = await tx
+        .select()
+        .from(ElementPatchTable)
+        .where(eq(ElementPatchTable.projectId, projectId));
+      const localPatches = allLocalPatches.filter((row) => unfinishedPatchIds.has(row.id));
 
-    const allLocalPatches = await tx
-      .select()
-      .from(ElementPatchTable)
-      .where(eq(ElementPatchTable.projectId, projectId));
-    const localPatches = allLocalPatches.filter((row) => unfinishedPatchIds.has(row.id));
+      const allLocalBlockSections = await tx
+        .select()
+        .from(BlockSectionTable)
+        .where(eq(BlockSectionTable.projectId, projectId));
+      const localBlockSections = allLocalBlockSections.filter((row) =>
+        unfinishedSectionIds.has(row.id),
+      );
 
-    const allLocalBlockSections = await tx
-      .select()
-      .from(BlockSectionTable)
-      .where(eq(BlockSectionTable.projectId, projectId));
-    const localBlockSections = allLocalBlockSections.filter((row) =>
-      unfinishedSectionIds.has(row.id),
-    );
+      // Unlike server-canonical content, localPath is an overlay owned by this
+      // device. Capture it before the destructive hydrate so a remote response
+      // cannot replace it with another machine's absolute path. Cross-device
+      // rows absent from this local snapshot are normalized to null.
+      const localLibraryItemDeviceFields = await tx
+        .select({ id: LibraryItemTable.id, localPath: LibraryItemTable.localPath })
+        .from(LibraryItemTable)
+        .where(eq(LibraryItemTable.projectId, projectId));
+      deviceSafeGraph = {
+        ...graph,
+        libraryItems: overlayLibraryItemDeviceFields(
+          graph.libraryItems,
+          localLibraryItemDeviceFields,
+        ),
+      };
 
-    // Unlike server-canonical content, localPath is an overlay owned by this
-    // device. Capture it before the destructive hydrate so a remote response
-    // cannot replace it with another machine's absolute path. Cross-device
-    // rows absent from this local snapshot are normalized to null.
-    const localLibraryItemDeviceFields = await tx
-      .select({ id: LibraryItemTable.id, localPath: LibraryItemTable.localPath })
-      .from(LibraryItemTable)
-      .where(eq(LibraryItemTable.projectId, projectId));
-    deviceSafeGraph = {
-      ...graph,
-      libraryItems: overlayLibraryItemDeviceFields(
-        graph.libraryItems,
-        localLibraryItemDeviceFields,
-      ),
-    };
+      const oldNodes = await tx
+        .select({ id: BookNodeTable.id })
+        .from(BookNodeTable)
+        .where(eq(BookNodeTable.projectId, projectId));
+      const oldElements = await tx
+        .select({ id: BookElementTable.id })
+        .from(BookElementTable)
+        .where(eq(BookElementTable.projectId, projectId));
+      const oldStorylines = await tx
+        .select({ id: StorylineTable.id })
+        .from(StorylineTable)
+        .where(eq(StorylineTable.projectId, projectId));
+      const oldCategories = await tx
+        .select({ id: ElementCategoryTable.id })
+        .from(ElementCategoryTable)
+        .where(eq(ElementCategoryTable.projectId, projectId));
 
-    const oldNodes = await tx
-      .select({ id: BookNodeTable.id })
-      .from(BookNodeTable)
-      .where(eq(BookNodeTable.projectId, projectId));
-    const oldElements = await tx
-      .select({ id: BookElementTable.id })
-      .from(BookElementTable)
-      .where(eq(BookElementTable.projectId, projectId));
-    const oldStorylines = await tx
-      .select({ id: StorylineTable.id })
-      .from(StorylineTable)
-      .where(eq(StorylineTable.projectId, projectId));
-    const oldCategories = await tx
-      .select({ id: ElementCategoryTable.id })
-      .from(ElementCategoryTable)
-      .where(eq(ElementCategoryTable.projectId, projectId));
+      const oldNodeIds = oldNodes.map((row) => row.id);
+      const oldElementIds = oldElements.map((row) => row.id);
+      const oldStorylineIds = oldStorylines.map((row) => row.id);
+      const oldCategoryIds = oldCategories.map((row) => row.id);
 
-    const oldNodeIds = oldNodes.map((row) => row.id);
-    const oldElementIds = oldElements.map((row) => row.id);
-    const oldStorylineIds = oldStorylines.map((row) => row.id);
-    const oldCategoryIds = oldCategories.map((row) => row.id);
+      // Polymorphic cleanup helper: both tables carry (kind, id) on each end
+      // without FK enforcement, so we run explicit deletes when an endpoint is
+      // about to be wiped.
+      const deletePolymorphicForIds = async (
+        kind: 'node' | 'element' | 'storyline' | 'category',
+        ids: string[],
+      ) => {
+        if (ids.length === 0) return;
+        await tx
+          .delete(EntityRelationTable)
+          .where(
+            and(eq(EntityRelationTable.fromKind, kind), inArray(EntityRelationTable.fromId, ids)),
+          );
+        await tx
+          .delete(EntityRelationTable)
+          .where(and(eq(EntityRelationTable.toKind, kind), inArray(EntityRelationTable.toId, ids)));
+        await tx
+          .delete(InlineMentionTable)
+          .where(
+            and(eq(InlineMentionTable.fromKind, kind), inArray(InlineMentionTable.fromId, ids)),
+          );
+        await tx
+          .delete(InlineMentionTable)
+          .where(and(eq(InlineMentionTable.toKind, kind), inArray(InlineMentionTable.toId, ids)));
+      };
 
-    // Polymorphic cleanup helper: both tables carry (kind, id) on each end
-    // without FK enforcement, so we run explicit deletes when an endpoint is
-    // about to be wiped.
-    const deletePolymorphicForIds = async (
-      kind: 'node' | 'element' | 'storyline' | 'category',
-      ids: string[],
-    ) => {
-      if (ids.length === 0) return;
+      if (oldNodeIds.length > 0) {
+        await tx.delete(NodeContentTable).where(inArray(NodeContentTable.nodeId, oldNodeIds));
+        await tx
+          .delete(NodeStorylineLinkTable)
+          .where(inArray(NodeStorylineLinkTable.nodeId, oldNodeIds));
+        await deletePolymorphicForIds('node', oldNodeIds);
+        // ElementPatch.sourceNodeId is ON DELETE SET NULL — letting the BookNode
+        // deletion below cascade is enough; rows themselves are owned by elements
+        // and will be cleared when those cascade.
+      }
+      await deletePolymorphicForIds('element', oldElementIds);
+      if (oldStorylineIds.length > 0) {
+        await tx
+          .delete(NodeStorylineLinkTable)
+          .where(inArray(NodeStorylineLinkTable.storylineId, oldStorylineIds));
+        await deletePolymorphicForIds('storyline', oldStorylineIds);
+      }
+      await deletePolymorphicForIds('category', oldCategoryIds);
+
+      // Library items and comments are project-scoped; wipe and reinsert from
+      // the payload. Their entity_relation rows are dropped here too — server is
+      // the source of truth for annotative-side relations. (Inline mentions
+      // never target an annotative entity, so only relation cleanup is needed.)
       await tx
         .delete(EntityRelationTable)
         .where(
-          and(eq(EntityRelationTable.fromKind, kind), inArray(EntityRelationTable.fromId, ids)),
+          and(
+            eq(EntityRelationTable.projectId, projectId),
+            eq(EntityRelationTable.fromKind, 'comment'),
+          ),
         );
+      // Relations are restored after their semantic type parents. Explicitly
+      // clear any rows that survived polymorphic endpoint cleanup before the
+      // relation-type tables are replaced.
+      await tx.delete(EntityRelationTable).where(eq(EntityRelationTable.projectId, projectId));
+      if (allLocalRelationTypes.length > 0) {
+        await tx.delete(EntityRelationTypeEndpointKindTable).where(
+          inArray(
+            EntityRelationTypeEndpointKindTable.relationTypeId,
+            allLocalRelationTypes.map((row) => row.id),
+          ),
+        );
+      }
+      await tx
+        .delete(EntityRelationTypeTable)
+        .where(eq(EntityRelationTypeTable.projectId, projectId));
       await tx
         .delete(EntityRelationTable)
-        .where(and(eq(EntityRelationTable.toKind, kind), inArray(EntityRelationTable.toId, ids)));
+        .where(
+          and(
+            eq(EntityRelationTable.projectId, projectId),
+            eq(EntityRelationTable.fromKind, 'library_item'),
+          ),
+        );
+      // Inline mentions originating from comment / library_item bodies (if the
+      // user happens to @-mention an element from a TODO body) — wipe alongside.
       await tx
         .delete(InlineMentionTable)
-        .where(and(eq(InlineMentionTable.fromKind, kind), inArray(InlineMentionTable.fromId, ids)));
+        .where(
+          and(
+            eq(InlineMentionTable.projectId, projectId),
+            eq(InlineMentionTable.fromKind, 'comment'),
+          ),
+        );
       await tx
         .delete(InlineMentionTable)
-        .where(and(eq(InlineMentionTable.toKind, kind), inArray(InlineMentionTable.toId, ids)));
-    };
-
-    if (oldNodeIds.length > 0) {
-      await tx.delete(NodeContentTable).where(inArray(NodeContentTable.nodeId, oldNodeIds));
+        .where(
+          and(
+            eq(InlineMentionTable.projectId, projectId),
+            eq(InlineMentionTable.fromKind, 'library_item'),
+          ),
+        );
+      await tx.delete(LibraryItemTable).where(eq(LibraryItemTable.projectId, projectId));
+      await tx.delete(CommentActionTable).where(eq(CommentActionTable.projectId, projectId));
+      await tx.delete(CommentTable).where(eq(CommentTable.projectId, projectId));
+      await tx.delete(AgentMemoryTable).where(eq(AgentMemoryTable.projectId, projectId));
       await tx
-        .delete(NodeStorylineLinkTable)
-        .where(inArray(NodeStorylineLinkTable.nodeId, oldNodeIds));
-      await deletePolymorphicForIds('node', oldNodeIds);
-      // ElementPatch.sourceNodeId is ON DELETE SET NULL — letting the BookNode
-      // deletion below cascade is enough; rows themselves are owned by elements
-      // and will be cleared when those cascade.
-    }
-    await deletePolymorphicForIds('element', oldElementIds);
-    if (oldStorylineIds.length > 0) {
+        .delete(AgentWorkingMemoryTable)
+        .where(eq(AgentWorkingMemoryTable.projectId, projectId));
+      await tx.delete(BookActTable).where(eq(BookActTable.projectId, projectId));
+      await tx.delete(DriftGroupTable).where(eq(DriftGroupTable.projectId, projectId));
+      await tx.delete(TimelineMarkerTable).where(eq(TimelineMarkerTable.projectId, projectId));
+      await tx.delete(BookNodeTable).where(eq(BookNodeTable.projectId, projectId));
+      await tx.delete(BookElementTable).where(eq(BookElementTable.projectId, projectId));
+      await tx.delete(ProjectAssetTable).where(eq(ProjectAssetTable.projectId, projectId));
+      await tx.delete(StorylineTable).where(eq(StorylineTable.projectId, projectId));
+      await tx.delete(ElementCategoryTable).where(eq(ElementCategoryTable.projectId, projectId));
+
+      const project = normalizeProjectRow(graph.project);
       await tx
-        .delete(NodeStorylineLinkTable)
-        .where(inArray(NodeStorylineLinkTable.storylineId, oldStorylineIds));
-      await deletePolymorphicForIds('storyline', oldStorylineIds);
-    }
-    await deletePolymorphicForIds('category', oldCategoryIds);
+        .insert(ProjectTable)
+        .values(project)
+        .onConflictDoUpdate({
+          target: ProjectTable.id,
+          set: {
+            userId: project.userId,
+            name: project.name,
+            summary: project.summary,
+            kvJson: project.kvJson,
+            storylineTemplateKvJson: project.storylineTemplateKvJson,
+            createdAt: project.createdAt,
+            updatedAt: project.updatedAt,
+          },
+        });
 
-    // Library items and comments are project-scoped; wipe and reinsert from
-    // the payload. Their entity_relation rows are dropped here too — server is
-    // the source of truth for annotative-side relations. (Inline mentions
-    // never target an annotative entity, so only relation cleanup is needed.)
-    await tx
-      .delete(EntityRelationTable)
-      .where(
-        and(
-          eq(EntityRelationTable.projectId, projectId),
-          eq(EntityRelationTable.fromKind, 'comment'),
-        ),
+      const relationTypeRows = new Map(
+        projectedRelationTypes.types.map((type) => [
+          type.id,
+          {
+            id: type.id,
+            projectId: type.projectId,
+            name: type.name,
+            normalizedName: type.normalizedName,
+            description: type.description,
+            orientation: type.orientation,
+            sourceRole: type.sourceRole,
+            targetRole: type.targetRole,
+            createdAt: type.createdAt,
+            updatedAt: type.updatedAt,
+          },
+        ]),
       );
-    await tx
-      .delete(EntityRelationTable)
-      .where(
-        and(
-          eq(EntityRelationTable.projectId, projectId),
-          eq(EntityRelationTable.fromKind, 'library_item'),
-        ),
+      for (const row of localRelationTypes) {
+        relationTypeRows.set(row.id, {
+          ...row,
+          orientation: row.orientation as EntityRelationType['orientation'],
+        });
+      }
+      if (relationTypeRows.size > 0) {
+        await insertRowsBatched(tx, EntityRelationTypeTable, [...relationTypeRows.values()]);
+      }
+      const relationTypeEndpointRows = new Map(
+        [...projectedRelationTypes.endpointRows, ...localEndpointKinds].map((row) => [
+          `${row.relationTypeId}:${row.side}:${row.entityKind}`,
+          row,
+        ]),
       );
-    // Inline mentions originating from comment / library_item bodies (if the
-    // user happens to @-mention an element from a TODO body) — wipe alongside.
-    await tx
-      .delete(InlineMentionTable)
-      .where(
-        and(
-          eq(InlineMentionTable.projectId, projectId),
-          eq(InlineMentionTable.fromKind, 'comment'),
-        ),
-      );
-    await tx
-      .delete(InlineMentionTable)
-      .where(
-        and(
-          eq(InlineMentionTable.projectId, projectId),
-          eq(InlineMentionTable.fromKind, 'library_item'),
-        ),
-      );
-    await tx.delete(LibraryItemTable).where(eq(LibraryItemTable.projectId, projectId));
-    await tx.delete(CommentActionTable).where(eq(CommentActionTable.projectId, projectId));
-    await tx.delete(CommentTable).where(eq(CommentTable.projectId, projectId));
-    await tx.delete(AgentMemoryTable).where(eq(AgentMemoryTable.projectId, projectId));
-    await tx
-      .delete(AgentWorkingMemoryTable)
-      .where(eq(AgentWorkingMemoryTable.projectId, projectId));
-    await tx.delete(BookActTable).where(eq(BookActTable.projectId, projectId));
-    await tx.delete(DriftGroupTable).where(eq(DriftGroupTable.projectId, projectId));
-    await tx.delete(TimelineMarkerTable).where(eq(TimelineMarkerTable.projectId, projectId));
-    await tx.delete(BookNodeTable).where(eq(BookNodeTable.projectId, projectId));
-    await tx.delete(BookElementTable).where(eq(BookElementTable.projectId, projectId));
-    await tx.delete(ProjectAssetTable).where(eq(ProjectAssetTable.projectId, projectId));
-    await tx.delete(StorylineTable).where(eq(StorylineTable.projectId, projectId));
-    await tx.delete(ElementCategoryTable).where(eq(ElementCategoryTable.projectId, projectId));
+      if (relationTypeEndpointRows.size > 0) {
+        await insertRowsBatched(tx, EntityRelationTypeEndpointKindTable, [
+          ...relationTypeEndpointRows.values(),
+        ]);
+      }
 
-    const project = normalizeProjectRow(graph.project);
-    await tx
-      .insert(ProjectTable)
-      .values(project)
-      .onConflictDoUpdate({
-        target: ProjectTable.id,
-        set: {
-          userId: project.userId,
-          name: project.name,
-          summary: project.summary,
-          kvJson: project.kvJson,
-          storylineTemplateKvJson: project.storylineTemplateKvJson,
-          createdAt: project.createdAt,
-          updatedAt: project.updatedAt,
-        },
+      const elementCategories = normalizeRows(graph.elementCategories, (row) => ({
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        name: stringValue(row, 'name'),
+        contentJson: stringValue(row, 'contentJson', '{}'),
+        elementTemplateJson: stringValue(row, 'elementTemplateJson', '{}'),
+        elementTemplateKvJson: stringValue(row, 'elementTemplateKvJson', '[]'),
+        color: stringValue(row, 'color'),
+        layoutMode: stringValue(row, 'layoutMode', 'auto') || 'auto',
+        gridX: nullableNumberValue(row, 'gridX'),
+        gridY: nullableNumberValue(row, 'gridY'),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+        deletedAt: nullableDateText(row.deletedAt),
+      }));
+      if (elementCategories.length > 0) {
+        await insertRowsBatched(tx, ElementCategoryTable, elementCategories);
+      }
+
+      const projectAssets = normalizeRows(graph.projectAssets ?? [], (row) => ({
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        kind: stringValue(row, 'kind', 'image') || 'image',
+        role: stringValue(row, 'role', 'element_portrait') || 'element_portrait',
+        ownerKind: stringValue(row, 'ownerKind', 'element') || 'element',
+        ownerId: stringValue(row, 'ownerId'),
+        status: stringValue(row, 'status', 'pending') || 'pending',
+        sourceObjectKey: nullableStringValue(row, 'sourceObjectKey'),
+        displayObjectKey: nullableStringValue(row, 'displayObjectKey'),
+        thumbnailObjectKey: nullableStringValue(row, 'thumbnailObjectKey'),
+        sourceMime: nullableStringValue(row, 'sourceMime'),
+        displayMime: nullableStringValue(row, 'displayMime'),
+        thumbnailMime: nullableStringValue(row, 'thumbnailMime'),
+        sourceSizeBytes: nullableNumberValue(row, 'sourceSizeBytes'),
+        displaySizeBytes: nullableNumberValue(row, 'displaySizeBytes'),
+        thumbnailSizeBytes: nullableNumberValue(row, 'thumbnailSizeBytes'),
+        sourceSha256: nullableStringValue(row, 'sourceSha256'),
+        width: nullableNumberValue(row, 'width'),
+        height: nullableNumberValue(row, 'height'),
+        completedAt: nullableDateText(row.completedAt),
+        deletedAt: nullableDateText(row.deletedAt),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      })).filter((row) => row.id && row.projectId);
+      if (projectAssets.length > 0) {
+        await insertRowsBatched(tx, ProjectAssetTable, projectAssets);
+      }
+
+      const storylines = normalizeRows(graph.storylines, (row) => ({
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        name: stringValue(row, 'name'),
+        color: stringValue(row, 'color'),
+        summary: stringValue(row, 'summary'),
+        orderKey: numberValue(row, 'orderKey'),
+        contentJson: stringValue(row, 'contentJson', '{}'),
+        kvJson: stringValue(row, 'kvJson', '[]'),
+        nodeContentTemplateJson: stringValue(row, 'nodeContentTemplateJson', '{}'),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+        deletedAt: nullableDateText(row.deletedAt),
+      }));
+      if (storylines.length > 0) {
+        await insertRowsBatched(tx, StorylineTable, storylines);
+      }
+
+      const nodes = normalizeRows(graph.nodes, (row) => {
+        const rowKind = stringValue(row, 'kind', '');
+        const kind = rowKind === 'chapter' ? 'chapter' : 'drift';
+        return {
+          id: stringValue(row, 'id'),
+          projectId: stringValue(row, 'projectId'),
+          title: stringValue(row, 'title'),
+          summary: stringValue(row, 'summary'),
+          bookOrder: row.bookOrder == null ? null : numberValue(row, 'bookOrder'),
+          narrativeOrder: row.narrativeOrder == null ? null : numberValue(row, 'narrativeOrder'),
+          kind,
+          driftGroupId: nullableStringValue(row, 'driftGroupId'),
+          positionX: numberValue(row, 'positionX'),
+          positionY: numberValue(row, 'positionY'),
+          wordCount: numberValue(row, 'wordCount'),
+          writingStatus: stringValue(row, 'writingStatus', 'draft'),
+          createdAt: dateText(row.createdAt),
+          updatedAt: dateText(row.updatedAt),
+          deletedAt: nullableDateText(row.deletedAt),
+        };
       });
+      if (nodes.length > 0) {
+        await insertRowsBatched(tx, BookNodeTable, nodes);
+      }
 
-    const elementCategories = normalizeRows(graph.elementCategories, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      name: stringValue(row, 'name'),
-      contentJson: stringValue(row, 'contentJson', '{}'),
-      elementTemplateJson: stringValue(row, 'elementTemplateJson', '{}'),
-      elementTemplateKvJson: stringValue(row, 'elementTemplateKvJson', '[]'),
-      color: stringValue(row, 'color'),
-      layoutMode: stringValue(row, 'layoutMode', 'auto') || 'auto',
-      gridX: nullableNumberValue(row, 'gridX'),
-      gridY: nullableNumberValue(row, 'gridY'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-      deletedAt: nullableDateText(row.deletedAt),
-    }));
-    if (elementCategories.length > 0) {
-      await insertRowsBatched(tx, ElementCategoryTable, elementCategories);
-    }
+      const nodeContents = normalizeRows(graph.nodeContents, (row) => ({
+        nodeId: stringValue(row, 'nodeId'),
+        contentJson: stringValue(row, 'contentJson', '{}'),
+        outlineJson: stringValue(row, 'outlineJson', '[]'),
+        plotGridJson: stringValue(row, 'plotGridJson', '{}'),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      }));
+      if (nodeContents.length > 0) {
+        await insertRowsBatched(tx, NodeContentTable, nodeContents);
+      }
 
-    const projectAssets = normalizeRows(graph.projectAssets ?? [], (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      kind: stringValue(row, 'kind', 'image') || 'image',
-      role: stringValue(row, 'role', 'element_portrait') || 'element_portrait',
-      ownerKind: stringValue(row, 'ownerKind', 'element') || 'element',
-      ownerId: stringValue(row, 'ownerId'),
-      status: stringValue(row, 'status', 'pending') || 'pending',
-      sourceObjectKey: nullableStringValue(row, 'sourceObjectKey'),
-      displayObjectKey: nullableStringValue(row, 'displayObjectKey'),
-      thumbnailObjectKey: nullableStringValue(row, 'thumbnailObjectKey'),
-      sourceMime: nullableStringValue(row, 'sourceMime'),
-      displayMime: nullableStringValue(row, 'displayMime'),
-      thumbnailMime: nullableStringValue(row, 'thumbnailMime'),
-      sourceSizeBytes: nullableNumberValue(row, 'sourceSizeBytes'),
-      displaySizeBytes: nullableNumberValue(row, 'displaySizeBytes'),
-      thumbnailSizeBytes: nullableNumberValue(row, 'thumbnailSizeBytes'),
-      sourceSha256: nullableStringValue(row, 'sourceSha256'),
-      width: nullableNumberValue(row, 'width'),
-      height: nullableNumberValue(row, 'height'),
-      completedAt: nullableDateText(row.completedAt),
-      deletedAt: nullableDateText(row.deletedAt),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id && row.projectId);
-    if (projectAssets.length > 0) {
-      await insertRowsBatched(tx, ProjectAssetTable, projectAssets);
-    }
+      // Build a set of category ids that actually live in this hydrate batch.
+      // Any element whose categoryId doesn't appear here is an orphan — either
+      // because the parent was soft-deleted before the server-side detach
+      // landed, or because the row is just stale. Detach to NULL ("未分类")
+      // rather than blowing up the whole pull with a FK constraint error.
+      const knownCategoryIds = new Set<string>();
+      for (const row of graph.elementCategories) {
+        const id = stringValue(row, 'id');
+        if (id) knownCategoryIds.add(id);
+      }
+      const elements = normalizeRows(graph.elements, (row) => {
+        const rawCategoryId = nullableStringValue(row, 'categoryId');
+        const categoryId =
+          rawCategoryId && knownCategoryIds.has(rawCategoryId) ? rawCategoryId : null;
+        return {
+          id: stringValue(row, 'id'),
+          projectId: stringValue(row, 'projectId'),
+          categoryId,
+          name: stringValue(row, 'name'),
+          summary: stringValue(row, 'summary'),
+          contentJson: stringValue(row, 'contentJson', '{}'),
+          kvJson: stringValue(row, 'kvJson', '[]'),
+          // Server may not yet send aliasesJson — default to '[]' so the
+          // not-null column constraint is satisfied. Server-side migration
+          // will follow this client one; pre-migration server omits the field.
+          aliasesJson: stringValue(row, 'aliasesJson', '[]'),
+          groupName: nullableStringValue(row, 'groupName'),
+          portraitAssetId: nullableStringValue(row, 'portraitAssetId'),
+          createdAt: dateText(row.createdAt),
+          updatedAt: dateText(row.updatedAt),
+          deletedAt: nullableDateText(row.deletedAt),
+        };
+      });
+      if (elements.length > 0) {
+        await insertRowsBatched(tx, BookElementTable, elements);
+      }
 
-    const storylines = normalizeRows(graph.storylines, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      name: stringValue(row, 'name'),
-      color: stringValue(row, 'color'),
-      summary: stringValue(row, 'summary'),
-      orderKey: numberValue(row, 'orderKey'),
-      contentJson: stringValue(row, 'contentJson', '{}'),
-      kvJson: stringValue(row, 'kvJson', '[]'),
-      nodeContentTemplateJson: stringValue(row, 'nodeContentTemplateJson', '{}'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-      deletedAt: nullableDateText(row.deletedAt),
-    }));
-    if (storylines.length > 0) {
-      await insertRowsBatched(tx, StorylineTable, storylines);
-    }
+      const nodeStorylineLinks = normalizeRows(graph.nodeStorylineLinks, (row) => ({
+        nodeId: stringValue(row, 'nodeId'),
+        storylineId: stringValue(row, 'storylineId'),
+        isPrimary: Boolean((row as Record<string, unknown>).isPrimary),
+      })).filter((row) => row.nodeId && row.storylineId);
+      if (nodeStorylineLinks.length > 0) {
+        await insertRowsBatched(tx, NodeStorylineLinkTable, nodeStorylineLinks);
+      }
 
-    const nodes = normalizeRows(graph.nodes, (row) => {
-      const rowKind = stringValue(row, 'kind', '');
-      const kind = rowKind === 'chapter' ? 'chapter' : 'drift';
-      return {
+      const entityRelations = normalizeRows(graph.entityRelations, (row) => ({
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        fromKind: stringValue(row, 'fromKind'),
+        fromId: stringValue(row, 'fromId'),
+        toKind: stringValue(row, 'toKind'),
+        toId: stringValue(row, 'toId'),
+        relationTypeId: projectedRelationTypes.relationTypeIdFor(row),
+        kind: nullableStringValue(row, 'kind'),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      })).filter((row) => row.id && row.fromId && row.toId);
+      if (entityRelations.length > 0) {
+        await insertRowsBatched(tx, EntityRelationTable, entityRelations);
+      }
+
+      // Restore any local relations the server didn't return — typically created
+      // offline and not yet flushed. Identity is (from, to, kind).
+      if (localEntityRelations.length > 0) {
+        const currentRelations = await tx
+          .select({
+            fromKind: EntityRelationTable.fromKind,
+            fromId: EntityRelationTable.fromId,
+            toKind: EntityRelationTable.toKind,
+            toId: EntityRelationTable.toId,
+            kind: EntityRelationTable.kind,
+            relationTypeId: EntityRelationTable.relationTypeId,
+          })
+          .from(EntityRelationTable)
+          .where(eq(EntityRelationTable.projectId, projectId));
+        const currentKeys = new Set(currentRelations.map(entityRelationKey));
+        const relationsToRestore = localEntityRelations.filter(
+          (row) => !currentKeys.has(entityRelationKey(row)),
+        );
+        if (relationsToRestore.length > 0) {
+          await insertRowsBatched(tx, EntityRelationTable, relationsToRestore, {
+            onConflictDoNothing: true,
+          });
+        }
+      }
+
+      // Inline mentions are a derived index; insert what the server has, but
+      // they'll be rebuilt locally from doc content by
+      // rebuildProjectInlineReferenceIndex right after this transaction.
+      const inlineMentions = normalizeRows(graph.inlineMentions, (row) => ({
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        fromKind: stringValue(row, 'fromKind'),
+        fromId: stringValue(row, 'fromId'),
+        fromBlockId: stringValue(row, 'fromBlockId'),
+        fromSpansJson: stringValue(row, 'fromSpansJson'),
+        toKind: stringValue(row, 'toKind'),
+        toId: stringValue(row, 'toId'),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      })).filter((row) => row.id && row.fromId && row.toId && row.fromBlockId && row.fromSpansJson);
+      if (inlineMentions.length > 0) {
+        await insertRowsBatched(tx, InlineMentionTable, inlineMentions);
+      }
+
+      // ElementPatch rows are owned by their element; they were cascade-deleted
+      // by the BookElement wipe above, so a fresh insert from the payload is safe.
+      const entityPatches = normalizeRows(graph.entityPatches, (row) => ({
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        elementId: stringValue(row, 'elementId'),
+        sourceNodeId: nullableStringValue(row, 'sourceNodeId'),
+        sourceBlockId: nullableStringValue(row, 'sourceBlockId'),
+        sourceBlockText: nullableStringValue(row, 'sourceBlockText'),
+        textAnchorJson: nullableStringValue(row, 'textAnchorJson'),
+        invalidatedAt: nullableStringValue(row, 'invalidatedAt'),
+        title: nullableStringValue(row, 'title'),
+        contentJson: stringValue(row, 'contentJson', '{}'),
+        orderKey: numberValue(row, 'orderKey', 0),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      })).filter((row) => row.id && row.elementId);
+      if (entityPatches.length > 0) {
+        await insertRowsBatched(tx, ElementPatchTable, entityPatches);
+      }
+
+      // Restore only patches protected by an unfinished durable mutation, gated
+      // on (a) the patch's elementId still existing post-hydrate (FK validity)
+      // and (b) the patch id not already inserted from the server payload
+      // (server is canonical when there's a collision). Same defensive pattern
+      // as localEntityRelations above. Once patches get a complete sync helper,
+      // the server can simply win and a remote deletion remains deleted.
+      if (localPatches.length > 0) {
+        const survivingElementIds = new Set(elements.map((e) => e.id));
+        const serverPatchIds = new Set(entityPatches.map((p) => p.id));
+        const patchesToRestore = localPatches.filter(
+          (p) => survivingElementIds.has(p.elementId) && !serverPatchIds.has(p.id),
+        );
+        if (patchesToRestore.length > 0) {
+          await insertRowsBatched(tx, ElementPatchTable, patchesToRestore, {
+            onConflictDoNothing: true,
+          });
+        }
+      }
+
+      // Block sections — cascade-deleted when BookNode was wiped above.
+      // Insert server-canonical rows first, then restore any local-only ones
+      // pinned to surviving chapters (same defensive pattern as patches).
+      const serverBlockSections = normalizeRows(graph.blockSections ?? [], (row) => ({
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        chapterId: stringValue(row, 'chapterId'),
+        blockIdsJson: stringValue(row, 'blockIdsJson', '[]'),
+        blockHashesJson: stringValue(row, 'blockHashesJson', '{}'),
+        summary: stringValue(row, 'summary'),
+        source: stringValue(row, 'source', 'copilot-rolling') || 'copilot-rolling',
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      })).filter((row) => row.id && row.chapterId);
+      if (serverBlockSections.length > 0) {
+        await insertRowsBatched(tx, BlockSectionTable, serverBlockSections);
+      }
+      if (localBlockSections.length > 0) {
+        const survivingChapterIds = new Set(nodes.map((n) => n.id));
+        const serverSectionIds = new Set(serverBlockSections.map((s) => s.id));
+        const sectionsToRestore = localBlockSections.filter(
+          (s) => survivingChapterIds.has(s.chapterId) && !serverSectionIds.has(s.id),
+        );
+        if (sectionsToRestore.length > 0) {
+          await insertRowsBatched(tx, BlockSectionTable, sectionsToRestore, {
+            onConflictDoNothing: true,
+          });
+        }
+      }
+
+      const libraryItems = normalizeRows(deviceSafeGraph.libraryItems, (row) => ({
         id: stringValue(row, 'id'),
         projectId: stringValue(row, 'projectId'),
         title: stringValue(row, 'title'),
-        summary: stringValue(row, 'summary'),
-        bookOrder: row.bookOrder == null ? null : numberValue(row, 'bookOrder'),
-        narrativeOrder: row.narrativeOrder == null ? null : numberValue(row, 'narrativeOrder'),
-        kind,
-        driftGroupId: nullableStringValue(row, 'driftGroupId'),
-        positionX: numberValue(row, 'positionX'),
-        positionY: numberValue(row, 'positionY'),
-        wordCount: numberValue(row, 'wordCount'),
-        writingStatus: stringValue(row, 'writingStatus', 'draft'),
+        kind: stringValue(row, 'kind'),
+        source: stringValue(row, 'source', 'local') || 'local',
+        uri: stringValue(row, 'uri'),
+        localPath: nullableStringValue(row, 'localPath'),
+        assetId: nullableStringValue(row, 'assetId'),
+        mime: nullableStringValue(row, 'mime'),
+        sizeBytes:
+          typeof row.sizeBytes === 'number' && Number.isFinite(row.sizeBytes)
+            ? (row.sizeBytes as number)
+            : null,
+        bodyJson: nullableStringValue(row, 'bodyJson'),
+        notesJson: nullableStringValue(row, 'notesJson'),
+        thumbnailUri: nullableStringValue(row, 'thumbnailUri'),
+        orderKey: numberValue(row, 'orderKey'),
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
-        deletedAt: nullableDateText(row.deletedAt),
-      };
-    });
-    if (nodes.length > 0) {
-      await insertRowsBatched(tx, BookNodeTable, nodes);
-    }
+      })).filter((row) => row.id && row.kind);
+      if (libraryItems.length > 0) {
+        await insertRowsBatched(tx, LibraryItemTable, libraryItems);
+      }
 
-    const nodeContents = normalizeRows(graph.nodeContents, (row) => ({
-      nodeId: stringValue(row, 'nodeId'),
-      contentJson: stringValue(row, 'contentJson', '{}'),
-      outlineJson: stringValue(row, 'outlineJson', '[]'),
-      plotGridJson: stringValue(row, 'plotGridJson', '{}'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    }));
-    if (nodeContents.length > 0) {
-      await insertRowsBatched(tx, NodeContentTable, nodeContents);
-    }
-
-    // Build a set of category ids that actually live in this hydrate batch.
-    // Any element whose categoryId doesn't appear here is an orphan — either
-    // because the parent was soft-deleted before the server-side detach
-    // landed, or because the row is just stale. Detach to NULL ("未分类")
-    // rather than blowing up the whole pull with a FK constraint error.
-    const knownCategoryIds = new Set<string>();
-    for (const row of graph.elementCategories) {
-      const id = stringValue(row, 'id');
-      if (id) knownCategoryIds.add(id);
-    }
-    const elements = normalizeRows(graph.elements, (row) => {
-      const rawCategoryId = nullableStringValue(row, 'categoryId');
-      const categoryId =
-        rawCategoryId && knownCategoryIds.has(rawCategoryId) ? rawCategoryId : null;
-      return {
+      const comments = normalizeRows(graph.comments, (row) => ({
         id: stringValue(row, 'id'),
         projectId: stringValue(row, 'projectId'),
-        categoryId,
-        name: stringValue(row, 'name'),
-        summary: stringValue(row, 'summary'),
-        contentJson: stringValue(row, 'contentJson', '{}'),
-        kvJson: stringValue(row, 'kvJson', '[]'),
-        // Server may not yet send aliasesJson — default to '[]' so the
-        // not-null column constraint is satisfied. Server-side migration
-        // will follow this client one; pre-migration server omits the field.
-        aliasesJson: stringValue(row, 'aliasesJson', '[]'),
-        groupName: nullableStringValue(row, 'groupName'),
-        portraitAssetId: nullableStringValue(row, 'portraitAssetId'),
+        kind: stringValue(row, 'kind', 'note') || 'note',
+        targetKind: nullableStringValue(row, 'targetKind'),
+        targetId: nullableStringValue(row, 'targetId'),
+        targetBlockId: nullableStringValue(row, 'targetBlockId'),
+        anchorJson: stringValue(row, 'anchorJson', '{}'),
+        authorKind: stringValue(row, 'authorKind', 'user') || 'user',
+        authorId: nullableStringValue(row, 'authorId'),
+        authorName: nullableStringValue(row, 'authorName'),
+        bodyJson: stringValue(row, 'bodyJson', '{}'),
+        status: stringValue(row, 'status', 'open') || 'open',
+        priority: nullableStringValue(row, 'priority'),
+        source: stringValue(row, 'source', 'manual') || 'manual',
+        metadataJson: nullableStringValue(row, 'metadataJson'),
+        targetBlockIdsJson: stringValue(row, 'targetBlockIdsJson', '[]'),
+        resolvedAt: nullableStringValue(row, 'resolvedAt'),
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
-        deletedAt: nullableDateText(row.deletedAt),
-      };
-    });
-    if (elements.length > 0) {
-      await insertRowsBatched(tx, BookElementTable, elements);
-    }
-
-    const nodeStorylineLinks = normalizeRows(graph.nodeStorylineLinks, (row) => ({
-      nodeId: stringValue(row, 'nodeId'),
-      storylineId: stringValue(row, 'storylineId'),
-      isPrimary: Boolean((row as Record<string, unknown>).isPrimary),
-    })).filter((row) => row.nodeId && row.storylineId);
-    if (nodeStorylineLinks.length > 0) {
-      await insertRowsBatched(tx, NodeStorylineLinkTable, nodeStorylineLinks);
-    }
-
-    const entityRelations = normalizeRows(graph.entityRelations, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      fromKind: stringValue(row, 'fromKind'),
-      fromId: stringValue(row, 'fromId'),
-      toKind: stringValue(row, 'toKind'),
-      toId: stringValue(row, 'toId'),
-      kind: nullableStringValue(row, 'kind'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id && row.fromId && row.toId);
-    if (entityRelations.length > 0) {
-      await insertRowsBatched(tx, EntityRelationTable, entityRelations);
-    }
-
-    // Restore any local relations the server didn't return — typically created
-    // offline and not yet flushed. Identity is (from, to, kind).
-    if (localEntityRelations.length > 0) {
-      const currentRelations = await tx
-        .select({
-          fromKind: EntityRelationTable.fromKind,
-          fromId: EntityRelationTable.fromId,
-          toKind: EntityRelationTable.toKind,
-          toId: EntityRelationTable.toId,
-          kind: EntityRelationTable.kind,
-        })
-        .from(EntityRelationTable)
-        .where(eq(EntityRelationTable.projectId, projectId));
-      const currentKeys = new Set(currentRelations.map(entityRelationKey));
-      const relationsToRestore = localEntityRelations.filter(
-        (row) => !currentKeys.has(entityRelationKey(row)),
-      );
-      if (relationsToRestore.length > 0) {
-        await insertRowsBatched(tx, EntityRelationTable, relationsToRestore, {
-          onConflictDoNothing: true,
-        });
+      })).filter((row) => row.id);
+      if (comments.length > 0) {
+        await insertRowsBatched(tx, CommentTable, comments);
       }
-    }
 
-    // Inline mentions are a derived index; insert what the server has, but
-    // they'll be rebuilt locally from doc content by
-    // rebuildProjectInlineReferenceIndex right after this transaction.
-    const inlineMentions = normalizeRows(graph.inlineMentions, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      fromKind: stringValue(row, 'fromKind'),
-      fromId: stringValue(row, 'fromId'),
-      fromBlockId: stringValue(row, 'fromBlockId'),
-      fromSpansJson: stringValue(row, 'fromSpansJson'),
-      toKind: stringValue(row, 'toKind'),
-      toId: stringValue(row, 'toId'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id && row.fromId && row.toId && row.fromBlockId && row.fromSpansJson);
-    if (inlineMentions.length > 0) {
-      await insertRowsBatched(tx, InlineMentionTable, inlineMentions);
-    }
-
-    // ElementPatch rows are owned by their element; they were cascade-deleted
-    // by the BookElement wipe above, so a fresh insert from the payload is safe.
-    const entityPatches = normalizeRows(graph.entityPatches, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      elementId: stringValue(row, 'elementId'),
-      sourceNodeId: nullableStringValue(row, 'sourceNodeId'),
-      sourceBlockId: nullableStringValue(row, 'sourceBlockId'),
-      sourceBlockText: nullableStringValue(row, 'sourceBlockText'),
-      textAnchorJson: nullableStringValue(row, 'textAnchorJson'),
-      invalidatedAt: nullableStringValue(row, 'invalidatedAt'),
-      title: nullableStringValue(row, 'title'),
-      contentJson: stringValue(row, 'contentJson', '{}'),
-      orderKey: numberValue(row, 'orderKey', 0),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id && row.elementId);
-    if (entityPatches.length > 0) {
-      await insertRowsBatched(tx, ElementPatchTable, entityPatches);
-    }
-
-    // Restore only patches protected by an unfinished durable mutation, gated
-    // on (a) the patch's elementId still existing post-hydrate (FK validity)
-    // and (b) the patch id not already inserted from the server payload
-    // (server is canonical when there's a collision). Same defensive pattern
-    // as localEntityRelations above. Once patches get a complete sync helper,
-    // the server can simply win and a remote deletion remains deleted.
-    if (localPatches.length > 0) {
-      const survivingElementIds = new Set(elements.map((e) => e.id));
-      const serverPatchIds = new Set(entityPatches.map((p) => p.id));
-      const patchesToRestore = localPatches.filter(
-        (p) => survivingElementIds.has(p.elementId) && !serverPatchIds.has(p.id),
-      );
-      if (patchesToRestore.length > 0) {
-        await insertRowsBatched(tx, ElementPatchTable, patchesToRestore, {
-          onConflictDoNothing: true,
-        });
+      const commentActions = normalizeRows(graph.commentActions, (row) => ({
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        commentId: stringValue(row, 'commentId'),
+        kind: stringValue(row, 'kind'),
+        label: nullableStringValue(row, 'label'),
+        payloadJson: stringValue(row, 'payloadJson', '{}'),
+        status: stringValue(row, 'status', 'pending') || 'pending',
+        resultJson: nullableStringValue(row, 'resultJson'),
+        createdByKind: stringValue(row, 'createdByKind', 'user') || 'user',
+        createdById: nullableStringValue(row, 'createdById'),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+        appliedAt: nullableStringValue(row, 'appliedAt'),
+      })).filter((row) => row.id && row.commentId && row.kind);
+      if (commentActions.length > 0) {
+        await insertRowsBatched(tx, CommentActionTable, commentActions);
       }
-    }
 
-    // Block sections — cascade-deleted when BookNode was wiped above.
-    // Insert server-canonical rows first, then restore any local-only ones
-    // pinned to surviving chapters (same defensive pattern as patches).
-    const serverBlockSections = normalizeRows(graph.blockSections ?? [], (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      chapterId: stringValue(row, 'chapterId'),
-      blockIdsJson: stringValue(row, 'blockIdsJson', '[]'),
-      blockHashesJson: stringValue(row, 'blockHashesJson', '{}'),
-      summary: stringValue(row, 'summary'),
-      source: stringValue(row, 'source', 'copilot-rolling') || 'copilot-rolling',
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id && row.chapterId);
-    if (serverBlockSections.length > 0) {
-      await insertRowsBatched(tx, BlockSectionTable, serverBlockSections);
-    }
-    if (localBlockSections.length > 0) {
-      const survivingChapterIds = new Set(nodes.map((n) => n.id));
-      const serverSectionIds = new Set(serverBlockSections.map((s) => s.id));
-      const sectionsToRestore = localBlockSections.filter(
-        (s) => survivingChapterIds.has(s.chapterId) && !serverSectionIds.has(s.id),
-      );
-      if (sectionsToRestore.length > 0) {
-        await insertRowsBatched(tx, BlockSectionTable, sectionsToRestore, {
-          onConflictDoNothing: true,
-        });
+      // Agent memories — author-level standing guidance. Simple delete+insert like
+      // comments; rollout-safe because a push to a server lacking the route 404s
+      // and stays unflushed, and the unflushed-mutation guard skips hydrate entirely.
+      const agentMemories = normalizeRows(graph.agentMemories ?? [], (row) => ({
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        kind: stringValue(row, 'kind', 'preference') || 'preference',
+        body: stringValue(row, 'body'),
+        targetKind: nullableStringValue(row, 'targetKind'),
+        targetId: nullableStringValue(row, 'targetId'),
+        targetBlockId: nullableStringValue(row, 'targetBlockId'),
+        source: stringValue(row, 'source', 'agent') || 'agent',
+        originRef: nullableStringValue(row, 'originRef'),
+        status: stringValue(row, 'status', 'pending') || 'pending',
+        supersedesId: nullableStringValue(row, 'supersedesId'),
+        deletedAt: nullableStringValue(row, 'deletedAt'),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      })).filter((row) => row.id && row.projectId);
+      if (agentMemories.length > 0) {
+        await insertRowsBatched(tx, AgentMemoryTable, agentMemories);
       }
-    }
 
-    const libraryItems = normalizeRows(deviceSafeGraph.libraryItems, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      title: stringValue(row, 'title'),
-      kind: stringValue(row, 'kind'),
-      source: stringValue(row, 'source', 'local') || 'local',
-      uri: stringValue(row, 'uri'),
-      localPath: nullableStringValue(row, 'localPath'),
-      assetId: nullableStringValue(row, 'assetId'),
-      mime: nullableStringValue(row, 'mime'),
-      sizeBytes:
-        typeof row.sizeBytes === 'number' && Number.isFinite(row.sizeBytes)
-          ? (row.sizeBytes as number)
-          : null,
-      bodyJson: nullableStringValue(row, 'bodyJson'),
-      notesJson: nullableStringValue(row, 'notesJson'),
-      thumbnailUri: nullableStringValue(row, 'thumbnailUri'),
-      orderKey: numberValue(row, 'orderKey'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id && row.kind);
-    if (libraryItems.length > 0) {
-      await insertRowsBatched(tx, LibraryItemTable, libraryItems);
-    }
-
-    const comments = normalizeRows(graph.comments, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      kind: stringValue(row, 'kind', 'note') || 'note',
-      targetKind: nullableStringValue(row, 'targetKind'),
-      targetId: nullableStringValue(row, 'targetId'),
-      targetBlockId: nullableStringValue(row, 'targetBlockId'),
-      anchorJson: stringValue(row, 'anchorJson', '{}'),
-      authorKind: stringValue(row, 'authorKind', 'user') || 'user',
-      authorId: nullableStringValue(row, 'authorId'),
-      authorName: nullableStringValue(row, 'authorName'),
-      bodyJson: stringValue(row, 'bodyJson', '{}'),
-      status: stringValue(row, 'status', 'open') || 'open',
-      priority: nullableStringValue(row, 'priority'),
-      source: stringValue(row, 'source', 'manual') || 'manual',
-      metadataJson: nullableStringValue(row, 'metadataJson'),
-      targetBlockIdsJson: stringValue(row, 'targetBlockIdsJson', '[]'),
-      resolvedAt: nullableStringValue(row, 'resolvedAt'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id);
-    if (comments.length > 0) {
-      await insertRowsBatched(tx, CommentTable, comments);
-    }
-
-    const commentActions = normalizeRows(graph.commentActions, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      commentId: stringValue(row, 'commentId'),
-      kind: stringValue(row, 'kind'),
-      label: nullableStringValue(row, 'label'),
-      payloadJson: stringValue(row, 'payloadJson', '{}'),
-      status: stringValue(row, 'status', 'pending') || 'pending',
-      resultJson: nullableStringValue(row, 'resultJson'),
-      createdByKind: stringValue(row, 'createdByKind', 'user') || 'user',
-      createdById: nullableStringValue(row, 'createdById'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-      appliedAt: nullableStringValue(row, 'appliedAt'),
-    })).filter((row) => row.id && row.commentId && row.kind);
-    if (commentActions.length > 0) {
-      await insertRowsBatched(tx, CommentActionTable, commentActions);
-    }
-
-    // Agent memories — author-level standing guidance. Simple delete+insert like
-    // comments; rollout-safe because a push to a server lacking the route 404s
-    // and stays unflushed, and the unflushed-mutation guard skips hydrate entirely.
-    const agentMemories = normalizeRows(graph.agentMemories ?? [], (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      kind: stringValue(row, 'kind', 'preference') || 'preference',
-      body: stringValue(row, 'body'),
-      targetKind: nullableStringValue(row, 'targetKind'),
-      targetId: nullableStringValue(row, 'targetId'),
-      targetBlockId: nullableStringValue(row, 'targetBlockId'),
-      source: stringValue(row, 'source', 'agent') || 'agent',
-      originRef: nullableStringValue(row, 'originRef'),
-      status: stringValue(row, 'status', 'pending') || 'pending',
-      supersedesId: nullableStringValue(row, 'supersedesId'),
-      deletedAt: nullableStringValue(row, 'deletedAt'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id && row.projectId);
-    if (agentMemories.length > 0) {
-      await insertRowsBatched(tx, AgentMemoryTable, agentMemories);
-    }
-
-    const workingMemorySource =
-      graph.agentWorkingMemory && typeof graph.agentWorkingMemory === 'object'
-        ? (graph.agentWorkingMemory as Record<string, unknown>)
-        : null;
-    if (workingMemorySource) {
-      const workingMemory = {
-        projectId: stringValue(workingMemorySource, 'projectId'),
-        contentMd: stringValue(workingMemorySource, 'contentMd'),
-        revision: numberValue(workingMemorySource, 'revision'),
-        approxTokens: numberValue(workingMemorySource, 'approxTokens'),
-        updatedBy: stringValue(workingMemorySource, 'updatedBy', 'agent') || 'agent',
-        lastCompactedAt: nullableStringValue(workingMemorySource, 'lastCompactedAt'),
-        deletedAt: nullableStringValue(workingMemorySource, 'deletedAt'),
-        createdAt: dateText(workingMemorySource.createdAt),
-        updatedAt: dateText(workingMemorySource.updatedAt),
-      };
-      if (workingMemory.projectId) {
-        await tx.insert(AgentWorkingMemoryTable).values(workingMemory);
+      const workingMemorySource =
+        graph.agentWorkingMemory && typeof graph.agentWorkingMemory === 'object'
+          ? (graph.agentWorkingMemory as Record<string, unknown>)
+          : null;
+      if (workingMemorySource) {
+        const workingMemory = {
+          projectId: stringValue(workingMemorySource, 'projectId'),
+          contentMd: stringValue(workingMemorySource, 'contentMd'),
+          revision: numberValue(workingMemorySource, 'revision'),
+          approxTokens: numberValue(workingMemorySource, 'approxTokens'),
+          updatedBy: stringValue(workingMemorySource, 'updatedBy', 'agent') || 'agent',
+          lastCompactedAt: nullableStringValue(workingMemorySource, 'lastCompactedAt'),
+          deletedAt: nullableStringValue(workingMemorySource, 'deletedAt'),
+          createdAt: dateText(workingMemorySource.createdAt),
+          updatedAt: dateText(workingMemorySource.updatedAt),
+        };
+        if (workingMemory.projectId) {
+          await tx.insert(AgentWorkingMemoryTable).values(workingMemory);
+        }
       }
-    }
 
-    // Acts + timeline markers — wipe-and-reinsert like agentMemory; both have
-    // sync helpers from day one, and the unflushed-mutation guard skips
-    // hydrate when local writes haven't shipped, so no preserve pass needed.
-    // Markers go after the BookNode insert above (drift_node_id reference).
-    const survivingNodeIds = new Set(nodes.map((n) => n.id));
-    const bookActs = normalizeRows(graph.bookActs ?? [], (row) => {
-      const driftNodeId = nullableStringValue(row, 'driftNodeId');
-      return {
+      // Acts + timeline markers — wipe-and-reinsert like agentMemory; both have
+      // sync helpers from day one, and the unflushed-mutation guard skips
+      // hydrate when local writes haven't shipped, so no preserve pass needed.
+      // Markers go after the BookNode insert above (drift_node_id reference).
+      const survivingNodeIds = new Set(nodes.map((n) => n.id));
+      const bookActs = normalizeRows(graph.bookActs ?? [], (row) => {
+        const driftNodeId = nullableStringValue(row, 'driftNodeId');
+        return {
+          id: stringValue(row, 'id'),
+          projectId: stringValue(row, 'projectId'),
+          name: stringValue(row, 'name'),
+          color: nullableStringValue(row, 'color'),
+          startOrder: nullableNumberValue(row, 'startOrder'),
+          driftNodeId: driftNodeId && survivingNodeIds.has(driftNodeId) ? driftNodeId : null,
+          createdAt: dateText(row.createdAt),
+          updatedAt: dateText(row.updatedAt),
+        };
+      }).filter((row) => row.id && row.projectId);
+      if (bookActs.length > 0) {
+        await insertRowsBatched(tx, BookActTable, bookActs);
+      }
+
+      // Drift groups — wipe-and-reinsert like acts. Plain nested folders; the
+      // book_node.drift_group_id pointer is a plain column (no enforced FK), so
+      // insert order vs nodes doesn't matter.
+      const driftGroups = normalizeRows(graph.driftGroups ?? [], (row) => ({
         id: stringValue(row, 'id'),
         projectId: stringValue(row, 'projectId'),
         name: stringValue(row, 'name'),
+        parentGroupId: nullableStringValue(row, 'parentGroupId'),
         color: nullableStringValue(row, 'color'),
-        startOrder: nullableNumberValue(row, 'startOrder'),
-        driftNodeId: driftNodeId && survivingNodeIds.has(driftNodeId) ? driftNodeId : null,
+        sortOrder: nullableNumberValue(row, 'sortOrder'),
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
-      };
-    }).filter((row) => row.id && row.projectId);
-    if (bookActs.length > 0) {
-      await insertRowsBatched(tx, BookActTable, bookActs);
-    }
+      })).filter((row) => row.id && row.projectId);
+      if (driftGroups.length > 0) {
+        await insertRowsBatched(tx, DriftGroupTable, driftGroups);
+      }
 
-    // Drift groups — wipe-and-reinsert like acts. Plain nested folders; the
-    // book_node.drift_group_id pointer is a plain column (no enforced FK), so
-    // insert order vs nodes doesn't matter.
-    const driftGroups = normalizeRows(graph.driftGroups ?? [], (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      name: stringValue(row, 'name'),
-      parentGroupId: nullableStringValue(row, 'parentGroupId'),
-      color: nullableStringValue(row, 'color'),
-      sortOrder: nullableNumberValue(row, 'sortOrder'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id && row.projectId);
-    if (driftGroups.length > 0) {
-      await insertRowsBatched(tx, DriftGroupTable, driftGroups);
-    }
-
-    const timelineMarkers = normalizeRows(graph.timelineMarkers ?? [], (row) => {
-      const driftNodeId = nullableStringValue(row, 'driftNodeId');
-      return {
-        id: stringValue(row, 'id'),
-        projectId: stringValue(row, 'projectId'),
-        narrativeOrder: numberValue(row, 'narrativeOrder'),
-        label: stringValue(row, 'label'),
-        // Detach bindings whose drift didn't survive the hydrate (stale row).
-        driftNodeId: driftNodeId && survivingNodeIds.has(driftNodeId) ? driftNodeId : null,
-        createdAt: dateText(row.createdAt),
-        updatedAt: dateText(row.updatedAt),
-      };
-    }).filter((row) => row.id && row.projectId);
-    if (timelineMarkers.length > 0) {
-      await insertRowsBatched(tx, TimelineMarkerTable, timelineMarkers);
-    }
+      const timelineMarkers = normalizeRows(graph.timelineMarkers ?? [], (row) => {
+        const driftNodeId = nullableStringValue(row, 'driftNodeId');
+        return {
+          id: stringValue(row, 'id'),
+          projectId: stringValue(row, 'projectId'),
+          narrativeOrder: numberValue(row, 'narrativeOrder'),
+          label: stringValue(row, 'label'),
+          // Detach bindings whose drift didn't survive the hydrate (stale row).
+          driftNodeId: driftNodeId && survivingNodeIds.has(driftNodeId) ? driftNodeId : null,
+          createdAt: dateText(row.createdAt),
+          updatedAt: dateText(row.updatedAt),
+        };
+      }).filter((row) => row.id && row.projectId);
+      if (timelineMarkers.length > 0) {
+        await insertRowsBatched(tx, TimelineMarkerTable, timelineMarkers);
+      }
     },
     apply: () => applyGraphToStores(deviceSafeGraph),
   });
@@ -2401,6 +2710,7 @@ export async function pullAndHydrateProjectGraph(
       response.data.elementCategories.length +
       (response.data.projectAssets?.length ?? 0) +
       response.data.entityRelations.length +
+      (response.data.entityRelationTypes?.length ?? 0) +
       response.data.inlineMentions.length +
       response.data.entityPatches.length +
       (response.data.blockSections?.length ?? 0) +

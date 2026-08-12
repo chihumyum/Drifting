@@ -130,6 +130,17 @@ describe('workspace domain CRUD transactions', () => {
         "SELECT word_count FROM book_node WHERE title = '灰港' AND deleted_at IS NULL",
       ),
     ).toBe(countWords(persistedProse));
+    expect(
+      JSON.parse(
+        fixture.text(
+          "SELECT payload_json FROM local_sync_mutation WHERE entity_type = 'node' AND mutation_type = 'create' AND entity_id = (SELECT id FROM book_node WHERE title = '灰港' AND deleted_at IS NULL)",
+        ),
+      ),
+    ).toMatchObject({
+      title: '灰港',
+      kind: 'drift',
+      mainStorylineId: null,
+    });
   });
 
   it('rejects a second Agent create with an existing node title instead of suffixing it', async () => {
@@ -1005,6 +1016,19 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().commentActions).toEqual([action]);
     expect(fixture.scalar('SELECT count(*) FROM comment_action')).toBe(1);
 
+    for (const name of ['foreshadows', 'contrasts']) {
+      const createdType = await fixture.write(`relation-type-create-${name}`, 'create_relation_type', {
+        name,
+        description: '',
+        orientation: 'directed',
+        sourceRole: 'chapter',
+        targetRole: 'storyline',
+        sourceKinds: ['chapter'],
+        targetKinds: ['storyline'],
+      });
+      expect(createdType, JSON.stringify(createdType)).toMatchObject({ ok: true });
+    }
+
     const relationPayload = {
       fromType: 'chapter',
       fromName: 'Chapter One',
@@ -1073,9 +1097,69 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().entityRelations).toHaveLength(0);
     await fixture.revert('relation-delete-lifecycle');
     expect(useDataStore.getState().entityRelations).toHaveLength(1);
+
+    const typeUpdate = await fixture.write(
+      'relation-type-update-lifecycle',
+      'update_relation_type',
+      {
+        relationType: 'foreshadows',
+        name: 'sets-up',
+        description: 'A setup that resolves on a storyline.',
+        orientation: 'directed',
+        sourceRole: 'setup',
+        targetRole: 'payoff',
+        sourceKinds: ['chapter'],
+        targetKinds: ['storyline'],
+      },
+    );
+    expect(typeUpdate).toMatchObject({ ok: true });
+    expect(useDataStore.getState().entityRelationTypes).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'sets-up' })]),
+    );
+    expect(useDataStore.getState().entityRelations).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: 'sets-up' })]),
+    );
+    await fixture.revert('relation-type-update-lifecycle');
+    expect(useDataStore.getState().entityRelations).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: 'foreshadows' })]),
+    );
+
+    await expect(
+      fixture.write(
+        'relation-type-delete-used',
+        'delete_relation_type',
+        { relationType: 'foreshadows' },
+        'author_approved',
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('used by 1 relations'),
+    });
+
+    await fixture.write(
+      'relation-type-delete-unused',
+      'delete_relation_type',
+      { relationType: 'contrasts' },
+      'author_approved',
+    );
+    expect(useDataStore.getState().entityRelationTypes.some((type) => type.name === 'contrasts')).toBe(false);
+    await fixture.revert('relation-type-delete-unused');
+    expect(useDataStore.getState().entityRelationTypes).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'contrasts' })]),
+    );
   });
 
   it('names every blocking workspace resource when an entity delete is unsafe', async () => {
+    const blockerType = await fixture.write('delete-blocker-relation-type-create', 'create_relation_type', {
+      name: 'belongs-to',
+      description: '',
+      orientation: 'directed',
+      sourceRole: 'chapter',
+      targetRole: 'storyline',
+      sourceKinds: ['chapter'],
+      targetKinds: ['storyline'],
+    });
+    expect(blockerType, JSON.stringify(blockerType)).toMatchObject({ ok: true });
     const relation = await fixture.write(
       'delete-blocker-relation-create',
       'create_relation',

@@ -22,9 +22,9 @@
     }
   },
   "installedModelTools": {
-    "total": 73,
-    "read": 26,
-    "write": 47,
+    "total": 77,
+    "read": 27,
+    "write": 50,
     "entries": [
       {
         "name": "add_chapter_to_storyline",
@@ -148,6 +148,17 @@
         "revertStrategy": "exact_inverse"
       },
       {
+        "name": "create_relation_type",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "domain-tools",
+        "certification": "write-certified",
+        "risk": "medium",
+        "effect": "graph",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
         "name": "create_storyline",
         "access": "write",
         "owner": "drifting-runtime",
@@ -241,6 +252,17 @@
         "owner": "drifting-runtime",
         "surface": "domain-tools",
         "certification": "internal-certified",
+        "risk": "high",
+        "effect": "destructive",
+        "approval": "confirm_before",
+        "revertStrategy": "exact_inverse"
+      },
+      {
+        "name": "delete_relation_type",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "domain-tools",
+        "certification": "write-certified",
         "risk": "high",
         "effect": "destructive",
         "approval": "confirm_before",
@@ -384,6 +406,17 @@
         "owner": "workspace-runtime",
         "surface": "domain-tools",
         "certification": "read-certified",
+        "risk": "none",
+        "effect": "none",
+        "approval": "automatic",
+        "revertStrategy": "not_applicable"
+      },
+      {
+        "name": "list_relation_types",
+        "access": "read",
+        "owner": "workspace-runtime",
+        "surface": "domain-tools",
+        "certification": "internal-certified",
         "risk": "none",
         "effect": "none",
         "approval": "automatic",
@@ -786,6 +819,17 @@
         "revertStrategy": "exact_inverse"
       },
       {
+        "name": "update_relation_type",
+        "access": "write",
+        "owner": "drifting-runtime",
+        "surface": "domain-tools",
+        "certification": "write-certified",
+        "risk": "medium",
+        "effect": "graph",
+        "approval": "automatic",
+        "revertStrategy": "exact_inverse"
+      },
+      {
         "name": "update_storyline",
         "access": "write",
         "owner": "drifting-runtime",
@@ -832,18 +876,20 @@
     ]
   },
   "directCatalogWrites": {
-    "total": 34,
-    "certified": 19,
+    "total": 37,
+    "certified": 22,
     "unavailable": 15,
     "certifiedNames": [
       "append_paragraph",
       "create_comment",
       "create_element",
       "create_element_patch",
+      "create_relation_type",
       "create_storyline",
       "delete_comment",
       "delete_element",
       "delete_element_patch",
+      "delete_relation_type",
       "edit_block",
       "edit_blocks",
       "insert_blocks",
@@ -854,6 +900,7 @@
       "update_element",
       "update_element_patch",
       "update_project_facts",
+      "update_relation_type",
       "update_storyline"
     ],
     "unavailableNames": [
@@ -891,6 +938,7 @@
       "list_storylines",
       "read_storyline",
       "list_relations",
+      "list_relation_types",
       "list_entity_relations",
       "list_comments",
       "list_author_rules",
@@ -931,6 +979,9 @@
       "create_relation",
       "update_relation",
       "delete_relation",
+      "create_relation_type",
+      "update_relation_type",
+      "delete_relation_type",
       "create_comment",
       "update_comment",
       "delete_comment",
@@ -964,6 +1015,9 @@
       "add_relation",
       "update_relation_kind",
       "remove_relation",
+      "create_relation_type",
+      "update_relation_type",
+      "delete_relation_type",
       "set_storyline_membership",
       "remember",
       "update_memory",
@@ -974,8 +1028,8 @@
     ]
   },
   "domainCrud": {
-    "totalDomains": 10,
-    "closedLifecycleOperations": 48,
+    "totalDomains": 11,
+    "closedLifecycleOperations": 53,
     "entries": [
       {
         "domain": "node",
@@ -1376,6 +1430,67 @@
               "create_comment",
               "update_comment",
               "delete_comment"
+            ],
+            "approval": "not_applicable",
+            "authority": "sqlite"
+          }
+        }
+      },
+      {
+        "domain": "relation_type",
+        "authoredTargets": [
+          "关系类型「<名称>」"
+        ],
+        "operations": {
+          "create": {
+            "status": "closed",
+            "providerTools": [
+              "create_relation_type"
+            ],
+            "hiddenCommands": [
+              "create_relation_type"
+            ],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "read": {
+            "status": "closed",
+            "providerTools": [
+              "list_relation_types"
+            ],
+            "hiddenCommands": [],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "update": {
+            "status": "closed",
+            "providerTools": [
+              "update_relation_type"
+            ],
+            "hiddenCommands": [
+              "update_relation_type"
+            ],
+            "approval": "automatic",
+            "authority": "sqlite"
+          },
+          "delete": {
+            "status": "closed",
+            "providerTools": [
+              "delete_relation_type"
+            ],
+            "hiddenCommands": [
+              "delete_relation_type"
+            ],
+            "approval": "confirm_before",
+            "authority": "sqlite"
+          },
+          "revert": {
+            "status": "closed",
+            "providerTools": [],
+            "hiddenCommands": [
+              "create_relation_type",
+              "update_relation_type",
+              "delete_relation_type"
             ],
             "approval": "not_applicable",
             "authority": "sqlite"

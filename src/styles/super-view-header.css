@@ -373,6 +373,153 @@
   text-transform: uppercase;
 }
 
+.relation-kind-menu__section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.relation-kind-menu__section-title-row > button {
+  border: 0;
+  color: hsl(var(--ink-3));
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.relation-kind-menu__row--type .relation-kind-menu__name {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.relation-kind-menu__row--type .relation-kind-menu__name small {
+  color: hsl(var(--ink-4));
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 400;
+}
+
+.relation-kind-menu__delete:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.relation-type-editor {
+  margin: 6px 0;
+  padding: 9px;
+  border-radius: 4px;
+  background: hsl(var(--ink-1) / 0.035);
+}
+
+.relation-type-editor__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.relation-type-editor label,
+.relation-type-editor__description {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  color: hsl(var(--ink-4));
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.relation-type-editor input,
+.relation-type-editor select {
+  min-width: 0;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  padding: 4px 6px;
+  color: hsl(var(--ink-1));
+  background: hsl(var(--paper));
+  font: 11px var(--font-sans);
+}
+
+.relation-type-editor__description {
+  margin-top: 7px;
+}
+
+.relation-type-editor__endpoint-row {
+  margin-top: 8px;
+  color: hsl(var(--ink-4));
+  font: 8px var(--font-mono);
+}
+
+.relation-type-editor__endpoint-row > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 4px;
+}
+
+.relation-type-editor__endpoint-row label {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.relation-type-editor__error {
+  margin-top: 7px;
+  color: hsl(var(--danger));
+  font-size: 10px;
+}
+
+.relation-type-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.relation-type-editor__actions button {
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  padding: 3px 8px;
+  background: hsl(var(--paper));
+  font-size: 10px;
+}
+
+.relation-type-editor__actions button.is-primary {
+  color: hsl(var(--paper));
+  border-color: hsl(var(--ink-1));
+  background: hsl(var(--ink-1));
+}
+
+.relation-type-modal__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.relation-type-modal__heading .graph-newedge__label {
+  margin-bottom: 0;
+}
+
+.relation-type-modal__create {
+  border: 0;
+  padding: 2px 0;
+  background: transparent;
+  color: hsl(var(--accent));
+  cursor: pointer;
+  font: 10px var(--font-mono);
+}
+
+.relation-type-modal__create:hover {
+  color: hsl(var(--ink-1));
+}
+
+.relation-type-create-modal {
+  overflow-y: auto;
+}
+
 .relation-kind-menu__title {
   color: hsl(var(--ink-2));
 }

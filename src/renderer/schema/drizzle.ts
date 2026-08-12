@@ -305,7 +305,7 @@ export const NodeContentTable = sqliteTable(
 );
 
 // Story-graph edges live in `entity_relation` now — rows with fromKind/toKind
-// = 'node' and the user-defined relation category in `kind`. Visual columns
+// = 'node' and a project relation type (with `kind` as its readable mirror). Visual columns
 // (anchors/control points/style) from the legacy `book_node_edge` table were
 // never read by the renderer and were dropped by migration 0021.
 
@@ -506,8 +506,55 @@ export const BlockSectionTable = sqliteTable(
   ],
 );
 
+// Entity Relation Type
+// Project-owned semantic vocabulary for authored relations. Unlike the legacy
+// `entity_relation.kind` display string, this row owns directionality, endpoint
+// roles, and lifecycle. Allowed endpoint kinds live in an explicit child table
+// so they remain queryable and transactionally validated rather than being
+// hidden inside metadata JSON.
+export const EntityRelationTypeTable = sqliteTable(
+  'entity_relation_type',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    normalizedName: text('normalized_name').notNull(),
+    description: text('description').notNull().default(''),
+    orientation: text('orientation').notNull(), // directed | symmetric | unconfigured
+    sourceRole: text('source_role').notNull().default(''),
+    targetRole: text('target_role').notNull().default(''),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_relation_type_project_name').on(t.projectId, t.normalizedName),
+    index('idx_relation_type_project').on(t.projectId),
+    check(
+      'relation_type_orientation',
+      sql`${t.orientation} in ('directed', 'symmetric', 'unconfigured')`,
+    ),
+  ],
+);
+
+export const EntityRelationTypeEndpointKindTable = sqliteTable(
+  'entity_relation_type_endpoint_kind',
+  {
+    relationTypeId: text('relation_type_id')
+      .notNull()
+      .references(() => EntityRelationTypeTable.id, { onDelete: 'cascade' }),
+    side: text('side').notNull(), // source | target
+    entityKind: text('entity_kind').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.relationTypeId, t.side, t.entityKind] }),
+    check('relation_type_endpoint_side', sql`${t.side} in ('source', 'target')`),
+  ],
+);
+
 // Entity Relation
-// User-curated directed link between two entities. Source of truth for cross-
+// User-curated semantic link between two entities. Source of truth for cross-
 // entity associations the user explicitly asserts: comment→node, library_item→
 // element, node→node (story-graph edges), element↔element, etc.
 //
@@ -534,10 +581,17 @@ export const EntityRelationTable = sqliteTable(
     toKind: text('to_kind').notNull(),
     toId: text('to_id').notNull(),
 
-    // Free-form user category for the relation itself (NOT the endpoint type
-    // — that's fromKind/toKind). Nullable string, no fixed vocabulary; the
-    // StoryGraph and SuperElement views surface it as filter chips and feed
-    // it from their respective manual-create modals.
+    // New semantic owner. Nullable during rolling upgrades and for the truly
+    // uncategorized bucket. Legacy non-empty `kind` rows are backfilled to an
+    // `unconfigured` type; the string remains as a compatibility mirror until
+    // old clients are retired.
+    relationTypeId: text('relation_type_id').references(() => EntityRelationTypeTable.id, {
+      onDelete: 'restrict',
+    }),
+
+    // Readable compatibility projection of the first-class definition name
+    // (NOT an endpoint kind). Old clients still read this label; new authored
+    // writes select relationTypeId and keep this mirror aligned on rename.
     kind: text('kind'),
 
     createdAt: text('created_at').notNull(),
@@ -547,6 +601,7 @@ export const EntityRelationTable = sqliteTable(
     index('idx_relation_from').on(t.fromKind, t.fromId),
     index('idx_relation_to').on(t.toKind, t.toId),
     index('idx_relation_project').on(t.projectId),
+    index('idx_relation_type').on(t.relationTypeId),
   ],
 );
 

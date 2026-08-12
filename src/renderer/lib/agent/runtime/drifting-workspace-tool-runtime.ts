@@ -368,6 +368,11 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         case 'list_relations':
           data = await this.listFiles(projectId, '/relations', request);
           break;
+        case 'list_relation_types':
+          data = (
+            await this.canonicalRead(request, 'get_relation_types', {}, 'relation-types')
+          ).value;
+          break;
         case 'list_entity_relations':
           data = (
             await this.canonicalRead(
@@ -580,6 +585,46 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         commandArguments = { commentId, expectedRevision };
         break;
       }
+      case 'create_relation_type': {
+        const read = await this.canonicalRead(
+          request,
+          'get_project_brief',
+          {},
+          'create-relation-type',
+        );
+        expectedRevision = expectedRevisionFrom(read, 'project', projectId);
+        path = `/relation-types/new-${pathSegment(request.idempotencyKey)}.json`;
+        commandArguments = {
+          ...relationTypeHiddenArguments(args),
+          expectedRevision,
+        };
+        break;
+      }
+      case 'update_relation_type':
+      case 'delete_relation_type': {
+        const relationType = requiredDomainName(args.relationType, 'relationType');
+        const read = await this.canonicalRead(
+          request,
+          'get_relation_types',
+          {},
+          `${request.name}-freshness`,
+        );
+        const row = recordArray(read.value, 'relationTypes').find(
+          (candidate) =>
+            String(candidate.name ?? '').trim().toLocaleLowerCase() ===
+            relationType.toLocaleLowerCase(),
+        );
+        if (!row || typeof row.id !== 'string') {
+          throw new Error(`关系类型「${relationType}」不存在`);
+        }
+        expectedRevision = expectedRevisionFrom(read, 'relation_type', row.id);
+        path = `/relation-types/${pathSegment(relationType)}.json`;
+        commandArguments =
+          request.name === 'update_relation_type'
+            ? { relationType, ...relationTypeHiddenArguments(args), expectedRevision }
+            : { relationType, expectedRevision };
+        break;
+      }
       case 'update_project_facts': {
         const fields = factsRecord(args.facts);
         const prepared = await this.prepareProjectFactAttributes(fields, request);
@@ -760,7 +805,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
               from: requiredDomainName(args.fromName, 'fromName'),
               toKind: toType,
               to: requiredDomainName(args.toName, 'toName'),
-              ...(args.relationType !== undefined ? { kind: args.relationType } : {}),
+              relationType: requiredDomainName(args.relationType, 'relationType'),
               expectedRevision,
             },
           },
@@ -773,7 +818,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         prepared = await this.prepareExistingWholeFile(
           projectId,
           path,
-          prettyJson({ kind: String(args.relationType ?? '') }),
+          prettyJson({ relationType: requiredDomainName(args.relationType, 'relationType') }),
           request,
         );
         break;
@@ -783,6 +828,45 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         const path = `/relations/${pathSegment(relationId)}.json`;
         const deleted = await this.prepareDeleteCommand(path, request);
         prepared = { path, ...deleted };
+        break;
+      }
+      case 'create_relation_type': {
+        const read = await this.canonicalRead(request, 'get_project_brief', {}, 'create-relation-type');
+        const expectedRevision = expectedRevisionFrom(read, 'project', projectId);
+        const path = `/relation-types/new-${pathSegment(request.idempotencyKey)}.json`;
+        prepared = {
+          path,
+          expectedRevision,
+          command: {
+            name: 'create_relation_type',
+            arguments: relationTypeHiddenArguments(args),
+          },
+        };
+        break;
+      }
+      case 'update_relation_type':
+      case 'delete_relation_type': {
+        const relationType = requiredDomainName(args.relationType, 'relationType');
+        const read = await this.canonicalRead(request, 'get_relation_types', {}, 'relation-type');
+        const row = recordArray(read.value, 'relationTypes').find(
+          (candidate) => String(candidate.name ?? '').trim().toLocaleLowerCase() === relationType.toLocaleLowerCase(),
+        );
+        if (!row || typeof row.id !== 'string') {
+          throw new Error(`关系类型「${relationType}」不存在`);
+        }
+        const expectedRevision = expectedRevisionFrom(read, 'relation_type', row.id);
+        const path = `/relation-types/${pathSegment(relationType)}.json`;
+        prepared = {
+          path,
+          expectedRevision,
+          command: {
+            name: request.name,
+            arguments:
+              request.name === 'update_relation_type'
+                ? { relationType, ...relationTypeHiddenArguments(args) }
+                : { relationType },
+          },
+        };
         break;
       }
       case 'update_comment': {
@@ -1743,7 +1827,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         // stored optional label is empty. Put that same semantic value in the
         // editable projection so revising “关联” updates the field instead of
         // failing against an invisible null.
-        kind: relation.kind?.trim() || '关联',
+        relationType: relation.kind?.trim() || '未配置',
       });
     }
     if (target.kind === 'memory_collection') {
@@ -2438,7 +2522,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       const nextTo = String(value.to ?? currentTo);
       const relationArguments: Record<string, unknown> = {
         relationId: target.relationId,
-        kind: typeof value.kind === 'string' ? value.kind : null,
+        relationType: requiredDomainName(value.relationType, 'relationType'),
         expectedRevision,
       };
       if (nextFromKind !== relation.fromKind || nextFrom !== currentFrom) {
@@ -3222,6 +3306,28 @@ function relationKindForDomainType(value: unknown): 'node' | 'element' | 'storyl
     default:
       throw new Error('entityType must be chapter, inspiration, element, storyline, or element_category');
   }
+}
+
+function relationEndpointKindForDomainType(
+  value: unknown,
+): 'node' | 'element' | 'storyline' | 'category' | 'comment' | 'library_item' {
+  if (value === 'comment') return 'comment';
+  if (value === 'material') return 'library_item';
+  return relationKindForDomainType(value);
+}
+
+function relationTypeHiddenArguments(args: Record<string, unknown>): Record<string, unknown> {
+  return {
+    name: requiredDomainName(args.name, 'name'),
+    description: optionalDomainText(args.description) ?? '',
+    orientation: args.orientation,
+    sourceRole: requiredDomainName(args.sourceRole, 'sourceRole'),
+    targetRole: requiredDomainName(args.targetRole, 'targetRole'),
+    sourceKinds: stringList(args.sourceKinds, 'sourceKinds').map(
+      relationEndpointKindForDomainType,
+    ),
+    targetKinds: stringList(args.targetKinds, 'targetKinds').map(relationKindForDomainType),
+  };
 }
 
 function assertDomainRelationEndpoint(

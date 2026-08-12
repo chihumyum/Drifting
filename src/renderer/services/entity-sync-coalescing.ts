@@ -41,6 +41,17 @@ export function isCreatePayloadConflict(
 }
 
 /**
+ * A schema validation response cannot recover by immediately replaying the
+ * same immutable durable payload. Quarantine it so unrelated entities can
+ * continue syncing instead of hot-looping behind the poisoned head row.
+ */
+export function isTerminalPayloadValidationFailure(
+  httpStatus: number | undefined,
+): boolean {
+  return httpStatus === 422;
+}
+
+/**
  * Reduce only adjacent pending operations for one logical entity. In-flight
  * rows are deliberately excluded by the caller: once an operation may have
  * reached the server, preserving ordering is safer than trying to rewrite it.

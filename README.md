@@ -179,12 +179,18 @@ This short-lived context is separate from manuscript truth, project history and
 long-term Agent rules.
 
 The model-facing surface is domain-native: chapters, inspirations, elements,
-categories, storylines, memberships, relations, comments/TODOs, project facts,
+categories, storylines, memberships, first-class relation types and relations, comments/TODOs, project facts,
 author rules, memory, and element patches use explicit generated tools. Exact
 tool names, counts, provider models, context limits, MCP support, and deferred
 capabilities come only from the generated
 [`agent-capabilities.md`](docs/agent-runtime/acceptance/agent-capabilities.md).
 Standalone Shadow CI, Element Arc, and Goal Evolve are retired.
+Project relation labels are first-class synced definitions with direction,
+endpoint roles, and allowed entity kinds. Existing free-text labels migrate to
+visible `unconfigured` definitions without flipping or deleting edges; authors
+configure them before creating new typed relations. The data, sync, Agent, and
+desktop interaction boundary is documented in
+[relation types](docs/relation-types.md).
 
 Desktop and mobile use separate shells over the same project runtime and domain
 core. Mobile compilation and automated workload-equivalent endurance gates do

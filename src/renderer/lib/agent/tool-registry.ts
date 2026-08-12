@@ -76,6 +76,19 @@ const domainEntityType = Type.Union(
   ],
   { description: '实体类型；只能使用列出的稳定值' },
 );
+const relationSourceDomainType = Type.Union(
+  [
+    Type.Literal('chapter'),
+    Type.Literal('inspiration'),
+    Type.Literal('element'),
+    Type.Literal('storyline'),
+    Type.Literal('element_category'),
+    Type.Literal('comment'),
+    Type.Literal('material'),
+  ],
+  { description: '关系源端可用的作者领域实体类型' },
+);
+const relationTargetDomainType = domainEntityType;
 
 const proseEntityTarget = {
   kind: Type.Optional(
@@ -290,6 +303,12 @@ const GENERAL_READ_TOOL_SPECS: ReadToolSpec[] = [
       { additionalProperties: false },
     ),
     aliases: ['relations', '关系', '实体关系'],
+  },
+  {
+    name: 'get_relation_types',
+    description: '列出项目级关系类型定义、方向、角色和允许的端点类型。',
+    parametersSchema: noArgs,
+    aliases: ['relation types', '关系类型定义'],
   },
   {
     name: 'where_does_entity_appear',
@@ -696,14 +715,14 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'add_relation',
-    description: '创建一条作者策展的跨实体关系边。',
+    description: '按已配置的项目关系类型创建一条作者策展的跨实体关系边。',
     parametersSchema: Type.Object(
       {
         fromKind: str('源实体类型'),
         from: str('源实体名称'),
         toKind: str('目标实体类型'),
         to: str('目标实体名称'),
-        kind: optionalStr('关系标签'),
+        relationType: str('已配置的关系类型名称'),
       },
       { additionalProperties: false },
     ),
@@ -732,11 +751,11 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'update_relation_kind',
-    description: '按 relationId 修改或清空关系标签。',
+    description: '按 relationId 改用另一个已配置的项目关系类型。',
     parametersSchema: Type.Object(
       {
         relationId: str('来自 get_entity_relations 的 relationId'),
-        kind: optionalStr('新关系标签；空字符串表示清空'),
+        relationType: str('已配置的关系类型名称'),
       },
       { additionalProperties: false },
     ),
@@ -747,6 +766,77 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
     aliases: ['relabel relation', '修改关系类型'],
+  },
+  {
+    name: 'create_relation_type',
+    description: '创建项目级关系类型定义。',
+    parametersSchema: Type.Object(
+      {
+        name: str('关系类型名称'),
+        description: optionalStr('说明'),
+        orientation: Type.Union([Type.Literal('directed'), Type.Literal('symmetric')]),
+        sourceRole: str('源端角色'),
+        targetRole: str('目标端角色'),
+        sourceKinds: Type.Array(relationSourceDomainType, { minItems: 1 }),
+        targetKinds: Type.Array(relationTargetDomainType, { minItems: 1 }),
+      },
+      { additionalProperties: false },
+    ),
+    risk: 'medium',
+    effect: 'graph',
+    concurrency: 'exclusive_project',
+    approval: 'automatic',
+    retry: 'inspect_before_retry',
+    revertStrategy: 'exact_inverse',
+    aliases: ['define relation type', '创建关系类型'],
+    certification: 'write-certified',
+    certificationNote:
+      'Project relation-type certification: runtime-owned freshness, explicit endpoint semantics, atomic type/endpoints/outbox receipt, crash reconciliation, and guarded exact inverse.',
+  },
+  {
+    name: 'update_relation_type',
+    description: '完整更新项目级关系类型定义。',
+    parametersSchema: Type.Object(
+      {
+        relationType: str('当前关系类型名称'),
+        name: str('新名称'),
+        description: optionalStr('说明'),
+        orientation: Type.Union([Type.Literal('directed'), Type.Literal('symmetric')]),
+        sourceRole: str('源端角色'),
+        targetRole: str('目标端角色'),
+        sourceKinds: Type.Array(relationSourceDomainType, { minItems: 1 }),
+        targetKinds: Type.Array(relationTargetDomainType, { minItems: 1 }),
+      },
+      { additionalProperties: false },
+    ),
+    risk: 'medium',
+    effect: 'graph',
+    concurrency: 'exclusive_project',
+    approval: 'automatic',
+    retry: 'inspect_before_retry',
+    revertStrategy: 'exact_inverse',
+    aliases: ['edit relation type', '更新关系类型'],
+    certification: 'write-certified',
+    certificationNote:
+      'Project relation-type certification: exact type freshness, atomic definition/endpoints/relation projection/outbox receipt, and guarded exact inverse.',
+  },
+  {
+    name: 'delete_relation_type',
+    description: '删除一个未被关系使用的项目级关系类型。',
+    parametersSchema: Type.Object(
+      { relationType: str('关系类型名称') },
+      { additionalProperties: false },
+    ),
+    risk: 'high',
+    effect: 'destructive',
+    concurrency: 'exclusive_project',
+    approval: 'confirm_before',
+    retry: 'never',
+    revertStrategy: 'exact_inverse',
+    aliases: ['remove relation type', '删除关系类型'],
+    certification: 'write-certified',
+    certificationNote:
+      'Project relation-type deletion certification: exact freshness, default author confirmation, usage guard, atomic delete/outbox receipt, and exact restore inverse.',
   },
   {
     name: 'create_storyline',
@@ -1223,6 +1313,12 @@ const DOMAIN_RUNTIME_READ_TOOL_SPECS: InternalToolSpec[] = [
   ),
   domainRuntimeReadSpec('list_relations', '列出项目内的实体关系。', noArgs, 20_000),
   domainRuntimeReadSpec(
+    'list_relation_types',
+    '列出项目级关系类型定义、方向、端点角色和允许的实体类型。',
+    noArgs,
+    20_000,
+  ),
+  domainRuntimeReadSpec(
     'list_entity_relations',
     '列出与一个具体实体相连的入向和出向关系。',
     Type.Object(
@@ -1397,14 +1493,14 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
   ),
   domainRuntimeWriteSpec(
     'create_relation',
-    '在两个已存在的实体之间新建关系。名称参数只传纯名称，不要包含「」类型包装。',
+    '用一个已配置的项目关系类型，在两个已存在的实体之间新建关系。名称参数只传纯名称。',
     Type.Object(
       {
         fromType: domainEntityType,
         fromName: str('起点实体纯名称'),
         toType: domainEntityType,
         toName: str('终点实体纯名称'),
-        relationType: optionalStr('关系标签，例如包含章节、敌对、隶属'),
+        relationType: str('来自 list_relation_types 的已配置关系类型名称'),
       },
       { additionalProperties: false },
     ),
@@ -1412,9 +1508,9 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
   ),
   domainRuntimeWriteSpec(
     'update_relation',
-    '按 relationId 修改关系标签。',
+    '按 relationId 改用另一个已配置的项目关系类型。',
     Type.Object(
-      { relationId: str('来自 list_relations 或 list_entity_relations'), relationType: str('新关系标签；空字符串表示清空') },
+      { relationId: str('来自 list_relations 或 list_entity_relations'), relationType: str('来自 list_relation_types 的已配置关系类型名称') },
       { additionalProperties: false },
     ),
     { effect: 'graph', concurrency: 'exclusive_project' },

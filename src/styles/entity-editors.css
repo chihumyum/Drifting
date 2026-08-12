@@ -354,6 +354,53 @@
 .refs-picker__input:focus {
   border-color: hsl(var(--ink-3));
 }
+
+.refs-picker__relation-type {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 4px;
+  background: hsl(var(--ink-1) / 0.04);
+}
+
+.refs-picker__selected-target {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.refs-picker__relation-type > :nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.relation-endpoint-swap,
+.refs-rel-card__swap,
+.graph-newedge__swap {
+  border: 0;
+  color: hsl(var(--ink-3));
+  background: transparent;
+  cursor: pointer;
+}
+
+.relation-endpoint-swap:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.refs-rel-card__type-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.refs-rel-card__type-row > div {
+  min-width: 0;
+  flex: 1;
+}
 .refs-picker__list {
   max-height: 240px;
   overflow-y: auto;

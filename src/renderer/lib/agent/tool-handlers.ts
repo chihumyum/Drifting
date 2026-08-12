@@ -58,6 +58,7 @@ import type {
 } from '../../usecase/useElementCategory';
 import type { CreateNodeUsecaseInput } from '../../usecase/useBookNode';
 import type { UpdateProjectInput } from '../../usecase/useProject';
+import type { EntityRelationTypeDefinition } from '../../domain/entity-relation-type';
 import {
   docToBlocks,
   docToPlainText,
@@ -181,10 +182,21 @@ export interface AgentWriteApi {
     fromId: string,
     toKind: EntityRefTargetKind,
     toId: string,
-    options?: { kind?: string | null },
+    options?: { kind?: string | null; relationTypeId?: string | null; allowUnconfigured?: boolean },
   ) => Promise<unknown>;
   removeRelation: (id: string) => Promise<unknown>;
   updateRelationKind: (id: string, kind: string | null) => Promise<unknown>;
+  updateRelationType: (
+    id: string,
+    relationTypeId: string | null,
+    options?: { swapEndpoints?: boolean; allowUnconfigured?: boolean },
+  ) => Promise<unknown>;
+  createRelationType: (definition: EntityRelationTypeDefinition) => Promise<unknown>;
+  updateRelationTypeDefinition: (
+    id: string,
+    definition: EntityRelationTypeDefinition,
+  ) => Promise<unknown>;
+  deleteRelationType: (id: string) => Promise<unknown>;
   removeElement: (id: string) => Promise<unknown>;
   createStoryline: (input: CreateStorylineInput) => Promise<unknown>;
   updateStoryline: (input: UpdateStorylineInput) => Promise<unknown>;
@@ -952,6 +964,8 @@ function getEntityRelations(ctx: AgentToolContext, args: Record<string, unknown>
     .map((r) => ({
       relationId: r.id,
       relation: r.kind,
+      relationTypeId: r.relationTypeId,
+      relationType: s.entityRelationTypes.find((type) => type.id === r.relationTypeId) ?? null,
       toKind: r.toKind,
       to: entityLabel(s, r.toKind, r.toId),
     }));
@@ -960,10 +974,32 @@ function getEntityRelations(ctx: AgentToolContext, args: Record<string, unknown>
     .map((r) => ({
       relationId: r.id,
       relation: r.kind,
+      relationTypeId: r.relationTypeId,
+      relationType: s.entityRelationTypes.find((type) => type.id === r.relationTypeId) ?? null,
       fromKind: r.fromKind,
       from: entityLabel(s, r.fromKind, r.fromId),
     }));
   return { entity: { kind, name: entityLabel(s, kind, id) }, outgoing, incoming };
+}
+
+function getRelationTypes(ctx: AgentToolContext) {
+  const state = useDataStore.getState();
+  return {
+    relationTypes: state.entityRelationTypes
+      .filter((type) => type.projectId === ctx.projectId)
+      .map((type) => ({
+        id: type.id,
+        name: type.name,
+        description: type.description,
+        orientation: type.orientation,
+        sourceRole: type.sourceRole,
+        targetRole: type.targetRole,
+        sourceKinds: type.sourceKinds,
+        targetKinds: type.targetKinds,
+        configured: type.orientation !== 'unconfigured',
+        updatedAt: type.updatedAt,
+      })),
+  };
 }
 
 /** A storyline's facts plus its member chapters in reading order. */
@@ -1668,9 +1704,20 @@ async function addRelation(ctx: AgentToolContext, args: Record<string, unknown>)
   if (!fromRef || !toRef) throw new Error('add_relation requires from and to');
   const resolvedFrom = resolveByKind(ctx, fromKind, fromRef);
   const resolvedTo = resolveByKind(ctx, toKind, toRef);
-  const kind = typeof args.kind === 'string' ? args.kind : undefined;
+  const relationTypeName = String(args.relationType ?? args.kind ?? '').trim();
+  const relationType = useDataStore
+    .getState()
+    .entityRelationTypes.find(
+      (candidate) =>
+        candidate.projectId === ctx.projectId &&
+        candidate.name.trim().toLocaleLowerCase() === relationTypeName.toLocaleLowerCase(),
+    );
+  if (!relationType || relationType.orientation === 'unconfigured') {
+    throw new Error(`Configured relation type "${relationTypeName}" does not exist`);
+  }
   const relation = await ctx.write.addRelation(fromKind, resolvedFrom, toKind, resolvedTo, {
-    kind,
+    relationTypeId: relationType.id,
+    allowUnconfigured: false,
   });
   const s = useDataStore.getState();
   // relationId is the handle for remove_relation / update_relation_kind.
@@ -1679,7 +1726,7 @@ async function addRelation(ctx: AgentToolContext, args: Record<string, unknown>)
     relationId: (relation as { id?: string })?.id,
     from: entityLabel(s, fromKind, resolvedFrom),
     to: entityLabel(s, toKind, resolvedTo),
-    relation: kind,
+    relation: relationType.name,
   };
 }
 
@@ -1697,9 +1744,70 @@ async function removeRelation(ctx: AgentToolContext, args: Record<string, unknow
 async function updateRelationKind(ctx: AgentToolContext, args: Record<string, unknown>) {
   const relationId = String(args.relationId ?? '');
   if (!relationId) throw new Error('update_relation_kind requires relationId');
-  const kind = typeof args.kind === 'string' ? args.kind : null;
-  await ctx.write.updateRelationKind(relationId, kind);
-  return { ok: true, relationId, kind };
+  const name = String(args.relationType ?? args.kind ?? '').trim();
+  const relationType = useDataStore
+    .getState()
+    .entityRelationTypes.find(
+      (candidate) =>
+        candidate.projectId === ctx.projectId &&
+        candidate.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase(),
+    );
+  if (!relationType || relationType.orientation === 'unconfigured') {
+    throw new Error(`Configured relation type "${name}" does not exist`);
+  }
+  await ctx.write.updateRelationType(relationId, relationType.id, { allowUnconfigured: false });
+  return { ok: true, relationId, relationType: relationType.name };
+}
+
+function relationTypeDefinition(args: Record<string, unknown>): EntityRelationTypeDefinition {
+  if (args.orientation !== 'directed' && args.orientation !== 'symmetric') {
+    throw new Error('orientation must be directed or symmetric');
+  }
+  return {
+    name: String(args.name ?? '').trim(),
+    description: String(args.description ?? '').trim(),
+    orientation: args.orientation,
+    sourceRole: String(args.sourceRole ?? '').trim(),
+    targetRole: String(args.targetRole ?? '').trim(),
+    sourceKinds: Array.isArray(args.sourceKinds)
+      ? args.sourceKinds.filter(isEntityKind)
+      : [],
+    targetKinds: Array.isArray(args.targetKinds)
+      ? args.targetKinds.filter(isStructuralEntityKind)
+      : [],
+  };
+}
+
+async function createRelationTypeTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const value = await ctx.write.createRelationType(relationTypeDefinition(args));
+  return { ok: true, relationType: (value as { name?: string }).name };
+}
+
+async function updateRelationTypeTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const currentName = String(args.relationType ?? '').trim().toLocaleLowerCase();
+  const current = useDataStore
+    .getState()
+    .entityRelationTypes.find(
+      (type) => type.projectId === ctx.projectId && type.name.trim().toLocaleLowerCase() === currentName,
+    );
+  if (!current) throw new Error(`Relation type "${currentName}" does not exist`);
+  const value = await ctx.write.updateRelationTypeDefinition(current.id, relationTypeDefinition(args));
+  return { ok: true, relationType: (value as { name?: string }).name };
+}
+
+async function deleteRelationTypeTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const name = String(args.relationType ?? '').trim().toLocaleLowerCase();
+  const current = useDataStore
+    .getState()
+    .entityRelationTypes.find(
+      (type) => type.projectId === ctx.projectId && type.name.trim().toLocaleLowerCase() === name,
+    );
+  if (!current) throw new Error(`Relation type "${name}" does not exist`);
+  if (!(await requestAgentConfirm('Agent 想删除一个未使用的关系类型。允许吗？', confirmOptions(ctx)))) {
+    return { ok: false, declined: true };
+  }
+  await ctx.write.deleteRelationType(current.id);
+  return { ok: true, relationType: current.name };
 }
 
 async function createStorylineTool(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -2141,6 +2249,8 @@ export async function runAgentTool(
       return whereDoesEntityAppear(ctx, args);
     case 'get_entity_relations':
       return getEntityRelations(ctx, args);
+    case 'get_relation_types':
+      return getRelationTypes(ctx);
     case 'get_storyline':
       return getStoryline(ctx, String(args.storylineId ?? ''));
     case 'search_prose':
@@ -2196,6 +2306,12 @@ export async function runAgentTool(
       return removeRelation(ctx, args);
     case 'update_relation_kind':
       return updateRelationKind(ctx, args);
+    case 'create_relation_type':
+      return createRelationTypeTool(ctx, args);
+    case 'update_relation_type':
+      return updateRelationTypeTool(ctx, args);
+    case 'delete_relation_type':
+      return deleteRelationTypeTool(ctx, args);
     // entity creation (containers to relate into)
     case 'create_storyline':
       return createStorylineTool(ctx, args);

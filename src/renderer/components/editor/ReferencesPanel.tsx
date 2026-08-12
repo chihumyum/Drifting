@@ -12,6 +12,9 @@ import { useAuthStore } from '../../store/auth';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
+import { RelationTypeField } from '../ui/RelationTypeField';
+import { isStructuralEntityKind } from '../../domain/entity-kinds';
+import { validateRelationAgainstType } from '../../domain/entity-relation-type';
 
 const log = loglevel.getLogger('ReferencesPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -56,6 +59,7 @@ interface ManualRelation {
   otherTitle: string;
   // Free-form relation category (e.g. 「宿敌」). Editable inline on the card.
   kind: string | null;
+  relationTypeId: string | null;
   direction: 'outgoing' | 'incoming'; // panel entity is from or to
 }
 
@@ -69,67 +73,6 @@ function safeParseSpans(json: string | null): unknown[] {
   }
 }
 
-// Inline-editable relation-kind label on a relation card. Click to edit; Enter /
-// blur commits, Escape reverts. Empty renders a dashed "＋ 关系类型" affordance.
-function RelationKindTag({
-  value,
-  onCommit,
-}: {
-  value: string | null;
-  onCommit: (next: string | null) => void;
-}) {
-  const { t } = useTranslation();
-  const [editing, setEditing] = useState(false);
-  // Draft is only read while editing; it's seeded fresh from `value` each time
-  // the user enters edit mode (see the button's onClick), so no effect is needed
-  // to keep it in sync — the resting display reads `value` directly.
-  const [draft, setDraft] = useState('');
-
-  const commit = () => {
-    setEditing(false);
-    const next = draft.trim() || null;
-    if (next !== (value ?? null)) onCommit(next);
-  };
-
-  if (editing) {
-    return (
-      <input
-        autoFocus
-        className="refs-rel-card__tag-input"
-        value={draft}
-        maxLength={24}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            e.currentTarget.blur();
-          }
-          if (e.key === 'Escape') {
-            setDraft(value ?? '');
-            setEditing(false);
-          }
-        }}
-        placeholder={t('referencesPanel.relationKind.placeholder')}
-      />
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        setDraft(value ?? '');
-        setEditing(true);
-      }}
-      className={`refs-rel-card__tag${value ? '' : ' refs-rel-card__tag--empty'}`}
-      title={t('referencesPanel.relationKind.editTitle')}
-    >
-      {value || t('referencesPanel.relationKind.empty')}
-    </button>
-  );
-}
-
 export function ReferencesPanel({
   entityKind,
   entityId,
@@ -139,13 +82,19 @@ export function ReferencesPanel({
   const { t } = useTranslation();
   const { navigateToNode, navigateToElement, navigateToCategory, navigateToStoryline } =
     useProjectNavigation();
-  const { bookElements, bookNodes, bookElementCategories, storylines, entityRelations } =
-    useDataStore();
+  const {
+    bookElements,
+    bookNodes,
+    bookElementCategories,
+    storylines,
+    entityRelations,
+    entityRelationTypes,
+  } = useDataStore();
   const userId = useAuthStore((s) => s.user?.id);
   // Mutations route through the usecase (store + optimistic + server sync) — the
   // raw repo path used previously skipped both, so panel-authored relations never
   // reached the story-graph or the server.
-  const { addRelation, removeRelation, updateRelationKind } = useEntityRelations({
+  const { addRelation, removeRelation, updateRelationType } = useEntityRelations({
     projectId,
     userId: userId ?? '',
   });
@@ -159,6 +108,13 @@ export function ReferencesPanel({
   const [showLinkPicker, setShowLinkPicker] = useState(false);
   const [pickerQuery, setPickerQuery] = useState('');
   const [pickerFilter, setPickerFilter] = useState<'all' | EntityKind>('all');
+  const [pendingCandidate, setPendingCandidate] = useState<{
+    kind: StructuralEntityKind;
+    id: string;
+    name: string;
+  } | null>(null);
+  const [pendingTypeId, setPendingTypeId] = useState<string | null>(null);
+  const [pendingReversed, setPendingReversed] = useState(false);
   const reloadGenerationRef = useRef(0);
 
   useEffect(() => {
@@ -166,11 +122,7 @@ export function ReferencesPanel({
   }, [entityKind, entityId]);
 
   const loadReferences = useCallback(
-    async (
-      targetKind: EntityKind,
-      targetId: string,
-      shouldApply: () => boolean = () => true,
-    ) => {
+    async (targetKind: EntityKind, targetId: string, shouldApply: () => boolean = () => true) => {
       if (!targetId) return;
       try {
         const mentionRepo = createInlineMentionRepository();
@@ -203,17 +155,10 @@ export function ReferencesPanel({
     [],
   );
 
-  const reload = useCallback(
-    async () => {
-      const generation = reloadGenerationRef.current;
-      await loadReferences(
-        entityKind,
-        entityId,
-        () => reloadGenerationRef.current === generation,
-      );
-    },
-    [entityKind, entityId, loadReferences],
-  );
+  const reload = useCallback(async () => {
+    const generation = reloadGenerationRef.current;
+    await loadReferences(entityKind, entityId, () => reloadGenerationRef.current === generation);
+  }, [entityKind, entityId, loadReferences]);
 
   useEffect(() => {
     let cancelled = false;
@@ -248,12 +193,20 @@ export function ReferencesPanel({
   // Title lookup from the in-memory store. Falls back to a generic label when
   // the entity is gone (deleted but reference row not yet cleaned up).
   const lookupTitle = (kind: EntityKind, id: string): string => {
-    if (kind === 'element') return bookElements.find((e) => e.id === id)?.name ?? t('referencesPanel.deleted.element');
-    if (kind === 'node') return bookNodes.find((n) => n.id === id)?.title ?? t('referencesPanel.deleted.node');
+    if (kind === 'element')
+      return bookElements.find((e) => e.id === id)?.name ?? t('referencesPanel.deleted.element');
+    if (kind === 'node')
+      return bookNodes.find((n) => n.id === id)?.title ?? t('referencesPanel.deleted.node');
     if (kind === 'category')
-      return bookElementCategories.find((cat) => cat.id === id)?.name ?? t('referencesPanel.deleted.category');
+      return (
+        bookElementCategories.find((cat) => cat.id === id)?.name ??
+        t('referencesPanel.deleted.category')
+      );
     if (kind === 'storyline')
-      return storylines.find((storyline) => storyline.id === id)?.name ?? t('referencesPanel.deleted.storyline');
+      return (
+        storylines.find((storyline) => storyline.id === id)?.name ??
+        t('referencesPanel.deleted.storyline')
+      );
     return '(patch)';
   };
 
@@ -329,6 +282,7 @@ export function ReferencesPanel({
           otherId: r.toId,
           otherTitle: lookupTitle(r.toKind, r.toId),
           kind: r.kind ?? null,
+          relationTypeId: r.relationTypeId ?? null,
           direction: 'outgoing',
         });
       } else {
@@ -338,6 +292,7 @@ export function ReferencesPanel({
           otherId: r.fromId,
           otherTitle: lookupTitle(r.fromKind, r.fromId),
           kind: r.kind ?? null,
+          relationTypeId: r.relationTypeId ?? null,
           direction: 'incoming',
         });
       }
@@ -347,7 +302,15 @@ export function ReferencesPanel({
     result.sort((a, b) => (a.id < b.id ? 1 : -1));
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entityRelations, entityKind, entityId, bookElements, bookElementCategories, bookNodes, storylines]);
+  }, [
+    entityRelations,
+    entityKind,
+    entityId,
+    bookElements,
+    bookElementCategories,
+    bookNodes,
+    storylines,
+  ]);
 
   // Picker exclusion: only existing *manual* relations (and self). Inline
   // mentions don't block manual linking — the two are independent assertions
@@ -413,6 +376,31 @@ export function ReferencesPanel({
     storylines,
   ]);
 
+  const configuredRelationTypes = useMemo(
+    () => entityRelationTypes.filter((type) => type.orientation !== 'unconfigured'),
+    [entityRelationTypes],
+  );
+  const pendingTypeOptions = useMemo(() => {
+    if (!pendingCandidate) return configuredRelationTypes;
+    const fromKind = pendingReversed ? pendingCandidate.kind : entityKind;
+    const toKind = pendingReversed ? entityKind : pendingCandidate.kind;
+    if (!isStructuralEntityKind(toKind)) return [];
+    return configuredRelationTypes.filter(
+      (type) =>
+        validateRelationAgainstType(
+          type,
+          { fromKind, fromId: 'from', toKind, toId: 'to' },
+          { allowUnconfigured: false },
+        ).ok,
+    );
+  }, [configuredRelationTypes, entityKind, pendingCandidate, pendingReversed]);
+
+  const relationTypeColor = (name: string) => {
+    let hash = 0;
+    for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+    return `hsl(var(--story-${(Math.abs(hash) % 6) + 1}))`;
+  };
+
   const handleNavigate = (kind: EntityKind, id: string) => {
     if (kind === 'element') navigateToElement(id);
     else if (kind === 'node') navigateToNode(id);
@@ -420,20 +408,29 @@ export function ReferencesPanel({
     else if (kind === 'storyline') navigateToStoryline(id);
   };
 
-  const handleAddManual = async (otherKind: StructuralEntityKind, otherId: string) => {
+  const handleAddManual = async () => {
+    if (!pendingCandidate || !pendingTypeId) return;
     try {
-      // Convention: panel entity is the from-side of a relation it owns. So
-      // "+ Link" inside element X's panel produces (from=element X,
-      // to=otherKind/otherId).
-      await addRelation(entityKind, entityId, otherKind, otherId);
+      const fromKind = pendingReversed ? pendingCandidate.kind : entityKind;
+      const fromId = pendingReversed ? pendingCandidate.id : entityId;
+      const toKind = pendingReversed ? entityKind : pendingCandidate.kind;
+      const toId = pendingReversed ? entityId : pendingCandidate.id;
+      if (!isStructuralEntityKind(toKind)) return;
+      await addRelation(fromKind, fromId, toKind, toId, {
+        relationTypeId: pendingTypeId,
+        allowUnconfigured: false,
+      });
       events.emit('references:changed', {
         projectId,
-        fromKind: entityKind,
-        fromId: entityId,
-        targetKeys: [`${otherKind}:${otherId}`],
+        fromKind,
+        fromId,
+        targetKeys: [`${toKind}:${toId}`],
       });
       setShowLinkPicker(false);
       setPickerQuery('');
+      setPendingCandidate(null);
+      setPendingTypeId(null);
+      setPendingReversed(false);
     } catch (error) {
       log.error('Failed to add manual relation:', error);
     }
@@ -457,12 +454,64 @@ export function ReferencesPanel({
     }
   };
 
-  const handleUpdateKind = async (rel: ManualRelation, kind: string | null) => {
+  const handleUpdateType = async (
+    rel: ManualRelation,
+    relationTypeId: string,
+    swapEndpoints = false,
+  ) => {
     try {
-      await updateRelationKind(rel.id, kind);
+      await updateRelationType(rel.id, relationTypeId, {
+        swapEndpoints,
+        allowUnconfigured: false,
+      });
     } catch (error) {
       log.error('Failed to update relation kind:', error);
     }
+  };
+
+  const manualRelationSemantics = (rel: ManualRelation, swapped = false) => {
+    const fromKind = rel.direction === 'outgoing' ? entityKind : rel.otherKind;
+    const fromId = rel.direction === 'outgoing' ? entityId : rel.otherId;
+    const toKind = rel.direction === 'outgoing' ? rel.otherKind : entityKind;
+    const toId = rel.direction === 'outgoing' ? rel.otherId : entityId;
+    const semanticFromKind = swapped ? toKind : fromKind;
+    const semanticFromId = swapped ? toId : fromId;
+    const semanticToKind = swapped ? fromKind : toKind;
+    const semanticToId = swapped ? fromId : toId;
+    if (!isStructuralEntityKind(semanticToKind)) return null;
+    return {
+      fromKind: semanticFromKind,
+      fromId: semanticFromId,
+      toKind: semanticToKind,
+      toId: semanticToId,
+    };
+  };
+
+  const relationTypeOptionsFor = (rel: ManualRelation) =>
+    configuredRelationTypes.filter((type) => {
+      const direct = manualRelationSemantics(rel);
+      const reversed = manualRelationSemantics(rel, true);
+      return Boolean(
+        (direct && validateRelationAgainstType(type, direct).ok) ||
+        (reversed && validateRelationAgainstType(type, reversed).ok),
+      );
+    });
+
+  const relationTypeNeedsSwap = (rel: ManualRelation, relationTypeId: string) => {
+    const type = configuredRelationTypes.find((candidate) => candidate.id === relationTypeId);
+    const direct = manualRelationSemantics(rel);
+    if (!type || !direct) return false;
+    return !validateRelationAgainstType(type, direct).ok;
+  };
+
+  const relationCanSwap = (rel: ManualRelation) => {
+    const type = configuredRelationTypes.find((candidate) => candidate.id === rel.relationTypeId);
+    const reversed = manualRelationSemantics(rel, true);
+    return Boolean(
+      type?.orientation === 'directed' &&
+      reversed &&
+      validateRelationAgainstType(type, reversed).ok,
+    );
   };
 
   if (loading) {
@@ -475,144 +524,211 @@ export function ReferencesPanel({
     <div className="references-panel">
       {/* 关联 — manual whole-entity links */}
       {sections.includes('relations') && (
-      <section className="refs-section">
-        <div className="refs-section__header">
-          <span className="refs-section__title">{t('referencesPanel.sections.relations')}</span>
-          <span className="refs-section__count">{manualRelations.length}</span>
-          <button
-            type="button"
-            onClick={() => setShowLinkPicker((v) => !v)}
-            className="refs-section__action"
-          >
-            {showLinkPicker ? t('common.cancel') : t('referencesPanel.actions.add')}
-          </button>
-        </div>
-
-        {showLinkPicker && (
-          <div className="refs-picker">
-            <div className="refs-picker__filters">
-              {(['all', 'element', 'node', 'category', 'storyline'] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setPickerFilter(f)}
-                  className={`refs-picker__filter${
-                    pickerFilter === f ? ' refs-picker__filter--active' : ''
-                  }`}
-                >
-                  {f === 'all' ? t('referencesPanel.filters.all') : labelForKind(f)}
-                </button>
-              ))}
-            </div>
-            <input
-              type="text"
-              autoFocus
-              value={pickerQuery}
-              onChange={(e) => setPickerQuery(e.target.value)}
-              placeholder={t('referencesPanel.picker.placeholder')}
-              className="refs-picker__input"
-            />
-            <div className="refs-picker__list">
-              {pickerCandidates.length === 0 ? (
-                <div className="refs-picker__empty">{t('referencesPanel.picker.empty')}</div>
-              ) : (
-                pickerCandidates.map((c) => (
-                  <button
-                    key={`${c.kind}:${c.id}`}
-                    type="button"
-                    onClick={() => handleAddManual(c.kind, c.id)}
-                    className="refs-picker__item"
-                  >
-                    <span className={`refs-picker__item-kind ${kindClass(c.kind)}`}>
-                      <span className="refs-card__kind-dot" />
-                      {labelForKind(c.kind)}
-                    </span>
-                    <span className="refs-picker__item-name">{c.name}</span>
-                  </button>
-                ))
-              )}
-            </div>
+        <section className="refs-section">
+          <div className="refs-section__header">
+            <span className="refs-section__title">{t('referencesPanel.sections.relations')}</span>
+            <span className="refs-section__count">{manualRelations.length}</span>
+            <button
+              type="button"
+              onClick={() => setShowLinkPicker((v) => !v)}
+              className="refs-section__action"
+            >
+              {showLinkPicker ? t('common.cancel') : t('referencesPanel.actions.add')}
+            </button>
           </div>
-        )}
 
-        <div className="refs-rel-grid">
-          {manualRelations.map((rel) => (
-            <div key={rel.id} className={`refs-rel-card ${kindClass(rel.otherKind)}`}>
-              <div className="refs-rel-card__top">
-                <span className="refs-rel-card__kind">
-                  <span className="refs-card__kind-dot" />
-                  {labelForKind(rel.otherKind)}
-                  <span className="refs-rel-card__dir">
-                    {rel.direction === 'outgoing' ? '→' : '←'}
+          {showLinkPicker && (
+            <div className="refs-picker">
+              <div className="refs-picker__filters">
+                {(['all', 'element', 'node', 'category', 'storyline'] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setPickerFilter(f)}
+                    className={`refs-picker__filter${
+                      pickerFilter === f ? ' refs-picker__filter--active' : ''
+                    }`}
+                  >
+                    {f === 'all' ? t('referencesPanel.filters.all') : labelForKind(f)}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                autoFocus
+                value={pickerQuery}
+                onChange={(e) => setPickerQuery(e.target.value)}
+                placeholder={t('referencesPanel.picker.placeholder')}
+                className="refs-picker__input"
+              />
+              {pendingCandidate && (
+                <div className="refs-picker__relation-type">
+                  <div className="refs-picker__selected-target">{pendingCandidate.name}</div>
+                  <button
+                    type="button"
+                    className="relation-endpoint-swap"
+                    disabled={!isStructuralEntityKind(entityKind)}
+                    onClick={() => {
+                      if (!isStructuralEntityKind(entityKind)) return;
+                      setPendingReversed((value) => !value);
+                      setPendingTypeId(null);
+                    }}
+                  >
+                    {pendingReversed
+                      ? t('relationTypes.pendingIncoming')
+                      : t('relationTypes.pendingOutgoing')}{' '}
+                    · ⇄
+                  </button>
+                  <RelationTypeField
+                    value={pendingTypeId}
+                    onChange={setPendingTypeId}
+                    options={pendingTypeOptions}
+                    resolveOptionColor={relationTypeColor}
+                    placeholder={t('relationTypes.selectConfigured')}
+                    ariaLabel={t('relationTypes.ariaLabel')}
+                    buttonClassName="relation-type-field__button relation-type-field__button--full"
+                  />
+                  <button
+                    type="button"
+                    className="refs-section__action"
+                    disabled={!pendingTypeId}
+                    onClick={() => void handleAddManual()}
+                  >
+                    {t('storyGraph.edge.create')}
+                  </button>
+                </div>
+              )}
+              <div className="refs-picker__list">
+                {pickerCandidates.length === 0 ? (
+                  <div className="refs-picker__empty">{t('referencesPanel.picker.empty')}</div>
+                ) : (
+                  pickerCandidates.map((c) => (
+                    <button
+                      key={`${c.kind}:${c.id}`}
+                      type="button"
+                      onClick={() => {
+                        setPendingCandidate(c);
+                        setPendingTypeId(null);
+                        setPendingReversed(false);
+                      }}
+                      className="refs-picker__item"
+                    >
+                      <span className={`refs-picker__item-kind ${kindClass(c.kind)}`}>
+                        <span className="refs-card__kind-dot" />
+                        {labelForKind(c.kind)}
+                      </span>
+                      <span className="refs-picker__item-name">{c.name}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="refs-rel-grid">
+            {manualRelations.map((rel) => (
+              <div key={rel.id} className={`refs-rel-card ${kindClass(rel.otherKind)}`}>
+                <div className="refs-rel-card__top">
+                  <span className="refs-rel-card__kind">
+                    <span className="refs-card__kind-dot" />
+                    {labelForKind(rel.otherKind)}
+                    <span className="refs-rel-card__dir">
+                      {rel.direction === 'outgoing' ? '→' : '←'}
+                    </span>
                   </span>
-                </span>
+                  <button
+                    type="button"
+                    onClick={() => void handleRemoveManual(rel)}
+                    className="refs-rel-card__remove"
+                    aria-label={t('referencesPanel.actions.remove')}
+                  >
+                    ×
+                  </button>
+                </div>
                 <button
                   type="button"
-                  onClick={() => void handleRemoveManual(rel)}
-                  className="refs-rel-card__remove"
-                  aria-label={t('referencesPanel.actions.remove')}
+                  onClick={() => handleNavigate(rel.otherKind, rel.otherId)}
+                  className="refs-rel-card__title"
+                  title={t('referencesPanel.actions.jump')}
                 >
-                  ×
+                  {rel.otherTitle}
                 </button>
+                <div className="refs-rel-card__type-row">
+                  <RelationTypeField
+                    value={rel.relationTypeId}
+                    onChange={(relationTypeId) =>
+                      void handleUpdateType(
+                        rel,
+                        relationTypeId,
+                        relationTypeNeedsSwap(rel, relationTypeId),
+                      )
+                    }
+                    options={relationTypeOptionsFor(rel)}
+                    resolveOptionColor={relationTypeColor}
+                    placeholder={rel.kind || t('referencesPanel.relationKind.empty')}
+                    ariaLabel={t('storyGraph.edge.kindLabel')}
+                    buttonClassName="refs-rel-card__tag relation-type-field__button"
+                  />
+                  {rel.relationTypeId && relationCanSwap(rel) && (
+                    <button
+                      type="button"
+                      className="refs-rel-card__swap"
+                      title={t('relationTypes.swap')}
+                      onClick={() => void handleUpdateType(rel, rel.relationTypeId!, true)}
+                    >
+                      ⇄
+                    </button>
+                  )}
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => handleNavigate(rel.otherKind, rel.otherId)}
-                className="refs-rel-card__title"
-                title={t('referencesPanel.actions.jump')}
-              >
-                {rel.otherTitle}
-              </button>
-              <RelationKindTag value={rel.kind} onCommit={(k) => void handleUpdateKind(rel, k)} />
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => setShowLinkPicker(true)}
-            className="refs-rel-card refs-rel-card--add"
-          >
-            {t('referencesPanel.actions.linkEntity')}
-          </button>
-        </div>
-      </section>
+            ))}
+            <button
+              type="button"
+              onClick={() => setShowLinkPicker(true)}
+              className="refs-rel-card refs-rel-card--add"
+            >
+              {t('referencesPanel.actions.linkEntity')}
+            </button>
+          </div>
+        </section>
       )}
 
       {/* 被引用 — incoming inline mentions */}
       {sections.includes('incoming') && (
-      <section className="refs-section">
-        <div className="refs-section__header">
-          <span className="refs-section__title">{t('referencesPanel.sections.incoming')}</span>
-          <span className="refs-section__count">{incomingGroups.length}</span>
-        </div>
-        {incomingGroups.length === 0 ? (
-          <div className="refs-empty">{t('referencesPanel.empty.incoming')}</div>
-        ) : (
-          <div className="refs-cards">
-            {incomingGroups.map((g) => (
-              <div
-                key={g.key}
-                onClick={() => handleNavigate(g.fromKind, g.fromId)}
-                className="refs-card"
-                role="button"
-                tabIndex={0}
-              >
-                <span className={`refs-card__kind ${kindClass(g.fromKind)}`}>
-                  <span className="refs-card__kind-dot" />
-                  {labelForKind(g.fromKind)}
-                </span>
-                <span className="refs-card__title">{g.fromTitle}</span>
-                <span className="refs-card__meta">
-                  {t('referencesPanel.meta.blocksSpans', {
-                    blocks: g.blockCount,
-                    spans: g.spanCount,
-                  })}
-                </span>
-                <span className="refs-card__arrow">↗</span>
-              </div>
-            ))}
+        <section className="refs-section">
+          <div className="refs-section__header">
+            <span className="refs-section__title">{t('referencesPanel.sections.incoming')}</span>
+            <span className="refs-section__count">{incomingGroups.length}</span>
           </div>
-        )}
-      </section>
+          {incomingGroups.length === 0 ? (
+            <div className="refs-empty">{t('referencesPanel.empty.incoming')}</div>
+          ) : (
+            <div className="refs-cards">
+              {incomingGroups.map((g) => (
+                <div
+                  key={g.key}
+                  onClick={() => handleNavigate(g.fromKind, g.fromId)}
+                  className="refs-card"
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span className={`refs-card__kind ${kindClass(g.fromKind)}`}>
+                    <span className="refs-card__kind-dot" />
+                    {labelForKind(g.fromKind)}
+                  </span>
+                  <span className="refs-card__title">{g.fromTitle}</span>
+                  <span className="refs-card__meta">
+                    {t('referencesPanel.meta.blocksSpans', {
+                      blocks: g.blockCount,
+                      spans: g.spanCount,
+                    })}
+                  </span>
+                  <span className="refs-card__arrow">↗</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {/* 引用其他 — outgoing inline mentions (element only) */}

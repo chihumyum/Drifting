@@ -12,6 +12,7 @@ import type { BookAct } from '../domain/book-act';
 import type { DriftGroup } from '../domain/drift-group';
 import type { TimelineMarker } from '../domain/timeline-marker';
 import type { EntityKind, StructuralEntityKind } from '../domain/entity-kinds';
+import type { EntityRelationType } from '../domain/entity-relation-type';
 
 // User-curated cross-entity link. Mirrors the `entity_relation` table row.
 // Inline mentions are NOT mirrored to the store; they're queried on demand
@@ -23,6 +24,8 @@ export interface EntityRelationLink {
   fromId: string;
   toKind: StructuralEntityKind;
   toId: string;
+  /** First-class semantic owner. Null only for truly uncategorized or old-client rows. */
+  relationTypeId: string | null;
   /** Free-form relation category (NOT endpoint type). Null = uncategorised. */
   kind: string | null;
   createdAt: string;
@@ -138,6 +141,12 @@ interface DataState {
   setEntityRelations: (relations: EntityRelationLink[]) => void;
   addEntityRelation: (relation: EntityRelationLink) => void;
   removeEntityRelation: (id: string) => void;
+
+  entityRelationTypes: EntityRelationType[];
+  setEntityRelationTypes: (types: EntityRelationType[]) => void;
+  addEntityRelationType: (type: EntityRelationType) => void;
+  updateEntityRelationType: (id: string, updates: Partial<EntityRelationType>) => void;
+  removeEntityRelationType: (id: string) => void;
 
   /**
    * Rolling block-range summaries, produced by Copilot debounce runs and
@@ -449,6 +458,21 @@ export const useDataStore = create<DataState>((set) => ({
   removeEntityRelation: (id) =>
     set((state) => ({
       entityRelations: state.entityRelations.filter((r) => r.id !== id),
+    })),
+
+  entityRelationTypes: [],
+  setEntityRelationTypes: (entityRelationTypes) => set({ entityRelationTypes }),
+  addEntityRelationType: (type) =>
+    set((state) => ({ entityRelationTypes: [...state.entityRelationTypes, type] })),
+  updateEntityRelationType: (id, updates) =>
+    set((state) => ({
+      entityRelationTypes: state.entityRelationTypes.map((type) =>
+        type.id === id ? { ...type, ...updates } : type,
+      ),
+    })),
+  removeEntityRelationType: (id) =>
+    set((state) => ({
+      entityRelationTypes: state.entityRelationTypes.filter((type) => type.id !== id),
     })),
 
   blockSections: [],

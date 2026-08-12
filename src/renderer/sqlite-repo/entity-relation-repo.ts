@@ -31,6 +31,7 @@ export interface EntityRelationRecord {
   toId: string;
   /** Free-form relation category. */
   kind: string | null;
+  relationTypeId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +45,7 @@ export interface EntityRelationBacklink {
   toKind: StructuralEntityKind;
   toId: string;
   kind: string | null;
+  relationTypeId: string | null;
   createdAt: string;
 }
 
@@ -54,7 +56,7 @@ export interface EntityRelationRepository {
     fromId: string,
     toKind: EntityRefTargetKind,
     toId: string,
-    options?: { kind?: string | null },
+    options?: { kind?: string | null; relationTypeId?: string | null },
   ): Promise<EntityRelationRecord>;
 
   // Deletes a single row by id. Pair-based delete is unsound now that the same
@@ -91,6 +93,7 @@ function toRecord(
     toKind: row.toKind as StructuralEntityKind,
     toId: row.toId,
     kind: row.kind ?? null,
+    relationTypeId: row.relationTypeId ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -104,7 +107,7 @@ export function createEntityRelationRepository(dbOverride?: DbExecutor): EntityR
     fromId: string,
     toKind: EntityRefTargetKind,
     toId: string,
-    options?: { kind?: string | null },
+    options?: { kind?: string | null; relationTypeId?: string | null },
   ): Promise<EntityRelationRecord> => {
     if (!isStructuralEntityKind(toKind)) {
       throw new Error(
@@ -122,6 +125,7 @@ export function createEntityRelationRepository(dbOverride?: DbExecutor): EntityR
       toKind,
       toId,
       kind: options?.kind?.trim() || null,
+      relationTypeId: options?.relationTypeId ?? null,
       createdAt: now,
       updatedAt: now,
     };
@@ -165,6 +169,7 @@ export function createEntityRelationRepository(dbOverride?: DbExecutor): EntityR
         toKind: EntityRelationTable.toKind,
         toId: EntityRelationTable.toId,
         kind: EntityRelationTable.kind,
+        relationTypeId: EntityRelationTable.relationTypeId,
         createdAt: EntityRelationTable.createdAt,
         nodeTitle: BookNodeTable.title,
         elementName: BookElementTable.name,
@@ -217,6 +222,7 @@ export function createEntityRelationRepository(dbOverride?: DbExecutor): EntityR
       toKind: row.toKind as StructuralEntityKind,
       toId: row.toId,
       kind: row.kind ?? null,
+      relationTypeId: row.relationTypeId ?? null,
       createdAt: row.createdAt,
     }));
   };

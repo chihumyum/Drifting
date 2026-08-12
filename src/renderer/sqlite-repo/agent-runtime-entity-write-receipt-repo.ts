@@ -60,6 +60,9 @@ const TOOL_KIND: Record<
   add_relation: 'relation',
   update_relation_kind: 'relation',
   remove_relation: 'relation',
+  create_relation_type: 'relation_type',
+  update_relation_type: 'relation_type',
+  delete_relation_type: 'relation_type',
   set_storyline_membership: 'storyline_membership',
   remember: 'memory',
   update_memory: 'memory',
@@ -76,6 +79,7 @@ const CREATE_TOOLS = new Set<AgentRuntimeEntityWriteTool>([
   'create_storyline',
   'create_category',
   'add_relation',
+  'create_relation_type',
   'remember',
 ]);
 
@@ -86,6 +90,7 @@ const DELETE_TOOLS = new Set<AgentRuntimeEntityWriteTool>([
   'delete_storyline',
   'delete_category',
   'remove_relation',
+  'delete_relation_type',
 ]);
 
 function effectOwnsReceiptTool(
@@ -209,6 +214,18 @@ function parseSnapshot(
         typeof value.value.toId !== 'string'
       ) {
         integrityError(receiptId, 'relation snapshot fields are invalid');
+      }
+      break;
+    case 'relation_type':
+      if (
+        typeof value.value.name !== 'string' ||
+        typeof value.value.orientation !== 'string' ||
+        typeof value.value.sourceRole !== 'string' ||
+        typeof value.value.targetRole !== 'string' ||
+        !Array.isArray(value.value.sourceKinds) ||
+        !Array.isArray(value.value.targetKinds)
+      ) {
+        integrityError(receiptId, 'relation type snapshot fields are invalid');
       }
       break;
     case 'storyline_membership':

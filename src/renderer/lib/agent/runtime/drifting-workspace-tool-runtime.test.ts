@@ -59,7 +59,7 @@ describe('DriftingWorkspaceToolRuntime domain surface', () => {
     expect(runtime.listDefinitions(runtimeContext).map((tool) => tool.name)).toEqual(
       DRIFTING_DOMAIN_READ_TOOLS,
     );
-    expect(DRIFTING_DOMAIN_WRITE_TOOLS).toHaveLength(43);
+    expect(DRIFTING_DOMAIN_WRITE_TOOLS).toHaveLength(46);
 
     const names = runtime.listDefinitions(runtimeContext).map((tool) => tool.name);
     expect(names).not.toContain('browse_project');
@@ -233,7 +233,7 @@ describe('DriftingWorkspaceToolRuntime domain surface', () => {
         from: '第一章 雨夜',
         toKind: 'node',
         to: '第一章 雨夜',
-        kind: '自省',
+        relationType: '自省',
         expectedRevision: projectRevision(),
       },
     });

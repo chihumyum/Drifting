@@ -105,6 +105,7 @@ describe('workspace Agent entity activity projection', () => {
           toKind: 'element',
           toId: 'element-ada',
           kind: '出场',
+          relationTypeId: null,
           createdAt: timestamp,
           updatedAt: timestamp,
         },

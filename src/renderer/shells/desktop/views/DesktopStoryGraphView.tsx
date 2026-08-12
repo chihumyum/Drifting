@@ -11,6 +11,7 @@ import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import { useBookNode } from '../../../usecase/useBookNode';
 import { useStoryline } from '../../../usecase/useStoryline';
 import { useEntityRelations } from '../../../usecase/useEntityRelations';
+import { useEntityRelationTypes } from '../../../usecase/useEntityRelationTypes';
 import { useTimelineMarkers } from '../../../hooks/useTimelineMarkers';
 import { useEdgeKindMeta, UNCATEGORIZED_META_KEY } from '../../../hooks/useEdgeKindMeta';
 import { useSuperViewEscapeStack } from '../../../hooks/useSuperViewEscapeStack';
@@ -23,6 +24,15 @@ import { EntityCellContextMenu } from '../../../components/leftBars/EntityCellCo
 import { useEntityCellAction } from '../../../hooks/useEntityCellAction';
 import { TimelinePin } from '../../../components/timeline/TimelinePin';
 import { TimelineRailMenu } from '../../../components/graph/TimelineRailMenu';
+import {
+  RelationEdgePopover,
+  type RelationEdgePopoverAnchor,
+} from '../../../components/graph/RelationEdgePopover';
+import { RelationArrowMarker } from '../../../components/graph/RelationArrowMarker';
+import {
+  relationArrowMarkerId,
+  relationEdgePath,
+} from '../../../components/graph/relation-edge-visual';
 import { DriftPanel, useDriftPanelAnim } from '../../../components/DriftPanel';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
@@ -30,9 +40,14 @@ import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
 import { SegmentedControl } from '../../../components/ui/SegmentedControl';
 import { FilterChip } from '../../../components/ui/FilterChip';
 import { HeaderChipStrip } from '../../../components/ui/HeaderChipStrip';
-import { RelationKindField } from '../../../components/ui/RelationKindField';
+import { RelationTypeField } from '../../../components/ui/RelationTypeField';
+import {
+  validateRelationAgainstType,
+  validateRelationTypeDefinitionAgainstRelation,
+} from '../../../domain/entity-relation-type';
 import {
   RelationKindMenu,
+  RelationTypeEditor,
   UNCATEGORIZED_RELATION_KIND as UNCATEGORIZED_KIND,
 } from '../../../components/ui/RelationKindMenu';
 import loglevel from 'loglevel';
@@ -54,7 +69,8 @@ log.setLevel(loglevel.levels.WARN);
 
 // Edges between nodes (chapter ↔ chapter, chapter ↔ drift, drift ↔ drift) are
 // persisted as rows in `entity_relation` with fromKind/toKind = 'node'. Each
-// carries a free-form user-defined `kind` that drives the filter chips; the
+// references a project relation type and mirrors its name into `kind` for
+// readable filtering; the
 // renderer derives geometry from the current node positions and uses a fixed
 // bezier formula for the path. Edge creation is shift-click-to-pair:
 // shift-click a tile to set it as source, click another tile to open the
@@ -138,8 +154,14 @@ const DRIFT_SLOT_WIDTH = 168 + 10;
 
 export function DesktopStoryGraphView() {
   const { t } = useTranslation();
-  const { bookNodes, storylines, nodeStorylineMapping, entityRelations, primaryStorylineByNode } =
-    useDataStore();
+  const {
+    bookNodes,
+    storylines,
+    nodeStorylineMapping,
+    entityRelations,
+    entityRelationTypes,
+    primaryStorylineByNode,
+  } = useDataStore();
   const bookActs = useDataStore((s) => s.bookActs);
   const { setActive: setActiveSuperView } = useSuperViewNavigation();
   const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
@@ -153,6 +175,7 @@ export function DesktopStoryGraphView() {
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
+  const relationTypeUsecases = useEntityRelationTypes({ projectId: projectId ?? '' });
   const edgeKindMeta = useEdgeKindMeta(projectId);
   const { setNodeStorylines } = useStoryline({
     projectId: projectId ?? '',
@@ -174,13 +197,20 @@ export function DesktopStoryGraphView() {
     const nodeIds = new Set(bookNodes.map((n) => n.id));
     return toGraphEdges(entityRelations, nodeIds);
   }, [entityRelations, bookNodes]);
+  const relationTypeById = useMemo(
+    () => new Map(entityRelationTypes.map((type) => [type.id, type])),
+    [entityRelationTypes],
+  );
 
   // Thin adapters so the shift-click create flow and edge-mgr delete flow
   // keep their call shape. `addRelation` returns the new EntityRelationLink;
   // `removeRelation` takes an id; both are already optimistic-update aware.
   const createEdge = useCallback(
-    (sourceNodeId: string, targetNodeId: string, kind: string | null) =>
-      addRelation('node', sourceNodeId, 'node', targetNodeId, { kind }),
+    (sourceNodeId: string, targetNodeId: string, relationTypeId: string) =>
+      addRelation('node', sourceNodeId, 'node', targetNodeId, {
+        relationTypeId,
+        allowUnconfigured: false,
+      }),
     [addRelation],
   );
   const deleteEdge = useCallback((id: string) => removeRelation(id), [removeRelation]);
@@ -232,7 +262,32 @@ export function DesktopStoryGraphView() {
     writingStatus: BookNode['writingStatus'];
   } | null>(null);
   const [newEdgePair, setNewEdgePair] = useState<{ source: string; target: string } | null>(null);
-  const [newEdgeKind, setNewEdgeKind] = useState('');
+  const [newEdgeTypeId, setNewEdgeTypeId] = useState<string | null>(null);
+  const [newEdgeReversed, setNewEdgeReversed] = useState(false);
+  const [newEdgeCreatingType, setNewEdgeCreatingType] = useState(false);
+  const closeNewEdgeDialog = useCallback(() => {
+    setNewEdgePair(null);
+    setNewEdgeTypeId(null);
+    setNewEdgeReversed(false);
+    setNewEdgeCreatingType(false);
+  }, []);
+  const configuredRelationTypes = useMemo(
+    () => entityRelationTypes.filter((type) => type.orientation !== 'unconfigured'),
+    [entityRelationTypes],
+  );
+  const newEdgeTypeOptions = useMemo(
+    () =>
+      configuredRelationTypes.filter(
+        (type) =>
+          validateRelationAgainstType(type, {
+            fromKind: 'node',
+            fromId: newEdgeReversed ? 'target' : 'source',
+            toKind: 'node',
+            toId: newEdgeReversed ? 'source' : 'target',
+          }).ok,
+      ),
+    [configuredRelationTypes, newEdgeReversed],
+  );
   // Set of kinds the user has TOGGLED OFF. Default = empty (all visible).
   const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(new Set());
   // Popover targeting a single tile. `anchor` is the tile's viewport rect at
@@ -266,21 +321,26 @@ export function DesktopStoryGraphView() {
   useEffect(() => {
     if (!edgeMgrOpen) edgeMgrBtnRef.current?.blur();
   }, [edgeMgrOpen]);
-  // Click-to-select edge. While selected, the edge highlights, its two
-  // endpoint cards get a solid accent border, and a floating × badge
-  // appears at the edge midpoint — click that to delete immediately.
-  // Clicking anywhere else deselects.
+  // Click-to-select edge. While selected, the edge and endpoint cards
+  // highlight and a body-portaled detail popover opens at the click point.
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedEdgeAnchor, setSelectedEdgeAnchor] = useState<RelationEdgePopoverAnchor | null>(
+    null,
+  );
+  const clearSelectedEdge = useCallback(() => {
+    setSelectedEdgeId(null);
+    setSelectedEdgeAnchor(null);
+  }, []);
+  const selectEdge = useCallback((id: string, clientX: number, clientY: number) => {
+    setSelectedEdgeId(id);
+    setSelectedEdgeAnchor({ x: clientX, y: clientY });
+  }, []);
   // "未放置" (unplaced chapters) popover anchored to the head button.
   // Narrative-mode only — the concept doesn't apply in book view.
   const unplacedBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Dismiss the edge selection on any click that doesn't land on an edge /
-  // × badge. Escape is routed through the shared Super View stack below.
-  // Edge onClick handlers stopPropagation;
-  // the badge's own onClick runs first because it's a descendant of
-  // document — by the time this fires, the delete has already kicked
-  // off (or the user clicked elsewhere intentionally).
+  // Dismiss the edge selection on any click that doesn't land on an edge or
+  // its portaled detail surface. Escape is routed through the shared stack.
   useEffect(() => {
     if (!selectedEdgeId) return;
     const onPointer = (e: PointerEvent) => {
@@ -289,17 +349,29 @@ export function DesktopStoryGraphView() {
       if (
         t.closest('.graph-edge-grp') ||
         t.closest('.graph-drift-edge') ||
-        t.closest('.graph-edge-delete')
+        t.closest('[data-relation-edge-popover]')
       ) {
         return;
       }
-      setSelectedEdgeId(null);
+      clearSelectedEdge();
     };
     document.addEventListener('pointerdown', onPointer, true);
     return () => {
       document.removeEventListener('pointerdown', onPointer, true);
     };
-  }, [selectedEdgeId]);
+  }, [clearSelectedEdge, selectedEdgeId]);
+
+  const selectedEdgeRelation = useMemo(
+    () => entityRelations.find((relation) => relation.id === selectedEdgeId) ?? null,
+    [entityRelations, selectedEdgeId],
+  );
+  const selectedEdgeType = useMemo(
+    () =>
+      selectedEdgeRelation?.relationTypeId
+        ? (relationTypeById.get(selectedEdgeRelation.relationTypeId) ?? null)
+        : null,
+    [relationTypeById, selectedEdgeRelation],
+  );
 
   // Endpoint IDs of the selected edge — used to apply a solid accent
   // border to the two connected tiles / drift cards.
@@ -608,7 +680,7 @@ export function DesktopStoryGraphView() {
     return links;
   }, [storylines, sortedNodesByStoryline, primaryStorylineId]);
 
-  // ---- Relation edges (user-defined kinds) ----
+  // ---- Relation edges (project relation types) ----
   // Index positioned nodes for fast endpoint lookup. Edges whose endpoint
   // isn't placed in the current view (e.g. narrative view with null
   // narrativeOrder on one end) are skipped.
@@ -940,18 +1012,16 @@ export function DesktopStoryGraphView() {
         onEscape: () => setRailMenu(null),
       },
       {
-        id: newEdgePair
-          ? `new-edge:${newEdgePair.source}:${newEdgePair.target}`
-          : 'new-edge',
+        id: newEdgePair ? `new-edge:${newEdgePair.source}:${newEdgePair.target}` : 'new-edge',
         active: newEdgePair !== null,
-        onEscape: () => setNewEdgePair(null),
+        onEscape: closeNewEdgeDialog,
       },
       { id: 'unplaced-drawer', active: drawerOpen, onEscape: () => setDrawerOpen(false) },
       { id: 'relation-kind-menu', active: edgeMgrOpen, onEscape: () => setEdgeMgrOpen(false) },
       {
         id: `selected-edge:${selectedEdgeId ?? ''}`,
         active: selectedEdgeId !== null,
-        onEscape: () => setSelectedEdgeId(null),
+        onEscape: clearSelectedEdge,
       },
       {
         id: `link-source:${linkSource ?? ''}`,
@@ -973,10 +1043,13 @@ export function DesktopStoryGraphView() {
   type DriftEdgeGeom = {
     id: string;
     kind: string | null;
+    directed: boolean;
     x1: number;
     y1: number;
     x2: number;
     y2: number;
+    targetInsetX: number;
+    targetInsetY: number;
     color: string;
   };
   const [driftEdgeGeom, setDriftEdgeGeom] = useState<DriftEdgeGeom[]>([]);
@@ -1024,10 +1097,16 @@ export function DesktopStoryGraphView() {
         out.push({
           id: edge.id,
           kind: edge.kind,
+          directed:
+            (edge.relationTypeId
+              ? relationTypeById.get(edge.relationTypeId)?.orientation
+              : null) === 'directed',
           x1: r1.left + r1.width / 2,
           y1: r1.top + r1.height / 2,
           x2: r2.left + r2.width / 2,
           y2: r2.top + r2.height / 2,
+          targetInsetX: r2.width / 2 + 6,
+          targetInsetY: r2.height / 2 + 6,
           color: storylineColor,
         });
       }
@@ -1059,7 +1138,15 @@ export function DesktopStoryGraphView() {
       canvas?.removeEventListener('scroll', onScrollOrResize);
       driftHand?.removeEventListener('scroll', onScrollOrResize);
     };
-  }, [driftPanelMounted, nodeEdges, driftIds, positionedById, hiddenKinds, edgeKindMeta.meta]);
+  }, [
+    driftPanelMounted,
+    nodeEdges,
+    driftIds,
+    positionedById,
+    hiddenKinds,
+    edgeKindMeta.meta,
+    relationTypeById,
+  ]);
 
   const draggedMainStorylineId = useMemo(
     () => (draggedNode ? primaryStorylineId(draggedNode) : null),
@@ -1314,36 +1401,36 @@ export function DesktopStoryGraphView() {
                   dismissOnEscape={false}
                   maxHeight={260}
                 >
-                    {unplacedNodes.length === 0 ? (
-                      <div className="graph-head__unplaced-empty">
-                        {t('bottomTimeline.unplaced.empty')}
-                      </div>
-                    ) : (
-                      unplacedNodes.map((node) => {
-                        const primaryId = primaryStorylineId(node);
-                        const sl = primaryId ? storylineById.get(primaryId) : null;
-                        const color = sl?.color || 'hsl(var(--ink-4))';
-                        return (
-                          <div
-                            key={node.id}
-                            className="graph-head__unplaced-chip"
-                            draggable
-                            onDragStart={(e) => handleChipDragStart(e, node)}
-                            onDragEnd={handleDragEnd}
-                            style={{ ['--chip-color' as string]: color } as React.CSSProperties}
-                            title={node.title || t('common.untitled')}
-                          >
-                            <span className="graph-head__unplaced-chip-dot" />
-                            <span className="graph-head__unplaced-chip-num">
-                              § {String(node.bookOrder).padStart(2, '0')}
-                            </span>
-                            <span className="graph-head__unplaced-chip-title">
-                              {node.title || t('common.untitled')}
-                            </span>
-                          </div>
-                        );
-                      })
-                    )}
+                  {unplacedNodes.length === 0 ? (
+                    <div className="graph-head__unplaced-empty">
+                      {t('bottomTimeline.unplaced.empty')}
+                    </div>
+                  ) : (
+                    unplacedNodes.map((node) => {
+                      const primaryId = primaryStorylineId(node);
+                      const sl = primaryId ? storylineById.get(primaryId) : null;
+                      const color = sl?.color || 'hsl(var(--ink-4))';
+                      return (
+                        <div
+                          key={node.id}
+                          className="graph-head__unplaced-chip"
+                          draggable
+                          onDragStart={(e) => handleChipDragStart(e, node)}
+                          onDragEnd={handleDragEnd}
+                          style={{ ['--chip-color' as string]: color } as React.CSSProperties}
+                          title={node.title || t('common.untitled')}
+                        >
+                          <span className="graph-head__unplaced-chip-dot" />
+                          <span className="graph-head__unplaced-chip-num">
+                            § {String(node.bookOrder).padStart(2, '0')}
+                          </span>
+                          <span className="graph-head__unplaced-chip-title">
+                            {node.title || t('common.untitled')}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
                 </AnchoredPopover>
               </div>
             )}
@@ -1410,8 +1497,13 @@ export function DesktopStoryGraphView() {
                 relations={entityRelations.filter(
                   (r) => r.fromKind === 'node' && r.toKind === 'node',
                 )}
+                allProjectRelations={entityRelations}
                 updateRelationKind={updateEdgeKind}
                 deleteRelation={deleteEdge}
+                relationTypes={entityRelationTypes}
+                createRelationType={relationTypeUsecases.createRelationType}
+                updateRelationType={relationTypeUsecases.updateRelationType}
+                deleteRelationType={relationTypeUsecases.deleteRelationType}
                 showStorylineTransit
                 dismissOnEscape={false}
               />
@@ -1794,7 +1886,9 @@ export function DesktopStoryGraphView() {
                           }
                           if (linkSource && linkSource !== node.id) {
                             setNewEdgePair({ source: linkSource, target: node.id });
-                            setNewEdgeKind('');
+                            setNewEdgeTypeId(null);
+                            setNewEdgeReversed(false);
+                            setNewEdgeCreatingType(false);
                             setLinkSource(null);
                             return;
                           }
@@ -1884,11 +1978,28 @@ export function DesktopStoryGraphView() {
               {visibleEdges.map(({ edge, x1, y1, x2, y2, color }) => {
                 const yy1 = tileTopOffset + y1;
                 const yy2 = tileTopOffset + y2;
-                const midY = (yy1 + yy2) / 2;
-                const d = `M ${x1} ${yy1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${yy2}`;
+                const directed =
+                  (edge.relationTypeId
+                    ? relationTypeById.get(edge.relationTypeId)?.orientation
+                    : null) === 'directed';
+                const markerId = relationArrowMarkerId('story-world-arrow', edge.id);
+                const d = relationEdgePath({
+                  x1,
+                  y1: yy1,
+                  x2,
+                  y2: yy2,
+                  directed,
+                  targetInsetX: (GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT) / 2 + 7,
+                  targetInsetY: GRAPH_CONFIG.TILE_HEIGHT / 2 + 7,
+                });
                 const selected = isEdgeSelected(edge.id);
                 return (
                   <g key={edge.id} className={`graph-edge-grp${selected ? ' is-selected' : ''}`}>
+                    {directed && (
+                      <defs>
+                        <RelationArrowMarker id={markerId} color={color} />
+                      </defs>
+                    )}
                     <path
                       d={d}
                       stroke="transparent"
@@ -1897,7 +2008,7 @@ export function DesktopStoryGraphView() {
                       style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedEdgeId(edge.id);
+                        selectEdge(edge.id, e.clientX, e.clientY);
                       }}
                     >
                       <title>{edge.kind ?? t('storyGraph.edge.uncategorized')}</title>
@@ -1908,6 +2019,7 @@ export function DesktopStoryGraphView() {
                       strokeWidth={selected ? 2.4 : 1.8}
                       fill="none"
                       opacity={selected ? 1 : 0.85}
+                      markerEnd={directed ? `url(#${markerId})` : undefined}
                       style={{ pointerEvents: 'none' }}
                     />
                   </g>
@@ -1915,37 +2027,6 @@ export function DesktopStoryGraphView() {
               })}
             </svg>
           )}
-
-          {/* Floating × badge at the midpoint of the selected storyline
-              edge. Click → delete immediately. Left is in scroll-content
-              coords, so we add RAIL_WIDTH to the SVG's track-relative
-              midX. */}
-          {selectedEdgeId &&
-            (() => {
-              const sel = visibleEdges.find((v) => v.edge.id === selectedEdgeId);
-              if (!sel) return null;
-              const yy1 = tileTopOffset + sel.y1;
-              const yy2 = tileTopOffset + sel.y2;
-              const midX = (sel.x1 + sel.x2) / 2;
-              const midY = (yy1 + yy2) / 2;
-              return (
-                <button
-                  type="button"
-                  className="graph-edge-delete"
-                  style={{ left: GRAPH_CONFIG.RAIL_WIDTH + midX, top: midY }}
-                  title={t('storyGraph.edge.delete')}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const id = selectedEdgeId;
-                    setSelectedEdgeId(null);
-                    void deleteEdge(id);
-                  }}
-                  aria-label={t('storyGraph.edge.delete')}
-                >
-                  ×
-                </button>
-              );
-            })()}
 
           {/* Drop indicator while dragging — `indicatorX` is already the
               cursor's full scroll-content x (includes the rail), so it
@@ -2089,7 +2170,9 @@ export function DesktopStoryGraphView() {
                   }
                   if (linkSource && linkSource !== node.id) {
                     setNewEdgePair({ source: linkSource, target: node.id });
-                    setNewEdgeKind('');
+                    setNewEdgeTypeId(null);
+                    setNewEdgeReversed(false);
+                    setNewEdgeCreatingType(false);
                     setLinkSource(null);
                     return;
                   }
@@ -2150,14 +2233,24 @@ export function DesktopStoryGraphView() {
             </filter>
           </defs>
           {driftEdgeGeom.map((g) => {
-            // Cubic curve with vertical handles so the curve eases out of
-            // each endpoint along the y-axis — feels right when one end is
-            // in the bottom panel and the other up in the canvas.
-            const midY = (g.y1 + g.y2) / 2;
-            const d = `M ${g.x1} ${g.y1} C ${g.x1} ${midY}, ${g.x2} ${midY}, ${g.x2} ${g.y2}`;
+            const markerId = relationArrowMarkerId('story-drift-arrow', g.id);
+            const d = relationEdgePath({
+              x1: g.x1,
+              y1: g.y1,
+              x2: g.x2,
+              y2: g.y2,
+              directed: g.directed,
+              targetInsetX: g.targetInsetX,
+              targetInsetY: g.targetInsetY,
+            });
             const selected = isEdgeSelected(g.id);
             return (
               <g key={g.id} className={`graph-drift-edge${selected ? ' is-selected' : ''}`}>
+                {g.directed && (
+                  <defs>
+                    <RelationArrowMarker id={markerId} color={g.color} />
+                  </defs>
+                )}
                 <path
                   className="graph-drift-edge__hit"
                   d={d}
@@ -2166,47 +2259,39 @@ export function DesktopStoryGraphView() {
                   fill="none"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSelectedEdgeId(g.id);
+                    selectEdge(g.id, e.clientX, e.clientY);
                   }}
                 >
                   <title>{g.kind ?? t('storyGraph.edge.uncategorized')}</title>
                 </path>
                 <path className="graph-drift-edge__halo" d={d} stroke={g.color} />
-                <path className="graph-drift-edge__line" d={d} stroke={g.color} />
+                <path
+                  className="graph-drift-edge__line"
+                  d={d}
+                  stroke={g.color}
+                  markerEnd={g.directed ? `url(#${markerId})` : undefined}
+                />
               </g>
             );
           })}
         </svg>
       )}
 
-      {/* Fixed-position × badge for the selected drift edge. Mirrors
-          the storyline-edge badge but rides at viewport coordinates
-          since the drift edge SVG itself does. */}
-      {driftPanelOpen &&
-        selectedEdgeId &&
-        (() => {
-          const sel = driftEdgeGeom.find((g) => g.id === selectedEdgeId);
-          if (!sel) return null;
-          const midX = (sel.x1 + sel.x2) / 2;
-          const midY = (sel.y1 + sel.y2) / 2;
-          return (
-            <button
-              type="button"
-              className="graph-edge-delete is-floating"
-              style={{ left: midX, top: midY }}
-              title={t('storyGraph.edge.delete')}
-              onClick={(e) => {
-                e.stopPropagation();
-                const id = selectedEdgeId;
-                setSelectedEdgeId(null);
-                void deleteEdge(id);
-              }}
-              aria-label={t('storyGraph.edge.delete')}
-            >
-              ×
-            </button>
-          );
-        })()}
+      {selectedEdgeAnchor && selectedEdgeRelation && (
+        <RelationEdgePopover
+          anchor={selectedEdgeAnchor}
+          relation={selectedEdgeRelation}
+          relationType={selectedEdgeType}
+          sourceLabel={nodeById.get(selectedEdgeRelation.fromId)?.title || t('common.untitled')}
+          targetLabel={nodeById.get(selectedEdgeRelation.toId)?.title || t('common.untitled')}
+          color={resolveKindColor(selectedEdgeRelation.kind)}
+          onDelete={() => {
+            const id = selectedEdgeRelation.id;
+            clearSelectedEdge();
+            void deleteEdge(id);
+          }}
+        />
+      )}
 
       {/* Status banner when a relation-source tile has been picked. */}
       {linkSource && !newEdgePair && (
@@ -2220,49 +2305,94 @@ export function DesktopStoryGraphView() {
         </div>
       )}
 
-      {/* New-edge dialog: prompts for the user-defined `kind`. Empty input
-          means "uncategorized" (null kind). */}
+      {/* New-edge dialog: chooses a compatible project relation type and lets
+          the author make directed endpoint intent explicit. */}
       {newEdgePair && (
         <div
           className="graph-newedge-backdrop"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setNewEdgePair(null);
+            if (e.target === e.currentTarget) closeNewEdgeDialog();
           }}
         >
-          <div className="graph-newedge">
+          <div className={`graph-newedge${newEdgeCreatingType ? ' is-creating-type' : ''}`}>
             <div className="graph-newedge__head">{t('storyGraph.edge.newTitle')}</div>
             <div className="graph-newedge__pair">
-              <span>{nodeById.get(newEdgePair.source)?.title || t('common.untitled')}</span>
-              <span aria-hidden>→</span>
-              <span>{nodeById.get(newEdgePair.target)?.title || t('common.untitled')}</span>
+              <span>
+                {nodeById.get(newEdgeReversed ? newEdgePair.target : newEdgePair.source)?.title ||
+                  t('common.untitled')}
+              </span>
+              <button
+                type="button"
+                className="graph-newedge__swap"
+                onClick={() => {
+                  setNewEdgeReversed((value) => !value);
+                  setNewEdgeTypeId(null);
+                  setNewEdgeCreatingType(false);
+                }}
+                title={t('relationTypes.swap')}
+              >
+                ⇄
+              </button>
+              <span>
+                {nodeById.get(newEdgeReversed ? newEdgePair.source : newEdgePair.target)?.title ||
+                  t('common.untitled')}
+              </span>
             </div>
-            <label className="graph-newedge__label">{t('storyGraph.edge.kindLabel')}</label>
-            <RelationKindField
-              className="graph-newedge__select"
-              inputClassName="graph-newedge__input"
-              autoFocus
-              value={newEdgeKind}
-              onChange={setNewEdgeKind}
-              options={[...regularKinds, ...driftOnlyKinds].filter(
-                (kind) => kind !== UNCATEGORIZED_KIND,
-              )}
-              resolveOptionColor={resolveKindColor}
-              placeholder={t('storyGraph.edge.kindPlaceholder')}
-              ariaLabel={t('storyGraph.edge.kindLabel')}
-              onSubmit={() => {
-                const trimmed = newEdgeKind.trim();
-                void createEdge(newEdgePair.source, newEdgePair.target, trimmed || null);
-                setNewEdgePair(null);
-              }}
-            />
+            <div className="relation-type-modal__heading">
+              <label className="graph-newedge__label">{t('storyGraph.edge.kindLabel')}</label>
+              <button
+                type="button"
+                className="relation-type-modal__create"
+                onClick={() => setNewEdgeCreatingType((value) => !value)}
+              >
+                {newEdgeCreatingType
+                  ? t('relationTypes.chooseExisting')
+                  : `＋ ${t('relationTypes.createInline')}`}
+              </button>
+            </div>
+            {newEdgeCreatingType ? (
+              <RelationTypeEditor
+                key={`node:node:${newEdgeReversed ? 'reversed' : 'forward'}`}
+                initialSourceKinds={['node']}
+                initialTargetKinds={['node']}
+                onCancel={() => setNewEdgeCreatingType(false)}
+                onSave={async (definition) => {
+                  const checked = validateRelationTypeDefinitionAgainstRelation(definition, {
+                    fromKind: 'node',
+                    fromId: newEdgeReversed ? newEdgePair.target : newEdgePair.source,
+                    toKind: 'node',
+                    toId: newEdgeReversed ? newEdgePair.source : newEdgePair.target,
+                  });
+                  if (!checked.ok) throw new Error(checked.message);
+                  const created = await relationTypeUsecases.createRelationType(definition);
+                  setNewEdgeTypeId(created.id);
+                  setNewEdgeCreatingType(false);
+                }}
+              />
+            ) : (
+              <RelationTypeField
+                className="graph-newedge__select"
+                buttonClassName="graph-newedge__input relation-type-field__button"
+                autoFocus
+                value={newEdgeTypeId}
+                onChange={setNewEdgeTypeId}
+                options={newEdgeTypeOptions}
+                resolveOptionColor={(name) => resolveKindColor(name)}
+                placeholder={t('storyGraph.edge.kindPlaceholder')}
+                ariaLabel={t('storyGraph.edge.kindLabel')}
+              />
+            )}
             <div className="graph-newedge__actions">
-              <button onClick={() => setNewEdgePair(null)}>{t('common.cancel')}</button>
+              <button onClick={closeNewEdgeDialog}>{t('common.cancel')}</button>
               <button
                 className="is-primary"
+                disabled={!newEdgeTypeId}
                 onClick={() => {
-                  const trimmed = newEdgeKind.trim();
-                  void createEdge(newEdgePair.source, newEdgePair.target, trimmed || null);
-                  setNewEdgePair(null);
+                  if (!newEdgeTypeId) return;
+                  const source = newEdgeReversed ? newEdgePair.target : newEdgePair.source;
+                  const target = newEdgeReversed ? newEdgePair.source : newEdgePair.target;
+                  void createEdge(source, target, newEdgeTypeId);
+                  closeNewEdgeDialog();
                 }}
               >
                 {t('storyGraph.edge.create')}

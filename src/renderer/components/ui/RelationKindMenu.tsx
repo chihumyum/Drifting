@@ -1,5 +1,15 @@
 import { useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  ALL_ENTITY_KINDS,
+  STRUCTURAL_ENTITY_KINDS,
+  type EntityRefSourceKind,
+  type EntityRefTargetKind,
+} from '../../domain/entity-kinds';
+import type {
+  EntityRelationType,
+  EntityRelationTypeDefinition,
+} from '../../domain/entity-relation-type';
 import type { EntityRelationLink } from '../../store/data-store';
 import { AnchoredPopover } from './AnchoredPopover';
 import { FilterChip } from './FilterChip';
@@ -34,10 +44,202 @@ export interface RelationKindMenuProps {
   removeMeta: (kind: string | null) => void;
   /** Relations managed by this view. Rename/delete never escape this scope. */
   relations: EntityRelationLink[];
+  /** All project relations, used only for first-class type usage guards. */
+  allProjectRelations?: readonly EntityRelationLink[];
   updateRelationKind: (id: string, kind: string | null) => Promise<unknown>;
   deleteRelation: (id: string) => Promise<unknown>;
+  relationTypes?: readonly EntityRelationType[];
+  createRelationType?: (definition: EntityRelationTypeDefinition) => Promise<unknown>;
+  updateRelationType?: (id: string, definition: EntityRelationTypeDefinition) => Promise<unknown>;
+  deleteRelationType?: (id: string) => Promise<unknown>;
   showStorylineTransit?: boolean;
   dismissOnEscape?: boolean;
+}
+
+export function RelationTypeEditor({
+  value,
+  initialSourceKinds,
+  initialTargetKinds,
+  onSave,
+  onCancel,
+}: {
+  value?: EntityRelationType;
+  initialSourceKinds?: readonly EntityRefSourceKind[];
+  initialTargetKinds?: readonly EntityRefTargetKind[];
+  onSave: (definition: EntityRelationTypeDefinition) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation();
+  const [name, setName] = useState(value?.name ?? '');
+  const [description, setDescription] = useState(value?.description ?? '');
+  const [orientation, setOrientation] = useState<'directed' | 'symmetric'>(
+    value?.orientation === 'symmetric' ? 'symmetric' : 'directed',
+  );
+  const [sourceRole, setSourceRole] = useState(
+    value?.sourceRole || t('relationTypes.defaultSourceRole'),
+  );
+  const [targetRole, setTargetRole] = useState(
+    value?.targetRole || t('relationTypes.defaultTargetRole'),
+  );
+  const [sourceKinds, setSourceKinds] = useState<EntityRefSourceKind[]>(
+    value?.sourceKinds.length
+      ? [...value.sourceKinds]
+      : initialSourceKinds?.length
+        ? [...initialSourceKinds]
+        : [...ALL_ENTITY_KINDS],
+  );
+  const [targetKinds, setTargetKinds] = useState<EntityRefTargetKind[]>(
+    value?.targetKinds.length
+      ? [...value.targetKinds]
+      : initialTargetKinds?.length
+        ? [...initialTargetKinds]
+        : [...STRUCTURAL_ENTITY_KINDS],
+  );
+  const [error, setError] = useState('');
+
+  const changeOrientation = (nextOrientation: 'directed' | 'symmetric') => {
+    setOrientation(nextOrientation);
+    if (nextOrientation !== 'symmetric') return;
+    const shared = STRUCTURAL_ENTITY_KINDS.filter(
+      (kind) => sourceKinds.includes(kind) || targetKinds.includes(kind),
+    );
+    setSourceKinds(shared);
+    setTargetKinds(shared);
+  };
+
+  const toggleSourceKind = (kind: EntityRefSourceKind) => {
+    const next = sourceKinds.includes(kind)
+      ? sourceKinds.filter((candidate) => candidate !== kind)
+      : [...sourceKinds, kind];
+    setSourceKinds(next);
+    if (
+      orientation === 'symmetric' &&
+      STRUCTURAL_ENTITY_KINDS.includes(kind as EntityRefTargetKind)
+    ) {
+      setTargetKinds(
+        next.filter((candidate): candidate is EntityRefTargetKind =>
+          STRUCTURAL_ENTITY_KINDS.includes(candidate as EntityRefTargetKind),
+        ),
+      );
+    }
+  };
+  const toggleTargetKind = (kind: EntityRefTargetKind) => {
+    const next = targetKinds.includes(kind)
+      ? targetKinds.filter((candidate) => candidate !== kind)
+      : [...targetKinds, kind];
+    setTargetKinds(next);
+    if (orientation === 'symmetric') setSourceKinds(next);
+  };
+
+  return (
+    <div className="relation-type-editor">
+      <div className="relation-type-editor__grid">
+        <label>
+          <span>{t('relationTypes.name')}</span>
+          <input value={name} onChange={(event) => setName(event.target.value)} autoFocus />
+        </label>
+        <label>
+          <span>{t('relationTypes.direction')}</span>
+          <select
+            value={orientation}
+            onChange={(event) => changeOrientation(event.target.value as 'directed' | 'symmetric')}
+          >
+            <option value="directed">{t('relationTypes.directed')}</option>
+            <option value="symmetric">{t('relationTypes.symmetric')}</option>
+          </select>
+        </label>
+        <label>
+          <span>
+            {orientation === 'symmetric'
+              ? t('relationTypes.endpointRole')
+              : t('relationTypes.sourceRole')}
+          </span>
+          <input value={sourceRole} onChange={(event) => setSourceRole(event.target.value)} />
+        </label>
+        {orientation === 'directed' && (
+          <label>
+            <span>{t('relationTypes.targetRole')}</span>
+            <input value={targetRole} onChange={(event) => setTargetRole(event.target.value)} />
+          </label>
+        )}
+      </div>
+      <label className="relation-type-editor__description">
+        <span>{t('relationTypes.description')}</span>
+        <input value={description} onChange={(event) => setDescription(event.target.value)} />
+      </label>
+      <div className="relation-type-editor__endpoint-row">
+        <span>
+          {orientation === 'symmetric'
+            ? t('relationTypes.allowedEntities')
+            : t('relationTypes.allowedSources')}
+        </span>
+        <div>
+          {ALL_ENTITY_KINDS.map((kind) => (
+            <label key={kind}>
+              <input
+                type="checkbox"
+                checked={sourceKinds.includes(kind)}
+                disabled={
+                  orientation === 'symmetric' &&
+                  !STRUCTURAL_ENTITY_KINDS.includes(kind as EntityRefTargetKind)
+                }
+                onChange={() => toggleSourceKind(kind)}
+              />
+              {t(`relationTypes.entityKinds.${kind}`)}
+            </label>
+          ))}
+        </div>
+      </div>
+      {orientation === 'directed' && (
+        <div className="relation-type-editor__endpoint-row">
+          <span>{t('relationTypes.allowedTargets')}</span>
+          <div>
+            {STRUCTURAL_ENTITY_KINDS.map((kind) => (
+              <label key={kind}>
+                <input
+                  type="checkbox"
+                  checked={targetKinds.includes(kind)}
+                  onChange={() => toggleTargetKind(kind)}
+                />
+                {t(`relationTypes.entityKinds.${kind}`)}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+      {error && <div className="relation-type-editor__error">{error}</div>}
+      <div className="relation-type-editor__actions">
+        <button type="button" onClick={onCancel}>
+          {t('relationTypes.cancel')}
+        </button>
+        <button
+          type="button"
+          className="is-primary"
+          onClick={() => {
+            setError('');
+            void onSave({
+              name,
+              description,
+              orientation,
+              sourceRole,
+              targetRole: orientation === 'symmetric' ? sourceRole : targetRole,
+              sourceKinds,
+              targetKinds:
+                orientation === 'symmetric'
+                  ? sourceKinds.filter((kind): kind is EntityRefTargetKind =>
+                      STRUCTURAL_ENTITY_KINDS.includes(kind as EntityRefTargetKind),
+                    )
+                  : targetKinds,
+            }).catch((reason) =>
+              setError(reason instanceof Error ? reason.message : String(reason)),
+            );
+          }}
+        >
+          {t('relationTypes.save')}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -61,17 +263,26 @@ export function RelationKindMenu({
   reassignMeta,
   removeMeta,
   relations,
+  allProjectRelations = relations,
   updateRelationKind,
   deleteRelation,
+  relationTypes = [],
+  createRelationType,
+  updateRelationType,
+  deleteRelationType,
   showStorylineTransit = false,
   dismissOnEscape = true,
 }: RelationKindMenuProps) {
   const { t } = useTranslation();
   const [editingName, setEditingName] = useState<string | null>(null);
   const [pickingColor, setPickingColor] = useState<string | null>(null);
+  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
+  const [creatingType, setCreatingType] = useState(false);
+  const managesRelationTypes = Boolean(
+    createRelationType && updateRelationType && deleteRelationType,
+  );
 
-  const dataKind = (kind: string) =>
-    kind === UNCATEGORIZED_RELATION_KIND ? null : kind;
+  const dataKind = (kind: string) => (kind === UNCATEGORIZED_RELATION_KIND ? null : kind);
   const visibleKindCount = kinds.filter((kind) => !hiddenKinds.has(kind)).length;
 
   const handleRename = async (oldKind: string, newKindRaw: string) => {
@@ -99,10 +310,7 @@ export function RelationKindMenu({
   };
 
   const handleDelete = async (kind: string) => {
-    const label =
-      kind === UNCATEGORIZED_RELATION_KIND
-        ? t('storyGraph.edge.uncategorized')
-        : kind;
+    const label = kind === UNCATEGORIZED_RELATION_KIND ? t('storyGraph.edge.uncategorized') : kind;
     if (!window.confirm(t('edgeKindManager.confirmDeleteKind', { label }))) return;
     const target = dataKind(kind);
     const affected = relations.filter((relation) => (relation.kind ?? null) === target);
@@ -148,18 +356,14 @@ export function RelationKindMenu({
       </div>
 
       <section className="relation-kind-menu__section">
-        <div className="relation-kind-menu__section-label">
-          {t('edgeKindManager.filterLabel')}
-        </div>
+        <div className="relation-kind-menu__section-label">{t('edgeKindManager.filterLabel')}</div>
         {kinds.length === 0 ? (
           <div className="relation-kind-menu__empty">{t('edgeKindManager.empty')}</div>
         ) : (
           <div className="relation-kind-menu__chips">
             {kinds.map((kind) => {
               const label =
-                kind === UNCATEGORIZED_RELATION_KIND
-                  ? t('storyGraph.edge.uncategorized')
-                  : kind;
+                kind === UNCATEGORIZED_RELATION_KIND ? t('storyGraph.edge.uncategorized') : kind;
               const active = !hiddenKinds.has(kind);
               return (
                 <FilterChip
@@ -185,7 +389,126 @@ export function RelationKindMenu({
         )}
       </section>
 
-      {kinds.length > 0 && (
+      {managesRelationTypes && (
+        <section className="relation-kind-menu__section relation-kind-menu__section--manage">
+          <div className="relation-kind-menu__section-title-row">
+            <div className="relation-kind-menu__section-label">{t('relationTypes.title')}</div>
+            <button type="button" onClick={() => setCreatingType(true)}>
+              ＋ {t('relationTypes.create')}
+            </button>
+          </div>
+          {creatingType && (
+            <RelationTypeEditor
+              onCancel={() => setCreatingType(false)}
+              onSave={async (definition) => {
+                await createRelationType!(definition);
+                setCreatingType(false);
+              }}
+            />
+          )}
+          {relationTypes.map((type) => {
+            const usageCount = allProjectRelations.filter(
+              (relation) => relation.relationTypeId === type.id,
+            ).length;
+            const colorPickerKey = `relation-type:${type.id}`;
+            const isPickingTypeColor = pickingColor === colorPickerKey;
+            if (editingTypeId === type.id) {
+              return (
+                <RelationTypeEditor
+                  key={type.id}
+                  value={type}
+                  onCancel={() => setEditingTypeId(null)}
+                  onSave={async (definition) => {
+                    await updateRelationType!(type.id, definition);
+                    const nextName = definition.name.trim();
+                    if (type.name !== nextName) {
+                      reassignMeta(type.name, nextName);
+                      if (hiddenKinds.has(type.name)) {
+                        onToggleKind(type.name);
+                        if (!hiddenKinds.has(nextName)) onToggleKind(nextName);
+                      }
+                    }
+                    setEditingTypeId(null);
+                  }}
+                />
+              );
+            }
+            return (
+              <div key={type.id} className="relation-kind-menu__row relation-kind-menu__row--type">
+                <button
+                  type="button"
+                  className="relation-kind-menu__swatch"
+                  style={{ background: resolveKindColor(type.name) }}
+                  title={t('edgeKindManager.changeColor')}
+                  aria-label={t('edgeKindManager.changeColorLabel', { label: type.name })}
+                  onClick={() => setPickingColor(isPickingTypeColor ? null : colorPickerKey)}
+                />
+                {isPickingTypeColor && (
+                  <div className="relation-kind-menu__palette" role="listbox">
+                    {KIND_PALETTE.map((paletteColor) => (
+                      <button
+                        key={paletteColor}
+                        type="button"
+                        className="relation-kind-menu__palette-dot"
+                        style={{ background: paletteColor }}
+                        onClick={() => {
+                          setKindColor(type.name, paletteColor);
+                          setPickingColor(null);
+                        }}
+                      />
+                    ))}
+                    <button
+                      type="button"
+                      className="relation-kind-menu__palette-reset"
+                      title={t('edgeKindManager.resetColor')}
+                      onClick={() => {
+                        clearKindColor(type.name);
+                        setPickingColor(null);
+                      }}
+                    >
+                      ↺
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="relation-kind-menu__name"
+                  onClick={() => setEditingTypeId(type.id)}
+                >
+                  {type.name}
+                  <small>
+                    {type.orientation === 'unconfigured'
+                      ? t('relationTypes.pending')
+                      : type.orientation === 'symmetric'
+                        ? t('relationTypes.symmetricSummary', { role: type.sourceRole })
+                        : `${type.sourceRole} → ${type.targetRole}`}
+                  </small>
+                </button>
+                <span className="relation-kind-menu__count">{usageCount}</span>
+                <button
+                  type="button"
+                  className="relation-kind-menu__delete"
+                  disabled={usageCount > 0}
+                  title={usageCount > 0 ? t('relationTypes.inUse') : t('relationTypes.delete')}
+                  onClick={() => {
+                    if (!window.confirm(t('relationTypes.confirmDelete', { name: type.name })))
+                      return;
+                    void deleteRelationType!(type.id)
+                      .then(() => removeMeta(type.name))
+                      .catch((reason) =>
+                        window.alert(reason instanceof Error ? reason.message : String(reason)),
+                      );
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+        </section>
+      )}
+
+      {!managesRelationTypes && kinds.length > 0 && (
         <section className="relation-kind-menu__section relation-kind-menu__section--manage">
           <div className="relation-kind-menu__section-label">
             {t('edgeKindManager.manageLabel')}
@@ -244,9 +567,7 @@ export function RelationKindMenu({
                         : undefined
                     }
                     autoFocus
-                    onBlur={(event) =>
-                      void handleRename(kind, event.currentTarget.value)
-                    }
+                    onBlur={(event) => void handleRename(kind, event.currentTarget.value)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') event.currentTarget.blur();
                       if (event.key === 'Escape') setEditingName(null);

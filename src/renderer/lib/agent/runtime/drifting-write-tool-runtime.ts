@@ -1708,7 +1708,8 @@ type FreshnessReadToolName =
   | 'get_overview'
   | 'list_comments'
   | 'list_memory'
-  | 'get_entity_relations';
+  | 'get_entity_relations'
+  | 'get_relation_types';
 
 type FreshnessEntityKind =
   | 'node'
@@ -1723,6 +1724,7 @@ type FreshnessEntityKind =
   | 'category'
   | 'comment'
   | 'relation'
+  | 'relation_type'
   | 'storyline_membership'
   | 'memory_set'
   | 'memory'
@@ -1778,6 +1780,9 @@ function reconciliationFreshnessTarget(
   }
   if (toolName === 'update_memory' || toolName === 'forget') {
     return { readToolNames: ['list_memory'], entityKind: 'memory' };
+  }
+  if (toolName === 'update_relation_type' || toolName === 'delete_relation_type') {
+    return { readToolNames: ['get_relation_types'], entityKind: 'relation_type' };
   }
   if (PROJECT_FRESHNESS_WRITE_TOOLS.has(toolName)) {
     return {
@@ -2210,6 +2215,15 @@ async function resolveWriteFreshnessTarget(
       currentRevision: relation.updatedAt,
     };
   }
+  if (request.name === 'update_relation_type' || request.name === 'delete_relation_type') {
+    const relationType = resolveProjectRelationType(projectId, request.arguments.relationType);
+    return {
+      readToolNames: ['get_relation_types'],
+      entityKind: 'relation_type',
+      entityId: relationType.id,
+      currentRevision: relationType.updatedAt,
+    };
+  }
   if (isProseWriteTool(request.name)) {
     const entity = resolveWriteTargetProseEntity(request);
     return {
@@ -2317,6 +2331,26 @@ function resolveProjectRelation(projectId: string, value: unknown) {
   return relation;
 }
 
+function resolveProjectRelationType(projectId: string, value: unknown) {
+  const ref = String(value ?? '').trim();
+  const types = useDataStore
+    .getState()
+    .entityRelationTypes.filter((candidate) => candidate.projectId === projectId);
+  const direct = types.find((candidate) => candidate.id === ref);
+  if (direct) return direct;
+  const matches = types.filter(
+    (candidate) => candidate.name.trim().toLocaleLowerCase() === ref.toLocaleLowerCase(),
+  );
+  if (matches.length !== 1) {
+    throw new Error(
+      matches.length === 0
+        ? `No relation type "${ref}" exists in this project`
+        : `Relation type reference "${ref}" is ambiguous`,
+    );
+  }
+  return matches[0]!;
+}
+
 function resolveWriteTargetProseEntity(request: WriteFreshnessRequest) {
   const projectId = request.context.route.projectId;
   if (!projectId) throw new Error(`${request.name} requires a project-scoped entity`);
@@ -2377,6 +2411,7 @@ const PROJECT_FRESHNESS_WRITE_TOOLS = new Set([
   'create_storyline',
   'create_category',
   'add_relation',
+  'create_relation_type',
 ]);
 
 function isProseWriteTool(name: string): boolean {

@@ -40,9 +40,7 @@ describe('workspace surface language acceptance', () => {
     const workspaceNavigation = source(
       'src/renderer/components/topBars/WorkspaceNavigationButtons.tsx',
     );
-    const superHeader = source(
-      'src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx',
-    );
+    const superHeader = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
     const rightTopbar = source('src/renderer/components/topBars/RightSidebarTopBar.tsx');
     const userMenu = source('src/renderer/components/topBars/UserMenu.tsx');
     const notification = source('src/renderer/components/notifications/NotificationPill.tsx');
@@ -59,7 +57,9 @@ describe('workspace surface language acceptance', () => {
     expect(leftTopbar).toContain('<WorkspaceNavigationButtons />');
     expect(workspaceNavigation.match(/<GhostIconButton/g)).toHaveLength(2);
     expect(workspaceNavigation).toContain('icon={<Home size={16}');
-    expect(workspaceNavigation).toContain("import { IconoirPageFlip } from '../ui/icons/IconoirPageFlip'");
+    expect(workspaceNavigation).toContain(
+      "import { IconoirPageFlip } from '../ui/icons/IconoirPageFlip'",
+    );
     expect(workspaceNavigation).toContain('icon={<IconoirPageFlip width={16} height={16}');
     expect(source('src/renderer/components/ui/icons/IconoirPageFlip.tsx')).toContain(
       'Iconoir `page-flip`, MIT licensed',
@@ -72,7 +72,9 @@ describe('workspace surface language acceptance', () => {
     );
     expect(workspaceNavigation).toContain('const superDestinationActive = activeSuperView !==');
     expect(workspaceNavigation).toContain('state.lastActiveSuperView');
-    expect(workspaceNavigation).toContain("lastActiveSuperView ?? ('element' satisfies SuperViewId)");
+    expect(workspaceNavigation).toContain(
+      "lastActiveSuperView ?? ('element' satisfies SuperViewId)",
+    );
     expect(workspaceNavigation).toContain('<span>SUPER</span>');
     expect(workspaceNavigation).not.toContain('ChevronDown');
     expect(workspaceNavigation).not.toContain('<AnchoredPopover');
@@ -121,9 +123,9 @@ describe('workspace surface language acceptance', () => {
     expect(userMenu).toContain('dismissOnEscape={activeSettingsPage === null}');
     expect(copilot).toContain('export function CopilotQuickSettings');
     expect(copilot).not.toContain('<GhostIconButton');
-    expect(
-      existsSync(resolve(process.cwd(), 'src/renderer/components/ShadowQuickMenu.tsx')),
-    ).toBe(false);
+    expect(existsSync(resolve(process.cwd(), 'src/renderer/components/ShadowQuickMenu.tsx'))).toBe(
+      false,
+    );
 
     expect(footer).toContain('<footer className="bsb app-plane"');
     expect(footer.match(/<button/g)).toHaveLength(1);
@@ -373,25 +375,19 @@ describe('workspace surface language acceptance', () => {
     );
     expect(unaffiliatedGroup).toContain('<GroupHeaderCell');
     expect(unaffiliatedGroup).toContain("name={t('leftSidebar.groups.unaffiliated')}");
-    expect(unaffiliatedGroup).toContain(
-      'collapsed={collapsedGroupIds.has(UNAFFILIATED_GROUP_ID)}',
-    );
+    expect(unaffiliatedGroup).toContain('collapsed={collapsedGroupIds.has(UNAFFILIATED_GROUP_ID)}');
     expect(unaffiliatedGroup).toContain(
       'onToggleCollapsed={() => toggleGroupCollapsed(UNAFFILIATED_GROUP_ID)}',
     );
     expect(unaffiliatedGroup).toContain('onAdd={() => void handleCreateNode(null)}');
     expect(unaffiliatedGroup).toContain('unaffiliatedChapters.map((node) => renderNodeCard(node))');
-    expect(chapterPanel).toContain(
-      "const UNAFFILIATED_STRIPE_COLOR = 'hsl(var(--ink-4))';",
-    );
+    expect(chapterPanel).toContain("const UNAFFILIATED_STRIPE_COLOR = 'hsl(var(--ink-4))';");
     expect(chapterPanel).toContain(
       'const stripeColor = storyline?.color ?? UNAFFILIATED_STRIPE_COLOR;',
     );
     expect(chapterPanel).not.toContain("const stripeColor = storyline?.color ?? 'transparent';");
     expect(store).not.toContain('chapterUnaffiliatedFooterHeight');
-    expect(designSystem).toContain(
-      '“未归属”复用普通故事线组的 header、计数、折叠与新增章节交互',
-    );
+    expect(designSystem).toContain('“未归属”复用普通故事线组的 header、计数、折叠与新增章节交互');
     expect(designSystem).toContain('固定追加在全部真实故事线之后');
     expect(designSystem).toContain('左侧 label 使用与组头一致的 `--ink-4` 中性灰');
   });
@@ -406,9 +402,7 @@ describe('workspace surface language acceptance', () => {
       source('src/renderer/shells/desktop/views/DesktopBottomTimeline.tsx'),
     ];
 
-    expect(css).toContain(
-      '--entity-hover-card-shadow: 0 1px 4px -3px hsl(var(--ink-1) / 0.14);',
-    );
+    expect(css).toContain('--entity-hover-card-shadow: 0 1px 4px -3px hsl(var(--ink-1) / 0.14);');
     expect(hoverCard).toContain("boxShadow: 'var(--entity-hover-card-shadow)'");
     expect(hoverCard).not.toContain('0 12px 28px -14px');
     for (const consumer of consumers) {
@@ -563,13 +557,12 @@ describe('workspace surface language acceptance', () => {
     const settings = source('src/renderer/features/settings/desktop/DesktopSettingsModal.tsx');
     const driftPanel = source('src/renderer/components/DriftPanel.tsx');
     const driftCss = source('src/styles/drift-panel.css');
-    const relationKindField = source('src/renderer/components/ui/RelationKindField.tsx');
-    const superElement = source(
-      'src/renderer/shells/desktop/views/DesktopSuperElementView.tsx',
-    );
-    const storyGraph = source(
-      'src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx',
-    );
+    const relationTypeField = source('src/renderer/components/ui/RelationTypeField.tsx');
+    const relationKindMenu = source('src/renderer/components/ui/RelationKindMenu.tsx');
+    const superElement = source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx');
+    const storyGraph = source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx');
+    const edgePopover = source('src/renderer/components/graph/RelationEdgePopover.tsx');
+    const edgePopoverCss = source('src/styles/relation-edge-popover.css');
     const libraryCard = source('src/renderer/features/library/LibraryItemCard.tsx');
 
     expect(sharedHeader).toContain("import { ArrowLeft } from 'lucide-react'");
@@ -584,15 +577,36 @@ describe('workspace surface language acceptance', () => {
       'border-radius: 50%;',
     );
 
-    expect(relationKindField).toContain('<AnchoredPopover');
-    expect(relationKindField).toContain('className="relation-kind-suggestions"');
-    expect(relationKindField).not.toContain("position: 'absolute'");
-    expect(superElement).toContain('<RelationKindField');
-    expect(storyGraph).toContain('<RelationKindField');
-    expect(libraryCard).toContain("maxHeight: isTextExpanded || pickerOpen ? 'none' : 320");
-    expect(libraryCard).toContain(
-      "overflow: isTextExpanded || pickerOpen ? 'visible' : 'hidden'",
+    expect(relationTypeField).toContain('<AnchoredPopover');
+    expect(relationTypeField).toContain(
+      'className="relation-kind-suggestions relation-type-suggestions"',
     );
+    expect(relationTypeField).not.toContain("position: 'absolute'");
+    expect(relationKindMenu).toContain('setKindColor(type.name, paletteColor)');
+    expect(relationKindMenu).toContain('reassignMeta(type.name, nextName)');
+    expect(relationKindMenu).toContain('export function RelationTypeEditor');
+    expect(superElement).toContain('<RelationTypeField');
+    expect(superElement).toContain('<RelationTypeEditor');
+    expect(superElement).toContain('setPendingLinkTypeId(created.id)');
+    expect(superElement).toContain('<RelationEdgePopover');
+    expect(superElement).toContain('<RelationArrowMarker');
+    expect(superElement).toContain('markerEnd={edge.directed');
+    expect(superElement).not.toContain('data-super-edge-delete');
+    expect(storyGraph).toContain('<RelationTypeField');
+    expect(storyGraph).toContain('<RelationTypeEditor');
+    expect(storyGraph).toContain('setNewEdgeTypeId(created.id)');
+    expect(storyGraph).toContain('<RelationEdgePopover');
+    expect(storyGraph).toContain('<RelationArrowMarker');
+    expect(storyGraph).toContain('markerEnd={directed');
+    expect(storyGraph).not.toContain('graph-edge-delete');
+    expect(edgePopover).toContain("import { createPortal } from 'react-dom'");
+    expect(edgePopover).toContain('data-relation-edge-popover');
+    expect(edgePopover).toContain('relation.fromKind');
+    expect(edgePopover).toContain('relation.toKind');
+    expect(edgePopoverCss).toContain('z-index: 286;');
+    expect(edgePopoverCss).not.toContain('border-left');
+    expect(libraryCard).toContain("maxHeight: isTextExpanded || pickerOpen ? 'none' : 320");
+    expect(libraryCard).toContain("overflow: isTextExpanded || pickerOpen ? 'visible' : 'hidden'");
   });
 
   it('keeps shared controls and high-exposure cards on the compact radius ladder', () => {
@@ -679,9 +693,7 @@ describe('workspace surface language acceptance', () => {
     expect(doc).toContain('不实现同时改变三个区域的三向 resize');
     expect(doc).toContain('只用暗淡文字与黑色文字的切换');
     expect(doc).toContain('footer 横跨整个窗口底部');
-    expect(doc).toContain(
-      '`AppTopbar` 的固定顺序是搜索、左栏 toggle、项目主页、通览全书、`SUPER`',
-    );
+    expect(doc).toContain('`AppTopbar` 的固定顺序是搜索、左栏 toggle、项目主页、通览全书、`SUPER`');
     expect(doc).toContain('hover 都只提高前景文字/图标颜色，不绘制额外底色');
     expect(doc).toContain('`BottomStatusBar` 以只读状态为主');
     expect(doc).toContain('唯一的交互例外是 Bottom Timeline');

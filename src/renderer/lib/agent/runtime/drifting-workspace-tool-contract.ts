@@ -20,6 +20,7 @@ export const DRIFTING_DOMAIN_READ_TOOLS = [
   'list_storylines',
   'read_storyline',
   'list_relations',
+  'list_relation_types',
   'list_entity_relations',
   'list_comments',
   'list_author_rules',
@@ -63,6 +64,9 @@ export const DRIFTING_DOMAIN_WRITE_TOOLS = [
   'create_relation',
   'update_relation',
   'delete_relation',
+  'create_relation_type',
+  'update_relation_type',
+  'delete_relation_type',
   'create_comment',
   'update_comment',
   'delete_comment',
@@ -89,6 +93,9 @@ export const DRIFTING_DOMAIN_DIRECT_WRITE_TOOLS = [
   'create_element_patch',
   'update_element_patch',
   'delete_element_patch',
+  'create_relation_type',
+  'update_relation_type',
+  'delete_relation_type',
 ] as const;
 /** Stable semantic receipt used to retire side-effect-free write pairs from
  * provider context without exposing runtime mechanics. */
@@ -143,6 +150,9 @@ export const DRIFTING_WORKSPACE_COMMAND_NAMES = [
   'add_relation',
   'update_relation_kind',
   'remove_relation',
+  'create_relation_type',
+  'update_relation_type',
+  'delete_relation_type',
   'set_storyline_membership',
   'remember',
   'update_memory',
@@ -188,6 +198,7 @@ export interface DriftingDomainCrudContract {
     | 'category'
     | 'comment_todo'
     | 'entity_relation'
+    | 'relation_type'
     | 'storyline_membership'
     | 'agent_memory'
     | 'project_facts';
@@ -384,6 +395,25 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
       update: closedWrite(['update_comment'], ['update_comment'], 'automatic'),
       delete: closedWrite(['delete_comment'], ['delete_comment'], 'confirm_before'),
       revert: exactRevert(['create_comment', 'update_comment', 'delete_comment']),
+    },
+  },
+  {
+    domain: 'relation_type',
+    authoredTargets: ['关系类型「<名称>」'],
+    operations: {
+      create: closedWrite(['create_relation_type'], ['create_relation_type'], 'automatic'),
+      read: closedRead(['list_relation_types']),
+      update: closedWrite(['update_relation_type'], ['update_relation_type'], 'automatic'),
+      delete: closedWrite(
+        ['delete_relation_type'],
+        ['delete_relation_type'],
+        'confirm_before',
+      ),
+      revert: exactRevert([
+        'create_relation_type',
+        'update_relation_type',
+        'delete_relation_type',
+      ]),
     },
   },
   {

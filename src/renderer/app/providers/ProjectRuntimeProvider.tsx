@@ -15,6 +15,7 @@ import { useElementCategory } from '../../usecase/useElementCategory';
 import { useProjectAsset } from '../../usecase/useProjectAsset';
 import { useLibraryItem } from '../../usecase/useLibraryItem';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
+import { useEntityRelationTypes } from '../../usecase/useEntityRelationTypes';
 import { useComment } from '../../usecase/useComment';
 import { loadBookActs } from '../../usecase/useBookAct';
 import { loadDriftGroups } from '../../usecase/useDriftGroup';
@@ -56,6 +57,7 @@ export function ProjectRuntimeProvider({ projectId, userId, children }: ProjectR
   const projectAssetUsecases = useProjectAsset({ projectId, userId });
   const libraryItemUsecases = useLibraryItem({ projectId, userId });
   const relationUsecases = useEntityRelations({ projectId, userId });
+  const relationTypeUsecases = useEntityRelationTypes({ projectId });
   const commentUsecases = useComment({ projectId, userId });
   const contentUsecases = useBookContent({ userId, projectId });
   const projectUsecases = useProject({ userId });
@@ -72,6 +74,10 @@ export function ProjectRuntimeProvider({ projectId, userId, children }: ProjectR
     addRelation: relationUsecases.addRelation,
     removeRelation: relationUsecases.removeRelation,
     updateRelationKind: relationUsecases.updateRelationKind,
+    updateRelationType: relationUsecases.updateRelationType,
+    createRelationType: relationTypeUsecases.createRelationType,
+    updateRelationTypeDefinition: relationTypeUsecases.updateRelationType,
+    deleteRelationType: relationTypeUsecases.deleteRelationType,
     removeElement: elementUsecases.removeElement,
     createStoryline: storylineUsecases.createStoryline,
     updateStoryline: storylineUsecases.updateStoryline,

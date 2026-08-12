@@ -51,9 +51,18 @@ pnpm --dir client agent:capabilities:check
 - Generic virtual-file and generic authored-object verbs are retired from the
   provider surface. Paths, JSON documents, Yjs, SQLite, revisions, and storage
   identifiers remain runtime implementation details.
-- Chapter, inspiration, element, category, storyline, membership, relation,
+- Chapter, inspiration, element, category, storyline, membership, relation type, relation,
   comment/TODO, project fact, author-rule, memory, and element-patch lifecycle
   support is generated and machine checked.
+- Project relations use synced first-class type definitions rather than new
+  free-text labels. A type declares `directed` or `symmetric` orientation,
+  endpoint roles, and allowed source/target entity kinds. Desktop relation
+  creation offers only compatible configured types and an explicit endpoint
+  swap. Migrated labels remain visible as deterministic `unconfigured` types;
+  existing edges are preserved, while new typed writes fail closed until the
+  author configures the type. SQLite, server graph sync, and General Agent use
+  the same definition and durable receipt/revert boundary. See
+  [`../../relation-types.md`](../../relation-types.md).
 - Authored prose reads and writes use the schema-locked Markdown/TipTap adapter;
   initial creation and subsequent changes preserve the same supported block and
   inline structures.
@@ -128,6 +137,9 @@ pnpm --dir client agent:capabilities:check
 - Compilation, state-machine tests, and Simulator automation do not prove
   physical-device touch, IME, safe-area, background, visual quality, or Android
   device behavior.
+- Relation-type desktop layout and interaction still require author visual
+  review. Shared data/sync/type checks do not claim an iOS or Android relation
+  management experience; physical-device acceptance remains manual.
 - Working Memory desktop layout, Markdown readability, destructive-clear
   wording and keyboard interaction still require author visual review. Shared
   schema/runtime tests do not claim an iOS or Android Agent-panel experience.
@@ -138,9 +150,9 @@ pnpm --dir client agent:capabilities:check
   the mobile and native manual checklists.
 - The deterministic P0 fixes discovered by the 2026-08-06 empty-project novel
   run have not been validated by another paid long-form empty-project campaign.
-- Stable partial edit recovery, equivalent-create recovery, relation direction
-  and endpoint semantics, actionable domain errors, canonical word counts, and
-  project-level cross-session handoff remain ordered follow-up in
+- Stable partial edit recovery, equivalent-create recovery, actionable domain
+  errors, canonical word counts, and project-level cross-session handoff remain
+  ordered follow-up in
   [`GENERAL_AGENT_PEAK_PERSON_REMEDIATION_PLAN_2026-08-06.md`](GENERAL_AGENT_PEAK_PERSON_REMEDIATION_PLAN_2026-08-06.md).
 - Subagent orchestration remains deferred. Multiple current conversations are
   supported; that is not subagent delegation.

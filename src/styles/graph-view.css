@@ -35,7 +35,10 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
 }
 .graph-head__spread-btn:hover:not(:disabled) {
   background: hsl(var(--ink-1));
@@ -137,7 +140,10 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
 }
 .graph-head__unplaced-btn:hover,
 .graph-head__unplaced-btn.is-open {
@@ -189,7 +195,9 @@
   cursor: grab;
   max-width: 260px;
   user-select: none;
-  transition: border-color 0.12s, background 0.12s;
+  transition:
+    border-color 0.12s,
+    background 0.12s;
 }
 .graph-head__unplaced-chip:active {
   cursor: grabbing;
@@ -408,7 +416,9 @@
   font-size: 14px;
   line-height: 1;
   padding: 0;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 .graph-rail__axis-add:hover:not(:disabled) {
   background: hsl(var(--rule));
@@ -561,7 +571,9 @@
   cursor: pointer;
   z-index: 3;
   overflow: hidden;
-  transition: background 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
 }
 .graph-tile:hover {
   background: color-mix(in srgb, var(--tile-color, hsl(var(--ink-3))) 10%, hsl(var(--paper)));
@@ -631,50 +643,15 @@
   color: hsl(var(--ink-4));
 }
 
-/* ---------------- Selected edge: highlight + delete badge ----------------
+/* ---------------- Selected edge ----------------
    Click an edge → select it. Selection highlights the edge (handled
    inline via path attrs) and applies `.is-edge-selected` to the two
-   endpoint cards (border accent). The floating × button at the edge
-   midpoint deletes the edge directly — no confirm. */
+   endpoint cards. Relation details/actions live in the shared body portal. */
 .graph-tile.is-edge-selected,
 .graph-drift__card.is-edge-selected {
   border-color: hsl(var(--accent));
   border-width: 2px;
   box-shadow: 0 0 0 1px hsl(var(--accent) / 0.18);
-}
-/* Storyline-edge badge lives inside .graph-scroll (scrolls with the
-   canvas). Drift-edge badge uses .is-floating to switch to
-   fixed-position viewport coords. */
-.graph-edge-delete {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  margin-left: -11px;
-  margin-top: -11px;
-  border: 0;
-  border-radius: 50%;
-  background: hsl(var(--accent));
-  color: hsl(var(--paper));
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 20px;
-  cursor: pointer;
-  padding: 0;
-  z-index: 8;
-  box-shadow: 0 2px 8px hsl(var(--ink-1) / 0.25), 0 0 0 2px hsl(var(--paper));
-  transition: transform 0.12s, background 0.12s;
-  animation: graph-edge-delete-in 140ms ease-out;
-}
-.graph-edge-delete.is-floating {
-  position: fixed;
-  z-index: 268;
-}
-.graph-edge-delete:hover {
-  transform: scale(1.1);
-}
-@keyframes graph-edge-delete-in {
-  from { opacity: 0; transform: scale(0.6); }
-  to { opacity: 1; transform: scale(1); }
 }
 
 /* ---------------- Cross-storyline edges (transit trails) ---------------- */
@@ -710,7 +687,9 @@
 .graph-lane-row.is-drop-disabled {
   opacity: 0.32;
   filter: saturate(0.6);
-  transition: opacity 0.12s, filter 0.12s;
+  transition:
+    opacity 0.12s,
+    filter 0.12s;
 }
 
 /* ---------------- Link source / new-edge dialog ---------------- */
@@ -779,6 +758,11 @@
   max-width: 100%;
   box-shadow: 0 14px 34px -16px hsl(var(--ink-1) / 0.34);
   font-family: var(--font-sans);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+.graph-newedge.is-creating-type {
+  width: min(520px, 100%);
 }
 .graph-newedge__head {
   font-family: var(--font-sans);
@@ -813,6 +797,10 @@
   flex: 0;
   font-family: var(--font-mono);
   color: hsl(var(--ink-4));
+}
+
+.graph-newedge__swap {
+  font-size: 15px;
 }
 .graph-newedge__label {
   display: block;
@@ -962,7 +950,10 @@
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.05em;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
 }
 .node-card__btn:hover {
   background: hsl(var(--rule) / 0.4);
@@ -1053,7 +1044,10 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   box-shadow: none;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
 }
 .graph-drift__tab:hover {
   background: hsl(var(--ink-1));
@@ -1245,8 +1239,12 @@
   animation: graph-drift-edges-in 260ms ease-out;
 }
 @keyframes graph-drift-edges-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 /* Wide transparent hit-target path — only thing in the SVG that opts
    into pointer events, so the visible (thin, dashed) line stays
@@ -1273,5 +1271,7 @@
   animation: graph-drift-edge-flow 1.8s linear infinite;
 }
 @keyframes graph-drift-edge-flow {
-  to { stroke-dashoffset: -24; }
+  to {
+    stroke-dashoffset: -24;
+  }
 }

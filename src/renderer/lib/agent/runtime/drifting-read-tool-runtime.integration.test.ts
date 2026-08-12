@@ -159,6 +159,7 @@ const validArguments: Record<string, Record<string, unknown>> = {
   read_block: { node: '第一章', blockId: 'block-1' },
   lookup_block: { node: '第一章', ordinal: 1 },
   get_storyline: { storyline: '主线' },
+  get_relation_types: {},
   get_entity_relations: { kind: 'element', name: '柳青' },
   where_does_entity_appear: { kind: 'element', name: '柳青' },
   search_prose: { query: '雨夜', limit: 10 },
@@ -204,6 +205,7 @@ function domainSnapshot(): string {
     bookElements: data.bookElements,
     libraryItems: data.libraryItems,
     comments: data.comments,
+    entityRelationTypes: data.entityRelationTypes,
     entityRelations: data.entityRelations,
     currentProject: project.currentProject,
     projects: project.projects,
@@ -399,6 +401,22 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
           updatedAt: '2026-01-01T00:00:00.000Z',
         },
       ],
+      entityRelationTypes: [
+        {
+          id: 'relation-type-1',
+          projectId: 'project-1',
+          name: 'appears-in',
+          normalizedName: 'appears-in',
+          description: '',
+          orientation: 'directed',
+          sourceRole: '元素',
+          targetRole: '章节',
+          sourceKinds: ['element'],
+          targetKinds: ['node'],
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
       entityRelations: [
         {
           id: 'relation-1',
@@ -408,6 +426,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
           toKind: 'node',
           toId: 'node-1',
           kind: 'appears-in',
+          relationTypeId: null,
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-01T00:00:00.000Z',
         },
@@ -427,6 +446,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
       bookElements: [],
       libraryItems: [],
       comments: [],
+      entityRelationTypes: [],
       entityRelations: [],
     });
     useProjectStore.setState({ currentProject: null, projects: [] });
@@ -664,6 +684,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
       bookElements: [],
       libraryItems: [],
       comments: [],
+      entityRelationTypes: [],
       entityRelations: [],
     });
     const runtime = new DriftingReadToolRuntime({
@@ -681,6 +702,7 @@ describe('DriftingReadToolRuntime with the real renderer dispatcher', () => {
       'list_comments',
       'list_memory',
       'list_materials',
+      'get_relation_types',
     ]);
 
     for (const tool of AGENT_READ_TOOLS) {

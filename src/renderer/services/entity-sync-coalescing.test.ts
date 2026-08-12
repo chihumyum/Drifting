@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   coalescePendingMutation,
   isCreatePayloadConflict,
+  isTerminalPayloadValidationFailure,
 } from './entity-sync-coalescing';
 
 describe('coalescePendingMutation', () => {
@@ -91,5 +92,16 @@ describe('isCreatePayloadConflict', () => {
     expect(isCreatePayloadConflict('update', 409)).toBe(false);
     expect(isCreatePayloadConflict('create', 500)).toBe(false);
     expect(isCreatePayloadConflict('create', undefined)).toBe(false);
+  });
+});
+
+describe('isTerminalPayloadValidationFailure', () => {
+  it('quarantines deterministic 422 payload failures without classifying transient errors', () => {
+    expect(isTerminalPayloadValidationFailure(422)).toBe(true);
+    expect(isTerminalPayloadValidationFailure(400)).toBe(false);
+    expect(isTerminalPayloadValidationFailure(401)).toBe(false);
+    expect(isTerminalPayloadValidationFailure(429)).toBe(false);
+    expect(isTerminalPayloadValidationFailure(500)).toBe(false);
+    expect(isTerminalPayloadValidationFailure(undefined)).toBe(false);
   });
 });

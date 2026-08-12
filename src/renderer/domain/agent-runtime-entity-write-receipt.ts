@@ -5,6 +5,7 @@ import type { Comment, CommentAction } from './comment';
 import type { Project } from './project';
 import type { Storyline } from './storyline';
 import type { AgentMemory } from './agent-memory';
+import type { EntityRelationType } from './entity-relation-type';
 
 export type AgentRuntimeEntityWriteDirection = 'forward' | 'inverse';
 export type AgentRuntimeEntityWriteTool =
@@ -25,6 +26,9 @@ export type AgentRuntimeEntityWriteTool =
   | 'add_relation'
   | 'update_relation_kind'
   | 'remove_relation'
+  | 'create_relation_type'
+  | 'update_relation_type'
+  | 'delete_relation_type'
   | 'set_storyline_membership'
   | 'remember'
   | 'update_memory'
@@ -39,6 +43,7 @@ export type AgentRuntimeEntityWriteKind =
   | 'storyline'
   | 'category'
   | 'relation'
+  | 'relation_type'
   | 'storyline_membership'
   | 'memory'
   | 'project';
@@ -72,6 +77,7 @@ export interface AgentRuntimeEntityRelationSnapshotValue {
   toKind: string;
   toId: string;
   kind: string | null;
+  relationTypeId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -87,6 +93,7 @@ export type AgentRuntimeEntityWriteSnapshot =
   | { kind: 'storyline'; value: Storyline }
   | { kind: 'category'; value: BookElementCategory }
   | { kind: 'relation'; value: AgentRuntimeEntityRelationSnapshotValue }
+  | { kind: 'relation_type'; value: EntityRelationType }
   | {
       kind: 'storyline_membership';
       value: AgentRuntimeStorylineMembershipSnapshotValue;
@@ -124,6 +131,7 @@ export function snapshotAgentRuntimeEntity(
     | Storyline
     | BookElementCategory
     | AgentRuntimeEntityRelationSnapshotValue
+    | EntityRelationType
     | AgentRuntimeStorylineMembershipSnapshotValue
     | AgentMemory
     | Project,

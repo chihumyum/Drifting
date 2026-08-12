@@ -22,6 +22,7 @@ import {
 import { createBookContentRepository } from '../../../sqlite-repo/content-repo';
 import { createBookElementSqliteRepository } from '../../../sqlite-repo/element-repo';
 import { createElementCategoryRepository } from '../../../sqlite-repo/element-category-repo';
+import { createEntityRelationTypeRepository } from '../../../sqlite-repo/entity-relation-type-repo';
 import { createLibraryItemSqliteRepository } from '../../../sqlite-repo/library-item-repo';
 import { createBookNodeSqliteRepository } from '../../../sqlite-repo/node-repo';
 import { createProjectRepository } from '../../../sqlite-repo/project-repo';
@@ -1626,6 +1627,20 @@ describe.sequential('Drifting Agent product composition', () => {
 
   it('resolves material and element-patch relation endpoints through the canonical entity vocabulary', async () => {
     harness = await ProductAgentHarness.create([]);
+    await createEntityRelationTypeRepository(PROJECT_ID, harness.database).create({
+      id: 'relation-type-evidence-for',
+      projectId: PROJECT_ID,
+      name: 'evidence_for',
+      normalizedName: 'evidence_for',
+      description: '',
+      orientation: 'directed',
+      sourceRole: 'evidence',
+      targetRole: 'subject',
+      sourceKinds: ['library_item'],
+      targetKinds: ['patch'],
+      createdAt: INITIAL_REVISION,
+      updatedAt: INITIAL_REVISION,
+    });
     const request: AgentToolExecutionRequest = {
       sessionId: SESSION_ID,
       turnId: 'turn-relation-endpoints',
@@ -1637,7 +1652,7 @@ describe.sequential('Drifting Agent product composition', () => {
         from: 'Fixture source',
         toKind: 'element_patch',
         to: 'Fixture evolution',
-        kind: 'evidence_for',
+        relationType: 'evidence_for',
       },
       access: 'write',
       context: {
@@ -1695,6 +1710,20 @@ describe.sequential('Drifting Agent product composition', () => {
 
   it('resolves an element relation endpoint through an authored alias', async () => {
     harness = await ProductAgentHarness.create([]);
+    await createEntityRelationTypeRepository(PROJECT_ID, harness.database).create({
+      id: 'relation-type-appears-in',
+      projectId: PROJECT_ID,
+      name: 'appears_in',
+      normalizedName: 'appears_in',
+      description: '',
+      orientation: 'directed',
+      sourceRole: 'appearing element',
+      targetRole: 'scene',
+      sourceKinds: ['element'],
+      targetKinds: ['node'],
+      createdAt: INITIAL_REVISION,
+      updatedAt: INITIAL_REVISION,
+    });
     useDataStore.setState((state) => ({
       bookElements: state.bookElements.map((element) =>
         element.id === ELEMENT_ID
@@ -1713,7 +1742,7 @@ describe.sequential('Drifting Agent product composition', () => {
         from: 'Fixture Alias',
         toKind: 'node',
         to: NODE_TITLE,
-        kind: 'appears_in',
+        relationType: 'appears_in',
       },
       access: 'write',
       context: {

@@ -59,6 +59,7 @@ describe('General Agent Added activity', () => {
           toKind: 'element',
           toId: 'element-ada',
           kind: '出场',
+          relationTypeId: null,
           createdAt: timestamp,
           updatedAt: timestamp,
         },

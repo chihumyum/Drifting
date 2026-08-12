@@ -422,6 +422,17 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
           revision: comment.updatedAt,
         }));
     }
+    if (request.name === 'get_relation_types') {
+      return useDataStore
+        .getState()
+        .entityRelationTypes.filter((type) => type.projectId === active.projectId)
+        .map((type, ordinal) => ({
+          id: readObservationId(request, ordinal),
+          entityKind: 'relation_type',
+          entityId: type.id,
+          revision: type.updatedAt,
+        }));
+    }
     if (request.name === 'list_memory') {
       const memories = await this.readMemories(active.projectId);
       const observations: CreateAgentRuntimeReadObservation[] = [
@@ -647,6 +658,17 @@ export class DriftingReadToolRuntime implements AgentToolRuntime {
           throw new Error(
             'The relation changed while it was being read; retry get_entity_relations before writing',
           );
+        }
+        continue;
+      }
+      if (observation.entityKind === 'relation_type') {
+        const current = useDataStore
+          .getState()
+          .entityRelationTypes.find(
+            (type) => type.id === observation.entityId && type.projectId === projectId,
+          );
+        if (!current || current.updatedAt !== observation.revision) {
+          throw new Error('Relation type changed while it was being read; retry list_relation_types');
         }
         continue;
       }
