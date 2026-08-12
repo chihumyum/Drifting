@@ -81,6 +81,7 @@ import {
   overlayLibraryItemDeviceFields,
   stripLibraryItemDeviceFields,
 } from './library-item-sync-boundary';
+import { normalizeNodeCreateSyncPayload } from './node-create-sync-contract';
 
 const log = loglevel.getLogger('EntitySyncService');
 log.setLevel(loglevel.levels.WARN);
@@ -741,7 +742,11 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
     // ---- Node ----
     case 'node':
       if (mutationType === 'create') {
-        return { method: 'POST', endpoint: `/api/projects/${projectId}/nodes`, data: payload };
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/nodes`,
+          data: normalizeNodeCreateSyncPayload(payload),
+        };
       } else if (mutationType === 'update') {
         return {
           method: 'PATCH',

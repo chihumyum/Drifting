@@ -43,6 +43,7 @@ import {
   notifySyncMutationCommitted,
   persistSyncMutationInTransaction,
 } from '../../../services/entity-sync.service';
+import { buildNodeCreateSyncPayload } from '../../../services/node-create-sync-contract';
 import {
   BookElementTable,
   BookNodeTable,
@@ -1039,7 +1040,13 @@ async function applyForwardInTransaction(
         contentJson,
       });
       await sync.runner(payload.projectId, async (_inner, writeSync) => {
-        await writeSync('node', 'create', value.id, payload.projectId, nodePayload(value));
+        await writeSync(
+          'node',
+          'create',
+          value.id,
+          payload.projectId,
+          buildNodeCreateSyncPayload(nodePayload(value), null),
+        );
         await writeSync('nodeContent', 'update', value.id, payload.projectId, {
           contentJson,
         });
