@@ -1,9 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
 import type { CommentTargetKind } from '../domain/comment';
 import { events } from '../lib/events';
 
 const STORAGE_PREFIX = 'editor:margin-notes:';
+
+interface MarginNotesChange {
+  kind: CommentTargetKind;
+  id: string;
+  visible: boolean;
+}
+
+const marginNotesListeners = new Set<(change: MarginNotesChange) => void>();
+const marginNotesValues = new Map<string, boolean>();
 
 function storageKey(kind: CommentTargetKind, id: string): string {
   return `${STORAGE_PREFIX}${kind}:${id}`;
@@ -11,8 +20,13 @@ function storageKey(kind: CommentTargetKind, id: string): string {
 
 function readInitial(kind: CommentTargetKind, id: string | null | undefined): boolean {
   if (!id) return false;
+  const key = storageKey(kind, id);
+  const cached = marginNotesValues.get(key);
+  if (cached !== undefined) return cached;
   try {
-    return localStorage.getItem(storageKey(kind, id)) === '1';
+    const visible = localStorage.getItem(key) === '1';
+    marginNotesValues.set(key, visible);
+    return visible;
   } catch {
     return false;
   }
@@ -28,22 +42,35 @@ export function useEntityMarginNotes(
   kind: CommentTargetKind,
   entityId: string | null | undefined,
 ): [boolean, (on: boolean) => void] {
-  const [value, setValue] = useState<boolean>(() => readInitial(kind, entityId));
-
-  useEffect(() => {
-    setValue(readInitial(kind, entityId));
-  }, [kind, entityId]);
+  const subscribe = useCallback(
+    (notify: () => void) => {
+      if (!entityId) return () => undefined;
+      const listener = (change: MarginNotesChange) => {
+        if (change.kind === kind && change.id === entityId) notify();
+      };
+      marginNotesListeners.add(listener);
+      return () => {
+        marginNotesListeners.delete(listener);
+      };
+    },
+    [entityId, kind],
+  );
+  const getSnapshot = useCallback(() => readInitial(kind, entityId), [entityId, kind]);
+  const value = useSyncExternalStore(subscribe, getSnapshot, () => false);
 
   const update = useCallback(
     (on: boolean) => {
-      setValue(on);
       if (!entityId) return;
+      marginNotesValues.set(storageKey(kind, entityId), on);
       try {
         if (on) localStorage.setItem(storageKey(kind, entityId), '1');
         else localStorage.removeItem(storageKey(kind, entityId));
       } catch {
         // Quota / privacy mode — fall back to in-memory only.
       }
+      marginNotesListeners.forEach((listener) => {
+        listener({ kind, id: entityId, visible: on });
+      });
     },
     [kind, entityId],
   );

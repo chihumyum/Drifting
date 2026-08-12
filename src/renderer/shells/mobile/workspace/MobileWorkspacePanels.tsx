@@ -7,9 +7,8 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
-import { useWorkspaceNavigator } from '../../../features/workspace/navigation/WorkspaceNavigationContext';
 import { useDataStore } from '../../../store/data-store';
-import { isChapter, isDrift } from '../../../domain/book-node';
+import { isDrift } from '../../../domain/book-node';
 import type { EntityKind } from '../../../lib/extensions/entity-link';
 import { TodoPanel } from '../../../components/rightBars/TodoPanel';
 import { LibraryPanel, type FocusedEntity } from '../../../features/library/LibraryPanel';
@@ -24,6 +23,7 @@ import { ChapterPanel } from '../../../components/leftBars/ChapterPanel';
 import { ElementPanel } from '../../../components/leftBars/ElementPanel';
 import { DriftPanel } from '../../../components/leftBars/DriftPanel';
 import { UserAvatar, UserMenu } from '../../../components/topBars/UserMenu';
+import { BottomTimeline } from '../../../components/BottomTimeline/BottomTimeline';
 import type { PaperReveal } from './usePaperPinch';
 
 type StructureTab = 'chapters' | 'elements' | 'inspiration';
@@ -217,61 +217,6 @@ function statsTarget(target: WorkspaceTarget | null): EntityStatsTarget {
   };
 }
 
-function MobileTimelineWorkspace() {
-  const { t } = useTranslation();
-  const { open } = useWorkspaceNavigator();
-  const { bookNodes, storylines, primaryStorylineByNode } = useDataStore();
-  const [order, setOrder] = useState<'book' | 'narrative'>('book');
-  const chapters = bookNodes
-    .filter(isChapter)
-    .slice()
-    .sort((a, b) =>
-      order === 'book'
-        ? a.bookOrder - b.bookOrder
-        : (a.narrativeOrder ?? a.bookOrder) - (b.narrativeOrder ?? b.bookOrder),
-    );
-  return (
-    <div className="m-timeline-workspace">
-      <header>
-        <div role="group" aria-label={t('bottomTimeline.view.toggleTitle')}>
-          <button type="button" aria-pressed={order === 'book'} onClick={() => setOrder('book')}>
-            {t('bottomTimeline.view.book')}
-          </button>
-          <button
-            type="button"
-            aria-pressed={order === 'narrative'}
-            onClick={() => setOrder('narrative')}
-          >
-            {t('bottomTimeline.view.narrative')}
-          </button>
-        </div>
-        <span>{order === 'book' ? 'BOOK ORDER' : 'NARRATIVE ORDER'}</span>
-      </header>
-      {storylines.map((storyline) => (
-        <section key={storyline.id}>
-          <button type="button" onClick={() => open({ entityType: 'storyline', id: storyline.id })}>
-            <span style={{ background: storyline.color || 'hsl(var(--ink-4))' }} />
-            {storyline.name}
-          </button>
-          <div>
-            {chapters
-              .filter((node) => primaryStorylineByNode[node.id] === storyline.id)
-              .map((node) => (
-                <button
-                  key={node.id}
-                  type="button"
-                  onClick={() => open({ entityType: 'node', id: node.id })}
-                >
-                  {node.title || t('common.untitled')}
-                </button>
-              ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
 function MobilePlotPlannerWorkspace({
   projectId,
   target,
@@ -433,7 +378,11 @@ function MobileToolWorkspace({
             </div>
           )}
           {tab === 'agent' && <CompanionPanel projectId={projectId} />}
-          {tab === 'timeline' && <MobileTimelineWorkspace />}
+          {tab === 'timeline' && (
+            <div className="m-bottom-timeline">
+              <BottomTimeline presentation="mobile" />
+            </div>
+          )}
           {tab === 'plot' && (
             <MobilePlotPlannerWorkspace
               key={target?.id ?? 'none'}

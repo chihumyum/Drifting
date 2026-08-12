@@ -2652,6 +2652,12 @@
       "backHome": "回到首页"
     }
   },
+  "mobileEditorRails": {
+    "controls": "纸张导航与批注",
+    "menu": "纸张编辑辅助",
+    "toc": "TOC 轨道",
+    "comments": "批注轨道"
+  },
   "editorTopBar": {
     "actions": {
       "collapsePlotPlanner": "收起情节规划",

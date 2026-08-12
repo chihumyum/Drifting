@@ -18,6 +18,17 @@
   inset: 0;
   z-index: 3;
   overflow: hidden;
+  transition:
+    top 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    bottom 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.m-workspace[data-reveal='top'] .m-paper-deck {
+  top: calc(var(--m-panel-extent) * 100dvh);
+}
+
+.m-workspace[data-reveal='bottom'] .m-paper-deck {
+  bottom: calc(var(--m-panel-extent) * 100dvh);
 }
 
 .m-paper-row {
@@ -87,6 +98,18 @@
     border-radius 240ms ease;
 }
 
+.m-paper-row__activate {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  touch-action: pan-x pan-y;
+}
+
 .m-workspace[data-reveal='top'] .m-paper-row__paper {
   bottom: 0;
   transform-origin: bottom left;
@@ -96,6 +119,7 @@
   top: 0;
 }
 
+.m-workspace[data-preview='true'] .m-paper-deck,
 .m-workspace[data-preview='true'] .m-paper-row,
 .m-workspace[data-preview='true'] .m-paper-row__page,
 .m-workspace[data-preview='true'] .m-paper-row__paper,
@@ -106,6 +130,10 @@
 
 .m-workspace[data-reveal='focused'] .m-paper-row__page:not([data-active='true']) {
   visibility: hidden;
+}
+
+.m-workspace[data-reveal='focused'][data-paper-switch='true'] .m-paper-row__page {
+  visibility: visible;
 }
 
 .m-workspace[data-reveal='top'] .m-paper-row__paper,
@@ -129,6 +157,9 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   background: hsl(var(--page));
 }
 
@@ -136,6 +167,35 @@
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+.m-paper-snapshot {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  pointer-events: none;
+  background: hsl(var(--page));
+}
+
+.m-paper-snapshot .editor-scroll {
+  overflow: hidden;
+}
+
+.m-paper-snapshot__loading {
+  min-height: 48dvh;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    hsl(var(--paper-deep) / 0.52) 22%,
+    transparent 44%
+  );
+}
+
+.m-paper-snapshot__prose {
+  min-height: 48dvh;
 }
 
 .m-paper-preview {
@@ -147,6 +207,10 @@
   gap: 8px;
   opacity: 0.82;
   pointer-events: none;
+}
+
+.m-paper-preview--static {
+  background: hsl(var(--page));
 }
 
 .m-paper-preview > span {
@@ -175,7 +239,7 @@
   position: absolute;
   z-index: 8;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom) + 8px);
+  bottom: max(28px, calc(env(safe-area-inset-bottom) + 12px));
   translate: -50% 0;
   min-width: 64px;
   min-height: 44px;
@@ -194,6 +258,7 @@
   -webkit-backdrop-filter: blur(16px);
   touch-action: none;
   transition:
+    min-width 160ms ease,
     bottom 300ms cubic-bezier(0.32, 0.72, 0, 1),
     background 180ms ease;
 }
@@ -205,8 +270,13 @@
     0 5px 20px -12px hsl(var(--ink-1) / 0.6);
 }
 
+.m-paper-cluster[data-axis='horizontal'] {
+  min-width: min(42vw, 168px);
+  cursor: ew-resize;
+}
+
 .m-workspace[data-reveal='bottom'] .m-paper-cluster {
-  bottom: calc(var(--m-panel-extent) * 100dvh + env(safe-area-inset-bottom) - 4px);
+  bottom: calc(var(--m-panel-extent) * 100dvh + max(16px, calc(env(safe-area-inset-bottom) + 8px)));
 }
 
 .m-paper-cluster > span {
@@ -223,6 +293,97 @@
   width: 14px;
   border-radius: 4px;
   background: hsl(var(--ink-1));
+}
+
+.m-workspace[data-editor-active='true'] .m-paper-cluster,
+.m-workspace:not([data-paper-rail='none']) .m-paper-cluster {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.m-editor-accessory {
+  --m-editor-keyboard-inset: 0px;
+  position: fixed;
+  z-index: 70;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  translate: -50% 0;
+  width: 48px;
+  min-height: 48px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  overflow: hidden;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 26px;
+  background: color-mix(in srgb, hsl(var(--page)) 88%, transparent);
+  box-shadow: 0 8px 24px -14px hsl(var(--ink-1) / 0.62);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  pointer-events: auto;
+  transition:
+    width 180ms cubic-bezier(0.32, 0.72, 0, 1),
+    bottom 80ms linear,
+    background 160ms ease;
+}
+
+.m-editor-accessory[data-keyboard='true'] {
+  bottom: calc(var(--m-editor-keyboard-inset) + 8px);
+}
+
+.m-editor-accessory[data-expanded='true'] {
+  width: min(calc(100dvw - 20px), 520px);
+  background: color-mix(in srgb, hsl(var(--page)) 94%, transparent);
+}
+
+.m-editor-accessory__toggle,
+.m-editor-accessory__action {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: hsl(var(--ink-2));
+  background: transparent;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-editor-accessory__toggle {
+  background: hsl(var(--ink-1));
+  color: hsl(var(--page));
+}
+
+.m-editor-accessory__actions {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+
+.m-editor-accessory__actions::-webkit-scrollbar {
+  display: none;
+}
+
+.m-editor-accessory__action[aria-pressed='true'] {
+  background: hsl(var(--ink-1) / 0.1);
+  color: hsl(var(--ink-1));
+}
+
+.m-editor-accessory__toggle:focus-visible,
+.m-editor-accessory__action:focus-visible {
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: -2px;
 }
 
 .m-context-workspace {
@@ -452,90 +613,147 @@
   padding: 10px 12px 28px;
 }
 
-.m-timeline-workspace {
+.m-bottom-timeline {
+  width: 100%;
   height: 100%;
-  overflow: auto;
-  padding: 8px 12px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.m-timeline-workspace > header {
-  min-height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border-bottom: 1px solid hsl(var(--rule));
-  padding-bottom: 7px;
-}
-.m-timeline-workspace > header > div {
-  display: inline-flex;
-  border: 1px solid hsl(var(--rule-strong));
-}
-.m-timeline-workspace > header button {
-  min-height: 24px;
-  padding: 0 9px;
-  border: 0;
-  border-right: 1px solid hsl(var(--rule-strong));
-  background: hsl(var(--page));
-  color: hsl(var(--ink-4));
-  font-size: 9px;
-}
-.m-timeline-workspace > header button:last-child {
-  border-right: 0;
-}
-.m-timeline-workspace > header button[aria-pressed='true'] {
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-}
-.m-timeline-workspace > header > span {
-  font: 8px/1.2 var(--font-mono);
-  letter-spacing: 0.1em;
-  color: hsl(var(--ink-4));
-}
-.m-timeline-workspace section {
-  display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-}
-.m-timeline-workspace section > button {
-  min-height: 44px;
-  border: 0;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  text-align: left;
-  font-size: 11px;
-  color: hsl(var(--ink-2));
-}
-.m-timeline-workspace section > button span {
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  flex: 0 0 auto;
-}
-.m-timeline-workspace section > div {
   min-width: 0;
-  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Mobile mounts the same BottomTimeline implementation as desktop. The
+   surrounding mobile panel owns vertical resizing, while this surface keeps
+   the complete book/narrative model and grows touch targets without changing
+   the shared timeline semantics. */
+.btl--mobile {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  border-top: 0;
+  background: hsl(var(--paper-deep));
+}
+
+.btl--mobile .btl__head {
+  height: 42px;
+  min-height: 42px;
+  gap: 6px;
+  padding: 0 7px;
+  border-bottom: 1px solid hsl(var(--rule));
+}
+
+.btl--mobile .btl__head-left {
+  flex: 1;
   gap: 6px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  scrollbar-width: none;
 }
-.m-timeline-workspace section > div button {
-  flex: 0 0 118px;
+
+.btl--mobile .btl__head-left::-webkit-scrollbar,
+.btl--mobile .btl__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.btl--mobile .btl__head-right {
+  gap: 2px;
+}
+
+.btl--mobile .segmented-control__option,
+.btl--mobile .btl__unaffiliated-toggle,
+.btl--mobile .btl__unplaced-btn,
+.btl--mobile .btl__head-btn {
+  min-width: 36px;
+  min-height: 36px;
+  touch-action: manipulation;
+}
+
+.btl--mobile .btl__unaffiliated-toggle,
+.btl--mobile .btl__unplaced-btn {
+  height: 36px;
+}
+
+.btl--mobile .btl__scroll {
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.btl--mobile .btl-row {
   min-height: 44px;
-  border: 1px solid hsl(var(--rule));
-  background: hsl(var(--page));
-  padding: 7px 9px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: left;
-  color: hsl(var(--ink-1));
-  font-size: 11px;
+  flex-basis: 44px;
+}
+
+.btl--mobile .btl-rail {
+  padding-inline: 7px;
+}
+
+.btl--mobile .btl-rail__name {
+  font-size: 11.5px;
+}
+
+.btl--mobile .btl-rail__main {
+  gap: 4px;
+}
+
+.btl--mobile .btl-clip {
+  top: 5px;
+  bottom: 5px;
+  min-width: 44px;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btl--mobile .btl-clip.is-dragging {
+  opacity: 0.56;
+  filter: saturate(0.72);
+}
+
+.btl--mobile .btl-axis,
+.btl--mobile .actrail {
+  min-height: 36px;
+}
+
+.btl--mobile .btl-axis__rail,
+.btl--mobile .actrail__rail {
+  padding-inline: 7px;
+}
+
+.btl--mobile .btl-axis__rail-add,
+.btl--mobile .actrail__rail-add,
+.btl--mobile .actrail__divider {
+  min-width: 36px;
+  min-height: 36px;
+  touch-action: none;
+}
+
+.btl--mobile .actrail__divider {
+  translate: -16px 0;
+}
+
+.btl--mobile .actrail__label,
+.btl--mobile .btl-pin__label {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  touch-action: none;
+}
+
+.btl--mobile .btl-pin__line {
+  width: 20px;
+  left: -10px;
+  background: linear-gradient(
+    90deg,
+    transparent 9.5px,
+    var(--btl-guide-line) 9.5px,
+    var(--btl-guide-line) 10.5px,
+    transparent 10.5px
+  );
+  touch-action: none;
+}
+
+.btl--mobile .menu-surface__item,
+.btl--mobile + .menu-surface .menu-surface__item {
+  min-height: 44px;
 }
 
 .m-plot-workspace {
@@ -806,6 +1024,136 @@
   display: none !important;
 }
 
+/* Paper-owned rail switcher. The trigger and menu portal to body, matching the
+   app's fixed-overlay convention so transformed paper geometry cannot clip it. */
+.m-paper-rail-toggle {
+  position: fixed;
+  z-index: 69;
+  top: calc(var(--m-paper-rail-viewport-top, 0px) + env(safe-area-inset-top) + 58px);
+  right: max(14px, env(safe-area-inset-right));
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 50%;
+  color: hsl(var(--ink-2));
+  background: color-mix(in srgb, hsl(var(--page)) 90%, transparent);
+  box-shadow: 0 10px 26px -16px hsl(var(--ink-1) / 0.58);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-paper-rail-toggle > span {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid hsl(var(--page));
+  border-radius: 50%;
+  background: hsl(var(--accent));
+}
+
+/* Keep the controller on the opposite side of the active overlay. Anchored
+   comment cards can legitimately sit at the very top-right of the manuscript. */
+.m-paper-rail-toggle[data-active='comments'] {
+  right: auto;
+  left: max(14px, env(safe-area-inset-left));
+}
+
+.m-paper-rail-toggle:focus-visible {
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: 2px;
+}
+
+.m-paper-rail-menu {
+  z-index: var(--z-context-menu);
+  width: min(248px, calc(100dvw - 24px));
+  padding: 6px;
+}
+
+.m-paper-rail-menu__label {
+  padding: 7px 10px 6px;
+  color: hsl(var(--ink-4));
+  font: 9px/1.2 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.m-paper-rail-menu > button {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 11px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 7px;
+  color: hsl(var(--ink-2));
+  background: transparent;
+  font-size: 13px;
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.m-paper-rail-menu > button.is-active {
+  color: hsl(var(--ink-1));
+  background: hsl(var(--accent) / 0.1);
+}
+
+.m-paper-rail-menu > button > svg:last-child {
+  justify-self: end;
+  color: hsl(var(--accent));
+}
+
+/* The real shared rails remain mounted by their editor views. Mobile exposes
+   exactly one as an overlay: TOC on the left, comments on the right. */
+.m-workspace[data-paper-rail='toc'] .editor__toc-rail {
+  display: block !important;
+  width: min(48vw, 190px);
+  z-index: 24;
+  background: linear-gradient(
+    90deg,
+    hsl(var(--paper) / 0.98) 0%,
+    hsl(var(--paper) / 0.9) 78%,
+    transparent 100%
+  );
+}
+
+.m-workspace[data-paper-rail='toc'] .editor__toc-tag,
+.m-workspace[data-paper-rail='toc'] .editor__toc-omission {
+  min-height: 34px;
+  padding-block: 7px;
+}
+
+.m-workspace[data-paper-rail='comments'] .editor__margin {
+  display: block !important;
+  z-index: 25;
+  width: min(82vw, 320px);
+  padding: 58px 14px 104px 18px;
+  background: linear-gradient(
+    270deg,
+    hsl(var(--paper) / 0.99) 0%,
+    hsl(var(--paper) / 0.93) 82%,
+    transparent 100%
+  );
+}
+
+.m-workspace[data-paper-rail='comments'] .mnote__btn {
+  min-height: 36px;
+}
+
+.m-workspace[data-paper-rail='comments'] .mnote__icon-btn,
+.m-workspace[data-paper-rail='comments'] .mnote-stack__btn {
+  min-width: 36px;
+  min-height: 36px;
+}
+
 .m-workspace .editor-body,
 .m-workspace .editor-scroll,
 .m-workspace .editor-shell {
@@ -820,11 +1168,19 @@
   touch-action: pan-y;
 }
 
+.m-workspace:not([data-reveal='focused']) .m-paper-deck__content,
+.m-workspace:not([data-reveal='focused']) .m-paper-scroll-memory,
+.m-workspace:not([data-reveal='focused']) .editor-scroll,
+.m-workspace:not([data-reveal='focused']) .dash {
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: auto;
+}
+
 .m-workspace .editor-scroll::-webkit-scrollbar {
   display: none;
 }
 .m-workspace .editor__spread {
-  padding: env(safe-area-inset-top) 0 calc(88px + env(safe-area-inset-bottom));
+  padding: 0 0 88px;
 }
 .m-workspace .editor__spread .page,
 .m-workspace .page {

@@ -2652,6 +2652,12 @@
       "backHome": "Back home"
     }
   },
+  "mobileEditorRails": {
+    "controls": "Paper navigation and comments",
+    "menu": "Paper editing aids",
+    "toc": "TOC rail",
+    "comments": "Comment rail"
+  },
   "editorTopBar": {
     "actions": {
       "collapsePlotPlanner": "Collapse plot planner",

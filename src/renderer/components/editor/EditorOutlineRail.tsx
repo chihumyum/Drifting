@@ -10,6 +10,7 @@ import {
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../store/settings-store';
+import { useEditorRailPresentation } from './editor-rail-presentation';
 
 import {
   flattenOutlineEntries,
@@ -130,8 +131,10 @@ function omissionRevealEntries(label: OutlineRailOmissionLabel): FlatOutlineEntr
 
 export function EditorOutlineRail(props: Props) {
   const outlineRailMode = useSettingsStore((state) => state.outlineRailMode);
-  if (outlineRailMode === 'hidden') return null;
-  return <VisibleEditorOutlineRail {...props} />;
+  const presentation = useEditorRailPresentation();
+  const visible = presentation?.outlineVisible ?? outlineRailMode !== 'hidden';
+  if (!visible) return null;
+  return <VisibleEditorOutlineRail {...props} labelPitch={presentation?.outlineLabelPitch} />;
 }
 
 function VisibleEditorOutlineRail({
@@ -141,7 +144,8 @@ function VisibleEditorOutlineRail({
   onItemClick,
   emptyHint,
   secondaryItems,
-}: Props) {
+  labelPitch,
+}: Props & { labelPitch?: number }) {
   const { t } = useTranslation();
   const railRef = useRef<HTMLElement | null>(null);
   const bodyElRef = useRef<HTMLElement | null>(null);
@@ -286,11 +290,7 @@ function VisibleEditorOutlineRail({
   const primaryId = useMemo(
     () =>
       activeId ??
-      nearestPrimaryId(
-        flat,
-        geometry.offsets,
-        geometry.scrollTop + geometry.clientHeight * 0.28,
-      ),
+      nearestPrimaryId(flat, geometry.offsets, geometry.scrollTop + geometry.clientHeight * 0.28),
     [activeId, flat, geometry.clientHeight, geometry.offsets, geometry.scrollTop],
   );
   const visibleIds = useMemo(
@@ -304,17 +304,14 @@ function VisibleEditorOutlineRail({
       ),
     [flat, geometry],
   );
-  const activePathIds = useMemo(
-    () => outlineActivePathIds(flat, primaryId),
-    [flat, primaryId],
-  );
+  const activePathIds = useMemo(() => outlineActivePathIds(flat, primaryId), [flat, primaryId]);
   const plan = useMemo(
-    () => planOutlineRail(flat, primaryId, railHeight, geometry.fractions),
-    [flat, geometry.fractions, primaryId, railHeight],
+    () => planOutlineRail(flat, primaryId, railHeight, geometry.fractions, labelPitch),
+    [flat, geometry.fractions, labelPitch, primaryId, railHeight],
   );
   const laidOut = useMemo(
-    () => layoutOutlineRailLabels(plan.labels, railHeight),
-    [plan.labels, railHeight],
+    () => layoutOutlineRailLabels(plan.labels, railHeight, labelPitch),
+    [labelPitch, plan.labels, railHeight],
   );
   const handleWheel = (event: WheelEvent<HTMLElement>) => {
     const root = scrollElRef.current;
@@ -344,10 +341,7 @@ function VisibleEditorOutlineRail({
     [clearRevealClose],
   );
 
-  const openOmissionReveal = (
-    label: OutlineRailOmissionLabel,
-    target: HTMLElement,
-  ) => {
+  const openOmissionReveal = (label: OutlineRailOmissionLabel, target: HTMLElement) => {
     clearRevealClose();
     setOmissionReveal({ label, rect: target.getBoundingClientRect() });
   };
@@ -366,9 +360,7 @@ function VisibleEditorOutlineRail({
       onWheel={handleWheel}
     >
       <div className="editor__toc-labels">
-        {flat.length === 0 && emptyHint && (
-          <span className="editor__toc-empty">{emptyHint}</span>
-        )}
+        {flat.length === 0 && emptyHint && <span className="editor__toc-empty">{emptyHint}</span>}
         {laidOut.map(({ label, y }) => {
           const style = { top: `${y}px` };
 
@@ -421,7 +413,9 @@ function VisibleEditorOutlineRail({
               {entry.item.num && <span className="editor__toc-tag-num">{entry.item.num}</span>}
               <span className="editor__toc-tag-text">{entry.item.text}</span>
               {entry.item.children?.length ? (
-                <span className="editor__toc-tag-branch" aria-hidden>·</span>
+                <span className="editor__toc-tag-branch" aria-hidden>
+                  ·
+                </span>
               ) : null}
             </button>
           );
@@ -437,16 +431,12 @@ function VisibleEditorOutlineRail({
                 count: omissionReveal.label.entries.length,
               })}
               style={{
-                left: `${
-                  Math.min(
-                    window.innerWidth - OMISSION_REVEAL_WIDTH - 8,
-                    Math.max(8, omissionReveal.rect.left),
-                  )
-                }px`,
+                left: `${Math.min(
+                  window.innerWidth - OMISSION_REVEAL_WIDTH - 8,
+                  Math.max(8, omissionReveal.rect.left),
+                )}px`,
                 top: `${Math.min(
-                  window.innerHeight -
-                    omissionRevealEntries(omissionReveal.label).length * 22 -
-                    12,
+                  window.innerHeight - omissionRevealEntries(omissionReveal.label).length * 22 - 12,
                   Math.max(
                     8,
                     omissionReveal.rect.top -

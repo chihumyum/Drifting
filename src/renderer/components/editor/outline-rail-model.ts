@@ -80,12 +80,7 @@ export function nestHeadings(
 /** Pre-order flattening preserves the same order as anchors in the manuscript. */
 export function flattenOutlineEntries(items: OutlineEntry[]): FlatOutlineEntry[] {
   const flat: FlatOutlineEntry[] = [];
-  const visit = (
-    item: OutlineEntry,
-    depth: number,
-    rootId: string,
-    ancestorIds: string[],
-  ) => {
+  const visit = (item: OutlineEntry, depth: number, rootId: string, ancestorIds: string[]) => {
     flat.push({
       id: item.id,
       item,
@@ -160,15 +155,13 @@ export function planOutlineRail(
   activeId: string | null | undefined,
   railHeight: number,
   fractions: Readonly<Record<string, number>> = {},
+  labelPitch = OUTLINE_RAIL_LABEL_PITCH,
 ): OutlineRailPlan {
   const capacity =
     railHeight > 0
       ? Math.max(
           5,
-          Math.floor(
-            Math.max(0, railHeight - OUTLINE_RAIL_VERTICAL_INSET * 2) /
-              OUTLINE_RAIL_LABEL_PITCH,
-          ),
+          Math.floor(Math.max(0, railHeight - OUTLINE_RAIL_VERTICAL_INSET * 2) / labelPitch),
         )
       : Number.POSITIVE_INFINITY;
   const active = flat.find((entry) => entry.id === activeId) ?? flat[0] ?? null;
@@ -201,13 +194,8 @@ export function planOutlineRail(
   );
   // Reserve two slots first. If the final window touches one edge, reclaim the
   // unused omission slot so ordinary first/last chapters get one more label.
-  let window = centeredWindow(
-    activeBranch.length,
-    activeBranchIndex,
-    Math.max(1, capacity - 2),
-  );
-  const omissionCount =
-    Number(window.start > 0) + Number(window.end < activeBranch.length);
+  let window = centeredWindow(activeBranch.length, activeBranchIndex, Math.max(1, capacity - 2));
+  const omissionCount = Number(window.start > 0) + Number(window.end < activeBranch.length);
   window = centeredWindow(
     activeBranch.length,
     activeBranchIndex,

@@ -19,5 +19,6 @@ describe('mobile paper pinch model', () => {
     expect(pinchStrength(200, 140)).toBe(1);
     expect(pinchStrength(200, 110)).toBe(1.5);
     expect(pinchStrength(200, 220)).toBe(0);
+    expect(pinchProgress(200, 110, false)).toBe(1.45);
   });
 });

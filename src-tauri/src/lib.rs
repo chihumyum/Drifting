@@ -101,6 +101,26 @@ pub fn run() {
         .plugin(tauri_plugin_drifting_secure_storage::init())
         .plugin(tauri_plugin_drifting_image_codec::init());
 
+    #[cfg(target_os = "ios")]
+    let mut context = tauri::generate_context!();
+    #[cfg(not(target_os = "ios"))]
+    let context = tauri::generate_context!();
+
+    // Tauri creates configured windows before `setup`, but Wry's iOS keyboard
+    // accessory override is only available on the WebviewWindow builder. Delay
+    // the main window on iOS so setup can create it without the generic native
+    // previous / next / done form-navigation strip.
+    #[cfg(target_os = "ios")]
+    if let Some(main_window) = context
+        .config_mut()
+        .app
+        .windows
+        .iter_mut()
+        .find(|window| window.label == "main")
+    {
+        main_window.create = false;
+    }
+
     let app = builder
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
@@ -198,6 +218,26 @@ pub fn run() {
                 );
             });
 
+            #[cfg(target_os = "ios")]
+            {
+                let main_window_config = app
+                    .config()
+                    .app
+                    .windows
+                    .iter()
+                    .find(|window| window.label == "main")
+                    .cloned()
+                    .ok_or_else(|| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::NotFound,
+                            "main window configuration is missing",
+                        )
+                    })?;
+                tauri::WebviewWindowBuilder::from_config(app.handle(), &main_window_config)?
+                    .with_input_accessory_view_builder(|_| None)
+                    .build()?;
+            }
+
             if let Some(window) = app.get_webview_window("main") {
                 window.show()?;
             }
@@ -250,7 +290,7 @@ pub fn run() {
                 });
             }
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building the Drifting Tauri application");
 
     app.run(|app_handle, event| match event {

@@ -33,13 +33,9 @@ describe('semantic outline rail density planning', () => {
   });
 
   it('collapses non-current chapter descendants before dropping chapter labels', () => {
-    const flat = flattenOutlineEntries(
-      Array.from({ length: 12 }, (_, index) => chapter(index, 3)),
-    );
+    const flat = flattenOutlineEntries(Array.from({ length: 12 }, (_, index) => chapter(index, 3)));
     const plan = planOutlineRail(flat, 'chapter-6-scene-1', 300);
-    const ids = plan.labels.flatMap((label) =>
-      label.type === 'entry' ? [label.entry.id] : [],
-    );
+    const ids = plan.labels.flatMap((label) => (label.type === 'entry' ? [label.entry.id] : []));
 
     expect(plan.mode).toBe('active-branch');
     expect(ids).toContain('chapter-0');
@@ -87,6 +83,18 @@ describe('semantic outline rail density planning', () => {
     expect(crowded[2].y - crowded[1].y).toBeGreaterThanOrEqual(17);
   });
 
+  it('reduces density and preserves touch pitch for the mobile rail', () => {
+    const flat = flattenOutlineEntries(Array.from({ length: 20 }, (_, index) => chapter(index, 1)));
+    const plan = planOutlineRail(flat, 'chapter-10-scene-0', 500, {}, 34);
+    const laidOut = layoutOutlineRailLabels(plan.labels, 500, 34);
+
+    expect(plan.capacity).toBe(Math.floor((500 - 18) / 34));
+    expect(plan.labels.length).toBeLessThanOrEqual(plan.capacity);
+    for (let index = 1; index < laidOut.length; index += 1) {
+      expect(laidOut[index].y - laidOut[index - 1].y).toBeGreaterThanOrEqual(34);
+    }
+  });
+
   it('selects every section intersecting the viewport plus its ancestor path', () => {
     const flat = flattenOutlineEntries([
       {
@@ -109,6 +117,8 @@ describe('semantic outline rail density planning', () => {
       900,
     );
 
-    expect([...visible]).toEqual(expect.arrayContaining(['chapter', 'scene-a', 'scene-b', 'scene-c']));
+    expect([...visible]).toEqual(
+      expect.arrayContaining(['chapter', 'scene-a', 'scene-b', 'scene-c']),
+    );
   });
 });

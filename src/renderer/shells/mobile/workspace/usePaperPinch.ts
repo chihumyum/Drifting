@@ -39,7 +39,10 @@ export function pinchProgress(
   if (startDistance <= 0) return startedFromReveal ? 1 : 0;
   const delta = (startDistance - currentDistance) / (startDistance * 0.3);
   const raw = startedFromReveal ? 1 + delta : delta;
-  return Math.max(0, Math.min(1, raw));
+  // Keep rendering the paper all the way to the overview threshold. Clamping
+  // at the ordinary panel dock (1.0) created a dead plateau for the last 45%
+  // of an inward pinch, so the paper stopped while the fingers kept moving.
+  return Math.max(0, Math.min(startedFromReveal ? 1 : 1.45, raw));
 }
 
 export function pinchStrength(startDistance: number, currentDistance: number): number {
@@ -105,9 +108,10 @@ export function usePaperPinch(
         currentDistance,
         gesture.startedFromReveal,
       );
-      if (Math.abs(gesture.progress - (gesture.startedFromReveal ? 1 : 0)) > 0.035) {
-        event.preventDefault();
-      }
+      // Once two touches form a paper gesture, own it immediately. Waiting for
+      // a percentage dead-zone let the WebView consume the first part and made
+      // the paper visibly lag behind the fingers.
+      event.preventDefault();
       optionsRef.current.onPreview(gesture.target, gesture.progress);
     };
     const finish = (event: PointerEvent) => {

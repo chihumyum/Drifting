@@ -124,6 +124,19 @@ export function CommentRail({
   // block(s). Declare it before the chip callbacks that consume its setter so
   // the callbacks remain compatible with React Compiler's closure analysis.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!hoveredId) return undefined;
+    const clearTouchHighlight = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch') return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('[data-comment-id]')?.getAttribute('data-comment-id') === hoveredId) {
+        return;
+      }
+      setHoveredId(null);
+    };
+    document.addEventListener('pointerdown', clearTouchHighlight, true);
+    return () => document.removeEventListener('pointerdown', clearTouchHighlight, true);
+  }, [hoveredId]);
   const collapseToChip = useCallback((id: string) => {
     setChipIds((prev) => {
       if (prev.has(id)) return prev;
@@ -641,6 +654,9 @@ export function CommentRail({
         data-comment-id={comment.id}
         onMouseEnter={() => setHoveredId(comment.id)}
         onMouseLeave={() => setHoveredId((prev) => (prev === comment.id ? null : prev))}
+        onPointerDown={(event) => {
+          if (event.pointerType === 'touch') setHoveredId(comment.id);
+        }}
       >
         {!isOrphan && !loose && <div className="mnote__leader" aria-hidden="true" />}
         <div className="mnote__head">
@@ -850,6 +866,9 @@ export function CommentRail({
         // hovering the icon washes its anchored block/text, same as the card did.
         onMouseEnter={() => setHoveredId(comment.id)}
         onMouseLeave={() => setHoveredId((prev) => (prev === comment.id ? null : prev))}
+        onPointerDown={(event) => {
+          if (event.pointerType === 'touch') setHoveredId(comment.id);
+        }}
         aria-label={t(COLOR_LABEL_KEY[colorKey])}
         title={t('commentRail.actions.expand')}
       >

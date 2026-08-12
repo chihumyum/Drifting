@@ -8,12 +8,21 @@ import {
 } from 'react';
 import { Layers3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { EditorRailPresentationContext } from '../../../components/editor/editor-rail-presentation';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
 import type { MobilePaper, MobileWorkspaceSessionState } from './mobile-workspace-session';
-import { MobilePaperContent, useMobilePaperPresentation } from './MobilePaperContent';
+import { MobilePaperContent } from './MobilePaperContent';
+import { MobilePaperSnapshot } from './MobilePaperSnapshot';
 import { MobileEntityPreviewSheet } from './MobileEntityPreviewSheet';
+import { MobileEditorAccessory } from './MobileEditorAccessory';
+import { MobilePaperRailMenu } from './MobilePaperRailMenu';
 import { MobileWorkspacePanels } from './MobileWorkspacePanels';
-import { paperClusterDestination, paperClusterPreview } from './paper-cluster-gesture';
+import type { MobilePaperRail } from './mobile-paper-rail';
+import {
+  paperClusterDestination,
+  paperClusterPreview,
+  paperClusterQuickSwitchIndex,
+} from './paper-cluster-gesture';
 import { usePaperPinch, type PaperReveal } from './usePaperPinch';
 
 interface PreviewState {
@@ -22,32 +31,40 @@ interface PreviewState {
 }
 
 interface ClusterGestureState {
+  x: number;
   y: number;
   start: PaperReveal;
+  originIndex: number;
   pointerId: number;
   timer: ReturnType<typeof setTimeout> | null;
   armed: boolean;
   moved: boolean;
   cancelled: boolean;
+  axis: 'horizontal' | 'vertical' | null;
+  previewKey: string | null;
+  frozenContentJson: string | undefined;
 }
 
-function MobilePaperPreview({ paper }: { paper: MobilePaper }) {
-  const presentation = useMobilePaperPresentation(paper.target);
-  return (
-    <div className="m-paper-preview" aria-hidden="true">
-      <span style={{ background: presentation.color || 'hsl(var(--ink-4))' }} />
-      <small>{presentation.kicker}</small>
-      <strong>{presentation.title}</strong>
-      <p>{presentation.preview}</p>
-    </div>
-  );
+interface QuickSwitchState {
+  paperKey: string;
+  frozenPaperKey: string;
+  frozenContentJson: string | undefined;
 }
+
+const DEFAULT_PANEL_EXTENT = 0.3;
+const CLUSTER_ARM_DELAY_MS = 160;
+const CLUSTER_PREARM_SLOP = 14;
+const CLUSTER_DIRECTION_SLOP = 6;
+const SIMULATOR_BOTTOM_PANEL_ACCEPTANCE =
+  import.meta.env.VITE_MOBILE_SIMULATOR_BOTTOM_PANEL_ACCEPTANCE === 'true';
 
 function MobilePaperViewport({
   paper,
+  outlineRailVisible,
   onRememberScroll,
 }: {
   paper: MobilePaper;
+  outlineRailVisible: boolean;
   onRememberScroll: (key: string, scrollTop: number) => void;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -93,7 +110,11 @@ function MobilePaperViewport({
 
   return (
     <div ref={rootRef} className="m-paper-scroll-memory">
-      <MobilePaperContent target={paper.target} />
+      <EditorRailPresentationContext.Provider
+        value={{ outlineVisible: outlineRailVisible, outlineLabelPitch: 34 }}
+      >
+        <MobilePaperContent target={paper.target} />
+      </EditorRailPresentationContext.Provider>
     </div>
   );
 }
@@ -101,6 +122,8 @@ function MobilePaperViewport({
 export function MobilePaperDeck({
   projectId,
   session,
+  frozenProseByKey,
+  onFreezeActivePaper,
   onActivate,
   onOpenPaper,
   onRememberScroll,
@@ -108,6 +131,8 @@ export function MobilePaperDeck({
 }: {
   projectId: string;
   session: MobileWorkspaceSessionState;
+  frozenProseByKey: Readonly<Record<string, string>>;
+  onFreezeActivePaper: () => string | undefined;
   onActivate: (paper: MobilePaper) => void;
   onOpenPaper: (target: WorkspaceTarget) => void;
   onRememberScroll: (key: string, scrollTop: number) => void;
@@ -126,14 +151,21 @@ export function MobilePaperDeck({
   const [fullPanel, setFullPanel] = useState<Exclude<PaperReveal, 'focused'> | null>(null);
   const [previewTarget, setPreviewTarget] = useState<WorkspaceTarget | null>(null);
   const [clusterArmed, setClusterArmed] = useState(false);
+  const [clusterAxis, setClusterAxis] = useState<'horizontal' | 'vertical' | null>(null);
+  const [quickSwitch, setQuickSwitch] = useState<QuickSwitchState | null>(null);
+  const [editorActive, setEditorActive] = useState(false);
+  const [railByPaper, setRailByPaper] = useState<Record<string, MobilePaperRail | undefined>>({});
 
   const active = session.papers.find((paper) => paper.key === session.activeKey) ?? null;
+  const activeRail = active ? (railByPaper[active.key] ?? null) : null;
+  const visualActiveKey = quickSwitch?.paperKey ?? session.activeKey;
   const visualReveal = preview?.target ?? reveal;
   const visibleExtent = preview
     ? preview.progress * (reveal === 'focused' ? 0.3 : panelExtent)
     : reveal === 'focused'
       ? 0
       : panelExtent;
+
 
   useEffect(
     () => () => {
@@ -143,22 +175,41 @@ export function MobilePaperDeck({
     [],
   );
 
-  const alignActivePaper = useCallback(() => {
+  const centerPaper = useCallback((paperKey: string, releaseOnNextFrame = true) => {
     const row = paperRowRef.current;
-    if (!row || !session.activeKey) return;
-    const page = row.querySelector<HTMLElement>(
-      `[data-paper-key="${CSS.escape(session.activeKey)}"]`,
-    );
+    if (!row) return;
+    const page = row.querySelector<HTMLElement>(`[data-paper-key="${CSS.escape(paperKey)}"]`);
     if (!page) return;
     programmaticRowScrollRef.current = true;
     row.scrollTo({
       left: page.offsetLeft - (row.clientWidth - page.offsetWidth) / 2,
       behavior: 'auto',
     });
-    requestAnimationFrame(() => {
-      programmaticRowScrollRef.current = false;
-    });
-  }, [session.activeKey]);
+    if (releaseOnNextFrame) {
+      requestAnimationFrame(() => {
+        programmaticRowScrollRef.current = false;
+      });
+    }
+  }, []);
+
+  const alignActivePaper = useCallback(() => {
+    if (!session.activeKey) return;
+    centerPaper(session.activeKey);
+  }, [centerPaper, session.activeKey]);
+
+  const setActivePaperRail = useCallback(
+    (rail: MobilePaperRail | null) => {
+      if (!active) return;
+      setRailByPaper((current) => {
+        if ((current[active.key] ?? null) === rail) return current;
+        const next = { ...current };
+        if (rail === null) delete next[active.key];
+        else next[active.key] = rail;
+        return next;
+      });
+    },
+    [active],
+  );
 
   useLayoutEffect(() => {
     alignActivePaper();
@@ -178,12 +229,12 @@ export function MobilePaperDeck({
     if (nearest && nearest.paper.key !== session.activeKey) onActivate(nearest.paper);
   }, [onActivate, session.activeKey, session.papers]);
 
-  const commitReveal = useCallback((nextReveal: PaperReveal) => {
+  const commitReveal = useCallback((nextReveal: PaperReveal, extent = DEFAULT_PANEL_EXTENT) => {
     setPreview(null);
     setPanelResizing(false);
     setFullPanel(null);
     setReveal(nextReveal);
-    setPanelExtent(nextReveal === 'focused' ? 0 : 0.3);
+    setPanelExtent(nextReveal === 'focused' ? 0 : Math.max(0.08, Math.min(0.48, extent)));
   }, []);
 
   usePaperPinch(rootRef, {
@@ -198,8 +249,8 @@ export function MobilePaperDeck({
     setPreview(null);
     setPanelResizing(true);
     setReveal(panel);
-    setFullPanel(extent >= 0.5 ? panel : null);
-    setPanelExtent(extent >= 0.5 ? 1 : extent);
+    setFullPanel(null);
+    setPanelExtent(extent);
   };
 
   const commitExtentFromHandle = (panel: Exclude<PaperReveal, 'focused'>, extent: number) => {
@@ -222,16 +273,53 @@ export function MobilePaperDeck({
   const clusterMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = clusterDragRef.current;
     if (!drag) return;
+    const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
     if (!drag.armed) {
-      if (Math.abs(dy) > 8) {
+      if (Math.hypot(dx, dy) > CLUSTER_PREARM_SLOP) {
         drag.cancelled = true;
         if (drag.timer) clearTimeout(drag.timer);
       }
       return;
     }
-    if (Math.abs(dy) > 4) drag.moved = true;
-    setPreview(paperClusterPreview(drag.start, dy));
+    if (!drag.axis) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) <= CLUSTER_DIRECTION_SLOP) return;
+      drag.axis = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+      setClusterAxis(drag.axis);
+      if (drag.axis === 'horizontal') {
+        drag.frozenContentJson = onFreezeActivePaper();
+        const originPaper = session.papers[drag.originIndex];
+        if (originPaper) {
+          setQuickSwitch({
+            paperKey: originPaper.key,
+            frozenPaperKey: session.activeKey ?? originPaper.key,
+            frozenContentJson: drag.frozenContentJson,
+          });
+        }
+      }
+    }
+    drag.moved = true;
+    if (drag.axis === 'horizontal') {
+      const nextIndex = paperClusterQuickSwitchIndex(drag.originIndex, dx, session.papers.length);
+      const paper = session.papers[nextIndex];
+      if (!paper || paper.key === drag.previewKey) return;
+      drag.previewKey = paper.key;
+      setQuickSwitch({
+        paperKey: paper.key,
+        frozenPaperKey: session.activeKey ?? paper.key,
+        frozenContentJson: drag.frozenContentJson,
+      });
+      centerPaper(paper.key, false);
+      return;
+    }
+    setPreview(
+      paperClusterPreview(
+        drag.start,
+        dy,
+        rootRef.current?.clientHeight ?? window.innerHeight,
+        panelExtent,
+      ),
+    );
   };
 
   const clusterUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -240,28 +328,60 @@ export function MobilePaperDeck({
     clusterDragRef.current = null;
     if (drag.timer) clearTimeout(drag.timer);
     setClusterArmed(false);
+    setClusterAxis(null);
     if (drag.armed) event.currentTarget.releasePointerCapture?.(event.pointerId);
     if (!drag.armed) {
       setPreview(null);
-      if (!drag.cancelled && Math.abs(event.clientY - drag.y) <= 8) onOpenOverview();
+      if (!drag.cancelled && Math.abs(event.clientY - drag.y) <= CLUSTER_PREARM_SLOP) {
+        if (SIMULATOR_BOTTOM_PANEL_ACCEPTANCE) {
+          commitExtentFromHandle('bottom', 1);
+          return;
+        }
+        // Let the native button's synthesized click finish before replacing it
+        // with the full-screen overview; otherwise Android can retarget that
+        // click to the overview footer directly underneath the pill.
+        window.setTimeout(onOpenOverview, 0);
+      }
       return;
     }
     if (!drag.moved) {
       setPreview(null);
+      setQuickSwitch(null);
       return;
     }
-    const destination = paperClusterDestination(drag.start, event.clientY - drag.y);
+    if (drag.axis === 'horizontal') {
+      const selected = session.papers.find((paper) => paper.key === drag.previewKey);
+      if (selected && selected.key !== session.activeKey) onActivate(selected);
+      setQuickSwitch(null);
+      requestAnimationFrame(() => {
+        programmaticRowScrollRef.current = false;
+        if (!selected) alignActivePaper();
+      });
+      return;
+    }
+    const deltaY = event.clientY - drag.y;
+    const viewportHeight = rootRef.current?.clientHeight ?? window.innerHeight;
+    const settledPreview = paperClusterPreview(drag.start, deltaY, viewportHeight, panelExtent);
+    const destination = paperClusterDestination(drag.start, deltaY, viewportHeight, panelExtent);
     if (destination === null) setPreview(null);
-    else commitReveal(destination);
+    else {
+      const extent =
+        settledPreview.progress * (drag.start === 'focused' ? DEFAULT_PANEL_EXTENT : panelExtent);
+      commitReveal(destination, extent);
+    }
   };
 
   return (
     <main
       ref={rootRef}
       className="m-workspace"
+      data-debug-id="mobile-workspace"
       data-reveal={visualReveal}
       data-preview={preview || panelResizing ? 'true' : 'false'}
       data-full-panel={fullPanel ?? 'none'}
+      data-paper-switch={quickSwitch ? 'true' : 'false'}
+      data-editor-active={editorActive ? 'true' : 'false'}
+      data-paper-rail={activeRail ?? 'none'}
       style={{ '--m-panel-extent': visibleExtent } as React.CSSProperties}
     >
       <MobileWorkspacePanels
@@ -282,29 +402,54 @@ export function MobilePaperDeck({
           <div
             ref={paperRowRef}
             className="m-paper-row"
+            data-debug-id="mobile-paper-row"
             onScroll={() => {
               if (programmaticRowScrollRef.current) return;
+              if (clusterDragRef.current?.axis === 'horizontal') return;
               if (rowScrollTimerRef.current) clearTimeout(rowScrollTimerRef.current);
               rowScrollTimerRef.current = setTimeout(activateNearestPaper, 100);
             }}
           >
             {session.papers.map((paper) => {
-              const isActive = paper.key === session.activeKey;
+              const isActive = paper.key === session.activeKey && quickSwitch === null;
+              const isVisuallyActive = paper.key === visualActiveKey;
               return (
                 <section
                   key={paper.key}
                   className="m-paper-row__page"
                   data-paper-key={paper.key}
-                  data-active={isActive ? 'true' : 'false'}
-                  aria-hidden={isActive ? undefined : 'true'}
+                  data-active={isVisuallyActive ? 'true' : 'false'}
+                  aria-current={isVisuallyActive ? 'page' : undefined}
                 >
                   <div className="m-paper-row__paper">
                     {isActive ? (
                       <div className="m-paper-deck__content">
-                        <MobilePaperViewport paper={paper} onRememberScroll={onRememberScroll} />
+                        <MobilePaperViewport
+                          paper={paper}
+                          outlineRailVisible={activeRail === 'toc'}
+                          onRememberScroll={onRememberScroll}
+                        />
                       </div>
                     ) : (
-                      <MobilePaperPreview paper={paper} />
+                      <MobilePaperSnapshot
+                        projectId={projectId}
+                        paper={paper}
+                        frozenContentJson={
+                          quickSwitch?.frozenPaperKey === paper.key
+                            ? quickSwitch.frozenContentJson
+                            : frozenProseByKey[paper.key]
+                        }
+                      />
+                    )}
+                    {!isActive && (
+                      <button
+                        type="button"
+                        className="m-paper-row__activate"
+                        aria-label={t('mobileWorkspace.activatePaper', {
+                          defaultValue: '切换到这张纸',
+                        })}
+                        onClick={() => onActivate(paper)}
+                      />
                     )}
                   </div>
                 </section>
@@ -328,27 +473,43 @@ export function MobilePaperDeck({
         <button
           type="button"
           className="m-paper-cluster"
+          data-debug-id="mobile-paper-cluster"
           data-armed={clusterArmed ? 'true' : 'false'}
+          data-axis={clusterAxis ?? 'none'}
           aria-label={t('mobileWorkspace.paperCluster', { defaultValue: '纸张控制与总览' })}
           onPointerDown={(event) => {
             event.stopPropagation();
             const button = event.currentTarget;
+            const pointerArmsImmediately = event.pointerType === 'mouse';
             const gesture: ClusterGestureState = {
+              x: event.clientX,
               y: event.clientY,
               start: reveal,
+              originIndex: Math.max(
+                0,
+                session.papers.findIndex((paper) => paper.key === session.activeKey),
+              ),
               pointerId: event.pointerId,
               timer: null,
-              armed: false,
+              armed: pointerArmsImmediately,
               moved: false,
               cancelled: false,
+              axis: null,
+              previewKey: session.activeKey,
+              frozenContentJson: undefined,
             };
-            gesture.timer = setTimeout(() => {
-              if (clusterDragRef.current !== gesture || gesture.cancelled) return;
-              gesture.armed = true;
+            clusterDragRef.current = gesture;
+            if (pointerArmsImmediately) {
               button.setPointerCapture?.(gesture.pointerId);
               setClusterArmed(true);
-            }, 280);
-            clusterDragRef.current = gesture;
+            } else {
+              gesture.timer = setTimeout(() => {
+                if (clusterDragRef.current !== gesture || gesture.cancelled) return;
+                gesture.armed = true;
+                button.setPointerCapture?.(gesture.pointerId);
+                setClusterArmed(true);
+              }, CLUSTER_ARM_DELAY_MS);
+            }
           }}
           onPointerMove={clusterMove}
           onPointerUp={clusterUp}
@@ -356,14 +517,18 @@ export function MobilePaperDeck({
             if (clusterDragRef.current?.timer) clearTimeout(clusterDragRef.current.timer);
             clusterDragRef.current = null;
             setClusterArmed(false);
+            setClusterAxis(null);
             setPreview(null);
+            setQuickSwitch(null);
+            alignActivePaper();
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
           }}
         >
           {session.papers.map((paper) => (
-            <span
-              key={paper.key}
-              data-active={paper.key === session.activeKey ? 'true' : 'false'}
-            />
+            <span key={paper.key} data-active={paper.key === visualActiveKey ? 'true' : 'false'} />
           ))}
         </button>
       )}
@@ -384,6 +549,17 @@ export function MobilePaperDeck({
           }}
         />
       )}
+
+      {active && visualReveal === 'focused' && fullPanel === null && !quickSwitch && (
+        <MobilePaperRailMenu
+          key={active.key}
+          target={active.target}
+          activeRail={activeRail}
+          onActiveRailChange={setActivePaperRail}
+        />
+      )}
+
+      <MobileEditorAccessory onEditingStateChange={setEditorActive} />
     </main>
   );
 }

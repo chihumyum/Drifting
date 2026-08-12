@@ -76,7 +76,8 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(topBar.indexOf('<OutlineRailModeMenu')).toBeLessThan(
       topBar.indexOf('editor-bar__icon--reflink'),
     );
-    expect(rail).toContain("if (outlineRailMode === 'hidden') return null;");
+    expect(rail).toContain("presentation?.outlineVisible ?? outlineRailMode !== 'hidden'");
+    expect(rail).toContain('if (!visible) return null;');
     expect(rail).not.toContain('data-display-mode');
     expect(settings).toContain("export type OutlineRailMode = 'visible' | 'hidden';");
     expect(settings).toContain("OUTLINE_RAIL_MODE_DEFAULT: OutlineRailMode = 'visible'");
