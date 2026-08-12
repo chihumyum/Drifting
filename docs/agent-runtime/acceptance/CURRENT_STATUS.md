@@ -119,14 +119,6 @@ pnpm --dir client agent:capabilities:check
 - Agent chats are independent flat sessions. Author-visible Agent checkpoint,
   conversation rewind, and conversation-fork hierarchy are not product
   concepts; manuscript recovery belongs to entity snapshot history.
-- An author can explicitly prepare a new desktop chat to pick up work from
-  another chat. `read_project_handoff` rebuilds a bounded project-local,
-  read-only projection from durable plans, active constraints, current authored
-  names, and settled/reviewable write effects. It excludes the current session,
-  deleted chats, other projects, transcripts, prose, internal IDs, permissions,
-  provider state, and control authority. A running source chat is identified so
-  the new chat does not duplicate its active deliverable; every later write
-  still requires a current authored-object read and the normal revision guard.
 - Every project has one rolling Markdown `WORKING_MEMORY.md` shared across its
   General Agent conversations. The runtime injects the current revision at turn
   start and exposes one importance-gated checkpoint (`update` or `noop`) before

@@ -1238,14 +1238,6 @@
     "empty": {
       "start": "给 Agent 发条消息开始。它可以读写本项目的章节、元素与关系。"
     },
-    "handoff": {
-      "title": "接力其他会话",
-      "eyebrow": "可接力的持久化任务",
-      "progress": "来自「{{conversation}}」· 已完成 {{completed}} / {{total}} 项",
-      "running": "来源会话仍在运行；接力前应避免重复处理其当前步骤。",
-      "action": "接力最近任务",
-      "prompt": "请接力项目中会话「{{conversation}}」的未完成任务：{{objective}}。先调用 read_project_handoff 核对目标、约束、完成证据和来源会话状态；不要接管或修改旧会话计划，也不要重复仍在运行的步骤。写入前重新读取当前作者对象并遵守 revision/CAS。"
-    },
     "turnChanges": "本轮改动",
     "jumpLatest": "回到最新",
     "control": {

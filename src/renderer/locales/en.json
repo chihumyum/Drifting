@@ -1238,14 +1238,6 @@
     "empty": {
       "start": "Send Agent a message to start. It can read and write this project's chapters, elements, and relations."
     },
-    "handoff": {
-      "title": "Pick up another chat",
-      "eyebrow": "Durable task available",
-      "progress": "From “{{conversation}}” · {{completed}} / {{total}} complete",
-      "running": "The source chat is still running. Avoid duplicating its current step.",
-      "action": "Pick up recent task",
-      "prompt": "Pick up the unfinished task from project chat “{{conversation}}”: {{objective}}. First call read_project_handoff to verify the objective, constraints, completion evidence, and source-chat state. Do not take control of or modify the old chat plan, and do not duplicate a step that is still running. Re-read each current authored target and follow revision/CAS before writing."
-    },
     "turnChanges": "Turn changes",
     "jumpLatest": "Jump to latest",
     "control": {

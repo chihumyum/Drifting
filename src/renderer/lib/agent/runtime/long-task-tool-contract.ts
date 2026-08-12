@@ -1,13 +1,11 @@
 /** Pure names/access contract shared by production composition and tooling. */
 export const AGENT_LONG_TASK_READ_TOOL = 'read_task_plan' as const;
-export const AGENT_PROJECT_HANDOFF_READ_TOOL = 'read_project_handoff' as const;
 export const AGENT_LONG_TASK_PLAN_TOOL = 'update_task_plan' as const;
 export const AGENT_LONG_TASK_STEP_TOOL = 'update_task_step' as const;
 export const AGENT_LONG_TASK_CONSTRAINT_TOOL = 'update_task_constraint' as const;
 
 export const AGENT_LONG_TASK_TOOL_CONTRACTS = [
   { name: AGENT_LONG_TASK_READ_TOOL, access: 'read' },
-  { name: AGENT_PROJECT_HANDOFF_READ_TOOL, access: 'read' },
   { name: AGENT_LONG_TASK_PLAN_TOOL, access: 'write' },
   { name: AGENT_LONG_TASK_STEP_TOOL, access: 'write' },
   { name: AGENT_LONG_TASK_CONSTRAINT_TOOL, access: 'write' },

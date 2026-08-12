@@ -40,7 +40,6 @@ pnpm --dir client eval:agent:tool-reliability
 pnpm --dir client eval:agent:durability
 pnpm --dir client eval:agent:crud
 pnpm --dir client eval:agent:long-task
-pnpm --dir client eval:agent:handoff
 pnpm --dir client eval:agent:working-memory
 pnpm --dir client eval:agent:context
 pnpm --dir client eval:agent:writing
@@ -168,13 +167,6 @@ localStorage and renderer stores are rebuildable presentation only. Long tasks
 freeze a chapter manifest, persist progress and constraints across slices and
 restart, stop at durable tool boundaries, and require explicit author action to
 resume after restart.
-
-When the author explicitly asks a fresh desktop chat to pick up work from
-another chat, General Agent can read a bounded project-local handoff containing
-unfinished objectives, constraints, progress, current authored names, and
-reliable recent writes. The handoff is rebuilt from SQLite, excludes transcript
-text and internal IDs, and never transfers the source chat's plan, permissions,
-provider state, or control.
 
 Every project also owns one rolling `WORKING_MEMORY.md` shared by all of its
 General Agent conversations. The current revision is injected at turn start;

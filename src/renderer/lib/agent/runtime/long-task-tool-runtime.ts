@@ -16,11 +16,6 @@ import {
   type AgentRuntimeLongTaskRepository,
 } from '../../../sqlite-repo/agent-runtime-long-task-repo';
 import { isAgentAbort, throwIfAgentAborted } from './errors';
-import {
-  agentProjectHandoffModelData,
-  createAgentProjectHandoffService,
-  type AgentProjectHandoffReader,
-} from './project-handoff';
 import type {
   AgentRuntimeContext,
   AgentToolDefinition,
@@ -32,7 +27,6 @@ import type {
   AgentToolSelectionHints,
 } from './types';
 import {
-  AGENT_PROJECT_HANDOFF_READ_TOOL,
   AGENT_LONG_TASK_CONSTRAINT_TOOL,
   AGENT_LONG_TASK_PLAN_TOOL,
   AGENT_LONG_TASK_READ_TOOL,
@@ -41,7 +35,6 @@ import {
 } from './long-task-tool-contract';
 
 export {
-  AGENT_PROJECT_HANDOFF_READ_TOOL,
   AGENT_LONG_TASK_CONSTRAINT_TOOL,
   AGENT_LONG_TASK_PLAN_TOOL,
   AGENT_LONG_TASK_READ_TOOL,
@@ -157,8 +150,6 @@ const readPlanProviderSchema = Type.Object(
   },
   { additionalProperties: false },
 );
-
-const readProjectHandoffSchema = Type.Object({}, { additionalProperties: false });
 
 /**
  * Strict command schema used at the execution boundary.  Keep the discriminated
@@ -572,7 +563,6 @@ export interface AgentLongTaskCurrentChapterNameInput {
 
 export interface AgentLongTaskToolRuntimeOptions {
   repository?: AgentRuntimeLongTaskRepository;
-  projectHandoff?: AgentProjectHandoffReader;
   now?: () => string;
   /**
    * Product-owned, name-first resolver. The provider never supplies a node id;
@@ -933,7 +923,6 @@ function isProcessOnlyEditStep(
 
 export class AgentLongTaskToolRuntime implements AgentToolRuntime {
   private readonly repository: AgentRuntimeLongTaskRepository;
-  private readonly projectHandoff: AgentProjectHandoffReader;
   private readonly now: () => string;
   private readonly resolveTarget: AgentLongTaskToolRuntimeOptions['resolveTarget'] | undefined;
   private readonly getWholeBookChapterManifest:
@@ -945,7 +934,6 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
 
   constructor(options: AgentLongTaskToolRuntimeOptions = {}) {
     this.repository = options.repository ?? createAgentRuntimeLongTaskRepository();
-    this.projectHandoff = options.projectHandoff ?? createAgentProjectHandoffService();
     this.now = options.now ?? (() => new Date().toISOString());
     this.resolveTarget = options.resolveTarget;
     this.getWholeBookChapterManifest = options.getWholeBookChapterManifest;
@@ -961,14 +949,6 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
         inputSchema: readPlanProviderSchema,
         access: 'read',
         validateInput: (input) => validation(readPlanSchema, input),
-      },
-      {
-        name: AGENT_PROJECT_HANDOFF_READ_TOOL,
-        description:
-          'Read a bounded, project-local handoff from other live General Agent conversations: unfinished objectives, active constraints, completed and remaining deliverables, current authored names, and recent reliable writes. This is orientation only; it never transfers the source conversation plan, controls, permissions, transcript, or provider state. Use it only when the author explicitly asks to continue, resume, or pick up work from another conversation.',
-        inputSchema: readProjectHandoffSchema,
-        access: 'read',
-        validateInput: (input) => validation(readProjectHandoffSchema, input),
       },
       {
         name: AGENT_LONG_TASK_PLAN_TOOL,
@@ -1067,19 +1047,6 @@ export class AgentLongTaskToolRuntime implements AgentToolRuntime {
     const scope = { projectId, sessionId: request.sessionId };
 
     try {
-      if (request.name === AGENT_PROJECT_HANDOFF_READ_TOOL) {
-        const handoff = await this.projectHandoff.read({
-          projectId,
-          currentSessionId: request.sessionId,
-        });
-        throwIfAgentAborted(request.signal);
-        return {
-          ok: true,
-          data: handoff,
-          modelData: agentProjectHandoffModelData(handoff),
-        };
-      }
-
       if (request.name === AGENT_LONG_TASK_READ_TOOL) {
         const input = request.arguments as {
           taskId?: string;

@@ -9,8 +9,8 @@ Runtime-discovered project MCP/plugin tools are additional and generation-bound.
 
 | Capability | Current value |
 | --- | ---: |
-| Installed built-in model tools | 78 |
-| Installed reads | 28 |
+| Installed built-in model tools | 77 |
+| Installed reads | 27 |
 | Installed writes | 50 |
 | Direct catalog writes | 37 |
 | Direct write-certified | 22 |
@@ -117,7 +117,6 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 | `read_element_category` | read | domain-tools | workspace-runtime | internal-certified |
 | `read_inspiration` | read | domain-tools | workspace-runtime | internal-certified |
 | `read_material` | read | domain-tools | workspace-runtime | read-certified |
-| `read_project_handoff` | read | long-task-runtime | long-task-runtime | runtime-certified |
 | `read_storyline` | read | domain-tools | workspace-runtime | internal-certified |
 | `read_task_plan` | read | long-task-runtime | long-task-runtime | runtime-certified |
 | `read_tool_result` | read | runtime-control | workspace-runtime | internal-certified |
