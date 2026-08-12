@@ -112,8 +112,20 @@ function makeSyntheticStoryline(id: string, name: string, color: string): Storyl
   };
 }
 
-export function DesktopBottomTimeline() {
+export type BottomTimelinePresentation = 'desktop' | 'mobile';
+
+export function DesktopBottomTimeline({
+  presentation = 'desktop',
+}: {
+  presentation?: BottomTimelinePresentation;
+} = {}) {
   const { t } = useTranslation();
+  const isMobilePresentation = presentation === 'mobile';
+  const railWidth = isMobilePresentation ? 104 : TIMELINE_CONFIG.RAIL_WIDTH;
+  const headHeight = isMobilePresentation ? 42 : TIMELINE_CONFIG.HEAD_HEIGHT;
+  const axisHeightValue = isMobilePresentation ? 36 : TIMELINE_CONFIG.AXIS_HEIGHT;
+  const actRailHeightValue = isMobilePresentation ? 36 : TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT;
+  const nodeMinHeight = isMobilePresentation ? 44 : TIMELINE_CONFIG.NODE_MIN_HEIGHT;
   const editorMatch = useMatch('/project/:projectId/editor/:nodeId');
   const storylineMatch = useMatch('/project/:projectId/editor/storyline/:storylineId');
   const nodeId = editorMatch?.params.nodeId;
@@ -150,14 +162,12 @@ export function DesktopBottomTimeline() {
 
   const nodesWithStorylines = useMemo<TimelineNode[]>(() => {
     const storylineById = new Map(storylines.map((sl) => [sl.id, sl]));
-    return bookNodes
-      .filter(isChapter)
-      .map((node) => ({
-        ...node,
-        storylines: (nodeStorylineMapping[node.id] || [])
-          .map((slId) => storylineById.get(slId))
-          .filter((sl): sl is Storyline => Boolean(sl)),
-      }));
+    return bookNodes.filter(isChapter).map((node) => ({
+      ...node,
+      storylines: (nodeStorylineMapping[node.id] || [])
+        .map((slId) => storylineById.get(slId))
+        .filter((sl): sl is Storyline => Boolean(sl)),
+    }));
   }, [bookNodes, nodeStorylineMapping, storylines]);
 
   const [viewMode, setViewMode] = useState<TimelineView>(readPersistedView);
@@ -210,9 +220,45 @@ export function DesktopBottomTimeline() {
     setHoverPreview,
     clearHoverPreview,
   } = useBottomTimelineInteractionState();
+  const touchMenuCleanupRef = useRef<(() => void) | null>(null);
+  const suppressTouchClickRef = useRef(false);
+
+  useEffect(() => () => touchMenuCleanupRef.current?.(), []);
+
+  const beginTouchMenu = (event: React.PointerEvent, open: () => void) => {
+    if (!isMobilePresentation || event.pointerType !== 'touch') return;
+    touchMenuCleanupRef.current?.();
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let timer = window.setTimeout(() => {
+      timer = 0;
+      suppressTouchClickRef.current = true;
+      open();
+    }, 420);
+    const cleanup = () => {
+      if (timer) window.clearTimeout(timer);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+      if (touchMenuCleanupRef.current === cleanup) touchMenuCleanupRef.current = null;
+    };
+    const onMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 8) cleanup();
+    };
+    const onEnd = (endEvent: PointerEvent) => {
+      if (endEvent.pointerId === pointerId) cleanup();
+    };
+    touchMenuCleanupRef.current = cleanup;
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
+  };
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [mobileTimelineHeight, setMobileTimelineHeight] = useState(0);
   const timelineHeightBounds = useCallback(() => {
     const appMid = timelineRef.current?.closest('.app-mid');
     const containerHeight = appMid?.getBoundingClientRect().height ?? window.innerHeight;
@@ -223,6 +269,7 @@ export function DesktopBottomTimeline() {
   // the native window moves to a smaller display. ResizeObserver also covers
   // shell changes caused by chrome/timeline layout without a window resize.
   useEffect(() => {
+    if (isMobilePresentation) return undefined;
     const normalize = () => {
       const base = customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT;
       const next = clampDimension(base, timelineHeightBounds());
@@ -241,7 +288,17 @@ export function DesktopBottomTimeline() {
       observer?.disconnect();
       window.removeEventListener('resize', normalize);
     };
-  }, [customHeight, timelineHeightBounds]);
+  }, [customHeight, isMobilePresentation, timelineHeightBounds]);
+
+  useEffect(() => {
+    if (!isMobilePresentation || !timelineRef.current) return undefined;
+    const timeline = timelineRef.current;
+    const update = () => setMobileTimelineHeight(timeline.clientHeight);
+    update();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    observer?.observe(timeline);
+    return () => observer?.disconnect();
+  }, [isMobilePresentation]);
   const { expandedScale, touchHandlers } = useTimelineExpandedScale({
     isExpanded: true,
     scrollContainerRef,
@@ -263,15 +320,14 @@ export function DesktopBottomTimeline() {
 
   // Drag-resize top edge (visible only — no collapsed mode anymore).
   useEffect(() => {
-    if (!isResizingHeight) return;
+    if (!isResizingHeight || isMobilePresentation) return;
     let lastValue: number | null = null;
 
     const handleMouseMove = (e: MouseEvent) => {
       const minHeight =
-        TIMELINE_CONFIG.HEAD_HEIGHT +
-        TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT +
-        Math.max(storylines.length, 1) *
-          (TIMELINE_CONFIG.NODE_MIN_HEIGHT + TIMELINE_CONFIG.STORYLINE_GAP);
+        headHeight +
+        actRailHeightValue +
+        Math.max(storylines.length, 1) * (nodeMinHeight + TIMELINE_CONFIG.STORYLINE_GAP);
       // height = (bottom edge) − (new top edge), where the new top edge is
       // `e.clientY − grabOffset` so the originally-grabbed pixel stays under
       // the cursor.
@@ -300,7 +356,15 @@ export function DesktopBottomTimeline() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizingHeight, storylines.length, timelineHeightBounds]);
+  }, [
+    actRailHeightValue,
+    headHeight,
+    isMobilePresentation,
+    isResizingHeight,
+    nodeMinHeight,
+    storylines.length,
+    timelineHeightBounds,
+  ]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -403,6 +467,98 @@ export function DesktopBottomTimeline() {
     initializeChapterDrag(e.dataTransfer, node.id, e.currentTarget as HTMLElement);
   };
 
+  const startMobileNodeDrag = (
+    event: React.PointerEvent<HTMLElement>,
+    node: TimelineNode,
+    storylineId: string,
+  ) => {
+    if (!isMobilePresentation || event.pointerType !== 'touch' || event.button !== 0) return;
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let dragging = false;
+    let target: { storylineId: string; order: number; x: number } | null = null;
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+    };
+    const onMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      const distance = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+      if (!dragging && distance < 6) return;
+      if (!dragging) {
+        dragging = true;
+        touchMenuCleanupRef.current?.();
+        suppressTouchClickRef.current = true;
+        clearContextMenu();
+        clearHoverPreview();
+        setDraggedNode({ node, storylineId });
+      }
+      if (moveEvent.cancelable) moveEvent.preventDefault();
+      const row = document
+        .elementFromPoint(moveEvent.clientX, moveEvent.clientY)
+        ?.closest<HTMLElement>('[data-storyline-row]');
+      const targetStorylineId = row?.dataset.storylineRow ?? null;
+      if (
+        !row ||
+        !canDropChapterOnLane({
+          targetLaneId: targetStorylineId,
+          fromDrawer: false,
+          primaryStorylineId: primaryStorylineId(node),
+        })
+      ) {
+        target = null;
+        setDragOverPosition(null);
+        return;
+      }
+      const container = row.querySelector<HTMLElement>('[data-node-container]');
+      if (!container || !targetStorylineId) return;
+      const rect = container.getBoundingClientRect();
+      const pointerX = moveEvent.clientX - rect.left;
+      const nodeLeftX = pointerX - nodeWidth / 2;
+      const nextOrder = Math.max(
+        minOrder,
+        Math.round(nodeLeftX / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor)) + minOrder,
+      );
+      target = { storylineId: targetStorylineId, order: nextOrder, x: pointerX };
+      setDragOverPosition(target);
+    };
+    const finish = async () => {
+      cleanup();
+      if (dragging && target) {
+        try {
+          await commitChapterLaneDrop({
+            nodeId: node.id,
+            targetLaneId: target.storylineId,
+            targetOrder: target.order,
+            orderField,
+            primaryStorylineId: primaryStorylineId(node),
+            membershipIds: node.storylines.map((storyline) => storyline.id),
+            updateNode,
+            setNodeStorylines,
+          });
+        } catch (error) {
+          log.error('Failed to handle mobile timeline drop:', error);
+        }
+      }
+      clearDragState();
+    };
+    const onUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId === pointerId) void finish();
+    };
+    const onCancel = (cancelEvent: PointerEvent) => {
+      if (cancelEvent.pointerId !== pointerId) return;
+      cleanup();
+      clearDragState();
+      suppressTouchClickRef.current = false;
+    };
+    window.addEventListener('pointermove', onMove, { passive: false });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+  };
+
   const handleDrawerDragStart = (e: React.DragEvent, node: TimelineNode) => {
     clearHoverPreview();
     const sourceId = primaryStorylineId(node) ?? '';
@@ -493,7 +649,16 @@ export function DesktopBottomTimeline() {
 
   const handleNodeClick = (clickedNodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (suppressTouchClickRef.current) {
+      suppressTouchClickRef.current = false;
+      e.preventDefault();
+      return;
+    }
     clearContextMenu();
+    if (isMobilePresentation) {
+      openEntity({ entityType: 'node', id: clickedNodeId });
+      return;
+    }
     setNodeSelection(clickedNodeId, 'ui');
   };
 
@@ -509,7 +674,12 @@ export function DesktopBottomTimeline() {
     clearHoverPreview();
   };
 
-  const handleTimelineClick = () => {
+  const handleTimelineClick = (event: React.MouseEvent) => {
+    if (suppressTouchClickRef.current) {
+      suppressTouchClickRef.current = false;
+      event.preventDefault();
+      return;
+    }
     clearContextMenu();
   };
 
@@ -604,13 +774,12 @@ export function DesktopBottomTimeline() {
 
   const renderNodeCard = (node: TimelineNode, storylineId: string) => {
     const storyline = storylineById.get(storylineId);
-    const isSelected = (selectedNodeUiId ?? nodeId) === node.id;
+    const isSelected = (isMobilePresentation ? nodeId : (selectedNodeUiId ?? nodeId)) === node.id;
     // Synthetic lanes (本书 / 未归属) host nodes that have no real primary
     // storyline — the lane itself is the visible "primary". Skipping the
     // primary check ensures these tiles render; clip color falls back to
     // the synthetic lane's color below.
-    const isSyntheticLane =
-      storylineId === DEFAULT_LANE_ID || storylineId === UNAFFILIATED_LANE_ID;
+    const isSyntheticLane = storylineId === DEFAULT_LANE_ID || storylineId === UNAFFILIATED_LANE_ID;
     const isPrimary = isSyntheticLane || isPrimaryStorylineForNode(node, storylineId);
 
     if (!isPrimary) return null;
@@ -624,11 +793,7 @@ export function DesktopBottomTimeline() {
     // Mutually-exclusive author-facing status classes.
     const status = node.writingStatus;
     const stateClass =
-      status === 'finished'
-        ? 'is-finished'
-        : status === 'discarded'
-          ? 'is-discarded'
-          : 'is-draft';
+      status === 'finished' ? 'is-finished' : status === 'discarded' ? 'is-discarded' : 'is-draft';
 
     const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
       if (draggedNode) {
@@ -640,7 +805,13 @@ export function DesktopBottomTimeline() {
       }
     };
 
-    const className = ['btl-clip', isSelected ? 'is-selected' : '', stateClass]
+    const isDragged = draggedNode?.node.id === node.id;
+    const className = [
+      'btl-clip',
+      isSelected ? 'is-selected' : '',
+      isDragged ? 'is-dragging' : '',
+      stateClass,
+    ]
       .filter(Boolean)
       .join(' ');
 
@@ -649,9 +820,10 @@ export function DesktopBottomTimeline() {
         key={`${node.id}-${storylineId}`}
         data-node-card
         className={className}
-        draggable={isPrimary}
+        draggable={isPrimary && !isMobilePresentation}
         onDragStart={(e) => handleNodeDragStart(e, node, storylineId)}
         onDragEnd={handleDragEnd}
+        onPointerDown={(event) => startMobileNodeDrag(event, node, storylineId)}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleNodeMouseLeave}
         onClick={(e) => handleNodeClick(node.id, e)}
@@ -684,9 +856,50 @@ export function DesktopBottomTimeline() {
 
     const isDropDisabled = !!draggedNode && !canDropOnStoryline(storyline.id);
 
+    const openRowContextMenu = (row: HTMLElement, clientX: number, clientY: number) => {
+      // Synthetic lanes don't expose storyline actions, but their chapter
+      // cards still use the shared node menu.
+      const container = row.querySelector('[data-node-container]') as HTMLElement | null;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const clickedNode = nodesInStoryline.find((node) => {
+        if (!isSynthetic && !isPrimaryStorylineForNode(node, storyline.id)) return false;
+        const ord = orderOf(node);
+        if (ord === null) return false;
+        const nl = orderToPosition(ord);
+        return x >= nl && x <= nl + nodeWidth;
+      });
+      if (clickedNode) {
+        setContextMenu({
+          x: clientX + 2,
+          y: clientY - 2,
+          type: 'node',
+          nodeId: clickedNode.id,
+          storylineId: storyline.id,
+          nodeTitle: clickedNode.title,
+          nodeSummary: clickedNode.summary,
+          nodeStorylines: clickedNode.storylines,
+        });
+        return;
+      }
+      if (isSynthetic) return;
+      setContextMenu({
+        x: clientX + 2,
+        y: clientY - 2,
+        type: 'storyline',
+        storylineId: storyline.id,
+        position: Math.max(
+          minOrder,
+          Math.round(x / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor)) + minOrder,
+        ),
+      });
+    };
+
     return (
       <div
         key={storyline.id}
+        data-storyline-row={storyline.id}
         className={`btl-row${isDropDisabled ? ' is-drop-disabled' : ''}${
           isSynthetic ? ' is-synthetic' : ''
         }`}
@@ -694,80 +907,22 @@ export function DesktopBottomTimeline() {
         onDrop={(e) => handleDrop(e, storyline.id)}
         onClick={(e) => {
           e.stopPropagation();
-          clearContextMenu();
-        }}
-        onContextMenu={(e) => {
-          // Synthetic lanes don't expose the storyline-level context menu
-          // (no rename / recolor / add-node-to-this-storyline operations).
-          // Node-level interactions still need to work, so we plumb those
-          // through but stop here for the storyline-level fallback.
-          if (isSynthetic) {
+          if (suppressTouchClickRef.current) {
+            suppressTouchClickRef.current = false;
             e.preventDefault();
-            const container = e.currentTarget.querySelector(
-              '[data-node-container]',
-            ) as HTMLElement | null;
-            if (!container) return;
-            const rect = container.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const clickedNode = nodesInStoryline.find((node) => {
-              const ord = orderOf(node);
-              if (ord === null) return false;
-              const nl = orderToPosition(ord);
-              return x >= nl && x <= nl + nodeWidth;
-            });
-            if (clickedNode) {
-              setContextMenu({
-                x: e.clientX + 2,
-                y: e.clientY - 2,
-                type: 'node',
-                nodeId: clickedNode.id,
-                storylineId: storyline.id,
-                nodeTitle: clickedNode.title,
-                nodeSummary: clickedNode.summary,
-                nodeStorylines: clickedNode.storylines,
-              });
-            }
             return;
           }
+          clearContextMenu();
+        }}
+        onPointerDown={(event) => {
+          const row = event.currentTarget;
+          const clientX = event.clientX;
+          const clientY = event.clientY;
+          beginTouchMenu(event, () => openRowContextMenu(row, clientX, clientY));
+        }}
+        onContextMenu={(e) => {
           e.preventDefault();
-          const container = e.currentTarget.querySelector('[data-node-container]') as HTMLElement;
-          if (!container) return;
-          const rect = container.getBoundingClientRect();
-          const x = e.clientX - rect.left;
-          const position = Math.max(
-            minOrder,
-            Math.round(x / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor)) + minOrder,
-          );
-          // Only the primary storyline's row renders a tile for a chapter, so
-          // a hit at the chapter's x-position on a secondary row should fall
-          // through to the storyline-level menu — not the node menu.
-          const clickedNode = nodesInStoryline.find((node) => {
-            if (!isPrimaryStorylineForNode(node, storyline.id)) return false;
-            const ord = orderOf(node);
-            if (ord === null) return false;
-            const nl = orderToPosition(ord);
-            return x >= nl && x <= nl + nodeWidth;
-          });
-          if (clickedNode) {
-            setContextMenu({
-              x: e.clientX + 2,
-              y: e.clientY - 2,
-              type: 'node',
-              nodeId: clickedNode.id,
-              storylineId: storyline.id,
-              nodeTitle: clickedNode.title,
-              nodeSummary: clickedNode.summary,
-              nodeStorylines: clickedNode.storylines,
-            });
-          } else {
-            setContextMenu({
-              x: e.clientX + 2,
-              y: e.clientY - 2,
-              type: 'storyline',
-              storylineId: storyline.id,
-              position,
-            });
-          }
+          openRowContextMenu(e.currentTarget, e.clientX, e.clientY);
         }}
       >
         <div
@@ -777,6 +932,11 @@ export function DesktopBottomTimeline() {
           }`}
           onClick={(e) => {
             e.stopPropagation();
+            if (suppressTouchClickRef.current) {
+              suppressTouchClickRef.current = false;
+              e.preventDefault();
+              return;
+            }
             // Real storylines: clicking the rail navigates to the storyline
             // editor tab (mirrors ChapterPanel's storyline-group click).
             // Synthetic lanes have no entity behind them, so they no-op.
@@ -785,7 +945,21 @@ export function DesktopBottomTimeline() {
             }
           }}
           onDoubleClick={() => {
-            if (!isSynthetic) promoteCurrentTab();
+            if (!isSynthetic && !isMobilePresentation) promoteCurrentTab();
+          }}
+          onPointerDown={(event) => {
+            if (!isMobilePresentation || isSynthetic) return;
+            event.stopPropagation();
+            const clientX = event.clientX;
+            const clientY = event.clientY;
+            beginTouchMenu(event, () =>
+              setContextMenu({
+                x: clientX + 2,
+                y: clientY - 2,
+                type: 'storyline',
+                storylineId: storyline.id,
+              }),
+            );
           }}
           onContextMenu={(e) => {
             // Synthetic rails (本书 / 未归属) have no entity to operate on.
@@ -817,7 +991,7 @@ export function DesktopBottomTimeline() {
           }
           style={
             {
-              width: TIMELINE_CONFIG.RAIL_WIDTH,
+              width: railWidth,
               cursor: isSynthetic ? 'default' : 'pointer',
               ['--rail-color' as string]: railColor,
             } as React.CSSProperties
@@ -831,11 +1005,7 @@ export function DesktopBottomTimeline() {
           </div>
         </div>
 
-        <div
-          data-node-container
-          className="btl-track"
-          style={{ minWidth: timelineWidth }}
-        >
+        <div data-node-container className="btl-track" style={{ minWidth: timelineWidth }}>
           {isNarrative &&
             markers.map((m) => {
               const dragX = pinDragXs.get(m.id);
@@ -887,7 +1057,7 @@ export function DesktopBottomTimeline() {
   };
 
   // ---- Layout math ----
-  const totalHeight = getTimelineHeight();
+  const totalHeight = isMobilePresentation ? '100%' : getTimelineHeight();
   // ActRail (幕) replaced FullBookLane as the book-mode top strip. Unlike
   // the old packed lane it lives INSIDE the scroll container, in track
   // coordinate space, so act bands align with the chapter columns below.
@@ -895,8 +1065,8 @@ export function DesktopBottomTimeline() {
   // the 幕 feature discoverable and invites a first split); narrative mode
   // never shows it (acts segment bookOrder, and projecting them onto the
   // narrative axis would shred them across flashbacks).
-  const actRailHeight = !isNarrative ? TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT : 0;
-  const axisHeight = isNarrative ? TIMELINE_CONFIG.AXIS_HEIGHT : 0;
+  const actRailHeight = !isNarrative ? actRailHeightValue : 0;
+  const axisHeight = isNarrative ? axisHeightValue : 0;
 
   // Lanes to render: real storylines + at most one synthetic lane.
   //   • 0 storylines → 1 synthetic "本书" default lane (single-lane mode)
@@ -918,7 +1088,11 @@ export function DesktopBottomTimeline() {
     if (storylines.length === 0) {
       return [
         {
-          storyline: makeSyntheticStoryline(DEFAULT_LANE_ID, t('bottomTimeline.synthetic.book'), 'hsl(var(--accent))'),
+          storyline: makeSyntheticStoryline(
+            DEFAULT_LANE_ID,
+            t('bottomTimeline.synthetic.book'),
+            'hsl(var(--accent))',
+          ),
           nodes: placedNodes,
           synthetic: true,
         },
@@ -936,7 +1110,11 @@ export function DesktopBottomTimeline() {
     // dragged out of the holding popover.
     if (unaffiliatedVisible) {
       real.push({
-        storyline: makeSyntheticStoryline(UNAFFILIATED_LANE_ID, t('bottomTimeline.synthetic.unaffiliated'), 'hsl(var(--ink-3))'),
+        storyline: makeSyntheticStoryline(
+          UNAFFILIATED_LANE_ID,
+          t('bottomTimeline.synthetic.unaffiliated'),
+          'hsl(var(--ink-3))',
+        ),
         nodes: unaffiliatedChapters,
         synthetic: true,
       });
@@ -944,17 +1122,29 @@ export function DesktopBottomTimeline() {
     return real;
   }, [storylines, placedNodes, getNodesInStoryline, unaffiliatedChapters, unaffiliatedVisible, t]);
 
-  const rowsAreaHeight = Math.max(
+  const rowsViewportHeight = Math.max(
     0,
-    totalHeight - TIMELINE_CONFIG.HEAD_HEIGHT - actRailHeight - axisHeight,
+    (typeof totalHeight === 'number' ? totalHeight : mobileTimelineHeight) -
+      headHeight -
+      actRailHeight -
+      axisHeight,
   );
-  const rowHeight = lanesToRender.length > 0 ? rowsAreaHeight / lanesToRender.length : 0;
+  const rowHeight =
+    lanesToRender.length > 0
+      ? Math.max(
+          isMobilePresentation ? nodeMinHeight : 0,
+          rowsViewportHeight / lanesToRender.length,
+        )
+      : 0;
+  const rowsAreaHeight = isMobilePresentation
+    ? rowHeight * lanesToRender.length
+    : rowsViewportHeight;
   // Vertical offset of the lane rows inside the scroll content: the time
   // axis (narrative) or the act rail (book) renders above them in-flow.
   const overlayTopOffset = axisHeight + actRailHeight;
   const rowCenterY = (idx: number) => overlayTopOffset + idx * rowHeight + rowHeight / 2;
-  const scrollContentWidth = TIMELINE_CONFIG.RAIL_WIDTH + timelineWidth;
-  const railOffset = TIMELINE_CONFIG.RAIL_WIDTH;
+  const scrollContentWidth = railWidth + timelineWidth;
+  const railOffset = railWidth;
 
   const snapValues = useMemo(() => {
     if (placedNodes.length === 0) return [] as number[];
@@ -1013,8 +1203,7 @@ export function DesktopBottomTimeline() {
     const container = scrollContainerRef.current;
     let target = snapValues[0];
     if (container) {
-      const centerX =
-        container.scrollLeft + container.clientWidth / 2 - TIMELINE_CONFIG.RAIL_WIDTH;
+      const centerX = container.scrollLeft + container.clientWidth / 2 - railWidth;
       let bestDist = Infinity;
       for (const s of snapValues) {
         const d = Math.abs(orderToPosition(s) - centerX);
@@ -1025,15 +1214,14 @@ export function DesktopBottomTimeline() {
       }
     }
     void splitAtOrder(target);
-  }, [snapValues, orderToPosition, splitAtOrder]);
+  }, [snapValues, orderToPosition, railWidth, splitAtOrder]);
 
   const handleAddPin = useCallback(() => {
     if (snapValues.length === 0) return;
     const container = scrollContainerRef.current;
     let target = snapValues[0];
     if (container) {
-      const centerX =
-        container.scrollLeft + container.clientWidth / 2 - TIMELINE_CONFIG.RAIL_WIDTH;
+      const centerX = container.scrollLeft + container.clientWidth / 2 - railWidth;
       let bestDist = Infinity;
       for (const s of snapValues) {
         const d = Math.abs(orderToPosition(s) - centerX);
@@ -1045,7 +1233,7 @@ export function DesktopBottomTimeline() {
     }
     const created = addMarker(target, t('bottomTimeline.marker.defaultLabel'));
     if (created) setNewlyAddedMarkerId(created.id);
-  }, [snapValues, addMarker, orderToPosition, t]);
+  }, [snapValues, addMarker, orderToPosition, railWidth, t]);
 
   // Drop a marker at a specific order (the rail right-click target), as opposed
   // to handleAddPin's viewport-center pick.
@@ -1058,13 +1246,29 @@ export function DesktopBottomTimeline() {
     [snapValues.length, addMarker, t],
   );
 
+  const openTimelineRailMenu = (track: HTMLElement, clientX: number, clientY: number) => {
+    if (snapValues.length === 0) return;
+    const rect = track.getBoundingClientRect();
+    const px = clientX - rect.left;
+    let order = snapValues[0];
+    let bestDist = Infinity;
+    for (const snap of snapValues) {
+      const distance = Math.abs(orderToPosition(snap) - px);
+      if (distance < bestDist) {
+        bestDist = distance;
+        order = snap;
+      }
+    }
+    setRailMenu({ x: clientX + 2, y: clientY - 2, order });
+  };
+
   const renderTimeAxis = () => {
     if (!isNarrative) return null;
     return (
       <div className="btl-axis">
         <div
           className="btl-axis__rail"
-          style={{ width: TIMELINE_CONFIG.RAIL_WIDTH }}
+          style={{ width: railWidth }}
           title={t('bottomTimeline.axis.title')}
         >
           <span>{t('bottomTimeline.axis.time')}</span>
@@ -1088,6 +1292,12 @@ export function DesktopBottomTimeline() {
         <div
           className="btl-axis__track"
           style={{ minWidth: timelineWidth }}
+          onPointerDown={(event) => {
+            const track = event.currentTarget;
+            const clientX = event.clientX;
+            const clientY = event.clientY;
+            beginTouchMenu(event, () => openTimelineRailMenu(track, clientX, clientY));
+          }}
           onContextMenu={(e) => {
             // Empty-rail right-click → 新建标记. Right-clicking a pin is caught
             // by the pin itself (it stops propagation), so this only fires on
@@ -1095,19 +1305,7 @@ export function DesktopBottomTimeline() {
             if (snapValues.length === 0) return;
             e.preventDefault();
             e.stopPropagation();
-            const rect = e.currentTarget.getBoundingClientRect();
-            const px = e.clientX - rect.left;
-            // Snap to the nearest slot, matching how pins snap on drag/drop.
-            let order = snapValues[0];
-            let bestDist = Infinity;
-            for (const s of snapValues) {
-              const d = Math.abs(orderToPosition(s) - px);
-              if (d < bestDist) {
-                bestDist = d;
-                order = s;
-              }
-            }
-            setRailMenu({ x: e.clientX + 2, y: e.clientY - 2, order });
+            openTimelineRailMenu(e.currentTarget, e.clientX, e.clientY);
           }}
         >
           {/* Rail half of the marker drop indicator — the pin's own line hides
@@ -1171,11 +1369,13 @@ export function DesktopBottomTimeline() {
                 // either way, the remaining tracks keep their size.
                 const delta = rowHeight > 0 ? (next ? rowHeight : -rowHeight) : 0;
                 if (delta !== 0) {
-                  const base = customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT;
-                  const adjusted = clampDimension(base + delta, timelineHeightBounds());
-                  setCustomHeight(adjusted);
-                  if (typeof localStorage !== 'undefined') {
-                    localStorage.setItem(TIMELINE_HEIGHT_STORAGE_KEY, adjusted.toString());
+                  if (!isMobilePresentation) {
+                    const base = customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT;
+                    const adjusted = clampDimension(base + delta, timelineHeightBounds());
+                    setCustomHeight(adjusted);
+                    if (typeof localStorage !== 'undefined') {
+                      localStorage.setItem(TIMELINE_HEIGHT_STORAGE_KEY, adjusted.toString());
+                    }
                   }
                 }
                 setUnaffiliatedVisible(next);
@@ -1223,44 +1423,44 @@ export function DesktopBottomTimeline() {
                 ariaLabel={t('bottomTimeline.unplaced.title')}
                 maxHeight={320}
               >
-                  {unplacedNodes.length === 0 ? (
-                    <div className="btl__unplaced-empty">{t('bottomTimeline.unplaced.empty')}</div>
-                  ) : (
-                    <div className="btl__unplaced-list">
-                      {unplacedNodes.map((node) => {
-                        const slId = primaryStorylineId(node);
-                        const sl = slId ? storylineById.get(slId) : null;
-                        const color = sl?.color || 'hsl(var(--ink-4))';
-                        return (
-                          <div
-                            key={node.id}
-                            className="btl__unplaced-chip"
-                            role="menuitem"
-                            tabIndex={0}
-                            draggable
-                            onDragStart={(e) => handleDrawerDragStart(e, node)}
-                            onDragEnd={handleDragEnd}
-                            onClick={() => setNodeSelection(node.id, 'ui')}
-                            onKeyDown={(event) => {
-                              if (event.key !== 'Enter' && event.key !== ' ') return;
-                              event.preventDefault();
-                              setNodeSelection(node.id, 'ui');
-                            }}
-                            style={{ ['--clip-color' as string]: color } as React.CSSProperties}
-                            title={node.title || t('common.untitled')}
-                          >
-                            <span className="btl__unplaced-chip-dot" />
-                            <span className="btl__unplaced-chip-num">
-                              § {String(node.bookOrder ?? 0).padStart(2, '0')}
-                            </span>
-                            <span className="btl__unplaced-chip-title">
-                              {node.title || t('common.untitled')}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                {unplacedNodes.length === 0 ? (
+                  <div className="btl__unplaced-empty">{t('bottomTimeline.unplaced.empty')}</div>
+                ) : (
+                  <div className="btl__unplaced-list">
+                    {unplacedNodes.map((node) => {
+                      const slId = primaryStorylineId(node);
+                      const sl = slId ? storylineById.get(slId) : null;
+                      const color = sl?.color || 'hsl(var(--ink-4))';
+                      return (
+                        <div
+                          key={node.id}
+                          className="btl__unplaced-chip"
+                          role="menuitem"
+                          tabIndex={0}
+                          draggable
+                          onDragStart={(e) => handleDrawerDragStart(e, node)}
+                          onDragEnd={handleDragEnd}
+                          onClick={() => setNodeSelection(node.id, 'ui')}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'Enter' && event.key !== ' ') return;
+                            event.preventDefault();
+                            setNodeSelection(node.id, 'ui');
+                          }}
+                          style={{ ['--clip-color' as string]: color } as React.CSSProperties}
+                          title={node.title || t('common.untitled')}
+                        >
+                          <span className="btl__unplaced-chip-dot" />
+                          <span className="btl__unplaced-chip-num">
+                            § {String(node.bookOrder ?? 0).padStart(2, '0')}
+                          </span>
+                          <span className="btl__unplaced-chip-title">
+                            {node.title || t('common.untitled')}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </AnchoredPopover>
             </div>
           )}
@@ -1306,12 +1506,12 @@ export function DesktopBottomTimeline() {
             className="btl__head-btn"
             title={t('bottomTimeline.locateCurrent')}
             onClick={() => {
-              const activeId = selectedNodeUiId ?? nodeId;
-              const activeNode = activeId ? nodeById.get(activeId) ?? null : null;
+              const activeId = isMobilePresentation ? nodeId : (selectedNodeUiId ?? nodeId);
+              const activeNode = activeId ? (nodeById.get(activeId) ?? null) : null;
               const activeOrder = activeNode ? orderOf(activeNode) : null;
               if (activeOrder == null || !scrollContainerRef.current) return;
               const left =
-                TIMELINE_CONFIG.RAIL_WIDTH +
+                railWidth +
                 orderToPosition(activeOrder) -
                 scrollContainerRef.current.clientWidth / 2 +
                 nodeWidth / 2;
@@ -1341,29 +1541,31 @@ export function DesktopBottomTimeline() {
   return (
     <div
       ref={timelineRef}
-      className="btl"
+      className={`btl btl--${presentation}`}
       data-view={viewMode}
       onClick={handleTimelineClick}
       style={{ height: totalHeight }}
     >
-      <div
-        className="btl__resize"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          // Cursor lands somewhere within the 4px-tall handle (which itself
-          // sits flush with the timeline's top border). Capture how far below
-          // the top edge the grab happened so handleMouseMove can subtract it
-          // and keep the grabbed point glued to the cursor. Also pin the
-          // dock's bottom in viewport coords — the full-width `BottomStatusBar`
-          // sits below the workspace row, so `window.innerHeight` is not the
-          // right anchor.
-          const rect = timelineRef.current?.getBoundingClientRect();
-          resizeGrabOffsetRef.current = rect ? e.clientY - rect.top : 0;
-          resizeBottomYRef.current = rect ? rect.bottom : window.innerHeight;
-          setIsResizingHeight(true);
-        }}
-      />
+      {!isMobilePresentation && (
+        <div
+          className="btl__resize"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Cursor lands somewhere within the 4px-tall handle (which itself
+            // sits flush with the timeline's top border). Capture how far below
+            // the top edge the grab happened so handleMouseMove can subtract it
+            // and keep the grabbed point glued to the cursor. Also pin the
+            // dock's bottom in viewport coords — the full-width `BottomStatusBar`
+            // sits below the workspace row, so `window.innerHeight` is not the
+            // right anchor.
+            const rect = timelineRef.current?.getBoundingClientRect();
+            resizeGrabOffsetRef.current = rect ? e.clientY - rect.top : 0;
+            resizeBottomYRef.current = rect ? rect.bottom : window.innerHeight;
+            setIsResizingHeight(true);
+          }}
+        />
+      )}
 
       {renderHead()}
 
@@ -1385,7 +1587,7 @@ export function DesktopBottomTimeline() {
           <ActRail
             acts={bookActs}
             chapters={placedNodes}
-            railWidth={TIMELINE_CONFIG.RAIL_WIDTH}
+            railWidth={railWidth}
             trackWidth={timelineWidth}
             height={actRailHeight}
             orderToX={orderToPosition}
@@ -1397,9 +1599,7 @@ export function DesktopBottomTimeline() {
             onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
             onAddAct={handleAddActSplit}
             driftTitleById={(id) => driftById.get(id)?.title ?? null}
-            onRequestBind={(id) =>
-              events.emit('drift-bind:open', { target: { kind: 'act', id } })
-            }
+            onRequestBind={(id) => events.emit('drift-bind:open', { target: { kind: 'act', id } })}
             onUnbindDrift={(id) => void unbindDrift(id)}
             onOpenDrift={(driftNodeId) =>
               openEntity({ entityType: 'node', id: driftNodeId }, { preview: false })
@@ -1495,96 +1695,113 @@ export function DesktopBottomTimeline() {
         )}
       </div>
 
-      {contextMenu?.type === 'node' && contextMenu.nodeId && (() => {
-        const node = nodeById.get(contextMenu.nodeId);
-        if (!node) return null;
-        const hasNarrativeOrder = typeof node.narrativeOrder === 'number';
-        const hasAnyStoryline = (contextMenu.nodeStorylines?.length ?? 0) > 0;
-        return (
+      {contextMenu?.type === 'node' &&
+        contextMenu.nodeId &&
+        (() => {
+          const node = nodeById.get(contextMenu.nodeId);
+          if (!node) return null;
+          const hasNarrativeOrder = typeof node.narrativeOrder === 'number';
+          const hasAnyStoryline = (contextMenu.nodeStorylines?.length ?? 0) > 0;
+          return (
+            <EntityCellContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              editorType="node"
+              nodeStatusKind={isChapter(node) ? 'chapter' : 'drift'}
+              nodeWritingStatus={node.writingStatus}
+              header={{
+                title: contextMenu.nodeTitle,
+                subtitle: contextMenu.nodeSummary,
+                tags: contextMenu.nodeStorylines?.map((sl) => ({
+                  id: sl.id,
+                  name: sl.name,
+                  color: sl.color,
+                })),
+              }}
+              extraGroups={[
+                [
+                  ...(hasAnyStoryline
+                    ? [
+                        {
+                          action: 'moveToUnaffiliated',
+                          label: t('bottomTimeline.menu.moveToUnaffiliated'),
+                        },
+                      ]
+                    : []),
+                  ...(isNarrative && hasNarrativeOrder
+                    ? [
+                        {
+                          action: 'detachFromNarrative',
+                          label: t('bottomTimeline.menu.detachFromNarrative'),
+                        },
+                      ]
+                    : []),
+                ],
+              ]}
+              onAction={(action) => {
+                // Timeline-local actions stay in handleContextMenuAction; the
+                // rest (delete, edit storylines, status flips) route through
+                // the shared per-entity dispatcher.
+                if (action === 'moveToUnaffiliated' || action === 'detachFromNarrative') {
+                  void handleContextMenuAction(action);
+                  return;
+                }
+                const nid = contextMenu.nodeId;
+                if (!nid) return;
+                void dispatchEntityAction({ entityType: 'node', id: nid, action });
+              }}
+              onClose={clearContextMenu}
+            />
+          );
+        })()}
+
+      {contextMenu?.type === 'storyline' &&
+        contextMenu.storylineId &&
+        !(() => {
+          // Synthetic lanes don't have a real storyline behind them — no
+          // editor actions apply, and createChapterHere is suppressed for
+          // 未归属 / 本书 too since they don't own a primary storyline.
+          const sid = contextMenu.storylineId;
+          return sid === '__default__' || sid === '__unaffiliated__';
+        })() && (
           <EntityCellContextMenu
             x={contextMenu.x}
             y={contextMenu.y}
-            editorType="node"
-            nodeStatusKind={isChapter(node) ? 'chapter' : 'drift'}
-            nodeWritingStatus={node.writingStatus}
-            header={{
-              title: contextMenu.nodeTitle,
-              subtitle: contextMenu.nodeSummary,
-              tags: contextMenu.nodeStorylines?.map((sl) => ({
-                id: sl.id,
-                name: sl.name,
-                color: sl.color,
-              })),
-            }}
+            editorType="storyline"
             extraGroups={[
-              [
-                ...(hasAnyStoryline
-                  ? [{ action: 'moveToUnaffiliated', label: t('bottomTimeline.menu.moveToUnaffiliated') }]
-                  : []),
-                ...(isNarrative && hasNarrativeOrder
-                  ? [{ action: 'detachFromNarrative', label: t('bottomTimeline.menu.detachFromNarrative') }]
-                  : []),
-              ],
+              contextMenu.position !== undefined
+                ? [
+                    {
+                      action: 'createChapterHere',
+                      label: t('bottomTimeline.menu.createChapterHere'),
+                    },
+                    // Acts live on the bookOrder axis only — narrative-mode
+                    // positions are narrativeOrder values, wrong axis.
+                    ...(!isNarrative
+                      ? [{ action: 'startActHere', label: t('bottomTimeline.menu.startActHere') }]
+                      : []),
+                  ]
+                : [],
             ]}
             onAction={(action) => {
-              // Timeline-local actions stay in handleContextMenuAction; the
-              // rest (delete, edit storylines, status flips) route through
-              // the shared per-entity dispatcher.
-              if (action === 'moveToUnaffiliated' || action === 'detachFromNarrative') {
+              if (action === 'createChapterHere') {
                 void handleContextMenuAction(action);
                 return;
               }
-              const nid = contextMenu.nodeId;
-              if (!nid) return;
-              void dispatchEntityAction({ entityType: 'node', id: nid, action });
+              if (action === 'startActHere') {
+                if (contextMenu.position !== undefined) {
+                  void splitAtOrder(contextMenu.position);
+                }
+                clearContextMenu();
+                return;
+              }
+              const sid = contextMenu.storylineId;
+              if (!sid) return;
+              void dispatchEntityAction({ entityType: 'storyline', id: sid, action });
             }}
             onClose={clearContextMenu}
           />
-        );
-      })()}
-
-      {contextMenu?.type === 'storyline' && contextMenu.storylineId && !(() => {
-        // Synthetic lanes don't have a real storyline behind them — no
-        // editor actions apply, and createChapterHere is suppressed for
-        // 未归属 / 本书 too since they don't own a primary storyline.
-        const sid = contextMenu.storylineId;
-        return sid === '__default__' || sid === '__unaffiliated__';
-      })() && (
-        <EntityCellContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          editorType="storyline"
-          extraGroups={[
-            contextMenu.position !== undefined
-              ? [
-                  { action: 'createChapterHere', label: t('bottomTimeline.menu.createChapterHere') },
-                  // Acts live on the bookOrder axis only — narrative-mode
-                  // positions are narrativeOrder values, wrong axis.
-                  ...(!isNarrative
-                    ? [{ action: 'startActHere', label: t('bottomTimeline.menu.startActHere') }]
-                    : []),
-                ]
-              : [],
-          ]}
-          onAction={(action) => {
-            if (action === 'createChapterHere') {
-              void handleContextMenuAction(action);
-              return;
-            }
-            if (action === 'startActHere') {
-              if (contextMenu.position !== undefined) {
-                void splitAtOrder(contextMenu.position);
-              }
-              clearContextMenu();
-              return;
-            }
-            const sid = contextMenu.storylineId;
-            if (!sid) return;
-            void dispatchEntityAction({ entityType: 'storyline', id: sid, action });
-          }}
-          onClose={clearContextMenu}
-        />
-      )}
+        )}
 
       {hoveredNodeId && hoverAnchor && (
         <EntityHoverCard

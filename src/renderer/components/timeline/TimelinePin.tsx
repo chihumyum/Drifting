@@ -3,7 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
-  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TimelineMarker } from '../../domain/timeline-marker';
@@ -83,19 +83,37 @@ export function TimelinePin({
   );
 
   const startDrag = useCallback(
-    (event: ReactMouseEvent) => {
+    (event: ReactPointerEvent) => {
       if (event.button !== 0 || editing || snapValues.length === 0) return;
       event.preventDefault();
       event.stopPropagation();
 
       const startMouseX = event.clientX;
       const startPixel = orderToPosition(marker.narrativeOrder);
+      const pointerId = event.pointerId;
+      const menuPoint = { x: event.clientX + 2, y: event.clientY - 2 };
       let nearest = marker.narrativeOrder;
       let dragging = false;
+      let longPressed = false;
+      let longPressTimer: number | null =
+        event.pointerType === 'touch'
+          ? window.setTimeout(() => {
+              longPressed = true;
+              setMenu(menuPoint);
+            }, 420)
+          : null;
 
-      const onMove = (moveEvent: MouseEvent) => {
+      const clearLongPress = () => {
+        if (longPressTimer === null) return;
+        window.clearTimeout(longPressTimer);
+        longPressTimer = null;
+      };
+
+      const onMove = (moveEvent: PointerEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
         const dx = moveEvent.clientX - startMouseX;
         if (!dragging && Math.abs(dx) < 4) return;
+        clearLongPress();
         dragging = true;
 
         const newPixel = startPixel + dx;
@@ -112,9 +130,16 @@ export function TimelinePin({
         onDragMove(newPixel);
       };
 
-      const onUp = () => {
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
+      const cleanup = () => {
+        clearLongPress();
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+      };
+      const onUp = (upEvent: PointerEvent) => {
+        if (upEvent.pointerId !== pointerId) return;
+        cleanup();
+        if (longPressed) return;
         if (!dragging) {
           openBoundDrift();
           return;
@@ -124,9 +149,15 @@ export function TimelinePin({
           onChange({ narrativeOrder: nearest });
         }
       };
+      const onCancel = (cancelEvent: PointerEvent) => {
+        if (cancelEvent.pointerId !== pointerId) return;
+        cleanup();
+        onDragMove(null);
+      };
 
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onCancel);
     },
     [
       editing,
@@ -166,7 +197,7 @@ export function TimelinePin({
   ]
     .filter(Boolean)
     .join(' ');
-  const displayLabel = isBound ? (boundDriftTitle || t('common.untitled')) : marker.label;
+  const displayLabel = isBound ? boundDriftTitle || t('common.untitled') : marker.label;
 
   return (
     <div
@@ -183,7 +214,7 @@ export function TimelinePin({
         className={`${classPrefix}__label`}
         contentEditable={editing}
         suppressContentEditableWarning
-        onMouseDown={editing ? (event) => event.stopPropagation() : startDrag}
+        onPointerDown={editing ? (event) => event.stopPropagation() : startDrag}
         onDoubleClick={(event) => {
           event.stopPropagation();
           if (!isBound && !editing) setEditing(true);
@@ -217,7 +248,7 @@ export function TimelinePin({
       </div>
       <div
         className={`${classPrefix}__line`}
-        onMouseDown={startDrag}
+        onPointerDown={startDrag}
         title={t('bottomTimeline.marker.dragTitle')}
       />
       {menu && (
@@ -225,9 +256,7 @@ export function TimelinePin({
           x={menu.x}
           y={menu.y}
           isBound={isBound}
-          onOpenDrift={() =>
-            openBoundDrift({ left: menu.x, top: menu.y, width: 0, height: 0 })
-          }
+          onOpenDrift={() => openBoundDrift({ left: menu.x, top: menu.y, width: 0, height: 0 })}
           onUnbind={handleUnbind}
           onRequestBind={() => onRequestBind?.()}
           onRename={() => setEditing(true)}

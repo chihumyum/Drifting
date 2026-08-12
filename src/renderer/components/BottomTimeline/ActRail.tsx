@@ -104,6 +104,8 @@ export function ActRail({
   const editInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuReturnFocusRef = useRef<HTMLElement | null>(null);
+  const touchMenuCleanupRef = useRef<(() => void) | null>(null);
+  const suppressTouchClickRef = useRef(false);
 
   const segments = useMemo(() => deriveActSegments(acts, chapters), [acts, chapters]);
   const sorted = useMemo(() => sortActs(acts), [acts]);
@@ -122,12 +124,49 @@ export function ActRail({
     });
     return () => {
       window.cancelAnimationFrame(frame);
-      if (returnFocus && document.activeElement instanceof Node && menuElement?.contains(document.activeElement)) {
+      if (
+        returnFocus &&
+        document.activeElement instanceof Node &&
+        menuElement?.contains(document.activeElement)
+      ) {
         returnFocus.focus({ preventScroll: true });
       }
       menuReturnFocusRef.current = null;
     };
   }, [menu]);
+
+  useEffect(() => () => touchMenuCleanupRef.current?.(), []);
+
+  const beginTouchMenu = (event: React.PointerEvent, open: () => void) => {
+    if (event.pointerType !== 'touch') return;
+    touchMenuCleanupRef.current?.();
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let timer = window.setTimeout(() => {
+      timer = 0;
+      suppressTouchClickRef.current = true;
+      open();
+    }, 420);
+    const cleanup = () => {
+      if (timer) window.clearTimeout(timer);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+      if (touchMenuCleanupRef.current === cleanup) touchMenuCleanupRef.current = null;
+    };
+    const onMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 8) cleanup();
+    };
+    const onEnd = (endEvent: PointerEvent) => {
+      if (endEvent.pointerId === pointerId) cleanup();
+    };
+    touchMenuCleanupRef.current = cleanup;
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
+  };
 
   // Outside-click / Esc dismissal for the band menu.
   useEffect(() => {
@@ -165,19 +204,24 @@ export function ActRail({
   // mirroring the timeline-marker rail. An act chip's own onContextMenu stops
   // propagation, so this only fires on empty rail. Needs a chapter to anchor
   // the order grid, same gate as the head ＋.
+  const openRailMenu = (clientX: number, clientY: number) => {
+    if (snapOrders.length === 0) return;
+    const rect = trackRef.current?.getBoundingClientRect();
+    const px = rect ? clientX - rect.left : 0;
+    menuReturnFocusRef.current = null;
+    setMenu({
+      kind: 'rail',
+      x: clientX + 2,
+      y: clientY - 2,
+      orderAtCursor: Math.round(xToOrder(px)),
+    });
+  };
+
   const handleRailContextMenu = (e: React.MouseEvent) => {
     if (snapOrders.length === 0) return;
     e.preventDefault();
     e.stopPropagation();
-    const rect = trackRef.current?.getBoundingClientRect();
-    const px = rect ? e.clientX - rect.left : 0;
-    menuReturnFocusRef.current = null;
-    setMenu({
-      kind: 'rail',
-      x: e.clientX + 2,
-      y: e.clientY - 2,
-      orderAtCursor: Math.round(xToOrder(px)),
-    });
+    openRailMenu(e.clientX, e.clientY);
   };
 
   // Rail head cell — mirrors the narrative time-axis head ("TIME ＋"): the
@@ -214,7 +258,10 @@ export function ActRail({
   // same gesture as the populated rail.
   if (segments.length === 0) {
     return (
-      <div className={`actrail actrail--empty${className ? ` ${className}` : ''}`} style={{ height }}>
+      <div
+        className={`actrail actrail--empty${className ? ` ${className}` : ''}`}
+        style={{ height }}
+      >
         {railHead}
         <div
           ref={trackRef}
@@ -222,6 +269,9 @@ export function ActRail({
           style={{ minWidth: trackWidth }}
           title={t('bottomTimeline.act.emptyTrackTitle')}
           onContextMenu={handleRailContextMenu}
+          onPointerDown={(event) =>
+            beginTouchMenu(event, () => openRailMenu(event.clientX, event.clientY))
+          }
         />
       </div>
     );
@@ -230,9 +280,7 @@ export function ActRail({
   const bandEdges = (i: number): { left: number; right: number } => {
     const left = i === 0 ? 0 : orderToX(segments[i].act.startOrder ?? 0);
     const right =
-      i + 1 < segments.length
-        ? orderToX(segments[i + 1].act.startOrder ?? 0)
-        : trackWidth;
+      i + 1 < segments.length ? orderToX(segments[i + 1].act.startOrder ?? 0) : trackWidth;
     return { left, right: Math.max(right, left) };
   };
 
@@ -300,11 +348,7 @@ export function ActRail({
 
   const actIndexOf = (id: string) => sorted.findIndex((a) => a.id === id);
 
-  const openActMenuFromKeyboard = (
-    element: HTMLElement,
-    actId: string,
-    segmentLeft: number,
-  ) => {
+  const openActMenuFromKeyboard = (element: HTMLElement, actId: string, segmentLeft: number) => {
     const rect = element.getBoundingClientRect();
     menuReturnFocusRef.current = element;
     setMenu({
@@ -329,12 +373,12 @@ export function ActRail({
       .filter((order) => order > prevBound && order < nextBound)
       .sort((a, b) => a - b);
     const currentIndex = candidates.indexOf(currentOrder);
-    const baseIndex = currentIndex >= 0
-      ? currentIndex
-      : candidates.findIndex((order) => order > currentOrder);
-    const nextIndex = direction < 0
-      ? Math.max(0, (baseIndex < 0 ? candidates.length : baseIndex) - 1)
-      : Math.min(candidates.length - 1, Math.max(-1, baseIndex) + 1);
+    const baseIndex =
+      currentIndex >= 0 ? currentIndex : candidates.findIndex((order) => order > currentOrder);
+    const nextIndex =
+      direction < 0
+        ? Math.max(0, (baseIndex < 0 ? candidates.length : baseIndex) - 1)
+        : Math.min(candidates.length - 1, Math.max(-1, baseIndex) + 1);
     const next = candidates[nextIndex];
     if (next !== undefined && next !== currentOrder) onMoveBoundary(act.id, next);
   };
@@ -347,6 +391,9 @@ export function ActRail({
         className="actrail__track"
         style={{ minWidth: trackWidth }}
         onContextMenu={handleRailContextMenu}
+        onPointerDown={(event) =>
+          beginTouchMenu(event, () => openRailMenu(event.clientX, event.clientY))
+        }
       >
         {segments.map((seg, i) => {
           const { left, right } = bandEdges(i);
@@ -404,7 +451,30 @@ export function ActRail({
                   role="button"
                   tabIndex={0}
                   aria-label={chipTitle}
-                  onPointerDown={draggable ? (e) => startBoundaryDrag(e, i) : undefined}
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                    const clientX = event.clientX;
+                    const clientY = event.clientY;
+                    beginTouchMenu(event, () => {
+                      const rect = trackRef.current?.getBoundingClientRect();
+                      const px = rect ? clientX - rect.left : 0;
+                      menuReturnFocusRef.current = null;
+                      setMenu({
+                        kind: 'act',
+                        actId: seg.act.id,
+                        x: clientX + 2,
+                        y: clientY - 2,
+                        orderAtCursor: Math.round(xToOrder(px)),
+                      });
+                    });
+                    if (draggable) startBoundaryDrag(event, i);
+                  }}
+                  onClick={(event) => {
+                    if (!suppressTouchClickRef.current) return;
+                    suppressTouchClickRef.current = false;
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
                   onDoubleClick={(e) => {
                     // Rename triggers on the CHIP only (the band is inert).
                     e.stopPropagation();
@@ -447,6 +517,11 @@ export function ActRail({
                         // 4px threshold keeps this a plain click → open drift;
                         // a drag from the ⚓ moves the act instead).
                         e.stopPropagation();
+                        if (suppressTouchClickRef.current) {
+                          suppressTouchClickRef.current = false;
+                          e.preventDefault();
+                          return;
+                        }
                         const r = e.currentTarget.getBoundingClientRect();
                         onOpenDrift(seg.act.driftNodeId!, {
                           left: r.left,
@@ -460,7 +535,9 @@ export function ActRail({
                     </button>
                   )}
                   <span className="actrail__name">{seg.act.name}</span>
-                  <span className="actrail__count">{t('bottomTimeline.act.chapterCount', { count: seg.chapters.length })}</span>
+                  <span className="actrail__count">
+                    {t('bottomTimeline.act.chapterCount', { count: seg.chapters.length })}
+                  </span>
                 </span>
               )}
             </div>
@@ -499,9 +576,7 @@ export function ActRail({
           );
         })}
 
-        {dragGhostX !== null && (
-          <div className="actrail__ghost" style={{ left: dragGhostX }} />
-        )}
+        {dragGhostX !== null && <div className="actrail__ghost" style={{ left: dragGhostX }} />}
       </div>
 
       {menu &&

@@ -1,1 +1,4 @@
-export { DesktopBottomTimeline as BottomTimeline } from '../../shells/desktop/views/DesktopBottomTimeline';
+export {
+  DesktopBottomTimeline as BottomTimeline,
+  type BottomTimelinePresentation,
+} from '../../shells/desktop/views/DesktopBottomTimeline';
