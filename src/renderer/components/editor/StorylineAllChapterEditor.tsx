@@ -35,7 +35,7 @@ export function StorylineAllChapterEditor({
     throw new Error('StorylineAllChapterEditor requires projectId');
   }
 
-  const { updateContentByNodeId, createContent, getContentByNodeId } = useBookContent({
+  const { getContentByNodeId } = useBookContent({
     userId,
     projectId,
   });
@@ -83,29 +83,16 @@ export function StorylineAllChapterEditor({
 
   // 内容更新处理
   const handleContentUpdate = useCallback(
-    async (nodeId: string, pmJson: string, outlineJson: string) => {
+    async (nodeId: string, pmJson: string, _outlineJson: string) => {
       const node = nodes.find((n) => n.id === nodeId);
       if (!node) return;
-
-      // 先尝试获取现有内容以判断是更新还是创建
-      const existingContent = await getContentByNodeId(nodeId);
-
-      if (existingContent) {
-        await updateContentByNodeId(nodeId, {
-          contentJson: pmJson,
-          outlineJson,
-        });
-      } else {
-        // 创建新内容
-        await createContent(nodeId, { contentJson: pmJson, outlineJson });
-      }
 
       // 更新本地状态
       setChaptersData((prev) =>
         prev.map((item) => (item.nodeId === nodeId ? { ...item, content: pmJson } : item)),
       );
     },
-    [nodes, getContentByNodeId, updateContentByNodeId, createContent],
+    [nodes],
   );
 
   // 滚动到指定章节

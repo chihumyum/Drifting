@@ -221,6 +221,10 @@ export const BookNodeTable = sqliteTable(
     // Materialized word count, derived from this node's content.
     // Updated on every save; defaults to 0 for nodes that have never been edited.
     wordCount: integer('word_count').notNull().default(0),
+    wordCountBasisKind: text('word_count_basis_kind'),
+    wordCountBasisHash: text('word_count_basis_hash'),
+    wordCountBasisRevision: integer('word_count_basis_revision'),
+    wordCountBasisServerSeq: integer('word_count_basis_server_seq'),
     // Author-facing chapter status, selected directly from the editor menu.
     // Stored as plain text — the enum lives in the domain layer (see WritingStatus).
     writingStatus: text('writing_status').notNull().default('draft'),

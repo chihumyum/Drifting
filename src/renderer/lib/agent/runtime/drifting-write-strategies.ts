@@ -14,7 +14,8 @@ import type {
 } from '../../../domain/agent-runtime-write-effect';
 import type { DbTransaction } from '../../../lib/db';
 import { getDb, type DbExecutor } from '../../../lib/db';
-import { countWordsInPmJson } from '../../word-count';
+import { deriveProseMetricFromJson } from '@drifting/prose-metrics';
+import { extractOutline, serializeOutline } from '../../outline';
 import { proseDocId, type ProseEntityType } from '../../yjs-doc-id';
 import { computeBlockChanges, type AgentBlockChange } from '../block-diff';
 import { revertEntityBlock } from '../chapter-prose';
@@ -31,6 +32,7 @@ import {
   persistSyncMutationInTransaction,
 } from '../../../services/entity-sync.service';
 import { createBookContentRepository } from '../../../sqlite-repo/content-repo';
+import { createYjsRepository } from '../../../sqlite-repo/yjs-repo';
 import { useDataStore } from '../../../store/data-store';
 import { useAgentEditStore } from '../../../store/agent-edit-store';
 import type {
@@ -1572,6 +1574,10 @@ async function commitProseCommand(
   let projectedNode:
     | {
         wordCount: number;
+        wordCountBasisKind: string | null;
+        wordCountBasisHash: string | null;
+        wordCountBasisRevision: number | null;
+        wordCountBasisServerSeq: number | null;
         summary: string;
         updatedAt: string;
       }
@@ -1598,21 +1604,27 @@ async function commitProseCommand(
     ...(beforeLiveMerge ? { beforeLiveMerge } : {}),
     async persistProjection(tx, projection) {
       if (entityType === 'node') {
+        const metric = await deriveProseMetricFromJson(projection.contentJson);
+        const revision = await createYjsRepository(tx).getRevision(execution.command.base.docId);
         const content = await createBookContentRepository(tx).updateByNodeId(
           execution.nodeId,
           {
             contentJson: projection.contentJson,
+            outlineJson: serializeOutline(extractOutline(projection.contentJson)),
             updatedAt: committedAt,
           },
         );
         if (!content) {
           throw new Error(`Node content for ${execution.nodeId} was not found`);
         }
-        const wordCount = countWordsInPmJson(projection.contentJson);
         const rows = await tx
           .update(BookNodeTable)
           .set({
-            wordCount,
+            wordCount: metric.wordCount,
+            wordCountBasisKind: 'yjs',
+            wordCountBasisHash: metric.basisHash,
+            wordCountBasisRevision: revision,
+            wordCountBasisServerSeq: null,
             ...(projectedSummary !== undefined ? { summary: projectedSummary } : {}),
             updatedAt: committedAt,
           })
@@ -1628,6 +1640,10 @@ async function commitProseCommand(
           )
           .returning({
             wordCount: BookNodeTable.wordCount,
+            wordCountBasisKind: BookNodeTable.wordCountBasisKind,
+            wordCountBasisHash: BookNodeTable.wordCountBasisHash,
+            wordCountBasisRevision: BookNodeTable.wordCountBasisRevision,
+            wordCountBasisServerSeq: BookNodeTable.wordCountBasisServerSeq,
             summary: BookNodeTable.summary,
             updatedAt: BookNodeTable.updatedAt,
           });
@@ -1668,6 +1684,10 @@ async function commitProseCommand(
           ? {
               ...node,
               wordCount: projectedNode!.wordCount,
+              wordCountBasisKind: projectedNode!.wordCountBasisKind as 'yjs',
+              wordCountBasisHash: projectedNode!.wordCountBasisHash,
+              wordCountBasisRevision: projectedNode!.wordCountBasisRevision,
+              wordCountBasisServerSeq: projectedNode!.wordCountBasisServerSeq,
               summary: projectedNode!.summary,
               updatedAt: projectedNode!.updatedAt,
             }
@@ -1716,24 +1736,19 @@ async function persistProseOutbox(
     payload: { contentJson: projection.contentJson },
     timestamp,
   });
-  const nodePersisted = await persistSyncMutationInTransaction(tx, {
-    entityType: 'node',
-    mutationType: 'update',
-    entityId: execution.nodeId,
-    projectId: execution.projectId,
-    payload: {
-      wordCount: countWordsInPmJson(projection.contentJson),
-      ...(execution.nodeSummary
-        ? {
-            summary:
-              direction === 'forward'
-                ? execution.nodeSummary.after
-                : execution.nodeSummary.before,
-          }
-        : {}),
-    },
-    timestamp,
-  });
+  const nodePersisted = execution.nodeSummary
+    ? await persistSyncMutationInTransaction(tx, {
+        entityType: 'node',
+        mutationType: 'update',
+        entityId: execution.nodeId,
+        projectId: execution.projectId,
+        payload: {
+          summary:
+            direction === 'forward' ? execution.nodeSummary.after : execution.nodeSummary.before,
+        },
+        timestamp,
+      })
+    : false;
   return contentPersisted || nodePersisted;
 }
 

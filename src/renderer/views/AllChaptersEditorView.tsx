@@ -18,13 +18,18 @@ import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
 import { AllChaptersFindPanel, type FindChapter } from '../components/search/AllChaptersFindPanel';
 import { useShortcutsStore } from '../store/shortcuts-store';
 import { matchesAccelerator } from '../lib/shortcuts';
-import { isChapter, CHAPTER_WRITING_STATUSES, type ChapterNode, type WritingStatus } from '../domain/book-node';
+import {
+  canonicalWordCount,
+  isChapter,
+  CHAPTER_WRITING_STATUSES,
+  type ChapterNode,
+  type WritingStatus,
+} from '../domain/book-node';
 import { deriveActSegments, type BookAct } from '../domain/book-act';
 import type { NodeContent } from '../domain/node-content';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
 import type { OutlineItem } from '../lib/outline';
 import { parseOutline } from '../lib/outline';
-import { countWordsInPmJson } from '../lib/word-count';
 import {
   buildEntityLinkColorSignature,
   resolveEntityLinkTargetColor,
@@ -161,7 +166,7 @@ export function AllChaptersEditorView() {
     [entityLinkInteractive, setEntityLinkInteractive],
   );
 
-  const { getContentByNodeId, updateContentByNodeId, createContent, getOutlineByNodeId } =
+  const { getContentByNodeId, getOutlineByNodeId } =
     useBookContent({
       userId,
       projectId,
@@ -193,7 +198,10 @@ export function AllChaptersEditorView() {
   // height. `caret` carries the click point that promoted it, so the editor can
   // drop the cursor where the user pressed. Null = nothing focused (pure
   // read-through).
-  const [focus, setFocus] = useState<{ nodeId: string; caret: { clientX: number; clientY: number } | null } | null>(null);
+  const [focus, setFocus] = useState<{
+    nodeId: string;
+    caret: { clientX: number; clientY: number } | null;
+  } | null>(null);
   const handleActivate = useCallback(
     (nodeId: string, coords: { clientX: number; clientY: number }) => {
       setFocus({ nodeId, caret: coords });
@@ -215,7 +223,7 @@ export function AllChaptersEditorView() {
   // is a deliberate authoring signal, not a data glitch. No acts → plain
   // chapter list, zero overhead.
   type ReadRow =
-    | { kind: 'act'; act: BookAct; seq: number; count: number; words: number }
+    | { kind: 'act'; act: BookAct; seq: number; count: number; words: number | null }
     | { kind: 'chapter'; node: ChapterNode; idx: number };
   const readRows = useMemo<ReadRow[]>(() => {
     const segments = deriveActSegments(bookActs, orderedNodes);
@@ -230,7 +238,9 @@ export function AllChaptersEditorView() {
         act: seg.act,
         seq: segIdx + 1,
         count: seg.chapters.length,
-        words: seg.chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0),
+        words: seg.chapters.every((chapter) => canonicalWordCount(chapter) != null)
+          ? seg.chapters.reduce((sum, chapter) => sum + (canonicalWordCount(chapter) ?? 0), 0)
+          : null,
       });
       for (const node of seg.chapters) {
         rows.push({ kind: 'chapter', node, idx });
@@ -575,31 +585,18 @@ export function AllChaptersEditorView() {
   const handleContentUpdate = useCallback(
     async (
       nodeId: string,
-      pmJson: string,
-      outlineJson: string,
-      nextWordCount: number,
+      _pmJson: string,
+      _outlineJson: string,
+      _nextWordCount: number,
     ) => {
       try {
-        const existing = await getContentByNodeId(nodeId);
-        if (existing) {
-          const updated = await updateContentByNodeId(nodeId, {
-            contentJson: pmJson,
-            outlineJson,
-          });
-          contentCacheRef.current.set(nodeId, updated ?? null);
-        } else {
-          const created = await createContent(nodeId, { contentJson: pmJson, outlineJson });
-          contentCacheRef.current.set(nodeId, created ?? null);
-        }
-        const current = useDataStore.getState().bookNodes.find((n) => n.id === nodeId);
-        if (current && current.wordCount !== nextWordCount) {
-          await updateNode(nodeId, { wordCount: nextWordCount });
-        }
+        const persisted = await getContentByNodeId(nodeId);
+        contentCacheRef.current.set(nodeId, persisted ?? null);
       } catch (error) {
-        log.error('[AllChapters] content update failed', nodeId, error);
+        log.error('[AllChapters] materialized content reload failed', nodeId, error);
       }
     },
-    [getContentByNodeId, updateContentByNodeId, createContent, updateNode],
+    [getContentByNodeId],
   );
 
   const handleTitleUpdate = useCallback(
@@ -633,29 +630,6 @@ export function AllChaptersEditorView() {
     },
     [navigateToCategory, navigateToElement, navigateToNode, navigateToStoryline],
   );
-
-  // One-shot backfill of wordCount when content is loaded for a chapter that
-  // still has wordCount=0 but non-empty stored prose. Mirrors the logic in
-  // NodeEditorView so the same legacy data heals here too. We piggyback on
-  // the cache: once content lands, opportunistically check.
-  useEffect(() => {
-    const cache = contentCacheRef.current;
-    const id = setInterval(() => {
-      const nodes = useDataStore.getState().bookNodes;
-      for (const node of nodes) {
-        if (node.wordCount > 0) continue;
-        const c = cache.get(node.id);
-        if (!c) continue;
-        const computed = countWordsInPmJson(c.contentJson);
-        if (computed > 0) {
-          void updateNode(node.id, { wordCount: computed }).catch((error) => {
-            log.warn('[AllChapters] wordCount backfill failed', node.id, error);
-          });
-        }
-      }
-    }, 4000);
-    return () => clearInterval(id);
-  }, [updateNode]);
 
   // The top-bar three-dot menu acts on whichever chapter is at the reading line
   // (falling back to the first chapter before the spy has resolved one). Drift
@@ -864,8 +838,11 @@ export function AllChaptersEditorView() {
                   <div className="act-break__num">{toRoman(row.seq)}</div>
                   <div className="act-break__label">{row.act.name}</div>
                   <div className="act-break__meta">
-                    {t('storylineEditor.meta.chapters', { count: row.count })}<span className="d">·</span>
-                    {t('storylineEditor.meta.kWords', { count: (row.words / 1000).toFixed(1) })}
+                    {t('storylineEditor.meta.chapters', { count: row.count })}
+                    <span className="d">·</span>
+                    {row.words == null
+                      ? t('common.counting')
+                      : t('storylineEditor.meta.kWords', { count: (row.words / 1000).toFixed(1) })}
                   </div>
                 </div>
               );

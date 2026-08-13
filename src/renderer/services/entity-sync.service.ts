@@ -1565,6 +1565,14 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
           y: numberValue(row, 'positionY'),
         },
         wordCount: numberValue(row, 'wordCount'),
+        wordCountBasisKind:
+          stringValue(row, 'wordCountBasisKind') === 'seed' ||
+          stringValue(row, 'wordCountBasisKind') === 'yjs'
+            ? (stringValue(row, 'wordCountBasisKind') as 'seed' | 'yjs')
+            : null,
+        wordCountBasisHash: nullableStringValue(row, 'wordCountBasisHash'),
+        wordCountBasisRevision: nullableNumberValue(row, 'wordCountBasisRevision'),
+        wordCountBasisServerSeq: nullableNumberValue(row, 'wordCountBasisServerSeq'),
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
       };
@@ -2281,6 +2289,14 @@ export async function hydrateProjectGraph(
           positionX: numberValue(row, 'positionX'),
           positionY: numberValue(row, 'positionY'),
           wordCount: numberValue(row, 'wordCount'),
+          wordCountBasisKind:
+            stringValue(row, 'wordCountBasisKind') === 'seed' ||
+            stringValue(row, 'wordCountBasisKind') === 'yjs'
+              ? stringValue(row, 'wordCountBasisKind')
+              : null,
+          wordCountBasisHash: nullableStringValue(row, 'wordCountBasisHash'),
+          wordCountBasisRevision: nullableNumberValue(row, 'wordCountBasisRevision'),
+          wordCountBasisServerSeq: nullableNumberValue(row, 'wordCountBasisServerSeq'),
           writingStatus: stringValue(row, 'writingStatus', 'draft'),
           createdAt: dateText(row.createdAt),
           updatedAt: dateText(row.updatedAt),

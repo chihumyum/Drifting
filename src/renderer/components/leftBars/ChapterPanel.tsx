@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
 import type { BookNode } from '../../domain/book-node';
-import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
+import { canonicalWordCount, CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { EntityHoverCard } from '../../features/entities/hover/EntityHoverCard';
@@ -308,6 +308,9 @@ export function ChapterPanel({
     // blinking. Once the run is done the stripe is swapped for a plain "M"
     // marker (below); at rest it keeps the storyline color.
     const stripeBg = agentBusy ? 'hsl(var(--accent))' : stripeColor;
+    const exactWordCount = canonicalWordCount(node);
+    const wordCountLabel =
+      exactWordCount == null ? t('common.counting') : formatWordCount(exactWordCount);
 
     return (
       <div
@@ -414,9 +417,9 @@ export function ChapterPanel({
             }}
           >
             {cellMeta === 'wordCount'
-              ? formatWordCount(node.wordCount)
+              ? wordCountLabel
               : cellMeta === 'both'
-                ? `${formatWordCount(node.wordCount)} · ${formatShortDate(node.updatedAt)}`
+                ? `${wordCountLabel} · ${formatShortDate(node.updatedAt)}`
                 : formatShortDate(node.updatedAt)}
           </span>
         )}

@@ -29,7 +29,7 @@ interface WritingPlan {
   dailyWordGoal: number;
 }
 
-interface WritingStatsState {
+export interface WritingStatsState {
   history: Record<string, ProjectHistory>;
   plans: Record<string, WritingPlan>;
   // Record today's total. No-op if nothing changed.
@@ -42,6 +42,19 @@ interface WritingStatsState {
 
 export const DEFAULT_PROJECT_TARGET = 120000;
 const DEFAULT_DAILY_GOAL = 1500;
+
+export const WRITING_STATS_STORAGE_VERSION = 2;
+
+export function migrateWritingStatsState(
+  persistedState: WritingStatsState,
+  persistedVersion: number,
+): WritingStatsState {
+  if (persistedVersion >= WRITING_STATS_STORAGE_VERSION) return persistedState;
+  // v1 totals included drift nodes and could be based on untrusted legacy
+  // scalars. History is a rebuildable presentation cache, so discard the
+  // incompatible baseline while preserving author-owned writing goals.
+  return { ...persistedState, history: {} };
+}
 
 export function todayKey(d: Date = new Date()): ISODate {
   const y = d.getFullYear();
@@ -115,7 +128,9 @@ export const useWritingStatsStore = create<WritingStatsState>()(
     {
       name: 'writing-stats-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+      version: WRITING_STATS_STORAGE_VERSION,
+      migrate: (persistedState, persistedVersion) =>
+        migrateWritingStatsState(persistedState as WritingStatsState, persistedVersion),
     },
   ),
 );

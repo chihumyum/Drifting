@@ -195,7 +195,8 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
           lastEditedRel: formatRelative(p.updatedAt, i18n.language),
           createdRel: formatCreated(p.createdAt),
           wordProgress:
-            wordTarget > 0 ? Math.min(100, Math.max(0, (p.stats.words / wordTarget) * 100)) : null,
+            p.stats.wordsReady && wordTarget > 0
+              ? Math.min(100, Math.max(0, (p.stats.words / wordTarget) * 100)) : null,
         };
       }),
     [projects, i18n.language, writingPlans],
@@ -641,7 +642,8 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
         </p>
         <div className="pp-card__meta">
           <span>
-            <b>{formatWordsK(stats.words)}</b> {t('common.words')}
+            <b>{stats.wordsReady ? formatWordsK(stats.words) : t('common.counting')}</b>{' '}
+            {stats.wordsReady ? t('common.words') : ''}
           </span>
           <span>
             <b>{stats.nodes}</b> {t('common.chapters')}
@@ -708,8 +710,8 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
       <div className="pp-list__sub">{project.summary || meta.subtitle || '—'}</div>
       <div className="pp-list__cell">
         <span className="pp-list__cell-v">
-          {(stats.words / 1000).toFixed(1)}
-          <em>k</em>
+          {stats.wordsReady ? (stats.words / 1000).toFixed(1) : t('common.counting')}
+          {stats.wordsReady && <em>k</em>}
         </span>
         <span className="pp-list__cell-k">{t('common.words')}</span>
       </div>
@@ -797,7 +799,7 @@ function DeleteModal({ project, busy, onConfirm, onClose }: DeleteModalProps) {
         <div className="pp-modal__body">
           <p className="pp-modal__sub">
             {t('projectPicker.delete.body', {
-              words: stats.words.toLocaleString(),
+              words: stats.wordsReady ? stats.words.toLocaleString() : t('common.counting'),
               nodes: stats.nodes,
               elements: stats.elements,
             })}

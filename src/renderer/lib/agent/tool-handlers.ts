@@ -19,7 +19,7 @@ import {
   createElementPatchWithSync,
   updateElementPatchWithSync,
 } from '../../usecase/synced-entity-commands';
-import { isChapter, type BookNode } from '../../domain/book-node';
+import { canonicalWordCount, isChapter, type BookNode } from '../../domain/book-node';
 import type {
   AgentRuntimeExpectedRevision,
   AgentRuntimeNodeWriteGuard,
@@ -286,12 +286,15 @@ function listChapters(ctx: AgentToolContext) {
         (left, right) => left.orderKey - right.orderKey || left.id.localeCompare(right.id, 'en'),
       )
       .map((sl) => ({ name: sl.name, summary: sl.summary || undefined })),
-    chapters: chapters.map((n) => ({
-      name: n.title,
-      status: n.writingStatus,
-      words: n.wordCount,
-      storyline: storylineName(s.primaryStorylineByNode[n.id] ?? null),
-    })),
+    chapters: chapters.map((n) => {
+      const words = canonicalWordCount(n);
+      return {
+        name: n.title,
+        status: n.writingStatus,
+        ...(words == null ? { wordsPending: true } : { words }),
+        storyline: storylineName(s.primaryStorylineByNode[n.id] ?? null),
+      };
+    }),
     drifts: drifts.map((n) => ({
       name: n.title,
       status: n.writingStatus,
@@ -505,8 +508,10 @@ async function readChapter(ctx: AgentToolContext, nodeId: string, includeProse =
   const node = s.bookNodes.find((n) => n.id === nodeId && n.projectId === ctx.projectId);
   if (!node) throw new Error(`No chapter/node found with id "${nodeId}"`);
   // Compact numbered rendering — the leading number is the handle for edit_block.
-  const header = (wordCount: number) =>
-    `${node.kind} "${node.title}" · ${node.writingStatus} · ${wordCount}字`;
+  const header = (wordCount: number | null) =>
+    `${node.kind} "${node.title}" · ${node.writingStatus} · ${
+      wordCount == null ? '字数统计中' : `${wordCount}字`
+    }`;
   const summaryLine = `summary: ${node.summary || '(none)'}`;
   // Which elements/entities appear in this chapter (recorded inline mentions),
   // surfaced inline so the chapter's graph context rides along with its prose.
@@ -540,13 +545,13 @@ async function readChapter(ctx: AgentToolContext, nodeId: string, includeProse =
       ),
   ];
   const relationsLine = relParts.length ? `relations: ${relParts.join(', ')}` : null;
-  const head = (wordCount: number) =>
+  const head = (wordCount: number | null) =>
     [header(wordCount), summaryLine, appearsLine, storylineLine, relationsLine]
       .filter(Boolean)
       .join('\n');
   // prose:false → header-only triage view; skip the (potentially expensive) live
   // Yjs read entirely. read_node(prose:false) replaces the old get_node_context.
-  if (!includeProse) return head(node.wordCount);
+  if (!includeProse) return head(canonicalWordCount(node));
   // Read the live Yjs truth (what the editor shows), not just the contentJson
   // cache, so the numbering the agent edits against matches the open editor.
   const content = await createBookContentRepository().findByNodeId(nodeId);

@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../store/data-store';
-import { isDrift } from '../../domain/book-node';
+import {
+  canonicalWordCount,
+  hasCanonicalWordCount,
+  isChapter,
+  isDrift,
+} from '../../domain/book-node';
 import { getChapterContentJson } from '../../lib/agent/chapter-prose';
 import { computeProseStats, type ProseStats } from '../../lib/prose-stats';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
@@ -405,7 +410,7 @@ function ChapterStats({
       <StatsSection title={t('rightSidebar.stats.wordRhythm')} topBorder>
         <StatsRow
           k={t('rightSidebar.stats.chapterWordCount')}
-          v={node.wordCount.toLocaleString()}
+          v={canonicalWordCount(node)?.toLocaleString() ?? t('common.counting')}
         />
         <StatsRow
           k={t('rightSidebar.stats.paragraphSentence')}
@@ -487,8 +492,10 @@ function StorylineStats({
 }) {
   const { t } = useTranslation();
   const total = nodes.length;
-  const totalWc = nodes.reduce((a, n) => a + (n.wordCount || 0), 0);
-  const avgWc = total ? Math.round(totalWc / total) : 0;
+  const chapterNodes = nodes.filter(isChapter);
+  const metricsReady = chapterNodes.every(hasCanonicalWordCount);
+  const totalWc = chapterNodes.reduce((sum, node) => sum + (canonicalWordCount(node) ?? 0), 0);
+  const avgWc = chapterNodes.length ? Math.round(totalWc / chapterNodes.length) : 0;
   const { open: openEntity } = useWorkspaceNavigator();
 
   // Writing-status distribution over the member chapters. Discarded chapters
@@ -579,9 +586,13 @@ function StorylineStats({
             </div>
             <StatsRow
               k={t('rightSidebar.stats.averageWords')}
-              v={t('rightSidebar.stats.wordsPerChapterValue', {
-                words: avgWc.toLocaleString(),
-              })}
+              v={
+                metricsReady
+                  ? t('rightSidebar.stats.wordsPerChapterValue', {
+                      words: avgWc.toLocaleString(),
+                    })
+                  : t('common.counting')
+              }
             />
           </>
         )}

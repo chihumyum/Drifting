@@ -20,6 +20,7 @@ import {
   withoutRelationsForEntity,
 } from './entity-relation-cleanup';
 import { persistBookNodeUpdateWithSync } from './book-node-write';
+import { deriveProseMetricFromJson } from '@drifting/prose-metrics';
 
 const log = loglevel.getLogger('UseBookNode');
 log.setLevel(loglevel.levels.ERROR);
@@ -156,6 +157,13 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
           ? templateJson
           : emptyDocJson;
 
+      const proseMetric = await deriveProseMetricFromJson(defaultDocJson);
+      newNode.wordCount = proseMetric.wordCount;
+      newNode.wordCountBasisKind = 'seed';
+      newNode.wordCountBasisHash = proseMetric.basisHash;
+      newNode.wordCountBasisRevision = null;
+      newNode.wordCountBasisServerSeq = null;
+
       const nextNodes = [...prevNodes, newNode].sort(compareBookOrder);
       const nodeSyncPayload = {
         id: newNode.id,
@@ -172,6 +180,11 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         positionX: newNode.position.x,
         positionY: newNode.position.y,
         writingStatus: newNode.writingStatus,
+        wordCount: newNode.wordCount,
+        wordCountBasisKind: newNode.wordCountBasisKind,
+        wordCountBasisHash: newNode.wordCountBasisHash,
+        wordCountBasisRevision: null,
+        wordCountBasisServerSeq: null,
       };
 
       return withOptimisticUpdate({
@@ -194,16 +207,11 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             });
 
             await sync('node', 'create', created.id, activeProjectId, nodeSyncPayload);
-            // Push the seeded content too so a fresh-from-template node shows
-            // up filled-in on other devices before the user touches the editor.
-            // Skip when the seed is the empty placeholder doc — that's the
-            // pre-template behavior and the server's '{}' default already
-            // matches it.
-            if (defaultDocJson !== emptyDocJson) {
-              await sync('nodeContent', 'update', created.id, activeProjectId, {
+            // The seed hash is only meaningful alongside this exact PM JSON,
+            // including the canonical empty document.
+            await sync('nodeContent', 'update', created.id, activeProjectId, {
                 contentJson: defaultDocJson,
               });
-            }
             return created;
           });
         },

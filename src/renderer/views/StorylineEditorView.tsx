@@ -23,7 +23,7 @@ import { useFieldReview } from '../hooks/useFieldReview';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import { isChapter } from '../domain/book-node';
+import { canonicalWordCount, hasCanonicalWordCount, isChapter } from '../domain/book-node';
 import {
   useEntityEditor,
   type EditorCommentRequest,
@@ -85,9 +85,12 @@ export function StorylineEditorView({
       .sort((a, b) => a.bookOrder - b.bookOrder);
   }, [bookNodes, storylineId, storylineNodeMapping]);
 
-  const totalWc = sNodes.reduce((sum, n) => sum + (n.wordCount || 0), 0);
-  const writtenCount = sNodes.filter((n) => (n.wordCount || 0) > 0).length;
-  const unwrittenCount = sNodes.length - writtenCount;
+  const metricsReady = sNodes.every(hasCanonicalWordCount);
+  const totalWc = sNodes.reduce((sum, node) => sum + (canonicalWordCount(node) ?? 0), 0);
+  const writtenCount = metricsReady
+    ? sNodes.filter((node) => (canonicalWordCount(node) ?? 0) > 0).length
+    : null;
+  const unwrittenCount = writtenCount == null ? null : sNodes.length - writtenCount;
 
   const [chapterFilter, setChapterFilter] = useState<ChapterFilter>('all');
   const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
@@ -129,8 +132,8 @@ export function StorylineEditorView({
     [setMarginNotes],
   );
   const filteredNodes = sNodes.filter((n) => {
-    if (chapterFilter === 'all') return true;
-    const hasContent = (n.wordCount || 0) > 0;
+    if (!metricsReady || chapterFilter === 'all') return true;
+    const hasContent = (canonicalWordCount(n) ?? 0) > 0;
     return chapterFilter === 'written' ? hasContent : !hasContent;
   });
 
@@ -378,7 +381,11 @@ export function StorylineEditorView({
                 {currentStoryline.name}
               </span>
               <span className="page__folio-line">{t('storylineEditor.meta.chapters', { count: sNodes.length })}</span>
-              <span className="page__folio-line">{t('storylineEditor.meta.kWords', { count: (totalWc / 1000).toFixed(1) })}</span>
+              <span className="page__folio-line">
+                {metricsReady
+                  ? t('storylineEditor.meta.kWords', { count: (totalWc / 1000).toFixed(1) })
+                  : t('common.counting')}
+              </span>
             </div>
 
             {/* 一 · 概述 */}
@@ -517,10 +524,12 @@ export function StorylineEditorView({
                 <h2 id="sl-chapters" className="page__scene">
                   <span className="page__scene-title">{t('storylineEditor.sections.chapters')}</span>
                   <span className="page__scene-meta">
-                    {t('storylineEditor.meta.chaptersWords', {
-                      chapters: sNodes.length,
-                      words: (totalWc / 1000).toFixed(1),
-                    })}
+                    {metricsReady
+                      ? t('storylineEditor.meta.chaptersWords', {
+                          chapters: sNodes.length,
+                          words: (totalWc / 1000).toFixed(1),
+                        })
+                      : t('common.counting')}
                   </span>
                 </h2>
 
@@ -535,7 +544,8 @@ export function StorylineEditorView({
                         key={k}
                         shape="square"
                         active={chapterFilter === k}
-                        count={`· ${n}`}
+                        count={`· ${n ?? t('common.counting')}`}
+                        disabled={!metricsReady && k !== 'all'}
                         onClick={() => setChapterFilter(k)}
                       >
                         {label}
@@ -547,10 +557,12 @@ export function StorylineEditorView({
 
                 <div className="mgr-list">
                   {filteredNodes.map((n, idx) => {
-                    const hasContent = (n.wordCount || 0) > 0;
+                    const exactWords = canonicalWordCount(n);
+                    const hasContent = (exactWords ?? 0) > 0;
                     // No `status` enum in schema yet — derive from wordCount.
                     // Once a real status field exists, switch the modifier class.
-                    const statusMod = hasContent ? '' : ' mgr-row__status--todo';
+                    const statusMod =
+                      exactWords == null || hasContent ? '' : ' mgr-row__status--todo';
                     return (
                       <div
                         key={n.id}
@@ -568,17 +580,35 @@ export function StorylineEditorView({
                             {n.summary || t('storylineEditor.empty.noChapterSummary')}
                           </div>
                           <div className="mgr-row__meta">
-                            <span><b>{(n.wordCount || 0).toLocaleString()}</b>{t('common.words')}</span>
-                            <span>{hasContent ? t('storylineEditor.filters.written') : t('storylineEditor.filters.unwritten')}</span>
+                            <span>
+                              <b>{exactWords?.toLocaleString() ?? t('common.counting')}</b>
+                              {exactWords != null && t('common.words')}
+                            </span>
+                            <span>
+                              {exactWords == null
+                                ? t('common.counting')
+                                : hasContent
+                                  ? t('storylineEditor.filters.written')
+                                  : t('storylineEditor.filters.unwritten')}
+                            </span>
                           </div>
                         </div>
                         <div className="mgr-row__wc">
                           <span className="mgr-row__wc-v">
-                            {n.wordCount > 0 ? (
-                              <>{(n.wordCount / 1000).toFixed(1)}<em>k</em></>
-                            ) : '—'}
+                            {exactWords == null ? (
+                              t('common.counting')
+                            ) : exactWords > 0 ? (
+                              <>
+                                {(exactWords / 1000).toFixed(1)}
+                                <em>k</em>
+                              </>
+                            ) : (
+                              '—'
+                            )}
                           </span>
-                          <span className="mgr-row__wc-k">{t('common.words')}</span>
+                          {exactWords != null && (
+                            <span className="mgr-row__wc-k">{t('common.words')}</span>
+                          )}
                         </div>
                         <div className="mgr-row__open" title={t('storylineEditor.actions.openChapter')}>→</div>
                       </div>

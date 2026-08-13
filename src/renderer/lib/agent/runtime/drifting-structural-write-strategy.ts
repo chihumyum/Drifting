@@ -38,7 +38,7 @@ import {
   type EntityRelationTypeDefinition,
 } from '../../../domain/entity-relation-type';
 import { getDb, type DbExecutor, type DbTransaction } from '../../../lib/db';
-import { countWordsInPmJson } from '../../word-count';
+import { deriveProseMetricFromJson } from '@drifting/prose-metrics';
 import {
   notifySyncMutationCommitted,
   persistSyncMutationInTransaction,
@@ -475,6 +475,7 @@ async function preparePayload(
         content: String(request.arguments.body ?? ''),
         idempotencyKey: request.idempotencyKey,
       });
+      const proseMetric = await deriveProseMetricFromJson(contentJson);
       const nodes = await createBookNodeSqliteRepository(projectId, db).findAll();
       const title = requiredString(request.arguments.title, 'create_node requires title');
       if (nodes.some((node) => sameName(node.title, title))) {
@@ -499,7 +500,11 @@ async function preparePayload(
         narrativeOrder: kind === 'drift' ? maxOrder + 1 : null,
         driftGroupId: null,
         position: { x: 0, y: 0 },
-        wordCount: countWordsInPmJson(contentJson),
+        wordCount: proseMetric.wordCount,
+        wordCountBasisKind: 'seed' as const,
+        wordCountBasisHash: proseMetric.basisHash,
+        wordCountBasisRevision: null,
+        wordCountBasisServerSeq: null,
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -1785,6 +1790,10 @@ function nodePayload(value: BookNode): Record<string, unknown> {
     positionX: value.position.x,
     positionY: value.position.y,
     wordCount: value.wordCount,
+    wordCountBasisKind: value.wordCountBasisKind ?? null,
+    wordCountBasisHash: value.wordCountBasisHash ?? null,
+    wordCountBasisRevision: value.wordCountBasisRevision ?? null,
+    wordCountBasisServerSeq: value.wordCountBasisServerSeq ?? null,
     writingStatus: value.writingStatus,
   };
 }

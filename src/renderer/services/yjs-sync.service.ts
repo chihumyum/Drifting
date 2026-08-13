@@ -373,6 +373,39 @@ export function base64ToUint8(b64: string): Uint8Array {
   return bytes;
 }
 
+export function encodeCapturedDocumentStateForCheckpoint(
+  snapshot: Uint8Array | null,
+  updates: readonly { updateBlob: Uint8Array }[],
+): Uint8Array {
+  const doc = new Y.Doc({ gc: false });
+  try {
+    if (snapshot) Y.applyUpdate(doc, snapshot, 'checkpoint');
+    for (const update of updates) {
+      Y.applyUpdate(doc, update.updateBlob, 'checkpoint');
+    }
+    return Y.encodeStateAsUpdate(doc);
+  } finally {
+    doc.destroy();
+  }
+}
+
+export async function finalizeCheckpointBeforeCursor(
+  push: () => Promise<void>,
+  advanceCursor: () => Promise<void>,
+): Promise<void> {
+  await push();
+  await advanceCursor();
+}
+
+async function pushCheckpoint(docId: string, projectId: string, state: Uint8Array): Promise<void> {
+  const response = await apiClient.post('/api/sync/checkpoint', {
+    docId,
+    projectId,
+    state: uint8ToBase64(state),
+  });
+  if (!response.data?.success) throw new Error(`Sync checkpoint failed for ${docId}`);
+}
+
 // ───── Push ─────
 
 export async function pushUpdates(
@@ -384,10 +417,16 @@ export async function pushUpdates(
 
   const r = repo ?? createYjsRepository();
   const cursor = await getCursor(docId);
-  const unpushed = await r.listUpdates(docId, cursor.lastPushedLocalId);
+  // Freeze one exact local generation before network I/O. A checkpoint must
+  // never contain edits newer than the update rows uploaded by this call, or
+  // those edits would be hidden in Server state without a pullable log row.
+  const snapshot = await r.getSnapshot(docId);
+  const capturedUpdates = await r.listUpdates(docId);
+  const unpushed = capturedUpdates.filter((update) => update.id > cursor.lastPushedLocalId);
   if (unpushed.length === 0) return;
 
   const deviceId = getYjsDeviceId();
+  let needsCheckpoint = false;
 
   for (let i = 0; i < unpushed.length; i += PUSH_BATCH_SIZE) {
     const batch = unpushed.slice(i, i + PUSH_BATCH_SIZE);
@@ -431,6 +470,8 @@ export async function pushUpdates(
         throw new Error('Sync push failed');
       }
 
+      needsCheckpoint = needsCheckpoint || res.data.needsCheckpoint === true;
+
       const lastLocalId = batch[batch.length - 1].id;
       const serverSeqs = Array.isArray(res.data.serverSeqs) ? res.data.serverSeqs : [];
       // Defence: if the server accepted at least one update from the batch
@@ -446,7 +487,9 @@ export async function pushUpdates(
             `likely safe if these were retries; if not, the missing rows are lost.`,
         );
       }
-      await updateCursor(docId, { lastPushedLocalId: lastLocalId });
+      if (!needsCheckpoint) {
+        await updateCursor(docId, { lastPushedLocalId: lastLocalId });
+      }
       emitSyncOperation({
         requestId,
         kind: 'yjs',
@@ -486,6 +529,20 @@ export async function pushUpdates(
       throw error;
     }
   }
+
+  if (needsCheckpoint) {
+    const checkpoint = encodeCapturedDocumentStateForCheckpoint(
+      snapshot?.stateBlob ?? null,
+      capturedUpdates,
+    );
+    await finalizeCheckpointBeforeCursor(
+      () => pushCheckpoint(docId, projectId, checkpoint),
+      () =>
+        updateCursor(docId, {
+          lastPushedLocalId: unpushed[unpushed.length - 1].id,
+        }),
+    );
+  }
 }
 
 // ───── Pull ─────
@@ -517,6 +574,7 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
     let maxSeq = cursor.lastServerSeq;
     let appliedCount = 0;
     let pageCount = 0;
+    let needsCheckpoint = false;
 
     while (pageCount < MAX_PULL_PAGES) {
       const res = await apiClient.get('/api/sync/pull', {
@@ -528,6 +586,7 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
         clientUpdateId: string;
         deviceId: string | null;
       }> = res.data?.updates ?? [];
+      needsCheckpoint = needsCheckpoint || res.data?.needsCheckpoint === true;
       if (updates.length === 0) break;
 
       const previousSeq = maxSeq;
@@ -561,6 +620,12 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
       // idempotent Yjs updates; advancing first could skip data not in SQLite.
       await updateCursor(docId, { lastServerSeq: maxSeq });
       maybeCaptureSnapshotHistory(docId, fullState);
+    }
+
+    if (needsCheckpoint) {
+      const projectId = await resolveProjectIdForDoc(docId);
+      if (!projectId) throw new Error(`Cannot resolve project for checkpoint ${docId}`);
+      await pushCheckpoint(docId, projectId, Y.encodeStateAsUpdate(ydoc));
     }
 
     emitSyncOperation({

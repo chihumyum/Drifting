@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
-import type { BookNode } from '../../domain/book-node';
+import { canonicalWordCount, type BookNode } from '../../domain/book-node';
 import type { NodeContent } from '../../domain/node-content';
 import { entityLinkConfig } from '../../lib/extensions/entity-link';
 import type {
@@ -171,7 +171,11 @@ function VirtualChapterRowImpl({
               </span>
             )}
             <span className="page__folio-line">
-              {t('common.wordsCount', { count: (node.wordCount || 0).toLocaleString() })}
+              {canonicalWordCount(node) == null
+                ? t('common.counting')
+                : t('common.wordsCount', {
+                    count: canonicalWordCount(node)!.toLocaleString(),
+                  })}
             </span>
           </div>
 

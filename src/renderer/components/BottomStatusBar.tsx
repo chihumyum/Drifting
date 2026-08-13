@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isChapter } from '../domain/book-node';
+import { canonicalWordCount, isChapter, sumCanonicalChapterWordCounts } from '../domain/book-node';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { isSyncEnabled } from '../lib/config';
 import { useSyncObserver } from '../services/sync-observer.service';
@@ -14,7 +14,7 @@ type WordMetric = {
     | 'bottomStatusBar.currentWords'
     | 'bottomStatusBar.storylineWords'
     | 'bottomStatusBar.projectWords';
-  count: number;
+  count: number | null;
 };
 
 // BottomStatusBar is a status-first line spanning the full application width.
@@ -34,33 +34,39 @@ export function BottomStatusBar() {
   const activeTab = projectTabs?.openTabs.find((tab) => tabKey(tab) === projectTabs.activeTabKey);
   const activeLeaf = activeTab ? focusedLeafOf(activeTab) : null;
 
-  const projectWordCount = useMemo(
-    () => bookNodes.filter(isChapter).reduce((sum, node) => sum + (node.wordCount || 0), 0),
-    [bookNodes],
-  );
+  const projectWordCount = useMemo(() => sumCanonicalChapterWordCounts(bookNodes), [bookNodes]);
 
   const wordMetric = useMemo<WordMetric>(() => {
     if (activeLeaf?.entityType === 'node') {
       const node = bookNodes.find((candidate) => candidate.id === activeLeaf.id);
       if (node) {
-        return { labelKey: 'bottomStatusBar.currentWords', count: node.wordCount || 0 };
+        return { labelKey: 'bottomStatusBar.currentWords', count: canonicalWordCount(node) };
       }
     }
 
     if (activeLeaf?.entityType === 'storyline') {
       const nodeIds = new Set(storylineNodeMapping[activeLeaf.id] ?? []);
-      const count = bookNodes.reduce(
-        (sum, node) => sum + (nodeIds.has(node.id) ? node.wordCount || 0 : 0),
-        0,
-      );
-      return { labelKey: 'bottomStatusBar.storylineWords', count };
+      const nodes = bookNodes.filter((node) => isChapter(node) && nodeIds.has(node.id));
+      const counts = nodes.map(canonicalWordCount);
+      return {
+        labelKey: 'bottomStatusBar.storylineWords',
+        count: counts.every((count) => count != null)
+          ? counts.reduce<number>((sum, count) => sum + (count ?? 0), 0)
+          : null,
+      };
     }
 
-    return { labelKey: 'bottomStatusBar.projectWords', count: projectWordCount };
+    return {
+      labelKey: 'bottomStatusBar.projectWords',
+      count: projectWordCount.ready ? projectWordCount.count : null,
+    };
   }, [activeLeaf, bookNodes, projectWordCount, storylineNodeMapping]);
 
   const todayWords = useMemo(
-    () => deriveWritingStats(writingHistory, projectWordCount).todayWords,
+    () =>
+      projectWordCount.ready
+        ? deriveWritingStats(writingHistory, projectWordCount.count).todayWords
+        : null,
     [projectWordCount, writingHistory],
   );
 
@@ -95,13 +101,17 @@ export function BottomStatusBar() {
     <footer className="bsb app-plane" aria-label={t('bottomStatusBar.statusLine')}>
       <div className="bsb__group">
         <span className="bsb__item">
-          {t(wordMetric.labelKey, { formatted: wordMetric.count.toLocaleString() })}
+          {wordMetric.count == null
+            ? t('bottomStatusBar.metricsPending')
+            : t(wordMetric.labelKey, { formatted: wordMetric.count.toLocaleString() })}
         </span>
         <span className="bsb__divider" aria-hidden="true">
           ·
         </span>
         <span className="bsb__item bsb__item--today">
-          {t('bottomStatusBar.todayWords', { formatted: todayWords.toLocaleString() })}
+          {todayWords == null
+            ? t('bottomStatusBar.todayPending')
+            : t('bottomStatusBar.todayWords', { formatted: todayWords.toLocaleString() })}
         </span>
       </div>
       <div className="bsb__spacer" />

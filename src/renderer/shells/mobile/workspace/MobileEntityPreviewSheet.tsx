@@ -2,7 +2,7 @@ import { Check, FilePlus2, X } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { WorkspaceTarget } from '../../../features/workspace/navigation/workspace-target';
-import { isChapter, isDrift } from '../../../domain/book-node';
+import { canonicalWordCount, isChapter, isDrift } from '../../../domain/book-node';
 import type { StructuralEntityKind } from '../../../domain/entity-kinds';
 import { useDataStore } from '../../../store/data-store';
 import { useMobilePaperPresentation } from './MobilePaperContent';
@@ -65,7 +65,10 @@ export function MobileEntityPreviewSheet({
         relationKind = 'node';
         updatedAt = node.updatedAt;
         fields.push({ label: '状态', value: statusLabel(node.writingStatus) });
-        fields.push({ label: '字数', value: node.wordCount.toLocaleString() });
+        fields.push({
+          label: '字数',
+          value: canonicalWordCount(node)?.toLocaleString() ?? t('common.counting'),
+        });
         if (isChapter(node)) {
           const storyline = data.storylines.find(
             (item) => item.id === data.primaryStorylineByNode[node.id],

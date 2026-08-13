@@ -1,3 +1,5 @@
+import { isProseMetricBasisHash } from '@drifting/prose-metrics';
+
 // Author-facing chapter status. All three values are user-selectable through
 // the editor top-bar menu and the chapter panel's cell context menu.
 // `discarded` is the soft-delete state — the chapter stays on the timeline
@@ -26,6 +28,8 @@ export type WritingStatus = ChapterWritingStatus | DriftStatus;
 // without a primary storyline link is still a chapter (kind='chapter'), not
 // auto-degraded to drift.
 export type BookNodeKind = 'chapter' | 'drift';
+
+export type WordCountBasisKind = 'seed' | 'yjs';
 
 export const CHAPTER_WRITING_STATUSES: readonly ChapterWritingStatus[] = [
   'draft',
@@ -79,9 +83,17 @@ interface BookNodeBase {
    * Materialized word count derived from this node's content.
    * Counted as: CJK chars + non-CJK whitespace-separated tokens with
    * at least one alphanumeric (matches MS Word's "字数").
-   * 0 for never-edited nodes; backfilled on first save after open.
+   * Legacy rows remain untrusted until bounded project reconciliation derives
+   * a basis from the exact Yjs state or explicit pre-Yjs seed.
    */
   wordCount: number;
+  /** Missing/null means a legacy scalar that must not be presented as exact. */
+  wordCountBasisKind?: WordCountBasisKind | null;
+  wordCountBasisHash?: string | null;
+  /** Local monotonic Yjs revision; null for seed or a Server-owned projection. */
+  wordCountBasisRevision?: number | null;
+  /** Server update-log watermark; null for a purely local projection. */
+  wordCountBasisServerSeq?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -117,6 +129,27 @@ export function isChapter(node: BookNode): node is ChapterNode {
 
 export function isDrift(node: BookNode): node is DriftNode {
   return node.kind === 'drift';
+}
+
+export function hasCanonicalWordCount(node: BookNode): boolean {
+  if (!node.wordCountBasisKind || !isProseMetricBasisHash(node.wordCountBasisHash)) return false;
+  if (node.wordCountBasisKind === 'seed') return true;
+  return node.wordCountBasisRevision != null || node.wordCountBasisServerSeq != null;
+}
+
+export function canonicalWordCount(node: BookNode): number | null {
+  return hasCanonicalWordCount(node) ? node.wordCount : null;
+}
+
+export function sumCanonicalChapterWordCounts(nodes: readonly BookNode[]): {
+  count: number;
+  ready: boolean;
+} {
+  const chapters = nodes.filter(isChapter);
+  return {
+    count: chapters.reduce((sum, node) => sum + (canonicalWordCount(node) ?? 0), 0),
+    ready: chapters.every(hasCanonicalWordCount),
+  };
 }
 
 // Coarse writing-status bucket shared by the dashboard and the all-chapters

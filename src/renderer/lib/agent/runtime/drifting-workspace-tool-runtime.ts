@@ -1,7 +1,7 @@
 import { Value } from '@sinclair/typebox/value';
 
 import { allElementNames, type BookElement } from '../../../domain/book-element';
-import { isChapter } from '../../../domain/book-node';
+import { canonicalWordCount, isChapter } from '../../../domain/book-node';
 import { extractTextFromCommentBody, type Comment } from '../../../domain/comment';
 import { parseKv, type KvEntry } from '../../../domain/kv';
 import { useDataStore, type EntityRelationLink } from '../../../store/data-store';
@@ -1877,7 +1877,9 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         title: node.title,
         kind: node.kind,
         status: node.writingStatus,
-        words: node.wordCount,
+        ...(canonicalWordCount(node) == null
+          ? { wordsPending: true }
+          : { words: canonicalWordCount(node) }),
         narrativeOrder: node.narrativeOrder,
         ...(isChapter(node) ? { bookOrder: node.bookOrder } : {}),
       });
@@ -3851,7 +3853,9 @@ function describeWorkspaceDirectory(
     const summary = compactDescription(node.summary, 220);
     return [
       node.kind === 'chapter' ? 'Chapter' : 'Drift',
-      `${node.wordCount.toLocaleString('en-US')} words`,
+      canonicalWordCount(node) == null
+        ? 'word count pending'
+        : `${canonicalWordCount(node)!.toLocaleString('en-US')} words`,
       node.writingStatus,
       summary,
     ]

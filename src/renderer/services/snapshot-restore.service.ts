@@ -31,7 +31,7 @@ import { getLiveYDoc } from '../lib/yjs-doc-registry';
 import { getActiveAgentToolContext, type AgentToolContext } from '../lib/agent/tool-handlers';
 import { useAgentEditStore } from '../store/agent-edit-store';
 import { useAgentActivityStore } from '../store/agent-activity-store';
-import { countWordsInPmJson } from '../lib/word-count';
+import { materializeCanonicalNodeProse } from './node-prose-metrics.service';
 import type { WritingStatus } from '../domain/book-node';
 import { compactUpdatesAfterSnapshot } from './yjs-sync.service';
 import {
@@ -140,9 +140,8 @@ async function restoreMetadata(
   const meta: SnapshotMeta = row.metaJson ? (JSON.parse(row.metaJson) as SnapshotMeta) : {};
   switch (row.entityKind) {
     case 'node': {
-      await ctx.write.updateContentByNodeId(row.entityId, { contentJson });
+      await materializeCanonicalNodeProse(row.projectId, row.entityId, contentJson);
       await ctx.write.updateNode(row.entityId, {
-        wordCount: countWordsInPmJson(contentJson),
         ...(meta.title !== undefined ? { title: meta.title } : {}),
         ...(meta.summary !== undefined ? { summary: meta.summary } : {}),
         ...(meta.writingStatus !== undefined

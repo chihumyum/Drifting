@@ -132,6 +132,10 @@ function nodeSyncPayload(node: BookNode): Record<string, unknown> {
     positionX: node.position.x,
     positionY: node.position.y,
     wordCount: node.wordCount,
+    wordCountBasisKind: node.wordCountBasisKind ?? null,
+    wordCountBasisHash: node.wordCountBasisHash ?? null,
+    wordCountBasisRevision: node.wordCountBasisRevision ?? null,
+    wordCountBasisServerSeq: node.wordCountBasisServerSeq ?? null,
     writingStatus: node.writingStatus,
   };
 }

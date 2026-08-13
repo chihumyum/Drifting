@@ -1,6 +1,6 @@
 # Current Drifting Agent Runtime status
 
-Updated: 2026-08-13
+Updated: 2026-08-14
 
 This document is the current human-readable product and verification boundary.
 Historical phase reports and dated provider runs are evidence for their
@@ -42,6 +42,14 @@ pnpm --dir client agent:capabilities:check
 - Agent domain writes execute through renderer-owned use cases with revision
   checks, durable receipts, guarded inverses, and the same sync outbox boundary
   used by manual product writes.
+- Prose word counts are rebuildable projections with an explicit `seed` or
+  `yjs` semantic hash plus an exact local revision or Server sequence basis.
+  Manual edits, Agent edits and snapshot restore derive from captured Yjs state;
+  project boot reconciles legacy/non-zero stale values without rewriting prose.
+  Server sync materializes the merged update log, and older unproven scalar
+  payloads cannot replace a Server-owned basis. Aggregates are chapter-only;
+  pending projections are shown as pending rather than exact. See
+  [`../../prose-metrics.md`](../../prose-metrics.md).
 
 ### Approved future Ambient design — not shipped
 
@@ -172,8 +180,8 @@ pnpm --dir client agent:capabilities:check
   the mobile and native manual checklists.
 - The deterministic P0 fixes discovered by the 2026-08-06 empty-project novel
   run have not been validated by another paid long-form empty-project campaign.
-- Stable partial edit recovery, equivalent-create recovery, remaining
-  actionable domain errors, and canonical word counts
+- Stable partial edit recovery, equivalent-create recovery, and remaining
+  actionable domain errors
   remain ordered follow-up in
   [`GENERAL_AGENT_PEAK_PERSON_REMEDIATION_PLAN_2026-08-06.md`](GENERAL_AGENT_PEAK_PERSON_REMEDIATION_PLAN_2026-08-06.md).
 - Subagent orchestration remains deferred. Multiple current conversations are

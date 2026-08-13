@@ -1,5 +1,7 @@
 import { useCallback, useMemo } from 'react';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
+
+import { isProseMetricBasisHash } from '@drifting/prose-metrics';
 
 import type { Project } from '../domain/project';
 import { createProjectRepository } from '../sqlite-repo/project-repo';
@@ -46,6 +48,7 @@ export interface UseProjectContext {
 export interface ProjectStats {
   nodes: number;
   words: number;
+  wordsReady: boolean;
   storylines: number;
   storylineLinks: number;
   elements: number;
@@ -74,6 +77,7 @@ type ServerProjectSummary = {
 const EMPTY_PROJECT_STATS: ProjectStats = {
   nodes: 0,
   words: 0,
+  wordsReady: false,
   storylines: 0,
   storylineLinks: 0,
   elements: 0,
@@ -140,9 +144,17 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
     elementCategories,
   ] = await Promise.all([
     db
-      .select({ id: BookNodeTable.id, wordCount: BookNodeTable.wordCount })
+      .select({
+        id: BookNodeTable.id,
+        kind: BookNodeTable.kind,
+        wordCount: BookNodeTable.wordCount,
+        wordCountBasisKind: BookNodeTable.wordCountBasisKind,
+        wordCountBasisHash: BookNodeTable.wordCountBasisHash,
+        wordCountBasisRevision: BookNodeTable.wordCountBasisRevision,
+        wordCountBasisServerSeq: BookNodeTable.wordCountBasisServerSeq,
+      })
       .from(BookNodeTable)
-      .where(eq(BookNodeTable.projectId, projectId)),
+      .where(and(eq(BookNodeTable.projectId, projectId), isNull(BookNodeTable.deletedAt))),
     db
       .select({ id: StorylineTable.id })
       .from(StorylineTable)
@@ -180,9 +192,20 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
       .where(eq(InlineMentionTable.projectId, projectId)),
   ]);
 
+  const chapters = nodes.filter((node) => node.kind === 'chapter');
+  const hasCanonicalWords = (node: (typeof chapters)[number]) =>
+    Boolean(node.wordCountBasisKind && isProseMetricBasisHash(node.wordCountBasisHash)) &&
+    (node.wordCountBasisKind === 'seed' ||
+      node.wordCountBasisRevision != null ||
+      node.wordCountBasisServerSeq != null);
+
   return {
     nodes: nodes.length,
-    words: nodes.reduce((total, node) => total + (node.wordCount ?? 0), 0),
+    words: chapters.reduce(
+      (total, node) => total + (hasCanonicalWords(node) ? (node.wordCount ?? 0) : 0),
+      0,
+    ),
+    wordsReady: chapters.every(hasCanonicalWords),
     storylines: storylines.length,
     storylineLinks: nodeStorylineLinks.length,
     elements: elements.length,

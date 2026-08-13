@@ -772,6 +772,7 @@
     "saving": "保存中…",
     "creating": "创建中…",
     "processing": "处理中…",
+    "counting": "统计中…",
     "retry": "重试",
     "untitled": "未命名",
     "words": "字",
@@ -809,6 +810,8 @@
     "childChanges": "未查看的子条目 Agent 改动"
   },
   "bottomStatusBar": {
+    "metricsPending": "正文统计中",
+    "todayPending": "今日字数统计中",
     "workspaceViews": "工作区视图",
     "projectHome": "项目主页",
     "allChapters": "通览全书",
@@ -2040,12 +2043,14 @@
       "chapterCount": "{{count}} 章"
     },
     "node": {
-      "titleWithWords": "{{title}} · {{count}} 字"
+      "titleWithWords": "{{title}} · {{count}} 字",
+      "titleCounting": "{{title}} · 字数统计中"
     },
     "drift": {
       "allAnchored": "所有灵感都已锚定在叙事时间轴上",
       "empty": "还没有灵感卡片 · 在左侧灵感面板新建一条",
-      "cardTitle": "{{title}} · {{count}} 字 · shift+点击起关联"
+      "cardTitle": "{{title}} · {{count}} 字 · shift+点击起关联",
+      "cardTitleCounting": "{{title}} · 字数统计中 · shift+点击起关联"
     },
     "edge": {
       "uncategorized": "未分类",

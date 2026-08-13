@@ -41,6 +41,8 @@ describe('buildEntityHoverCardContent', () => {
             summary: 'A chapter summary',
             writingStatus: 'draft',
             wordCount: 1234,
+            wordCountBasisKind: 'seed',
+            wordCountBasisHash: `sha256:${'a'.repeat(64)}`,
           },
         ],
         storylines: [
@@ -136,8 +138,20 @@ describe('buildEntityHoverCardContent', () => {
         ],
         storylineNodeMapping: { 'story-1': ['chapter-1', 'chapter-2'] },
         bookNodes: [
-          { id: 'chapter-1', wordCount: 1200 },
-          { id: 'chapter-2', wordCount: 800 },
+          {
+            id: 'chapter-1',
+            kind: 'chapter',
+            wordCount: 1200,
+            wordCountBasisKind: 'seed',
+            wordCountBasisHash: `sha256:${'a'.repeat(64)}`,
+          },
+          {
+            id: 'chapter-2',
+            kind: 'chapter',
+            wordCount: 800,
+            wordCountBasisKind: 'seed',
+            wordCountBasisHash: `sha256:${'b'.repeat(64)}`,
+          },
           { id: 'chapter-3', wordCount: 9000 },
         ],
       }),

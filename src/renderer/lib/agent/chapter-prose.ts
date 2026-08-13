@@ -41,7 +41,7 @@ import {
 import { maybeCaptureSnapshotHistory } from '../../services/snapshot-history.service';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { hydrateProseJson } from './prose-hydrate-client';
-import { countWordsInPmJson } from '../word-count';
+import { materializeCanonicalNodeProse } from '../../services/node-prose-metrics.service';
 import { computeBlockChanges, type AgentBlockChange } from './block-diff';
 import { detectEntityLinkSpans } from '../extensions/entity-link';
 import type { AgentToolContext } from './tool-handlers';
@@ -470,8 +470,7 @@ async function persistBody(
 ): Promise<void> {
   switch (entityType) {
     case 'node':
-      await ctx.write.updateContentByNodeId(id, { contentJson });
-      await ctx.write.updateNode(id, { wordCount: countWordsInPmJson(contentJson) });
+      await materializeCanonicalNodeProse(ctx.projectId, id, contentJson);
       return;
     case 'element':
       await ctx.write.updateElement(id, { contentJson });

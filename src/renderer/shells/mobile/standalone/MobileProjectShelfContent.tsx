@@ -164,8 +164,14 @@ export function MobileProjectShelfContent({
                       {project.summary || meta.subtitle || t('projectPicker.newBookSubtitle')}
                     </span>
                     <span className="m-shelf-card__meta">
-                      <span>{project.stats.words.toLocaleString()} {t('common.words')}</span>
-                      <span>{project.stats.nodes} {t('common.chapters')}</span>
+                      <span>
+                        {project.stats.wordsReady
+                          ? `${project.stats.words.toLocaleString()} ${t('common.words')}`
+                          : t('common.counting')}
+                      </span>
+                      <span>
+                        {project.stats.nodes} {t('common.chapters')}
+                      </span>
                       <span>{lastEditedRel}</span>
                     </span>
                     {wordProgress !== null && (

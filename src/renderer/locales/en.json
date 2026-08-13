@@ -772,6 +772,7 @@
     "saving": "Saving…",
     "creating": "Creating…",
     "processing": "Processing…",
+    "counting": "Counting…",
     "retry": "Retry",
     "untitled": "Untitled",
     "words": "words",
@@ -809,6 +810,8 @@
     "childChanges": "Unviewed child Agent changes"
   },
   "bottomStatusBar": {
+    "metricsPending": "Counting prose",
+    "todayPending": "Counting today's words",
     "workspaceViews": "Workspace views",
     "projectHome": "Project home",
     "allChapters": "Whole book",
@@ -2040,12 +2043,14 @@
       "chapterCount": "{{count}} chapters"
     },
     "node": {
-      "titleWithWords": "{{title}} · {{count}} words"
+      "titleWithWords": "{{title}} · {{count}} words",
+      "titleCounting": "{{title}} · counting words"
     },
     "drift": {
       "allAnchored": "All drift cards are anchored on the narrative timeline",
       "empty": "No drift cards yet · create inspiration notes in the left Drift panel",
-      "cardTitle": "{{title}} · {{count}} words · shift-click to start a relation"
+      "cardTitle": "{{title}} · {{count}} words · shift-click to start a relation",
+      "cardTitleCounting": "{{title}} · counting words · shift-click to start a relation"
     },
     "edge": {
       "uncategorized": "Uncategorized",

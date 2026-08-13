@@ -8,6 +8,7 @@ import {
   CHAPTER_WRITING_STATUSES,
   CHAPTER_ORDER_STRIDE,
   DRIFT_STATUSES,
+  canonicalWordCount,
   isChapter,
   isDrift,
   type WritingStatus,
@@ -53,7 +54,6 @@ import {
   ModalRoot,
 } from '../components/ui/Modal';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
-import { countWordsInPmJson } from '../lib/word-count';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import type { EditorCommentRequest } from '../hooks/useEntityEditor';
 import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
@@ -180,13 +180,12 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   // single-chapter TOC reads identically to the same chapter inside 通览全书.
   const outlineTree = useMemo(() => nestHeadings(outline), [outline]);
 
-  const wordCountBackfillRef = useRef<string | null>(null);
   // usecases
   const { renameNode, updateNodeSummary, updateNode, deleteNode } = useBookNode({
     projectId: activeProjectId,
     userId: activeUserId,
   });
-  const { getContentByNodeId, updateContentByNodeId, createContent, updatePlotGridByNodeId } =
+  const { getContentByNodeId, updatePlotGridByNodeId } =
     useBookContent({
       userId: activeUserId,
       projectId: activeProjectId,
@@ -401,26 +400,12 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     [updateNodeSummary, promoteCurrentTab],
   );
 
-  // Persists wordCount onto BookNode if it diverged from what's in state.
-  // Dedup is essential: typing within a word doesn't change the count and
-  // we don't want a DB write per keystroke when nothing changed.
-  const persistWordCountIfChanged = useCallback(
-    (targetNodeId: string, nextWordCount: number) => {
-      const current = useDataStore.getState().bookNodes.find((n) => n.id === targetNodeId);
-      if (!current || current.wordCount === nextWordCount) return;
-      void updateNode(targetNodeId, { wordCount: nextWordCount }).catch((error) => {
-        log.error('[NodeEditor] Failed to persist wordCount:', error);
-      });
-    },
-    [updateNode],
-  );
-
   const handleContentUpdate = useCallback(
     async (
       targetNodeId: string,
       pmJson: string,
-      outlineJson: string,
-      nextWordCount: number,
+      _outlineJson: string,
+      _nextWordCount: number,
     ) => {
       // Skip promote+save when content matches the loaded baseline — this filters
       // out phantom onUpdate fires (Yjs initial sync, etc.) that would otherwise
@@ -428,49 +413,16 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       if (pmJson === bookContent?.contentJson) return;
       if (canPromoteOnEdit()) promoteCurrentTab();
       try {
-        const existing = await getContentByNodeId(targetNodeId);
-        if (existing) {
-          const updated = await updateContentByNodeId(targetNodeId, {
-            contentJson: pmJson,
-            outlineJson,
-          });
-          if (updated && activeNodeIdRef.current === targetNodeId) {
-            setBookContent(updated);
-          }
-        } else {
-          const created = await createContent(targetNodeId, { contentJson: pmJson, outlineJson });
-          if (activeNodeIdRef.current === targetNodeId) {
-            setBookContent(created);
-          }
+        const persisted = await getContentByNodeId(targetNodeId);
+        if (persisted && activeNodeIdRef.current === targetNodeId) {
+          setBookContent(persisted);
         }
-        persistWordCountIfChanged(targetNodeId, nextWordCount);
       } catch (error) {
-        log.error('[NodeEditor] Failed to update content:', error);
+        log.error('[NodeEditor] Failed to reload materialized content:', error);
       }
     },
-    [bookContent?.contentJson, canPromoteOnEdit, createContent, getContentByNodeId, updateContentByNodeId, persistWordCountIfChanged, promoteCurrentTab],
+    [bookContent?.contentJson, canPromoteOnEdit, getContentByNodeId, promoteCurrentTab],
   );
-
-  // One-shot backfill: legacy nodes whose word_count is still 0 but whose
-  // saved content has text. We compute from pmJson once per node-open so the
-  // bar/folio show the right number before the user types anything. Guarded
-  // by a ref so we don't spam updates if React re-runs the effect.
-  useEffect(() => {
-    if (!nodeId || !curNode || !bookContent) return;
-    if (curNode.wordCount > 0) return;
-    if (wordCountBackfillRef.current === nodeId) return;
-    const computed = countWordsInPmJson(bookContent.contentJson);
-    if (computed <= 0) return;
-    wordCountBackfillRef.current = nodeId;
-    void updateNode(nodeId, { wordCount: computed }).catch((error) => {
-      log.error('[NodeEditor] wordCount backfill failed:', error);
-      wordCountBackfillRef.current = null;
-    });
-  }, [bookContent, curNode, nodeId, updateNode]);
-
-  useEffect(() => {
-    wordCountBackfillRef.current = null;
-  }, [nodeId]);
 
   const isActiveNodeReady = Boolean(
     nodeId && curNode && isContentLoaded && loadedNodeId === nodeId,
@@ -843,7 +795,11 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                         </span>
                       )}
                       <span className="page__folio-line">
-                        {t('nodeEditor.meta.words', { count: curNode.wordCount.toLocaleString() })}
+                        {canonicalWordCount(curNode) == null
+                          ? t('common.counting')
+                          : t('nodeEditor.meta.words', {
+                              count: canonicalWordCount(curNode)!.toLocaleString(),
+                            })}
                       </span>
                     </div>
                   )}
@@ -857,7 +813,11 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                         </span>
                       )}
                       <span className="page__folio-line">
-                        {t('nodeEditor.meta.words', { count: curNode.wordCount.toLocaleString() })}
+                        {canonicalWordCount(curNode) == null
+                          ? t('common.counting')
+                          : t('nodeEditor.meta.words', {
+                              count: canonicalWordCount(curNode)!.toLocaleString(),
+                            })}
                       </span>
                     </div>
                   )}

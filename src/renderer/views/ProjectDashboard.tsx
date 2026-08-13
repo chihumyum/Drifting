@@ -12,7 +12,13 @@ import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useRecentEntitiesStore } from '../store/recent-entities-store';
 import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats-store';
 import { KvEditor } from '../components/editor/KvEditor';
-import { isChapter, deriveStatus, type BookNode } from '../domain/book-node';
+import {
+  canonicalWordCount,
+  deriveStatus,
+  isChapter,
+  sumCanonicalChapterWordCounts,
+  type BookNode,
+} from '../domain/book-node';
 import { getPlatformRuntime } from '../platform/runtime';
 import { useSyncObserver } from '../services/sync-observer.service';
 import {
@@ -183,7 +189,12 @@ export function ProjectDashboard() {
   // grid actually shows.
   const chapterNodes = useMemo(() => bookNodes.filter(isChapter), [bookNodes]);
   const totalNodes = chapterNodes.length;
-  const totalWc = chapterNodes.reduce((a, n) => a + (n.wordCount || 0), 0);
+  const totalWordsMetric = useMemo(
+    () => sumCanonicalChapterWordCounts(chapterNodes),
+    [chapterNodes],
+  );
+  const totalWc = totalWordsMetric.count;
+  const metricsReady = totalWordsMetric.ready;
   const targetWc = projectPlan.projectWordTarget || 0;
 
   const nodeStatuses = useMemo(() => chapterNodes.map((n) => deriveStatus(n)), [chapterNodes]);
@@ -200,8 +211,9 @@ export function ProjectDashboard() {
   );
   const dailyGoal = projectPlan.dailyWordGoal || 0;
   const todayGoalPct =
-    dailyGoal > 0 ? Math.min(100, (writingStats.todayWords / dailyGoal) * 100) : 0;
-  const projectGoalPct = targetWc > 0 ? Math.min(100, (totalWc / targetWc) * 100) : 0;
+    metricsReady && dailyGoal > 0 ? Math.min(100, (writingStats.todayWords / dailyGoal) * 100) : 0;
+  const projectGoalPct =
+    metricsReady && targetWc > 0 ? Math.min(100, (totalWc / targetWc) * 100) : 0;
   const syncFooter =
     syncMetrics.inflight > 0
       ? t('dashboard.footer.syncing')
@@ -252,7 +264,10 @@ export function ProjectDashboard() {
         const done = sNodes.filter((n) => deriveStatus(n) === 'done').length;
         const draft = sNodes.filter((n) => deriveStatus(n) === 'draft').length;
         const todo = sNodes.length - done - draft;
-        const wc = sNodes.reduce((a, n) => a + (n.wordCount || 0), 0);
+        const wordCounts = sNodes.filter(isChapter).map(canonicalWordCount);
+        const wc = wordCounts.every((value) => value != null)
+          ? wordCounts.reduce<number>((sum, value) => sum + (value ?? 0), 0)
+          : null;
         return {
           s,
           index,
@@ -375,10 +390,13 @@ export function ProjectDashboard() {
           mark: '',
           desc: n.title || 'Untitled',
           tail: sl ? ` · ${sl.name}` : '',
-          meta: n.wordCount
-            ? t('dashboard.wordCount', { count: n.wordCount.toLocaleString() })
-            : t('dashboard.chips.draft'),
-          metaCls: (n.wordCount > 0 ? 'pos' : 'neg') as 'pos' | 'neg',
+          meta:
+            canonicalWordCount(n) == null
+              ? t('common.counting')
+              : canonicalWordCount(n)! > 0
+                ? t('dashboard.wordCount', { count: canonicalWordCount(n)!.toLocaleString() })
+                : t('dashboard.chips.draft'),
+          metaCls: ((canonicalWordCount(n) ?? 0) > 0 ? 'pos' : 'neg') as 'pos' | 'neg',
           accent: sl ? resolveColor(sl.color, sl.id) : 'hsl(var(--accent))',
         };
       });
@@ -459,8 +477,14 @@ export function ProjectDashboard() {
               <div className="dash-hero__metric">
                 <span className="dash-hero__metric-k">{t('dashboard.metrics.words')}</span>
                 <span className="dash-hero__metric-v">
-                  {(totalWc / 1000).toFixed(1)}
-                  <em>k{targetWc > 0 ? ` / ${(targetWc / 1000).toFixed(0)}k` : ''}</em>
+                  {metricsReady ? (
+                    <>
+                      {(totalWc / 1000).toFixed(1)}
+                      <em>k{targetWc > 0 ? ` / ${(targetWc / 1000).toFixed(0)}k` : ''}</em>
+                    </>
+                  ) : (
+                    t('common.counting')
+                  )}
                 </span>
               </div>
               <div className="dash-hero__metric">
@@ -592,8 +616,13 @@ export function ProjectDashboard() {
                   <div className="dash-continue__foot">
                     <div className="dash-continue__meta">
                       <span>
-                        <b>{(continueNode.wordCount || 0).toLocaleString()}</b>
-                        <span style={{ color: 'hsl(var(--ink-4))' }}>{t('common.words')}</span>
+                        <b>
+                          {canonicalWordCount(continueNode)?.toLocaleString() ??
+                            t('common.counting')}
+                        </b>
+                        {canonicalWordCount(continueNode) != null && (
+                          <span style={{ color: 'hsl(var(--ink-4))' }}>{t('common.words')}</span>
+                        )}
                       </span>
                       {/* TODO: revisions count not yet tracked. */}
                       <span>
@@ -630,7 +659,7 @@ export function ProjectDashboard() {
                 <div className="dash-today__date">{todayDateLabel}</div>
                 <div className="dash-today__main">
                   <span className="dash-today__big">
-                    {writingStats.todayWords.toLocaleString()}
+                    {metricsReady ? writingStats.todayWords.toLocaleString() : t('common.counting')}
                   </span>
                   <span className="dash-today__unit">{t('common.words')}</span>
                 </div>
@@ -645,21 +674,21 @@ export function ProjectDashboard() {
                   <div className="dash-today__streak-cell">
                     <span className="dash-today__streak-k">{t('dashboard.today.streak')}</span>
                     <span className="dash-today__streak-v">
-                      {writingStats.streakDays}
+                      {metricsReady ? writingStats.streakDays : '—'}
                       <em>{t('common.days')}</em>
                     </span>
                   </div>
                   <div className="dash-today__streak-cell">
                     <span className="dash-today__streak-k">{t('dashboard.today.week')}</span>
                     <span className="dash-today__streak-v">
-                      {(writingStats.weekWords / 1000).toFixed(1)}
+                      {metricsReady ? (writingStats.weekWords / 1000).toFixed(1) : '—'}
                       <em>k{t('common.words')}</em>
                     </span>
                   </div>
                   <div className="dash-today__streak-cell">
                     <span className="dash-today__streak-k">{t('dashboard.today.month')}</span>
                     <span className="dash-today__streak-v">
-                      {writingStats.monthDaysWritten}
+                      {metricsReady ? writingStats.monthDaysWritten : '—'}
                       <em>{t('common.days')}</em>
                     </span>
                   </div>
@@ -681,7 +710,10 @@ export function ProjectDashboard() {
                   <span className="dash-section__count">
                     · <em>{storylines.length}</em> {t('common.storylinesUnit')} /{' '}
                     <em>{totalNodes}</em> {t('common.chapters')} /{' '}
-                    <em>{(totalWc / 1000).toFixed(1)}k</em> {t('common.words')}
+                    <em>
+                      {metricsReady ? `${(totalWc / 1000).toFixed(1)}k` : t('common.counting')}
+                    </em>{' '}
+                    {metricsReady ? t('common.words') : ''}
                   </span>
                 </div>
                 <div className="dash-section__actions">
@@ -779,8 +811,8 @@ export function ProjectDashboard() {
 
                         <div className="dash-track__wc">
                           <span className="dash-track__wc-v">
-                            {(wc / 1000).toFixed(1)}
-                            <em>k</em>
+                            {wc == null ? t('common.counting') : (wc / 1000).toFixed(1)}
+                            {wc != null && <em>k</em>}
                           </span>
                           <span className="dash-track__wc-k">{t('dashboard.wordsLabel')}</span>
                         </div>
@@ -949,7 +981,8 @@ export function ProjectDashboard() {
                   {t('dashboard.sections.writingPlanShort')}
                 </span>
                 <span className="dash-section__count">
-                  · {t('dashboard.plan.project')} <em>{(totalWc / 1000).toFixed(1)}k</em>
+                  · {t('dashboard.plan.project')}{' '}
+                  <em>{metricsReady ? `${(totalWc / 1000).toFixed(1)}k` : t('common.counting')}</em>
                   {targetWc > 0 ? ` / ${(targetWc / 1000).toFixed(0)}k` : ''} {t('common.words')}
                 </span>
               </div>
@@ -994,9 +1027,11 @@ export function ProjectDashboard() {
                     {t('dashboard.plan.projectProgress')}
                   </span>
                   <span className="dash-plan__progress-v">
-                    {targetWc > 0
-                      ? `${projectGoalPct.toFixed(1)}%`
-                      : t('dashboard.plan.noProjectGoal')}
+                    {!metricsReady
+                      ? t('common.counting')
+                      : targetWc > 0
+                        ? `${projectGoalPct.toFixed(1)}%`
+                        : t('dashboard.plan.noProjectGoal')}
                   </span>
                 </div>
                 <div className="dash-plan__bar">
@@ -1008,9 +1043,11 @@ export function ProjectDashboard() {
                 <div className="dash-plan__progress-row">
                   <span className="dash-plan__progress-k">{t('dashboard.plan.todayProgress')}</span>
                   <span className="dash-plan__progress-v">
-                    {dailyGoal > 0
-                      ? `${writingStats.todayWords.toLocaleString()} / ${dailyGoal.toLocaleString()}`
-                      : t('dashboard.plan.noDailyGoal')}
+                    {!metricsReady
+                      ? t('common.counting')
+                      : dailyGoal > 0
+                        ? `${writingStats.todayWords.toLocaleString()} / ${dailyGoal.toLocaleString()}`
+                        : t('dashboard.plan.noDailyGoal')}
                   </span>
                 </div>
                 <div className="dash-plan__bar">

@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } fr
 import { useTranslation } from 'react-i18next';
 import type { Storyline } from '../../../domain/storyline';
 import type { BookNode } from '../../../domain/book-node';
-import { isChapter, isDrift } from '../../../domain/book-node';
+import { canonicalWordCount, isChapter, isDrift } from '../../../domain/book-node';
 import { spreadTimelineNodes } from '../../../domain/timeline-spread';
 import { useDataStore } from '../../../store/data-store';
 import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
@@ -1921,10 +1921,16 @@ export function DesktopStoryGraphView() {
                             ['--tile-color' as string]: color,
                           } as React.CSSProperties
                         }
-                        title={t('storyGraph.node.titleWithWords', {
-                          title: node.title || t('common.untitled'),
-                          count: node.wordCount ?? 0,
-                        })}
+                        title={
+                          canonicalWordCount(node) == null
+                            ? t('storyGraph.node.titleCounting', {
+                                title: node.title || t('common.untitled'),
+                              })
+                            : t('storyGraph.node.titleWithWords', {
+                                title: node.title || t('common.untitled'),
+                                count: canonicalWordCount(node),
+                              })
+                        }
                       >
                         <div className="graph-tile__num">
                           § {String(node.bookOrder).padStart(2, '0')}
@@ -2203,10 +2209,16 @@ export function DesktopStoryGraphView() {
                   openEntity({ entityType: 'node', id: node.id }, { preview: false });
                   close();
                 }}
-                title={t('storyGraph.drift.cardTitle', {
-                  title: node.title || t('common.untitled'),
-                  count: node.wordCount ?? 0,
-                })}
+                title={
+                  canonicalWordCount(node) == null
+                    ? t('storyGraph.drift.cardTitleCounting', {
+                        title: node.title || t('common.untitled'),
+                      })
+                    : t('storyGraph.drift.cardTitle', {
+                        title: node.title || t('common.untitled'),
+                        count: canonicalWordCount(node),
+                      })
+                }
               >
                 <div className="drift-card__num">§{String(node.bookOrder).padStart(2, '0')}</div>
                 <div className="drift-card__title">{node.title || t('common.untitled')}</div>

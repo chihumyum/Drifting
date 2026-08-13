@@ -6,7 +6,9 @@ import { events } from '../../lib/events';
 import { useAgentToolBridge } from '../../lib/agent/useAgentToolBridge';
 import { useDriftingAgentRuntime } from '../../lib/agent/useDriftingAgentRuntime';
 import { useDataStore } from '../../store/data-store';
+import { sumCanonicalChapterWordCounts } from '../../domain/book-node';
 import { useWritingStatsStore } from '../../store/writing-stats-store';
+import { useProseMetricsStatusStore } from '../../store/prose-metrics-status-store';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookElement } from '../../usecase/useBookElement';
@@ -26,6 +28,7 @@ import { startSyncObserver } from '../../services/sync-observer.service';
 import { pullAndHydrateProjectGraph } from '../../services/entity-sync.service';
 import { rebuildProjectInlineReferenceIndex } from '../../services/reference-index.service';
 import { resumeProjectAssetUploads } from '../../services/durable-asset-upload.service';
+import { reconcileProjectProseMetrics } from '../../services/node-prose-metrics.service';
 import { FullScreenStatus } from '../components/FullScreenStatus';
 
 const log = loglevel.getLogger('ProjectRuntimeProvider');
@@ -136,12 +139,20 @@ export function ProjectRuntimeProvider({
 
   useEffect(() => {
     const tick = () => {
+      if (useProseMetricsStatusStore.getState().byProject[projectId] !== 'ready') return;
       const nodes = useDataStore.getState().bookNodes;
-      const total = nodes.reduce((sum, node) => sum + (node.wordCount || 0), 0);
-      useWritingStatsStore.getState().recordTotalWords(projectId, total);
+      const total = sumCanonicalChapterWordCounts(nodes);
+      if (total.ready) {
+        useWritingStatsStore.getState().recordTotalWords(projectId, total.count);
+      }
     };
     tick();
-    return useDataStore.subscribe(tick);
+    const unsubscribeData = useDataStore.subscribe(tick);
+    const unsubscribeStatus = useProseMetricsStatusStore.subscribe(tick);
+    return () => {
+      unsubscribeData();
+      unsubscribeStatus();
+    };
   }, [projectId]);
 
   useEffect(() => {
@@ -188,14 +199,19 @@ export function ProjectRuntimeProvider({
         if (!active) return;
         events.emit('db:ready');
         setBootState({ key: bootKey, status: 'ready' });
-        void pullAndHydrateProjectGraph(projectId)
-          .catch((error) => log.warn('Project graph hydrate failed:', error))
-          .finally(() => {
-            if (!active) return;
-            void resumeProjectAssetUploads(projectId).catch((error) => {
-              log.warn('Durable asset upload resume failed:', error);
-            });
+        void (async () => {
+          await pullAndHydrateProjectGraph(projectId).catch((error) => {
+            log.warn('Project graph hydrate failed:', error);
           });
+          if (!active) return;
+          await reconcileProjectProseMetrics(projectId).catch((error) => {
+            log.warn('Canonical prose metric reconciliation failed:', error);
+          });
+          if (!active) return;
+          await resumeProjectAssetUploads(projectId).catch((error) => {
+            log.warn('Durable asset upload resume failed:', error);
+          });
+        })();
         void startPreferencesSync().catch((error) => {
           log.warn('Preferences sync init failed:', error);
         });

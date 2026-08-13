@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Folder, FolderPlus, Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
-import { isDrift, type BookNode } from '../../domain/book-node';
+import { canonicalWordCount, isDrift, type BookNode } from '../../domain/book-node';
 import {
   MAX_DRIFT_GROUP_DEPTH,
   ROOT_GROUP_KEY,
@@ -265,6 +265,9 @@ export function DriftPanel({
     // Merged display: resting drifts aren't bucketed into a separate drawer
     // anymore — they sit inline, distinguished only by a muted cell style.
     const muted = node.writingStatus === 'resting';
+    const exactWordCount = canonicalWordCount(node);
+    const wordCountLabel =
+      exactWordCount == null ? t('common.counting') : formatWordCount(exactWordCount);
     return (
       <div
         key={node.id}
@@ -370,9 +373,9 @@ export function DriftPanel({
             }}
           >
             {cellMeta === 'wordCount'
-              ? formatWordCount(node.wordCount)
+              ? wordCountLabel
               : cellMeta === 'both'
-                ? `${formatWordCount(node.wordCount)} · ${formatShortDate(node.updatedAt)}`
+                ? `${wordCountLabel} · ${formatShortDate(node.updatedAt)}`
                 : formatShortDate(node.updatedAt)}
           </span>
         )}

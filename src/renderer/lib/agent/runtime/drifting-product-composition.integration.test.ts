@@ -722,7 +722,13 @@ describe.sequential('Drifting Agent product composition', () => {
         (event) => event.turnId === turnId && event.event.type === 'permission_request',
       ),
     ).toEqual([]);
-    expect(harness.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(2);
+    expect(harness.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(
+      harness.scalar("SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'nodeContent'"),
+    ).toBe(1);
+    expect(
+      harness.scalar("SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'node'"),
+    ).toBe(0);
 
     const rejected = await harness.composition.tools.rejectReview(
       reviewId,
@@ -996,7 +1002,13 @@ describe.sequential('Drifting Agent product composition', () => {
     expect(useAgentEditStore.getState().pending[`node:${NODE_ID}`]?.changes).toEqual(
       expect.arrayContaining([expect.objectContaining({ mode: 'auto', reviewId })]),
     );
-    expect(harness.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(2);
+    expect(harness.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(
+      harness.scalar("SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'nodeContent'"),
+    ).toBe(1);
+    expect(
+      harness.scalar("SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'node'"),
+    ).toBe(0);
     expect(
       harness.scalar("SELECT count(*) FROM yjs_prose_command_receipt WHERE direction = 'forward'"),
     ).toBe(1);

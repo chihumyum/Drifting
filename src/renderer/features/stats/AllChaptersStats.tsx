@@ -1,7 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { isChapter, deriveStatus, type DerivedStatus } from '../../domain/book-node';
+import {
+  deriveStatus,
+  hasCanonicalWordCount,
+  isChapter,
+  type DerivedStatus,
+} from '../../domain/book-node';
 import { deriveActSegments, type BookAct } from '../../domain/book-act';
 import { useDataStore } from '../../store/data-store';
 import { useWritingStatsStore } from '../../store/writing-stats-store';
@@ -194,6 +199,7 @@ export function AllChaptersStats({
 
   const totalWc = useMemo(() => chapters.reduce((a, n) => a + (n.wordCount || 0), 0), [chapters]);
   const count = chapters.length;
+  const metricsReady = chapters.every(hasCanonicalWordCount);
   const avgWc = count ? Math.round(totalWc / count) : 0;
   const targetPct =
     projectWordTarget && projectWordTarget > 0
@@ -249,6 +255,21 @@ export function AllChaptersStats({
 
   if (count === 0) {
     return <EmptyState message={t('rightSidebar.stats.noChapters')} />;
+  }
+
+  if (!metricsReady) {
+    return (
+      <div style={{ padding: 12 }}>
+        <StatsSection title={t('rightSidebar.stats.bookOverview')}>
+          <MetaGrid>
+            <MetaK>{t('rightSidebar.stats.totalWords')}</MetaK>
+            <MetaV>{t('common.counting')}</MetaV>
+            <MetaK>{t('rightSidebar.stats.chapterCount')}</MetaK>
+            <MetaV>{t('rightSidebar.stats.chaptersValue', { count })}</MetaV>
+          </MetaGrid>
+        </StatsSection>
+      </div>
+    );
   }
 
   return (

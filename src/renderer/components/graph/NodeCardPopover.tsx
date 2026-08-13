@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { BookNode } from '../../domain/book-node';
+import { canonicalWordCount, type BookNode } from '../../domain/book-node';
 import type { NodeContent } from '../../domain/node-content';
 import { ChapterEditor } from '../editor/ChapterEditor';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useBookContent } from '../../usecase/useBookContent';
-import { useDataStore } from '../../store/data-store';
 import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
 import {
   EntityCardPopoverShell,
@@ -49,8 +48,8 @@ export function NodeCardPopover({
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const activeNodeIdRef = useRef(node.id);
 
-  const { updateNodeSummary, renameNode, updateNode } = useBookNode({ projectId, userId });
-  const { getContentByNodeId, updateContentByNodeId, createContent } = useBookContent({
+  const { updateNodeSummary, renameNode } = useBookNode({ projectId, userId });
+  const { getContentByNodeId } = useBookContent({
     projectId,
     userId,
   });
@@ -123,41 +122,18 @@ export function NodeCardPopover({
     [updateNodeSummary],
   );
 
-  const persistWordCountIfChanged = useCallback(
-    (id: string, nextWordCount: number) => {
-      const current = useDataStore.getState().bookNodes.find((n) => n.id === id);
-      if (!current || current.wordCount === nextWordCount) return;
-      void updateNode(id, { wordCount: nextWordCount }).catch((err) => {
-        log.error('Failed to persist wordCount', err);
-      });
-    },
-    [updateNode],
-  );
-
   const handleContentUpdate = useCallback(
-    async (targetNodeId: string, pmJson: string, outlineJson: string, nextWordCount: number) => {
+    async (targetNodeId: string, _pmJson: string, _outlineJson: string, _nextWordCount: number) => {
       try {
-        const existing = await getContentByNodeId(targetNodeId);
-        if (existing) {
-          const updated = await updateContentByNodeId(targetNodeId, {
-            contentJson: pmJson,
-            outlineJson,
-          });
-          if (updated && activeNodeIdRef.current === targetNodeId) {
-            setBookContent(updated);
-          }
-        } else {
-          const created = await createContent(targetNodeId, { contentJson: pmJson, outlineJson });
-          if (activeNodeIdRef.current === targetNodeId) {
-            setBookContent(created);
-          }
+        const persisted = await getContentByNodeId(targetNodeId);
+        if (persisted && activeNodeIdRef.current === targetNodeId) {
+          setBookContent(persisted);
         }
-        persistWordCountIfChanged(targetNodeId, nextWordCount);
       } catch (err) {
-        log.error('Failed to update content', err);
+        log.error('Failed to reload materialized content', err);
       }
     },
-    [getContentByNodeId, updateContentByNodeId, createContent, persistWordCountIfChanged],
+    [getContentByNodeId],
   );
 
   const labelNum =
@@ -279,7 +255,9 @@ export function NodeCardPopover({
             </div>
             <div className="node-card__editor-foot">
               <span className="node-card__meta">
-                {t('nodeCardPopover.wordSync', { count: node.wordCount ?? 0 })}
+                {canonicalWordCount(node) == null
+                  ? t('common.counting')
+                  : t('nodeCardPopover.wordSync', { count: canonicalWordCount(node) })}
               </span>
             </div>
           </>

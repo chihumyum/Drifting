@@ -6,6 +6,7 @@ import type {
   BookNodeKind,
   ChapterWritingStatus,
   DriftStatus,
+  WordCountBasisKind,
 } from '../domain/book-node';
 
 import loglevel from 'loglevel';
@@ -27,6 +28,10 @@ export interface BookNodeUpdateData {
   projectId?: string;
   position?: { x?: number | null; y?: number | null };
   wordCount?: number;
+  wordCountBasisKind?: 'seed' | 'yjs' | null;
+  wordCountBasisHash?: string | null;
+  wordCountBasisRevision?: number | null;
+  wordCountBasisServerSeq?: number | null;
   writingStatus?: ChapterWritingStatus | DriftStatus;
   // Drift group membership (null = move to root / ungrouped). Drift-only.
   driftGroupId?: string | null;
@@ -84,6 +89,14 @@ function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
     driftGroupId: record.driftGroupId ?? null,
     position: { x: record.positionX, y: record.positionY },
     wordCount: record.wordCount ?? 0,
+    wordCountBasisKind: (
+      record.wordCountBasisKind === 'seed' || record.wordCountBasisKind === 'yjs'
+        ? record.wordCountBasisKind
+        : null
+    ) as WordCountBasisKind | null,
+    wordCountBasisHash: record.wordCountBasisHash ?? null,
+    wordCountBasisRevision: record.wordCountBasisRevision ?? null,
+    wordCountBasisServerSeq: record.wordCountBasisServerSeq ?? null,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -171,6 +184,10 @@ export function createBookNodeSqliteRepository(
         positionX: data.position.x,
         positionY: data.position.y,
         wordCount: data.wordCount ?? 0,
+        wordCountBasisKind: data.wordCountBasisKind ?? null,
+        wordCountBasisHash: data.wordCountBasisHash ?? null,
+        wordCountBasisRevision: data.wordCountBasisRevision ?? null,
+        wordCountBasisServerSeq: data.wordCountBasisServerSeq ?? null,
         writingStatus: data.writingStatus ?? 'draft',
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
@@ -199,6 +216,14 @@ export function createBookNodeSqliteRepository(
       if (updates.summary !== undefined) updateValues.summary = updates.summary;
       if (updates.projectId !== undefined) updateValues.projectId = updates.projectId;
       if (updates.wordCount !== undefined) updateValues.wordCount = updates.wordCount;
+      if (updates.wordCountBasisKind !== undefined)
+        updateValues.wordCountBasisKind = updates.wordCountBasisKind;
+      if (updates.wordCountBasisHash !== undefined)
+        updateValues.wordCountBasisHash = updates.wordCountBasisHash;
+      if (updates.wordCountBasisRevision !== undefined)
+        updateValues.wordCountBasisRevision = updates.wordCountBasisRevision;
+      if (updates.wordCountBasisServerSeq !== undefined)
+        updateValues.wordCountBasisServerSeq = updates.wordCountBasisServerSeq;
       if (updates.writingStatus !== undefined) updateValues.writingStatus = updates.writingStatus;
       if (updates.driftGroupId !== undefined) updateValues.driftGroupId = updates.driftGroupId;
 

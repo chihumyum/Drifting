@@ -131,6 +131,16 @@ describe('workspace domain CRUD transactions', () => {
       ),
     ).toBe(countWords(persistedProse));
     expect(
+      fixture.text(
+        "SELECT word_count_basis_kind FROM book_node WHERE title = '灰港' AND deleted_at IS NULL",
+      ),
+    ).toBe('seed');
+    expect(
+      fixture.text(
+        "SELECT word_count_basis_hash FROM book_node WHERE title = '灰港' AND deleted_at IS NULL",
+      ),
+    ).toMatch(/^sha256:[0-9a-f]{64}$/u);
+    expect(
       JSON.parse(
         fixture.text(
           "SELECT payload_json FROM local_sync_mutation WHERE entity_type = 'node' AND mutation_type = 'create' AND entity_id = (SELECT id FROM book_node WHERE title = '灰港' AND deleted_at IS NULL)",

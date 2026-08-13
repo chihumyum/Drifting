@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 
 import type { StructuralEntityKind } from '../../../domain/entity-kinds';
-import { isChapter } from '../../../domain/book-node';
+import { canonicalWordCount, isChapter } from '../../../domain/book-node';
 import { parseKv } from '../../../domain/kv';
 import { resolvePrimaryStorylineId } from '../../../domain/node-storyline-state';
 import { useDataStore } from '../../../store/data-store';
@@ -70,7 +70,14 @@ export function buildEntityHoverCardContent(
     if (!node) return null;
     const meta: EntityHoverMetaItem[] = [
       { text: t(STATUS_KEYS[node.writingStatus]) },
-      { text: t('nodeEditor.meta.words', { count: node.wordCount.toLocaleString() }) },
+      {
+        text:
+          canonicalWordCount(node) == null
+            ? t('common.counting')
+            : t('nodeEditor.meta.words', {
+                count: canonicalWordCount(node)!.toLocaleString(),
+              }),
+      },
     ];
     if (isChapter(node)) {
       const storylineById = new Map(state.storylines.map((candidate) => [candidate.id, candidate]));
@@ -137,12 +144,20 @@ export function buildEntityHoverCardContent(
     const nodeIds = state.storylineNodeMapping[storyline.id] ?? [];
     const nodeIdSet = new Set(nodeIds);
     const nodes = state.bookNodes.filter((node) => nodeIdSet.has(node.id));
-    const words = nodes.reduce((sum, node) => sum + node.wordCount, 0);
+    const wordCounts = nodes.filter(isChapter).map(canonicalWordCount);
+    const words = wordCounts.every((value) => value != null)
+      ? wordCounts.reduce<number>((sum, value) => sum + (value ?? 0), 0)
+      : null;
     return {
       summary: storyline.summary,
       meta: [
         { text: t('storylineEditor.meta.chapters', { count: nodes.length }) },
-        { text: t('storylineEditor.meta.kWords', { count: (words / 1000).toFixed(1) }) },
+        {
+          text:
+            words == null
+              ? t('common.counting')
+              : t('storylineEditor.meta.kWords', { count: (words / 1000).toFixed(1) }),
+        },
         ...kvMeta(storyline.kvJson),
       ],
     };

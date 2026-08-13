@@ -14,8 +14,8 @@ import { useEntityYjsDoc } from '../../hooks/useEntityYjsDoc';
 import { useFieldReview } from '../../hooks/useFieldReview';
 import { FieldReview } from './FieldReview';
 import loglevel from 'loglevel';
-import { countWords } from '../../lib/word-count';
 import { recheckChapterPatchValidity } from '../../usecase/patch-validity';
+import { materializeCanonicalNodeProse } from '../../services/node-prose-metrics.service';
 import { PatchCreateModal } from './PatchCreateModal';
 import {
   patchRequestFromComment,
@@ -157,13 +157,22 @@ export function ChapterEditor({
   // useEntityEditor; chapter only adds wordCount, which is its only
   // entity-specific materialized field.
   const handlePersist = useCallback(
-    (ed: Editor, { pmJson, outlineJson }: EditorPersistDerived) => {
-      const wordCount = countWords(ed.getText());
-      onContentUpdate(nodeId, pmJson, outlineJson, wordCount);
-      // Re-evaluate text-anchored patches sourced from this chapter against the
-      // freshly-serialized doc: if the author just deleted the text a patch was
-      // anchored to, the patch is invalidated (and dropped from Agent canon context).
-      void recheckChapterPatchValidity(projectId, nodeId, pmJson);
+    (_ed: Editor, { pmJson }: EditorPersistDerived) => {
+      void materializeCanonicalNodeProse(projectId, nodeId, pmJson)
+        .then((projection) => {
+          onContentUpdate(
+            nodeId,
+            projection.contentJson,
+            projection.outlineJson,
+            projection.wordCount,
+          );
+          // Re-evaluate text-anchored patches against the exact materialized
+          // document rather than the editor callback's potentially superseded JSON.
+          return recheckChapterPatchValidity(projectId, nodeId, projection.contentJson);
+        })
+        .catch((error) => {
+          log.error('[ChapterEditor] Failed to materialize prose projection:', error);
+        });
     },
     [nodeId, projectId, onContentUpdate],
   );
