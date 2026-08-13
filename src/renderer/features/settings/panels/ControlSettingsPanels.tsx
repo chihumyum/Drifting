@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SyncActivityPanel } from '../../../components/sync/SyncActivityPanel';
 import { useSyncObserver } from '../../../services/sync-observer.service';
-import { SHORTCUT_ACTIONS, useShortcutsStore, type ShortcutActionId } from '../../../store/shortcuts-store';
+import {
+  SHORTCUT_ACTIONS,
+  useShortcutsStore,
+  type ShortcutActionId,
+} from '../../../store/shortcuts-store';
 import { acceleratorFromEvent, formatAccelerator } from '../../../lib/shortcuts';
 import { events } from '../../../lib/events';
 import { platform } from '../../../platform';
@@ -322,7 +326,14 @@ export function PrivacyPanel({ registerRef }: { registerRef: SettingsRegisterRef
         label={t('settings.privacy.fullPolicy')}
         desc={<span className="set-mono">{t('settings.privacy.lastUpdated')}</span>}
         control={
-          <button className="set-btn" disabled title={t('settings.common.not_available_yet')}>
+          <button
+            className="set-btn"
+            onClick={() =>
+              void platform.material.openExternal(
+                'https://github.com/chihumyum/drifting/blob/main/PRIVACY.md',
+              )
+            }
+          >
             {t('settings.common.open_in_browser')}
           </button>
         }
@@ -375,8 +386,45 @@ export function AboutPanel({ registerRef }: { registerRef: SettingsRegisterRef }
           label={<span className="set-italic">{t('settings.about.openSource')}</span>}
           desc="Tiptap · Yjs · Drizzle · React · Tauri 2"
           control={
-            <button className="set-btn" disabled title={t('settings.common.not_available_yet')}>
+            <button
+              className="set-btn"
+              onClick={() =>
+                void platform.material.openExternal(
+                  'https://github.com/chihumyum/drifting/blob/main/THIRD_PARTY_NOTICES.md',
+                )
+              }
+            >
               {t('settings.about.viewList')}
+            </button>
+          }
+        />
+        <SettingsRow
+          label={<span className="set-italic">{t('settings.about.sourceCode')}</span>}
+          desc={t('settings.about.sourceCodeDesc')}
+          control={
+            <button
+              className="set-btn"
+              onClick={() =>
+                void platform.material.openExternal('https://github.com/chihumyum/drifting')
+              }
+            >
+              {t('settings.about.viewSource')}
+            </button>
+          }
+        />
+        <SettingsRow
+          label={<span className="set-italic">{t('settings.about.license')}</span>}
+          desc={t('settings.about.licenseDesc')}
+          control={
+            <button
+              className="set-btn"
+              onClick={() =>
+                void platform.material.openExternal(
+                  'https://github.com/chihumyum/drifting/blob/main/LICENSE',
+                )
+              }
+            >
+              {t('settings.about.viewLicense')}
             </button>
           }
         />

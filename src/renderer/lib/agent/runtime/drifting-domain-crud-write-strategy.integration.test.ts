@@ -61,6 +61,22 @@ vi.mock('../../../lib/db', async (importOriginal) => {
   };
 });
 
+// This suite verifies atomic domain writes together with their durable sync
+// outbox. Explicitly opt into sync because public builds default to local-only.
+vi.mock('../../../lib/config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../lib/config')>();
+  return {
+    ...actual,
+    APP_CONFIG: {
+      ...actual.APP_CONFIG,
+      LOCAL_ONLY_MODE: false,
+      ENABLE_SYNC: true,
+    },
+    canUseNetwork: () => false,
+    isSyncEnabled: () => false,
+  };
+});
+
 const PROJECT_ID = 'domain-crud-project';
 const USER_ID = 'domain-crud-user';
 const CONVERSATION_ID = 'domain-crud-conversation';
@@ -214,9 +230,7 @@ describe('workspace domain CRUD transactions', () => {
         review: { id: reviewId, status: 'pending' },
       },
     });
-    const blocks = await fixture.composition.repositories.writeEffects.listReviewBlocks(
-      reviewId,
-    );
+    const blocks = await fixture.composition.repositories.writeEffects.listReviewBlocks(reviewId);
     expect(blocks).toHaveLength(3);
     expect(blocks.map((block) => block.ordinal)).toEqual([0, 1, 2]);
 
@@ -254,10 +268,8 @@ describe('workspace domain CRUD transactions', () => {
       { advanceRevision: false },
     );
     fixture.context.write = {
-      updateContentByNodeId: async (
-        id: string,
-        updates: { contentJson?: string },
-      ) => contentRepository.updateByNodeId(id, updates),
+      updateContentByNodeId: async (id: string, updates: { contentJson?: string }) =>
+        contentRepository.updateByNodeId(id, updates),
       updateNode: async (id: string, updates: { wordCount?: number }) => {
         const updated = await nodeRepository.update(id, {
           ...updates,
@@ -273,9 +285,7 @@ describe('workspace domain CRUD transactions', () => {
       },
     } as unknown as AgentToolContext['write'];
 
-    const rejectedChange = reviewBatch.changes.find(
-      (change) => change.newText === '第二段。',
-    );
+    const rejectedChange = reviewBatch.changes.find((change) => change.newText === '第二段。');
     if (!rejectedChange) throw new Error('The rejectable created block is missing');
     await expect(
       fixture.composition.tools.rejectReviewBlock(
@@ -296,9 +306,9 @@ describe('workspace domain CRUD transactions', () => {
       );
     }
 
-    expect(
-      await fixture.composition.repositories.writeEffects.getReview(reviewId),
-    ).toMatchObject({ status: 'accepted_effect' });
+    expect(await fixture.composition.repositories.writeEffects.getReview(reviewId)).toMatchObject({
+      status: 'accepted_effect',
+    });
     const settledContent = await contentRepository.findByNodeId(node.id);
     expect(settledContent?.contentJson).toContain('第一段。');
     expect(settledContent?.contentJson).not.toContain('第二段。');
@@ -311,11 +321,7 @@ describe('workspace domain CRUD transactions', () => {
 
     const creations = [
       ['formatted-category-create', 'create_element_category', { name: '信件', body }],
-      [
-        'formatted-element-create',
-        'create_element',
-        { category: '信件', name: '远方来函', body },
-      ],
+      ['formatted-element-create', 'create_element', { category: '信件', name: '远方来函', body }],
       ['formatted-storyline-create', 'create_storyline', { name: '格式故事线', body }],
       ['formatted-drift-create', 'create_inspiration', { title: '格式灵感', body }],
       ['formatted-chapter-create', 'create_chapter', { title: '格式章节', body }],
@@ -332,9 +338,7 @@ describe('workspace domain CRUD transactions', () => {
       if (typeof reviewId !== 'string') {
         throw new Error(`The ${callId} create did not expose its durable review`);
       }
-      const blocks = await fixture.composition.repositories.writeEffects.listReviewBlocks(
-        reviewId,
-      );
+      const blocks = await fixture.composition.repositories.writeEffects.listReviewBlocks(reviewId);
       expect(blocks.map((block) => block.ordinal)).toEqual([0, 1, 2]);
     }
 
@@ -436,14 +440,10 @@ describe('workspace domain CRUD transactions', () => {
     expect(created, JSON.stringify(created)).toMatchObject({ ok: true });
 
     expect(
-      fixture.scalar(
-        "SELECT book_order FROM book_node WHERE title = '02' AND deleted_at IS NULL",
-      ),
+      fixture.scalar("SELECT book_order FROM book_node WHERE title = '02' AND deleted_at IS NULL"),
     ).toBe(8);
     expect(
-      fixture.text(
-        "SELECT summary FROM book_node WHERE title = '02' AND deleted_at IS NULL",
-      ),
+      fixture.text("SELECT summary FROM book_node WHERE title = '02' AND deleted_at IS NULL"),
     ).toBe('奥伦与凯尔在茶镇遭遇异变。');
   });
 
@@ -1027,15 +1027,19 @@ describe('workspace domain CRUD transactions', () => {
     expect(fixture.scalar('SELECT count(*) FROM comment_action')).toBe(1);
 
     for (const name of ['foreshadows', 'contrasts']) {
-      const createdType = await fixture.write(`relation-type-create-${name}`, 'create_relation_type', {
-        name,
-        description: '',
-        orientation: 'directed',
-        sourceRole: 'chapter',
-        targetRole: 'storyline',
-        sourceKinds: ['chapter'],
-        targetKinds: ['storyline'],
-      });
+      const createdType = await fixture.write(
+        `relation-type-create-${name}`,
+        'create_relation_type',
+        {
+          name,
+          description: '',
+          orientation: 'directed',
+          sourceRole: 'chapter',
+          targetRole: 'storyline',
+          sourceKinds: ['chapter'],
+          targetKinds: ['storyline'],
+        },
+      );
       expect(createdType, JSON.stringify(createdType)).toMatchObject({ ok: true });
     }
 
@@ -1071,14 +1075,10 @@ describe('workspace domain CRUD transactions', () => {
     );
     const relationPath = (relation as { data: { result: { canonicalPath: string } } }).data.result
       .canonicalPath;
-    await fixture.write(
-      'relation-update-lifecycle',
-      'update_relation',
-      {
-        relationId: relationPath.slice('/relations/'.length, -'.json'.length),
-        relationType: 'contrasts',
-      },
-    );
+    await fixture.write('relation-update-lifecycle', 'update_relation', {
+      relationId: relationPath.slice('/relations/'.length, -'.json'.length),
+      relationType: 'contrasts',
+    });
     expect(useDataStore.getState().entityRelations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1152,7 +1152,9 @@ describe('workspace domain CRUD transactions', () => {
       { relationType: 'contrasts' },
       'author_approved',
     );
-    expect(useDataStore.getState().entityRelationTypes.some((type) => type.name === 'contrasts')).toBe(false);
+    expect(
+      useDataStore.getState().entityRelationTypes.some((type) => type.name === 'contrasts'),
+    ).toBe(false);
     await fixture.revert('relation-type-delete-unused');
     expect(useDataStore.getState().entityRelationTypes).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: 'contrasts' })]),
@@ -1160,27 +1162,27 @@ describe('workspace domain CRUD transactions', () => {
   });
 
   it('names every blocking workspace resource when an entity delete is unsafe', async () => {
-    const blockerType = await fixture.write('delete-blocker-relation-type-create', 'create_relation_type', {
-      name: 'belongs-to',
-      description: '',
-      orientation: 'directed',
-      sourceRole: 'chapter',
-      targetRole: 'storyline',
-      sourceKinds: ['chapter'],
-      targetKinds: ['storyline'],
-    });
-    expect(blockerType, JSON.stringify(blockerType)).toMatchObject({ ok: true });
-    const relation = await fixture.write(
-      'delete-blocker-relation-create',
-      'create_relation',
+    const blockerType = await fixture.write(
+      'delete-blocker-relation-type-create',
+      'create_relation_type',
       {
-        fromType: 'chapter',
-        fromName: 'Chapter One',
-        toType: 'storyline',
-        toName: 'Main',
-        relationType: 'belongs-to',
+        name: 'belongs-to',
+        description: '',
+        orientation: 'directed',
+        sourceRole: 'chapter',
+        targetRole: 'storyline',
+        sourceKinds: ['chapter'],
+        targetKinds: ['storyline'],
       },
     );
+    expect(blockerType, JSON.stringify(blockerType)).toMatchObject({ ok: true });
+    const relation = await fixture.write('delete-blocker-relation-create', 'create_relation', {
+      fromType: 'chapter',
+      fromName: 'Chapter One',
+      toType: 'storyline',
+      toName: 'Main',
+      relationType: 'belongs-to',
+    });
     const relationPath = (relation as { data: { result: { canonicalPath: string } } }).data.result
       .canonicalPath;
     const relationId = relationPath.slice('/relations/'.length, -'.json'.length);

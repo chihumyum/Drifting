@@ -17,7 +17,10 @@ const tests = [
 const options = parse(process.argv.slice(2));
 const profile = options.profile === '12h' ? { hours: 12, epochs: 48 } : { hours: 4, epochs: 16 };
 const targetEpochs = options.epochs ?? profile.epochs;
-const output = path.resolve(core, options.output ?? `docs/agent-runtime/acceptance/milestone-j-${options.profile}-soak.json`);
+const output = path.resolve(
+  core,
+  options.output ?? `docs/agent-runtime/acceptance/milestone-j-${options.profile}-soak.json`,
+);
 const checkpoint = `${output}.checkpoint`;
 const sourceHash = await hashFiles([...tests, 'scripts/agent-endurance-soak.mjs']);
 let state = await loadCheckpoint(checkpoint, sourceHash, options.profile);
@@ -48,7 +51,9 @@ for (let epoch = state.completedEpochs; epoch < targetEpochs; epoch += 1) {
   state.completedEpochs = epoch + 1;
   state.updatedAt = new Date().toISOString();
   await atomicJson(checkpoint, state);
-  process.stdout.write(`epoch ${row.epoch}/${targetEpochs} logical=${row.logicalMinute}m rss=${residentBytes ?? 'unknown'} passed=${row.passed}\n`);
+  process.stdout.write(
+    `epoch ${row.epoch}/${targetEpochs} logical=${row.logicalMinute}m rss=${residentBytes ?? 'unknown'} passed=${row.passed}\n`,
+  );
   if (!row.passed) {
     process.stderr.write(redact(execution.stderr || execution.stdout));
     process.exitCode = 1;
@@ -62,10 +67,12 @@ for (let epoch = state.completedEpochs; epoch < targetEpochs; epoch += 1) {
 
 const completed = state.completedEpochs === targetEpochs && state.epochs.every((row) => row.passed);
 const summary = {
-  suite: 'milestone-j-real-book-endurance',
+  suite: 'milestone-j-synthetic-workload-endurance',
   schemaVersion: 1,
   profile: options.profile,
-  mode: options.wallClock ? 'wall-clock-15-minute-cadence' : 'accelerated-15-minute-workload-equivalent',
+  mode: options.wallClock
+    ? 'wall-clock-15-minute-cadence'
+    : 'accelerated-15-minute-workload-equivalent',
   sourceSetSha256: sourceHash,
   targetLogicalHours: profile.hours,
   targetEpochs,
@@ -80,7 +87,7 @@ const summary = {
     'automatic-continuation-stop-steer-stagnation',
     'mcp-http-session-timeout-and-cancellation',
     'durable-grant-reopen-config-drift-and-concurrency',
-    'real-local-manuscript-read-only-voice-and-citation-oracle',
+    'synthetic-long-manuscript-voice-and-citation-oracle',
   ],
   privateProsePersisted: false,
   networkRequired: false,
@@ -89,7 +96,9 @@ const summary = {
 };
 await atomicJson(output, summary);
 if (completed) await atomicJson(checkpoint, { ...state, completed: true });
-process.stdout.write(`${JSON.stringify({ output: path.relative(core, output), passed: completed, completedEpochs: state.completedEpochs })}\n`);
+process.stdout.write(
+  `${JSON.stringify({ output: path.relative(core, output), passed: completed, completedEpochs: state.completedEpochs })}\n`,
+);
 if (!completed) process.exitCode = 1;
 
 function parse(argv) {
@@ -110,7 +119,11 @@ function parse(argv) {
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: core, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(command, args, {
+      cwd: core,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     let stdout = '';
     let stderr = '';
     child.stdout.setEncoding('utf8');
@@ -124,7 +137,12 @@ function run(command, args) {
 
 async function hashFiles(files) {
   const hash = createHash('sha256');
-  for (const file of files.sort()) hash.update(file).update('\0').update(await readFile(path.join(core, file))).update('\0');
+  for (const file of files.sort())
+    hash
+      .update(file)
+      .update('\0')
+      .update(await readFile(path.join(core, file)))
+      .update('\0');
   return `sha256:${hash.digest('hex')}`;
 }
 
@@ -135,7 +153,13 @@ async function loadCheckpoint(file, hash, profileName) {
   } catch {
     // Start a new resumable run.
   }
-  return { profile: profileName, sourceSetSha256: hash, completedEpochs: 0, epochs: [], updatedAt: new Date().toISOString() };
+  return {
+    profile: profileName,
+    sourceSetSha256: hash,
+    completedEpochs: 0,
+    epochs: [],
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 async function atomicJson(file, value) {

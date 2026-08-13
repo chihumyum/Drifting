@@ -16,14 +16,14 @@ function readBooleanEnv(value: string | undefined, fallback: boolean): boolean {
  * When enabled, the app runs completely offline without any server dependencies
  */
 export const APP_CONFIG = {
-  // Local-only mode: disable all network features when explicitly requested.
-  LOCAL_ONLY_MODE: readBooleanEnv(runtimeViteEnv.VITE_LOCAL_ONLY_MODE as string | undefined, false),
+  // Public builds are offline-first unless an operator explicitly opts in.
+  LOCAL_ONLY_MODE: readBooleanEnv(runtimeViteEnv.VITE_LOCAL_ONLY_MODE as string | undefined, true),
 
   // Sync configuration
-  ENABLE_SYNC: readBooleanEnv(runtimeViteEnv.VITE_ENABLE_SYNC as string | undefined, true),
+  ENABLE_SYNC: readBooleanEnv(runtimeViteEnv.VITE_ENABLE_SYNC as string | undefined, false),
 
   // Authentication
-  REQUIRE_AUTH: readBooleanEnv(runtimeViteEnv.VITE_REQUIRE_AUTH as string | undefined, true),
+  REQUIRE_AUTH: readBooleanEnv(runtimeViteEnv.VITE_REQUIRE_AUTH as string | undefined, false),
 
   // Pre-Alpha is BYOK-only. Hosted AI is deliberately unavailable regardless
   // of persisted settings or build environment.
@@ -34,6 +34,12 @@ export const APP_CONFIG = {
     (runtimeViteEnv.VITE_API_BASE_URL as string | undefined) ||
     (runtimeViteEnv.VITE_API_URL as string | undefined) ||
     'http://localhost:3000',
+
+  // Operators enabling account flows must provide their own consumer terms.
+  TERMS_URL: (runtimeViteEnv.VITE_TERMS_URL as string | undefined) || '',
+  PRIVACY_URL:
+    (runtimeViteEnv.VITE_PRIVACY_URL as string | undefined) ||
+    'https://github.com/chihumyum/drifting/blob/main/PRIVACY.md',
 
   // Database
   DEFAULT_DB_NAME: 'default-project.db',

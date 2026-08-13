@@ -3,6 +3,10 @@ name = "drifting"
 version = "0.1.0"
 description = "Drifting creative writing client"
 authors = ["chihumyum <108172547+chihumyum@users.noreply.github.com>"]
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/chihumyum/drifting"
+homepage = "https://github.com/chihumyum/drifting"
+publish = false
 edition = "2021"
 rust-version = "1.88"
 

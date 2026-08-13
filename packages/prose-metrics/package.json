@@ -2,9 +2,21 @@
   "name": "@drifting/prose-metrics",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "files": [
+    "src",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chihumyum/drifting.git",
+    "directory": "packages/prose-metrics"
+  },
   "exports": {
     ".": "./src/index.ts"
   }

@@ -14,7 +14,7 @@ const markdownPath = path.join(
   coreDirectory,
   'docs/agent-runtime/acceptance/agent-capabilities.md',
 );
-const repositoryDirectory = path.resolve(coreDirectory, '..');
+const repositoryDirectory = coreDirectory;
 
 const documentationRequirements = [
   {
@@ -200,7 +200,10 @@ function renderMarkdown(manifest: ReturnType<typeof buildDriftingAgentCapability
     '## Provider and extension platform',
     '',
     `- Certified providers: ${manifest.providerExtensionPlatform.certifiedProviders
-      .map((provider) => `\`${provider.provider}\` (${codeList(provider.models.map((model) => model.id))})`)
+      .map(
+        (provider) =>
+          `\`${provider.provider}\` (${codeList(provider.models.map((model) => model.id))})`,
+      )
       .join('; ')}`,
     `- Provider reasoning profiles: ${manifest.providerExtensionPlatform.certifiedProviders
       .flatMap((provider) =>

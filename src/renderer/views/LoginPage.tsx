@@ -11,6 +11,7 @@ import { getPlatformRuntime } from '../platform/runtime';
 import { UI_LOCALE_OPTIONS } from '../lib/i18n';
 import type { SupportedOAuthProvider } from '../lib/oauth-providers';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
+import { APP_CONFIG } from '../lib/config';
 import { BetaClosedDialog } from '../components/auth/BetaClosedDialog';
 import '../../styles/signin.css';
 
@@ -224,74 +225,77 @@ export function LoginPage({ initialMode = 'signin', presentation = 'desktop' }: 
         </header>
       )}
       {/* Brand and product context */}
-      {!isMobilePresentation && <aside className="si-left">
-        <div className="si-brand">
-          <span className="si-brand__name">Drifting</span>
-          <span className="si-brand__sep">/</span>
-          <span className="si-brand__cn">{t('auth.brand.cn')}</span>
-        </div>
-
-        <div className="si-quote">
-          <div className="si-quote__kicker">
-            <span className="si-quote__kicker-dot"></span>
-            <span>{t('auth.hero.kickerA')}</span>
-            <span className="si-quote__kicker-sep">·</span>
-            <span>{t('auth.hero.kickerB')}</span>
+      {!isMobilePresentation && (
+        <aside className="si-left">
+          <div className="si-brand">
+            <span className="si-brand__name">Drifting</span>
+            <span className="si-brand__sep">/</span>
+            <span className="si-brand__cn">{t('auth.brand.cn')}</span>
           </div>
-          <h1 className="si-quote__title">
-            {t('auth.hero.titleA')}
-            <em>{t('auth.hero.titleEmA')}</em>。<br />
-            {t('auth.hero.titleB')}
-            <em>{t('auth.hero.titleEmB')}</em>。
-          </h1>
-          <p className="si-quote__body">{t('auth.hero.body')}</p>
 
-          <div className="si-feats">
-            <div className="si-feat">
-              <span className="si-feat__mark">
-                <BookOpen size={18} aria-hidden="true" />
-              </span>
-              <div className="si-feat__body">
-                <span className="si-feat__title">
-                  {t('auth.hero.featureOutlineTitle')} · <em>{t('auth.hero.featureOutlineEm')}</em>
-                </span>
-                <span className="si-feat__sub">{t('auth.hero.featureOutlineSub')}</span>
-              </div>
+          <div className="si-quote">
+            <div className="si-quote__kicker">
+              <span className="si-quote__kicker-dot"></span>
+              <span>{t('auth.hero.kickerA')}</span>
+              <span className="si-quote__kicker-sep">·</span>
+              <span>{t('auth.hero.kickerB')}</span>
             </div>
-            <div className="si-feat">
-              <span className="si-feat__mark">
-                <Layers3 size={18} aria-hidden="true" />
-              </span>
-              <div className="si-feat__body">
-                <span className="si-feat__title">{t('auth.hero.featureElementTitle')}</span>
-                <span className="si-feat__sub">{t('auth.hero.featureElementSub')}</span>
-              </div>
-            </div>
-            <div className="si-feat">
-              <span className="si-feat__mark">
-                <Route size={18} aria-hidden="true" />
-              </span>
-              <div className="si-feat__body">
-                <span className="si-feat__title">
-                  {t('auth.hero.featureStorylineTitleA')} ·{' '}
-                  <em>{t('auth.hero.featureStorylineEm')}</em>
-                  {t('auth.hero.featureStorylineTitleB')}
+            <h1 className="si-quote__title">
+              {t('auth.hero.titleA')}
+              <em>{t('auth.hero.titleEmA')}</em>。<br />
+              {t('auth.hero.titleB')}
+              <em>{t('auth.hero.titleEmB')}</em>。
+            </h1>
+            <p className="si-quote__body">{t('auth.hero.body')}</p>
+
+            <div className="si-feats">
+              <div className="si-feat">
+                <span className="si-feat__mark">
+                  <BookOpen size={18} aria-hidden="true" />
                 </span>
-                <span className="si-feat__sub">{t('auth.hero.featureStorylineSub')}</span>
+                <div className="si-feat__body">
+                  <span className="si-feat__title">
+                    {t('auth.hero.featureOutlineTitle')} ·{' '}
+                    <em>{t('auth.hero.featureOutlineEm')}</em>
+                  </span>
+                  <span className="si-feat__sub">{t('auth.hero.featureOutlineSub')}</span>
+                </div>
+              </div>
+              <div className="si-feat">
+                <span className="si-feat__mark">
+                  <Layers3 size={18} aria-hidden="true" />
+                </span>
+                <div className="si-feat__body">
+                  <span className="si-feat__title">{t('auth.hero.featureElementTitle')}</span>
+                  <span className="si-feat__sub">{t('auth.hero.featureElementSub')}</span>
+                </div>
+              </div>
+              <div className="si-feat">
+                <span className="si-feat__mark">
+                  <Route size={18} aria-hidden="true" />
+                </span>
+                <div className="si-feat__body">
+                  <span className="si-feat__title">
+                    {t('auth.hero.featureStorylineTitleA')} ·{' '}
+                    <em>{t('auth.hero.featureStorylineEm')}</em>
+                    {t('auth.hero.featureStorylineTitleB')}
+                  </span>
+                  <span className="si-feat__sub">{t('auth.hero.featureStorylineSub')}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="si-foot">
-          <span>
-            {t('auth.hero.brandVersion', {
-              version: getPlatformRuntime().appInfo?.version ?? '0.1.0',
-            })}
-          </span>
-          <span>{t('auth.hero.footer')}</span>
-        </div>
-      </aside>}
+          <div className="si-foot">
+            <span>
+              {t('auth.hero.brandVersion', {
+                version: getPlatformRuntime().appInfo?.version ?? '0.1.0',
+              })}
+            </span>
+            <span>{t('auth.hero.footer')}</span>
+          </div>
+        </aside>
+      )}
 
       {/* Focused authentication task */}
       <main className="si-right">
@@ -357,12 +361,12 @@ export function LoginPage({ initialMode = 'signin', presentation = 'desktop' }: 
                 <input
                   className="si-field__input"
                   placeholder={t('auth.fields.penNamePlaceholder')}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={isSubmitting}
-                required
-                autoComplete="name"
-                autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={isSubmitting}
+                  required
+                  autoComplete="name"
+                  autoFocus
                 />
               </div>
             )}
@@ -469,8 +473,23 @@ export function LoginPage({ initialMode = 'signin', presentation = 'desktop' }: 
             <div className="si-legal">
               {mode === 'signup' && (
                 <Fragment>
-                  {t('auth.legal.agree')} <a>{t('auth.legal.terms')}</a> {t('auth.legal.and')}{' '}
-                  <a>{t('auth.legal.privacy')}</a>。<br />
+                  {t('auth.legal.agree')}{' '}
+                  <a
+                    onClick={() =>
+                      APP_CONFIG.TERMS_URL
+                        ? void platform.material.openExternal(APP_CONFIG.TERMS_URL)
+                        : undefined
+                    }
+                    aria-disabled={!APP_CONFIG.TERMS_URL}
+                    title={APP_CONFIG.TERMS_URL ? undefined : t('auth.legal.termsUnavailable')}
+                  >
+                    {t('auth.legal.terms')}
+                  </a>{' '}
+                  {t('auth.legal.and')}{' '}
+                  <a onClick={() => void platform.material.openExternal(APP_CONFIG.PRIVACY_URL)}>
+                    {t('auth.legal.privacy')}
+                  </a>
+                  。<br />
                 </Fragment>
               )}
               {t('auth.legal.footer')}

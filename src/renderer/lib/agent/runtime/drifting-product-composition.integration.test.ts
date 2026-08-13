@@ -65,6 +65,22 @@ vi.mock('../../../lib/db', async (importOriginal) => {
   };
 });
 
+// This suite verifies the durable sync-outbox boundary. Public source builds
+// default to local-only, so the harness explicitly opts into network sync.
+vi.mock('../../../lib/config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../lib/config')>();
+  return {
+    ...actual,
+    APP_CONFIG: {
+      ...actual.APP_CONFIG,
+      LOCAL_ONLY_MODE: false,
+      ENABLE_SYNC: true,
+    },
+    canUseNetwork: () => false,
+    isSyncEnabled: () => false,
+  };
+});
+
 const PROJECT_ID = 'product-agent-project';
 const OTHER_PROJECT_ID = 'product-agent-foreign-project';
 const USER_ID = 'product-agent-user';
@@ -1078,7 +1094,7 @@ describe.sequential('Drifting Agent product composition', () => {
       },
       {
         name: 'observe attributed conflict',
-        steps: finalSteps('I preserved the author\'s newer edit.'),
+        steps: finalSteps("I preserved the author's newer edit."),
       },
     ]);
 
@@ -1102,24 +1118,18 @@ describe.sequential('Drifting Agent product composition', () => {
       const prose = userDoc.getXmlFragment('default');
       prose.insert(prose.length, [paragraph]);
     }, 'manual-user-test');
-    await repo.appendUpdate(
-      DOC_ID,
-      Y.encodeStateAsUpdate(userDoc, beforeUserEdit),
-      { kind: 'user' },
-    );
+    await repo.appendUpdate(DOC_ID, Y.encodeStateAsUpdate(userDoc, beforeUserEdit), {
+      kind: 'user',
+    });
     userDoc.destroy();
 
     harness.driver.release('author-edited-prose');
     await running;
-    const visibleContext = JSON.stringify(
-      harness.driver.calls[2]?.context.messages ?? [],
-    );
+    const visibleContext = JSON.stringify(harness.driver.calls[2]?.context.messages ?? []);
     expect(visibleContext).toContain(
       'The author changed this authored object after the cited read.',
     );
-    expect(visibleContext).not.toContain(
-      'That earlier write may have succeeded',
-    );
+    expect(visibleContext).not.toContain('That earlier write may have succeeded');
     expect(await repo.getRevision(DOC_ID)).toBe(2);
     const provenance = await repo.listRevisionProvenance(DOC_ID, 0);
     expect(provenance).toEqual([
@@ -1150,7 +1160,8 @@ describe.sequential('Drifting Agent product composition', () => {
             changes: [
               {
                 currentText: 'Before the Agent.',
-                revisedText: 'Before the Agent.\n\nThis stale paragraph must not be written either.',
+                revisedText:
+                  'Before the Agent.\n\nThis stale paragraph must not be written either.',
               },
             ],
           }),
@@ -1158,7 +1169,7 @@ describe.sequential('Drifting Agent product composition', () => {
       },
       {
         name: 'observe sibling Agent attribution',
-        steps: finalSteps('I preserved the sibling Agent\'s newer edit.'),
+        steps: finalSteps("I preserved the sibling Agent's newer edit."),
       },
     ]);
 
@@ -1182,31 +1193,23 @@ describe.sequential('Drifting Agent product composition', () => {
       const prose = siblingDoc.getXmlFragment('default');
       prose.insert(prose.length, [paragraph]);
     }, 'sibling-agent-test');
-    await repo.appendUpdate(
-      DOC_ID,
-      Y.encodeStateAsUpdate(siblingDoc, beforeSiblingEdit),
-      {
-        kind: 'agent',
-        collaborator: {
-          sessionId: 'session-sibling-agent',
-          turnId: 'turn-sibling-agent',
-          callId: 'call-sibling-agent',
-        },
+    await repo.appendUpdate(DOC_ID, Y.encodeStateAsUpdate(siblingDoc, beforeSiblingEdit), {
+      kind: 'agent',
+      collaborator: {
+        sessionId: 'session-sibling-agent',
+        turnId: 'turn-sibling-agent',
+        callId: 'call-sibling-agent',
       },
-    );
+    });
     siblingDoc.destroy();
 
     harness.driver.release('sibling-agent-edited-prose');
     await running;
-    const visibleContext = JSON.stringify(
-      harness.driver.calls[2]?.context.messages ?? [],
-    );
+    const visibleContext = JSON.stringify(harness.driver.calls[2]?.context.messages ?? []);
     expect(visibleContext).toContain(
       'Another General Agent conversation changed this authored object after the cited read.',
     );
-    expect(visibleContext).not.toContain(
-      'The author changed this authored object',
-    );
+    expect(visibleContext).not.toContain('The author changed this authored object');
     expect(await repo.listRevisionProvenance(DOC_ID, 0)).toEqual([
       expect.objectContaining({
         revision: 1,
@@ -1477,15 +1480,15 @@ describe.sequential('Drifting Agent product composition', () => {
 
     await harness.runTurn(turnId, '把这一章和摘要一起改好。', 1, 'auto');
 
-    expect((await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson).toBe(
-      CONTENT_JSON,
-    );
+    expect((await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson).toBe(CONTENT_JSON);
     expect((await harness.nodeRepository.findById(NODE_ID))?.summary).toBe(INITIAL_SUMMARY);
     expect(harness.scalar('SELECT count(*) FROM yjs_prose_command_receipt')).toBe(0);
     expect(harness.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(0);
-    expect(await harness.composition.repositories.writeEffects.getEffect(
-      `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`,
-    )).toMatchObject({ phase: 'uncertain' });
+    expect(
+      await harness.composition.repositories.writeEffects.getEffect(
+        `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`,
+      ),
+    ).toMatchObject({ phase: 'uncertain' });
     harness.driver.assertExhausted();
   });
 
@@ -1628,7 +1631,9 @@ describe.sequential('Drifting Agent product composition', () => {
 
     await harness.runTurn(turnId, '写一段内容追加在这个灵感后面。', 1, 'auto');
 
-    expect((await harness.contentRepository.findByNodeId(DRIFT_ID))?.contentJson).toContain(appended);
+    expect((await harness.contentRepository.findByNodeId(DRIFT_ID))?.contentJson).toContain(
+      appended,
+    );
     expect(
       harness.events.filter(
         (event) => event.turnId === turnId && event.event.type === 'tool_result' && !event.event.ok,
@@ -1738,9 +1743,7 @@ describe.sequential('Drifting Agent product composition', () => {
     });
     useDataStore.setState((state) => ({
       bookElements: state.bookElements.map((element) =>
-        element.id === ELEMENT_ID
-          ? { ...element, aliases: ['Fixture Alias'] }
-          : element,
+        element.id === ELEMENT_ID ? { ...element, aliases: ['Fixture Alias'] } : element,
       ),
     }));
     const request: AgentToolExecutionRequest = {

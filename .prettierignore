@@ -23,4 +23,3 @@ package-lock.json
 bun.lock
 
 drizzle/meta/
-private-service/drizzle/meta/

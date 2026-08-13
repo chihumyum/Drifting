@@ -167,7 +167,7 @@ scenario under test.
 Run the network-free aggregate gate with:
 
 ```bash
-pnpm --dir client eval:agent:extensions
+pnpm eval:agent:extensions
 ```
 
 It uses fragmented provider wire fixtures, a real temporary stdio child, a
@@ -178,7 +178,7 @@ An explicit paid canary is available separately:
 
 ```bash
 DRIFTING_AGENT_LIVE_PROVIDER=anthropic ANTHROPIC_API_KEY=... \
-  pnpm --dir client eval:agent:extensions:live
+  pnpm eval:agent:extensions:live
 ```
 
 Use the matching `DEEPSEEK_AI_API_KEY`, `ANTHROPIC_API_KEY`, or

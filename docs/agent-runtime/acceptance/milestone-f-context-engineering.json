@@ -1,51 +1,51 @@
 {
   "suite": "milestone-f-literary-context-engineering",
   "schemaVersion": 1,
-  "nodeVersion": "v22.23.1",
+  "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "c7b0f5bbf018ea5874e1ec928ca15f841faebf4e",
-  "sourceSetSha256": "sha256:597da9dc70d7b1ee6d61d0d8bc0d8728d9d6855a8d569430375922986e8dca28",
+  "gitHead": "d7c59818b855e5caa3ce095ee62d072d019c19df",
+  "sourceSetSha256": "sha256:d86b20db2d255a335ad3118a509dd67ee3c27e754bcfcbe63994d163dcc25be1",
   "corpusPolicy": {
     "committedTruth": "distilled fog-harbor golden fixture",
-    "privateProse": "read at test runtime only; machine report stores counts and bytes, never prose",
+    "syntheticProse": "generated at test runtime only; machine report stores counts and bytes, never prose",
     "providerNetworkRequired": false
   },
   "metrics": {
     "fixture": {
-      "oracleCases": 59,
-      "privateCorpusAvailable": true,
-      "privateCorpusFiles": 17,
-      "privateCorpusBytes": 297247
+      "oracleCases": 42,
+      "syntheticCorpusGenerated": true,
+      "syntheticCorpusDocuments": 18,
+      "syntheticCorpusBytes": 390126
     },
     "providerContext": {
       "profileId": "milestone-f-200k-v1",
       "contextWindowTokens": 200000,
       "slices": 3,
       "compactedSlices": 2,
-      "compactorCalls": 29,
-      "medianTokenReduction": 0.613996818625723,
-      "maxContextWindowRatio": 0.60715,
-      "finalEstimatedInputTokens": 99379
+      "compactorCalls": 28,
+      "medianTokenReduction": 0.6222936250887868,
+      "maxContextWindowRatio": 0.74582,
+      "finalEstimatedInputTokens": 128967
     },
     "retrieval": {
       "canon_fact": {
-        "hits": 34,
-        "total": 34,
+        "hits": 22,
+        "total": 22,
         "recallAt5": 1
       },
       "character_voice": {
-        "hits": 8,
-        "total": 8,
+        "hits": 3,
+        "total": 3,
         "recallAt5": 1
       },
       "alias": {
-        "hits": 11,
-        "total": 11,
+        "hits": 9,
+        "total": 9,
         "recallAt5": 1
       },
       "writing_rule": {
-        "hits": 2,
-        "total": 2,
+        "hits": 4,
+        "total": 4,
         "recallAt5": 1
       },
       "chapter_evidence": {
@@ -55,14 +55,14 @@
       }
     },
     "compactionFidelity": {
-      "evidenceHits": 59,
-      "evidenceTotal": 59,
+      "evidenceHits": 42,
+      "evidenceTotal": 42,
       "evidenceRecall": 1,
-      "voiceHits": 8,
-      "voiceTotal": 8,
+      "voiceHits": 3,
+      "voiceTotal": 3,
       "characterVoiceRecall": 1,
-      "constraintHits": 7,
-      "constraintTotal": 7,
+      "constraintHits": 5,
+      "constraintTotal": 5,
       "constraintRecall": 1,
       "retentionWitness": "exact",
       "sourceCoverage": 1
@@ -82,7 +82,7 @@
   },
   "metricGates": {
     "providerContextWindow": true,
-    "realPrivateBook": true,
+    "syntheticLongBook": true,
     "retrieval": true,
     "compaction": true,
     "fidelity": true,
@@ -96,14 +96,14 @@
       "discovered": 15
     },
     "tests": {
-      "total": 188,
-      "passed": 188,
+      "total": 175,
+      "passed": 175,
       "failed": 0,
       "pending": 0,
       "todo": 0
     },
     "groups": {
-      "realBookAndLongContext": {
+      "syntheticBookAndLongContext": {
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
@@ -118,8 +118,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 56,
-          "passed": 56,
+          "total": 57,
+          "passed": 57,
           "failed": 0,
           "pending": 0
         },
@@ -151,8 +151,8 @@
         "requiredFiles": 6,
         "discoveredFiles": 6,
         "tests": {
-          "total": 98,
-          "passed": 98,
+          "total": 84,
+          "passed": 84,
           "failed": 0,
           "pending": 0
         },
@@ -165,8 +165,8 @@
         "matches": 1,
         "passed": true
       },
-      "realBookRetrieval": {
-        "requiredName": "recalls canon, voice, aliases, writing rules, and chapter evidence from the real-book fixture",
+      "syntheticBookRetrieval": {
+        "requiredName": "recalls canon, voice, aliases, writing rules, and chapter evidence from the synthetic fixture",
         "matches": 1,
         "passed": true
       },
@@ -250,11 +250,6 @@
         "matches": 1,
         "passed": true
       },
-      "bundledSummaryRead": {
-        "requiredName": "lets the summary bundled with a chapter read authorize a summary rewrite",
-        "matches": 1,
-        "passed": true
-      },
       "durableReadProgress": {
         "requiredName": "keeps complete authored reading as current domain state after body and summary writes",
         "matches": 1,
@@ -262,21 +257,6 @@
       },
       "domainReadProgressPresentation": {
         "requiredName": "retains full-read and current-summary state without transport vocabulary",
-        "matches": 1,
-        "passed": true
-      },
-      "numericOrdinalIdentity": {
-        "requiredName": "never substitutes book order for a missing number in numeric-titled manuscripts",
-        "matches": 1,
-        "passed": true
-      },
-      "dominantPassageTarget": {
-        "requiredName": "uses the dominant quoted passages to correct an accidentally misnamed read chapter",
-        "matches": 1,
-        "passed": true
-      },
-      "redundantReadDeferral": {
-        "requiredName": "defers one redundant whole-body read to the durable current working copy",
         "matches": 1,
         "passed": true
       },

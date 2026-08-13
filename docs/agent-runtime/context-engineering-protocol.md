@@ -35,12 +35,12 @@ are captured when the author submits the turn and cannot change midway.
 
 The default DeepSeek driver declares:
 
-| Field | Value |
-| --- | ---: |
-| Context window | 200,000 tokens |
-| Maximum output per call | 8,192 tokens |
-| Provider framing reserve | 512 tokens |
-| Per selected tool reserve | 8 tokens |
+| Field                     |          Value |
+| ------------------------- | -------------: |
+| Context window            | 200,000 tokens |
+| Maximum output per call   |   8,192 tokens |
+| Provider framing reserve  |     512 tokens |
+| Per selected tool reserve |       8 tokens |
 
 A driver declaration is authoritative. Product configuration and Standard/Max
 mode may reduce its window, but must never enlarge it. A custom driver with no
@@ -300,13 +300,12 @@ side effect of a failed insert.
 Run:
 
 ```bash
-pnpm --dir client eval:agent:context
+pnpm eval:agent:context
 ```
 
-The gate uses the committed distilled `fog-harbor.golden.json` plus the user's
-local manuscript when available. Private prose is read only inside the test
-process. The machine report records availability, file count and byte count,
-never manuscript text.
+The gate uses the committed distilled `synthetic-literary.golden.json` plus a
+deterministically generated long-form corpus. All content is synthetic and the
+machine report records only corpus counts and byte size.
 
 The required gates are:
 

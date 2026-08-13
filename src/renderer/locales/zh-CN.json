@@ -415,19 +415,19 @@
       "kicker": "隐私 · PRIVACY",
       "title": "你的稿子，停在哪儿。",
       "sub": "这页直说：Drifting 用了什么、不用什么、何时离开你的机器。",
-      "noteA": "稿件会同步并存储在 Drifting 服务器上，目前不提供端到端加密。请仅上传你愿意交由 Pre-Alpha 服务保存的内容。",
-      "noteBPrefix": "默认情况下你的稿件",
-      "noteBStrong": "不会",
-      "noteBSuffix": "被用于训练任何模型。",
+      "noteA": "公开源码构建默认仅在本地运行。若你启用同步，稿件数据会发送到所配置的服务，当前不提供端到端加密。",
+      "noteBPrefix": "AI 请求适用",
+      "noteBStrong": "所选模型提供商",
+      "noteBSuffix": "当前的数据与训练条款。",
       "dataUsage": "数据使用",
-      "improveModels": "允许使用稿件改进官方模型",
-      "improveModelsDesc": "仅你明确开启时。被采样的段落会先去标识化处理。",
+      "improveModels": "官方服务的模型改进选择",
+      "improveModelsDesc": "为未来明确的选择加入政策保留；此构建不可用。",
       "usageStats": "发送匿名使用统计",
       "usageStatsDesc": "界面点击、错误、性能指标。不含稿件内容。",
       "crashLogs": "崩溃日志",
       "crashLogsDesc": "应用崩溃时上传堆栈与运行环境。",
       "fullPolicy": "查看完整隐私政策",
-      "lastUpdated": "最近更新 2026·04·02"
+      "lastUpdated": "最近更新 2026·08·14"
     },
     "about": {
       "kicker": "关于 · ABOUT",
@@ -445,6 +445,12 @@
       "fontsDesc": "Inter Tight · 系统字体 · 用户导入字体",
       "openSource": "开源依赖",
       "viewList": "查看清单",
+      "sourceCode": "源代码",
+      "sourceCodeDesc": "这个 AGPL 客户端的对应源代码",
+      "viewSource": "查看源码",
+      "license": "客户端许可证",
+      "licenseDesc": "GNU AGPL v3 或更高版本",
+      "viewLicense": "查看许可证",
       "contact": "联系",
       "emailTeam": "写信给团队",
       "writeEmail": "写邮件",
@@ -610,7 +616,7 @@
       "unavailableStatus": "当前 transport 不可用",
       "unavailableReason": "本窗口没有安装可用的 Agent model driver 或工具运行时。",
       "unavailableFuture": "重新打开项目；若问题持续，请检查应用版本与所选 provider 的 API Key。",
-      "credentialPrivacy": "凭据仅存于本机，不上传服务器。",
+      "credentialPrivacy": "凭据存于本机；代理模式会将其临时转发给所配置的服务。",
       "chatConfigTitle": "对话配置",
       "chatConfigDesc": "Provider、模型、上下文与推理参数都在右侧 General Agent 输入框的配置菜单中选择；API Key 统一在「模型与 API」管理。",
       "hostedDisabledTitle": "托管暂不可用 · 测试版使用你自己的 provider API Key",
@@ -1446,7 +1452,7 @@
       "kicker": "NEW HERE · 起航",
       "titleEm": "新建",
       "titleRest": "账号",
-      "sub": "注册一个账号，开始你的第一本书。我们不会把你的稿子用于任何模型训练。"
+      "sub": "注册一个账号，开始你的第一本书。同步私人稿件前，请先查看所配置服务与模型提供商的条款。"
     },
     "fields": {
       "penName": "笔名 · PEN NAME",
@@ -1473,9 +1479,10 @@
     "legal": {
       "agree": "注册即代表你同意我们的",
       "terms": "服务条款",
+      "termsUnavailable": "服务运营方尚未配置服务条款。",
       "and": "与",
       "privacy": "隐私政策",
-      "footer": "本地优先 · 云端同步 · 不用作模型训练"
+      "footer": "本地优先 · 可选云同步 · 适用提供商条款"
     },
     "forgot": {
       "kicker": "RESET · 重置密码",

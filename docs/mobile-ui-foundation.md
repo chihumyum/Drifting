@@ -165,11 +165,11 @@ mobile-ready, touch-ready, or complete native UX acceptance.
 ## Machine gates
 
 ```bash
-pnpm --dir client typecheck
-pnpm --dir client lint
-pnpm --dir client test:renderer-architecture
-pnpm --dir client exec vite build
-pnpm --dir client agent:capabilities:check
+pnpm typecheck
+pnpm lint
+pnpm test:renderer-architecture
+pnpm exec vite build
+pnpm agent:capabilities:check
 ```
 
 Focused mobile reducer, route, gesture-state, overlay, paper-session, and import

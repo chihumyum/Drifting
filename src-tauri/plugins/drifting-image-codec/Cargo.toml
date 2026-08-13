@@ -2,6 +2,10 @@
 name = "tauri-plugin-drifting-image-codec"
 version = "0.1.0"
 description = "Android system image codec adapter for Drifting"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/chihumyum/drifting"
+homepage = "https://github.com/chihumyum/drifting"
+publish = false
 edition = "2021"
 rust-version = "1.88"
 links = "tauri-plugin-drifting-image-codec"

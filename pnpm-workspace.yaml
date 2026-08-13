@@ -1,0 +1,11 @@
+packages:
+  - packages/*
+
+onlyBuiltDependencies:
+  - esbuild
+
+overrides:
+  tar: ^7.5.4
+  esbuild: ^0.25.0
+  tmp@<=0.2.3: '>=0.2.4'
+  prosemirror-model: 1.25.7

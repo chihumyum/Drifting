@@ -1,5 +1,5 @@
 {
-  "suite": "milestone-j-real-book-endurance",
+  "suite": "milestone-j-synthetic-workload-endurance",
   "schemaVersion": 1,
   "profile": "4h",
   "mode": "accelerated-15-minute-workload-equivalent",
@@ -23,7 +23,7 @@
     "automatic-continuation-stop-steer-stagnation",
     "mcp-http-session-timeout-and-cancellation",
     "durable-grant-reopen-config-drift-and-concurrency",
-    "real-local-manuscript-read-only-voice-and-citation-oracle"
+    "synthetic-long-manuscript-voice-and-citation-oracle"
   ],
   "privateProsePersisted": false,
   "networkRequired": false,

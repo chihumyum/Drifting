@@ -1,0 +1,18 @@
+Drifting
+Copyright (C) 2025-2026 chihumyum and contributors
+
+Except where otherwise noted, the Drifting client is licensed under the GNU
+Affero General Public License, version 3 or any later version.
+
+packages/prose-metrics is licensed separately under the Apache License 2.0.
+
+This distribution contains third-party components. See THIRD_PARTY_NOTICES.md
+and the license texts distributed with those components.
+
+The official hosted service and its private server implementation are separate
+works and are not included in this repository.
+
+No trademark rights in the Drifting name, logos, or official-service identity
+are granted. See TRADEMARKS.md.
+
+This NOTICE is informational and does not modify any applicable license.

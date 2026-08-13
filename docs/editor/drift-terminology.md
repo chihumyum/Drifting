@@ -20,5 +20,5 @@ documentation so the retired Chinese label cannot silently return.
 Run it with:
 
 ```bash
-pnpm --dir client exec vitest run src/renderer/locales/drift-terminology.acceptance.test.ts
+pnpm exec vitest run src/renderer/locales/drift-terminology.acceptance.test.ts
 ```

@@ -8,7 +8,7 @@ function recall(hits: number, total: number): number {
 }
 
 describe('Milestone F literary context acceptance', () => {
-  it('recalls canon, voice, aliases, writing rules, and chapter evidence from the real-book fixture', () => {
+  it('recalls canon, voice, aliases, writing rules, and chapter evidence from the synthetic fixture', () => {
     const fixture = loadMilestoneFLiteraryFixture();
     const byDimension = new Map<string, { hits: number; total: number }>();
     const misses: string[] = [];
@@ -37,9 +37,9 @@ describe('Milestone F literary context acceptance', () => {
     );
     console.info({
       literaryOracleCases: fixture.oracle.length,
-      privateCorpusAvailable: fixture.privateCorpus.available,
-      privateCorpusFiles: fixture.privateCorpus.files,
-      privateCorpusBytes: fixture.privateCorpus.bytes,
+      syntheticCorpusGenerated: fixture.syntheticCorpus.generated,
+      syntheticCorpusDocuments: fixture.syntheticCorpus.documents,
+      syntheticCorpusBytes: fixture.syntheticCorpus.bytes,
       metrics,
       misses,
     });
@@ -48,9 +48,7 @@ describe('Milestone F literary context acceptance', () => {
     for (const metric of Object.values(metrics)) {
       expect(metric.recallAt5).toBe(1);
     }
-    if (fixture.privateCorpus.available) {
-      expect(fixture.privateCorpus.files).toBeGreaterThanOrEqual(16);
-      expect(fixture.privateCorpus.bytes).toBeGreaterThan(250_000);
-    }
+    expect(fixture.syntheticCorpus.documents).toBeGreaterThanOrEqual(16);
+    expect(fixture.syntheticCorpus.bytes).toBeGreaterThan(250_000);
   });
 });

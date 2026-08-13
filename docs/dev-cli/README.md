@@ -122,7 +122,7 @@ the open App remains the owner of credentials, live stores, Yjs, reviews, and
 the provider transport:
 
 ```bash
-pnpm --dir client agent:debug:server
+pnpm agent:debug:server
 
 pnpm drifting agent turn \
   --project <project-id> \
@@ -175,7 +175,7 @@ pnpm drifting scenario run \
 Regenerate and verify the complete CLI contract with:
 
 ```bash
-pnpm --dir client dev:cli:capabilities
+pnpm dev:cli:capabilities
 pnpm drifting:check
 ```
 

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "recordedAt": "2026-08-05T16:14:32Z",
   "status": "passed",
-  "command": "pnpm --dir client eval:agent:concurrency:live",
+  "command": "pnpm eval:agent:concurrency:live",
   "checkout": {
     "commit": "9fca49441961856232f2812b362beeef14b0e982",
     "worktree": "dirty",
@@ -42,10 +42,7 @@
     {
       "outcome": "completed",
       "modelIterations": 3,
-      "toolTrace": [
-        "read_object:ok",
-        "revise_object:ok"
-      ]
+      "toolTrace": ["read_object:ok", "revise_object:ok"]
     }
   ],
   "result": {

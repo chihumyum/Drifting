@@ -1,18 +1,15 @@
 /**
  * Explicit opt-in launcher for credentialed DeepSeek Agent evaluations.
  *
- * Only DEEPSEEK_AI_API_KEY is selected from private-service/.env. The value is
- * passed to the dedicated Vitest child process and is never printed, persisted,
- * or exported into the caller's shell.
+ * DEEPSEEK_AI_API_KEY must be provided explicitly by the caller. The value is
+ * passed to the dedicated Vitest child process and is never printed or persisted.
  */
-import { readFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const coreDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const serverEnvPath = path.resolve(coreDir, '..', 'private service', '.env');
-const vitestEntry = path.resolve(coreDir, '..', 'node_modules', 'vitest', 'vitest.mjs');
+const vitestEntry = path.resolve(coreDir, 'node_modules', 'vitest', 'vitest.mjs');
 const suite = process.env.DRIFTING_AGENT_LIVE_SUITE ?? 'p1';
 const evalFiles = {
   p1: 'src/renderer/lib/agent/runtime/eval/p1-deepseek-live.eval.ts',
@@ -30,18 +27,9 @@ if (!evalFile) {
   process.exit();
 }
 
-let envSource;
-try {
-  envSource = await readFile(serverEnvPath, 'utf8');
-} catch {
-  console.error('P1 live eval requires private-service/.env (file was not readable).');
-  process.exitCode = 1;
-  process.exit();
-}
-
-const apiKey = readEnvValue(envSource, 'DEEPSEEK_AI_API_KEY');
+const apiKey = process.env.DEEPSEEK_AI_API_KEY?.trim();
 if (!apiKey) {
-  console.error('P1 live eval requires DEEPSEEK_AI_API_KEY in private-service/.env.');
+  console.error('P1 live eval requires DEEPSEEK_AI_API_KEY in the process environment.');
   process.exitCode = 1;
   process.exit();
 }
@@ -76,17 +64,3 @@ child.once('error', () => {
 child.once('exit', (code, signal) => {
   process.exitCode = signal ? 1 : (code ?? 1);
 });
-
-function readEnvValue(source, name) {
-  for (const line of source.split(/\r?\n/u)) {
-    const match = line.match(new RegExp(`^\\s*(?:export\\s+)?${name}\\s*=\\s*(.*)$`, 'u'));
-    if (!match) continue;
-    const raw = match[1].trim();
-    if (!raw) return '';
-    if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
-      return raw.slice(1, -1);
-    }
-    return raw.replace(/\s+#.*$/u, '').trim();
-  }
-  return '';
-}

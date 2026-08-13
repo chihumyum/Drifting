@@ -46,26 +46,26 @@ The repaired boundary now:
 The following commands passed on the repaired checkout:
 
 ```bash
-pnpm --dir client exec vitest run \
+pnpm exec vitest run \
   src/renderer/services/node-create-sync-contract.test.ts \
   src/renderer/services/entity-sync-coalescing.test.ts
 # 2 files, 11 tests passed
 
-pnpm --dir client exec vitest run \
+pnpm exec vitest run \
   src/renderer/lib/agent/runtime/drifting-domain-crud-write-strategy.integration.test.ts
 # 1 file, 17 tests passed
 
-pnpm --dir private service exec bun test
-# 28 files, 136 tests passed
-
-pnpm --dir client typecheck
-pnpm --dir private service typecheck
-# both passed
+pnpm typecheck
+# passed
 ```
 
-Targeted ESLint over the changed Core and Server paths exited successfully with
-zero errors. Core reported ten pre-existing `no-explicit-any` warnings in the
-shared entity-sync projection code; Server reported no warnings.
+The matching official-service checks were run in its private repository and
+are historical evidence only; they are intentionally not commands in this
+standalone client repository.
+
+Targeted ESLint over the changed client paths exited successfully with zero
+errors. It reported ten pre-existing `no-explicit-any` warnings in the shared
+entity-sync projection code.
 
 ## Live development acceptance
 

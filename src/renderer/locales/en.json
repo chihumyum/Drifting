@@ -415,19 +415,19 @@
       "kicker": "PRIVACY",
       "title": "Where your manuscript stops.",
       "sub": "A plain view of what Drifting uses, what it does not use, and when data leaves your machine.",
-      "noteA": "Manuscripts are synced and stored on Drifting servers. End-to-end encryption is not currently provided; only upload content you are comfortable storing in this Pre-Alpha service.",
-      "noteBPrefix": "By default, your manuscript is",
-      "noteBStrong": "not",
-      "noteBSuffix": "used to train any model.",
+      "noteA": "Public source builds default to local-only mode. If you enable sync, manuscript data is sent to the configured service without end-to-end encryption.",
+      "noteBPrefix": "AI requests follow the",
+      "noteBStrong": "selected provider's",
+      "noteBSuffix": "current data and training terms.",
       "dataUsage": "Data use",
-      "improveModels": "Allow manuscript use to improve official models",
-      "improveModelsDesc": "Only when you explicitly turn it on. Sampled passages are de-identified first.",
+      "improveModels": "Official-service model-improvement opt-in",
+      "improveModelsDesc": "Reserved for a future explicit policy; unavailable in this build.",
       "usageStats": "Send anonymous usage stats",
       "usageStatsDesc": "UI clicks, errors, and performance metrics. No manuscript content.",
       "crashLogs": "Crash logs",
       "crashLogsDesc": "Upload stack traces and runtime environment after app crashes.",
       "fullPolicy": "View full privacy policy",
-      "lastUpdated": "Last updated 2026-04-02"
+      "lastUpdated": "Last updated 2026-08-14"
     },
     "about": {
       "kicker": "ABOUT",
@@ -445,6 +445,12 @@
       "fontsDesc": "Inter Tight · System fonts · User-imported fonts",
       "openSource": "Open-source dependencies",
       "viewList": "View list",
+      "sourceCode": "Source code",
+      "sourceCodeDesc": "Corresponding source for this AGPL client",
+      "viewSource": "View source",
+      "license": "Client license",
+      "licenseDesc": "GNU AGPL v3 or later",
+      "viewLicense": "View license",
       "contact": "Contact",
       "emailTeam": "Email the team",
       "writeEmail": "Write email",
@@ -610,7 +616,7 @@
       "unavailableStatus": "No active transport",
       "unavailableReason": "This window has no usable Agent model driver or tool runtime.",
       "unavailableFuture": "Reopen the project. If this persists, check the app version and the selected provider API key.",
-      "credentialPrivacy": "Credentials stay local and are not uploaded.",
+      "credentialPrivacy": "Credentials are stored locally; proxy mode forwards them transiently to the configured service.",
       "chatConfigTitle": "Chat configuration",
       "chatConfigDesc": "Choose provider, model, context, and reasoning from the configuration menu beside the General Agent composer. Manage API keys centrally under Models & API.",
       "hostedDisabledTitle": "Hosted is unavailable · beta uses your own provider API key",
@@ -1446,7 +1452,7 @@
       "kicker": "NEW HERE · START WRITING",
       "titleEm": "Create",
       "titleRest": " account",
-      "sub": "Create an account and start your first book. Your manuscript is never used for model training."
+      "sub": "Create an account and start your first book. Review the configured service and model provider terms before syncing private writing."
     },
     "fields": {
       "penName": "Pen name",
@@ -1473,9 +1479,10 @@
     "legal": {
       "agree": "By signing up, you agree to our",
       "terms": "Terms",
+      "termsUnavailable": "The service operator has not configured Terms of Service.",
       "and": "and",
       "privacy": "Privacy Policy",
-      "footer": "Local-first · cloud sync · not used for model training"
+      "footer": "Local-first · optional cloud sync · provider terms apply"
     },
     "forgot": {
       "kicker": "RESET · PASSWORD RECOVERY",

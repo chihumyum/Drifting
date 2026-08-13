@@ -14,7 +14,7 @@ function libraryItem(overrides: Partial<LibraryItem> = {}): LibraryItem {
     kind: 'image',
     source: 'r2',
     uri: 'asset://asset-1',
-    localPath: '/Users/this-device/reference.png',
+    localPath: '/Users/example/this-device/reference.png',
     assetId: 'asset-1',
     mime: 'image/png',
     sizeBytes: 42,
@@ -44,7 +44,7 @@ describe('library item sync boundary', () => {
   it('strips localPath from legacy outbox payloads without changing the input', () => {
     const legacyPayload = {
       id: 'library-1',
-      localPath: '/Users/another-device/private.png',
+      localPath: '/Users/example/another-device/private.png',
       assetId: 'asset-1',
     };
 
@@ -52,7 +52,7 @@ describe('library item sync boundary', () => {
       id: 'library-1',
       assetId: 'asset-1',
     });
-    expect(legacyPayload.localPath).toBe('/Users/another-device/private.png');
+    expect(legacyPayload.localPath).toBe('/Users/example/another-device/private.png');
   });
 
   it('keeps an existing device path while retaining remote canonical asset fields', () => {
@@ -60,18 +60,18 @@ describe('library item sync boundary', () => {
       [
         {
           id: 'library-1',
-          localPath: '/Users/remote-device/wrong.png',
+          localPath: '/Users/example/remote-device/wrong.png',
           assetId: 'asset-new',
           uri: 'asset://asset-new',
           thumbnailUri: 'https://cdn.example.test/new-thumbnail.png',
         },
       ],
-      [{ id: 'library-1', localPath: '/Users/this-device/right.png' }],
+      [{ id: 'library-1', localPath: '/Users/example/this-device/right.png' }],
     );
 
     expect(row).toEqual({
       id: 'library-1',
-      localPath: '/Users/this-device/right.png',
+      localPath: '/Users/example/this-device/right.png',
       assetId: 'asset-new',
       uri: 'asset://asset-new',
       thumbnailUri: 'https://cdn.example.test/new-thumbnail.png',
@@ -81,8 +81,8 @@ describe('library item sync boundary', () => {
   it('sets localPath to null for first-seen cross-device rows and preserves an explicit local null', () => {
     const rows = overlayLibraryItemDeviceFields(
       [
-        { id: 'first-seen', localPath: '/Users/remote-device/secret.pdf' },
-        { id: 'known-without-file', localPath: '/Users/remote-device/other.pdf' },
+        { id: 'first-seen', localPath: '/Users/example/remote-device/secret.pdf' },
+        { id: 'known-without-file', localPath: '/Users/example/remote-device/other.pdf' },
       ],
       [{ id: 'known-without-file', localPath: null }],
     );

@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const coreDir = path.resolve(path.dirname(scriptPath), '..');
-const repoDir = path.resolve(coreDir, '..');
+const repoDir = coreDir;
 const target = process.argv[2];
 const supportedTargets = new Set(['ios', 'android']);
 const execFileAsync = promisify(execFile);
@@ -44,9 +44,7 @@ async function resolveTauriDeviceName(platform, deviceId) {
 }
 
 if (!supportedTargets.has(target)) {
-  console.error(
-    'Usage: node scripts/run-mobile-debug.mjs <ios|android> [--device <id>]',
-  );
+  console.error('Usage: node scripts/run-mobile-debug.mjs <ios|android> [--device <id>]');
   process.exitCode = 2;
 } else {
   const rawArgs = process.argv.slice(3);

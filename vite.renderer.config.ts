@@ -41,7 +41,7 @@ export default defineConfig(({ command }) => {
       },
     },
     server: {
-      // Avoid clashing with private service (http://localhost:3000)
+      // Avoid clashing with a compatible local service on http://localhost:3000.
       port: devPort,
       strictPort: true,
       // Tauri sets this address for a physical mobile device. Listening only

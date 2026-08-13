@@ -12,7 +12,7 @@
   },
   "checks": {
     "providerDriver": {
-      "command": "DRIFTING_AGENT_LIVE_PROVIDER=openai DRIFTING_AGENT_LIVE_MODEL=gpt-5.6-luna pnpm --dir client eval:agent:extensions:live",
+      "command": "DRIFTING_AGENT_LIVE_PROVIDER=openai DRIFTING_AGENT_LIVE_MODEL=gpt-5.6-luna pnpm eval:agent:extensions:live",
       "attempts": 2,
       "passedAttempts": 1,
       "failedAttempts": 1,
@@ -27,7 +27,7 @@
       "note": "The first attempt failed before an HTTP response with the legacy generic start error; the immediate bounded retry passed."
     },
     "parallelReasoningReplay": {
-      "command": "DRIFTING_AGENT_LIVE_PROVIDER=openai DRIFTING_AGENT_LIVE_MODEL=gpt-5.6-luna pnpm --dir client exec vitest run --config vitest.eval.config.ts src/renderer/lib/agent/runtime/eval/provider-extension.live.eval.ts --pool=forks --maxWorkers=1 -t \"completes a reasoning-on parallel read, durable write and final replay with Luna\"",
+      "command": "DRIFTING_AGENT_LIVE_PROVIDER=openai DRIFTING_AGENT_LIVE_MODEL=gpt-5.6-luna pnpm exec vitest run --config vitest.eval.config.ts src/renderer/lib/agent/runtime/eval/provider-extension.live.eval.ts --pool=forks --maxWorkers=1 -t \"completes a reasoning-on parallel read, durable write and final replay with Luna\"",
       "requests": 3,
       "passedRequests": 3,
       "durationSeconds": 7.58,

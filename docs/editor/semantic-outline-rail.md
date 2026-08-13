@@ -97,11 +97,11 @@ scrolling is intentionally not reimplemented in either file.
 Run:
 
 ```bash
-pnpm --dir client exec vitest run \
+pnpm exec vitest run \
   src/renderer/components/editor/outline-rail-model.test.ts \
   src/renderer/components/editor/semantic-outline-rail.acceptance.test.ts \
   src/renderer/services/preferences-sync.service.test.ts
-pnpm --dir client typecheck
+pnpm typecheck
 ```
 
 The tests prove all five editor mounts, left-edge TOC placement, the three

@@ -115,14 +115,14 @@ function buildLongBookHistory(): LongBookHistory {
     });
   }
 
-  const privateDocuments = fixture.documents.filter((document) =>
-    document.evidenceId.startsWith('private-chapter:'),
+  const syntheticDocuments = fixture.documents.filter((document) =>
+    document.evidenceId.startsWith('synthetic-chapter:'),
   );
   const slices: AgentModelMessage[][] = [];
   for (let pass = 1; pass <= 3; pass += 1) {
-    for (const [index, document] of privateDocuments.entries()) {
+    for (const [index, document] of syntheticDocuments.entries()) {
       addReadTurn(messages, {
-        callId: `private-${pass}-${index}`,
+        callId: `synthetic-${pass}-${index}`,
         prompt: `继续处理整书证据批次 ${pass} 的章节 ${index + 1}`,
         path: `/chapters/pass-${pass}/${encodeURIComponent(document.title ?? document.evidenceId)}.md`,
         content: document.fields.map((field) => field.text).join('\n'),
@@ -242,7 +242,7 @@ function providerEvidenceIds(envelope: AgentContextProviderEnvelopeV2): Set<stri
           const claim = JSON.parse(citation.claim) as { evidenceId?: unknown };
           if (typeof claim.evidenceId === 'string') ids.add(claim.evidenceId);
         } catch {
-          // Private manuscript citations intentionally use a prose claim.
+          // Synthetic literary citations intentionally use a prose claim.
         }
       }
       continue;
@@ -253,7 +253,7 @@ function providerEvidenceIds(envelope: AgentContextProviderEnvelopeV2): Set<stri
         const content = JSON.parse(result.content) as { evidenceId?: unknown };
         if (typeof content.evidenceId === 'string') ids.add(content.evidenceId);
       } catch {
-        // Private manuscript reads are measured by source coverage, not copied.
+        // Synthetic literary reads are measured by source coverage, not copied.
       }
     }
   }
@@ -304,8 +304,7 @@ describe('Milestone F context engineering acceptance', () => {
               callId,
               name: 'write_file',
               ok: true,
-              content:
-                '{"updated":true,"path":"/chapters/第三章/prose.md","writeRef":"private"}',
+              content: '{"updated":true,"path":"/chapters/第三章/prose.md","writeRef":"private"}',
             },
           ],
         },
@@ -319,9 +318,7 @@ describe('Milestone F context engineering acceptance', () => {
           kind: 'write_receipt',
           content:
             '章节「第三章」正文已更新。这一步已经完成；直接继续剩余任务，不要为了确认写入而重读。',
-          durableWriteCoverage: [
-            { turnOrdinal: 0, callId, toolName: 'write_file' },
-          ],
+          durableWriteCoverage: [{ turnOrdinal: 0, callId, toolName: 'write_file' }],
         },
       ],
       planner: {
@@ -347,9 +344,7 @@ describe('Milestone F context engineering acceptance', () => {
     );
     expect(planned.plan.checkpoint.coverage.discardedSourceIds).toEqual(
       expect.arrayContaining(
-        planned.bridge.sourceRows
-          .filter((row) => row.callId === callId)
-          .map((row) => row.sourceId),
+        planned.bridge.sourceRows.filter((row) => row.callId === callId).map((row) => row.sourceId),
       ),
     );
   });
@@ -489,9 +484,9 @@ describe('Milestone F context engineering acceptance', () => {
     const metrics = {
       fixture: {
         oracleCases: fixture.oracle.length,
-        privateCorpusAvailable: fixture.privateCorpus.available,
-        privateCorpusFiles: fixture.privateCorpus.files,
-        privateCorpusBytes: fixture.privateCorpus.bytes,
+        syntheticCorpusGenerated: fixture.syntheticCorpus.generated,
+        syntheticCorpusDocuments: fixture.syntheticCorpus.documents,
+        syntheticCorpusBytes: fixture.syntheticCorpus.bytes,
       },
       providerContext: {
         profileId: 'milestone-f-200k-v1',
@@ -545,8 +540,8 @@ describe('Milestone F context engineering acceptance', () => {
 
     console.info(`MILESTONE_F_METRICS=${JSON.stringify(metrics)}`);
 
-    expect(fixture.privateCorpus.files).toBeGreaterThanOrEqual(16);
-    expect(fixture.privateCorpus.bytes).toBeGreaterThan(250_000);
+    expect(fixture.syntheticCorpus.documents).toBeGreaterThanOrEqual(16);
+    expect(fixture.syntheticCorpus.bytes).toBeGreaterThan(250_000);
     expect(Object.values(retrieval).every((value) => value.recallAt5 === 1)).toBe(true);
     expect(compactedPlans.length).toBeGreaterThanOrEqual(1);
     expect(metrics.providerContext.contextWindowTokens).toBe(200_000);

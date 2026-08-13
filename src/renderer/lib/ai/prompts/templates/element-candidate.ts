@@ -3,7 +3,7 @@
  *
  * The prompt PROSE (buildSystem/buildUserMessage) and the IP-bearing schema
  * field descriptions have moved to the server
- * (private-service/src/modules/ai/prompts/templates/element-candidate.ts).
+ * The official service maintains an independent implementation.
  * This file now holds ONLY a description-free shape: field names + value
  * constraints, used for the typed input arg, the typed return, and cheap
  * client-side validation. Nothing here reveals how the extraction works.

@@ -1,5 +1,5 @@
--- Drop the unused `book_act.summary` column (mirrors private service
--- drizzle/0043). No code path ever wrote it: acts are created with summary=''
+-- Drop the unused `book_act.summary` column. No code path ever wrote it: acts
+-- are created with summary=''
 -- and updateAct only ever sends name / startOrder / driftNodeId. An act's
 -- free-form notes live in the bound drift node (book_act.drift_node_id)
 -- instead — summary predates that binding. Schema, repo, usecase, sync and

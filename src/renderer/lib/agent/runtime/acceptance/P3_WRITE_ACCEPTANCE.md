@@ -19,20 +19,20 @@ ReaderWriterAgentRuntimeScheduler
 Run the complete acceptance suite:
 
 ```bash
-pnpm --dir client eval:agent:p3
+pnpm eval:agent:p3
 ```
 
 Run only the product write path or the process-crash matrix:
 
 ```bash
-pnpm --dir client eval:agent:p3:write
-pnpm --dir client eval:agent:p3:crash
+pnpm eval:agent:p3:write
+pnpm eval:agent:p3:crash
 ```
 
 Write a machine-readable combined report:
 
 ```bash
-pnpm --dir client eval:agent:p3 \
+pnpm eval:agent:p3 \
   --output=docs/agent-runtime/acceptance/p3-write-summary.json
 ```
 

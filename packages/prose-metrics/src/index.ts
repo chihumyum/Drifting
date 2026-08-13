@@ -1,7 +1,7 @@
 /**
- * The portable prose-metric contract shared by client and
- * private service. Callers derive ProseMirror JSON from their exact local or
- * server Yjs state before using this package.
+ * The portable prose-metric contract shared by the Drifting client and
+ * independently operated services. Callers derive ProseMirror JSON from their
+ * exact local or server Yjs state before using this package.
  */
 
 export type ProseMetricBasisKind = 'seed' | 'yjs';

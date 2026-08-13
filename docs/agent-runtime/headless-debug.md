@@ -26,7 +26,7 @@ For provider-independent tool protocol regression, no App or credential is
 needed:
 
 ```bash
-pnpm --dir client eval:agent:tool-reliability
+pnpm eval:agent:tool-reliability
 ```
 
 This deterministic gate replays fragmented and interleaved provider events,
@@ -40,7 +40,7 @@ For durable turn/write/review regression, including real file SQLite, Yjs,
 localStorage loss, partial block decisions and injected acknowledgement faults:
 
 ```bash
-pnpm --dir client eval:agent:durability
+pnpm eval:agent:durability
 ```
 
 The machine report is written to
@@ -53,7 +53,7 @@ guarded inverse, real file SQLite/Yjs, migration, restart and transaction-fault
 regression:
 
 ```bash
-pnpm --dir client eval:agent:crud
+pnpm eval:agent:crud
 ```
 
 The machine report is written to
@@ -66,7 +66,7 @@ Steer, renderer reauthorization, invisible continuation prompts, unlimited
 progressing slices, stagnation protection, and restart regression:
 
 ```bash
-pnpm --dir client eval:agent:long-task
+pnpm eval:agent:long-task
 ```
 
 The machine report is written to
@@ -79,13 +79,13 @@ compaction, malformed-output fallback, exact author-constraint retention, ranked
 search, artifact paging, multi-slice restart and compactor-fault regression:
 
 ```bash
-pnpm --dir client eval:agent:context
+pnpm eval:agent:context
 ```
 
 The machine report is written to
 [`acceptance/milestone-f-context-engineering.json`](acceptance/milestone-f-context-engineering.json).
-Private manuscript prose is read only inside the test process; the report keeps
-only availability, file count and byte count. The normative contract lives in
+Synthetic manuscript prose is generated only inside the test process; the
+report keeps only document and byte counts. The normative contract lives in
 [`context-engineering-protocol.md`](context-engineering-protocol.md).
 
 The Agent-specific checkpoint/fork gate was retired. Product migrations now
@@ -97,11 +97,11 @@ For the author-owned writing-policy boundary, arbitrary in-project entity
 writes and stale-editor-focus regression:
 
 ```bash
-pnpm --dir client eval:agent:writing
+pnpm eval:agent:writing
 ```
 
 The deterministic gate needs no App, network or API key. It stores aggregate
-local-corpus metrics but no private prose in
+synthetic-corpus metrics but no generated prose in
 [`acceptance/milestone-h-writing-intelligence.json`](acceptance/milestone-h-writing-intelligence.json).
 Its normative contract lives in
 [`author-owned-writing-policy.md`](author-owned-writing-policy.md).
@@ -110,18 +110,18 @@ The optional paid provider canary uses only a synthetic chapter and an explicit
 author instruction:
 
 ```bash
-pnpm --dir client eval:agent:writing:live
+pnpm eval:agent:writing:live
 ```
 
-It reads `DEEPSEEK_AI_API_KEY` from `private-service/.env` through the isolated
-launcher and verifies read-before-edit plus the requested mutation. It is not
-part of the network-free milestone gate.
+It reads `DEEPSEEK_AI_API_KEY` only from the invoking process environment and
+verifies read-before-edit plus the requested mutation. It is not part of the
+network-free milestone gate.
 
 To exercise two paid DeepSeek General Agent sessions against the same
 synthetic chapter and one real file-backed Yjs/SQLite product composition:
 
 ```bash
-pnpm --dir client eval:agent:concurrency:live
+pnpm eval:agent:concurrency:live
 ```
 
 The harness forces both sessions to finish the same-revision read before their
@@ -137,7 +137,7 @@ generation replacement, durable exact grants, native bridge contracts and
 real-file SQLite restart/fault regression:
 
 ```bash
-pnpm --dir client eval:agent:extensions
+pnpm eval:agent:extensions
 ```
 
 This gate does not read a credential or make a paid network call. It launches a
@@ -148,16 +148,16 @@ The security, lifecycle, permission and data-flow rules are normative in
 [`provider-extension-protocol.md`](provider-extension-protocol.md).
 
 To spend one explicit live request against a selected provider, set its key and
-run `DRIFTING_AGENT_LIVE_PROVIDER=<deepseek|anthropic|openai> pnpm --dir
-client eval:agent:extensions:live`. This canary is deliberately separate
+run `DRIFTING_AGENT_LIVE_PROVIDER=<deepseek|anthropic|openai> pnpm
+eval:agent:extensions:live`. This canary is deliberately separate
 from the network-free exit gate.
 
 Native artifact verification and resumable endurance commands are:
 
 ```bash
-pnpm --dir client eval:agent:native:verify
-pnpm --dir client eval:agent:endurance:4h
-pnpm --dir client eval:agent:endurance:12h
+pnpm eval:agent:native:verify
+pnpm eval:agent:endurance:4h
+pnpm eval:agent:endurance:12h
 ```
 
 See [`native-endurance-acceptance.md`](native-endurance-acceptance.md) for the
@@ -169,13 +169,13 @@ boundary.
 Use three terminals:
 
 ```bash
-pnpm --dir client agent:debug:server
+pnpm agent:debug:server
 ```
 
 ```bash
 VITE_DRIFTING_AGENT_DEBUG_URL=http://127.0.0.1:4317 \
   VITE_DRIFTING_AGENT_DEBUG_PROJECT_ID=synthetic-project-0001 \
-  pnpm --dir client tauri:dev
+  pnpm tauri:dev
 ```
 
 The optional project variable routes the DEV renderer directly to the target;
@@ -192,7 +192,7 @@ VITE_DRIFTING_AGENT_DEBUG_RESULT_BUDGET_CHARS=5000 \
 VITE_DRIFTING_AGENT_DEBUG_DISABLE_HMR=1 \
 VITE_DRIFTING_AGENT_DEBUG_URL=http://127.0.0.1:4317 \
 VITE_DRIFTING_AGENT_DEBUG_PROJECT_ID=<project-id> \
-pnpm --dir client tauri:dev
+pnpm tauri:dev
 ```
 
 The context override forces compaction at a smaller window. The result-budget
@@ -204,7 +204,7 @@ overrides are ignored outside Vite DEV or when the loopback debug bridge is
 disabled; the HMR override affects only this local Vite process.
 
 ```bash
-pnpm --dir client agent:debug:turn -- \
+pnpm agent:debug:turn -- \
   --project synthetic-project-0001 \
   --prompt 'READ ONLY. List the project overview and the tools you called.'
 ```
@@ -243,7 +243,7 @@ After copying the active SQLite database, run every provider-exposed write
 through the real renderer and immediately reject its durable review:
 
 ```bash
-pnpm --dir client agent:debug:writes -- \
+pnpm agent:debug:writes -- \
   --project <project-id> \
   --disposable-db
 ```
@@ -281,7 +281,7 @@ Settle a pending review through the same live product composition (including
 the exact Yjs inverse on reject):
 
 ```bash
-pnpm --dir client agent:debug:review -- \
+pnpm agent:debug:review -- \
   --project synthetic-project-0001 \
   --review 'agent-review:agent-write:…' \
   --block 'block-id' \
@@ -317,7 +317,7 @@ the production static TipTap schema, not merely compare rendered Markdown.
 Run the focused adapter gate with:
 
 ```bash
-pnpm --dir client exec vitest run \
+pnpm exec vitest run \
   src/renderer/lib/agent/markdown-prose-adapter.test.ts \
   src/renderer/lib/agent/serialize.test.ts \
   src/renderer/lib/agent/runtime/workspace-prose-file.test.ts \

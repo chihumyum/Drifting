@@ -14,14 +14,17 @@ product use cases.
 
 ## Start a debug build
 
-Start the local server in one terminal, then launch the one-command debug
-entry point from the repository root:
+Launch the one-command debug entry point from the repository root. The public
+build defaults to local-only mode, so no hosted service is required:
 
 ```bash
-pnpm server:up
 pnpm mobile:ios:debug -- --device <simulator-udid>
 pnpm mobile:android:debug -- --device <emulator-serial>
 ```
+
+To debug an explicitly online build, configure a compatible service as
+described in [`official-service.md`](official-service.md) before launching the
+same commands.
 
 The wrapper starts the loopback daemon on `127.0.0.1:4318`, creates an
 ephemeral token, injects the explicit renderer Debug variables into the Tauri
@@ -114,7 +117,7 @@ items in [`mobile-device-acceptance.md`](mobile-device-acceptance.md).
 Run the machine checks with:
 
 ```bash
-pnpm --dir client frontend:debug:check
+pnpm frontend:debug:check
 ```
 
 ## Recorded simulator smoke

@@ -90,7 +90,7 @@ the shared writer scheduler and revision/CAS checks, not by literary scope.
 Run:
 
 ```bash
-pnpm --dir client eval:agent:writing
+pnpm eval:agent:writing
 ```
 
 The gate proves:

@@ -43,9 +43,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "iOS": {
-      "developmentTeam": "XXXXXXXXXX"
-    },
     "icon": ["../src/assets/icon.png", "../src/assets/icon.ico", "../src/assets/icon.icns"]
   },
   "plugins": {

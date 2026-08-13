@@ -86,9 +86,9 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 静态结构契约由以下测试保护：
 
 ```bash
-pnpm --dir client exec vitest run src/renderer/components/workspace-surface-language.acceptance.test.ts src/renderer/components/project-dashboard-scroll.acceptance.test.ts src/renderer/components/workspace-titlebar-alignment.acceptance.test.ts src/renderer/components/left-sidebar-tab-density.acceptance.test.ts src/renderer/components/leftBars/element-panel-no-category-footer.acceptance.test.ts src/renderer/components/leftBars/element-panel-compact-index.acceptance.test.ts src/renderer/components/leftBars/left-sidebar-outer-sort.acceptance.test.ts
-pnpm --dir client exec vitest run src/renderer/components/menu-surface-style.acceptance.test.ts
-pnpm --dir client test:renderer-architecture
+pnpm exec vitest run src/renderer/components/workspace-surface-language.acceptance.test.ts src/renderer/components/project-dashboard-scroll.acceptance.test.ts src/renderer/components/workspace-titlebar-alignment.acceptance.test.ts src/renderer/components/left-sidebar-tab-density.acceptance.test.ts src/renderer/components/leftBars/element-panel-no-category-footer.acceptance.test.ts src/renderer/components/leftBars/element-panel-compact-index.acceptance.test.ts src/renderer/components/leftBars/left-sidebar-outer-sort.acceptance.test.ts
+pnpm exec vitest run src/renderer/components/menu-surface-style.acceptance.test.ts
+pnpm test:renderer-architecture
 ```
 
 测试覆盖 footer 的 DOM、状态职责与唯一 Timeline 开关、元素 panel 已移除的 category footer、紧凑索引的持久化模式/纯文字内容/流式宽度/素材库与 TODO 的无边框卡片背景复用/label 两侧 category 边框及 sticky 接缝/收起色块形变/空 category 禁止展开/纯背景选中态/连续 group 节奏与未分组边界/category 常驻新增按钮的锚定双路径菜单与首元素建组语义，以及章节、灵感、element group 的 inline 动态按钮、章节/元素内外层排序解耦及末尾虚拟组约束、topbar command ownership、Super 菜单、账户二级设置页、动作菜单与富内容 menu/popover 的共享外壳和危险项语义、不透明 macOS 窗口配置、顶栏与左右栏的统一灰色 token、一级 surface classes、静态 Tab、已移除的滑动 indicator、侧栏默认状态、Settings/Super View shell 与本文档。TypeScript、Vitest、renderer build 与 Tauri 配置检查可以证明结构与打包成立，但不能替代 macOS titlebar 几何、iOS 或 Android 上的视觉、触摸和动效验收；菜单的实际阴影与字形也需要在真实窗口中目测。

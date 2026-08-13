@@ -12,14 +12,14 @@ Rust database/Yjs/Agent/MCP HTTP host:
 ```bash
 VITE_API_BASE_URL=https://api.drifting.cc VITE_REQUIRE_AUTH=true \
 VITE_AI_TRANSPORT=proxy VITE_CLOSED_BETA=false API_BASE_URL=https://api.drifting.cc \
-APPLE_DEVELOPMENT_TEAM=<team> pnpm --dir client tauri ios build \
+APPLE_DEVELOPMENT_TEAM=<team> pnpm tauri ios build \
   --debug --target aarch64-sim --no-sign --archive-only --ci
 
 VITE_API_BASE_URL=https://api.drifting.cc VITE_REQUIRE_AUTH=true \
 VITE_AI_TRANSPORT=proxy VITE_CLOSED_BETA=false API_BASE_URL=https://api.drifting.cc \
-pnpm --dir client tauri android build --debug --target aarch64 --apk --ci
+pnpm tauri android build --debug --target aarch64 --apk --ci
 
-pnpm --dir client eval:agent:native:verify
+pnpm eval:agent:native:verify
 ```
 
 Verification hashes the iOS arm64 executable and Android APK, checks bundle id,
@@ -30,14 +30,14 @@ remains user-owned manual evidence under the repository working agreement.
 ## Endurance gate
 
 One logical epoch represents 15 minutes of sustained author work. Every epoch
-starts a fresh process and exercises the local private manuscript read-only
+starts a fresh process and exercises the deterministic synthetic manuscript
 oracle, checkpoint corruption/lost-ack recovery, automatic continuation,
 Stop/Steer/stagnation, MCP HTTP session/timeout/cancel and durable grant
-reopen/config/concurrency. No private prose enters the report.
+reopen/config/concurrency. No generated prose enters the report.
 
 ```bash
-pnpm --dir client eval:agent:endurance:4h   # 16 epochs
-pnpm --dir client eval:agent:endurance:12h  # 48 epochs
+pnpm eval:agent:endurance:4h   # 16 epochs
+pnpm eval:agent:endurance:12h  # 48 epochs
 ```
 
 The default is accelerated workload-equivalent time: it proves operation and

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const coreDir = path.resolve(path.dirname(scriptPath), '..');
-const repoDir = path.resolve(coreDir, '..');
+const repoDir = coreDir;
 const supportedTargets = new Set(['ios', 'android']);
 
 function isPrivateIpv4(address) {
@@ -53,13 +53,7 @@ function resolveApiBaseUrl() {
   if (explicitApiBaseUrl) return explicitApiBaseUrl.replace(/\/$/, '');
 
   const lanAddress = findLanIpv4();
-  if (!lanAddress) {
-    throw new Error(
-      'No reachable Mac LAN IPv4 address found. Set VITE_API_BASE_URL and API_BASE_URL explicitly.',
-    );
-  }
-
-  return `http://${lanAddress}:3000`;
+  return lanAddress ? `http://${lanAddress}:3000` : 'http://localhost:3000';
 }
 
 function createDevConfigOverride(apiBaseUrl, vitePort) {
@@ -134,12 +128,15 @@ function findAndroidNdk(env) {
 
 function mobileEnvironment(target) {
   const apiBaseUrl = resolveApiBaseUrl();
+  const localOnly = (process.env.VITE_LOCAL_ONLY_MODE ?? 'true') !== 'false';
   const env = {
     ...process.env,
     VITE_API_BASE_URL: process.env.VITE_API_BASE_URL ?? apiBaseUrl,
     API_BASE_URL: process.env.API_BASE_URL ?? apiBaseUrl,
-    VITE_REQUIRE_AUTH: process.env.VITE_REQUIRE_AUTH ?? 'true',
-    VITE_AI_TRANSPORT: process.env.VITE_AI_TRANSPORT ?? 'proxy',
+    VITE_LOCAL_ONLY_MODE: String(localOnly),
+    VITE_ENABLE_SYNC: process.env.VITE_ENABLE_SYNC ?? (localOnly ? 'false' : 'true'),
+    VITE_REQUIRE_AUTH: process.env.VITE_REQUIRE_AUTH ?? (localOnly ? 'false' : 'true'),
+    VITE_AI_TRANSPORT: process.env.VITE_AI_TRANSPORT ?? (localOnly ? 'direct' : 'proxy'),
     VITE_CLOSED_BETA: process.env.VITE_CLOSED_BETA ?? 'false',
   };
 
@@ -156,7 +153,7 @@ function mobileEnvironment(target) {
   return env;
 }
 
-async function assertBackendReachable(apiBaseUrl) {
+async function assertServiceReachable(apiBaseUrl) {
   let response;
   try {
     response = await fetch(new URL('/', apiBaseUrl), {
@@ -164,13 +161,13 @@ async function assertBackendReachable(apiBaseUrl) {
     });
   } catch {
     throw new Error(
-      `Cannot reach the local backend at ${apiBaseUrl}. Start it in another terminal with "pnpm server:up".`,
+      `Cannot reach the configured service at ${apiBaseUrl}. Start it separately or use the default local-only mode.`,
     );
   }
 
   if (!response.ok) {
     throw new Error(
-      `Local backend preflight failed at ${apiBaseUrl} with HTTP ${response.status}.`,
+      `Configured service preflight failed at ${apiBaseUrl} with HTTP ${response.status}.`,
     );
   }
 }
@@ -178,9 +175,7 @@ async function assertBackendReachable(apiBaseUrl) {
 async function run() {
   const target = process.argv[2];
   if (!supportedTargets.has(target)) {
-    console.error(
-      'Usage: node scripts/run-mobile-dev.mjs <ios|android> [device/options]',
-    );
+    console.error('Usage: node scripts/run-mobile-dev.mjs <ios|android> [device/options]');
     process.exitCode = 2;
     return;
   }
@@ -201,9 +196,9 @@ async function run() {
   const informationOnly = forwardedArgs.some((arg) =>
     ['-h', '--help', '-V', '--version'].includes(arg),
   );
-  if (!informationOnly) {
+  if (!informationOnly && env.VITE_LOCAL_ONLY_MODE === 'false') {
     try {
-      await assertBackendReachable(env.VITE_API_BASE_URL);
+      await assertServiceReachable(env.VITE_API_BASE_URL);
     } catch (error) {
       console.error(error instanceof Error ? error.message : error);
       process.exitCode = 1;
@@ -227,7 +222,11 @@ async function run() {
   const devConfig = createDevConfigOverride(env.VITE_API_BASE_URL, vitePort);
   const args = ['--dir', coreDir, 'tauri', target, 'dev', '--config', devConfig, ...forwardedArgs];
 
-  console.log(`Starting ${target} dev build with local API ${env.VITE_API_BASE_URL}`);
+  console.log(
+    env.VITE_LOCAL_ONLY_MODE === 'true'
+      ? `Starting ${target} dev build in local-only mode`
+      : `Starting ${target} dev build with configured service ${env.VITE_API_BASE_URL}`,
+  );
   console.log(`Using Vite dev port ${vitePort}`);
   if (target === 'android') console.log(`Using Android NDK ${env.NDK_HOME}`);
   if (forwardedArgs.length === 0) {

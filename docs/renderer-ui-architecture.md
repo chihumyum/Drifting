@@ -109,13 +109,13 @@ cascade order.
 ## Machine acceptance
 
 ```bash
-pnpm --dir client typecheck
-pnpm --dir client lint
-pnpm --dir client test:renderer-architecture
-pnpm --dir client exec vitest run \
+pnpm typecheck
+pnpm lint
+pnpm test:renderer-architecture
+pnpm exec vitest run \
   src/renderer/hooks/useSuperViewEscapeStack.test.ts \
   src/renderer/components/ui/EntityCardPopoverShell.test.ts
-pnpm --dir client exec vite build
+pnpm exec vite build
 ```
 
 Architecture and state tests do not establish desktop visual regression,

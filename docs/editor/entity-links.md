@@ -71,7 +71,7 @@ Machine-checkable coverage lives in:
 Run the focused checks with:
 
 ```sh
-pnpm --dir client exec vitest run \
+pnpm exec vitest run \
   src/renderer/lib/entity-link-appearance.test.ts \
   src/renderer/lib/extensions/entity-link.test.ts \
   src/renderer/components/ui/entity-hover-card-model.test.ts \
@@ -82,5 +82,5 @@ pnpm typecheck
 
 These checks cover preference normalization, color resolution, markup
 attributes, store-backed metadata, and viewport positioning. The broader
-renderer production check is `pnpm --dir client exec vite build`.
+renderer production check is `pnpm exec vite build`.
 Native Tauri visual behavior remains a manual acceptance boundary.

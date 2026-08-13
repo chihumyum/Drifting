@@ -29,18 +29,18 @@ eight top-level fields, object nesting no deeper than two levels, no union of
 object-shaped argument branches, and no runtime plumbing fields. A small valid
 domain example must pass while a generic authored-object shape must fail.
 
-| Domain | Natural authored target |
-| --- | --- |
-| Chapters | `章节「<名称>」` |
-| Drifts | `灵感「<名称>」` |
-| Elements | `要素「<名称>」（分类「<分类>」）` |
-| Element categories | `要素分类「<名称>」` |
-| Storylines | `故事线「<名称>」` |
-| Storyline membership | `故事线「<名称>」章节关系` |
-| Comments and TODOs | `批注或待办「<handle>」` |
-| Entity relations | `实体关系「<handle>」` |
-| Agent memory | `作者规则「<handle>」` |
-| Project facts | `项目事实` |
+| Domain               | Natural authored target            |
+| -------------------- | ---------------------------------- |
+| Chapters             | `章节「<名称>」`                   |
+| Drifts               | `灵感「<名称>」`                   |
+| Elements             | `要素「<名称>」（分类「<分类>」）` |
+| Element categories   | `要素分类「<名称>」`               |
+| Storylines           | `故事线「<名称>」`                 |
+| Storyline membership | `故事线「<名称>」章节关系`         |
+| Comments and TODOs   | `批注或待办「<handle>」`           |
+| Entity relations     | `实体关系「<handle>」`             |
+| Agent memory         | `作者规则「<handle>」`             |
+| Project facts        | `项目事实`                         |
 
 Creation returns a canonical semantic result containing the created handle when
 the domain needs one. Subsequent domain operations pass that handle directly.
@@ -54,16 +54,16 @@ capability inventory.
 
 ## 2. Authority and projection
 
-| State | Authority | Renderer projection |
-| --- | --- | --- |
-| Chapter, drift, element, category, and storyline prose | live Yjs document plus persisted Yjs state | editor and authored-object projection |
-| Structural metadata | SQLite | Zustand data/project stores |
-| Comments and TODOs | SQLite | comment store/editor decorations |
-| Entity relations | SQLite | relation store and semantic links |
-| Storyline membership and primary assignment | SQLite link graph | storyline/node mapping stores |
-| Agent memory | SQLite | prompt memory and author-rule projection |
-| Review decisions | SQLite ordered review blocks | editor review badges and animations |
-| Cross-device delivery | transactional local sync outbox | server projection after flush |
+| State                                                  | Authority                                  | Renderer projection                      |
+| ------------------------------------------------------ | ------------------------------------------ | ---------------------------------------- |
+| Chapter, drift, element, category, and storyline prose | live Yjs document plus persisted Yjs state | editor and authored-object projection    |
+| Structural metadata                                    | SQLite                                     | Zustand data/project stores              |
+| Comments and TODOs                                     | SQLite                                     | comment store/editor decorations         |
+| Entity relations                                       | SQLite                                     | relation store and semantic links        |
+| Storyline membership and primary assignment            | SQLite link graph                          | storyline/node mapping stores            |
+| Agent memory                                           | SQLite                                     | prompt memory and author-rule projection |
+| Review decisions                                       | SQLite ordered review blocks               | editor review badges and animations      |
+| Cross-device delivery                                  | transactional local sync outbox            | server projection after flush            |
 
 LocalStorage and Zustand are projections. They cannot independently approve,
 reject, create, delete, or revert an Agent mutation. Prose writes never mutate
@@ -220,15 +220,15 @@ facts.
 
 ## 10. Approval policy
 
-| Mutation | Policy | User surface |
-| --- | --- | --- |
-| Prose edit | review after | write immediately; inline editor badge accepts/rejects blocks or all |
-| Safe metadata, comment/TODO, pending memory proposal | automatic | semantic activity only |
-| Delete structural resource, comment/TODO, or memory | confirm before | chat permission request |
-| Relation create or relation-kind update | automatic | semantic activity only |
-| Relation delete | confirm before | chat permission request |
-| Add storyline membership or set primary | automatic | semantic activity only |
-| Remove membership or replace the complete membership set | confirm before | chat permission request |
+| Mutation                                                 | Policy         | User surface                                                         |
+| -------------------------------------------------------- | -------------- | -------------------------------------------------------------------- |
+| Prose edit                                               | review after   | write immediately; inline editor badge accepts/rejects blocks or all |
+| Safe metadata, comment/TODO, pending memory proposal     | automatic      | semantic activity only                                               |
+| Delete structural resource, comment/TODO, or memory      | confirm before | chat permission request                                              |
+| Relation create or relation-kind update                  | automatic      | semantic activity only                                               |
+| Relation delete                                          | confirm before | chat permission request                                              |
+| Add storyline membership or set primary                  | automatic      | semantic activity only                                               |
+| Remove membership or replace the complete membership set | confirm before | chat permission request                                              |
 
 When the author enables **Allow dangerous Agent operations**, confirm-before
 deletes and destructive set replacements execute without an additional prompt.
@@ -262,7 +262,7 @@ prose-owning paths. It verifies:
 Run:
 
 ```bash
-pnpm --dir client eval:agent:crud
+pnpm eval:agent:crud
 ```
 
 The command writes

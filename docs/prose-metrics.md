@@ -68,11 +68,12 @@ goals; subsequent snapshots rebuild from canonical chapter totals.
 ## Deterministic acceptance
 
 ```bash
-pnpm --dir client eval:prose-metrics
-cd private service && bun test src/modules/sync/prose-metrics-materializer.test.ts src/modules/node/node-prose-metric-policy.test.ts src/modules/node/node-route-contract.test.ts
-pnpm --dir client typecheck
-pnpm --dir private service typecheck
+pnpm eval:prose-metrics
+pnpm typecheck
 ```
+
+The official service keeps an independent implementation and acceptance suite.
+It is not part of this repository or required to validate the client package.
 
 The fixture covers the established mixed CJK/Latin rule, canonical semantic
 hashing, seed versus revision-backed projections, Agent-created prose, and

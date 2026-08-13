@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_ENABLE_SYNC?: string;
   readonly VITE_REQUIRE_AUTH?: string;
   readonly VITE_DEV_SESSION_STORAGE?: 'local' | 'keychain';
+  readonly VITE_TERMS_URL?: string;
+  readonly VITE_PRIVACY_URL?: string;
 }
 
 interface ImportMeta {

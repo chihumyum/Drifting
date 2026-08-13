@@ -42,9 +42,7 @@ describe('Ambient Editor frozen design boundary', () => {
     expect(architecture).toContain('Concern remains the lifecycle authority');
     expect(architecture).toContain('terminal `submit_projection_candidate`');
     expect(architecture).toContain('terminal `submit_reconciliation`');
-    expect(architecture).toMatch(
-      /Every Lens\s+family defines a versioned typed identity encoder/,
-    );
+    expect(architecture).toMatch(/Every Lens\s+family defines a versioned typed identity encoder/);
     expect(architecture).toContain('no pass/fail or automatic prose/Canon mutation');
   });
 
@@ -62,7 +60,7 @@ describe('Ambient Editor frozen design boundary', () => {
     const currentStatus = read('docs/agent-runtime/acceptance/CURRENT_STATUS.md');
     const roadmap = read('docs/agent-runtime/ROADMAP.md');
     const productReadme = read('README.md');
-    const agentGuidance = read('../AGENTS.md');
+    const agentGuidance = read('AGENTS.md');
 
     expect(docsIndex).toContain('ambient-editor/README.md');
     expect(productReadme).toContain('docs/ambient-editor/README.md');

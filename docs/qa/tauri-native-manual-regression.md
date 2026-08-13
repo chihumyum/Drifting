@@ -17,9 +17,9 @@
 
 相关资料：
 
-- [Drifting Core README](../../README.md)
+- [Drifting README](../../README.md)
 - [Explicit Tauri platform boundaries](../../src-tauri/UNSUPPORTED.md)
-- [Server production environment example](../../private-service/.env.production.example)
+- [Official-service boundary](../official-service.md)
 - [Android secure-storage instrumented test](../../src-tauri/plugins/drifting-secure-storage/android/src/androidTest/java/SecureStorageInstrumentedTest.kt)
 
 ## 1. 使用方式
@@ -63,14 +63,14 @@ OS / API level：
 
 ## 2. 自动化已经覆盖什么
 
-| 范围                   | 自动化已覆盖                                                                       | 仍需手工验证                                                          |
-| ---------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Android secure storage | Rust key 校验；Kotlin 格式、损坏、上限测试；instrumented test 源码                 | 真 Keystore、跨进程/重启、覆盖升级、卸载、真实密文检查、厂商差异      |
-| OAuth Server           | state、PKCE、HMAC binding、redirect allowlist、过期、一次性兑换、敏感 payload 解析 | 真实 Google、浏览器 cookie、真实 PostgreSQL 竞争、deep link、生产日志 |
-| OAuth renderer         | warm/queued callback、state 不匹配、过期、exchange 失败                            | 冷启动 callback、浏览器取消、断网、系统切换、session 持久化           |
-| 图片 pipeline          | 普通图片、方向、格式嗅探、尺寸/内存上限；macOS ImageIO HEIC/AVIF                   | iOS 真机、Android 系统 codec、照片选择器、R2、两个真实 UI 入口        |
-| General Agent          | 生成能力清单、功能 checklist、SQLite/Yjs 故障与恢复、领域写入、长任务、compaction、provider/MCP 合同 | 付费 provider 抽检、桌面/iOS/Android UI、后台恢复、触摸与软键盘     |
-| 构建                   | macOS 测试、iOS/Android Rust 交叉编译、Android APK/Kotlin 编译                     | 安装、权限、后台生命周期、低内存、不同厂商设备                        |
+| 范围                   | 自动化已覆盖                                                                                         | 仍需手工验证                                                          |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Android secure storage | Rust key 校验；Kotlin 格式、损坏、上限测试；instrumented test 源码                                   | 真 Keystore、跨进程/重启、覆盖升级、卸载、真实密文检查、厂商差异      |
+| OAuth Server           | state、PKCE、HMAC binding、redirect allowlist、过期、一次性兑换、敏感 payload 解析                   | 真实 Google、浏览器 cookie、真实 PostgreSQL 竞争、deep link、生产日志 |
+| OAuth renderer         | warm/queued callback、state 不匹配、过期、exchange 失败                                              | 冷启动 callback、浏览器取消、断网、系统切换、session 持久化           |
+| 图片 pipeline          | 普通图片、方向、格式嗅探、尺寸/内存上限；macOS ImageIO HEIC/AVIF                                     | iOS 真机、Android 系统 codec、照片选择器、R2、两个真实 UI 入口        |
+| General Agent          | 生成能力清单、功能 checklist、SQLite/Yjs 故障与恢复、领域写入、长任务、compaction、provider/MCP 合同 | 付费 provider 抽检、桌面/iOS/Android UI、后台恢复、触摸与软键盘       |
+| 构建                   | macOS 测试、iOS/Android Rust 交叉编译、Android APK/Kotlin 编译                                       | 安装、权限、后台生命周期、低内存、不同厂商设备                        |
 
 精确工具与能力数量以
 `docs/agent-runtime/acceptance/agent-capabilities.md` 为准；本手册
@@ -82,15 +82,15 @@ OS / API level：
 
 ```bash
 pnpm install
-pnpm --dir client tauri:ios:dev
-pnpm --dir client tauri:android:dev
+pnpm tauri:ios:dev
+pnpm tauri:android:dev
 ```
 
 需要候选安装包时使用：
 
 ```bash
-pnpm --dir client tauri:ios:build
-pnpm --dir client tauri:android:build
+pnpm tauri:ios:build
+pnpm tauri:android:build
 ```
 
 OAuth staging 必须满足：

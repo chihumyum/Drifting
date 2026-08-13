@@ -22,8 +22,8 @@ After a tool, provider, strategy, context, product composition, or Agent
 documentation change, run:
 
 ```bash
-pnpm --dir client agent:capabilities:generate
-pnpm --dir client agent:capabilities:check
+pnpm agent:capabilities:generate
+pnpm agent:capabilities:check
 ```
 
 ## Current product boundary

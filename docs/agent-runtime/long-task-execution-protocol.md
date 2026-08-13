@@ -175,7 +175,7 @@ and artifact budgeting are Milestone F.
 Run:
 
 ```bash
-pnpm --dir client eval:agent:long-task
+pnpm eval:agent:long-task
 ```
 
 The gate covers real product SQLite migrations, command-receipt rollback,
@@ -191,5 +191,5 @@ checkpoint/fork UI was subsequently implemented and then removed; long-task
 continuity remains session-local durable runtime state.
 
 Milestone H extends this execution state machine with read-only whole-book QA.
-Run `pnpm --dir client eval:agent:writing` for the cited review,
+Run `pnpm eval:agent:writing` for the cited review,
 forged-quote, rollback and restart matrix.

@@ -27,18 +27,20 @@ Vite/Rust 的开发监听。未指定目标时，Tauri 优先使用已经连接�
 进程必须保持运行；退出命令会同时结束 dev server。移动入口会从 `5173–5193` 自动选择空闲的
 Vite 端口，因此可以和已经占用 `5173` 的桌面开发进程并行运行。
 
-dev 包默认连接 Mac 局域网 IPv4 地址上的本地后端，例如 `http://192.168.31.28:3000`，并启用正常认证和
-proxy AI transport。脚本不会把 `localhost` 交给真机；它会把检测到的 API origin 精确加入本次 Tauri
-dev CSP，并在原生构建前检查本地后端是否可访问。若调用前已经显式设置同名环境变量，脚本会保留你的值。
+dev 包默认使用 local-only 模式：不要求账号、不启用同步，并让 BYOK AI 直连所选模型提供商。
+若显式启用网络服务，脚本不会把 `localhost` 交给真机；它会把检测到或指定的 API origin 精确加入
+本次 Tauri dev CSP，并在原生构建前检查该服务是否可访问。
 
-先在一个独立终端启动本地数据库与 Server，并保持进程运行：
+需要联调兼容服务时，先在独立终端启动该服务，再显式关闭 local-only：
 
 ```bash
-pnpm server:up
+VITE_LOCAL_ONLY_MODE=false \
+VITE_API_BASE_URL=http://192.168.1.20:3000 \
+API_BASE_URL=http://192.168.1.20:3000 \
+pnpm mobile:ios:dev
 ```
 
-再在第二个终端运行 iOS 或 Android dev 命令。若 3000 端口未启动、只监听 loopback 或被防火墙阻断，
-移动命令会在开始原生构建前给出错误。
+若服务未启动、只监听 loopback 或被防火墙阻断，移动命令会在开始原生构建前给出错误。
 
 ## First-time setup
 
@@ -47,7 +49,7 @@ iOS/Android 工程已在 `src-tauri/gen` 初始化，不要重复运行 init 命
 
 ### iOS
 
-- 安装并启动过 Xcode，在 Xcode 中登录 Apple ID；Tauri 源配置和生成的 Xcode 工程已有 development team 配置。
+- 安装并启动过 Xcode，在 Xcode 中登录 Apple ID；签名团队应在本机 Xcode 配置，不提交到仓库。
 - 模拟器：先在 Xcode 的 Devices and Simulators 中安装所需 runtime。
 - 真机：USB 连接 iPhone，信任这台 Mac，开启 Developer Mode；首次运行时允许 Drifting 访问本地网络。
 - Mac 与 iPhone 应位于可以互访的同一网络。公司/访客 Wi-Fi 若隔离设备，可改用个人热点或 Xcode 的设备网络地址。
@@ -90,6 +92,7 @@ pnpm mobile:android:dev -- --open --host
 ```bash
 VITE_API_BASE_URL=http://192.168.1.20:3000 \
 API_BASE_URL=http://192.168.1.20:3000 \
+VITE_LOCAL_ONLY_MODE=false \
 pnpm mobile:ios:dev
 ```
 

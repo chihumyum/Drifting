@@ -656,9 +656,9 @@ export const useSettingsStore = create<SettingsState>()(
 
       improveModelsWithManuscripts: false,
       setImproveModelsWithManuscripts: (on) => set({ improveModelsWithManuscripts: on }),
-      sendUsageStats: true,
+      sendUsageStats: false,
       setSendUsageStats: (on) => set({ sendUsageStats: on }),
-      sendCrashLogs: true,
+      sendCrashLogs: false,
       setSendCrashLogs: (on) => set({ sendCrashLogs: on }),
     }),
     {

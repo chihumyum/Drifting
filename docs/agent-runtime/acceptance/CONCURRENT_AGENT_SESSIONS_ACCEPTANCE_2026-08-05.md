@@ -81,7 +81,7 @@ sibling chat selectors, activity call-ID collisions, session-owned revert
 feedback, durable Yjs collaborator provenance, model-visible user versus
 sibling-Agent conflict attribution and the two-conflict target stop.
 
-Commands run from `client`:
+Commands run from the repository root:
 
 ```text
 pnpm typecheck
@@ -108,7 +108,7 @@ tests.
 The credentialed, isolated product canary is:
 
 ```text
-pnpm --dir client eval:agent:concurrency:live
+pnpm eval:agent:concurrency:live
 ```
 
 It creates a temporary file-backed product database and one synthetic Yjs

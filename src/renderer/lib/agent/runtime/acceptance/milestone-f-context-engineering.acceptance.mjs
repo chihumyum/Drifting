@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const CORE_DIRECTORY = fileURLToPath(new URL('../../../../../../', import.meta.url));
 
 const TEST_GROUPS = {
-  realBookAndLongContext: [
+  syntheticBookAndLongContext: [
     'src/renderer/lib/agent/runtime/acceptance/milestone-f-literary-context.acceptance.test.ts',
     'src/renderer/lib/agent/runtime/acceptance/milestone-f-context-engineering.acceptance.test.ts',
   ],
@@ -69,24 +69,22 @@ const HASHED_SOURCE_FILES = [
 const REQUIRED_ASSERTIONS = {
   longBookContext:
     'preserves literary evidence and author constraints across 200k multi-slice compaction, restart, and compactor faults',
-  realBookRetrieval:
-    'recalls canon, voice, aliases, writing rules, and chapter evidence from the real-book fixture',
+  syntheticBookRetrieval:
+    'recalls canon, voice, aliases, writing rules, and chapter evidence from the synthetic fixture',
   providerTarget: 'installs the current default driver at the 200k product target',
   providerCannotBeEnlarged: 'never enlarges a smaller provider declaration',
   undeclaredProviderFallback: 'uses a conservative window for an undeclared custom driver',
   safeCompactorFallback:
     'leaves committed-write proof to durable receipts and rejects forged provider evidence',
   sameTurnOversize: 'compacts older tool batches inside one oversized current turn',
-  sameTurnChunking:
-    'chunks inside one turn at tool-topology boundaries without splitting a pair',
+  sameTurnChunking: 'chunks inside one turn at tool-topology boundaries without splitting a pair',
   boundedCompactorCalls: 'stops after enough chunk gain instead of compacting all history',
   maxContextMode: 'lets Max request 1M while still capping to the provider declaration',
   mixedChunkGain:
     'keeps a no-gain short chunk exact while applying profitable full-compactor chunks',
   activeTurnWriteDelta:
     'drops same-turn pre-write prose after recovery while retaining the successful delta',
-  focusedWorkingCopy:
-    'keeps one complete same-turn working copy across focused authored edits',
+  focusedWorkingCopy: 'keeps one complete same-turn working copy across focused authored edits',
   supersededRead:
     'drops an older complete read when a newer complete read covers the same authored object',
   obsoleteSummaryRetirement:
@@ -95,20 +93,11 @@ const REQUIRED_ASSERTIONS = {
     'keeps a bounded multi-chapter authored working set exact when it fits the window',
   noopContextRetirement:
     'drops a successful side-effect-free write while retaining an unresolved write',
-  noopWriteSettlement:
-    'settles a workspace no-op as success without claiming a durable effect',
-  bundledSummaryRead:
-    'lets the summary bundled with a chapter read authorize a summary rewrite',
+  noopWriteSettlement: 'settles a workspace no-op as success without claiming a durable effect',
   durableReadProgress:
     'keeps complete authored reading as current domain state after body and summary writes',
   domainReadProgressPresentation:
     'retains full-read and current-summary state without transport vocabulary',
-  numericOrdinalIdentity:
-    'never substitutes book order for a missing number in numeric-titled manuscripts',
-  dominantPassageTarget:
-    'uses the dominant quoted passages to correct an accidentally misnamed read chapter',
-  redundantReadDeferral:
-    'defers one redundant whole-body read to the durable current working copy',
   wholeChapterSummaryReview:
     'commits whole-chapter prose and summary together and restores the summary when one block is rejected',
   wholeChapterSummaryRollback:
@@ -263,8 +252,10 @@ export async function runMilestoneFAcceptance(options = parseOptions([])) {
     );
     const metricGates = {
       providerContextWindow: metrics.providerContext.contextWindowTokens === 200_000,
-      realPrivateBook:
-        metrics.fixture.privateCorpusFiles >= 16 && metrics.fixture.privateCorpusBytes >= 250_000,
+      syntheticLongBook:
+        metrics.fixture.syntheticCorpusGenerated === true &&
+        metrics.fixture.syntheticCorpusDocuments >= 16 &&
+        metrics.fixture.syntheticCorpusBytes >= 250_000,
       retrieval: Object.values(metrics.retrieval).every((value) => value.recallAt5 === 1),
       compaction:
         metrics.providerContext.compactedSlices >= 1 &&
@@ -303,8 +294,8 @@ export async function runMilestoneFAcceptance(options = parseOptions([])) {
       sourceSetSha256: await hashSourceSet(HASHED_SOURCE_FILES),
       corpusPolicy: {
         committedTruth: 'distilled fog-harbor golden fixture',
-        privateProse:
-          'read at test runtime only; machine report stores counts and bytes, never prose',
+        syntheticProse:
+          'generated at test runtime only; machine report stores counts and bytes, never prose',
         providerNetworkRequired: false,
       },
       metrics,

@@ -1,6 +1,16 @@
-# Drifting Core
+# Drifting
 
-The Tauri 2 client for Drifting, a local-first creative writing and story-planning application.
+Drifting is a local-first creative writing and story-planning application built with Tauri 2,
+Rust, React, SQLite, Yjs, and Tiptap.
+
+This repository contains the Drifting client. The official hosted service and its private server
+implementation are not included. A normal source build starts in local-only mode: no account or
+server is required, sync is disabled, and BYOK AI requests use direct provider transport. Account,
+cloud sync, billing, and proxy-backed AI require a separately operated compatible service.
+
+This history was extracted and rewritten from the original private monorepo. Server-only changes,
+credentials, private literary material, generated artifacts, personal email addresses, and layout
+transitions were removed or normalized, so commit hashes differ from the private source history.
 
 ## Stack
 
@@ -18,13 +28,13 @@ to typed Tauri platform contracts.
 
 Prerequisites:
 
-- Node.js 22.13 or newer and `pnpm`
+- Node.js 22.23.1 or newer and `pnpm` 10.17.1
 - Rust 1.88 or newer, plus the platform prerequisites from the Tauri 2 documentation
 - Xcode for iOS, or Android Studio/SDK for Android
 
 ```bash
 pnpm install
-pnpm --dir client dev
+pnpm dev
 ```
 
 Development uses `.local-data/databases` through `DRIFTING_DB_DIR`. Production uses
@@ -33,23 +43,23 @@ the Tauri application-local data directory.
 Useful commands:
 
 ```bash
-pnpm --dir client typecheck
-pnpm --dir client test
-pnpm --dir client agent:capabilities:check
-pnpm --dir client eval:agent:tool-reliability
-pnpm --dir client eval:agent:durability
-pnpm --dir client eval:agent:crud
-pnpm --dir client eval:agent:long-task
-pnpm --dir client eval:agent:working-memory
-pnpm --dir client eval:agent:context
-pnpm --dir client eval:agent:writing
-pnpm --dir client eval:agent:p5
-pnpm --dir client tauri:build
-pnpm --dir client icons:mobile:check
+pnpm typecheck
+pnpm test
+pnpm agent:capabilities:check
+pnpm eval:agent:tool-reliability
+pnpm eval:agent:durability
+pnpm eval:agent:crud
+pnpm eval:agent:long-task
+pnpm eval:agent:working-memory
+pnpm eval:agent:context
+pnpm eval:agent:writing
+pnpm eval:agent:p5
+pnpm tauri:build
+pnpm icons:mobile:check
 pnpm mobile:ios:dev
-pnpm --dir client tauri:ios:build
+pnpm tauri:ios:build
 pnpm mobile:android:dev
-pnpm --dir client tauri:android:build
+pnpm tauri:android:build
 ```
 
 The iOS and Android projects are already initialized under `src-tauri/gen/apple` and
@@ -65,29 +75,30 @@ Xcode-generated compatibility renderings instead of selecting the legacy `AppIco
 Android uses the same transparent iceberg outline as an adaptive foreground over a separate blue
 gradient background. The foreground uses 90% of Android's central 66×66dp safe zone, and the same
 outline supplies the monochrome layer for themed icons. After changing the Icon Composer artwork,
-run `pnpm --dir client icons:mobile`, then
-`pnpm --dir client icons:mobile:check`. The first command refreshes checked-in native icon
+run `pnpm icons:mobile`, then
+`pnpm icons:mobile:check`. The first command refreshes checked-in native icon
 assets; the second verifies the iOS project wiring, Android layers, safe-zone bounds and density
 matrix. A native rebuild/install is still required before judging the launcher result.
 
 The two root-level mobile development commands select a connected device or prompt for a simulator,
-build and install the native dev app, start it, and keep Vite hot reload attached. They default to the
-local backend at the Mac's detected LAN IPv4 address on port 3000 and fail early when it is not
-reachable. Device setup, explicit target selection, API overrides, inspection, and the manual checklist are documented in
+build and install the native dev app, start it, and keep Vite hot reload attached. They default to
+local-only mode. An operator can explicitly enable a compatible service and provide its reachable
+API origin. Device setup, target selection, service overrides, inspection, and the manual checklist are documented in
 [`docs/mobile-device-acceptance.md`](docs/mobile-device-acceptance.md).
 
-`tauri:build` injects the public production API origin explicitly. Renderer builds do not load
+The default `tauri:build` is local-only. Operators can explicitly provide a compatible API origin
+and enable network features; source builds do not receive automatic access to the official hosted
+service. Renderer builds do not load
 ignored `.env*` files and fail if a `VITE_*API_KEY`, `VITE_*SECRET`, or `VITE_*TOKEN` variable would
 be embedded. BYOK credentials belong in the native credential store, never in a distributable
-bundle. The current pre-alpha artifacts set `VITE_CLOSED_BETA=false` so invited testers can create
-accounts; change that explicit build flag when registration should be closed again.
+bundle.
 
 The deterministic local demo seeder remains available without Electron or a
 native Node addon:
 
 ```bash
-pnpm --dir client demo:seed
-pnpm --dir client demo:purge-local
+pnpm demo:seed
+pnpm demo:purge-local
 ```
 
 ## Layout
@@ -97,6 +108,7 @@ pnpm --dir client demo:purge-local
 ├── src-tauri/          Rust host, SQLite gateway, native capabilities, mobile projects
 ├── src/renderer/       React application and platform contracts
 ├── drizzle/            Embedded, ordered SQLite migrations
+├── packages/           Separately licensed shared packages
 ├── scripts/            Development and asset-generation utilities
 └── vite.renderer.config.ts
 ```
@@ -211,6 +223,28 @@ Documentation entry points:
 - [mobile device acceptance](docs/mobile-device-acceptance.md)
 - [explicit Tauri limitations](src-tauri/UNSUPPORTED.md)
 
-## License
+## Licensing and project policy
 
-MIT
+Except where a file or directory says otherwise, the Drifting client is licensed under
+[GNU AGPL v3 or later](LICENSE). `packages/prose-metrics` is separately licensed under
+[Apache License 2.0](packages/prose-metrics/LICENSE) so independently operated services can consume
+the metrics contract without importing the AGPL client.
+
+- [Contributing and CLA](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Privacy boundaries](PRIVACY.md)
+- [Hosted-service boundary](docs/official-service.md)
+- [Trademark policy](TRADEMARKS.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+The source license does not grant permission to present a fork as the official Drifting product.
+Forks that distribute binaries should replace the name, logos, bundle identifier, deep-link scheme,
+and official service endpoints unless they have written trademark permission.
+
+This repository is ready for source review, not an automatic binary-release
+approval. Before distributing a desktop or mobile binary, bundle the applicable
+license and third-party notices offline, link Corresponding Source to the exact
+release tag or commit, configure real operator terms/privacy URLs, and complete
+platform-specific license review. In particular, App Store or TestFlight
+distribution under pure AGPL requires separate legal review because platform
+terms may add restrictions that AGPL does not permit.
