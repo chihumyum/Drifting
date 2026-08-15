@@ -60,18 +60,25 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(zh).not.toContain('用 H1 / H2 / H3 标题构建大纲');
   });
 
-  it('offers persisted show and hide choices beside Entity Link', () => {
+  it('toggles persisted TOC visibility directly beside Entity Link', () => {
     const topBar = source('src/renderer/components/editor/EditorTopBar.tsx');
     const rail = source('src/renderer/components/editor/EditorOutlineRail.tsx');
     const settings = source('src/renderer/store/settings-store.ts');
     const preferences = source('src/renderer/services/preferences-sync.service.ts');
     const uiStore = source('src/renderer/store/ui-store.ts');
     const workspace = source('src/renderer/shells/desktop/DesktopWorkspace.tsx');
+    const outlineToggle = topBar.slice(
+      topBar.indexOf('function OutlineRailToggle'),
+      topBar.indexOf('function injectSeparators'),
+    );
 
-    expect(topBar).toContain("['visible', 'hidden']");
-    expect(topBar).toContain('role="menuitemradio"');
-    expect(topBar).toContain('editor-bar__icon--outline');
-    expect(topBar.indexOf('<OutlineRailModeMenu')).toBeLessThan(
+    expect(outlineToggle).toContain('editor-bar__icon--outline');
+    expect(outlineToggle).toContain('aria-pressed={visible}');
+    expect(outlineToggle).toContain("setMode(visible ? 'hidden' : 'visible')");
+    expect(outlineToggle).not.toContain('role="menuitemradio"');
+    expect(outlineToggle).not.toContain('<AnchoredPopover');
+    expect(topBar).not.toContain('editor-bar__outline-menu');
+    expect(topBar.indexOf('<OutlineRailToggle')).toBeLessThan(
       topBar.indexOf('editor-bar__icon--reflink'),
     );
     expect(rail).toContain("presentation?.outlineVisible ?? outlineRailMode !== 'hidden'");
@@ -164,6 +171,8 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(doc).toContain('retired dual-layer implementation is absent');
     expect(doc).toContain('1. `visible`');
     expect(doc).toContain('2. `hidden`');
+    expect(doc).toMatch(/toggles the preference\s+immediately/);
+    expect(doc).toContain('does not open a dropdown');
     expect(doc).toMatch(/immediately beside the\s+Entity Link/);
     expect(doc).toContain('do not synthesize the entity name');
     expect(doc).toMatch(/TOC label lane (?:stays|is)\s+blank/);

@@ -16,7 +16,7 @@ import {
   MANUAL_CHAPTER_WRITING_STATUSES,
   type WritingStatus,
 } from '../../domain/book-node';
-import { useSettingsStore, type OutlineRailMode } from '../../store/settings-store';
+import { useSettingsStore } from '../../store/settings-store';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 
 export type EditorType = 'node' | 'element' | 'category' | 'storyline';
@@ -145,7 +145,7 @@ export function EditorTopBar({
         )}
         {(editorType || referenceLinkToggle) && (
           <div className="editor-bar__toggle-group">
-            {editorType && <OutlineRailModeMenu translate={t} />}
+            {editorType && <OutlineRailToggle translate={t} />}
             {referenceLinkToggle && (
               <button
                 type="button"
@@ -199,67 +199,25 @@ export function EditorTopBar({
   );
 }
 
-const OUTLINE_RAIL_MODES: readonly OutlineRailMode[] = ['visible', 'hidden'];
-
-const OUTLINE_RAIL_MODE_LABEL_KEYS: Record<OutlineRailMode, string> = {
-  visible: 'editorTopBar.outlineRailMode.visible',
-  hidden: 'editorTopBar.outlineRailMode.hidden',
-};
-
-function OutlineRailModeMenu({ translate }: { translate: Translate }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+function OutlineRailToggle({ translate }: { translate: Translate }) {
   const mode = useSettingsStore((state) => state.outlineRailMode);
   const setMode = useSettingsStore((state) => state.setOutlineRailMode);
-  const label = translate(OUTLINE_RAIL_MODE_LABEL_KEYS[mode]);
-  const title = `${translate('editorTopBar.actions.outlineRailDisplay')}: ${label}`;
+  const visible = mode === 'visible';
+  const title = translate(
+    visible ? 'editorTopBar.outlineRailMode.hidden' : 'editorTopBar.outlineRailMode.visible',
+  );
 
   return (
-    <>
-      <button
-        ref={buttonRef}
-        type="button"
-        className={`editor-bar__icon editor-bar__icon--outline${mode === 'visible' ? ' editor-bar__icon--active' : ''}`}
-        title={title}
-        aria-label={title}
-        aria-expanded={isOpen}
-        aria-haspopup="menu"
-        onClick={() => setIsOpen((open) => !open)}
-      >
-        <ListTree size={14} />
-      </button>
-      <AnchoredPopover
-        anchorRef={buttonRef}
-        open={isOpen}
-        onClose={() => setIsOpen(false)}
-        placement="bottom-end"
-        className="menu-surface menu-surface--compact editor-bar__menu editor-bar__outline-menu"
-        role="menu"
-      >
-        <div className="menu-surface__section-label">
-          {translate('editorTopBar.actions.outlineRailDisplay')}
-        </div>
-        {OUTLINE_RAIL_MODES.map((option) => {
-          const active = option === mode;
-          return (
-            <button
-              key={option}
-              type="button"
-              role="menuitemradio"
-              aria-checked={active}
-              className={`menu-surface__item menu-surface__item--status${active ? ' menu-surface__item--active' : ''}`}
-              onClick={() => {
-                if (!active) setMode(option);
-                setIsOpen(false);
-              }}
-            >
-              <span>{translate(OUTLINE_RAIL_MODE_LABEL_KEYS[option])}</span>
-              {active && <Check size={12} />}
-            </button>
-          );
-        })}
-      </AnchoredPopover>
-    </>
+    <button
+      type="button"
+      className={`editor-bar__icon editor-bar__icon--outline${visible ? ' editor-bar__icon--active' : ''}`}
+      title={title}
+      aria-label={title}
+      aria-pressed={visible}
+      onClick={() => setMode(visible ? 'hidden' : 'visible')}
+    >
+      <ListTree size={14} />
+    </button>
   );
 }
 

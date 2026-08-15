@@ -1,7 +1,8 @@
 # Semantic outline rail
 
-Status: built on 2026-08-03 and updated on 2026-08-06 for the five prose
-editors: whole book, chapter/drift, element, category, and storyline.
+Status: built on 2026-08-03 and updated on 2026-08-15 for the direct Editor Top
+Bar toggle across the five prose editors: whole book, chapter/drift, element,
+category, and storyline.
 
 ## Product contract
 
@@ -43,8 +44,9 @@ may still provide their own short message.
 ## Visibility control
 
 The ListTree control in the Editor Top Bar remains immediately beside the
-Entity Link highlight toggle. Its radio-style dropdown now has only two
-choices:
+Entity Link highlight toggle. Clicking the button itself toggles the preference
+immediately; it does not open a dropdown or secondary menu. The two persisted
+states are:
 
 1. `visible`: show the left semantic TOC rail.
 2. `hidden`: unmount the left semantic TOC rail.

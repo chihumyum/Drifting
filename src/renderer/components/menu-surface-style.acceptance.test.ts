@@ -127,7 +127,6 @@ describe('shared menu surface style', () => {
   it('assigns every menu owner to the shared width scale instead of local widths', () => {
     const compact = [
       'src/renderer/components/BottomTimeline/ActRail.tsx',
-      'src/renderer/components/editor/EditorTopBar.tsx',
       'src/renderer/components/graph/TimelinePinMenu.tsx',
       'src/renderer/components/graph/TimelineRailMenu.tsx',
       'src/renderer/components/leftBars/SortMenu.tsx',
