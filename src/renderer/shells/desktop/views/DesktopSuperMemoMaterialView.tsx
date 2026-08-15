@@ -274,12 +274,11 @@ export function DesktopSuperMemoMaterialView() {
 
   return (
     <SuperViewShell className="super-mm-overlay">
-      {/* Top header — back + title + global search. LibraryItem-specific
+      {/* Top header — back + Super tabs + stats + global search. LibraryItem-specific
           filters (KIND chips, entity-target filter) live inside the
           LibraryItemMain section header so the global header stays focused
           on cross-cutting controls. */}
       <DesktopSuperViewHeader
-        title={t('memoMaterial.super.title')}
         meta={t('memoMaterial.super.meta', {
           todos: comments.filter((c) => c.kind === 'todo').length,
           materials: libraryItems.length,

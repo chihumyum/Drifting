@@ -145,15 +145,6 @@
   color: hsl(var(--ink-1));
   background: hsl(var(--rule));
 }
-.super-view-head__title {
-  font-family: var(--font-sans);
-  font-size: 17px;
-  font-weight: 500;
-  color: hsl(var(--ink-1));
-  letter-spacing: 0.005em;
-  white-space: nowrap;
-}
-
 .super-view-head__switcher {
   display: inline-flex;
   align-items: center;
@@ -196,7 +187,6 @@
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: hsl(var(--ink-4));
-  margin-left: 10px;
 }
 
 /* The chip collection is the first header control allowed to yield space.

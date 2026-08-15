@@ -2317,9 +2317,8 @@ export function DesktopSuperElementView() {
 
   return (
     <SuperViewShell className="super-element-overlay">
-      {/* Header — back + title + filter chips + view-mode toggles. */}
+      {/* Header — back + Super tabs + stats + filter controls. */}
       <DesktopSuperViewHeader
-        title={t('superElement.title')}
         meta={t('superElement.meta', {
           categories: bookElementCategories.length,
           elements: bookElements.length,

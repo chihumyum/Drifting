@@ -1303,7 +1303,6 @@ export function DesktopStoryGraphView() {
   return (
     <SuperViewShell className="graph-overlay" data-view={viewMode}>
       <DesktopSuperViewHeader
-        title={t('storyGraph.title')}
         meta={totalsLabel}
         onBack={close}
         leftSlot={

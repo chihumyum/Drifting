@@ -1483,7 +1483,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.m-super-view-host .super-view-head__title {
+.m-super-view-host .super-view-head__meta {
   display: none;
 }
 .m-super-view-host .super-view-head__right {

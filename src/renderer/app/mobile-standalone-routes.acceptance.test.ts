@@ -203,6 +203,7 @@ describe('mobile standalone routes', () => {
     expect(header).toContain("id: 'memo-material'");
     expect(css).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
     expect(css).toContain('flex: 1 1 calc(100% - 32px)');
+    expect(css).toContain('.m-super-view-host .super-view-head__meta');
     expect(css).toContain('.m-super-view-host .super-view-head__right');
     expect(memoMaterial).toContain('className="smm-workspace-split"');
     expect(css).toContain('.super-mm-overlay .smm-workspace-split');

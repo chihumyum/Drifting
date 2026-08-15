@@ -73,7 +73,10 @@ not be generalized merely to make it importable.
 - Chapter-lane drag semantics are shared pure policy; desktop Timeline and
   Story Graph own their drag presentations.
 - Shared Super View headers remain store-free. Each shell supplies its own
-  navigation adapter and presentation.
+  navigation adapter and presentation. The desktop adapter supplies the three
+  Super View destinations through the shared `navigationSlot`, which renders
+  immediately after Back. The active destination tab is the header title;
+  optional meta and view-specific `leftSlot` controls follow it.
 
 ## Super View navigation and Escape
 

@@ -40,6 +40,7 @@ describe('workspace surface language acceptance', () => {
     const workspaceNavigation = source(
       'src/renderer/components/topBars/WorkspaceNavigationButtons.tsx',
     );
+    const sharedSuperHeader = source('src/renderer/components/SuperViewHeader.tsx');
     const superHeader = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
     const rightTopbar = source('src/renderer/components/topBars/RightSidebarTopBar.tsx');
     const userMenu = source('src/renderer/components/topBars/UserMenu.tsx');
@@ -83,6 +84,29 @@ describe('workspace surface language acceptance', () => {
     expect(superHeader).toContain("{ id: 'graph', labelKey: 'storyGraph.title' }");
     expect(superHeader).toContain("{ id: 'memo-material', labelKey: 'memoMaterial.super.title' }");
     expect(superHeader).toContain('className="super-view-head__switcher-option"');
+    expect(superHeader).toContain('navigationSlot={');
+    const superHeaderLeft = block(
+      sharedSuperHeader,
+      '<div className="super-view-head__left">',
+      '{leftSlot}',
+    );
+    expect(superHeaderLeft.indexOf('{navigationSlot}')).toBeGreaterThan(
+      superHeaderLeft.indexOf('{onBack && ('),
+    );
+    expect(superHeaderLeft.indexOf('{navigationSlot}')).toBeLessThan(
+      superHeaderLeft.indexOf('{meta != null &&'),
+    );
+    expect(sharedSuperHeader).not.toContain('title: string');
+    expect(sharedSuperHeader).not.toContain('super-view-head__title');
+    expect(source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx')).not.toContain(
+      "title={t('storyGraph.title')}",
+    );
+    expect(source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx')).not.toContain(
+      "title={t('superElement.title')}",
+    );
+    expect(
+      source('src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx'),
+    ).not.toContain("title={t('memoMaterial.super.title')}");
     expect(workspaceNavigation.indexOf('className="workspace-all-chapters-trigger')).toBeLessThan(
       workspaceNavigation.indexOf('className="workspace-super-trigger"'),
     );

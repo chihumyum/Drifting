@@ -5,16 +5,15 @@ import { getPlatformRuntime } from '../platform/runtime';
 import '../../styles/super-view-header.css';
 
 export interface SuperViewHeaderProps {
-  /** Title text shown after the back button. */
-  title: string;
-  /** Optional inline caption (e.g. counts like "3 故事线 · 12 章") rendered
-   *  in the monospace meta style next to the title. */
+  /** Optional inline caption (e.g. counts like "3 故事线 · 12 章"). */
   meta?: ReactNode;
   /** Back-button click handler. Omit to hide the button entirely. */
   onBack?: () => void;
   /** Back-button tooltip / aria-label. Defaults to "返回". */
   backLabel?: string;
-  /** Extra controls placed in the left group after the title — e.g.
+  /** Primary navigation placed after the back button. */
+  navigationSlot?: ReactNode;
+  /** Extra controls placed in the left group after navigation and meta — e.g.
    *  view-mode toggles or scoped action buttons. */
   leftSlot?: ReactNode;
   /** Trailing controls — filters, mode toggles, status pills. */
@@ -22,10 +21,10 @@ export interface SuperViewHeaderProps {
 }
 
 export function SuperViewHeader({
-  title,
   meta,
   onBack,
   backLabel,
+  navigationSlot,
   leftSlot,
   rightSlot,
 }: SuperViewHeaderProps) {
@@ -52,10 +51,8 @@ export function SuperViewHeader({
             <ArrowLeft size={16} strokeWidth={1.7} aria-hidden="true" />
           </button>
         )}
-        <div className="super-view-head__title">
-          {title}
-          {meta != null && <em className="super-view-head__meta">{meta}</em>}
-        </div>
+        {navigationSlot}
+        {meta != null && <em className="super-view-head__meta">{meta}</em>}
         {leftSlot}
       </div>
       {rightSlot != null && <div className="super-view-head__right">{rightSlot}</div>}
