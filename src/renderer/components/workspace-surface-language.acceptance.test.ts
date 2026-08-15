@@ -319,7 +319,7 @@ describe('workspace surface language acceptance', () => {
     expect(rightHeader.match(/workspace-local-divider/g)).toHaveLength(1);
   });
 
-  it('uses a text-only chapter view-mode summary instead of a switch', () => {
+  it('keeps the text-only chapter counts stable across both view modes', () => {
     const subheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
     const controls = source('src/styles/ui-controls.css');
     const zh = JSON.parse(source('src/renderer/locales/zh-CN.json')) as {
@@ -327,23 +327,28 @@ describe('workspace surface language acceptance', () => {
     };
     const textControl = block(controls, '.left-panel-view-mode-text {', '.panel-tab-tray {');
     const hoverState = block(controls, '.left-panel-view-mode-text:hover,', '.panel-tab-tray {');
+    const meta = block(subheader, 'const meta =', '// Effective chapter view mode');
 
     expect(subheader).not.toContain("from '../ui/Switch'");
     expect(subheader).not.toContain('<Switch');
     expect(subheader).not.toContain('ViewModeSwitch');
     expect(subheader).toContain('className="left-panel-view-mode-text"');
     expect(subheader).toContain('onClick={handleToggleChapterViewMode}');
-    expect(subheader).toContain("t('leftSidebar.viewMode.storylineSummary'");
-    expect(subheader).toContain("t('leftSidebar.viewMode.globalSummary'");
+    expect(meta).toContain("t('leftSidebar.viewMode.chapterSummary'");
+    expect(meta).toContain('storylines: storylines.length');
+    expect(meta).toContain('chapters: storylineNodeCount');
+    expect(meta).not.toContain('isStorylineView');
+    expect(subheader).not.toContain("t('leftSidebar.viewMode.globalSummary'");
     expect(textControl).toContain('border: 0;');
     expect(textControl).toContain('background: transparent;');
     expect(hoverState).toContain('color: hsl(var(--ink-1));');
     expect(hoverState).not.toContain('background:');
     expect(hoverState).not.toContain('border:');
-    expect(zh.leftSidebar.viewMode.storylineSummary).toBe(
+    expect(zh.leftSidebar.viewMode.chapterSummary).toBe(
       '{{storylines}} 条故事线 · {{chapters}} 章',
     );
-    expect(zh.leftSidebar.viewMode.globalSummary).toBe('共 {{count}} 章');
+    expect(zh.leftSidebar.viewMode.storylineSummary).toBeUndefined();
+    expect(zh.leftSidebar.viewMode.globalSummary).toBeUndefined();
   });
 
   it('uses the document-tab surface instead of an accent wash for left-panel selection', () => {

@@ -12,7 +12,6 @@ import type {
   ChapterStorylineInnerSortMode,
   ChapterStorylineOuterSortMode,
   ElementCategorySortMode,
-  ElementPanelViewMode,
   ElementSortMode,
   NodeCellMeta,
 } from '../../store/ui-store';
@@ -130,18 +129,16 @@ export function LeftSidebarSubHeader() {
     }
   }, [projectId, createGroup]);
 
-  // The chapter panel's text summary doubles as its view-mode control. In
-  // storyline mode it reports both grouping and chapter totals; in global
-  // mode it reports the flat book total. Other panels keep read-only meta.
+  // The chapter panel's text summary doubles as its view-mode control, but
+  // its counts stay stable across both layouts: storylines + all chapters.
+  // Other panels keep their own meta behavior.
   const isStorylineView = storylines.length > 0 && nodesViewMode === 'storyline';
   const meta =
     activeLeftPanel === 'nodes'
-      ? isStorylineView
-        ? t('leftSidebar.viewMode.storylineSummary', {
-            storylines: storylines.length,
-            chapters: storylineNodeCount,
-          })
-        : t('leftSidebar.viewMode.globalSummary', { count: storylineNodeCount })
+      ? t('leftSidebar.viewMode.chapterSummary', {
+          storylines: storylines.length,
+          chapters: storylineNodeCount,
+        })
       : activeLeftPanel === 'elements'
         ? t('leftSidebar.meta.elements', {
             categories: bookElementCategories.length,
@@ -149,9 +146,8 @@ export function LeftSidebarSubHeader() {
           })
         : t('leftSidebar.meta.drifts', { count: driftCount });
 
-  // The 章节 panel's view-mode text reflects the *effective* mode: a project
-  // with zero storylines is forced to 'global' (mirrors ChapterPanel), so the
-  // summary stays global while empty even if a 'storyline' preference persists.
+  // Effective chapter view mode still controls the toggle/title: a project
+  // with zero storylines is forced to 'global' (mirrors ChapterPanel).
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [showMeta, setShowMeta] = useState(true);
@@ -244,13 +240,6 @@ export function LeftSidebarSubHeader() {
     ],
     [t],
   );
-  const elementViewOptions = useMemo<SortMenuOption<ElementPanelViewMode>[]>(
-    () => [
-      { value: 'compact', label: t('leftSidebar.sort.compactIndex') },
-      { value: 'list', label: t('leftSidebar.sort.nameList') },
-    ],
-    [t],
-  );
   // Right-edge cell meta toggle — shared by the 章节 and 灵感 menus.
   const nodeCellMetaOptions = useMemo<SortMenuOption<NodeCellMeta>[]>(
     () => [
@@ -307,6 +296,13 @@ export function LeftSidebarSubHeader() {
     }
     setChapterViewMode('storyline');
   }, [isStorylineView, storylines.length, projectId, createStoryline, setChapterViewMode]);
+
+  // Mirror the chapter panel's summary-as-control pattern: the element totals
+  // stay visible in the header while the text itself toggles the persisted
+  // compact index / name list preference. Display mode is not a sort concern.
+  const handleToggleElementViewMode = useCallback(() => {
+    setElementPanelViewMode(elementPanelViewMode === 'compact' ? 'list' : 'compact');
+  }, [elementPanelViewMode, setElementPanelViewMode]);
 
   const renderPrimaryCreate = () => {
     let onClick: () => void;
@@ -441,6 +437,19 @@ export function LeftSidebarSubHeader() {
             >
               {meta}
             </button>
+          ) : activeLeftPanel === 'elements' ? (
+            <button
+              type="button"
+              className="left-panel-view-mode-text"
+              onClick={handleToggleElementViewMode}
+              title={
+                elementPanelViewMode === 'compact'
+                  ? t('leftSidebar.viewMode.elementCompactTitle')
+                  : t('leftSidebar.viewMode.elementListTitle')
+              }
+            >
+              {meta}
+            </button>
           ) : (
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {meta}
@@ -556,12 +565,6 @@ export function LeftSidebarSubHeader() {
               options: elementCategorySortOptions,
               value: elementCategorySortMode,
               onChange: setElementCategorySortMode,
-            }),
-            sortMenuGroup({
-              title: t('leftSidebar.sort.elementDisplayGroup'),
-              options: elementViewOptions,
-              value: elementPanelViewMode,
-              onChange: setElementPanelViewMode,
             }),
           ]}
         />

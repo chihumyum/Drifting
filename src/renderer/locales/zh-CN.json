@@ -1777,8 +1777,9 @@
     "viewMode": {
       "storylineTitle": "按 storyline 分组 · 点此切回全书总览",
       "globalTitle": "全书总览 · 点此按 storyline 分组",
-      "storylineSummary": "{{storylines}} 条故事线 · {{chapters}} 章",
-      "globalSummary": "共 {{count}} 章"
+      "chapterSummary": "{{storylines}} 条故事线 · {{chapters}} 章",
+      "elementCompactTitle": "紧凑索引 · 点此切换到名称列表",
+      "elementListTitle": "名称列表 · 点此切换到紧凑索引"
     },
     "actions": {
       "collapseAll": "折叠全部",
@@ -1811,10 +1812,7 @@
       "cellMetaGroup": "单元格右侧",
       "duplicatesGroup": "多线章节",
       "outerStorylinesGroup": "外层故事线",
-      "outerCategoriesGroup": "外层类目",
-      "elementDisplayGroup": "元素显示",
-      "compactIndex": "紧凑索引",
-      "nameList": "名称列表"
+      "outerCategoriesGroup": "外层类目"
     }
   },
   "rightSidebar": {

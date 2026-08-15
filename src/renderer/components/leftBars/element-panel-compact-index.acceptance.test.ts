@@ -14,7 +14,7 @@ function block(text: string, start: string, end: string): string {
 }
 
 describe('ElementPanel compact text index', () => {
-  it('persists an explicit compact/list choice and migrates the retired visual value', () => {
+  it('persists compact/list and toggles it from the header summary instead of the sort menu', () => {
     const store = source('src/renderer/store/ui-store.ts');
     const subheader = source('src/renderer/components/leftBars/LeftSidebarSubHeader.tsx');
     const en = JSON.parse(source('src/renderer/locales/en.json'));
@@ -24,11 +24,22 @@ describe('ElementPanel compact text index', () => {
     expect(store).toContain("elementPanelViewMode: 'compact'");
     expect(store).toContain('elementPanelViewMode: state.elementPanelViewMode');
     expect(store).toContain("(merged.elementPanelViewMode as string) === 'visual'");
-    expect(subheader).toContain("{ value: 'compact', label: t('leftSidebar.sort.compactIndex') }");
-    expect(subheader).toContain("{ value: 'list', label: t('leftSidebar.sort.nameList') }");
-    expect(subheader).toContain("title: t('leftSidebar.sort.elementDisplayGroup')");
-    expect(en.leftSidebar.sort.compactIndex).toBe('Compact index');
-    expect(zh.leftSidebar.sort.compactIndex).toBe('紧凑索引');
+    expect(subheader).toContain('onClick={handleToggleElementViewMode}');
+    expect(subheader).toContain(
+      "setElementPanelViewMode(elementPanelViewMode === 'compact' ? 'list' : 'compact')",
+    );
+    expect(subheader).toContain("t('leftSidebar.viewMode.elementCompactTitle')");
+    expect(subheader).toContain("t('leftSidebar.viewMode.elementListTitle')");
+    expect(subheader).not.toContain('elementViewOptions');
+    expect(subheader).not.toContain("t('leftSidebar.sort.elementDisplayGroup')");
+    expect(en.leftSidebar.viewMode.elementCompactTitle).toBe(
+      'Compact index · switch to name list',
+    );
+    expect(zh.leftSidebar.viewMode.elementCompactTitle).toBe(
+      '紧凑索引 · 点此切换到名称列表',
+    );
+    expect(en.leftSidebar.sort.elementDisplayGroup).toBeUndefined();
+    expect(zh.leftSidebar.sort.elementDisplayGroup).toBeUndefined();
   });
 
   it('renders complete names in a content-shaped wrapping flex flow with no portrait path', () => {

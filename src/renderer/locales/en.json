@@ -1777,8 +1777,9 @@
     "viewMode": {
       "storylineTitle": "Grouped by storyline · switch back to book overview",
       "globalTitle": "Book overview · group by storyline",
-      "storylineSummary": "{{storylines}} storylines · {{chapters}} chapters",
-      "globalSummary": "{{count}} chapters total"
+      "chapterSummary": "{{storylines}} storylines · {{chapters}} chapters",
+      "elementCompactTitle": "Compact index · switch to name list",
+      "elementListTitle": "Name list · switch to compact index"
     },
     "actions": {
       "collapseAll": "Collapse all",
@@ -1811,10 +1812,7 @@
       "cellMetaGroup": "Cell right edge",
       "duplicatesGroup": "Multi-storyline chapters",
       "outerStorylinesGroup": "Outer storylines",
-      "outerCategoriesGroup": "Outer categories",
-      "elementDisplayGroup": "Element display",
-      "compactIndex": "Compact index",
-      "nameList": "Name list"
+      "outerCategoriesGroup": "Outer categories"
     }
   },
   "rightSidebar": {
