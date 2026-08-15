@@ -1,10 +1,9 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-// Per-project daily snapshot of the project's total word count, captured at
-// the latest update on that day. "Today's words" is then derived as
-// `currentTotal - lastSnapshotBeforeToday`, "weekly words" as the sum of
-// inter-day deltas in the trailing week, etc. We persist these in
+// Per-project daily start/latest snapshots of the project's total word count.
+// "Today's words" is derived as `latestTotal - startTotal`, while weekly words
+// sum those bounded daily deltas. We persist these in
 // localStorage rather than SQLite so adding stats doesn't require a schema
 // migration; if richer per-session telemetry is needed later, that's where
 // it should land.
@@ -16,10 +15,15 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 export type ISODate = string; // YYYY-MM-DD
 
-interface ProjectHistory {
-  // ISODate → total project word count at the latest tick of that day.
+export interface DailyWordSnapshot {
+  startTotal: number;
+  latestTotal: number;
+}
+
+export interface ProjectHistory {
+  // ISODate → the first trusted total and latest total observed that day.
   // Sparse — only days the user actually wrote on appear.
-  [day: ISODate]: number;
+  [day: ISODate]: DailyWordSnapshot;
 }
 
 interface WritingPlan {
@@ -40,20 +44,51 @@ export interface WritingStatsState {
   getPlan: (projectId: string) => WritingPlan;
 }
 
+type LegacyWritingStatsState = Omit<WritingStatsState, 'history'> & {
+  history: Record<string, Record<ISODate, number>>;
+};
+
 export const DEFAULT_PROJECT_TARGET = 120000;
 const DEFAULT_DAILY_GOAL = 1500;
 
-export const WRITING_STATS_STORAGE_VERSION = 2;
+export const WRITING_STATS_STORAGE_VERSION = 3;
 
 export function migrateWritingStatsState(
-  persistedState: WritingStatsState,
+  persistedState: WritingStatsState | LegacyWritingStatsState,
   persistedVersion: number,
 ): WritingStatsState {
-  if (persistedVersion >= WRITING_STATS_STORAGE_VERSION) return persistedState;
-  // v1 totals included drift nodes and could be based on untrusted legacy
-  // scalars. History is a rebuildable presentation cache, so discard the
-  // incompatible baseline while preserving author-owned writing goals.
-  return { ...persistedState, history: {} };
+  if (persistedVersion >= WRITING_STATS_STORAGE_VERSION) {
+    return persistedState as WritingStatsState;
+  }
+  if (persistedVersion < 2) {
+    // v1 totals included drift nodes and could be based on untrusted legacy
+    // scalars. History is a rebuildable presentation cache, so discard the
+    // incompatible baseline while preserving author-owned writing goals.
+    return { ...persistedState, history: {} } as WritingStatsState;
+  }
+
+  // v2 kept one total per day. Convert each delta to an explicit daily
+  // start/latest pair. The first observation becomes a zero-contribution
+  // baseline instead of crediting the entire pre-existing book to that day.
+  const legacyHistory = persistedState.history as LegacyWritingStatsState['history'];
+  const history: Record<string, ProjectHistory> = {};
+  for (const [projectId, projectHistory] of Object.entries(legacyHistory)) {
+    let previousTotal: number | null = null;
+    history[projectId] = Object.fromEntries(
+      Object.entries(projectHistory)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([day, total]) => {
+          const safeTotal = Math.max(0, Math.floor(total || 0));
+          const snapshot: DailyWordSnapshot = {
+            startTotal: previousTotal ?? safeTotal,
+            latestTotal: safeTotal,
+          };
+          previousTotal = safeTotal;
+          return [day, snapshot];
+        }),
+    );
+  }
+  return { ...persistedState, history } as WritingStatsState;
 }
 
 export function todayKey(d: Date = new Date()): ISODate {
@@ -69,6 +104,33 @@ function addDays(iso: ISODate, n: number): ISODate {
   return todayKey(date);
 }
 
+function latestSnapshotBefore(history: ProjectHistory, day: ISODate): number | null {
+  let best: ISODate | null = null;
+  for (const key of Object.keys(history)) {
+    if (key >= day) continue;
+    if (best === null || key > best) best = key;
+  }
+  return best === null ? null : (history[best]?.latestTotal ?? null);
+}
+
+export function recordTotalWordsInHistory(
+  history: ProjectHistory | undefined,
+  totalWords: number,
+  day: ISODate = todayKey(),
+): ProjectHistory {
+  const safeTotal = Math.max(0, Math.floor(totalWords || 0));
+  const current = history ?? {};
+  const existing = current[day];
+  if (existing?.latestTotal === safeTotal) return current;
+  return {
+    ...current,
+    [day]: {
+      startTotal: existing?.startTotal ?? latestSnapshotBefore(current, day) ?? safeTotal,
+      latestTotal: safeTotal,
+    },
+  };
+}
+
 export const useWritingStatsStore = create<WritingStatsState>()(
   persist(
     (set, get) => ({
@@ -76,14 +138,14 @@ export const useWritingStatsStore = create<WritingStatsState>()(
       plans: {},
       recordTotalWords: (projectId, totalWords) => {
         if (!projectId) return;
-        const safeTotal = Math.max(0, Math.floor(totalWords || 0));
         const day = todayKey();
         const current = get().history[projectId] ?? {};
-        if (current[day] === safeTotal) return;
+        const next = recordTotalWordsInHistory(current, totalWords, day);
+        if (next === current) return;
         set((state) => ({
           history: {
             ...state.history,
-            [projectId]: { ...current, [day]: safeTotal },
+            [projectId]: next,
           },
         }));
       },
@@ -130,7 +192,10 @@ export const useWritingStatsStore = create<WritingStatsState>()(
       storage: createJSONStorage(() => localStorage),
       version: WRITING_STATS_STORAGE_VERSION,
       migrate: (persistedState, persistedVersion) =>
-        migrateWritingStatsState(persistedState as WritingStatsState, persistedVersion),
+        migrateWritingStatsState(
+          persistedState as WritingStatsState | LegacyWritingStatsState,
+          persistedVersion,
+        ),
     },
   ),
 );
@@ -147,16 +212,8 @@ export interface WritingStatsSnapshot {
   weekDaily: { day: ISODate; words: number }[];
 }
 
-function priorSnapshot(history: ProjectHistory, day: ISODate): number {
-  // Walk back through `history` for the most recent day strictly before
-  // `day`. The map is sparse — most days won't have an entry, so this is
-  // simpler than maintaining a sorted index.
-  let best: ISODate | null = null;
-  for (const key of Object.keys(history)) {
-    if (key >= day) continue;
-    if (best === null || key > best) best = key;
-  }
-  return best === null ? 0 : (history[best] ?? 0);
+function wordsForSnapshot(snapshot: DailyWordSnapshot | null | undefined): number {
+  return snapshot == null ? 0 : Math.max(0, snapshot.latestTotal - snapshot.startTotal);
 }
 
 export function deriveWritingStats(
@@ -169,7 +226,7 @@ export function deriveWritingStats(
       todayWords: 0,
       weekWords: 0,
       monthDaysWritten: 0,
-      streakDays: safe > 0 ? 1 : 0,
+      streakDays: 0,
       weekDaily: [],
     };
   }
@@ -178,18 +235,18 @@ export function deriveWritingStats(
   // Treat the live `currentTotal` as today's snapshot; the store may not
   // yet have written this tick out, and the user has every right to see
   // numbers that reflect what's in their editor right now.
-  const todayTotal = Math.max(history[today] ?? 0, safe);
-  const yestTotal = priorSnapshot(history, today);
-  const todayWords = Math.max(0, todayTotal - yestTotal);
+  const storedToday = history[today];
+  const todaySnapshot: DailyWordSnapshot = storedToday
+    ? { ...storedToday, latestTotal: Math.max(storedToday.latestTotal, safe) }
+    : { startTotal: safe, latestTotal: safe };
+  const todayWords = wordsForSnapshot(todaySnapshot);
 
   // Week — last 7 days including today.
   const weekDaily: { day: ISODate; words: number }[] = [];
   let weekWords = 0;
   for (let i = 6; i >= 0; i--) {
     const day = addDays(today, -i);
-    const dayTotal = day === today ? todayTotal : (history[day] ?? null);
-    const prevTotal = priorSnapshot(history, day);
-    const words = dayTotal == null ? 0 : Math.max(0, dayTotal - prevTotal);
+    const words = wordsForSnapshot(day === today ? todaySnapshot : history[day]);
     weekDaily.push({ day, words });
     weekWords += words;
   }
@@ -199,10 +256,8 @@ export function deriveWritingStats(
   let monthDaysWritten = 0;
   for (let i = 0; i < 30; i++) {
     const day = addDays(today, -i);
-    const dayTotal = day === today ? todayTotal : (history[day] ?? null);
-    if (dayTotal == null) continue;
-    const prevTotal = priorSnapshot(history, day);
-    if (dayTotal - prevTotal > 0) monthDaysWritten += 1;
+    const snapshot = day === today ? todaySnapshot : history[day];
+    if (wordsForSnapshot(snapshot) > 0) monthDaysWritten += 1;
   }
 
   // Streak — consecutive days ending today with words > 0. If today is 0
@@ -210,10 +265,8 @@ export function deriveWritingStats(
   let streakDays = 0;
   for (let i = 0; ; i++) {
     const day = addDays(today, -i);
-    const dayTotal = day === today ? todayTotal : (history[day] ?? null);
-    if (dayTotal == null) break;
-    const prevTotal = priorSnapshot(history, day);
-    if (dayTotal - prevTotal <= 0) break;
+    const snapshot = day === today ? todaySnapshot : history[day];
+    if (wordsForSnapshot(snapshot) <= 0) break;
     streakDays += 1;
     // Cap at 365 so a long backlog doesn't loop forever on degenerate data.
     if (streakDays >= 365) break;

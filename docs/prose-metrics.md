@@ -1,6 +1,6 @@
 # Canonical prose metrics
 
-Updated: 2026-08-14
+Updated: 2026-08-15
 
 Drifting treats `book_node.word_count` as a rebuildable materialized projection,
 never as an independent prose truth. Live and durable Yjs state owns prose;
@@ -31,10 +31,12 @@ immediate count because it reads live Yjs prose directly.
   renderer-owned Yjs command transaction and durable receipt boundary.
 - Snapshot restore and legacy prose writes run the same materializer after the
   Yjs COVER/write operation.
-- Project boot performs bounded, idempotent reconciliation (four workers). It
-  never changes Yjs prose or author-facing node recency; it only rebuilds local
-  projections and marks aggregate metrics ready after every active node has a
-  basis.
+- Project boot performs bounded, idempotent reconciliation (four workers). The
+  project shelf also reconciles pending local projects with two projects in
+  flight, using a SQLite-only mode so nodes from another book never enter the
+  mounted workspace store. Reconciliation never changes Yjs prose or
+  author-facing node recency; it only rebuilds local projections and marks
+  aggregate metrics ready after every active node has a basis.
 - New seeded nodes hash the exact canonical empty/template ProseMirror document.
 
 ## Server merge boundary
@@ -59,11 +61,19 @@ revision is meaningless on another device. Server summaries stay pending until
 the Server derives an explicit content seed or assigns the merged Yjs sequence;
 clients cannot assert `word_count_basis_server_seq`.
 
+The shelf merges readiness field-by-field. A canonical local total wins over a
+pending Server total, because local Yjs may include valid offline work that the
+Server has not materialized yet. An empty local cache never overrides a remote
+project that reports nodes.
+
 Project totals are chapter-only. Drift nodes retain their own exact count but do
 not contribute to project targets, Writing History, or Server project-summary
 totals. The local Writing History store upgrades to version 2 by clearing the
 incompatible v1 total snapshots while preserving author-owned project and daily
-goals; subsequent snapshots rebuild from canonical chapter totals.
+goals. Version 3 stores `{ startTotal, latestTotal }` for each day. Its v2
+migration converts the first trusted total into a zero-contribution baseline,
+so opening an existing project cannot report the entire book as words written
+today; only later growth relative to that day's start contributes.
 
 ## Deterministic acceptance
 
@@ -76,8 +86,9 @@ The official service keeps an independent implementation and acceptance suite.
 It is not part of this repository or required to validate the client package.
 
 The fixture covers the established mixed CJK/Latin rule, canonical semantic
-hashing, seed versus revision-backed projections, Agent-created prose, and
-order-independent concurrent Yjs merge materialization.
+hashing, seed versus revision-backed projections, shelf reconciliation and
+local/Server readiness merge policy, first-observation daily baselines,
+Agent-created prose, and order-independent concurrent Yjs merge materialization.
 
 ## Manual and platform boundary
 

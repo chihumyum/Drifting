@@ -27,8 +27,11 @@ import {
 } from '../schema/drizzle';
 import LogLevel from 'loglevel';
 import { cancelAssetUploadsForProjectDeletion } from '../services/durable-asset-upload.service';
+import { reconcileProjectProseMetrics } from '../services/node-prose-metrics.service';
 const log = LogLevel.getLogger('UseProject');
 log.setLevel(LogLevel.levels.WARN);
+
+const MAX_SHELF_METRIC_RECONCILE_CONCURRENCY = 2;
 
 export interface CreateProjectInput {
   projectName?: string | null;
@@ -226,6 +229,40 @@ async function buildLocalProjectSummaries(projects: Project[]): Promise<ProjectS
   return summaries.sort(sortProjectSummaries);
 }
 
+export function localProjectIdsNeedingProseMetricReconciliation(
+  summaries: readonly ProjectSummary[],
+): string[] {
+  return summaries
+    .filter((summary) => summary.stats.nodes > 0 && !summary.stats.wordsReady)
+    .map((summary) => summary.id);
+}
+
+async function reconcileShelfProjectMetrics(summaries: readonly ProjectSummary[]): Promise<void> {
+  const projectIds = localProjectIdsNeedingProseMetricReconciliation(summaries);
+  let cursor = 0;
+  const workers = Array.from(
+    {
+      length: Math.min(
+        MAX_SHELF_METRIC_RECONCILE_CONCURRENCY,
+        Math.max(1, projectIds.length),
+      ),
+    },
+    async () => {
+      while (cursor < projectIds.length) {
+        const projectId = projectIds[cursor++];
+        try {
+          await reconcileProjectProseMetrics(projectId, { publishToDataStore: false });
+        } catch (error) {
+          // One damaged project must not keep the rest of the shelf hidden.
+          // Its summary remains pending and the project runtime can retry it.
+          log.warn(`Shelf prose metric reconciliation failed for ${projectId}`, error);
+        }
+      }
+    },
+  );
+  await Promise.all(workers);
+}
+
 async function upsertServerProjectSummaries(summaries: ProjectSummary[]): Promise<void> {
   if (summaries.length === 0) return;
 
@@ -314,13 +351,31 @@ async function pullProjectSummariesFromServer(userId: string): Promise<ProjectSu
   }
 }
 
-function mergeProjectSummaries(
+export function mergeProjectSummaries(
   localSummaries: ProjectSummary[],
   serverSummaries: ProjectSummary[],
 ): ProjectSummary[] {
   const byId = new Map<string, ProjectSummary>();
   localSummaries.forEach((summary) => byId.set(summary.id, summary));
-  serverSummaries.forEach((summary) => byId.set(summary.id, summary));
+  serverSummaries.forEach((serverSummary) => {
+    const localSummary = byId.get(serverSummary.id);
+    const localOwnsWords =
+      localSummary?.stats.wordsReady === true &&
+      (localSummary.stats.nodes > 0 || serverSummary.stats.nodes === 0);
+    byId.set(
+      serverSummary.id,
+      localOwnsWords
+        ? {
+            ...serverSummary,
+            stats: {
+              ...serverSummary.stats,
+              words: localSummary.stats.words,
+              wordsReady: true,
+            },
+          }
+        : serverSummary,
+    );
+  });
   return Array.from(byId.values()).sort(sortProjectSummaries);
 }
 
@@ -343,7 +398,12 @@ export function useProject({ userId }: UseProjectContext) {
     async (options: { pullRemote?: boolean } = {}): Promise<ProjectSummary[]> => {
       await ensureDb();
 
-      const localSummaries = await buildLocalProjectSummaries(await repo.findAll());
+      const projects = await repo.findAll();
+      let localSummaries = await buildLocalProjectSummaries(projects);
+      if (localProjectIdsNeedingProseMetricReconciliation(localSummaries).length > 0) {
+        await reconcileShelfProjectMetrics(localSummaries);
+        localSummaries = await buildLocalProjectSummaries(projects);
+      }
       let summaries = localSummaries;
 
       if (options.pullRemote ?? true) {

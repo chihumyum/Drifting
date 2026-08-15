@@ -22,7 +22,7 @@ import { withAtomicSyncTransaction, type AtomicSyncWriter } from '../usecase/syn
 
 const EMPTY_DOCUMENT = JSON.stringify({ type: 'doc', content: [] });
 const MAX_RECONCILE_CONCURRENCY = 4;
-const inFlightByProject = new Map<string, Promise<void>>();
+const inFlightByOperation = new Map<string, Promise<void>>();
 
 export class NodeProseMetricRevisionConflictError extends Error {
   readonly code = 'STALE_PROSE_METRIC_REVISION';
@@ -55,6 +55,16 @@ export interface PersistNodeProseProjectionInput extends CanonicalNodeProseProje
   updatedAt: string;
   touchNodeUpdatedAt?: boolean;
   emitContentSync?: boolean;
+  publishToDataStore?: boolean;
+}
+
+export interface ReconcileProjectProseMetricsOptions {
+  /**
+   * Project workspaces own the live renderer store. Shelf reconciliation must
+   * stay SQLite-only so scanning another project cannot leak its nodes into the
+   * currently mounted workspace.
+   */
+  publishToDataStore?: boolean;
 }
 
 export function canReuseCanonicalProjection(
@@ -185,7 +195,9 @@ async function persistProjectionWithSync(
           await persistProjectionOutbox(sync, input);
           return persisted;
         });
-  useDataStore.getState().updateBookNode(input.nodeId, result.node);
+  if (input.publishToDataStore !== false) {
+    useDataStore.getState().updateBookNode(input.nodeId, result.node);
+  }
   return {
     ...input,
     contentJson: result.contentJson,
@@ -223,7 +235,11 @@ export async function materializeCanonicalNodeProse(
   projectId: string,
   nodeId: string,
   fallbackContentJson?: string | null,
-  options: { touchNodeUpdatedAt?: boolean; emitContentSync?: boolean } = {},
+  options: {
+    touchNodeUpdatedAt?: boolean;
+    emitContentSync?: boolean;
+    publishToDataStore?: boolean;
+  } = {},
 ): Promise<CanonicalNodeProseProjection> {
   let lastConflict: unknown;
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -247,6 +263,7 @@ export async function materializeCanonicalNodeProse(
         updatedAt: new Date().toISOString(),
         touchNodeUpdatedAt: options.touchNodeUpdatedAt,
         emitContentSync: options.emitContentSync,
+        publishToDataStore: options.publishToDataStore,
       });
     } catch (error) {
       if (!(error instanceof NodeProseMetricRevisionConflictError)) throw error;
@@ -256,7 +273,10 @@ export async function materializeCanonicalNodeProse(
   throw lastConflict ?? new Error(`Node ${nodeId} prose metric could not stabilize.`);
 }
 
-async function reconcileProject(projectId: string): Promise<void> {
+async function reconcileProject(
+  projectId: string,
+  options: ReconcileProjectProseMetricsOptions,
+): Promise<void> {
   const status = useProseMetricsStatusStore.getState();
   status.setStatus(projectId, 'reconciling');
   const nodes = await createBookNodeSqliteRepository(projectId).findAll();
@@ -270,6 +290,7 @@ async function reconcileProject(projectId: string): Promise<void> {
           await materializeCanonicalNodeProse(projectId, node.id, undefined, {
             touchNodeUpdatedAt: false,
             emitContentSync: false,
+            publishToDataStore: options.publishToDataStore,
           });
         } catch (error) {
           // A concurrent user delete is not a reconciliation failure: the row
@@ -284,10 +305,14 @@ async function reconcileProject(projectId: string): Promise<void> {
   useProseMetricsStatusStore.getState().setStatus(projectId, 'ready');
 }
 
-export function reconcileProjectProseMetrics(projectId: string): Promise<void> {
-  const existing = inFlightByProject.get(projectId);
+export function reconcileProjectProseMetrics(
+  projectId: string,
+  options: ReconcileProjectProseMetricsOptions = {},
+): Promise<void> {
+  const operationKey = `${projectId}:${options.publishToDataStore === false ? 'sqlite' : 'workspace'}`;
+  const existing = inFlightByOperation.get(operationKey);
   if (existing) return existing;
-  const operation = reconcileProject(projectId)
+  const operation = reconcileProject(projectId, options)
     .catch((error) => {
       useProseMetricsStatusStore
         .getState()
@@ -295,8 +320,10 @@ export function reconcileProjectProseMetrics(projectId: string): Promise<void> {
       throw error;
     })
     .finally(() => {
-      if (inFlightByProject.get(projectId) === operation) inFlightByProject.delete(projectId);
+      if (inFlightByOperation.get(operationKey) === operation) {
+        inFlightByOperation.delete(operationKey);
+      }
     });
-  inFlightByProject.set(projectId, operation);
+  inFlightByOperation.set(operationKey, operation);
   return operation;
 }
