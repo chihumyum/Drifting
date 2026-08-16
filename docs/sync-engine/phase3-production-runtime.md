@@ -56,10 +56,14 @@ React unmount. Replacement first removes the old coordinator signals and
 SyncGeneration registrations, then mounts the new authority generation.
 Product UI continues to present Projects rather than transport generations.
 
-The existing coordinator owns commit debounce, foreground polling,
-online/offline/resume triggers and best-effort lifecycle flush. Network I/O
-never runs inside an authored SQLite transaction and provider failure never
-blocks local editing.
+The existing coordinator owns commit debounce, per-project adaptive foreground
+polling, online/offline/resume triggers and best-effort lifecycle flush. A newly
+mounted project receives the coordinator's immediate `start` cycle; subsequent
+polls use the 5-second active, 30-second warm and 60-second idle cadence without
+letting one project's activity accelerate every SyncGeneration. This remains
+foreground pull rather than push or background realtime. Network I/O never runs
+inside an authored SQLite transaction and provider failure never blocks local
+editing.
 
 ## Machine acceptance
 

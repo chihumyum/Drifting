@@ -160,6 +160,45 @@ describe('SyncEngineCoordinator runtime integration', () => {
     uninstall();
   });
 
+  it('starts a mounted project immediately and limits adaptive polling to the foreground', async () => {
+    const observed: SchedulerTrigger[][] = [];
+    const coordinator = new SyncEngineCoordinator();
+    coordinator.register(runtime('sync-generation-active', observed));
+    const fake = fakeSignals();
+    const uninstall = installSyncEngineCoordinatorRuntime(coordinator, fake.signals);
+    await drainMicrotasks();
+
+    expect(observed).toEqual([['start']]);
+    observed.length = 0;
+    fake.authored({
+      command: 'node.prose.update',
+      projectId: 'project-active',
+      syncGenerationId: 'sync-generation-active',
+      changeSetId: 'writer:epoch:1',
+    });
+    await vi.advanceTimersByTimeAsync(2_000);
+    await drainMicrotasks();
+    expect(observed).toEqual([['local-commit']]);
+
+    await vi.advanceTimersByTimeAsync(2_999);
+    expect(observed).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await drainMicrotasks();
+    expect(observed[1]).toEqual(['foreground-poll']);
+
+    fake.window('blur');
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(observed).toHaveLength(2);
+
+    fake.window('focus');
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(observed).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1);
+    await drainMicrotasks();
+    expect(observed[2]).toEqual(['foreground-poll']);
+    uninstall();
+  });
+
   it('keeps multiple registered SyncGenerations globally single-flight and round-robin', async () => {
     let releaseFirst!: () => void;
     const first = new Promise<void>((resolve) => {

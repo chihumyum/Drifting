@@ -1,5 +1,9 @@
 export const LOCAL_COMMIT_DEBOUNCE_MS = 2_000;
-export const FOREGROUND_POLL_INTERVAL_MS = 60_000;
+export const ACTIVE_FOREGROUND_POLL_INTERVAL_MS = 5_000;
+export const WARM_FOREGROUND_POLL_INTERVAL_MS = 30_000;
+export const IDLE_FOREGROUND_POLL_INTERVAL_MS = 60_000;
+export const ACTIVE_EDIT_WINDOW_MS = 30_000;
+export const WARM_ACTIVITY_WINDOW_MS = 120_000;
 
 export type SchedulerTrigger =
   | 'local-commit'
@@ -35,6 +39,12 @@ export interface SyncSchedulerOptions {
 interface PendingSyncGenerationCycle {
   dueAtMs: number;
   triggers: Set<SchedulerTrigger>;
+  retryNotBeforeMs: number | null;
+}
+
+interface ForegroundPollState {
+  lastAuthoredActivityAtMs: number | null;
+  nextForegroundPollAtMs: number | null;
 }
 
 const defaultClock: SchedulerClock = {
@@ -55,13 +65,13 @@ export class SyncScheduler {
   private readonly onCycleError?: SyncSchedulerOptions['onCycleError'];
   private readonly generationOrder: string[] = [];
   private readonly pending = new Map<string, PendingSyncGenerationCycle>();
+  private readonly foregroundPolls = new Map<string, ForegroundPollState>();
   private wakeTimer: unknown | null = null;
   private active: { syncGenerationId: string; controller: AbortController } | null = null;
   private lastSyncGenerationId: string | null = null;
   private online = true;
   private suspended = false;
   private foreground = false;
-  private nextForegroundPollAtMs: number | null = null;
   private stopped = false;
 
   constructor(options: SyncSchedulerOptions) {
@@ -72,13 +82,22 @@ export class SyncScheduler {
 
   registerSyncGeneration(syncGenerationId: string): void {
     if (!syncGenerationId) throw new TypeError('syncGenerationId must not be empty');
-    if (!this.generationOrder.includes(syncGenerationId)) this.generationOrder.push(syncGenerationId);
+    if (this.generationOrder.includes(syncGenerationId)) return;
+    this.generationOrder.push(syncGenerationId);
+    this.foregroundPolls.set(syncGenerationId, {
+      lastAuthoredActivityAtMs: null,
+      nextForegroundPollAtMs: this.foreground
+        ? this.clock.nowMs() + IDLE_FOREGROUND_POLL_INTERVAL_MS
+        : null,
+    });
+    this.scheduleWake();
   }
 
   unregisterSyncGeneration(syncGenerationId: string): void {
     const index = this.generationOrder.indexOf(syncGenerationId);
     if (index >= 0) this.generationOrder.splice(index, 1);
     this.pending.delete(syncGenerationId);
+    this.foregroundPolls.delete(syncGenerationId);
     if (this.active?.syncGenerationId === syncGenerationId) this.active.controller.abort('sync-generation-unregistered');
     if (this.lastSyncGenerationId === syncGenerationId) this.lastSyncGenerationId = null;
     this.scheduleWake();
@@ -102,7 +121,9 @@ export class SyncScheduler {
 
   triggerLocalCommit(syncGenerationId: string): void {
     this.assertRegistered(syncGenerationId);
-    const dueAtMs = this.clock.nowMs() + LOCAL_COMMIT_DEBOUNCE_MS;
+    const nowMs = this.clock.nowMs();
+    this.noteAuthoredActivity(syncGenerationId, nowMs);
+    const dueAtMs = nowMs + LOCAL_COMMIT_DEBOUNCE_MS;
     const existing = this.pending.get(syncGenerationId);
     if (existing && [...existing.triggers].every((trigger) => trigger === 'local-commit')) {
       existing.dueAtMs = dueAtMs;
@@ -115,7 +136,26 @@ export class SyncScheduler {
 
   scheduleRetry(syncGenerationId: string, delayMs: number): void {
     assertDelay(delayMs);
-    this.queue(syncGenerationId, 'retry', this.clock.nowMs() + delayMs);
+    this.assertRegistered(syncGenerationId);
+    const retryAtMs = this.clock.nowMs() + delayMs;
+    const existing = this.pending.get(syncGenerationId);
+    if (existing) {
+      existing.retryNotBeforeMs = Math.max(existing.retryNotBeforeMs ?? 0, retryAtMs);
+      existing.dueAtMs = Math.max(existing.dueAtMs, existing.retryNotBeforeMs);
+      existing.triggers.add('retry');
+    } else {
+      this.pending.set(syncGenerationId, {
+        dueAtMs: retryAtMs,
+        triggers: new Set(['retry']),
+        retryNotBeforeMs: retryAtMs,
+      });
+    }
+    const poll = this.foregroundPolls.get(syncGenerationId);
+    if (this.foreground && poll) {
+      poll.nextForegroundPollAtMs =
+        retryAtMs + this.foregroundPollIntervalMs(poll, retryAtMs);
+    }
+    this.scheduleWake();
   }
 
   setOnline(online: boolean): void {
@@ -143,15 +183,30 @@ export class SyncScheduler {
   setForeground(foreground: boolean): void {
     if (this.foreground === foreground) return;
     this.foreground = foreground;
-    this.nextForegroundPollAtMs = foreground
-      ? this.clock.nowMs() + FOREGROUND_POLL_INTERVAL_MS
-      : null;
+    const nowMs = this.clock.nowMs();
+    for (const syncGenerationId of this.generationOrder) {
+      const poll = this.foregroundPolls.get(syncGenerationId);
+      if (!poll) continue;
+      if (!foreground) {
+        poll.nextForegroundPollAtMs = null;
+        const pending = this.pending.get(syncGenerationId);
+        if (pending?.triggers.size === 1 && pending.triggers.has('foreground-poll')) {
+          this.pending.delete(syncGenerationId);
+        }
+        continue;
+      }
+      const retryNotBeforeMs = this.pending.get(syncGenerationId)?.retryNotBeforeMs ?? nowMs;
+      const anchorMs = Math.max(nowMs, retryNotBeforeMs);
+      poll.nextForegroundPollAtMs =
+        anchorMs + this.foregroundPollIntervalMs(poll, anchorMs);
+    }
     this.scheduleWake();
   }
 
   shutdown(): void {
     this.stopped = true;
     this.pending.clear();
+    this.foregroundPolls.clear();
     this.active?.controller.abort('scheduler-shutdown');
     this.clearWakeTimer();
   }
@@ -191,10 +246,17 @@ export class SyncScheduler {
     assertDelay(dueAtMs);
     const existing = this.pending.get(syncGenerationId);
     if (existing) {
-      existing.dueAtMs = Math.min(existing.dueAtMs, dueAtMs);
+      const requestedDueAtMs = Math.min(existing.dueAtMs, dueAtMs);
+      existing.dueAtMs = existing.retryNotBeforeMs === null
+        ? requestedDueAtMs
+        : Math.max(requestedDueAtMs, existing.retryNotBeforeMs);
       existing.triggers.add(trigger);
     } else {
-      this.pending.set(syncGenerationId, { dueAtMs, triggers: new Set([trigger]) });
+      this.pending.set(syncGenerationId, {
+        dueAtMs,
+        triggers: new Set([trigger]),
+        retryNotBeforeMs: null,
+      });
     }
     if (wake) this.scheduleWake();
   }
@@ -209,15 +271,45 @@ export class SyncScheduler {
     return !this.stopped && this.online && !this.suspended;
   }
 
-  private enqueueForegroundPollIfDue(): void {
-    const dueAt = this.nextForegroundPollAtMs;
-    if (!this.foreground || dueAt === null || this.clock.nowMs() < dueAt) return;
+  private foregroundPollIntervalMs(poll: ForegroundPollState, atMs: number): number {
+    const lastActivityAtMs = poll.lastAuthoredActivityAtMs;
+    if (lastActivityAtMs === null) return IDLE_FOREGROUND_POLL_INTERVAL_MS;
+    const ageMs = Math.max(0, atMs - lastActivityAtMs);
+    if (ageMs < ACTIVE_EDIT_WINDOW_MS) return ACTIVE_FOREGROUND_POLL_INTERVAL_MS;
+    if (ageMs < WARM_ACTIVITY_WINDOW_MS) return WARM_FOREGROUND_POLL_INTERVAL_MS;
+    return IDLE_FOREGROUND_POLL_INTERVAL_MS;
+  }
+
+  private noteAuthoredActivity(syncGenerationId: string, nowMs: number): void {
+    const poll = this.foregroundPolls.get(syncGenerationId);
+    if (!poll) return;
+    poll.lastAuthoredActivityAtMs = nowMs;
+    if (!this.foreground) return;
+    const retryNotBeforeMs = this.pending.get(syncGenerationId)?.retryNotBeforeMs;
+    const candidateAtMs = (retryNotBeforeMs ?? nowMs) + ACTIVE_FOREGROUND_POLL_INTERVAL_MS;
+    poll.nextForegroundPollAtMs = retryNotBeforeMs === null || retryNotBeforeMs === undefined
+      ? Math.min(poll.nextForegroundPollAtMs ?? candidateAtMs, candidateAtMs)
+      : candidateAtMs;
+  }
+
+  private enqueueForegroundPollsIfDue(): void {
+    if (!this.foreground) return;
+    const nowMs = this.clock.nowMs();
     for (const syncGenerationId of this.generationOrder) {
-      this.queue(syncGenerationId, 'foreground-poll', this.clock.nowMs(), false);
+      const poll = this.foregroundPolls.get(syncGenerationId);
+      if (!poll) continue;
+      const dueAtMs = poll.nextForegroundPollAtMs;
+      if (dueAtMs === null || nowMs < dueAtMs) continue;
+      const pending = this.pending.get(syncGenerationId);
+      if (pending) {
+        const anchorMs = Math.max(nowMs, pending.dueAtMs);
+        poll.nextForegroundPollAtMs =
+          anchorMs + this.foregroundPollIntervalMs(poll, anchorMs);
+        continue;
+      }
+      this.queue(syncGenerationId, 'foreground-poll', nowMs, false);
+      poll.nextForegroundPollAtMs = nowMs + this.foregroundPollIntervalMs(poll, nowMs);
     }
-    const elapsed = this.clock.nowMs() - dueAt;
-    const intervals = Math.floor(elapsed / FOREGROUND_POLL_INTERVAL_MS) + 1;
-    this.nextForegroundPollAtMs = dueAt + intervals * FOREGROUND_POLL_INTERVAL_MS;
   }
 
   private selectDueSyncGeneration(): { syncGenerationId: string; job: PendingSyncGenerationCycle } | null {
@@ -235,15 +327,17 @@ export class SyncScheduler {
   private scheduleWake(): void {
     this.clearWakeTimer();
     if (!this.canRun() || this.active) return;
-    this.enqueueForegroundPollIfDue();
+    this.enqueueForegroundPollsIfDue();
     const selected = this.selectDueSyncGeneration();
     if (selected) {
       this.start(selected.syncGenerationId, selected.job);
       return;
     }
     const dueTimes = [...this.pending.values()].map((job) => job.dueAtMs);
-    if (this.foreground && this.nextForegroundPollAtMs !== null) {
-      dueTimes.push(this.nextForegroundPollAtMs);
+    if (this.foreground) {
+      for (const poll of this.foregroundPolls.values()) {
+        if (poll.nextForegroundPollAtMs !== null) dueTimes.push(poll.nextForegroundPollAtMs);
+      }
     }
     if (dueTimes.length === 0) return;
     const nextDue = Math.min(...dueTimes);

@@ -69,8 +69,16 @@ fail closed; repeated restart reconciliation is idempotent.
 
 - one active cycle globally, with round-robin fairness across SyncGenerations;
 - trailing 2-second authored-commit debounce;
-- immediate manual/start/resume/online and non-suspending lifecycle triggers;
-- 60-second foreground polling;
+- immediate scheduling for manual/start/resume/online and non-suspending
+  lifecycle triggers, while an existing provider `Retry-After` remains a hard
+  not-before boundary;
+- per-SyncGeneration adaptive foreground pull polling: 5 seconds while that
+  project has authored activity in the previous 30 seconds, 30 seconds until
+  2 minutes after activity, then 60 seconds while idle. Activity in one project
+  never accelerates unrelated projects;
+- blur/unfocused state removes pending poll-only work and performs no periodic
+  provider request. Focus rebuilds the next deadline from the project's current
+  activity age without replaying missed intervals;
 - cancellation while offline/suspended;
 - native `suspended`/`shutdown` persistence callbacks wait only for local
   durability and set the coordinator suspended; they never enqueue or wait for
@@ -86,6 +94,12 @@ needs-reauth and blocked bindings keep accepting local authored transactions but
 the SyncGeneration runtime performs no provider operation. Initial and online wakeups
 also pass through the injected personal-cloud capability gate; the default app
 integration uses `canUsePersonalCloud()`.
+
+This cadence is foreground polling over an immutable object log, not push,
+presence or background realtime collaboration. Yjs still merges concurrent
+prose updates when they arrive; opening/mounting a project, app start, resume and
+online transitions schedule an immediate cycle, while an unfocused app waits
+for the next explicit lifecycle wakeup.
 
 Project purge has an explicit terminal lane. The project FK may already have
 detached `sync_generation.project_id` when its terminal journal is ready; the
