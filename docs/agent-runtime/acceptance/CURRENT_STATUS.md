@@ -40,14 +40,14 @@ pnpm agent:capabilities:check
   decisions, and receipts. Live Yjs owns prose. Renderer stores and
   localStorage are rebuildable presentation projections.
 - Agent domain writes execute through renderer-owned use cases with revision
-  checks, durable receipts, guarded inverses, and the same sync outbox boundary
-  used by manual product writes.
+  checks, durable receipts, guarded inverses, and the same authored change-set
+  journal boundary used by manual product writes.
 - Prose word counts are rebuildable projections with an explicit `seed` or
-  `yjs` semantic hash plus an exact local revision or Server sequence basis.
+  `yjs` semantic hash plus an exact local revision basis.
   Manual edits, Agent edits and snapshot restore derive from captured Yjs state;
-  project boot reconciles legacy/non-zero stale values without rewriting prose.
-  Server sync materializes the merged update log, and older unproven scalar
-  payloads cannot replace a Server-owned basis. Aggregates are chapter-only;
+  project boot reconciles invalid or stale projection values without rewriting prose.
+  SyncEngine never transports these projection scalars; a future remote apply
+  rebuilds them from the resulting local Yjs state. Aggregates are chapter-only;
   pending projections are shown as pending rather than exact. See
   [`../../prose-metrics.md`](../../prose-metrics.md).
 
@@ -85,11 +85,12 @@ pnpm agent:capabilities:check
 - Project relations use synced first-class type definitions rather than new
   free-text labels. A type declares `directed` or `symmetric` orientation,
   endpoint roles, and allowed source/target entity kinds. Desktop relation
-  creation offers only compatible configured types and an explicit endpoint
-  swap. Migrated labels remain visible as deterministic `unconfigured` types;
-  existing edges are preserved, while new typed writes fail closed until the
-  author configures the type. SQLite, server graph sync, and General Agent use
-  the same definition and durable receipt/revert boundary. See
+  creation offers only compatible types and an explicit endpoint swap. Every
+  relation has one non-null type id; copied labels, nullable types, and
+  `unconfigured` compatibility rows are absent and old payloads fail closed.
+  TODO/Library shortcuts use a deterministic locked `generic-association`
+  type. SQLite, server graph sync, and General Agent use the same definition
+  and durable receipt/revert boundary. See
   [`../../relation-types.md`](../../relation-types.md).
 - Authored prose reads and writes use the schema-locked Markdown/TipTap adapter;
   initial creation and subsequent changes preserve the same supported block and

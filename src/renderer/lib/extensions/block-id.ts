@@ -57,6 +57,39 @@ function ensureBlockIds(state: EditorState): Transaction | null {
   return tr;
 }
 
+export function createBlockIdPlugin(): Plugin {
+  return new Plugin({
+    key: BlockIdPluginKey,
+
+    // Initial pass on editor mount: fill in ids for the schema-created initial
+    // document before it becomes editable.
+    view(editorView: EditorView) {
+      // Defer to next tick so the editor is fully wired up first.
+      queueMicrotask(() => {
+        const tr = ensureBlockIds(editorView.state);
+        if (tr) editorView.dispatch(tr);
+      });
+      return {};
+    },
+
+    // On every doc change, assign ids to newly created blocks and resolve
+    // duplicates created by splits.
+    appendTransaction(transactions, _oldState, newState) {
+      if (!transactions.some((t) => t.docChanged)) return null;
+      // Avoid recursion if our own transaction is being processed.
+      if (transactions.some((t) => t.getMeta(META_FLAG))) return null;
+      // Don't re-run during yjs undo/redo or while applying a remote
+      // sync update — both of those produce intermediate "duplicate id"
+      // states that would otherwise loop us into fighting undo.
+      for (const t of transactions) {
+        if (isHistoryTransaction(t)) return null;
+        if (t.getMeta('y-undo$') || t.getMeta('y-sync$')) return null;
+      }
+      return ensureBlockIds(newState);
+    },
+  });
+}
+
 export const BlockId = Extension.create({
   name: 'blockId',
 
@@ -77,37 +110,7 @@ export const BlockId = Extension.create({
   },
 
   addProseMirrorPlugins() {
-    return [
-      new Plugin({
-        key: BlockIdPluginKey,
-
-        // Initial pass on editor mount: fill in missing ids in existing content.
-        view(editorView: EditorView) {
-          // Defer to next tick so the editor is fully wired up first.
-          queueMicrotask(() => {
-            const tr = ensureBlockIds(editorView.state);
-            if (tr) editorView.dispatch(tr);
-          });
-          return {};
-        },
-
-        // On every doc change, assign ids to newly created blocks and resolve
-        // duplicates created by splits.
-        appendTransaction(transactions, _oldState, newState) {
-          if (!transactions.some((t) => t.docChanged)) return null;
-          // Avoid recursion if our own transaction is being processed.
-          if (transactions.some((t) => t.getMeta(META_FLAG))) return null;
-          // Don't re-run during yjs undo/redo or while applying a remote
-          // sync update — both of those produce intermediate "duplicate id"
-          // states that would otherwise loop us into fighting undo.
-          for (const t of transactions) {
-            if (isHistoryTransaction(t)) return null;
-            if (t.getMeta('y-undo$') || t.getMeta('y-sync$')) return null;
-          }
-          return ensureBlockIds(newState);
-        },
-      }),
-    ];
+    return [createBlockIdPlugin()];
   },
 });
 

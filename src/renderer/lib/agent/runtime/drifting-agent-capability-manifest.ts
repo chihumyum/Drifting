@@ -105,7 +105,7 @@ export interface DriftingAgentCapabilityManifest {
     lifecycle: 'turn-start-read-and-pre-final-importance-checkpoint';
     compaction: 'soft-6000-hard-8000-oldest-first-retirement';
     concurrency: 'sqlite-revision-cas';
-    sync: 'atomic-local-row-plus-outbox';
+    sync: 'device-local-excluded-from-sync';
   };
   contextEngineering: {
     providerProfile: typeof DRIFTING_AGENT_CONTEXT_PROFILE;
@@ -298,7 +298,7 @@ export function buildDriftingAgentCapabilityManifest(): DriftingAgentCapabilityM
       lifecycle: 'turn-start-read-and-pre-final-importance-checkpoint',
       compaction: 'soft-6000-hard-8000-oldest-first-retirement',
       concurrency: 'sqlite-revision-cas',
-      sync: 'atomic-local-row-plus-outbox',
+      sync: 'device-local-excluded-from-sync',
     },
     contextEngineering: {
       providerProfile: DRIFTING_AGENT_CONTEXT_PROFILE,

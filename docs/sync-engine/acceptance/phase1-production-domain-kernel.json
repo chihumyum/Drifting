@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-phase1-production-domain-kernel",
+  "recordedAt": "2026-08-16",
+  "status": "implemented",
+  "factory": "src/renderer/sync/reducer/production-domain-kernel.ts#createProductionSyncDomainMaterializationKernel",
+  "singleton": "src/renderer/sync/reducer/production-domain-kernel.ts#productionSyncDomainMaterializationKernel",
+  "composition": {
+    "networkDependency": false,
+    "providerDependency": false,
+    "tauriDependency": false,
+    "globalMutableState": false,
+    "callerOwnedSqliteTransaction": true,
+    "safeRuntimeInjectionAfterCommittedBinding": true,
+    "appRuntimeMountedByThisMilestone": false
+  },
+  "effects": {
+    "fieldSet": "typed-allowlist",
+    "tupleSet": ["node:graph.position", "node-content:plot-grid-size"],
+    "setMember": ["alias", "membership-observed-remove"],
+    "primaryStoryline": "node-storyline-primary.storylineId-field-register",
+    "orderPosition": ["chapter", "storyline", "drift-group", "element-patch", "library-item", "book-act", "kv-entry", "plot-grid-row", "plot-grid-column"],
+    "entityLifecycle": "current-incarnation-normalization-trash-restore-n-plus-one",
+    "yjsUpdate": "existing-yjs-repository-remote-provenance-current-owner-incarnation-only",
+    "assetBinding": "lww-register-verified-blob-immutable-metadata-single-owner",
+    "syncGenerationPurge": "permanent-absorbing-register-transactional-project-delete-and-binding-retire"
+  },
+  "failClosed": [
+    "chapter-entity-lifecycle",
+    "retired-node-storyline-link-lifecycle-and-whole-array-payloads-rejected",
+    "unknown-kind-field-tuple-set-order-or-external-action"
+  ],
+  "fileBackedAcceptance": {
+    "normalFieldMaterialization": true,
+    "invalidEffectBlockedWithConflict": true,
+    "relationInvariantBeforeSqlite": true,
+    "lockedBuiltInRelationTypeReplayNoop": true,
+    "membershipObservedRemoveJournal": true,
+    "membershipMaterializedBeforePrimaryRegister": true,
+    "invalidPrimaryBlockedWithConflict": true,
+    "uiAndAgentMembershipWritersNormalized": true,
+    "trashRestoreNewIncarnation": true,
+    "allReachableTrashRestoreFacadesUseFullCapture": true,
+    "agentStructuralDeleteUsesTrashRestore": true,
+    "agentStructuralDeleteNeverPurgesThenRecreatesSameId": true,
+    "agentElementPatchDeleteUsesTrashRestore": true,
+    "agentCreatedCommentRejectUsesTrash": true,
+    "agentCreatedMemoryRejectUsesTrash": true,
+    "commentActionCascadeHasExplicitLifecycle": true,
+    "rowsWithoutDeletedAtRestoreAfterPhysicalTrashProjection": true,
+    "lateOldIncarnationYjsAndAssetSuppressed": true,
+    "yjsRemoteProvenance": true,
+    "assetRequiresVerifiedBlob": true,
+    "assetReverseDeliveryConverges": true,
+    "syncGenerationPurgePreservesReceipt": true,
+    "syncGenerationPurgeSuppressesAllLaterNonPurgeEffects": true,
+    "syncGenerationPurgeTwoWriterDeliveryOrdersConverge": true,
+    "syncGenerationPurgeSurvivesDuplicateAndCacheRestart": true,
+    "purgedSyncGenerationRemoteReceiptsCanAdvance": true,
+    "remotePurgeRetiresCurrentSyncGenerationAndBindingAtomically": true,
+    "purgedSyncGenerationLocalAuthoredWritesRejected": true,
+    "remoteAuthoredEcho": false
+  },
+  "commands": [
+    "pnpm exec vitest run src/renderer/sync/journal/change-builder.test.ts src/renderer/sync/journal/repository.integration.test.ts src/renderer/sync/reducer/reducer.test.ts src/renderer/sync/reducer/sqlite-materializer.integration.test.ts src/renderer/sync/reducer/production-domain-kernel.integration.test.ts src/renderer/sync/journal/authored-transaction.integration.test.ts src/renderer/usecase/sync-lifecycle-restore.integration.test.ts src/renderer/usecase/sync-helpers.test.ts src/renderer/lib/agent/runtime/drifting-domain-crud-write-strategy.integration.test.ts src/renderer/lib/agent/runtime/drifting-element-patch-write-strategy.integration.test.ts src/renderer/lib/agent/runtime/drifting-entity-write-strategy.integration.test.ts src/renderer/services/node-create-sync-contract.test.ts",
+    "pnpm exec eslint src/renderer/sync/journal/change-builder.ts src/renderer/sync/journal/incarnation.ts src/renderer/sync/journal/repository.ts src/renderer/sync/journal/storyline-membership.ts src/renderer/sync/reducer/reducer.ts src/renderer/sync/reducer/production-domain-kernel.ts src/renderer/sync/reducer/production-domain-kernel.integration.test.ts src/renderer/usecase/normalized-kv-alias-authority.ts src/renderer/usecase/sync-lifecycle-restore.ts src/renderer/usecase/sync-lifecycle-restore.integration.test.ts src/renderer/usecase/sync-helpers.ts src/renderer/usecase/sync-helpers.test.ts src/renderer/usecase/synced-entity-commands.ts src/renderer/lib/agent/runtime/drifting-structural-write-strategy.ts src/renderer/lib/agent/runtime/drifting-domain-crud-write-strategy.ts src/renderer/lib/agent/runtime/drifting-domain-crud-write-strategy.integration.test.ts src/renderer/lib/agent/runtime/drifting-element-patch-write-strategy.ts src/renderer/lib/agent/runtime/drifting-element-patch-write-strategy.integration.test.ts src/renderer/lib/agent/runtime/drifting-entity-write-strategy.ts src/renderer/lib/agent/runtime/drifting-entity-write-strategy.integration.test.ts",
+    "pnpm typecheck"
+  ],
+  "lastObserved": {
+    "testFilesPassed": 12,
+    "testsPassed": 79,
+    "eslint": "passed",
+    "typecheck": "passed",
+    "syncGenerationPurgeFocusedFileBacked": "17-tests-passed",
+    "syncGenerationPurgeRuntimeFocused": "1-test-passed",
+    "syncDirectory": "54-files-244-tests-passed-1-file-1-test-skipped"
+  }
+}

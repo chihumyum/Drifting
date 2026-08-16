@@ -205,17 +205,15 @@ async function run(argv: readonly string[]): Promise<{
           ? requiredString(parsed.command[3], 'resource model')
           : first;
         const isWrite = ['create', 'update', 'delete'].includes(operation);
-        const backupPath = isWrite
-          ? await prepareOfflineMutation({
-              target,
-              offlineUserdata: options.offlineUserdata,
-              yes: options.yes,
-              requestId: options.requestId,
-            })
-          : undefined;
+        if (isWrite) {
+          throw new CliError(
+            'RESOURCE_WRITE_EXCLUDED',
+            'Generic resource writes are unavailable until they use the authored transaction journal; use a supported workspace call instead.',
+          );
+        }
         const data = await withOfflineDatabase({
           path: target.path,
-          migrate: isWrite,
+          migrate: false,
           work: async (database) =>
             executeResourceOperation({
               database: database.gateway.database,
@@ -234,7 +232,6 @@ async function run(argv: readonly string[]): Promise<{
             data,
             projectId,
             databasePath: target.path,
-            ...(backupPath ? { backupPath } : {}),
           }),
           human: options.output === 'human',
           exitCode: 0,

@@ -14,7 +14,7 @@
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import loglevel from 'loglevel';
-import { runStructured } from '../ai/remote/run-structured';
+import { runStructured } from '../ai/run-structured';
 import { blockSectionSummaryPrompt } from '../ai/prompts/templates/block-section-summary';
 import { isBlockType } from '../extensions/block-id';
 import { computeBlockHashes } from './block-signature';
@@ -58,12 +58,12 @@ export async function produceBlockSectionSummary(
 
   let summaryText: string;
   try {
-    // Phase 2: built + run server-side. `input.runtime` (a client-side LLM
-    // client override) is no longer consulted for this path.
+    // The renderer builds the prompt and talks directly to the selected BYOK
+    // provider. An injected runtime keeps this path deterministic in tests.
     const result = await runStructured(
       blockSectionSummaryPrompt,
       { recentText },
-      { signal: input.signal, projectId: input.projectId },
+      { signal: input.signal, projectId: input.projectId, runtime: input.runtime },
     );
     summaryText = result.summary.trim();
   } catch (err) {

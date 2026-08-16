@@ -13,6 +13,8 @@
 import { LLMClient } from './llm-client';
 import { GoogleAIStudioProvider } from './providers/google';
 import { DeepSeekProvider } from './providers/deepseek';
+import { AnthropicProvider } from './providers/anthropic';
+import { OpenAIProvider } from './providers/openai';
 import { ServerProxyProvider } from './providers/server-proxy';
 import { BYOKCredentialsProvider } from '../credentials/byok';
 import { EnvCredentialsProvider } from '../credentials/env';
@@ -23,11 +25,27 @@ import type { LLMProvider } from './providers/provider';
 import { AIError } from '../types';
 import type { AgentProviderId } from '../../agent/runtime/agent-provider-contract';
 import { runtimeViteEnv } from '../../vite-runtime-env';
+import type { BYOKProvider } from '../../byok-keychain';
+import { canUseByokProvider, canUseHostedService } from '../../config';
+import type { RequestInterceptor } from '../interceptors/interceptor';
+
+const BYOK_NETWORK_GATE: RequestInterceptor = {
+  before: () => {
+    assertByokNetworkAvailable();
+  },
+};
 
 export interface BuildDefaultLLMClientOptions {
   /** Override the logging tag. Defaults to 'ai'. */
   logTag?: string;
   provider?: AgentProviderId;
+  model?: string;
+}
+
+export interface BuildDirectBYOKClientOptions {
+  /** Override the logging tag. Defaults to the provider-specific tag. */
+  logTag?: string;
+  /** Provider-native model id used as the adapter fallback. */
   model?: string;
 }
 
@@ -41,13 +59,21 @@ export async function buildDefaultLLMClient(
   // callStructured, capabilities, prompts, retry, and interceptors are all
   // untouched. The credentials chain is built (and a key read) ONLY on the
   // direct path, so proxy builds never pull a key into the renderer.
-  const provider = isProxyTransport()
+  const proxyTransport = isProxyTransport();
+  if (!proxyTransport) assertByokNetworkAvailable();
+  const credentials = new ChainCredentialsProvider([
+    new EnvCredentialsProvider(),
+    new BYOKCredentialsProvider(),
+  ]);
+  const provider = proxyTransport
     ? new ServerProxyProvider()
-    : await pickProvider(
-        new ChainCredentialsProvider([new EnvCredentialsProvider(), new BYOKCredentialsProvider()]),
-      );
+    : options.provider
+      ? await resolveDirectProvider(options.provider, credentials, options.model)
+      : await pickProvider(credentials);
 
-  const client = new LLMClient(provider).use(new LoggingInterceptor(options.logTag ?? 'ai'));
+  const client = new LLMClient(provider);
+  if (!proxyTransport) client.use(BYOK_NETWORK_GATE);
+  client.use(new LoggingInterceptor(options.logTag ?? 'ai'));
   // Dev-only request/response capture: console one-liner via LoggingInterceptor
   // stays; CaptureInterceptor builds the full Markdown trace + writes files
   // to userData/ai-log/. Production builds skip the capture interceptor to
@@ -58,8 +84,93 @@ export async function buildDefaultLLMClient(
   return client;
 }
 
+/**
+ * Build the author-selected Copilot route. Unlike the compatibility factory,
+ * this never guesses from whichever key happens to exist and never follows the
+ * hosted proxy flag. Local-first Copilot is explicit BYOK on the device.
+ */
+export async function buildCopilotLLMClient(
+  provider: BYOKProvider,
+  options: Omit<BuildDefaultLLMClientOptions, 'provider'> = {},
+): Promise<LLMClient> {
+  assertByokNetworkAvailable();
+  const credentials = new ChainCredentialsProvider([
+    new EnvCredentialsProvider(),
+    new BYOKCredentialsProvider(),
+  ]);
+  const apiKey = await tryGetKey(credentials, provider);
+  if (!apiKey) {
+    throw new AIError(
+      'auth',
+      `No ${provider} key is configured. Add one in Settings → Models & API.`,
+    );
+  }
+  return buildDirectBYOKClient(provider, apiKey, {
+    ...options,
+    logTag: options.logTag ?? 'copilot',
+  });
+}
+
+/**
+ * Build a direct client from one explicitly supplied provider credential.
+ * This is used by the author-triggered Settings connectivity check as well as
+ * deterministic tests; only the BYOK network capability applies.
+ */
+export function buildDirectBYOKClient(
+  provider: BYOKProvider,
+  apiKey: string,
+  options: BuildDirectBYOKClientOptions = {},
+): LLMClient {
+  assertByokNetworkAvailable();
+  if (!apiKey.trim()) throw new AIError('auth', `${provider} API key is empty.`);
+  return wrapClient(
+    createDirectProvider(provider, apiKey, options.model),
+    options.logTag ?? `${provider}-byok`,
+  );
+}
+
+function createDirectProvider(provider: BYOKProvider, apiKey: string, model?: string): LLMProvider {
+  switch (provider) {
+    case 'deepseek':
+      return new DeepSeekProvider({
+        apiKey,
+        ...(model ? { defaultModel: model } : {}),
+        thinking: false,
+      });
+    case 'google':
+      return new GoogleAIStudioProvider({ apiKey });
+    case 'anthropic':
+      return new AnthropicProvider({
+        apiKey,
+        ...(model ? { defaultModel: model } : {}),
+      });
+    case 'openai':
+      return new OpenAIProvider({
+        apiKey,
+        ...(model ? { defaultModel: model } : {}),
+      });
+  }
+}
+
+async function resolveDirectProvider(
+  provider: BYOKProvider,
+  credentials: ChainCredentialsProvider,
+  model?: string,
+): Promise<LLMProvider> {
+  const apiKey = await tryGetKey(credentials, provider);
+  if (!apiKey) {
+    throw new AIError(
+      'auth',
+      `No ${provider} key is configured. Add one in Settings → Models & API.`,
+    );
+  }
+  return createDirectProvider(provider, apiKey, model);
+}
+
 function wrapClient(provider: LLMProvider, logTag: string): LLMClient {
-  const client = new LLMClient(provider).use(new LoggingInterceptor(logTag));
+  const client = new LLMClient(provider)
+    .use(BYOK_NETWORK_GATE)
+    .use(new LoggingInterceptor(logTag));
   if (runtimeViteEnv.DEV === true) client.use(new CaptureInterceptor({ writeFiles: true }));
   return client;
 }
@@ -76,6 +187,7 @@ function wrapClient(provider: LLMProvider, logTag: string): LLMClient {
 export async function buildGeneralAgentClient(
   options: BuildDefaultLLMClientOptions = {},
 ): Promise<LLMClient> {
+  assertByokNetworkAvailable();
   const credentials = new ChainCredentialsProvider([
     new EnvCredentialsProvider(),
     new BYOKCredentialsProvider(),
@@ -149,7 +261,13 @@ async function pickProvider(credentials: ChainCredentialsProvider): Promise<LLMP
  * direct-to-provider path so existing builds are unchanged.
  */
 export function isProxyTransport(): boolean {
-  return runtimeViteEnv.VITE_AI_TRANSPORT === 'proxy';
+  return runtimeViteEnv.VITE_AI_TRANSPORT === 'proxy' && canUseHostedService();
+}
+
+function assertByokNetworkAvailable(): void {
+  if (!canUseByokProvider()) {
+    throw new AIError('network', 'The selected BYOK provider is unavailable while offline.');
+  }
 }
 
 const TRUTHY = new Set(['1', 'true', 'enabled', 'on', 'yes']);
@@ -170,7 +288,7 @@ function readDeepSeekReasoningEffort(): 'high' | 'max' | undefined {
 
 async function tryGetKey(
   credentials: ChainCredentialsProvider,
-  provider: import('../../byok-keychain').BYOKProvider,
+  provider: BYOKProvider,
 ): Promise<string | null> {
   try {
     return await credentials.getApiKey(provider);

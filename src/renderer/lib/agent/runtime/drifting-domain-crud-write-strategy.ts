@@ -11,7 +11,7 @@ import {
 import type { PersistedAgentRuntimeWriteExpectation } from '../../../domain/agent-runtime-freshness';
 import type { PersistedAgentRuntimeWriteEffect } from '../../../domain/agent-runtime-write-effect';
 import type { StructuralEntityKind } from '../../../domain/entity-kinds';
-import type { DbExecutor, DbTransaction } from '../../../lib/db';
+import type { DbExecutor } from '../../../lib/db';
 import {
   BookElementTable,
   BookNodeTable,
@@ -19,10 +19,6 @@ import {
   NodeStorylineLinkTable,
   StorylineTable,
 } from '../../../schema/drizzle';
-import {
-  notifySyncMutationCommitted,
-  persistSyncMutationInTransaction,
-} from '../../../services/entity-sync.service';
 import { createAgentMemoryRepository } from '../../../sqlite-repo/agent-memory-repo';
 import {
   createAgentRuntimeEntityWriteReceiptRepository,
@@ -39,6 +35,13 @@ import {
   deterministicAgentEntityId,
   hashEntityWriteValue,
 } from './entity-write-revision';
+import {
+  agentAuthoredJournal,
+  appendAgentDomainMutation,
+  type AgentAuthoredJournal,
+} from './agent-authored-journal';
+import { appendAuthoredNodeStorylineProjectionInTransaction } from '../../../sync/journal/storyline-membership';
+import { compareUtf8Bytewise } from '../../../sync/protocol';
 import { throwIfAgentAborted } from './errors';
 import type { DriftingWriteStrategy } from './drifting-write-strategies';
 import type { AgentToolExecutionRequest } from './types';
@@ -79,7 +82,6 @@ interface DomainCrudPayload {
 
 interface DomainCrudCommit {
   receipt: PersistedAgentRuntimeEntityWriteReceipt;
-  syncPersisted: boolean;
 }
 
 export interface DriftingDomainCrudWriteStrategyOptions {
@@ -87,8 +89,7 @@ export interface DriftingDomainCrudWriteStrategyOptions {
   db: DbExecutor;
   receipts?: AgentRuntimeEntityWriteReceiptRepository;
   now?: () => string;
-  persistSyncMutation?: typeof persistSyncMutationInTransaction;
-  notifySyncCommitted?: typeof notifySyncMutationCommitted;
+  journal?: AgentAuthoredJournal;
 }
 
 export function createDriftingDomainCrudWriteStrategy(
@@ -98,10 +99,7 @@ export function createDriftingDomainCrudWriteStrategy(
   const receipts =
     options.receipts ?? createAgentRuntimeEntityWriteReceiptRepository(options.db);
   const now = options.now ?? (() => new Date().toISOString());
-  const persistSyncMutation =
-    options.persistSyncMutation ?? persistSyncMutationInTransaction;
-  const notifySyncCommitted =
-    options.notifySyncCommitted ?? notifySyncMutationCommitted;
+  const journal = options.journal ?? agentAuthoredJournal;
 
   return {
     async prepare(request, _context, expectation) {
@@ -137,10 +135,9 @@ export function createDriftingDomainCrudWriteStrategy(
             payload,
             request.sessionId,
             now,
-            persistSyncMutation,
+            journal,
           ),
       });
-      notifyCommittedSafely(committed.syncPersisted, notifySyncCommitted);
       projectMembershipSnapshot(committed.receipt.postimage);
       return handlerResult(payload, committed.receipt.postimage);
     },
@@ -187,11 +184,10 @@ export function createDriftingDomainCrudWriteStrategy(
             effect,
             forward,
             now,
-            persistSyncMutation,
+            journal,
           ),
         { behavior: 'immediate' },
       );
-      notifyCommittedSafely(committed.syncPersisted, notifySyncCommitted);
       projectMembershipSnapshot(committed.receipt.postimage);
       return inverseEffect(committed.receipt, false);
     },
@@ -368,22 +364,22 @@ async function applyForward(
   payload: DomainCrudPayload,
   sessionId: string,
   now: () => string,
-  persistSync: typeof persistSyncMutationInTransaction,
+  journal: AgentAuthoredJournal,
 ): Promise<DomainCrudCommit> {
+  const changes = journal.createChangeSet();
   let postimage: AgentRuntimeEntityWriteSnapshot;
-  let syncPersisted = false;
   if (payload.mutation.kind === 'set_storyline_membership') {
     const current = await loadStorylineMembershipSnapshot(
       tx,
       payload.projectId,
       payload.entityId,
     );
-    syncPersisted = await replaceMembershipGraph(
+    await replaceMembershipGraph(
       tx,
       payload.projectId,
       current.links,
       payload.mutation.value.links,
-      persistSync,
+      changes,
     );
     postimage = snapshotAgentRuntimeEntity(
       payload.mutation.value,
@@ -394,20 +390,20 @@ async function applyForward(
     let value: AgentMemory | null;
     if (payload.mutation.kind === 'remember') {
       value = await repo.create(payload.mutation.value);
-      syncPersisted = await persistMemorySync(
-        tx,
+      await appendMemoryMutation(
+        journal,
+        changes,
         'create',
         value,
-        persistSync,
       );
     } else {
       value = await repo.update(payload.entityId, payload.mutation.value);
       if (!value) throw new Error('The memory disappeared during mutation');
-      syncPersisted = await persistMemorySync(
-        tx,
+      await appendMemoryMutation(
+        journal,
+        changes,
         'update',
         value,
-        persistSync,
       );
     }
     postimage = snapshotAgentRuntimeEntity(value, 'memory');
@@ -432,7 +428,12 @@ async function applyForward(
     postimageHash: await hashEntityWriteValue(postimage),
     createdAt: now(),
   });
-  return { receipt, syncPersisted };
+  await journal.record(tx, {
+    projectId: payload.projectId,
+    changes,
+    committedAt: receipt.createdAt,
+  });
+  return { receipt };
 }
 
 async function applyInverse(
@@ -441,13 +442,13 @@ async function applyInverse(
   effect: PersistedAgentRuntimeWriteEffect,
   forward: PersistedAgentRuntimeEntityWriteReceipt,
   now: () => string,
-  persistSync: typeof persistSyncMutationInTransaction,
+  journal: AgentAuthoredJournal,
 ): Promise<DomainCrudCommit> {
   const receiptRepo = createAgentRuntimeEntityWriteReceiptRepository(tx);
   const existing = await receiptRepo.get(payload.commandId, 'inverse');
-  if (existing) return { receipt: existing, syncPersisted: false };
+  if (existing) return { receipt: existing };
+  const changes = journal.createChangeSet();
   let postimage: AgentRuntimeEntityWriteSnapshot | null = null;
-  let syncPersisted = false;
 
   if (payload.entityKind === 'storyline_membership') {
     const current = snapshotAgentRuntimeEntity(
@@ -465,12 +466,12 @@ async function applyInverse(
     if (!payload.preimage || payload.preimage.kind !== 'storyline_membership') {
       throw new Error('The storyline membership inverse lost its preimage');
     }
-    syncPersisted = await replaceMembershipGraph(
+    await replaceMembershipGraph(
       tx,
       payload.projectId,
       current.value.links,
       payload.preimage.value.links,
-      persistSync,
+      changes,
     );
     postimage = payload.preimage;
   } else {
@@ -481,13 +482,11 @@ async function applyInverse(
       : null;
     await assertUnchanged(current, forward);
     if (payload.toolName === 'remember') {
-      await repo.delete(payload.entityId);
-      syncPersisted = await persistSync(tx as DbTransaction, {
+      await repo.softDelete(payload.entityId, now());
+      await appendAgentDomainMutation(journal, changes, payload.projectId, {
         entityType: 'agentMemory',
-        mutationType: 'delete',
+        mutationType: 'softDelete',
         entityId: payload.entityId,
-        projectId: payload.projectId,
-        timestamp: Date.now(),
       });
     } else {
       if (!payload.preimage || payload.preimage.kind !== 'memory') {
@@ -499,11 +498,11 @@ async function applyInverse(
       });
       if (!restored) throw new Error('The memory inverse did not persist');
       postimage = snapshotAgentRuntimeEntity(restored, 'memory');
-      syncPersisted = await persistMemorySync(
-        tx,
+      await appendMemoryMutation(
+        journal,
+        changes,
         'update',
         restored,
-        persistSync,
       );
     }
   }
@@ -528,7 +527,12 @@ async function applyInverse(
     postimageHash: postimage ? await hashEntityWriteValue(postimage) : null,
     createdAt: now(),
   });
-  return { receipt, syncPersisted };
+  await journal.record(tx, {
+    projectId: payload.projectId,
+    changes,
+    committedAt: receipt.createdAt,
+  });
+  return { receipt };
 }
 
 interface MembershipMember {
@@ -651,14 +655,14 @@ async function planStorylineMembership(
         (left, right) =>
           (order.get(left.storylineId) ?? Number.MAX_SAFE_INTEGER) -
             (order.get(right.storylineId) ?? Number.MAX_SAFE_INTEGER) ||
-          left.storylineId.localeCompare(right.storylineId, 'en'),
+          compareUtf8Bytewise(left.storylineId, right.storylineId),
       )[0]!.isPrimary = true;
     }
   }
   return next.sort(
     (left, right) =>
-      left.nodeId.localeCompare(right.nodeId, 'en') ||
-      left.storylineId.localeCompare(right.storylineId, 'en'),
+      compareUtf8Bytewise(left.nodeId, right.nodeId) ||
+      compareUtf8Bytewise(left.storylineId, right.storylineId),
   );
 }
 
@@ -667,8 +671,8 @@ async function replaceMembershipGraph(
   projectId: string,
   before: readonly AgentRuntimeStorylineMembershipLinkSnapshot[],
   after: readonly AgentRuntimeStorylineMembershipLinkSnapshot[],
-  persistSync: typeof persistSyncMutationInTransaction,
-): Promise<boolean> {
+  changes: ReturnType<AgentAuthoredJournal['createChangeSet']>,
+): Promise<void> {
   const beforeByNode = groupMemberships(before);
   const afterByNode = groupMemberships(after);
   const changedNodes = [...new Set([...beforeByNode.keys(), ...afterByNode.keys()])]
@@ -677,8 +681,10 @@ async function replaceMembershipGraph(
         JSON.stringify(beforeByNode.get(nodeId) ?? []) !==
         JSON.stringify(afterByNode.get(nodeId) ?? []),
     )
-    .sort((left, right) => left.localeCompare(right, 'en'));
-  if (changedNodes.length === 0) return false;
+    .sort(compareUtf8Bytewise);
+  if (changedNodes.length === 0) {
+    throw new Error('Storyline membership authored write produced no semantic changes');
+  }
   await tx
     .delete(NodeStorylineLinkTable)
     .where(inArray(NodeStorylineLinkTable.nodeId, changedNodes));
@@ -686,24 +692,12 @@ async function replaceMembershipGraph(
   if (inserts.length > 0) {
     await tx.insert(NodeStorylineLinkTable).values(inserts);
   }
-  let persisted = false;
   for (const nodeId of changedNodes) {
-    const links = afterByNode.get(nodeId) ?? [];
-    const primary = links.find((link) => link.isPrimary)?.storylineId ?? null;
-    persisted =
-      (await persistSync(tx as DbTransaction, {
-        entityType: 'nodeStorylineLink',
-        mutationType: 'update',
-        entityId: nodeId,
-        projectId,
-        payload: {
-          storylineIds: links.map((link) => link.storylineId),
-          primaryStorylineId: primary,
-        },
-        timestamp: Date.now(),
-      })) || persisted;
+    await appendAuthoredNodeStorylineProjectionInTransaction(tx, changes, {
+      projectId,
+      nodeId,
+    });
   }
-  return persisted;
 }
 
 function groupMemberships(
@@ -716,7 +710,7 @@ function groupMemberships(
     grouped.set(link.nodeId, current);
   }
   for (const rows of grouped.values()) {
-    rows.sort((left, right) => left.storylineId.localeCompare(right.storylineId, 'en'));
+    rows.sort((left, right) => compareUtf8Bytewise(left.storylineId, right.storylineId));
   }
   return grouped;
 }
@@ -876,19 +870,17 @@ async function resolveStoryline(
   return matches[0]!;
 }
 
-async function persistMemorySync(
-  tx: DbExecutor,
+async function appendMemoryMutation(
+  journal: AgentAuthoredJournal,
+  changes: ReturnType<AgentAuthoredJournal['createChangeSet']>,
   mutationType: 'create' | 'update',
   memory: AgentMemory,
-  persistSync: typeof persistSyncMutationInTransaction,
-): Promise<boolean> {
-  return persistSync(tx as DbTransaction, {
+): Promise<void> {
+  await appendAgentDomainMutation(journal, changes, memory.projectId, {
     entityType: 'agentMemory',
     mutationType,
     entityId: memory.id,
-    projectId: memory.projectId,
     payload: memoryPayload(memory),
-    timestamp: Date.now(),
   });
 }
 
@@ -1104,16 +1096,4 @@ function sameName(left: string, right: string): boolean {
     left.trim().normalize('NFKC').toLocaleLowerCase('en-US') ===
     right.trim().normalize('NFKC').toLocaleLowerCase('en-US')
   );
-}
-
-function notifyCommittedSafely(
-  persisted: boolean,
-  notify: typeof notifySyncMutationCommitted,
-): void {
-  if (!persisted) return;
-  try {
-    notify();
-  } catch {
-    // The durable outbox is authoritative; this is only a wake-up hint.
-  }
 }

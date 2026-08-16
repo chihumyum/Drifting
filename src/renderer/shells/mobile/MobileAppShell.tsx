@@ -2,16 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ProjectRuntimeProvider } from '../../app/providers/ProjectRuntimeProvider';
 import { WorkspaceNavigationProvider } from '../../features/workspace/navigation/WorkspaceNavigationContext';
+import { SuperViewRelationUiProvider } from '../../features/graph/SuperViewRelationUiContext';
 import { workspaceTargetFromPathname } from '../../features/workspace/navigation/workspace-route';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 import { useAuthStore } from '../../store/auth';
 import { AgentConfirmDialog } from '../../components/agent/AgentConfirmDialog';
 import { EntitySnapshotHistoryModal } from '../../components/modals/EntitySnapshotHistoryModal';
 import { DriftBindModal } from '../../components/modals/DriftBindModal';
-import { SyncStatusHUD } from '../../components/sync/SyncStatusHUD';
 import { MobilePaperDeck } from './workspace/MobilePaperDeck';
 import { MobileTabOverview, type MobileSuperViewId } from './workspace/MobileTabOverview';
 import { MobileSuperViewHost } from './workspace/MobileSuperViewHost';
+import { MobileProjectTrashView } from './workspace/MobileProjectTrashView';
 import { useMobileWorkspaceSession } from './workspace/useMobileWorkspaceSession';
 import { freezeLiveMobilePaperContent } from './workspace/mobile-paper-snapshot';
 import '../../../styles/mobile-workspace.css';
@@ -23,6 +24,7 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
     useMobileWorkspaceSession(projectId);
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [activeSuperView, setActiveSuperView] = useState<MobileSuperViewId | null>(null);
+  const [trashOpen, setTrashOpen] = useState(false);
   const [frozenProseByKey, setFrozenProseByKey] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -44,13 +46,14 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
         activeKey: state.activeKey,
         overviewOpen,
         activeSuperView,
+        trashOpen,
       }));
     });
     return () => {
       cancelled = true;
       dispose?.();
     };
-  }, [activeSuperView, frozenProseByKey, overviewOpen, projectId, state]);
+  }, [activeSuperView, frozenProseByKey, overviewOpen, projectId, state, trashOpen]);
 
   const freezeActivePaper = useCallback((): string | undefined => {
     const active = state.papers.find((paper) => paper.key === state.activeKey);
@@ -140,15 +143,19 @@ function MobileWorkspaceRuntime({ projectId }: { projectId: string }) {
             setOverviewOpen(false);
           }}
           onOpenSettings={() => navigate('/settings', { state: { from: location.pathname } })}
+          onOpenTrash={() => {
+            setOverviewOpen(false);
+            setTrashOpen(true);
+          }}
           onBackToShelf={() => navigate('/', { replace: true })}
         />
       )}
 
       <MobileSuperViewHost active={activeSuperView} onActiveChange={setSuperView} />
+      {trashOpen && <MobileProjectTrashView onClose={() => setTrashOpen(false)} />}
       <AgentConfirmDialog />
       <EntitySnapshotHistoryModal />
       <DriftBindModal />
-      <SyncStatusHUD />
     </WorkspaceNavigationProvider>
   );
 }
@@ -160,7 +167,9 @@ export function MobileAppShell() {
   if (!userId) throw new Error('User must be authenticated');
   return (
     <ProjectRuntimeProvider projectId={projectId} userId={userId}>
-      <MobileWorkspaceRuntime projectId={projectId} />
+      <SuperViewRelationUiProvider key={projectId} projectId={projectId}>
+        <MobileWorkspaceRuntime projectId={projectId} />
+      </SuperViewRelationUiProvider>
     </ProjectRuntimeProvider>
   );
 }

@@ -21,8 +21,8 @@ import {
   createAgentRuntimePersistenceRepository,
 } from './agent-runtime-persistence-repo';
 
-const migrationSql = readFileSync(
-  new URL('../../../drizzle/0060_agent_runtime_persistence.sql', import.meta.url),
+const baselineSql = readFileSync(
+  new URL('../../../drizzle/0000_local_first_baseline.sql', import.meta.url),
   'utf8',
 ).replaceAll('--> statement-breakpoint', '');
 
@@ -32,28 +32,9 @@ class NodeSqliteGateway implements DatabasePlatformApi {
   private nextTransactionId = 1;
 
   constructor() {
+    this.database.exec('PRAGMA foreign_keys = OFF');
+    this.database.exec(baselineSql);
     this.database.exec('PRAGMA foreign_keys = ON');
-    this.database.exec(`
-      CREATE TABLE project (
-        id TEXT PRIMARY KEY NOT NULL,
-        name TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE agent_conversation (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-        title TEXT NOT NULL DEFAULT '',
-        sdk_session_id TEXT,
-        mode TEXT NOT NULL DEFAULT 'byok',
-        messages_json TEXT NOT NULL DEFAULT '[]',
-        deleted_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-    `);
-    this.database.exec(migrationSql);
   }
 
   async open(_databaseName: string): Promise<DatabaseOpenResult> {
@@ -150,6 +131,16 @@ function session(
     updatedAt: '2026-07-30T00:00:00.000Z',
     endedAt: null,
     ...overrides,
+  };
+}
+
+function checkpointContext(messageCount: number, hashCharacter: string) {
+  return {
+    schemaVersion: 4 as const,
+    format: 'drifting.agent-runtime-checkpoint-digest-with-summaries' as const,
+    canonicalMessageCount: messageCount,
+    canonicalHistoryHash: `sha256:${hashCharacter.repeat(64)}`,
+    durableSummaries: [],
   };
 }
 
@@ -292,7 +283,7 @@ describe('agent runtime persistence repository against real SQLite', () => {
       sessionId: 'session-1',
       throughTurnOrdinal: 0,
       messageCount: 2,
-      context: [message().content, assistant.content],
+      context: checkpointContext(2, '1'),
       contextHash: 'sha256:canonical-history',
       createdAt: '2026-07-30T00:00:04.000Z',
     };
@@ -348,7 +339,7 @@ describe('agent runtime persistence repository against real SQLite', () => {
       sessionId: 'session-1',
       throughTurnOrdinal: 0,
       messageCount: 2,
-      context: [firstPrompt.content, firstAssistant.content],
+      context: checkpointContext(2, '2'),
       contextHash: 'sha256:first-context',
       createdAt: '2026-07-30T00:00:02.000Z',
     };
@@ -404,12 +395,7 @@ describe('agent runtime persistence repository against real SQLite', () => {
         sessionId: 'session-1',
         throughTurnOrdinal: 1,
         messageCount: 4,
-        context: [
-          firstPrompt.content,
-          firstAssistant.content,
-          secondPrompt.content,
-          secondAssistant.content,
-        ],
+        context: checkpointContext(4, '3'),
         contextHash: 'sha256:second-context',
         createdAt: '2026-07-30T00:00:04.000Z',
       },
@@ -459,14 +445,7 @@ describe('agent runtime persistence repository against real SQLite', () => {
         sessionId: 'session-1',
         throughTurnOrdinal: 2,
         messageCount: 6,
-        context: [
-          firstPrompt.content,
-          firstAssistant.content,
-          secondPrompt.content,
-          secondAssistant.content,
-          thirdPrompt.content,
-          thirdAssistant.content,
-        ],
+        context: checkpointContext(6, '4'),
         contextHash: 'sha256:third-context',
         createdAt: '2026-07-30T00:00:06.000Z',
       },

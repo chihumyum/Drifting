@@ -1,1 +1,0 @@
-ALTER TABLE `book_node` ADD `word_count` integer DEFAULT 0 NOT NULL;

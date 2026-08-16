@@ -5,7 +5,9 @@ const errors = [];
 const rootPackage = JSON.parse(readFileSync('package.json', 'utf8'));
 const metricsPackage = JSON.parse(readFileSync('packages/prose-metrics/package.json', 'utf8'));
 const configSource = readFileSync('src/renderer/lib/config.ts', 'utf8');
+const developmentGuide = readFileSync('DEV_GUIDE.md', 'utf8');
 const tauriConfig = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+const agentGuidance = readFileSync('AGENTS.md', 'utf8');
 
 function requireCondition(condition, message) {
   if (!condition) errors.push(message);
@@ -26,8 +28,10 @@ requireCondition(
   'local-only mode must default to true',
 );
 requireCondition(
-  configSource.includes('VITE_ENABLE_SYNC as string | undefined, false'),
-  'sync must default to false',
+  !configSource.includes('VITE_ENABLE_SYNC') &&
+    !configSource.includes('isSyncEnabled') &&
+    configSource.includes('canUsePersonalCloud'),
+  'retired hosted sync switch must stay absent while personal-cloud capability remains explicit',
 );
 requireCondition(
   configSource.includes('VITE_REQUIRE_AUTH as string | undefined, false'),
@@ -37,8 +41,51 @@ requireCondition(
   !JSON.stringify(tauriConfig).includes('developmentTeam'),
   'public Tauri config must not contain an Apple development team',
 );
+requireCondition(
+  !tauriConfig.app.security.csp.includes('api.drifting.cc'),
+  'public production CSP must not allow the Drifting hosted-service origin',
+);
+requireCondition(
+  developmentGuide.includes('Tauri 2 + Rust + React + Vite'),
+  'DEV_GUIDE.md must describe the current Tauri client',
+);
+requireCondition(
+  developmentGuide.includes('VITE_LOCAL_ONLY_MODE=true') &&
+    developmentGuide.includes('VITE_AI_TRANSPORT=direct'),
+  'DEV_GUIDE.md must record the current local-only build boundary',
+);
+requireCondition(
+  developmentGuide.includes('external-content') &&
+    developmentGuide.includes('agent-extension'),
+  'DEV_GUIDE.md must record the auditable non-hosted network purposes',
+);
+requireCondition(
+  agentGuidance.includes('## Pre-release compatibility policy') &&
+    agentGuidance.includes('architectural clarity takes priority') &&
+    agentGuidance.includes('Local development databases may be reset'),
+  'AGENTS.md must preserve the pre-release clean-over-compatibility policy',
+);
+for (const retiredGuideText of ['Electron', 'src/main', 'backend/', 'out/']) {
+  requireCondition(
+    !developmentGuide.includes(retiredGuideText),
+    `DEV_GUIDE.md contains retired guidance: ${retiredGuideText}`,
+  );
+}
 
 const tracked = execFileSync('git', ['ls-files', '-z'])
+  .toString('utf8')
+  .split('\0')
+  .filter(Boolean);
+// Public-readiness is commonly run before staging a change. Include every
+// unignored local addition so a new source/doc cannot evade the credential and
+// private-path scan merely because it is still untracked.
+const publishCandidates = execFileSync('git', [
+  'ls-files',
+  '--cached',
+  '--others',
+  '--exclude-standard',
+  '-z',
+])
   .toString('utf8')
   .split('\0')
   .filter(Boolean);
@@ -51,7 +98,7 @@ const legacyTopLevelDirectories = new Set([
   'workflows',
 ]);
 
-for (const path of tracked) {
+for (const path of publishCandidates) {
   if (legacyTopLevelDirectories.has(path.split('/', 1)[0])) {
     errors.push(`legacy/private top-level path is tracked: ${path}`);
   }
@@ -61,7 +108,7 @@ for (const path of tracked) {
   }
 }
 
-const textFiles = tracked.filter(
+const textFiles = publishCandidates.filter(
   (path) =>
     !path.startsWith('src/assets/') &&
     !path.startsWith('src-tauri/icons/') &&
@@ -95,6 +142,31 @@ for (const path of textFiles) {
   }
 }
 
+const cleanAssetRuntimePatterns = [
+  { label: 'retired asset upload table', pattern: /asset_upload_job/u },
+  { label: 'retired provider object coordinate', pattern: /(?:source|display|thumbnail)_object_key/u },
+  { label: 'retired asset-cache runtime', pattern: /asset[-_]cache|assetCache|AssetCache/u },
+  { label: 'retired R2 transport', pattern: /r2\.cloudflarestorage\.com/u },
+  { label: 'retired data migrator', pattern: /DRIFTING_LEGACY_USER_DATA_DIR|DRIFTING_COMPAT_DB|data_migration/u },
+];
+const cleanAssetRuntimeFiles = textFiles.filter(
+  (path) =>
+    (path.startsWith('src/') || path.startsWith('src-tauri/src/') || path.startsWith('drizzle/')) &&
+    !/\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(path) &&
+    !path.includes('.acceptance.'),
+);
+for (const path of cleanAssetRuntimeFiles) {
+  let source;
+  try {
+    source = readFileSync(path, 'utf8');
+  } catch {
+    continue;
+  }
+  for (const { label, pattern } of cleanAssetRuntimePatterns) {
+    if (pattern.test(source)) errors.push(`${label} remains in runtime source ${path}`);
+  }
+}
+
 for (const required of [
   'LICENSE',
   'NOTICE',
@@ -117,4 +189,6 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`Public-boundary check passed for ${tracked.length} tracked files.`);
+console.log(
+  `Public-boundary check passed for ${publishCandidates.length} tracked and untracked publish candidates.`,
+);

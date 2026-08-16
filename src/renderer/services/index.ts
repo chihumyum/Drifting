@@ -1,10 +1,9 @@
 /**
  * Service surface for the renderer.
  *
- * Entity CRUD goes through the outbox in entity-sync.service. Yjs document
- * sync lives in yjs-sync.service. Auth is handled directly via
- * lib/auth-client, not from this barrel.
+ * Domain CRUD is owned by usecases and the provider-neutral SyncEngine
+ * authored-transaction journal. Yjs local durability lives in
+ * yjs-local-durability.service. Auth is handled directly via lib/auth-client.
  */
 
-export * from './entity-sync.service';
-export * from './yjs-sync.service';
+export * from './yjs-local-durability.service';

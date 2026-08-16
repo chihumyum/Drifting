@@ -1,10 +1,10 @@
 import type {
   AILogWriteResult,
   AppInfo,
-  AssetCacheDeleteResult,
-  AssetCachePathResult,
-  AssetCacheUploadResult,
-  AssetCacheWriteResult,
+  ArchiveSaveResult,
+  AssetStoreDeleteResult,
+  AssetStorePathResult,
+  AssetStoreWriteResult,
   AssetVariant,
   DeleteImportResult,
   FilePickerKind,
@@ -23,8 +23,19 @@ import type {
   PrepareImageOptions,
   PrepareImageResult,
   SystemFontFamily,
+  SyncLocalObjectResult,
+  SyncObjectGcResult,
+  SyncPreparedAssetSourceResult,
+  SyncVerifiedAssetSourceResult,
+  NativeSyncObjectKind,
+  NativeBytes,
   ThumbnailResult,
   UrlMetadataResult,
+  GoogleDriveNativeOAuthResult,
+  GoogleDriveNativeRemoteChange,
+  GoogleDriveNativeRemoteObject,
+  GoogleDriveNativeProjectSnapshotCandidate,
+  GoogleDriveNativeGeneration,
 } from './contracts';
 
 export type Unsubscribe = () => void;
@@ -59,6 +70,8 @@ export interface WindowPlatformApi {
 
 export interface LifecyclePlatformApi {
   onFlushBeforeQuit(callback: (request: LifecycleFlushRequest) => void): Unsubscribe;
+  /** Native cold-ready/resume wake-up used by foreground-only SyncEngine polling. */
+  onReadyOrResume(callback: (event: 'ready' | 'resumed') => void): Unsubscribe;
   confirmFlushBeforeQuit(requestId: number): Promise<boolean>;
 }
 
@@ -68,11 +81,127 @@ export interface AuthPlatformApi {
 }
 
 export interface KeychainPlatformApi {
+  /** Renderer-managed values only; native SyncEngine/provider namespaces reject. */
   get(key: string): Promise<string | null>;
   /** Existence-only status. It must not release or decrypt a secret to JS. */
   has(key: string): Promise<boolean>;
+  /** Renderer-managed values only; native SyncEngine/provider namespaces reject. */
   set(key: string, value: string): Promise<boolean>;
+  /** Renderer-managed values only; native SyncEngine/provider namespaces reject. */
   delete(key: string): Promise<boolean>;
+}
+
+export interface SyncObjectStorePlatformApi {
+  /** Stages small protocol bytes and returns an opaque native file reference. */
+  stageBytes(bytes: ArrayBuffer | Uint8Array): Promise<SyncLocalObjectResult>;
+  /** Copies the canonical app-owned source without exposing its path to provider code. */
+  stageAssetSource(projectId: string, assetId: string, ext: string): Promise<SyncLocalObjectResult>;
+  /** Best-effort cleanup for an opaque native staging object. */
+  discardLocal?(sourceRef: string): Promise<void>;
+  /** Removes only current-format native objects absent from the durable SQLite inventory. */
+  gcOrphans(input: {
+    retainedSourceRefs: readonly string[];
+    olderThanMs: number;
+  }): Promise<SyncObjectGcResult>;
+  /** Reads bounded protocol bytes from a root-validated opaque local object. */
+  readProtocolBytes(sourceRef: string, maxBytes: number): Promise<NativeBytes>;
+}
+
+export interface SyncAssetStorePlatformApi {
+  captureSource(input: {
+    projectId: string;
+    assetId: string;
+    expectedSourceSha256: string;
+    expectedSizeBytes: number;
+    expectedMimeType: string;
+  }): Promise<SyncVerifiedAssetSourceResult>;
+  prepareRestoreSource(input: {
+    attemptId: string;
+    targetProjectId: string;
+    assetId: string;
+    blobId: string;
+    sourceRef: string;
+    expectedSourceSha256: string;
+    expectedSizeBytes: number;
+    expectedMimeType: string;
+  }): Promise<SyncPreparedAssetSourceResult>;
+  activateRestoreSources(input: {
+    attemptId: string;
+    targetProjectId: string;
+    stagingRefs: readonly string[];
+  }): Promise<string>;
+  abandonRestoreAttempt(attemptId: string): Promise<void>;
+  finalizeRestoreAttempt(attemptId: string): Promise<void>;
+  gcRestoreAttempts(input: {
+    retainedAttemptIds: readonly string[];
+    olderThanMs: number;
+  }): Promise<{ removedAttempts: number }>;
+}
+
+export interface GoogleDrivePlatformApi {
+  /** Desktop uses loopback + PKCE; mobile delegates to the platform Google OAuth SDK. */
+  connectAccount(): Promise<GoogleDriveNativeOAuthResult>;
+  /** Idempotently marks the native provisional credential as owned by a durable SQLite attempt. */
+  claimAccount(
+    credentialSecretRef: string,
+    accountSubject: string,
+  ): Promise<GoogleDriveNativeOAuthResult>;
+  /** Replaces a credential in place only after native verifies the same Google subject. */
+  reauthorizeAccount(credentialSecretRef: string): Promise<GoogleDriveNativeOAuthResult>;
+  /** Native reads/revokes/deletes the credential; the renderer passes only its opaque reference. */
+  revokeAccount(credentialSecretRef: string, signal?: AbortSignal): Promise<void>;
+  discoverProjectSnapshots(input: {
+    credentialSecretRef: string;
+    accountSubject: string;
+    pageToken?: string;
+  }): Promise<{
+    snapshots: GoogleDriveNativeProjectSnapshotCandidate[];
+    nextPageToken?: string;
+  }>;
+  openGeneration(input: {
+    credentialSecretRef: string;
+    accountSubject: string;
+    bindingId: string;
+    syncGenerationId: string;
+    authorityGeneration: number;
+  }): Promise<GoogleDriveNativeGeneration>;
+  captureStartCursor(generationRef: string): Promise<string>;
+  listInventory(input: {
+    generationRef: string;
+    pageToken?: string;
+  }): Promise<{ objects: GoogleDriveNativeRemoteObject[]; nextPageToken?: string }>;
+  listChanges(input: {
+    generationRef: string;
+    cursor: string;
+    pageToken?: string;
+  }): Promise<{
+    changes: GoogleDriveNativeRemoteChange[];
+    nextPageToken?: string;
+    newCursor?: string;
+  }>;
+  statImmutable(input: {
+    generationRef: string;
+    objectKind: NativeSyncObjectKind;
+    logicalKeyId: string;
+  }): Promise<GoogleDriveNativeRemoteObject | null>;
+  uploadImmutable(input: {
+    generationRef: string;
+    sourceRef: string;
+    objectKind: NativeSyncObjectKind;
+    logicalKeyId: string;
+    storedSha256: string;
+    sizeBytes: number;
+    transferId: string;
+    signal: AbortSignal;
+  }): Promise<{ status: 'created' | 'already-present'; object: GoogleDriveNativeRemoteObject }>;
+  downloadVerifiedImmutable(input: {
+    generationRef: string;
+    objectId: string;
+    destinationRef: string;
+    expectedStoredSha256: string;
+    transferId: string;
+    signal: AbortSignal;
+  }): Promise<{ destinationRef: string; storedSha256: string; sizeBytes: number }>;
 }
 
 export interface TypographyPlatformApi {
@@ -124,43 +253,33 @@ export interface MaterialPlatformApi {
   resolveUrlMeta(url: string): Promise<UrlMetadataResult>;
 }
 
-export interface AssetCachePlatformApi {
+export interface AssetStorePlatformApi {
   getPath(
     projectId: string,
     assetId: string,
     variant: AssetVariant,
     ext: string,
-  ): Promise<AssetCachePathResult>;
+  ): Promise<AssetStorePathResult>;
   writeBytes(
     projectId: string,
     assetId: string,
     variant: AssetVariant,
     ext: string,
     bytes: ArrayBuffer | Uint8Array,
-  ): Promise<AssetCacheWriteResult>;
+  ): Promise<AssetStoreWriteResult>;
   copyFile(
     projectId: string,
     assetId: string,
     variant: AssetVariant,
     ext: string,
     sourcePath: string,
-  ): Promise<AssetCacheWriteResult>;
-  uploadFile(
-    url: string,
-    projectId: string,
-    assetId: string,
-    variant: AssetVariant,
-    ext: string,
-    contentType: string,
-  ): Promise<AssetCacheUploadResult>;
-  download(
-    url: string,
-    projectId: string,
-    assetId: string,
-    variant: AssetVariant,
-    ext: string,
-  ): Promise<AssetCacheWriteResult>;
-  deleteAsset(projectId: string, assetId: string): Promise<AssetCacheDeleteResult>;
+  ): Promise<AssetStoreWriteResult>;
+  deleteAsset(projectId: string, assetId: string): Promise<AssetStoreDeleteResult>;
+}
+
+export interface ArchivePlatformApi {
+  /** Save an app-generated ZIP through the native document picker. */
+  save(filename: string, bytes: ArrayBuffer | Uint8Array): Promise<ArchiveSaveResult>;
 }
 
 export interface AILogPlatformApi {
@@ -193,9 +312,13 @@ export interface PlatformApi {
   readonly lifecycle: LifecyclePlatformApi;
   readonly auth: AuthPlatformApi;
   readonly keychain: KeychainPlatformApi;
+  readonly syncObjectStore: SyncObjectStorePlatformApi;
+  readonly syncAssetStore: SyncAssetStorePlatformApi;
+  readonly googleDrive: GoogleDrivePlatformApi;
   readonly typography: TypographyPlatformApi;
   readonly material: MaterialPlatformApi;
-  readonly assetCache: AssetCachePlatformApi;
+  readonly assetStore: AssetStorePlatformApi;
+  readonly archive: ArchivePlatformApi;
   readonly aiLog: AILogPlatformApi;
   readonly mcpStdio: McpStdioPlatformApi;
   readonly mcpHttp: McpHttpPlatformApi;

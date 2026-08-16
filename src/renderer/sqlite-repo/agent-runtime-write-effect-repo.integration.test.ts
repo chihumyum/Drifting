@@ -30,24 +30,10 @@ import {
   type AgentRuntimeWriteEffectRepository,
 } from './agent-runtime-write-effect-repo';
 
-const readMigration = (path: string): string =>
-  readFileSync(new URL(path, import.meta.url), 'utf8').replaceAll(
-    '--> statement-breakpoint',
-    '',
-  );
-const runtimeMigrationSql = readMigration(
-  '../../../drizzle/0060_agent_runtime_persistence.sql',
-);
-const writeEffectMigrationSql = readMigration(
-  '../../../drizzle/0061_agent_runtime_write_effect.sql',
-);
-const authorizationMigrationSql = readMigration(
-  '../../../drizzle/0068_agent_runtime_write_authorization.sql',
-);
-const reviewBlockMigrationSql = readMigration(
-  '../../../drizzle/0071_agent_runtime_review_blocks.sql',
-);
-const migrationSql = `${runtimeMigrationSql}\n${writeEffectMigrationSql}\n${authorizationMigrationSql}\n${reviewBlockMigrationSql}`;
+const baselineSql = readFileSync(
+  new URL('../../../drizzle/0000_local_first_baseline.sql', import.meta.url),
+  'utf8',
+).replaceAll('--> statement-breakpoint', '');
 
 class NodeSqliteGateway implements DatabasePlatformApi {
   readonly database = new DatabaseSync(':memory:');
@@ -55,32 +41,13 @@ class NodeSqliteGateway implements DatabasePlatformApi {
   private nextTransactionId = 1;
 
   constructor() {
+    this.database.exec('PRAGMA foreign_keys = OFF');
+    this.database.exec(baselineSql);
     this.database.exec('PRAGMA foreign_keys = ON');
-    this.database.exec(`
-      CREATE TABLE project (
-        id TEXT PRIMARY KEY NOT NULL,
-        name TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE agent_conversation (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-        title TEXT NOT NULL DEFAULT '',
-        sdk_session_id TEXT,
-        mode TEXT NOT NULL DEFAULT 'byok',
-        messages_json TEXT NOT NULL DEFAULT '[]',
-        deleted_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-    `);
-    this.database.exec(migrationSql);
   }
 
   async open(_databaseName: string): Promise<DatabaseOpenResult> {
-    return { path: ':memory:', journalMode: 'memory', migrationsApplied: 4 };
+    return { path: ':memory:', journalMode: 'memory', migrationsApplied: 1 };
   }
 
   async execute(
@@ -359,190 +326,6 @@ describe('agent runtime write-effect persistence against real SQLite', () => {
     });
   }
 
-  it('upgrades a populated 0060 database without rewriting runtime rows', () => {
-    const database = new DatabaseSync(':memory:');
-    try {
-      database.exec('PRAGMA foreign_keys = ON');
-      database.exec(`
-        CREATE TABLE project (
-          id TEXT PRIMARY KEY NOT NULL,
-          name TEXT NOT NULL,
-          user_id TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-        CREATE TABLE agent_conversation (
-          id TEXT PRIMARY KEY NOT NULL,
-          project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-          title TEXT NOT NULL DEFAULT '',
-          sdk_session_id TEXT,
-          mode TEXT NOT NULL DEFAULT 'byok',
-          messages_json TEXT NOT NULL DEFAULT '[]',
-          deleted_at TEXT,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-        INSERT INTO project (id, name, user_id, created_at, updated_at)
-        VALUES ('project-1', 'Novel', 'user-1', '2026-07-30', '2026-07-30');
-        INSERT INTO agent_conversation
-          (id, project_id, title, created_at, updated_at)
-        VALUES ('conversation-1', 'project-1', 'Effects', '2026-07-30', '2026-07-30');
-      `);
-      database.exec(runtimeMigrationSql);
-      database.exec(`
-        INSERT INTO agent_runtime_session (
-          id, project_id, route_kind, conversation_id, provider, status,
-          created_at, updated_at
-        ) VALUES (
-          'session-1', 'project-1', 'chat', 'conversation-1', 'deepseek',
-          'running', '${at(0)}', '${at(0)}'
-        );
-        INSERT INTO agent_runtime_turn (
-          id, session_id, ordinal, status, accepted_at, updated_at
-        ) VALUES (
-          'turn-1', 'session-1', 0, 'running', '${at(1)}', '${at(1)}'
-        );
-        INSERT INTO agent_runtime_tool_call (
-          id, session_id, turn_id, call_id, name, access, status,
-          idempotency_key, arguments_json, created_at, started_at
-        ) VALUES (
-          'agent-tool:session-1:turn-1:call-upgrade',
-          'session-1',
-          'turn-1',
-          'call-upgrade',
-          'write_chapter_prose',
-          'write',
-          'running',
-          'session-1:turn-1:call-upgrade',
-          '{"chapterId":"chapter-1"}',
-          '${at(2)}',
-          '${at(2)}'
-        );
-      `);
-
-      database.exec(writeEffectMigrationSql);
-
-      expect(
-        database
-          .prepare(
-            "SELECT status FROM agent_runtime_tool_call WHERE call_id = 'call-upgrade'",
-          )
-          .get(),
-      ).toEqual({ status: 'running' });
-      expect(
-        database
-          .prepare(
-            "SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name IN ('agent_runtime_write_effect', 'agent_runtime_write_review')",
-          )
-          .get(),
-      ).toEqual({ count: 2 });
-      expect(database.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
-    } finally {
-      database.close();
-    }
-  });
-
-  it('retires pending legacy reviews when hard authorization is installed', () => {
-    const database = new DatabaseSync(':memory:');
-    try {
-      database.exec('PRAGMA foreign_keys = ON');
-      database.exec(`
-        CREATE TABLE project (
-          id TEXT PRIMARY KEY NOT NULL,
-          name TEXT NOT NULL,
-          user_id TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-        CREATE TABLE agent_conversation (
-          id TEXT PRIMARY KEY NOT NULL,
-          project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-          title TEXT NOT NULL DEFAULT '',
-          sdk_session_id TEXT,
-          mode TEXT NOT NULL DEFAULT 'byok',
-          messages_json TEXT NOT NULL DEFAULT '[]',
-          deleted_at TEXT,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-        INSERT INTO project (id, name, user_id, created_at, updated_at)
-        VALUES ('project-1', 'Novel', 'user-1', '${at(0)}', '${at(0)}');
-        INSERT INTO agent_conversation
-          (id, project_id, title, created_at, updated_at)
-        VALUES ('conversation-1', 'project-1', 'Legacy', '${at(0)}', '${at(0)}');
-      `);
-      database.exec(runtimeMigrationSql);
-      database.exec(`
-        INSERT INTO agent_runtime_session (
-          id, project_id, route_kind, conversation_id, provider, status,
-          created_at, updated_at
-        ) VALUES (
-          'session-1', 'project-1', 'chat', 'conversation-1', 'deepseek',
-          'running', '${at(0)}', '${at(0)}'
-        );
-        INSERT INTO agent_runtime_turn (
-          id, session_id, ordinal, status, accepted_at, updated_at
-        ) VALUES ('turn-1', 'session-1', 0, 'running', '${at(1)}', '${at(1)}');
-        INSERT INTO agent_runtime_tool_call (
-          id, session_id, turn_id, call_id, name, access, status,
-          idempotency_key, arguments_json, created_at, started_at
-        ) VALUES (
-          'agent-tool:session-1:turn-1:legacy-call', 'session-1', 'turn-1',
-          'legacy-call', 'write_chapter_prose', 'write', 'running',
-          'session-1:turn-1:legacy-call', '{}', '${at(2)}', '${at(2)}'
-        );
-      `);
-      database.exec(writeEffectMigrationSql);
-      database.exec(`
-        INSERT INTO agent_runtime_write_effect (
-          id, project_id, route_kind, conversation_id, session_id, turn_id,
-          tool_call_id, call_id, tool_name, idempotency_key, arguments_json,
-          claimed_at, updated_at
-        ) VALUES (
-          'legacy-effect', 'project-1', 'chat', 'conversation-1', 'session-1',
-          'turn-1', 'agent-tool:session-1:turn-1:legacy-call', 'legacy-call',
-          'write_chapter_prose', 'session-1:turn-1:legacy-call', '{}',
-          '${at(3)}', '${at(3)}'
-        );
-        INSERT INTO agent_runtime_write_review (
-          id, effect_id, session_id, turn_id, tool_call_id, status,
-          created_at, updated_at
-        ) VALUES (
-          'legacy-review', 'legacy-effect', 'session-1', 'turn-1',
-          'agent-tool:session-1:turn-1:legacy-call', 'pending', '${at(4)}', '${at(4)}'
-        );
-      `);
-
-      database.exec(authorizationMigrationSql);
-
-      expect(
-        database.prepare(`
-          SELECT status, accepted_at, settled_at, decision_note_json
-          FROM agent_runtime_write_review WHERE id = 'legacy-review'
-        `).get(),
-      ).toMatchObject({
-        status: 'accepted_effect',
-        accepted_at: expect.any(String),
-        settled_at: expect.any(String),
-        decision_note_json: '"Retired during hard-authorization migration"',
-      });
-      expect(
-        database.prepare(`
-          SELECT authorization_kind, authorization_request_id,
-                 authorization_arguments_hash, authorized_at
-          FROM agent_runtime_write_effect WHERE id = 'legacy-effect'
-        `).get(),
-      ).toEqual({
-        authorization_kind: null,
-        authorization_request_id: null,
-        authorization_arguments_hash: null,
-        authorized_at: null,
-      });
-    } finally {
-      database.close();
-    }
-  });
-
   it('claims a running deterministic tool call idempotently and rejects parameter drift', async () => {
     const { runtime, writes } = await setup();
     const tool = toolCall('call-1');
@@ -683,6 +466,13 @@ describe('agent runtime write-effect persistence against real SQLite', () => {
       review: { createdAt: at(8) },
     });
     await expect(
+      writes.createReview({
+        ...review,
+        blocks: [{ blockId: 'unexpected-block', ordinal: 0 }],
+      }),
+    ).rejects.toMatchObject({ code: 'REVIEW_CONFLICT' });
+    expect(await writes.listReviewBlocks(review.id)).toEqual([]);
+    await expect(
       writes.transitionReview({
         reviewId: review.id,
         expectedStatus: 'accepted',
@@ -761,7 +551,7 @@ describe('agent runtime write-effect persistence against real SQLite', () => {
     });
   });
 
-  it('persists ordered block decisions, atomically settles mixed/all-reverted reviews, and upgrades pending legacy rows', async () => {
+  it('persists ordered block decisions and atomically settles mixed/all-reverted reviews', async () => {
     const { runtime, writes } = await setup();
     const mixed = await createClaimedEffect(runtime, writes, 'call-block-mixed');
     await completeEffect(writes, mixed.effect.id);
@@ -886,41 +676,6 @@ describe('agent runtime write-effect persistence against real SQLite', () => {
         ],
       },
     });
-
-    const legacy = await createClaimedEffect(runtime, writes, 'call-block-legacy');
-    await completeEffect(writes, legacy.effect.id);
-    const legacyReview = {
-      id: 'review-block-legacy',
-      effectId: legacy.effect.id,
-      sessionId: legacy.effect.sessionId,
-      turnId: legacy.effect.turnId,
-      toolCallId: legacy.effect.toolCallId,
-      createdAt: at(18),
-    };
-    await writes.createReview(legacyReview);
-    expect(
-      (
-        await writes.createReview({
-          ...legacyReview,
-          createdAt: at(19),
-          blocks: [{ blockId: 'legacy-paragraph', ordinal: 0 }],
-        })
-      ).outcome,
-    ).toBe('updated');
-    expect(await writes.listReviewBlocks(legacyReview.id)).toMatchObject([
-      {
-        blockId: 'legacy-paragraph',
-        ordinal: 0,
-        status: 'pending',
-        createdAt: at(18),
-      },
-    ]);
-    await expect(
-      writes.createReview({
-        ...legacyReview,
-        blocks: [{ blockId: 'different-paragraph', ordinal: 0 }],
-      }),
-    ).rejects.toMatchObject({ code: 'REVIEW_CONFLICT' });
 
     expect(gateway?.database.prepare('PRAGMA foreign_key_check').all()).toEqual(
       [],

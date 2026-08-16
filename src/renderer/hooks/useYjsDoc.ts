@@ -8,14 +8,17 @@ import {
 } from '../services/yjs-document-session';
 
 export interface UseYjsDocOptions {
+  /** Project whose active SyncGeneration owns the authored Yjs journal. */
+  projectId: string;
   docId: string;
   userId: string;
   /**
-   * Optional async seed used only when neither SQLite nor the server has Yjs
-   * state. All consumers of a docId share one initial load, so the seed can be
-   * applied at most once per process session.
+   * Optional async seed used only when SQLite has no Yjs state. The generated
+   * full-state update is journaled before its snapshot is persisted. All
+   * consumers of a docId share one initial load, so seeding runs at most once
+   * per process session.
    */
-  seedFromLegacy?: YjsDocumentSeed;
+  seedFromContentJson?: YjsDocumentSeed;
 }
 
 export interface UseYjsDocResult {
@@ -32,14 +35,23 @@ export interface UseYjsDocResult {
   flushForLifecycle: () => Promise<void>;
 }
 
-export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): UseYjsDocResult {
+export function useYjsDoc({
+  projectId,
+  docId,
+  userId,
+  seedFromContentJson,
+}: UseYjsDocOptions): UseYjsDocResult {
+  if (!projectId) throw new Error('useYjsDoc requires projectId');
   if (!userId) throw new Error('useYjsDoc requires userId');
 
-  const session = useMemo(() => getYjsDocumentSession(docId, userId), [docId, userId]);
-  const seedRef = useRef(seedFromLegacy);
+  const session = useMemo(
+    () => getYjsDocumentSession(projectId, docId, userId),
+    [docId, projectId, userId],
+  );
+  const seedRef = useRef(seedFromContentJson);
   useEffect(() => {
-    seedRef.current = seedFromLegacy;
-  }, [seedFromLegacy]);
+    seedRef.current = seedFromContentJson;
+  }, [seedFromContentJson]);
 
   const state = useSyncExternalStore(
     session.subscribe,

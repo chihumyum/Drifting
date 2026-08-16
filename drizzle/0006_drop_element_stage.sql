@@ -1,1 +1,0 @@
-DROP TABLE `element_stage`;

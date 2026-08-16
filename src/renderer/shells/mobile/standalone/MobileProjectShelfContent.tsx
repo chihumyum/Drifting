@@ -5,6 +5,7 @@ import type { User } from '../../../store/auth';
 import type { ProjectSummary } from '../../../usecase/useProject';
 import type { DecoratedRow } from '../../../views/ProjectPickerView';
 import { UserAvatar, UserMenu } from '../../../components/topBars/UserMenu';
+import { hostedAccountSettingsEnabled } from '../../../features/settings/hosted-settings-policy';
 
 type MobileShelfFilter = 'all' | 'active' | 'paused';
 
@@ -52,6 +53,7 @@ export function MobileProjectShelfContent({
   const { t, i18n } = useTranslation();
   const [actionsProjectId, setActionsProjectId] = useState<string | null>(null);
   const isZh = i18n.language.startsWith('zh');
+  const accountSettingsEnabled = hostedAccountSettingsEnabled();
 
   return (
     <main className="m-shelf">
@@ -74,7 +76,7 @@ export function MobileProjectShelfContent({
             initial={userInitial}
             size={44}
             fontSize={16}
-            title={t('userMenu.accountMenu')}
+            title={t(accountSettingsEnabled ? 'userMenu.accountMenu' : 'userMenu.localMenu')}
             onClick={() => onMenuOpenChange((open) => !open)}
             expanded={menuOpen}
           />
@@ -213,7 +215,11 @@ export function MobileProjectShelfContent({
       )}
 
       <footer className="m-shelf__foot">
-        <span>{user?.email || t('projectPicker.footer.local')}</span>
+        <span>
+          {accountSettingsEnabled && user?.email
+            ? user.email
+            : t('projectPicker.footer.local')}
+        </span>
         <span>{t('projectPicker.footer.brand')}</span>
       </footer>
     </main>

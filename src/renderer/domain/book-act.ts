@@ -39,6 +39,19 @@ export interface BookAct {
   updatedAt: string;
 }
 
+const utf8Encoder = new TextEncoder();
+
+function compareIdsUtf8Bytewise(left: string, right: string): number {
+  const leftBytes = utf8Encoder.encode(left);
+  const rightBytes = utf8Encoder.encode(right);
+  const length = Math.min(leftBytes.length, rightBytes.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = leftBytes[index]! - rightBytes[index]!;
+    if (difference !== 0) return difference;
+  }
+  return leftBytes.length - rightBytes.length;
+}
+
 /** Drift ids currently bound to an act (its notes). Union with the marker-
  *  bound set for drift-panel filtering + the bind picker's exclusions. */
 export function actBoundDriftIds(acts: BookAct[]): Set<string> {
@@ -53,7 +66,7 @@ export function sortActs(acts: BookAct[]): BookAct[] {
     const av = a.startOrder ?? Number.NEGATIVE_INFINITY;
     const bv = b.startOrder ?? Number.NEGATIVE_INFINITY;
     const diff = av - bv;
-    return diff !== 0 ? diff : a.id.localeCompare(b.id);
+    return diff !== 0 ? diff : compareIdsUtf8Bytewise(a.id, b.id);
   });
 }
 
@@ -89,7 +102,7 @@ export function deriveActSegments<T extends ActChapterRef>(
   const sorted = sortActs(acts);
   const sortedChapters = chapters
     .filter((c) => c.bookOrder != null)
-    .sort((a, b) => (a.bookOrder! - b.bookOrder!) || a.id.localeCompare(b.id));
+    .sort((a, b) => (a.bookOrder! - b.bookOrder!) || compareIdsUtf8Bytewise(a.id, b.id));
 
   const segments: ActSegment<T>[] = sorted.map((act, i) => ({
     act,

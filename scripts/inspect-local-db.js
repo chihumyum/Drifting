@@ -35,20 +35,6 @@ function tauriDataDbDir() {
   );
 }
 
-function legacyDataDbDir() {
-  if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'Drifting', 'databases');
-  }
-  if (process.platform === 'win32') {
-    return path.join(
-      process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
-      'Drifting',
-      'databases',
-    );
-  }
-  return path.join(os.homedir(), '.config', 'Drifting', 'databases');
-}
-
 function runSqlite(dbPath, sql) {
   return spawnSync('sqlite3', ['-header', '-column', dbPath, sql], {
     encoding: 'utf8',
@@ -105,9 +91,10 @@ function inspectDb(dbPath) {
     ['storylines', 'storylines'],
     ['element_category', 'element_category'],
     ['book_node', 'book_node'],
-    ['book_element', 'element'],
-    ['node_tag', 'node_tag'],
-    ['element_tag', 'element_tag'],
+    ['element', 'element'],
+    ['library_item', 'library_item'],
+    ['project_asset', 'project_asset'],
+    ['entity_relation', 'entity_relation'],
   ]
     .filter(([, table]) => tables.includes(table))
     .map(([label, table]) => `select '${label}' as table_name, count(*) as count from ${table}`)
@@ -157,7 +144,6 @@ function main() {
     process.argv.includes('--user-data')
   ) {
     addDir(dirs, 'Tauri app data', tauriDataDbDir());
-    addDir(dirs, 'Legacy desktop data', legacyDataDbDir());
   }
 
   for (const { label, dir } of dirs) {

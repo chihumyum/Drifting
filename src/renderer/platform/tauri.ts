@@ -1,10 +1,13 @@
 import { Channel, convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { APP_CONFIG } from '../lib/config';
+import { APP_CONFIG, canUseExternalContent, canUseHostedService } from '../lib/config';
 import { hasPdfSignature, renderPdfThumbnail } from '../lib/pdf-thumbnail';
 import { consumePendingNativeOAuth, createPendingNativeOAuth } from './native-oauth-state';
 import type {
   ContractAvailability,
+  GoogleDriveNativeError,
+  GoogleDriveNativeErrorCode,
+  GoogleDriveNativeResult,
   ImageVariantResult,
   LifecycleEventPayload,
   NativeBytes,
@@ -44,6 +47,66 @@ export class PlatformCommandError extends Error {
     this.name = 'PlatformCommandError';
     this.command = command;
   }
+}
+
+export class GoogleDrivePlatformError extends Error {
+  readonly code: GoogleDriveNativeErrorCode;
+  readonly retryable: boolean;
+  readonly retryAfterMs: number | null;
+
+  constructor(error: GoogleDriveNativeError) {
+    super(error.message);
+    this.name = 'GoogleDrivePlatformError';
+    this.code = error.code;
+    this.retryable = error.retryable;
+    this.retryAfterMs = error.retryAfterMs;
+  }
+}
+
+function unwrapGoogleDriveResult<T>(result: GoogleDriveNativeResult<T>): T {
+  if (result.ok) return result.value;
+  throw new GoogleDrivePlatformError(result.error);
+}
+
+async function invokeGoogleDriveTransfer<T>(
+  task: () => Promise<GoogleDriveNativeResult<T>>,
+  transferId: string,
+  signal: AbortSignal,
+): Promise<T> {
+  if (signal.aborted) {
+    throw new GoogleDrivePlatformError({
+      code: 'cancelled',
+      message: 'Google Drive transfer was cancelled',
+      retryable: false,
+      retryAfterMs: null,
+    });
+  }
+  let aborted = false;
+  const cancel = () => {
+    aborted = true;
+    void invokeContract('google_drive_cancel_transfer', { transferId }).catch(() => undefined);
+  };
+  signal.addEventListener('abort', cancel, { once: true });
+  try {
+    const result = await task();
+    if (aborted || signal.aborted) {
+      throw new GoogleDrivePlatformError({
+        code: 'cancelled',
+        message: 'Google Drive transfer was cancelled',
+        retryable: false,
+        retryAfterMs: null,
+      });
+    }
+    return unwrapGoogleDriveResult(result);
+  } finally {
+    signal.removeEventListener('abort', cancel);
+  }
+}
+
+function googleDriveRevokeTransferId(): string {
+  const randomId = globalThis.crypto?.randomUUID?.();
+  if (randomId) return `revoke-${randomId}`;
+  return `revoke-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 export function isTauriRuntime(): boolean {
@@ -126,6 +189,89 @@ function toArrayBuffer(bytes: NativeBytes): ArrayBuffer {
   return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
 }
 
+const SYNC_PROTOCOL_IPC_CHUNK_BYTES = 2 * 1024 * 1024;
+const SYNC_PROTOCOL_OBJECT_MAX_BYTES = 512 * 1024 * 1024;
+
+function assertProtocolObjectLimit(value: number, label: string): void {
+  if (!Number.isSafeInteger(value) || value < 0 || value > SYNC_PROTOCOL_OBJECT_MAX_BYTES) {
+    throw new RangeError(`${label} must be between 0 and 512 MiB`);
+  }
+}
+
+async function stageProtocolBytes(bytes: ArrayBuffer | Uint8Array) {
+  const value = toUint8Array(bytes);
+  assertProtocolObjectLimit(value.byteLength, 'sync protocol object size');
+  const allocated = await invokeContract('sync_object_allocate_protocol', undefined);
+  let finalized = false;
+  try {
+    let offset = 0;
+    while (offset < value.byteLength) {
+      const end = Math.min(offset + SYNC_PROTOCOL_IPC_CHUNK_BYTES, value.byteLength);
+      const nextOffset = await invokeContract('sync_object_append_protocol_chunk', {
+        sourceRef: allocated.sourceRef,
+        offset,
+        bytes: toNumberArray(value.subarray(offset, end)),
+      });
+      if (nextOffset !== end) {
+        throw new Error('native sync protocol stage returned a non-contiguous offset');
+      }
+      offset = end;
+    }
+    const result = await invokeContract('sync_object_finalize_protocol', {
+      sourceRef: allocated.sourceRef,
+      expectedSizeBytes: value.byteLength,
+    });
+    finalized = true;
+    return result;
+  } finally {
+    if (!finalized) {
+      await invokeContract('sync_object_discard_local', {
+        sourceRef: allocated.sourceRef,
+      }).catch(() => undefined);
+    }
+  }
+}
+
+async function readProtocolBytes(sourceRef: string, maxBytes: number): Promise<Uint8Array> {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+    throw new RangeError('sync protocol read limit must be a positive safe integer');
+  }
+  assertProtocolObjectLimit(maxBytes, 'sync protocol read limit');
+
+  let output: Uint8Array | null = null;
+  let offset = 0;
+  do {
+    const result = await invokeContract('sync_object_read_protocol_chunk', {
+      sourceRef,
+      offset,
+      maxBytes: Math.min(SYNC_PROTOCOL_IPC_CHUNK_BYTES, maxBytes - offset),
+    });
+    if (
+      !Number.isSafeInteger(result.offset) ||
+      result.offset !== offset ||
+      !Number.isSafeInteger(result.totalSizeBytes) ||
+      result.totalSizeBytes < 0 ||
+      result.totalSizeBytes > maxBytes
+    ) {
+      throw new Error('native sync protocol chunk metadata is invalid');
+    }
+    if (output === null) output = new Uint8Array(result.totalSizeBytes);
+    if (output.byteLength !== result.totalSizeBytes) {
+      throw new Error('native sync protocol object size changed between chunks');
+    }
+    const chunk = new Uint8Array(toArrayBuffer(result.bytes));
+    if (chunk.byteLength > SYNC_PROTOCOL_IPC_CHUNK_BYTES || offset + chunk.byteLength > output.length) {
+      throw new Error('native sync protocol chunk exceeds its authenticated bounds');
+    }
+    output.set(chunk, offset);
+    offset += chunk.byteLength;
+    if (offset < output.length && chunk.byteLength === 0) {
+      throw new Error('native sync protocol chunk made no progress');
+    }
+  } while (output === null || offset < output.length);
+  return output;
+}
+
 function normalizeImageVariant(result: ImageVariantResult) {
   if (!result.ok) return result;
   return { ...result, bytes: toArrayBuffer(result.bytes) };
@@ -145,7 +291,7 @@ async function readNativeFileBytes(filePath: string): Promise<ArrayBuffer | null
   return result.ok ? toArrayBuffer(result.bytes) : null;
 }
 
-function normalizeAssetFileUrl<T extends { ok: boolean }>(result: T): T {
+function normalizeStoredAssetFileUrl<T extends { ok: boolean }>(result: T): T {
   if (!result.ok || !('filePath' in result) || typeof result.filePath !== 'string') return result;
   return { ...result, fileUrl: convertFileSrc(result.filePath) };
 }
@@ -268,8 +414,11 @@ function normalizeCapabilities(
     mcpStdio: native.mcpStdio === true,
     featureStatus: {
       secureStorage: advertised(native.secureStorage),
+      syncObjectStore: advertised(native.syncObjectStore),
+      googleDriveTransport: advertised(native.googleDriveTransport),
+      googleDriveOAuth: native.googleDriveOAuth === true ? 'available' : 'unsupported',
       materialFiles: advertised(native.materialFiles),
-      assetCache: advertised(native.assetCache),
+      assetStore: advertised(native.assetStore),
       aiLog: advertised(native.aiLog),
       oauth:
         native.oauth === undefined && native.deepLinks && native.externalUrlOpener
@@ -321,6 +470,9 @@ async function exchangeNativeOAuthCode(
   codeVerifier: string,
   redirectUri: string,
 ): Promise<string> {
+  if (!canUseHostedService()) {
+    throw new Error('HOSTED_SERVICE_DISABLED: native account OAuth is unavailable.');
+  }
   const response = await fetch(
     `${APP_CONFIG.API_BASE_URL.replace(/\/$/, '')}/api/auth/native-exchange`,
     {
@@ -405,6 +557,13 @@ export const tauriPlatform: PlatformApi = {
         .catch((error) => console.error(error));
       return stop;
     },
+    onReadyOrResume(callback) {
+      return listenContract(LIFECYCLE_EVENT, (payload) => {
+        if (payload.event === 'ready' || payload.event === 'resumed') {
+          callback(payload.event);
+        }
+      });
+    },
     confirmFlushBeforeQuit(requestId) {
       return invokeContract('lifecycle_complete_flush', { requestId });
     },
@@ -412,6 +571,9 @@ export const tauriPlatform: PlatformApi = {
 
   auth: {
     async openOAuthBrowser(provider) {
+      if (!canUseHostedService()) {
+        throw new Error('HOSTED_SERVICE_DISABLED: native account OAuth is unavailable.');
+      }
       const pending = await createPendingNativeOAuth();
       const url = new URL(
         `${APP_CONFIG.API_BASE_URL.replace(/\/$/, '')}/api/auth/oauth-redirect/${encodeURIComponent(provider)}`,
@@ -477,6 +639,87 @@ export const tauriPlatform: PlatformApi = {
     has: (key) => invokeContract('keychain_has', { key }),
     set: (key, value) => invokeContract('keychain_set', { key, value }),
     delete: (key) => invokeContract('keychain_delete', { key }),
+  },
+
+  syncObjectStore: {
+    stageBytes: stageProtocolBytes,
+    stageAssetSource: (projectId, assetId, ext) =>
+      invokeContract('sync_object_stage_asset_source', { projectId, assetId, ext }),
+    discardLocal: (sourceRef) => invokeContract('sync_object_discard_local', { sourceRef }),
+    gcOrphans: (input) => invokeContract('sync_object_gc_orphans', input),
+    readProtocolBytes,
+  },
+
+  syncAssetStore: {
+    captureSource: (input) => invokeContract('sync_asset_capture_source', input),
+    prepareRestoreSource: (input) =>
+      invokeContract('sync_asset_prepare_restore_source', input),
+    activateRestoreSources: (input) =>
+      invokeContract('sync_asset_activate_restore_sources', input),
+    abandonRestoreAttempt: (attemptId) =>
+      invokeContract('sync_asset_abandon_restore_attempt', { attemptId }),
+    finalizeRestoreAttempt: (attemptId) =>
+      invokeContract('sync_asset_finalize_restore_attempt', { attemptId }),
+    gcRestoreAttempts: (input) => invokeContract('sync_asset_gc_restore_attempts', input),
+  },
+
+  googleDrive: {
+    connectAccount: async () =>
+      unwrapGoogleDriveResult(await invokeContract('google_drive_oauth_connect', undefined)),
+    claimAccount: async (credentialSecretRef, accountSubject) =>
+      unwrapGoogleDriveResult(
+        await invokeContract('google_drive_claim_account', {
+          credentialSecretRef,
+          accountSubject,
+        }),
+      ),
+    reauthorizeAccount: async (credentialSecretRef) =>
+      unwrapGoogleDriveResult(
+        await invokeContract('google_drive_oauth_reauthorize', { credentialSecretRef }),
+      ),
+    revokeAccount: async (
+      credentialSecretRef,
+      signal = new AbortController().signal,
+    ): Promise<void> => {
+      const transferId = googleDriveRevokeTransferId();
+      await invokeGoogleDriveTransfer(
+        () =>
+          invokeContract('google_drive_revoke_account', {
+            credentialSecretRef,
+            transferId,
+          }),
+        transferId,
+        signal,
+      );
+    },
+    discoverProjectSnapshots: async (input) =>
+      unwrapGoogleDriveResult(
+        await invokeContract('google_drive_discover_project_snapshots', input),
+      ),
+    openGeneration: async (input) =>
+      unwrapGoogleDriveResult(await invokeContract('google_drive_open_generation', input)),
+    captureStartCursor: async (generationRef) =>
+      unwrapGoogleDriveResult(
+        await invokeContract('google_drive_capture_start_cursor', { generationRef }),
+      ),
+    listInventory: async (input) =>
+      unwrapGoogleDriveResult(await invokeContract('google_drive_list_inventory', input)),
+    listChanges: async (input) =>
+      unwrapGoogleDriveResult(await invokeContract('google_drive_list_changes', input)),
+    statImmutable: async (input) =>
+      unwrapGoogleDriveResult(await invokeContract('google_drive_stat_immutable', input)),
+    uploadImmutable: ({ signal, ...input }) =>
+      invokeGoogleDriveTransfer(
+        () => invokeContract('google_drive_upload_immutable', input),
+        input.transferId,
+        signal,
+      ),
+    downloadVerifiedImmutable: ({ signal, ...input }) =>
+      invokeGoogleDriveTransfer(
+        () => invokeContract('google_drive_download_verified_immutable', input),
+        input.transferId,
+        signal,
+      ),
   },
 
   typography: {
@@ -557,18 +800,24 @@ export const tauriPlatform: PlatformApi = {
         return { ok: false, error: error instanceof Error ? error.message : String(error) };
       }
     },
-    resolveUrlMeta: (url) => invokeContract('material_resolve_url_meta', { url }),
+    resolveUrlMeta: (url) =>
+      canUseExternalContent()
+        ? invokeContract('material_resolve_url_meta', { url })
+        : Promise.resolve({
+            ok: false,
+            error: 'EXTERNAL_CONTENT_OFFLINE: URL metadata is unavailable while offline.',
+          }),
   },
 
-  assetCache: {
+  assetStore: {
     async getPath(projectId, assetId, variant, ext) {
-      return normalizeAssetFileUrl(
-        await invokeContract('asset_cache_get_path', { projectId, assetId, variant, ext }),
+      return normalizeStoredAssetFileUrl(
+        await invokeContract('asset_store_get_path', { projectId, assetId, variant, ext }),
       );
     },
     async writeBytes(projectId, assetId, variant, ext, bytes) {
-      return normalizeAssetFileUrl(
-        await invokeContract('asset_cache_write_bytes', {
+      return normalizeStoredAssetFileUrl(
+        await invokeContract('asset_store_write_bytes', {
           projectId,
           assetId,
           variant,
@@ -578,8 +827,8 @@ export const tauriPlatform: PlatformApi = {
       );
     },
     async copyFile(projectId, assetId, variant, ext, sourcePath) {
-      return normalizeAssetFileUrl(
-        await invokeContract('asset_cache_copy_file', {
+      return normalizeStoredAssetFileUrl(
+        await invokeContract('asset_store_copy_file', {
           projectId,
           assetId,
           variant,
@@ -588,22 +837,13 @@ export const tauriPlatform: PlatformApi = {
         }),
       );
     },
-    uploadFile: (url, projectId, assetId, variant, ext, contentType) =>
-      invokeContract('asset_cache_upload_file', {
-        url,
-        projectId,
-        assetId,
-        variant,
-        ext,
-        contentType,
-      }),
-    async download(url, projectId, assetId, variant, ext) {
-      return normalizeAssetFileUrl(
-        await invokeContract('asset_cache_download', { url, projectId, assetId, variant, ext }),
-      );
-    },
     deleteAsset: (projectId, assetId) =>
-      invokeContract('asset_cache_delete_asset', { projectId, assetId }),
+      invokeContract('asset_store_delete_asset', { projectId, assetId }),
+  },
+
+  archive: {
+    save: (filename, bytes) =>
+      invokeContract('archive_save', { filename, bytes: toNumberArray(bytes) }),
   },
 
   aiLog: {

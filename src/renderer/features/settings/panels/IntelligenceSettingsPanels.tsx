@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { byokKeychain, type BYOKProvider } from '../../../lib/byok-keychain';
-import { apiClient } from '../../../lib/axios-config';
+import { resolveCopilotModel } from '../../../lib/ai/copilot-route';
+import { testByokProviderConnection } from '../../../lib/ai/test-provider-connection';
 import { getCopilotCapability } from '../../../lib/copilot/capability';
+import { copilotRuntime } from '../../../lib/copilot/runtime';
 import { events } from '../../../lib/events';
 import {
   COPILOT_TASKS,
   useSettingsStore,
   type CopilotTaskId,
-  agentProviderOption,
 } from '../../../store/settings-store';
-import { platform } from '../../../platform';
 import {
   SettingsPanelHeader,
   SettingsRow,
@@ -39,8 +39,8 @@ function ProviderRow({
   const [draft, setDraft] = useState('');
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
-  const selectedAgentProvider = useSettingsStore((state) => state.agentProvider);
-  const selectedAgentModel = useSettingsStore((state) => state.agentModel);
+  const selectedCopilotProvider = useSettingsStore((state) => state.copilotByokProvider);
+  const selectedCopilotModel = useSettingsStore((state) => state.copilotByokModel);
 
   // Settings needs existence only. On macOS this is an attribute-only native
   // query, so merely scrolling this panel into view never asks to decrypt keys.
@@ -71,66 +71,22 @@ function ProviderRow({
     setTestState('testing');
     setTestMsg('');
     try {
-      if (provider === 'openai') {
-        const certifiedModels = agentProviderOption('openai').models;
-        const model =
-          selectedAgentProvider === 'openai' &&
-          certifiedModels.some((candidate) => candidate.value === selectedAgentModel)
-            ? selectedAgentModel
-            : certifiedModels[0]!.value;
-        const response = await platform.openAIResponses.request(
-          JSON.stringify({
-            model,
-            instructions: 'Return exactly OK.',
-            input: 'Drifting native connectivity check.',
-            max_output_tokens: 32,
-            stream: true,
-            store: false,
-            reasoning: { effort: 'none' },
-          }),
-          new AbortController().signal,
-        );
-        if (!response.ok) {
-          setTestState('fail');
-          setTestMsg(
-            response.headers.get('x-drifting-openai-error-message') ??
-              t('settings.byokProvider.invalidKey'),
-          );
-          return;
-        }
-        const stream = await response.text();
-        if (!/"type"\s*:\s*"response\.completed"/.test(stream)) {
-          setTestState('fail');
-          setTestMsg(t('settings.byokProvider.requestFailed'));
-          return;
-        }
-        setTestState('ok');
-        return;
-      }
-
-      // Other provider tests retain their existing explicit-action path. No
-      // secret is read while Settings is only being viewed.
-      const stored = await byokKeychain.get(provider);
-      if (!stored) {
-        setConnected(false);
-        setTestState('fail');
-        setTestMsg(t('settings.byokProvider.invalidKey'));
-        return;
-      }
-      const res = await apiClient.request<{ ok?: boolean; message?: string }>({
-        method: 'POST',
-        url: '/api/ai/byok/test',
-        headers: { 'X-AI-Provider': provider, 'X-AI-Provider-Key': stored },
+      const model = resolveCopilotModel(
+        provider,
+        provider === selectedCopilotProvider ? selectedCopilotModel : '',
+      );
+      await testByokProviderConnection(provider, {
+        model,
+        signal: new AbortController().signal,
       });
-      if (res.data?.ok) {
-        setTestState('ok');
-      } else {
-        setTestState('fail');
-        setTestMsg(res.data?.message ?? t('settings.byokProvider.invalidKey'));
-      }
-    } catch {
+      setTestState('ok');
+    } catch (error) {
       setTestState('fail');
-      setTestMsg(t('settings.byokProvider.requestFailed'));
+      setTestMsg(
+        (error as { kind?: string })?.kind === 'auth'
+          ? t('settings.byokProvider.invalidKey')
+          : t('settings.byokProvider.requestFailed'),
+      );
     }
   };
 
@@ -145,12 +101,14 @@ function ProviderRow({
     }
     setDraft('');
     setEditing(false);
+    copilotRuntime.resetClient();
     events.emit('byok:keys-changed');
   };
 
   const disconnect = async () => {
     await byokKeychain.clear(provider);
     setConnected(false);
+    copilotRuntime.resetClient();
     events.emit('byok:keys-changed');
   };
 
@@ -459,17 +417,16 @@ function CopilotTaskRow({
 }
 
 // Known models per BYOK provider — drives the Copilot model dropdown so the user
-// picks instead of hand-typing a model id. Only ids the codebase already blesses
-// (deepseek v4 flash/pro, the Agent catalog's pinned Claude ids, the GoogleModel
-// union); openai has no sanctioned catalog here, so it falls back to 默认/自定义.
-// The model is still resolved server-side (synced via preferences) — this is a
-// UX layer over the same copilotByokModel value, NOT new routing.
+// can choose a provider-native id without hand-typing it. The renderer resolves
+// this selection locally and sends it only to that provider. Custom remains an
+// escape hatch for newly released model ids.
 const COPILOT_BYOK_MODELS: Record<BYOKProvider, { value: string; label: string }[]> = {
   deepseek: [
     { value: 'deepseek-v4-flash', label: 'DeepSeek Flash' },
     { value: 'deepseek-v4-pro', label: 'DeepSeek Pro' },
   ],
   anthropic: [
+    { value: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
     { value: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
     { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
@@ -479,7 +436,11 @@ const COPILOT_BYOK_MODELS: Record<BYOKProvider, { value: string; label: string }
     { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
     { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite' },
   ],
-  openai: [],
+  openai: [
+    { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
+    { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
+    { value: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' },
+  ],
 };
 
 const BYOK_PROVIDER_LABEL: Record<BYOKProvider, string> = {

@@ -22,6 +22,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { entityKey, type ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import { mergeBlockChanges, type AgentBlockChange, type AgentFieldRef } from '../lib/agent/block-diff';
+import { parseDocId } from '../lib/yjs-doc-id';
 
 export type AgentEditMode = 'auto' | 'approve';
 
@@ -189,6 +190,8 @@ interface AgentEditState {
   drainReverts: (projectId: string, sessionId?: string | null) => RevertRecord[];
   /** Drop an entity's whole pending set (e.g. the user dismissed it). */
   clear: (entityType: ActivityEntityType, id: string) => void;
+  /** Remove every persisted presentation/revert receipt owned by a deleted project. */
+  clearProject: (projectId: string, proseDocIds: string[], reviewIds: string[]) => void;
   /** New prompt / project switch — forget everything. */
   clearAll: () => void;
 }
@@ -515,6 +518,58 @@ export const useAgentEditStore = create<AgentEditState>()(
             delete autoRevealGuards[reviewId];
           }
           return { pending, additions, autoRevealGuards };
+        });
+      },
+
+      clearProject: (projectId, proseDocIds, reviewIds) => {
+        const projectEntityKeys = new Set<string>();
+        for (const docId of proseDocIds) {
+          const parsed = parseDocId(docId);
+          if (!parsed) continue;
+          const entityType: ActivityEntityType =
+            parsed.kind === 'node-content' ? 'node' : parsed.kind;
+          projectEntityKeys.add(entityKey(entityType, parsed.entityId));
+        }
+
+        set((state) => {
+          const removedReviewIds = new Set(reviewIds);
+          for (const [reviewId, batch] of Object.entries(state.reviewBatches)) {
+            if (projectEntityKeys.has(entityKey(batch.entityType, batch.id))) {
+              removedReviewIds.add(reviewId);
+            }
+          }
+
+          return {
+            pending: Object.fromEntries(
+              Object.entries(state.pending).filter(([key]) => !projectEntityKeys.has(key)),
+            ),
+            additions: Object.fromEntries(
+              Object.entries(state.additions).filter(([key]) => !projectEntityKeys.has(key)),
+            ),
+            autoRevealGuards: Object.fromEntries(
+              Object.entries(state.autoRevealGuards).filter(
+                ([, guard]) =>
+                  !projectEntityKeys.has(entityKey(guard.entityType, guard.id)) &&
+                  !removedReviewIds.has(guard.reviewId),
+              ),
+            ),
+            pendingReverts: state.pendingReverts.filter(
+              (record) => record.projectId !== projectId,
+            ),
+            reviewBatches: Object.fromEntries(
+              Object.entries(state.reviewBatches).filter(
+                ([reviewId]) => !removedReviewIds.has(reviewId),
+              ),
+            ),
+            reviewOrder: state.reviewOrder.filter(
+              (reviewId) => !removedReviewIds.has(reviewId),
+            ),
+            settledReviewIds: Object.fromEntries(
+              Object.entries(state.settledReviewIds).filter(
+                ([reviewId]) => !removedReviewIds.has(reviewId),
+              ),
+            ),
+          };
         });
       },
 

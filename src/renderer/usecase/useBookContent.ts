@@ -2,13 +2,18 @@ import { useCallback, useRef, useMemo } from 'react';
 
 import { createBookContentRepository } from '../sqlite-repo/content-repo';
 import type { NodeContent } from '../domain/node-content';
+import type { PlotGridMutation } from '../domain/plot-grid';
 import { initDatabase } from '../lib/db';
-import { withAtomicSyncTransaction } from './sync-helpers';
+import { createPlotGridRepository } from '../sqlite-repo/plot-grid-repo';
+import { runDerivedTransaction } from '../sync/journal';
+import { persistPlotGridMutations } from './plot-grid-write';
 
 export interface UseBookContentContext {
   userId: string;
   projectId: string;
 }
+
+type BookContentPatch = Partial<Omit<NodeContent, 'plotGridJson'>>;
 
 export function useBookContent({ userId, projectId }: UseBookContentContext) {
   if (!userId) {
@@ -16,6 +21,8 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
   }
   const contentRepoRef = useRef(createBookContentRepository());
   const contentRepo = contentRepoRef.current;
+  const plotGridRepoRef = useRef(createPlotGridRepository());
+  const plotGridRepo = plotGridRepoRef.current;
   const ensureDb = useCallback(async () => {
     await initDatabase(userId);
   }, [userId]);
@@ -23,31 +30,32 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
   const getContentByNodeId = useCallback(
     async (nodeId: string) => {
       await ensureDb();
-      return contentRepo.findByNodeId(nodeId);
+      const content = await contentRepo.findByNodeId(nodeId);
+      if (!content) return null;
+      const plotGridJson = await plotGridRepo.materializeProjection(nodeId);
+      return { ...content, plotGridJson: plotGridJson ?? '{}' };
     },
-    [contentRepo, ensureDb],
+    [contentRepo, ensureDb, plotGridRepo],
   );
 
   const getContentById = useCallback(
     async (id: string) => {
       await ensureDb();
-      return contentRepo.findById(id);
+      const content = await contentRepo.findById(id);
+      if (!content) return null;
+      const plotGridJson = await plotGridRepo.materializeProjection(content.nodeId);
+      return { ...content, plotGridJson: plotGridJson ?? '{}' };
     },
-    [contentRepo, ensureDb],
+    [contentRepo, ensureDb, plotGridRepo],
   );
 
   const updateContentByNodeId = useCallback(
-    async (nodeId: string, updates: Partial<NodeContent>) => {
+    async (nodeId: string, updates: BookContentPatch) => {
       await ensureDb();
       // Write and sync only the columns the caller owns. Reconstructing a full
       // stale row here lets the editor's content debounce overwrite a newer
       // plot-grid write (and vice versa).
-      const syncPatch: Record<string, unknown> = {};
-      if (updates.contentJson !== undefined) syncPatch.contentJson = updates.contentJson;
-      if (updates.outlineJson !== undefined) syncPatch.outlineJson = updates.outlineJson;
-      if (updates.plotGridJson !== undefined) syncPatch.plotGridJson = updates.plotGridJson;
-
-      return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+      return runDerivedTransaction('prose.node-content-projection', async (tx) => {
         const repo = createBookContentRepository(tx);
         const cont = await repo.findByNodeId(nodeId);
         if (!cont) {
@@ -57,22 +65,16 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
           ...updates,
           updatedAt: new Date().toISOString(),
         });
-        await sync('nodeContent', 'update', nodeId, projectId, syncPatch);
         return result;
       });
     },
-    [ensureDb, projectId],
+    [ensureDb],
   );
 
   const updateContentById = useCallback(
-    async (id: string, updates: Partial<NodeContent>) => {
+    async (id: string, updates: BookContentPatch) => {
       await ensureDb();
-      const syncPatch: Record<string, unknown> = {};
-      if (updates.contentJson !== undefined) syncPatch.contentJson = updates.contentJson;
-      if (updates.outlineJson !== undefined) syncPatch.outlineJson = updates.outlineJson;
-      if (updates.plotGridJson !== undefined) syncPatch.plotGridJson = updates.plotGridJson;
-
-      return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+      return runDerivedTransaction('prose.node-content-projection', async (tx) => {
         const repo = createBookContentRepository(tx);
         const cont = await repo.findById(id);
         if (!cont) {
@@ -82,32 +84,25 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
           ...updates,
           updatedAt: new Date().toISOString(),
         });
-        await sync('nodeContent', 'update', cont.nodeId, projectId, syncPatch);
         return result;
       });
     },
-    [ensureDb, projectId],
+    [ensureDb],
   );
 
   const createContent = useCallback(
-    async (nodeId: string, content: Partial<NodeContent>) => {
+    async (nodeId: string, content: BookContentPatch) => {
       await ensureDb();
-      return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+      return runDerivedTransaction('prose.node-content-projection-create', async (tx) => {
         const created = await createBookContentRepository(tx).create({
           nodeId,
           contentJson: content.contentJson,
           outlineJson: content.outlineJson,
-          plotGridJson: content.plotGridJson,
-        });
-        await sync('nodeContent', 'update', nodeId, projectId, {
-          contentJson: created.contentJson,
-          outlineJson: created.outlineJson,
-          plotGridJson: created.plotGridJson,
         });
         return created;
       });
     },
-    [ensureDb, projectId],
+    [ensureDb],
   );
 
   const getOutlineByNodeId = useCallback(
@@ -119,20 +114,15 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
     [contentRepo, ensureDb],
   );
 
-  // Plot planner grid lives on the same NodeContent row but is edited
-  // independently of the prose editor, so it gets its own create-or-update
-  // path (the prose save in NodeEditorView only ever touches content/outline).
+  // Plot Grid has its own normalized authored command path. plotGridJson is
+  // rebuilt inside that transaction and never enters a generic field.set.
   const updatePlotGridByNodeId = useCallback(
-    async (nodeId: string, plotGridJson: string) => {
+    async (nodeId: string, mutations: readonly PlotGridMutation[]) => {
       await ensureDb();
-      return withAtomicSyncTransaction(projectId, async (tx, sync) => {
-        const repo = createBookContentRepository(tx);
-        const existing = await repo.findByNodeId(nodeId);
-        const result = existing
-          ? await repo.update(nodeId, { plotGridJson })
-          : await repo.create({ nodeId, plotGridJson });
-        await sync('nodeContent', 'update', nodeId, projectId, { plotGridJson });
-        return result;
+      return persistPlotGridMutations({
+        projectId,
+        nodeId,
+        mutations,
       });
     },
     [ensureDb, projectId],

@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from 'react';
-import { and, eq } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
 
 import {
@@ -8,7 +7,6 @@ import {
   type EntityRelationType,
   type EntityRelationTypeDefinition,
 } from '../domain/entity-relation-type';
-import { EntityRelationTable } from '../schema/drizzle';
 import { createEntityRelationTypeRepository } from '../sqlite-repo/entity-relation-type-repo';
 import { useDataStore } from '../store/data-store';
 import { withOptimisticUpdate } from './optimistic';
@@ -34,6 +32,8 @@ export function useEntityRelationTypes({ projectId }: { projectId: string }) {
         id: uuidv7(),
         projectId,
         ...normalized,
+        systemKey: null,
+        locked: false,
         createdAt: now,
         updatedAt: now,
       };
@@ -62,6 +62,7 @@ export function useEntityRelationTypes({ projectId }: { projectId: string }) {
         (type) => type.id === id && type.projectId === projectId,
       );
       if (!previousType) throw new Error('关系类型不存在或不属于当前项目');
+      if (previousType.locked) throw new Error('内建关系类型不能修改');
       const normalized = normalizeRelationTypeDefinition(definition);
       const duplicate = state.entityRelationTypes.find(
         (type) =>
@@ -97,44 +98,16 @@ export function useEntityRelationTypes({ projectId }: { projectId: string }) {
       }
 
       const previousTypes = state.entityRelationTypes.slice();
-      const previousRelations = state.entityRelations.slice();
-      const nextRelations = previousRelations.map((relation) =>
-        relation.relationTypeId === id
-          ? { ...relation, kind: nextType.name, updatedAt: nextType.updatedAt }
-          : relation,
-      );
       return withOptimisticUpdate({
-        apply: () => {
+        apply: () =>
           useDataStore.getState().setEntityRelationTypes(
             previousTypes.map((type) => (type.id === id ? nextType : type)),
-          );
-          useDataStore.getState().setEntityRelations(nextRelations);
-        },
-        rollback: () => {
-          useDataStore.getState().setEntityRelationTypes(previousTypes);
-          useDataStore.getState().setEntityRelations(previousRelations);
-        },
+          ),
+        rollback: () => useDataStore.getState().setEntityRelationTypes(previousTypes),
         effect: () =>
           withAtomicSyncTransaction(projectId, async (tx, sync) => {
             await createEntityRelationTypeRepository(projectId, tx).update(nextType);
             await sync('entityRelationType', 'update', nextType.id, projectId, { ...nextType });
-            if (previousType.name !== nextType.name && affected.length > 0) {
-              await tx
-                .update(EntityRelationTable)
-                .set({ kind: nextType.name, updatedAt: nextType.updatedAt })
-                .where(
-                  and(
-                    eq(EntityRelationTable.projectId, projectId),
-                    eq(EntityRelationTable.relationTypeId, id),
-                  ),
-                );
-              for (const relation of affected) {
-                await sync('entityRelation', 'update', relation.id, projectId, {
-                  kind: nextType.name,
-                  relationTypeId: id,
-                });
-              }
-            }
             return nextType;
           }),
       });
@@ -149,6 +122,7 @@ export function useEntityRelationTypes({ projectId }: { projectId: string }) {
         (type) => type.id === id && type.projectId === projectId,
       );
       if (!value) return;
+      if (value.locked) throw new Error('内建关系类型不能删除');
       const previous = state.entityRelationTypes.slice();
       await withOptimisticUpdate({
         apply: () => useDataStore.getState().removeEntityRelationType(id),

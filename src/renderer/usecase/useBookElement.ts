@@ -5,7 +5,6 @@ import { useDataStore } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
 import {
   ElementNameConflictError,
-  encodeAliases,
   findElementNameConflict,
   makeUniqueElementName,
   type BookElement,
@@ -23,13 +22,24 @@ import {
   deleteEntityRelationsInTransaction,
   withoutRelationsForEntity,
 } from './entity-relation-cleanup';
-import {
-  cancelAssetUploadForOwner,
-  startAssetUploadJob,
-} from '../services/durable-asset-upload.service';
 import { BookElementTable } from '../schema/drizzle';
-import { projectAssetService } from '../services/project-asset.service';
-import { assetCacheService } from '../services/asset-cache.service';
+import { assetStoreService } from '../services/asset-store.service';
+import {
+  prepareLocalProjectAsset,
+  releasePickedMaterialImport,
+} from '../services/local-project-asset.service';
+import {
+  appendAuthoredProseSeedInTransaction,
+  appendProjectAssetBindMutation,
+  appendProjectAssetUnbindMutation,
+  runDerivedTransaction,
+} from '../sync/journal';
+import { createEntitySeedUpdate } from '../hooks/useEntityYjsDoc';
+import {
+  cloneEntityKvEntriesInTransaction,
+  replaceElementAliasesInTransaction,
+  replaceEntityKvEntriesInTransaction,
+} from './normalized-kv-alias-authority';
 
 export interface CreateBookElementInput {
   categoryId: string;
@@ -50,6 +60,8 @@ export interface CreateBookElementInput {
    * ungrouped.
    */
   groupName?: string | null;
+  /** Initial prose authority; when omitted the category template is used. */
+  initialContentJson?: string;
 }
 export type UpdateElementUsecaseInput = Partial<
   Omit<BookElement, 'id' | 'updatedAt' | 'projectId' | 'createdAt'>
@@ -108,10 +120,12 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       const category = useDataStore
         .getState()
         .bookElementCategories.find((c) => c.id === input.categoryId);
-      const seededContentJson = category?.elementTemplateJson?.trim() || '{}';
-      // Same logic as the contentJson seed: pull the category's KV template
-      // and stamp it onto the new element. Existing elements stay untouched
-      // when the template later changes.
+      const seededContentJson =
+        input.initialContentJson?.trim() || category?.elementTemplateJson?.trim() || '{}';
+      const proseSeedState = await createEntitySeedUpdate(seededContentJson);
+      // This projection only feeds the optimistic row. The authored
+      // transaction clones normalized category-template entries with fresh
+      // IDs and reloads the element projection before committing UI state.
       const seededKvJson = category?.elementTemplateKvJson?.trim() || '[]';
 
       const explicitName = input.name?.trim();
@@ -161,21 +175,43 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         apply: () => setElements([newElement, ...prev]),
         rollback: () => setElements(prev),
         effect: () =>
-          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
-            const persisted = await createBookElementSqliteRepository(
+          withAtomicSyncTransaction(activeProjectId, async (tx, sync, changes) => {
+            const elementRepo = createBookElementSqliteRepository(
               activeProjectId,
               tx,
-            ).create(newElement);
+            );
+            await elementRepo.create({ ...newElement, kvJson: '[]', aliases: [] });
+            await cloneEntityKvEntriesInTransaction(tx, changes, {
+              source: {
+                projectId: activeProjectId,
+                ownerKind: 'element-category',
+                ownerId: input.categoryId,
+                namespace: 'element-template',
+              },
+              target: {
+                projectId: activeProjectId,
+                ownerKind: 'element',
+                ownerId: newElement.id,
+                namespace: 'facts',
+              },
+            });
+            await replaceElementAliasesInTransaction(tx, changes, {
+              projectId: activeProjectId,
+              elementId: newElement.id,
+              aliases: newElement.aliases,
+            });
+            const persisted = (await elementRepo.findById(newElement.id))!;
             await sync('element', 'create', persisted.id, activeProjectId, {
               id: persisted.id,
               categoryId: persisted.categoryId,
               name: persisted.name,
               summary: persisted.summary,
-              contentJson: persisted.contentJson,
-              kvJson: persisted.kvJson,
-              aliasesJson: encodeAliases(persisted.aliases),
               groupName: persisted.groupName,
-              portraitAssetId: persisted.portraitAssetId,
+            });
+            await appendAuthoredProseSeedInTransaction(tx, changes, {
+              entityType: 'element',
+              entityId: persisted.id,
+              stateUpdate: proseSeedState,
             });
             return persisted;
           }),
@@ -246,34 +282,66 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         apply: () => setElements(elements.map((el) => (el.id === id ? updatedElement : el))),
         rollback: () => setElements(elements),
         effect: async () => {
-          return withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
-            const persisted = await createBookElementSqliteRepository(
+          const projectionOnly = Object.keys(updates).every(
+            (field) => field === 'contentJson',
+          );
+          if (projectionOnly) {
+            return runDerivedTransaction('prose.element-projection', async (tx) => {
+              const elementRepo = createBookElementSqliteRepository(activeProjectId, tx);
+              await elementRepo.update(id, {
+                contentJson: updatedElement.contentJson,
+                updatedAt: updatedElement.updatedAt,
+              });
+              const persisted = await elementRepo.findById(id);
+              if (!persisted) throw new Error(`Element with id ${id} not found`);
+              return persisted;
+            });
+          }
+          return withAtomicSyncTransaction(activeProjectId, async (tx, sync, changes) => {
+            const elementRepo = createBookElementSqliteRepository(
               activeProjectId,
               tx,
-            ).update(id, {
+            );
+            await elementRepo.update(id, {
               categoryId: updatedElement.categoryId,
               name: updatedElement.name,
               summary: updatedElement.summary,
               contentJson: updatedElement.contentJson,
-              kvJson: updatedElement.kvJson,
-              aliases: updatedElement.aliases,
               groupName: updatedElement.groupName,
               portraitAssetId: updatedElement.portraitAssetId,
               updatedAt: updatedElement.updatedAt,
             });
+            if (updates.kvJson !== undefined) {
+              await replaceEntityKvEntriesInTransaction(tx, changes, {
+                projectId: activeProjectId,
+                ownerKind: 'element',
+                ownerId: id,
+                namespace: 'facts',
+                nextJson: updates.kvJson,
+              });
+            }
+            if (updates.aliases !== undefined) {
+              await replaceElementAliasesInTransaction(tx, changes, {
+                projectId: activeProjectId,
+                elementId: id,
+                aliases: updates.aliases,
+              });
+            }
+            const persisted = await elementRepo.findById(id);
             if (!persisted) {
               throw new Error(`Element with id ${id} not found`);
             }
-            await sync('element', 'update', id, activeProjectId, {
-              categoryId: persisted.categoryId,
-              name: persisted.name,
-              summary: persisted.summary,
-              contentJson: persisted.contentJson,
-              kvJson: persisted.kvJson,
-              aliasesJson: encodeAliases(persisted.aliases),
-              groupName: persisted.groupName,
-              portraitAssetId: persisted.portraitAssetId,
-            });
+            const scalarPayload: Record<string, unknown> = {};
+            if (updates.categoryId !== undefined) scalarPayload.categoryId = persisted.categoryId;
+            if (updates.name !== undefined) scalarPayload.name = persisted.name;
+            if (updates.summary !== undefined) scalarPayload.summary = persisted.summary;
+            if (updates.groupName !== undefined) scalarPayload.groupName = persisted.groupName;
+            if (updates.portraitAssetId !== undefined) {
+              scalarPayload.portraitAssetId = persisted.portraitAssetId;
+            }
+            if (Object.keys(scalarPayload).length > 0) {
+              await sync('element', 'update', id, activeProjectId, scalarPayload);
+            }
             return persisted;
           });
         },
@@ -308,7 +376,9 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         /* best-effort — fall through with whatever we have */
       }
 
-      const result = await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+      const result = await withAtomicSyncTransaction(
+        activeProjectId,
+        async (tx, sync, changes) => {
         const [elementSnapshot] = await tx
           .select({ portraitAssetId: BookElementTable.portraitAssetId })
           .from(BookElementTable)
@@ -319,9 +389,6 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             ),
           )
           .limit(1);
-        const canceledJob = await cancelAssetUploadForOwner(activeProjectId, 'element', id, tx, {
-          deletePreviousAsset: true,
-        });
         const relationIds = await deleteEntityRelationsInTransaction(
           tx,
           sync,
@@ -329,7 +396,28 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
           'element',
           id,
         );
+        await replaceEntityKvEntriesInTransaction(tx, changes, {
+          projectId: activeProjectId,
+          ownerKind: 'element',
+          ownerId: id,
+          namespace: 'facts',
+          nextJson: '[]',
+        });
+        await replaceElementAliasesInTransaction(tx, changes, {
+          projectId: activeProjectId,
+          elementId: id,
+          aliases: [],
+        });
         const deleted = await createBookElementSqliteRepository(activeProjectId, tx).delete(id);
+        if (elementSnapshot?.portraitAssetId) {
+          appendProjectAssetUnbindMutation(changes, elementSnapshot.portraitAssetId, {
+            kind: 'element-portrait',
+            id,
+          });
+          await createProjectAssetSqliteRepository(activeProjectId, tx).delete(
+            elementSnapshot.portraitAssetId,
+          );
+        }
         const txMentionRepo = createInlineMentionRepository(tx);
         await txMentionRepo.deleteAllForTarget('element', id);
         await txMentionRepo.deleteAllForSource('element', id);
@@ -337,29 +425,16 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         return {
           deleted,
           relationIds,
-          canceledJob,
           portraitAssetId: elementSnapshot?.portraitAssetId ?? null,
         };
-      });
-
-      if (result.canceledJob) startAssetUploadJob(result.canceledJob);
-      const coveredAssetIds = new Set(
-        result.canceledJob
-          ? [result.canceledJob.assetId ?? result.canceledJob.id, result.canceledJob.previousAssetId]
-              .filter((assetId): assetId is string => Boolean(assetId))
-          : [],
+        },
       );
-      if (result.portraitAssetId && !coveredAssetIds.has(result.portraitAssetId)) {
+
+      if (result.portraitAssetId) {
         const portraitAssetId = result.portraitAssetId;
-        const cleanupResults = await Promise.allSettled([
-          projectAssetService.deleteAsset(activeProjectId, portraitAssetId),
-          createProjectAssetSqliteRepository(activeProjectId).delete(portraitAssetId),
-          assetCacheService.deleteAsset(activeProjectId, portraitAssetId),
-        ]);
-        const failed = cleanupResults.find((entry) => entry.status === 'rejected');
-        if (failed?.status === 'rejected') {
-          console.warn('Failed to fully clean hard-deleted element portrait:', failed.reason);
-        }
+        void assetStoreService.deleteAsset(activeProjectId, portraitAssetId).catch((error) => {
+          console.warn('Failed to clean hard-deleted element portrait:', error);
+        });
         useDataStore.getState().removeProjectAsset(portraitAssetId);
       }
 
@@ -415,13 +490,9 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             useDataStore.getState().unmarkTrashed('element', id);
           },
           effect: async () => {
-            const persisted = await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
-              const canceledJob = await cancelAssetUploadForOwner(
-                activeProjectId,
-                'element',
-                id,
-                tx,
-              );
+            return withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+              // A soft-deleted element is restorable, so its portrait binding
+              // and app-owned bytes stay intact until permanent deletion.
               await deleteEntityRelationsInTransaction(
                 tx,
                 sync,
@@ -434,10 +505,8 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
                 tx,
               ).softDelete(id);
               await sync('element', 'softDelete', id, activeProjectId);
-              return { result, canceledJob };
+              return result;
             });
-            if (persisted.canceledJob) startAssetUploadJob(persisted.canceledJob);
-            return persisted.result;
           },
         });
       }
@@ -486,6 +555,98 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
     return await elementRepo.findTrashed();
   }, [elementRepo, ensureDb]);
 
+  const setElementPortraitFromLocalFile = useCallback(
+    async (id: string, sourcePath: string) => {
+      await ensureDb();
+      const existing = getElements().find((element) => element.id === id);
+      if (!existing) throw new Error(`Element with id ${id} not found`);
+
+      const asset = await prepareLocalProjectAsset({
+        projectId: activeProjectId,
+        kind: 'image',
+        sourcePath,
+      });
+      try {
+        const persisted = await withAtomicSyncTransaction(
+          activeProjectId,
+          async (tx, _sync, changes) => {
+            await createProjectAssetSqliteRepository(activeProjectId, tx).create(asset);
+            if (existing.portraitAssetId && existing.portraitAssetId !== asset.id) {
+              appendProjectAssetUnbindMutation(changes, existing.portraitAssetId, {
+                kind: 'element-portrait',
+                id,
+              });
+            }
+            appendProjectAssetBindMutation(changes, activeProjectId, asset, {
+              kind: 'element-portrait',
+              id,
+            });
+            const element = await createBookElementSqliteRepository(activeProjectId, tx).update(
+              id,
+              {
+                portraitAssetId: asset.id,
+                updatedAt: asset.createdAt,
+              },
+            );
+            if (!element) throw new Error(`Element with id ${id} not found`);
+            if (existing.portraitAssetId && existing.portraitAssetId !== asset.id) {
+              await createProjectAssetSqliteRepository(activeProjectId, tx).delete(
+                existing.portraitAssetId,
+              );
+            }
+            return element;
+          },
+        );
+        useDataStore.getState().upsertProjectAsset(asset);
+        useDataStore.getState().updateBookElement(id, persisted);
+        if (existing.portraitAssetId && existing.portraitAssetId !== asset.id) {
+          useDataStore.getState().removeProjectAsset(existing.portraitAssetId);
+          void assetStoreService
+            .deleteAsset(activeProjectId, existing.portraitAssetId)
+            .catch((error) => console.warn('[portrait] failed to remove replaced asset:', error));
+        }
+        void releasePickedMaterialImport(sourcePath).catch((error) => {
+          console.warn('[portrait] failed to release committed picker import:', error);
+        });
+        return persisted;
+      } catch (error) {
+        await assetStoreService.deleteAsset(activeProjectId, asset.id).catch(() => undefined);
+        throw error;
+      }
+    },
+    [activeProjectId, ensureDb, getElements],
+  );
+
+  const removeElementPortrait = useCallback(
+    async (id: string) => {
+      await ensureDb();
+      const existing = getElements().find((element) => element.id === id);
+      if (!existing) throw new Error(`Element with id ${id} not found`);
+      const assetId = existing.portraitAssetId;
+      if (!assetId) return existing;
+      const persisted = await withAtomicSyncTransaction(activeProjectId, async (tx, _sync, changes) => {
+        const element = await createBookElementSqliteRepository(activeProjectId, tx).update(id, {
+          portraitAssetId: null,
+          updatedAt: new Date().toISOString(),
+        });
+        if (!element) throw new Error(`Element with id ${id} not found`);
+        appendProjectAssetUnbindMutation(changes, assetId, {
+          kind: 'element-portrait',
+          id,
+        });
+        await createProjectAssetSqliteRepository(activeProjectId, tx).delete(assetId);
+        return element;
+      });
+      useDataStore.getState().updateBookElement(id, persisted);
+      useDataStore.getState().removeProjectAsset(assetId);
+      void assetStoreService
+        .deleteAsset(activeProjectId, assetId)
+        .catch((error) => console.warn('[portrait] failed to remove local asset:', error));
+      return persisted;
+    },
+    [activeProjectId, ensureDb, getElements],
+  );
+
   return useMemo(
     () => ({
       loadInitial,
@@ -495,6 +656,8 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       restoreElement,
       purgeElement,
       listTrashedElements,
+      setElementPortraitFromLocalFile,
+      removeElementPortrait,
     }),
     [
       loadInitial,
@@ -504,6 +667,8 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       restoreElement,
       purgeElement,
       listTrashedElements,
+      setElementPortraitFromLocalFile,
+      removeElementPortrait,
     ],
   );
 }

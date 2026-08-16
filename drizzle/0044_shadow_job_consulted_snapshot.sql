@@ -1,1 +1,0 @@
-ALTER TABLE `shadow_job` ADD COLUMN `consulted_snapshot_json` text DEFAULT '[]' NOT NULL;

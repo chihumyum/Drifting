@@ -1,16 +1,42 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir, networkInterfaces } from 'node:os';
 import path from 'node:path';
+import { parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const coreDir = path.resolve(path.dirname(scriptPath), '..');
 const repoDir = coreDir;
 const supportedTargets = new Set(['ios', 'android']);
+const localEnvPath = path.join(repoDir, '.env.local');
+const iosGoogleOauthLocalConfigPath = path.join(
+  repoDir,
+  'src-tauri',
+  'gen',
+  'apple',
+  'GoogleOAuth.local.xcconfig',
+);
+
+function stringEnvironment(environment) {
+  return Object.fromEntries(
+    Object.entries(environment).filter((entry) => typeof entry[1] === 'string'),
+  );
+}
+
+function readLocalEnvironment(filePath) {
+  if (!existsSync(filePath)) return {};
+  try {
+    return parseEnv(readFileSync(filePath, 'utf8'));
+  } catch {
+    // Environment parse failures must not echo a source line that could
+    // contain native OAuth build material.
+    throw new Error('Unable to parse the repository .env.local file.');
+  }
+}
 
 function isPrivateIpv4(address) {
   const octets = address.split('.').map(Number);
@@ -48,8 +74,8 @@ function findLanIpv4() {
   return candidates[0]?.address;
 }
 
-function resolveApiBaseUrl() {
-  const explicitApiBaseUrl = process.env.VITE_API_BASE_URL ?? process.env.API_BASE_URL;
+function resolveApiBaseUrl(environment) {
+  const explicitApiBaseUrl = environment.VITE_API_BASE_URL ?? environment.API_BASE_URL;
   if (explicitApiBaseUrl) return explicitApiBaseUrl.replace(/\/$/, '');
 
   const lanAddress = findLanIpv4();
@@ -126,18 +152,29 @@ function findAndroidNdk(env) {
   return undefined;
 }
 
-function mobileEnvironment(target) {
-  const apiBaseUrl = resolveApiBaseUrl();
-  const localOnly = (process.env.VITE_LOCAL_ONLY_MODE ?? 'true') !== 'false';
+export function createMobileEnvironment(
+  target,
+  { baseEnvironment = process.env, envFile = localEnvPath } = {},
+) {
+  if (!supportedTargets.has(target)) {
+    throw new TypeError(`Unsupported mobile target: ${target}`);
+  }
+  // Explicit shell and CI values take precedence over ignored local settings.
+  // The resulting object is passed directly to Tauri, Gradle/Xcode and Cargo.
+  const merged = {
+    ...readLocalEnvironment(envFile),
+    ...stringEnvironment(baseEnvironment),
+  };
+  const apiBaseUrl = resolveApiBaseUrl(merged);
+  const localOnly = (merged.VITE_LOCAL_ONLY_MODE ?? 'true') !== 'false';
   const env = {
-    ...process.env,
-    VITE_API_BASE_URL: process.env.VITE_API_BASE_URL ?? apiBaseUrl,
-    API_BASE_URL: process.env.API_BASE_URL ?? apiBaseUrl,
+    ...merged,
+    VITE_API_BASE_URL: merged.VITE_API_BASE_URL ?? apiBaseUrl,
+    API_BASE_URL: merged.API_BASE_URL ?? apiBaseUrl,
     VITE_LOCAL_ONLY_MODE: String(localOnly),
-    VITE_ENABLE_SYNC: process.env.VITE_ENABLE_SYNC ?? (localOnly ? 'false' : 'true'),
-    VITE_REQUIRE_AUTH: process.env.VITE_REQUIRE_AUTH ?? (localOnly ? 'false' : 'true'),
-    VITE_AI_TRANSPORT: process.env.VITE_AI_TRANSPORT ?? (localOnly ? 'direct' : 'proxy'),
-    VITE_CLOSED_BETA: process.env.VITE_CLOSED_BETA ?? 'false',
+    VITE_REQUIRE_AUTH: merged.VITE_REQUIRE_AUTH ?? (localOnly ? 'false' : 'true'),
+    VITE_AI_TRANSPORT: merged.VITE_AI_TRANSPORT ?? (localOnly ? 'direct' : 'proxy'),
+    VITE_CLOSED_BETA: merged.VITE_CLOSED_BETA ?? 'false',
   };
 
   if (target === 'android') {
@@ -151,6 +188,56 @@ function mobileEnvironment(target) {
   }
 
   return env;
+}
+
+function validGoogleOauthClientId(value) {
+  const normalized = value?.trim() ?? '';
+  return (
+    normalized.length >= 16 &&
+    normalized.length <= 255 &&
+    normalized.endsWith('.apps.googleusercontent.com') &&
+    /^[A-Za-z0-9_.-]+$/u.test(normalized)
+  );
+}
+
+function reversedGoogleOauthClientId(clientId) {
+  return clientId.split('.').reverse().join('.');
+}
+
+export function describeMobileOauthConfiguration(target, environment) {
+  const clientId =
+    target === 'ios'
+      ? environment.DRIFTING_GOOGLE_IOS_CLIENT_ID?.trim()
+      : environment.DRIFTING_GOOGLE_ANDROID_CLIENT_ID?.trim();
+  const reversedClientId = environment.DRIFTING_GOOGLE_IOS_REVERSED_CLIENT_ID?.trim();
+  const configured =
+    target === 'ios'
+      ? validGoogleOauthClientId(clientId) &&
+        reversedClientId === reversedGoogleOauthClientId(clientId)
+      : validGoogleOauthClientId(clientId);
+  return Object.freeze({ googleDriveOAuthConfigured: configured });
+}
+
+export function writeIosGoogleOauthLocalConfig(
+  environment,
+  destination = iosGoogleOauthLocalConfigPath,
+) {
+  const summary = describeMobileOauthConfiguration('ios', environment);
+  const clientId = summary.googleDriveOAuthConfigured
+    ? environment.DRIFTING_GOOGLE_IOS_CLIENT_ID.trim()
+    : '';
+  const reversedClientId = summary.googleDriveOAuthConfigured
+    ? environment.DRIFTING_GOOGLE_IOS_REVERSED_CLIENT_ID.trim()
+    : '';
+  const contents = [
+    '// Generated by scripts/run-mobile-dev.mjs; do not commit.',
+    `DRIFTING_GOOGLE_IOS_CLIENT_ID = ${clientId}`,
+    `DRIFTING_GOOGLE_IOS_REVERSED_CLIENT_ID = ${reversedClientId}`,
+    '',
+  ].join('\n');
+  writeFileSync(destination, contents, { encoding: 'utf8', mode: 0o600 });
+  chmodSync(destination, 0o600);
+  return summary;
 }
 
 async function assertServiceReachable(apiBaseUrl) {
@@ -172,7 +259,7 @@ async function assertServiceReachable(apiBaseUrl) {
   }
 }
 
-async function run() {
+export async function runMobileDev() {
   const target = process.argv[2];
   if (!supportedTargets.has(target)) {
     console.error('Usage: node scripts/run-mobile-dev.mjs <ios|android> [device/options]');
@@ -182,9 +269,21 @@ async function run() {
 
   let env;
   try {
-    env = mobileEnvironment(target);
+    env = createMobileEnvironment(target);
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+    return;
+  }
+
+  let oauthConfiguration;
+  try {
+    oauthConfiguration =
+      target === 'ios'
+        ? writeIosGoogleOauthLocalConfig(env)
+        : describeMobileOauthConfiguration(target, env);
+  } catch {
+    console.error('Unable to prepare the private iOS Google OAuth build configuration.');
     process.exitCode = 1;
     return;
   }
@@ -227,6 +326,11 @@ async function run() {
       ? `Starting ${target} dev build in local-only mode`
       : `Starting ${target} dev build with configured service ${env.VITE_API_BASE_URL}`,
   );
+  console.log(
+    oauthConfiguration.googleDriveOAuthConfigured
+      ? `Google Drive ${target} OAuth build configuration: configured`
+      : `Google Drive ${target} OAuth build configuration: missing or invalid`,
+  );
   console.log(`Using Vite dev port ${vitePort}`);
   if (target === 'android') console.log(`Using Android NDK ${env.NDK_HOME}`);
   if (forwardedArgs.length === 0) {
@@ -252,4 +356,6 @@ async function run() {
   });
 }
 
-void run();
+if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {
+  void runMobileDev();
+}

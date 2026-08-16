@@ -71,6 +71,7 @@ export function MobileTabOverview({
   onOpenSuperView,
   onOpenAllChapters,
   onOpenSettings,
+  onOpenTrash,
   onBackToShelf,
 }: {
   session: MobileWorkspaceSessionState;
@@ -82,6 +83,7 @@ export function MobileTabOverview({
   onOpenSuperView: (view: MobileSuperViewId) => void;
   onOpenAllChapters: () => void;
   onOpenSettings: () => void;
+  onOpenTrash: () => void;
   onBackToShelf: () => void;
 }) {
   const { t } = useTranslation();
@@ -188,6 +190,10 @@ export function MobileTabOverview({
       </div>
 
       <footer>
+        <button type="button" onClick={onOpenTrash}>
+          <Trash2 size={17} aria-hidden="true" />
+          {t('settings.rail.trash')}
+        </button>
         <button type="button" onClick={onBackToShelf}>
           {t('projectPicker.backToShelf', { defaultValue: '返回书架' })}
         </button>

@@ -10,11 +10,11 @@
   },
   "preAlphaGuide": {
     "title": "欢迎参加 Drifting Pre-Alpha",
-    "intro": "这是给少量内测用户使用的早期版本。核心写作、云同步与关系数据已经可用，但接口、数据格式和体验仍可能变化。",
-    "trial": "当前账户是 30 天试用账户；到期后服务器会清理账户及云端数据。",
-    "sync": "稿件会以可读形式存储在 Drifting 服务器，目前不提供端到端加密。",
+    "intro": "这是一个本地优先的公开预览版。核心写作与关系数据完全在本机工作，但接口、数据格式和体验仍可能变化。",
+    "localData": "无需 Drifting 账号；项目、正文、关系、回收站与历史记录都保存在应用的本地数据目录。",
+    "sync": "此构建未启用 Drifting 托管同步，第三方云盘同步也尚未开放。",
     "byok": "不提供 hosted AI 服务；所有 AI 功能都引用“设置 → 模型与 API”中统一管理的 BYOK 凭据。Copilot 使用自己选择的 provider 和模型，General Agent 在对话面板中选择。",
-    "backup": "请定期用“导出关系型 Markdown”保存一份可阅读的副本。",
+    "backup": "请定期使用本地“导出关系型 Markdown”，在应用数据库之外保存一份可阅读的副本。",
     "settingsHint": "进入一本书后，可在“设置 → 模型与 API”中统一连接 provider 凭据。API Key 只持久化在系统安全存储；General Agent 当前不需要远程 runner 或 sidecar。",
     "continue": "了解，继续使用"
   },
@@ -28,6 +28,7 @@
     "local_user": "本地用户",
     "groups": {
       "account": "我的账户",
+      "localData": "本地数据",
       "preferences": "偏好",
       "intelligence": "智能",
       "control": "控制",
@@ -117,7 +118,7 @@
       "sign_out_button": "退出登录",
       "danger_zone": "危险区",
       "export_all": "导出关系型 Markdown",
-      "export_all_desc": "导出账户下所有书及其中的章节、漂流笔记、元素、注释和资料笔记；使用双向 Wiki 链接保留关系。这不是可恢复应用状态的完整备份。",
+      "export_all_desc": "导出本机书库中的所有项目及其中的章节、灵感、元素、注释和资料笔记；使用双向 Wiki 链接保留关系。不包含图片和 PDF 文件；这是可阅读、可迁移的副本，不是可恢复应用状态的完整备份。",
       "export_all_btn": "导出 Markdown ZIP",
       "exporting": "正在导出…",
       "export_done": "已导出 {{count}} 个 Markdown 文档。",
@@ -186,16 +187,20 @@
     "trash": {
       "kicker": "回收站 · TRASH",
       "title": "软删除的内容。",
-      "sub": "30 天后自动彻底删除。Pro/Studio 专享 — Free 账号删除即永久删除。"
+      "sub": "保留在本机，直到你恢复或永久删除。"
     },
     "appearance": {
       "kicker": "外观 · APPEARANCE",
       "title": "书桌的光线，由你决定。",
-      "sub": "挑一个最合眼的写作界面明度。",
+      "sub": "挑一个最合眼的写作界面明度与强调色。",
       "theme": "主题",
       "light": "浅色",
       "dark": "深色",
       "system": "跟随系统",
+      "accent": "强调色",
+      "accent_color": "界面强调色",
+      "accent_color_desc": "用于按钮、焦点与活动状态，不影响编辑器光标颜色。",
+      "accent_reset": "恢复默认",
       "density": "界面密度",
       "animations": "动效与过渡",
       "animations_desc": "界面过渡与任务活动反馈。"
@@ -214,7 +219,7 @@
       "typesetting": "排版",
       "reset_style": "还原推荐样式",
       "font_source": "创作内容字体",
-      "font_scope_desc": "作用于章节正文、实体标题与摘要、实体长文、字段值、补丁和引用内容，以及排版预览。UI、侧栏、弹窗与节点卡片始终使用统一无衬线字体；字体选择保存在本机，不参与云同步。",
+      "font_scope_desc": "作用于章节正文、实体标题与摘要、实体长文、字段值、补丁和引用内容，以及排版预览。UI、侧栏、弹窗与节点卡片始终使用统一无衬线字体；字体选择只保存在本机，不属于作品同步数据。",
       "font_system_serif": "系统衬线",
       "font_system_serif_desc": "跟随当前系统的衬线字体",
       "font_system_sans": "系统无衬线",
@@ -274,9 +279,9 @@
       "typewriter_position": "输入行位置",
       "typewriter_position_desc": "距编辑器顶部的比例：25% 靠上，50% 居中，75% 靠下。",
       "caret_color": "光标颜色",
-      "caret_color_desc": "选择正文输入光标的颜色；此偏好会跨设备同步。",
+      "caret_color_desc": "选择正文输入光标的颜色；它会保存在本机，只有另行配置兼容同步服务后才参与偏好同步。",
       "entity_link_style": "Entity Link 高亮",
-      "entity_link_style_desc": "选择正文实体链接使用归属色、按实体类型统一配色、仅悬停时显示归属色，或正文颜色与灰色下划线；此偏好会跨设备同步。",
+      "entity_link_style_desc": "选择正文实体链接使用归属色、按实体类型统一配色、仅悬停时显示归属色，或正文颜色与灰色下划线；它会保存在本机，只有另行配置兼容同步服务后才参与偏好同步。",
       "entity_link_style_contextual": "随归属",
       "entity_link_style_kind": "按类型",
       "entity_link_style_hover": "仅 Hover",
@@ -323,42 +328,82 @@
       }
     },
     "sync": {
-      "kicker": "同步 · SYNC",
-      "title": "稿子放哪儿，又备份在哪儿。",
-      "sub": "Drifting 会把本地项目数据同步到云端，方便跨设备继续写作。",
-      "cloud": "Drifting 云",
-      "lastSuccess": "上次成功",
-      "successRate": "成功率",
-      "no_activity": "本次会话尚无同步活动。",
-      "inflight": " · 进行中 {{count}}",
-      "online": "在线",
-      "syncing": "同步中",
-      "idle": "空闲",
-      "needs_attention": "需要处理",
-      "back_to_sync": "返回同步",
-      "activity_kicker": "同步活动 · ACTIVITY",
-      "activity_title": "刚才同步了什么。",
-      "activity_sub": "最近 200 条同步事件。失败原因会展开在每行尾部。",
-      "cloud_sync": "云同步",
-      "vault_path": "本地仓库",
-      "local_data_managed": "保存在 Drifting 管理的应用数据目录中。",
-      "show_in_finder": "在 Finder 中显示",
-      "debug_toast": "调试模式 · Toast",
-      "debug_toast_desc": "开启后，主页右下角会浮出 push / pull 事件的小提示，用于排查同步问题。",
+      "local_kicker": "本地数据 · LOCAL DATA",
+      "local_title": "作品只保存在这台设备上。",
+      "local_sub": "无需 Drifting 账号，也不连接托管云服务；你可以随时导出一份可阅读的副本。",
+      "cloud_kicker": "个人云盘 · PERSONAL CLOUD",
+      "cloud_title": "项目已接入 Google Drive 同步。",
+      "cloud_sub": "每台设备仍以 SQLite 作为工作副本，同步数据与素材会存入 Drive。Google 账号与 Google Drive 属于你的信任边界；这不是对 Google 端到端加密的方案。",
+      "google_drive": "Google Drive",
+      "cloud_status": "同步状态",
+      "cloud_status_desc": "{{active}} 个项目中已有 {{ready}} 个就绪。",
+      "cloud_states": {
+        "loading": "正在读取",
+        "local": "仅本机",
+        "transitioning": "正在连接",
+        "cloud-ready": "已就绪",
+        "cloud-provisioning": "正在准备项目",
+        "cloud-paused": "已暂停",
+        "cloud-attention": "需要处理",
+        "unavailable": "不可用"
+      },
+      "connect_google_drive": "Google Drive 同步",
+      "connect_google_drive_desc": "通过系统浏览器登录 Google。Drifting 会自动发现并恢复这个 Google 账号中已有的项目，再发布只存在于本机的项目。",
+      "google_drive_unavailable_target": "此构建尚未配置完整的 Google Drive 登录参数。",
+      "connect": "登录 Google",
+      "connecting": "正在登录…",
+      "retry_google_sign_in": "重新登录 Google",
+      "connect_done": "Google 登录已完成；远端项目发现与恢复、本机独有项目发布都会自动继续。",
+      "cancel_pending_cloud": "取消待完成的云盘设置",
+      "cancel_pending_cloud_desc": "清除待完成的 Google 登录设置，撤销当前 Google 授权并回到纯本地模式。已经写入 Drive 的数据可能保留；本机 SQLite、Yjs、素材与项目全部保留。",
+      "cancel_pending_cloud_action": "取消设置…",
+      "confirm_cancel_pending_cloud": "确认取消设置",
+      "cancelling": "正在取消…",
+      "cancel_pending_cloud_done": "云盘设置已取消；所有本地项目仍可继续使用。",
+      "finish_provisioning": "完成项目准备",
+      "finish_provisioning_desc": "还有 {{count}} 个项目需要建立初始 Drive 同步状态。",
+      "retry": "重试",
+      "retry_requested": "已安排一次项目准备重试。",
+      "runtime_unavailable": "前台同步 runtime 尚未挂载。",
+      "reauthorize_google_drive": "重新授权 Google Drive",
+      "reauthorize_google_drive_desc": "通过系统浏览器重新登录；只有 Google 确认仍是同一账号后才接受新授权，并继续自动发现项目。",
+      "reauthorize": "重新授权",
+      "reauthorizing": "正在重新授权…",
+      "reauthorize_done": "Google Drive 授权已更新；受影响的项目可以恢复同步。",
+      "sync_now": "立即同步",
+      "sync_now_desc": "执行一次前台拉取、应用和发布周期。",
+      "sync_requested": "已安排一次前台同步。",
+      "pause_sync": "暂停云同步",
+      "resume_sync": "恢复云同步",
+      "pause_sync_desc": "暂停 provider 网络操作时，本地编辑仍可正常使用。",
+      "pause": "暂停",
+      "resume": "恢复",
+      "pause_done": "所有项目的 Google Drive 同步已暂停。",
+      "resume_done": "所有项目的 Google Drive 同步已恢复。",
+      "disconnect_google_drive": "断开 Google Drive",
+      "disconnect_google_drive_desc": "已就绪的项目会先完成最后一次收敛检查，再撤销 Drifting 的 Google 授权，并把所有项目切回纯本地模式。尚未发布或已阻塞的项目仍会完整保留本机 SQLite、Yjs 与素材，但 Drive 端可能落后。Drive 中的远端数据不会被删除；其他设备之后可能需要重新登录。",
+      "disconnect": "断开…",
+      "retry_disconnect": "重试断开…",
+      "confirm_disconnect": "确认断开",
+      "disconnecting": "正在断开…",
+      "disconnect_done": "已断开 Google Drive；所有本地项目仍可在这台设备上使用。",
+      "attention_reason": "需要处理的原因",
+      "attention_reason_desc": "当前云同步 authority 的持久状态原因码。需要重新授权、升级或处理损坏等状态会显示在这里；隔离对象不会写入项目。",
+      "last_sync_error": "上次同步错误",
+      "last_sync_error_desc": "最近一次同步周期没有完成；本地内容安全，待发布数据仍完整保留。问题解决后可重试同步。",
+      "last_sync_error_publish_invalid_desc": "内部发布请求失败；本地内容安全，待发布日志仍完整保留。更新应用后可重试同步。",
+      "diagnostics": "待处理工作",
+      "diagnostics_desc": "这里只显示本地 journal 与已验证 inbox 的计数，不展示内容或凭据。",
+      "diagnostics_value": "变更 {{changeSets}} · 分段 {{segments}} · 传输 {{transfers}} · 缺口 {{gaps}} · 冲突 {{conflicts}} · 隔离 {{quarantined}}",
+      "operation_failed": "同步操作失败：{{error}}",
+      "local_data": "本地数据",
       "history": "版本历史",
       "auto_snapshot": "自动快照",
       "auto_snapshot_desc": "正文或实体发生变化后约每 15 分钟留存一份；本地保留 30 天，并按时间自动稀疏。",
       "auto_snapshot_active": "已启用",
-      "export": "导出 / 导入",
-      "export_all": "导出关系型 Markdown",
-      "export_all_desc": "Pre-Alpha 暂只支持关系型 Markdown ZIP；完整数据导出将在后续重构。",
-      "configure_export": "导出 Markdown…",
       "import_files": "导入",
       "import_files_desc": "从 Scrivener / Word / Markdown / 纯文本 导入。",
-      "select_file": "选择文件…",
-      "activity": "同步活动",
-      "activity_desc": "最近 200 条 push / pull 事件，含失败原因。",
-      "activity_open": "查看完整记录"
+      "select_file": "选择文件…"
     },
     "keys": {
       "kicker": "键盘 · KEYBOARD",
@@ -387,7 +432,7 @@
         },
         "saveCurrentEditor": {
           "label": "保存当前编辑器",
-          "desc": "保存当前编辑器，并立即推送所有已打开文档的云同步更新"
+          "desc": "保存当前编辑器，并将所有已打开文档刷新到本地存储"
         },
         "goBack": {
           "label": "返回上一个页面",
@@ -415,7 +460,7 @@
       "kicker": "隐私 · PRIVACY",
       "title": "你的稿子，停在哪儿。",
       "sub": "这页直说：Drifting 用了什么、不用什么、何时离开你的机器。",
-      "noteA": "公开源码构建默认仅在本地运行。若你启用同步，稿件数据会发送到所配置的服务，当前不提供端到端加密。",
+      "noteA": "公开源码构建默认不连接 Drifting 托管服务。你主动选择的模型提供商、个人云盘、远程 Agent 扩展，以及粘贴 URL 后的网页元数据或预览图片可能访问网络；这不会把正文或本地素材上传给 Drifting。",
       "noteBPrefix": "AI 请求适用",
       "noteBStrong": "所选模型提供商",
       "noteBSuffix": "当前的数据与训练条款。",
@@ -439,7 +484,6 @@
       "channelDev": "开发",
       "channelPreAlpha": "Pre-Alpha",
       "engine": "引擎",
-      "checkUpdates": "检查更新",
       "credits": "致谢与许可",
       "fonts": "字体",
       "fontsDesc": "Inter Tight · 系统字体 · 用户导入字体",
@@ -493,7 +537,7 @@
       "currentByok": "✓ 当前 BYOK",
       "setCurrent": "设为当前",
       "invalidKey": "密钥无效",
-      "requestFailed": "请求失败（服务器未启动或网络问题）"
+      "requestFailed": "请求失败（provider 不可用或网络问题）"
     },
     "agentAuth": {
       "statusTitle": "状态",
@@ -564,7 +608,7 @@
       "byokWarningStrong": "AI 调用会直接失败",
       "byokWarningSuffix": "。请前往「模型与 API」填写该 provider 的密钥。",
       "byokModel": "指定模型",
-      "byokModelDesc": "当前 provider 下要用的模型（留空 = 由服务端选该 provider 的默认模型；列表外的可选「自定义…」手填 id）。",
+      "byokModelDesc": "当前 provider 下要用的模型（留空 = 使用 Drifting 在本地配置的该 provider 默认模型；列表外的可选「自定义…」手填 id）。",
       "switchesTitle": "开关",
       "autoTrigger": "自动触发",
       "autoTriggerDesc": "编辑时按 debounce 自动后台运行 task。关闭后只在你手动触发（⇧⌘I / 右键）时运行。",
@@ -832,11 +876,15 @@
     "storylineWords": "故事线 {{formatted}} 字",
     "projectWords": "全书 {{formatted}} 字",
     "todayWords": "今日 {{formatted}} 字",
-    "syncLocal": "仅本地",
-    "syncing": "正在同步…",
-    "syncError": "同步失败",
-    "syncedAt": "已同步 {{time}}",
-    "syncReady": "同步就绪"
+    "storageLocal": "设备本地",
+    "storage": {
+      "local": "设备本地",
+      "syncing": "正在同步到 Google Drive",
+      "synced": "Google Drive 已同步",
+      "paused": "Google Drive 同步已暂停",
+      "offline": "离线，Google Drive 已暂停",
+      "attention": "Google Drive 需要处理"
+    }
   },
   "nodeHoverPreview": {
     "noSummary": "暂无摘要"
@@ -930,7 +978,7 @@
     "proTitle": "回收站 · Pro",
     "proDesc": "软删除与回收站是 Pro / Studio 功能。当前账号为免费版，删除操作仍为永久删除。",
     "title": "回收站",
-    "retention": "30 天后自动彻底删除",
+    "retention": "保留在本机，直到你删除",
     "clear": "清空回收站",
     "empty": "回收站是空的。",
     "confirmPurge": "彻底删除「{{label}}」？此操作无法撤销，将立即永久删除。",
@@ -1036,6 +1084,8 @@
   },
   "userMenu": {
     "accountMenu": "账户菜单",
+    "localMenu": "本地书库菜单",
+    "localStatus": "本地 · 本机存储",
     "theme": "主题",
     "themeLight": "浅色",
     "themeLightShort": "明",
@@ -1048,7 +1098,6 @@
     "keyboardShortcuts": "键盘快捷键",
     "import": "导入",
     "bookshelf": "书架 · 切换项目",
-    "helpFeedback": "帮助 · 反馈",
     "signingOut": "登出中…",
     "signOut": "登出账号"
   },
@@ -1282,11 +1331,7 @@
       "openFile": "无法打开文件：{{error}}",
       "createFailed": "素材创建失败：{{error}}",
       "pickFailed": "无法导入文件：{{error}}",
-      "fileTooLarge": "该文件超过 {{maxSizeMiB}} MiB 素材上限。大文件流式上传尚未支持。"
-    },
-    "upload": {
-      "uploading": "上传中...",
-      "failed": "上传失败"
+      "fileTooLarge": "该文件超过 {{maxSizeMiB}} MiB 素材上限，无法复制到本地素材库。"
     },
     "empty": {
       "noRelated": "当前条目没有关联的素材。",
@@ -1442,7 +1487,7 @@
       "featureStorylineTitleB": "叙事",
       "featureStorylineSub": "时间轴 · 叙事弧 · 跨线索引",
       "brandVersion": "Drifting Writing Studio · v{{version}}",
-      "footer": "本地优先 · 云端同步"
+      "footer": "本地优先 · 设备本地"
     },
     "signin": {
       "kicker": "WELCOME BACK · 继续写作",
@@ -1452,7 +1497,7 @@
       "kicker": "NEW HERE · 起航",
       "titleEm": "新建",
       "titleRest": "账号",
-      "sub": "注册一个账号，开始你的第一本书。同步私人稿件前，请先查看所配置服务与模型提供商的条款。"
+      "sub": "注册一个账号，开始你的第一本书。将私人稿件用于所配置服务或模型提供商前，请先查看其条款。"
     },
     "fields": {
       "penName": "笔名 · PEN NAME",
@@ -1482,7 +1527,7 @@
       "termsUnavailable": "服务运营方尚未配置服务条款。",
       "and": "与",
       "privacy": "隐私政策",
-      "footer": "本地优先 · 可选云同步 · 适用提供商条款"
+      "footer": "本地优先 · 适用提供商条款"
     },
     "forgot": {
       "kicker": "RESET · 重置密码",
@@ -1686,10 +1731,7 @@
       "noDailyGoal": "未设每日目标"
     },
     "footer": {
-      "localReady": "本地数据已就绪",
-      "syncing": "正在同步…",
-      "syncedAt": "上次同步 {{time}}",
-      "syncNeedsAttention": "同步需要处理"
+      "localReady": "本地数据已就绪"
     }
   },
   "importDialog": {
@@ -2342,24 +2384,20 @@
     "summary": "{{kinds}} 类 · {{relations}} 条关联",
     "visibleSummary": "显示 {{visible}}/{{total}}",
     "filterLabel": "画布筛选",
+    "noCanvasRelations": "当前画布尚无可筛选的关联",
     "manageLabel": "类型管理",
     "relationCountTitle": "「{{label}}」共 {{count}} 条关联",
-    "empty": "尚无自定义关联类型",
-    "confirmDeleteKind": "删除当前视图中的所有「{{label}}」关联？此操作不可撤销。",
+    "empty": "当前视图尚无关联",
     "changeColor": "点击改色",
     "changeColorLabel": "修改 {{label}} 的颜色",
-    "resetColor": "恢复默认色（按名称推导）",
-    "nameUncategorizedPlaceholder": "为未分类边命名…",
-    "nameUncategorizedTitle": "点击为「未分类」边命名（将分类所有未分类边）",
-    "renameTitle": "点击重命名",
-    "deleteKindTitle": "删除当前视图中的所有「{{label}}」关联",
-    "deleteKindLabel": "删除 {{label}}",
-    "storylineTransit": "故事线衔接",
-    "storylineTransitTitle": "多 storyline 节点之间的衔接轨迹，自动生成",
-    "lockedHint": "自动 · 锁定"
+    "resetColor": "恢复默认色"
   },
   "relationTypes": {
     "title": "关系类型定义",
+    "usedOnCanvas": "当前画布已有实例",
+    "availableOnCanvas": "当前画布可用 · 暂无实例",
+    "otherTypes": "其他画布的类型",
+    "usageSummary": "当前画布 {{canvas}} 条 · 项目共 {{project}} 条",
     "create": "新建",
     "createInline": "新建关系类型",
     "chooseExisting": "选择已有类型",
@@ -2378,17 +2416,25 @@
     "allowedTargets": "允许目标实体",
     "cancel": "取消",
     "save": "保存",
-    "pending": "待配置",
     "symmetricSummary": "对称 · {{role}}",
     "emptySelector": "请先在“全部关系”中创建关系类型",
     "inUse": "仍有关系使用此类型",
     "delete": "删除关系类型",
+    "builtIn": "内建",
+    "builtInLocked": "内建关系类型不可编辑或删除",
+    "missing": "缺失的关系类型",
     "confirmDelete": "删除关系类型「{{name}}」？",
     "swap": "交换关系两端",
     "pendingIncoming": "该实体 ← 目标",
     "pendingOutgoing": "该实体 → 目标",
-    "selectConfigured": "选择已配置的关系类型",
+    "selectConfigured": "选择关系类型",
     "ariaLabel": "关系类型",
+    "genericAssociation": {
+      "name": "关联",
+      "description": "TODO 与素材的一键对象关联。",
+      "sourceRole": "关联项",
+      "targetRole": "对象"
+    },
     "entityKinds": {
       "node": "章节或灵感",
       "element": "元素",
@@ -2597,13 +2643,13 @@
     "sketch": "速写",
     "sketchWithCategory": "{{category}} · 速写",
     "portrait": {
-      "upload": "上传",
+      "import": "导入",
       "replace": "替换",
       "view": "查看大图",
       "loading": "图片加载中",
       "remove": "移除图片",
-      "uploading": "上传中",
-      "uploadFailed": "图片上传失败，请重试。",
+      "importing": "导入中",
+      "importFailed": "图片导入失败，请重试。",
       "removeFailed": "移除图片失败，请重试。",
       "loadFailed": "图片加载失败。"
     },
@@ -2707,63 +2753,5 @@
       "deleteCategory": "删除类目",
       "deleteStoryline": "删除故事线"
     }
-  },
-  "syncHud": {
-    "dismiss": "关闭同步状态",
-    "title": {
-      "started": "{{action}} 同步中",
-      "failed": "{{action}} 失败",
-      "complete": "{{action}} 完成"
-    },
-    "summary": {
-      "resources": "已拉取 {{count}} 个资源",
-      "crud": "{{entity}} {{operation}}",
-      "push": "{{local}} 个本地更新，{{accepted}} 个已接受",
-      "pull": "{{remote}} 个远端更新，{{applied}} 个已应用，{{skipped}} 个本机更新已跳过"
-    },
-    "entity": {
-      "project": "项目",
-      "chapter": "章节",
-      "storyline": "故事线",
-      "storylineLink": "故事线链接",
-      "element": "元素",
-      "elementCategory": "元素类目",
-      "libraryItem": "素材",
-      "relation": "关系",
-      "comment": "批注",
-      "commentAction": "批注动作",
-      "entity": "实体"
-    },
-    "labels": {
-      "file": "文件",
-      "entity": "实体",
-      "operation": "操作",
-      "updates": "更新",
-      "device": "设备",
-      "error": "错误"
-    }
-  },
-  "syncActivity": {
-    "state": {
-      "started": "进行中",
-      "succeeded": "成功",
-      "failed": "失败"
-    },
-    "summary": {
-      "push": "推送 {{local}} 条 · 接受 {{accepted}}",
-      "pull": "拉取 {{remote}} 条 · 应用 {{applied}} · 跳过 {{skipped}}"
-    },
-    "stats": {
-      "successRate": "成功率",
-      "total": "累计",
-      "failed": "{{count}} 失败",
-      "inflight": "进行中",
-      "lastSuccess": "上次成功"
-    },
-    "filters": {
-      "all": "全部"
-    },
-    "clear": "清空",
-    "empty": "没有匹配的记录。"
   }
 }

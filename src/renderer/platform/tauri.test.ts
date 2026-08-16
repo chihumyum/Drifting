@@ -25,6 +25,14 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: tauriMocks.listen,
 }));
 
+// This suite exercises the explicit compatible-service OAuth seam. The
+// production default remains local-only and guards this path before fetch.
+vi.mock('../lib/config', () => ({
+  APP_CONFIG: { API_BASE_URL: 'http://localhost:3000' },
+  canUseExternalContent: () => true,
+  canUseHostedService: () => true,
+}));
+
 import { tauriPlatform } from './tauri';
 import {
   createPendingNativeOAuth,
@@ -51,6 +59,190 @@ describe('tauri native OpenAI and Keychain status transport', () => {
       key: 'byok.openai',
     });
     expect(tauriMocks.invoke).not.toHaveBeenCalledWith('keychain_get', expect.anything());
+  });
+
+  it('keeps SyncEngine asset capture and restore behind opaque native refs', async () => {
+    tauriMocks.invoke.mockImplementation(async (command: string) => {
+      if (command === 'sync_asset_capture_source') {
+        return {
+          sourceRef: 'syncobj:captured-source',
+          blobId: `sha256:${'a'.repeat(64)}`,
+          sourceSha256: `sha256:${'a'.repeat(64)}`,
+          sizeBytes: 12,
+          mimeType: 'application/pdf',
+        };
+      }
+      if (command === 'sync_asset_prepare_restore_source') {
+        return {
+          assetId: 'asset-1',
+          stagingRef: 'syncobj:staged-source',
+          sourceSha256: `sha256:${'a'.repeat(64)}`,
+          sizeBytes: 12,
+        };
+      }
+      if (command === 'sync_asset_activate_restore_sources') return 'activation-receipt';
+      if (
+        command === 'sync_asset_abandon_restore_attempt' ||
+        command === 'sync_asset_finalize_restore_attempt'
+      ) return undefined;
+      if (command === 'sync_asset_gc_restore_attempts') return { removedAttempts: 1 };
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const sourceSha = `sha256:${'a'.repeat(64)}`;
+    await expect(tauriPlatform.syncAssetStore.captureSource({
+      projectId: 'project-1',
+      assetId: 'asset-1',
+      expectedSourceSha256: sourceSha,
+      expectedSizeBytes: 12,
+      expectedMimeType: 'application/pdf',
+    })).resolves.toMatchObject({ sourceRef: 'syncobj:captured-source' });
+    await expect(tauriPlatform.syncAssetStore.prepareRestoreSource({
+      attemptId: 'attempt-1',
+      targetProjectId: 'project-1',
+      assetId: 'asset-1',
+      blobId: sourceSha,
+      sourceRef: 'syncobj:decrypted-source',
+      expectedSourceSha256: sourceSha,
+      expectedSizeBytes: 12,
+      expectedMimeType: 'application/pdf',
+    })).resolves.toMatchObject({ stagingRef: 'syncobj:staged-source' });
+    await expect(tauriPlatform.syncAssetStore.activateRestoreSources({
+      attemptId: 'attempt-1',
+      targetProjectId: 'project-1',
+      stagingRefs: ['syncobj:staged-source'],
+    })).resolves.toBe('activation-receipt');
+    await tauriPlatform.syncAssetStore.finalizeRestoreAttempt('attempt-1');
+    await expect(tauriPlatform.syncAssetStore.gcRestoreAttempts({
+      retainedAttemptIds: [],
+      olderThanMs: 60_000,
+    })).resolves.toEqual({ removedAttempts: 1 });
+
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('sync_asset_capture_source', {
+      projectId: 'project-1',
+      assetId: 'asset-1',
+      expectedSourceSha256: sourceSha,
+      expectedSizeBytes: 12,
+      expectedMimeType: 'application/pdf',
+    });
+    expect(tauriMocks.invoke).not.toHaveBeenCalledWith(
+      expect.stringMatching(/^sync_asset_/u),
+      expect.objectContaining({ filePath: expect.anything(), bytes: expect.anything() }),
+    );
+  });
+
+  it('uses only opaque refs for native SyncEngine object staging', async () => {
+    tauriMocks.invoke.mockImplementation(async (command: string) => {
+      if (command === 'sync_object_allocate_protocol') {
+        return {
+          sourceRef: 'syncobj:plaintext-object',
+          sizeBytes: 0,
+          storedSha256: `sha256:${'0'.repeat(64)}`,
+        };
+      }
+      if (command === 'sync_object_append_protocol_chunk') return 3;
+      if (command === 'sync_object_finalize_protocol') {
+        return {
+          sourceRef: 'syncobj:plaintext-object',
+          sizeBytes: 3,
+          storedSha256: `sha256:${'a'.repeat(64)}`,
+        };
+      }
+      if (command === 'sync_object_stage_asset_source') {
+        return {
+          sourceRef: 'syncobj:asset-object',
+          sizeBytes: 3,
+          storedSha256: `sha256:${'b'.repeat(64)}`,
+        };
+      }
+      if (command === 'sync_object_read_protocol_chunk') {
+        return { offset: 0, totalSizeBytes: 3, bytes: [1, 2, 3] };
+      }
+      if (command === 'sync_object_gc_orphans') {
+        return { removedObjects: 2, removedTemporaryFiles: 1 };
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    await expect(tauriPlatform.syncObjectStore.stageBytes(Uint8Array.of(1, 2, 3))).resolves.toMatchObject({
+      sourceRef: 'syncobj:plaintext-object',
+    });
+    await expect(
+      tauriPlatform.syncObjectStore.stageAssetSource('project-1', 'asset-1', 'png'),
+    ).resolves.toMatchObject({ sourceRef: 'syncobj:asset-object' });
+    await expect(
+      tauriPlatform.syncObjectStore.readProtocolBytes('syncobj:plaintext-object', 2 * 1024 * 1024),
+    ).resolves.toEqual(Uint8Array.of(1, 2, 3));
+    await expect(
+      tauriPlatform.syncObjectStore.gcOrphans({
+        retainedSourceRefs: ['syncobj:plaintext-object'],
+        olderThanMs: 86_400_000,
+      }),
+    ).resolves.toEqual({ removedObjects: 2, removedTemporaryFiles: 1 });
+
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('sync_object_append_protocol_chunk', {
+      sourceRef: 'syncobj:plaintext-object',
+      offset: 0,
+      bytes: [1, 2, 3],
+    });
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('sync_object_finalize_protocol', {
+      sourceRef: 'syncobj:plaintext-object',
+      expectedSizeBytes: 3,
+    });
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('sync_object_read_protocol_chunk', {
+      sourceRef: 'syncobj:plaintext-object',
+      offset: 0,
+      maxBytes: 2 * 1024 * 1024,
+    });
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('sync_object_gc_orphans', {
+      retainedSourceRefs: ['syncobj:plaintext-object'],
+      olderThanMs: 86_400_000,
+    });
+    expect(JSON.stringify(tauriMocks.invoke.mock.calls)).not.toMatch(
+      /filePath|\/Users\/|bearer|refreshToken/u,
+    );
+  });
+
+  it('passes generated archive bytes to the native save contract', async () => {
+    tauriMocks.invoke.mockResolvedValue({ ok: true });
+
+    await expect(
+      tauriPlatform.archive.save('drifting-export.zip', Uint8Array.from([80, 75, 3, 4])),
+    ).resolves.toEqual({ ok: true });
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('archive_save', {
+      filename: 'drifting-export.zip',
+      bytes: [80, 75, 3, 4],
+    });
+  });
+
+  it('routes durable asset bytes through the local asset store contract', async () => {
+    tauriMocks.invoke.mockResolvedValue({
+      ok: true,
+      filePath: '/app-data/assets/project-1/asset-1/source.png',
+      fileUrl: 'file:///ignored-by-renderer',
+      sizeBytes: 4,
+    });
+
+    await expect(
+      tauriPlatform.assetStore.writeBytes(
+        'project-1',
+        'asset-1',
+        'source',
+        'png',
+        Uint8Array.from([1, 2, 3, 4]),
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      fileUrl: 'asset:///app-data/assets/project-1/asset-1/source.png',
+      sizeBytes: 4,
+    });
+    expect(tauriMocks.invoke).toHaveBeenCalledWith('asset_store_write_bytes', {
+      projectId: 'project-1',
+      assetId: 'asset-1',
+      variant: 'source',
+      ext: 'png',
+      bytes: [1, 2, 3, 4],
+    });
   });
 
   it('reconstructs an ordered Responses stream from native channel bytes', async () => {
@@ -144,6 +336,8 @@ describe('tauri General Agent capability', () => {
   it.each([
     ['macos', 'desktop'],
     ['ios', 'mobile'],
+    ['windows', 'desktop'],
+    ['linux', 'desktop'],
     ['android', 'mobile'],
   ] as const)(
     'advertises the renderer-local runtime on %s',
@@ -165,8 +359,9 @@ describe('tauri General Agent capability', () => {
             deepLinks: true,
             externalUrlOpener: true,
             secureStorage: true,
+            googleDriveOAuth: target === 'desktop',
             materialFiles: true,
-            assetCache: true,
+            assetStore: true,
             aiLog: true,
             oauth: true,
             imageCodecs: {
@@ -187,10 +382,42 @@ describe('tauri General Agent capability', () => {
         target,
         generalAgent: true,
         generalAgentUnavailableReason: '',
-        featureStatus: { generalAgent: 'available' },
+        featureStatus: {
+          generalAgent: 'available',
+          googleDriveOAuth: target === 'desktop' ? 'available' : 'unsupported',
+        },
       });
     },
   );
+
+  it('treats missing security and Drive OAuth advertisements as unsupported', async () => {
+    tauriMocks.invoke.mockImplementation(async (command: string) => {
+      if (command === 'app_get_info') {
+        return {
+          name: 'Drifting',
+          version: '0.0.0',
+          platform: 'android',
+          architecture: 'test',
+        };
+      }
+      if (command === 'platform_capabilities') {
+        return {
+          desktopWindowControls: false,
+          deepLinks: true,
+          externalUrlOpener: true,
+          generalAgent: true,
+          generalAgentUnavailableReason: '',
+        };
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    await expect(tauriPlatform.app.getCapabilities()).resolves.toMatchObject({
+      featureStatus: {
+        googleDriveOAuth: 'unsupported',
+      },
+    });
+  });
 });
 
 type DeepLinkEventHandler = (event: { payload: { urls: string[] } }) => void;
@@ -506,6 +733,43 @@ describe('tauri lifecycle flush protocol', () => {
       },
     });
     expect(callback).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
+  it('exposes native ready and resume wake-ups without treating flushes as resumes', async () => {
+    const callback = vi.fn();
+    const stop = tauriPlatform.lifecycle.onReadyOrResume(callback);
+    await vi.waitFor(() => expect(eventHandler).toBeTypeOf('function'));
+
+    eventHandler?.({
+      payload: {
+        event: 'ready',
+        requestId: null,
+        deadlineMs: null,
+        reason: null,
+        confirmationRequired: false,
+      },
+    });
+    eventHandler?.({
+      payload: {
+        event: 'flush-requested',
+        requestId: null,
+        deadlineMs: null,
+        reason: 'suspended',
+        confirmationRequired: false,
+      },
+    });
+    eventHandler?.({
+      payload: {
+        event: 'resumed',
+        requestId: null,
+        deadlineMs: null,
+        reason: null,
+        confirmationRequired: false,
+      },
+    });
+
+    expect(callback.mock.calls).toEqual([['ready'], ['resumed']]);
     stop();
   });
 });

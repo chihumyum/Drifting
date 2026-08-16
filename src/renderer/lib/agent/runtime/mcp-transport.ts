@@ -1,4 +1,5 @@
 import type { McpHttpPlatformApi, McpStdioPlatformApi } from '../../../platform';
+import { canUseAgentExtension } from '../../config';
 
 export const DRIFTING_MCP_PROTOCOL_VERSION = '2025-06-18' as const;
 
@@ -204,6 +205,7 @@ export function createHttpAgentMcpTransport(
   ): Promise<unknown> => {
     if (closed) throw transportError('MCP HTTP transport is closed');
     assertNotAborted(signal);
+    assertAgentExtensionNetworkAvailable();
     const requestSignal = combineTimeoutSignal(signal, timeoutMs);
     let response: Response;
     try {
@@ -326,6 +328,7 @@ export function createHttpAgentMcpTransport(
       if (!sessionId) return;
       const headers = buildHttpHeaders(configuredHeaders, sessionId, protocolVersion);
       sessionId = null;
+      if (!canUseAgentExtension()) return;
       try {
         if (nativePlatform) {
           const requestId = `mcp-http:${nativeTransportId}:${nextNativeRequestId++}`;
@@ -351,6 +354,15 @@ export function createHttpAgentMcpTransport(
       }
     },
   };
+}
+
+function assertAgentExtensionNetworkAvailable(): void {
+  if (!canUseAgentExtension()) {
+    throw new AgentMcpTransportError(
+      'transport',
+      'MCP HTTP extension is unavailable while offline',
+    );
+  }
 }
 
 function jsonRpcRequest(

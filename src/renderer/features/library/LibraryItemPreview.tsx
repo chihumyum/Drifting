@@ -4,15 +4,14 @@ import { useTranslation } from 'react-i18next';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
-import type { LibraryItem } from '../../domain/library-item';
+import type { LibraryItem, LibraryItemPatch } from '../../domain/library-item';
+import { createPlainCommentDoc, extractTextFromCommentBody } from '../../domain/comment';
 import { Button } from '../../components/ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../../components/ui/Modal';
 import { platform } from '../../platform';
 import {
   clampLibraryItemPreviewScale,
-  libraryItemImageSrc,
-  libraryItemPdfSrc,
-  useCachedLibraryItemVariant,
+  useStoredLibraryItemVariant,
 } from './library-item-media';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -26,10 +25,11 @@ export function TextSnippetPopover({
   material: LibraryItem;
   onClose: () => void;
   onExpand: () => void;
-  onUpdate: (updates: Partial<LibraryItem>) => void;
+  onUpdate: (updates: LibraryItemPatch) => void;
 }) {
   const { t } = useTranslation();
-  const [draft, setDraft] = useState(material.bodyJson ?? '');
+  const currentBody = extractTextFromCommentBody(material.bodyJson);
+  const [draft, setDraft] = useState(currentBody);
   const draftRef = useRef(draft);
   useEffect(() => {
     draftRef.current = draft;
@@ -37,10 +37,10 @@ export function TextSnippetPopover({
 
   const persistIfChanged = useCallback(() => {
     const next = draftRef.current;
-    if (next !== (material.bodyJson ?? '')) {
-      onUpdate({ bodyJson: next });
+    if (next !== currentBody) {
+      onUpdate({ bodyJson: next ? createPlainCommentDoc(next) : null });
     }
-  }, [material.bodyJson, onUpdate]);
+  }, [currentBody, onUpdate]);
 
   const close = useCallback(() => {
     persistIfChanged();
@@ -138,10 +138,11 @@ export function LibraryItemFullscreenPreview({
 }: {
   material: LibraryItem;
   onClose: () => void;
-  onUpdate: (updates: Partial<LibraryItem>) => void;
+  onUpdate: (updates: LibraryItemPatch) => void;
 }) {
   const { t } = useTranslation();
-  const [textDraft, setTextDraft] = useState(() => material.bodyJson ?? '');
+  const currentBody = extractTextFromCommentBody(material.bodyJson);
+  const [textDraft, setTextDraft] = useState(() => currentBody);
   const [viewport, setViewport] = useState({ scale: 1, panX: 0, panY: 0 });
   const [previewDragging, setPreviewDragging] = useState(false);
   const previewSurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -160,29 +161,24 @@ export function LibraryItemFullscreenPreview({
   const isImagePreview = material.kind === 'image';
   const isPdfPreview = material.kind === 'pdf';
   const isZoomablePreview = isImagePreview || isPdfPreview;
-  const r2ImageSource = useCachedLibraryItemVariant(
+  const assetImageSource = useStoredLibraryItemVariant(
+    material,
+    'display',
+    isImagePreview,
+  );
+  const assetPdfSource = useStoredLibraryItemVariant(
     material,
     'source',
-    material.source === 'r2' && isImagePreview,
+    isPdfPreview,
   );
-  const r2PdfSource = useCachedLibraryItemVariant(
-    material,
-    'source',
-    material.source === 'r2' && isPdfPreview,
-  );
-  const imageSrc =
-    material.source === 'r2' && isImagePreview
-      ? r2ImageSource.fileUrl
-      : libraryItemImageSrc(material);
-  const pdfSrc =
-    material.source === 'r2' && isPdfPreview ? r2PdfSource.fileUrl : libraryItemPdfSrc(material);
+  const imageSrc = isImagePreview ? assetImageSource.fileUrl : null;
 
   const close = useCallback(() => {
-    if (material.kind === 'text' && textDraft !== (material.bodyJson ?? '')) {
-      onUpdate({ bodyJson: textDraft });
+    if (material.kind === 'text' && textDraft !== currentBody) {
+      onUpdate({ bodyJson: textDraft ? createPlainCommentDoc(textDraft) : null });
     }
     onClose();
-  }, [material.kind, material.bodyJson, onClose, onUpdate, textDraft]);
+  }, [currentBody, material.kind, onClose, onUpdate, textDraft]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -352,10 +348,7 @@ export function LibraryItemFullscreenPreview({
     }
 
     if (material.kind === 'pdf') {
-      const pdfPath =
-        material.source === 'r2'
-          ? r2PdfSource.filePath
-          : (material.localPath ?? (pdfSrc ? pdfSrc.replace(/^file:\/\//, '') : null));
+      const pdfPath = assetPdfSource.filePath;
       if (!pdfPath) return <FullscreenEmpty message={t('memoMaterial.preview.noPdf')} />;
       return <PdfCanvasPreview filePath={pdfPath} viewport={viewport} />;
     }

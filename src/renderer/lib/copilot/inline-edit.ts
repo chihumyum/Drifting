@@ -25,7 +25,7 @@
  */
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
-import { runStructured } from '../ai/remote/run-structured';
+import { runStructured } from '../ai/run-structured';
 import { inlineEditPrompt } from '../ai/prompts/templates/inline-edit';
 import { inlineEditBlocksPrompt } from '../ai/prompts/templates/inline-edit-blocks';
 import type { InlineTargetBlock } from '../../store/copilot-inline-store';

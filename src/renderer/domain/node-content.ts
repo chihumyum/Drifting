@@ -2,7 +2,7 @@ export interface NodeContent {
   nodeId: string;
   contentJson: string;
   outlineJson: string;
-  /** In-chapter plot planner grid, serialized PlotGrid (see domain/plot-grid.ts). */
+  /** Deterministic projection of normalized plot_grid_* authority. */
   plotGridJson: string;
   createdAt: string;
   updatedAt: string;

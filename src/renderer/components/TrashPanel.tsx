@@ -8,9 +8,8 @@ import { useStoryline } from '../usecase/useStoryline';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useCanUseFeature } from '../lib/feature-access';
 
-// Minimal trash UI. Lists soft-deleted entities across the 4 core domains.
-// Each row can be restored, or permanently deleted right away ("立刻删除")
-// instead of waiting for the 30-day server cron to purge it.
+// Minimal trash UI. Lists soft-deleted entities across the core domains.
+// Each row remains local until it is restored or permanently deleted here.
 interface TrashItem {
   kind: 'chapter' | 'drift' | 'element' | 'storyline' | 'category';
   id: string;
@@ -122,8 +121,8 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
     [nodeUC, elementUC, storylineUC, categoryUC],
   );
 
-  // Skip the 30-day wait and drop the row for good. Irreversible, so gate it
-  // behind a confirm — once purged there's no restore.
+  // Drop the row for good. Irreversible, so gate it behind a confirm — once
+  // purged there's no restore.
   const purge = async (item: TrashItem) => {
     const confirmed = window.confirm(
       t('trashPanel.confirmPurge', { label: item.label }),

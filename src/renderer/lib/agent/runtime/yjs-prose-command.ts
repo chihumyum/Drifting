@@ -8,7 +8,7 @@
  *   1. prepare + journal the deterministic forward/inverse updates;
  *   2. durably enter the write;
  *   3. apply the forward update with the exported CAS guard;
- *   4. persist the projection/outbox and finally publish the tool result.
+ *   4. persist the projection/change-set and finally publish the tool result.
  *
  * `contentJson` appears only in `projection`: it is a materialized cache for
  * existing readers. A Y.Doc/state update is always the input and source of
@@ -566,59 +566,6 @@ function snapshotElement(element: Y.XmlElement): YjsProseElementNode {
   };
 }
 
-export interface EnsuredYjsProseBlockIds {
-  changed: boolean;
-  update: Uint8Array;
-}
-
-/**
- * Upgrade legacy Yjs prose that predates the block-id extension in place.
- *
- * This changes only top-level identity attributes, never prose text or block
- * structure. IDs are content/index-derived so a closed-document retry chooses
- * the same values. The caller owns persistence of the returned update.
- */
-export async function ensureYjsProseBlockIds(
-  doc: Y.Doc,
-): Promise<EnsuredYjsProseBlockIds> {
-  const fragment = doc.getXmlFragment(DEFAULT_FRAGMENT);
-  const seen = new Set<string>();
-  const repairs: Array<{ element: Y.XmlElement; id: string }> = [];
-  for (const [index, child] of fragment.toArray().entries()) {
-    if (!(child instanceof Y.XmlElement)) {
-      invalidProse(`Top-level prose child ${index} is not a Y.XmlElement.`);
-    }
-    const snapshot = snapshotElement(child);
-    const current = snapshot.attrs?.id;
-    if (
-      typeof current === 'string' &&
-      current.trim().length > 0 &&
-      !seen.has(current)
-    ) {
-      seen.add(current);
-      continue;
-    }
-    const id = await deterministicSeedBlockId(index, {
-      type: snapshot.type,
-      ...(snapshot.attrs ? { attrs: snapshot.attrs } : {}),
-      ...(snapshot.content ? { content: snapshot.content } : {}),
-    });
-    repairs.push({ element: child, id });
-    seen.add(id);
-  }
-  if (repairs.length === 0) {
-    return { changed: false, update: new Uint8Array() };
-  }
-  const before = Y.encodeStateVector(doc);
-  doc.transact(() => {
-    for (const repair of repairs) repair.element.setAttribute('id', repair.id);
-  }, 'agent-runtime:block-id-migration');
-  return {
-    changed: true,
-    update: Y.encodeStateAsUpdate(doc, before),
-  };
-}
-
 /**
  * Schema-visible canonical block snapshot. This is also the state-hash input:
  * CRDT clocks/tombstones are monotonic and cannot be rewound, while the prose
@@ -709,11 +656,11 @@ export function replaceYjsProseBlocks(doc: Y.Doc, blocks: readonly YjsProseBlock
  * Convert a never-opened node_content projection into a full Yjs seed.
  *
  * This deliberately uses the same minimal TipTap schema as
- * `useEntityYjsDoc`. Missing/duplicate top-level ids are deterministically
- * materialized before conversion so an Agent retry prepares the same command
- * instead of inventing fresh UUIDs. Once the first command commits, this seed
- * is persisted as canonical Yjs state and contentJson returns to being only a
- * projection.
+ * `useEntityYjsDoc`. The seed creator assigns deterministic unique top-level
+ * ids before conversion so every newly created Yjs document starts in the
+ * current format and concurrent equivalent seeds merge idempotently. Once the
+ * first command commits, this seed is persisted as canonical Yjs state and
+ * contentJson returns to being only a projection.
  */
 export async function createYjsProseSeedState(
   contentJson: string,

@@ -36,6 +36,45 @@ export const ProjectTable = sqliteTable('project', {
   updatedAt: text('updated_at').notNull(),
 });
 
+// Stable authored key/value facts shared by project, storyline and element
+// owners. The legacy *_kv_json columns are query/UI projections only. Entry
+// lifecycle/LWW clocks live in sync_entity_lifecycle/sync_field_clock and list
+// order lives in sync_order_register.
+export const EntityKvEntryTable = sqliteTable(
+  'entity_kv_entry',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    ownerKind: text('owner_kind').notNull(),
+    ownerId: text('owner_id').notNull(),
+    namespace: text('namespace').notNull(),
+    key: text('key').notNull(),
+    value: text('value').notNull(),
+  },
+  (t) => [
+    index('idx_entity_kv_entry_project').on(t.projectId),
+    index('idx_entity_kv_entry_owner').on(
+      t.projectId,
+      t.ownerKind,
+      t.ownerId,
+      t.namespace,
+    ),
+    check(
+      'entity_kv_entry_owner_namespace_check',
+      sql`(${t.ownerKind} = 'project' and ${t.namespace} in ('facts', 'storyline-template'))
+        or (${t.ownerKind} = 'storyline' and ${t.namespace} = 'facts')
+        or (${t.ownerKind} = 'element-category' and ${t.namespace} = 'element-template')
+        or (${t.ownerKind} = 'element' and ${t.namespace} = 'facts')`,
+    ),
+    check(
+      'entity_kv_entry_identity_check',
+      sql`length(${t.ownerId}) > 0 and length(${t.id}) > 0`,
+    ),
+  ],
+);
+
 
 // Element Category
 // project(1) <-> elementCategory(N)
@@ -72,10 +111,9 @@ export const ElementCategoryTable = sqliteTable(
     deletedAt: text('deleted_at'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
-    // Renamed from `description_json` in migration 0029. Storyline + element
-    // category each have one body editor; the column carried the wrong noun
-    // for what it stored. New name aligns with element.content_json and
-    // node_content.content_json. Project summary is a separate text column.
+    // Storyline + element category each have one body editor. The content
+    // name aligns with element.content_json and node_content.content_json;
+    // project summary remains a separate text column.
   },
   (t) => [
     index('idx_element_category_project').on(t.projectId),
@@ -84,8 +122,8 @@ export const ElementCategoryTable = sqliteTable(
 );
 
 // Project Asset
-// Cloud-backed binary assets owned by a project. R2 is the canonical source;
-// Native clients keep per-device local cache files derived from these object keys.
+// Immutable metadata for an app-owned source. Owner bindings live on element
+// and library_item; provider delivery state belongs to SyncEngine tables.
 export const ProjectAssetTable = sqliteTable(
   'project_asset',
   {
@@ -93,75 +131,37 @@ export const ProjectAssetTable = sqliteTable(
     projectId: text('project_id')
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    kind: text('kind').notNull().default('image'),
-    role: text('role').notNull().default('element_portrait'),
-    ownerKind: text('owner_kind').notNull(),
-    ownerId: text('owner_id').notNull(),
-    status: text('status').notNull().default('pending'),
-    sourceObjectKey: text('source_object_key'),
-    displayObjectKey: text('display_object_key'),
-    thumbnailObjectKey: text('thumbnail_object_key'),
-    sourceMime: text('source_mime'),
-    displayMime: text('display_mime'),
-    thumbnailMime: text('thumbnail_mime'),
-    sourceSizeBytes: integer('source_size_bytes'),
-    displaySizeBytes: integer('display_size_bytes'),
-    thumbnailSizeBytes: integer('thumbnail_size_bytes'),
-    sourceSha256: text('source_sha256'),
+    kind: text('kind').notNull(),
+    sourceMime: text('source_mime').notNull(),
+    sourceSizeBytes: integer('source_size_bytes').notNull(),
+    sourceSha256: text('source_sha256').notNull(),
     width: integer('width'),
     height: integer('height'),
-    completedAt: text('completed_at'),
-    deletedAt: text('deleted_at'),
     createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
   },
   (t) => [
     index('idx_project_asset_project').on(t.projectId),
-    index('idx_project_asset_owner').on(t.ownerKind, t.ownerId),
-    index('idx_project_asset_status').on(t.status),
-  ],
-);
-
-// Durable native asset uploads. This table is intentionally device-local and
-// never enters entity sync. It stores only app-owned file/cache coordinates and
-// workflow metadata; short-lived presigned URLs and credentials are never
-// persisted. The polymorphic owner is checked by the upload coordinator.
-export const AssetUploadJobTable = sqliteTable(
-  'asset_upload_job',
-  {
-    id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    ownerKind: text('owner_kind').notNull(),
-    ownerId: text('owner_id').notNull(),
-    kind: text('kind').notNull(),
-    role: text('role').notNull(),
-    stage: text('stage').notNull().default('queued'),
-    sourcePath: text('source_path').notNull(),
-    sourceMime: text('source_mime'),
-    sourceSizeBytes: integer('source_size_bytes'),
-    displayMime: text('display_mime'),
-    displaySizeBytes: integer('display_size_bytes'),
-    thumbnailMime: text('thumbnail_mime'),
-    thumbnailSizeBytes: integer('thumbnail_size_bytes'),
-    width: integer('width'),
-    height: integer('height'),
-    assetId: text('asset_id'),
-    previousAssetId: text('previous_asset_id'),
-    deletePreviousAssetOnCancel: integer('delete_previous_asset_on_cancel', {
-      mode: 'boolean',
-    })
-      .notNull()
-      .default(false),
-    attemptCount: integer('attempt_count').notNull().default(0),
-    lastError: text('last_error'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (t) => [
-    uniqueIndex('idx_asset_upload_job_owner').on(t.projectId, t.ownerKind, t.ownerId),
-    index('idx_asset_upload_job_project_stage').on(t.projectId, t.stage),
+    index('idx_project_asset_project_sha256').on(t.projectId, t.sourceSha256),
+    check('project_asset_kind_check', sql`${t.kind} in ('image', 'pdf')`),
+    check('project_asset_source_size_check', sql`${t.sourceSizeBytes} > 0`),
+    check(
+      'project_asset_sha256_check',
+      sql`length(${t.sourceSha256}) = 64 and ${t.sourceSha256} not glob '*[^0-9a-f]*'`,
+    ),
+    check(
+      'project_asset_shape_check',
+      sql`(
+        ${t.kind} = 'image'
+        and ${t.sourceMime} like 'image/%'
+        and ${t.width} > 0
+        and ${t.height} > 0
+      ) or (
+        ${t.kind} = 'pdf'
+        and ${t.sourceMime} = 'application/pdf'
+        and ${t.width} is null
+        and ${t.height} is null
+      )`,
+    ),
   ],
 );
 
@@ -240,7 +240,8 @@ export const BookNodeTable = sqliteTable(
     // and group delete reparents children up in useDriftGroup (not SET NULL).
     driftGroupId: text('drift_group_id'),
     // Soft-delete marker. Non-null = in trash. List queries must filter
-    // `deletedAt IS NULL`. Pro/Studio feature — Free tier still hard-deletes.
+    // `deletedAt IS NULL`. Local libraries always use this recoverable path;
+    // explicitly hosted builds may apply their own entitlement policy.
     deletedAt: text('deleted_at'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
@@ -297,10 +298,8 @@ export const NodeContentTable = sqliteTable(
       .references(() => BookNodeTable.id, { onDelete: 'cascade' }),
     contentJson: text('content_json').default('{}'),
     outlineJson: text('outline_json').default('[]'),
-    // In-chapter plot planner grid (mini-Excel scratchpad). Sparse JSON,
-    // authored upstream of prose — NOT derived from it and NOT part of the
-    // dependency analysis. Lives here for the same per-node 1:1 cache reasons as
-    // outlineJson. See domain/plot-grid.ts for the shape.
+    // Deterministic sparse UI/query projection of normalized plot_grid_* rows.
+    // It is not sync authority and remains independent from prose/Yjs.
     plotGridJson: text('plot_grid_json').default('{}'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
@@ -308,10 +307,97 @@ export const NodeContentTable = sqliteTable(
   (t) => [index('idx_node_content_node').on(t.nodeId)],
 );
 
+// Normalized authority for the in-chapter Plot Grid. The one JSON value on
+// node_content is a deterministic UI/query projection only. Document size is
+// one atomic tuple; rows, columns, and cells keep independent stable identity.
+export const PlotGridDocumentTable = sqliteTable(
+  'plot_grid_document',
+  {
+    id: text('id').primaryKey(),
+    nodeId: text('node_id')
+      .notNull()
+      .references(() => BookNodeTable.id, { onDelete: 'cascade' }),
+    cellWidth: real('cell_width').notNull().default(184),
+    cellHeight: real('cell_height').notNull().default(96),
+  },
+  (t) => [
+    uniqueIndex('uniq_plot_grid_document_node').on(t.nodeId),
+    check(
+      'plot_grid_document_size_check',
+      sql`${t.cellWidth} between 120 and 440 and ${t.cellHeight} between 56 and 380`,
+    ),
+  ],
+);
+
+export const PlotGridRowTable = sqliteTable(
+  'plot_grid_row',
+  {
+    id: text('id').primaryKey(),
+    documentId: text('document_id')
+      .notNull()
+      .references(() => PlotGridDocumentTable.id, { onDelete: 'cascade' }),
+    positionKey: text('position_key').notNull(),
+    label: text('label').notNull().default(''),
+  },
+  (t) => [
+    uniqueIndex('uniq_plot_grid_row_document_identity').on(t.id, t.documentId),
+    index('idx_plot_grid_row_order').on(t.documentId, t.positionKey, t.id),
+    check('plot_grid_row_position_key_check', sql`length(${t.positionKey}) > 0`),
+  ],
+);
+
+export const PlotGridColumnTable = sqliteTable(
+  'plot_grid_column',
+  {
+    id: text('id').primaryKey(),
+    documentId: text('document_id')
+      .notNull()
+      .references(() => PlotGridDocumentTable.id, { onDelete: 'cascade' }),
+    positionKey: text('position_key').notNull(),
+    label: text('label').notNull().default(''),
+  },
+  (t) => [
+    uniqueIndex('uniq_plot_grid_column_document_identity').on(t.id, t.documentId),
+    index('idx_plot_grid_column_order').on(t.documentId, t.positionKey, t.id),
+    check('plot_grid_column_position_key_check', sql`length(${t.positionKey}) > 0`),
+  ],
+);
+
+export const PlotGridCellTable = sqliteTable(
+  'plot_grid_cell',
+  {
+    id: text('id').primaryKey(),
+    documentId: text('document_id')
+      .notNull()
+      .references(() => PlotGridDocumentTable.id, { onDelete: 'cascade' }),
+    rowId: text('row_id').notNull(),
+    columnId: text('column_id').notNull(),
+    value: text('value').notNull().default(''),
+  },
+  (t) => [
+    uniqueIndex('uniq_plot_grid_cell_coordinate').on(
+      t.documentId,
+      t.rowId,
+      t.columnId,
+    ),
+    index('idx_plot_grid_cell_row').on(t.documentId, t.rowId),
+    index('idx_plot_grid_cell_column').on(t.documentId, t.columnId),
+    foreignKey({
+      columns: [t.rowId, t.documentId],
+      foreignColumns: [PlotGridRowTable.id, PlotGridRowTable.documentId],
+      name: 'fk_plot_grid_cell_row_document',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.columnId, t.documentId],
+      foreignColumns: [PlotGridColumnTable.id, PlotGridColumnTable.documentId],
+      name: 'fk_plot_grid_cell_column_document',
+    }).onDelete('cascade'),
+  ],
+);
+
 // Story-graph edges live in `entity_relation` now — rows with fromKind/toKind
-// = 'node' and a project relation type (with `kind` as its readable mirror). Visual columns
-// (anchors/control points/style) from the legacy `book_node_edge` table were
-// never read by the renderer and were dropped by migration 0021.
+// = 'node' and one authoritative project relation type id. Visual columns
+// (anchors/control points/style) are intentionally not part of this model.
 
 // Book element
 // Domain: BookElement
@@ -328,9 +414,9 @@ export const BookElementTable = sqliteTable(
     projectId: text('project_id')
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    // Nullable since the trash refactor (migration 0028): when a category is
-    // soft-deleted or hard-deleted, its elements detach to NULL ("未分类")
-    // instead of cascading. Restoring the category does NOT re-link them.
+    // When a category is soft-deleted or hard-deleted, its elements detach to
+    // NULL ("未分类") instead of cascading. Restoring the category does NOT
+    // re-link them.
     categoryId: text('category_id').references(() => ElementCategoryTable.id, {
       onDelete: 'set null',
     }),
@@ -345,12 +431,11 @@ export const BookElementTable = sqliteTable(
     // "the heir"). Stored as JSON-encoded string[]. Drives auto-linking and
     // copilot context: aliases participate in mention detection, dedup, and
     // patch attribution the same way `name` does. Uniqueness across name +
-    // aliases is enforced in the app layer (useBookElement), not by SQL —
-    // see migration 0030.
+    // aliases is enforced in the app layer (useBookElement), not by SQL.
     aliasesJson: text('aliases_json').notNull().default('[]'),
     groupName: text('group_name'),
     portraitAssetId: text('portrait_asset_id').references(() => ProjectAssetTable.id, {
-      onDelete: 'set null',
+      onDelete: 'no action',
     }),
     deletedAt: text('deleted_at'),
     createdAt: text('created_at').notNull(),
@@ -359,11 +444,10 @@ export const BookElementTable = sqliteTable(
   (t) => [
     index('idx_element_deleted_at').on(t.deletedAt),
     index('idx_element_category').on(t.categoryId),
-    index('idx_element_portrait_asset').on(t.portraitAssetId),
+    uniqueIndex('uniq_element_portrait_asset').on(t.portraitAssetId),
   ],
 );
 
-// Node <-> Storyline (Many-to-Many)
 // Node <-> Storyline (Many-to-Many)
 // `isPrimary` marks the node's primary storyline — the one whose lane the
 // node sits in on BottomTimeline / StoryGraphView, and the storyline its
@@ -493,9 +577,8 @@ export const BlockSectionTable = sqliteTable(
     // shaped { [blockId]: textHash }. On read, the coverage map recomputes
     // each block's current hash and compares — blocks whose hash changed
     // become "uncovered" individually, but the section's summary is still
-    // valid for the unchanged blocks. Replaces the old single-section
-    // `block_signature` column (migration 0032 / server 0031). This is what
-    // makes mid-chapter edits not invalidate the whole section.
+    // valid for the unchanged blocks. Per-block hashes ensure mid-chapter
+    // edits do not invalidate the whole section.
     blockHashesJson: text('block_hashes_json').notNull().default('{}'),
     summary: text('summary').notNull().default(''),
     // 'copilot-rolling' | 'reverse-outline' | 'manual'. Stored as text so a
@@ -511,9 +594,8 @@ export const BlockSectionTable = sqliteTable(
 );
 
 // Entity Relation Type
-// Project-owned semantic vocabulary for authored relations. Unlike the legacy
-// `entity_relation.kind` display string, this row owns directionality, endpoint
-// roles, and lifecycle. Allowed endpoint kinds live in an explicit child table
+// Project-owned semantic vocabulary for authored relations. This row owns the
+// relation name, directionality, endpoint roles, and lifecycle. Allowed endpoint kinds live in an explicit child table
 // so they remain queryable and transactionally validated rather than being
 // hidden inside metadata JSON.
 export const EntityRelationTypeTable = sqliteTable(
@@ -526,7 +608,9 @@ export const EntityRelationTypeTable = sqliteTable(
     name: text('name').notNull(),
     normalizedName: text('normalized_name').notNull(),
     description: text('description').notNull().default(''),
-    orientation: text('orientation').notNull(), // directed | symmetric | unconfigured
+    orientation: text('orientation').notNull(), // directed | symmetric
+    systemKey: text('system_key'), // generic-association | null for authored types
+    locked: integer('locked', { mode: 'boolean' }).notNull().default(false),
     sourceRole: text('source_role').notNull().default(''),
     targetRole: text('target_role').notNull().default(''),
     createdAt: text('created_at').notNull(),
@@ -534,10 +618,17 @@ export const EntityRelationTypeTable = sqliteTable(
   },
   (t) => [
     uniqueIndex('uniq_relation_type_project_name').on(t.projectId, t.normalizedName),
+    uniqueIndex('uniq_relation_type_project_system_key').on(t.projectId, t.systemKey),
+    uniqueIndex('uniq_relation_type_project_identity').on(t.id, t.projectId),
     index('idx_relation_type_project').on(t.projectId),
+    check('relation_type_orientation', sql`${t.orientation} in ('directed', 'symmetric')`),
     check(
-      'relation_type_orientation',
-      sql`${t.orientation} in ('directed', 'symmetric', 'unconfigured')`,
+      'relation_type_system_key',
+      sql`${t.systemKey} is null or ${t.systemKey} = 'generic-association'`,
+    ),
+    check(
+      'relation_type_system_lock',
+      sql`(${t.systemKey} is null and ${t.locked} = 0) or (${t.systemKey} is not null and ${t.locked} = 1)`,
     ),
   ],
 );
@@ -554,6 +645,10 @@ export const EntityRelationTypeEndpointKindTable = sqliteTable(
   (t) => [
     primaryKey({ columns: [t.relationTypeId, t.side, t.entityKind] }),
     check('relation_type_endpoint_side', sql`${t.side} in ('source', 'target')`),
+    check(
+      'relation_type_endpoint_kind',
+      sql`(${t.side} = 'source' and ${t.entityKind} in ('node', 'element', 'patch', 'category', 'storyline', 'comment', 'library_item')) or (${t.side} = 'target' and ${t.entityKind} in ('node', 'element', 'patch', 'category', 'storyline'))`,
+    ),
   ],
 );
 
@@ -585,18 +680,9 @@ export const EntityRelationTable = sqliteTable(
     toKind: text('to_kind').notNull(),
     toId: text('to_id').notNull(),
 
-    // New semantic owner. Nullable during rolling upgrades and for the truly
-    // uncategorized bucket. Legacy non-empty `kind` rows are backfilled to an
-    // `unconfigured` type; the string remains as a compatibility mirror until
-    // old clients are retired.
-    relationTypeId: text('relation_type_id').references(() => EntityRelationTypeTable.id, {
-      onDelete: 'restrict',
-    }),
-
-    // Readable compatibility projection of the first-class definition name
-    // (NOT an endpoint kind). Old clients still read this label; new authored
-    // writes select relationTypeId and keep this mirror aligned on rename.
-    kind: text('kind'),
+    // The only semantic owner. Display names and presentation metadata are
+    // resolved from this id rather than copied onto every relation row.
+    relationTypeId: text('relation_type_id').notNull(),
 
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
@@ -606,6 +692,23 @@ export const EntityRelationTable = sqliteTable(
     index('idx_relation_to').on(t.toKind, t.toId),
     index('idx_relation_project').on(t.projectId),
     index('idx_relation_type').on(t.relationTypeId),
+    uniqueIndex('uniq_entity_relation_semantic_edge').on(
+      t.projectId,
+      t.fromKind,
+      t.fromId,
+      t.toKind,
+      t.toId,
+      t.relationTypeId,
+    ),
+    foreignKey({
+      columns: [t.relationTypeId, t.projectId],
+      foreignColumns: [EntityRelationTypeTable.id, EntityRelationTypeTable.projectId],
+      name: 'fk_entity_relation_type_project',
+    }).onDelete('cascade'),
+    check(
+      'entity_relation_endpoint_kinds',
+      sql`${t.fromKind} in ('node', 'element', 'patch', 'category', 'storyline', 'comment', 'library_item') and ${t.toKind} in ('node', 'element', 'patch', 'category', 'storyline')`,
+    ),
   ],
 );
 
@@ -650,8 +753,7 @@ export const InlineMentionTable = sqliteTable(
 
 // Comment
 // Single home for {block-anchored notes, chapter-anchored TODOs, project-level
-// floating TODOs, AI suggestions}. Replaced the former `manuscript_comment` +
-// `memo` split — see drizzle/0034 for the consolidation.
+// floating TODOs, AI suggestions}.
 //
 // Anchor matrix (target_* are nullable; the row uses whichever depth it needs):
 //   target_kind   target_id   target_block_id   meaning
@@ -736,18 +838,9 @@ export const CommentActionTable = sqliteTable(
 );
 
 // Library Item (formerly Material)
-// Project-level "stuff I keep around": reference assets (image / pdf / url /
-// markdown attachment) and free-form text notes that don't belong to any
-// chapter and aren't tasks. Kinds:
-//   'image' | 'pdf' | 'url' | 'markdown' — file or URL reference (uri set)
-//   'text'                                — free-form note (bodyJson set,
-//                                            uri/localPath/mime all empty)
-// Source describes where the underlying payload lives:
-//   'local' — legacy local-only item; uri/localPath point at the picked file
-//   'url'   — uri is the http(s) URL itself
-//   'r2'    — uri is asset://<project_asset.id>; local files are cache only
-// 'markdown' attachments and 'text' notes store their TipTap doc in bodyJson.
-// notesJson is the author's free-form annotations attached to the item.
+// `kind` is the only payload discriminator: image/pdf bind an app-owned asset,
+// url binds an external URL, and text binds a TipTap document. Picker paths and
+// binary metadata never enter this table.
 // Linkage to chapters / elements / etc. goes through `entity_relation` with
 // fromKind='library_item'.
 export const LibraryItemTable = sqliteTable(
@@ -758,16 +851,14 @@ export const LibraryItemTable = sqliteTable(
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
     title: text('title').notNull().default(''),
-    kind: text('kind').notNull(), // 'image' | 'pdf' | 'url' | 'markdown' | 'text'
-    source: text('source').notNull().default('local'), // 'local' | 'url' | 'r2'
-    uri: text('uri').notNull().default(''),
-    localPath: text('local_path'),
-    assetId: text('asset_id').references(() => ProjectAssetTable.id, { onDelete: 'set null' }),
-    mime: text('mime'),
-    sizeBytes: integer('size_bytes'),
+    kind: text('kind').notNull(), // 'image' | 'pdf' | 'url' | 'text'
+    assetId: text('asset_id').references(() => ProjectAssetTable.id, {
+      onDelete: 'no action',
+    }),
+    externalUrl: text('external_url'),
     bodyJson: text('body_json'),
     notesJson: text('notes_json'),
-    thumbnailUri: text('thumbnail_uri'),
+    previewImageUrl: text('preview_image_url'),
     orderKey: integer('order_key').notNull().default(0),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
@@ -775,7 +866,37 @@ export const LibraryItemTable = sqliteTable(
   (t) => [
     index('idx_library_item_project').on(t.projectId),
     index('idx_library_item_project_kind').on(t.projectId, t.kind),
-    index('idx_library_item_asset').on(t.assetId),
+    uniqueIndex('uniq_library_item_asset').on(t.assetId),
+    check('library_item_kind_check', sql`${t.kind} in ('image', 'pdf', 'url', 'text')`),
+    check(
+      'library_item_payload_check',
+      sql`(
+        ${t.kind} in ('image', 'pdf')
+        and ${t.assetId} is not null
+        and ${t.externalUrl} is null
+        and ${t.bodyJson} is null
+        and ${t.previewImageUrl} is null
+      ) or (
+        ${t.kind} = 'url'
+        and ${t.assetId} is null
+        and ${t.externalUrl} is not null
+        and length(trim(${t.externalUrl})) > 0
+        and ${t.bodyJson} is null
+      ) or (
+        ${t.kind} = 'text'
+        and ${t.assetId} is null
+        and ${t.externalUrl} is null
+        and ${t.previewImageUrl} is null
+      )`,
+    ),
+    check(
+      'library_item_body_json_check',
+      sql`${t.bodyJson} is null or (json_valid(${t.bodyJson}) and json_extract(${t.bodyJson}, '$.type') = 'doc')`,
+    ),
+    check(
+      'library_item_notes_json_check',
+      sql`${t.notesJson} is null or (json_valid(${t.notesJson}) and json_extract(${t.notesJson}, '$.type') = 'doc')`,
+    ),
   ],
 );
 
@@ -849,6 +970,14 @@ export const AgentRuntimeSessionTable = sqliteTable(
     index('idx_agent_runtime_session_goal').on(t.projectId, t.goalRunId),
     index('idx_agent_runtime_session_recovery').on(t.projectId, t.status, t.updatedAt),
     uniqueIndex('uniq_agent_runtime_session_project_identity').on(t.id, t.projectId),
+    check(
+      'agent_runtime_session_route_shape_check',
+      sql`(${t.routeKind} = 'chat'
+          and ${t.conversationId} is not null
+          and ${t.goalRunId} is null
+          and ${t.chapterId} is null)
+        or (${t.routeKind} = 'goal' and ${t.conversationId} is null)`,
+    ),
   ],
 );
 
@@ -1627,8 +1756,8 @@ export const AgentRuntimeTaskConstraintTable = sqliteTable(
     body: text('body').notNull(),
     source: text('source').notNull().default('agent'),
     status: text('status').notNull().default('active'),
-    // The checked-in migration owns the self-FK. Keeping this as a plain
-    // column avoids Drizzle's recursive table type widening.
+    // The SQL baseline owns the self-FK. Keeping this as a plain column avoids
+    // Drizzle's recursive table type widening.
     supersededById: text('superseded_by_id'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
@@ -1917,6 +2046,21 @@ export const AgentPermissionGrantTable = sqliteTable(
     ),
     index('idx_agent_permission_grant_project_status').on(t.projectId, t.status, t.createdAt),
     index('idx_agent_permission_grant_session').on(t.sessionId, t.status),
+    uniqueIndex('uniq_agent_permission_grant_active')
+      .on(
+        t.projectId,
+        sql`ifnull(${t.sessionId}, '')`,
+        t.scope,
+        t.sourceKind,
+        t.sourceId,
+        t.providerToolName,
+        t.remoteToolName,
+        t.access,
+        t.argumentsHash,
+        t.toolDefinitionRevision,
+        t.sourceConfigRevision,
+      )
+      .where(sql`${t.status} = 'active'`),
   ],
 );
 
@@ -2036,34 +2180,1155 @@ export const YjsProseCommandReceiptTable = sqliteTable(
   ],
 );
 
-// Yjs sync cursor: tracks push/pull progress per document
-export const yjsSyncCursor = sqliteTable('yjs_sync_cursor', {
-  docId: text('doc_id').primaryKey(),
-  lastServerSeq: integer('last_server_seq').notNull().default(0),
-  lastPushedLocalId: integer('last_pushed_local_id').notNull().default(0),
-  updatedAt: text('updated_at').notNull(),
-});
+// SyncEngine is an immutable, provider-neutral object log. Domain rows and
+// Yjs remain the working copy; these tables contain only protocol, reducer,
+// transport, and recovery state. Secrets are represented by opaque native
+// secure-storage references, never bearer values or upload-session URLs.
 
-export const LocalSyncMutationTable = sqliteTable(
-  'local_sync_mutation',
+export const SyncAppAuthorityTable = sqliteTable(
+  'sync_app_authority',
   {
-    id: integer('id').primaryKey({ autoIncrement: true }),
-    entityType: text('entity_type').notNull(),
-    mutationType: text('mutation_type').notNull(),
-    entityId: text('entity_id').notNull(),
-    projectId: text('project_id').notNull(),
-    parentId: text('parent_id'),
-    payloadJson: text('payload_json'),
-    mutationTs: integer('mutation_ts').notNull(),
-    status: text('status').notNull().default('pending'),
-    retryCount: integer('retry_count').notNull().default(0),
-    lastError: text('last_error'),
+    id: text('id').primaryKey().notNull().default('app'),
+    mode: text('mode').notNull().default('local'),
+    generation: integer('generation').notNull().default(1),
+    transitionState: text('transition_state').notNull().default('stable'),
+    targetMode: text('target_mode'),
+    attemptId: text('attempt_id'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('uniq_sync_app_authority_identity').on(t.id, t.mode, t.generation),
+    check('sync_app_authority_singleton_check', sql`${t.id} = 'app'`),
+    check(
+      'sync_app_authority_mode_check',
+      sql`${t.mode} in ('local', 'google-drive', 'hosted')`,
+    ),
+    check('sync_app_authority_generation_check', sql`${t.generation} >= 1`),
+    check(
+      'sync_app_authority_transition_check',
+      sql`(
+        ${t.transitionState} = 'stable'
+        and ${t.targetMode} is null
+        and ${t.attemptId} is null
+      ) or (
+        ${t.transitionState} = 'connecting'
+        and ${t.mode} = 'local'
+        and ${t.targetMode} in ('google-drive', 'hosted')
+        and ${t.attemptId} is not null
+      ) or (
+        ${t.transitionState} = 'switching'
+        and ${t.mode} in ('google-drive', 'hosted')
+        and ${t.targetMode} in ('google-drive', 'hosted')
+        and ${t.targetMode} <> ${t.mode}
+        and ${t.attemptId} is not null
+      ) or (
+        ${t.transitionState} = 'disconnecting'
+        and ${t.mode} in ('google-drive', 'hosted')
+        and ${t.targetMode} = 'local'
+        and ${t.attemptId} is not null
+      ) or (
+        ${t.transitionState} = 'blocked'
+        and ${t.targetMode} in ('local', 'google-drive', 'hosted')
+        and ${t.targetMode} <> ${t.mode}
+        and ${t.attemptId} is not null
+      )`,
+    ),
+  ],
+);
+
+export const SyncProviderAccountTable = sqliteTable(
+  'sync_provider_account',
+  {
+    id: text('id').primaryKey(),
+    singletonKey: integer('singleton_key').notNull().default(1),
+    authorityId: text('authority_id').notNull().default('app'),
+    providerKind: text('provider_kind').notNull(),
+    authorityGeneration: integer('authority_generation').notNull(),
+    accountSubjectId: text('account_subject_id').notNull(),
+    credentialSecretRef: text('credential_secret_ref').notNull(),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
   (t) => [
-    index('idx_local_sync_mutation_status_id').on(t.status, t.id),
-    index('idx_local_sync_mutation_project').on(t.projectId),
-    index('idx_local_sync_mutation_entity').on(t.entityType, t.entityId, t.mutationType),
+    uniqueIndex('uniq_sync_provider_account_singleton').on(t.singletonKey),
+    uniqueIndex('uniq_sync_provider_account_subject').on(
+      t.providerKind,
+      t.accountSubjectId,
+    ),
+    check('sync_provider_account_singleton_check', sql`${t.singletonKey} = 1`),
+    check(
+      'sync_provider_account_kind_check',
+      sql`${t.providerKind} in ('google-drive', 'hosted')`,
+    ),
+    check(
+      'sync_provider_account_generation_check',
+      sql`${t.authorityGeneration} >= 1`,
+    ),
+    foreignKey({
+      columns: [t.authorityId, t.providerKind, t.authorityGeneration],
+      foreignColumns: [
+        SyncAppAuthorityTable.id,
+        SyncAppAuthorityTable.mode,
+        SyncAppAuthorityTable.generation,
+      ],
+      name: 'fk_sync_provider_account_authority_generation',
+    }).onDelete('restrict'),
+  ],
+);
+
+export const SyncGenerationTable = sqliteTable(
+  'sync_generation',
+  {
+    syncGenerationId: text('sync_generation_id').primaryKey(),
+    projectId: text('project_id').references(() => ProjectTable.id, {
+      onDelete: 'set null',
+    }),
+    projectSyncId: text('project_sync_id').notNull(),
+    generationNumber: integer('generation_number').notNull().default(1),
+    protocolVersion: integer('protocol_version').notNull().default(1),
+    domainSchemaVersion: integer('domain_schema_version').notNull().default(1),
+    status: text('status').notNull().default('active'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    retiredAt: text('retired_at'),
+    purgedAt: text('purged_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_sync_generation_project_sync_number').on(
+      t.projectSyncId,
+      t.generationNumber,
+    ),
+    uniqueIndex('uniq_sync_generation_identity_project_sync').on(
+      t.syncGenerationId,
+      t.projectSyncId,
+    ),
+    uniqueIndex('uniq_sync_generation_active_project')
+      .on(t.projectId)
+      .where(sql`${t.projectId} is not null and ${t.status} = 'active'`),
+    uniqueIndex('uniq_sync_generation_staged_project')
+      .on(t.projectId)
+      .where(sql`${t.projectId} is not null and ${t.status} = 'staged'`),
+    index('idx_sync_generation_project').on(t.projectId),
+    index('idx_sync_generation_project_sync').on(t.projectSyncId),
+    check('sync_generation_number_check', sql`${t.generationNumber} >= 1`),
+    check('sync_generation_protocol_check', sql`${t.protocolVersion} = 1`),
+    check('sync_generation_schema_check', sql`${t.domainSchemaVersion} >= 1`),
+    check(
+      'sync_generation_status_check',
+      sql`(${t.status} in ('active', 'staged')
+          and ${t.retiredAt} is null
+          and ${t.purgedAt} is null)
+        or (${t.status} = 'retired'
+          and ${t.retiredAt} is not null
+          and ${t.purgedAt} is null)
+        or (${t.status} = 'purged' and ${t.purgedAt} is not null)`,
+    ),
+  ],
+);
+
+export const SyncProviderBindingTable = sqliteTable(
+  'sync_provider_binding',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .primaryKey()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    providerAccountId: text('provider_account_id')
+      .notNull()
+      .references(() => SyncProviderAccountTable.id, { onDelete: 'restrict' }),
+    providerNamespace: text('provider_namespace').notNull(),
+    providerGenerationRef: text('provider_generation_ref'),
+    state: text('state').notNull().default('connecting'),
+    connectedAt: text('connected_at'),
+    lastPullSuccessAt: text('last_pull_success_at'),
+    lastPublishSuccessAt: text('last_publish_success_at'),
+    lastConvergedAt: text('last_converged_at'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_sync_provider_binding_account').on(t.providerAccountId),
+    index('idx_sync_provider_binding_state').on(t.state),
+    check(
+      'sync_provider_binding_state_check',
+      sql`${t.state} in (
+        'connecting', 'discovering', 'publishing-genesis', 'restoring',
+        'ready', 'paused', 'needs-reauth', 'blocked-update',
+        'blocked-corrupt', 'purged'
+      )`,
+    ),
+  ],
+);
+
+export const SyncGenerationWriterStateTable = sqliteTable(
+  'sync_generation_writer_state',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    writerId: text('writer_id').notNull(),
+    writerEpoch: text('writer_epoch').notNull(),
+    installationId: text('installation_id').notNull(),
+    nextDeviceSeq: integer('next_device_seq').notNull().default(1),
+    hlcWallMs: integer('hlc_wall_ms').notNull().default(0),
+    hlcCounter: integer('hlc_counter').notNull().default(0),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    retiredAt: text('retired_at'),
+  },
+  (t) => [
+    primaryKey({ columns: [t.syncGenerationId, t.writerId, t.writerEpoch] }),
+    uniqueIndex('uniq_sync_generation_active_writer')
+      .on(t.syncGenerationId)
+      .where(sql`${t.retiredAt} is null`),
+    check('sync_writer_next_sequence_check', sql`${t.nextDeviceSeq} >= 1`),
+    check(
+      'sync_writer_hlc_check',
+      sql`${t.hlcWallMs} >= 0 and ${t.hlcCounter} >= 0`,
+    ),
+  ],
+);
+
+export const SyncChangeSetTable = sqliteTable(
+  'sync_change_set',
+  {
+    changeSetId: text('change_set_id').primaryKey(),
+    syncGenerationId: text('sync_generation_id').notNull(),
+    projectId: text('project_id').notNull(),
+    projectSyncId: text('project_sync_id').notNull(),
+    writerId: text('writer_id').notNull(),
+    writerEpoch: text('writer_epoch').notNull(),
+    deviceSeq: integer('device_seq').notNull(),
+    hlcWallMs: integer('hlc_wall_ms').notNull(),
+    hlcCounter: integer('hlc_counter').notNull(),
+    protocolVersion: integer('protocol_version').notNull().default(1),
+    payloadVersion: integer('payload_version').notNull().default(1),
+    mutationCount: integer('mutation_count').notNull(),
+    encodedBytes: blob('encoded_bytes').notNull(),
+    payloadSha256: text('payload_sha256').notNull(),
+    origin: text('origin').notNull(),
+    applyState: text('apply_state').notNull().default('pending'),
+    createdAt: text('created_at').notNull(),
+    appliedAt: text('applied_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_sync_change_set_writer_sequence').on(
+      t.syncGenerationId,
+      t.writerId,
+      t.writerEpoch,
+      t.deviceSeq,
+    ),
+    uniqueIndex('uniq_sync_change_set_identity_generation').on(
+      t.changeSetId,
+      t.syncGenerationId,
+    ),
+    index('idx_sync_change_set_apply_state').on(
+      t.syncGenerationId,
+      t.applyState,
+      t.createdAt,
+    ),
+    foreignKey({
+      columns: [t.syncGenerationId, t.projectSyncId],
+      foreignColumns: [
+        SyncGenerationTable.syncGenerationId,
+        SyncGenerationTable.projectSyncId,
+      ],
+      name: 'fk_sync_change_set_generation_project_sync',
+    }).onDelete('restrict'),
+    check(
+      'sync_change_set_sequence_check',
+      sql`${t.deviceSeq} >= 1 and ${t.hlcWallMs} >= 0 and ${t.hlcCounter} >= 0`,
+    ),
+    check(
+      'sync_change_set_version_check',
+      sql`${t.protocolVersion} = 1 and ${t.payloadVersion} = 1`,
+    ),
+    check('sync_change_set_mutation_count_check', sql`${t.mutationCount} > 0`),
+    check(
+      'sync_change_set_hash_check',
+      sql`length(${t.payloadSha256}) = 64 and ${t.payloadSha256} not glob '*[^0-9a-f]*'`,
+    ),
+    check('sync_change_set_origin_check', sql`${t.origin} in ('local', 'remote')`),
+    check(
+      'sync_change_set_apply_state_check',
+      sql`${t.applyState} in ('pending', 'applying', 'applied', 'quarantined')`,
+    ),
+  ],
+);
+
+export const SyncMutationTable = sqliteTable(
+  'sync_mutation',
+  {
+    changeSetId: text('change_set_id')
+      .notNull()
+      .references(() => SyncChangeSetTable.changeSetId, { onDelete: 'restrict' }),
+    mutationIndex: integer('mutation_index').notNull(),
+    targetFamily: text('target_family').notNull(),
+    targetKind: text('target_kind').notNull(),
+    targetId: text('target_id').notNull(),
+    incarnation: integer('incarnation').notNull(),
+    action: text('action').notNull(),
+    payloadVersion: integer('payload_version').notNull().default(1),
+    payloadCbor: blob('payload_cbor').notNull(),
+    payloadSha256: text('payload_sha256').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.changeSetId, t.mutationIndex] }),
+    index('idx_sync_mutation_target').on(
+      t.targetFamily,
+      t.targetKind,
+      t.targetId,
+      t.incarnation,
+    ),
+    check('sync_mutation_index_check', sql`${t.mutationIndex} >= 0`),
+    check('sync_mutation_incarnation_check', sql`${t.incarnation} >= 0`),
+    check('sync_mutation_payload_version_check', sql`${t.payloadVersion} = 1`),
+    check(
+      'sync_mutation_family_check',
+      sql`${t.targetFamily} in ('entity', 'set', 'order', 'yjs', 'asset', 'sync-generation')`,
+    ),
+    check(
+      'sync_mutation_action_check',
+      sql`${t.action} in (
+        'entity.create', 'field.set', 'tuple.set', 'set.add', 'set.remove',
+        'order.move', 'order.rebalance', 'entity.trash', 'entity.restore',
+        'entity.purge', 'sync-generation.purge', 'yjs.update', 'asset.bind', 'asset.unbind'
+      )`,
+    ),
+    check(
+      'sync_mutation_hash_check',
+      sql`length(${t.payloadSha256}) = 64 and ${t.payloadSha256} not glob '*[^0-9a-f]*'`,
+    ),
+  ],
+);
+
+export const SyncApplyReceiptTable = sqliteTable(
+  'sync_apply_receipt',
+  {
+    changeSetId: text('change_set_id').primaryKey(),
+    syncGenerationId: text('sync_generation_id').notNull(),
+    mutationCount: integer('mutation_count').notNull(),
+    sourceObjectId: text('source_object_id'),
+    stateSha256: text('state_sha256'),
+    appliedAt: text('applied_at').notNull(),
+  },
+  (t) => [
+    index('idx_sync_apply_receipt_generation').on(t.syncGenerationId, t.appliedAt),
+    foreignKey({
+      columns: [t.changeSetId, t.syncGenerationId],
+      foreignColumns: [
+        SyncChangeSetTable.changeSetId,
+        SyncChangeSetTable.syncGenerationId,
+      ],
+      name: 'fk_sync_apply_receipt_change_set',
+    }).onDelete('restrict'),
+    check('sync_apply_receipt_mutation_count_check', sql`${t.mutationCount} > 0`),
+    check(
+      'sync_apply_receipt_state_hash_check',
+      sql`${t.stateSha256} is null or (
+        length(${t.stateSha256}) = 64 and ${t.stateSha256} not glob '*[^0-9a-f]*'
+      )`,
+    ),
+  ],
+);
+
+/**
+ * Presence of this row is the permanent absorbing state for one sync
+ * generation. The immutable journal remains available for receipts/frontier,
+ * but no later non-purge mutation may materialize domain state.
+ */
+export const SyncGenerationPurgeTable = sqliteTable(
+  'sync_generation_purge',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .primaryKey()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    hlcWallMs: integer('hlc_wall_ms').notNull(),
+    hlcCounter: integer('hlc_counter').notNull(),
+    writerId: text('writer_id').notNull(),
+    writerEpoch: text('writer_epoch').notNull(),
+    deviceSeq: integer('device_seq').notNull(),
+    changeSetId: text('change_set_id').notNull(),
+    mutationIndex: integer('mutation_index').notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.changeSetId, t.mutationIndex],
+      foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex],
+      name: 'fk_sync_generation_purge_mutation',
+    }).onDelete('restrict'),
+    check(
+      'sync_generation_purge_clock_check',
+      sql`${t.hlcWallMs} >= 0 and ${t.hlcCounter} >= 0
+        and ${t.deviceSeq} >= 1 and ${t.mutationIndex} >= 0`,
+    ),
+  ],
+);
+
+export const SyncFieldClockTable = sqliteTable(
+  'sync_field_clock',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    targetKind: text('target_kind').notNull(),
+    targetId: text('target_id').notNull(),
+    incarnation: integer('incarnation').notNull(),
+    fieldKey: text('field_key').notNull(),
+    hlcWallMs: integer('hlc_wall_ms').notNull(),
+    hlcCounter: integer('hlc_counter').notNull(),
+    writerId: text('writer_id').notNull(),
+    writerEpoch: text('writer_epoch').notNull(),
+    deviceSeq: integer('device_seq').notNull(),
+    changeSetId: text('change_set_id').notNull(),
+    mutationIndex: integer('mutation_index').notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.syncGenerationId, t.targetKind, t.targetId, t.incarnation, t.fieldKey],
+    }),
+    foreignKey({
+      columns: [t.changeSetId, t.mutationIndex],
+      foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex],
+      name: 'fk_sync_field_clock_mutation',
+    }).onDelete('restrict'),
+    check(
+      'sync_field_clock_value_check',
+      sql`${t.incarnation} >= 0 and ${t.hlcWallMs} >= 0 and ${t.hlcCounter} >= 0
+        and ${t.deviceSeq} >= 1 and ${t.mutationIndex} >= 0`,
+    ),
+  ],
+);
+
+export const SyncSetTagTable = sqliteTable(
+  'sync_set_tag',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    ownerKind: text('owner_kind').notNull(),
+    ownerId: text('owner_id').notNull(),
+    incarnation: integer('incarnation').notNull(),
+    setKey: text('set_key').notNull(),
+    valueKey: text('value_key').notNull(),
+    valueCbor: blob('value_cbor').notNull(),
+    addTag: text('add_tag').notNull(),
+    addChangeSetId: text('add_change_set_id').notNull(),
+    addMutationIndex: integer('add_mutation_index').notNull(),
+    removedByChangeSetId: text('removed_by_change_set_id'),
+    removedByMutationIndex: integer('removed_by_mutation_index'),
+  },
+  (t) => [
+    primaryKey({
+      columns: [
+        t.syncGenerationId,
+        t.ownerKind,
+        t.ownerId,
+        t.incarnation,
+        t.setKey,
+        t.valueKey,
+        t.addTag,
+      ],
+    }),
+    index('idx_sync_set_tag_live_value').on(
+      t.syncGenerationId,
+      t.ownerKind,
+      t.ownerId,
+      t.setKey,
+      t.valueKey,
+      t.removedByChangeSetId,
+    ),
+    foreignKey({
+      columns: [t.addChangeSetId, t.addMutationIndex],
+      foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex],
+      name: 'fk_sync_set_tag_add_mutation',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [t.removedByChangeSetId, t.removedByMutationIndex],
+      foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex],
+      name: 'fk_sync_set_tag_remove_mutation',
+    }).onDelete('restrict'),
+    check('sync_set_tag_incarnation_check', sql`${t.incarnation} >= 0`),
+    check(
+      'sync_set_tag_remove_pair_check',
+      sql`(${t.removedByChangeSetId} is null and ${t.removedByMutationIndex} is null)
+        or (${t.removedByChangeSetId} is not null and ${t.removedByMutationIndex} >= 0)`,
+    ),
+  ],
+);
+
+export const SyncOrderRegisterTable = sqliteTable(
+  'sync_order_register',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    listKind: text('list_kind').notNull(),
+    ownerId: text('owner_id').notNull(),
+    entityId: text('entity_id').notNull(),
+    incarnation: integer('incarnation').notNull(),
+    positionKey: text('position_key').notNull(),
+    hlcWallMs: integer('hlc_wall_ms').notNull(),
+    hlcCounter: integer('hlc_counter').notNull(),
+    writerId: text('writer_id').notNull(),
+    writerEpoch: text('writer_epoch').notNull(),
+    deviceSeq: integer('device_seq').notNull(),
+    changeSetId: text('change_set_id').notNull(),
+    mutationIndex: integer('mutation_index').notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.syncGenerationId, t.listKind, t.entityId, t.incarnation],
+    }),
+    index('idx_sync_order_register_position').on(
+      t.syncGenerationId,
+      t.listKind,
+      t.ownerId,
+      t.positionKey,
+      t.entityId,
+    ),
+    foreignKey({
+      columns: [t.changeSetId, t.mutationIndex],
+      foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex],
+      name: 'fk_sync_order_register_mutation',
+    }).onDelete('restrict'),
+    check(
+      'sync_order_register_clock_check',
+      sql`${t.incarnation} >= 0 and ${t.hlcWallMs} >= 0 and ${t.hlcCounter} >= 0
+        and ${t.deviceSeq} >= 1 and ${t.mutationIndex} >= 0`,
+    ),
+  ],
+);
+
+export const SyncEntityLifecycleTable = sqliteTable(
+  'sync_entity_lifecycle',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    entityKind: text('entity_kind').notNull(),
+    entityId: text('entity_id').notNull(),
+    incarnation: integer('incarnation').notNull(),
+    state: text('state').notNull(),
+    hlcWallMs: integer('hlc_wall_ms').notNull(),
+    hlcCounter: integer('hlc_counter').notNull(),
+    writerId: text('writer_id').notNull(),
+    writerEpoch: text('writer_epoch').notNull(),
+    deviceSeq: integer('device_seq').notNull(),
+    changeSetId: text('change_set_id').notNull(),
+    mutationIndex: integer('mutation_index').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.syncGenerationId, t.entityKind, t.entityId] }),
+    index('idx_sync_entity_lifecycle_state').on(t.syncGenerationId, t.state),
+    foreignKey({
+      columns: [t.changeSetId, t.mutationIndex],
+      foreignColumns: [SyncMutationTable.changeSetId, SyncMutationTable.mutationIndex],
+      name: 'fk_sync_entity_lifecycle_mutation',
+    }).onDelete('restrict'),
+    check('sync_entity_lifecycle_state_check', sql`${t.state} in ('live', 'trashed', 'purged')`),
+    check(
+      'sync_entity_lifecycle_clock_check',
+      sql`${t.incarnation} >= 0 and ${t.hlcWallMs} >= 0 and ${t.hlcCounter} >= 0
+        and ${t.deviceSeq} >= 1 and ${t.mutationIndex} >= 0`,
+    ),
+  ],
+);
+
+export const SyncFrontierTable = sqliteTable(
+  'sync_frontier',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    writerId: text('writer_id').notNull(),
+    writerEpoch: text('writer_epoch').notNull(),
+    receivedSeq: integer('received_seq').notNull().default(0),
+    appliedSeq: integer('applied_seq').notNull().default(0),
+    publishedSeq: integer('published_seq').notNull().default(0),
+    segmentHeadSha256: text('segment_head_sha256'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.syncGenerationId, t.writerId, t.writerEpoch] }),
+    check(
+      'sync_frontier_sequence_check',
+      sql`${t.receivedSeq} >= 0 and ${t.appliedSeq} >= 0 and ${t.publishedSeq} >= 0`,
+    ),
+    check(
+      'sync_frontier_head_hash_check',
+      sql`${t.segmentHeadSha256} is null or (
+        length(${t.segmentHeadSha256}) = 64
+        and ${t.segmentHeadSha256} not glob '*[^0-9a-f]*'
+      )`,
+    ),
+  ],
+);
+
+export const SyncFrontierGapTable = sqliteTable(
+  'sync_frontier_gap',
+  {
+    id: text('id').primaryKey(),
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    writerId: text('writer_id').notNull(),
+    writerEpoch: text('writer_epoch').notNull(),
+    lane: text('lane').notNull(),
+    firstSeq: integer('first_seq').notNull(),
+    lastSeq: integer('last_seq').notNull(),
+    state: text('state').notNull().default('open'),
+    observedAt: text('observed_at').notNull(),
+    resolvedAt: text('resolved_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_sync_frontier_gap_range').on(
+      t.syncGenerationId,
+      t.writerId,
+      t.writerEpoch,
+      t.lane,
+      t.firstSeq,
+      t.lastSeq,
+    ),
+    index('idx_sync_frontier_gap_open').on(t.syncGenerationId, t.state),
+    check('sync_frontier_gap_lane_check', sql`${t.lane} in ('received', 'applied', 'published')`),
+    check(
+      'sync_frontier_gap_range_check',
+      sql`${t.firstSeq} >= 1 and ${t.lastSeq} >= ${t.firstSeq}`,
+    ),
+    check(
+      'sync_frontier_gap_state_check',
+      sql`(${t.state} = 'open' and ${t.resolvedAt} is null)
+        or (${t.state} = 'resolved' and ${t.resolvedAt} is not null)`,
+    ),
+  ],
+);
+
+export const SyncLocalObjectTable = sqliteTable(
+  'sync_local_object',
+  {
+    id: text('id').primaryKey(),
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    objectKind: text('object_kind').notNull(),
+    logicalKeyId: text('logical_key_id').notNull(),
+    storageRef: text('storage_ref').notNull(),
+    storedSha256: text('stored_sha256').notNull(),
+    contentSha256: text('content_sha256'),
+    sizeBytes: integer('size_bytes').notNull(),
+    codec: text('codec').notNull(),
+    state: text('state').notNull().default('staged'),
+    createdAt: text('created_at').notNull(),
+    verifiedAt: text('verified_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_sync_local_object_logical_key').on(t.syncGenerationId, t.logicalKeyId),
+    index('idx_sync_local_object_state').on(t.syncGenerationId, t.state),
+    check(
+      'sync_local_object_kind_check',
+      sql`${t.objectKind} in (
+        'segment', 'genesis', 'checkpoint', 'snapshot-commit', 'blob',
+        'quarantine'
+      )`,
+    ),
+    check(
+      'sync_local_object_hash_check',
+      sql`length(${t.storedSha256}) = 64
+        and ${t.storedSha256} not glob '*[^0-9a-f]*'
+        and (${t.contentSha256} is null or (
+          length(${t.contentSha256}) = 64
+          and ${t.contentSha256} not glob '*[^0-9a-f]*'
+        ))`,
+    ),
+    check('sync_local_object_size_check', sql`${t.sizeBytes} >= 0`),
+    check(
+      'sync_local_object_state_check',
+      sql`${t.state} in ('staged', 'verified', 'publishing', 'published', 'quarantined')`,
+    ),
+  ],
+);
+
+export const SyncSegmentTable = sqliteTable(
+  'sync_segment',
+  {
+    segmentId: text('segment_id').primaryKey(),
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    writerId: text('writer_id').notNull(),
+    writerEpoch: text('writer_epoch').notNull(),
+    firstSeq: integer('first_seq').notNull(),
+    lastSeq: integer('last_seq').notNull(),
+    changeSetCount: integer('change_set_count').notNull(),
+    previousSegmentSha256: text('previous_segment_sha256'),
+    requiredBlobIdsCbor: blob('required_blob_ids_cbor').notNull(),
+    localObjectId: text('local_object_id')
+      .notNull()
+      .references(() => SyncLocalObjectTable.id, { onDelete: 'restrict' }),
+    segmentSha256: text('segment_sha256').notNull(),
+    state: text('state').notNull().default('sealed'),
+    createdAt: text('created_at').notNull(),
+    publishedAt: text('published_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_sync_segment_writer_range').on(
+      t.syncGenerationId,
+      t.writerId,
+      t.writerEpoch,
+      t.firstSeq,
+      t.lastSeq,
+    ),
+    index('idx_sync_segment_state').on(t.syncGenerationId, t.state, t.firstSeq),
+    check(
+      'sync_segment_range_check',
+      sql`${t.firstSeq} >= 1 and ${t.lastSeq} >= ${t.firstSeq}
+        and ${t.changeSetCount} = ${t.lastSeq} - ${t.firstSeq} + 1`,
+    ),
+    check(
+      'sync_segment_hash_check',
+      sql`length(${t.segmentSha256}) = 64
+        and ${t.segmentSha256} not glob '*[^0-9a-f]*'
+        and (${t.previousSegmentSha256} is null or (
+          length(${t.previousSegmentSha256}) = 64
+          and ${t.previousSegmentSha256} not glob '*[^0-9a-f]*'
+        ))`,
+    ),
+    check(
+      'sync_segment_state_check',
+      sql`${t.state} in ('sealed', 'publishing', 'published', 'quarantined')`,
+    ),
+  ],
+);
+
+export const SyncRemoteObjectTable = sqliteTable(
+  'sync_remote_object',
+  {
+    id: text('id').primaryKey(),
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    providerObjectId: text('provider_object_id').notNull(),
+    logicalKeyId: text('logical_key_id').notNull(),
+    objectKind: text('object_kind').notNull(),
+    storedSha256: text('stored_sha256').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    providerVersion: text('provider_version'),
+    providerEtag: text('provider_etag'),
+    observedCursor: text('observed_cursor'),
+    firstObservedAt: text('first_observed_at').notNull(),
+    lastObservedAt: text('last_observed_at').notNull(),
+    removedAt: text('removed_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_sync_remote_object_provider_id').on(t.syncGenerationId, t.providerObjectId),
+    index('idx_sync_remote_object_logical_key').on(t.syncGenerationId, t.logicalKeyId),
+    index('idx_sync_remote_object_removed').on(t.syncGenerationId, t.removedAt),
+    check(
+      'sync_remote_object_kind_check',
+      sql`${t.objectKind} in (
+        'segment', 'genesis', 'checkpoint', 'snapshot-commit', 'blob'
+      )`,
+    ),
+    check(
+      'sync_remote_object_hash_check',
+      sql`length(${t.storedSha256}) = 64 and ${t.storedSha256} not glob '*[^0-9a-f]*'`,
+    ),
+    check('sync_remote_object_size_check', sql`${t.sizeBytes} >= 0`),
+  ],
+);
+
+export const SyncCursorTable = sqliteTable(
+  'sync_cursor',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .primaryKey()
+      .references(() => SyncProviderBindingTable.syncGenerationId, { onDelete: 'restrict' }),
+    providerEpoch: text('provider_epoch').notNull(),
+    committedCursor: text('committed_cursor'),
+    pendingBaseCursor: text('pending_base_cursor'),
+    pendingPageToken: text('pending_page_token'),
+    inventoryComplete: integer('inventory_complete', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    check(
+      'sync_cursor_pending_pair_check',
+      sql`(${t.pendingPageToken} is null and ${t.pendingBaseCursor} is null)
+        or (${t.pendingPageToken} is not null and ${t.pendingBaseCursor} is not null)`,
+    ),
+  ],
+);
+
+export const SyncTransferTable = sqliteTable(
+  'sync_transfer',
+  {
+    transferId: text('transfer_id').primaryKey(),
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    direction: text('direction').notNull(),
+    objectKind: text('object_kind').notNull(),
+    logicalKeyId: text('logical_key_id').notNull(),
+    localObjectId: text('local_object_id').references(() => SyncLocalObjectTable.id, {
+      onDelete: 'restrict',
+    }),
+    remoteObjectId: text('remote_object_id').references(() => SyncRemoteObjectTable.id, {
+      onDelete: 'restrict',
+    }),
+    expectedStoredSha256: text('expected_stored_sha256').notNull(),
+    totalBytes: integer('total_bytes').notNull(),
+    transferredBytes: integer('transferred_bytes').notNull().default(0),
+    state: text('state').notNull().default('pending'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    sessionSecretRef: text('session_secret_ref'),
+    lastErrorCode: text('last_error_code'),
+    nextAttemptAt: text('next_attempt_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    completedAt: text('completed_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_sync_transfer_active_object')
+      .on(t.syncGenerationId, t.direction, t.logicalKeyId)
+      .where(sql`${t.state} in ('pending', 'running', 'retry-wait')`),
+    index('idx_sync_transfer_schedule').on(t.state, t.nextAttemptAt),
+    check('sync_transfer_direction_check', sql`${t.direction} in ('upload', 'download')`),
+    check(
+      'sync_transfer_object_kind_check',
+      sql`${t.objectKind} in (
+        'segment', 'genesis', 'checkpoint', 'snapshot-commit', 'blob'
+      )`,
+    ),
+    check(
+      'sync_transfer_state_check',
+      sql`${t.state} in ('pending', 'running', 'retry-wait', 'completed', 'cancelled', 'failed')`,
+    ),
+    check(
+      'sync_transfer_progress_check',
+      sql`${t.totalBytes} >= 0 and ${t.transferredBytes} >= 0
+        and ${t.transferredBytes} <= ${t.totalBytes} and ${t.attemptCount} >= 0`,
+    ),
+    check(
+      'sync_transfer_hash_check',
+      sql`length(${t.expectedStoredSha256}) = 64
+        and ${t.expectedStoredSha256} not glob '*[^0-9a-f]*'`,
+    ),
+  ],
+);
+
+export const SyncCheckpointTable = sqliteTable(
+  'sync_checkpoint',
+  {
+    checkpointId: text('checkpoint_id').primaryKey(),
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    kind: text('kind').notNull(),
+    protocolVersion: integer('protocol_version').notNull().default(1),
+    domainSchemaVersion: integer('domain_schema_version').notNull(),
+    frontierCbor: blob('frontier_cbor').notNull(),
+    localObjectId: text('local_object_id')
+      .notNull()
+      .references(() => SyncLocalObjectTable.id, { onDelete: 'restrict' }),
+    logicalKeyId: text('logical_key_id').notNull(),
+    contentSha256: text('content_sha256').notNull(),
+    state: text('state').notNull().default('captured'),
+    changeSetCount: integer('change_set_count').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    createdAt: text('created_at').notNull(),
+    publishedAt: text('published_at'),
+    verifiedAt: text('verified_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_sync_checkpoint_logical_key').on(t.syncGenerationId, t.logicalKeyId),
+    index('idx_sync_checkpoint_state').on(t.syncGenerationId, t.state, t.createdAt),
+    check('sync_checkpoint_kind_check', sql`${t.kind} in ('genesis', 'checkpoint')`),
+    check(
+      'sync_checkpoint_version_check',
+      sql`${t.protocolVersion} = 1 and ${t.domainSchemaVersion} >= 1`,
+    ),
+    check(
+      'sync_checkpoint_size_check',
+      sql`${t.changeSetCount} >= 0 and ${t.sizeBytes} >= 0`,
+    ),
+    check(
+      'sync_checkpoint_hash_check',
+      sql`length(${t.contentSha256}) = 64 and ${t.contentSha256} not glob '*[^0-9a-f]*'`,
+    ),
+    check(
+      'sync_checkpoint_state_check',
+      sql`${t.state} in ('captured', 'publishing', 'published', 'verified', 'quarantined')`,
+    ),
+  ],
+);
+
+export const SyncBlobStateTable = sqliteTable(
+  'sync_blob_state',
+  {
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    blobId: text('blob_id').notNull(),
+    assetId: text('asset_id'),
+    logicalKeyId: text('logical_key_id').notNull(),
+    contentSha256: text('content_sha256').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    mime: text('mime').notNull(),
+    localObjectId: text('local_object_id').references(() => SyncLocalObjectTable.id, {
+      onDelete: 'restrict',
+    }),
+    localState: text('local_state').notNull().default('missing'),
+    remoteState: text('remote_state').notNull().default('missing'),
+    verifiedAt: text('verified_at'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.syncGenerationId, t.blobId] }),
+    uniqueIndex('uniq_sync_blob_logical_key').on(t.syncGenerationId, t.logicalKeyId),
+    index('idx_sync_blob_delivery').on(t.syncGenerationId, t.localState, t.remoteState),
+    check(
+      'sync_blob_hash_check',
+      sql`length(${t.contentSha256}) = 64 and ${t.contentSha256} not glob '*[^0-9a-f]*'`,
+    ),
+    check('sync_blob_size_check', sql`${t.sizeBytes} >= 0`),
+    check(
+      'sync_blob_local_state_check',
+      sql`${t.localState} in ('missing', 'staged', 'verified', 'corrupt')`,
+    ),
+    check(
+      'sync_blob_remote_state_check',
+      sql`${t.remoteState} in ('missing', 'publishing', 'available', 'removed', 'corrupt')`,
+    ),
+  ],
+);
+
+export const SyncRestoreAttemptTable = sqliteTable(
+  'sync_restore_attempt',
+  {
+    attemptId: text('attempt_id').primaryKey(),
+    sourceSyncGenerationId: text('source_sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    sourceCheckpointId: text('source_checkpoint_id').references(
+      () => SyncCheckpointTable.checkpointId,
+      { onDelete: 'restrict' },
+    ),
+    targetProjectId: text('target_project_id'),
+    stagingRef: text('staging_ref').notNull(),
+    state: text('state').notNull().default('downloading'),
+    validationCode: text('validation_code'),
+    activationReceipt: text('activation_receipt'),
+    errorCode: text('error_code'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    completedAt: text('completed_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_sync_restore_active_generation')
+      .on(t.sourceSyncGenerationId)
+      .where(sql`${t.state} in ('downloading', 'validating', 'staging-assets', 'activating')`),
+    index('idx_sync_restore_state').on(t.state, t.updatedAt),
+    check(
+      'sync_restore_state_check',
+      sql`${t.state} in (
+        'downloading', 'validating', 'staging-assets', 'activating',
+        'completed', 'failed', 'cancelled'
+      )`,
+    ),
+  ],
+);
+
+export const SyncConnectAttemptTable = sqliteTable(
+  'sync_connect_attempt',
+  {
+    attemptId: text('attempt_id').primaryKey(),
+    authorityGeneration: integer('authority_generation').notNull(),
+    kind: text('kind').notNull(),
+    targetMode: text('target_mode').notNull(),
+    targetAccountSubjectId: text('target_account_subject_id'),
+    targetCredentialSecretRef: text('target_credential_secret_ref'),
+    state: text('state').notNull().default('preparing'),
+    errorCode: text('error_code'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    completedAt: text('completed_at'),
+  },
+  (t) => [
+    index('idx_sync_connect_attempt_state').on(t.state, t.updatedAt),
+    check('sync_connect_generation_check', sql`${t.authorityGeneration} >= 1`),
+    check(
+      'sync_connect_kind_check',
+      sql`${t.kind} in ('connect', 'switch-provider', 'disconnect', 'restore')`,
+    ),
+    check(
+      'sync_connect_target_mode_check',
+      sql`${t.targetMode} in ('local', 'google-drive', 'hosted')`,
+    ),
+    check(
+      'sync_connect_target_account_check',
+      sql`(${t.targetMode} = 'local'
+          and ${t.targetAccountSubjectId} is null
+          and ${t.targetCredentialSecretRef} is null)
+        or (${t.targetMode} in ('google-drive', 'hosted')
+          and ${t.targetAccountSubjectId} is not null
+          and ${t.targetCredentialSecretRef} is not null)`,
+    ),
+    check(
+      'sync_connect_kind_target_check',
+      sql`(${t.kind} = 'disconnect' and ${t.targetMode} = 'local')
+        or (${t.kind} in ('connect', 'switch-provider', 'restore')
+          and ${t.targetMode} in ('google-drive', 'hosted'))`,
+    ),
+    check(
+      'sync_connect_state_check',
+      sql`${t.state} in (
+        'preparing', 'discovering', 'publishing-genesis', 'restoring',
+        'activating', 'completed', 'blocked', 'failed', 'cancelled'
+      )`,
+    ),
+    check(
+      'sync_connect_completion_check',
+      sql`(${t.state} in ('completed', 'failed', 'cancelled')
+          and ${t.completedAt} is not null)
+        or (${t.state} not in ('completed', 'failed', 'cancelled')
+          and ${t.completedAt} is null)`,
+    ),
+  ],
+);
+
+export const SyncConnectGenerationAttemptTable = sqliteTable(
+  'sync_connect_generation_attempt',
+  {
+    attemptId: text('attempt_id')
+      .notNull()
+      .references(() => SyncConnectAttemptTable.attemptId, { onDelete: 'restrict' }),
+    sourceSyncGenerationId: text('source_sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    targetSyncGenerationId: text('target_sync_generation_id').references(
+      () => SyncGenerationTable.syncGenerationId,
+      { onDelete: 'restrict' },
+    ),
+    sourceCheckpointId: text('source_checkpoint_id').references(
+      () => SyncCheckpointTable.checkpointId,
+      { onDelete: 'restrict' },
+    ),
+    commitMarkerObjectId: text('commit_marker_object_id').references(
+      () => SyncRemoteObjectTable.id,
+      { onDelete: 'restrict' },
+    ),
+    activationReceipt: text('activation_receipt'),
+    state: text('state').notNull().default('pending'),
+    errorCode: text('error_code'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    activatedAt: text('activated_at'),
+  },
+  (t) => [
+    primaryKey({ columns: [t.attemptId, t.sourceSyncGenerationId] }),
+    uniqueIndex('uniq_sync_connect_generation_target')
+      .on(t.attemptId, t.targetSyncGenerationId)
+      .where(sql`${t.targetSyncGenerationId} is not null`),
+    index('idx_sync_connect_generation_state').on(t.attemptId, t.state, t.updatedAt),
+    check(
+      'sync_connect_generation_target_check',
+      sql`${t.targetSyncGenerationId} is null
+        or ${t.targetSyncGenerationId} <> ${t.sourceSyncGenerationId}`,
+    ),
+    check(
+      'sync_connect_generation_state_check',
+      sql`${t.state} in (
+        'pending', 'capturing', 'publishing', 'restoring', 'committed',
+        'activating', 'activated', 'failed', 'cancelled'
+      )`,
+    ),
+    check(
+      'sync_connect_generation_activation_check',
+      sql`(${t.state} = 'activated'
+          and ${t.activationReceipt} is not null
+          and ${t.activatedAt} is not null)
+        or (${t.state} <> 'activated'
+          and ${t.activationReceipt} is null
+          and ${t.activatedAt} is null)`,
+    ),
+  ],
+);
+
+export const SyncConflictTable = sqliteTable(
+  'sync_conflict',
+  {
+    conflictId: text('conflict_id').primaryKey(),
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    kind: text('kind').notNull(),
+    targetKind: text('target_kind'),
+    targetId: text('target_id'),
+    incarnation: integer('incarnation'),
+    changeSetId: text('change_set_id').references(() => SyncChangeSetTable.changeSetId, {
+      onDelete: 'restrict',
+    }),
+    mutationIndex: integer('mutation_index'),
+    detailsCbor: blob('details_cbor').notNull(),
+    state: text('state').notNull().default('open'),
+    resolutionCbor: blob('resolution_cbor'),
+    createdAt: text('created_at').notNull(),
+    resolvedAt: text('resolved_at'),
+  },
+  (t) => [
+    index('idx_sync_conflict_open').on(t.syncGenerationId, t.state, t.createdAt),
+    check(
+      'sync_conflict_kind_check',
+      sql`${t.kind} in ('semantic', 'invariant', 'object-collision', 'writer-fork')`,
+    ),
+    check(
+      'sync_conflict_mutation_pair_check',
+      sql`(${t.changeSetId} is null and ${t.mutationIndex} is null)
+        or (${t.changeSetId} is not null and ${t.mutationIndex} >= 0)`,
+    ),
+    check(
+      'sync_conflict_state_check',
+      sql`(${t.state} = 'open' and ${t.resolvedAt} is null)
+        or (${t.state} in ('resolved', 'dismissed') and ${t.resolvedAt} is not null)`,
+    ),
+  ],
+);
+
+export const SyncQuarantinedObjectTable = sqliteTable(
+  'sync_quarantined_object',
+  {
+    quarantineId: text('quarantine_id').primaryKey(),
+    syncGenerationId: text('sync_generation_id')
+      .notNull()
+      .references(() => SyncGenerationTable.syncGenerationId, { onDelete: 'restrict' }),
+    remoteObjectId: text('remote_object_id').references(() => SyncRemoteObjectTable.id, {
+      onDelete: 'restrict',
+    }),
+    localObjectId: text('local_object_id')
+      .notNull()
+      .references(() => SyncLocalObjectTable.id, { onDelete: 'restrict' }),
+    reason: text('reason').notNull(),
+    observedProtocol: text('observed_protocol'),
+    observedVersion: integer('observed_version'),
+    storedSha256: text('stored_sha256').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    state: text('state').notNull(),
+    createdAt: text('created_at').notNull(),
+    resolvedAt: text('resolved_at'),
+  },
+  (t) => [
+    uniqueIndex('uniq_sync_quarantine_local_object').on(t.localObjectId),
+    index('idx_sync_quarantine_state').on(t.syncGenerationId, t.state, t.createdAt),
+    check(
+      'sync_quarantine_hash_check',
+      sql`length(${t.storedSha256}) = 64 and ${t.storedSha256} not glob '*[^0-9a-f]*'`,
+    ),
+    check('sync_quarantine_size_check', sql`${t.sizeBytes} >= 0`),
+    check(
+      'sync_quarantine_state_check',
+      sql`(${t.state} in ('blocked-update', 'blocked-corrupt') and ${t.resolvedAt} is null)
+        or (${t.state} in ('released', 'discarded') and ${t.resolvedAt} is not null)`,
+    ),
   ],
 );

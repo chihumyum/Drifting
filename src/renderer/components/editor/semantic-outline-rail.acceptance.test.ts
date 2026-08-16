@@ -64,7 +64,6 @@ describe('semantic outline rail acceptance wiring', () => {
     const topBar = source('src/renderer/components/editor/EditorTopBar.tsx');
     const rail = source('src/renderer/components/editor/EditorOutlineRail.tsx');
     const settings = source('src/renderer/store/settings-store.ts');
-    const preferences = source('src/renderer/services/preferences-sync.service.ts');
     const uiStore = source('src/renderer/store/ui-store.ts');
     const workspace = source('src/renderer/shells/desktop/DesktopWorkspace.tsx');
     const outlineToggle = topBar.slice(
@@ -87,7 +86,9 @@ describe('semantic outline rail acceptance wiring', () => {
     expect(settings).toContain("export type OutlineRailMode = 'visible' | 'hidden';");
     expect(settings).toContain("OUTLINE_RAIL_MODE_DEFAULT: OutlineRailMode = 'visible'");
     expect(settings).toContain("value === 'always' || value === 'auto'");
-    expect(preferences).toContain("'outlineRailMode'");
+    expect(settings).toContain(
+      'setOutlineRailMode: (mode) => set({ outlineRailMode: normalizeOutlineRailMode(mode) })',
+    );
     expect(topBar).not.toContain('outlineCollapsed');
     expect(uiStore).not.toContain('outlineCollapsed');
     expect(workspace).not.toContain("classList.add('is-scrolling')");

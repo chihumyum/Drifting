@@ -19,23 +19,24 @@ import {
   PrivacyPanel,
   SyncPanel,
 } from '../../../features/settings/panels/ControlSettingsPanels';
+import {
+  hostedAccountSettingsEnabled,
+  withoutHostedAccountSettings,
+} from '../../../features/settings/hosted-settings-policy';
 import '../../../../styles/mobile-settings.css';
 
-const MOBILE_SETTINGS_IDS = [
-  'account',
-  'subscription',
-  'appearance',
-  'editor',
-  'language',
-  'models',
-  'copilot',
-  'keys',
-  'sync',
-  'privacy',
-  'about',
-] as const;
-
-type MobileSettingsId = (typeof MOBILE_SETTINGS_IDS)[number];
+type MobileSettingsId =
+  | 'account'
+  | 'subscription'
+  | 'appearance'
+  | 'editor'
+  | 'language'
+  | 'models'
+  | 'copilot'
+  | 'keys'
+  | 'sync'
+  | 'privacy'
+  | 'about';
 
 interface MobileSettingsItem {
   id: MobileSettingsId;
@@ -88,16 +89,25 @@ const MOBILE_SETTINGS_GROUPS: MobileSettingsGroup[] = [
 
 const REGISTER_NOOP = () => undefined;
 
-function isMobileSettingsId(value: string | null): value is MobileSettingsId {
-  return !!value && (MOBILE_SETTINGS_IDS as readonly string[]).includes(value);
+function isMobileSettingsId(
+  value: string | null,
+  groups: MobileSettingsGroup[],
+): value is MobileSettingsId {
+  return !!value && groups.some((group) => group.items.some((item) => item.id === value));
 }
 
-function MobileSettingsPanel({ id }: { id: MobileSettingsId }) {
+function MobileSettingsPanel({
+  id,
+  accountSettingsEnabled,
+}: {
+  id: MobileSettingsId;
+  accountSettingsEnabled: boolean;
+}) {
   switch (id) {
     case 'account':
-      return <AccountPanel registerRef={REGISTER_NOOP} />;
+      return accountSettingsEnabled ? <AccountPanel registerRef={REGISTER_NOOP} /> : null;
     case 'subscription':
-      return <SubscriptionPanel registerRef={REGISTER_NOOP} />;
+      return accountSettingsEnabled ? <SubscriptionPanel registerRef={REGISTER_NOOP} /> : null;
     case 'appearance':
       return <AppearancePanel registerRef={REGISTER_NOOP} />;
     case 'editor':
@@ -111,7 +121,7 @@ function MobileSettingsPanel({ id }: { id: MobileSettingsId }) {
     case 'keys':
       return <KeysPanel registerRef={REGISTER_NOOP} />;
     case 'sync':
-      return <SyncPanel registerRef={REGISTER_NOOP} />;
+      return <SyncPanel registerRef={REGISTER_NOOP} projectImportEnabled={false} />;
     case 'privacy':
       return <PrivacyPanel registerRef={REGISTER_NOOP} />;
     case 'about':
@@ -124,9 +134,14 @@ export function MobileSettingsView() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const accountSettingsEnabled = hostedAccountSettingsEnabled();
+  const settingsGroups = MOBILE_SETTINGS_GROUPS.map((group) => ({
+    ...group,
+    items: withoutHostedAccountSettings(group.items, accountSettingsEnabled),
+  })).filter((group) => group.items.length > 0);
   const requestedSection = searchParams.get('section');
-  const active = isMobileSettingsId(requestedSection) ? requestedSection : null;
-  const activeItem = MOBILE_SETTINGS_GROUPS.flatMap((group) => group.items).find(
+  const active = isMobileSettingsId(requestedSection, settingsGroups) ? requestedSection : null;
+  const activeItem = settingsGroups.flatMap((group) => group.items).find(
     (item) => item.id === active,
   );
 
@@ -166,11 +181,14 @@ export function MobileSettingsView() {
             className="m-settings__content set-main"
             aria-label={activeItem && t(activeItem.labelKey)}
           >
-            <MobileSettingsPanel id={active} />
+            <MobileSettingsPanel
+              id={active}
+              accountSettingsEnabled={accountSettingsEnabled}
+            />
           </main>
         ) : (
           <nav className="m-settings__index set-rail" aria-label={t('settings.title')}>
-            {MOBILE_SETTINGS_GROUPS.map((group) => (
+            {settingsGroups.map((group) => (
               <section className="set-rail__group" key={group.labelKey}>
                 <h2 className="set-rail__group-title">{t(group.labelKey)}</h2>
                 {group.items.map((item) => (

@@ -10,6 +10,12 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 
 因此普通编辑状态只出现一块抬起的一级工作面：稿纸。标题栏、左右栏、Tab 栏、时间线与 footer 都不是额外的“岛”。
 
+## Accent color
+
+- `--accent`、`--accent-foreground` 与 `--ring` 是 renderer 的共享交互强调色契约。未自定义时，它们继续分别由 `:root` 与 `.dark` 的内置 palette 提供，不产生 inline override。
+- 外观设置中的 `accentColor` 是可同步的六位 Hex 偏好；`null` 表示恢复当前浅色/深色主题的内置强调色。运行时必须先把 Hex 转成 HSL triplet，再写入 root token，因为现有消费者会组合 `hsl(var(--accent) / alpha)`。`--accent-foreground` 自动选择黑/白高对比前景，`--ring` 与 accent 同步；中性的 `--accent-border` 仍由主题 palette 管理。
+- 编辑器 `caretColor`、Entity Link 的上下文/分类颜色、Storyline 与 Category 颜色都是独立语义，不跟随全局 accent。当前设置覆盖共享 renderer（包括移动 WebView UI），不宣称同步 iOS/Android 原生 system tint。
+
 ## Geometry and ownership
 
 - `App.tsx` 只负责应用级 effects/routes；桌面工作区由 `DesktopAppShell` 组合为 `AppTopbar + app-row + BottomStatusBar`，`app-row` 内是 `Sidebar(left) + app-mid + Sidebar(right)`。
@@ -88,6 +94,7 @@ Drifting 的主工作区采用“单层桌面，只有一张抬起的稿纸”�
 ```bash
 pnpm exec vitest run src/renderer/components/workspace-surface-language.acceptance.test.ts src/renderer/components/project-dashboard-scroll.acceptance.test.ts src/renderer/components/workspace-titlebar-alignment.acceptance.test.ts src/renderer/components/left-sidebar-tab-density.acceptance.test.ts src/renderer/components/leftBars/element-panel-no-category-footer.acceptance.test.ts src/renderer/components/leftBars/element-panel-compact-index.acceptance.test.ts src/renderer/components/leftBars/left-sidebar-outer-sort.acceptance.test.ts
 pnpm exec vitest run src/renderer/components/menu-surface-style.acceptance.test.ts
+pnpm exec vitest run src/renderer/lib/theme.test.ts src/renderer/components/accent-color-preference.acceptance.test.ts
 pnpm test:renderer-architecture
 ```
 

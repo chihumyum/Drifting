@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const nativeMocks = vi.hoisted(() => ({
   isTauriRuntime: vi.fn(() => false),
@@ -48,6 +48,10 @@ describe('DriftingAgentModelDriver', () => {
     nativeMocks.request.mockReset();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('resolves credentials lazily and builds a fresh client for each turn', async () => {
     const createClient = vi.fn(async () => ({
       supportsTools: true,
@@ -95,6 +99,16 @@ describe('DriftingAgentModelDriver', () => {
     expect(message).toBe('General Agent needs a configured DeepSeek API key.');
     expect(message).not.toContain('sk-live-secret');
     expect(message).not.toContain('provider.invalid');
+  });
+
+  it('rejects every selected provider before construction while offline', async () => {
+    vi.stubGlobal('navigator', { onLine: false });
+    const createProviderDriver = vi.fn();
+    const driver = new DriftingAgentModelDriver({ createProviderDriver });
+
+    await expect(collect(driver)).rejects.toThrow('while offline');
+    expect(createProviderDriver).not.toHaveBeenCalled();
+    expect(nativeMocks.request).not.toHaveBeenCalled();
   });
 
   it('keeps workload attribution for a General Agent review task', async () => {

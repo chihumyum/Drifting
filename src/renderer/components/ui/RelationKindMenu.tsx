@@ -1,4 +1,4 @@
-import { useState, type RefObject } from 'react';
+import { useMemo, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ALL_ENTITY_KINDS,
@@ -11,48 +11,42 @@ import type {
   EntityRelationTypeDefinition,
 } from '../../domain/entity-relation-type';
 import type { EntityRelationLink } from '../../store/data-store';
+import { useRelationTypePresentation } from '../../hooks/useRelationTypePresentation';
 import { AnchoredPopover } from './AnchoredPopover';
 import { FilterChip } from './FilterChip';
+import { RELATION_TYPE_PALETTE } from './relation-type-color';
 
-const KIND_PALETTE = [
-  'hsl(var(--story-1))',
-  'hsl(var(--story-2))',
-  'hsl(var(--story-3))',
-  'hsl(var(--story-4))',
-  'hsl(var(--story-5))',
-  'hsl(var(--story-6))',
-  'hsl(var(--ink-3))',
-];
+export interface RelationTypeMenuItem {
+  type: EntityRelationType;
+  canvasUsageCount: number;
+  projectUsageCount: number;
+}
 
-export const UNCATEGORIZED_RELATION_KIND = '__uncategorized__';
+export interface RelationTypeGroups {
+  usedTypes: readonly RelationTypeMenuItem[];
+  availableTypes: readonly RelationTypeMenuItem[];
+  otherTypes: readonly RelationTypeMenuItem[];
+}
 
 export interface RelationKindMenuProps {
   open: boolean;
   onClose: () => void;
   anchorRef: RefObject<HTMLElement | null>;
-  /** Every kind in this surface, including the uncategorized sentinel. */
-  kinds: string[];
-  /** Kinds backed by an edge derived from the bottom Drift Panel. */
-  driftDerivedKinds: ReadonlySet<string>;
-  hiddenKinds: ReadonlySet<string>;
-  onToggleKind: (kind: string) => void;
-  kindCounts: Readonly<Record<string, number>>;
-  resolveKindColor: (kind: string | null) => string;
-  setKindColor: (kind: string | null, color: string) => void;
-  clearKindColor: (kind: string | null) => void;
-  reassignMeta: (oldKind: string | null, newKind: string | null) => void;
-  removeMeta: (kind: string | null) => void;
-  /** Relations managed by this view. Rename/delete never escape this scope. */
-  relations: EntityRelationLink[];
-  /** All project relations, used only for first-class type usage guards. */
-  allProjectRelations?: readonly EntityRelationLink[];
-  updateRelationKind: (id: string, kind: string | null) => Promise<unknown>;
-  deleteRelation: (id: string) => Promise<unknown>;
-  relationTypes?: readonly EntityRelationType[];
+  relationTypeIds: string[];
+  driftDerivedRelationTypeIds: ReadonlySet<string>;
+  hiddenRelationTypeIds: ReadonlySet<string>;
+  onToggleRelationTypeId: (relationTypeId: string) => void;
+  relationTypeCounts: Readonly<Record<string, number>>;
+  resolveRelationTypeColor: (relationTypeId: string) => string;
+  setRelationTypeColor: (relationTypeId: string, color: string) => void;
+  clearRelationTypeColor: (relationTypeId: string) => void;
+  removeRelationTypeMeta: (relationTypeId: string) => void;
+  allProjectRelations: readonly EntityRelationLink[];
+  relationTypes: readonly EntityRelationType[];
+  relationTypeGroups?: RelationTypeGroups;
   createRelationType?: (definition: EntityRelationTypeDefinition) => Promise<unknown>;
   updateRelationType?: (id: string, definition: EntityRelationTypeDefinition) => Promise<unknown>;
   deleteRelationType?: (id: string) => Promise<unknown>;
-  showStorylineTransit?: boolean;
   dismissOnEscape?: boolean;
 }
 
@@ -243,86 +237,182 @@ export function RelationTypeEditor({
 }
 
 /**
- * The one relation-type dropdown shared by graph-style super views. It always
- * exposes every type as a filter chip, then provides the richer management
- * details below; the header's inline chip strip is only a space-dependent
- * shortcut and never owns a second menu.
+ * The one relation-type dropdown shared by graph-style Super Views. Current
+ * canvas instances are filter chips; every configured type remains available
+ * in the ordered management groups below.
  */
 export function RelationKindMenu({
   open,
   onClose,
   anchorRef,
-  kinds,
-  driftDerivedKinds,
-  hiddenKinds,
-  onToggleKind,
-  kindCounts,
-  resolveKindColor,
-  setKindColor,
-  clearKindColor,
-  reassignMeta,
-  removeMeta,
-  relations,
-  allProjectRelations = relations,
-  updateRelationKind,
-  deleteRelation,
-  relationTypes = [],
+  relationTypeIds,
+  driftDerivedRelationTypeIds,
+  hiddenRelationTypeIds,
+  onToggleRelationTypeId,
+  relationTypeCounts,
+  resolveRelationTypeColor,
+  setRelationTypeColor,
+  clearRelationTypeColor,
+  removeRelationTypeMeta,
+  allProjectRelations,
+  relationTypes,
+  relationTypeGroups,
   createRelationType,
   updateRelationType,
   deleteRelationType,
-  showStorylineTransit = false,
   dismissOnEscape = true,
 }: RelationKindMenuProps) {
   const { t } = useTranslation();
-  const [editingName, setEditingName] = useState<string | null>(null);
+  const presentRelationType = useRelationTypePresentation();
   const [pickingColor, setPickingColor] = useState<string | null>(null);
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
   const [creatingType, setCreatingType] = useState(false);
+  const [otherTypesOpen, setOtherTypesOpen] = useState(false);
   const managesRelationTypes = Boolean(
     createRelationType && updateRelationType && deleteRelationType,
   );
+  const relationTypeById = useMemo(
+    () => new Map(relationTypes.map((type) => [type.id, type])),
+    [relationTypes],
+  );
+  const visibleRelationTypeCount = relationTypeIds.filter(
+    (relationTypeId) => !hiddenRelationTypeIds.has(relationTypeId),
+  ).length;
+  const relationCount = Object.values(relationTypeCounts).reduce(
+    (total, count) => total + count,
+    0,
+  );
+  const resolvedTypeGroups = useMemo<RelationTypeGroups>(() => {
+    if (relationTypeGroups) return relationTypeGroups;
+    const items = relationTypes.map<RelationTypeMenuItem>((type) => {
+      const projectUsageCount = allProjectRelations.filter(
+        (relation) => relation.relationTypeId === type.id,
+      ).length;
+      return {
+        type,
+        canvasUsageCount: relationTypeCounts[type.id] ?? 0,
+        projectUsageCount,
+      };
+    });
+    return {
+      usedTypes: items.filter((item) => item.canvasUsageCount > 0),
+      availableTypes: items.filter((item) => item.canvasUsageCount === 0),
+      otherTypes: [],
+    };
+  }, [allProjectRelations, relationTypeCounts, relationTypeGroups, relationTypes]);
 
-  const dataKind = (kind: string) => (kind === UNCATEGORIZED_RELATION_KIND ? null : kind);
-  const visibleKindCount = kinds.filter((kind) => !hiddenKinds.has(kind)).length;
-
-  const handleRename = async (oldKind: string, newKindRaw: string) => {
-    const newKind = newKindRaw.trim();
-    if (!newKind || newKind === oldKind) {
-      setEditingName(null);
-      return;
+  const renderRelationType = (item: RelationTypeMenuItem) => {
+    const { type, canvasUsageCount, projectUsageCount } = item;
+    const presentation = presentRelationType(type);
+    const colorPickerKey = `relation-type:${type.id}`;
+    const isPickingTypeColor = pickingColor === colorPickerKey;
+    if (!type.locked && editingTypeId === type.id) {
+      return (
+        <RelationTypeEditor
+          key={type.id}
+          value={type}
+          onCancel={() => setEditingTypeId(null)}
+          onSave={async (definition) => {
+            await updateRelationType!(type.id, definition);
+            setEditingTypeId(null);
+          }}
+        />
+      );
     }
-    const oldKindForData = dataKind(oldKind);
-    const affected = relations.filter((relation) => (relation.kind ?? null) === oldKindForData);
-    for (const relation of affected) {
-      try {
-        await updateRelationKind(relation.id, newKind);
-      } catch {
-        // A partial bulk rename is still recoverable and preferable to
-        // abandoning the remaining independent relation updates.
-      }
-    }
-    reassignMeta(oldKindForData, newKind);
-    if (hiddenKinds.has(oldKind)) {
-      onToggleKind(oldKind);
-      if (!kinds.includes(newKind) && !hiddenKinds.has(newKind)) onToggleKind(newKind);
-    }
-    setEditingName(null);
-  };
-
-  const handleDelete = async (kind: string) => {
-    const label = kind === UNCATEGORIZED_RELATION_KIND ? t('storyGraph.edge.uncategorized') : kind;
-    if (!window.confirm(t('edgeKindManager.confirmDeleteKind', { label }))) return;
-    const target = dataKind(kind);
-    const affected = relations.filter((relation) => (relation.kind ?? null) === target);
-    for (const relation of affected) {
-      try {
-        await deleteRelation(relation.id);
-      } catch {
-        // Continue so one failed row does not block deletion of the rest.
-      }
-    }
-    removeMeta(target);
-    if (hiddenKinds.has(kind)) onToggleKind(kind);
+    return (
+      <div key={type.id} className="relation-kind-menu__row relation-kind-menu__row--type">
+        <button
+          type="button"
+          className="relation-kind-menu__swatch"
+          style={{ background: resolveRelationTypeColor(type.id) }}
+          title={t('edgeKindManager.changeColor')}
+          aria-label={t('edgeKindManager.changeColorLabel', {
+            label: presentation.name,
+          })}
+          onClick={() => setPickingColor(isPickingTypeColor ? null : colorPickerKey)}
+        />
+        {isPickingTypeColor && (
+          <div className="relation-kind-menu__palette" role="listbox">
+            {RELATION_TYPE_PALETTE.map((paletteColor) => (
+              <button
+                key={paletteColor}
+                type="button"
+                className="relation-kind-menu__palette-dot"
+                style={{ background: paletteColor }}
+                onClick={() => {
+                  setRelationTypeColor(type.id, paletteColor);
+                  setPickingColor(null);
+                }}
+              />
+            ))}
+            <button
+              type="button"
+              className="relation-kind-menu__palette-reset"
+              title={t('edgeKindManager.resetColor')}
+              onClick={() => {
+                clearRelationTypeColor(type.id);
+                setPickingColor(null);
+              }}
+            >
+              ↺
+            </button>
+          </div>
+        )}
+        <button
+          type="button"
+          className="relation-kind-menu__name"
+          disabled={type.locked}
+          title={type.locked ? t('relationTypes.builtIn') : undefined}
+          onClick={() => {
+            if (!type.locked) setEditingTypeId(type.id);
+          }}
+        >
+          {presentation.name}
+          <small>
+            {type.orientation === 'symmetric'
+              ? t('relationTypes.symmetricSummary', {
+                  role: presentation.sourceRole,
+                })
+              : `${presentation.sourceRole} → ${presentation.targetRole}`}
+            {type.locked ? ` · ${t('relationTypes.builtIn')}` : ''}
+          </small>
+        </button>
+        <span
+          className="relation-kind-menu__count"
+          title={t('relationTypes.usageSummary', {
+            canvas: canvasUsageCount,
+            project: projectUsageCount,
+          })}
+        >
+          {canvasUsageCount}/{projectUsageCount}
+        </span>
+        <button
+          type="button"
+          className="relation-kind-menu__delete"
+          disabled={type.locked || projectUsageCount > 0}
+          title={
+            type.locked
+              ? t('relationTypes.builtInLocked')
+              : projectUsageCount > 0
+                ? t('relationTypes.inUse')
+                : t('relationTypes.delete')
+          }
+          onClick={() => {
+            if (type.locked) return;
+            if (!window.confirm(t('relationTypes.confirmDelete', { name: presentation.name }))) {
+              return;
+            }
+            void deleteRelationType!(type.id)
+              .then(() => removeRelationTypeMeta(type.id))
+              .catch((reason) =>
+                window.alert(reason instanceof Error ? reason.message : String(reason)),
+              );
+          }}
+        >
+          ×
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -342,39 +432,47 @@ export function RelationKindMenu({
           <div className="relation-kind-menu__title">{t('edgeKindManager.title')}</div>
           <div className="relation-kind-menu__summary">
             {t('edgeKindManager.summary', {
-              kinds: kinds.length,
-              relations: relations.length,
+              kinds: relationTypes.length,
+              relations: relationCount,
             })}
           </div>
         </div>
         <span className="relation-kind-menu__visible-summary">
           {t('edgeKindManager.visibleSummary', {
-            visible: visibleKindCount,
-            total: kinds.length,
+            visible: visibleRelationTypeCount,
+            total: relationTypeIds.length,
           })}
         </span>
       </div>
 
       <section className="relation-kind-menu__section">
         <div className="relation-kind-menu__section-label">{t('edgeKindManager.filterLabel')}</div>
-        {kinds.length === 0 ? (
-          <div className="relation-kind-menu__empty">{t('edgeKindManager.empty')}</div>
+        {relationTypeIds.length === 0 ? (
+          <div className="relation-kind-menu__empty">
+            {t('edgeKindManager.noCanvasRelations')}
+          </div>
         ) : (
           <div className="relation-kind-menu__chips">
-            {kinds.map((kind) => {
-              const label =
-                kind === UNCATEGORIZED_RELATION_KIND ? t('storyGraph.edge.uncategorized') : kind;
-              const active = !hiddenKinds.has(kind);
+            {relationTypeIds.map((relationTypeId) => {
+              const relationType = relationTypeById.get(relationTypeId);
+              const label = relationType
+                ? presentRelationType(relationType).name
+                : t('relationTypes.missing');
+              const active = !hiddenRelationTypeIds.has(relationTypeId);
               return (
                 <FilterChip
-                  key={kind}
+                  key={relationTypeId}
                   size="sm"
                   active={active}
-                  markerColor={resolveKindColor(dataKind(kind))}
-                  count={kindCounts[kind] ?? 0}
+                  markerColor={resolveRelationTypeColor(relationTypeId)}
+                  count={relationTypeCounts[relationTypeId] ?? 0}
                   dimmed={!active}
-                  className={driftDerivedKinds.has(kind) ? 'filter-chip--drift-edge' : ''}
-                  onClick={() => onToggleKind(kind)}
+                  className={
+                    driftDerivedRelationTypeIds.has(relationTypeId)
+                      ? 'filter-chip--drift-edge'
+                      : ''
+                  }
+                  onClick={() => onToggleRelationTypeId(relationTypeId)}
                   title={
                     active
                       ? t('storyGraph.edge.hideKind', { label })
@@ -406,225 +504,40 @@ export function RelationKindMenu({
               }}
             />
           )}
-          {relationTypes.map((type) => {
-            const usageCount = allProjectRelations.filter(
-              (relation) => relation.relationTypeId === type.id,
-            ).length;
-            const colorPickerKey = `relation-type:${type.id}`;
-            const isPickingTypeColor = pickingColor === colorPickerKey;
-            if (editingTypeId === type.id) {
-              return (
-                <RelationTypeEditor
-                  key={type.id}
-                  value={type}
-                  onCancel={() => setEditingTypeId(null)}
-                  onSave={async (definition) => {
-                    await updateRelationType!(type.id, definition);
-                    const nextName = definition.name.trim();
-                    if (type.name !== nextName) {
-                      reassignMeta(type.name, nextName);
-                      if (hiddenKinds.has(type.name)) {
-                        onToggleKind(type.name);
-                        if (!hiddenKinds.has(nextName)) onToggleKind(nextName);
-                      }
-                    }
-                    setEditingTypeId(null);
-                  }}
-                />
-              );
-            }
-            return (
-              <div key={type.id} className="relation-kind-menu__row relation-kind-menu__row--type">
-                <button
-                  type="button"
-                  className="relation-kind-menu__swatch"
-                  style={{ background: resolveKindColor(type.name) }}
-                  title={t('edgeKindManager.changeColor')}
-                  aria-label={t('edgeKindManager.changeColorLabel', { label: type.name })}
-                  onClick={() => setPickingColor(isPickingTypeColor ? null : colorPickerKey)}
-                />
-                {isPickingTypeColor && (
-                  <div className="relation-kind-menu__palette" role="listbox">
-                    {KIND_PALETTE.map((paletteColor) => (
-                      <button
-                        key={paletteColor}
-                        type="button"
-                        className="relation-kind-menu__palette-dot"
-                        style={{ background: paletteColor }}
-                        onClick={() => {
-                          setKindColor(type.name, paletteColor);
-                          setPickingColor(null);
-                        }}
-                      />
-                    ))}
-                    <button
-                      type="button"
-                      className="relation-kind-menu__palette-reset"
-                      title={t('edgeKindManager.resetColor')}
-                      onClick={() => {
-                        clearKindColor(type.name);
-                        setPickingColor(null);
-                      }}
-                    >
-                      ↺
-                    </button>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className="relation-kind-menu__name"
-                  onClick={() => setEditingTypeId(type.id)}
-                >
-                  {type.name}
-                  <small>
-                    {type.orientation === 'unconfigured'
-                      ? t('relationTypes.pending')
-                      : type.orientation === 'symmetric'
-                        ? t('relationTypes.symmetricSummary', { role: type.sourceRole })
-                        : `${type.sourceRole} → ${type.targetRole}`}
-                  </small>
-                </button>
-                <span className="relation-kind-menu__count">{usageCount}</span>
-                <button
-                  type="button"
-                  className="relation-kind-menu__delete"
-                  disabled={usageCount > 0}
-                  title={usageCount > 0 ? t('relationTypes.inUse') : t('relationTypes.delete')}
-                  onClick={() => {
-                    if (!window.confirm(t('relationTypes.confirmDelete', { name: type.name })))
-                      return;
-                    void deleteRelationType!(type.id)
-                      .then(() => removeMeta(type.name))
-                      .catch((reason) =>
-                        window.alert(reason instanceof Error ? reason.message : String(reason)),
-                      );
-                  }}
-                >
-                  ×
-                </button>
+          {resolvedTypeGroups.usedTypes.length > 0 && (
+            <div className="relation-kind-menu__type-group">
+              <div className="relation-kind-menu__group-label">
+                {t('relationTypes.usedOnCanvas')}
               </div>
-            );
-          })}
-        </section>
-      )}
-
-      {!managesRelationTypes && kinds.length > 0 && (
-        <section className="relation-kind-menu__section relation-kind-menu__section--manage">
-          <div className="relation-kind-menu__section-label">
-            {t('edgeKindManager.manageLabel')}
-          </div>
-          {kinds.map((kind) => {
-            const isUncategorized = kind === UNCATEGORIZED_RELATION_KIND;
-            const label = isUncategorized ? t('storyGraph.edge.uncategorized') : kind;
-            const color = resolveKindColor(dataKind(kind));
-            const isEditingName = editingName === kind;
-            const isPickingColor = pickingColor === kind;
-            return (
-              <div key={kind} className="relation-kind-menu__row">
-                <button
-                  type="button"
-                  className="relation-kind-menu__swatch"
-                  style={{ background: color }}
-                  title={t('edgeKindManager.changeColor')}
-                  onClick={() => setPickingColor(isPickingColor ? null : kind)}
-                  aria-label={t('edgeKindManager.changeColorLabel', { label })}
-                />
-                {isPickingColor && (
-                  <div className="relation-kind-menu__palette" role="listbox">
-                    {KIND_PALETTE.map((paletteColor) => (
-                      <button
-                        key={paletteColor}
-                        type="button"
-                        className="relation-kind-menu__palette-dot"
-                        style={{ background: paletteColor }}
-                        onClick={() => {
-                          setKindColor(dataKind(kind), paletteColor);
-                          setPickingColor(null);
-                        }}
-                      />
-                    ))}
-                    <button
-                      type="button"
-                      className="relation-kind-menu__palette-reset"
-                      title={t('edgeKindManager.resetColor')}
-                      onClick={() => {
-                        clearKindColor(dataKind(kind));
-                        setPickingColor(null);
-                      }}
-                    >
-                      ↺
-                    </button>
-                  </div>
-                )}
-
-                {isEditingName ? (
-                  <input
-                    className="relation-kind-menu__name-input"
-                    defaultValue={isUncategorized ? '' : kind}
-                    placeholder={
-                      isUncategorized
-                        ? t('edgeKindManager.nameUncategorizedPlaceholder')
-                        : undefined
-                    }
-                    autoFocus
-                    onBlur={(event) => void handleRename(kind, event.currentTarget.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') event.currentTarget.blur();
-                      if (event.key === 'Escape') setEditingName(null);
-                    }}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    className="relation-kind-menu__name"
-                    onClick={() => setEditingName(kind)}
-                    title={
-                      isUncategorized
-                        ? t('edgeKindManager.nameUncategorizedTitle')
-                        : t('edgeKindManager.renameTitle')
-                    }
-                  >
-                    {label}
-                  </button>
-                )}
-
-                <span
-                  className="relation-kind-menu__count"
-                  title={t('edgeKindManager.relationCountTitle', {
-                    label,
-                    count: kindCounts[kind] ?? 0,
-                  })}
-                >
-                  {kindCounts[kind] ?? 0}
-                </span>
-                <button
-                  type="button"
-                  className="relation-kind-menu__delete"
-                  title={t('edgeKindManager.deleteKindTitle', { label })}
-                  onClick={() => void handleDelete(kind)}
-                  aria-label={t('edgeKindManager.deleteKindLabel', { label })}
-                >
-                  ×
-                </button>
+              {resolvedTypeGroups.usedTypes.map(renderRelationType)}
+            </div>
+          )}
+          {resolvedTypeGroups.availableTypes.length > 0 && (
+            <div className="relation-kind-menu__type-group">
+              <div className="relation-kind-menu__group-label">
+                {t('relationTypes.availableOnCanvas')}
               </div>
-            );
-          })}
+              {resolvedTypeGroups.availableTypes.map(renderRelationType)}
+            </div>
+          )}
+          {resolvedTypeGroups.otherTypes.length > 0 && (
+            <div className="relation-kind-menu__type-group relation-kind-menu__type-group--other">
+              <button
+                type="button"
+                className="relation-kind-menu__other-toggle"
+                aria-expanded={otherTypesOpen}
+                onClick={() => setOtherTypesOpen((current) => !current)}
+              >
+                <span>{t('relationTypes.otherTypes')}</span>
+                <span>{resolvedTypeGroups.otherTypes.length}</span>
+              </button>
+              {otherTypesOpen && resolvedTypeGroups.otherTypes.map(renderRelationType)}
+            </div>
+          )}
+          {relationTypes.length === 0 && !creatingType && (
+            <div className="relation-kind-menu__empty">{t('edgeKindManager.empty')}</div>
+          )}
         </section>
-      )}
-
-      {showStorylineTransit && (
-        <div className="relation-kind-menu__row is-locked">
-          <span className="relation-kind-menu__swatch is-dashed" aria-hidden />
-          <span className="relation-kind-menu__name is-static">
-            {t('edgeKindManager.storylineTransit')}
-          </span>
-          <span
-            className="relation-kind-menu__hint"
-            title={t('edgeKindManager.storylineTransitTitle')}
-          >
-            {t('edgeKindManager.lockedHint')}
-          </span>
-        </div>
       )}
     </AnchoredPopover>
   );

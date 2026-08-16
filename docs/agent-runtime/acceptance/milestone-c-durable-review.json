@@ -1,12 +1,12 @@
 {
   "suite": "milestone-c-durable-commit-and-inline-review",
   "schemaVersion": 1,
-  "nodeVersion": "v22.23.1",
+  "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "ead756466a2c6daf58162268c2778dc06de1912d",
-  "sourceSetSha256": "sha256:6323fa2e4fe0d9d6e713461bd292b87f2ae058ffeb63ed0fa1b9a31803ebb36c",
+  "gitHead": "94e9bbca72fba3a23922da389e7ba121436d7f3b",
+  "sourceSetSha256": "sha256:36b72869e27d6204749d4006bee538e2c16e9590d2943a8826c2122e246c8904",
   "storageReplay": {
-    "sqlite": "real file-backed SQLite with product migrations and injected transaction faults",
+    "sqlite": "real file-backed SQLite from the current local-first baseline with injected transaction faults",
     "prose": "real Yjs snapshots/updates and guarded block inverses",
     "localProjection": "Zustand/localStorage state deliberately cleared and rebuilt",
     "networkRequired": false
@@ -17,8 +17,8 @@
       "discovered": 11
     },
     "tests": {
-      "total": 73,
-      "passed": 73,
+      "total": 89,
+      "passed": 89,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -28,8 +28,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 24,
-          "passed": 24,
+          "total": 27,
+          "passed": 27,
           "failed": 0,
           "pending": 0
         },
@@ -50,8 +50,8 @@
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 16,
-          "passed": 16,
+          "total": 22,
+          "passed": 22,
           "failed": 0,
           "pending": 0
         },
@@ -61,8 +61,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 14,
-          "passed": 14,
+          "total": 21,
+          "passed": 21,
           "failed": 0,
           "pending": 0
         },
@@ -86,17 +86,12 @@
         "passed": true
       },
       "orderedBlockLedger": {
-        "requiredName": "persists ordered block decisions, atomically settles mixed/all-reverted reviews, and upgrades pending legacy rows",
+        "requiredName": "persists ordered block decisions and atomically settles mixed/all-reverted reviews",
         "matches": 1,
         "passed": true
       },
       "runtimeBlockRecovery": {
         "requiredName": "settles prose review blocks durably and retries an entered block inverse during project hydration",
-        "matches": 1,
-        "passed": true
-      },
-      "legacyReviewUpgrade": {
-        "requiredName": "backfills ordered blocks for a pending pre-0071 prose review",
         "matches": 1,
         "passed": true
       },

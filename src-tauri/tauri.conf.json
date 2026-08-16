@@ -32,11 +32,11 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https://api.drifting.cc wss://api.drifting.cc https://api.deepseek.com https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com; img-src 'self' asset: http://asset.localhost blob: data: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https://api.deepseek.com https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com; img-src 'self' asset: http://asset.localhost blob: data: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
       "devCsp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://localhost:3000 ws://localhost:3000 ws://localhost:5173 http://127.0.0.1:4317 http://localhost:4317 http://127.0.0.1:4318 http://localhost:4318 https://api.drifting.cc wss://api.drifting.cc https://api.deepseek.com https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com; img-src 'self' asset: http://asset.localhost blob: data: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPLOCALDATA/asset-cache/**", "$APPLOCALDATA/imports/**"]
+        "scope": ["$APPLOCALDATA/assets/**", "$APPLOCALDATA/imports/**"]
       }
     }
   },

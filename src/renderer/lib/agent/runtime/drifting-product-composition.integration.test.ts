@@ -47,10 +47,12 @@ import { getDriftingWriteStrategy } from './drifting-write-strategies';
 import { ScriptedFakeDriver, type ScriptedDriverRound, type ScriptedDriverStep } from './testing';
 import type { AgentToolExecutionRequest } from './types';
 import { createYjsProseSeedState } from './yjs-prose-command';
+import { createTestAgentAuthoredJournal } from './agent-authored-journal.test-support';
 
 const databaseSlot = vi.hoisted(() => ({
   current: null as unknown,
 }));
+const secureStorage = vi.hoisted(() => new Map<string, string>());
 
 vi.mock('../../../lib/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../lib/db')>();
@@ -65,8 +67,27 @@ vi.mock('../../../lib/db', async (importOriginal) => {
   };
 });
 
-// This suite verifies the durable sync-outbox boundary. Public source builds
-// default to local-only, so the harness explicitly opts into network sync.
+vi.mock('../../../platform', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../platform')>();
+  return {
+    ...actual,
+    platform: {
+      ...actual.platform,
+      keychain: {
+        get: async (key: string) => secureStorage.get(key) ?? null,
+        has: async (key: string) => secureStorage.has(key),
+        set: async (key: string, value: string) => {
+          secureStorage.set(key, value);
+          return true;
+        },
+        delete: async (key: string) => secureStorage.delete(key),
+      },
+    },
+  };
+});
+
+// This suite verifies the durable local SyncEngine journal boundary while
+// network access remains disabled.
 vi.mock('../../../lib/config', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../lib/config')>();
   return {
@@ -74,10 +95,8 @@ vi.mock('../../../lib/config', async (importOriginal) => {
     APP_CONFIG: {
       ...actual.APP_CONFIG,
       LOCAL_ONLY_MODE: false,
-      ENABLE_SYNC: true,
     },
     canUseNetwork: () => false,
-    isSyncEnabled: () => false,
   };
 });
 
@@ -186,6 +205,7 @@ class ProductAgentHarness {
   readonly nodeRepository;
   readonly contentRepository;
   readonly composition: DriftingAgentProductComposition;
+  readonly authoredJournal = createTestAgentAuthoredJournal('product-composition');
   nodeWriteUsecaseCalls = 0;
 
   private constructor(
@@ -201,6 +221,7 @@ class ProductAgentHarness {
       driver,
       database,
       getContext: () => context,
+      authoredJournal: this.authoredJournal,
       // The scripted provider has no real model metadata. Declare the same
       // explicit window this acceptance fixture is exercising rather than
       // letting an unknown driver inherit the product provider profile.
@@ -455,15 +476,11 @@ async function seedProductDatabase(database: DbClient): Promise<void> {
     projectId: PROJECT_ID,
     title: 'Fixture source',
     kind: 'text',
-    source: 'local',
-    uri: '',
-    localPath: null,
     assetId: null,
-    mime: null,
-    sizeBytes: null,
+    externalUrl: null,
     bodyJson: proseJson('material-block', 'Fixture source body.'),
     notesJson: null,
-    thumbnailUri: null,
+    previewImageUrl: null,
     orderKey: 0,
     createdAt: INITIAL_REVISION,
     updatedAt: INITIAL_REVISION,
@@ -552,6 +569,7 @@ describe.sequential('Drifting Agent product composition', () => {
   let harness: ProductAgentHarness | undefined;
 
   beforeEach(() => {
+    secureStorage.clear();
     useDataStore.setState(initialDataState, true);
     useProjectStore.setState(initialProjectState, true);
     useSettingsStore.setState(initialSettingsState, true);
@@ -630,7 +648,7 @@ describe.sequential('Drifting Agent product composition', () => {
 
     expect((await harness.nodeRepository.findById(NODE_ID))?.summary).toBe(summary);
     expect(harness.nodeWriteUsecaseCalls).toBe(1);
-    expect(harness.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(harness.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
     expect(useAgentEditStore.getState().pending).toEqual({});
     expect(await harness.composition.repositories.writeEffects.getEffect(effectId)).toMatchObject({
       phase: 'result_committed',
@@ -738,12 +756,12 @@ describe.sequential('Drifting Agent product composition', () => {
         (event) => event.turnId === turnId && event.event.type === 'permission_request',
       ),
     ).toEqual([]);
-    expect(harness.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(harness.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
     expect(
-      harness.scalar("SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'nodeContent'"),
+      harness.scalar("SELECT count(*) FROM sync_mutation WHERE target_kind = 'prose-document'"),
     ).toBe(1);
     expect(
-      harness.scalar("SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'node'"),
+      harness.scalar("SELECT count(*) FROM sync_mutation WHERE target_kind = 'node'"),
     ).toBe(0);
 
     const rejected = await harness.composition.tools.rejectReview(
@@ -1018,12 +1036,12 @@ describe.sequential('Drifting Agent product composition', () => {
     expect(useAgentEditStore.getState().pending[`node:${NODE_ID}`]?.changes).toEqual(
       expect.arrayContaining([expect.objectContaining({ mode: 'auto', reviewId })]),
     );
-    expect(harness.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(harness.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
     expect(
-      harness.scalar("SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'nodeContent'"),
+      harness.scalar("SELECT count(*) FROM sync_mutation WHERE target_kind = 'prose-document'"),
     ).toBe(1);
     expect(
-      harness.scalar("SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'node'"),
+      harness.scalar("SELECT count(*) FROM sync_mutation WHERE target_kind = 'node'"),
     ).toBe(0);
     expect(
       harness.scalar("SELECT count(*) FROM yjs_prose_command_receipt WHERE direction = 'forward'"),
@@ -1112,6 +1130,7 @@ describe.sequential('Drifting Agent product composition', () => {
     const beforeUserEdit = Y.encodeStateVector(userDoc);
     userDoc.transact(() => {
       const paragraph = new Y.XmlElement('paragraph');
+      paragraph.setAttribute('id', 'author-newer-block');
       const text = new Y.XmlText();
       text.insert(0, 'A newer paragraph from the author.');
       paragraph.insert(0, [text]);
@@ -1130,11 +1149,10 @@ describe.sequential('Drifting Agent product composition', () => {
       'The author changed this authored object after the cited read.',
     );
     expect(visibleContext).not.toContain('That earlier write may have succeeded');
-    expect(await repo.getRevision(DOC_ID)).toBe(2);
+    expect(await repo.getRevision(DOC_ID)).toBe(1);
     const provenance = await repo.listRevisionProvenance(DOC_ID, 0);
     expect(provenance).toEqual([
       expect.objectContaining({ revision: 1, source: { kind: 'user' } }),
-      expect.objectContaining({ revision: 2, source: { kind: 'system' } }),
     ]);
     expect(provenance.some((entry) => entry.source.kind === 'agent')).toBe(false);
     harness.driver.assertExhausted();
@@ -1187,6 +1205,7 @@ describe.sequential('Drifting Agent product composition', () => {
     const beforeSiblingEdit = Y.encodeStateVector(siblingDoc);
     siblingDoc.transact(() => {
       const paragraph = new Y.XmlElement('paragraph');
+      paragraph.setAttribute('id', 'sibling-agent-newer-block');
       const text = new Y.XmlText();
       text.insert(0, 'A newer paragraph from a sibling Agent.');
       paragraph.insert(0, [text]);
@@ -1222,7 +1241,6 @@ describe.sequential('Drifting Agent product composition', () => {
           },
         },
       }),
-      expect.objectContaining({ revision: 2, source: { kind: 'system' } }),
     ]);
     harness.driver.assertExhausted();
   });
@@ -1425,14 +1443,15 @@ describe.sequential('Drifting Agent product composition', () => {
     );
     expect(
       harness.scalar(
-        "SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'nodeContent' AND entity_id = 'product-agent-node'",
+        "SELECT count(*) FROM sync_mutation WHERE target_kind = 'prose-document' AND target_id = 'node-content:product-agent-node'",
       ),
     ).toBe(1);
     expect(
       harness.scalar(
-        "SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'node' AND entity_id = 'product-agent-node'",
+        "SELECT count(*) FROM sync_mutation WHERE target_kind = 'node' AND target_id = 'product-agent-node'",
       ),
     ).toBe(1);
+    expect(harness.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
 
     const blocks = await harness.composition.repositories.writeEffects.listReviewBlocks(reviewId);
     expect(blocks.length).toBeGreaterThan(0);
@@ -1450,7 +1469,7 @@ describe.sequential('Drifting Agent product composition', () => {
     harness.driver.assertExhausted();
   });
 
-  it('rolls back prose, summary, Yjs receipt, and sync outbox when their shared transaction fails', async () => {
+  it('rolls back prose, summary, Yjs receipt, and sync journal when their shared transaction fails', async () => {
     const turnId = 'turn-workspace-prose-summary-fault';
     const writeCallId = 'workspace-prose-summary-fault-write';
     harness = await ProductAgentHarness.create([
@@ -1483,7 +1502,7 @@ describe.sequential('Drifting Agent product composition', () => {
     expect((await harness.contentRepository.findByNodeId(NODE_ID))?.contentJson).toBe(CONTENT_JSON);
     expect((await harness.nodeRepository.findById(NODE_ID))?.summary).toBe(INITIAL_SUMMARY);
     expect(harness.scalar('SELECT count(*) FROM yjs_prose_command_receipt')).toBe(0);
-    expect(harness.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(0);
+    expect(harness.scalar('SELECT count(*) FROM sync_change_set')).toBe(0);
     expect(
       await harness.composition.repositories.writeEffects.getEffect(
         `agent-write:${SESSION_ID}:${turnId}:${writeCallId}`,
@@ -1651,6 +1670,8 @@ describe.sequential('Drifting Agent product composition', () => {
       normalizedName: 'evidence_for',
       description: '',
       orientation: 'directed',
+      systemKey: null,
+      locked: false,
       sourceRole: 'evidence',
       targetRole: 'subject',
       sourceKinds: ['library_item'],
@@ -1719,7 +1740,7 @@ describe.sequential('Drifting Agent product composition', () => {
           fromId: LIBRARY_ITEM_ID,
           toKind: 'patch',
           toId: PATCH_ID,
-          kind: 'evidence_for',
+          relationTypeId: 'relation-type-evidence-for',
         },
       },
     });
@@ -1734,6 +1755,8 @@ describe.sequential('Drifting Agent product composition', () => {
       normalizedName: 'appears_in',
       description: '',
       orientation: 'directed',
+      systemKey: null,
+      locked: false,
       sourceRole: 'appearing element',
       targetRole: 'scene',
       sourceKinds: ['element'],
@@ -1807,7 +1830,7 @@ describe.sequential('Drifting Agent product composition', () => {
           fromId: ELEMENT_ID,
           toKind: 'node',
           toId: NODE_ID,
-          kind: 'appears_in',
+          relationTypeId: 'relation-type-appears-in',
         },
       },
     });

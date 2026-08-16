@@ -148,7 +148,7 @@ export const DRIFTING_WORKSPACE_COMMAND_NAMES = [
   'update_comment',
   'delete_comment',
   'add_relation',
-  'update_relation_kind',
+  'assign_relation_type',
   'remove_relation',
   'create_relation_type',
   'update_relation_type',
@@ -422,9 +422,9 @@ export const DRIFTING_DOMAIN_CRUD_CONTRACTS: readonly DriftingDomainCrudContract
     operations: {
       create: closedWrite(['create_relation'], ['add_relation'], 'automatic'),
       read: closedRead(['list_relations', 'list_entity_relations']),
-      update: closedWrite(['update_relation'], ['update_relation_kind'], 'automatic'),
+      update: closedWrite(['update_relation'], ['assign_relation_type'], 'automatic'),
       delete: closedWrite(['delete_relation'], ['remove_relation'], 'confirm_before'),
-      revert: exactRevert(['add_relation', 'update_relation_kind', 'remove_relation']),
+      revert: exactRevert(['add_relation', 'assign_relation_type', 'remove_relation']),
     },
   },
   {

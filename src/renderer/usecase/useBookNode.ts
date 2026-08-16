@@ -21,6 +21,15 @@ import {
 } from './entity-relation-cleanup';
 import { persistBookNodeUpdateWithSync } from './book-node-write';
 import { deriveProseMetricFromJson } from '@drifting/prose-metrics';
+import { appendPlannedAuthoredOrderInTransaction } from '../sync/journal';
+import {
+  appendAuthoredOrderRebalance,
+  authoredOrderRebalanceEntries,
+  entityIdsByNumericPlacement,
+} from '../sync/journal/order-authority';
+import { appendAuthoredNodeStorylineProjectionInTransaction } from '../sync/journal/storyline-membership';
+import { appendAuthoredProseSeedInTransaction } from '../sync/journal/yjs-update';
+import { createEntitySeedUpdate } from '../hooks/useEntityYjsDoc';
 
 const log = loglevel.getLogger('UseBookNode');
 log.setLevel(loglevel.levels.ERROR);
@@ -44,6 +53,8 @@ export interface CreateNodeUsecaseInput {
   // Optional containing drift group (left-panel folder). Drift-only — ignored
   // for kind='chapter'. undefined/null = root level / ungrouped.
   driftGroupId?: string | null;
+  /** Initial prose authority captured atomically with entity creation. */
+  initialContentJson?: string;
 }
 
 export interface UseBookNodeContext {
@@ -143,7 +154,6 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
               bookOrder: input.bookOrder ?? 0,
               writingStatus: 'draft',
             };
-
       // Seed the new node's content from its primary storyline's
       // nodeContentTemplateJson when one is set; otherwise fall back to an
       // empty doc. Drift nodes (no primary storyline) skip the template lookup.
@@ -152,16 +162,22 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         ? useDataStore.getState().storylines.find((s) => s.id === primaryStorylineId)
         : null;
       const templateJson = mainStoryline?.nodeContentTemplateJson?.trim();
+      const initialContentJson = input.initialContentJson?.trim();
       const defaultDocJson =
-        templateJson && templateJson !== '' && templateJson !== '{}'
-          ? templateJson
-          : emptyDocJson;
+        initialContentJson && initialContentJson !== '{}'
+          ? initialContentJson
+          : templateJson && templateJson !== '' && templateJson !== '{}'
+            ? templateJson
+            : emptyDocJson;
 
-      const proseMetric = await deriveProseMetricFromJson(defaultDocJson);
+      const [proseMetric, proseSeedState] = await Promise.all([
+        deriveProseMetricFromJson(defaultDocJson),
+        createEntitySeedUpdate(defaultDocJson),
+      ]);
       newNode.wordCount = proseMetric.wordCount;
-      newNode.wordCountBasisKind = 'seed';
+      newNode.wordCountBasisKind = 'yjs';
       newNode.wordCountBasisHash = proseMetric.basisHash;
-      newNode.wordCountBasisRevision = null;
+      newNode.wordCountBasisRevision = 1;
       newNode.wordCountBasisServerSeq = null;
 
       const nextNodes = [...prevNodes, newNode].sort(compareBookOrder);
@@ -169,12 +185,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         id: newNode.id,
         title: newNode.title,
         summary: newNode.summary,
-        bookOrder: newNode.bookOrder,
         narrativeOrder: newNode.narrativeOrder,
-        // mainStorylineId is sent as a sync-time signal so the server
-        // upserts the corresponding node_storyline_link.is_primary row
-        // alongside the book_node insert. It is NOT a column on book_node.
-        mainStorylineId: primaryStorylineId,
         kind: newNode.kind,
         driftGroupId: newNode.driftGroupId,
         positionX: newNode.position.x,
@@ -183,7 +194,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         wordCount: newNode.wordCount,
         wordCountBasisKind: newNode.wordCountBasisKind,
         wordCountBasisHash: newNode.wordCountBasisHash,
-        wordCountBasisRevision: null,
+        wordCountBasisRevision: newNode.wordCountBasisRevision,
         wordCountBasisServerSeq: null,
       };
 
@@ -191,7 +202,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         apply: () => setNodesState(nextNodes),
         rollback: () => setNodesState(prevNodes),
         effect: async () => {
-          return withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+          return withAtomicSyncTransaction(activeProjectId, async (tx, sync, changes) => {
             const nodeRepoTx = createBookNodeSqliteRepository(activeProjectId, tx);
             const linkRepoTx = createNodeStorylineLinkRepository(activeProjectId, tx);
             const contentRepoTx = createBookContentRepository(tx);
@@ -207,11 +218,30 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             });
 
             await sync('node', 'create', created.id, activeProjectId, nodeSyncPayload);
-            // The seed hash is only meaningful alongside this exact PM JSON,
-            // including the canonical empty document.
-            await sync('nodeContent', 'update', created.id, activeProjectId, {
-                contentJson: defaultDocJson,
+            await appendAuthoredProseSeedInTransaction(tx, changes, {
+              entityType: 'node',
+              entityId: created.id,
+              stateUpdate: proseSeedState,
+            });
+            if (created.kind === 'chapter') {
+              await appendAuthoredNodeStorylineProjectionInTransaction(tx, changes, {
+                projectId: activeProjectId,
+                nodeId: created.id,
               });
+            }
+            if (created.kind === 'chapter') {
+              const desiredEntityIds = entityIdsByNumericPlacement(
+                nextNodes
+                  .filter(isChapter)
+                  .map((node) => ({ entityId: node.id, projection: node.bookOrder })),
+              );
+              await appendPlannedAuthoredOrderInTransaction(tx, changes, {
+                projectId: activeProjectId,
+                listKind: 'chapter',
+                scope: activeProjectId,
+                desiredEntityIds,
+              });
+            }
             return created;
           });
         },
@@ -304,16 +334,26 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         apply: () => setNodesState(nextNodes),
         rollback: () => setNodesState(prev),
         effect: () =>
-          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+          withAtomicSyncTransaction(activeProjectId, async (tx, _sync, changes) => {
             await createBookNodeSqliteRepository(activeProjectId, tx).swapOrder(
-              { id: current.id, bookOrder: currentOrder },
-              { id: target.id, bookOrder: targetOrder },
+              {
+                id: current.id,
+                bookOrder: targetOrder,
+              },
+              {
+                id: target.id,
+                bookOrder: currentOrder,
+              },
             );
-            await sync('node', 'update', current.id, activeProjectId, {
-              bookOrder: targetOrder,
-            });
-            await sync('node', 'update', target.id, activeProjectId, {
-              bookOrder: currentOrder,
+            appendAuthoredOrderRebalance(changes, {
+              listKind: 'chapter',
+              scope: activeProjectId,
+              entries: authoredOrderRebalanceEntries(
+                nextNodes
+                  .filter(isChapter)
+                  .sort(compareBookOrder)
+                  .map(({ id: entityId }) => entityId),
+              ),
             });
           }),
       });
@@ -392,8 +432,16 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       if (!existing) throw new Error(`Book node ${id} not found`);
 
       const updatedAt = nextNodeUpdatedAt(existing.updatedAt);
-      const { mainStorylineId: newPrimary, ...nodeUpdates } = updates;
+      const { mainStorylineId: newPrimary, ...requestedNodeUpdates } = updates;
+      if (
+        requestedNodeUpdates.bookOrder !== undefined &&
+        (existing.kind !== 'chapter' || typeof requestedNodeUpdates.bookOrder !== 'number')
+      ) {
+        throw new Error('Only chapters may receive authored book-order positions.');
+      }
+      const nodeUpdates = requestedNodeUpdates;
       const serverUpdates: Record<string, unknown> = { ...nodeUpdates };
+      delete serverUpdates.bookOrder;
       if (nodeUpdates.position) {
         serverUpdates.positionX = nodeUpdates.position.x;
         serverUpdates.positionY = nodeUpdates.position.y;
@@ -403,7 +451,6 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       const currentPrimary =
         useDataStore.getState().primaryStorylineByNode[id] ?? null;
       const mainChanged = newPrimary !== undefined && newPrimary !== currentPrimary;
-      if (newPrimary !== undefined) serverUpdates.mainStorylineId = newPrimary;
       const previousStorylineMapping = Object.fromEntries(
         Object.entries(useDataStore.getState().storylineNodeMapping).map(([storylineId, nodeIds]) => [
           storylineId,
@@ -436,7 +483,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
               guard,
             });
           }
-          return withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+          return withAtomicSyncTransaction(activeProjectId, async (tx, sync, changes) => {
             const nodeRepoTx = createBookNodeSqliteRepository(activeProjectId, tx);
             const result = await nodeRepoTx.update(
               id,
@@ -453,9 +500,28 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
               // and promotes the new one (or just demotes when going to null).
               const linkRepoTx = createNodeStorylineLinkRepository(activeProjectId, tx);
               await linkRepoTx.setPrimaryStoryline(id, newPrimary ?? null);
+              await appendAuthoredNodeStorylineProjectionInTransaction(tx, changes, {
+                projectId: activeProjectId,
+                nodeId: id,
+              });
             }
 
-            await sync('node', 'update', id, activeProjectId, serverUpdates);
+            if (typeof nodeUpdates.bookOrder === 'number') {
+              const desiredEntityIds = entityIdsByNumericPlacement(
+                (await nodeRepoTx.findAll())
+                  .filter(isChapter)
+                  .map((node) => ({ entityId: node.id, projection: node.bookOrder })),
+              );
+              await appendPlannedAuthoredOrderInTransaction(tx, changes, {
+                projectId: activeProjectId,
+                listKind: 'chapter',
+                scope: activeProjectId,
+                desiredEntityIds,
+              });
+            }
+            if (Object.keys(serverUpdates).length > 0) {
+              await sync('node', 'update', id, activeProjectId, serverUpdates);
+            }
             return result;
           });
         },
@@ -503,9 +569,9 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         );
       }
 
-      // Paywall: Pro/Studio users send the entity to the trash (soft-delete);
-      // Free users get the historical hard-DELETE behavior. The server-side
-      // free-tier-cleanup job catches anyone who churns from paid → free.
+      // Local libraries always use the recoverable Trash path. Hosted builds
+      // retain their account entitlement boundary and may fall back to the
+      // historical hard-delete behavior when Trash is unavailable.
       if (canUseFeature('trash')) {
         return withOptimisticUpdate({
           // Mark trashed so open editors dim (not strip) inline mentions to
@@ -549,7 +615,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
           useDataStore.getState().setEntityRelations(previousRelations);
         },
         effect: () =>
-          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+          withAtomicSyncTransaction(activeProjectId, async (tx, sync, changes) => {
             await deleteEntityRelationsInTransaction(
               tx,
               sync,
@@ -558,6 +624,12 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
               id,
             );
             const result = await createBookNodeSqliteRepository(activeProjectId, tx).delete(id);
+            if (existing.kind === 'chapter') {
+              await appendAuthoredNodeStorylineProjectionInTransaction(tx, changes, {
+                projectId: activeProjectId,
+                nodeId: id,
+              });
+            }
             await sync('node', 'delete', id, activeProjectId);
             return result;
           }),
@@ -586,9 +658,16 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
   const purgeNode = useCallback(
     async (id: string) => {
       await ensureDb();
-      await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+      await withAtomicSyncTransaction(activeProjectId, async (tx, sync, changes) => {
         await deleteEntityRelationsInTransaction(tx, sync, activeProjectId, 'node', id);
+        const existing = await createBookNodeSqliteRepository(activeProjectId, tx).findById(id);
         await createBookNodeSqliteRepository(activeProjectId, tx).delete(id);
+        if (existing?.kind === 'chapter') {
+          await appendAuthoredNodeStorylineProjectionInTransaction(tx, changes, {
+            projectId: activeProjectId,
+            nodeId: id,
+          });
+        }
         await sync('node', 'delete', id, activeProjectId);
       });
       const relations = useDataStore.getState().entityRelations;

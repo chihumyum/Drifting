@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-phase6-product-controls",
+  "recordedAt": "2026-08-16",
+  "currentContract": true,
+  "status": "machine-implemented-real-account-physical-and-security-gates-open",
+  "productAvailability": "implemented-behind-native-capabilities-and-release-gates",
+  "controls": {
+    "singleGoogleSignInConnect": true,
+    "automaticAccountProjectDiscovery": true,
+    "separateRestoreAction": false,
+    "durableConnectRetry": true,
+    "pendingConnectCancel": true,
+    "manualSync": true,
+    "appWidePauseResume": true,
+    "sameAccountReauthorize": true,
+    "confirmedDisconnect": true,
+    "provisioningRetry": true,
+    "settingsStatus": true,
+    "settingsPendingDiagnostics": true,
+    "settingsAuthorityRuntimeErrorSeparation": true,
+    "standaloneShelfSettings": true,
+    "bottomStatusProjection": true
+  },
+  "safetyBoundary": {
+    "googleAccountIsCrossDeviceAccessAuthority": true,
+    "settingsReceivesCredentialReference": false,
+    "settingsReceivesAccessOrRefreshToken": false,
+    "settingsReceivesResumableSession": false,
+    "settingsReceivesGenerationRef": false,
+    "settingsReceivesAbsolutePath": false,
+    "recoveryCodeOrQrSurface": false,
+    "applicationManagedProjectContentKey": false,
+    "disconnectDeletesLocalAuthoredData": false,
+    "pauseCanCreateMixedPerProjectProductMode": false,
+    "providerRemovalCreatesDomainDelete": false
+  },
+  "commands": [
+    "pnpm exec vitest run src/renderer/features/settings/desktop/desktop-standalone-settings.acceptance.test.ts src/renderer/features/settings/personal-cloud-settings.acceptance.test.ts src/renderer/sync/product-commands.integration.test.ts src/renderer/sync/product-authority-store.integration.test.ts src/renderer/sync/product-runtime-control.test.ts src/renderer/sync/disconnect/cloud-disconnect.integration.test.ts src/renderer/sync/connect/pending-transition-cancel.integration.test.ts --reporter=verbose",
+    "pnpm exec eslint src/renderer/features/settings/desktop/DesktopStandaloneSettingsView.tsx src/renderer/features/settings/desktop/desktop-standalone-settings.acceptance.test.ts src/renderer/components/topBars/UserMenu.tsx src/renderer/app/AppRoutes.tsx src/renderer/features/settings/panels/ControlSettingsPanels.tsx src/renderer/features/settings/personal-cloud-settings.acceptance.test.ts src/renderer/sync/product-commands.ts src/renderer/sync/product-commands.integration.test.ts src/renderer/sync/product-authority-store.ts src/renderer/sync/product-authority-store.integration.test.ts src/renderer/sync/product-runtime-control.ts src/renderer/sync/product-runtime-control.test.ts src/renderer/sync/restore/google-drive-product-connect.ts src/renderer/sync/disconnect/cloud-disconnect.ts src/renderer/sync/disconnect/cloud-disconnect.integration.test.ts src/renderer/sync/connect/pending-transition-cancel.ts src/renderer/sync/connect/pending-transition-cancel.integration.test.ts src/renderer/components/BottomStatusBar.tsx",
+    "pnpm typecheck",
+    "pnpm public:check"
+  ],
+  "releaseGates": {
+    "realGoogleAccountDesktop": false,
+    "realGoogleAccountIos": false,
+    "realGoogleAccountAndroid": false,
+    "freshDeviceAutomaticProjectDiscovery": false,
+    "physicalThreePlatformSameProject": false,
+    "physicalBackgroundLockSuspendForceStop": false,
+    "physicalOfflineAndLargeAssetResume": false,
+    "independentSecurityReview": false,
+    "realAccountQuotaRevokeRestartResume": false
+  }
+}

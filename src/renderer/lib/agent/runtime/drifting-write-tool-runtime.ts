@@ -49,10 +49,7 @@ import { structuralCreatedProseReviewMode } from './drifting-structural-write-st
 import type { YjsProsePersistenceCoordinator } from './yjs-prose-persistence-coordinator';
 import { getDb, type DbExecutor } from '../../../lib/db';
 import type { AgentRuntimeElementPatchReceiptRepository } from '../../../sqlite-repo/agent-runtime-element-patch-receipt-repo';
-import type {
-  notifySyncMutationCommitted,
-  persistSyncMutationInTransaction,
-} from '../../../services/entity-sync.service';
+import type { AgentAuthoredJournal } from './agent-authored-journal';
 import { elementPatchRevision, elementPatchSetRevision } from './element-patch-revision';
 import { isAgentAbort, throwIfAgentAborted } from './errors';
 import type {
@@ -115,8 +112,7 @@ export interface DriftingWriteToolRuntimeOptions {
   readNodeContent?: (nodeId: string) => Promise<string | null>;
   elementPatchDb?: DbExecutor;
   elementPatchReceipts?: AgentRuntimeElementPatchReceiptRepository;
-  elementPatchPersistSyncMutation?: typeof persistSyncMutationInTransaction;
-  elementPatchNotifySyncCommitted?: typeof notifySyncMutationCommitted;
+  authoredJournal?: AgentAuthoredJournal;
   collaborationGuard?: AgentWriteCollaborationGuard;
   revisionProvenance?: Pick<
     YjsRepository,
@@ -193,16 +189,7 @@ export class DriftingWriteToolRuntime implements AgentToolRuntime {
           ...(options.elementPatchReceipts
             ? { elementPatchReceipts: options.elementPatchReceipts }
             : {}),
-          ...(options.elementPatchPersistSyncMutation
-            ? {
-                elementPatchPersistSyncMutation: options.elementPatchPersistSyncMutation,
-              }
-            : {}),
-          ...(options.elementPatchNotifySyncCommitted
-            ? {
-                elementPatchNotifySyncCommitted: options.elementPatchNotifySyncCommitted,
-              }
-            : {}),
+          ...(options.authoredJournal ? { authoredJournal: options.authoredJournal } : {}),
           now: this.now,
           ...(options.proseCoordinator ? { proseCoordinator: options.proseCoordinator } : {}),
           ...(options.readNodeContent ? { readNodeContent: options.readNodeContent } : {}),
@@ -1810,7 +1797,7 @@ function reconciliationFreshnessTarget(
   ) {
     return { readToolNames: ['list_comments'], entityKind: 'comment' };
   }
-  if (toolName === 'update_relation_kind' || toolName === 'remove_relation') {
+  if (toolName === 'assign_relation_type' || toolName === 'remove_relation') {
     return { readToolNames: ['get_entity_relations'], entityKind: 'relation' };
   }
   return { readToolNames: ['read_node'], entityKind: 'node' };
@@ -2206,7 +2193,7 @@ async function resolveWriteFreshnessTarget(
       currentRevision: comment.updatedAt,
     };
   }
-  if (request.name === 'update_relation_kind' || request.name === 'remove_relation') {
+  if (request.name === 'assign_relation_type' || request.name === 'remove_relation') {
     const relation = resolveProjectRelation(projectId, request.arguments.relationId);
     return {
       readToolNames: ['get_entity_relations'],

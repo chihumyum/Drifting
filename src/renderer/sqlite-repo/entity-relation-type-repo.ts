@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
 import type {
   EntityRelationType,
+  EntityRelationTypeSystemKey,
 } from '../domain/entity-relation-type';
 import type { EntityRefSourceKind, EntityRefTargetKind } from '../domain/entity-kinds';
 import { ALL_ENTITY_KINDS, STRUCTURAL_ENTITY_KINDS } from '../domain/entity-kinds';
@@ -18,6 +19,7 @@ type EndpointKindRow = typeof EntityRelationTypeEndpointKindTable.$inferSelect;
 export interface EntityRelationTypeRepository {
   list(): Promise<EntityRelationType[]>;
   findById(id: string): Promise<EntityRelationType | null>;
+  findBySystemKey(systemKey: EntityRelationTypeSystemKey): Promise<EntityRelationType | null>;
   findByNormalizedName(normalizedName: string): Promise<EntityRelationType | null>;
   create(value: EntityRelationType): Promise<EntityRelationType>;
   update(value: EntityRelationType): Promise<EntityRelationType>;
@@ -48,6 +50,8 @@ function materialize(row: RelationTypeRow, endpoints: readonly EndpointKindRow[]
     normalizedName: row.normalizedName,
     description: row.description,
     orientation: row.orientation as EntityRelationType['orientation'],
+    systemKey: row.systemKey as EntityRelationTypeSystemKey | null,
+    locked: row.locked,
     sourceRole: row.sourceRole,
     targetRole: row.targetRole,
     sourceKinds: ALL_ENTITY_KINDS.filter((kind) =>
@@ -109,6 +113,9 @@ export function createEntityRelationTypeRepository(
 
   const create = async (value: EntityRelationType): Promise<EntityRelationType> => {
     if (value.projectId !== projectId) throw new Error('关系类型不属于当前项目');
+    if ((value.systemKey === null) !== !value.locked) {
+      throw new Error('系统关系类型必须锁定，作者关系类型不能锁定');
+    }
     await dbProvider().insert(EntityRelationTypeTable).values({
       id: value.id,
       projectId: value.projectId,
@@ -116,6 +123,8 @@ export function createEntityRelationTypeRepository(
       normalizedName: value.normalizedName,
       description: value.description,
       orientation: value.orientation,
+      systemKey: value.systemKey,
+      locked: value.locked,
       sourceRole: value.sourceRole,
       targetRole: value.targetRole,
       createdAt: value.createdAt,
@@ -130,6 +139,12 @@ export function createEntityRelationTypeRepository(
 
   const update = async (value: EntityRelationType): Promise<EntityRelationType> => {
     if (value.projectId !== projectId) throw new Error('关系类型不属于当前项目');
+    const existing = await findOne(eq(EntityRelationTypeTable.id, value.id));
+    if (!existing) throw new Error('关系类型不存在或已被删除');
+    if (existing.locked) throw new Error('内建关系类型不能修改');
+    if (value.systemKey !== existing.systemKey || value.locked !== existing.locked) {
+      throw new Error('关系类型的系统身份不能修改');
+    }
     const rows = await dbProvider()
       .update(EntityRelationTypeTable)
       .set({
@@ -160,6 +175,9 @@ export function createEntityRelationTypeRepository(
   };
 
   const remove = async (id: string): Promise<void> => {
+    const existing = await findOne(eq(EntityRelationTypeTable.id, id));
+    if (!existing) return;
+    if (existing.locked) throw new Error('内建关系类型不能删除');
     const count = await countRelations(id);
     if (count > 0) throw new Error(`关系类型仍被 ${count} 条关系使用，不能删除`);
     await dbProvider()
@@ -183,6 +201,7 @@ export function createEntityRelationTypeRepository(
   return {
     list,
     findById: (id) => findOne(eq(EntityRelationTypeTable.id, id)),
+    findBySystemKey: (systemKey) => findOne(eq(EntityRelationTypeTable.systemKey, systemKey)),
     findByNormalizedName: (normalizedName) =>
       findOne(eq(EntityRelationTypeTable.normalizedName, normalizedName)),
     create,

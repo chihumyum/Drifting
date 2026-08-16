@@ -11,6 +11,10 @@ import { AppearancePanel, EditorPanel, LanguagePanel, TrashRailPanel } from '../
 import { CopilotPanel, ModelsPanel } from '../../../features/settings/panels/IntelligenceSettingsPanels';
 import { AgentPanel } from '../../../features/settings/panels/AgentSettingsPanel';
 import { AboutPanel, KeysPanel, PrivacyPanel, SyncPanel } from '../../../features/settings/panels/ControlSettingsPanels';
+import {
+  hostedAccountSettingsEnabled,
+  withoutHostedAccountSettings,
+} from '../hosted-settings-policy';
 
 interface DesktopSettingsModalProps {
   isOpen: boolean;
@@ -138,11 +142,14 @@ const RAIL_IDS = new Set<RailId>([
 function useRail(): RailDef[] {
   const plan = useFeatureAccessStore((s) => s.plan);
   const { t } = useTranslation();
+  const accountSettingsEnabled = hostedAccountSettingsEnabled();
   return useMemo<RailDef[]>(() => {
-    return RAIL_BASE.map((r) => {
+    return withoutHostedAccountSettings(RAIL_BASE, accountSettingsEnabled).map((r) => {
       const base = {
         id: r.id,
-        group: t(r.groupKey),
+        group: t(
+          r.id === 'trash' && !accountSettingsEnabled ? 'settings.groups.localData' : r.groupKey,
+        ),
         glyph: r.glyph,
         label: t(r.labelKey),
       };
@@ -151,11 +158,14 @@ function useRail(): RailDef[] {
       }
       return base;
     });
-  }, [plan, t]);
+  }, [accountSettingsEnabled, plan, t]);
 }
 
 export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: DesktopSettingsModalProps) {
-  const [active, setActive] = useState<RailId>('account');
+  const accountSettingsEnabled = hostedAccountSettingsEnabled();
+  const [active, setActive] = useState<RailId>(() =>
+    accountSettingsEnabled ? 'account' : 'trash',
+  );
   const [query, setQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const mainRef = useRef<HTMLDivElement | null>(null);
@@ -204,7 +214,10 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
   // highlight and content out of sync.
   useEffect(() => {
     if (!isOpen) return;
-    const hasDeepLink = !!initialRailId && RAIL_IDS.has(initialRailId as RailId);
+    const hasDeepLink =
+      !!initialRailId &&
+      RAIL_IDS.has(initialRailId as RailId) &&
+      RAIL.some((item) => item.id === initialRailId);
     const target = hasDeepLink ? (initialRailId as RailId) : active;
     const apply = () => {
       // Set the rail highlight here (deferred in the rAF, not synchronously in
@@ -247,10 +260,14 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
       <div className="set-body">
         <SetRail items={filtered} active={active} onSelect={onRail} />
         <main className="set-main" ref={mainRef}>
-          <AccountPanel registerRef={(el) => (panelRefs.current.account = el ?? undefined)} />
-          <SubscriptionPanel
-            registerRef={(el) => (panelRefs.current.subscription = el ?? undefined)}
-          />
+          {accountSettingsEnabled && (
+            <>
+              <AccountPanel registerRef={(el) => (panelRefs.current.account = el ?? undefined)} />
+              <SubscriptionPanel
+                registerRef={(el) => (panelRefs.current.subscription = el ?? undefined)}
+              />
+            </>
+          )}
           <TrashRailPanel registerRef={(el) => (panelRefs.current.trash = el ?? undefined)} />
           <AppearancePanel registerRef={(el) => (panelRefs.current.appearance = el ?? undefined)} />
           <EditorPanel registerRef={(el) => (panelRefs.current.editor = el ?? undefined)} />
@@ -268,7 +285,10 @@ export function DesktopSettingsModal({ isOpen, onClose, initialRailId }: Desktop
             registerRef={(el) => (panelRefs.current.agent = el ?? undefined)}
           />
           <KeysPanel registerRef={(el) => (panelRefs.current.keys = el ?? undefined)} />
-          <SyncPanel registerRef={(el) => (panelRefs.current.sync = el ?? undefined)} />
+          <SyncPanel
+            registerRef={(el) => (panelRefs.current.sync = el ?? undefined)}
+            projectImportEnabled
+          />
           <PrivacyPanel registerRef={(el) => (panelRefs.current.privacy = el ?? undefined)} />
           <AboutPanel registerRef={(el) => (panelRefs.current.about = el ?? undefined)} />
         </main>

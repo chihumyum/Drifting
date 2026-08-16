@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-phase1-remote-yjs-live-merge",
+  "recordedAt": "2026-08-15",
+  "status": "implemented",
+  "ordering": [
+    "sqlite-reducer-and-frontier-commit",
+    "exact-persisted-yjs-tail-merge",
+    "sync-project-changed"
+  ],
+  "assertions": {
+    "liveYjsMutationInsideReducerTransaction": false,
+    "remoteUpdateEchoesAuthoredJournal": false,
+    "coverageAdvancesOnlyAfterExactPersistedRowApply": true,
+    "laterPersistedLocalIdCannotSkipEarlierRemoteRow": true,
+    "snapshotAndCloseReconcileBeforeCompaction": true,
+    "callbackFailureRetriesFromDurableTailOnNextCycle": true,
+    "closedDocumentsReplayOnNormalOpen": true,
+    "remoteNPlusOneLocalNPlusTwoSurviveCompactionAndReopen": true
+  },
+  "machineAcceptance": {
+    "command": "pnpm exec vitest run src/renderer/services/yjs-document-session.test.ts src/renderer/services/yjs-remote-live-merge.integration.test.ts src/renderer/sync/engine/durable-runtime.integration.test.ts src/renderer/sync/engine/architecture.test.ts src/renderer/sync/production-runtime.test.ts",
+    "testFilesPassed": 5,
+    "testsPassed": 31,
+    "failed": 0,
+    "scopedEslint": "passed",
+    "typecheck": "passed"
+  },
+  "openGates": [
+    "real Google Drive account convergence",
+    "physical desktop iOS Android acceptance"
+  ]
+}

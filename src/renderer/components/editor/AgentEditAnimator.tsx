@@ -797,7 +797,7 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
     (change: AgentBlockChange) => {
       if (!id) return;
       if (!change.reviewId) {
-        void revertEntityBlock(entityType, id, change)
+        void revertEntityBlock(entityType, id, change, undefined, projectId)
           .then(() => {
             resolve(change);
             useAgentEditStore

@@ -31,7 +31,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
-use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_LENGTH, CONTENT_TYPE};
+use reqwest::header::{HeaderMap, ACCEPT, CONTENT_TYPE};
 use reqwest::redirect::Policy;
 use reqwest::{Client, ClientBuilder, Url};
 use serde::{Deserialize, Serialize};
@@ -39,8 +39,6 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::{DialogExt, FileAccessMode, FilePath, PickerMode};
 use tauri_plugin_fs::{FsExt, OpenOptions as PluginOpenOptions};
 use tauri_plugin_opener::OpenerExt;
-use tokio::io::AsyncWriteExt;
-use tokio_util::io::ReaderStream;
 
 use crate::image_pipeline;
 
@@ -49,7 +47,8 @@ use crate::image_pipeline;
 // to that read ceiling so a file can never be accepted and then fail solely
 // because a later mandatory material step has a lower limit.
 const MATERIAL_FILE_LIMIT: u64 = 64 * 1024 * 1024;
-const ASSET_TRANSFER_LIMIT: u64 = 512 * 1024 * 1024;
+const LOCAL_ASSET_FILE_LIMIT: u64 = 512 * 1024 * 1024;
+const ARCHIVE_EXPORT_LIMIT: usize = 256 * 1024 * 1024;
 const MATERIAL_FILE_TOO_LARGE_CODE: &str = "MATERIAL_FILE_TOO_LARGE";
 const MATERIAL_IMPORT_FAILED_CODE: &str = "MATERIAL_IMPORT_FAILED";
 const MATERIAL_FILE_TOO_LARGE_ERROR: &str =
@@ -62,13 +61,8 @@ const HTTP_HEADER_VALUE_LIMIT: usize = 8 * 1024;
 const MAX_REDIRECTS: usize = 5;
 const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const URL_METADATA_TOTAL_TIMEOUT: Duration = Duration::from_secs(8);
-const ASSET_TRANSFER_READ_TIMEOUT: Duration = Duration::from_secs(30);
-const ASSET_TRANSFER_TOTAL_TIMEOUT: Duration = Duration::from_secs(20 * 60);
-const MAX_CACHE_SEGMENT_LEN: usize = 128;
+const MAX_ASSET_SEGMENT_LEN: usize = 128;
 const MAX_EXTENSION_LEN: usize = 16;
-const R2_ASSET_HOST_SUFFIX: &str = ".r2.cloudflarestorage.com";
-const MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS: u64 = 300;
-const MAX_ASSET_DOWNLOAD_SIGNATURE_TTL_SECONDS: u64 = 60 * 60;
 const NAT64_DISCOVERY_HOST: &str = "ipv4only.arpa";
 const NAT64_DISCOVERY_IPV4: [Ipv4Addr; 2] =
     [Ipv4Addr::new(192, 0, 0, 170), Ipv4Addr::new(192, 0, 0, 171)];
@@ -134,6 +128,32 @@ pub enum PickFileResult {
     Success(PickFileSuccess),
     Canceled(PickFileCanceled),
     Failure(PickFileFailure),
+}
+
+#[derive(Debug, Serialize)]
+pub struct ArchiveSaveSuccess {
+    ok: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ArchiveSaveCanceled {
+    ok: bool,
+    canceled: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ArchiveSaveFailure {
+    ok: bool,
+    canceled: bool,
+    error: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum ArchiveSaveResult {
+    Success(ArchiveSaveSuccess),
+    Canceled(ArchiveSaveCanceled),
+    Failure(ArchiveSaveFailure),
 }
 
 #[derive(Debug, Serialize)]
@@ -302,7 +322,7 @@ impl AssetVariant {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AssetCachePathSuccess {
+pub struct AssetStorePathSuccess {
     ok: bool,
     file_path: String,
     file_url: String,
@@ -312,14 +332,14 @@ pub struct AssetCachePathSuccess {
 
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
-pub enum AssetCachePathResult {
-    Success(AssetCachePathSuccess),
+pub enum AssetStorePathResult {
+    Success(AssetStorePathSuccess),
     Failure(FailureResult),
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AssetCacheWriteSuccess {
+pub struct AssetStoreWriteSuccess {
     ok: bool,
     file_path: String,
     file_url: String,
@@ -328,34 +348,20 @@ pub struct AssetCacheWriteSuccess {
 
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
-pub enum AssetCacheWriteResult {
-    Success(AssetCacheWriteSuccess),
+pub enum AssetStoreWriteResult {
+    Success(AssetStoreWriteSuccess),
     Failure(FailureResult),
 }
 
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AssetCacheUploadSuccess {
-    ok: bool,
-    size_bytes: u64,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
-pub enum AssetCacheUploadResult {
-    Success(AssetCacheUploadSuccess),
-    Failure(FailureResult),
-}
-
-#[derive(Debug, Serialize)]
-pub struct AssetCacheDeleteSuccess {
+pub struct AssetStoreDeleteSuccess {
     ok: bool,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
-pub enum AssetCacheDeleteResult {
-    Success(AssetCacheDeleteSuccess),
+pub enum AssetStoreDeleteResult {
+    Success(AssetStoreDeleteSuccess),
     Failure(FailureResult),
 }
 
@@ -388,10 +394,10 @@ fn path_string(path: &Path) -> String {
 fn file_url(path: &Path) -> Result<String, String> {
     tauri::Url::from_file_path(path)
         .map(|url| url.to_string())
-        .map_err(|_| "could not convert local cache path to a file URL".to_string())
+        .map_err(|_| "could not convert local asset path to a file URL".to_string())
 }
 
-fn app_local_dir(app: &AppHandle, child: &str) -> Result<PathBuf, String> {
+pub(crate) fn app_local_dir(app: &AppHandle, child: &str) -> Result<PathBuf, String> {
     let root = app
         .path()
         .app_local_data_dir()
@@ -432,7 +438,7 @@ fn validate_app_owned_file_from_roots(
 fn validate_app_owned_material_file(app: &AppHandle, file_path: &str) -> Result<PathBuf, String> {
     let roots = [
         app_local_dir(app, "imports")?,
-        app_local_dir(app, "asset-cache")?,
+        app_local_dir(app, "assets")?,
     ];
     validate_app_owned_file_from_roots(Path::new(file_path), &roots)
 }
@@ -495,10 +501,10 @@ fn is_single_normal_component(value: &str) -> bool {
     matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
 }
 
-fn safe_cache_segment(value: &str) -> Result<String, String> {
+fn safe_asset_segment(value: &str) -> Result<String, String> {
     let trimmed = value.trim();
-    if trimmed.is_empty() || trimmed.chars().count() > MAX_CACHE_SEGMENT_LEN {
-        return Err("invalid asset cache identifier".into());
+    if trimmed.is_empty() || trimmed.chars().count() > MAX_ASSET_SEGMENT_LEN {
+        return Err("invalid asset store identifier".into());
     }
 
     let mut safe = String::with_capacity(trimmed.len());
@@ -511,7 +517,7 @@ fn safe_cache_segment(value: &str) -> Result<String, String> {
     }
 
     if safe == "." || safe == ".." || !is_single_normal_component(&safe) {
-        return Err("invalid asset cache identifier".into());
+        return Err("invalid asset store identifier".into());
     }
     if safe.starts_with('.') {
         safe.insert(0, '_');
@@ -519,70 +525,70 @@ fn safe_cache_segment(value: &str) -> Result<String, String> {
     Ok(safe)
 }
 
-fn safe_cache_extension(value: &str) -> Result<String, String> {
+fn safe_asset_extension(value: &str) -> Result<String, String> {
     let normalized = value.trim().trim_start_matches('.').to_ascii_lowercase();
     if normalized.is_empty() || normalized.len() > MAX_EXTENSION_LEN {
-        return Err("invalid asset cache extension".into());
+        return Err("invalid asset store extension".into());
     }
     if !normalized
         .chars()
         .all(|character| character.is_ascii_alphanumeric())
     {
-        return Err("invalid asset cache extension".into());
+        return Err("invalid asset store extension".into());
     }
     Ok(normalized)
 }
 
-fn asset_cache_path_from_root(
+fn asset_store_path_from_root(
     root: &Path,
     project_id: &str,
     asset_id: &str,
     variant: AssetVariant,
     ext: &str,
 ) -> Result<PathBuf, String> {
-    let project = safe_cache_segment(project_id)?;
-    let asset = safe_cache_segment(asset_id)?;
-    let extension = safe_cache_extension(ext)?;
+    let project = safe_asset_segment(project_id)?;
+    let asset = safe_asset_segment(asset_id)?;
+    let extension = safe_asset_extension(ext)?;
     Ok(root
         .join(project)
         .join(asset)
         .join(format!("{}.{}", variant.as_str(), extension)))
 }
 
-fn asset_cache_path(
+pub(crate) fn asset_store_path(
     app: &AppHandle,
     project_id: &str,
     asset_id: &str,
     variant: AssetVariant,
     ext: &str,
 ) -> Result<PathBuf, String> {
-    let root = app_local_dir(app, "asset-cache")?;
-    let path = asset_cache_path_from_root(&root, project_id, asset_id, variant, ext)?;
-    reject_symlinked_cache_path(&root, project_id, asset_id, Some(&path))?;
+    let root = app_local_dir(app, "assets")?;
+    let path = asset_store_path_from_root(&root, project_id, asset_id, variant, ext)?;
+    reject_symlinked_asset_path(&root, project_id, asset_id, Some(&path))?;
     Ok(path)
 }
 
-fn asset_cache_asset_dir(
+fn asset_store_asset_dir(
     app: &AppHandle,
     project_id: &str,
     asset_id: &str,
 ) -> Result<PathBuf, String> {
-    let project = safe_cache_segment(project_id)?;
-    let asset = safe_cache_segment(asset_id)?;
-    let root = app_local_dir(app, "asset-cache")?;
+    let project = safe_asset_segment(project_id)?;
+    let asset = safe_asset_segment(asset_id)?;
+    let root = app_local_dir(app, "assets")?;
     let directory = root.join(project).join(asset);
-    reject_symlinked_cache_path(&root, project_id, asset_id, None)?;
+    reject_symlinked_asset_path(&root, project_id, asset_id, None)?;
     Ok(directory)
 }
 
-fn reject_symlinked_cache_path(
+fn reject_symlinked_asset_path(
     root: &Path,
     project_id: &str,
     asset_id: &str,
     file: Option<&Path>,
 ) -> Result<(), String> {
-    let project = safe_cache_segment(project_id)?;
-    let asset = safe_cache_segment(asset_id)?;
+    let project = safe_asset_segment(project_id)?;
+    let asset = safe_asset_segment(asset_id)?;
     for candidate in [
         root.to_path_buf(),
         root.join(&project),
@@ -590,27 +596,27 @@ fn reject_symlinked_cache_path(
     ] {
         match fs::symlink_metadata(candidate) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
-                return Err("refusing to access a symlinked asset cache path".into());
+                return Err("refusing to access a symlinked asset store path".into());
             }
             Ok(_) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => break,
-            Err(_) => return Err("could not validate asset cache path".into()),
+            Err(_) => return Err("could not validate asset store path".into()),
         }
     }
     if let Some(file) = file {
         match fs::symlink_metadata(file) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
-                return Err("refusing to access a symlinked asset cache file".into());
+                return Err("refusing to access a symlinked asset store file".into());
             }
             Ok(_) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(_) => return Err("could not validate asset cache file".into()),
+            Err(_) => return Err("could not validate asset store file".into()),
         }
     }
     Ok(())
 }
 
-fn ensure_parent_directory(path: &Path) -> io::Result<()> {
+pub(crate) fn ensure_parent_directory(path: &Path) -> io::Result<()> {
     let parent = path
         .parent()
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "path has no parent"))?;
@@ -624,7 +630,7 @@ fn ensure_parent_directory(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-fn temporary_sibling(path: &Path) -> io::Result<PathBuf> {
+pub(crate) fn temporary_sibling(path: &Path) -> io::Result<PathBuf> {
     let filename = path
         .file_name()
         .and_then(|value| value.to_str())
@@ -632,7 +638,105 @@ fn temporary_sibling(path: &Path) -> io::Result<PathBuf> {
     Ok(path.with_file_name(format!(".{filename}.{}.part", unique_token())))
 }
 
-fn atomic_write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+fn rename_then_sync_parent<R, S>(
+    temporary: &Path,
+    path: &Path,
+    rename: R,
+    sync_parent: S,
+) -> io::Result<()>
+where
+    R: FnOnce(&Path, &Path) -> io::Result<()>,
+    S: FnOnce(&Path) -> io::Result<()>,
+{
+    rename(temporary, path)?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "path has no parent"))?;
+    sync_parent(parent)
+}
+
+#[cfg(unix)]
+fn sync_directory(path: &Path) -> io::Result<()> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "durability barrier requires a real directory",
+        ));
+    }
+    File::open(path)?.sync_all()
+}
+
+#[cfg(unix)]
+pub(crate) fn durable_replace_file(temporary: &Path, path: &Path) -> io::Result<()> {
+    rename_then_sync_parent(
+        temporary,
+        path,
+        |source, destination| fs::rename(source, destination),
+        sync_directory,
+    )
+}
+
+#[cfg(windows)]
+fn windows_move_write_through(
+    source: &Path,
+    destination: &Path,
+    replace_existing: bool,
+) -> io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+
+    const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
+    const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn MoveFileExW(
+            existing_file_name: *const u16,
+            new_file_name: *const u16,
+            flags: u32,
+        ) -> i32;
+    }
+
+    let source = source
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let destination = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let flags = MOVEFILE_WRITE_THROUGH
+        | if replace_existing {
+            MOVEFILE_REPLACE_EXISTING
+        } else {
+            0
+        };
+
+    // Windows does not provide the POSIX directory-fsync contract through
+    // `File::sync_all`: directory handles need FILE_FLAG_BACKUP_SEMANTICS,
+    // while FlushFileBuffers requires GENERIC_WRITE and does not document
+    // directory handles as supported. MoveFileExW with WRITE_THROUGH is the
+    // platform durability boundary for both file replacement and the logical
+    // removal rename used below.
+    let moved = unsafe { MoveFileExW(source.as_ptr(), destination.as_ptr(), flags) };
+    if moved == 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(windows)]
+pub(crate) fn durable_replace_file(temporary: &Path, path: &Path) -> io::Result<()> {
+    windows_move_write_through(temporary, path, true)
+}
+
+fn atomic_write_with_commit<C>(path: &Path, bytes: &[u8], commit: C) -> io::Result<()>
+where
+    C: FnOnce(&Path, &Path) -> io::Result<()>,
+{
     ensure_parent_directory(path)?;
     let temporary = temporary_sibling(path)?;
     let write_result = (|| {
@@ -643,19 +747,7 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> io::Result<()> {
         file.write_all(bytes)?;
         file.sync_all()?;
         drop(file);
-
-        match fs::rename(&temporary, path) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists || cfg!(windows) => {
-                match fs::remove_file(path) {
-                    Ok(()) => {}
-                    Err(remove_error) if remove_error.kind() == io::ErrorKind::NotFound => {}
-                    Err(remove_error) => return Err(remove_error),
-                }
-                fs::rename(&temporary, path)
-            }
-            Err(error) => Err(error),
-        }
+        commit(&temporary, path)
     })();
 
     if write_result.is_err() {
@@ -664,7 +756,19 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> io::Result<()> {
     write_result
 }
 
-fn atomic_copy_capped(source: &Path, path: &Path, limit: u64) -> io::Result<u64> {
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    atomic_write_with_commit(path, bytes, durable_replace_file)
+}
+
+fn atomic_copy_capped_with_commit<C>(
+    source: &Path,
+    path: &Path,
+    limit: u64,
+    commit: C,
+) -> io::Result<u64>
+where
+    C: FnOnce(&Path, &Path) -> io::Result<()>,
+{
     let metadata = fs::metadata(source)?;
     if !metadata.is_file() {
         return Err(io::Error::new(
@@ -696,20 +800,8 @@ fn atomic_copy_capped(source: &Path, path: &Path, limit: u64) -> io::Result<u64>
         }
         target.sync_all()?;
         drop(target);
-
-        match fs::rename(&temporary, path) {
-            Ok(()) => Ok(copied),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists || cfg!(windows) => {
-                match fs::remove_file(path) {
-                    Ok(()) => {}
-                    Err(remove_error) if remove_error.kind() == io::ErrorKind::NotFound => {}
-                    Err(remove_error) => return Err(remove_error),
-                }
-                fs::rename(&temporary, path)?;
-                Ok(copied)
-            }
-            Err(error) => Err(error),
-        }
+        commit(&temporary, path)?;
+        Ok(copied)
     })();
 
     if copy_result.is_err() {
@@ -718,68 +810,171 @@ fn atomic_copy_capped(source: &Path, path: &Path, limit: u64) -> io::Result<u64>
     copy_result
 }
 
-async fn download_response_atomically(
-    mut response: reqwest::Response,
-    path: &Path,
-    limit: u64,
-) -> io::Result<u64> {
-    if response
-        .content_length()
-        .is_some_and(|length| length > limit)
-    {
+pub(crate) fn atomic_copy_capped(source: &Path, path: &Path, limit: u64) -> io::Result<u64> {
+    atomic_copy_capped_with_commit(source, path, limit, durable_replace_file)
+}
+
+fn validate_managed_asset_directory(root: &Path, asset_directory: &Path) -> io::Result<PathBuf> {
+    let relative = asset_directory.strip_prefix(root).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "asset directory is outside the managed root",
+        )
+    })?;
+    let mut components = relative.components();
+    let project = match components.next() {
+        Some(Component::Normal(value)) => value,
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "asset directory has an invalid project path",
+            ));
+        }
+    };
+    if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
         return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "response body exceeds size limit",
+            io::ErrorKind::PermissionDenied,
+            "asset directory has an invalid managed path",
         ));
     }
 
-    ensure_parent_directory(path)?;
-    let temporary = temporary_sibling(path)?;
-    let result = async {
-        let mut file = tokio::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temporary)
-            .await?;
-        let mut written = 0_u64;
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|error| io::Error::other(error.to_string()))?
-        {
-            written = written.saturating_add(chunk.len() as u64);
-            if written > limit {
+    match fs::symlink_metadata(root) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "asset root is not a real directory",
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(root.join(project));
+        }
+        Err(error) => return Err(error),
+    }
+
+    let project_directory = root.join(project);
+    for path in [&project_directory, asset_directory] {
+        match fs::symlink_metadata(path) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
                 return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "response body exceeds size limit",
+                    io::ErrorKind::PermissionDenied,
+                    "managed asset path is not a real directory",
                 ));
             }
-            file.write_all(&chunk).await?;
-        }
-        file.flush().await?;
-        file.sync_all().await?;
-        drop(file);
-
-        match tokio::fs::rename(&temporary, path).await {
-            Ok(()) => Ok(written),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists || cfg!(windows) => {
-                match tokio::fs::remove_file(path).await {
-                    Ok(()) => {}
-                    Err(remove_error) if remove_error.kind() == io::ErrorKind::NotFound => {}
-                    Err(remove_error) => return Err(remove_error),
-                }
-                tokio::fs::rename(&temporary, path).await?;
-                Ok(written)
-            }
-            Err(error) => Err(error),
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
         }
     }
-    .await;
+    Ok(project_directory)
+}
 
-    if result.is_err() {
-        let _ = tokio::fs::remove_file(&temporary).await;
+#[cfg(unix)]
+fn durable_delete_asset_directory_with_sync<S>(
+    root: &Path,
+    asset_directory: &Path,
+    mut sync: S,
+) -> io::Result<()>
+where
+    S: FnMut(&Path) -> io::Result<()>,
+{
+    let project_directory = validate_managed_asset_directory(root, asset_directory)?;
+    if !root.exists() {
+        return Ok(());
     }
-    result
+    if !project_directory.exists() {
+        // A retry after a barrier failure must be able to finish the previous
+        // project-directory removal even though the logical target is gone.
+        return sync(root);
+    }
+
+    match fs::symlink_metadata(asset_directory) {
+        Ok(_) => fs::remove_dir_all(asset_directory)?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    sync(&project_directory)?;
+
+    match fs::remove_dir(&project_directory) {
+        Ok(()) => sync(root),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => sync(root),
+        Err(error) if error.kind() == io::ErrorKind::DirectoryNotEmpty => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(unix)]
+fn durable_delete_asset_directory(root: &Path, asset_directory: &Path) -> io::Result<()> {
+    durable_delete_asset_directory_with_sync(root, asset_directory, sync_directory)
+}
+
+#[cfg(windows)]
+fn remove_real_directory_if_present(path: &Path) -> io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "refusing to remove a non-directory asset tombstone",
+            ))
+        }
+        Ok(_) => fs::remove_dir_all(path),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(windows)]
+fn deletion_tombstone(parent: &Path, directory: &Path) -> io::Result<PathBuf> {
+    let name = directory
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "asset directory has no valid name",
+            )
+        })?;
+    Ok(parent.join(format!(".{name}.deleting")))
+}
+
+#[cfg(windows)]
+fn durable_delete_asset_directory(root: &Path, asset_directory: &Path) -> io::Result<()> {
+    let project_directory = validate_managed_asset_directory(root, asset_directory)?;
+    if !root.exists() {
+        return Ok(());
+    }
+
+    let project_tombstone = deletion_tombstone(root, &project_directory)?;
+    if !project_directory.exists() {
+        // A write-through rename from an interrupted attempt already made the
+        // project logically absent. Physical tombstone removal is retryable.
+        return remove_real_directory_if_present(&project_tombstone);
+    }
+
+    let asset_tombstone = deletion_tombstone(&project_directory, asset_directory)?;
+    remove_real_directory_if_present(&asset_tombstone)?;
+    if asset_directory.exists() {
+        // Directory FlushFileBuffers is not a documented Windows contract.
+        // Persist the logical deletion by moving the managed name to a
+        // deterministic tombstone with WRITE_THROUGH before recursive cleanup.
+        windows_move_write_through(asset_directory, &asset_tombstone, false)?;
+    }
+    remove_real_directory_if_present(&asset_tombstone)?;
+
+    let project_is_empty = fs::read_dir(&project_directory)?
+        .next()
+        .transpose()?
+        .is_none();
+    if !project_is_empty {
+        return Ok(());
+    }
+
+    remove_real_directory_if_present(&project_tombstone)?;
+    windows_move_write_through(&project_directory, &project_tombstone, false)?;
+    // The write-through rename is the logical durability boundary. If this
+    // cleanup fails, the caller receives an error and the deterministic
+    // tombstone remains available for a retry without restoring the project.
+    remove_real_directory_if_present(&project_tombstone)
 }
 
 fn read_file_capped_with_limit(path: &Path, limit: u64) -> io::Result<Vec<u8>> {
@@ -872,7 +1067,7 @@ fn selected_extension(selected: &FilePath) -> Option<String> {
             .and_then(|value| Path::new(value).extension())
             .and_then(|value| value.to_str()),
     }?;
-    safe_cache_extension(extension).ok()
+    safe_asset_extension(extension).ok()
 }
 
 fn sniff_extension(bytes: &[u8]) -> &'static str {
@@ -1321,60 +1516,6 @@ fn parse_http_url(value: &str) -> Result<Url, String> {
     Ok(parsed)
 }
 
-fn parse_asset_transfer_url(value: &str, max_ttl_seconds: u64) -> Result<Url, String> {
-    let parsed = parse_http_url(value)?;
-    if parsed.scheme() != "https" || parsed.fragment().is_some() {
-        return Err("asset URL must use HTTPS".into());
-    }
-
-    let host = parsed
-        .host_str()
-        .ok_or_else(|| "asset URL has no host".to_string())?
-        .trim_end_matches('.')
-        .to_ascii_lowercase();
-    let r2_prefix = host
-        .strip_suffix(R2_ASSET_HOST_SUFFIX)
-        .filter(|prefix| !prefix.is_empty())
-        .ok_or_else(|| "asset URL is not a Cloudflare R2 URL".to_string())?;
-    if !r2_prefix.split('.').all(|label| {
-        !label.is_empty()
-            && label.len() <= 63
-            && label
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
-    }) {
-        return Err("asset URL has an invalid Cloudflare R2 host".into());
-    }
-
-    let query = parsed
-        .query_pairs()
-        .map(|(key, value)| (key.to_ascii_lowercase(), value.into_owned()))
-        .collect::<HashMap<_, _>>();
-    if query.get("x-amz-algorithm").map(String::as_str) != Some("AWS4-HMAC-SHA256")
-        || query
-            .get("x-amz-credential")
-            .is_none_or(|value| value.is_empty())
-        || query
-            .get("x-amz-date")
-            .is_none_or(|value| value.len() != 16)
-        || query
-            .get("x-amz-signedheaders")
-            .is_none_or(|value| value.is_empty())
-        || query.get("x-amz-signature").is_none_or(|value| {
-            value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit())
-        })
-    {
-        return Err("asset URL has an invalid signature".into());
-    }
-    let expires = query
-        .get("x-amz-expires")
-        .and_then(|value| value.parse::<u64>().ok())
-        .filter(|seconds| (1..=max_ttl_seconds).contains(seconds))
-        .ok_or_else(|| "asset URL has an invalid expiry".to_string())?;
-    debug_assert!(expires <= max_ttl_seconds);
-    Ok(parsed)
-}
-
 fn http_client_builder() -> ClientBuilder {
     Client::builder()
         .connect_timeout(HTTP_CONNECT_TIMEOUT)
@@ -1462,28 +1603,6 @@ pub(crate) fn mcp_http_client(value: &str, timeout: Duration) -> Result<(Client,
 fn url_metadata_http_client() -> Result<Client, String> {
     http_client_builder()
         .timeout(URL_METADATA_TOTAL_TIMEOUT)
-        .build()
-        .map_err(|_| "could not initialize HTTP client".to_string())
-}
-
-fn asset_transfer_http_client() -> Result<Client, String> {
-    // Large assets may legitimately take minutes on mobile networks. A per-read timeout catches
-    // stalled connections, while the total deadline bounds an otherwise continuously-progressing
-    // transfer so server-side deletion grace periods can be finite and deterministic. Asset URLs
-    // are separately restricted to short-lived Cloudflare R2 SigV4 URLs, so the platform resolver
-    // can remain active here. That is required by VPN/TUN clients whose DNS returns 198.18/15
-    // Fake-IP addresses; the generic metadata client must continue rejecting those addresses.
-    Client::builder()
-        .connect_timeout(HTTP_CONNECT_TIMEOUT)
-        .no_proxy()
-        .referer(false)
-        .redirect(Policy::none())
-        .user_agent(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
-             AppleWebKit/605.1.15 (KHTML, like Gecko) Drifting/1.0",
-        )
-        .read_timeout(ASSET_TRANSFER_READ_TIMEOUT)
-        .timeout(ASSET_TRANSFER_TOTAL_TIMEOUT)
         .build()
         .map_err(|_| "could not initialize HTTP client".to_string())
 }
@@ -1732,6 +1851,101 @@ fn redact_log_secrets(content: &str) -> String {
     token_secret_regex()
         .replace_all(&header_redacted, "[REDACTED]")
         .into_owned()
+}
+
+fn validate_archive_filename(filename: &str) -> Result<(), String> {
+    let trimmed = filename.trim();
+    if trimmed.is_empty()
+        || trimmed.len() > 160
+        || !trimmed.to_ascii_lowercase().ends_with(".zip")
+        || trimmed
+            .chars()
+            .any(|character| matches!(character, '/' | '\\' | '\0'))
+        || trimmed == ".zip"
+    {
+        return Err("invalid archive filename".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn archive_save(app: AppHandle, filename: String, bytes: Vec<u8>) -> ArchiveSaveResult {
+    if let Err(error) = validate_archive_filename(&filename) {
+        return ArchiveSaveResult::Failure(ArchiveSaveFailure {
+            ok: false,
+            canceled: false,
+            error,
+        });
+    }
+    if bytes.len() > ARCHIVE_EXPORT_LIMIT {
+        return ArchiveSaveResult::Failure(ArchiveSaveFailure {
+            ok: false,
+            canceled: false,
+            error: "archive exceeds the 256 MiB export limit".into(),
+        });
+    }
+
+    let selected = match tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        let filename = filename.clone();
+        move || {
+            app.dialog()
+                .file()
+                .set_picker_mode(PickerMode::Document)
+                .set_file_access_mode(FileAccessMode::Scoped)
+                .set_file_name(filename)
+                .add_filter("ZIP archive", &["zip"])
+                .blocking_save_file()
+        }
+    })
+    .await
+    {
+        Ok(selected) => selected,
+        Err(_) => {
+            return ArchiveSaveResult::Failure(ArchiveSaveFailure {
+                ok: false,
+                canceled: false,
+                error: "archive save dialog failed".into(),
+            });
+        }
+    };
+
+    let Some(selected) = selected else {
+        return ArchiveSaveResult::Canceled(ArchiveSaveCanceled {
+            ok: false,
+            canceled: true,
+        });
+    };
+
+    let write_result = tauri::async_runtime::spawn_blocking(move || {
+        let mut options = PluginOpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        let mut file = app
+            .fs()
+            .open(selected, options)
+            .map_err(|_| "could not create the selected archive".to_string())?;
+        file.write_all(&bytes)
+            .map_err(|_| "could not write the selected archive".to_string())?;
+        file.flush()
+            .map_err(|_| "could not flush the selected archive".to_string())?;
+        file.sync_all()
+            .map_err(|_| "could not finalize the selected archive".to_string())
+    })
+    .await;
+
+    match write_result {
+        Ok(Ok(())) => ArchiveSaveResult::Success(ArchiveSaveSuccess { ok: true }),
+        Ok(Err(error)) => ArchiveSaveResult::Failure(ArchiveSaveFailure {
+            ok: false,
+            canceled: false,
+            error,
+        }),
+        Err(_) => ArchiveSaveResult::Failure(ArchiveSaveFailure {
+            ok: false,
+            canceled: false,
+            error: "archive save worker failed".into(),
+        }),
+    }
 }
 
 #[tauri::command]
@@ -2086,25 +2300,25 @@ pub async fn material_resolve_url_meta(url: String) -> UrlMetadataResult {
 }
 
 #[tauri::command]
-pub fn asset_cache_get_path(
+pub fn asset_store_get_path(
     app: AppHandle,
     project_id: String,
     asset_id: String,
     variant: AssetVariant,
     ext: String,
-) -> AssetCachePathResult {
-    let path = match asset_cache_path(&app, &project_id, &asset_id, variant, &ext) {
+) -> AssetStorePathResult {
+    let path = match asset_store_path(&app, &project_id, &asset_id, variant, &ext) {
         Ok(path) => path,
-        Err(error) => return AssetCachePathResult::Failure(FailureResult::new(error)),
+        Err(error) => return AssetStorePathResult::Failure(FailureResult::new(error)),
     };
     let url = match file_url(&path) {
         Ok(url) => url,
-        Err(error) => return AssetCachePathResult::Failure(FailureResult::new(error)),
+        Err(error) => return AssetStorePathResult::Failure(FailureResult::new(error)),
     };
     let metadata = fs::metadata(&path)
         .ok()
         .filter(|metadata| metadata.is_file());
-    AssetCachePathResult::Success(AssetCachePathSuccess {
+    AssetStorePathResult::Success(AssetStorePathSuccess {
         ok: true,
         file_path: path_string(&path),
         file_url: url,
@@ -2113,8 +2327,11 @@ pub fn asset_cache_get_path(
     })
 }
 
-fn cache_write_success(path: &Path, size_bytes: u64) -> Result<AssetCacheWriteSuccess, String> {
-    Ok(AssetCacheWriteSuccess {
+fn asset_store_write_success(
+    path: &Path,
+    size_bytes: u64,
+) -> Result<AssetStoreWriteSuccess, String> {
+    Ok(AssetStoreWriteSuccess {
         ok: true,
         file_path: path_string(path),
         file_url: file_url(path)?,
@@ -2123,22 +2340,22 @@ fn cache_write_success(path: &Path, size_bytes: u64) -> Result<AssetCacheWriteSu
 }
 
 #[tauri::command]
-pub async fn asset_cache_write_bytes(
+pub async fn asset_store_write_bytes(
     app: AppHandle,
     project_id: String,
     asset_id: String,
     variant: AssetVariant,
     ext: String,
     bytes: Vec<u8>,
-) -> AssetCacheWriteResult {
+) -> AssetStoreWriteResult {
     if bytes.len() as u64 > MATERIAL_FILE_LIMIT {
-        return AssetCacheWriteResult::Failure(FailureResult::new(
-            "asset exceeds cache write limit (>64 MiB)",
+        return AssetStoreWriteResult::Failure(FailureResult::new(
+            "asset exceeds store write limit (>64 MiB)",
         ));
     }
-    let path = match asset_cache_path(&app, &project_id, &asset_id, variant, &ext) {
+    let path = match asset_store_path(&app, &project_id, &asset_id, variant, &ext) {
         Ok(path) => path,
-        Err(error) => return AssetCacheWriteResult::Failure(FailureResult::new(error)),
+        Err(error) => return AssetStoreWriteResult::Failure(FailureResult::new(error)),
     };
     let size_bytes = bytes.len() as u64;
     let write = tauri::async_runtime::spawn_blocking({
@@ -2147,211 +2364,70 @@ pub async fn asset_cache_write_bytes(
     })
     .await;
     match write {
-        Ok(Ok(())) => match cache_write_success(&path, size_bytes) {
-            Ok(success) => AssetCacheWriteResult::Success(success),
-            Err(error) => AssetCacheWriteResult::Failure(FailureResult::new(error)),
+        Ok(Ok(())) => match asset_store_write_success(&path, size_bytes) {
+            Ok(success) => AssetStoreWriteResult::Success(success),
+            Err(error) => AssetStoreWriteResult::Failure(FailureResult::new(error)),
         },
-        _ => AssetCacheWriteResult::Failure(FailureResult::new("could not write cached asset")),
+        _ => AssetStoreWriteResult::Failure(FailureResult::new("could not write stored asset")),
     }
 }
 
 #[tauri::command]
-pub async fn asset_cache_copy_file(
+pub async fn asset_store_copy_file(
     app: AppHandle,
     project_id: String,
     asset_id: String,
     variant: AssetVariant,
     ext: String,
     source_path: String,
-) -> AssetCacheWriteResult {
-    let path = match asset_cache_path(&app, &project_id, &asset_id, variant, &ext) {
+) -> AssetStoreWriteResult {
+    let path = match asset_store_path(&app, &project_id, &asset_id, variant, &ext) {
         Ok(path) => path,
-        Err(error) => return AssetCacheWriteResult::Failure(FailureResult::new(error)),
+        Err(error) => return AssetStoreWriteResult::Failure(FailureResult::new(error)),
     };
     let source = match validate_app_owned_material_file(&app, &source_path) {
         Ok(source) => source,
-        Err(error) => return AssetCacheWriteResult::Failure(FailureResult::new(error)),
+        Err(error) => return AssetStoreWriteResult::Failure(FailureResult::new(error)),
     };
     let copy = tauri::async_runtime::spawn_blocking({
         let path = path.clone();
-        move || atomic_copy_capped(&source, &path, ASSET_TRANSFER_LIMIT)
+        move || atomic_copy_capped(&source, &path, LOCAL_ASSET_FILE_LIMIT)
     })
     .await;
     match copy {
-        Ok(Ok(size_bytes)) => match cache_write_success(&path, size_bytes) {
-            Ok(success) => AssetCacheWriteResult::Success(success),
-            Err(error) => AssetCacheWriteResult::Failure(FailureResult::new(error)),
+        Ok(Ok(size_bytes)) => match asset_store_write_success(&path, size_bytes) {
+            Ok(success) => AssetStoreWriteResult::Success(success),
+            Err(error) => AssetStoreWriteResult::Failure(FailureResult::new(error)),
         },
         Ok(Err(error)) if error.kind() == io::ErrorKind::InvalidData => {
-            AssetCacheWriteResult::Failure(FailureResult::new(
+            AssetStoreWriteResult::Failure(FailureResult::new(
                 "source file is too large (>512 MiB)",
             ))
         }
-        _ => AssetCacheWriteResult::Failure(FailureResult::new("could not copy cached asset")),
+        _ => AssetStoreWriteResult::Failure(FailureResult::new("could not copy stored asset")),
     }
 }
 
 #[tauri::command]
-pub async fn asset_cache_upload_file(
-    app: AppHandle,
-    url: String,
-    project_id: String,
-    asset_id: String,
-    variant: AssetVariant,
-    ext: String,
-    content_type: String,
-) -> AssetCacheUploadResult {
-    let parsed_url = match parse_asset_transfer_url(&url, MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS) {
-        Ok(url) => url,
-        Err(_) => {
-            return AssetCacheUploadResult::Failure(FailureResult::new("invalid upload URL"));
-        }
-    };
-    if content_type.is_empty() || content_type.len() > 256 {
-        return AssetCacheUploadResult::Failure(FailureResult::new("invalid content type"));
-    }
-    let content_type = match HeaderValue::from_str(&content_type) {
-        Ok(value) => value,
-        Err(_) => {
-            return AssetCacheUploadResult::Failure(FailureResult::new("invalid content type"));
-        }
-    };
-    let path = match asset_cache_path(&app, &project_id, &asset_id, variant, &ext) {
-        Ok(path) => path,
-        Err(error) => return AssetCacheUploadResult::Failure(FailureResult::new(error)),
-    };
-    let metadata = match tokio::fs::metadata(&path).await {
-        Ok(metadata) if metadata.is_file() && metadata.len() <= ASSET_TRANSFER_LIMIT => metadata,
-        Ok(metadata) if metadata.len() > ASSET_TRANSFER_LIMIT => {
-            return AssetCacheUploadResult::Failure(FailureResult::new(
-                "cached asset is too large (>512 MiB)",
-            ));
-        }
-        _ => {
-            return AssetCacheUploadResult::Failure(FailureResult::new(
-                "could not read cached asset",
-            ));
-        }
-    };
-    let size_bytes = metadata.len();
-    let file = match tokio::fs::File::open(&path).await {
-        Ok(file) => file,
-        Err(_) => {
-            return AssetCacheUploadResult::Failure(FailureResult::new(
-                "could not read cached asset",
-            ));
-        }
-    };
-    let body = reqwest::Body::wrap_stream(ReaderStream::new(file));
-    let client = match asset_transfer_http_client() {
-        Ok(client) => client,
-        Err(error) => return AssetCacheUploadResult::Failure(FailureResult::new(error)),
-    };
-    let response = match client
-        .put(parsed_url)
-        .header(CONTENT_TYPE, content_type)
-        .header(CONTENT_LENGTH, size_bytes)
-        .body(body)
-        .send()
-        .await
-    {
-        Ok(response) => response,
-        Err(_) => {
-            return AssetCacheUploadResult::Failure(FailureResult::new("asset upload failed"));
-        }
-    };
-    if let Err(error) = validate_response_headers(response.headers()) {
-        return AssetCacheUploadResult::Failure(FailureResult::new(error));
-    }
-    if !response.status().is_success() {
-        return AssetCacheUploadResult::Failure(FailureResult::new(format!(
-            "HTTP {}",
-            response.status().as_u16()
-        )));
-    }
-    AssetCacheUploadResult::Success(AssetCacheUploadSuccess {
-        ok: true,
-        size_bytes,
-    })
-}
-
-#[tauri::command]
-pub async fn asset_cache_download(
-    app: AppHandle,
-    url: String,
-    project_id: String,
-    asset_id: String,
-    variant: AssetVariant,
-    ext: String,
-) -> AssetCacheWriteResult {
-    let parsed_url = match parse_asset_transfer_url(&url, MAX_ASSET_DOWNLOAD_SIGNATURE_TTL_SECONDS)
-    {
-        Ok(url) => url,
-        Err(_) => {
-            return AssetCacheWriteResult::Failure(FailureResult::new("invalid download URL"))
-        }
-    };
-    let path = match asset_cache_path(&app, &project_id, &asset_id, variant, &ext) {
-        Ok(path) => path,
-        Err(error) => return AssetCacheWriteResult::Failure(FailureResult::new(error)),
-    };
-    let client = match asset_transfer_http_client() {
-        Ok(client) => client,
-        Err(error) => return AssetCacheWriteResult::Failure(FailureResult::new(error)),
-    };
-    let response = match client.get(parsed_url).send().await {
-        Ok(response) => response,
-        Err(_) => {
-            return AssetCacheWriteResult::Failure(FailureResult::new("asset download failed"))
-        }
-    };
-    if let Err(error) = validate_response_headers(response.headers()) {
-        return AssetCacheWriteResult::Failure(FailureResult::new(error));
-    }
-    if !response.status().is_success() {
-        return AssetCacheWriteResult::Failure(FailureResult::new(format!(
-            "HTTP {}",
-            response.status().as_u16()
-        )));
-    }
-    match download_response_atomically(response, &path, ASSET_TRANSFER_LIMIT).await {
-        Ok(size_bytes) => match cache_write_success(&path, size_bytes) {
-            Ok(success) => AssetCacheWriteResult::Success(success),
-            Err(error) => AssetCacheWriteResult::Failure(FailureResult::new(error)),
-        },
-        Err(error) if error.kind() == io::ErrorKind::InvalidData => AssetCacheWriteResult::Failure(
-            FailureResult::new("asset exceeds download limit (>512 MiB)"),
-        ),
-        Err(_) => {
-            AssetCacheWriteResult::Failure(FailureResult::new("could not write downloaded asset"))
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn asset_cache_delete_asset(
+pub async fn asset_store_delete_asset(
     app: AppHandle,
     project_id: String,
     asset_id: String,
-) -> AssetCacheDeleteResult {
-    let path = match asset_cache_asset_dir(&app, &project_id, &asset_id) {
+) -> AssetStoreDeleteResult {
+    let root = match app_local_dir(&app, "assets") {
         Ok(path) => path,
-        Err(error) => return AssetCacheDeleteResult::Failure(FailureResult::new(error)),
+        Err(error) => return AssetStoreDeleteResult::Failure(FailureResult::new(error)),
+    };
+    let path = match asset_store_asset_dir(&app, &project_id, &asset_id) {
+        Ok(path) => path,
+        Err(error) => return AssetStoreDeleteResult::Failure(FailureResult::new(error)),
     };
     let deletion =
-        tauri::async_runtime::spawn_blocking(move || match fs::symlink_metadata(&path) {
-            Ok(metadata) if metadata.file_type().is_symlink() => Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "refusing to delete a symlinked cache directory",
-            )),
-            Ok(_) => fs::remove_dir_all(path),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(error),
-        })
-        .await;
+        tauri::async_runtime::spawn_blocking(move || durable_delete_asset_directory(&root, &path))
+            .await;
     match deletion {
-        Ok(Ok(())) => AssetCacheDeleteResult::Success(AssetCacheDeleteSuccess { ok: true }),
-        _ => AssetCacheDeleteResult::Failure(FailureResult::new("could not delete cached asset")),
+        Ok(Ok(())) => AssetStoreDeleteResult::Success(AssetStoreDeleteSuccess { ok: true }),
+        _ => AssetStoreDeleteResult::Failure(FailureResult::new("could not delete stored asset")),
     }
 }
 
@@ -2437,20 +2513,30 @@ mod tests {
     }
 
     #[test]
-    fn cache_segments_and_extensions_cannot_escape_the_cache_root() {
+    fn archive_filename_is_a_single_bounded_zip_segment() {
+        assert!(validate_archive_filename("drifting-all-books-markdown-2026-08-14.zip").is_ok());
+        assert!(validate_archive_filename("../manuscript.zip").is_err());
+        assert!(validate_archive_filename("folder/manuscript.zip").is_err());
+        assert!(validate_archive_filename("manuscript.txt").is_err());
+        assert!(validate_archive_filename(".zip").is_err());
+        assert!(validate_archive_filename(&format!("{}.zip", "a".repeat(160))).is_err());
+    }
+
+    #[test]
+    fn asset_segments_and_extensions_cannot_escape_the_store_root() {
         assert_eq!(
-            safe_cache_segment("project/../../asset").unwrap(),
+            safe_asset_segment("project/../../asset").unwrap(),
             "project_.._.._asset"
         );
-        assert_eq!(safe_cache_segment(".hidden").unwrap(), "_.hidden");
-        assert!(safe_cache_segment("..").is_err());
-        assert!(safe_cache_segment("  ").is_err());
-        assert_eq!(safe_cache_extension(".JpG").unwrap(), "jpg");
-        assert!(safe_cache_extension("../jpg").is_err());
-        assert!(safe_cache_extension("svg+xml").is_err());
+        assert_eq!(safe_asset_segment(".hidden").unwrap(), "_.hidden");
+        assert!(safe_asset_segment("..").is_err());
+        assert!(safe_asset_segment("  ").is_err());
+        assert_eq!(safe_asset_extension(".JpG").unwrap(), "jpg");
+        assert!(safe_asset_extension("../jpg").is_err());
+        assert!(safe_asset_extension("svg+xml").is_err());
 
-        let root = Path::new("/tmp/cache-root");
-        let path = asset_cache_path_from_root(
+        let root = Path::new("/tmp/asset-store-root");
+        let path = asset_store_path_from_root(
             root,
             "project/../../asset",
             "asset/../../../id",
@@ -2463,13 +2549,13 @@ mod tests {
     }
 
     #[test]
-    fn cache_paths_are_stable_and_variant_specific() {
-        let root = Path::new("/tmp/cache-root");
+    fn asset_store_paths_are_stable_and_variant_specific() {
+        let root = Path::new("/tmp/asset-store-root");
         let source =
-            asset_cache_path_from_root(root, "project-a", "asset-a", AssetVariant::Source, "PNG")
+            asset_store_path_from_root(root, "project-a", "asset-a", AssetVariant::Source, "PNG")
                 .unwrap();
         let display =
-            asset_cache_path_from_root(root, "project-a", "asset-a", AssetVariant::Display, "png")
+            asset_store_path_from_root(root, "project-a", "asset-a", AssetVariant::Display, "png")
                 .unwrap();
         assert_eq!(
             source,
@@ -2486,27 +2572,27 @@ mod tests {
     fn app_owned_file_validation_accepts_only_files_below_allowed_roots() {
         let directory = test_directory("app-owned-files");
         let imports = directory.join("imports");
-        let cache = directory.join("asset-cache");
+        let assets = directory.join("assets");
         let outside = directory.join("outside");
         fs::create_dir_all(&imports).unwrap();
-        fs::create_dir_all(&cache).unwrap();
+        fs::create_dir_all(&assets).unwrap();
         fs::create_dir_all(&outside).unwrap();
         let imported_file = imports.join("chapter.pdf");
-        let cached_file = cache.join("project").join("asset").join("source.png");
+        let stored_file = assets.join("project").join("asset").join("source.png");
         let outside_file = outside.join("secret.txt");
         fs::write(&imported_file, b"pdf").unwrap();
-        fs::create_dir_all(cached_file.parent().unwrap()).unwrap();
-        fs::write(&cached_file, b"png").unwrap();
+        fs::create_dir_all(stored_file.parent().unwrap()).unwrap();
+        fs::write(&stored_file, b"png").unwrap();
         fs::write(&outside_file, b"secret").unwrap();
 
-        let roots = [imports.clone(), cache.clone()];
+        let roots = [imports.clone(), assets.clone()];
         assert_eq!(
             validate_app_owned_file_from_roots(&imported_file, &roots).unwrap(),
             fs::canonicalize(&imported_file).unwrap()
         );
         assert_eq!(
-            validate_app_owned_file_from_roots(&cached_file, &roots).unwrap(),
-            fs::canonicalize(&cached_file).unwrap()
+            validate_app_owned_file_from_roots(&stored_file, &roots).unwrap(),
+            fs::canonicalize(&stored_file).unwrap()
         );
         assert!(validate_app_owned_file_from_roots(&outside_file, &roots).is_err());
         assert!(validate_app_owned_file_from_roots(Path::new("relative.txt"), &roots).is_err());
@@ -2518,22 +2604,22 @@ mod tests {
     fn import_cleanup_is_idempotent_and_confined_to_direct_import_files() {
         let directory = test_directory("import-cleanup");
         let imports = directory.join("imports");
-        let cache = directory.join("asset-cache");
+        let assets = directory.join("assets");
         fs::create_dir_all(&imports).unwrap();
-        fs::create_dir_all(&cache).unwrap();
+        fs::create_dir_all(&assets).unwrap();
 
         let imported_file = imports.join("picked.pdf");
-        let cached_file = cache.join("source.pdf");
+        let stored_file = assets.join("source.pdf");
         let nested_directory = imports.join("nested");
         fs::write(&imported_file, b"pdf").unwrap();
-        fs::write(&cached_file, b"cache").unwrap();
+        fs::write(&stored_file, b"asset").unwrap();
         fs::create_dir_all(&nested_directory).unwrap();
 
         delete_import_file_from_root(&imports, &imported_file).unwrap();
         assert!(!imported_file.exists());
         delete_import_file_from_root(&imports, &imported_file).unwrap();
-        assert!(delete_import_file_from_root(&imports, &cached_file).is_err());
-        assert!(cached_file.exists());
+        assert!(delete_import_file_from_root(&imports, &stored_file).is_err());
+        assert!(stored_file.exists());
         assert!(delete_import_file_from_root(&imports, &nested_directory).is_err());
         assert!(delete_import_file_from_root(&imports, Path::new("relative.pdf")).is_err());
 
@@ -2602,23 +2688,23 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn cache_access_rejects_symlinked_project_directories() {
+    fn asset_store_access_rejects_symlinked_project_directories() {
         use std::os::unix::fs::symlink;
 
-        let directory = test_directory("symlink-cache");
-        let root = directory.join("cache");
+        let directory = test_directory("symlink-asset-store");
+        let root = directory.join("assets");
         let outside = directory.join("outside");
         fs::create_dir_all(&root).unwrap();
         fs::create_dir_all(&outside).unwrap();
         symlink(&outside, root.join("project-a")).unwrap();
 
-        assert!(reject_symlinked_cache_path(&root, "project-a", "asset-a", None).is_err());
+        assert!(reject_symlinked_asset_path(&root, "project-a", "asset-a", None).is_err());
         assert!(outside.exists());
         fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
-    fn atomic_cache_write_replaces_content_and_leaves_no_partial_file() {
+    fn atomic_asset_write_replaces_content_and_leaves_no_partial_file() {
         let directory = test_directory("atomic-write");
         let path = directory.join("project").join("asset").join("source.bin");
         atomic_write(&path, b"first").unwrap();
@@ -2630,6 +2716,150 @@ mod tests {
             .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
             .collect::<Vec<_>>();
         assert_eq!(siblings, vec!["source.bin"]);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn atomic_asset_write_reports_a_parent_barrier_failure_after_the_rename() {
+        let directory = test_directory("atomic-write-barrier-failure");
+        let path = directory.join("project").join("asset").join("source.bin");
+        let barrier_called = std::cell::Cell::new(false);
+
+        let error = atomic_write_with_commit(&path, b"durable bytes", |temporary, destination| {
+            rename_then_sync_parent(
+                temporary,
+                destination,
+                |source, target| fs::rename(source, target),
+                |parent| {
+                    barrier_called.set(true);
+                    assert_eq!(parent, destination.parent().unwrap());
+                    assert_eq!(fs::read(destination).unwrap(), b"durable bytes");
+                    assert!(!temporary.exists());
+                    Err(io::Error::other("injected parent barrier failure"))
+                },
+            )
+        })
+        .unwrap_err();
+
+        assert!(barrier_called.get());
+        assert_eq!(error.to_string(), "injected parent barrier failure");
+        assert_eq!(fs::read(&path).unwrap(), b"durable bytes");
+        let siblings = fs::read_dir(path.parent().unwrap())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(siblings, vec!["source.bin"]);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn atomic_asset_copy_cleans_its_temporary_file_when_commit_fails() {
+        let directory = test_directory("atomic-copy-commit-failure");
+        let source = directory.join("input.bin");
+        let path = directory.join("project").join("asset").join("source.bin");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(&source, b"copy bytes").unwrap();
+
+        let error = atomic_copy_capped_with_commit(
+            &source,
+            &path,
+            LOCAL_ASSET_FILE_LIMIT,
+            |_temporary, _destination| Err(io::Error::other("injected commit failure")),
+        )
+        .unwrap_err();
+
+        assert_eq!(error.to_string(), "injected commit failure");
+        assert!(!path.exists());
+        let entries = fs::read_dir(path.parent().unwrap())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert!(entries.is_empty());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn atomic_asset_copy_commits_bytes_without_leaving_a_partial_file() {
+        let directory = test_directory("atomic-copy-success");
+        let source = directory.join("input.bin");
+        let path = directory.join("project").join("asset").join("source.bin");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(&source, b"copy bytes").unwrap();
+
+        let copied = atomic_copy_capped(&source, &path, LOCAL_ASSET_FILE_LIMIT).unwrap();
+
+        assert_eq!(copied, 10);
+        assert_eq!(fs::read(&path).unwrap(), b"copy bytes");
+        let entries = fs::read_dir(path.parent().unwrap())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(entries, vec!["source.bin"]);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn asset_delete_syncs_project_then_root_and_removes_empty_directories() {
+        let directory = test_directory("asset-delete-durability");
+        let root = directory.join("assets");
+        let project = root.join("project-a");
+        let asset = project.join("asset-a");
+        fs::create_dir_all(&asset).unwrap();
+        fs::write(asset.join("source.bin"), b"asset").unwrap();
+        let mut barriers = Vec::new();
+
+        durable_delete_asset_directory_with_sync(&root, &asset, |path| {
+            barriers.push(path.to_path_buf());
+            sync_directory(path)
+        })
+        .unwrap();
+
+        assert_eq!(barriers, vec![project.clone(), root.clone()]);
+        assert!(!asset.exists());
+        assert!(!project.exists());
+        assert!(root.is_dir());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn asset_delete_fails_closed_when_the_project_barrier_fails() {
+        let directory = test_directory("asset-delete-barrier-failure");
+        let root = directory.join("assets");
+        let project = root.join("project-a");
+        let asset = project.join("asset-a");
+        fs::create_dir_all(&asset).unwrap();
+        fs::write(asset.join("source.bin"), b"asset").unwrap();
+
+        let error = durable_delete_asset_directory_with_sync(&root, &asset, |path| {
+            assert_eq!(path, project);
+            Err(io::Error::other("injected delete barrier failure"))
+        })
+        .unwrap_err();
+
+        assert_eq!(error.to_string(), "injected delete barrier failure");
+        assert!(!asset.exists());
+        assert!(project.is_dir());
+        assert!(root.is_dir());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn asset_delete_rejects_paths_outside_the_managed_root() {
+        let directory = test_directory("asset-delete-confinement");
+        let root = directory.join("assets");
+        let outside = directory.join("outside").join("asset-a");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("keep.bin"), b"keep").unwrap();
+
+        let error =
+            durable_delete_asset_directory_with_sync(&root, &outside, |_| Ok(())).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+        assert_eq!(fs::read(outside.join("keep.bin")).unwrap(), b"keep");
         fs::remove_dir_all(directory).unwrap();
     }
 
@@ -2689,46 +2919,6 @@ mod tests {
         assert!(parse_http_url("https://8.8.8.8").is_ok());
         assert!(parse_http_url("https://[2606:4700:4700::1111]").is_err());
         assert!(parse_http_url("https://[64:ff9b::808:808]").is_ok());
-    }
-
-    #[test]
-    fn asset_transfers_only_accept_short_lived_r2_signatures() {
-        let signed = "https://bucket.account.r2.cloudflarestorage.com/assets/source.jpg?\
-            X-Amz-Algorithm=AWS4-HMAC-SHA256&\
-            X-Amz-Credential=credential&\
-            X-Amz-Date=20260721T160000Z&\
-            X-Amz-Expires=300&\
-            X-Amz-SignedHeaders=content-type%3Bhost&\
-            X-Amz-Signature=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        assert!(parse_asset_transfer_url(signed, MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS).is_ok());
-        assert!(parse_asset_transfer_url(
-            &signed.replace("X-Amz-Expires=300", "X-Amz-Expires=301"),
-            MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS,
-        )
-        .is_err());
-        assert!(parse_asset_transfer_url(
-            &signed.replace("bucket.account.r2.cloudflarestorage.com", "localhost"),
-            MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS,
-        )
-        .is_err());
-        assert!(parse_asset_transfer_url(
-            &signed.replace(
-                "bucket.account.r2.cloudflarestorage.com",
-                "r2.cloudflarestorage.com.evil.example"
-            ),
-            MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS
-        )
-        .is_err());
-        assert!(parse_asset_transfer_url(
-            &signed.replace("https://", "http://"),
-            MAX_ASSET_UPLOAD_SIGNATURE_TTL_SECONDS,
-        )
-        .is_err());
-
-        let download = signed.replace("X-Amz-Expires=300", "X-Amz-Expires=3600");
-        assert!(
-            parse_asset_transfer_url(&download, MAX_ASSET_DOWNLOAD_SIGNATURE_TTL_SECONDS).is_ok()
-        );
     }
 
     #[test]
@@ -2864,13 +3054,10 @@ mod tests {
     }
 
     #[test]
-    fn metadata_and_asset_transfer_clients_build_with_distinct_timeout_policies() {
+    fn metadata_client_uses_bounded_timeouts() {
         assert_eq!(HTTP_CONNECT_TIMEOUT, Duration::from_secs(5));
         assert_eq!(URL_METADATA_TOTAL_TIMEOUT, Duration::from_secs(8));
-        assert_eq!(ASSET_TRANSFER_READ_TIMEOUT, Duration::from_secs(30));
-        assert_eq!(ASSET_TRANSFER_TOTAL_TIMEOUT, Duration::from_secs(1_200));
         assert!(url_metadata_http_client().is_ok());
-        assert!(asset_transfer_http_client().is_ok());
     }
 
     #[test]

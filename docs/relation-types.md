@@ -1,9 +1,8 @@
 # Project relation types
 
-Drifting relations use project-scoped type definitions. A definition owns its
-name, description, orientation, endpoint roles, and allowed entity kinds. The
-relation row keeps `kind` as a readable compatibility projection and stores the
-definition identity in `relation_type_id`.
+Drifting relations use one project-scoped, first-class semantic owner.
+`entity_relation.relation_type_id` is required; relation rows do not copy a
+name or keep a free-text `kind` mirror.
 
 ## Semantic contract
 
@@ -13,50 +12,61 @@ definition identity in `relation_type_id`.
 - `symmetric`: both sides share one role and the same structural entity kinds.
   New edges use a deterministic endpoint order so retries and cross-device
   hydration agree.
-- `unconfigured`: migration-only compatibility state for an existing
-  free-text label. Existing relations remain readable and syncable, but new
-  desktop or Agent writes cannot choose it until the author configures it.
+- Every authored type has `systemKey = null` and `locked = false`. Renaming
+  it changes only the definition; every relation continues to reference the
+  same id without row rewrites or extra sync operations.
+- Changing endpoint rules validates every relation already using the type. A
+  type with live relations cannot be deleted.
 
-Changing a definition validates every relation that already uses it. Converting
-to symmetric fails if an existing edge first needs its endpoints swapped. A
-type with live relations cannot be deleted.
+There is no nullable, unconfigured, or legacy-label state. Old payloads that
+contain relation `kind`, omit `relationTypeId`, reference an unknown or
+cross-project type, or contain invalid type system fields fail before
+hydration writes to SQLite.
+
+## Built-in generic association
+
+Each new project owns one deterministic `generic-association` type. TODO and
+library-item one-click links use this type through an explicit
+`addGenericAssociation` use case; the same type is created transactionally on
+first use if a current project was created without opening that surface.
+
+Its persisted id, name, description, roles, endpoint kinds, and
+`systemKey = "generic-association"` are locale-independent. UI and Markdown
+presentation may derive localized copy from `systemKey`; locale never changes
+the stored or synced payload. `locked = true` is an integrity boundary, not
+only a hidden button:
+
+- repository and Agent writes reject update/delete;
+- SQLite triggers reject field changes and endpoint mutation;
+- project deletion is still allowed to cascade through the type and endpoints.
 
 ## Persistence and sync
 
-- SQLite: `entity_relation_type` owns the definition and
-  `entity_relation_type_endpoint_kind` owns its ordered endpoint-kind sets.
-- Server: Postgres mirrors those tables and returns both definitions and child
-  rows in the project graph. Relation writes take a shared definition lock;
-  definition edits take an exclusive lock so a concurrent edge cannot pass
-  validation against stale endpoint rules.
-- Sync: the type parent is created before relation children during hydration;
-  rename updates keep the relation `kind` projection aligned. Offline pending
-  relations retain their referenced local type. A direction change sends the
-  complete endpoint tuple; the server revalidates project ownership and type
-  semantics before applying the swap atomically.
-- Legacy migration: one deterministic UTF-8 id is derived per
-  `(project, normalized label)`. Migration never flips or deletes an existing
-  relation.
+- `entity_relation_type` owns the definition;
+  `entity_relation_type_endpoint_kind` owns allowed endpoint-kind sets.
+- `entity_relation` has a composite foreign key from
+  `(relation_type_id, project_id)` to `(entity_relation_type.id,
+  entity_relation_type.project_id)`.
+- A unique index on project, endpoints, and relation type provides durable
+  idempotency for one semantic edge. Different relation types may still connect
+  the same endpoint pair.
+- Hydration inserts type parents and endpoint rows before relation children.
+  Offline pending relations retain their referenced local type.
+- Hosted Postgres and future SyncEngine providers exchange the same explicit
+  type definition and type-id relation payload. Object storage may store the
+  immutable operations, but it does not invent labels or repair old payloads.
 
 ## Product surfaces
 
-Desktop Story Graph, Element overview, and References select compatible
-configured definitions with a body-portaled fixed popover. The shared relation
-menu creates and edits definitions, shows project-wide usage counts, and guards
-deletion. Story Graph and Element overview also reuse the same definition editor
-inside their manual-link modal; a newly created compatible type is selected
-immediately, so the author can finish the relation without leaving the flow.
-In both graph surfaces, selecting an edge opens one shared body-portaled detail
-popover at the pointer. It shows the type, orientation, endpoint roles, entity
-kinds, authored endpoint names, optional description, and the delete action.
-Every directed edge renderer stops at the target-card boundary and draws an
-arrowhead; symmetric and migration-only `unconfigured` edges remain
-arrowless. This contract covers ordinary world edges, sticky/viewport edges,
-and edges connected to the floating inspiration drawer.
-General Agent exposes `list_relation_types`,
-`create_relation_type`, `update_relation_type`, and `delete_relation_type`;
-mutations use the normal project freshness, atomic outbox, immutable receipt,
-restart reconciliation, and exact inverse path.
+Desktop Story Graph, Element overview, References, TODO, and Library resolve
+labels, roles, descriptions, filters, and colors from the type id. Presentation
+metadata is keyed by type id, so authored rename never changes edge identity or
+color. The shared type editor offers compatible authored definitions and
+prevents editing/deleting the locked built-in type.
+
+General Agent lists, creates, updates, and deletes authored relation types and
+assigns relations by a resolved type id. Its durable receipts snapshot
+`relationTypeId`, never a copied label.
 
 The shared domain and sync implementation compiles for Tauri targets, but this
 does not certify an iOS or Android relation-management UI. Desktop visual review

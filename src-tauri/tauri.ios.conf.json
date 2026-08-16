@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "plugins": {
+    "deep-link": {
+      "mobile": [
+        {
+          "scheme": [
+            "drifting",
+            "$(DRIFTING_GOOGLE_IOS_REVERSED_CLIENT_ID)"
+          ],
+          "appLink": false
+        }
+      ]
+    }
+  }
+}

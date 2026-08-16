@@ -46,13 +46,13 @@ freshness, identity resolution, durable receipts and guarded inverse handling.
 
 ## Direct unavailable writes
 
-`add_relation`, `create_category`, `create_node`, `forget`, `link_chapter_to_storyline`, `remember`, `remove_relation`, `set_comment_kind`, `set_comment_status`, `set_entity_body`, `set_primary_storyline`, `set_summary`, `unlink_chapter_from_storyline`, `update_category`, `update_relation_kind`
+`add_relation`, `assign_relation_type`, `create_category`, `create_node`, `forget`, `link_chapter_to_storyline`, `remember`, `remove_relation`, `set_comment_kind`, `set_comment_status`, `set_entity_body`, `set_primary_storyline`, `set_summary`, `unlink_chapter_from_storyline`, `update_category`
 
 ## Domain tool surface
 
 Provider tools: `get_project_overview`, `get_project_facts`, `list_chapters`, `read_chapter`, `list_inspirations`, `read_inspiration`, `list_element_categories`, `read_element_category`, `list_elements`, `read_element`, `get_element_patches`, `find_element_appearances`, `list_storylines`, `read_storyline`, `list_relations`, `list_relation_types`, `list_entity_relations`, `list_comments`, `list_author_rules`, `list_materials`, `read_material`, `search_prose`, `search_project`, `create_chapter`, `rename_chapter`, `set_chapter_summary`, `revise_chapter`, `replace_chapter_body`, `delete_chapter`, `create_inspiration`, `rename_inspiration`, `set_inspiration_summary`, `revise_inspiration`, `replace_inspiration_body`, `delete_inspiration`, `create_element`, `update_element`, `revise_element`, `replace_element_body`, `delete_element`, `create_element_category`, `update_element_category`, `replace_element_category_body`, `delete_element_category`, `create_storyline`, `update_storyline`, `revise_storyline`, `replace_storyline_body`, `delete_storyline`, `add_chapter_to_storyline`, `remove_chapter_from_storyline`, `set_chapter_primary_storyline`, `replace_storyline_chapters`, `create_relation`, `update_relation`, `delete_relation`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `create_comment`, `update_comment`, `delete_comment`, `update_project_facts`, `create_author_rule`, `update_author_rule`, `delete_author_rule`, `create_element_patch`, `update_element_patch`, `delete_element_patch`
 
-Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, `update_element`, `update_storyline`, `update_project_facts`, `create_node`, `delete_node`, `create_element`, `delete_element`, `create_storyline`, `delete_storyline`, `create_category`, `update_category`, `delete_category`, `create_comment`, `update_comment`, `delete_comment`, `add_relation`, `update_relation_kind`, `remove_relation`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `set_storyline_membership`, `remember`, `update_memory`, `forget`, `create_element_patch`, `update_element_patch`, `delete_element_patch`
+Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, `update_element`, `update_storyline`, `update_project_facts`, `create_node`, `delete_node`, `create_element`, `delete_element`, `create_storyline`, `delete_storyline`, `create_category`, `update_category`, `delete_category`, `create_comment`, `update_comment`, `delete_comment`, `add_relation`, `assign_relation_type`, `remove_relation`, `create_relation_type`, `update_relation_type`, `delete_relation_type`, `set_storyline_membership`, `remember`, `update_memory`, `forget`, `create_element_patch`, `update_element_patch`, `delete_element_patch`
 
 ## Domain CRUD closure
 
@@ -172,7 +172,7 @@ Hidden domain operations: `edit_prose_file`, `rename_node`, `set_node_summary`, 
 - Lifecycle: `turn-start-read-and-pre-final-importance-checkpoint`
 - Compaction: `soft-6000-hard-8000-oldest-first-retirement`
 - Concurrency: `sqlite-revision-cas`
-- Sync: `atomic-local-row-plus-outbox`
+- Sync: `device-local-excluded-from-sync`
 
 ## Context engineering contract
 

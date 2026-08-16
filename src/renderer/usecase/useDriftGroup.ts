@@ -20,9 +20,21 @@ import { v7 as uuidv7 } from 'uuid';
 import { useDataStore } from '../store/data-store';
 import { createDriftGroupRepository } from '../sqlite-repo/drift-group-repo';
 import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
-import { canMoveGroupUnder, isDescendantGroup, type DriftGroup } from '../domain/drift-group';
+import {
+  canMoveGroupUnder,
+  compareDriftGroups,
+  isDescendantGroup,
+  type DriftGroup,
+} from '../domain/drift-group';
 import { withAtomicSyncTransaction } from './sync-helpers';
 import loglevel from 'loglevel';
+import { appendPlannedAuthoredOrderInTransaction } from '../sync/journal';
+import {
+  appendAuthoredOrderRebalance,
+  authoredOrderRebalanceEntries,
+  driftGroupOrderScope,
+  entityIdsByNumericPlacement,
+} from '../sync/journal/order-authority';
 
 const log = loglevel.getLogger('useDriftGroup');
 log.setLevel(loglevel.levels.WARN);
@@ -52,31 +64,68 @@ export interface UpdateDriftGroupInput {
   sortOrder?: number | null;
 }
 
+function nextSiblingSortOrder(
+  groups: readonly DriftGroup[],
+  parentGroupId: string | null,
+  excludedIds: ReadonlySet<string> = new Set(),
+): number {
+  const positions = groups
+    .filter(
+      (group) =>
+        !excludedIds.has(group.id) &&
+        group.parentGroupId === parentGroupId &&
+        typeof group.sortOrder === 'number' &&
+        Number.isFinite(group.sortOrder),
+    )
+    .map((group) => group.sortOrder as number);
+  if (positions.length === 0) return 0;
+  const maximum = Math.max(...positions);
+  const next = maximum + 1;
+  if (!Number.isFinite(next) || next === maximum) {
+    throw new Error('Drift-group order space is exhausted; an explicit rebalance is required.');
+  }
+  return next;
+}
+
 export function useDriftGroup({ projectId }: UseDriftGroupContext) {
   const createGroup = useCallback(
     async (input: CreateDriftGroupInput = {}): Promise<DriftGroup | null> => {
       if (!projectId) return null;
       const now = new Date().toISOString();
+      const parentGroupId = input.parentGroupId ?? null;
+      const existingGroups = useDataStore.getState().driftGroups;
       const group: DriftGroup = {
         id: uuidv7(),
         projectId,
         name: input.name?.trim() || DEFAULT_DRIFT_GROUP_NAME,
-        parentGroupId: input.parentGroupId ?? null,
+        parentGroupId,
         color: null,
-        sortOrder: null,
+        sortOrder: nextSiblingSortOrder(existingGroups, parentGroupId),
         createdAt: now,
         updatedAt: now,
       };
-      await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+      await withAtomicSyncTransaction(projectId, async (tx, sync, changes) => {
         await createDriftGroupRepository(projectId, tx).create(group);
         await sync('driftGroup', 'create', group.id, projectId, {
           id: group.id,
           name: group.name,
           parentGroupId: group.parentGroupId,
           color: group.color,
-          sortOrder: group.sortOrder,
           createdAt: group.createdAt,
           updatedAt: group.updatedAt,
+        });
+        await appendPlannedAuthoredOrderInTransaction(tx, changes, {
+          projectId,
+          listKind: 'drift-group',
+          scope: driftGroupOrderScope(projectId, group.parentGroupId),
+          desiredEntityIds: entityIdsByNumericPlacement(
+            [...existingGroups, group]
+              .filter((entry) => entry.parentGroupId === group.parentGroupId)
+              .map((entry) => ({
+                entityId: entry.id,
+                projection: entry.sortOrder ?? 0,
+              })),
+          ),
         });
       });
       useDataStore.getState().addDriftGroup(group);
@@ -87,14 +136,65 @@ export function useDriftGroup({ projectId }: UseDriftGroupContext) {
 
   const updateGroup = useCallback(
     async (id: string, input: UpdateDriftGroupInput): Promise<DriftGroup | null> => {
+      const groups = useDataStore.getState().driftGroups;
+      const existing = groups.find((group) => group.id === id);
+      if (!existing) return null;
+      if (input.sortOrder === null) {
+        throw new Error('Drift-group sortOrder must be a finite authored position.');
+      }
+      const nextParentGroupId =
+        input.parentGroupId === undefined
+          ? existing.parentGroupId
+          : input.parentGroupId;
+      const requestedSortOrder =
+        typeof input.sortOrder === 'number'
+          ? input.sortOrder
+          : input.parentGroupId !== undefined && input.parentGroupId !== existing.parentGroupId
+            ? nextSiblingSortOrder(groups, nextParentGroupId, new Set([id]))
+            : undefined;
+      const normalizedInput = {
+        ...input,
+        ...(requestedSortOrder !== undefined
+          ? { sortOrder: requestedSortOrder }
+          : {}),
+      };
       const updatedAt = new Date().toISOString();
-      const updated = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+      const updated = await withAtomicSyncTransaction(projectId, async (tx, sync, changes) => {
         const result = await createDriftGroupRepository(projectId, tx).update(id, {
-          ...input,
+          ...normalizedInput,
           updatedAt,
         });
         if (result) {
-          await sync('driftGroup', 'update', id, projectId, { ...input, updatedAt });
+          const syncPayload: Record<string, unknown> = { ...normalizedInput, updatedAt };
+          delete syncPayload.sortOrder;
+          if (Object.keys(syncPayload).length > 1) {
+            await sync('driftGroup', 'update', id, projectId, syncPayload);
+          }
+          if (requestedSortOrder !== undefined) {
+            const desiredEntityIds = entityIdsByNumericPlacement(
+              groups
+                .map((entry) =>
+                  entry.id === id
+                    ? {
+                        ...entry,
+                        parentGroupId: nextParentGroupId,
+                        sortOrder: requestedSortOrder,
+                      }
+                    : entry,
+                )
+                .filter((entry) => entry.parentGroupId === nextParentGroupId)
+                .map((entry) => ({
+                  entityId: entry.id,
+                  projection: entry.sortOrder ?? 0,
+                })),
+            );
+            await appendPlannedAuthoredOrderInTransaction(tx, changes, {
+              projectId,
+              listKind: 'drift-group',
+              scope: driftGroupOrderScope(projectId, nextParentGroupId),
+              desiredEntityIds,
+            });
+          }
         }
         return result;
       });
@@ -141,18 +241,45 @@ export function useDriftGroup({ projectId }: UseDriftGroupContext) {
       const newParent = target.parentGroupId; // children rise to here
       const now = new Date().toISOString();
 
-      const childGroups = store.driftGroups.filter((g) => g.parentGroupId === id);
+      const childGroups = store.driftGroups
+        .filter((g) => g.parentGroupId === id)
+        .sort(compareDriftGroups);
       const memberDrifts = store.bookNodes.filter((n) => n.driftGroupId === id);
-      await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+      const excluded = new Set([id, ...childGroups.map((group) => group.id)]);
+      const firstChildOrder = nextSiblingSortOrder(store.driftGroups, newParent, excluded);
+      await withAtomicSyncTransaction(projectId, async (tx, sync, changes) => {
         const groupRepoTx = createDriftGroupRepository(projectId, tx);
         const nodeRepoTx = createBookNodeSqliteRepository(projectId, tx);
 
         // 1. Reparent direct child groups.
-        for (const cg of childGroups) {
-          await groupRepoTx.update(cg.id, { parentGroupId: newParent, updatedAt: now });
+        for (const [index, cg] of childGroups.entries()) {
+          await groupRepoTx.update(cg.id, {
+            parentGroupId: newParent,
+            sortOrder: firstChildOrder + index,
+            updatedAt: now,
+          });
           await sync('driftGroup', 'update', cg.id, projectId, {
             parentGroupId: newParent,
             updatedAt: now,
+          });
+        }
+
+        const desiredSiblings = store.driftGroups
+          .filter((group) => group.id !== id)
+          .map((group) => {
+            const movedIndex = childGroups.findIndex((child) => child.id === group.id);
+            return movedIndex < 0
+              ? group
+              : { ...group, parentGroupId: newParent, sortOrder: firstChildOrder + movedIndex };
+          })
+          .filter((group) => group.parentGroupId === newParent)
+          .sort(compareDriftGroups)
+          .map(({ id: entityId }) => entityId);
+        if (desiredSiblings.length > 0) {
+          appendAuthoredOrderRebalance(changes, {
+            listKind: 'drift-group',
+            scope: driftGroupOrderScope(projectId, newParent),
+            entries: authoredOrderRebalanceEntries(desiredSiblings),
           });
         }
 
@@ -170,9 +297,10 @@ export function useDriftGroup({ projectId }: UseDriftGroupContext) {
         await sync('driftGroup', 'delete', id, projectId);
       });
 
-      for (const cg of childGroups) {
+      for (const [index, cg] of childGroups.entries()) {
         useDataStore.getState().updateDriftGroup(cg.id, {
           parentGroupId: newParent,
+          sortOrder: firstChildOrder + index,
           updatedAt: now,
         });
       }

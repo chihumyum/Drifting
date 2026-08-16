@@ -57,9 +57,7 @@ interface ManualRelation {
   otherKind: EntityKind;
   otherId: string;
   otherTitle: string;
-  // Free-form relation category (e.g. 「宿敌」). Editable inline on the card.
-  kind: string | null;
-  relationTypeId: string | null;
+  relationTypeId: string;
   direction: 'outgoing' | 'incoming'; // panel entity is from or to
 }
 
@@ -91,9 +89,8 @@ export function ReferencesPanel({
     entityRelationTypes,
   } = useDataStore();
   const userId = useAuthStore((s) => s.user?.id);
-  // Mutations route through the usecase (store + optimistic + server sync) — the
-  // raw repo path used previously skipped both, so panel-authored relations never
-  // reached the story-graph or the server.
+  // Mutations route through the usecase so store, optimistic state, and the
+  // active sync provider observe the same first-class relation write.
   const { addRelation, removeRelation, updateRelationType } = useEntityRelations({
     projectId,
     userId: userId ?? '',
@@ -101,7 +98,7 @@ export function ReferencesPanel({
 
   // Inline mention rows for this entity (both directions). Manual relations are
   // derived reactively from the store's `entityRelations` below — so add / remove
-  // / kind edits reflect immediately and stay in sync with graph + server.
+  // / type edits reflect immediately and stay in sync with graph + sync providers.
   const [inlineBacklinks, setInlineBacklinks] = useState<InlineMentionBacklink[]>([]);
   const [inlineOutgoing, setInlineOutgoing] = useState<InlineMentionRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -281,8 +278,7 @@ export function ReferencesPanel({
           otherKind: r.toKind,
           otherId: r.toId,
           otherTitle: lookupTitle(r.toKind, r.toId),
-          kind: r.kind ?? null,
-          relationTypeId: r.relationTypeId ?? null,
+          relationTypeId: r.relationTypeId,
           direction: 'outgoing',
         });
       } else {
@@ -291,8 +287,7 @@ export function ReferencesPanel({
           otherKind: r.fromKind,
           otherId: r.fromId,
           otherTitle: lookupTitle(r.fromKind, r.fromId),
-          kind: r.kind ?? null,
-          relationTypeId: r.relationTypeId ?? null,
+          relationTypeId: r.relationTypeId,
           direction: 'incoming',
         });
       }
@@ -376,10 +371,7 @@ export function ReferencesPanel({
     storylines,
   ]);
 
-  const configuredRelationTypes = useMemo(
-    () => entityRelationTypes.filter((type) => type.orientation !== 'unconfigured'),
-    [entityRelationTypes],
-  );
+  const configuredRelationTypes = entityRelationTypes;
   const pendingTypeOptions = useMemo(() => {
     if (!pendingCandidate) return configuredRelationTypes;
     const fromKind = pendingReversed ? pendingCandidate.kind : entityKind;
@@ -387,17 +379,18 @@ export function ReferencesPanel({
     if (!isStructuralEntityKind(toKind)) return [];
     return configuredRelationTypes.filter(
       (type) =>
-        validateRelationAgainstType(
-          type,
-          { fromKind, fromId: 'from', toKind, toId: 'to' },
-          { allowUnconfigured: false },
-        ).ok,
+        validateRelationAgainstType(type, {
+          fromKind,
+          fromId: 'from',
+          toKind,
+          toId: 'to',
+        }).ok,
     );
   }, [configuredRelationTypes, entityKind, pendingCandidate, pendingReversed]);
 
-  const relationTypeColor = (name: string) => {
+  const relationTypeColor = (relationTypeId: string) => {
     let hash = 0;
-    for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+    for (const char of relationTypeId) hash = (hash * 31 + char.charCodeAt(0)) | 0;
     return `hsl(var(--story-${(Math.abs(hash) % 6) + 1}))`;
   };
 
@@ -418,7 +411,6 @@ export function ReferencesPanel({
       if (!isStructuralEntityKind(toKind)) return;
       await addRelation(fromKind, fromId, toKind, toId, {
         relationTypeId: pendingTypeId,
-        allowUnconfigured: false,
       });
       events.emit('references:changed', {
         projectId,
@@ -462,10 +454,9 @@ export function ReferencesPanel({
     try {
       await updateRelationType(rel.id, relationTypeId, {
         swapEndpoints,
-        allowUnconfigured: false,
       });
     } catch (error) {
-      log.error('Failed to update relation kind:', error);
+      log.error('Failed to update relation type:', error);
     }
   };
 
@@ -665,16 +656,16 @@ export function ReferencesPanel({
                     }
                     options={relationTypeOptionsFor(rel)}
                     resolveOptionColor={relationTypeColor}
-                    placeholder={rel.kind || t('referencesPanel.relationKind.empty')}
+                    placeholder={t('relationTypes.selectConfigured')}
                     ariaLabel={t('storyGraph.edge.kindLabel')}
                     buttonClassName="refs-rel-card__tag relation-type-field__button"
                   />
-                  {rel.relationTypeId && relationCanSwap(rel) && (
+                  {relationCanSwap(rel) && (
                     <button
                       type="button"
                       className="refs-rel-card__swap"
                       title={t('relationTypes.swap')}
-                      onClick={() => void handleUpdateType(rel, rel.relationTypeId!, true)}
+                      onClick={() => void handleUpdateType(rel, rel.relationTypeId, true)}
                     >
                       ⇄
                     </button>

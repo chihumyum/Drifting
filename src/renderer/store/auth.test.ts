@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   flushRemote: vi.fn(),
   quiesce: vi.fn(),
   quiesceAfterCredentialLoss: vi.fn(),
-  stopPreferencesSync: vi.fn(),
 }));
 
 vi.mock('../lib/auth-client', () => ({
@@ -24,7 +23,10 @@ vi.mock('../lib/session-token', () => ({
   invalidateSessionToken: mocks.invalidateSessionToken,
   flushSessionTokenStorage: mocks.flushSessionTokenStorage,
 }));
-vi.mock('../lib/config', () => ({ isAuthRequired: () => true }));
+vi.mock('../lib/config', () => ({
+  canUseHostedService: () => true,
+  isAuthRequired: () => true,
+}));
 vi.mock('../utils/appAccess', () => ({
   APP_CLOSED_MESSAGE: 'closed',
   isAppClosedForPublic: false,
@@ -42,10 +44,6 @@ vi.mock('../lib/persistence-lifecycle', () => ({
   quiesceApplicationForDatabaseSwitch: mocks.quiesce,
   quiesceApplicationAfterCredentialLoss: mocks.quiesceAfterCredentialLoss,
 }));
-vi.mock('../services/preferences-sync.service', () => ({
-  stopPreferencesSync: mocks.stopPreferencesSync,
-}));
-
 function createMemoryStorage(): Storage {
   const values = new Map<string, string>();
   return {
@@ -80,7 +78,6 @@ describe('auth store persistence', () => {
       unmount();
       mocks.order.push('quiesce:done');
     });
-    mocks.stopPreferencesSync.mockImplementation(() => mocks.order.push('preferences:stop'));
     mocks.signOut.mockImplementation(async () => {
       mocks.order.push('signOut');
       return { data: { success: true }, error: null };
@@ -154,7 +151,6 @@ describe('auth store persistence', () => {
       'token:flush',
       'quiesce:start',
       'quiesce:done',
-      'preferences:stop',
       'database:reset',
       'database:init',
     ]);
@@ -193,7 +189,6 @@ describe('auth store persistence', () => {
     expect(mocks.quiesce).not.toHaveBeenCalled();
     expect(mocks.resetDatabase).not.toHaveBeenCalled();
     expect(mocks.initDatabase).not.toHaveBeenCalled();
-    expect(mocks.stopPreferencesSync).not.toHaveBeenCalled();
     expect(useAuthStore.getState()).toMatchObject({
       isAuthenticated: true,
       session: outgoingSession,
@@ -211,7 +206,6 @@ describe('auth store persistence', () => {
       'token:flush',
       'quiesce:start',
       'quiesce:done',
-      'preferences:stop',
       'database:reset',
       'database:init',
     ]);
@@ -302,7 +296,6 @@ describe('auth store persistence', () => {
       'token:invalidate',
       'credential-quiesce:start',
       'credential-quiesce:done',
-      'preferences:stop',
       'database:reset',
       'database:init',
     ]);

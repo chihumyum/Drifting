@@ -158,7 +158,9 @@ describe('workspace surface language acceptance', () => {
     expect(footer).not.toContain('CopilotQuickMenu');
     expect(footer).not.toContain('ShadowQuickMenu');
     expect(footer).toContain('deriveWritingStats');
-    expect(footer).toContain('useSyncObserver');
+    expect(footer).toContain('t(`bottomStatusBar.storage.${syncState}`)');
+    expect(footer).toContain('bsb__storage--${syncState}');
+    expect(footer).not.toContain('useSyncObserver');
     expect(footerCss).toContain('.bsb__timeline-toggle {');
     expect(footerCss).toContain('cursor: pointer;');
     expect(footerCss).toContain('background: transparent;');
@@ -611,8 +613,11 @@ describe('workspace surface language acceptance', () => {
       'className="relation-kind-suggestions relation-type-suggestions"',
     );
     expect(relationTypeField).not.toContain("position: 'absolute'");
-    expect(relationKindMenu).toContain('setKindColor(type.name, paletteColor)');
-    expect(relationKindMenu).toContain('reassignMeta(type.name, nextName)');
+    expect(relationKindMenu).toContain('setRelationTypeColor(type.id, paletteColor)');
+    expect(relationKindMenu).toContain('removeRelationTypeMeta(type.id)');
+    expect(relationKindMenu).toContain('disabled={type.locked}');
+    expect(relationKindMenu).not.toContain('reassignMeta');
+    expect(relationKindMenu).not.toContain('updateRelationKind');
     expect(relationKindMenu).toContain('export function RelationTypeEditor');
     expect(superElement).toContain('<RelationTypeField');
     expect(superElement).toContain('<RelationTypeEditor');
@@ -636,6 +641,26 @@ describe('workspace surface language acceptance', () => {
     expect(edgePopoverCss).not.toContain('border-left');
     expect(libraryCard).toContain("maxHeight: isTextExpanded || pickerOpen ? 'none' : 320");
     expect(libraryCard).toContain("overflow: isTextExpanded || pickerOpen ? 'visible' : 'hidden'");
+  });
+
+  it('owns one trailing relation menu across graph-style Super Views', () => {
+    const header = source('src/renderer/shells/desktop/components/DesktopSuperViewHeader.tsx');
+    const relationControl = source(
+      'src/renderer/shells/desktop/components/DesktopSuperViewRelationControl.tsx',
+    );
+    const storyGraph = source('src/renderer/shells/desktop/views/DesktopStoryGraphView.tsx');
+    const superElement = source('src/renderer/shells/desktop/views/DesktopSuperElementView.tsx');
+    const memoMaterial = source(
+      'src/renderer/shells/desktop/views/DesktopSuperMemoMaterialView.tsx',
+    );
+
+    expect(header).toContain("activeSuperView === 'element' || activeSuperView === 'graph'");
+    expect(header).toContain('<DesktopSuperViewRelationControl canvas={relationCanvas} />');
+    expect(relationControl).toContain('<RelationKindMenu');
+    expect(relationControl).toContain('relationTypeGroups={{');
+    expect(storyGraph).not.toContain('<RelationKindMenu');
+    expect(superElement).not.toContain('<RelationKindMenu');
+    expect(memoMaterial).not.toContain('<RelationKindMenu');
   });
 
   it('keeps shared controls and high-exposure cards on the compact radius ladder', () => {

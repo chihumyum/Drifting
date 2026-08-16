@@ -5,7 +5,6 @@ import { EntitySnapshotHistoryModal } from '../../components/modals/EntitySnapsh
 import { DriftBindModal } from '../../components/modals/DriftBindModal';
 import { EditChapterStorylineModal } from '../../components/modals/EditChapterStorylineModal';
 import { GlobalSearchModal } from '../../components/search/GlobalSearchModal';
-import { SyncStatusHUD } from '../../components/sync/SyncStatusHUD';
 import { DesktopStoryGraphView } from './views/DesktopStoryGraphView';
 import { DesktopSuperElementView } from './views/DesktopSuperElementView';
 import { DesktopSuperMemoMaterialView } from './views/DesktopSuperMemoMaterialView';
@@ -58,7 +57,6 @@ export function DesktopOverlayHost({
         />
       )}
       <GlobalSearchModal isOpen={isGlobalSearchOpen} onClose={onCloseGlobalSearch} />
-      <SyncStatusHUD />
     </>
   );
 }

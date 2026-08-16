@@ -75,45 +75,39 @@ const TEST_GROUPS = {
 };
 
 const TEST_FILES = [...new Set(Object.values(TEST_GROUPS).flat())];
-const REQUIRED_MIGRATIONS = [
-  {
-    index: 64,
-    tag: '0064_agent_runtime_result_artifact',
-    file: 'drizzle/0064_agent_runtime_result_artifact.sql',
-    requiredSql: [
-      'agent_runtime_result_blob',
-      'agent_runtime_result_artifact',
-    ],
-  },
-  {
-    index: 65,
-    tag: '0065_agent_runtime_element_patch_receipt',
-    file: 'drizzle/0065_agent_runtime_element_patch_receipt.sql',
-    requiredSql: ['agent_runtime_element_patch_receipt'],
-  },
-  {
-    index: 66,
-    tag: '0066_agent_runtime_entity_write_receipt',
-    file: 'drizzle/0066_agent_runtime_entity_write_receipt.sql',
-    requiredSql: ['agent_runtime_entity_write_receipt'],
-  },
-  {
-    index: 67,
-    tag: '0067_agent_runtime_long_task',
-    file: 'drizzle/0067_agent_runtime_long_task.sql',
-    requiredSql: [
-      'agent_runtime_task',
-      'agent_runtime_task_chapter_manifest',
-      'agent_runtime_task_step',
-      'agent_runtime_task_constraint',
-      'agent_runtime_task_command',
-    ],
-  },
-];
+const CURRENT_BASELINE = {
+  index: 0,
+  tag: '0000_local_first_baseline',
+  file: 'drizzle/0000_local_first_baseline.sql',
+  structureSql: [
+    'agent_runtime_result_blob',
+    'agent_runtime_result_artifact',
+    'agent_runtime_element_patch_receipt',
+    'agent_runtime_entity_write_receipt',
+    'agent_runtime_task',
+    'agent_runtime_task_chapter_manifest',
+    'agent_runtime_task_step',
+    'agent_runtime_task_constraint',
+    'agent_runtime_task_command',
+  ],
+  triggerSql: [
+    'trg_agent_runtime_result_blob_immutable',
+    'trg_agent_runtime_result_artifact_immutable',
+    'trg_agent_runtime_element_patch_receipt_provenance',
+    'trg_agent_runtime_entity_write_receipt_provenance',
+  ],
+  checkSql: [
+    "CHECK (`tool_access` = 'read')",
+    "CHECK (`direction` IN ('forward', 'inverse'))",
+    "CHECK (`scope_kind` IN ('explicit_targets', 'whole_book_chapters'))",
+    "CHECK (`status` IN ('active', 'revoked'))",
+  ],
+  retiredSql: ['element_arc', 'shadow_job', 'project_rule', 'ai_usage'],
+};
 const HASHED_SOURCE_FILES = [
   'src/renderer/lib/agent/runtime/acceptance/p5.acceptance.mjs',
   ...TEST_FILES,
-  ...REQUIRED_MIGRATIONS.map((migration) => migration.file),
+  CURRENT_BASELINE.file,
   'drizzle/meta/_journal.json',
   'src-tauri/src/database.rs',
 ];
@@ -262,27 +256,32 @@ async function readMigrationIdentity() {
   const entries = Array.isArray(journal.entries) ? journal.entries : [];
   const latest = entries.at(-1);
   const tags = new Set(entries.map((entry) => entry.tag));
-  const files = await Promise.all(
-    REQUIRED_MIGRATIONS.map(async (migration) => {
-      const exists = await fileExists(migration.file);
-      const sql = exists
-        ? await readFile(path.join(CORE_DIRECTORY, migration.file), 'utf8')
-        : '';
-      const journalEntry = entries.find(
-        (entry) => entry.idx === migration.index,
-      );
-      return {
-        index: migration.index,
-        tag: migration.tag,
-        file: migration.file,
-        exists,
-        journalMatches: journalEntry?.tag === migration.tag,
-        requiredSqlPresent: migration.requiredSql.every((identifier) =>
-          sql.includes(identifier),
-        ),
-      };
-    }),
-  );
+  const exists = await fileExists(CURRENT_BASELINE.file);
+  const sql = exists
+    ? await readFile(path.join(CORE_DIRECTORY, CURRENT_BASELINE.file), 'utf8')
+    : '';
+  const journalEntry = entries[CURRENT_BASELINE.index];
+  const baseline = {
+    index: CURRENT_BASELINE.index,
+    tag: CURRENT_BASELINE.tag,
+    file: CURRENT_BASELINE.file,
+    exists,
+    journalMatches:
+      journalEntry?.idx === CURRENT_BASELINE.index &&
+      journalEntry?.tag === CURRENT_BASELINE.tag,
+    structureSqlPresent: CURRENT_BASELINE.structureSql.every((identifier) =>
+      sql.includes(identifier),
+    ),
+    triggerSqlPresent: CURRENT_BASELINE.triggerSql.every((identifier) =>
+      sql.includes(identifier),
+    ),
+    checkSqlPresent: CURRENT_BASELINE.checkSql.every((identifier) =>
+      sql.includes(identifier),
+    ),
+    retiredSqlAbsent: CURRENT_BASELINE.retiredSql.every(
+      (identifier) => !sql.includes(identifier),
+    ),
+  };
   const databaseSource = await readFile(
     path.join(CORE_DIRECTORY, 'src-tauri/src/database.rs'),
     'utf8',
@@ -298,26 +297,24 @@ async function readMigrationIdentity() {
     count: entries.length,
     latestIndex: latest?.idx ?? null,
     latestTag: latest?.tag ?? null,
-    requiredCount: 68,
-    requiredThroughIndex: 67,
-    requiredThroughTag: '0067_agent_runtime_long_task',
+    requiredCount: 1,
+    requiredThroughIndex: CURRENT_BASELINE.index,
+    requiredThroughTag: CURRENT_BASELINE.tag,
     indexesCanonical,
     tagsUnique,
     rustEmbedsDrizzleDirectory,
-    files,
+    files: [baseline],
     passed:
-      entries.length >= 68 &&
-      entries[67]?.idx === 67 &&
-      entries[67]?.tag === '0067_agent_runtime_long_task' &&
+      entries.length === 1 &&
+      baseline.journalMatches &&
       indexesCanonical &&
       tagsUnique &&
       rustEmbedsDrizzleDirectory &&
-      files.every(
-        (file) =>
-          file.exists &&
-          file.journalMatches &&
-          file.requiredSqlPresent,
-      ),
+      baseline.exists &&
+      baseline.structureSqlPresent &&
+      baseline.triggerSqlPresent &&
+      baseline.checkSqlPresent &&
+      baseline.retiredSqlAbsent,
   };
 }
 
@@ -475,7 +472,7 @@ export async function runP5Acceptance(options = parseOptions([])) {
         },
         productCompositionAndEntityWrites: {
           machineAsserted: {
-            productDatabaseRunsAllMigrations: true,
+            productDatabaseUsesCurrentBaseline: true,
             rendererUseCasesAndYjsAreCanonicalWritePath: true,
             entityMutationOutboxAndReceiptShareTransaction: true,
             createCommentUsesDeterministicIdentity: true,

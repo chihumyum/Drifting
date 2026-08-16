@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-phase5-google-drive-native",
+  "recordedAt": "2026-08-16",
+  "currentContract": true,
+  "status": "native-transport-foundation-complete",
+  "productAvailability": "settings-connect-path-machine-covered-real-account-gated",
+  "remoteStore": {
+    "space": "appDataFolder",
+    "driveDataScope": "https://www.googleapis.com/auth/drive.appdata",
+    "wireProtocol": "object-v2",
+    "syncGenerationMetadataKey": "driftingSyncGenerationId",
+    "immutableObjectsOnly": true,
+    "filenameIsIdentity": false,
+    "metadataFailClosed": true,
+    "accountDiscoveryObjectKind": "snapshot-commit"
+  },
+  "trustAndSecurityBoundary": {
+    "googleOauthAndDriveTrusted": true,
+    "endToEndEncryptedAgainstGoogle": false,
+    "applicationManagedProjectContentKey": false,
+    "transportTlsRequired": true,
+    "rendererReceivesAccessToken": false,
+    "rendererReceivesRefreshToken": false,
+    "rendererReceivesResumableSessionUri": false,
+    "rendererReceivesAbsolutePath": false,
+    "uploadRequiresRootValidatedRefHashAndSize": true,
+    "downloadStoredSha256VerifiedBeforeActivation": true,
+    "resumableSessionStorage": "native-secure-storage"
+  },
+  "nativeApi": {
+    "discoverProjectSnapshots": "google_drive_discover_project_snapshots",
+    "openGeneration": "google_drive_open_generation",
+    "uploadImmutable": "google_drive_upload_immutable",
+    "outputIdentity": [
+      "syncGenerationId",
+      "generationRef"
+    ]
+  },
+  "transfer": {
+    "resumableChunkBytes": 8388608,
+    "chunkMultipleBytes": 262144,
+    "rangeRecovery": true,
+    "streamingDownload": true,
+    "durableAtomicDestinationReplace": true,
+    "abortSignalNativeCancellation": true
+  },
+  "errors": {
+    "refresh401Once": true,
+    "second401": "needs-reauth",
+    "separate403PermissionRateQuota": true,
+    "retry429And5xx": true,
+    "retryAfterProjected": true,
+    "upstreamBodyProjected": false
+  },
+  "oauth": {
+    "desktop": "system-browser-loopback-pkce-implemented-build-config-required",
+    "desktopDevEnvFileLoadedBeforeNativeBuild": true,
+    "explicitDesktopBuildEnvironmentWins": true,
+    "desktopLauncherPrintsCredentialValues": false,
+    "ios": "official-google-signin-sdk-implemented-build-config-required",
+    "android": "official-authorization-client-implemented-build-config-required",
+    "mobileDevEnvFileLoadedBeforeNativeBuild": true,
+    "explicitMobileBuildEnvironmentWins": true,
+    "mobileLauncherPrintsCredentialValues": false,
+    "capabilitySeparatedFromTransport": true,
+    "missingCapabilityFailsClosed": true,
+    "mobileRendererReceivesToken": false,
+    "mobileCredentialPersistsRawToken": false
+  },
+  "commands": [
+    "cargo test google_drive_sync --lib --manifest-path src-tauri/Cargo.toml",
+    "cargo test --lib --manifest-path src-tauri/Cargo.toml",
+    "cargo check --manifest-path src-tauri/Cargo.toml",
+    "pnpm exec vitest run src/renderer/platform/desktop-tauri-launcher.acceptance.test.ts --reporter=verbose",
+    "pnpm exec vitest run src/renderer/platform/mobile-tauri-launcher.acceptance.test.ts --reporter=verbose",
+    "pnpm typecheck",
+    "pnpm exec vitest run src/renderer/platform/google-drive.test.ts src/renderer/platform/tauri.test.ts src/renderer/sync/providers/google-drive/architecture.test.ts src/renderer/sync/providers/google-drive/provider.test.ts src/renderer/sync/providers/google-drive/tauri-transport.test.ts --reporter=verbose",
+    "pnpm exec eslint src/renderer/platform/contracts.ts src/renderer/platform/types.ts src/renderer/platform/tauri.ts src/renderer/platform/google-drive.test.ts src/renderer/sync/providers/google-drive",
+    "pnpm public:check"
+  ],
+  "realAccountGates": {
+    "desktop": false,
+    "ios": false,
+    "android": false,
+    "sameAccountCrossClientSharedProject": false,
+    "freshDeviceAutomaticProjectDiscovery": false,
+    "revokePropagation": false,
+    "sameAccountReauthorize": false,
+    "physicalDeviceMatrix": false
+  }
+}

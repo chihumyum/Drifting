@@ -13,6 +13,7 @@ import { useDesktopShellEvents } from './useDesktopShellEvents';
 import { useDesktopGlobalShortcuts } from './useDesktopGlobalShortcuts';
 import { useDesktopWorkspaceNavigator } from './navigation/useDesktopWorkspaceNavigator';
 import { WorkspaceNavigationProvider } from '../../features/workspace/navigation/WorkspaceNavigationContext';
+import { SuperViewRelationUiProvider } from '../../features/graph/SuperViewRelationUiContext';
 
 export function DesktopAppShell() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -59,29 +60,31 @@ export function DesktopAppShell() {
 
   return (
     <ProjectRuntimeProvider projectId={projectId} userId={userId}>
-      <WorkspaceNavigationProvider navigator={workspaceNavigator}>
-        <DesktopWorkspace
-          activeLeftPanel={activeLeftPanel}
-          bottomTimelineHidden={bottomTimelineHidden}
-          findPanelEditor={findPanelEditor}
-          onCloseFindPanel={() => setFindPanelEditor(null)}
-        />
-        <DesktopOverlayHost
-          activeSuperView={activeSuperView}
-          isSettingsOpen={isSettingsOpen}
-          settingsTargetRail={settingsTargetRail}
-          onCloseSettings={() => {
-            setIsSettingsOpen(false);
-            setSettingsTargetRail(null);
-          }}
-          isImportOpen={isImportOpen}
-          onCloseImport={() => setIsImportOpen(false)}
-          chapterStorylineEditorNodeId={chapterStorylineEditorNodeId}
-          onCloseChapterStorylineEditor={() => setChapterStorylineEditorNodeId(null)}
-          isGlobalSearchOpen={isGlobalSearchOpen}
-          onCloseGlobalSearch={() => setIsGlobalSearchOpen(false)}
-        />
-      </WorkspaceNavigationProvider>
+      <SuperViewRelationUiProvider key={projectId} projectId={projectId}>
+        <WorkspaceNavigationProvider navigator={workspaceNavigator}>
+          <DesktopWorkspace
+            activeLeftPanel={activeLeftPanel}
+            bottomTimelineHidden={bottomTimelineHidden}
+            findPanelEditor={findPanelEditor}
+            onCloseFindPanel={() => setFindPanelEditor(null)}
+          />
+          <DesktopOverlayHost
+            activeSuperView={activeSuperView}
+            isSettingsOpen={isSettingsOpen}
+            settingsTargetRail={settingsTargetRail}
+            onCloseSettings={() => {
+              setIsSettingsOpen(false);
+              setSettingsTargetRail(null);
+            }}
+            isImportOpen={isImportOpen}
+            onCloseImport={() => setIsImportOpen(false)}
+            chapterStorylineEditorNodeId={chapterStorylineEditorNodeId}
+            onCloseChapterStorylineEditor={() => setChapterStorylineEditorNodeId(null)}
+            isGlobalSearchOpen={isGlobalSearchOpen}
+            onCloseGlobalSearch={() => setIsGlobalSearchOpen(false)}
+          />
+        </WorkspaceNavigationProvider>
+      </SuperViewRelationUiProvider>
     </ProjectRuntimeProvider>
   );
 }

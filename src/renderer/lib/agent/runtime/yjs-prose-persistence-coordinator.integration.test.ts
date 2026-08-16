@@ -7,7 +7,6 @@ import * as Y from 'yjs';
 import { createDatabaseClient, type DbExecutor } from '../../../lib/db';
 import { readPersistedYjsUpdateOrigin } from '../../../lib/yjs-persistence-origin';
 import {
-  LocalSyncMutationTable,
   NodeContentTable,
 } from '../../../schema/drizzle';
 import type {
@@ -25,19 +24,20 @@ import {
   replaceYjsProseBlocks,
   snapshotYjsProseBlocks,
   type YjsProseBlock,
+  type YjsProseCommandError,
 } from './yjs-prose-command';
 import {
   YjsProsePersistenceCoordinator,
   type PreparedYjsProsePersistenceCommand,
   type YjsProsePersistenceBase,
 } from './yjs-prose-persistence-coordinator';
+import { createTestAgentAuthoredJournal } from './agent-authored-journal.test-support';
 
-const migrationSql = readFileSync(
-  new URL('../../../../../drizzle/0062_yjs_document_revision.sql', import.meta.url),
-  'utf8',
-).replaceAll('--> statement-breakpoint', '');
-const provenanceMigrationSql = readFileSync(
-  new URL('../../../../../drizzle/0082_yjs_revision_provenance.sql', import.meta.url),
+const baselineSql = readFileSync(
+  new URL(
+    '../../../../../drizzle/0000_local_first_baseline.sql',
+    import.meta.url,
+  ),
   'utf8',
 ).replaceAll('--> statement-breakpoint', '');
 
@@ -47,49 +47,20 @@ class NodeSqliteGateway implements DatabasePlatformApi {
   private nextTransactionId = 1;
 
   constructor() {
+    this.database.exec('PRAGMA foreign_keys = OFF');
+    this.database.exec(baselineSql);
+    this.database.exec('PRAGMA foreign_keys = ON');
     this.database.exec(`
-      CREATE TABLE yjs_updates (
-        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-        document_id TEXT NOT NULL,
-        update_blob BLOB NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE INDEX idx_yjs_updates_doc ON yjs_updates(document_id);
-      CREATE TABLE yjs_snapshots (
-        document_id TEXT PRIMARY KEY NOT NULL,
-        state_blob BLOB NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE INDEX idx_yjs_snapshot_doc ON yjs_snapshots(document_id);
-      CREATE TABLE node_content (
-        node_id TEXT PRIMARY KEY NOT NULL,
-        content_json TEXT DEFAULT '{}',
-        outline_json TEXT DEFAULT '[]',
-        plot_grid_json TEXT DEFAULT '{}',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE local_sync_mutation (
-        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-        entity_type TEXT NOT NULL,
-        mutation_type TEXT NOT NULL,
-        entity_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        parent_id TEXT,
-        payload_json TEXT,
-        mutation_ts INTEGER NOT NULL,
-        status TEXT DEFAULT 'pending' NOT NULL,
-        retry_count INTEGER DEFAULT 0 NOT NULL,
-        last_error TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
+      INSERT INTO project
+        (id, name, user_id, created_at, updated_at)
+      VALUES ('project-1', 'Project', 'local', 'before', 'before');
+      INSERT INTO book_node
+        (id, title, project_id, created_at, updated_at, position_x, position_y)
+      VALUES ('node-1', 'Node', 'project-1', 'before', 'before', 0, 0);
       INSERT INTO node_content
         (node_id, content_json, outline_json, plot_grid_json, created_at, updated_at)
       VALUES ('node-1', '{"type":"doc","content":[]}', '[]', '{}', 'before', 'before');
     `);
-    this.database.exec(migrationSql);
-    this.database.exec(provenanceMigrationSql);
   }
 
   async open(_databaseName: string): Promise<DatabaseOpenResult> {
@@ -188,14 +159,27 @@ function createState(blocks: readonly YjsProseBlock[]): Uint8Array {
   }
 }
 
-function createLegacyStateWithoutBlockIds(): Uint8Array {
+function createMalformedState(
+  kind: 'missing-block-id' | 'duplicate-block-id',
+): Uint8Array {
   const doc = new Y.Doc({ gc: false });
   try {
-    const paragraph = new Y.XmlElement('paragraph');
-    const text = new Y.XmlText();
-    text.insert(0, 'legacy prose');
-    paragraph.insert(0, [text]);
-    doc.getXmlFragment('default').insert(0, [paragraph]);
+    const createParagraph = (textValue: string, id?: string): Y.XmlElement => {
+      const paragraph = new Y.XmlElement('paragraph');
+      if (id !== undefined) paragraph.setAttribute('id', id);
+      const text = new Y.XmlText();
+      text.insert(0, textValue);
+      paragraph.insert(0, [text]);
+      return paragraph;
+    };
+    const paragraphs =
+      kind === 'missing-block-id'
+        ? [createParagraph('Malformed prose without an id.')]
+        : [
+            createParagraph('First duplicate.', 'duplicate-id'),
+            createParagraph('Second duplicate.', 'duplicate-id'),
+          ];
+    doc.getXmlFragment('default').insert(0, paragraphs);
     return Y.encodeStateAsUpdate(doc);
   } finally {
     doc.destroy();
@@ -216,16 +200,14 @@ function persistenceHooks(
   projectId = 'project-1',
   nodeId = 'node-1',
 ): {
+  projectId: string;
   persistProjection: (
-    tx: DbExecutor,
-    projection: { contentJson: string },
-  ) => Promise<void>;
-  persistOutbox: (
     tx: DbExecutor,
     projection: { contentJson: string },
   ) => Promise<void>;
 } {
   return {
+    projectId,
     async persistProjection(tx, projection) {
       await tx
         .update(NodeContentTable)
@@ -234,22 +216,6 @@ function persistenceHooks(
           updatedAt: 'committed',
         })
         .where(eq(NodeContentTable.nodeId, nodeId));
-    },
-    async persistOutbox(tx, projection) {
-      await tx.insert(LocalSyncMutationTable).values({
-        entityType: 'nodeContent',
-        mutationType: 'update',
-        entityId: nodeId,
-        projectId,
-        parentId: null,
-        payloadJson: JSON.stringify({ contentJson: projection.contentJson }),
-        mutationTs: 1,
-        status: 'pending',
-        retryCount: 0,
-        lastError: null,
-        createdAt: 'committed',
-        updatedAt: 'committed',
-      });
     },
   };
 }
@@ -320,59 +286,10 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
       getLiveDocument: () => options.live,
       flushLiveDocument: options.flushLive ?? (async () => undefined),
       now: () => '2026-07-30T00:00:00.000Z',
+      journal: createTestAgentAuthoredJournal('yjs-coordinator'),
     });
     return { database, coordinator };
   }
-
-  it('backfills revision zero for snapshot-only and update-only documents during migration', () => {
-    const database = new DatabaseSync(':memory:');
-    try {
-      database.exec(`
-        CREATE TABLE yjs_updates (
-          id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-          document_id TEXT NOT NULL,
-          update_blob BLOB NOT NULL,
-          created_at TEXT NOT NULL
-        );
-        CREATE TABLE yjs_snapshots (
-          document_id TEXT PRIMARY KEY NOT NULL,
-          state_blob BLOB NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-      `);
-      const insertSnapshot = database.prepare(`
-        INSERT INTO yjs_snapshots (document_id, state_blob, updated_at)
-        VALUES (?, ?, ?)
-      `);
-      insertSnapshot.run(
-        'snapshot-only',
-        createState([paragraph('snapshot-block', 'snapshot')]),
-        '2026-07-29',
-      );
-      const insertUpdate = database.prepare(`
-        INSERT INTO yjs_updates (document_id, update_blob, created_at)
-        VALUES (?, ?, ?)
-      `);
-      insertUpdate.run(
-        'update-only',
-        createState([paragraph('update-block', 'update')]),
-        '2026-07-30',
-      );
-
-      database.exec(migrationSql);
-      const rows = database
-        .prepare(
-          'SELECT document_id, revision FROM yjs_document_revision ORDER BY document_id',
-        )
-        .all() as Array<{ document_id: string; revision: number }>;
-      expect(rows).toEqual([
-        { document_id: 'snapshot-only', revision: 0 },
-        { document_id: 'update-only', revision: 0 },
-      ]);
-    } finally {
-      database.close();
-    }
-  });
 
   it('keeps exact user and Agent revision provenance after update compaction', async () => {
     const { database } = setup();
@@ -437,21 +354,24 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     expect(committed.receipt.committedRevision).toBe(1);
     expect(queryCount(gateway!, 'yjs_updates')).toBe(1);
     expect(queryCount(gateway!, 'yjs_prose_command_receipt')).toBe(1);
-    expect(queryCount(gateway!, 'local_sync_mutation')).toBe(1);
+    expect(queryCount(gateway!, 'sync_change_set')).toBe(1);
+    expect(queryCount(gateway!, 'sync_apply_receipt')).toBe(1);
 
     const duplicateProjection = vi.fn();
-    const duplicateOutbox = vi.fn();
+    const duplicateAppend = vi.fn();
     const duplicate = await coordinator.commit({
+      projectId: 'project-1',
       command: first,
       direction: 'forward',
       expectedRevision: 0,
       persistProjection: duplicateProjection,
-      persistOutbox: duplicateOutbox,
+      appendAuthoredMutations: duplicateAppend,
     });
     expect(duplicate.outcome).toBe('duplicate');
     expect(duplicateProjection).not.toHaveBeenCalled();
-    expect(duplicateOutbox).not.toHaveBeenCalled();
+    expect(duplicateAppend).not.toHaveBeenCalled();
     expect(queryCount(gateway!, 'yjs_updates')).toBe(1);
+    expect(queryCount(gateway!, 'sync_change_set')).toBe(1);
 
     const repo = createYjsRepository(database);
     const compactedSnapshot = await repo.getSnapshot('node-content:node-1');
@@ -495,45 +415,80 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     hydrated.destroy();
   });
 
-  it('durably upgrades a closed legacy Yjs document before exposing prose freshness', async () => {
-    const { coordinator, database } = setup();
-    const repo = createYjsRepository(database);
-    await repo.upsertSnapshot(
-      'node-content:node-1',
-      createLegacyStateWithoutBlockIds(),
-    );
-    const revisionBefore = await repo.getRevision('node-content:node-1');
+  it.each([
+    {
+      kind: 'missing-block-id' as const,
+      message: 'Top-level prose block 0 has no stable string id.',
+    },
+    {
+      kind: 'duplicate-block-id' as const,
+      message: 'Duplicate top-level prose block id "duplicate-id".',
+    },
+  ])(
+    'fails closed for persisted prose with $kind without writing a repair update',
+    async ({ kind, message }) => {
+      const { coordinator, database } = setup();
+      const repo = createYjsRepository(database);
+      const malformedState = createMalformedState(kind);
+      await repo.upsertSnapshot('node-content:node-1', malformedState);
+      const revisionBefore = await repo.getRevision('node-content:node-1');
+      const snapshotBefore = await repo.getSnapshot('node-content:node-1');
 
-    const first = await coordinator.readBase('node-content:node-1');
-    expect(first.revision).toBe(revisionBefore + 1);
-    expect(queryCount(gateway!, 'yjs_updates')).toBe(1);
-    const firstDoc = new Y.Doc({ gc: false });
-    Y.applyUpdate(firstDoc, first.stateUpdate);
-    const ids = snapshotYjsProseBlocks(firstDoc).map((block) => block.id);
-    firstDoc.destroy();
-    expect(ids).toHaveLength(1);
-    expect(ids[0]).toMatch(/^[0-9a-f-]{36}$/u);
+      await expect(
+        coordinator.readBase('node-content:node-1'),
+      ).rejects.toEqual(
+        expect.objectContaining<Partial<YjsProseCommandError>>({
+          name: 'YjsProseCommandError',
+          code: 'INVALID_PROSE',
+          message,
+        }),
+      );
 
-    const second = await coordinator.readBase('node-content:node-1');
-    expect(second.revision).toBe(first.revision);
-    expect(second.stateHash).toBe(first.stateHash);
-    expect(queryCount(gateway!, 'yjs_updates')).toBe(1);
+      const snapshotAfter = await repo.getSnapshot('node-content:node-1');
+      expect(await repo.getRevision('node-content:node-1')).toBe(revisionBefore);
+      expect(queryCount(gateway!, 'yjs_updates')).toBe(0);
+      expect(snapshotAfter?.stateBlob).toEqual(snapshotBefore?.stateBlob);
+      expect([...(snapshotAfter?.stateBlob ?? [])]).toEqual([...malformedState]);
+    },
+  );
 
-    const command = await prepareAppend(
-      coordinator,
-      'command-after-block-id-upgrade',
-      second,
-      'agent-after-upgrade',
-    );
-    await expect(
-      coordinator.commit({
-        command,
-        direction: 'forward',
-        expectedRevision: second.revision,
-        ...persistenceHooks(),
-      }),
-    ).resolves.toMatchObject({ outcome: 'committed' });
-  });
+  it.each([
+    {
+      kind: 'missing-block-id' as const,
+      message: 'Top-level prose block 0 has no stable string id.',
+    },
+    {
+      kind: 'duplicate-block-id' as const,
+      message: 'Duplicate top-level prose block id "duplicate-id".',
+    },
+  ])(
+    'fails closed for live prose with $kind without mutating Yjs or SQLite',
+    async ({ kind, message }) => {
+      const live = new Y.Doc({ gc: false });
+      Y.applyUpdate(live, createMalformedState(kind));
+      const liveStateBefore = Y.encodeStateAsUpdate(live);
+      const flushLive = vi.fn(async () => undefined);
+      const { coordinator, database } = setup({ live, flushLive });
+      const repo = createYjsRepository(database);
+
+      await expect(
+        coordinator.readBase('node-content:node-1'),
+      ).rejects.toEqual(
+        expect.objectContaining<Partial<YjsProseCommandError>>({
+          name: 'YjsProseCommandError',
+          code: 'INVALID_PROSE',
+          message,
+        }),
+      );
+
+      expect(flushLive).toHaveBeenCalledTimes(1);
+      expect(Y.encodeStateAsUpdate(live)).toEqual(liveStateBefore);
+      expect(await repo.getRevision('node-content:node-1')).toBe(0);
+      expect(await repo.getSnapshot('node-content:node-1')).toBeNull();
+      expect(queryCount(gateway!, 'yjs_updates')).toBe(0);
+      live.destroy();
+    },
+  );
 
   it('applies a committed command to the live Y.Doc with an already-persisted origin and no second append', async () => {
     const live = new Y.Doc({ gc: false });
@@ -569,6 +524,7 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     );
     const rollbackPresentation = vi.fn();
     const beforeMergeBlockIds: string[][] = [];
+    const durableJournalBeforeMerge: number[] = [];
     const result = await coordinator.commit({
       command,
       direction: 'forward',
@@ -581,6 +537,7 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
       },
       ...persistenceHooks(),
       beforeLiveMerge() {
+        durableJournalBeforeMerge.push(queryCount(gateway!, 'sync_apply_receipt'));
         beforeMergeBlockIds.push(
           snapshotYjsProseBlocks(live).map((block) => block.id),
         );
@@ -591,6 +548,7 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     expect(result.outcome).toBe('committed');
     expect(result.liveMerged).toBe(false);
     expect(beforeMergeBlockIds).toEqual([['base-a', 'base-b']]);
+    expect(durableJournalBeforeMerge).toEqual([1]);
     expect(rollbackPresentation).not.toHaveBeenCalled();
     expect(persistedOriginCount).toBe(1);
     expect(persistedCollaborators).toEqual([
@@ -616,7 +574,7 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     live.destroy();
   });
 
-  it('rolls back Yjs, revision, projection, outbox, and receipt when the transaction-bound outbox fails', async () => {
+  it('rolls back Yjs, revision, projection, journal, and receipt when the transaction-bound journal fails', async () => {
     const { coordinator, database } = setup();
     const repo = createYjsRepository(database);
     const initial = createState([
@@ -635,20 +593,21 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
 
     await expect(
       coordinator.commit({
+        projectId: hooks.projectId,
         command,
         direction: 'forward',
         expectedRevision: base.revision,
         persistProjection: hooks.persistProjection,
-        persistOutbox: async () => {
-          throw new Error('fault after projection before outbox');
+        appendAuthoredMutations: async () => {
+          throw new Error('fault after projection before journal');
         },
       }),
-    ).rejects.toThrow('fault after projection before outbox');
+    ).rejects.toThrow('fault after projection before journal');
 
     expect(await repo.getRevision('node-content:node-1')).toBe(base.revision);
     expect(queryCount(gateway!, 'yjs_updates')).toBe(0);
     expect(queryCount(gateway!, 'yjs_prose_command_receipt')).toBe(0);
-    expect(queryCount(gateway!, 'local_sync_mutation')).toBe(0);
+    expect(queryCount(gateway!, 'sync_change_set')).toBe(0);
     const projection = gateway!.database
       .prepare('SELECT content_json, updated_at FROM node_content WHERE node_id = ?')
       .get('node-1') as { content_json: string; updated_at: string };
@@ -914,7 +873,7 @@ describe('Yjs prose persistence coordinator against real SQLite + Y.Doc', () => 
     ).rejects.toMatchObject({ code: 'STALE_REVISION' });
     expect(queryCount(gateway!, 'yjs_updates')).toBe(1);
     expect(queryCount(gateway!, 'yjs_prose_command_receipt')).toBe(0);
-    expect(queryCount(gateway!, 'local_sync_mutation')).toBe(0);
+    expect(queryCount(gateway!, 'sync_change_set')).toBe(0);
   });
 });
 

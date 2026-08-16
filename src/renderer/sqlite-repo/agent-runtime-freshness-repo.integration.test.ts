@@ -25,18 +25,10 @@ import {
   BookNodeTable,
 } from '../schema/drizzle';
 
-const readMigration = (path: string): string =>
-  readFileSync(new URL(path, import.meta.url), 'utf8').replaceAll(
-    '--> statement-breakpoint',
-    '',
-  );
-
-const migrationSql = [
-  readMigration('../../../drizzle/0060_agent_runtime_persistence.sql'),
-  readMigration('../../../drizzle/0061_agent_runtime_write_effect.sql'),
-  readMigration('../../../drizzle/0063_agent_runtime_freshness.sql'),
-  readMigration('../../../drizzle/0068_agent_runtime_write_authorization.sql'),
-].join('\n');
+const baselineSql = readFileSync(
+  new URL('../../../drizzle/0000_local_first_baseline.sql', import.meta.url),
+  'utf8',
+).replaceAll('--> statement-breakpoint', '');
 
 const HASH_ZERO = `sha256:${'0'.repeat(64)}`;
 const HASH_ONE = `sha256:${'1'.repeat(64)}`;
@@ -53,43 +45,10 @@ class FileBackedNodeSqliteGateway implements DatabasePlatformApi {
   constructor() {
     this.database.exec('PRAGMA journal_mode = WAL');
     this.database.exec('PRAGMA synchronous = NORMAL');
+    this.database.exec('PRAGMA foreign_keys = OFF');
+    this.database.exec(baselineSql);
     this.database.exec('PRAGMA foreign_keys = ON');
     this.database.exec(`
-      CREATE TABLE project (
-        id TEXT PRIMARY KEY NOT NULL,
-        name TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE agent_conversation (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-        title TEXT NOT NULL DEFAULT '',
-        sdk_session_id TEXT,
-        mode TEXT NOT NULL DEFAULT 'byok',
-        messages_json TEXT NOT NULL DEFAULT '[]',
-        deleted_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE book_node (
-        id TEXT PRIMARY KEY NOT NULL,
-        title TEXT NOT NULL,
-        summary TEXT NOT NULL DEFAULT '',
-        book_order INTEGER,
-        narrative_order INTEGER,
-        project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-        word_count INTEGER NOT NULL DEFAULT 0,
-        writing_status TEXT NOT NULL DEFAULT 'draft',
-        kind TEXT NOT NULL DEFAULT 'chapter',
-        drift_group_id TEXT,
-        deleted_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        position_x REAL NOT NULL DEFAULT 0,
-        position_y REAL NOT NULL DEFAULT 0
-      );
       CREATE TABLE freshness_outbox (
         id TEXT PRIMARY KEY NOT NULL,
         effect_id TEXT NOT NULL UNIQUE,
@@ -97,14 +56,13 @@ class FileBackedNodeSqliteGateway implements DatabasePlatformApi {
         created_at TEXT NOT NULL
       );
     `);
-    this.database.exec(migrationSql);
   }
 
   async open(_databaseName: string): Promise<DatabaseOpenResult> {
     return {
       path: this.path,
       journalMode: 'wal',
-      migrationsApplied: 3,
+      migrationsApplied: 1,
     };
   }
 
@@ -598,8 +556,9 @@ describe('agent runtime durable freshness against file-backed node:sqlite', () =
       try {
         const insertNode = gateway.database.prepare(`
           INSERT INTO book_node
-            (id, title, summary, project_id, created_at, updated_at)
-          VALUES (?, ?, '', 'project-1', '2026-07-30', 'rev-0')
+            (id, title, summary, project_id, created_at, updated_at,
+             position_x, position_y)
+          VALUES (?, ?, '', 'project-1', '2026-07-30', 'rev-0', 0, 0)
         `);
         const insertTool = gateway.database.prepare(`
           INSERT INTO agent_runtime_tool_call

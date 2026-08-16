@@ -40,9 +40,9 @@ import {
   type AgentRuntimeUsage,
 } from './types';
 
-const migrationSql = readFileSync(
+const baselineSql = readFileSync(
   new URL(
-    '../../../../../drizzle/0060_agent_runtime_persistence.sql',
+    '../../../../../drizzle/0000_local_first_baseline.sql',
     import.meta.url,
   ),
   'utf8',
@@ -150,27 +150,9 @@ class FileSqliteGateway implements DatabasePlatformApi {
     this.database = new DatabaseSync(path);
     this.database.exec('PRAGMA foreign_keys = ON');
     if (!initialize) return;
-    this.database.exec(`
-      CREATE TABLE project (
-        id TEXT PRIMARY KEY NOT NULL,
-        name TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE agent_conversation (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-        title TEXT NOT NULL DEFAULT '',
-        sdk_session_id TEXT,
-        mode TEXT NOT NULL DEFAULT 'byok',
-        messages_json TEXT NOT NULL DEFAULT '[]',
-        deleted_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-    `);
-    this.database.exec(migrationSql);
+    this.database.exec('PRAGMA foreign_keys = OFF');
+    this.database.exec(baselineSql);
+    this.database.exec('PRAGMA foreign_keys = ON');
     this.database.exec(`
       INSERT INTO project (id, name, user_id, created_at, updated_at)
       VALUES ('project-v2', 'Novel', 'user-v2', '${NOW}', '${NOW}');
@@ -730,7 +712,7 @@ describe('file-backed Agent V2 context recovery', () => {
       );
     }
 
-    const legacyHash = await hashAgentRuntimeCheckpointContext(HISTORY);
+    const v1Hash = await hashAgentRuntimeCheckpointContext(HISTORY);
     gateway.database
       .prepare(
         `UPDATE agent_runtime_checkpoint
@@ -739,18 +721,17 @@ describe('file-backed Agent V2 context recovery', () => {
       )
       .run(
         JSON.stringify(HISTORY),
-        legacyHash,
+        v1Hash,
         'agent-checkpoint:session-v2:0',
       );
-    const legacySnapshot =
+    const v1Snapshot =
       await restartedRepository.loadRecoverySnapshot('session-v2');
-    if (!legacySnapshot) throw new Error('legacy fixture lost snapshot');
+    if (!v1Snapshot) throw new Error('V1 rejection fixture lost snapshot');
     await expect(
-      recoverAgentRuntimeSnapshot(legacySnapshot),
-    ).resolves.toMatchObject({
-      providerHistory: HISTORY,
-      checkpointId: 'agent-checkpoint:session-v2:0',
-    });
+      recoverAgentRuntimeSnapshot(v1Snapshot),
+    ).rejects.toSatisfy(
+      (error: unknown) => corruptionCode(error) === 'INVALID_CHECKPOINT',
+    );
 
     const originalHash = await hashAgentRuntimeCheckpointPayload(original);
     gateway.database
@@ -787,7 +768,7 @@ describe('file-backed Agent V2 context recovery', () => {
     });
   });
 
-  it('falls back to exact hashed V1 history when a stale V2 projection cannot prove the completed turn', async () => {
+  it('stores a V4 row digest when a stale V2 projection cannot prove the completed turn', async () => {
     directory = mkdtempSync(join(tmpdir(), 'drifting-agent-v2-stale-'));
     gateway = new FileSqliteGateway(join(directory, 'runtime.sqlite'), true);
     const repository = createAgentRuntimePersistenceRepository(
@@ -869,7 +850,7 @@ describe('file-backed Agent V2 context recovery', () => {
     });
   });
 
-  it('falls back to exact hashed history after validating an oversized V2 checkpoint', async () => {
+  it('stores a bounded V4 row digest after validating an oversized V2 checkpoint', async () => {
     directory = mkdtempSync(join(tmpdir(), 'drifting-agent-v2-large-'));
     gateway = new FileSqliteGateway(join(directory, 'runtime.sqlite'), true);
     const repository = createAgentRuntimePersistenceRepository(

@@ -8,7 +8,7 @@
  *
  * Inline edit/ask express "whole chapter" by simply WIDENING their context
  * window to every block (see buildInlineCopilotCtx) — no new field needed, the
- * server prompts already consume contextBefore/contextAfter. Only chapter-
+ * renderer-local prompts already consume contextBefore/contextAfter. Only chapter-
  * summary, which had no full-text input, uses {@link buildAdaptiveChapterContext}
  * to pick fullChapterText vs. sectionSummaries.
  */

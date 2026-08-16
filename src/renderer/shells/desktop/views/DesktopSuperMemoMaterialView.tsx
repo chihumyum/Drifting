@@ -27,10 +27,11 @@ import {
 } from '../../../components/rightBars/MemoMaterialPanel';
 import { EntityRelationPicker } from '../../../components/rightBars/EntityRelationPicker';
 import { createPlainCommentDoc, extractTextFromCommentBody } from '../../../domain/comment';
+import { genericAssociationRelationTypeId } from '../../../domain/entity-relation-type';
 import type { Comment } from '../../../domain/comment';
 import type { LibraryItem, LibraryItemKind } from '../../../domain/library-item';
 import type { EntityKind } from '../../../lib/extensions/entity-link';
-import { assetCacheService } from '../../../services/asset-cache.service';
+import { assetStoreService } from '../../../services/asset-store.service';
 import { platform } from '../../../platform';
 
 const KIND_ORDER: LibraryItemKind[] = ['image', 'pdf', 'url', 'text'];
@@ -68,6 +69,14 @@ export function DesktopSuperMemoMaterialView() {
   const comments = useDataStore((s) => s.comments);
   const libraryItems = useDataStore((s) => s.libraryItems);
   const entityRelations = useDataStore((s) => s.entityRelations);
+  const genericRelationTypeId = genericAssociationRelationTypeId(projectId);
+  const genericRelations = useMemo(
+    () =>
+      entityRelations.filter(
+        (relation) => relation.relationTypeId === genericRelationTypeId,
+      ),
+    [entityRelations, genericRelationTypeId],
+  );
   const projectAssets = useDataStore((s) => s.projectAssets);
 
   const commentUsecases = useComment({ projectId, userId });
@@ -112,18 +121,18 @@ export function DesktopSuperMemoMaterialView() {
     closeView,
   );
 
-  // Group entityRelations by from-entity so each card can render its
+  // Group generic associations by from-entity so each card can render its
   // relation chips and the filters can narrow to a specific target.
   const refsByFrom = useMemo(() => {
-    const map = new Map<string, typeof entityRelations>();
-    entityRelations.forEach((r) => {
+    const map = new Map<string, typeof genericRelations>();
+    genericRelations.forEach((r) => {
       const key = `${r.fromKind}:${r.fromId}`;
       const list = map.get(key) ?? [];
       list.push(r);
       map.set(key, list);
     });
     return map;
-  }, [entityRelations]);
+  }, [genericRelations]);
 
   const isRelatedToEntity = useCallback(
     (fromKind: EntityKind, fromId: string) => {
@@ -213,22 +222,18 @@ export function DesktopSuperMemoMaterialView() {
     async (m: LibraryItem) => {
       if (m.kind === 'text') return;
       if (m.kind === 'url') {
-        await platform.material.openExternal(m.uri);
+        await platform.material.openExternal(m.externalUrl);
         return;
       }
-      let path = m.localPath ?? m.uri.replace(/^file:\/\//, '');
-      if (m.source === 'r2' && m.assetId) {
-        const asset = projectAssets.find((item) => item.id === m.assetId);
-        if (!asset) return;
-        try {
-          const cached = await assetCacheService.ensureCachedVariant(projectId, asset, 'source');
-          path = cached.filePath;
-        } catch (error) {
-          alert(t('memoMaterial.error.openFile', { error: String(error) }));
-          return;
-        }
+      const asset = projectAssets.find((item) => item.id === m.assetId);
+      if (!asset) return;
+      let path: string;
+      try {
+        path = (await assetStoreService.requireVariant(projectId, asset, 'source')).filePath;
+      } catch (error) {
+        alert(t('memoMaterial.error.openFile', { error: String(error) }));
+        return;
       }
-      if (!path) return;
       const res = await platform.material.openLocal(path);
       if (!res.ok) alert(t('memoMaterial.error.openFile', { error: res.error }));
     },
@@ -261,13 +266,13 @@ export function DesktopSuperMemoMaterialView() {
 
   const removeRelation = useCallback(
     (fromKind: EntityKind, fromId: string, toKind: EntityKind, toId: string) => {
-      const ref = entityRelations.find(
+      const ref = genericRelations.find(
         (r) =>
           r.fromKind === fromKind && r.fromId === fromId && r.toKind === toKind && r.toId === toId,
       );
       if (ref) relationUsecases.removeRelation(ref.id);
     },
-    [entityRelations, relationUsecases],
+    [genericRelations, relationUsecases],
   );
 
   const focusedEntity: FocusedEntity = entityFilter;
@@ -312,7 +317,7 @@ export function DesktopSuperMemoMaterialView() {
             openTodos={openTodos}
             commentUsecases={commentUsecases}
             relationUsecases={relationUsecases}
-            entityRelations={entityRelations}
+            entityRelations={genericRelations}
             onCompose={() => setComposeOpen('todo')}
           />
 
@@ -368,7 +373,7 @@ export function DesktopSuperMemoMaterialView() {
             });
             await Promise.all(
               relations.map((t) =>
-                relationUsecases.addRelation('comment', created.id, t.kind, t.id),
+                relationUsecases.addGenericAssociation('comment', created.id, t.kind, t.id),
               ),
             );
             setComposeOpen(null);
@@ -384,7 +389,7 @@ export function DesktopSuperMemoMaterialView() {
             const mat = await libraryItemUsecases.createLibraryItem(input);
             const relationResults = await Promise.allSettled(
               relations.map((t) =>
-                relationUsecases.addRelation('library_item', mat.id, t.kind, t.id),
+                relationUsecases.addGenericAssociation('library_item', mat.id, t.kind, t.id),
               ),
             );
             const failedRelations = relationResults.filter(
@@ -647,7 +652,9 @@ function TodoRail({
         relations={relations}
         onResolve={() => commentUsecases.resolveComment(todo.id)}
         onDelete={() => commentUsecases.deleteComment(todo.id)}
-        onAddRelation={(t) => relationUsecases.addRelation('comment', todo.id, t.kind, t.id)}
+        onAddRelation={(t) =>
+          relationUsecases.addGenericAssociation('comment', todo.id, t.kind, t.id)
+        }
         onRemoveRelation={(t) => {
           const ref = entityRelations.find(
             (r) =>
@@ -1052,9 +1059,8 @@ function KindGroup({
             onOpenInApp={() => openLibraryItemInApp(mat)}
             onUpdate={(updates) => libraryItemUsecases.updateLibraryItem(mat.id, updates)}
             onDelete={() => libraryItemUsecases.removeLibraryItem(mat.id)}
-            onRetryUpload={() => libraryItemUsecases.retryLibraryItemUpload(mat.id)}
             onAddRelation={(t) =>
-              relationUsecases.addRelation('library_item', mat.id, t.kind, t.id)
+              relationUsecases.addGenericAssociation('library_item', mat.id, t.kind, t.id)
             }
             onRemoveRelation={(t) => removeRelation('library_item', mat.id, t.kind, t.id)}
             defaultExpanded
@@ -1265,9 +1271,8 @@ function BottomDrawer({
                   onOpenInApp={() => openLibraryItemInApp(mat)}
                   onUpdate={(updates) => libraryItemUsecases.updateLibraryItem(mat.id, updates)}
                   onDelete={() => libraryItemUsecases.removeLibraryItem(mat.id)}
-                  onRetryUpload={() => libraryItemUsecases.retryLibraryItemUpload(mat.id)}
                   onAddRelation={(t) =>
-                    relationUsecases.addRelation('library_item', mat.id, t.kind, t.id)
+                    relationUsecases.addGenericAssociation('library_item', mat.id, t.kind, t.id)
                   }
                   onRemoveRelation={(t) => removeRelation('library_item', mat.id, t.kind, t.id)}
                   defaultExpanded

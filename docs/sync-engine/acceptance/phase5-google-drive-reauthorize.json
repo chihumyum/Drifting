@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-phase5-google-drive-reauthorize",
+  "recordedAt": "2026-08-15",
+  "status": "native-cross-platform-implementation-complete",
+  "rendererBoundary": {
+    "publicApi": "platform.googleDrive.reauthorizeAccount(credentialSecretRef)",
+    "opaqueCredentialReferenceOnly": true,
+    "accessTokenVisible": false,
+    "refreshTokenVisible": false
+  },
+  "nativeBoundary": {
+    "desktopFlow": "system-browser-loopback-pkce",
+    "readsExistingIdentityBeforeOAuth": true,
+    "sameAccountSubjectRequired": true,
+    "wrongAccountError": "account-mismatch",
+    "sameSecretReferenceReturned": true,
+    "temporaryCredentialReferenceCreated": false,
+    "oldCredentialDeletedBeforeSuccess": false,
+    "implicitRevoke": false,
+    "serializedWithRefreshAndRevoke": true,
+    "ios": "google-signin-same-subject",
+    "android": "authorization-client-same-subject",
+    "mobileCredentialReplacementPersistsRawToken": false,
+    "mobileWrongSubjectPreservesOwnership": true
+  },
+  "machineAcceptance": {
+    "focusedRustTests": {
+      "passed": 14,
+      "failed": 0
+    },
+    "focusedTypeScriptTests": {
+      "filesPassed": 3,
+      "testsPassed": 9,
+      "failed": 0
+    },
+    "cargoCheck": "passed",
+    "iosArm64SimulatorDebugBuild": "passed",
+    "androidUniversalDebugApkBuild": "passed",
+    "typescriptTypecheck": "passed",
+    "eslint": "passed",
+    "publicBoundaryCheck": "passed",
+    "mobileOfficialSdkArchitectureTests": 6,
+    "fullCargoLibTests": "deferred-to-final-repository-gate"
+  },
+  "realAccountGates": {
+    "sameAccountOverwrite": false,
+    "wrongAccountSelection": false,
+    "restartRefresh": false,
+    "otherDeviceContinuity": false
+  },
+  "commands": [
+    "cargo test google_drive_sync --lib --manifest-path src-tauri/Cargo.toml",
+    "cargo check --manifest-path src-tauri/Cargo.toml",
+    "pnpm exec vitest run src/renderer/platform/google-drive.test.ts src/renderer/sync/providers/google-drive/mobile-oauth.architecture.test.ts src/renderer/sync/providers/google-drive/tauri-transport.test.ts --reporter=verbose",
+    "pnpm exec cross-env VITE_LOCAL_ONLY_MODE=true VITE_REQUIRE_AUTH=false VITE_AI_TRANSPORT=direct VITE_API_BASE_URL=http://localhost:3000 API_BASE_URL=http://localhost:3000 tauri ios build --debug --target aarch64-sim --ci",
+    "pnpm exec cross-env VITE_LOCAL_ONLY_MODE=true VITE_REQUIRE_AUTH=false VITE_AI_TRANSPORT=direct VITE_API_BASE_URL=http://localhost:3000 API_BASE_URL=http://localhost:3000 tauri android build --debug --apk",
+    "pnpm exec tsc --noEmit --pretty false",
+    "pnpm exec eslint src/renderer/platform/contracts.ts src/renderer/platform/types.ts src/renderer/platform/tauri.ts src/renderer/platform/google-drive.test.ts",
+    "pnpm public:check"
+  ]
+}

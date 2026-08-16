@@ -2,6 +2,7 @@ export {
   tauriPlatform as platform,
   isTauriRuntime,
   PlatformCommandError,
+  GoogleDrivePlatformError,
   PlatformUnavailableError,
 } from './tauri';
 export type * from './contracts';

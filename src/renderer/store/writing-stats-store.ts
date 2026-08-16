@@ -21,8 +21,7 @@ export interface DailyWordSnapshot {
 }
 
 export interface ProjectHistory {
-  // ISODate → the first trusted total and latest total observed that day.
-  // Sparse — only days the user actually wrote on appear.
+  // Sparse — only days when the project total was observed appear.
   [day: ISODate]: DailyWordSnapshot;
 }
 
@@ -42,6 +41,7 @@ export interface WritingStatsState {
   setProjectWordTarget: (projectId: string, words: number) => void;
   setDailyWordGoal: (projectId: string, words: number) => void;
   getPlan: (projectId: string) => WritingPlan;
+  clearProject: (projectId: string) => void;
 }
 
 type LegacyWritingStatsState = Omit<WritingStatsState, 'history'> & {
@@ -186,6 +186,15 @@ export const useWritingStatsStore = create<WritingStatsState>()(
           projectWordTarget: DEFAULT_PROJECT_TARGET,
           dailyWordGoal: DEFAULT_DAILY_GOAL,
         },
+      clearProject: (projectId) =>
+        set((state) => {
+          if (!(projectId in state.history) && !(projectId in state.plans)) return state;
+          const history = { ...state.history };
+          const plans = { ...state.plans };
+          delete history[projectId];
+          delete plans[projectId];
+          return { history, plans };
+        }),
     }),
     {
       name: 'writing-stats-storage',

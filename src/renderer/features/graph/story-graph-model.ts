@@ -4,8 +4,7 @@ export interface StoryGraphEdge {
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
-  kind: string | null;
-  relationTypeId: string | null;
+  relationTypeId: string;
 }
 
 export function projectStoryGraphEdges(
@@ -20,8 +19,7 @@ export function projectStoryGraphEdges(
       id: relation.id,
       sourceNodeId: relation.fromId,
       targetNodeId: relation.toId,
-      kind: relation.kind ?? null,
-      relationTypeId: relation.relationTypeId ?? null,
+      relationTypeId: relation.relationTypeId,
     });
   }
   return edges;

@@ -25,8 +25,8 @@ export interface BookElement {
   // Lightweight secondary grouping label within a category. Null = "ungrouped".
   // See schema/drizzle.ts for rationale.
   groupName: string | null;
-  // Cloud-backed portrait image. Null means render the category-color sketch
-  // placeholder. The asset metadata row carries private R2 object keys.
+  // Provider-neutral portrait asset. Null means render the category-color
+  // sketch placeholder. The referenced asset owns a canonical local source.
   portraitAssetId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -152,7 +152,7 @@ export interface BookElementCategory {
   id: string;
   projectId: string;
   name: string;
-  // Body editor's TipTap JSON. Renamed from descriptionJson (migration 0029).
+  // Body editor's TipTap JSON; this is full editor content, not a summary.
   contentJson: string;
   // TipTap doc JSON used as the starter content when a new element is created
   // under this category. `'{}'` means "no template" — element starts blank.

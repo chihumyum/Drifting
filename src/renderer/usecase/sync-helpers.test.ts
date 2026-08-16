@@ -1,25 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  getDb: vi.fn(),
-  persistSyncMutationInTransaction: vi.fn(),
-  notifySyncMutationCommitted: vi.fn(),
-  bumpLocalMutationGeneration: vi.fn(),
-  trackAtomicSyncTransaction: vi.fn(),
+  appendAuthoredDomainMutation: vi.fn(),
+  appendAuthoredLifecycleRestoreInTransaction: vi.fn(),
+  runAuthoredTransaction: vi.fn(),
 }));
 
-vi.mock('../lib/db', () => ({ getDb: mocks.getDb }));
-vi.mock('../services/entity-sync.service', () => ({
-  persistSyncMutationInTransaction: mocks.persistSyncMutationInTransaction,
-  notifySyncMutationCommitted: mocks.notifySyncMutationCommitted,
+vi.mock('../sync/journal', () => ({
+  appendAuthoredDomainMutation: mocks.appendAuthoredDomainMutation,
+  runAuthoredTransaction: mocks.runAuthoredTransaction,
 }));
-vi.mock('../services/local-mutation-generation', () => ({
-  localMutationGeneration: {
-    bump: mocks.bumpLocalMutationGeneration,
-  },
-}));
-vi.mock('../services/atomic-sync-transaction-tracker', () => ({
-  trackAtomicSyncTransaction: mocks.trackAtomicSyncTransaction,
+
+vi.mock('./sync-lifecycle-restore', () => ({
+  appendAuthoredLifecycleRestoreInTransaction:
+    mocks.appendAuthoredLifecycleRestoreInTransaction,
+  isRestorableSyncEntityKind: (kind: string) =>
+    ['node', 'storyline', 'element', 'elementCategory'].includes(kind),
 }));
 
 import { withAtomicSyncTransaction } from './sync-helpers';
@@ -27,110 +23,72 @@ import { withAtomicSyncTransaction } from './sync-helpers';
 describe('withAtomicSyncTransaction', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.persistSyncMutationInTransaction.mockResolvedValue(true);
-    mocks.trackAtomicSyncTransaction.mockImplementation((operation) => operation);
+    mocks.runAuthoredTransaction.mockImplementation(
+      async (_projectId: string, _command: string, work: (context: object) => Promise<unknown>) =>
+        work({ tx: { id: 'shared-tx' }, changes: { id: 'one-builder' }, origin: 'local' }),
+    );
   });
 
-  it('uses the domain write transaction for the outbox row and notifies after commit', async () => {
-    const events: string[] = [];
-    const tx = { id: 'shared-transaction' };
-    mocks.getDb.mockReturnValue({
-      transaction: vi.fn(async (callback: (executor: object) => Promise<string>) => {
-        events.push('transaction:start');
-        const result = await callback(tx);
-        events.push('transaction:commit');
-        return result;
-      }),
-    });
-    mocks.persistSyncMutationInTransaction.mockImplementation(async (executor) => {
-      events.push('outbox:write');
-      expect(executor).toBe(tx);
-      return true;
-    });
-    mocks.notifySyncMutationCommitted.mockImplementation(() => {
-      events.push('sync:notify');
-    });
-    mocks.bumpLocalMutationGeneration.mockImplementation(() => {
-      events.push('generation:bump');
-    });
-
-    const result = await withAtomicSyncTransaction('project-1', async (executor, sync) => {
-      expect(executor).toBe(tx);
-      events.push('entity:write');
+  it('collects every domain write in one provider-neutral authored transaction', async () => {
+    const result = await withAtomicSyncTransaction('project-1', async (tx, sync, changes) => {
+      expect(tx).toEqual({ id: 'shared-tx' });
+      expect(changes).toEqual({ id: 'one-builder' });
       await sync('node', 'update', 'node-1', 'project-1', { title: 'Updated' });
+      await sync('comment', 'create', 'comment-1', 'project-1', { bodyJson: '{}' });
       return 'done';
     });
 
     expect(result).toBe('done');
-    expect(events).toEqual([
-      'generation:bump',
-      'transaction:start',
-      'entity:write',
-      'outbox:write',
-      'transaction:commit',
-      'sync:notify',
-    ]);
-    expect(mocks.bumpLocalMutationGeneration).toHaveBeenCalledWith('project-1');
-    expect(mocks.persistSyncMutationInTransaction).toHaveBeenCalledWith(
-      tx,
-      expect.objectContaining({
+    expect(mocks.runAuthoredTransaction).toHaveBeenCalledWith(
+      'project-1',
+      'domain.authored-write',
+      expect.any(Function),
+    );
+    expect(mocks.appendAuthoredDomainMutation).toHaveBeenCalledTimes(2);
+    expect(mocks.appendAuthoredDomainMutation).toHaveBeenNthCalledWith(
+      1,
+      { id: 'one-builder' },
+      {
         entityType: 'node',
         mutationType: 'update',
         entityId: 'node-1',
         projectId: 'project-1',
         payload: { title: 'Updated' },
-      }),
+        parentId: undefined,
+      },
     );
   });
 
-  it('does not notify the network runtime when the transaction fails', async () => {
-    const tx = { id: 'rolled-back-transaction' };
-    mocks.getDb.mockReturnValue({
-      transaction: vi.fn(async (callback: (executor: object) => Promise<void>) => {
-        await callback(tx);
-        throw new Error('commit failed');
-      }),
-    });
-
+  it('rejects a cross-project mutation before appending it', async () => {
     await expect(
-      withAtomicSyncTransaction('project-1', async (_executor, sync) => {
-        await sync('nodeContent', 'update', 'node-1', 'project-1', {
-          contentJson: '{}',
-        });
+      withAtomicSyncTransaction('project-1', async (_tx, sync) => {
+        await sync('node', 'update', 'node-1', 'project-2', { title: 'Wrong' });
       }),
-    ).rejects.toThrow('commit failed');
-
-    expect(mocks.persistSyncMutationInTransaction).toHaveBeenCalledOnce();
-    expect(mocks.notifySyncMutationCommitted).not.toHaveBeenCalled();
+    ).rejects.toThrow('cannot record a mutation for project-2');
+    expect(mocks.appendAuthoredDomainMutation).not.toHaveBeenCalled();
   });
 
-  it('does not notify when sync persistence is disabled', async () => {
-    const tx = { id: 'local-only-transaction' };
-    mocks.getDb.mockReturnValue({
-      transaction: vi.fn(async (callback: (executor: object) => Promise<void>) => callback(tx)),
-    });
-    mocks.persistSyncMutationInTransaction.mockResolvedValue(false);
-
-    await withAtomicSyncTransaction('project-1', async (_executor, sync) => {
-      await sync('element', 'create', 'element-1', 'project-1', { name: 'Alice' });
+  it('routes every reachable Trash restore through the full lifecycle capture', async () => {
+    await withAtomicSyncTransaction('project-1', async (_tx, sync) => {
+      await sync('node', 'restore', 'node-1', 'project-1');
+      await sync('storyline', 'restore', 'storyline-1', 'project-1');
+      await sync('element', 'restore', 'element-1', 'project-1');
+      await sync('elementCategory', 'restore', 'category-1', 'project-1');
     });
 
-    expect(mocks.notifySyncMutationCommitted).not.toHaveBeenCalled();
-  });
-
-  it('rejects cross-project mutations before writing the outbox', async () => {
-    const tx = { id: 'project-scoped-transaction' };
-    mocks.getDb.mockReturnValue({
-      transaction: vi.fn(async (callback: (executor: object) => Promise<void>) => callback(tx)),
-    });
-
-    await expect(
-      withAtomicSyncTransaction('project-1', async (_executor, sync) => {
-        await sync('node', 'update', 'node-1', 'project-2', { title: 'Wrong project' });
-      }),
-    ).rejects.toThrow('cannot persist a mutation for project-2');
-
-    expect(mocks.persistSyncMutationInTransaction).not.toHaveBeenCalled();
-    expect(mocks.notifySyncMutationCommitted).not.toHaveBeenCalled();
+    expect(mocks.appendAuthoredLifecycleRestoreInTransaction).toHaveBeenCalledTimes(4);
+    expect(mocks.appendAuthoredLifecycleRestoreInTransaction).toHaveBeenNthCalledWith(
+      1,
+      { id: 'shared-tx' },
+      { id: 'one-builder' },
+      { projectId: 'project-1', entityType: 'node', entityId: 'node-1' },
+    );
+    expect(mocks.appendAuthoredLifecycleRestoreInTransaction).toHaveBeenNthCalledWith(
+      4,
+      { id: 'shared-tx' },
+      { id: 'one-builder' },
+      { projectId: 'project-1', entityType: 'elementCategory', entityId: 'category-1' },
+    );
+    expect(mocks.appendAuthoredDomainMutation).not.toHaveBeenCalled();
   });
 });

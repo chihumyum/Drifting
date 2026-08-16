@@ -6,19 +6,19 @@ import * as Y from 'yjs';
 import { hasCanonicalWordCount, type BookNode, type WordCountBasisKind } from '../domain/book-node';
 import { extractOutline, serializeOutline } from '../lib/outline';
 import { proseDocId } from '../lib/yjs-doc-id';
-import { createEntityLegacySeedUpdate } from '../hooks/useEntityYjsDoc';
+import { createEntitySeedUpdate } from '../hooks/useEntityYjsDoc';
 import { BookNodeTable, NodeContentTable } from '../schema/drizzle';
 import { createBookContentRepository } from '../sqlite-repo/content-repo';
 import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
 import { createYjsRepository } from '../sqlite-repo/yjs-repo';
 import { useDataStore } from '../store/data-store';
 import { useProseMetricsStatusStore } from '../store/prose-metrics-status-store';
-import { getDb, type DbExecutor } from '../lib/db';
+import type { DbExecutor } from '../lib/db';
 import {
   createYjsProsePersistenceCoordinator,
   type YjsProsePersistenceBase,
 } from '../lib/agent/runtime/yjs-prose-persistence-coordinator';
-import { withAtomicSyncTransaction, type AtomicSyncWriter } from '../usecase/sync-helpers';
+import { runDerivedTransaction } from '../sync/journal';
 
 const EMPTY_DOCUMENT = JSON.stringify({ type: 'doc', content: [] });
 const MAX_RECONCILE_CONCURRENCY = 4;
@@ -54,7 +54,6 @@ export interface PersistNodeProseProjectionInput extends CanonicalNodeProseProje
   projectId: string;
   updatedAt: string;
   touchNodeUpdatedAt?: boolean;
-  emitContentSync?: boolean;
   publishToDataStore?: boolean;
 }
 
@@ -184,17 +183,13 @@ export async function persistNodeProseProjectionInTransaction(
   return { node, contentJson: content.contentJson, outlineJson: content.outlineJson };
 }
 
-async function persistProjectionWithSync(
+async function persistProjection(
   input: PersistNodeProseProjectionInput,
 ): Promise<CanonicalNodeProseProjection> {
-  const result =
-    input.emitContentSync === false
-      ? await getDb().transaction((tx) => persistNodeProseProjectionInTransaction(tx, input))
-      : await withAtomicSyncTransaction(input.projectId, async (tx, sync) => {
-          const persisted = await persistNodeProseProjectionInTransaction(tx, input);
-          await persistProjectionOutbox(sync, input);
-          return persisted;
-        });
+  const result = await runDerivedTransaction(
+    'prose.node-metrics-projection',
+    (tx) => persistNodeProseProjectionInTransaction(tx, input),
+  );
   if (input.publishToDataStore !== false) {
     useDataStore.getState().updateBookNode(input.nodeId, result.node);
   }
@@ -205,16 +200,6 @@ async function persistProjectionWithSync(
   };
 }
 
-async function persistProjectionOutbox(
-  sync: AtomicSyncWriter,
-  input: PersistNodeProseProjectionInput,
-): Promise<void> {
-  await sync('nodeContent', 'update', input.nodeId, input.projectId, {
-    contentJson: input.contentJson,
-    outlineJson: input.outlineJson,
-  });
-}
-
 async function captureNodeProjection(
   nodeId: string,
   fallbackContentJson?: string | null,
@@ -223,7 +208,7 @@ async function captureNodeProjection(
     fallbackContentJson ??
     (await createBookContentRepository().findByNodeId(nodeId))?.contentJson ??
     EMPTY_DOCUMENT;
-  const seedUpdate = await createEntityLegacySeedUpdate(contentJson);
+  const seedUpdate = await createEntitySeedUpdate(contentJson);
   const base = await createYjsProsePersistenceCoordinator().readBase(
     proseDocId('node', nodeId),
     seedUpdate,
@@ -235,11 +220,7 @@ export async function materializeCanonicalNodeProse(
   projectId: string,
   nodeId: string,
   fallbackContentJson?: string | null,
-  options: {
-    touchNodeUpdatedAt?: boolean;
-    emitContentSync?: boolean;
-    publishToDataStore?: boolean;
-  } = {},
+  options: { touchNodeUpdatedAt?: boolean; publishToDataStore?: boolean } = {},
 ): Promise<CanonicalNodeProseProjection> {
   let lastConflict: unknown;
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -257,12 +238,11 @@ export async function materializeCanonicalNodeProse(
           wordCountBasisServerSeq: node.wordCountBasisServerSeq ?? null,
         };
       }
-      return await persistProjectionWithSync({
+      return await persistProjection({
         projectId,
         ...projection,
         updatedAt: new Date().toISOString(),
         touchNodeUpdatedAt: options.touchNodeUpdatedAt,
-        emitContentSync: options.emitContentSync,
         publishToDataStore: options.publishToDataStore,
       });
     } catch (error) {
@@ -289,7 +269,6 @@ async function reconcileProject(
         try {
           await materializeCanonicalNodeProse(projectId, node.id, undefined, {
             touchNodeUpdatedAt: false,
-            emitContentSync: false,
             publishToDataStore: options.publishToDataStore,
           });
         } catch (error) {

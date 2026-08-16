@@ -6,7 +6,7 @@ import {
   flushSessionTokenStorage,
   invalidateSessionToken,
 } from '../lib/session-token';
-import { isAuthRequired } from '../lib/config';
+import { canUseHostedService, isAuthRequired } from '../lib/config';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 import { initDatabase, resetDatabase } from '../lib/db';
 import { events } from '../lib/events';
@@ -109,6 +109,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   // 登录
   login: async (email: string, password: string) => {
+    if (!canUseHostedService()) {
+      throw new Error('HOSTED_SERVICE_DISABLED: account login is unavailable.');
+    }
     try {
       if (isAppClosedForPublic) {
         throw new Error(APP_CLOSED_MESSAGE);
@@ -163,6 +166,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   // 注册
   register: async (email: string, password: string, name: string) => {
+    if (!canUseHostedService()) {
+      throw new Error('HOSTED_SERVICE_DISABLED: account registration is unavailable.');
+    }
     try {
       if (isAppClosedForPublic) {
         throw new Error(APP_CLOSED_MESSAGE);
@@ -215,6 +221,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   // session that better-auth wrote to the cookie jar and runs the same
   // post-login bookkeeping as `login`.
   adoptSession: async () => {
+    if (!canUseHostedService()) {
+      throw new Error('HOSTED_SERVICE_DISABLED: account session adoption is unavailable.');
+    }
     if (get().isAuthenticated) {
       const { quiesceApplicationForDatabaseSwitch } = await import('../lib/persistence-lifecycle');
       // OAuth may already have installed the incoming account's token, so
@@ -283,9 +292,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       { flushRemote: false },
     );
 
-    const { stopPreferencesSync } = await import('../services/preferences-sync.service');
-    stopPreferencesSync();
-
     // 重置数据库连接，切换回匿名/demo模式的数据库
     await resetDatabase();
     await initDatabase(getDbFileName());
@@ -326,8 +332,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         set({ isAuthenticated: false, session: null, user: null });
       }
 
-      const { stopPreferencesSync } = await import('../services/preferences-sync.service');
-      stopPreferencesSync();
       await resetDatabase();
       await initDatabase(getDbFileName());
       events.emit('db:ready');
@@ -349,7 +353,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
     const operation = (async () => {
       if (!isAuthRequired()) {
+        // A protected local-only route may be the very first screen mounted
+        // (for example a mobile deep-link to Settings -> Local data).  Route
+        // readiness therefore includes opening the sole local SQLite replica;
+        // project-scoped providers are not allowed to be the bootstrap owner.
+        await initDatabase(LOCAL_USER_ID);
         set(getLocalAuthState());
+        events.emit('db:ready');
         return;
       }
 

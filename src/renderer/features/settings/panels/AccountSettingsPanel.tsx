@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { accountService, type DeletionStatus } from '../../../services/account.service';
 import { useAuthStore } from '../../../store/auth';
 import { authClient } from '../../../lib/auth-client';
-import { exportAllProjectsAsRelationalMarkdown } from '../../../services/export/relational-markdown.service';
 import {
   SettingsPanelHeader,
   SettingsRow,
@@ -27,8 +26,6 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
   const [emailChangeSent, setEmailChangeSent] = useState(false);
   const [emailChangeCode, setEmailChangeCode] = useState('');
   const [emailChangeError, setEmailChangeError] = useState<string | null>(null);
-  const [exportBusy, setExportBusy] = useState(false);
-  const [exportMessage, setExportMessage] = useState<string | null>(null);
 
   // Password change form — only mounted when user clicks "更改"
   const [pwOpen, setPwOpen] = useState(false);
@@ -71,23 +68,6 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
   const handleLogout = async () => {
     await logout();
     navigate('/login');
-  };
-
-  const handleMarkdownExport = async () => {
-    setExportBusy(true);
-    setExportMessage(null);
-    try {
-      const result = await exportAllProjectsAsRelationalMarkdown();
-      setExportMessage(t('settings.account.export_done', { count: result.documentCount }));
-    } catch (error) {
-      setExportMessage(
-        t('settings.account.export_failed', {
-          error: error instanceof Error ? error.message : String(error),
-        }),
-      );
-    } finally {
-      setExportBusy(false);
-    }
   };
 
   const handleSaveName = async () => {
@@ -548,16 +528,6 @@ export function AccountPanel({ registerRef }: { registerRef: SettingsRegisterRef
 
       <div className="set-danger">
         <div className="set-danger__title">{t('settings.account.danger_zone')}</div>
-        <SettingsRow
-          label={t('settings.account.export_all')}
-          desc={t('settings.account.export_all_desc')}
-          control={
-            <button className="set-btn" onClick={handleMarkdownExport} disabled={exportBusy}>
-              {exportBusy ? t('settings.account.exporting') : t('settings.account.export_all_btn')}
-            </button>
-          }
-        />
-        {exportMessage && <div className="set-row__desc">{exportMessage}</div>}
         {deletion?.pending ? (
           <SettingsRow
             label={t('settings.account.delete_pending_title')}

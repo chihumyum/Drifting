@@ -1,11 +1,12 @@
 # Explicit Tauri platform boundaries
 
-These limitations are surfaced deliberately. None of them silently falls back to plaintext
-storage, stale prose projections, or a fake successful operation.
+These limitations are surfaced deliberately. Secret storage never falls back to plaintext,
+prose never falls back to a stale projection, and unsupported operations never report a fake
+success. Google Drive project sync follows the separately documented trusted-cloud model.
 
 ## General Agent
 
-General Agent is no longer blocked by the Tauri migration. The app shell installs a
+General Agent is not blocked by the Tauri platform boundary. The app shell installs a
 provider-neutral local runtime in the renderer on desktop, iOS, and Android. A turn freezes a
 certified DeepSeek, Anthropic, or OpenAI provider/model route and lazily reads that provider's BYOK
 credential from native secure storage. It has no hosted quota and does not require the removed
@@ -16,7 +17,7 @@ repositories/use cases, and prose mutations pass through the live Yjs document.
 is not the normal product state after the app shell mounts. The `sidecar` and `remote` transport
 kinds remain extension seams, not current prerequisites.
 
-The remaining platform/product boundaries are narrower than the old migration gap:
+The remaining platform/product boundaries are:
 
 - a waiting control recovered after a full renderer restart can be displayed and safely cancelled,
   but the lost JavaScript stack cannot resume in place; durable plans require fresh author action;
@@ -49,6 +50,14 @@ authentication so background session refresh remains possible. Uninstalling the 
 Keystore key and ciphertext; a missing or invalidated master key fails closed and requires the user
 to sign in or enter BYOK credentials again.
 
+## Sync credential isolation
+
+The generic renderer Keychain commands reject value reads, overwrites, and deletion for
+`sync.google-drive.*`. An opaque credential reference therefore does not grant JavaScript access
+to the corresponding OAuth token or resumable-session state. Existence-only checks remain safe
+and supported. Project content itself uses the documented trusted-cloud model and is not protected
+from Google Drive by an application-managed end-to-end encryption key.
+
 ## Native OAuth bearer handoff
 
 The browser callback now returns only a two-minute, one-time handoff code through `drifting://`.
@@ -64,44 +73,28 @@ application may claim it. Prefer verified iOS Universal Links / Android App Link
 mobile distribution. PKCE prevents an intercepting app from exchanging a flow initiated by the
 real client, but verified links are still required to bind the callback to the installed app.
 
-## Legacy WebView preferences
+## Google Drive personal-cloud OAuth
 
-SQLite databases and the asset cache are migrated automatically, and existing desktop Keychain
-entries retain the same `Drifting` service/key names. Chromium Local Storage/LevelDB is not copied
-into Tauri WebViews: its private on-disk encoding and the new WebView origins are not a stable data
-contract. Users may need to sign in again and reselect UI preferences after the upgrade. A future
-transitional release could export an explicit versioned preferences JSON before installing Tauri.
+The SyncEngine Drive transport is native and keeps Google tokens, bearer headers, resumable upload
+URIs and filesystem paths outside the renderer. Desktop authorization uses the system browser,
+loopback callback and PKCE only when `DRIFTING_GOOGLE_DESKTOP_CLIENT_ID` was supplied to the build;
+otherwise it returns `configuration-required` and stores nothing.
 
-## Existing Tauri database name conflicts
-
-The one-time Electron migration never overwrites an existing valid Tauri database with the same
-filename and does not merge the two databases. It preserves the Tauri copy, leaves the Electron
-source untouched, and then records the completed migration. This mainly affects earlier internal
-Tauri builds that created data before the migration marker existed. Back up both copies and resolve
-the conflict before first launch when the Electron database should remain authoritative; automatic
-row-level merging is not supported.
-
-## Legacy local-only materials
-
-Old `source: local` rows keep their absolute desktop path and can still be opened through the OS
-when that file exists. Arbitrary legacy paths are deliberately outside Tauri's inline asset scope,
-so an old image may require re-import before it can render inside the app. The referenced file also
-cannot appear on iOS/Android merely by syncing the row. New image/PDF picks are copied immediately
-into app-owned storage before any upload is attempted. Formats with native transform support can
-then be uploaded as canonical project assets. HEIC/HEIF/AVIF use the Apple or Android system codec
-when the running OS supports that format; otherwise the original pick still remains a durable
-app-owned local item and the preparation command returns `IMAGE_CODEC_UNAVAILABLE`. Existing
-local-only items need an explicit re-import/upload flow; automatic background upload is avoided
-because it would require network access and user/project authorization during data migration.
+iOS and Android use their official Google SDK OAuth clients registered in the same Google Cloud
+project; the desktop loopback implementation and a WebView flow are not mobile fallbacks. Missing
+build-time client configuration fails closed. Automated host, iOS simulator, and Android build
+checks do not replace a real-account, physical-device, cross-client `appDataFolder` acceptance
+report, so that release gate remains open. See
+[`../docs/sync-engine/phase5-google-drive-native.md`](../docs/sync-engine/phase5-google-drive-native.md).
 
 ## Large material files
 
 Image and PDF imports larger than 64 MiB are rejected before an app-owned copy is created whenever
 the picker exposes reliable file metadata. Android content providers may report an unknown length,
 so the bounded copy is also a final guard and removes its temporary file on rejection. This ceiling
-matches the current whole-file inspection and PDF thumbnail pipeline. Future support must use a
-streaming source upload plus thumbnail degradation instead of increasing the mobile in-memory read
-limit.
+matches the current whole-file inspection and PDF thumbnail pipeline. Future support must use
+streaming inspection/import plus thumbnail degradation instead of increasing the mobile in-memory
+read limit.
 
 ## Image codecs
 

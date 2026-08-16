@@ -12,6 +12,7 @@ import {
   type ThemeMode,
 } from '../../../store/settings-store';
 import { UI_LOCALE_OPTIONS } from '../../../lib/i18n';
+import { ACCENT_COLOR_DEFAULT_DARK, ACCENT_COLOR_DEFAULT_LIGHT } from '../../../lib/theme';
 import { platform, type SystemFontFamily } from '../../../platform';
 import {
   getImportedProseFontMetadata,
@@ -53,6 +54,17 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
   const { t } = useTranslation();
   const themeMode = useSettingsStore((s) => s.themeMode);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
+  const accentColor = useSettingsStore((s) => s.accentColor);
+  const setAccentColor = useSettingsStore((s) => s.setAccentColor);
+  const resolvedTheme =
+    themeMode === 'system'
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light'
+      : themeMode;
+  const displayedAccentColor =
+    accentColor ??
+    (resolvedTheme === 'dark' ? ACCENT_COLOR_DEFAULT_DARK : ACCENT_COLOR_DEFAULT_LIGHT);
 
   const themes: { value: ThemeMode; name: string; kind: string; tp: string }[] = [
     { value: 'light', name: t('settings.appearance.light'), kind: 'LIGHT', tp: 'tp--light' },
@@ -103,6 +115,35 @@ export function AppearancePanel({ registerRef }: { registerRef: SettingsRegister
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="set-sec">
+        <SettingsSectionHeader title={t('settings.appearance.accent')} hint="ACCENT" />
+        <SettingsRow
+          label={t('settings.appearance.accent_color')}
+          desc={t('settings.appearance.accent_color_desc')}
+          control={
+            <div className="set-color-picker">
+              <input
+                className="set-color-picker__input"
+                type="color"
+                value={displayedAccentColor}
+                aria-label={t('settings.appearance.accent_color')}
+                onChange={(event) => setAccentColor(event.target.value)}
+              />
+              <span className="set-color-picker__value">{displayedAccentColor.toUpperCase()}</span>
+              {accentColor && (
+                <button
+                  type="button"
+                  className="set-btn set-btn--ghost"
+                  onClick={() => setAccentColor(null)}
+                >
+                  {t('settings.appearance.accent_reset')}
+                </button>
+              )}
+            </div>
+          }
+        />
       </div>
     </section>
   );

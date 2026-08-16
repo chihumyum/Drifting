@@ -24,12 +24,10 @@ import {
   createAgentRuntimeResultArtifactRepository,
 } from './agent-runtime-result-artifact-repo';
 
-const MIGRATIONS = [
-  new URL('../../../drizzle/0060_agent_runtime_persistence.sql', import.meta.url),
-  new URL('../../../drizzle/0061_agent_runtime_write_effect.sql', import.meta.url),
-  new URL('../../../drizzle/0064_agent_runtime_result_artifact.sql', import.meta.url),
-  new URL('../../../drizzle/0068_agent_runtime_write_authorization.sql', import.meta.url),
-];
+const BASELINE = new URL(
+  '../../../drizzle/0000_local_first_baseline.sql',
+  import.meta.url,
+);
 
 class ReopenableSqliteGateway implements DatabasePlatformApi {
   readonly database: DatabaseSync;
@@ -53,31 +51,14 @@ class ReopenableSqliteGateway implements DatabasePlatformApi {
       )
       .get();
     if (!initialized) {
-      gateway.database.exec(`
-        CREATE TABLE project (
-          id TEXT PRIMARY KEY NOT NULL,
-          name TEXT NOT NULL,
-          user_id TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-        CREATE TABLE agent_conversation (
-          id TEXT PRIMARY KEY NOT NULL,
-          project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-          title TEXT NOT NULL DEFAULT '',
-          sdk_session_id TEXT,
-          mode TEXT NOT NULL DEFAULT 'byok',
-          messages_json TEXT NOT NULL DEFAULT '[]',
-          deleted_at TEXT,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
-      `);
-      for (const migration of MIGRATIONS) {
-        gateway.database.exec(
-          (await readFile(migration, 'utf8')).replaceAll('--> statement-breakpoint', ''),
-        );
-      }
+      gateway.database.exec('PRAGMA foreign_keys = OFF');
+      gateway.database.exec(
+        (await readFile(BASELINE, 'utf8')).replaceAll(
+          '--> statement-breakpoint',
+          '',
+        ),
+      );
+      gateway.database.exec('PRAGMA foreign_keys = ON');
     }
     return gateway;
   }

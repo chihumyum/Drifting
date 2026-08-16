@@ -11,6 +11,35 @@ function bytesToHex(bytes: Uint8Array): string {
   );
 }
 
+function compareUtf8Bytewise(left: string, right: string): number {
+  const encoder = new TextEncoder();
+  const leftBytes = encoder.encode(left);
+  const rightBytes = encoder.encode(right);
+  const length = Math.min(leftBytes.length, rightBytes.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = leftBytes[index]! - rightBytes[index]!;
+    if (difference !== 0) return difference;
+  }
+  return leftBytes.length - rightBytes.length;
+}
+
+function withoutOrderProjection(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutOrderProjection);
+  if (!value || typeof value !== 'object') return value;
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.id === 'string' &&
+    typeof candidate.projectId === 'string' &&
+    typeof candidate.elementId === 'string' &&
+    typeof candidate.orderKey === 'number'
+  ) {
+    const authored = { ...candidate };
+    delete authored.orderKey;
+    return authored;
+  }
+  return value;
+}
+
 export async function hashElementPatchValue(value: unknown): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) {
@@ -18,7 +47,9 @@ export async function hashElementPatchValue(value: unknown): Promise<string> {
       'Web Crypto SHA-256 is unavailable; element patch freshness cannot be verified',
     );
   }
-  const bytes = new TextEncoder().encode(canonicalAgentRuntimeJson(value));
+  const bytes = new TextEncoder().encode(
+    canonicalAgentRuntimeJson(withoutOrderProjection(value)),
+  );
   const digest = await subtle.digest('SHA-256', bytes as BufferSource);
   return `sha256:${bytesToHex(new Uint8Array(digest))}`;
 }
@@ -38,7 +69,7 @@ export async function elementPatchSetRevision(
 ): Promise<string> {
   const snapshots = patches
     .map(snapshotElementPatch)
-    .sort((left, right) => left.id.localeCompare(right.id));
+    .sort((left, right) => compareUtf8Bytewise(left.id, right.id));
   return `element-patch-set:${await hashElementPatchValue(snapshots)}`;
 }
 

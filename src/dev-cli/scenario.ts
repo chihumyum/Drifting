@@ -14,7 +14,7 @@ interface WorkspaceCallStep {
 
 interface ResourceStep {
   kind: 'workspace.resource';
-  operation: 'list' | 'get' | 'create' | 'update' | 'delete';
+  operation: 'list' | 'get';
   model: string;
   input?: Record<string, unknown>;
   expect?: { ok?: boolean };
@@ -47,6 +47,15 @@ function parseScenario(value: unknown): ScenarioDocument {
     ) {
       throw new CliError('SCENARIO_INVALID', `Step ${index + 1} has an unsupported kind`);
     }
+    if (
+      (step as { kind?: string }).kind === 'workspace.resource' &&
+      !['list', 'get'].includes((step as { operation?: string }).operation ?? '')
+    ) {
+      throw new CliError(
+        'SCENARIO_INVALID',
+        `Step ${index + 1} uses a generic resource write that cannot bypass the authored transaction journal`,
+      );
+    }
   }
   return candidate as ScenarioDocument;
 }
@@ -69,7 +78,7 @@ export function scenarioMutates(document: ScenarioDocument): boolean {
   return document.steps.some((step) =>
     step.kind === 'workspace.call'
       ? (DEV_CLI_PROVIDER_TOOLS.write as readonly string[]).includes(step.tool)
-      : ['create', 'update', 'delete'].includes(step.operation),
+      : false,
   );
 }
 

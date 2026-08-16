@@ -48,6 +48,8 @@ export interface CreatePatchInput {
   textAnchorJson?: string | null;
   title?: string | null;
   contentJson?: string;
+  /** Numeric query projection; SyncEngine positionKey is the authority. */
+  orderKey?: number;
 }
 
 export type UpdatePatchInput = Partial<
@@ -99,6 +101,18 @@ export function createElementPatchRepository(dbOverride?: DbExecutor): ElementPa
   const create = async (input: CreatePatchInput): Promise<ElementPatch> => {
     const db = dbProvider();
     const now = new Date().toISOString();
+    const siblingRows = await db
+      .select({ orderKey: ElementPatchTable.orderKey })
+      .from(ElementPatchTable)
+      .where(eq(ElementPatchTable.elementId, input.elementId));
+    const siblingMaximum = siblingRows.reduce(
+      (maximum, sibling) => Math.max(maximum, sibling.orderKey),
+      -1,
+    );
+    const orderKey = input.orderKey ?? siblingMaximum + 1;
+    if (!Number.isFinite(orderKey)) {
+      throw new TypeError('Element patch order projection must be finite.');
+    }
     const row = {
       id: input.id ?? uuidv7(),
       projectId: input.projectId,
@@ -110,7 +124,7 @@ export function createElementPatchRepository(dbOverride?: DbExecutor): ElementPa
       invalidatedAt: null,
       title: input.title ?? null,
       contentJson: input.contentJson ?? '{}',
-      orderKey: 0,
+      orderKey,
       createdAt: now,
       updatedAt: now,
     };

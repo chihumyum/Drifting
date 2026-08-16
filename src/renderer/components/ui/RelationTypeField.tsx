@@ -2,13 +2,14 @@ import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { EntityRelationType } from '../../domain/entity-relation-type';
+import { useRelationTypePresentation } from '../../hooks/useRelationTypePresentation';
 import { AnchoredPopover } from './AnchoredPopover';
 
 interface RelationTypeFieldProps {
   value: string | null;
   onChange: (relationTypeId: string) => void;
   options: readonly EntityRelationType[];
-  resolveOptionColor: (name: string) => string;
+  resolveOptionColor: (relationTypeId: string) => string;
   placeholder: string;
   ariaLabel: string;
   className?: string;
@@ -16,10 +17,8 @@ interface RelationTypeFieldProps {
   autoFocus?: boolean;
 }
 
-/** Project relation-type selector. It deliberately has no free-text path: new
- * authored edges must choose a first-class definition, while migrated labels
- * remain visible as explicit `unconfigured` rows until the author configures
- * them in the shared relation menu. */
+/** Project relation-type selector. Every persisted relation chooses one
+ * first-class type id; names are resolved only for presentation. */
 export function RelationTypeField({
   value,
   onChange,
@@ -32,15 +31,19 @@ export function RelationTypeField({
   autoFocus = false,
 }: RelationTypeFieldProps) {
   const { t } = useTranslation();
+  const presentRelationType = useRelationTypePresentation();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  const selected = useMemo(() => options.find((option) => option.id === value) ?? null, [options, value]);
+  const selected = useMemo(
+    () => options.find((option) => option.id === value) ?? null,
+    [options, value],
+  );
   const typeSummary = (type: EntityRelationType): string => {
-    if (type.orientation === 'unconfigured') return t('relationTypes.pending');
+    const presentation = presentRelationType(type);
     if (type.orientation === 'symmetric') {
-      return t('relationTypes.symmetricSummary', { role: type.sourceRole });
+      return t('relationTypes.symmetricSummary', { role: presentation.sourceRole });
     }
-    return `${type.sourceRole} → ${type.targetRole}`;
+    return `${presentation.sourceRole} → ${presentation.targetRole}`;
   };
 
   return (
@@ -59,9 +62,9 @@ export function RelationTypeField({
           <>
             <span
               className="relation-kind-suggestions__marker"
-              style={{ background: resolveOptionColor(selected.name) }}
+              style={{ background: resolveOptionColor(selected.id) }}
             />
-            <span>{selected.name}</span>
+            <span>{presentRelationType(selected).name}</span>
             <span className="relation-type-field__summary">{typeSummary(selected)}</span>
           </>
         ) : (
@@ -99,10 +102,10 @@ export function RelationTypeField({
             >
               <span
                 className="relation-kind-suggestions__marker"
-                style={{ background: resolveOptionColor(option.name) }}
+                style={{ background: resolveOptionColor(option.id) }}
               />
               <span className="relation-type-suggestions__copy">
-                <strong>{option.name}</strong>
+                <strong>{presentRelationType(option).name}</strong>
                 <small>{typeSummary(option)}</small>
               </span>
             </button>

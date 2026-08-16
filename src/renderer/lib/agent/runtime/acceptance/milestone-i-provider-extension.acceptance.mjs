@@ -65,7 +65,7 @@ const LINT_FILES = [
 const HASHED_FILES = [
   'docs/agent-runtime/provider-extension-protocol.md',
   'README.md',
-  'drizzle/0076_agent_extension_platform.sql',
+  'drizzle/0000_local_first_baseline.sql',
   'src/renderer/locales/en.json',
   'src/renderer/locales/zh-CN.json',
   'src/styles/agent-panel.css',

@@ -53,9 +53,9 @@ states are:
 
 This preference controls only the left TOC rail. It never hides, dims, or moves
 the right native scrollbar, which stays visible in both states. The preference
-is persisted in `settings-store` and participates in the existing cross-device
-preferences sync. Persisted legacy `always` and `auto` values both normalize to
-`visible`; `hidden` remains hidden.
+is persisted on this device by `settings-store`. It is not sent through an
+account HTTP preference service. Persisted legacy `always` and `auto` values
+both normalize to `visible`; `hidden` remains hidden.
 
 ## Dynamic density
 
@@ -101,8 +101,7 @@ Run:
 ```bash
 pnpm exec vitest run \
   src/renderer/components/editor/outline-rail-model.test.ts \
-  src/renderer/components/editor/semantic-outline-rail.acceptance.test.ts \
-  src/renderer/services/preferences-sync.service.test.ts
+  src/renderer/components/editor/semantic-outline-rail.acceptance.test.ts
 pnpm typecheck
 ```
 

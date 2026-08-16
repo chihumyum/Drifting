@@ -16,8 +16,9 @@ remains independent of how many Agent sessions exist.
 - Restorable metadata includes the fields applicable to that entity: title or
   name, summary, writing status, aliases, group, project KV and category
   template KV.
-- Sync-enabled paid projects may copy rows to the server's `entity_snapshot`
-  table, but cloud failure never invalidates the local history row.
+- History rows are device-local projections and are intentionally excluded from
+  the SyncEngine manifest. Recovery across devices comes from authored Yjs
+  state in checkpoints and change-set segments, not a snapshot HTTP mirror.
 
 This is separate from `yjs_snapshots`, which compact current CRDT state for
 sync/recovery, and from internal `agent_runtime_checkpoint` rows, which recover
@@ -26,8 +27,9 @@ model context. Neither internal table is an author-visible branch mechanism.
 ## Capture and retention
 
 Existing Yjs persistence moments feed the history service: periodic/unload
-snapshots, sync pulls and Agent writes to closed documents. Byte-identical
-states are skipped.
+snapshots and Agent writes to closed documents. Byte-identical states are
+skipped. A future remote reducer may request the same local capture hook, but
+the history row itself is never uploaded.
 
 - Periodic capture is limited to about one changed state per entity per 15
   minutes.
@@ -48,7 +50,7 @@ Restoring a row:
 1. captures the current state as a new safety row;
 2. applies the selected prose as a forward Yjs COVER edit;
 3. writes metadata through the same renderer use cases as manual edits;
-4. persists and syncs the result like an ordinary author edit; and
+4. persists the result through an ordinary authored transaction; and
 5. clears editor review markers that referenced the replaced content.
 
 Restore does not recreate deleted structural graph identities and is not a

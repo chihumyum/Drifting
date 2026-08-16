@@ -11,17 +11,13 @@ export const P3_CRASH_MARKERS = Object.freeze([
   'after_outbox_before_result',
 ]);
 
-const PRODUCT_RUNTIME_SQL = [
-  '../../../../../../drizzle/0060_agent_runtime_persistence.sql',
-  '../../../../../../drizzle/0061_agent_runtime_write_effect.sql',
-]
-  .map((relativePath) =>
-    readFileSync(new URL(relativePath, import.meta.url), 'utf8').replaceAll(
-      '--> statement-breakpoint',
-      '',
-    ),
-  )
-  .join('\n');
+const PRODUCT_BASELINE_SQL = readFileSync(
+  new URL(
+    '../../../../../../drizzle/0000_local_first_baseline.sql',
+    import.meta.url,
+  ),
+  'utf8',
+).replaceAll('--> statement-breakpoint', '');
 
 function canonicalize(value) {
   if (
@@ -126,39 +122,8 @@ export function createP3CrashSchema(db, seed) {
     PRAGMA journal_mode = WAL;
     PRAGMA synchronous = FULL;
     PRAGMA busy_timeout = 5000;
-
-    CREATE TABLE project (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE agent_conversation (
-      id TEXT PRIMARY KEY NOT NULL,
-      project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-      title TEXT NOT NULL DEFAULT '',
-      sdk_session_id TEXT,
-      mode TEXT NOT NULL DEFAULT 'byok',
-      messages_json TEXT NOT NULL DEFAULT '[]',
-      deleted_at TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE yjs_updates (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      document_id TEXT NOT NULL,
-      update_blob BLOB NOT NULL,
-      created_at TEXT NOT NULL
-    );
-    CREATE INDEX idx_yjs_updates_doc ON yjs_updates(document_id);
-    CREATE TABLE yjs_snapshots (
-      document_id TEXT PRIMARY KEY NOT NULL,
-      state_blob BLOB NOT NULL,
-      updated_at TEXT NOT NULL
-    );
   `);
-  db.exec(PRODUCT_RUNTIME_SQL);
+  db.exec(PRODUCT_BASELINE_SQL);
   db.exec(`
     CREATE TABLE acceptance_prose_projection (
       document_id TEXT PRIMARY KEY NOT NULL,

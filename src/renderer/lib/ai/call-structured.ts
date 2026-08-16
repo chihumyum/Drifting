@@ -1,18 +1,14 @@
 /**
- * callStructured — the main entry point used by feature code (Phase 1+).
+ * callStructured — the provider-neutral structured-output entry point.
  *
  * Given a typed `PromptDef` and an input, this helper:
  *   1. Validates input against the prompt's TypeBox schema (fail-fast on bad calls)
- *   2. Hands the output schema directly to Gemini as the function-call
- *      parameters JSON Schema (TypeBox is JSON Schema natively — zero conversion)
- *   3. Forces the model into ANY-mode for that single tool — effectively
- *      coercing schema-conformant JSON output
+ *   2. Hands the output schema to the selected provider as function-call
+ *      parameters (TypeBox is JSON Schema natively — zero conversion)
+ *   3. Forces that one output tool through the provider adapter
  *   4. Validates the model's tool-call args against the output schema
  *
- * Theory: Anthropic's "tool use for structured output" pattern, ported to
- * Gemini. We never let the model execute anything in Phase 0/1; the tool is
- * purely a typed JSON channel. Parse-failure retries with feedback will land
- * in a later PR.
+ * The tool is only a typed JSON channel: no tool handler is executed here.
  */
 import type { Static, TSchema } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';

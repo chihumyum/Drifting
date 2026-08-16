@@ -16,13 +16,20 @@ import { EntityStatsContent } from '../../../features/stats/EntityStatsContent';
 import type { EntityStatsTarget } from '../../../features/stats/entity-stats-types';
 import { CompanionPanel } from '../../../components/agent/CompanionPanel';
 import { PlotGridEditor } from '../../../components/editor/PlotGrid';
-import { serializePlotGrid, type PlotGrid } from '../../../domain/plot-grid';
+import {
+  clonePlotGrid,
+  diffPlotGrid,
+  readPlotGridProjection,
+  type PlotGrid,
+  type PlotGridMutation,
+} from '../../../domain/plot-grid';
 import { useBookContent } from '../../../usecase/useBookContent';
 import { useAuthStore } from '../../../store/auth';
 import { ChapterPanel } from '../../../components/leftBars/ChapterPanel';
 import { ElementPanel } from '../../../components/leftBars/ElementPanel';
 import { DriftPanel } from '../../../components/leftBars/DriftPanel';
 import { UserAvatar, UserMenu } from '../../../components/topBars/UserMenu';
+import { hostedAccountSettingsEnabled } from '../../../features/settings/hosted-settings-policy';
 import { BottomTimeline } from '../../../components/BottomTimeline/BottomTimeline';
 import type { PaperReveal } from './usePaperPinch';
 
@@ -229,19 +236,6 @@ function MobilePlotPlannerWorkspace({
   const { getContentByNodeId, updatePlotGridByNodeId } = useBookContent({ userId, projectId });
   const nodeId = target?.entityType === 'node' ? target.id : null;
   const [initialJson, setInitialJson] = useState<string | null>(null);
-  const pendingRef = useRef<string | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const flush = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = null;
-    if (!nodeId || pendingRef.current === null) return;
-    const serialized = pendingRef.current;
-    pendingRef.current = null;
-    void updatePlotGridByNodeId(nodeId, serialized);
-  }, [nodeId, updatePlotGridByNodeId]);
-
-  useEffect(() => flush, [flush]);
 
   useEffect(() => {
     let active = true;
@@ -275,16 +269,62 @@ function MobilePlotPlannerWorkspace({
   }
   return (
     <div className="m-plot-workspace">
-      <PlotGridEditor
+      <MobileNormalizedPlotGridEditor
         key={nodeId}
+        nodeId={nodeId}
         initialJson={initialJson}
-        onChange={(grid: PlotGrid) => {
-          pendingRef.current = serializePlotGrid(grid);
-          if (timerRef.current) clearTimeout(timerRef.current);
-          timerRef.current = setTimeout(flush, 400);
-        }}
+        onPersist={updatePlotGridByNodeId}
       />
     </div>
+  );
+}
+
+function MobileNormalizedPlotGridEditor({
+  nodeId,
+  initialJson,
+  onPersist,
+}: {
+  nodeId: string;
+  initialJson: string;
+  onPersist: (nodeId: string, mutations: readonly PlotGridMutation[]) => Promise<unknown>;
+}) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const committedGridRef = useRef<PlotGrid | null>(readPlotGridProjection(initialJson));
+  const latestGridRef = useRef<PlotGrid | null>(null);
+  const persistChainRef = useRef<Promise<void>>(Promise.resolve());
+  const onPersistRef = useRef(onPersist);
+  useEffect(() => {
+    onPersistRef.current = onPersist;
+  }, [onPersist]);
+
+  const flush = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    if (!latestGridRef.current) return;
+    const target = clonePlotGrid(latestGridRef.current);
+    latestGridRef.current = null;
+    persistChainRef.current = persistChainRef.current
+      .then(async () => {
+        const mutations = diffPlotGrid(committedGridRef.current, target);
+        if (mutations.length > 0) await onPersistRef.current(nodeId, mutations);
+        committedGridRef.current = target;
+      })
+      .catch((error) => {
+        console.error('[PlotGrid] normalized mobile persistence failed:', error);
+      });
+  }, [nodeId]);
+
+  useEffect(() => flush, [flush]);
+
+  return (
+    <PlotGridEditor
+      initialJson={initialJson}
+      onChange={(grid) => {
+        latestGridRef.current = clonePlotGrid(grid);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(flush, 400);
+      }}
+    />
   );
 }
 
@@ -349,7 +389,9 @@ function MobileToolWorkspace({
             size={30}
             fontSize={14}
             forwardRef={userTriggerRef}
-            title={t('userMenu.accountMenu')}
+            title={t(
+              hostedAccountSettingsEnabled() ? 'userMenu.accountMenu' : 'userMenu.localMenu',
+            )}
             expanded={userMenuOpen}
             onClick={() => setUserMenuOpen((open) => !open)}
           />

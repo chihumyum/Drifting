@@ -457,7 +457,7 @@ export function toolEntityRef(
     name === 'update_relation' ||
     name === 'delete_relation' ||
     name === 'add_relation' ||
-    name === 'update_relation_kind' ||
+    name === 'assign_relation_type' ||
     name === 'remove_relation'
   ) {
     return relationEndpointRefs(domainArgs)[0] ?? null;
@@ -539,7 +539,7 @@ export function toolEntityRefs(
     name === 'update_relation' ||
     name === 'delete_relation' ||
     name === 'add_relation' ||
-    name === 'update_relation_kind' ||
+    name === 'assign_relation_type' ||
     name === 'remove_relation'
   ) {
     return relationEndpointRefs(domainArgs);

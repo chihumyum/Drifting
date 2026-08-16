@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-phase1-fractional-order-authority",
+  "recordedAt": "2026-08-15",
+  "status": "implemented",
+  "implementation": {
+    "library": "fractional-indexing@4.0.0",
+    "allocator": ["generateKeyBetween", "generateNKeysBetween"],
+    "wireAuthority": "sync_order_register.position_key",
+    "wireKeyFromNumericProjection": false,
+    "writerPlanning": "current-authority-neighbours-or-explicit-rebalance",
+    "tieBreak": "entity-id-utf8-bytewise",
+    "invalidKeyHandling": "official-library-parser-fail-closed",
+    "implicitReducerRebalance": false,
+    "rebalanceAtomicity": "all order.rebalance entries remain in one authored change-set"
+  },
+  "families": [
+    "chapter",
+    "storyline",
+    "library-item",
+    "element-patch",
+    "drift-group",
+    "book-act",
+    "kv-entry",
+    "plot-grid-row",
+    "plot-grid-column"
+  ],
+  "projections": {
+    "bookOrder": "rank-times-five",
+    "orderKey": "rank",
+    "sortOrder": "rank",
+    "startOrder": "first-null-then-rank-times-five",
+    "agentReceiptHashIncludesNumericProjection": false,
+    "checkpointRestoreRebuildsFromAuthority": true
+  },
+  "machineAcceptance": {
+    "command": "pnpm exec vitest run src/renderer/sync/journal/order-authority.test.ts src/renderer/sync/journal/fractional-order-authority.acceptance.test.ts src/renderer/sync/reducer/reducer.test.ts src/renderer/sync/reducer/production-domain-kernel.integration.test.ts src/renderer/usecase/normalized-kv-alias-authority.integration.test.ts src/renderer/usecase/plot-grid-write.integration.test.ts src/renderer/sync/checkpoint/checkpoint.integration.test.ts src/renderer/usecase/sync-lifecycle-restore.integration.test.ts src/renderer/lib/agent/runtime/drifting-domain-crud-write-strategy.integration.test.ts src/renderer/lib/agent/runtime/drifting-element-patch-write-strategy.integration.test.ts src/renderer/domain/book-act.test.ts src/renderer/sync/engine/segmenter.test.ts",
+    "testFilesPassed": 12,
+    "testsPassed": 93,
+    "failed": 0,
+    "manifestCheck": "passed-84-tables-931-fields",
+    "scopedEslint": "passed",
+    "typecheck": "passed"
+  },
+  "openGates": [
+    "real Google Drive account convergence",
+    "physical desktop iOS Android acceptance"
+  ]
+}

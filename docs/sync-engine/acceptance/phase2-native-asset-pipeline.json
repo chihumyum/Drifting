@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-native-asset-pipeline",
+  "recordedAt": "2026-08-15",
+  "status": "production-ports-and-durable-blob-lane-complete",
+  "boundaries": {
+    "rendererReadsAssetBytes": false,
+    "rendererReceivesAbsoluteAssetPath": false,
+    "providerReceivesAbsoluteAssetPath": false,
+    "opaqueLocalObjectRefsOnly": true,
+    "nativeStreamingSha256AndSize": true,
+    "nativeMimeSignatureValidation": true,
+    "sourceVariantSynchronized": true,
+    "displayAndThumbnailSynchronized": false
+  },
+  "ordering": {
+    "localBlobVerifiedBeforePublish": true,
+    "blobPublishedBeforeReferencingSegment": true,
+    "remoteBlobInstalledBeforeSqliteVerifiedReceipt": true,
+    "sqliteVerifiedReceiptBeforeOwnerMaterialization": true,
+    "failedInstallCreatesOwner": false
+  },
+  "recovery": {
+    "durablePerSourceAttemptReceipt": true,
+    "idempotentActivation": true,
+    "abandonRollsBackPreSqliteActivation": true,
+    "finalizePreservesPostSqliteSources": true,
+    "startupAttemptReconciliation": true,
+    "orphanAttemptGc": true,
+    "realPosixSigkill": true
+  },
+  "tests": {
+    "rustTestsPassed": 6,
+    "typescriptTestFilesPassed": 4,
+    "typescriptTestsPassed": 36,
+    "typecheck": "passed",
+    "cargoCheck": "passed"
+  },
+  "commands": [
+    "cargo test sync_asset_store::tests --lib -- --nocapture",
+    "cargo check",
+    "pnpm exec vitest run src/renderer/sync/assets/native-asset-pipeline.test.ts src/renderer/platform/tauri.test.ts src/renderer/sync/engine/durable-runtime.integration.test.ts src/renderer/sync/checkpoint/checkpoint.integration.test.ts",
+    "pnpm typecheck"
+  ]
+}

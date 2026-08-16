@@ -15,7 +15,6 @@ import type { BookNode } from '../../../domain/book-node';
 import { createDatabaseClient, type DbExecutor } from '../../../lib/db';
 import {
   BookNodeTable,
-  LocalSyncMutationTable,
 } from '../../../schema/drizzle';
 import { createAgentRuntimeFreshnessRepository } from '../../../sqlite-repo/agent-runtime-freshness-repo';
 import {
@@ -42,6 +41,7 @@ import type {
   AgentToolExecutionRequest,
 } from './types';
 import { P3FileBackedSqliteGateway } from './acceptance/p3-file-backed-sqlite';
+import { createTestAgentAuthoredJournal } from './agent-authored-journal.test-support';
 
 const PROJECT_ID = 'p4-product-project';
 const OTHER_PROJECT_ID = 'p4-other-project';
@@ -108,13 +108,13 @@ describe('Drifting product freshness path', () => {
       },
     });
     expect(fixture.node('node-1').title).toBe('Opening');
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
 
     // A committed effect validates its durable expectation, not the now-new
     // node revision, then returns the canonical result without mutation.
     expect(await fixture.writeRuntime.execute(rename)).toEqual(renameResult);
     expect(fixture.writeUsecaseCalls).toBe(1);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
 
     const summaryRead = fixture.readRequest('read-2', 'read_node', {
       node: 'Opening',
@@ -143,7 +143,7 @@ describe('Drifting product freshness path', () => {
     });
     expect(fixture.node('node-1').summary).toBe('A guarded summary.');
     expect(fixture.writeUsecaseCalls).toBe(2);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(2);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(2);
 
     // read_tool_result is itself a canonical read lifecycle with an empty
     // observation set. Its exact persisted bytes equal the provider result.
@@ -274,7 +274,7 @@ describe('Drifting product freshness path', () => {
     });
 
     expect(fixture.writeUsecaseCalls).toBe(0);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(0);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(0);
 
     // First complete a valid write, then reuse the same idempotency key with a
     // different expectation. The immutable claim rejects parameter drift and
@@ -305,10 +305,10 @@ describe('Drifting product freshness path', () => {
       error: expect.stringContaining('different parameters'),
     });
     expect(fixture.writeUsecaseCalls).toBe(1);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
   });
 
-  it('closes the validation-to-mutation race with one SQL CAS and rolls back the outbox', async () => {
+  it('closes the validation-to-mutation race with one SQL CAS and rolls back the journal', async () => {
     const read = fixture.readRequest('race-read', 'read_node', {
       node: 'Chapter One',
       prose: false,
@@ -331,7 +331,7 @@ describe('Drifting product freshness path', () => {
       error: expect.stringContaining('changed after Agent observation'),
     });
     expect(fixture.writeUsecaseCalls).toBe(1);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(0);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(0);
     expect(
       fixture.scalar(
         "SELECT count(*) FROM book_node WHERE id = 'node-1' AND title = 'Concurrent manual title'",
@@ -348,7 +348,7 @@ describe('Drifting product freshness path', () => {
     await expect(fixture.persistMissingNodeWithoutGuard()).rejects.toThrow(
       'no longer exists',
     );
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(0);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(0);
   });
 
   it('stops one same-turn target after two concurrent stale conflicts', async () => {
@@ -441,7 +441,7 @@ describe('Drifting product freshness path', () => {
 
     expect(fixture.node('node-1').title).toBe('Manual title two');
     expect(fixture.writeUsecaseCalls).toBe(0);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(0);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(0);
     expect(
       fixture.scalar(
         "SELECT count(*) FROM agent_runtime_write_effect WHERE phase = 'failed' AND error_code = 'AGENT_COLLABORATION_CONFLICT_LIMIT'",
@@ -474,7 +474,7 @@ describe('Drifting product freshness path', () => {
     });
     expect(await fixture.writeRuntime.execute(write)).toEqual(written);
     expect(fixture.writeUsecaseCalls).toBe(1);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
     expect(
       fixture.scalar('SELECT count(*) FROM agent_runtime_write_review'),
     ).toBe(0);
@@ -484,6 +484,7 @@ describe('Drifting product freshness path', () => {
 class ProductFreshnessFixture {
   readonly client: DbExecutor;
   readonly freshness;
+  readonly journal = createTestAgentAuthoredJournal('freshness-product');
   readonly readRuntime: DriftingReadToolRuntime;
   readonly writeRuntime: DriftingWriteToolRuntime;
   readonly readDispatches = new Map<string, number>();
@@ -535,44 +536,6 @@ class ProductFreshnessFixture {
     const gateway = new P3FileBackedSqliteGateway(
       path.join(directory, 'runtime.sqlite'),
     );
-    gateway.database.exec(`
-      CREATE TABLE book_node (
-        id TEXT PRIMARY KEY NOT NULL,
-        title TEXT NOT NULL,
-        summary TEXT DEFAULT '' NOT NULL,
-        book_order INTEGER,
-        narrative_order INTEGER,
-        project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-        word_count INTEGER DEFAULT 0 NOT NULL,
-        word_count_basis_kind TEXT,
-        word_count_basis_hash TEXT,
-        word_count_basis_revision INTEGER,
-        word_count_basis_server_seq INTEGER,
-        writing_status TEXT DEFAULT 'draft' NOT NULL,
-        kind TEXT DEFAULT 'chapter' NOT NULL,
-        drift_group_id TEXT,
-        deleted_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        position_x REAL NOT NULL,
-        position_y REAL NOT NULL
-      );
-      CREATE TABLE local_sync_mutation (
-        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-        entity_type TEXT NOT NULL,
-        mutation_type TEXT NOT NULL,
-        entity_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        parent_id TEXT,
-        payload_json TEXT,
-        mutation_ts INTEGER NOT NULL,
-        status TEXT DEFAULT 'pending' NOT NULL,
-        retry_count INTEGER DEFAULT 0 NOT NULL,
-        last_error TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-    `);
     const fixture = new ProductFreshnessFixture(directory, gateway);
     fixture.seedBase();
     return fixture;
@@ -880,8 +843,9 @@ class ProductFreshnessFixture {
       projectId,
       work,
     ) =>
-      this.client.transaction(async (tx) =>
-        work(tx, async (
+      this.client.transaction(async (tx) => {
+        const changes = this.journal.createChangeSet();
+        const result = await work(tx, async (
           entityType,
           mutationType,
           entityId,
@@ -892,24 +856,22 @@ class ProductFreshnessFixture {
           if (mutationProjectId !== projectId) {
             throw new Error('cross-project fixture sync');
           }
-          const at = this.now();
-          await tx.insert(LocalSyncMutationTable).values({
+          this.journal.appendDomainMutation(changes, {
             entityType,
             mutationType,
             entityId,
             projectId,
-            parentId: parentId ?? null,
-            payloadJson:
-              payload === undefined ? null : JSON.stringify(payload),
-            mutationTs: Date.parse(at),
-            status: 'pending',
-            retryCount: 0,
-            lastError: null,
-            createdAt: at,
-            updatedAt: at,
+            payload,
+            parentId,
           });
-        }),
-      );
+        }, changes);
+        await this.journal.record(tx, {
+          projectId,
+          changes,
+          committedAt: this.now(),
+        });
+        return result;
+      });
   }
 
   private createWriteApi(): AgentWriteApi {

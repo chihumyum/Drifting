@@ -1,0 +1,1 @@
+-keep class cc.drifting.googledriveoauth.GoogleDriveOAuthPlugin { *; }

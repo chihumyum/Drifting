@@ -33,6 +33,7 @@ import type {
 } from '../../domain/comment';
 import type { LLMClient } from '../ai/client/llm-client';
 import type { BaseBlockContext } from '../ai/context/types';
+import type { BYOKProvider } from '../byok-keychain';
 
 /**
  * Input to createElement — minimal shape capabilities need. Mirrors
@@ -84,7 +85,7 @@ export type CopilotTrigger = 'editor-block-debounced' | 'manual';
  */
 export interface CopilotRuntime {
   /** Get the shared LLM client. Lazy-built on first use; cached across capabilities. */
-  getClient(): Promise<LLMClient>;
+  getClient(provider?: BYOKProvider): Promise<LLMClient>;
   /** Invalidate the cached client (e.g. after the user changes their API key). */
   resetClient(): void;
 }

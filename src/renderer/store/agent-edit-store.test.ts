@@ -132,6 +132,41 @@ describe('Agent edit review block decisions', () => {
     ]);
   });
 
+  it('purges only the deleted project\'s persisted edit presentation and reverts', () => {
+    const store = useAgentEditStore.getState();
+    store.recordReview('node', 'node-delete', changes, 'approve', {
+      effectId: 'effect-delete',
+      reviewId: 'review-delete',
+    });
+    store.recordReview('element', 'element-keep', changes, 'approve', {
+      effectId: 'effect-keep',
+      reviewId: 'review-keep',
+    });
+    store.recordAddition('storyline', 'storyline-delete');
+    store.recordRevert('project-delete', 'node', 'node-delete', changes[0]);
+    store.recordRevert('project-keep', 'element', 'element-keep', changes[0]);
+    useAgentEditStore.setState({
+      settledReviewIds: { 'settled-delete': true, 'settled-keep': true },
+    });
+
+    useAgentEditStore.getState().clearProject(
+      'project-delete',
+      ['node-content:node-delete', 'storyline:storyline-delete'],
+      ['review-delete', 'settled-delete'],
+    );
+
+    const state = useAgentEditStore.getState();
+    expect(state.pending['node:node-delete']).toBeUndefined();
+    expect(state.additions['storyline:storyline-delete']).toBeUndefined();
+    expect(state.reviewBatches['review-delete']).toBeUndefined();
+    expect(state.settledReviewIds['settled-delete']).toBeUndefined();
+    expect(state.pendingReverts).toEqual([
+      expect.objectContaining({ projectId: 'project-keep', id: 'element-keep' }),
+    ]);
+    expect(state.reviewBatches['review-keep']).toBeDefined();
+    expect(state.settledReviewIds['settled-keep']).toBe(true);
+  });
+
   it('leaves a fully reviewed new file in approve mode instead of seeding auto reveal', () => {
     const store = useAgentEditStore.getState();
     store.recordReview('node', 'node-added', changes, 'approve', {

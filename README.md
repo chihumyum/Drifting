@@ -5,8 +5,16 @@ Rust, React, SQLite, Yjs, and Tiptap.
 
 This repository contains the Drifting client. The official hosted service and its private server
 implementation are not included. A normal source build starts in local-only mode: no account or
-server is required, sync is disabled, and BYOK AI requests use direct provider transport. Account,
-cloud sync, billing, and proxy-backed AI require a separately operated compatible service.
+server is required, no cloud provider is connected, and BYOK AI requests use direct provider
+transport. Account, billing, and proxy-backed AI require a separately operated compatible service.
+Provider-independent SyncEngine work now includes native Google Drive transport, App-wide provider
+activation and a Settings control plane. Google OAuth and Drive are inside the optional cloud trust
+boundary: Drifting does not end-to-end encrypt synced projects against Google. Google sign-in is
+the cross-device access authority; connecting and restoring both use it plus automatic
+account-scoped project discovery. There is no
+Drifting account, recovery code, recovery QR, or application-managed Project content key. Native desktop/iOS/Android implementations do not replace
+real-account, cross-device or physical-device acceptance, so this is not yet a shipped cloud-sync
+claim.
 
 This history was extracted and rewritten from the original private monorepo. Server-only changes,
 credentials, private literary material, generated artifacts, personal email addresses, and layout
@@ -20,9 +28,9 @@ transitions were removed or normalized, so commit hashes differ from the private
 - Yjs and Tiptap for live prose editing
 - Zustand and TanStack Query for client state
 
-The Rust SQLite boundary preserves BLOBs and signed 64-bit integers, embeds all Drizzle migrations,
-and owns transaction isolation, WAL checkpointing, and database switching. Renderer code talks only
-to typed Tauri platform contracts.
+The Rust SQLite boundary preserves BLOBs and signed 64-bit integers, embeds the checked-in Drizzle
+journal and schema baseline, and owns transaction isolation, WAL checkpointing, and database
+switching. Renderer code talks only to typed Tauri platform contracts.
 
 ## Development
 
@@ -39,6 +47,11 @@ pnpm dev
 
 Development uses `.local-data/databases` through `DRIFTING_DB_DIR`. Production uses
 the Tauri application-local data directory.
+
+Desktop `pnpm dev` and local desktop build commands load the repository's ignored
+`.env.local` before spawning Tauri, including native Google OAuth build settings.
+Explicit shell or CI environment values take precedence, and the launcher reports
+only whether OAuth is configured—not the client ID or installed-app secret value.
 
 Useful commands:
 
@@ -93,21 +106,13 @@ ignored `.env*` files and fail if a `VITE_*API_KEY`, `VITE_*SECRET`, or `VITE_*T
 be embedded. BYOK credentials belong in the native credential store, never in a distributable
 bundle.
 
-The deterministic local demo seeder remains available without Electron or a
-native Node addon:
-
-```bash
-pnpm demo:seed
-pnpm demo:purge-local
-```
-
 ## Layout
 
 ```text
 
 ├── src-tauri/          Rust host, SQLite gateway, native capabilities, mobile projects
 ├── src/renderer/       React application and platform contracts
-├── drizzle/            Embedded, ordered SQLite migrations
+├── drizzle/            Embedded SQLite baseline and migration journal
 ├── packages/           Separately licensed shared packages
 ├── scripts/            Development and asset-generation utilities
 └── vite.renderer.config.ts
@@ -119,16 +124,14 @@ palette while treating the app as one coplanar desktop with only the manuscript 
 mobile starting point and its explicit product gaps are tracked in
 [`docs/mobile-ui-foundation.md`](docs/mobile-ui-foundation.md).
 
-## Data migration
+## Local data format
 
-On the first desktop Tauri launch, Drifting looks for the former desktop client's `Drifting`
-application-data directory. SQLite files are copied with the SQLite online-backup API so WAL data
-is included; copied databases must pass `integrity_check` before activation. The asset cache is
-copied atomically, the source remains untouched, and a migration marker makes retries idempotent.
-If the Tauri database directory already contains a valid database with the same filename, migration
-preserves that Tauri file and does not merge or overwrite it with the Electron database. The legacy
-source remains untouched, but users of an earlier internal Tauri build should back up and resolve
-the two copies before first launch if the Tauri copy is not the one they intend to keep using.
+Drifting has not shipped a public data-compatibility contract. The single checked-in
+`drizzle/0000_local_first_baseline.sql` describes the current pre-release schema, and development
+databases created by an older build must be reset. The runner verifies the complete recorded
+`(timestamp, hash)` prefix and fails closed on a missing, rewritten, or future journal; it does not
+scan, copy, or reinterpret data from retired clients or storage formats. The clean-over-compatibility
+rule and the bar for changing it are recorded in [`AGENTS.md`](AGENTS.md).
 
 The production database directories are normally:
 
@@ -137,11 +140,20 @@ The production database directories are normally:
 - Linux: `${XDG_DATA_HOME:-~/.local/share}/cc.drifting.client/databases/`
 - iOS/Android: the application container
 
+## Local data export
+
+The always-available Local data settings panel exports every project as a relational Markdown ZIP
+without a Drifting account or hosted API. Open Yjs documents are flushed locally first; closed and
+snapshot-only documents are read from SQLite, while `contentJson` is only a never-opened-document
+seed fallback. The archive preserves readable Wiki-style relation links, but it does not include
+image/PDF binaries and is not a lossless, restorable backup. The exact boundary and acceptance
+commands are documented in [`docs/local-data-export.md`](docs/local-data-export.md).
+
 ## Mobile status
 
 Desktop and mobile share the same React application and typed Tauri platform contracts. The current
-native layer provides the Rust SQLite gateway, app-container file/material handling, asset caching
-and transfer, lifecycle flush events, external-browser OAuth with queued deep links, and
+native layer provides the Rust SQLite gateway, app-container file/material handling, the durable
+local asset store, lifecycle flush events, external-browser OAuth with queued deep links, and
 OS-backed credential storage. Apple targets use Keychain through `keyring`; Android uses the
 private Keystore-backed `drifting-secure-storage` plugin with no plaintext fallback.
 
@@ -162,8 +174,9 @@ Image and PDF imports currently have a 64 MiB hard limit on every target. The na
 the selected file's metadata before creating an app-owned copy when the platform exposes a reliable
 size, and the copy itself remains bounded for Android content providers whose size is unknown.
 This matches the bounded in-memory inspection/thumbnail pipeline, so an accepted file can complete
-material creation. Future large-file support should stream the source upload and allow thumbnail
-degradation; it must not raise the mobile whole-file memory limit.
+material creation. Future large-file support should stream the selected source into app-owned
+local storage and allow thumbnail degradation; it must not raise the mobile whole-file memory
+limit.
 
 ## Current boundary
 
@@ -201,10 +214,11 @@ The replacement direction is a frozen, not-yet-implemented Ambient Editor
 design: [product boundary and document index](docs/ambient-editor/README.md).
 
 Project relation labels are first-class synced definitions with direction,
-endpoint roles, and allowed entity kinds. Existing free-text labels migrate to
-visible `unconfigured` definitions without flipping or deleting edges; authors
-configure them before creating new typed relations. The data, sync, Agent, and
-desktop interaction boundary is documented in
+endpoint roles, and allowed entity kinds. Every relation has one non-null type
+id; names are resolved from the definition and rename never rewrites relation
+rows. TODO and Library shortcuts use a locked built-in `generic-association`
+type. Old kind-only or nullable-type payloads fail closed. The data, sync,
+Agent, and desktop interaction boundary is documented in
 [relation types](docs/relation-types.md).
 
 Desktop and mobile use separate shells over the same project runtime and domain
@@ -215,6 +229,11 @@ acceptance.
 Documentation entry points:
 
 - [documentation index](docs/README.md)
+- [local asset boundary](docs/local-assets.md)
+- [local relational Markdown export](docs/local-data-export.md)
+- [current trusted-cloud Google Drive contract](docs/sync-engine/trusted-cloud-google-drive.md)
+- [native Google Drive transport status](docs/sync-engine/phase5-google-drive-native.md)
+- [SyncEngine product controls and release gates](docs/sync-engine/phase6-product-controls.md)
 - [developer CLI](docs/dev-cli/README.md)
 - [current Agent status](docs/agent-runtime/acceptance/CURRENT_STATUS.md)
 - [Agent roadmap and open work](docs/agent-runtime/ROADMAP.md)

@@ -863,31 +863,7 @@ export function createAgentRuntimeWriteEffectRepository(
               existing.turnId === review.turnId &&
               existing.toolCallId === review.toolCallId
             ) {
-              let existingBlocks = await listReviewBlocks(review.id, tx);
-              let didBackfillBlocks = false;
-              // Reviews created before migration 0071 have no block rows. A
-              // still-pending review can be upgraded from its immutable effect
-              // exactly once; settled reviews are historical evidence and are
-              // never rewritten.
-              if (
-                existing.status === 'pending' &&
-                existingBlocks.length === 0 &&
-                requestedBlocks.length > 0
-              ) {
-                await tx.insert(AgentRuntimeWriteReviewBlockTable).values(
-                  requestedBlocks.map((block) => ({
-                    reviewId: review.id,
-                    effectId: review.effectId,
-                    blockId: block.blockId,
-                    ordinal: block.ordinal,
-                    status: 'pending',
-                    createdAt: existing.createdAt,
-                    updatedAt: existing.createdAt,
-                  })),
-                );
-                existingBlocks = await listReviewBlocks(review.id, tx);
-                didBackfillBlocks = true;
-              }
+              const existingBlocks = await listReviewBlocks(review.id, tx);
               if (
                 existingBlocks.length !== requestedBlocks.length ||
                 existingBlocks.some(
@@ -902,9 +878,7 @@ export function createAgentRuntimeWriteEffectRepository(
                 );
               }
               return {
-                outcome: didBackfillBlocks
-                  ? 'updated' as const
-                  : 'duplicate' as const,
+                outcome: 'duplicate' as const,
                 review: existing,
               };
             }

@@ -6,13 +6,12 @@ import { isProseMetricBasisHash } from '@drifting/prose-metrics';
 import type { Project } from '../domain/project';
 import { createProjectRepository } from '../sqlite-repo/project-repo';
 import { getDb, initDatabase } from '../lib/db';
-import apiClient from '../lib/axios-config';
-import { isSyncEnabled } from '../lib/config';
-import { getDeviceId } from '../lib/device-id';
-import { events, type SyncOperationEvent } from '../lib/events';
+import { runAuthoredTransaction } from '../sync/journal';
 import { v7 as uuidv7 } from 'uuid';
 import { withAtomicSyncTransaction } from './sync-helpers';
 import { defaultProjectKvJson } from '../domain/kv';
+import { replaceEntityKvEntriesInTransaction } from './normalized-kv-alias-authority';
+import { genericAssociationRelationType } from '../domain/entity-relation-type';
 import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
 import {
@@ -22,11 +21,17 @@ import {
   EntityRelationTable,
   InlineMentionTable,
   NodeStorylineLinkTable,
-  ProjectTable,
   StorylineTable,
 } from '../schema/drizzle';
 import LogLevel from 'loglevel';
-import { cancelAssetUploadsForProjectDeletion } from '../services/durable-asset-upload.service';
+import { deleteProjectDataInTransaction } from '../sqlite-repo/project-deletion-repo';
+import { createEntityRelationTypeRepository } from '../sqlite-repo/entity-relation-type-repo';
+import { assetStoreService } from '../services/asset-store.service';
+import { useRecentEntitiesStore } from '../store/recent-entities-store';
+import { useWritingStatsStore } from '../store/writing-stats-store';
+import { useUiStore } from '../store/ui-store';
+import { useSettingsStore } from '../store/settings-store';
+import { useAgentEditStore } from '../store/agent-edit-store';
 import { reconcileProjectProseMetrics } from '../services/node-prose-metrics.service';
 const log = LogLevel.getLogger('UseProject');
 log.setLevel(LogLevel.levels.WARN);
@@ -62,77 +67,8 @@ export interface ProjectStats {
 
 export type ProjectSummary = Project & {
   stats: ProjectStats;
-  source: 'local' | 'server';
+  source: 'local';
 };
-
-type ServerProjectSummary = {
-  id: string;
-  userId: string;
-  name: string;
-  summary?: string | null;
-  kvJson?: string | null;
-  storylineTemplateKvJson?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  stats?: Partial<ProjectStats> | null;
-};
-
-const EMPTY_PROJECT_STATS: ProjectStats = {
-  nodes: 0,
-  words: 0,
-  wordsReady: false,
-  storylines: 0,
-  storylineLinks: 0,
-  elements: 0,
-  categories: 0,
-  entityRelations: 0,
-  inlineMentions: 0,
-};
-
-function createRequestId(prefix: string): string {
-  return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
-}
-
-function nowMs(): number {
-  return globalThis.performance?.now?.() ?? Date.now();
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
-
-function emitSyncOperation(event: Omit<SyncOperationEvent, 'at'>): void {
-  events.emit('sync:operation', { ...event, at: Date.now() });
-}
-
-function normalizeDateText(value: unknown): string {
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'string' && value.trim()) return value;
-  return new Date().toISOString();
-}
-
-function normalizeProjectStats(stats?: Partial<ProjectStats> | null): ProjectStats {
-  return {
-    ...EMPTY_PROJECT_STATS,
-    ...stats,
-  };
-}
-
-function normalizeServerProjectSummary(row: ServerProjectSummary, userId: string): ProjectSummary {
-  return {
-    id: row.id,
-    userId: row.userId || userId,
-    name: row.name,
-    summary: row.summary ?? '',
-    kvJson: row.kvJson ?? '[]',
-    storylineTemplateKvJson: row.storylineTemplateKvJson ?? '[]',
-    createdAt: normalizeDateText(row.createdAt),
-    updatedAt: normalizeDateText(row.updatedAt),
-    stats: normalizeProjectStats(row.stats),
-    source: 'server',
-  };
-}
 
 function sortProjectSummaries(a: ProjectSummary, b: ProjectSummary): number {
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
@@ -263,122 +199,6 @@ async function reconcileShelfProjectMetrics(summaries: readonly ProjectSummary[]
   await Promise.all(workers);
 }
 
-async function upsertServerProjectSummaries(summaries: ProjectSummary[]): Promise<void> {
-  if (summaries.length === 0) return;
-
-  await getDb().transaction(async (tx) => {
-    for (const project of summaries) {
-      await tx
-        .insert(ProjectTable)
-        .values({
-          id: project.id,
-          userId: project.userId,
-          name: project.name,
-          summary: project.summary,
-          kvJson: project.kvJson,
-          storylineTemplateKvJson: project.storylineTemplateKvJson,
-          createdAt: project.createdAt,
-          updatedAt: project.updatedAt,
-        })
-        .onConflictDoUpdate({
-          target: ProjectTable.id,
-          set: {
-            userId: project.userId,
-            name: project.name,
-            summary: project.summary,
-            kvJson: project.kvJson,
-            storylineTemplateKvJson: project.storylineTemplateKvJson,
-            createdAt: project.createdAt,
-            updatedAt: project.updatedAt,
-          },
-        });
-    }
-  });
-}
-
-async function pullProjectSummariesFromServer(userId: string): Promise<ProjectSummary[]> {
-  const requestId = createRequestId('crud:projects:summaries');
-  const deviceId = getDeviceId();
-  const startedAt = nowMs();
-
-  emitSyncOperation({
-    requestId,
-    kind: 'crud',
-    phase: 'pull',
-    state: 'started',
-    operation: 'pull',
-    method: 'GET',
-    endpoint: '/api/projects/summaries',
-    entityType: 'project',
-    deviceId,
-  });
-
-  try {
-    const response = await apiClient.get<ServerProjectSummary[]>('/api/projects/summaries');
-    const summaries = response.data.map((row) => normalizeServerProjectSummary(row, userId));
-    await upsertServerProjectSummaries(summaries);
-
-    emitSyncOperation({
-      requestId,
-      kind: 'crud',
-      phase: 'pull',
-      state: 'succeeded',
-      operation: 'pull',
-      method: 'GET',
-      endpoint: '/api/projects/summaries',
-      entityType: 'project',
-      deviceId,
-      resourceCount: summaries.length,
-      durationMs: nowMs() - startedAt,
-    });
-
-    return summaries;
-  } catch (error) {
-    emitSyncOperation({
-      requestId,
-      kind: 'crud',
-      phase: 'pull',
-      state: 'failed',
-      operation: 'pull',
-      method: 'GET',
-      endpoint: '/api/projects/summaries',
-      entityType: 'project',
-      deviceId,
-      durationMs: nowMs() - startedAt,
-      error: getErrorMessage(error),
-    });
-    throw error;
-  }
-}
-
-export function mergeProjectSummaries(
-  localSummaries: ProjectSummary[],
-  serverSummaries: ProjectSummary[],
-): ProjectSummary[] {
-  const byId = new Map<string, ProjectSummary>();
-  localSummaries.forEach((summary) => byId.set(summary.id, summary));
-  serverSummaries.forEach((serverSummary) => {
-    const localSummary = byId.get(serverSummary.id);
-    const localOwnsWords =
-      localSummary?.stats.wordsReady === true &&
-      (localSummary.stats.nodes > 0 || serverSummary.stats.nodes === 0);
-    byId.set(
-      serverSummary.id,
-      localOwnsWords
-        ? {
-            ...serverSummary,
-            stats: {
-              ...serverSummary.stats,
-              words: localSummary.stats.words,
-              wordsReady: true,
-            },
-          }
-        : serverSummary,
-    );
-  });
-  return Array.from(byId.values()).sort(sortProjectSummaries);
-}
-
 export function useProject({ userId }: UseProjectContext) {
   const repo = useMemo(() => createProjectRepository(userId), [userId]);
   const ensureDb = useCallback(async () => {
@@ -395,32 +215,18 @@ export function useProject({ userId }: UseProjectContext) {
   }, [repo, ensureDb]);
 
   const loadProjectSummaries = useCallback(
-    async (options: { pullRemote?: boolean } = {}): Promise<ProjectSummary[]> => {
+    async (): Promise<ProjectSummary[]> => {
       await ensureDb();
-
       const projects = await repo.findAll();
-      let localSummaries = await buildLocalProjectSummaries(projects);
-      if (localProjectIdsNeedingProseMetricReconciliation(localSummaries).length > 0) {
-        await reconcileShelfProjectMetrics(localSummaries);
-        localSummaries = await buildLocalProjectSummaries(projects);
+      let summaries = await buildLocalProjectSummaries(projects);
+      if (localProjectIdsNeedingProseMetricReconciliation(summaries).length > 0) {
+        await reconcileShelfProjectMetrics(summaries);
+        summaries = await buildLocalProjectSummaries(projects);
       }
-      let summaries = localSummaries;
-
-      if (options.pullRemote ?? true) {
-        if (isSyncEnabled()) {
-          try {
-            const serverSummaries = await pullProjectSummariesFromServer(userId);
-            summaries = mergeProjectSummaries(localSummaries, serverSummaries);
-          } catch (error) {
-            log.warn('Failed to pull project summaries; using local project list', error);
-          }
-        }
-      }
-
       useProjectStore.getState().setProjects(summaries);
       return summaries;
     },
-    [repo, userId, ensureDb],
+    [repo, ensureDb],
   );
 
   const loadProject = useCallback(
@@ -428,11 +234,9 @@ export function useProject({ userId }: UseProjectContext) {
       await ensureDb();
       const project = await repo.findById(id);
       if (project) {
-        // Seed the in-memory store from local SQLite so the dashboard title
-        // (and other subscribers) paint the real name on first render after a
-        // refresh, instead of flashing the placeholder until the network graph
-        // pull returns. pullAndHydrateProjectGraph still runs afterwards and
-        // overwrites this with fresh server data when sync is enabled.
+        // Local SQLite is the complete working replica and the only project
+        // bootstrap source. SyncEngine materializes verified remote objects
+        // into this same database before stores are refreshed.
         const store = useProjectStore.getState();
         store.setCurrentProject(project);
         store.setProjects([project, ...store.projects.filter((p) => p.id !== project.id)]);
@@ -452,13 +256,15 @@ export function useProject({ userId }: UseProjectContext) {
       const now = new Date().toISOString();
       const seededProjectKvJson = defaultProjectKvJson();
       const projectId = uuidv7();
-      const project = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
-        const created = await createProjectRepository(userId, tx).create({
+      const builtInRelationType = genericAssociationRelationType(projectId, now);
+      const project = await withAtomicSyncTransaction(projectId, async (tx, sync, changes) => {
+        const projectRepo = createProjectRepository(userId, tx);
+        const created = await projectRepo.create({
           id: projectId,
           userId,
           name: input.projectName ?? 'New Project',
           summary: '',
-          kvJson: seededProjectKvJson,
+          kvJson: '[]',
           storylineTemplateKvJson: '[]',
           createdAt: now,
           updatedAt: now,
@@ -467,10 +273,23 @@ export function useProject({ userId }: UseProjectContext) {
           id: created.id,
           name: created.name,
           summary: created.summary,
-          kvJson: created.kvJson,
-          storylineTemplateKvJson: created.storylineTemplateKvJson,
         });
-        return created;
+        await replaceEntityKvEntriesInTransaction(tx, changes, {
+          projectId,
+          ownerKind: 'project',
+          ownerId: projectId,
+          namespace: 'facts',
+          nextJson: seededProjectKvJson,
+        });
+        await createEntityRelationTypeRepository(projectId, tx).create(builtInRelationType);
+        await sync(
+          'entityRelationType',
+          'create',
+          builtInRelationType.id,
+          projectId,
+          { ...builtInRelationType },
+        );
+        return (await projectRepo.findById(projectId))!;
       });
 
       // Projects are allowed to have zero storylines AND zero categories. Both
@@ -480,6 +299,8 @@ export function useProject({ userId }: UseProjectContext) {
       const dataStore = useDataStore.getState();
       dataStore.setStorylines([]);
       dataStore.setBookElementCategories([]);
+      dataStore.setEntityRelationTypes([builtInRelationType]);
+      dataStore.setEntityRelations([]);
 
       return project;
     },
@@ -493,21 +314,35 @@ export function useProject({ userId }: UseProjectContext) {
         return Promise.resolve(null);
       }
       await ensureDb();
-      const result = await withAtomicSyncTransaction(id, async (tx, sync) => {
+      const result = await withAtomicSyncTransaction(id, async (tx, sync, changes) => {
+        if (input.kvJson !== undefined) {
+          await replaceEntityKvEntriesInTransaction(tx, changes, {
+            projectId: id,
+            ownerKind: 'project',
+            ownerId: id,
+            namespace: 'facts',
+            nextJson: input.kvJson,
+          });
+        }
+        if (input.storylineTemplateKvJson !== undefined) {
+          await replaceEntityKvEntriesInTransaction(tx, changes, {
+            projectId: id,
+            ownerKind: 'project',
+            ownerId: id,
+            namespace: 'storyline-template',
+            nextJson: input.storylineTemplateKvJson,
+          });
+        }
         const updated = await createProjectRepository(userId, tx).update(id, {
           userId,
           name: input.name,
           summary: input.summary,
-          kvJson: input.kvJson,
-          storylineTemplateKvJson: input.storylineTemplateKvJson,
           updatedAt: new Date().toISOString(),
         });
-        if (updated) {
+        if (updated && (input.name !== undefined || input.summary !== undefined)) {
           await sync('project', 'update', id, id, {
             name: input.name,
             summary: input.summary,
-            kvJson: input.kvJson,
-            storylineTemplateKvJson: input.storylineTemplateKvJson,
           });
         }
         return updated;
@@ -530,14 +365,60 @@ export function useProject({ userId }: UseProjectContext) {
   const deleteProject = useCallback(
     async (id: string): Promise<boolean> => {
       await ensureDb();
-      await cancelAssetUploadsForProjectDeletion(id);
-      return withAtomicSyncTransaction(id, async (tx, sync) => {
-        const ok = await createProjectRepository(userId, tx).delete(id);
-        if (ok) await sync('project', 'delete', id, id);
-        return ok;
+      const deletion = await runAuthoredTransaction(id, 'project.purge', async ({
+        tx,
+        changes,
+        generation,
+      }) => {
+        if (!generation) throw new Error(`Project ${id} has no active SyncGeneration`);
+        // Capture every file coordinate on the same transaction that deletes
+        // its metadata. This includes soft-deleted assets and closes the race
+        // where an import could commit between inventory and project cascade.
+        const receipt = await deleteProjectDataInTransaction(tx, id);
+        if (!receipt) return null;
+        changes.add({
+          action: 'sync-generation.purge',
+          target: {
+            family: 'sync-generation',
+            kind: 'sync-generation',
+            id: generation.syncGenerationId,
+            incarnation: generation.generationNumber,
+          },
+          payload: {},
+        });
+        return receipt;
       });
+      if (!deletion) return false;
+
+      // SQLite is now committed. Remove every rebuildable/presentation trace
+      // keyed by this project before attempting fallible native file cleanup.
+      useProjectStore.getState().removeProject(id);
+      useRecentEntitiesStore.getState().clearProject(id);
+      useWritingStatsStore.getState().clearProject(id);
+      useUiStore.getState().clearProjectTabs(id);
+      useSettingsStore.getState().clearProjectSettings(id);
+      useAgentEditStore
+        .getState()
+        .clearProject(id, deletion.proseDocIds, deletion.agentReviewIds);
+
+      const cleanupResults = await Promise.allSettled([
+        ...deletion.assetIds.map((assetId) => assetStoreService.deleteAsset(id, assetId)),
+      ]);
+      const cleanupFailures = cleanupResults.flatMap((result) =>
+        result.status === 'rejected' ? [result.reason] : [],
+      );
+      if (cleanupFailures.length > 0) {
+        // The project is already durably deleted, so returning false or
+        // throwing would tell the UI a retry is safe when it is not. Keep the
+        // failure visible until a durable project-directory GC lands.
+        log.warn(
+          `Project ${id} was deleted, but ${cleanupFailures.length} local asset cleanup(s) failed`,
+          new AggregateError(cleanupFailures),
+        );
+      }
+      return true;
     },
-    [userId, ensureDb],
+    [ensureDb],
   );
 
   return useMemo(

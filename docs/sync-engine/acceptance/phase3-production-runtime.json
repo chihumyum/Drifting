@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-16",
+  "status": "implemented",
+  "scope": "activated provider runtime composition",
+  "assertions": {
+    "localModeLoadsNoProviderOrWriterIdentity": true,
+    "allSyncGenerationsShareOneProviderAndAuthorityGeneration": true,
+    "databaseAndAuthorityReplacementIsRevisionGuarded": true,
+    "nativeAssetAttemptsReconcileBeforeScheduling": true,
+    "googleDriveUsesNativePlaintextObjectAndBlobPorts": true,
+    "productionSyncGenerationsInstallPeriodicCheckpointHook": true,
+    "checkpointUsesSamePlaintextAndNativeAssetPorts": true,
+    "checkpointBlocksGapConflictAndQuarantine": true,
+    "uiBridgeExposesOnlySanitizedRuntimeDiagnostics": true,
+    "manualSyncRoutesOnlyToRegisteredSyncGenerations": true,
+    "remoteApplyUsesProductionTypedKernel": true,
+    "hostedProviderWithoutAdapterFailsClosed": true
+  },
+  "commands": [
+    "pnpm exec vitest run src/renderer/sync/production-runtime.test.ts src/renderer/sync/product-runtime-control.test.ts src/renderer/sync/app-authority-repository.integration.test.ts src/renderer/sync/checkpoint/provider-publisher.integration.test.ts",
+    "pnpm exec eslint src/renderer/sync/production-runtime.ts src/renderer/sync/production-runtime.test.ts src/renderer/sync/product-runtime-control.ts src/renderer/sync/product-runtime-control.test.ts src/renderer/sync/app-authority-repository.ts src/renderer/app/effects/AppEffects.tsx src/renderer/lib/events.ts --max-warnings=0",
+    "pnpm typecheck"
+  ],
+  "boundaries": [
+    "This milestone mounts only bindings already activated by durable connection orchestration.",
+    "It does not claim Google Drive OAuth, restore UX, or real-device acceptance by itself."
+  ]
+}

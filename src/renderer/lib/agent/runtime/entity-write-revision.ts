@@ -6,6 +6,25 @@ function bytesToHex(bytes: Uint8Array): string {
   );
 }
 
+function authoredSemanticHashValue(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const snapshot = value as { kind?: unknown; value?: unknown };
+  if (!snapshot.value || typeof snapshot.value !== 'object' || Array.isArray(snapshot.value)) {
+    return value;
+  }
+  if (snapshot.kind === 'node') {
+    const authored = { ...(snapshot.value as Record<string, unknown>) };
+    delete authored.bookOrder;
+    return { ...snapshot, value: authored };
+  }
+  if (snapshot.kind === 'storyline') {
+    const authored = { ...(snapshot.value as Record<string, unknown>) };
+    delete authored.orderKey;
+    return { ...snapshot, value: authored };
+  }
+  return value;
+}
+
 export async function hashEntityWriteValue(value: unknown): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) {
@@ -13,7 +32,9 @@ export async function hashEntityWriteValue(value: unknown): Promise<string> {
       'Web Crypto SHA-256 is unavailable; entity write receipts cannot be verified',
     );
   }
-  const bytes = new TextEncoder().encode(canonicalAgentRuntimeJson(value));
+  const bytes = new TextEncoder().encode(
+    canonicalAgentRuntimeJson(authoredSemanticHashValue(value)),
+  );
   const digest = await subtle.digest('SHA-256', bytes as BufferSource);
   return `sha256:${bytesToHex(new Uint8Array(digest))}`;
 }

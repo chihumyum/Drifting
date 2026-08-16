@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { SuperViewHeader, type SuperViewHeaderProps } from '../../../components/SuperViewHeader';
 import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
+import { DesktopSuperViewRelationControl } from './DesktopSuperViewRelationControl';
 
 type SuperViewId = 'element' | 'graph' | 'memo-material';
 
@@ -14,10 +15,13 @@ const SUPER_VIEW_OPTIONS: Array<{ id: SuperViewId; labelKey: string }> = [
 export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'navigationSlot'>) {
   const { t } = useTranslation();
   const { active: activeSuperView, setActive: setActiveSuperView } = useSuperViewNavigation();
+  const { rightSlot, ...headerProps } = props;
+  const relationCanvas =
+    activeSuperView === 'element' || activeSuperView === 'graph' ? activeSuperView : null;
 
   return (
     <SuperViewHeader
-      {...props}
+      {...headerProps}
       navigationSlot={
         <nav
           className="super-view-head__switcher super-view-head__no-drag"
@@ -35,6 +39,14 @@ export function DesktopSuperViewHeader(props: Omit<SuperViewHeaderProps, 'naviga
             </button>
           ))}
         </nav>
+      }
+      rightSlot={
+        rightSlot != null || relationCanvas ? (
+          <>
+            {rightSlot}
+            {relationCanvas && <DesktopSuperViewRelationControl canvas={relationCanvas} />}
+          </>
+        ) : undefined
       }
     />
   );

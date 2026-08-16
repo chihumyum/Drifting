@@ -3,33 +3,8 @@ import type { BookNode } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { EntityKind } from './extensions/entity-link';
 
-export type SyncOperationEvent = {
-  requestId: string;
-  kind: 'yjs' | 'crud';
-  phase: 'push' | 'pull';
-  state: 'started' | 'succeeded' | 'failed';
-  operation: 'create' | 'update' | 'delete' | 'softDelete' | 'restore' | 'push' | 'pull';
-  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
-  endpoint: string;
-  docId?: string;
-  entityType?: string;
-  entityId?: string;
-  entityName?: string;
-  projectId?: string;
-  deviceId?: string;
-  localUpdateCount?: number;
-  remoteUpdateCount?: number;
-  appliedUpdateCount?: number;
-  skippedUpdateCount?: number;
-  serverSeqCount?: number;
-  resourceCount?: number;
-  durationMs?: number;
-  error?: string;
-  at: number;
-};
-
 // One Copilot-task lifecycle signal. Carries its
-// `state` inline (like SyncOperationEvent) so a single subscription drives the
+// `state` inline so a single subscription drives the
 // global notification surface. `id` is stable across started→completed/failed so
 // the notification center can collapse a task's phases into one row.
 export type AiTaskSource = 'copilot';
@@ -82,6 +57,12 @@ export type AppEvents = {
   'db:ready': void;
   'db:migrated': void;
   'db:error': { error: string };
+  /** The single App-wide cloud provider generation changed after durable activation. */
+  'sync:authority-changed': void;
+  /** Runtime persisted a provider binding state that product authority UI must re-read. */
+  'sync:runtime-state-changed': void;
+  /** A remote change-set committed locally after live Yjs reconciliation. */
+  'sync:project-changed': { projectId: string };
 
   'search:query': { query: string };
   'search:results': { results: unknown[] };
@@ -89,8 +70,6 @@ export type AppEvents = {
   'jobs:started': { jobId: string; type: string };
   'jobs:completed': { jobId: string; result?: unknown };
   'jobs:failed': { jobId: string; error: string };
-
-  'sync:operation': SyncOperationEvent;
 
   // Copilot task lifecycle → global notification pill + center.
   'ai-task': AiTaskEvent;

@@ -6,7 +6,7 @@ import { focusedLeafOf, tabKey, useUiStore } from '../../store/ui-store';
 import { useShortcutsStore } from '../../store/shortcuts-store';
 import { matchesAccelerator } from '../../lib/shortcuts';
 import { getActiveEditor, saveActiveEditor } from '../../lib/active-editor';
-import { forceSyncAllDocuments } from '../../services/yjs-sync.service';
+import { flushAllYjsDocumentsLocally } from '../../services/yjs-local-durability.service';
 import type { WorkspaceTarget } from '../../features/workspace/navigation/workspace-target';
 
 const log = loglevel.getLogger('DesktopGlobalShortcuts');
@@ -124,7 +124,7 @@ export function useDesktopGlobalShortcuts({
       if (matchesAccelerator(event, bindings.saveCurrentEditor)) {
         event.preventDefault();
         void saveActiveEditor()
-          .then(() => forceSyncAllDocuments())
+          .then(() => flushAllYjsDocumentsLocally())
           .catch((error) => log.warn('Save shortcut sync failed:', error));
         return;
       }

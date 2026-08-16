@@ -8,14 +8,12 @@ import {
   type EntityRefTargetKind,
 } from './entity-kinds';
 
-export const ENTITY_RELATION_ORIENTATIONS = [
-  'directed',
-  'symmetric',
-  'unconfigured',
-] as const;
+export const ENTITY_RELATION_ORIENTATIONS = ['directed', 'symmetric'] as const;
 
 export type EntityRelationOrientation = (typeof ENTITY_RELATION_ORIENTATIONS)[number];
 export type EntityRelationEndpointSide = 'source' | 'target';
+export const GENERIC_ASSOCIATION_SYSTEM_KEY = 'generic-association' as const;
+export type EntityRelationTypeSystemKey = typeof GENERIC_ASSOCIATION_SYSTEM_KEY;
 
 export interface EntityRelationType {
   id: string;
@@ -24,6 +22,8 @@ export interface EntityRelationType {
   normalizedName: string;
   description: string;
   orientation: EntityRelationOrientation;
+  systemKey: EntityRelationTypeSystemKey | null;
+  locked: boolean;
   sourceRole: string;
   targetRole: string;
   sourceKinds: EntityRefSourceKind[];
@@ -35,7 +35,7 @@ export interface EntityRelationType {
 export interface EntityRelationTypeDefinition {
   name: string;
   description?: string;
-  orientation: Exclude<EntityRelationOrientation, 'unconfigured'>;
+  orientation: EntityRelationOrientation;
   sourceRole?: string;
   targetRole?: string;
   sourceKinds: readonly EntityRefSourceKind[];
@@ -53,15 +53,10 @@ export type EntityRelationSemanticResult =
   | { ok: true; relation: EntityRelationSemanticInput }
   | {
       ok: false;
-      code: 'RELATION_TYPE_UNCONFIGURED' | 'RELATION_ENDPOINT_MISMATCH';
+      code: 'RELATION_ENDPOINT_MISMATCH';
       message: string;
       suggestedSwap: boolean;
     };
-
-export const LEGACY_RELATION_SOURCE_KINDS = [...ALL_ENTITY_KINDS] as EntityRefSourceKind[];
-export const LEGACY_RELATION_TARGET_KINDS = [
-  ...STRUCTURAL_ENTITY_KINDS,
-] as EntityRefTargetKind[];
 
 export function isEntityRelationOrientation(value: unknown): value is EntityRelationOrientation {
   return (
@@ -71,20 +66,36 @@ export function isEntityRelationOrientation(value: unknown): value is EntityRela
 }
 
 export function normalizeRelationTypeName(value: string): string {
-  // SQLite's built-in lower() is ASCII-only. Keep this portable normalization
-  // identical in TypeScript, SQLite backfills and Postgres migrations so a
-  // legacy label always derives the same durable id on every client/server.
+  // SQLite's built-in lower() is ASCII-only. Keep normalization portable and
+  // identical across local and provider implementations.
   return value.trim().replace(/[A-Z]/g, (character) => character.toLowerCase());
 }
 
-function utf8Hex(value: string): string {
-  return Array.from(new TextEncoder().encode(value), (byte) => byte.toString(16).padStart(2, '0')).join(
-    '',
-  );
+export function genericAssociationRelationTypeId(projectId: string): string {
+  return `system:${GENERIC_ASSOCIATION_SYSTEM_KEY}:${projectId}`;
 }
 
-export function legacyRelationTypeId(projectId: string, name: string): string {
-  return `legacy:${utf8Hex(`${projectId}:${normalizeRelationTypeName(name)}`)}`;
+export function genericAssociationRelationType(
+  projectId: string,
+  createdAt: string,
+): EntityRelationType {
+  const name = 'Generic association';
+  return {
+    id: genericAssociationRelationTypeId(projectId),
+    projectId,
+    name,
+    normalizedName: normalizeRelationTypeName(name),
+    description: 'Built-in association for TODO and library item links.',
+    orientation: 'directed',
+    systemKey: GENERIC_ASSOCIATION_SYSTEM_KEY,
+    locked: true,
+    sourceRole: 'Source',
+    targetRole: 'Target',
+    sourceKinds: ['comment', 'library_item'],
+    targetKinds: [...STRUCTURAL_ENTITY_KINDS],
+    createdAt,
+    updatedAt: createdAt,
+  };
 }
 
 function orderedUniqueSourceKinds(values: readonly unknown[]): EntityRefSourceKind[] {
@@ -101,7 +112,7 @@ export function normalizeRelationTypeDefinition(
   input: EntityRelationTypeDefinition,
 ): Omit<
   EntityRelationType,
-  'id' | 'projectId' | 'createdAt' | 'updatedAt'
+  'id' | 'projectId' | 'systemKey' | 'locked' | 'createdAt' | 'updatedAt'
 > {
   const name = input.name.trim();
   if (!name) throw new Error('关系类型名称不能为空');
@@ -160,6 +171,23 @@ function endpointKey(kind: EntityKind, id: string): string {
   return `${kind}:${id}`;
 }
 
+function compareEndpointKeysBytewise(left: string, right: string): number {
+  const encoder = new TextEncoder();
+  const leftBytes = encoder.encode(left);
+  const rightBytes = encoder.encode(right);
+  const sharedLength = Math.min(leftBytes.byteLength, rightBytes.byteLength);
+  for (let index = 0; index < sharedLength; index += 1) {
+    if (leftBytes[index] !== rightBytes[index]) {
+      return leftBytes[index]! < rightBytes[index]! ? -1 : 1;
+    }
+  }
+  return leftBytes.byteLength < rightBytes.byteLength
+    ? -1
+    : leftBytes.byteLength > rightBytes.byteLength
+      ? 1
+      : 0;
+}
+
 function endpointAllowed(
   type: EntityRelationType,
   fromKind: EntityRefSourceKind,
@@ -171,23 +199,12 @@ function endpointAllowed(
 export function validateRelationAgainstType(
   type: EntityRelationType,
   relation: EntityRelationSemanticInput,
-  options: { allowUnconfigured?: boolean } = {},
 ): EntityRelationSemanticResult {
-  if (type.orientation === 'unconfigured') {
-    if (options.allowUnconfigured) return { ok: true, relation };
-    return {
-      ok: false,
-      code: 'RELATION_TYPE_UNCONFIGURED',
-      message: `关系类型「${type.name}」尚未配置方向和端点角色；请先由作者完成配置。`,
-      suggestedSwap: false,
-    };
-  }
-
   if (endpointAllowed(type, relation.fromKind, relation.toKind)) {
     if (type.orientation !== 'symmetric') return { ok: true, relation };
     const fromKey = endpointKey(relation.fromKind, relation.fromId);
     const toKey = endpointKey(relation.toKind, relation.toId);
-    return fromKey.localeCompare(toKey) <= 0
+    return compareEndpointKeysBytewise(fromKey, toKey) <= 0
       ? { ok: true, relation }
       : {
           ok: true,
@@ -227,32 +244,11 @@ export function validateRelationTypeDefinitionAgainstRelation(
       id: 'draft-relation-type',
       projectId: 'draft-project',
       ...normalized,
+      systemKey: null,
+      locked: false,
       createdAt: '',
       updatedAt: '',
     },
     relation,
   );
-}
-
-export function legacyRelationType(
-  projectId: string,
-  name: string,
-  createdAt: string,
-  updatedAt: string,
-): EntityRelationType {
-  const trimmed = name.trim();
-  return {
-    id: legacyRelationTypeId(projectId, trimmed),
-    projectId,
-    name: trimmed,
-    normalizedName: normalizeRelationTypeName(trimmed),
-    description: '',
-    orientation: 'unconfigured',
-    sourceRole: '',
-    targetRole: '',
-    sourceKinds: [...LEGACY_RELATION_SOURCE_KINDS],
-    targetKinds: [...LEGACY_RELATION_TARGET_KINDS],
-    createdAt,
-    updatedAt,
-  };
 }

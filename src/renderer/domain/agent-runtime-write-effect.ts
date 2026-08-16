@@ -23,7 +23,7 @@ export type AgentRuntimeWriteReversibility =
   | 'unavailable';
 
 /** Immutable evidence that the central runtime authorized a write before any
- * renderer usecase, Yjs transaction, SQLite outbox row, or server sync existed. */
+ * renderer usecase, Yjs transaction, or authored journal mutation existed. */
 export interface AgentRuntimeWriteAuthorization {
   kind: 'automatic' | 'author_approved';
   /** Present only when the author explicitly resolved a permission request. */

@@ -5,7 +5,7 @@ import { useSuperViewNavigation } from '../../../hooks/useSuperViewNavigation';
 import { useAuthStore } from '../../../store/auth';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import { useTimelineMarkers } from '../../../hooks/useTimelineMarkers';
-import { useEdgeKindMeta, UNCATEGORIZED_META_KEY } from '../../../hooks/useEdgeKindMeta';
+import { useRelationTypePresentation } from '../../../hooks/useRelationTypePresentation';
 import { useSuperViewEscapeStack } from '../../../hooks/useSuperViewEscapeStack';
 import { actBoundDriftIds } from '../../../domain/book-act';
 import type { BookElement, BookElementCategory } from '../../../domain/book-element';
@@ -36,23 +36,19 @@ import { NodeCardPopover } from '../../../components/graph/NodeCardPopover';
 import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { Button } from '../../../components/ui/Button';
-import { FilterChip } from '../../../components/ui/FilterChip';
-import { HeaderChipStrip } from '../../../components/ui/HeaderChipStrip';
 import { RelationTypeField } from '../../../components/ui/RelationTypeField';
 import {
   validateRelationAgainstType,
   validateRelationTypeDefinitionAgainstRelation,
 } from '../../../domain/entity-relation-type';
-import {
-  RelationKindMenu,
-  RelationTypeEditor,
-  UNCATEGORIZED_RELATION_KIND as UNCATEGORIZED_KIND,
-} from '../../../components/ui/RelationKindMenu';
+import { RelationTypeEditor } from '../../../components/ui/RelationKindMenu';
+import { defaultRelationTypeColor } from '../../../components/ui/relation-type-color';
 import { ModalActions, ModalCard, ModalHeader, ModalRoot } from '../../../components/ui/Modal';
 import {
   buildSuperElementCategoryModel,
   type SuperElementCategoryModel as CategoryRenderModel,
 } from '../../../features/graph/super-element-category-model';
+import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
 
 // Visual cell dimensions for CATEGORY world. Each element card occupies one
 // cell. Categories expand by adding cells along whichever axis the
@@ -127,30 +123,6 @@ const BAND_OUTER_RESERVE_CELLS = 1;
 // multiplied by zoom at clamp time.
 const STICKY_PAD_CELLS_X = 3;
 const STICKY_PAD_CELLS_Y = 3;
-
-// EntityRelation rows mirror their first-class type name in `kind`. Color is
-// hashed from that readable label so two
-// edges of the same kind always look identical across renders; null-kind
-// edges fall back to a neutral tint.
-const UNCATEGORIZED_EDGE_COLOR = 'hsl(var(--ink-2))';
-
-const KIND_PALETTE = [
-  'hsl(var(--story-1))',
-  'hsl(var(--story-2))',
-  'hsl(var(--story-3))',
-  'hsl(var(--story-4))',
-  'hsl(var(--story-5))',
-  'hsl(var(--story-6))',
-];
-/** Stable color per kind string (djb2-ish hash, same shape as StoryGraphView). */
-function colorForKind(kind: string | null): string {
-  if (!kind) return UNCATEGORIZED_EDGE_COLOR;
-  let h = 5381;
-  for (let i = 0; i < kind.length; i++) {
-    h = ((h << 5) + h) ^ kind.charCodeAt(i);
-  }
-  return KIND_PALETTE[Math.abs(h) % KIND_PALETTE.length];
-}
 
 const EDGE_SELECTED_WIDTH = 2.4;
 const EDGE_DEFAULT_WIDTH = 1.6;
@@ -838,7 +810,12 @@ export function DesktopSuperElementView() {
   const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
   const { openEntity, projectId } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id) ?? '';
-  const edgeKindMeta = useEdgeKindMeta(projectId);
+  const {
+    edgeKindMeta,
+    hiddenRelationTypeIds,
+    setDriftPanelOpen: setSharedDriftPanelOpen,
+  } = useSuperViewRelationUi('element');
+  const presentRelationType = useRelationTypePresentation();
 
   const {
     bookElements,
@@ -966,10 +943,7 @@ export function DesktopSuperElementView() {
     setPendingLinkReversed(false);
     setPendingLinkCreatingType(false);
   }, []);
-  const configuredRelationTypes = useMemo(
-    () => entityRelationTypes.filter((type) => type.orientation !== 'unconfigured'),
-    [entityRelationTypes],
-  );
+  const configuredRelationTypes = entityRelationTypes;
   const pendingLinkTypeOptions = useMemo(() => {
     if (!pendingLink) return configuredRelationTypes;
     const source = pendingLinkReversed ? pendingLink.target : pendingLink.source;
@@ -1005,17 +979,16 @@ export function DesktopSuperElementView() {
     openPanel: openDriftPanel,
     closePanel: closeDriftPanel,
   } = useDriftPanelAnim();
+  useEffect(() => {
+    setSharedDriftPanelOpen(driftPanelOpen);
+    return () => setSharedDriftPanelOpen(false);
+  }, [driftPanelOpen, setSharedDriftPanelOpen]);
   // Drift-node popover (two-tier name + summary + body editor). Mirrors the
   // popover anchor pattern used for element cards.
   const [activeDriftPopover, setActiveDriftPopover] = useState<{
     nodeId: string;
     anchor: AnchorRect;
   } | null>(null);
-  // Hidden kinds — UNCATEGORIZED_KIND sentinel covers null-kind refs.
-  const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(() => new Set());
-  const [kindMenuOpen, setKindMenuOpen] = useState(false);
-  const kindMenuButtonRef = useRef<HTMLButtonElement>(null);
-
   useSuperViewEscapeStack(
     [
       {
@@ -1049,7 +1022,6 @@ export function DesktopSuperElementView() {
         active: pendingLink !== null,
         onEscape: closePendingLink,
       },
-      { id: 'relation-kind-menu', active: kindMenuOpen, onEscape: () => setKindMenuOpen(false) },
       {
         id: `selected-edge:${selectedEdgeId ?? ''}`,
         active: selectedEdgeId !== null,
@@ -1250,17 +1222,28 @@ export function DesktopSuperElementView() {
   );
 
   // ---- Reference / edge state ----
-  const { addRelation, removeRelation, updateRelationKind } = useEntityRelations({
+  const { addRelation, removeRelation } = useEntityRelations({
     projectId: projectId ?? '',
     userId,
   });
   const relationTypeUsecases = useEntityRelationTypes({ projectId: projectId ?? '' });
-  const resolveKindColor = useCallback(
-    (kind: string | null): string => {
-      const key = kind ?? UNCATEGORIZED_META_KEY;
-      return edgeKindMeta.meta[key]?.color ?? colorForKind(kind);
+  const resolveRelationTypeColor = useCallback(
+    (relationTypeId: string): string => {
+      return (
+        edgeKindMeta.meta[relationTypeId]?.color ??
+        defaultRelationTypeColor(relationTypeId)
+      );
     },
     [edgeKindMeta.meta],
+  );
+  const resolveRelationTypeLabel = useCallback(
+    (relationTypeId: string): string => {
+      const relationType = relationTypeById.get(relationTypeId);
+      return relationType
+        ? presentRelationType(relationType).name
+        : t('relationTypes.missing');
+    },
+    [presentRelationType, relationTypeById, t],
   );
 
   // Filter & build edges sourced from the manual-reference store. v1 only
@@ -1282,7 +1265,7 @@ export function DesktopSuperElementView() {
     y1: number;
     x2: number;
     y2: number;
-    kind: string | null;
+    relationTypeId: string;
     directed: boolean;
     targetInsetX: number;
     targetInsetY: number;
@@ -1293,9 +1276,7 @@ export function DesktopSuperElementView() {
   const worldEdges = useMemo<WorldEdge[]>(() => {
     const out: WorldEdge[] = [];
     for (const ref of entityRelations) {
-      const kind = ref.kind ?? null;
-      const filterKey = kind ?? UNCATEGORIZED_KIND;
-      if (hiddenKinds.has(filterKey)) continue;
+      if (hiddenRelationTypeIds.has(ref.relationTypeId)) continue;
       const fromIsEl = ref.fromKind === 'element';
       const toIsEl = ref.toKind === 'element';
       const fromIsNode = ref.fromKind === 'node';
@@ -1331,13 +1312,11 @@ export function DesktopSuperElementView() {
         y1: fromPt.y,
         x2: toPt.x,
         y2: toPt.y,
-        kind,
-        directed:
-          (ref.relationTypeId ? relationTypeById.get(ref.relationTypeId)?.orientation : null) ===
-          'directed',
+        relationTypeId: ref.relationTypeId,
+        directed: relationTypeById.get(ref.relationTypeId)?.orientation === 'directed',
         targetInsetX: (toIsNode ? BAND_PILL_PX : CELL_W) / 2 + 6,
         targetInsetY: CELL_H / 2 + 6,
-        color: resolveKindColor(kind),
+        color: resolveRelationTypeColor(ref.relationTypeId),
         fromName,
         toName,
       });
@@ -1345,83 +1324,15 @@ export function DesktopSuperElementView() {
     return out;
   }, [
     entityRelations,
-    hiddenKinds,
+    hiddenRelationTypeIds,
     elementCenters,
     nodeCenters,
     driftIds,
     bookElements,
     bookNodes,
-    resolveKindColor,
+    resolveRelationTypeColor,
     relationTypeById,
   ]);
-
-  const elementRelations = useMemo(
-    () =>
-      entityRelations.filter(
-        (relation) => relation.fromKind === 'element' || relation.toKind === 'element',
-      ),
-    [entityRelations],
-  );
-
-  // Kinds actually present in element-touching refs — drives chip rendering.
-  // Includes UNCATEGORIZED_KIND when at least one ref has a null kind.
-  const availableKinds = useMemo<string[]>(() => {
-    const named = new Set<string>();
-    let hasNull = false;
-    elementRelations.forEach((relation) => {
-      if (relation.kind && relation.kind.trim()) named.add(relation.kind);
-      else hasNull = true;
-    });
-    const sorted = [...named].sort();
-    if (hasNull) sorted.push(UNCATEGORIZED_KIND);
-    return sorted;
-  }, [elementRelations]);
-  // Drift provenance is determined solely by endpoints: if either endpoint
-  // is a drift node, this is a special drift edge even when that node is bound
-  // elsewhere or the bottom panel is closed.
-  const driftEdgeKinds = useMemo(() => {
-    const kinds = new Set<string>();
-    for (const relation of elementRelations) {
-      const fromDrift = relation.fromKind === 'node' && driftIds.has(relation.fromId);
-      const toDrift = relation.toKind === 'node' && driftIds.has(relation.toId);
-      if (!fromDrift && !toDrift) continue;
-      kinds.add(relation.kind ?? UNCATEGORIZED_KIND);
-    }
-    return kinds;
-  }, [driftIds, elementRelations]);
-  const worldEdgeKinds = useMemo(() => {
-    const kinds = new Set<string>();
-    for (const relation of elementRelations) {
-      const fromDrift = relation.fromKind === 'node' && driftIds.has(relation.fromId);
-      const toDrift = relation.toKind === 'node' && driftIds.has(relation.toId);
-      if (fromDrift || toDrift) continue;
-      kinds.add(relation.kind ?? UNCATEGORIZED_KIND);
-    }
-    return kinds;
-  }, [driftIds, elementRelations]);
-  const headerKinds = useMemo(
-    () =>
-      availableKinds.filter(
-        (kind) => worldEdgeKinds.has(kind) || (driftPanelOpen && driftEdgeKinds.has(kind)),
-      ),
-    [availableKinds, driftEdgeKinds, driftPanelOpen, worldEdgeKinds],
-  );
-  const kindCounts = useMemo<Record<string, number>>(() => {
-    const counts: Record<string, number> = {};
-    for (const relation of elementRelations) {
-      const key = relation.kind ?? UNCATEGORIZED_KIND;
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
-    return counts;
-  }, [elementRelations]);
-  const toggleKindVisibility = useCallback((kind: string) => {
-    setHiddenKinds((previous) => {
-      const next = new Set(previous);
-      if (next.has(kind)) next.delete(kind);
-      else next.add(kind);
-      return next;
-    });
-  }, []);
 
   // ---- Pan + zoom ----
   // Lazy initial state seeds the world transform so the FIRST frame already
@@ -2010,7 +1921,6 @@ export function DesktopSuperElementView() {
     try {
       await addRelation(source.kind, source.id, target.kind, target.id, {
         relationTypeId: pendingLinkTypeId,
-        allowUnconfigured: false,
       });
     } catch {
       /* surfaced through optimistic-update rollback — UI is already reverted */
@@ -2044,7 +1954,7 @@ export function DesktopSuperElementView() {
     y1: number;
     x2: number;
     y2: number;
-    kind: string | null;
+    relationTypeId: string;
     directed: boolean;
     targetInsetX: number;
     targetInsetY: number;
@@ -2071,7 +1981,7 @@ export function DesktopSuperElementView() {
     y1: number;
     x2: number;
     y2: number;
-    kind: string | null;
+    relationTypeId: string;
     directed: boolean;
     targetInsetX: number;
     targetInsetY: number;
@@ -2091,9 +2001,7 @@ export function DesktopSuperElementView() {
     const recompute = () => {
       const out: DriftEdgeGeom[] = [];
       for (const ref of entityRelations) {
-        const kind = ref.kind ?? null;
-        const filterKey = kind ?? UNCATEGORIZED_KIND;
-        if (hiddenKinds.has(filterKey)) continue;
+        if (hiddenRelationTypeIds.has(ref.relationTypeId)) continue;
         // Want exactly one drift endpoint + one element endpoint.
         const fromIsDriftNode = ref.fromKind === 'node' && driftIds.has(ref.fromId);
         const toIsDriftNode = ref.toKind === 'node' && driftIds.has(ref.toId);
@@ -2115,13 +2023,11 @@ export function DesktopSuperElementView() {
           y1: fromRect.top + fromRect.height / 2,
           x2: toRect.left + toRect.width / 2,
           y2: toRect.top + toRect.height / 2,
-          kind,
-          directed:
-            (ref.relationTypeId ? relationTypeById.get(ref.relationTypeId)?.orientation : null) ===
-            'directed',
+          relationTypeId: ref.relationTypeId,
+          directed: relationTypeById.get(ref.relationTypeId)?.orientation === 'directed',
           targetInsetX: toRect.width / 2 + 6,
           targetInsetY: toRect.height / 2 + 6,
-          color: resolveKindColor(kind),
+          color: resolveRelationTypeColor(ref.relationTypeId),
         });
       }
       setDriftEdgeGeom(out);
@@ -2152,7 +2058,14 @@ export function DesktopSuperElementView() {
       window.removeEventListener('scroll', onScrollOrResize, true);
       window.removeEventListener('super-element:pan-end', onScrollOrResize);
     };
-  }, [driftPanelOpen, entityRelations, hiddenKinds, driftIds, resolveKindColor, relationTypeById]);
+  }, [
+    driftPanelOpen,
+    entityRelations,
+    hiddenRelationTypeIds,
+    driftIds,
+    resolveRelationTypeColor,
+    relationTypeById,
+  ]);
 
   // ---- Viewport edge geometry (sticky mode only) ----
   // Recomputed whenever the committed pan/zoom changes (state-driven), i.e.
@@ -2203,9 +2116,7 @@ export function DesktopSuperElementView() {
 
     const out: ViewportEdgeGeom[] = [];
     for (const ref of entityRelations) {
-      const kind = ref.kind ?? null;
-      const filterKey = kind ?? UNCATEGORIZED_KIND;
-      if (hiddenKinds.has(filterKey)) continue;
+      if (hiddenRelationTypeIds.has(ref.relationTypeId)) continue;
       const fromIsEl = ref.fromKind === 'element';
       const toIsEl = ref.toKind === 'element';
       const fromIsNode = ref.fromKind === 'node';
@@ -2260,13 +2171,11 @@ export function DesktopSuperElementView() {
         y1: fromY,
         x2: toX,
         y2: toY,
-        kind,
-        directed:
-          (ref.relationTypeId ? relationTypeById.get(ref.relationTypeId)?.orientation : null) ===
-          'directed',
+        relationTypeId: ref.relationTypeId,
+        directed: relationTypeById.get(ref.relationTypeId)?.orientation === 'directed',
         targetInsetX: ((toIsNode ? BAND_PILL_PX : CELL_W) / 2 + 6) * z,
         targetInsetY: (CELL_H / 2 + 6) * z,
-        color: resolveKindColor(kind),
+        color: resolveRelationTypeColor(ref.relationTypeId),
         fromName,
         toName,
       });
@@ -2280,40 +2189,15 @@ export function DesktopSuperElementView() {
     bandHeightCells,
     bandTopWorldY,
     entityRelations,
-    hiddenKinds,
+    hiddenRelationTypeIds,
     elementCenters,
     nodeCenters,
     driftIds,
     bookElements,
     bookNodes,
-    resolveKindColor,
+    resolveRelationTypeColor,
     relationTypeById,
   ]);
-
-  const renderKindFilterChip = (kind: string) => {
-    const isUncategorized = kind === UNCATEGORIZED_KIND;
-    const label = isUncategorized ? t('storyGraph.edge.uncategorized') : kind;
-    const color = resolveKindColor(isUncategorized ? null : kind);
-    const visible = !hiddenKinds.has(kind);
-    return (
-      <FilterChip
-        key={kind}
-        size="sm"
-        active={visible}
-        markerColor={color}
-        dimmed={!visible}
-        className={driftPanelOpen && driftEdgeKinds.has(kind) ? 'filter-chip--drift-edge' : ''}
-        onClick={() => toggleKindVisibility(kind)}
-        title={
-          visible
-            ? t('storyGraph.edge.hideKind', { label })
-            : t('storyGraph.edge.showKind', { label })
-        }
-      >
-        {label}
-      </FilterChip>
-    );
-  };
 
   return (
     <SuperViewShell className="super-element-overlay">
@@ -2345,53 +2229,6 @@ export function DesktopSuperElementView() {
                 {t('superElement.linkHint')}
               </div>
             )}
-
-            {/* Kind filter chips — world-backed kinds stay visible; kinds
-                exclusive to bottom-panel drift edges join only while that panel
-                is open. Toggle hides matching edges across both layers. The
-                strip reveals as many complete leading chips as the header can
-                hold; the adjacent menu still owns every kind. */}
-            <HeaderChipStrip>{headerKinds.map(renderKindFilterChip)}</HeaderChipStrip>
-            <div
-              className="relation-kind-menu-anchor super-view-head__no-drag"
-              data-tauri-drag-region="false"
-            >
-              <button
-                ref={kindMenuButtonRef}
-                type="button"
-                className={`relation-kind-menu-trigger${kindMenuOpen ? ' is-open' : ''}`}
-                onClick={() => setKindMenuOpen((open) => !open)}
-                title={t('edgeKindManager.openAllTitle')}
-                aria-haspopup="menu"
-                aria-expanded={kindMenuOpen}
-              >
-                <span>{t('edgeKindManager.all')}</span>
-                <span className="relation-kind-menu-trigger__count">{availableKinds.length}</span>
-              </button>
-              <RelationKindMenu
-                open={kindMenuOpen}
-                onClose={() => setKindMenuOpen(false)}
-                anchorRef={kindMenuButtonRef}
-                kinds={availableKinds}
-                driftDerivedKinds={driftEdgeKinds}
-                hiddenKinds={hiddenKinds}
-                onToggleKind={toggleKindVisibility}
-                kindCounts={kindCounts}
-                resolveKindColor={resolveKindColor}
-                setKindColor={edgeKindMeta.setColor}
-                clearKindColor={edgeKindMeta.clearColor}
-                reassignMeta={edgeKindMeta.reassign}
-                removeMeta={edgeKindMeta.remove}
-                relations={elementRelations}
-                allProjectRelations={entityRelations}
-                updateRelationKind={updateRelationKind}
-                deleteRelation={removeRelation}
-                relationTypes={entityRelationTypes}
-                createRelationType={relationTypeUsecases.createRelationType}
-                updateRelationType={relationTypeUsecases.updateRelationType}
-                deleteRelationType={relationTypeUsecases.deleteRelationType}
-              />
-            </div>
 
             <button
               className={`super-element-toggle${edgesViewportOnly ? ' is-on' : ''}`}
@@ -2576,7 +2413,7 @@ export function DesktopSuperElementView() {
                   targetInsetX: edge.targetInsetX,
                   targetInsetY: edge.targetInsetY,
                 });
-                const kindLabel = edge.kind ?? t('storyGraph.edge.uncategorized');
+                const typeLabel = resolveRelationTypeLabel(edge.relationTypeId);
                 return (
                   <g key={edge.id} data-super-edge>
                     {edge.directed && (
@@ -2598,7 +2435,7 @@ export function DesktopSuperElementView() {
                         selectEdge(edge.id, e.clientX, e.clientY);
                       }}
                     >
-                      <title>{`${edge.fromName} → ${edge.toName}  ·  ${kindLabel}`}</title>
+                      <title>{`${edge.fromName} → ${edge.toName}  ·  ${typeLabel}`}</title>
                     </path>
                     <path
                       d={d}
@@ -2658,7 +2495,7 @@ export function DesktopSuperElementView() {
                 targetInsetX: edge.targetInsetX,
                 targetInsetY: edge.targetInsetY,
               });
-              const kindLabel = edge.kind ?? t('storyGraph.edge.uncategorized');
+              const typeLabel = resolveRelationTypeLabel(edge.relationTypeId);
               return (
                 <g key={edge.id} data-super-edge>
                   {edge.directed && (
@@ -2677,7 +2514,7 @@ export function DesktopSuperElementView() {
                       selectEdge(edge.id, e.clientX, e.clientY);
                     }}
                   >
-                    <title>{`${edge.fromName} → ${edge.toName}  ·  ${kindLabel}`}</title>
+                    <title>{`${edge.fromName} → ${edge.toName}  ·  ${typeLabel}`}</title>
                   </path>
                   <path
                     d={d}
@@ -2903,7 +2740,7 @@ export function DesktopSuperElementView() {
                       value={pendingLinkTypeId}
                       onChange={setPendingLinkTypeId}
                       options={pendingLinkTypeOptions}
-                      resolveOptionColor={(name) => resolveKindColor(name)}
+                      resolveOptionColor={resolveRelationTypeColor}
                       placeholder={t('storyGraph.edge.kindPlaceholder')}
                       ariaLabel={t('storyGraph.edge.kindLabel')}
                       buttonClassName="relation-type-field__button relation-type-field__button--full"
@@ -3012,7 +2849,7 @@ export function DesktopSuperElementView() {
               targetInsetY: edge.targetInsetY,
             });
             const selected = selectedEdgeId === edge.id;
-            const kindLabel = edge.kind ?? t('storyGraph.edge.uncategorized');
+            const typeLabel = resolveRelationTypeLabel(edge.relationTypeId);
             return (
               <g key={edge.id} className={`drift-edge${selected ? ' is-selected' : ''}`}>
                 {edge.directed && (
@@ -3039,7 +2876,7 @@ export function DesktopSuperElementView() {
                     selectEdge(edge.id, e.clientX, e.clientY);
                   }}
                 >
-                  <title>{`${kindLabel}`}</title>
+                  <title>{typeLabel}</title>
                 </path>
               </g>
             );
@@ -3047,7 +2884,7 @@ export function DesktopSuperElementView() {
         </svg>
       )}
 
-      {selectedEdgeAnchor && selectedEdgeRelation && (
+      {selectedEdgeAnchor && selectedEdgeRelation && selectedEdgeType && (
         <RelationEdgePopover
           anchor={selectedEdgeAnchor}
           relation={selectedEdgeRelation}
@@ -3060,7 +2897,7 @@ export function DesktopSuperElementView() {
             selectedEdgeRelation.toKind,
             selectedEdgeRelation.toId,
           )}
-          color={resolveKindColor(selectedEdgeRelation.kind)}
+          color={resolveRelationTypeColor(selectedEdgeRelation.relationTypeId)}
           onDelete={() => {
             void deleteSelectedEdge();
           }}

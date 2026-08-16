@@ -28,6 +28,12 @@ import {
 import { CHAPTER_ORDER_STRIDE } from '../domain/book-node';
 import { withAtomicSyncTransaction } from './sync-helpers';
 import loglevel from 'loglevel';
+import { appendPlannedAuthoredOrderInTransaction } from '../sync/journal';
+import {
+  appendAuthoredOrderRebalance,
+  authoredOrderRebalanceEntries,
+} from '../sync/journal/order-authority';
+import { compareUtf8Bytewise } from '../sync/protocol';
 
 const log = loglevel.getLogger('useBookAct');
 log.setLevel(loglevel.levels.WARN);
@@ -125,7 +131,7 @@ export function useBookAct({ projectId }: UseBookActContext) {
         updatedAt: now,
       };
       createdActs.push(act);
-      await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+      await withAtomicSyncTransaction(projectId, async (tx, sync, changes) => {
         const repoTx = createBookActRepository(projectId, tx);
         for (const created of createdActs) {
           await repoTx.create(created);
@@ -133,12 +139,24 @@ export function useBookAct({ projectId }: UseBookActContext) {
             id: created.id,
             name: created.name,
             color: created.color,
-            startOrder: created.startOrder,
             driftNodeId: created.driftNodeId,
             createdAt: created.createdAt,
             updatedAt: created.updatedAt,
           });
         }
+        const desiredIds = [...existing, ...createdActs]
+          .sort((left, right) =>
+            (left.startOrder ?? Number.NEGATIVE_INFINITY) -
+              (right.startOrder ?? Number.NEGATIVE_INFINITY) ||
+            compareUtf8Bytewise(left.id, right.id),
+          )
+          .map(({ id }) => id);
+        await appendPlannedAuthoredOrderInTransaction(tx, changes, {
+          projectId,
+          listKind: 'book-act',
+          scope: projectId,
+          desiredEntityIds: desiredIds,
+        });
       });
       for (const created of createdActs) useDataStore.getState().addBookAct(created);
       return act;
@@ -148,13 +166,39 @@ export function useBookAct({ projectId }: UseBookActContext) {
 
   const updateAct = useCallback(
     async (id: string, input: UpdateBookActInput): Promise<BookAct | null> => {
+      const normalizedInput = input;
       const updatedAt = new Date().toISOString();
-      const updated = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+      const updated = await withAtomicSyncTransaction(projectId, async (tx, sync, changes) => {
         const result = await createBookActRepository(projectId, tx).update(id, {
-          ...input,
+          ...normalizedInput,
           updatedAt,
         });
-        if (result) await sync('bookAct', 'update', id, projectId, { ...input, updatedAt });
+        if (result) {
+          const syncPayload: Record<string, unknown> = { ...normalizedInput, updatedAt };
+          delete syncPayload.startOrder;
+          if (Object.keys(syncPayload).length > 1) {
+            await sync('bookAct', 'update', id, projectId, syncPayload);
+          }
+          if (input.startOrder !== undefined) {
+            const desiredIds = useDataStore
+              .getState()
+              .bookActs.map((entry) =>
+                entry.id === id ? { ...entry, startOrder: input.startOrder! } : entry,
+              )
+              .sort((left, right) =>
+                (left.startOrder ?? Number.NEGATIVE_INFINITY) -
+                  (right.startOrder ?? Number.NEGATIVE_INFINITY) ||
+                compareUtf8Bytewise(left.id, right.id),
+              )
+              .map((entry) => entry.id);
+            await appendPlannedAuthoredOrderInTransaction(tx, changes, {
+              projectId,
+              listKind: 'book-act',
+              scope: projectId,
+              desiredEntityIds: desiredIds,
+            });
+          }
+        }
         return result;
       });
       if (!updated) return null;
@@ -201,7 +245,6 @@ export function useBookAct({ projectId }: UseBookActContext) {
         const repoTx = createBookActRepository(projectId, tx);
         if (heir) {
           await repoTx.update(heir.id, { startOrder: null, updatedAt });
-          await sync('bookAct', 'update', heir.id, projectId, { startOrder: null, updatedAt });
         }
         await repoTx.delete(id);
         await sync('bookAct', 'delete', id, projectId);
@@ -231,16 +274,33 @@ export function useBookAct({ projectId }: UseBookActContext) {
         newOrderById,
         CHAPTER_ORDER_STRIDE,
       );
+      if (patches.length === 0) return;
       const updatedAt = new Date().toISOString();
-      await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+      await withAtomicSyncTransaction(projectId, async (tx, _sync, changes) => {
         const repoTx = createBookActRepository(projectId, tx);
         for (const patch of patches) {
-          await repoTx.update(patch.id, { startOrder: patch.startOrder, updatedAt });
-          await sync('bookAct', 'update', patch.id, projectId, {
+          await repoTx.update(patch.id, {
             startOrder: patch.startOrder,
             updatedAt,
           });
         }
+        const patchById = new Map(patches.map((patch) => [patch.id, patch.startOrder] as const));
+        const desiredIds = acts
+          .map((entry) => ({
+            ...entry,
+            startOrder: patchById.get(entry.id) ?? entry.startOrder,
+          }))
+          .sort((left, right) =>
+            (left.startOrder ?? Number.NEGATIVE_INFINITY) -
+              (right.startOrder ?? Number.NEGATIVE_INFINITY) ||
+            compareUtf8Bytewise(left.id, right.id),
+          )
+          .map((entry) => entry.id);
+        appendAuthoredOrderRebalance(changes, {
+          listKind: 'book-act',
+          scope: projectId,
+          entries: authoredOrderRebalanceEntries(desiredIds),
+        });
       });
       for (const patch of patches) {
         useDataStore.getState().updateBookAct(patch.id, {

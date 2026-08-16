@@ -35,6 +35,11 @@ export function getDb(): DrizzleDatabase {
   return db;
 }
 
+/** Read the shared client only when renderer database initialization has completed. */
+export function getDbIfInitialized(): DrizzleDatabase | null {
+  return dbInitialized && db ? db : null;
+}
+
 /**
  * Install an already-open product client for a bounded Node/headless command.
  * The desktop renderer still owns normal init/reset. This seam exists so the

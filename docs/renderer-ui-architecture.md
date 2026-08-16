@@ -65,18 +65,30 @@ not be generalized merely to make it importable.
 
 - Menus and anchored popovers portal to `body`, use fixed viewport
   coordinates, and clamp to the available viewport.
-- `RelationKindField` owns shared relation-kind entry and suggestions; shells
-  provide the appropriate modal or sheet host.
+- `RelationTypeField` owns the shared first-class relation-type selector.
+  Relation filters, colors, and menus key presentation state by
+  `relationTypeId`; labels are resolved from the current type definition.
 - `EntityHoverCard` is a desktop hover presentation over a shared content and
   positioning model. Mobile uses explicit preview sheets instead of emulating
   hover.
 - Chapter-lane drag semantics are shared pure policy; desktop Timeline and
   Story Graph own their drag presentations.
-- Shared Super View headers remain store-free. Each shell supplies its own
-  navigation adapter and presentation. The desktop adapter supplies the three
+- `SuperViewHeader` remains store-free. The desktop adapter supplies the three
   Super View destinations through the shared `navigationSlot`, which renders
   immediately after Back. The active destination tab is the header title;
-  optional meta and view-specific `leftSlot` controls follow it.
+  optional meta and view-specific controls follow it. Element and Story Graph
+  also receive one trailing relation control, so switching those canvases does
+  not move or duplicate the entry; TODO & Material does not render it.
+- `SuperViewRelationUiProvider` shares project relation colors while retaining
+  separate Element/Story Graph visibility filters. The menu ranks types whose
+  two endpoints can render on the active canvas: current-canvas instances
+  first, compatible types with no current-canvas instance second, and all
+  other types in one collapsed group. Within the first two groups,
+  primary↔primary precedes primary↔inspiration. Element owns
+  element↔element and element↔node; Story Graph owns node↔node. Persisted
+  `node` covers both chapters and inspirations, so unused type definitions
+  cannot distinguish those subtypes; inspiration styling on existing
+  instances remains endpoint-derived.
 
 ## Super View navigation and Escape
 

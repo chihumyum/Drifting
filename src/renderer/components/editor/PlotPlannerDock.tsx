@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useUiStore } from '../../store/ui-store';
-import { serializePlotGrid, type PlotGrid } from '../../domain/plot-grid';
+import {
+  clonePlotGrid,
+  diffPlotGrid,
+  readPlotGridProjection,
+  type PlotGrid,
+  type PlotGridMutation,
+} from '../../domain/plot-grid';
 import { clampDimension, verticalDockBounds } from '../../lib/layout-geometry';
 import { PlotGridEditor } from './PlotGrid';
 import '../../../styles/plot-planner.css';
@@ -18,7 +24,7 @@ interface PlotPlannerDockProps {
   // instance's whole lifetime (used to route the persist to the right row).
   nodeId: string;
   initialJson: string;
-  onPersist: (nodeId: string, serialized: string) => void;
+  onPersist: (nodeId: string, mutations: readonly PlotGridMutation[]) => Promise<unknown>;
 }
 
 export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerDockProps) {
@@ -31,24 +37,34 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
   const dockRef = useRef<HTMLDivElement>(null);
   const grabOffsetRef = useRef(0);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRef = useRef<string | null>(null);
+  const committedGridRef = useRef<PlotGrid | null>(readPlotGridProjection(initialJson));
+  const latestGridRef = useRef<PlotGrid | null>(null);
+  const persistChainRef = useRef<Promise<void>>(Promise.resolve());
   const onPersistRef = useRef(onPersist);
   useEffect(() => {
     onPersistRef.current = onPersist;
   }, [onPersist]);
 
-  // Flush the trailing-debounced write immediately. Called on unmount (the
-  // dock unmounts when the planner is toggled off or the node switches) so a
-  // pending edit is never dropped.
+  // Queue one semantic snapshot transition. Each task diffs against the last
+  // successfully committed normalized authority, so a failed write cannot
+  // advance the local baseline and make a later retry silently omit fields.
   const flush = useCallback(() => {
     if (persistTimerRef.current) {
       clearTimeout(persistTimerRef.current);
       persistTimerRef.current = null;
     }
-    if (pendingRef.current !== null) {
-      onPersistRef.current(nodeId, pendingRef.current);
-      pendingRef.current = null;
-    }
+    if (!latestGridRef.current) return;
+    const target = clonePlotGrid(latestGridRef.current);
+    latestGridRef.current = null;
+    persistChainRef.current = persistChainRef.current
+      .then(async () => {
+        const mutations = diffPlotGrid(committedGridRef.current, target);
+        if (mutations.length > 0) await onPersistRef.current(nodeId, mutations);
+        committedGridRef.current = target;
+      })
+      .catch((error) => {
+        console.error('[PlotGrid] normalized persistence failed:', error);
+      });
   }, [nodeId]);
 
   useEffect(() => flush, [flush]);
@@ -87,17 +103,14 @@ export function PlotPlannerDock({ nodeId, initialJson, onPersist }: PlotPlannerD
 
   const handleChange = useCallback(
     (grid: PlotGrid) => {
-      pendingRef.current = serializePlotGrid(grid);
+      latestGridRef.current = clonePlotGrid(grid);
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
       persistTimerRef.current = setTimeout(() => {
         persistTimerRef.current = null;
-        if (pendingRef.current !== null) {
-          onPersistRef.current(nodeId, pendingRef.current);
-          pendingRef.current = null;
-        }
+        flush();
       }, PERSIST_DEBOUNCE_MS);
     },
-    [nodeId],
+    [flush],
   );
 
   // Resize via the BOTTOM border — mirror of BottomTimeline's top-edge drag,

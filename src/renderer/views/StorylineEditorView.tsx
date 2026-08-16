@@ -216,7 +216,7 @@ export function StorylineEditorView({
     kind: 'storyline',
     entityId: currentStoryline?.id ?? '',
     projectId,
-    legacyContent: currentStoryline?.contentJson ?? null,
+    seedContentJson: currentStoryline?.contentJson ?? null,
   });
 
   // Scratch body (contentJson) — TipTap editor for free-form notes.

@@ -27,12 +27,7 @@ import {
 import {
   getDb,
   type DbExecutor,
-  type DbTransaction,
 } from '../../../lib/db';
-import {
-  notifySyncMutationCommitted,
-  persistSyncMutationInTransaction,
-} from '../../../services/entity-sync.service';
 import {
   createAgentRuntimeEntityWriteReceiptRepository,
   type AgentRuntimeEntityWriteReceiptRepository,
@@ -61,6 +56,11 @@ import {
   type EntityAtomicTransactionRunner,
 } from '../../../usecase/synced-entity-commands';
 import { effectiveAgentEditMode } from '../agent-edit-mode';
+import {
+  agentAuthoredJournal,
+  appendAgentDomainMutation,
+  type AgentAuthoredJournal,
+} from './agent-authored-journal';
 import { throwIfAgentAborted } from './errors';
 import {
   deterministicAgentEntityId,
@@ -133,13 +133,11 @@ export interface EntityWriteStrategyOptions {
   db?: DbExecutor;
   receipts?: AgentRuntimeEntityWriteReceiptRepository;
   now?: () => string;
-  persistSyncMutation?: typeof persistSyncMutationInTransaction;
-  notifySyncCommitted?: typeof notifySyncMutationCommitted;
+  journal?: AgentAuthoredJournal;
 }
 
 interface AtomicEntityWriteResult {
   receipt: PersistedAgentRuntimeEntityWriteReceipt;
-  syncPersisted: boolean;
 }
 
 export function createDriftingEntityWriteStrategy(
@@ -151,10 +149,7 @@ export function createDriftingEntityWriteStrategy(
     options.receipts ??
     createAgentRuntimeEntityWriteReceiptRepository(db);
   const now = options.now ?? (() => new Date().toISOString());
-  const persistSyncMutation =
-    options.persistSyncMutation ?? persistSyncMutationInTransaction;
-  const notifySyncCommitted =
-    options.notifySyncCommitted ?? notifySyncMutationCommitted;
+  const journal = options.journal ?? agentAuthoredJournal;
 
   return {
     async prepare(request, _context, expectation) {
@@ -190,15 +185,10 @@ export function createDriftingEntityWriteStrategy(
             payload,
             request.sessionId,
             now,
-            persistSyncMutation,
+            journal,
           ),
       });
-      runPostCommitEffects(
-        payload,
-        committed.receipt,
-        committed.syncPersisted,
-        notifySyncCommitted,
-      );
+      runPostCommitEffects(payload, committed.receipt);
       return handlerResult(payload);
     },
 
@@ -251,13 +241,9 @@ export function createDriftingEntityWriteStrategy(
             effect,
             forward,
             now,
-            persistSyncMutation,
+            journal,
           ),
         { behavior: 'immediate' },
-      );
-      notifyCommittedSafely(
-        committed.syncPersisted,
-        notifySyncCommitted,
       );
       projectReceipt(payload, committed.receipt);
       return inverseEffect(committed.receipt, false);
@@ -575,9 +561,10 @@ async function applyForwardInTransaction(
   payload: EntityWriteCommandPayload,
   sessionId: string,
   now: () => string,
-  persistSyncMutation: typeof persistSyncMutationInTransaction,
+  journal: AgentAuthoredJournal,
 ): Promise<AtomicEntityWriteResult> {
-  const sync = transactionRunner(tx, persistSyncMutation);
+  const changes = journal.createChangeSet();
+  const sync = transactionRunner(tx, journal, changes);
   let postimage: AgentRuntimeEntityWriteSnapshot;
   switch (payload.mutation.kind) {
     case 'update_element': {
@@ -645,7 +632,12 @@ async function applyForwardInTransaction(
     postimageHash: await hashEntityWriteValue(postimage),
     createdAt: now(),
   });
-  return { receipt, syncPersisted: sync.persisted() };
+  await journal.record(tx, {
+    projectId: payload.projectId,
+    changes,
+    committedAt: receipt.createdAt,
+  });
+  return { receipt };
 }
 
 async function applyInverseInTransaction(
@@ -654,16 +646,17 @@ async function applyInverseInTransaction(
   effect: PersistedAgentRuntimeWriteEffect,
   forward: PersistedAgentRuntimeEntityWriteReceipt,
   now: () => string,
-  persistSyncMutation: typeof persistSyncMutationInTransaction,
+  journal: AgentAuthoredJournal,
 ): Promise<AtomicEntityWriteResult> {
   const receiptRepo =
     createAgentRuntimeEntityWriteReceiptRepository(tx);
   const raced = await receiptRepo.get(payload.commandId, 'inverse');
   if (raced) {
     assertReceiptMatchesPayload(raced, payload, 'inverse');
-    return { receipt: raced, syncPersisted: false };
+    return { receipt: raced };
   }
-  const sync = transactionRunner(tx, persistSyncMutation);
+  const changes = journal.createChangeSet();
+  const sync = transactionRunner(tx, journal, changes);
   let postimage: AgentRuntimeEntityWriteSnapshot | null = null;
 
   if (payload.toolName === 'create_comment') {
@@ -738,7 +731,12 @@ async function applyInverseInTransaction(
       : null,
     createdAt: now(),
   });
-  return { receipt, syncPersisted: sync.persisted() };
+  await journal.record(tx, {
+    projectId: payload.projectId,
+    changes,
+    committedAt: receipt.createdAt,
+  });
+  return { receipt };
 }
 
 async function assertCommentTargetExists(
@@ -916,12 +914,9 @@ async function restorePreimage(
 
 function transactionRunner(
   tx: DbExecutor,
-  persistSyncMutation: typeof persistSyncMutationInTransaction,
-): {
-  runner: EntityAtomicTransactionRunner;
-  persisted: () => boolean;
-} {
-  let persisted = false;
+  journal: AgentAuthoredJournal,
+  changes: ReturnType<AgentAuthoredJournal['createChangeSet']>,
+): { runner: EntityAtomicTransactionRunner } {
   return {
     runner: async (projectId, work) =>
       work(
@@ -939,19 +934,16 @@ function transactionRunner(
               `Entity write transaction for ${projectId} cannot sync ${mutationProjectId}`,
             );
           }
-          persisted =
-            (await persistSyncMutation(tx as DbTransaction, {
+          await appendAgentDomainMutation(journal, changes, projectId, {
               entityType,
               mutationType,
               entityId,
-              projectId,
               payload,
               parentId,
-              timestamp: Date.now(),
-            })) || persisted;
+            });
         },
+        changes,
       ),
-    persisted: () => persisted,
   };
 }
 
@@ -993,27 +985,12 @@ function projectReceipt(
 function runPostCommitEffects(
   payload: EntityWriteCommandPayload,
   receipt: PersistedAgentRuntimeEntityWriteReceipt,
-  syncPersisted: boolean,
-  notifySyncCommitted: typeof notifySyncMutationCommitted,
 ): void {
-  notifyCommittedSafely(syncPersisted, notifySyncCommitted);
   try {
     projectReceipt(payload, receipt);
   } catch {
     // The immutable receipt is authoritative; restart reconciliation rebuilds
     // the renderer projection without re-execution.
-  }
-}
-
-function notifyCommittedSafely(
-  syncPersisted: boolean,
-  notifySyncCommitted: typeof notifySyncMutationCommitted,
-): void {
-  if (!syncPersisted) return;
-  try {
-    notifySyncCommitted();
-  } catch {
-    // The outbox row is durable. Notification is only a wake-up hint.
   }
 }
 

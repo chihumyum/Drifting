@@ -1424,6 +1424,9 @@
   bottom: 0;
   padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
   background: linear-gradient(transparent, hsl(var(--paper-deep)) 28%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 8px;
 }
 .m-tab-overview > footer button {
   width: 100%;
@@ -1431,6 +1434,85 @@
   border: 1px solid hsl(var(--rule-strong));
   background: hsl(var(--paper));
   color: hsl(var(--ink-2));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.m-project-trash {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  width: 100dvw;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: hsl(var(--paper-deep));
+  color: hsl(var(--ink-1));
+}
+
+.m-project-trash > header {
+  min-height: calc(54px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 10px 0;
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper));
+}
+
+.m-project-trash > header button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  color: hsl(var(--ink-2));
+}
+
+.m-project-trash > header > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.m-project-trash > header span {
+  font: 8px/1.2 var(--font-mono);
+  letter-spacing: 0.14em;
+  color: hsl(var(--ink-4));
+}
+
+.m-project-trash > header strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.m-project-trash__content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 14px calc(24px + env(safe-area-inset-bottom));
+}
+
+.m-project-trash__content .set-panel {
+  max-width: none;
+}
+
+.m-project-trash__content .set-panel > div:last-child {
+  max-width: none !important;
+  padding-inline: 0 !important;
+  overflow-x: auto;
+}
+
+.m-project-trash__content table {
+  min-width: 600px;
+}
+
+.m-project-trash__content .set-btn {
+  min-height: 44px;
 }
 
 .m-super-view-host {

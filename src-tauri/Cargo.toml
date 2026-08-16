@@ -19,22 +19,26 @@ tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
 base64 = "0.22"
+getrandom = "0.2"
+httpdate = "1"
+http = "1"
 include_dir = "0.7.4"
 image = { version = "=0.25.4", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff", "webp"] }
 futures-util = "0.3"
 regex = "1"
-reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "rustls-tls", "stream"] }
-rusqlite = { version = "0.32.1", features = ["backup", "bundled"] }
+percent-encoding = "2"
+reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "json", "rustls-tls", "stream"] }
+rusqlite = { version = "0.32.1", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10.8"
+zeroize = { version = "1", features = ["zeroize_derive"] }
 tauri = { version = "2.11.5", features = ["protocol-asset"] }
 tauri-plugin-deep-link = "2.4.9"
 tauri-plugin-dialog = "2.7"
 tauri-plugin-fs = "2.5"
 tauri-plugin-opener = "2.5.4"
-tokio = { version = "1", features = ["fs", "io-util", "net"] }
-tokio-util = { version = "0.7", features = ["io"] }
+tokio = { version = "1", features = ["fs", "io-util", "net", "sync", "time"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "windows", target_os = "linux"))'.dependencies]
 keyring = { version = "3.6", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "crypto-rust"] }
@@ -42,6 +46,9 @@ keyring = { version = "3.6", features = ["apple-native", "windows-native", "linu
 [target.'cfg(target_os = "android")'.dependencies]
 tauri-plugin-drifting-image-codec = { path = "plugins/drifting-image-codec" }
 tauri-plugin-drifting-secure-storage = { path = "plugins/drifting-secure-storage" }
+
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+tauri-plugin-drifting-google-drive-oauth = { path = "plugins/drifting-google-drive-oauth" }
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFData", "CFDictionary", "CFNumber", "CFString", "CFURL"] }

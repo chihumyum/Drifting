@@ -14,7 +14,10 @@ import {
   type AgentRuntimeRecoveryCodec,
 } from './repository-transport-persistence';
 import { hashAgentPermissionArguments } from './control-plane';
-import { hashAgentRuntimeCheckpointContext } from './recovery';
+import {
+  createAgentRuntimeCheckpointContextV4,
+  hashAgentRuntimeCheckpointPayload,
+} from './recovery';
 import type { AgentModelMessage } from './types';
 
 const NOW = '2026-07-30T00:00:00.000Z';
@@ -409,14 +412,18 @@ describe('repository Agent transport persistence adapter', () => {
       wallTimeMs: Date.parse(NOW) + index,
       createdAt: new Date(Date.parse(NOW) + index).toISOString(),
     }));
+    const durableContext = await createAgentRuntimeCheckpointContextV4({
+      canonicalHistory: history,
+      durableSummaries: [],
+    });
     fake.state.checkpoints = [
       {
         id: 'checkpoint-complete',
         sessionId: 'session-1',
         throughTurnOrdinal: 0,
         messageCount: history.length,
-        context: history,
-        contextHash: await hashAgentRuntimeCheckpointContext(history),
+        context: durableContext,
+        contextHash: await hashAgentRuntimeCheckpointPayload(durableContext),
         createdAt: LATER,
       },
     ];
@@ -465,7 +472,6 @@ describe('repository Agent transport persistence adapter', () => {
       repository: fake.repository,
       recovery: {
         recoverSnapshot: async () => ({ providerHistory: [] }),
-        hashCheckpointContext: hashAgentRuntimeCheckpointContext,
       },
       resolveToolAccess: () => 'read',
     });
@@ -515,7 +521,6 @@ describe('repository Agent transport persistence adapter', () => {
       repository: fake.repository,
       recovery: {
         recoverSnapshot: async () => ({ providerHistory: [] }),
-        hashCheckpointContext: hashAgentRuntimeCheckpointContext,
       },
       resolveToolAccess: () => 'read',
     });
@@ -542,7 +547,6 @@ describe('repository Agent transport persistence adapter', () => {
   it('repairs stale state, accepts the prompt before the provider, and commits a checkpoint from completed-turn history only', async () => {
     const fake = fakeRepository();
     const recoveredHistories: AgentModelMessage[][] = [];
-    const hashInputs: AgentModelMessage[][] = [];
     const recovery: AgentRuntimeRecoveryCodec = {
       recoverSnapshot: async (current) => {
         expect(['running', 'interrupted']).toContain(
@@ -550,12 +554,6 @@ describe('repository Agent transport persistence adapter', () => {
         );
         recoveredHistories.push([]);
         return { providerHistory: [] };
-      },
-      hashCheckpointContext: async (context) => {
-        hashInputs.push(
-          context.map((message) => structuredClone(message)),
-        );
-        return 'sha256:checkpoint';
       },
     };
     const interruptSessionWrites = vi.fn(
@@ -757,7 +755,6 @@ describe('repository Agent transport persistence adapter', () => {
       endedAt: LATER,
     });
 
-    expect(hashInputs).toEqual([turnMessages]);
     expect(fake.committed[0]).toMatchObject({
       sessionId: 'session-1',
       turnId: 'turn-new',
@@ -775,8 +772,13 @@ describe('repository Agent transport persistence adapter', () => {
         id: 'agent-checkpoint:session-1:1',
         throughTurnOrdinal: 1,
         messageCount: 2,
-        context: turnMessages,
-        contextHash: 'sha256:checkpoint',
+        context: {
+          schemaVersion: 4,
+          format: 'drifting.agent-runtime-checkpoint-digest-with-summaries',
+          canonicalMessageCount: 2,
+          durableSummaries: [],
+        },
+        contextHash: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
       },
     });
     expect(recoveredHistories).toHaveLength(3);
@@ -788,7 +790,6 @@ describe('repository Agent transport persistence adapter', () => {
       repository: fake.repository,
       recovery: {
         recoverSnapshot: async () => ({ providerHistory: [] }),
-        hashCheckpointContext: async () => 'sha256:unused',
       },
       resolveToolAccess: () => 'read',
     });
@@ -863,14 +864,18 @@ describe('repository Agent transport persistence adapter', () => {
         completedAt: LATER,
       },
     ];
+    const durableContext = await createAgentRuntimeCheckpointContextV4({
+      canonicalHistory: turnMessages,
+      durableSummaries: [],
+    });
     fake.state.checkpoints = [
       {
         id: 'agent-checkpoint:session-1:0',
         sessionId: 'session-1',
         throughTurnOrdinal: 0,
         messageCount: 2,
-        context: turnMessages,
-        contextHash: 'sha256:already-verified',
+        context: durableContext,
+        contextHash: await hashAgentRuntimeCheckpointPayload(durableContext),
         createdAt: LATER,
       },
     ];
@@ -878,7 +883,6 @@ describe('repository Agent transport persistence adapter', () => {
       repository: fake.repository,
       recovery: {
         recoverSnapshot: async () => ({ providerHistory: turnMessages }),
-        hashCheckpointContext: async () => 'sha256:not-needed',
       },
       resolveToolAccess: () => 'read',
     });
@@ -923,7 +927,6 @@ describe('repository Agent transport persistence adapter', () => {
         recoverSnapshot: async () => {
           throw new Error('corrupt journal');
         },
-        hashCheckpointContext: async () => 'sha256:unused',
       },
       resolveToolAccess: () => 'read',
     });
@@ -958,7 +961,6 @@ describe('repository Agent transport persistence adapter', () => {
       repository: fake.repository,
       recovery: {
         recoverSnapshot: async () => ({ providerHistory: [] }),
-        hashCheckpointContext: async () => 'sha256:unused',
       },
       resolveToolAccess: () => 'read',
     });
@@ -989,7 +991,6 @@ describe('repository Agent transport persistence adapter', () => {
       repository: fake.repository,
       recovery: {
         recoverSnapshot: async () => ({ providerHistory: [] }),
-        hashCheckpointContext: async () => 'sha256:unused',
       },
       resolveToolAccess: () => undefined,
     });

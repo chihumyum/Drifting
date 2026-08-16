@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "milestone": "phase5-google-drive-project-restore",
+  "recordedAt": "2026-08-16",
+  "currentContract": true,
+  "status": "machine-implemented-real-account-gated",
+  "entryPoint": "src/renderer/sync/restore/google-drive-restore.ts#restoreGoogleDriveSyncGenerations",
+  "accessAuthority": {
+    "userAction": "google-sign-in",
+    "accountScopedDiscovery": "automatic",
+    "separateRestoreForm": false,
+    "separateRestoreSecret": false
+  },
+  "invariants": {
+    "providerAuthority": "one App-wide Google account and authority generation",
+    "discoverySource": "account-level-current-snapshot-commit-inventory",
+    "projectIdentity": "projectSyncId-plus-syncGenerationId",
+    "visibility": "all restored Projects and provider authority commit atomically",
+    "localProjects": "publish plaintext genesis after account discovery",
+    "snapshotSelection": "latest valid commit HLC with UTF-8 bytewise tie-breaks",
+    "assets": "native opaque refs plus content hash size and MIME verification",
+    "unknownVersions": "durable quarantine and blocked-update",
+    "providerRemoval": "never a domain delete",
+    "activationCursor": "complete observed immutable inventory and drained cursor",
+    "postCheckpointTail": "observed segments remain eligible for first-cycle apply",
+    "postActivationRemoval": "known immutable removal blocks before apply",
+    "networkInsideSqliteTransaction": false,
+    "partialProjectVisible": false
+  },
+  "commands": [
+    "pnpm exec vitest run src/renderer/sync/restore/google-drive-restore.integration.test.ts src/renderer/sync/engine/durable-runtime.integration.test.ts src/renderer/sync/app-authority-repository.integration.test.ts --reporter=verbose",
+    "pnpm exec eslint src/renderer/sync/restore/google-drive-restore.ts src/renderer/sync/restore/google-drive-restore.integration.test.ts src/renderer/sync/restore/google-drive-product-connect.ts src/renderer/sync/checkpoint/restore.ts src/renderer/sync/checkpoint/types.ts src/renderer/sync/checkpoint/checkpoint.integration.test.ts src/renderer/sync/app-authority-repository.ts src/renderer/sync/app-authority-repository.integration.test.ts",
+    "pnpm typecheck"
+  ],
+  "releaseGatesStillOpen": [
+    "real Google account desktop iOS Android same-Project report",
+    "production desktop iOS Android OAuth client configuration",
+    "fresh-device automatic discovery",
+    "physical-device force-stop offline and large-blob resume matrix"
+  ]
+}

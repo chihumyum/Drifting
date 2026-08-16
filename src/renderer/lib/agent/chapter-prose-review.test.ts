@@ -2,7 +2,7 @@ import * as Y from 'yjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { proseDocId } from '../yjs-doc-id';
 import { registerLiveYDoc } from '../yjs-doc-registry';
-import { registerSyncDocument } from '../../services/yjs-sync.service';
+import { registerLocalYjsDocument } from '../../services/yjs-local-durability.service';
 import {
   revertEntityBlock,
   yInsertBlockWithId,
@@ -17,9 +17,9 @@ describe('guarded block-level Agent review inverse', () => {
   beforeEach(() => {
     doc = new Y.Doc();
     release = registerLiveYDoc(proseDocId('node', 'node-review'), doc);
-    releasePersistence = registerSyncDocument(
+    releasePersistence = registerLocalYjsDocument(
+      'project-review',
       proseDocId('node', 'node-review'),
-      async () => undefined,
       async () => undefined,
     );
   });
@@ -114,13 +114,13 @@ describe('guarded block-level Agent review inverse', () => {
   it('retries idempotently when Yjs changed but the first persistence acknowledgement failed', async () => {
     releasePersistence();
     let flushes = 0;
-    releasePersistence = registerSyncDocument(
+    releasePersistence = registerLocalYjsDocument(
+      'project-review',
       proseDocId('node', 'node-review'),
       async () => {
         flushes += 1;
         if (flushes === 1) throw new Error('flush acknowledgement lost');
       },
-      async () => undefined,
     );
     const fragment = doc.getXmlFragment('default');
     doc.transact(() => {

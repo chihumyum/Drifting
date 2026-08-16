@@ -1,21 +1,21 @@
 import loglevel from 'loglevel';
 import * as Y from 'yjs';
 
-import { isSyncEnabled } from '../lib/config';
 import { initDatabase } from '../lib/db';
 import { readPersistedYjsUpdateOrigin } from '../lib/yjs-persistence-origin';
 import { createYjsRepository, type YjsRepository } from '../sqlite-repo/yjs-repo';
-import { maybeCaptureSnapshotHistory } from './snapshot-history.service';
 import {
-  compactUpdatesAfterSnapshot,
-  pullUpdates,
-  resetCursor,
-} from './yjs-sync.service';
+  appendAuthoredYjsUpdate,
+  type AuthoredYjsUpdateWriter,
+} from '../sync/journal/yjs-update';
+import { maybeCaptureSnapshotHistory } from './snapshot-history.service';
+import { compactUpdatesAfterSnapshot } from './yjs-local-durability.service';
 
 const log = loglevel.getLogger('yjs-document-session');
 log.setLevel(loglevel.levels.WARN);
 
 const SNAPSHOT_EVERY_UPDATES = 50;
+const PERSISTED_TAIL_ORIGIN = Symbol('drifting.persisted-yjs-tail');
 
 export type YjsDocumentSeed = (
   apply: (mutator: (ydoc: Y.Doc) => void) => void,
@@ -30,9 +30,7 @@ export interface YjsDocumentSessionSnapshot {
 export interface YjsDocumentSessionDependencies {
   initDatabase: (userId: string) => Promise<unknown>;
   createRepository: () => YjsRepository;
-  isSyncEnabled: () => boolean;
-  resetCursor: (docId: string) => Promise<void>;
-  pullUpdates: (docId: string, ydoc: Y.Doc, repo: YjsRepository) => Promise<void>;
+  appendAuthoredUpdate: AuthoredYjsUpdateWriter;
   compactUpdatesAfterSnapshot: (
     docId: string,
     snapshotCoveredId: number,
@@ -58,9 +56,7 @@ export function scheduleMicrotask(callback: () => void): void {
 const defaultDependencies: YjsDocumentSessionDependencies = {
   initDatabase,
   createRepository: createYjsRepository,
-  isSyncEnabled,
-  resetCursor,
-  pullUpdates,
+  appendAuthoredUpdate: appendAuthoredYjsUpdate,
   compactUpdatesAfterSnapshot,
   captureSnapshotHistory: maybeCaptureSnapshotHistory,
   queueMicrotask: scheduleMicrotask,
@@ -101,6 +97,7 @@ export class YjsDocumentSession {
   private writeErrors: unknown[] = [];
 
   constructor(
+    readonly projectId: string,
     readonly docId: string,
     readonly userId: string,
     private readonly dependencies: YjsDocumentSessionDependencies,
@@ -117,7 +114,7 @@ export class YjsDocumentSession {
   };
 
   /** Retain this shared document. The first consumer owns the single load. */
-  retain(seedFromLegacy?: YjsDocumentSeed): () => void {
+  retain(seedFromContentJson?: YjsDocumentSeed): () => void {
     this.refCount += 1;
     this.releaseGeneration += 1;
 
@@ -128,7 +125,7 @@ export class YjsDocumentSession {
       if (this.status === 'ready') this.attachUpdateHandler();
     }
 
-    if (this.status === 'idle') this.startLoad(seedFromLegacy);
+    if (this.status === 'idle') this.startLoad(seedFromContentJson);
 
     let released = false;
     return () => {
@@ -187,8 +184,33 @@ export class YjsDocumentSession {
       }
     }
 
-    const fullState = Y.encodeStateAsUpdate(this.ydoc);
-    this.enqueueWrite(() => this.persistSnapshotAndCompact(fullState));
+    this.enqueueWrite(async () => {
+      // A remote reducer can commit between the editor's initial load and this
+      // durability barrier. Reconcile the durable tail first, then capture the
+      // state inside the same serial queue so compaction can never cover a row
+      // that this live Y.Doc has not actually absorbed.
+      await this.applyPersistedTail();
+      await this.persistSnapshotAndCompact(Y.encodeStateAsUpdate(this.ydoc));
+    });
+    await this.flushPendingWrites();
+  }
+
+  /**
+   * Merge every SQLite update newer than this session's proven coverage.
+   *
+   * SyncEngine calls this only after its reducer transaction commits. The
+   * serialized tail read also closes the race where a durable remote row N+1
+   * lands immediately before an already-persisted Agent/local row N+2 is
+   * applied to the live document. Coverage advances row-by-row only after the
+   * exact stored bytes have been accepted by Yjs.
+   */
+  async reconcilePersistedUpdates(): Promise<void> {
+    if (this.status === 'idle') return;
+    if (this.status === 'loading') await this.waitUntilLoaded();
+    if (this.status === 'error') {
+      throw this.snapshot.error ?? new Error(`Yjs document ${this.docId} failed to load`);
+    }
+    this.enqueueWrite(() => this.applyPersistedTail());
     await this.flushPendingWrites();
   }
 
@@ -218,11 +240,11 @@ export class YjsDocumentSession {
     for (const listener of this.listeners) listener();
   }
 
-  private startLoad(seedFromLegacy?: YjsDocumentSeed): void {
+  private startLoad(seedFromContentJson?: YjsDocumentSeed): void {
     this.status = 'loading';
     this.publish({ isReady: false, hasLocalState: false, error: null });
 
-    const operation = this.load(seedFromLegacy).catch((error: unknown) => {
+    const operation = this.load(seedFromContentJson).catch((error: unknown) => {
       const normalized = normalizeError(error);
       this.status = 'error';
       this.publish({ isReady: false, hasLocalState: false, error: normalized });
@@ -235,7 +257,7 @@ export class YjsDocumentSession {
     this.loadPromise = operation;
   }
 
-  private async load(seedFromLegacy?: YjsDocumentSeed): Promise<void> {
+  private async load(seedFromContentJson?: YjsDocumentSeed): Promise<void> {
     await this.dependencies.initDatabase(this.userId);
 
     const snapshot = await this.repo.getSnapshot(this.docId);
@@ -251,36 +273,32 @@ export class YjsDocumentSession {
     const hadAnything = Boolean(snapshot) || updates.length > 0;
 
     if (!hadAnything) {
-      await this.dependencies.resetCursor(this.docId);
-
-      if (this.dependencies.isSyncEnabled()) {
-        try {
-          await this.dependencies.pullUpdates(this.docId, this.ydoc, this.repo);
-        } catch (error) {
-          // A network failure does not invalidate an otherwise valid local
-          // load. The legacy seed remains the offline recovery path.
-          log.warn(`[yjs session] initial pull failed for ${this.docId}:`, error);
-        }
-      }
-
-      if (seedFromLegacy && this.ydoc.getXmlFragment('default').length === 0) {
-        await seedFromLegacy((mutator) => {
+      if (seedFromContentJson && this.ydoc.getXmlFragment('default').length === 0) {
+        await seedFromContentJson((mutator) => {
           this.ydoc.transact(() => {
             if (this.ydoc.getXmlFragment('default').length > 0) return;
             mutator(this.ydoc);
           }, 'seed');
         });
         const fullState = Y.encodeStateAsUpdate(this.ydoc);
-        await this.repo.upsertSnapshot(this.docId, fullState, {
-          source: { kind: 'system' },
+        const persisted = await this.dependencies.appendAuthoredUpdate(
+          this.projectId,
+          this.docId,
+          fullState,
+          { kind: 'system' },
+        );
+        // A remote transaction can win the database scheduler between the
+        // empty-state read and this seed commit. Replay the ordered durable
+        // tail before the seed snapshot becomes a future compaction point.
+        await this.applyPersistedTail();
+        if (this.snapshotCoveredUpdateId < persisted.updateId) {
+          throw new Error(
+            `Persisted Yjs seed ${persisted.updateId} for ${this.docId} was not visible in SQLite`,
+          );
+        }
+        await this.repo.upsertSnapshot(this.docId, Y.encodeStateAsUpdate(this.ydoc), {
+          advanceRevision: false,
         });
-      }
-    } else if (this.dependencies.isSyncEnabled()) {
-      try {
-        await this.dependencies.pullUpdates(this.docId, this.ydoc, this.repo);
-      } catch (error) {
-        // Existing durable local state remains safe to edit while offline.
-        log.warn(`[yjs session] catch-up pull failed for ${this.docId}:`, error);
       }
     }
 
@@ -288,29 +306,40 @@ export class YjsDocumentSession {
     if (!this.closing && this.refCount > 0) this.attachUpdateHandler();
     this.publish({
       isReady: true,
-      hasLocalState: hadAnything || Boolean(seedFromLegacy),
+      hasLocalState: hadAnything || Boolean(seedFromContentJson),
       error: null,
     });
   }
 
   private readonly handleUpdate = (update: Uint8Array, origin: unknown): void => {
-    if (origin === 'load') return;
+    if (
+      origin === 'load' ||
+      origin === 'remote' ||
+      origin === 'seed' ||
+      origin === 'restore' ||
+      origin === PERSISTED_TAIL_ORIGIN
+    ) {
+      // Remote apply must persist the incoming update and remote change-set in
+      // its reducer transaction before applying it to this live document.
+      // Seed/restore are likewise owned by their explicit persistence paths.
+      return;
+    }
 
     const persistedOrigin = readPersistedYjsUpdateOrigin(origin);
     if (persistedOrigin) {
       // The coordinator committed this exact update and its receipt before
-      // merging it into the editor. Advancing the coverage watermark keeps a
-      // future snapshot eligible to compact it; appending again would create a
-      // duplicate local-sync row and a second revision.
-      this.snapshotCoveredUpdateId = Math.max(
-        this.snapshotCoveredUpdateId,
-        persistedOrigin.updateId,
-      );
-      this.localUpdatesSinceSnapshot = 0;
+      // merging it into the editor. Do not jump the watermark directly to its
+      // id: an earlier remote row for this doc may have committed first but its
+      // post-commit delivery can still be queued. Reading the SQLite tail in
+      // order proves that every lower stored row is represented before any
+      // later snapshot is allowed to compact it.
+      this.enqueueWrite(async () => {
+        await this.applyPersistedTail();
+        this.localUpdatesSinceSnapshot = 0;
+      });
       return;
     }
 
-    const isLocalEdit = origin !== 'remote' && origin !== 'seed' && origin !== 'restore';
     const revisionSource =
       origin === 'agent' || origin === 'agent-revert'
         ? ({ kind: 'agent' } as const)
@@ -318,17 +347,19 @@ export class YjsDocumentSession {
     const updateCopy = new Uint8Array(update);
 
     this.enqueueWrite(async () => {
-      if (isLocalEdit) {
-        const persistedId = await this.repo.appendUpdate(
-          this.docId,
-          updateCopy,
-          revisionSource,
-        );
-        // This is the only safe compaction coverage source: the update was both
-        // applied to this unique Y.Doc and durably appended by this queue.
-        this.snapshotCoveredUpdateId = Math.max(
-          this.snapshotCoveredUpdateId,
-          persistedId,
+      const persisted = await this.dependencies.appendAuthoredUpdate(
+        this.projectId,
+        this.docId,
+        updateCopy,
+        revisionSource,
+      );
+      // The authored transaction is now durable, but a remote row may have
+      // received a lower id while this update was waiting. Replaying the exact
+      // ordered tail is what makes `persisted.updateId` safe coverage.
+      await this.applyPersistedTail();
+      if (this.snapshotCoveredUpdateId < persisted.updateId) {
+        throw new Error(
+          `Persisted Yjs update ${persisted.updateId} for ${this.docId} was not visible in SQLite`,
         );
       }
       this.localUpdatesSinceSnapshot += 1;
@@ -359,6 +390,17 @@ export class YjsDocumentSession {
     });
   }
 
+  private async applyPersistedTail(): Promise<void> {
+    const updates = await this.repo.listUpdates(this.docId, this.snapshotCoveredUpdateId);
+    for (const item of updates) {
+      // listUpdates is ordered by id. Advance only after this exact durable row
+      // decodes and merges; a thrown Yjs error therefore leaves the watermark
+      // before the bad row and prevents unsafe compaction.
+      Y.applyUpdate(this.ydoc, item.updateBlob, PERSISTED_TAIL_ORIGIN);
+      this.snapshotCoveredUpdateId = item.id;
+    }
+  }
+
   private async persistSnapshotAndCompact(
     fullState: Uint8Array,
     reason: 'periodic' | 'close' = 'periodic',
@@ -383,8 +425,10 @@ export class YjsDocumentSession {
     this.detachUpdateHandler();
 
     if (this.status === 'ready') {
-      const fullState = Y.encodeStateAsUpdate(this.ydoc);
-      this.enqueueWrite(() => this.persistSnapshotAndCompact(fullState, 'close'));
+      this.enqueueWrite(async () => {
+        await this.applyPersistedTail();
+        await this.persistSnapshotAndCompact(Y.encodeStateAsUpdate(this.ydoc), 'close');
+      });
     }
 
     const finalize = async () => {
@@ -417,7 +461,8 @@ export class YjsDocumentSessionRegistry {
 
   constructor(private readonly dependencies: YjsDocumentSessionDependencies = defaultDependencies) {}
 
-  get(docId: string, userId: string): YjsDocumentSession {
+  get(projectId: string, docId: string, userId: string): YjsDocumentSession {
+    if (!projectId) throw new Error('Yjs document session requires projectId');
     const existing = this.sessions.get(docId);
     if (existing) {
       if (existing.userId !== userId) {
@@ -425,19 +470,63 @@ export class YjsDocumentSessionRegistry {
           `Yjs document ${docId} is still mounted for another user; database switch was not quiesced`,
         );
       }
+      if (existing.projectId !== projectId) {
+        throw new Error(
+          `Yjs document ${docId} is still mounted for another project; document identity is ambiguous`,
+        );
+      }
       return existing;
     }
 
-    const created = new YjsDocumentSession(docId, userId, this.dependencies, (session) => {
+    const created = new YjsDocumentSession(projectId, docId, userId, this.dependencies, (session) => {
       if (this.sessions.get(docId) === session) this.sessions.delete(docId);
     });
     this.sessions.set(docId, created);
     return created;
   }
+
+  /** Reconcile only already-open sessions; closed docs will replay SQLite on open. */
+  async reconcilePersistedUpdates(
+    projectId: string,
+    docIds?: readonly string[],
+  ): Promise<void> {
+    const candidates = docIds
+      ? [...new Set(docIds)].sort()
+      : [...this.sessions.entries()]
+          .filter(([, session]) => session.projectId === projectId)
+          .map(([docId]) => docId)
+          .sort();
+    for (const docId of candidates) {
+      const session = this.sessions.get(docId);
+      if (!session) continue;
+      if (session.projectId !== projectId) {
+        throw new Error(
+          `Yjs document ${docId} is mounted for another project during remote reconciliation`,
+        );
+      }
+      await session.reconcilePersistedUpdates();
+    }
+  }
 }
 
 const processYjsDocumentSessions = new YjsDocumentSessionRegistry();
 
-export function getYjsDocumentSession(docId: string, userId: string): YjsDocumentSession {
-  return processYjsDocumentSessions.get(docId, userId);
+export function getYjsDocumentSession(
+  projectId: string,
+  docId: string,
+  userId: string,
+): YjsDocumentSession {
+  return processYjsDocumentSessions.get(projectId, docId, userId);
+}
+
+/**
+ * Post-commit SyncEngine bridge. It never opens a new session and therefore
+ * cannot race a hidden project into the UI; closed documents simply replay the
+ * already-durable update on their next normal mount.
+ */
+export function reconcileOpenYjsDocumentSessions(
+  projectId: string,
+  docIds?: readonly string[],
+): Promise<void> {
+  return processYjsDocumentSessions.reconcilePersistedUpdates(projectId, docIds);
 }

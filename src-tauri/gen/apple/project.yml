@@ -27,6 +27,9 @@ targets:
   drifting_iOS:
     type: application
     platform: iOS
+    configFiles:
+      debug: GoogleOAuth.xcconfig
+      release: GoogleOAuth.xcconfig
     sources:
       - path: Sources
       - path: ../../../src/assets/icon.icon
@@ -40,6 +43,12 @@ targets:
     info:
       path: drifting_iOS/Info.plist
       properties:
+        CFBundleURLTypes:
+          - CFBundleURLName: drifting
+            CFBundleURLSchemes: [drifting]
+          - CFBundleURLName: google-oauth
+            CFBundleURLSchemes: [$(DRIFTING_GOOGLE_IOS_REVERSED_CLIENT_ID)]
+        GIDClientID: $(DRIFTING_GOOGLE_IOS_CLIENT_ID)
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]

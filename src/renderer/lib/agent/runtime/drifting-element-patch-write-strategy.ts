@@ -12,17 +12,12 @@ import { createPlainCommentDoc } from '../../../domain/comment';
 import {
   getDb,
   type DbExecutor,
-  type DbTransaction,
 } from '../../../lib/db';
 import {
   CommentTable,
   ElementPatchTable,
   EntityRelationTable,
 } from '../../../schema/drizzle';
-import {
-  notifySyncMutationCommitted,
-  persistSyncMutationInTransaction,
-} from '../../../services/entity-sync.service';
 import {
   createAgentRuntimeElementPatchReceiptRepository,
   type AgentRuntimeElementPatchReceiptRepository,
@@ -42,8 +37,15 @@ import {
   type ElementPatchAtomicTransactionRunner,
 } from '../../../usecase/synced-entity-commands';
 import { effectiveAgentEditMode } from '../agent-edit-mode';
+import {
+  agentAuthoredJournal,
+  appendAgentDomainMutation,
+  type AgentAuthoredJournal,
+} from './agent-authored-journal';
 import { eventBus } from '../../events';
 import { pendingDeletedPatchIds } from '../tool-handlers';
+import { entityIdsByNumericPlacement } from '../../../sync/journal/order-authority';
+import { appendPlannedAuthoredOrderInTransaction } from '../../../sync/journal/order-authority-repository';
 import { throwIfAgentAborted } from './errors';
 import {
   deterministicElementPatchId,
@@ -94,13 +96,11 @@ export interface ElementPatchStrategyOptions {
   db?: DbExecutor;
   receipts?: AgentRuntimeElementPatchReceiptRepository;
   now?: () => string;
-  persistSyncMutation?: typeof persistSyncMutationInTransaction;
-  notifySyncCommitted?: typeof notifySyncMutationCommitted;
+  journal?: AgentAuthoredJournal;
 }
 
 interface AtomicPatchResult {
   receipt: PersistedAgentRuntimeElementPatchReceipt;
-  syncPersisted: boolean;
 }
 
 export function createDriftingElementPatchWriteStrategy(
@@ -112,10 +112,7 @@ export function createDriftingElementPatchWriteStrategy(
     options.receipts ??
     createAgentRuntimeElementPatchReceiptRepository(db);
   const now = options.now ?? (() => new Date().toISOString());
-  const persistSyncMutation =
-    options.persistSyncMutation ?? persistSyncMutationInTransaction;
-  const notifySyncCommitted =
-    options.notifySyncCommitted ?? notifySyncMutationCommitted;
+  const journal = options.journal ?? agentAuthoredJournal;
 
   return {
     async prepare(request, _context, expectation) {
@@ -150,14 +147,10 @@ export function createDriftingElementPatchWriteStrategy(
             payload,
             request,
             now,
-            persistSyncMutation,
+            journal,
           ),
       });
-      runPostCommitEffects(
-        payload,
-        committed.syncPersisted,
-        notifySyncCommitted,
-      );
+      runPostCommitEffects(payload);
       return handlerResult(payload, committed.receipt);
     },
 
@@ -210,11 +203,10 @@ export function createDriftingElementPatchWriteStrategy(
             effect,
             forwardReceipt,
             now,
-            persistSyncMutation,
+            journal,
           ),
         { behavior: 'immediate' },
       );
-      notifyCommittedSafely(committed.syncPersisted, notifySyncCommitted);
       emitPatchChanged(payload.elementId);
       return inverseEffect(committed.receipt, false);
     },
@@ -421,9 +413,10 @@ async function applyForwardInTransaction(
   payload: ElementPatchCommandPayload,
   request: AgentToolExecutionRequest,
   now: () => string,
-  persistSyncMutation: typeof persistSyncMutationInTransaction,
+  journal: AgentAuthoredJournal,
 ): Promise<AtomicPatchResult> {
-  const sync = transactionRunner(tx, persistSyncMutation);
+  const changes = journal.createChangeSet();
+  const sync = transactionRunner(tx, journal, changes);
   let patch: ElementPatch | null;
   if (payload.toolName === 'create_element_patch') {
     patch = await createElementPatchWithSync(payload.create!, sync.runner);
@@ -467,7 +460,12 @@ async function applyForwardInTransaction(
     postimageHash: postimage ? await hashElementPatchValue(postimage) : null,
     createdAt: now(),
   });
-  return { receipt, syncPersisted: sync.persisted() };
+  await journal.record(tx, {
+    projectId: payload.projectId,
+    changes,
+    committedAt: receipt.createdAt,
+  });
+  return { receipt };
 }
 
 async function applyInverseInTransaction(
@@ -476,17 +474,18 @@ async function applyInverseInTransaction(
   effect: PersistedAgentRuntimeWriteEffect,
   forwardReceipt: PersistedAgentRuntimeElementPatchReceipt,
   now: () => string,
-  persistSyncMutation: typeof persistSyncMutationInTransaction,
+  journal: AgentAuthoredJournal,
 ): Promise<AtomicPatchResult> {
   const receiptRepo = createAgentRuntimeElementPatchReceiptRepository(tx);
   const raced = await receiptRepo.get(payload.commandId, 'inverse');
   if (raced) {
     assertReceiptMatchesPayload(raced, payload, 'inverse');
-    return { receipt: raced, syncPersisted: false };
+    return { receipt: raced };
   }
   const patchRepo = createElementPatchRepository(tx);
   const current = await patchRepo.findById(payload.patchId);
-  const sync = transactionRunner(tx, persistSyncMutation);
+  const changes = journal.createChangeSet();
+  const sync = transactionRunner(tx, journal, changes);
   let postimage: AgentRuntimeElementPatchSnapshot | null = null;
 
   if (payload.toolName === 'create_element_patch') {
@@ -550,15 +549,25 @@ async function applyInverseInTransaction(
       throw new Error('The deleted element patch inverse lost its preimage');
     }
     await tx.insert(ElementPatchTable).values(payload.preimage);
-    await sync.runner(payload.projectId, (_inner, writeSync) =>
-      writeSync(
+    await sync.runner(payload.projectId, async (_inner, writeSync) => {
+      await writeSync(
         'elementPatch',
-        'create',
+        'restore',
         payload.patchId,
         payload.projectId,
         elementPatchSyncPayload(payload.preimage!),
+      );
+    });
+    await appendPlannedAuthoredOrderInTransaction(tx, changes, {
+      projectId: payload.projectId,
+      listKind: 'element-patch',
+      scope: payload.preimage.elementId,
+      desiredEntityIds: entityIdsByNumericPlacement(
+        (await createElementPatchRepository(tx).listByElement(payload.preimage.elementId)).map(
+          (entry) => ({ entityId: entry.id, projection: entry.orderKey }),
+        ),
       ),
-    );
+    });
     postimage = payload.preimage;
   }
 
@@ -581,17 +590,19 @@ async function applyInverseInTransaction(
       : null,
     createdAt: now(),
   });
-  return { receipt, syncPersisted: sync.persisted() };
+  await journal.record(tx, {
+    projectId: payload.projectId,
+    changes,
+    committedAt: receipt.createdAt,
+  });
+  return { receipt };
 }
 
 function transactionRunner(
   tx: DbExecutor,
-  persistSyncMutation: typeof persistSyncMutationInTransaction,
-): {
-  runner: ElementPatchAtomicTransactionRunner;
-  persisted: () => boolean;
-} {
-  let persisted = false;
+  journal: AgentAuthoredJournal,
+  changes: ReturnType<AgentAuthoredJournal['createChangeSet']>,
+): { runner: ElementPatchAtomicTransactionRunner } {
   return {
     runner: async (projectId, work) =>
       work(
@@ -609,19 +620,16 @@ function transactionRunner(
               `Element patch transaction for ${projectId} cannot sync ${mutationProjectId}`,
             );
           }
-          persisted =
-            (await persistSyncMutation(tx as DbTransaction, {
+          await appendAgentDomainMutation(journal, changes, projectId, {
               entityType,
               mutationType,
               entityId,
-              projectId,
               payload,
               parentId,
-              timestamp: Date.now(),
-            })) || persisted;
+            });
         },
+        changes,
       ),
-    persisted: () => persisted,
   };
 }
 
@@ -777,24 +785,8 @@ function parsePayload(
 
 function runPostCommitEffects(
   payload: ElementPatchCommandPayload,
-  syncPersisted: boolean,
-  notifySyncCommitted: typeof notifySyncMutationCommitted,
 ): void {
-  notifyCommittedSafely(syncPersisted, notifySyncCommitted);
   emitPatchChanged(payload.elementId);
-}
-
-function notifyCommittedSafely(
-  syncPersisted: boolean,
-  notifySyncCommitted: typeof notifySyncMutationCommitted,
-): void {
-  if (!syncPersisted) return;
-  try {
-    notifySyncCommitted();
-  } catch {
-    // The outbox row is already durable. Notification is only a wake-up hint
-    // and must never turn a committed mutation into revert_failed/uncertain.
-  }
 }
 
 function emitPatchChanged(elementId: string): void {
@@ -923,7 +915,6 @@ function elementPatchSyncPayload(
     invalidatedAt: patch.invalidatedAt,
     title: patch.title,
     contentJson: patch.contentJson,
-    orderKey: patch.orderKey,
   };
 }
 
@@ -942,7 +933,6 @@ function samePatchState(
     left.invalidatedAt === right.invalidatedAt &&
     left.title === right.title &&
     left.contentJson === right.contentJson &&
-    left.orderKey === right.orderKey &&
     left.createdAt === right.createdAt
   );
 }

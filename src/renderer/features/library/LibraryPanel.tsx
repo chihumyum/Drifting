@@ -7,8 +7,9 @@ import { useAuthStore } from '../../store/auth';
 import { useLibraryItem } from '../../usecase/useLibraryItem';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import type { LibraryItem } from '../../domain/library-item';
+import { genericAssociationRelationTypeId } from '../../domain/entity-relation-type';
 import type { EntityKind } from '../../lib/extensions/entity-link';
-import { assetCacheService } from '../../services/asset-cache.service';
+import { assetStoreService } from '../../services/asset-store.service';
 import { platform } from '../../platform';
 import { FilterChip } from '../../components/ui/FilterChip';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -47,6 +48,14 @@ export function LibraryPanel({ focused }: Props) {
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const libraryItems = useDataStore((s) => s.libraryItems);
   const entityRelations = useDataStore((s) => s.entityRelations);
+  const genericRelationTypeId = genericAssociationRelationTypeId(projectId);
+  const genericRelations = useMemo(
+    () =>
+      entityRelations.filter(
+        (relation) => relation.relationTypeId === genericRelationTypeId,
+      ),
+    [entityRelations, genericRelationTypeId],
+  );
   const projectAssets = useDataStore((s) => s.projectAssets);
 
   const libraryItemUsecases = useLibraryItem({ projectId, userId });
@@ -65,15 +74,15 @@ export function LibraryPanel({ focused }: Props) {
   // Index entityRelations by from-entity so cards can render their relation
   // chips and the filter can pick out items related to `focused`.
   const refsByFrom = useMemo(() => {
-    const map = new Map<string, typeof entityRelations>();
-    entityRelations.forEach((r) => {
+    const map = new Map<string, typeof genericRelations>();
+    genericRelations.forEach((r) => {
       const key = `${r.fromKind}:${r.fromId}`;
       const list = map.get(key) ?? [];
       list.push(r);
       map.set(key, list);
     });
     return map;
-  }, [entityRelations]);
+  }, [genericRelations]);
 
   const isRelatedToFocus = useCallback(
     (kind: EntityKind, id: string) => {
@@ -104,23 +113,18 @@ export function LibraryPanel({ focused }: Props) {
     // text snippets are edited inline on the card — no popover / OS hand-off.
     if (m.kind === 'text') return;
     if (m.kind === 'url') {
-      await platform.material.openExternal(m.uri);
+      await platform.material.openExternal(m.externalUrl);
       return;
     }
-    // image / pdf — local file goes through the OS default app.
-    let path = m.localPath ?? m.uri.replace(/^file:\/\//, '');
-    if (m.source === 'r2' && m.assetId) {
-      const asset = projectAssets.find((item) => item.id === m.assetId);
-      if (!asset) return;
-      try {
-        const cached = await assetCacheService.ensureCachedVariant(projectId, asset, 'source');
-        path = cached.filePath;
-      } catch (error) {
-        alert(t('memoMaterial.error.openFile', { error: String(error) }));
-        return;
-      }
+    const asset = projectAssets.find((item) => item.id === m.assetId);
+    if (!asset) return;
+    let path: string;
+    try {
+      path = (await assetStoreService.requireVariant(projectId, asset, 'source')).filePath;
+    } catch (error) {
+      alert(t('memoMaterial.error.openFile', { error: String(error) }));
+      return;
     }
-    if (!path) return;
     const res = await platform.material.openLocal(path);
     if (!res.ok) {
       alert(t('memoMaterial.error.openFile', { error: res.error }));
@@ -189,12 +193,11 @@ export function LibraryPanel({ focused }: Props) {
             onOpenInApp={() => openLibraryItemInApp(mat)}
             onUpdate={(updates) => libraryItemUsecases.updateLibraryItem(mat.id, updates)}
             onDelete={() => libraryItemUsecases.removeLibraryItem(mat.id)}
-            onRetryUpload={() => libraryItemUsecases.retryLibraryItemUpload(mat.id)}
             onAddRelation={(t) =>
-              relationUsecases.addRelation('library_item', mat.id, t.kind, t.id)
+              relationUsecases.addGenericAssociation('library_item', mat.id, t.kind, t.id)
             }
             onRemoveRelation={(t) => {
-              const ref = entityRelations.find(
+              const ref = genericRelations.find(
                 (r) =>
                   r.fromKind === 'library_item' &&
                   r.fromId === mat.id &&
@@ -215,7 +218,7 @@ export function LibraryPanel({ focused }: Props) {
             const mat = await libraryItemUsecases.createLibraryItem(input);
             const relationResults = await Promise.allSettled(
               relations.map((t) =>
-                relationUsecases.addRelation('library_item', mat.id, t.kind, t.id),
+                relationUsecases.addGenericAssociation('library_item', mat.id, t.kind, t.id),
               ),
             );
             const failedRelations = relationResults.filter(

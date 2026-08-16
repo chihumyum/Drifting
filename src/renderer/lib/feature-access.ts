@@ -1,14 +1,15 @@
 /**
  * Feature access — single source of truth for paywall checks.
  *
- * The current entitlement is cached per authenticated user and hydrated
- * up-front by the app shell. Synchronous reads are suitable for presentation;
- * destructive decisions must call `ensureFeatureAccess()` first.
+ * Local-only builds own Trash and snapshot history as ordinary on-device
+ * capabilities, so they are available without an account or network request.
+ * Hosted builds retain the current account-scoped entitlement cache and must
+ * hydrate it before destructive decisions.
  *
- * The cache is advisory UI state only. The server independently verifies both
- * the paid plan and its billing status before accepting cloud snapshot/trash
- * operations. Destructive client decisions must also await plan hydration so
- * a paid user is never hard-deleted merely because startup is still loading.
+ * The hosted cache is advisory UI state only. Its server independently verifies
+ * both plan and billing status before accepting hosted snapshot/trash operations.
+ * Destructive hosted decisions await hydration so a paid user is never
+ * hard-deleted merely because startup is still loading.
  */
 import { create } from 'zustand';
 import { subscriptionService, type SubscriptionStatus } from '../services/subscription.service';
@@ -17,7 +18,7 @@ import { isAuthRequired } from './config';
 
 export type Plan = 'free' | 'pro' | 'studio';
 
-export type PaidFeature = 'trash' | 'snapshot';
+export type RecoverableFeature = 'trash' | 'snapshot';
 
 const PAID_PLANS = new Set<Plan>(['pro', 'studio']);
 const ENTITLED_STATUSES = new Set(['active', 'trialing', 'past_due']);
@@ -73,47 +74,6 @@ function statusHasPaidEntitlement(status: SubscriptionStatus | null): boolean {
   return PAID_PLANS.has(normalizePlan(status?.plan)) && ENTITLED_STATUSES.has(status?.status ?? '');
 }
 
-let paidTrashRearmInFlight: { subjectId: string; operation: Promise<void> } | null = null;
-
-async function rearmPaidTrashOperations(subjectId: string): Promise<void> {
-  assertActiveSubject(subjectId);
-  const state = useFeatureAccessStore.getState();
-  if (
-    !isAuthRequired() ||
-    state.subjectId !== subjectId ||
-    !state.hydrated ||
-    !statusHasPaidEntitlement(state.status)
-  ) {
-    return;
-  }
-
-  const existing = paidTrashRearmInFlight;
-  if (existing?.subjectId === subjectId) return existing.operation;
-  if (existing) {
-    try {
-      await existing.operation;
-    } catch {
-      // The old subject's caller owns its failure. Serialize account-scoped DB
-      // recovery, then re-check that this subject is still active below.
-    }
-  }
-
-  const operation = (async () => {
-    // Keep the dependency one-way at module initialization: entity sync
-    // already sits beneath usecases that import this feature gate.
-    const { rearmTrashEntitlementConflicts } = await import('../services/entity-sync.service');
-    assertActiveSubject(subjectId);
-    await rearmTrashEntitlementConflicts();
-    assertActiveSubject(subjectId);
-  })();
-  paidTrashRearmInFlight = { subjectId, operation };
-  try {
-    await operation;
-  } finally {
-    if (paidTrashRearmInFlight?.operation === operation) paidTrashRearmInFlight = null;
-  }
-}
-
 /**
  * Sync read of the cached plan. Returns 'free' until `refreshFeatureAccess`
  * has resolved at least once.
@@ -122,16 +82,17 @@ export function currentPlan(): Plan {
   return useFeatureAccessStore.getState().plan;
 }
 
-export function canUseFeature(_feature: PaidFeature): boolean {
+export function canUseFeature(_feature: RecoverableFeature): boolean {
+  if (!isAuthRequired()) return true;
   const { hydrated, status } = useFeatureAccessStore.getState();
   return hydrated && statusHasPaidEntitlement(status);
 }
 
 /** React hook variant — re-renders when the cached plan changes. */
-export function useCanUseFeature(_feature: PaidFeature): boolean {
+export function useCanUseFeature(_feature: RecoverableFeature): boolean {
   const status = useFeatureAccessStore((s) => s.status);
   const hydrated = useFeatureAccessStore((s) => s.hydrated);
-  return hydrated && statusHasPaidEntitlement(status);
+  return !isAuthRequired() || (hydrated && statusHasPaidEntitlement(status));
 }
 
 const refreshInFlight = new Map<string, Promise<void>>();
@@ -191,15 +152,6 @@ export async function refreshFeatureAccess(subjectId: string): Promise<void> {
     return;
   }
 
-  try {
-    // UI hydration must not depend on SQLite being ready. App boot invokes
-    // this above the project-scoped database owner, so recovery is best-effort
-    // here and is enforced again by every destructive caller below.
-    await rearmPaidTrashOperations(subjectId);
-  } catch {
-    // Keep the freshly confirmed entitlement visible. A delete/restore path
-    // will await the same recovery and fail closed if it still cannot run.
-  }
 }
 
 export function resetFeatureAccess(): void {
@@ -207,8 +159,9 @@ export function resetFeatureAccess(): void {
 }
 
 /**
- * Establish a current, account-scoped entitlement before choosing between a
- * recoverable paid action and an irreversible free-tier action.
+ * Establish the capability boundary before choosing between a recoverable
+ * soft-delete and an irreversible hard-delete. Local-only builds resolve this
+ * without networking; hosted builds hydrate the current account entitlement.
  */
 export async function ensureFeatureAccess(
   subjectId: string,
@@ -231,19 +184,4 @@ export async function ensureFeatureAccess(
     }
   }
 
-  try {
-    // Do not rely on loadFeatureAccess's in-flight deduplication for this.
-    // A background caller may own that promise and intentionally treats DB
-    // recovery as best-effort; destructive decisions must await it explicitly.
-    await rearmPaidTrashOperations(subjectId);
-  } catch (error) {
-    if (error instanceof Error && error.message === 'FEATURE_ACCESS_ACCOUNT_CHANGED') {
-      throw error;
-    }
-    const wrapped = new Error('无法恢复待同步的回收站操作，请稍后重试。') as Error & {
-      cause?: unknown;
-    };
-    wrapped.cause = error;
-    throw wrapped;
-  }
 }

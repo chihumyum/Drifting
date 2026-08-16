@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/auth';
 import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { createPlainCommentDoc } from '../../domain/comment';
+import { genericAssociationRelationTypeId } from '../../domain/entity-relation-type';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import type { FocusedEntity } from './MemoMaterialPanel';
 import type { RelationTarget } from './EntityRelationPicker';
@@ -41,6 +42,14 @@ export function TodoPanel({ focused }: Props) {
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const comments = useDataStore((s) => s.comments);
   const entityRelations = useDataStore((s) => s.entityRelations);
+  const genericRelationTypeId = genericAssociationRelationTypeId(projectId);
+  const genericRelations = useMemo(
+    () =>
+      entityRelations.filter(
+        (relation) => relation.relationTypeId === genericRelationTypeId,
+      ),
+    [entityRelations, genericRelationTypeId],
+  );
 
   const commentUsecases = useComment({ projectId, userId });
   const relationUsecases = useEntityRelations({ projectId, userId });
@@ -48,15 +57,15 @@ export function TodoPanel({ focused }: Props) {
   const [composeOpen, setComposeOpen] = useState(false);
 
   const refsByFrom = useMemo(() => {
-    const map = new Map<string, typeof entityRelations>();
-    entityRelations.forEach((r) => {
+    const map = new Map<string, typeof genericRelations>();
+    genericRelations.forEach((r) => {
       const key = `${r.fromKind}:${r.fromId}`;
       const list = map.get(key) ?? [];
       list.push(r);
       map.set(key, list);
     });
     return map;
-  }, [entityRelations]);
+  }, [genericRelations]);
 
   const isRelatedToFocus = useCallback(
     (kind: EntityKind, id: string) => {
@@ -104,7 +113,7 @@ export function TodoPanel({ focused }: Props) {
         bodyJson: createPlainCommentDoc(trimmed),
       });
       for (const t of relations) {
-        await relationUsecases.addRelation('comment', created.id, t.kind, t.id);
+        await relationUsecases.addGenericAssociation('comment', created.id, t.kind, t.id);
       }
       setComposeOpen(false);
     },
@@ -141,9 +150,11 @@ export function TodoPanel({ focused }: Props) {
             showRelations
             onResolve={() => commentUsecases.resolveComment(c.id)}
             onDelete={() => commentUsecases.deleteComment(c.id)}
-            onAddRelation={(t) => relationUsecases.addRelation('comment', c.id, t.kind, t.id)}
+            onAddRelation={(t) =>
+              relationUsecases.addGenericAssociation('comment', c.id, t.kind, t.id)
+            }
             onRemoveRelation={(t) => {
-              const ref = entityRelations.find(
+              const ref = genericRelations.find(
                 (r) =>
                   r.fromKind === 'comment' &&
                   r.fromId === c.id &&

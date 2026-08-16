@@ -41,6 +41,33 @@ describe('withoutRelationsForEntity', () => {
       ),
     ).toEqual(['other-project']);
   });
+
+  it('supports annotative library owners in the polymorphic relation vocabulary', () => {
+    const relations = [
+      {
+        id: 'library-outgoing',
+        projectId: 'project-1',
+        fromKind: 'library_item',
+        fromId: 'library-1',
+        toKind: 'node',
+        toId: 'node-1',
+      },
+      {
+        id: 'other-library',
+        projectId: 'project-1',
+        fromKind: 'library_item',
+        fromId: 'library-2',
+        toKind: 'node',
+        toId: 'node-1',
+      },
+    ];
+
+    expect(
+      withoutRelationsForEntity(relations, 'project-1', 'library_item', 'library-1').map(
+        (relation) => relation.id,
+      ),
+    ).toEqual(['other-library']);
+  });
 });
 
 describe('deleteEntityRelationsInTransaction', () => {

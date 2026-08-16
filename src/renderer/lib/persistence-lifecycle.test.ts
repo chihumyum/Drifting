@@ -1,33 +1,30 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   order: [] as string[],
   saveActiveEditor: vi.fn(),
   flushYjs: vi.fn(),
-  flushEntityPersistence: vi.fn(),
+  flushAtomicTransactions: vi.fn(),
+  flushAssets: vi.fn(),
   flushSnapshotHistory: vi.fn(),
   checkpoint: vi.fn(),
   flushSession: vi.fn(),
-  forceEntitySync: vi.fn(),
-  forceYjsSync: vi.fn(),
-  flushPreferences: vi.fn(),
+  syncEngineCycle: vi.fn(),
   waitForYjsTeardown: vi.fn(),
 }));
 
 vi.mock('./active-editor', () => ({ saveActiveEditor: mocks.saveActiveEditor }));
 vi.mock('./db', () => ({ checkpointDatabase: mocks.checkpoint }));
 vi.mock('./session-token', () => ({ flushSessionTokenStorage: mocks.flushSession }));
-vi.mock('../services/entity-sync.service', () => ({
-  flushPendingEntityPersistence: mocks.flushEntityPersistence,
-  forceFlush: mocks.forceEntitySync,
+vi.mock('../services/atomic-sync-transaction-tracker', () => ({
+  flushPendingAtomicSyncTransactions: mocks.flushAtomicTransactions,
 }));
-vi.mock('../services/yjs-sync.service', () => ({
+vi.mock('../services/asset-store.service', () => ({
+  flushPendingAssetPersistence: mocks.flushAssets,
+}));
+vi.mock('../services/yjs-local-durability.service', () => ({
   flushAllOpenYjsDocuments: mocks.flushYjs,
-  forceSyncAllDocuments: mocks.forceYjsSync,
   waitForYjsDocumentTeardown: mocks.waitForYjsTeardown,
-}));
-vi.mock('../services/preferences-sync.service', () => ({
-  flushPreferencesSync: mocks.flushPreferences,
 }));
 vi.mock('../services/snapshot-history.service', () => ({
   flushSnapshotHistoryPersistence: mocks.flushSnapshotHistory,
@@ -35,11 +32,15 @@ vi.mock('../services/snapshot-history.service', () => ({
 
 import {
   flushApplicationPersistenceForLifecycle,
+  flushRemoteApplicationPersistence,
+  installSyncEngineLifecycleHook,
   quiesceApplicationAfterCredentialLoss,
   quiesceApplicationForDatabaseSwitch,
 } from './persistence-lifecycle';
 
 describe('application persistence lifecycle', () => {
+  let uninstallSyncEngineHook: (() => void) | null = null;
+
   beforeEach(() => {
     mocks.order.length = 0;
     vi.resetAllMocks();
@@ -50,8 +51,11 @@ describe('application persistence lifecycle', () => {
     mocks.flushYjs.mockImplementation(async () => {
       mocks.order.push('yjs');
     });
-    mocks.flushEntityPersistence.mockImplementation(async () => {
-      mocks.order.push('entity-outbox');
+    mocks.flushAtomicTransactions.mockImplementation(async () => {
+      mocks.order.push('atomic-transactions');
+    });
+    mocks.flushAssets.mockImplementation(async () => {
+      mocks.order.push('assets');
     });
     mocks.flushSnapshotHistory.mockImplementation(async () => {
       mocks.order.push('snapshot-history');
@@ -62,14 +66,24 @@ describe('application persistence lifecycle', () => {
     mocks.flushSession.mockImplementation(async () => {
       mocks.order.push('session');
     });
-    mocks.forceEntitySync.mockResolvedValue(undefined);
-    mocks.forceYjsSync.mockResolvedValue(undefined);
-    mocks.flushPreferences.mockResolvedValue(undefined);
+    mocks.syncEngineCycle.mockResolvedValue(undefined);
     mocks.waitForYjsTeardown.mockResolvedValue(undefined);
   });
 
-  it('attempts every ordered local durability step before starting best-effort network work', async () => {
-    await expect(flushApplicationPersistenceForLifecycle()).rejects.toThrow(
+  afterEach(() => {
+    uninstallSyncEngineHook?.();
+    uninstallSyncEngineHook = null;
+  });
+
+  it('keeps the remote lane inert until SyncEngine installs its hook', async () => {
+    await expect(flushRemoteApplicationPersistence()).resolves.toBeUndefined();
+    expect(mocks.syncEngineCycle).not.toHaveBeenCalled();
+  });
+
+  it('attempts every ordered local durability step before requesting a SyncEngine cycle', async () => {
+    uninstallSyncEngineHook = installSyncEngineLifecycleHook(mocks.syncEngineCycle);
+
+    await expect(flushApplicationPersistenceForLifecycle('suspended')).rejects.toThrow(
       '1 local persistence step(s) failed',
     );
 
@@ -77,31 +91,27 @@ describe('application persistence lifecycle', () => {
       'editor',
       'yjs',
       'snapshot-history',
-      'entity-outbox',
+      'assets',
+      'atomic-transactions',
+      'assets',
       'checkpoint',
       'session',
     ]);
-    expect(mocks.forceEntitySync).toHaveBeenCalledOnce();
-    expect(mocks.forceYjsSync).toHaveBeenCalledOnce();
-    expect(mocks.flushPreferences).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(mocks.syncEngineCycle).toHaveBeenCalledOnce());
+    expect(mocks.syncEngineCycle).toHaveBeenCalledWith('suspended');
   });
 
-  it('unmounts and waits for Yjs close snapshots before remote work and the final checkpoint', async () => {
+  it('unmounts and waits for Yjs close snapshots after the SyncEngine hook and before the final checkpoint', async () => {
     mocks.saveActiveEditor.mockImplementation(async () => {
       mocks.order.push('editor');
     });
-    mocks.forceEntitySync.mockImplementation(async () => {
-      mocks.order.push('remote:entity');
-    });
-    mocks.forceYjsSync.mockImplementation(async () => {
-      mocks.order.push('remote:yjs');
-    });
-    mocks.flushPreferences.mockImplementation(async () => {
-      mocks.order.push('remote:preferences');
+    mocks.syncEngineCycle.mockImplementation(async () => {
+      mocks.order.push('remote:sync-engine');
     });
     mocks.waitForYjsTeardown.mockImplementation(async () => {
       mocks.order.push('teardown');
     });
+    uninstallSyncEngineHook = installSyncEngineLifecycleHook(mocks.syncEngineCycle);
 
     await quiesceApplicationForDatabaseSwitch(() => mocks.order.push('unmount'));
 
@@ -109,21 +119,24 @@ describe('application persistence lifecycle', () => {
       'editor',
       'yjs',
       'snapshot-history',
-      'entity-outbox',
+      'assets',
+      'atomic-transactions',
+      'assets',
       'checkpoint',
       'session',
-      'remote:entity',
-      'remote:yjs',
-      'remote:preferences',
+      'remote:sync-engine',
       'unmount',
       'teardown',
       'editor',
       'yjs',
       'snapshot-history',
-      'entity-outbox',
+      'assets',
+      'atomic-transactions',
+      'assets',
       'checkpoint',
       'session',
     ]);
+    expect(mocks.syncEngineCycle).toHaveBeenCalledWith('database-switch');
   });
 
   it('tears down after credential loss even when the first local flush fails', async () => {
@@ -147,7 +160,9 @@ describe('application persistence lifecycle', () => {
       'editor',
       'yjs',
       'snapshot-history',
-      'entity-outbox',
+      'assets',
+      'atomic-transactions',
+      'assets',
       'checkpoint',
       'session',
       'unmount',
@@ -155,12 +170,12 @@ describe('application persistence lifecycle', () => {
       'editor',
       'yjs',
       'snapshot-history',
-      'entity-outbox',
+      'assets',
+      'atomic-transactions',
+      'assets',
       'checkpoint',
       'session',
     ]);
-    expect(mocks.forceEntitySync).not.toHaveBeenCalled();
-    expect(mocks.forceYjsSync).not.toHaveBeenCalled();
-    expect(mocks.flushPreferences).not.toHaveBeenCalled();
+    expect(mocks.syncEngineCycle).not.toHaveBeenCalled();
   });
 });

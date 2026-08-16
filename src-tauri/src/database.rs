@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use include_dir::{include_dir, Dir};
 use rusqlite::types::{Value, ValueRef};
-use rusqlite::{params, params_from_iter, Connection, OpenFlags, OptionalExtension};
+use rusqlite::{params, params_from_iter, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::State;
@@ -1014,6 +1014,19 @@ struct MigrationJournalEntry {
     tag: String,
 }
 
+#[derive(Debug)]
+struct AppliedMigration {
+    hash: String,
+    when: i64,
+}
+
+fn schema_reset_required(detail: impl AsRef<str>) -> String {
+    format!(
+        "local database schema history does not match this Drifting build ({}); reset this pre-release local database before reopening it",
+        detail.as_ref()
+    )
+}
+
 fn apply_migrations(connection: &Connection) -> DatabaseResult<usize> {
     let journal_file = DRIZZLE_MIGRATIONS
         .get_file("meta/_journal.json")
@@ -1069,35 +1082,91 @@ fn apply_migrations_in_transaction(
         ))
         .map_err(|error| format!("failed to create Drizzle migrations table: {error}"))?;
 
-    let last_migration: Option<i64> = connection
+    let has_application_tables: bool = connection
         .query_row(
-            &format!("SELECT created_at FROM {MIGRATIONS_TABLE} ORDER BY created_at DESC LIMIT 1"),
+            &format!(
+                "SELECT EXISTS(\
+                 SELECT 1 FROM sqlite_schema \
+                 WHERE type = 'table' \
+                   AND name NOT LIKE 'sqlite_%' \
+                   AND name <> '{MIGRATIONS_TABLE}'\
+                 )"
+            ),
             [],
             |row| row.get(0),
         )
-        .optional()
-        .map_err(|error| format!("failed to read Drizzle migration state: {error}"))?;
+        .map_err(|error| format!("failed to inspect local database schema: {error}"))?;
 
-    if let Some(last) = last_migration {
-        let latest_embedded = journal
-            .entries
-            .last()
-            .map(|entry| entry.when)
-            .ok_or_else(|| {
-                "database has migration history but the embedded journal is empty".to_string()
+    let applied_migrations = {
+        let mut statement = connection
+            .prepare(&format!(
+                "SELECT hash, created_at FROM {MIGRATIONS_TABLE} ORDER BY created_at ASC"
+            ))
+            .map_err(|error| format!("failed to read Drizzle migration state: {error}"))?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok(AppliedMigration {
+                    hash: row.get(0)?,
+                    when: row.get(1)?,
+                })
+            })
+            .map_err(|error| {
+                schema_reset_required(format!("migration history is unreadable: {error}"))
             })?;
-        if last > latest_embedded {
-            return Err(format!(
-                "database schema is newer than this Drifting build ({last} > {latest_embedded}); upgrade the app before opening it"
+        rows.collect::<Result<Vec<_>, _>>().map_err(|error| {
+            schema_reset_required(format!("migration history is unreadable: {error}"))
+        })?
+    };
+
+    if applied_migrations.is_empty() && has_application_tables {
+        return Err(schema_reset_required(
+            "application tables exist without the current migration baseline",
+        ));
+    }
+
+    for pair in applied_migrations.windows(2) {
+        if pair[0].when >= pair[1].when {
+            return Err(schema_reset_required(
+                "migration timestamps are duplicated or out of order",
             ));
         }
     }
 
+    let known_prefix_len = applied_migrations.len().min(journal.entries.len());
+    for index in 0..known_prefix_len {
+        let applied = &applied_migrations[index];
+        let expected = &journal.entries[index];
+        let migration_path = format!("{}.sql", expected.tag);
+        let migration_file = DRIZZLE_MIGRATIONS
+            .get_file(&migration_path)
+            .ok_or_else(|| format!("embedded migration is missing: {migration_path}"))?;
+        let expected_hash = format!("{:x}", Sha256::digest(migration_file.contents()));
+        if applied.when != expected.when || applied.hash != expected_hash {
+            return Err(schema_reset_required(format!(
+                "migration {} is not the expected journal prefix",
+                expected.tag
+            )));
+        }
+    }
+
+    if applied_migrations.len() > journal.entries.len() {
+        let last_applied = applied_migrations
+            .last()
+            .expect("non-empty migration history has a last row");
+        let latest_embedded = journal.entries.last().map(|entry| entry.when).unwrap_or(0);
+        if last_applied.when > latest_embedded {
+            return Err(format!(
+                "database schema is newer than this Drifting build ({} > {latest_embedded}); upgrade the app before opening it",
+                last_applied.when
+            ));
+        }
+        return Err(schema_reset_required(
+            "migration history contains a non-prefix entry",
+        ));
+    }
+
     let mut applied = 0;
-    for entry in journal.entries.iter().filter(|entry| match last_migration {
-        Some(last) => last < entry.when,
-        None => true,
-    }) {
+    for entry in journal.entries.iter().skip(applied_migrations.len()) {
         let migration_path = format!("{}.sql", entry.tag);
         let migration_file = DRIZZLE_MIGRATIONS
             .get_file(&migration_path)
@@ -1286,13 +1355,11 @@ pub async fn database_close(
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
     use std::sync::mpsc;
     use std::thread;
     use std::time::Duration;
 
-    use rusqlite::{Connection, OpenFlags};
-    use sha2::{Digest, Sha256};
+    use rusqlite::Connection;
     use tempfile::TempDir;
 
     use super::{
@@ -1555,7 +1622,7 @@ mod tests {
     }
 
     #[test]
-    fn embedded_drizzle_migrations_are_compatible_and_idempotent() {
+    fn current_local_first_baseline_is_exactly_recorded_and_idempotent() {
         let (_directory, gateway) = gateway();
         let first_open = gateway
             .open("migrations.db".into(), CLIENT_SESSION.into(), false)
@@ -1584,6 +1651,32 @@ mod tests {
             .open("migrations.db".into(), CLIENT_SESSION.into(), false)
             .expect("second open");
         assert_eq!(second_open.migrations_applied, 0);
+    }
+
+    #[test]
+    fn refuses_a_tampered_applied_baseline_and_requires_reset() {
+        let (directory, gateway) = gateway();
+        gateway
+            .open("tampered.db".into(), CLIENT_SESSION.into(), false)
+            .expect("initial open");
+        gateway
+            .close(CLIENT_SESSION.into())
+            .expect("close baseline database");
+
+        let connection =
+            Connection::open(directory.path().join("tampered.db")).expect("open baseline directly");
+        connection
+            .execute(
+                &format!("UPDATE {MIGRATIONS_TABLE} SET hash = 'tampered'"),
+                [],
+            )
+            .expect("tamper baseline hash");
+        connection.close().expect("close direct connection");
+
+        let error = gateway
+            .open("tampered.db".into(), CLIENT_SESSION.into(), false)
+            .expect_err("tampered baseline must fail closed");
+        assert!(error.contains("reset this pre-release local database"));
     }
 
     #[test]
@@ -1921,150 +2014,5 @@ mod tests {
         assert!(gateway
             .open("missing-extension".into(), CLIENT_SESSION.into(), false)
             .is_err());
-    }
-
-    /// Opt-in compatibility test for a real Electron database. It is skipped
-    /// during ordinary test runs; set DRIFTING_COMPAT_DB to a read-only source
-    /// path to exercise the embedded migrations and Tauri gateway on a snapshot.
-    #[test]
-    fn opens_a_real_electron_database_snapshot_when_requested() {
-        use rusqlite::backup::Backup;
-
-        let Some(source_path) = std::env::var_os("DRIFTING_COMPAT_DB").map(PathBuf::from) else {
-            return;
-        };
-        let source = Connection::open_with_flags(
-            &source_path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .expect("open real Electron database read-only");
-        let source_integrity: String = source
-            .query_row("PRAGMA integrity_check", [], |row| row.get(0))
-            .expect("check source integrity");
-        assert_eq!(source_integrity.to_ascii_lowercase(), "ok");
-        let source_counts = application_table_counts(&source);
-        let source_blobs = application_blob_digests(&source);
-
-        let directory = tempfile::tempdir().expect("compatibility tempdir");
-        let snapshot_path = directory.path().join("compat.db");
-        let mut snapshot = Connection::open(&snapshot_path).expect("create snapshot");
-        {
-            let backup = Backup::new(&source, &mut snapshot).expect("start SQLite backup");
-            backup
-                .run_to_completion(128, Duration::from_millis(10), None)
-                .expect("copy SQLite snapshot");
-        }
-        snapshot.close().expect("close snapshot");
-
-        let gateway = DatabaseGateway::new(directory.path().to_path_buf()).expect("gateway");
-        gateway
-            .open("compat.db".into(), CLIENT_SESSION.into(), false)
-            .expect("open through gateway");
-        let integrity = gateway
-            .query(
-                "PRAGMA integrity_check".into(),
-                Vec::new(),
-                None,
-                CLIENT_SESSION.into(),
-            )
-            .expect("query integrity through gateway");
-        assert_eq!(integrity.rows, [vec![DatabaseValue::Text("ok".into())]]);
-        gateway
-            .close(CLIENT_SESSION.into())
-            .expect("close compatibility database");
-
-        let migrated = Connection::open_with_flags(
-            snapshot_path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .expect("reopen migrated snapshot");
-        let migrated_counts = application_table_counts(&migrated);
-        for (table, source_count) in source_counts {
-            let migrated_count = migrated_counts
-                .iter()
-                .find_map(|(candidate, count)| (candidate == &table).then_some(*count));
-            assert_eq!(
-                migrated_count,
-                Some(source_count),
-                "row count changed while migrating table {table}"
-            );
-        }
-        assert_eq!(source_blobs, application_blob_digests(&migrated));
-        let migration_count: i64 = migrated
-            .query_row(
-                &format!("SELECT count(*) FROM {MIGRATIONS_TABLE}"),
-                [],
-                |row| row.get(0),
-            )
-            .expect("migration count");
-        assert_eq!(migration_count, embedded_migration_count() as i64);
-    }
-
-    fn application_table_counts(connection: &Connection) -> Vec<(String, i64)> {
-        let mut statement = connection
-            .prepare(
-                "SELECT name FROM sqlite_master \
-                 WHERE type = 'table' AND name NOT LIKE 'sqlite_%' \
-                 AND name <> '__drizzle_migrations' ORDER BY name",
-            )
-            .expect("prepare table list");
-        let tables = statement
-            .query_map([], |row| row.get::<_, String>(0))
-            .expect("query table list")
-            .collect::<Result<Vec<_>, _>>()
-            .expect("read table list");
-        tables
-            .into_iter()
-            .map(|table| {
-                let identifier = table.replace('"', "\"\"");
-                let count = connection
-                    .query_row(
-                        &format!("SELECT count(*) FROM \"{identifier}\""),
-                        [],
-                        |row| row.get(0),
-                    )
-                    .expect("count application table");
-                (table, count)
-            })
-            .collect()
-    }
-
-    fn application_blob_digests(connection: &Connection) -> Vec<(&'static str, usize, String)> {
-        [
-            ("entity_snapshot_history", "state_blob"),
-            ("yjs_updates", "update_blob"),
-            ("yjs_snapshots", "state_blob"),
-        ]
-        .into_iter()
-        .filter_map(|(table, column)| {
-            let exists: bool = connection
-                .query_row(
-                    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
-                    [table],
-                    |row| row.get(0),
-                )
-                .expect("check blob table");
-            if !exists {
-                return None;
-            }
-
-            let mut statement = connection
-                .prepare(&format!(
-                    "SELECT \"{column}\" FROM \"{table}\" ORDER BY rowid"
-                ))
-                .expect("prepare blob digest query");
-            let blobs = statement
-                .query_map([], |row| row.get::<_, Vec<u8>>(0))
-                .expect("query blobs")
-                .collect::<Result<Vec<_>, _>>()
-                .expect("read blobs");
-            let mut digest = Sha256::new();
-            for blob in &blobs {
-                digest.update((blob.len() as u64).to_le_bytes());
-                digest.update(blob);
-            }
-            Some((table, blobs.len(), format!("{:x}", digest.finalize())))
-        })
-        .collect()
     }
 }

@@ -1,0 +1,23 @@
+[package]
+name = "tauri-plugin-drifting-google-drive-oauth"
+version = "0.1.0"
+description = "Private native Google Drive OAuth adapter for Drifting mobile"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/chihumyum/drifting"
+homepage = "https://github.com/chihumyum/drifting"
+publish = false
+edition = "2021"
+rust-version = "1.88"
+links = "tauri-plugin-drifting-google-drive-oauth"
+
+[lib]
+name = "tauri_plugin_drifting_google_drive_oauth"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2.11.5", default-features = false }
+thiserror = "2"
+zeroize = { version = "1", features = ["zeroize_derive"] }
+
+[build-dependencies]
+tauri-plugin = { version = "2.6", features = ["build"] }

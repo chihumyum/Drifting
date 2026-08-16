@@ -125,16 +125,39 @@ export interface PersistedAgentRuntimeToolCall {
   completedAt: string | null;
 }
 
+export type PersistedAgentRuntimeCheckpointContext =
+  | {
+      schemaVersion: 2;
+      format: 'drifting.agent-runtime-checkpoint-context';
+      canonicalHistory: unknown;
+      canonicalSourceRows: unknown;
+      providerEnvelope: unknown;
+    }
+  | {
+      schemaVersion: 3;
+      format: 'drifting.agent-runtime-checkpoint-context-with-summaries';
+      canonicalHistory: unknown;
+      durableSummaries: unknown;
+    }
+  | {
+      schemaVersion: 4;
+      format: 'drifting.agent-runtime-checkpoint-digest-with-summaries';
+      canonicalMessageCount: number;
+      canonicalHistoryHash: string;
+      durableSummaries: unknown;
+    };
+
 /**
- * Provider-neutral context checkpoint. P2 stores exact canonical history; P4
- * may replace compressible segments while pinned context remains byte-exact.
+ * Provider-neutral context checkpoint. Exact provider history lives in
+ * normalized message rows; current checkpoint envelopes add independently
+ * verified context witnesses, summaries, or a bounded row digest.
  */
 export interface PersistedAgentRuntimeCheckpoint {
   id: string;
   sessionId: string;
   throughTurnOrdinal: number;
   messageCount: number;
-  context: unknown;
+  context: PersistedAgentRuntimeCheckpointContext;
   contextHash: string;
   createdAt: string;
 }

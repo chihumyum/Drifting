@@ -305,7 +305,9 @@ function checkpointToDomain(
     sessionId: row.sessionId,
     throughTurnOrdinal: row.throughTurnOrdinal,
     messageCount: row.messageCount,
-    context: parseJson(row.contextJson),
+    context: parseJson(
+      row.contextJson,
+    ) as PersistedAgentRuntimeCheckpoint['context'],
     contextHash: row.contextHash,
     createdAt: row.createdAt,
   };
@@ -397,7 +399,8 @@ function sameCheckpointOrRetainedDigest(
   durable: PersistedAgentRuntimeCheckpoint,
   candidate: PersistedAgentRuntimeCheckpoint,
 ): boolean {
-  if (!isRetainedCheckpointDigest(durable.context)) {
+  const durableContext: unknown = durable.context;
+  if (!isRetainedCheckpointDigest(durableContext)) {
     return sameCheckpoint(durable, candidate);
   }
   return (
@@ -406,13 +409,14 @@ function sameCheckpointOrRetainedDigest(
     durable.throughTurnOrdinal === candidate.throughTurnOrdinal &&
     durable.messageCount === candidate.messageCount &&
     durable.contextHash === candidate.contextHash &&
-    durable.context.contextHash === candidate.contextHash &&
+    durableContext.contextHash === candidate.contextHash &&
     durable.createdAt === candidate.createdAt
   );
 }
 
-function checkpointCanonicalMessageCount(context: unknown): number | null {
-  if (Array.isArray(context)) return context.length;
+function checkpointCanonicalMessageCount(
+  context: PersistedAgentRuntimeCheckpoint['context'],
+): number | null {
   if (
     typeof context === 'object' &&
     context !== null &&

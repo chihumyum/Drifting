@@ -55,6 +55,30 @@ describe('writing stats storage migration', () => {
       '2026-08-15': { startTotal: 42_000, latestTotal: 42_300 },
     });
   });
+
+  it('removes both rebuildable history and author goals for a deleted project', () => {
+    const previous = useWritingStatsStore.getState();
+    useWritingStatsStore.setState({
+      history: {
+        'project-delete': { '2026-08-14': { startTotal: 0, latestTotal: 100 } },
+        'project-keep': { '2026-08-14': { startTotal: 0, latestTotal: 200 } },
+      },
+      plans: {
+        'project-delete': { projectWordTarget: 1_000, dailyWordGoal: 100 },
+        'project-keep': { projectWordTarget: 2_000, dailyWordGoal: 200 },
+      },
+    });
+
+    useWritingStatsStore.getState().clearProject('project-delete');
+
+    expect(useWritingStatsStore.getState().history).toEqual({
+      'project-keep': { '2026-08-14': { startTotal: 0, latestTotal: 200 } },
+    });
+    expect(useWritingStatsStore.getState().plans).toEqual({
+      'project-keep': { projectWordTarget: 2_000, dailyWordGoal: 200 },
+    });
+    useWritingStatsStore.setState({ history: previous.history, plans: previous.plans });
+  });
 });
 
 describe('writing stats daily baseline', () => {

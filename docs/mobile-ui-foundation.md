@@ -74,7 +74,10 @@ editing, timeline, material, comment, and Agent capabilities.
   than restoring the desktop dock height, uses a narrower sticky rail and
   touch-sized rows and controls, opens chapters as mobile papers, supports
   direct touch dragging, and maps long press to the same node, storyline, act,
-  and marker menus used by desktop.
+  and marker menus used by desktop. Placed chapter cards use pointer-move and
+  pointer-up delivery on both desktop and mobile, so their committed lane/order
+  change does not depend on WebView HTML drag/drop delivery; the portaled
+  unplaced-chapter drawer retains native drag data for cross-surface drops.
 - Focusing a rich-text editor opens a keyboard accessory in its compact circular
   state. The same button expands or collapses a horizontally scrollable set of
   paragraph, heading, quote, and inline-mark controls. Commands preserve the

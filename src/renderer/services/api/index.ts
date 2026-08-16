@@ -1,10 +1,8 @@
 /**
  * API Services Index
  *
- * The real HTTP routing for entity CRUD lives in
- * `services/entity-sync.service.ts:resolveMutationRequest`.
- * Only debug-api remains as a hand-written wrapper because the
- * DebugModal calls it directly.
+ * Domain CRUD is local and does not route through this HTTP namespace.
+ * Only debug-api remains because DebugModal calls it directly.
  */
 
 export * from './debug-api';

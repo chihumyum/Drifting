@@ -200,7 +200,7 @@ export function CategoryEditorView({
     kind: 'category',
     entityId: curCategory?.id ?? '',
     projectId,
-    legacyContent: curCategory?.contentJson ?? null,
+    seedContentJson: curCategory?.contentJson ?? null,
   });
 
   // Scratch body (contentJson) — TipTap editor for category notes.

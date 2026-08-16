@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Comment } from '../../domain/comment';
-import { extractTextFromCommentBody } from '../../domain/comment';
+import { createPlainCommentDoc, extractTextFromCommentBody } from '../../domain/comment';
 import type { LibraryItemKind } from '../../domain/library-item';
 import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import { CollapsibleFooter } from '../../components/ui/CollapsibleFooter';
@@ -9,6 +9,8 @@ import { ModalBody, ModalCard, ModalHeader, ModalRoot } from '../../components/u
 import { Button } from '../../components/ui/Button';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import { platform } from '../../platform';
+import { canUseExternalContent } from '../../lib/config';
+import type { CreateLibraryItemInput } from '../../usecase/useLibraryItem';
 import { FilterPill, type FocusedEntity } from './LibraryPanel';
 import { useEscapeToClose } from './library-item-media';
 
@@ -184,27 +186,14 @@ export function ComposeLibraryItemDialog({
 }: {
   focused: FocusedEntity;
   onCancel: () => void;
-  onCreate: (
-    input: {
-      title: string;
-      kind: LibraryItemKind;
-      source: 'local' | 'url';
-      uri: string;
-      localPath?: string | null;
-      sizeBytes?: number | null;
-      thumbnailUri?: string | null;
-      bodyJson?: string | null;
-    },
-    relations: RelationTarget[],
-  ) => Promise<void>;
+  onCreate: (input: CreateLibraryItemInput, relations: RelationTarget[]) => Promise<void>;
 }) {
   const { t } = useTranslation();
   const [kind, setKind] = useState<LibraryItemKind>('url');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [url, setUrl] = useState('');
-  const [localPath, setLocalPath] = useState<string | null>(null);
-  const [sizeBytes, setSizeBytes] = useState<number | null>(null);
+  const [pickedSourcePath, setPickedSourcePath] = useState<string | null>(null);
   const [urlMeta, setUrlMeta] = useState<{
     title: string | null;
     ogImage: string | null;
@@ -267,7 +256,7 @@ export function ComposeLibraryItemDialog({
     if (kind !== 'url') return;
     const trimmed = url.trim();
     let cancelled = false;
-    if (!/^https?:\/\//i.test(trimmed)) {
+    if (!/^https?:\/\//i.test(trimmed) || !canUseExternalContent()) {
       // Bail early; clear stale meta on the next microtask so we don't
       // synchronously call setState inside the effect body.
       void Promise.resolve().then(() => {
@@ -330,8 +319,7 @@ export function ComposeLibraryItemDialog({
       }
       ownedImportPathRef.current = res.filePath;
       unownedPickedPath = null;
-      setLocalPath(res.filePath);
-      setSizeBytes(res.sizeBytes);
+      setPickedSourcePath(res.filePath);
       if (!title) {
         const name = res.filePath.split(/[\\/]/).pop() ?? '';
         setTitle(name);
@@ -358,8 +346,7 @@ export function ComposeLibraryItemDialog({
     try {
       await deleteOwnedImport();
       if (!mountedRef.current) return;
-      setLocalPath(null);
-      setSizeBytes(null);
+      setPickedSourcePath(null);
       setKind(nextKind);
     } catch (error) {
       alert(
@@ -387,7 +374,7 @@ export function ComposeLibraryItemDialog({
   const canSubmit = (() => {
     if (!title.trim() && kind !== 'text') return false;
     if (kind === 'url') return /^https?:\/\//i.test(url.trim());
-    if (kind === 'image' || kind === 'pdf') return !!localPath;
+    if (kind === 'image' || kind === 'pdf') return !!pickedSourcePath;
     if (kind === 'text') return true;
     return false;
   })();
@@ -403,7 +390,7 @@ export function ComposeLibraryItemDialog({
         // If the debounce hasn't fired yet, resolve once more synchronously so
         // the title / thumbnail are present at create time.
         let meta = urlMeta;
-        if (!meta && /^https?:\/\//i.test(trimmedUrl)) {
+        if (!meta && /^https?:\/\//i.test(trimmedUrl) && canUseExternalContent()) {
           const res = await platform.material.resolveUrlMeta(trimmedUrl);
           if (res.ok) meta = { title: res.title, ogImage: res.ogImage, favicon: res.favicon };
         }
@@ -411,9 +398,8 @@ export function ComposeLibraryItemDialog({
           {
             title: title.trim() || meta?.title || trimmedUrl,
             kind: 'url',
-            source: 'url',
-            uri: trimmedUrl,
-            thumbnailUri: meta?.ogImage ?? meta?.favicon ?? null,
+            externalUrl: trimmedUrl,
+            previewImageUrl: meta?.ogImage ?? meta?.favicon ?? null,
           },
           relations,
         );
@@ -421,19 +407,16 @@ export function ComposeLibraryItemDialog({
         return;
       }
       if (kind === 'image' || kind === 'pdf') {
-        if (!localPath) return;
+        if (!pickedSourcePath) return;
         await onCreate(
           {
-            title: title.trim() || localPath.split(/[\\/]/).pop() || t('common.untitled'),
+            title: title.trim() || pickedSourcePath.split(/[\\/]/).pop() || t('common.untitled'),
             kind,
-            source: 'local',
-            uri: `file://${localPath}`,
-            localPath,
-            sizeBytes,
+            sourcePath: pickedSourcePath,
           },
           relations,
         );
-        if (ownedImportPathRef.current === localPath) ownedImportPathRef.current = null;
+        if (ownedImportPathRef.current === pickedSourcePath) ownedImportPathRef.current = null;
         onCancel();
         return;
       }
@@ -444,9 +427,7 @@ export function ComposeLibraryItemDialog({
         {
           title: title.trim() || t('common.untitled'),
           kind: 'text',
-          source: 'local',
-          uri: '',
-          bodyJson: body.trim() ? body : null,
+          bodyJson: body.trim() ? createPlainCommentDoc(body.trim()) : null,
         },
         relations,
       );
@@ -521,7 +502,7 @@ export function ComposeLibraryItemDialog({
                 minHeight: 56,
               }}
             >
-              {urlMeta?.ogImage && (
+              {urlMeta?.ogImage && canUseExternalContent() && (
                 <img
                   src={urlMeta.ogImage}
                   alt=""
@@ -586,9 +567,9 @@ export function ComposeLibraryItemDialog({
           >
             {t('memoMaterial.dialog.chooseFile')}
           </button>
-          {localPath && (
+          {pickedSourcePath && (
             <span
-              title={localPath}
+              title={pickedSourcePath}
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 10,
@@ -599,7 +580,7 @@ export function ComposeLibraryItemDialog({
                 flex: 1,
               }}
             >
-              {localPath}
+              {pickedSourcePath}
             </span>
           )}
         </div>

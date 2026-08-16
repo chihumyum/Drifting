@@ -12,7 +12,6 @@ import type {
   PersistedAgentRuntimeWriteEffect,
   AgentRuntimeWriteReversibility,
 } from '../../../domain/agent-runtime-write-effect';
-import type { DbTransaction } from '../../../lib/db';
 import { getDb, type DbExecutor } from '../../../lib/db';
 import { deriveProseMetricFromJson } from '@drifting/prose-metrics';
 import { extractOutline, serializeOutline } from '../../outline';
@@ -27,10 +26,6 @@ import {
   ElementCategoryTable,
   StorylineTable,
 } from '../../../schema/drizzle';
-import {
-  notifySyncMutationCommitted,
-  persistSyncMutationInTransaction,
-} from '../../../services/entity-sync.service';
 import { createBookContentRepository } from '../../../sqlite-repo/content-repo';
 import { createYjsRepository } from '../../../sqlite-repo/yjs-repo';
 import { useDataStore } from '../../../store/data-store';
@@ -53,7 +48,6 @@ import {
   type PreparedYjsProseCommand,
   type YjsProseBlock,
   type YjsProseOperation,
-  type YjsProseProjectionPayload,
 } from './yjs-prose-command';
 import {
   createYjsProsePersistenceCoordinator,
@@ -88,6 +82,8 @@ import {
   DRIFTING_DOMAIN_CRUD_WRITE_TOOLS,
   type DriftingDomainCrudWriteTool,
 } from './drifting-domain-crud-write-strategy';
+import type { AgentAuthoredJournal } from './agent-authored-journal';
+import { appendAuthoredDomainMutation } from '../../../sync/journal';
 
 export interface PreparedDriftingWriteEffect {
   observedRevision: unknown;
@@ -186,8 +182,7 @@ export interface DriftingWriteStrategyOptions {
   freshness?: AgentRuntimeFreshnessRepository | null;
   elementPatchDb?: DbExecutor;
   elementPatchReceipts?: AgentRuntimeElementPatchReceiptRepository;
-  elementPatchPersistSyncMutation?: typeof persistSyncMutationInTransaction;
-  elementPatchNotifySyncCommitted?: typeof notifySyncMutationCommitted;
+  authoredJournal?: AgentAuthoredJournal;
   now?: () => string;
   proseCoordinator?: YjsProsePersistenceCoordinator;
   readNodeContent?: (nodeId: string) => Promise<string | null>;
@@ -228,12 +223,7 @@ function getCertifiedDriftingWriteStrategy(
         freshness: options.freshness,
         ...(options.elementPatchDb ? { db: options.elementPatchDb } : {}),
         ...(options.now ? { now: options.now } : {}),
-        ...(options.elementPatchPersistSyncMutation
-          ? { persistSyncMutation: options.elementPatchPersistSyncMutation }
-          : {}),
-        ...(options.elementPatchNotifySyncCommitted
-          ? { notifySyncCommitted: options.elementPatchNotifySyncCommitted }
-          : {}),
+        ...(options.authoredJournal ? { journal: options.authoredJournal } : {}),
       },
     );
   }
@@ -244,12 +234,7 @@ function getCertifiedDriftingWriteStrategy(
         freshness: options.freshness,
         db: options.elementPatchDb ?? getDb(),
         ...(options.now ? { now: options.now } : {}),
-        ...(options.elementPatchPersistSyncMutation
-          ? { persistSyncMutation: options.elementPatchPersistSyncMutation }
-          : {}),
-        ...(options.elementPatchNotifySyncCommitted
-          ? { notifySyncCommitted: options.elementPatchNotifySyncCommitted }
-          : {}),
+        ...(options.authoredJournal ? { journal: options.authoredJournal } : {}),
       },
     );
   }
@@ -268,18 +253,7 @@ function getCertifiedDriftingWriteStrategy(
         ? { receipts: options.elementPatchReceipts }
         : {}),
       ...(options.now ? { now: options.now } : {}),
-      ...(options.elementPatchPersistSyncMutation
-        ? {
-            persistSyncMutation:
-              options.elementPatchPersistSyncMutation,
-          }
-        : {}),
-      ...(options.elementPatchNotifySyncCommitted
-        ? {
-            notifySyncCommitted:
-              options.elementPatchNotifySyncCommitted,
-          }
-        : {}),
+      ...(options.authoredJournal ? { journal: options.authoredJournal } : {}),
     });
   }
   if (
@@ -302,18 +276,7 @@ function getCertifiedDriftingWriteStrategy(
         freshness: options.freshness,
         ...(options.elementPatchDb ? { db: options.elementPatchDb } : {}),
         ...(options.now ? { now: options.now } : {}),
-        ...(options.elementPatchPersistSyncMutation
-          ? {
-              persistSyncMutation:
-                options.elementPatchPersistSyncMutation,
-            }
-          : {}),
-        ...(options.elementPatchNotifySyncCommitted
-          ? {
-              notifySyncCommitted:
-                options.elementPatchNotifySyncCommitted,
-            }
-          : {}),
+        ...(options.authoredJournal ? { journal: options.authoredJournal } : {}),
       },
     );
   }
@@ -1583,7 +1546,6 @@ async function commitProseCommand(
       }
     | undefined;
   let projectedUpdatedAt: string | undefined;
-  let outboxPersisted = false;
   const committedAt = new Date().toISOString();
   const nodeSummary = execution.nodeSummary;
   const projectedSummary = nodeSummary
@@ -1597,6 +1559,7 @@ async function commitProseCommand(
       : nodeSummary.after
     : undefined;
   const result = await coordinator.commit({
+    projectId: execution.projectId,
     command: execution.command,
     direction,
     expectedRevision,
@@ -1664,18 +1627,22 @@ async function commitProseCommand(
         committedAt,
       );
     },
-    async persistOutbox(tx, projection) {
-      outboxPersisted =
-        (await persistProseOutbox(
-          tx as DbTransaction,
-          execution,
-          projection,
-          committedAt,
-          direction,
-        )) || outboxPersisted;
+    appendAuthoredMutations(changes) {
+      if (!execution.nodeSummary) return;
+      appendAuthoredDomainMutation(changes, {
+        entityType: 'node',
+        mutationType: 'update',
+        entityId: execution.nodeId,
+        projectId: execution.projectId,
+        payload: {
+          summary:
+            direction === 'forward'
+              ? execution.nodeSummary.after
+              : execution.nodeSummary.before,
+        },
+      });
     },
   });
-  if (outboxPersisted) notifySyncMutationCommitted();
   if (projectedNode) {
     useDataStore.setState((state) => ({
       bookNodes: state.bookNodes.map((node) =>
@@ -1707,49 +1674,6 @@ async function commitProseCommand(
     );
   }
   return result;
-}
-
-async function persistProseOutbox(
-  tx: DbTransaction,
-  execution: ProseExecution,
-  projection: YjsProseProjectionPayload,
-  committedAt: string,
-  direction: 'forward' | 'inverse',
-): Promise<boolean> {
-  const entityType = proseExecutionEntityType(execution);
-  const timestamp = Date.parse(committedAt);
-  if (entityType !== 'node') {
-    return persistSyncMutationInTransaction(tx, {
-      entityType: entityType === 'category' ? 'elementCategory' : entityType,
-      mutationType: 'update',
-      entityId: execution.nodeId,
-      projectId: execution.projectId,
-      payload: { contentJson: projection.contentJson },
-      timestamp,
-    });
-  }
-  const contentPersisted = await persistSyncMutationInTransaction(tx, {
-    entityType: 'nodeContent',
-    mutationType: 'update',
-    entityId: execution.nodeId,
-    projectId: execution.projectId,
-    payload: { contentJson: projection.contentJson },
-    timestamp,
-  });
-  const nodePersisted = execution.nodeSummary
-    ? await persistSyncMutationInTransaction(tx, {
-        entityType: 'node',
-        mutationType: 'update',
-        entityId: execution.nodeId,
-        projectId: execution.projectId,
-        payload: {
-          summary:
-            direction === 'forward' ? execution.nodeSummary.after : execution.nodeSummary.before,
-        },
-        timestamp,
-      })
-    : false;
-  return contentPersisted || nodePersisted;
 }
 
 async function persistStructuredProseProjection(

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-phase2-checkpoint-restore",
+  "recordedAt": "2026-08-15",
+  "status": "provider-neutral-core-complete",
+  "boundaries": {
+    "uploadsSqliteWalOrShm": false,
+    "restoredSourceJournalOrigin": "remote",
+    "restoredSourceJournalCanBeResealed": false,
+    "freshWriterReusesSourceIdentity": false,
+    "freshWriterFirstDeviceSeq": 1,
+    "writerHlcAnchoredToCheckpointMaximum": true,
+    "appliedFrontierRequiresSegmentHead": true,
+    "restoresHistoricalSegmentRows": false,
+    "sourceCheckpointProvenanceRecorded": true,
+    "cloudPackageReceiptRetainsStoredObjectMetadata": true,
+    "syncGenerationPurgeRegisterCapturedAndMaterialized": true,
+    "terminallyPurgedSnapshotCannotActivate": true
+  },
+  "integration": {
+    "fileBackedSqlite": true,
+    "checkpointRoundTrip": true,
+    "sourcePlus24HoursRestoreMinus24Hours": true,
+    "firstLocalWriteWinsHlc": true,
+    "sourceHistoryMaterializedRemote": true,
+    "freshWriterSequenceOne": true,
+    "snapshotOnlyYjs": true,
+    "updateOnlyYjs": true,
+    "combinedYjs": true,
+    "seedOnlyYjs": true,
+    "atomicMultiSyncGenerationFailureIsolation": true,
+    "sourceCheckpointReceipt": true,
+    "sqliteForeignKeyCheck": true,
+    "postRestoreSyncGenerationPurgeRemainsAbsorbing": true
+  },
+  "commands": [
+    "pnpm exec vitest run src/renderer/sync/protocol/protocol.test.ts src/renderer/sync/checkpoint/checkpoint.integration.test.ts src/renderer/sync/restore/google-drive-restore.integration.test.ts --reporter=verbose",
+    "pnpm exec eslint src/renderer/sync/checkpoint src/renderer/sync/journal/writer-state.ts src/renderer/sync/restore/google-drive-restore.ts src/renderer/sync/restore/google-drive-restore.integration.test.ts --max-warnings=0",
+    "pnpm typecheck"
+  ],
+  "lastObserved": {
+    "testFilesPassed": 3,
+    "testsPassed": 29,
+    "eslint": "passed",
+    "typecheck": "passed",
+    "checkpointFocusedFileBacked": "7-tests-passed",
+    "syncGenerationPurgeReducerStateFocused": "covered-by-phase1-production-kernel-suite"
+  }
+}

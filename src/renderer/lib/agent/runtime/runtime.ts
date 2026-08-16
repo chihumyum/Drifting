@@ -2223,7 +2223,7 @@ export class AgentRuntime {
         } catch {
           // Some boundaries (for example, a single protected assistant payload
           // larger than the provider window) cannot form a valid V2 projection.
-          // Persistence retains its existing fail-safe V1 fallback.
+          // Persistence still commits a V4 digest over normalized message rows.
           completedContextCheckpoint = undefined;
         }
       }

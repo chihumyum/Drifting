@@ -13,8 +13,8 @@ afterEach(async () => {
   );
 });
 
-describe('generic resource domain guards', () => {
-  it('preserves act opener and drift-group reparent invariants with sync evidence', async () => {
+describe('generic resource SyncEngine boundary', () => {
+  it('keeps inspection available and rejects every unjournaled scalar write', async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'drifting-resource-cli-'));
     directories.push(directory);
     const product = new OfflineProductDatabase(path.join(directory, 'fixture.db'), {
@@ -22,102 +22,61 @@ describe('generic resource domain guards', () => {
     });
     await product.open();
     try {
-      executeResourceOperation({
-        database: product.gateway.database,
-        model: 'project',
-        operation: 'create',
-        projectId: 'project-1',
-        values: {
-          userId: 'user-1',
-          name: 'CLI Resource Book',
-          summary: '',
-          kvJson: '[]',
-          storylineTemplateKvJson: '[]',
-        },
-      });
-      executeResourceOperation({
-        database: product.gateway.database,
-        model: 'book_act',
-        operation: 'create',
-        projectId: 'project-1',
-        values: {
-          id: 'act-opener',
-          name: '第一幕',
-          startOrder: null,
-          color: null,
-          driftNodeId: null,
-        },
-      });
-      executeResourceOperation({
-        database: product.gateway.database,
-        model: 'book_act',
-        operation: 'create',
-        projectId: 'project-1',
-        values: { id: 'act-two', name: '第二幕', startOrder: 100, color: null, driftNodeId: null },
-      });
-      executeResourceOperation({
-        database: product.gateway.database,
-        model: 'book_act',
-        operation: 'delete',
-        projectId: 'project-1',
-        values: { id: 'act-opener' },
-      });
-      const promoted = product.gateway.database
-        .prepare('SELECT start_order FROM book_act WHERE id = ?')
-        .get('act-two') as { start_order: unknown };
-      expect(promoted.start_order).toBeNull();
+      const now = '2026-08-15T00:00:00.000Z';
+      product.gateway.database
+        .prepare(
+          `INSERT INTO project (id, user_id, name, created_at, updated_at)
+           VALUES ('project-1', 'local-user', 'Fixture', ?, ?)`,
+        )
+        .run(now, now);
+      product.gateway.database
+        .prepare(
+          `INSERT INTO book_act
+             (id, project_id, name, color, start_order, drift_node_id, created_at, updated_at)
+           VALUES ('act-opener', 'project-1', '第一幕', NULL, NULL, NULL, ?, ?)`,
+        )
+        .run(now, now);
 
-      executeResourceOperation({
-        database: product.gateway.database,
-        model: 'drift_group',
-        operation: 'create',
-        projectId: 'project-1',
-        values: {
-          id: 'group-parent',
-          name: '父分组',
-          parentGroupId: null,
-          color: null,
-          sortOrder: null,
-        },
-      });
-      executeResourceOperation({
-        database: product.gateway.database,
-        model: 'drift_group',
-        operation: 'create',
-        projectId: 'project-1',
-        values: {
-          id: 'group-child',
-          name: '子分组',
-          parentGroupId: 'group-parent',
-          color: null,
-          sortOrder: null,
-        },
-      });
-      executeResourceOperation({
-        database: product.gateway.database,
-        model: 'drift_group',
-        operation: 'delete',
-        projectId: 'project-1',
-        values: { id: 'group-parent' },
-      });
-      const child = product.gateway.database
-        .prepare('SELECT parent_group_id FROM drift_group WHERE id = ?')
-        .get('group-child') as { parent_group_id: unknown };
-      expect(child.parent_group_id).toBeNull();
-      const outboxCount = product.gateway.database
-        .prepare('SELECT count(*) AS count FROM local_sync_mutation')
-        .get() as { count: number };
-      expect(Number(outboxCount.count)).toBeGreaterThanOrEqual(7);
-
-      expect(() =>
+      expect(
         executeResourceOperation({
           database: product.gateway.database,
-          model: 'comment_action',
-          operation: 'delete',
+          model: 'book_act',
+          operation: 'list',
           projectId: 'project-1',
-          values: { id: 'workflow-evidence' },
+          values: {},
         }),
-      ).toThrow(/workflow_only; delete is unavailable/u);
+      ).toMatchObject({
+        model: 'book_act',
+        count: 1,
+        items: [{ id: 'act-opener', projectId: 'project-1', name: '第一幕' }],
+      });
+      expect(
+        executeResourceOperation({
+          database: product.gateway.database,
+          model: 'book_act',
+          operation: 'get',
+          projectId: 'project-1',
+          values: { id: 'act-opener' },
+        }),
+      ).toMatchObject({ id: 'act-opener', projectId: 'project-1', name: '第一幕' });
+
+      for (const operation of ['create', 'update', 'delete'] as const) {
+        expect(() =>
+          executeResourceOperation({
+            database: product.gateway.database,
+            model: 'book_act',
+            operation,
+            projectId: 'project-1',
+            values: { id: 'act-two', name: '第二幕' },
+          }),
+        ).toThrow(/workflow_only; .* is unavailable/u);
+      }
+      expect(
+        product.gateway.database.prepare('SELECT count(*) AS count FROM book_act').get(),
+      ).toEqual({ count: 1 });
+      expect(
+        product.gateway.database.prepare('SELECT count(*) AS count FROM sync_change_set').get(),
+      ).toEqual({ count: 0 });
     } finally {
       await product.close();
     }

@@ -7,7 +7,6 @@ import {
   Keyboard,
   Upload,
   BookOpenText,
-  HelpCircle,
   LogOut,
   Languages,
   ChevronLeft,
@@ -25,6 +24,7 @@ import loglevel from 'loglevel';
 import { AnchoredPopover } from '../ui/AnchoredPopover';
 import { CopilotQuickSettings } from '../copilot/CopilotBottomMenu';
 import { getPlatformRuntime } from '../../platform/runtime';
+import { hostedAccountSettingsEnabled } from '../../features/settings/hosted-settings-policy';
 
 const log = loglevel.getLogger('UserMenu');
 
@@ -48,6 +48,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const plan = useFeatureAccessStore((s) => s.plan);
+  const accountSettingsEnabled = hostedAccountSettingsEnabled();
   // Read the persisted mode (light/dark/system) — NOT the resolved ui-store
   // theme. The menu has to drive themeMode so that "跟随系统" actually
   // sticks; the resolver in App.tsx then writes back to ui-store.theme.
@@ -123,7 +124,11 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
       onClose={handleClose}
       placement="bottom-end"
       role="dialog"
-      ariaLabel={activeSettingsPage ? `${activeSettingsPage} settings` : t('userMenu.accountMenu')}
+      ariaLabel={
+        activeSettingsPage
+          ? `${activeSettingsPage} settings`
+          : t(accountSettingsEnabled ? 'userMenu.accountMenu' : 'userMenu.localMenu')
+      }
       maxHeight={560}
       dismissOnEscape={activeSettingsPage === null}
       className={`menu-surface menu-surface--rich ${
@@ -215,9 +220,9 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
                 marginTop: 2,
               }}
             >
-              {user?.email
+              {accountSettingsEnabled && user?.email
                 ? `${PLAN_LABEL[plan] ?? plan.toUpperCase()} · BETA`
-                : t('common.local').toUpperCase()}
+                : t('userMenu.localStatus')}
             </span>
           </div>
         </div>
@@ -233,7 +238,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
           </MenuGroup>
         )}
 
-        <MenuGroup>
+        <MenuGroup last={scope === 'shelf' && !accountSettingsEnabled}>
           <MenuItem
             icon={
               themeMode === 'light' ? (
@@ -329,10 +334,20 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
               />
             </>
           )}
+          {scope === 'shelf' && (
+            <MenuItem
+              icon={<Settings size={13} />}
+              label={t('userMenu.settings')}
+              onClick={() => {
+                navigate('/settings?section=sync', { state: { from: '/' } });
+                handleClose();
+              }}
+            />
+          )}
         </MenuGroup>
 
         {scope === 'project' && (
-          <MenuGroup>
+          <MenuGroup last>
             <>
               <MenuItem
                 icon={<Upload size={13} />}
@@ -355,11 +370,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
           </MenuGroup>
         )}
 
-        <MenuGroup last={scope === 'project'}>
-          <MenuItem icon={<HelpCircle size={13} />} label={t('userMenu.helpFeedback')} />
-        </MenuGroup>
-
-        {scope === 'shelf' && (
+        {scope === 'shelf' && accountSettingsEnabled && (
           <MenuGroup last>
             <MenuItem
               icon={<LogOut size={13} />}

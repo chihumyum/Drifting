@@ -4,8 +4,8 @@ import { performance } from 'node:perf_hooks';
 
 export const P2_CRASH_RECOVERY_SCHEMA_VERSION = 1;
 
-const PRODUCT_MIGRATION_SQL = readFileSync(
-  new URL('../../../../../../drizzle/0060_agent_runtime_persistence.sql', import.meta.url),
+const PRODUCT_BASELINE_SQL = readFileSync(
+  new URL('../../../../../../drizzle/0000_local_first_baseline.sql', import.meta.url),
   'utf8',
 ).replaceAll('--> statement-breakpoint', '');
 
@@ -73,29 +73,8 @@ export function createAcceptanceSchema(db) {
   db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA synchronous = FULL;
-
-    CREATE TABLE project (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE agent_conversation (
-      id TEXT PRIMARY KEY NOT NULL,
-      project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-      title TEXT NOT NULL DEFAULT '',
-      sdk_session_id TEXT,
-      mode TEXT NOT NULL DEFAULT 'byok',
-      messages_json TEXT NOT NULL DEFAULT '[]',
-      deleted_at TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE
-    );
   `);
-  db.exec(PRODUCT_MIGRATION_SQL);
+  db.exec(PRODUCT_BASELINE_SQL);
 }
 
 function fixture(seed) {

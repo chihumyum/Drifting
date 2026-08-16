@@ -14,6 +14,7 @@ import { MobileAuthPage } from '../shells/mobile/standalone/MobileAuthPage';
 import { MobileProjectShelfView } from '../shells/mobile/standalone/MobileProjectShelfView';
 import { MobileAppShell } from '../shells/mobile/MobileAppShell';
 import { MobileSettingsView } from '../shells/mobile/standalone/MobileSettingsView';
+import { DesktopStandaloneSettingsView } from '../features/settings/desktop/DesktopStandaloneSettingsView';
 import { getPlatformRuntime } from '../platform/runtime';
 import {
   DesktopAllChaptersEditorRoute,
@@ -99,7 +100,7 @@ export function AppRoutes() {
         path="/settings"
         element={
           <ProtectedRoute>
-            {isMobile ? <MobileSettingsView /> : <Navigate to="/" replace />}
+            {isMobile ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />}
           </ProtectedRoute>
         }
       />

@@ -27,7 +27,15 @@ Vite/Rust 的开发监听。未指定目标时，Tauri 优先使用已经连接�
 进程必须保持运行；退出命令会同时结束 dev server。移动入口会从 `5173–5193` 自动选择空闲的
 Vite 端口，因此可以和已经占用 `5173` 的桌面开发进程并行运行。
 
-dev 包默认使用 local-only 模式：不要求账号、不启用同步，并让 BYOK AI 直连所选模型提供商。
+移动入口会先读取仓库根目录中被忽略的 `.env.local`，再把 native Google OAuth build-time
+参数传给 Tauri/Cargo；显式 shell 或 CI 环境变量优先。iOS 入口同时生成被 Git 忽略且仅当前
+用户可读写的 `src-tauri/gen/apple/GoogleOAuth.local.xcconfig`，供 `Info.plist` callback scheme
+和 Rust 使用；Android 通过继承的构建环境传入 Rust，再由 Rust 将 client ID 交给官方 SDK。
+启动日志只显示 `configured` 或 `missing or invalid`，不会显示 client ID。缺失、格式错误或 iOS
+反向 client ID 不匹配时保持 fail-closed，App 会把 Google Drive 登录标记为未配置。
+
+dev 包默认使用 local-only 模式：不要求 Drifting 官方账号，并让 BYOK AI 直连所选模型提供商；
+正确配置后的个人 Google Drive 同步仍可单独使用。
 若显式启用网络服务，脚本不会把 `localhost` 交给真机；它会把检测到或指定的 API origin 精确加入
 本次 Tauri dev CSP，并在原生构建前检查该服务是否可访问。
 

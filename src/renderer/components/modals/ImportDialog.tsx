@@ -23,7 +23,6 @@ import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useBookElement } from '../../usecase/useBookElement';
-import { useBookContent } from '../../usecase/useBookContent';
 import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { inferFormat, parseFile, type ImportTarget, type ParsedDoc } from '../../services/import';
 import { Button } from '../ui/Button';
@@ -56,7 +55,6 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
   const safeUserId = userId ?? '__no_user__';
   const nodeUsecases = useBookNode({ projectId: safeProjectId, userId: safeUserId });
   const elementUsecases = useBookElement({ projectId: safeProjectId, userId: safeUserId });
-  const contentUsecases = useBookContent({ projectId: safeProjectId, userId: safeUserId });
 
   // Domain data needed for target-specific pickers.
   const storylines = useDataStore((s) => s.storylines);
@@ -189,26 +187,29 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
 
         if (target === 'chapter') {
           if (!storylineId) throw new Error('Storyline required');
-          const created = await nodeUsecases.createNode({
+          await nodeUsecases.createNode({
             kind: 'chapter',
             title,
             mainStorylineId: storylineId,
             bookOrder: nextOrder,
+            initialContentJson: docJson,
           });
-          await contentUsecases.updateContentByNodeId(created.id, { contentJson: docJson });
           nextOrder += CHAPTER_ORDER_STRIDE;
         } else if (target === 'inspiration') {
-          const created = await nodeUsecases.createNode({
+          await nodeUsecases.createNode({
             kind: 'drift',
             title,
             mainStorylineId: null,
             bookOrder: null,
+            initialContentJson: docJson,
           });
-          await contentUsecases.updateContentByNodeId(created.id, { contentJson: docJson });
         } else if (target === 'element') {
           if (!categoryId) throw new Error('Category required');
-          const created = await elementUsecases.createElement({ name: title, categoryId });
-          await elementUsecases.updateElement(created.id, { contentJson: docJson });
+          await elementUsecases.createElement({
+            name: title,
+            categoryId,
+            initialContentJson: docJson,
+          });
         }
 
         setItems((prev) =>

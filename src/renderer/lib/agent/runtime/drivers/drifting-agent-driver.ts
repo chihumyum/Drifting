@@ -25,6 +25,7 @@ import {
 import { AnthropicMessagesAgentDriver } from './anthropic-messages-driver';
 import { OpenAIResponsesAgentDriver } from './openai-responses-driver';
 import { isTauriRuntime, platform } from '../../../../platform';
+import { canUseByokProvider } from '../../../config';
 
 export interface DriftingAgentModelDriverOptions {
   createClient?: () => Promise<AgentCompletionClient | LLMClient>;
@@ -96,6 +97,11 @@ export class DriftingAgentModelDriver implements AgentModelDriver {
     ) {
       throw new AgentModelDriverError(
         'The selected model does not belong to the selected Agent provider.',
+      );
+    }
+    if (!canUseByokProvider()) {
+      throw new AgentModelDriverError(
+        `${this.featureLabel} cannot contact the selected BYOK provider while offline.`,
       );
     }
 

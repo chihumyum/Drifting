@@ -178,7 +178,7 @@ Run:
 pnpm eval:agent:long-task
 ```
 
-The gate covers real product SQLite migrations, command-receipt rollback,
+The gate covers the current product SQLite baseline, command-receipt rollback,
 manifest mutation/reconciliation, close/reopen, product Yjs composition,
 multi-turn pinned context, mixed review state, unlimited progressing work,
 stagnation pause, safe stop, exact steering, terminal manual resume, hidden

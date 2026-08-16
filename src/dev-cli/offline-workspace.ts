@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { and, eq, isNotNull } from 'drizzle-orm';
+import { v7 as uuidv7 } from 'uuid';
 
 import type { BookNode } from '../renderer/domain/book-node';
 import type { AgentRuntimeNodeWriteGuard } from '../renderer/domain/agent-runtime-freshness';
 import type { AgentToolContext, AgentWriteApi } from '../renderer/lib/agent/tool-handlers';
+import { createAgentAuthoredJournal } from '../renderer/lib/agent/runtime/agent-authored-journal';
 import { createDriftingAgentProductComposition } from '../renderer/lib/agent/runtime/drifting-product-composition';
 import {
   isDriftingDomainReadToolName,
@@ -43,7 +45,10 @@ import { createProjectAssetSqliteRepository } from '../renderer/sqlite-repo/proj
 import { createProjectRepository } from '../renderer/sqlite-repo/project-repo';
 import { createStorylineRepository } from '../renderer/sqlite-repo/storyline-repo';
 import { createTimelineMarkerRepository } from '../renderer/sqlite-repo/timeline-marker-repo';
-import { persistSyncMutationInTransaction } from '../renderer/services/entity-sync.service';
+import {
+  appendAuthoredDomainMutation,
+  createAuthoredTransactionRunner,
+} from '../renderer/sync/journal';
 import { useDataStore, trashedKey, type EntityRelationLink } from '../renderer/store/data-store';
 import { useProjectStore } from '../renderer/store/project-store';
 import { useSettingsStore } from '../renderer/store/settings-store';
@@ -85,10 +90,38 @@ function argumentHash(value: Record<string, unknown>): string {
     .digest('hex')}`;
 }
 
+const DEV_CLI_SYNC_IDENTITY = {
+  installationId: 'drifting-dev-cli',
+  createWriterIdentity: () => ({
+    writerId: `writer-${uuidv7()}`,
+    writerEpoch: `epoch-${uuidv7()}`,
+  }),
+};
+
+const DEV_CLI_SYNC_GENERATION_IDS = {
+  createSyncGenerationId: () => `sync-generation-${uuidv7()}`,
+  createProjectSyncId: () => `project-sync-${uuidv7()}`,
+};
+
+function createDevCliAgentAuthoredJournal() {
+  return createAgentAuthoredJournal({
+    identity: async () => DEV_CLI_SYNC_IDENTITY,
+    syncGenerationIds: DEV_CLI_SYNC_GENERATION_IDS,
+  });
+}
+
 function createAtomicRunner(database: DbClient): BookNodeAtomicTransactionRunner {
+  const runAuthored = createAuthoredTransactionRunner({
+    database: () => database,
+    identity: async () => DEV_CLI_SYNC_IDENTITY,
+    clock: () => {
+      const now = new Date();
+      return { nowMs: now.getTime(), nowIso: now.toISOString() };
+    },
+    syncGenerationIds: DEV_CLI_SYNC_GENERATION_IDS,
+  });
   return (projectId, work) =>
-    database.transaction(
-      async (tx) => {
+    runAuthored(projectId, 'dev-cli.domain-write', async ({ tx, changes }) => {
         const sync: AtomicSyncWriter = async (
           entityType,
           mutationType,
@@ -99,20 +132,17 @@ function createAtomicRunner(database: DbClient): BookNodeAtomicTransactionRunner
         ) => {
           if (mutationProjectId !== projectId)
             throw new Error('Cross-project CLI mutation refused');
-          await persistSyncMutationInTransaction(tx as DbTransaction, {
+          appendAuthoredDomainMutation(changes, {
             entityType,
             mutationType,
             entityId,
             projectId,
             payload,
             parentId,
-            timestamp: Date.now(),
           });
         };
-        return work(tx as DbTransaction, sync);
-      },
-      { behavior: 'immediate' },
-    );
+        return work(tx as DbTransaction, sync, changes);
+      });
 }
 
 function unsupported(name: keyof AgentWriteApi): (...args: unknown[]) => Promise<never> {
@@ -184,7 +214,6 @@ function createHeadlessWriteApi(database: DbClient, projectId: string): AgentWri
     setNodeStorylines: unsupported('setNodeStorylines'),
     addRelation: unsupported('addRelation'),
     removeRelation: unsupported('removeRelation'),
-    updateRelationKind: unsupported('updateRelationKind'),
     updateRelationType: unsupported('updateRelationType'),
     createRelationType: unsupported('createRelationType'),
     updateRelationTypeDefinition: unsupported('updateRelationTypeDefinition'),
@@ -353,6 +382,7 @@ export async function executeOfflineWorkspaceTool(input: {
   const composition = createDriftingAgentProductComposition({
     database: input.database,
     getContext: () => context,
+    authoredJournal: createDevCliAgentAuthoredJournal(),
   });
   const sessionId = `cli-workspace-session:${input.projectId}`;
   const conversationId = `cli-workspace-conversation:${input.projectId}`;
@@ -522,6 +552,7 @@ export async function describeOfflineWorkspaceTools(
   const composition = createDriftingAgentProductComposition({
     database,
     getContext: () => context,
+    authoredJournal: createDevCliAgentAuthoredJournal(),
   });
   const agentContext = runtimeContext(projectId, `cli-workspace-describe:${projectId}`);
   const publicNames = new Set<string>([

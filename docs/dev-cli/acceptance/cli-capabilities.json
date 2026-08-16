@@ -10,17 +10,14 @@
       "name": "project",
       "scope": "workspace",
       "authority": "sqlite",
-      "coverage": "full_lifecycle",
+      "coverage": "workflow_only",
       "commands": [
         "workspace call",
         "workspace resource list",
-        "workspace resource get",
-        "workspace resource create",
-        "workspace resource update",
-        "workspace resource delete"
+        "workspace resource get"
       ],
       "table": "project",
-      "note": "Authored project facts use the canonical Agent domain runtime; project creation and deletion use explicit resource commands."
+      "note": "Authored project facts use the canonical Agent domain runtime; generic creation and deletion stay disabled until journal-backed workflows exist."
     },
     {
       "name": "node",
@@ -43,6 +40,26 @@
       ],
       "table": "node_content",
       "note": "content_json is only a seed/cache projection and is never exposed as generic CRUD."
+    },
+    {
+      "name": "entity_kv_entry",
+      "scope": "workspace",
+      "authority": "sqlite",
+      "coverage": "workflow_only",
+      "commands": [
+        "workspace resource list",
+        "workspace resource get"
+      ],
+      "table": "entity_kv_entry",
+      "note": "Stable authored fact entries are inspectable; generic writes remain disabled until every owner workflow journals normalized KV mutations atomically."
+    },
+    {
+      "name": "plot_grid_authority",
+      "scope": "workspace",
+      "authority": "sqlite",
+      "coverage": "workflow_only",
+      "commands": [],
+      "note": "Normalized document, row, column and cell authority is owned by journal-backed Plot Grid workflows; generic row access stays closed."
     },
     {
       "name": "storyline",
@@ -170,61 +187,49 @@
       "name": "book_act",
       "scope": "workspace",
       "authority": "sqlite",
-      "coverage": "full_lifecycle",
+      "coverage": "workflow_only",
       "commands": [
         "workspace resource list",
-        "workspace resource get",
-        "workspace resource create",
-        "workspace resource update",
-        "workspace resource delete"
+        "workspace resource get"
       ],
       "table": "book_act",
-      "note": "Act boundary rows; null start_order means book head."
+      "note": "Act boundaries are inspectable; generic writes are disabled until they use the authored journal."
     },
     {
       "name": "drift_group",
       "scope": "workspace",
       "authority": "sqlite",
-      "coverage": "full_lifecycle",
+      "coverage": "workflow_only",
       "commands": [
         "workspace resource list",
-        "workspace resource get",
-        "workspace resource create",
-        "workspace resource update",
-        "workspace resource delete"
+        "workspace resource get"
       ],
       "table": "drift_group",
-      "note": "Nested inspiration folders with project-scoped lifecycle."
+      "note": "Nested inspiration folders are inspectable; generic writes cannot bypass domain transactions."
     },
     {
       "name": "timeline_marker",
       "scope": "workspace",
       "authority": "sqlite",
-      "coverage": "full_lifecycle",
+      "coverage": "workflow_only",
       "commands": [
         "workspace resource list",
-        "workspace resource get",
-        "workspace resource create",
-        "workspace resource update",
-        "workspace resource delete"
+        "workspace resource get"
       ],
       "table": "timeline_marker",
-      "note": "Narrative-axis pins; drift references remain explicit."
+      "note": "Narrative-axis pins are inspectable; generic writes cannot bypass domain transactions."
     },
     {
       "name": "library_item",
       "scope": "workspace",
       "authority": "sqlite",
-      "coverage": "full_lifecycle",
+      "coverage": "workflow_only",
       "commands": [
         "workspace resource list",
-        "workspace resource get",
-        "workspace resource create",
-        "workspace resource update",
-        "workspace resource delete"
+        "workspace resource get"
       ],
       "table": "library_item",
-      "note": "Project material metadata; file bytes are not synthesized by CRUD."
+      "note": "Material lifecycle is owned by the renderer import workflow and local asset store."
     },
     {
       "name": "project_asset",
@@ -236,19 +241,7 @@
         "workspace resource get"
       ],
       "table": "project_asset",
-      "note": "Upload lifecycle owns asset writes; CLI inspection is safe."
-    },
-    {
-      "name": "asset_upload_job",
-      "scope": "workspace",
-      "authority": "sqlite",
-      "coverage": "workflow_only",
-      "commands": [
-        "workspace resource list",
-        "workspace resource get"
-      ],
-      "table": "asset_upload_job",
-      "note": "Resumable upload workflow state; not generic CRUD."
+      "note": "Local asset import owns writes; source bytes live in app-owned storage."
     },
     {
       "name": "block_section",
@@ -359,35 +352,24 @@
       "note": "Revision/provenance evidence is append-only and runtime-owned."
     },
     {
-      "name": "local_sync_mutation",
+      "name": "sync_engine_state",
       "scope": "ops",
       "authority": "sqlite",
       "coverage": "inspect_reconcile",
       "commands": [
         "ops inspect"
       ],
-      "table": "local_sync_mutation",
-      "note": "Outbox is written with domain transactions and never manually CRUDed."
+      "note": "Sync generation identity, immutable journal, reducer clocks, frontiers, transfers and recovery state are engine-owned and never generic CRUD."
     },
     {
-      "name": "server_project_graph",
-      "scope": "server",
-      "authority": "server",
-      "coverage": "full_lifecycle",
-      "commands": [
-        "server request"
-      ],
-      "note": "Authenticated real HTTP API for projects, categories, storylines, nodes, content, memberships, elements and sync."
-    },
-    {
-      "name": "server_account_preferences_subscription_export",
+      "name": "server_http_request",
       "scope": "server",
       "authority": "server",
       "coverage": "workflow_only",
       "commands": [
         "server request"
       ],
-      "note": "Account, preferences, subscription and export use the real server workflows."
+      "note": "Explicit developer diagnostics only; the App does not use this command as a sync transport."
     },
     {
       "name": "secure_credentials",
@@ -410,11 +392,15 @@
     "project": "project",
     "element_category": "element_category",
     "project_asset": "project_asset",
-    "asset_upload_job": "asset_upload_job",
     "storylines": "storyline",
     "book_node": "node",
     "drift_group": "drift_group",
     "node_content": "node_content",
+    "entity_kv_entry": "entity_kv_entry",
+    "plot_grid_document": "plot_grid_authority",
+    "plot_grid_row": "plot_grid_authority",
+    "plot_grid_column": "plot_grid_authority",
+    "plot_grid_cell": "plot_grid_authority",
     "element": "element",
     "node_storyline_link": "node_storyline_link",
     "element_patch": "element_patch",
@@ -460,8 +446,33 @@
     "yjs_document_revision": "yjs_revision_and_provenance",
     "yjs_document_revision_provenance": "yjs_revision_and_provenance",
     "yjs_prose_command_receipt": "yjs_revision_and_provenance",
-    "yjs_sync_cursor": "yjs_updates_and_snapshots",
-    "local_sync_mutation": "local_sync_mutation"
+    "sync_app_authority": "sync_engine_state",
+    "sync_apply_receipt": "sync_engine_state",
+    "sync_blob_state": "sync_engine_state",
+    "sync_change_set": "sync_engine_state",
+    "sync_checkpoint": "sync_engine_state",
+    "sync_conflict": "sync_engine_state",
+    "sync_connect_attempt": "sync_engine_state",
+    "sync_connect_generation_attempt": "sync_engine_state",
+    "sync_cursor": "sync_engine_state",
+    "sync_entity_lifecycle": "sync_engine_state",
+    "sync_field_clock": "sync_engine_state",
+    "sync_frontier": "sync_engine_state",
+    "sync_frontier_gap": "sync_engine_state",
+    "sync_local_object": "sync_engine_state",
+    "sync_mutation": "sync_engine_state",
+    "sync_order_register": "sync_engine_state",
+    "sync_provider_account": "sync_engine_state",
+    "sync_provider_binding": "sync_engine_state",
+    "sync_quarantined_object": "sync_engine_state",
+    "sync_remote_object": "sync_engine_state",
+    "sync_restore_attempt": "sync_engine_state",
+    "sync_segment": "sync_engine_state",
+    "sync_set_tag": "sync_engine_state",
+    "sync_transfer": "sync_engine_state",
+    "sync_generation": "sync_engine_state",
+    "sync_generation_purge": "sync_engine_state",
+    "sync_generation_writer_state": "sync_engine_state"
   },
   "providerTools": {
     "read": [

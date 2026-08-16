@@ -1,16 +1,16 @@
 {
   "suite": "p4-agent-runtime-framework",
   "schemaVersion": 1,
-  "nodeVersion": "v22.23.1",
+  "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "bfe2dc035606c41c0488ed3b1b6c1a41cb0a4a81",
+  "gitHead": "94e9bbca72fba3a23922da389e7ba121436d7f3b",
   "provider": "not applicable",
   "model": "not applicable",
-  "sourceSetSha256": "sha256:2f232e66296da9e85e71885ee3da59ba342142098a3909a119bab8a1d2afc841",
+  "sourceSetSha256": "sha256:f9b99596f9124bdc6f38e743c99a323abe663172e98a60fadaea23eec272ba9f",
   "migration": {
-    "count": 68,
-    "latestIndex": 67,
-    "latestTag": "0067_agent_runtime_long_task",
+    "count": 1,
+    "latestIndex": 0,
+    "latestTag": "0000_local_first_baseline",
     "journalIsSequential": true,
     "latestMigrationExists": true,
     "passed": true
@@ -21,8 +21,8 @@
       "discovered": 16
     },
     "tests": {
-      "total": 212,
-      "passed": 212,
+      "total": 283,
+      "passed": 283,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -43,8 +43,8 @@
         "files": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 57,
-          "passed": 57,
+          "total": 72,
+          "passed": 72,
           "failed": 0,
           "pending": 0
         },
@@ -65,8 +65,8 @@
         "files": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 20,
-          "passed": 20,
+          "total": 39,
+          "passed": 39,
           "failed": 0,
           "pending": 0
         },
@@ -87,8 +87,8 @@
         "files": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 11,
-          "passed": 11,
+          "total": 14,
+          "passed": 14,
           "failed": 0,
           "pending": 0
         },
@@ -98,8 +98,8 @@
         "files": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 54,
-          "passed": 54,
+          "total": 80,
+          "passed": 80,
           "failed": 0,
           "pending": 0
         },
@@ -109,8 +109,8 @@
         "files": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 14,
-          "passed": 14,
+          "total": 16,
+          "passed": 16,
           "failed": 0,
           "pending": 0
         },
@@ -131,19 +131,19 @@
         "files": 1,
         "discoveredFiles": 1,
         "tests": {
-          "total": 4,
-          "passed": 4,
+          "total": 5,
+          "passed": 5,
           "failed": 0,
           "pending": 0
         },
         "passed": true
       },
-      "checkpointV2": {
+      "checkpointRecovery": {
         "files": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 30,
-          "passed": 30,
+          "total": 35,
+          "passed": 35,
           "failed": 0,
           "pending": 0
         },
@@ -174,11 +174,11 @@
       },
       "latestObservedThisRun": {
         "top3Recall": 0.9866666666666667,
-        "top5Recall": 1,
+        "top5Recall": 0.9933333333333333,
         "safetyTop5Recall": 1,
-        "medianSchemaReduction": 0.8931514324693042,
+        "medianSchemaReduction": 0.9067768279287454,
         "warmedSearches": 10000,
-        "warmedP95Ms": 2.142541000000165
+        "warmedP95Ms": 2.398417000000336
       }
     },
     "contextPlanning": {
@@ -203,8 +203,8 @@
         "pinnedExactRecall": 1,
         "constraintRecall": 1,
         "completionDrop": 0,
-        "medianTokenReduction": 0.8452073246933156,
-        "p95ContextWindowRatio": 0.3208125
+        "medianTokenReduction": 0.8924643375059094,
+        "p95ContextWindowRatio": 0.224875
       }
     },
     "contextBridgeAndRuntime": {
@@ -251,7 +251,7 @@
         "exactInverseGuardsThePostWriteRevision": true
       }
     },
-    "checkpointV2": {
+    "checkpointRecovery": {
       "adapter": "file-backed node:sqlite restart",
       "machineAsserted": {
         "finalAssistantCommittedAtomically": true,
@@ -259,8 +259,8 @@
         "outerHashTamperRejected": true,
         "nestedTamperCases": 5,
         "nestedTamperRejected": true,
-        "legacyV1CheckpointStillRecoverable": true,
-        "legacyV1IsStorageCompatibilityNotProviderFallback": true
+        "legacyV1CheckpointRejected": true,
+        "fallbackWithoutV2WitnessUsesV4Digest": true
       }
     },
     "redTeamP1Blockers": {

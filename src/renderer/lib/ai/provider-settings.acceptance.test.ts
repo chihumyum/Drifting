@@ -62,4 +62,17 @@ describe('central AI provider settings acceptance', () => {
     expect(composer).toContain('setAgentModel');
     expect(companion).toContain("railId: 'models'");
   });
+
+  it('tests every credential directly without a hosted BYOK relay', async () => {
+    const intelligence = await source(
+      '/src/renderer/features/settings/panels/IntelligenceSettingsPanels.tsx',
+    );
+    const connection = await source('/src/renderer/lib/ai/test-provider-connection.ts');
+
+    expect(intelligence).toContain('testByokProviderConnection(provider');
+    expect(intelligence).not.toContain('apiClient');
+    expect(connection).toContain('buildDirectBYOKClient');
+    expect(connection).toContain('platform.openAIResponses.request');
+    expect(connection).not.toContain(['/api/ai/byok', 'test'].join('/'));
+  });
 });

@@ -13,7 +13,7 @@ import { useStoryline } from '../../../usecase/useStoryline';
 import { useEntityRelations } from '../../../usecase/useEntityRelations';
 import { useEntityRelationTypes } from '../../../usecase/useEntityRelationTypes';
 import { useTimelineMarkers } from '../../../hooks/useTimelineMarkers';
-import { useEdgeKindMeta, UNCATEGORIZED_META_KEY } from '../../../hooks/useEdgeKindMeta';
+import { useRelationTypePresentation } from '../../../hooks/useRelationTypePresentation';
 import { useSuperViewEscapeStack } from '../../../hooks/useSuperViewEscapeStack';
 import { ActRail } from '../../../components/BottomTimeline/ActRail';
 import { useBookAct } from '../../../usecase/useBookAct';
@@ -38,18 +38,13 @@ import { DesktopSuperViewHeader } from '../components/DesktopSuperViewHeader';
 import { SuperViewShell } from '../../../components/SuperViewShell';
 import { AnchoredPopover } from '../../../components/ui/AnchoredPopover';
 import { SegmentedControl } from '../../../components/ui/SegmentedControl';
-import { FilterChip } from '../../../components/ui/FilterChip';
-import { HeaderChipStrip } from '../../../components/ui/HeaderChipStrip';
 import { RelationTypeField } from '../../../components/ui/RelationTypeField';
 import {
   validateRelationAgainstType,
   validateRelationTypeDefinitionAgainstRelation,
 } from '../../../domain/entity-relation-type';
-import {
-  RelationKindMenu,
-  RelationTypeEditor,
-  UNCATEGORIZED_RELATION_KIND as UNCATEGORIZED_KIND,
-} from '../../../components/ui/RelationKindMenu';
+import { RelationTypeEditor } from '../../../components/ui/RelationKindMenu';
+import { defaultRelationTypeColor } from '../../../components/ui/relation-type-color';
 import loglevel from 'loglevel';
 import {
   projectStoryGraphEdges as toGraphEdges,
@@ -62,6 +57,7 @@ import {
   commitChapterLaneDrop,
   initializeChapterDrag,
 } from '../../../features/graph/chapter-lane-drag';
+import { useSuperViewRelationUi } from '../../../features/graph/super-view-relation-ui-context';
 import '../../../../styles/graph-view.css';
 
 const log = loglevel.getLogger('StoryGraphView');
@@ -69,9 +65,8 @@ log.setLevel(loglevel.levels.WARN);
 
 // Edges between nodes (chapter ↔ chapter, chapter ↔ drift, drift ↔ drift) are
 // persisted as rows in `entity_relation` with fromKind/toKind = 'node'. Each
-// references a project relation type and mirrors its name into `kind` for
-// readable filtering; the
-// renderer derives geometry from the current node positions and uses a fixed
+// references one project relation type id. The renderer resolves the current
+// localized type label for display, derives geometry from the current node positions, and uses a fixed
 // bezier formula for the path. Edge creation is shift-click-to-pair:
 // shift-click a tile to set it as source, click another tile to open the
 // new-edge dialog.
@@ -127,26 +122,6 @@ type PositionedNode = BookNode & {
   y: number; // track center, in canvas pixels
 };
 
-// Stable color from a kind string so two edges of the same kind always
-// share a color across renders. djb2-ish hash → palette index.
-const KIND_PALETTE = [
-  'hsl(var(--story-1))',
-  'hsl(var(--story-2))',
-  'hsl(var(--story-3))',
-  'hsl(var(--story-4))',
-  'hsl(var(--story-5))',
-  'hsl(var(--story-6))',
-  'hsl(var(--ink-3))',
-];
-function colorForKind(kind: string | null): string {
-  if (!kind) return 'hsl(var(--ink-4))';
-  let h = 5381;
-  for (let i = 0; i < kind.length; i++) {
-    h = ((h << 5) + h) ^ kind.charCodeAt(i);
-  }
-  return KIND_PALETTE[Math.abs(h) % KIND_PALETTE.length];
-}
-
 // Slot width used to compute the live shift when dragging drift cards.
 // Card flex-basis 168 + gap 10. Module-scoped because the cards are
 // fixed-size; if we ever make them responsive we should measure instead.
@@ -171,12 +146,17 @@ export function DesktopStoryGraphView() {
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
-  const { addRelation, removeRelation, updateRelationKind } = useEntityRelations({
+  const { addRelation, removeRelation } = useEntityRelations({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
   const relationTypeUsecases = useEntityRelationTypes({ projectId: projectId ?? '' });
-  const edgeKindMeta = useEdgeKindMeta(projectId);
+  const {
+    edgeKindMeta,
+    hiddenRelationTypeIds,
+    setDriftPanelOpen: setSharedDriftPanelOpen,
+  } = useSuperViewRelationUi('graph');
+  const presentRelationType = useRelationTypePresentation();
   const { setNodeStorylines } = useStoryline({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
@@ -209,27 +189,20 @@ export function DesktopStoryGraphView() {
     (sourceNodeId: string, targetNodeId: string, relationTypeId: string) =>
       addRelation('node', sourceNodeId, 'node', targetNodeId, {
         relationTypeId,
-        allowUnconfigured: false,
       }),
     [addRelation],
   );
   const deleteEdge = useCallback((id: string) => removeRelation(id), [removeRelation]);
-  const updateEdgeKind = useCallback(
-    (id: string, kind: string | null) => updateRelationKind(id, kind),
-    [updateRelationKind],
-  );
-
   // Color resolver that prefers user overrides from `useEdgeKindMeta`
   // before falling back to the deterministic palette hash. Both the
   // storyline and drift edge renderers consult this, plus the legend
   // chips and the edge-management menu — so a color change in one
   // place is reflected everywhere immediately.
-  const resolveKindColor = useCallback(
-    (kind: string | null): string => {
-      const k = kind ?? UNCATEGORIZED_META_KEY;
-      const override = edgeKindMeta.meta[k]?.color;
+  const resolveRelationTypeColor = useCallback(
+    (relationTypeId: string): string => {
+      const override = edgeKindMeta.meta[relationTypeId]?.color;
       if (override) return override;
-      return colorForKind(kind);
+      return defaultRelationTypeColor(relationTypeId);
     },
     [edgeKindMeta.meta],
   );
@@ -247,6 +220,10 @@ export function DesktopStoryGraphView() {
     openPanel: openDriftPanel,
     closePanel: closeDriftPanelBase,
   } = useDriftPanelAnim();
+  useEffect(() => {
+    setSharedDriftPanelOpen(driftPanelOpen);
+    return () => setSharedDriftPanelOpen(false);
+  }, [driftPanelOpen, setSharedDriftPanelOpen]);
   // Pending source for shift-click edge creation. The first shift-click sets
   // this; the next plain click on a different tile opens the new-edge dialog.
   const [linkSource, setLinkSource] = useState<string | null>(null);
@@ -271,10 +248,7 @@ export function DesktopStoryGraphView() {
     setNewEdgeReversed(false);
     setNewEdgeCreatingType(false);
   }, []);
-  const configuredRelationTypes = useMemo(
-    () => entityRelationTypes.filter((type) => type.orientation !== 'unconfigured'),
-    [entityRelationTypes],
-  );
+  const configuredRelationTypes = entityRelationTypes;
   const newEdgeTypeOptions = useMemo(
     () =>
       configuredRelationTypes.filter(
@@ -288,8 +262,6 @@ export function DesktopStoryGraphView() {
       ),
     [configuredRelationTypes, newEdgeReversed],
   );
-  // Set of kinds the user has TOGGLED OFF. Default = empty (all visible).
-  const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(new Set());
   // Popover targeting a single tile. `anchor` is the tile's viewport rect at
   // the moment of click — the popover positions itself relative to it.
   const [popover, setPopover] = useState<{ nodeId: string; anchor: AnchorRect } | null>(null);
@@ -316,11 +288,6 @@ export function DesktopStoryGraphView() {
       };
   const [contextMenu, setContextMenu] = useState<GraphCmenuState | null>(null);
   const dispatchEntityAction = useEntityCellAction();
-  const [edgeMgrOpen, setEdgeMgrOpen] = useState(false);
-  const edgeMgrBtnRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!edgeMgrOpen) edgeMgrBtnRef.current?.blur();
-  }, [edgeMgrOpen]);
   // Click-to-select edge. While selected, the edge and endpoint cards
   // highlight and a body-portaled detail popover opens at the click point.
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
@@ -690,75 +657,6 @@ export function DesktopStoryGraphView() {
     return map;
   }, [positionedNodes]);
 
-  // Split kinds into two groups so the legend can visually separate them:
-  //   · regularKinds — has at least one storyline-only edge; always shown
-  //   · driftOnlyKinds — exclusive to drift-touching edges; only shown
-  //     while the drift panel is open (the edges themselves only render
-  //     in that state, so the toggle is meaningless otherwise)
-  // A kind that appears in BOTH drift and storyline edges lives in the
-  // regular group — its toggle still hides drift edges of that kind
-  // when the panel is open, since `hiddenKinds` is kind-keyed.
-  const { regularKinds, driftOnlyKinds } = useMemo(() => {
-    type KindInfo = { storyline: boolean; drift: boolean };
-    const info = new Map<string | null, KindInfo>();
-    for (const e of nodeEdges) {
-      const isDriftEdge = driftIds.has(e.sourceNodeId) || driftIds.has(e.targetNodeId);
-      const cur = info.get(e.kind) ?? { storyline: false, drift: false };
-      if (isDriftEdge) cur.drift = true;
-      else cur.storyline = true;
-      info.set(e.kind, cur);
-    }
-    const reg = new Set<string>();
-    const drift = new Set<string>();
-    let hasNullReg = false;
-    let hasNullDrift = false;
-    for (const [kind, kinfo] of info) {
-      if (kinfo.storyline) {
-        if (kind === null) hasNullReg = true;
-        else reg.add(kind);
-      } else {
-        if (kind === null) hasNullDrift = true;
-        else drift.add(kind);
-      }
-    }
-    const r = [...reg].sort();
-    if (hasNullReg) r.push(UNCATEGORIZED_KIND);
-    const d = [...drift].sort();
-    if (hasNullDrift) d.push(UNCATEGORIZED_KIND);
-    return { regularKinds: r, driftOnlyKinds: d };
-  }, [nodeEdges, driftIds]);
-  const allKinds = useMemo(
-    () => [...regularKinds, ...driftOnlyKinds],
-    [driftOnlyKinds, regularKinds],
-  );
-  // Drift provenance is a data invariant, not a panel-visibility detail:
-  // whenever either endpoint is a drift node, the relation is a drift edge.
-  // A kind shared by regular and drift edges still keeps one filter chip.
-  const driftEdgeKinds = useMemo(() => {
-    const kinds = new Set<string>();
-    for (const edge of nodeEdges) {
-      if (!driftIds.has(edge.sourceNodeId) && !driftIds.has(edge.targetNodeId)) continue;
-      kinds.add(edge.kind ?? UNCATEGORIZED_KIND);
-    }
-    return kinds;
-  }, [driftIds, nodeEdges]);
-  const kindCounts = useMemo<Record<string, number>>(() => {
-    const counts: Record<string, number> = {};
-    for (const edge of nodeEdges) {
-      const key = edge.kind ?? UNCATEGORIZED_KIND;
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
-    return counts;
-  }, [nodeEdges]);
-  const toggleKindVisibility = useCallback((kind: string) => {
-    setHiddenKinds((previous) => {
-      const next = new Set(previous);
-      if (next.has(kind)) next.delete(kind);
-      else next.add(kind);
-      return next;
-    });
-  }, []);
-
   const visibleEdges = useMemo(() => {
     const halfTile = (GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT) / 2;
     type LaidEdge = {
@@ -771,8 +669,7 @@ export function DesktopStoryGraphView() {
     };
     const out: LaidEdge[] = [];
     for (const edge of nodeEdges) {
-      const filterKey = edge.kind ?? UNCATEGORIZED_KIND;
-      if (hiddenKinds.has(filterKey)) continue;
+      if (hiddenRelationTypeIds.has(edge.relationTypeId)) continue;
       const source = positionedById.get(edge.sourceNodeId);
       const target = positionedById.get(edge.targetNodeId);
       if (!source || !target) continue;
@@ -782,11 +679,11 @@ export function DesktopStoryGraphView() {
         y1: source.y,
         x2: target.x + halfTile,
         y2: target.y,
-        color: resolveKindColor(edge.kind),
+        color: resolveRelationTypeColor(edge.relationTypeId),
       });
     }
     return out;
-  }, [nodeEdges, positionedById, hiddenKinds, resolveKindColor]);
+  }, [nodeEdges, positionedById, hiddenRelationTypeIds, resolveRelationTypeColor]);
 
   // ---- Narrative time pins ----
   // Mirrors BottomTimeline's TimelinePin behavior: integer snap values
@@ -1017,7 +914,6 @@ export function DesktopStoryGraphView() {
         onEscape: closeNewEdgeDialog,
       },
       { id: 'unplaced-drawer', active: drawerOpen, onEscape: () => setDrawerOpen(false) },
-      { id: 'relation-kind-menu', active: edgeMgrOpen, onEscape: () => setEdgeMgrOpen(false) },
       {
         id: `selected-edge:${selectedEdgeId ?? ''}`,
         active: selectedEdgeId !== null,
@@ -1042,7 +938,7 @@ export function DesktopStoryGraphView() {
   // aren't in `positionedById`).
   type DriftEdgeGeom = {
     id: string;
-    kind: string | null;
+    relationTypeId: string;
     directed: boolean;
     x1: number;
     y1: number;
@@ -1068,12 +964,11 @@ export function DesktopStoryGraphView() {
         const srcIsDrift = driftIds.has(edge.sourceNodeId);
         const tgtIsDrift = driftIds.has(edge.targetNodeId);
         if (!srcIsDrift && !tgtIsDrift) continue;
-        // Respect kind-toggle visibility: when the user hides a kind via
-        // a legend chip, drift edges of that kind drop out of the SVG
+        // Respect type-toggle visibility: when the user hides a relation type,
+        // its drift edges drop out of the SVG
         // too. Storyline edges are filtered in `visibleEdges` the same
         // way; this keeps the two paths consistent.
-        const filterKey = edge.kind ?? UNCATEGORIZED_KIND;
-        if (hiddenKinds.has(filterKey)) continue;
+        if (hiddenRelationTypeIds.has(edge.relationTypeId)) continue;
         const srcEl =
           driftCardRefs.current.get(edge.sourceNodeId) ?? tileRefs.current.get(edge.sourceNodeId);
         const tgtEl =
@@ -1082,25 +977,21 @@ export function DesktopStoryGraphView() {
         const r1 = srcEl.getBoundingClientRect();
         const r2 = tgtEl.getBoundingClientRect();
         // Color precedence:
-        //   1. Per-kind override (from the edge-management menu) — when
-        //      the user assigns a kind color, drift edges of that kind
+        //   1. Per-type override (from the edge-management menu) — when
+        //      the user assigns a type color, drift edges of that type
         //      should match.
         //   2. Storyline-side endpoint's color — the default look ties
         //      drift edges visually to whichever track they land on.
         //   3. --accent fallback for drift↔drift links.
         const srcPos = positionedById.get(edge.sourceNodeId);
         const tgtPos = positionedById.get(edge.targetNodeId);
-        const k = edge.kind ?? UNCATEGORIZED_META_KEY;
-        const override = edgeKindMeta.meta[k]?.color;
+        const override = edgeKindMeta.meta[edge.relationTypeId]?.color;
         const storylineColor =
           override || srcPos?.storyline?.color || tgtPos?.storyline?.color || 'hsl(var(--accent))';
         out.push({
           id: edge.id,
-          kind: edge.kind,
-          directed:
-            (edge.relationTypeId
-              ? relationTypeById.get(edge.relationTypeId)?.orientation
-              : null) === 'directed',
+          relationTypeId: edge.relationTypeId,
+          directed: relationTypeById.get(edge.relationTypeId)?.orientation === 'directed',
           x1: r1.left + r1.width / 2,
           y1: r1.top + r1.height / 2,
           x2: r2.left + r2.width / 2,
@@ -1143,7 +1034,7 @@ export function DesktopStoryGraphView() {
     nodeEdges,
     driftIds,
     positionedById,
-    hiddenKinds,
+    hiddenRelationTypeIds,
     edgeKindMeta.meta,
     relationTypeById,
   ]);
@@ -1274,31 +1165,6 @@ export function DesktopStoryGraphView() {
     placed: placedNodes.length,
     total: bookNodes.length,
   });
-
-  const renderKindChip = (kind: string, driftDerived = false) => {
-    const isUncategorized = kind === UNCATEGORIZED_KIND;
-    const label = isUncategorized ? t('storyGraph.edge.uncategorized') : kind;
-    const color = resolveKindColor(isUncategorized ? null : kind);
-    const active = !hiddenKinds.has(kind);
-    return (
-      <FilterChip
-        key={kind}
-        size="sm"
-        activeStyle="solid"
-        active={active}
-        markerColor={color}
-        className={driftDerived ? 'filter-chip--drift-edge' : ''}
-        onClick={() => toggleKindVisibility(kind)}
-        title={
-          active
-            ? t('storyGraph.edge.hideKind', { label })
-            : t('storyGraph.edge.showKind', { label })
-        }
-      >
-        {label}
-      </FilterChip>
-    );
-  };
 
   return (
     <SuperViewShell className="graph-overlay" data-view={viewMode}>
@@ -1436,78 +1302,13 @@ export function DesktopStoryGraphView() {
           </>
         }
         rightSlot={
-          // Layout left → right:
-          //   · hint chip — only when there are no user edges
-          //   · drift-only kind chips — only when drift panel is open; sit
-          //     to the LEFT of regular chips, separated by a small
-          //     whitespace gap (the wrapping container's gap)
-          //   · regular kind chips — toggleable; visible whenever the kind
-          //     has at least one storyline-only edge
-          //   · "全部" button — rightmost; the one complete filter +
-          //     management menu for rename / recolor / delete, plus the
-          //     locked storyline-transit legend
-          <>
-            {nodeEdges.length === 0 && (
-              <div className="graph-head__filters">
-                <div className="graph-head__filter is-hint" title={t('storyGraph.edge.hintTitle')}>
-                  {t('storyGraph.edge.hint')}
-                </div>
+          nodeEdges.length === 0 ? (
+            <div className="graph-head__filters">
+              <div className="graph-head__filter is-hint" title={t('storyGraph.edge.hintTitle')}>
+                {t('storyGraph.edge.hint')}
               </div>
-            )}
-            <HeaderChipStrip>
-              {driftPanelOpen &&
-                driftOnlyKinds
-                  .filter((kind) => driftEdgeKinds.has(kind))
-                  .map((kind) => renderKindChip(kind, true))}
-              {regularKinds.map((kind) =>
-                renderKindChip(kind, driftPanelOpen && driftEdgeKinds.has(kind)),
-              )}
-            </HeaderChipStrip>
-            <div
-              className="relation-kind-menu-anchor super-view-head__no-drag"
-              data-tauri-drag-region="false"
-            >
-              <button
-                ref={edgeMgrBtnRef}
-                type="button"
-                className={`relation-kind-menu-trigger${edgeMgrOpen ? ' is-open' : ''}`}
-                onClick={() => setEdgeMgrOpen((v) => !v)}
-                title={t('edgeKindManager.openAllTitle')}
-                aria-haspopup="menu"
-                aria-expanded={edgeMgrOpen}
-              >
-                <span>{t('edgeKindManager.all')}</span>
-                <span className="relation-kind-menu-trigger__count">{allKinds.length}</span>
-              </button>
-              <RelationKindMenu
-                open={edgeMgrOpen}
-                onClose={() => setEdgeMgrOpen(false)}
-                anchorRef={edgeMgrBtnRef}
-                kinds={allKinds}
-                driftDerivedKinds={driftEdgeKinds}
-                hiddenKinds={hiddenKinds}
-                onToggleKind={toggleKindVisibility}
-                kindCounts={kindCounts}
-                resolveKindColor={resolveKindColor}
-                setKindColor={edgeKindMeta.setColor}
-                clearKindColor={edgeKindMeta.clearColor}
-                reassignMeta={edgeKindMeta.reassign}
-                removeMeta={edgeKindMeta.remove}
-                relations={entityRelations.filter(
-                  (r) => r.fromKind === 'node' && r.toKind === 'node',
-                )}
-                allProjectRelations={entityRelations}
-                updateRelationKind={updateEdgeKind}
-                deleteRelation={deleteEdge}
-                relationTypes={entityRelationTypes}
-                createRelationType={relationTypeUsecases.createRelationType}
-                updateRelationType={relationTypeUsecases.updateRelationType}
-                deleteRelationType={relationTypeUsecases.deleteRelationType}
-                showStorylineTransit
-                dismissOnEscape={false}
-              />
             </div>
-          </>
+          ) : undefined
         }
       />
 
@@ -1983,10 +1784,8 @@ export function DesktopStoryGraphView() {
               {visibleEdges.map(({ edge, x1, y1, x2, y2, color }) => {
                 const yy1 = tileTopOffset + y1;
                 const yy2 = tileTopOffset + y2;
-                const directed =
-                  (edge.relationTypeId
-                    ? relationTypeById.get(edge.relationTypeId)?.orientation
-                    : null) === 'directed';
+                const relationType = relationTypeById.get(edge.relationTypeId);
+                const directed = relationType?.orientation === 'directed';
                 const markerId = relationArrowMarkerId('story-world-arrow', edge.id);
                 const d = relationEdgePath({
                   x1,
@@ -2016,7 +1815,11 @@ export function DesktopStoryGraphView() {
                         selectEdge(edge.id, e.clientX, e.clientY);
                       }}
                     >
-                      <title>{edge.kind ?? t('storyGraph.edge.uncategorized')}</title>
+                      <title>
+                        {relationType
+                          ? presentRelationType(relationType).name
+                          : t('relationTypes.missing')}
+                      </title>
                     </path>
                     <path
                       d={d}
@@ -2273,7 +2076,11 @@ export function DesktopStoryGraphView() {
                     selectEdge(g.id, e.clientX, e.clientY);
                   }}
                 >
-                  <title>{g.kind ?? t('storyGraph.edge.uncategorized')}</title>
+                  <title>
+                    {relationTypeById.has(g.relationTypeId)
+                      ? presentRelationType(relationTypeById.get(g.relationTypeId)!).name
+                      : t('relationTypes.missing')}
+                  </title>
                 </path>
                 <path className="graph-drift-edge__halo" d={d} stroke={g.color} />
                 <path
@@ -2288,14 +2095,14 @@ export function DesktopStoryGraphView() {
         </svg>
       )}
 
-      {selectedEdgeAnchor && selectedEdgeRelation && (
+      {selectedEdgeAnchor && selectedEdgeRelation && selectedEdgeType && (
         <RelationEdgePopover
           anchor={selectedEdgeAnchor}
           relation={selectedEdgeRelation}
           relationType={selectedEdgeType}
           sourceLabel={nodeById.get(selectedEdgeRelation.fromId)?.title || t('common.untitled')}
           targetLabel={nodeById.get(selectedEdgeRelation.toId)?.title || t('common.untitled')}
-          color={resolveKindColor(selectedEdgeRelation.kind)}
+          color={resolveRelationTypeColor(selectedEdgeRelation.relationTypeId)}
           onDelete={() => {
             const id = selectedEdgeRelation.id;
             clearSelectedEdge();
@@ -2388,7 +2195,7 @@ export function DesktopStoryGraphView() {
                 value={newEdgeTypeId}
                 onChange={setNewEdgeTypeId}
                 options={newEdgeTypeOptions}
-                resolveOptionColor={(name) => resolveKindColor(name)}
+                resolveOptionColor={resolveRelationTypeColor}
                 placeholder={t('storyGraph.edge.kindPlaceholder')}
                 ariaLabel={t('storyGraph.edge.kindLabel')}
               />

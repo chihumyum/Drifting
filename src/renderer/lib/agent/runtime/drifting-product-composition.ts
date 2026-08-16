@@ -106,6 +106,7 @@ import {
 } from './working-memory-tool-runtime';
 import { AgentExtensionManager } from './agent-extension-manager';
 import { platform } from '../../../platform';
+import type { AgentAuthoredJournal } from './agent-authored-journal';
 
 /** Product-level provider window. Planner defaults stay conservative for reuse. */
 export { DRIFTING_AGENT_CONTEXT_WINDOW_TOKENS } from './drifting-agent-product-contract';
@@ -130,6 +131,7 @@ export interface CreateDriftingAgentProductCompositionOptions {
   database?: DbClient;
   getContext?: () => AgentToolContext | null;
   journal?: AgentJournalSink;
+  authoredJournal?: AgentAuthoredJournal;
   limits?: Partial<AgentRuntimeLimits>;
   /** Test/DEV override; product defaults to the exported 200k window. */
   contextWindowTokens?: number;
@@ -201,6 +203,7 @@ export function createDriftingAgentProductComposition(
   const elementPatchRepository = createElementPatchRepository(options.database);
   const proseCoordinator = createYjsProsePersistenceCoordinator({
     ...(options.database ? { database: options.database } : {}),
+    ...(options.authoredJournal ? { journal: options.authoredJournal } : {}),
   });
   const readProseBase = async (entityId: string, entityType: ProseEntityType = 'node') => {
     const projectId = getContext()?.projectId;
@@ -276,6 +279,7 @@ export function createDriftingAgentProductComposition(
       (await contentRepository.findByNodeId(nodeId))?.contentJson ?? null,
     ...(options.database ? { elementPatchDb: options.database } : {}),
     elementPatchReceipts: repositories.elementPatchReceipts,
+    ...(options.authoredJournal ? { authoredJournal: options.authoredJournal } : {}),
   });
   const longTaskTools = new AgentLongTaskToolRuntime({
     repository: repositories.longTasks,

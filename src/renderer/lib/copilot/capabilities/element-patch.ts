@@ -21,7 +21,7 @@
  * key construction). No framework code changes were required.
  */
 import log from 'loglevel';
-import { runStructured } from '../../ai/remote/run-structured';
+import { runStructured } from '../../ai/run-structured';
 import {
   buildElementPatchContext,
   pendingKey,
@@ -83,7 +83,7 @@ export const elementPatchCapability: CopilotCapability = {
 
     const priorSectionSummaries = ctx.baseContext.priorSections.map((s) => s.summary);
 
-    // Phase 2: prompt built + run server-side; send only (promptId, input).
+    // Prompt construction and inference stay on-device through BYOK.
     const { patches } = await runStructured(
       elementPatchPrompt,
       {
@@ -93,7 +93,7 @@ export const elementPatchCapability: CopilotCapability = {
         userInstruction: ctx.userInstruction,
         priorSectionSummaries,
       },
-      { signal: ctx.signal, projectId: ctx.projectId },
+      { signal: ctx.signal, projectId: ctx.projectId, runtime: ctx.runtime },
     );
 
     if (ctx.signal.aborted) return [];

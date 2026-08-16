@@ -58,7 +58,7 @@ const TOOL_KIND: Record<
   update_category: 'category',
   delete_category: 'category',
   add_relation: 'relation',
-  update_relation_kind: 'relation',
+  assign_relation_type: 'relation',
   remove_relation: 'relation',
   create_relation_type: 'relation_type',
   update_relation_type: 'relation_type',
@@ -211,7 +211,10 @@ function parseSnapshot(
         typeof value.value.fromKind !== 'string' ||
         typeof value.value.fromId !== 'string' ||
         typeof value.value.toKind !== 'string' ||
-        typeof value.value.toId !== 'string'
+        typeof value.value.toId !== 'string' ||
+        typeof value.value.relationTypeId !== 'string' ||
+        !value.value.relationTypeId ||
+        'kind' in value.value
       ) {
         integrityError(receiptId, 'relation snapshot fields are invalid');
       }
@@ -219,7 +222,11 @@ function parseSnapshot(
     case 'relation_type':
       if (
         typeof value.value.name !== 'string' ||
-        typeof value.value.orientation !== 'string' ||
+        (value.value.orientation !== 'directed' && value.value.orientation !== 'symmetric') ||
+        (value.value.systemKey !== null &&
+          value.value.systemKey !== 'generic-association') ||
+        typeof value.value.locked !== 'boolean' ||
+        ((value.value.systemKey === null) === value.value.locked) ||
         typeof value.value.sourceRole !== 'string' ||
         typeof value.value.targetRole !== 'string' ||
         !Array.isArray(value.value.sourceKinds) ||

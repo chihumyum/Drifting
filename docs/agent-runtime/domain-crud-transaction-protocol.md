@@ -242,7 +242,7 @@ new decision.
 ## 11. Headless acceptance matrix
 
 Milestone D acceptance runs the real product composition against a temporary
-file-backed SQLite database with all product migrations, plus real Yjs for
+file-backed SQLite database created from the current local-first baseline, plus real Yjs for
 prose-owning paths. It verifies:
 
 - lifecycle closure for every declared domain and executable strategy;
@@ -253,9 +253,9 @@ prose-owning paths. It verifies:
 - memory trust, supersession, soft delete, sync outbox, and inverse;
 - transaction rollback after an injected inner failure;
 - reconciliation after a lost outer acknowledgement;
-- close/reopen persistence and latest migration application;
+- close/reopen persistence and baseline-journal idempotency;
 - read-before-write stale-state refusal;
-- automatic relation create/relabel, destructive-delete confirmation and its
+- automatic relation create/type assignment, destructive-delete confirmation and its
   explicit author override;
 - typecheck, targeted lint, and generated capability drift checks.
 

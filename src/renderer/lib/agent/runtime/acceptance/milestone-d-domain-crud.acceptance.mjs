@@ -52,7 +52,7 @@ const LINT_FILES = [
 ];
 const HASHED_SOURCE_FILES = [
   'docs/agent-runtime/domain-crud-transaction-protocol.md',
-  'drizzle/0072_agent_runtime_domain_crud.sql',
+  'drizzle/0000_local_first_baseline.sql',
   'drizzle/meta/_journal.json',
   'src/renderer/schema/drizzle.ts',
   'src/renderer/lib/agent/runtime/acceptance/milestone-d-domain-crud.acceptance.mjs',
@@ -69,7 +69,7 @@ const REQUIRED_ASSERTIONS = {
   lostAcknowledgement:
     'reconciles a lost outer acknowledgement once and survives a file reopen',
   approvedMemoryTrust:
-    'keeps approved guidance read-only and evolves it through a pending superseding proposal',
+    'keeps approved guidance read-only and allows a separate pending proposal',
   structuralCreateInverse:
     'creates and exactly removes every structural resource class',
   structuralUpdateDeleteInverse:
@@ -81,17 +81,17 @@ const REQUIRED_ASSERTIONS = {
   staleStateFailClosed:
     'fails closed when the SQLite entity revision changed after the cited read',
   naturalWorkspace:
-    'projects canonical entities as natural virtual files and renders prose without handles',
+    'reads a chapter by plain chapter name and hides transport vocabulary from model data',
   completeReadCatalog:
     'executes every registered read tool without mutating domain state or leaking projects',
   authoritativeYjsWorkspace:
-    'edits a virtual prose file with semantic model output and an automatic reveal',
+    'edits authored prose with semantic model output and an automatic reveal',
   migrationReopen:
-    'follows the checked-in journal and reopens idempotently',
+    'creates the exact current baseline and reopens idempotently',
   memoryApprovalAtomicity:
     'activates the proposal and retires its superseded memory atomically',
   graphPermission:
-    'asks before a workspace facade changes relations or storyline membership',
+    'allows non-destructive relation changes but guards full membership replacement',
   executableLifecycleMatrix:
     'proves every declared domain lifecycle and hidden mutation has an executable strategy',
 };
@@ -277,7 +277,7 @@ export async function runMilestoneDAcceptance(options = parseOptions([])) {
       sourceSetSha256: await hashSourceSet(HASHED_SOURCE_FILES),
       storageReplay: {
         sqlite:
-          'real file-backed SQLite with every product migration, CAS guards, receipts, outbox rows, and injected transaction faults',
+          'real file-backed SQLite from the current product baseline, with CAS guards, receipts, outbox rows, and injected transaction faults',
         prose:
           'real product Yjs coordination for prose-owning workspace resources',
         rendererProjection:

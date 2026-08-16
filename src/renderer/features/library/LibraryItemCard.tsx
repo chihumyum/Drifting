@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { LibraryItem } from '../../domain/library-item';
-import type { LibraryItemUploadState } from '../../store/data-store';
+import type { LibraryItem, LibraryItemPatch } from '../../domain/library-item';
+import { extractTextFromCommentBody } from '../../domain/comment';
 import type { EntityKind } from '../../lib/extensions/entity-link';
-import { useDataStore } from '../../store/data-store';
-import { platform } from '../../platform';
+import { canUseExternalContent } from '../../lib/config';
 import { EntityRelationPicker, type RelationTarget } from '../../components/rightBars/EntityRelationPicker';
 import {
-  libraryItemImageSrc,
   libraryItemSubtitle,
-  useCachedLibraryItemVariant,
+  useStoredLibraryItemVariant,
 } from './library-item-media';
 
 type LibraryItemContextMenuAction = 'addRelation' | 'openInSystem' | 'delete';
@@ -185,7 +182,6 @@ export function LibraryItemCard({
   onOpenInApp,
   onUpdate,
   onDelete,
-  onRetryUpload,
   onAddRelation,
   onRemoveRelation,
   defaultExpanded = false,
@@ -199,9 +195,8 @@ export function LibraryItemCard({
   onSetEditing: (on: boolean) => void;
   onOpenInSystem: () => void;
   onOpenInApp: () => void;
-  onUpdate: (updates: Partial<LibraryItem>) => void;
+  onUpdate: (updates: LibraryItemPatch) => void;
   onDelete: () => void;
-  onRetryUpload: () => void;
   onAddRelation: (t: RelationTarget) => void;
   onRemoveRelation: (t: RelationTarget) => void;
   /** Pre-expand image / text bodies on mount. Used by the global super view
@@ -215,9 +210,6 @@ export function LibraryItemCard({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [imageExpanded, setImageExpanded] = useState(defaultExpanded);
   const [textExpanded, setTextExpanded] = useState(defaultExpanded);
-  const uploadState = useDataStore((s) => s.libraryItemUploadStates[material.id] ?? null);
-  const uploadBusy = uploadState?.state === 'uploading';
-  const uploadFailed = uploadState?.state === 'failed';
   const selectedSet = useMemo(
     () => new Set(relations.map((r) => `${r.toKind}:${r.toId}`)),
     [relations],
@@ -231,45 +223,18 @@ export function LibraryItemCard({
   const kindLabel = t(`memoMaterial.kind.${material.kind}`, { defaultValue: material.kind });
   const subtitle = libraryItemSubtitle(material);
   const isTextSnippet = material.kind === 'text';
-  const r2Display = useCachedLibraryItemVariant(
+  const assetDisplay = useStoredLibraryItemVariant(
     material,
     'display',
-    material.source === 'r2' && material.kind === 'image' && imageExpanded,
+    material.kind === 'image' && imageExpanded,
   );
-  const imageSrc =
-    material.source === 'r2' && material.kind === 'image'
-      ? r2Display.fileUrl
-      : libraryItemImageSrc(material);
-  const canExpandImage =
-    !uploadBusy &&
-    material.kind === 'image' &&
-    (!!imageSrc || (material.source === 'r2' && !!material.assetId));
-  const isImageExpanded = !uploadBusy && material.kind === 'image' && imageExpanded && !!imageSrc;
+  const imageSrc = material.kind === 'image' ? assetDisplay.fileUrl : null;
+  const canExpandImage = material.kind === 'image';
+  const isImageExpanded = material.kind === 'image' && imageExpanded && !!imageSrc;
   const isTextExpanded = isTextSnippet && textExpanded;
-  const handleOpenInSystem = useCallback(() => {
-    if (uploadBusy) return;
-    onOpenInSystem();
-  }, [onOpenInSystem, uploadBusy]);
-  const handleOpenInApp = useCallback(() => {
-    if (uploadBusy) return;
-    onOpenInApp();
-  }, [onOpenInApp, uploadBusy]);
-  // Auto-generate PDF thumbnails the first time a card renders. macOS Quick
-  // Look (via nativeImage.createThumbnailFromPath) renders the first page;
-  // cache the resulting data URL on the material so we don't redo it.
-  useEffect(() => {
-    if (material.kind !== 'pdf') return;
-    if (material.thumbnailUri) return;
-    if (!material.localPath) return;
-    let cancelled = false;
-    void platform.material.thumbnail(material.localPath, 192).then((res) => {
-      if (cancelled || !res.ok) return;
-      onUpdate({ thumbnailUri: res.dataUrl });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [material.id, material.kind, material.localPath, material.thumbnailUri, onUpdate]);
+  const textBody = material.kind === 'text' ? extractTextFromCommentBody(material.bodyJson) : '';
+  const handleOpenInSystem = useCallback(() => onOpenInSystem(), [onOpenInSystem]);
+  const handleOpenInApp = useCallback(() => onOpenInApp(), [onOpenInApp]);
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
@@ -380,7 +345,6 @@ export function LibraryItemCard({
               title={t('memoMaterial.menu.openInSystem')}
               aria-hidden={!hover}
               tabIndex={hover ? 0 : -1}
-              disabled={uploadBusy}
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 9.5,
@@ -389,7 +353,7 @@ export function LibraryItemCard({
                 border: '1px solid hsl(var(--rule))',
                 background: 'hsl(var(--paper))',
                 color: 'hsl(var(--ink-2))',
-                cursor: uploadBusy ? 'default' : 'pointer',
+                cursor: 'pointer',
                 opacity: hover ? 1 : 0,
                 pointerEvents: hover ? 'auto' : 'none',
                 transition: 'opacity 120ms ease',
@@ -402,11 +366,7 @@ export function LibraryItemCard({
 
         {!isImageExpanded && !isTextExpanded && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', minHeight: 0 }}>
-            <LibraryItemThumbnail
-              material={material}
-              uploadState={uploadState}
-              onClick={handleOpenInApp}
-            />
+            <LibraryItemThumbnail material={material} onClick={handleOpenInApp} />
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
               {editing ? (
                 <input
@@ -465,13 +425,13 @@ export function LibraryItemCard({
                   )}
                 </div>
               )}
-              {(uploadState || (subtitle && !isTextSnippet)) && (
+              {subtitle && !isTextSnippet && (
                 <div
-                  title={uploadFailed ? uploadState.error : material.uri}
+                  title={material.kind === 'url' ? material.externalUrl : undefined}
                   style={{
                     fontFamily: 'var(--font-mono)',
                     fontSize: 10,
-                    color: uploadFailed ? 'hsl(var(--danger, var(--accent)))' : 'hsl(var(--ink-4))',
+                    color: 'hsl(var(--ink-4))',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
@@ -481,30 +441,8 @@ export function LibraryItemCard({
                   <span
                     style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                   >
-                    {uploadBusy
-                      ? t('memoMaterial.upload.uploading')
-                      : uploadFailed
-                        ? t('memoMaterial.upload.failed')
-                        : subtitle}
+                    {subtitle}
                   </span>
-                  {uploadFailed && (
-                    <button
-                      type="button"
-                      onClick={onRetryUpload}
-                      style={{
-                        border: 'none',
-                        background: 'transparent',
-                        padding: 0,
-                        color: 'inherit',
-                        font: 'inherit',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {t('common.retry')}
-                    </button>
-                  )}
                 </div>
               )}
             </div>
@@ -574,15 +512,15 @@ export function LibraryItemCard({
               style={{
                 fontFamily: 'var(--font-sans)',
                 fontSize: 12.5,
-                color: material.bodyJson ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
-                fontStyle: material.bodyJson ? 'normal' : 'italic',
+                color: textBody ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
+                fontStyle: textBody ? 'normal' : 'italic',
                 lineHeight: 1.5,
-                cursor: uploadBusy ? 'default' : 'text',
+                cursor: 'text',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
               }}
             >
-              {material.bodyJson || t('memoMaterial.card.addSnippetBody')}
+              {textBody || t('memoMaterial.card.addSnippetBody')}
             </div>
           </div>
         )}
@@ -592,14 +530,13 @@ export function LibraryItemCard({
             type="button"
             onClick={handleOpenInApp}
             title={t('memoMaterial.card.fullscreenImage')}
-            disabled={uploadBusy}
             style={{
               marginTop: 8,
               padding: 0,
               border: '1px solid hsl(var(--rule))',
               borderRadius: 4,
               background: 'hsl(var(--paper-deep) / 0.35)',
-              cursor: uploadBusy ? 'default' : 'zoom-in',
+              cursor: 'zoom-in',
               overflow: 'hidden',
               width: '100%',
               maxHeight: 220,
@@ -628,10 +565,10 @@ export function LibraryItemCard({
               marginTop: 6,
               fontFamily: 'var(--font-sans)',
               fontSize: 12.5,
-              color: material.bodyJson ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
-              fontStyle: material.bodyJson ? 'normal' : 'italic',
+              color: textBody ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
+              fontStyle: textBody ? 'normal' : 'italic',
               lineHeight: 1.5,
-              cursor: uploadBusy ? 'default' : 'text',
+              cursor: 'text',
               maxHeight: 140,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -642,7 +579,7 @@ export function LibraryItemCard({
               wordBreak: 'break-word',
             }}
           >
-            {material.bodyJson || t('memoMaterial.card.addSnippetBody')}
+            {textBody || t('memoMaterial.card.addSnippetBody')}
           </div>
         )}
 
@@ -679,49 +616,35 @@ export function LibraryItemCard({
 
 function LibraryItemThumbnail({
   material,
-  uploadState,
   onClick,
 }: {
   material: LibraryItem;
-  uploadState: LibraryItemUploadState | null;
   onClick: () => void;
 }) {
   const { t } = useTranslation();
   const size = 64;
   const [errorKey, setErrorKey] = useState<string | null>(null);
-  const uploadBusy = uploadState?.state === 'uploading';
-  const r2Thumbnail = useCachedLibraryItemVariant(
+  const externalContentEnabled = canUseExternalContent();
+  const assetThumbnail = useStoredLibraryItemVariant(
     material,
     'thumbnail',
-    material.source === 'r2' && (material.kind === 'image' || material.kind === 'pdf'),
+    material.kind === 'image' || material.kind === 'pdf',
   );
-  const currentImageKey = `${material.id}:${material.assetId ?? ''}:${r2Thumbnail.fileUrl ?? material.thumbnailUri ?? material.uri}`;
+  const currentImageKey = `${material.id}:${material.assetId ?? ''}:${assetThumbnail.fileUrl ?? material.previewImageUrl ?? material.externalUrl ?? ''}`;
   const errored = errorKey === currentImageKey;
   let src: string | null = null;
   if (!errored) {
-    if (material.source === 'r2' && (material.kind === 'image' || material.kind === 'pdf')) {
-      src = r2Thumbnail.fileUrl;
-    } else if (material.kind === 'image') {
-      // Tauri exposes app-owned imports through its scoped asset protocol.
-      // Arbitrary legacy paths intentionally fail closed and can still be
-      // opened through the native command or re-imported into app storage.
-      src = libraryItemImageSrc(material);
-    } else if (material.kind === 'pdf' && material.thumbnailUri) {
-      src = material.thumbnailUri;
-    } else if (material.kind === 'url' && material.thumbnailUri) {
-      src = material.thumbnailUri;
+    if (material.kind === 'image' || material.kind === 'pdf') {
+      src = assetThumbnail.fileUrl;
+    } else if (material.kind === 'url' && externalContentEnabled) {
+      src = material.previewImageUrl;
     }
   }
   if (!src) {
-    if (
-      material.kind === 'text' ||
-      (material.kind === 'pdf' && !material.localPath && material.source !== 'r2')
-    ) {
-      return null;
-    }
+    if (material.kind === 'text') return null;
     return (
       <div
-        onClick={uploadBusy ? undefined : onClick}
+        onClick={onClick}
         style={{
           width: size,
           height: size,
@@ -734,7 +657,7 @@ function LibraryItemThumbnail({
           fontFamily: 'var(--font-mono)',
           fontSize: 9.5,
           color: 'hsl(var(--ink-4))',
-          cursor: uploadBusy ? 'default' : 'pointer',
+          cursor: 'pointer',
         }}
         title={
           material.kind === 'pdf'
@@ -742,13 +665,7 @@ function LibraryItemThumbnail({
             : t('memoMaterial.preview.open')
         }
       >
-        {uploadBusy ? (
-          <Loader2
-            size={15}
-            style={{ animation: 'drift-spin 900ms linear infinite' }}
-            aria-hidden
-          />
-        ) : material.kind === 'pdf' ? (
+        {material.kind === 'pdf' ? (
           '...'
         ) : (
           t(`memoMaterial.kind.${material.kind}`, { defaultValue: material.kind })
@@ -759,8 +676,7 @@ function LibraryItemThumbnail({
   return (
     <button
       type="button"
-      onClick={uploadBusy ? undefined : onClick}
-      disabled={uploadBusy}
+      onClick={onClick}
       style={{
         width: size,
         height: size,
@@ -768,12 +684,12 @@ function LibraryItemThumbnail({
         border: '1px solid hsl(var(--rule))',
         borderRadius: 3,
         background: 'hsl(var(--paper-deep))',
-        cursor: uploadBusy ? 'default' : 'pointer',
+        cursor: 'pointer',
         padding: 0,
         overflow: 'hidden',
         position: 'relative',
       }}
-      title={uploadBusy ? t('memoMaterial.upload.uploading') : t('memoMaterial.preview.open')}
+      title={t('memoMaterial.preview.open')}
     >
       <img
         src={src}
@@ -786,24 +702,6 @@ function LibraryItemThumbnail({
           objectFit: 'cover',
         }}
       />
-      {uploadBusy && (
-        <span
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'grid',
-            placeItems: 'center',
-            background: 'hsl(var(--paper) / 0.64)',
-            color: 'hsl(var(--ink-3))',
-          }}
-        >
-          <Loader2
-            size={15}
-            style={{ animation: 'drift-spin 900ms linear infinite' }}
-            aria-hidden
-          />
-        </span>
-      )}
     </button>
   );
 }

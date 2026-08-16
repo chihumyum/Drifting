@@ -19,8 +19,8 @@ import {
 // Entity relations are user-curated cross-entity links. fromKind is any
 // EntityKind (memo / material can link OUT); toKind is constrained to
 // structural — see isStructuralEntityKind below and the runtime guard in
-// addRelation. The same pair with different `kind` values stays as separate
-// rows so the story graph can render them as distinct edges.
+// addRelation. The same pair with different relation types stays as separate
+// rows so the story graph can render them as distinct semantic edges.
 
 export interface EntityRelationRecord {
   id: string;
@@ -29,9 +29,7 @@ export interface EntityRelationRecord {
   fromId: string;
   toKind: StructuralEntityKind;
   toId: string;
-  /** Free-form relation category. */
-  kind: string | null;
-  relationTypeId: string | null;
+  relationTypeId: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,8 +42,7 @@ export interface EntityRelationBacklink {
   fromTitle: string;
   toKind: StructuralEntityKind;
   toId: string;
-  kind: string | null;
-  relationTypeId: string | null;
+  relationTypeId: string;
   createdAt: string;
 }
 
@@ -56,11 +53,11 @@ export interface EntityRelationRepository {
     fromId: string,
     toKind: EntityRefTargetKind,
     toId: string,
-    options?: { kind?: string | null; relationTypeId?: string | null },
+    options: { relationTypeId: string },
   ): Promise<EntityRelationRecord>;
 
   // Deletes a single row by id. Pair-based delete is unsound now that the same
-  // pair can carry multiple `kind` values — callers hold the row id.
+  // pair can carry multiple relation types — callers hold the row id.
   removeRelation(id: string): Promise<void>;
 
   listRelationsFromSource(
@@ -92,8 +89,7 @@ function toRecord(
     fromId: row.fromId,
     toKind: row.toKind as StructuralEntityKind,
     toId: row.toId,
-    kind: row.kind ?? null,
-    relationTypeId: row.relationTypeId ?? null,
+    relationTypeId: row.relationTypeId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -107,7 +103,7 @@ export function createEntityRelationRepository(dbOverride?: DbExecutor): EntityR
     fromId: string,
     toKind: EntityRefTargetKind,
     toId: string,
-    options?: { kind?: string | null; relationTypeId?: string | null },
+    options: { relationTypeId: string },
   ): Promise<EntityRelationRecord> => {
     if (!isStructuralEntityKind(toKind)) {
       throw new Error(
@@ -124,8 +120,7 @@ export function createEntityRelationRepository(dbOverride?: DbExecutor): EntityR
       fromId,
       toKind,
       toId,
-      kind: options?.kind?.trim() || null,
-      relationTypeId: options?.relationTypeId ?? null,
+      relationTypeId: options.relationTypeId,
       createdAt: now,
       updatedAt: now,
     };
@@ -168,7 +163,6 @@ export function createEntityRelationRepository(dbOverride?: DbExecutor): EntityR
         fromId: EntityRelationTable.fromId,
         toKind: EntityRelationTable.toKind,
         toId: EntityRelationTable.toId,
-        kind: EntityRelationTable.kind,
         relationTypeId: EntityRelationTable.relationTypeId,
         createdAt: EntityRelationTable.createdAt,
         nodeTitle: BookNodeTable.title,
@@ -221,8 +215,7 @@ export function createEntityRelationRepository(dbOverride?: DbExecutor): EntityR
         row.nodeTitle ?? row.elementName ?? row.categoryName ?? row.storylineName ?? '',
       toKind: row.toKind as StructuralEntityKind,
       toId: row.toId,
-      kind: row.kind ?? null,
-      relationTypeId: row.relationTypeId ?? null,
+      relationTypeId: row.relationTypeId,
       createdAt: row.createdAt,
     }));
   };

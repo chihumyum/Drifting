@@ -3,8 +3,9 @@ mod android_image_codec;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod apple_image_codec;
 mod commands;
-mod data_migration;
+mod data_paths;
 mod database;
+mod google_drive_sync;
 mod image_pipeline;
 mod mcp_http;
 mod mcp_stdio;
@@ -12,6 +13,8 @@ mod native_capabilities;
 mod openai_responses;
 mod secure_storage;
 mod state;
+mod sync_asset_store;
+mod sync_object_store;
 mod system_fonts;
 
 use std::sync::Arc;
@@ -44,6 +47,26 @@ struct LifecyclePayload {
 }
 
 fn record_deep_links(app: &tauri::AppHandle, urls: Vec<String>) {
+    if urls.is_empty() {
+        return;
+    }
+
+    #[cfg(target_os = "ios")]
+    let urls = urls
+        .into_iter()
+        .filter_map(|url| {
+            if google_drive_sync::is_private_google_oauth_callback_url(&url) {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    google_drive_sync::handle_private_google_oauth_callback(&app, &url).await;
+                });
+                None
+            } else {
+                Some(url)
+            }
+        })
+        .collect::<Vec<_>>();
+
     if urls.is_empty() {
         return;
     }
@@ -101,6 +124,9 @@ pub fn run() {
         .plugin(tauri_plugin_drifting_secure_storage::init())
         .plugin(tauri_plugin_drifting_image_codec::init());
 
+    #[cfg(any(target_os = "ios", target_os = "android"))]
+    let builder = builder.plugin(tauri_plugin_drifting_google_drive_oauth::init());
+
     #[cfg(target_os = "ios")]
     let mut context = tauri::generate_context!();
     #[cfg(not(target_os = "ios"))]
@@ -131,6 +157,7 @@ pub fn run() {
         .manage(mcp_http::McpHttpState::default())
         .manage(mcp_stdio::McpStdioState::default())
         .manage(openai_responses::OpenAIResponsesState::default())
+        .manage(google_drive_sync::GoogleDriveState::default())
         .invoke_handler(tauri::generate_handler![
             commands::app_get_info,
             commands::app_get_path,
@@ -158,6 +185,32 @@ pub fn run() {
             secure_storage::keychain_has,
             secure_storage::keychain_set,
             secure_storage::keychain_delete,
+            sync_object_store::sync_object_allocate_protocol,
+            sync_object_store::sync_object_append_protocol_chunk,
+            sync_object_store::sync_object_finalize_protocol,
+            sync_object_store::sync_object_discard_local,
+            sync_object_store::sync_object_gc_orphans,
+            sync_object_store::sync_object_stage_asset_source,
+            sync_object_store::sync_object_read_protocol_chunk,
+            sync_asset_store::sync_asset_capture_source,
+            sync_asset_store::sync_asset_prepare_restore_source,
+            sync_asset_store::sync_asset_activate_restore_sources,
+            sync_asset_store::sync_asset_abandon_restore_attempt,
+            sync_asset_store::sync_asset_finalize_restore_attempt,
+            sync_asset_store::sync_asset_gc_restore_attempts,
+            google_drive_sync::google_drive_oauth_connect,
+            google_drive_sync::google_drive_claim_account,
+            google_drive_sync::google_drive_oauth_reauthorize,
+            google_drive_sync::google_drive_discover_project_snapshots,
+            google_drive_sync::google_drive_open_generation,
+            google_drive_sync::google_drive_capture_start_cursor,
+            google_drive_sync::google_drive_list_inventory,
+            google_drive_sync::google_drive_list_changes,
+            google_drive_sync::google_drive_stat_immutable,
+            google_drive_sync::google_drive_upload_immutable,
+            google_drive_sync::google_drive_download_verified_immutable,
+            google_drive_sync::google_drive_revoke_account,
+            google_drive_sync::google_drive_cancel_transfer,
             native_capabilities::material_open_local,
             native_capabilities::material_pick_file,
             native_capabilities::material_delete_import,
@@ -168,12 +221,11 @@ pub fn run() {
             native_capabilities::material_create_image_variant,
             native_capabilities::material_create_thumbnail_variant,
             native_capabilities::material_resolve_url_meta,
-            native_capabilities::asset_cache_get_path,
-            native_capabilities::asset_cache_write_bytes,
-            native_capabilities::asset_cache_copy_file,
-            native_capabilities::asset_cache_upload_file,
-            native_capabilities::asset_cache_download,
-            native_capabilities::asset_cache_delete_asset,
+            native_capabilities::asset_store_get_path,
+            native_capabilities::asset_store_write_bytes,
+            native_capabilities::asset_store_copy_file,
+            native_capabilities::asset_store_delete_asset,
+            native_capabilities::archive_save,
             native_capabilities::ai_log_write,
             native_capabilities::ai_log_open_dir,
             native_capabilities::ai_log_get_dir,
@@ -187,7 +239,7 @@ pub fn run() {
             database::database_close,
         ])
         .setup(|app| {
-            let data_directories = data_migration::prepare_data_directories(app.handle())
+            let data_directories = data_paths::prepare_data_directories(app.handle())
                 .map_err(std::io::Error::other)?;
             let database_directory = data_directories.database_directory;
             let database_gateway = database::DatabaseGateway::new(database_directory)

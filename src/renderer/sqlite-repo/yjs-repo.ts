@@ -65,8 +65,11 @@ export interface YjsRepository {
   listUpdates(docId: string, sinceId?: number): Promise<YjsUpdateRow[]>;
   listDocIds(): Promise<string[]>;
   /**
-   * Append a local update and advance the durable per-document revision in one
-   * transaction. The revision survives update-log compaction.
+   * Low-level append used inside an already-authoritative persistence path.
+   * Ordinary authored edits must call `appendAuthoredYjsUpdate`, which wraps
+   * this row and its revision/provenance in the same transaction as the sync
+   * change-set. Remote reducers use this method inside their remote apply
+   * transaction and must never route through the authored helper.
    */
   appendUpdate(
     docId: string,
@@ -101,8 +104,8 @@ export interface YjsRepository {
   maxUpdateId(docId: string): Promise<number>;
   /**
    * Delete update rows with id <= maxId for this doc. Used by compaction
-   * once a snapshot has absorbed (and, when syncing, the server has durably
-   * received) those updates. Returns the number of rows pruned.
+   * only after a snapshot has absorbed the rows and their immutable sync
+   * journal records have committed. Returns the number of rows pruned.
    */
   deleteUpdatesUpTo(docId: string, maxId: number): Promise<number>;
 }
@@ -356,10 +359,18 @@ export function createYjsRepository(dbOverride?: DbExecutor): YjsRepository {
   };
 
   const listDocIds = async (): Promise<string[]> => {
-    const rows = await dbProvider()
+    const updateRows = await dbProvider()
       .selectDistinct({ docId: yjsUpdates.docId })
       .from(yjsUpdates);
-    return rows.map((row) => row.docId);
+    const snapshotRows = await dbProvider()
+      .selectDistinct({ docId: yjsSnapshots.docId })
+      .from(yjsSnapshots);
+    return [
+      ...new Set([
+        ...updateRows.map((row) => row.docId),
+        ...snapshotRows.map((row) => row.docId),
+      ]),
+    ];
   };
 
   const getSnapshot = async (docId: string): Promise<YjsSnapshotRow | null> => {

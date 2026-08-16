@@ -715,14 +715,14 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
   },
   {
     name: 'add_relation',
-    description: '按已配置的项目关系类型创建一条作者策展的跨实体关系边。',
+    description: '按项目关系类型创建一条作者策展的跨实体关系边。',
     parametersSchema: Type.Object(
       {
         fromKind: str('源实体类型'),
         from: str('源实体名称'),
         toKind: str('目标实体类型'),
         to: str('目标实体名称'),
-        relationType: str('已配置的关系类型名称'),
+        relationType: str('关系类型名称'),
       },
       { additionalProperties: false },
     ),
@@ -750,12 +750,12 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     aliases: ['delete relation', '删除关系'],
   },
   {
-    name: 'update_relation_kind',
-    description: '按 relationId 改用另一个已配置的项目关系类型。',
+    name: 'assign_relation_type',
+    description: '按 relationId 指定另一个项目关系类型。',
     parametersSchema: Type.Object(
       {
         relationId: str('来自 get_entity_relations 的 relationId'),
-        relationType: str('已配置的关系类型名称'),
+        relationType: str('关系类型名称'),
       },
       { additionalProperties: false },
     ),
@@ -765,7 +765,7 @@ const GENERAL_WRITE_TOOL_SPECS: ClassifiedToolSpec[] = [
     approval: 'automatic',
     retry: 'inspect_before_retry',
     revertStrategy: 'exact_inverse',
-    aliases: ['relabel relation', '修改关系类型'],
+    aliases: ['assign relation type', '指定关系类型'],
   },
   {
     name: 'create_relation_type',
@@ -1493,14 +1493,14 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
   ),
   domainRuntimeWriteSpec(
     'create_relation',
-    '用一个已配置的项目关系类型，在两个已存在的实体之间新建关系。名称参数只传纯名称。',
+    '用一个项目关系类型，在两个已存在的实体之间新建关系。名称参数只传纯名称。',
     Type.Object(
       {
         fromType: domainEntityType,
         fromName: str('起点实体纯名称'),
         toType: domainEntityType,
         toName: str('终点实体纯名称'),
-        relationType: str('来自 list_relation_types 的已配置关系类型名称'),
+        relationType: str('来自 list_relation_types 的关系类型名称'),
       },
       { additionalProperties: false },
     ),
@@ -1508,9 +1508,12 @@ const DOMAIN_RUNTIME_WRITE_TOOL_SPECS: InternalToolSpec[] = [
   ),
   domainRuntimeWriteSpec(
     'update_relation',
-    '按 relationId 改用另一个已配置的项目关系类型。',
+    '按 relationId 指定另一个项目关系类型。',
     Type.Object(
-      { relationId: str('来自 list_relations 或 list_entity_relations'), relationType: str('来自 list_relation_types 的已配置关系类型名称') },
+      {
+        relationId: str('来自 list_relations 或 list_entity_relations'),
+        relationType: str('来自 list_relation_types 的关系类型名称'),
+      },
       { additionalProperties: false },
     ),
     { effect: 'graph', concurrency: 'exclusive_project' },

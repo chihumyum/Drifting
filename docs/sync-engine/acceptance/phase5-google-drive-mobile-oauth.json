@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-phase5-google-drive-mobile-oauth",
+  "recordedAt": "2026-08-15",
+  "status": "machine-implementation-complete",
+  "rendererContract": {
+    "connectAccountOpaque": true,
+    "reauthorizeAccountOpaque": true,
+    "revokeAccountOpaque": true,
+    "accessTokenVisible": false,
+    "refreshTokenVisible": false,
+    "authorizationCodeVisible": false,
+    "emailUsedAsIdentity": false
+  },
+  "mobileCredential": {
+    "cardinality": "one-app-wide-google-slot",
+    "persistedMaterial": ["platform", "clientId", "accountSubject", "ownership"],
+    "rawAccessTokenPersistedByDrifting": false,
+    "rawRefreshTokenPersistedByDrifting": false,
+    "sdkOwnsAccountAndTokenLifecycle": true,
+    "ownershipStates": ["provisional", "claimed"],
+    "sameSubjectReauthorizeRequired": true,
+    "revokeFailureRetainsOwnership": true,
+    "missingSdkAccountIsTerminalRevoke": false
+  },
+  "ios": {
+    "sdk": "GoogleSignIn",
+    "version": "9.2.0",
+    "subjectSource": "GIDGoogleUser.userID",
+    "freshTokenSource": "GIDGoogleUser.refreshTokensIfNeeded",
+    "revokeSource": "GIDSignIn.disconnect",
+    "callback": "native-GIDSignIn.handle",
+    "webViewFlow": false
+  },
+  "android": {
+    "sdk": "play-services-auth",
+    "version": "21.6.0",
+    "authorizationApi": "AuthorizationClient",
+    "subjectSource": "AuthorizationResult.toGoogleSignInAccount.id",
+    "revokeSource": "AuthorizationClient.revokeAccess",
+    "resultBridge": "PendingIntent-activity-result",
+    "webViewFlow": false
+  },
+  "scope": {
+    "requestedGoogleDataScopes": [
+      "https://www.googleapis.com/auth/drive.appdata"
+    ],
+    "driveScope": false,
+    "driveFileScope": false,
+    "emailScope": false
+  },
+  "buildConfiguration": {
+    "checkedInClientIds": false,
+    "separateDesktopIosAndroidClientsRequired": true,
+    "sameGoogleCloudProjectRequired": true,
+    "sameGoogleCloudProjectStaticallyVerified": false,
+    "iosExactReversedSchemeRequired": true,
+    "androidPackageAndSigningCertificateBindingRequired": true,
+    "missingConfigurationAdvertisesCapability": false,
+    "mobileDevRootEnvFileLoadedBeforeNativeBuild": true,
+    "explicitShellOrCiEnvironmentWins": true,
+    "iosGeneratedLocalXcconfigIgnoredAndOwnerOnly": true,
+    "iosAppAuthPresentationCategoryBridge": true,
+    "launcherPrintsClientValues": false
+  },
+  "machineAcceptance": {
+    "focusedRustTests": {
+      "passed": 14,
+      "failed": 0
+    },
+    "mobileArchitectureTests": {
+      "passed": 6,
+      "failed": 0
+    },
+    "mobileLauncherEnvironmentTests": {
+      "passed": 5,
+      "failed": 0
+    },
+    "cargoCheck": "passed",
+    "cargoFmtCheck": "passed",
+    "typescriptTypecheck": "passed",
+    "iosArm64SimulatorDebugBuild": "passed",
+    "androidUniversalDebugApkBuild": "passed",
+    "androidRustAbis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]
+  },
+  "realAccountGates": {
+    "ios": false,
+    "android": false,
+    "sameProjectCrossClient": false,
+    "sameSubjectAcrossDesktopIosAndroid": false,
+    "sameAccountProjectDiscovery": false,
+    "refreshAfterRestart": false,
+    "revokePropagation": false,
+    "physicalDeviceMatrix": false
+  },
+  "commands": [
+    "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check",
+    "cargo check --manifest-path src-tauri/Cargo.toml --lib",
+    "cargo test --manifest-path src-tauri/Cargo.toml --lib google_drive_sync::tests",
+    "pnpm exec vitest run src/renderer/platform/mobile-tauri-launcher.acceptance.test.ts src/renderer/sync/providers/google-drive/mobile-oauth.architecture.test.ts --reporter=verbose",
+    "pnpm typecheck",
+    "pnpm exec cross-env VITE_LOCAL_ONLY_MODE=true VITE_REQUIRE_AUTH=false VITE_AI_TRANSPORT=direct VITE_API_BASE_URL=http://localhost:3000 API_BASE_URL=http://localhost:3000 tauri ios build --debug --target aarch64-sim --ci",
+    "pnpm exec cross-env VITE_LOCAL_ONLY_MODE=true VITE_REQUIRE_AUTH=false VITE_AI_TRANSPORT=direct VITE_API_BASE_URL=http://localhost:3000 API_BASE_URL=http://localhost:3000 tauri android build --debug --apk"
+  ]
+}

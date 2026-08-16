@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "milestone": "phase5-google-drive-connect-and-discovery",
+  "recordedAt": "2026-08-16",
+  "currentContract": true,
+  "status": "machine-implemented-real-account-and-physical-gates-open",
+  "entryPoint": "src/renderer/sync/restore/google-drive-product-connect.ts#connectGoogleDriveFromProduct",
+  "claims": {
+    "oneGoogleSignInAction": true,
+    "googleAccountIsCrossDeviceAccessAuthority": true,
+    "automaticAccountProjectDiscoveryBeforeLocalPublication": true,
+    "appWideAtomicActivation": true,
+    "networkOutsideSqliteTransactions": true,
+    "markerPublishedLast": true,
+    "durableLocalRemoteCheckpointTransferReceipts": true,
+    "responseLossReconciledByImmutableStat": true,
+    "conflictingProviderUploadMetadataFailsClosed": true,
+    "separateRecoveryCodeOrQr": false,
+    "applicationManagedProjectContentKey": false,
+    "pendingConnectCanCancel": true,
+    "cancellationPreservesLocalProjects": true,
+    "periodicCheckpointBlocksGapConflictQuarantine": true,
+    "settingsUiConnected": true,
+    "mobileGoogleOauthImplemented": true,
+    "realGoogleAccountAcceptance": false
+  },
+  "commands": [
+    "pnpm exec vitest run src/renderer/sync/product-commands.integration.test.ts src/renderer/sync/app-authority-repository.integration.test.ts src/renderer/sync/product-authority-store.integration.test.ts src/renderer/sync/connect/capability-gate.test.ts src/renderer/sync/connect/pending-transition-cancel.integration.test.ts src/renderer/sync/restore/google-drive-restore.integration.test.ts src/renderer/features/settings/personal-cloud-settings.acceptance.test.ts src/renderer/platform/tauri.test.ts --reporter=verbose",
+    "pnpm exec eslint src/renderer/sync/app-authority-repository.ts src/renderer/sync/app-authority-repository.integration.test.ts src/renderer/sync/product-authority-store.ts src/renderer/sync/product-authority-store.integration.test.ts src/renderer/sync/product-commands.ts src/renderer/sync/product-commands.integration.test.ts src/renderer/sync/connect/capability-gate.ts src/renderer/sync/connect/capability-gate.test.ts src/renderer/sync/connect/pending-transition-cancel.ts src/renderer/sync/connect/pending-transition-cancel.integration.test.ts src/renderer/sync/restore/google-drive-product-connect.ts src/renderer/features/settings/panels/ControlSettingsPanels.tsx src/renderer/features/settings/personal-cloud-settings.acceptance.test.ts",
+    "pnpm typecheck",
+    "cargo fmt --check --manifest-path src-tauri/Cargo.toml",
+    "cargo test google_drive_sync --lib --manifest-path src-tauri/Cargo.toml",
+    "cargo check --manifest-path src-tauri/Cargo.toml"
+  ],
+  "openGates": [
+    "real Google account desktop iOS Android acceptance",
+    "fresh-device automatic same-account Project discovery",
+    "same-Project cross-device convergence",
+    "physical background force-stop offline and large-asset resume"
+  ]
+}

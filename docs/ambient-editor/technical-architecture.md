@@ -178,10 +178,10 @@ semantic projection completed.
 
 ### 5.3 Discovery
 
-Yjs persistence, entity mutation completion, sync pull, Lens changes, and app
-resume may all request a scan. These events are optimization hints. Startup and
-periodic reconciliation compare actual source heads so a missed event cannot
-leave a source permanently clean.
+Yjs persistence, authored transaction completion, future SyncEngine remote
+apply, Lens changes, and app resume may all request a scan. These events are
+optimization hints. Startup and periodic reconciliation compare actual source
+heads so a missed event cannot leave a source permanently clean.
 
 React editor lifecycle and Copilot debounce are not authoritative triggers
 because they only observe currently mounted editors.

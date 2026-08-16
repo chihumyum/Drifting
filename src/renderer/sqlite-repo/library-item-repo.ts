@@ -1,12 +1,16 @@
+import { and, asc, desc, eq } from 'drizzle-orm';
+import type {
+  LibraryAssetItem,
+  LibraryItem,
+  LibraryItemPatch,
+  LibraryTextItem,
+  LibraryUrlItem,
+} from '../domain/library-item';
 import { getDb, type DbExecutor } from '../lib/db';
 import { LibraryItemTable } from '../schema/drizzle';
-import { eq, asc, desc } from 'drizzle-orm';
-import type { LibraryItem, LibraryItemKind, LibraryItemSource } from '../domain/library-item';
 
 export type LibraryItemCreateData = LibraryItem;
-export type LibraryItemUpdateData = Partial<Omit<LibraryItem, 'id' | 'createdAt' | 'projectId'>> & {
-  updatedAt: string;
-};
+export type LibraryItemUpdateData = LibraryItemPatch & { updatedAt: string };
 
 export interface LibraryItemRepository {
   findById(id: string): Promise<LibraryItem | null>;
@@ -16,25 +20,52 @@ export interface LibraryItemRepository {
   delete(id: string): Promise<boolean>;
 }
 
-function toDomain(record: typeof LibraryItemTable.$inferSelect): LibraryItem {
+function base(record: typeof LibraryItemTable.$inferSelect) {
   return {
     id: record.id,
     projectId: record.projectId,
     title: record.title,
-    kind: record.kind as LibraryItemKind,
-    source: record.source as LibraryItemSource,
-    uri: record.uri,
-    localPath: record.localPath,
-    assetId: record.assetId,
-    mime: record.mime,
-    sizeBytes: record.sizeBytes,
-    bodyJson: record.bodyJson,
     notesJson: record.notesJson,
-    thumbnailUri: record.thumbnailUri,
     orderKey: record.orderKey,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
+}
+
+function toDomain(record: typeof LibraryItemTable.$inferSelect): LibraryItem {
+  if (record.kind === 'image' || record.kind === 'pdf') {
+    if (!record.assetId) throw new Error(`Library asset item ${record.id} has no asset binding`);
+    return {
+      ...base(record),
+      kind: record.kind,
+      assetId: record.assetId,
+      externalUrl: null,
+      previewImageUrl: null,
+      bodyJson: null,
+    } satisfies LibraryAssetItem;
+  }
+  if (record.kind === 'url') {
+    if (!record.externalUrl) throw new Error(`Library URL item ${record.id} has no URL`);
+    return {
+      ...base(record),
+      kind: 'url',
+      assetId: null,
+      externalUrl: record.externalUrl,
+      previewImageUrl: record.previewImageUrl,
+      bodyJson: null,
+    } satisfies LibraryUrlItem;
+  }
+  if (record.kind === 'text') {
+    return {
+      ...base(record),
+      kind: 'text',
+      assetId: null,
+      externalUrl: null,
+      previewImageUrl: null,
+      bodyJson: record.bodyJson,
+    } satisfies LibraryTextItem;
+  }
+  throw new Error(`Unsupported library item kind: ${record.kind}`);
 }
 
 export function createLibraryItemSqliteRepository(
@@ -47,69 +78,51 @@ export function createLibraryItemSqliteRepository(
     const rows = await dbProvider()
       .select()
       .from(LibraryItemTable)
-      .where(eq(LibraryItemTable.id, id))
+      .where(and(eq(LibraryItemTable.id, id), eq(LibraryItemTable.projectId, projectId)))
       .limit(1);
     return rows[0] ? toDomain(rows[0]) : null;
   };
 
-  const findAll = async (): Promise<LibraryItem[]> => {
-    const rows = await dbProvider()
-      .select()
-      .from(LibraryItemTable)
-      .where(eq(LibraryItemTable.projectId, projectId))
-      .orderBy(asc(LibraryItemTable.orderKey), desc(LibraryItemTable.updatedAt));
-    return rows.map(toDomain);
-  };
-
   return {
     findById,
-    findAll,
-    create: async (input) => {
-      const row: typeof LibraryItemTable.$inferInsert = {
-        id: input.id,
-        projectId: input.projectId,
-        title: input.title,
-        kind: input.kind,
-        source: input.source,
-        uri: input.uri,
-        localPath: input.localPath,
-        assetId: input.assetId,
-        mime: input.mime,
-        sizeBytes: input.sizeBytes,
-        bodyJson: input.bodyJson,
-        notesJson: input.notesJson,
-        thumbnailUri: input.thumbnailUri,
-        orderKey: input.orderKey,
-        createdAt: input.createdAt,
-        updatedAt: input.updatedAt,
-      };
-      await dbProvider().insert(LibraryItemTable).values(row);
+    async findAll() {
+      const rows = await dbProvider()
+        .select()
+        .from(LibraryItemTable)
+        .where(eq(LibraryItemTable.projectId, projectId))
+        .orderBy(asc(LibraryItemTable.orderKey), desc(LibraryItemTable.updatedAt));
+      return rows.map(toDomain);
+    },
+    async create(input) {
+      if (input.projectId !== projectId) {
+        throw new Error(`Cannot create a library item for project ${input.projectId} in ${projectId}`);
+      }
+      await dbProvider().insert(LibraryItemTable).values(input);
       return (await findById(input.id))!;
     },
-    update: async (id, data) => {
-      if (!data.updatedAt) throw new Error('updatedAt is required when updating a library item');
-
+    async update(id, data) {
       const updateValues: Partial<typeof LibraryItemTable.$inferInsert> = {
         updatedAt: data.updatedAt,
       };
       if (data.title !== undefined) updateValues.title = data.title;
-      if (data.kind !== undefined) updateValues.kind = data.kind;
-      if (data.source !== undefined) updateValues.source = data.source;
-      if (data.uri !== undefined) updateValues.uri = data.uri;
-      if (data.localPath !== undefined) updateValues.localPath = data.localPath;
-      if (data.assetId !== undefined) updateValues.assetId = data.assetId;
-      if (data.mime !== undefined) updateValues.mime = data.mime;
-      if (data.sizeBytes !== undefined) updateValues.sizeBytes = data.sizeBytes;
       if (data.bodyJson !== undefined) updateValues.bodyJson = data.bodyJson;
       if (data.notesJson !== undefined) updateValues.notesJson = data.notesJson;
-      if (data.thumbnailUri !== undefined) updateValues.thumbnailUri = data.thumbnailUri;
+      if (data.previewImageUrl !== undefined)
+        updateValues.previewImageUrl = data.previewImageUrl;
       if (data.orderKey !== undefined) updateValues.orderKey = data.orderKey;
 
-      await dbProvider().update(LibraryItemTable).set(updateValues).where(eq(LibraryItemTable.id, id));
+      await dbProvider()
+        .update(LibraryItemTable)
+        .set(updateValues)
+        .where(and(eq(LibraryItemTable.id, id), eq(LibraryItemTable.projectId, projectId)));
       return findById(id);
     },
-    delete: async (id) => {
-      await dbProvider().delete(LibraryItemTable).where(eq(LibraryItemTable.id, id));
+    async delete(id) {
+      const existing = await findById(id);
+      if (!existing) return false;
+      await dbProvider()
+        .delete(LibraryItemTable)
+        .where(and(eq(LibraryItemTable.id, id), eq(LibraryItemTable.projectId, projectId)));
       return true;
     },
   };

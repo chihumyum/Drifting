@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "contract": "trusted-cloud-google-drive",
+  "recordedAt": "2026-08-16",
+  "status": "current-product-contract",
+  "implementationAcceptance": "real-account-and-physical-device-gates-open",
+  "localMode": {
+    "accountRequired": false,
+    "networkRequired": false,
+    "cloudProviderConnectedByDefault": false
+  },
+  "provider": {
+    "kind": "google-drive",
+    "space": "appDataFolder",
+    "role": "durable-object-transport",
+    "databaseOrMergeEngine": false
+  },
+  "trustBoundary": {
+    "googleOauthTrusted": true,
+    "googleDriveTrusted": true,
+    "applicationManagedProjectContentKey": false,
+    "endToEndEncryptedAgainstGoogle": false,
+    "transportTlsRequired": true,
+    "googleStorageProtectionApplies": true
+  },
+  "identity": {
+    "driftingAccountRequired": false,
+    "crossDeviceAccessAuthority": "google-account-sign-in",
+    "googleAccountSubjectIsProviderIdentity": true,
+    "rendererReceivesAccessToken": false,
+    "rendererReceivesRefreshToken": false,
+    "rendererReceivesOpaqueCredentialReference": true
+  },
+  "connect": {
+    "userAction": "google-sign-in",
+    "accountScopedDiscovery": "automatic-before-local-publication",
+    "recoveryCodeRequired": false,
+    "recoveryQrRequired": false,
+    "separateRestoreSecretRequired": false
+  },
+  "restore": {
+    "userAction": "google-sign-in",
+    "accountScopedDiscovery": "automatic",
+    "separateRestoreForm": false,
+    "isolatedStagingBeforeActivation": true,
+    "partialProjectsBecomeVisible": false
+  },
+  "terminology": {
+    "userVisibleEnglish": "Project",
+    "userVisibleChinese": "项目",
+    "stableCrossDeviceIdentity": "ProjectSync",
+    "immutableLogGeneration": "SyncGeneration",
+    "opaqueProviderHandle": "generationRef"
+  },
+  "releaseGates": {
+    "realGoogleAccountDesktop": false,
+    "realGoogleAccountIos": false,
+    "realGoogleAccountAndroid": false,
+    "freshDeviceAutomaticProjectDiscovery": false,
+    "crossDeviceConvergence": false,
+    "physicalBackgroundForceStopOfflineMatrix": false,
+    "largeAssetResume": false,
+    "realAccountRevokeAndReauthorize": false
+  }
+}

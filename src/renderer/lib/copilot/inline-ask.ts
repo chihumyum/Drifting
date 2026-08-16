@@ -1,29 +1,23 @@
 /**
- * Inline-ask (renderer) — the manual "discuss / get feedback on my prose"
- * capability (copilot popover「提问 / 讨论」). Phase 5: the ask prompt prose is
- * built + run on the SERVER and streamed back; this file only ships the prose
- * CONTEXT (the author's own text) and consumes the stream.
+ * Inline-ask — the manual "discuss / get feedback on my prose" capability
+ * (copilot popover「提问 / 讨论」). Unlike inline-edit, this NEVER touches the
+ * document: the author asks a question about a passage ("这段节奏好不好？",
+ * "他这句话符合人设吗？") and gets a streamed, free-form answer back. It's a
+ * read-only, multi-turn conversation that lives only in the popover — nothing
+ * is persisted.
  *
- * Transport: native `fetch` (NOT axios — axios buffers the body, defeating
- * streaming) to `POST /api/ai/stream/inline-ask`. Auth rides the bearer token
- * (Authorization header), NOT cookies — same as the shared axios client. Cookies
- * are omitted on purpose: a cookie-bearing cross-site/custom-scheme request has
- * no usable Origin and better-auth rejects it (MISSING_OR_NULL_ORIGIN). The
- * server replies with NDJSON frames: {delta} per chunk, a terminal {usage}, or
- * {error} on failure. We yield each delta string, so the popover consumer
- * (`for await (const delta of ...)`) is unchanged.
- *
- * Nothing is persisted — this is an ephemeral chat living only in the popover.
+ * Why this doesn't go through definePrompt/callStructured: those force a
+ * single-turn tool call for structured JSON. A discussion is multi-turn and
+ * free-form, so we build the `messages` history directly and stream plain text
+ * via LLMClient.stream(). The prose under discussion is fixed for the whole
+ * conversation, so it lives in the system prompt (sent once) and the visible
+ * turns stay clean.
  */
-import { AIError, type AIErrorKind } from '../ai/types';
-import { aiByokHeaders } from '../ai/remote/byok-headers';
-import { getSessionToken } from '../session-token';
-import { runtimeViteEnv } from '../vite-runtime-env';
-
-const API_BASE_URL =
-  (runtimeViteEnv.VITE_API_BASE_URL as string | undefined) ||
-  (runtimeViteEnv.VITE_API_URL as string | undefined) ||
-  'http://localhost:3000';
+import type { AIMessage } from '../ai/types';
+import { resolveCopilotModel } from '../ai/copilot-route';
+import { resolveCopilotOutputLanguage } from '../ai/run-structured';
+import { useSettingsStore } from '../../store/settings-store';
+import { copilotRuntime } from './runtime';
 
 /** Prose context the answer is grounded in — captured once when the chat opens. */
 export interface InlineAskContext {
@@ -43,18 +37,72 @@ export interface AskTurn {
   content: string;
 }
 
-interface AskFrame {
-  delta?: string;
-  error?: AIErrorKind;
-  message?: string;
+function buildAskSystem(ctx: InlineAskContext, projectId: string): string {
+  const parts: string[] = [
+    'You are a sharp, candid writing companion embedded in a fiction-writing ' +
+      'app. The author asks questions ABOUT their own prose — for feedback, a ' +
+      'second opinion, or to think through a craft choice. Answer directly and ' +
+      'concretely, grounded in the text they gave you.\n\n' +
+      'IMPORTANT — your context is LOCAL and INCOMPLETE. You are shown only a ' +
+      'small excerpt: the selected passage, a few neighboring paragraphs, and ' +
+      'maybe a couple of nearby summaries. You do NOT have the book\'s premise, ' +
+      'the full outline, the overall plot, the character arcs, or the ' +
+      'worldbuilding. So:\n' +
+      '  - Focus on the WRITING ITSELF at the sentence/paragraph level: grammar ' +
+      'and language errors, clarity, flow and rhythm, word choice, imagery, ' +
+      'tone, repetition, pacing within the passage.\n' +
+      '  - Do NOT pass judgment on PLOT, story logic, foreshadowing, character ' +
+      'consistency, or whether events "make sense" for the book — you lack the ' +
+      'global context to judge those, so such commentary would be misleading. ' +
+      'If the author explicitly asks about plot/story, briefly note that you ' +
+      'only see a local excerpt and answer only as far as this passage supports.\n\n' +
+      'How to answer:\n' +
+      '  - Be specific: point at actual words, lines, and moments — not generic ' +
+      'writing-advice platitudes.\n' +
+      '  - Be honest but constructive: name what works AND what is weak or unclear.\n' +
+      '  - This is a DISCUSSION, not an edit. Do NOT silently rewrite their prose ' +
+      'or hand back a full revised version unless they explicitly ask for one; ' +
+      'when you suggest a change, say it in words or show a short illustrative ' +
+      'snippet.\n' +
+      '  - Keep it tight: no flattery, no preamble, no padding. Match the depth ' +
+      'of the question.\n' +
+      '  - Never invent story facts beyond what the passage and context show; if ' +
+      'something depends on info you lack, say so.\n' +
+      '  - PLAIN TEXT ONLY. The app shows your reply as raw text with NO markdown ' +
+      'rendering, so markdown would show as literal symbols. Do NOT use markdown: ' +
+      'no **bold**, no *italics*, no `#` headings, no `-`/`*` bullet lists, no ' +
+      '`>` quotes, no backticks or code fences, no tables. Write in plain ' +
+      'paragraphs; if you must enumerate, use a plain "1. " / "2. " or 「」 to ' +
+      'quote a phrase, and keep it readable as raw text.',
+  ];
+
+  const text = ctx.selectedText?.trim();
+  if (text) parts.push(`The passage under discussion:\n${text}`);
+
+  const before = ctx.contextBefore?.trim();
+  if (before) parts.push(`Context above it (上文, for reference only):\n${before}`);
+
+  const after = ctx.contextAfter?.trim();
+  if (after) parts.push(`Context below it (下文, for reference only):\n${after}`);
+
+  const summaries = (ctx.segmentSummaries ?? []).map((s) => s.trim()).filter(Boolean);
+  if (summaries.length) {
+    parts.push(
+      `Story so far — nearby summaries (context only):\n` +
+        summaries.map((s, i) => `  ${i + 1}. ${s}`).join('\n'),
+    );
+  }
+
+  parts.push(`Write your reply in ${resolveCopilotOutputLanguage(projectId)}.`);
+
+  return parts.join('\n\n');
 }
 
 /**
  * Stream an answer for the latest turn. `history` is the full conversation so
  * far, with the new user question as its last entry. Yields incremental text
  * deltas; the caller accumulates and renders them. The prose context is fixed
- * for the conversation and sent with the request; the ask prompt itself lives
- * server-side.
+ * for the conversation and supplied separately (it lives in the system prompt).
  */
 export async function* runInlineAskStream(params: {
   history: AskTurn[];
@@ -63,77 +111,27 @@ export async function* runInlineAskStream(params: {
   signal?: AbortSignal;
 }): AsyncIterable<string> {
   const { history, context, projectId, signal } = params;
+  const settings = useSettingsStore.getState();
+  const provider = settings.copilotByokProvider;
+  const model = resolveCopilotModel(
+    provider,
+    settings.copilotByokModel,
+  );
+  const client = await copilotRuntime.getClient(provider);
+  const system = buildAskSystem(context, projectId);
+  const messages: AIMessage[] = history.map((t) => ({ role: t.role, content: t.content }));
 
-  let res: Response;
-  try {
-    const token = getSessionToken();
-    res = await fetch(`${API_BASE_URL}/api/ai/stream/inline-ask`, {
-      method: 'POST',
-      // Bearer auth, no cookies — see file header. Cookies would re-trigger
-      // better-auth's origin/CSRF check on a request that has no Origin.
-      credentials: 'omit',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        // BYOK key (when ai_mode='byok'); empty for the hosted path.
-        ...(await aiByokHeaders()),
-      },
-      body: JSON.stringify({
-        context,
-        history,
-        projectId,
-      }),
-      signal,
-    });
-  } catch (err) {
-    if ((err as { name?: string })?.name === 'AbortError') {
-      throw new AIError('aborted', 'Request aborted', err);
-    }
-    throw new AIError('network', err instanceof Error ? err.message : String(err), err);
-  }
-
-  if (!res.ok || !res.body) {
-    const kind: AIErrorKind =
-      res.status === 401 || res.status === 403 || res.status === 503
-        ? 'auth'
-        : res.status === 429
-          ? 'rate-limit'
-          : res.status >= 500
-            ? 'network'
-            : 'unknown';
-    throw new AIError(kind, `inline-ask stream failed (HTTP ${res.status})`);
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let nl: number;
-      while ((nl = buffer.indexOf('\n')) >= 0) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        if (!line) continue;
-        let frame: AskFrame;
-        try {
-          frame = JSON.parse(line) as AskFrame;
-        } catch {
-          continue; // ignore a partial/garbage line
-        }
-        if (frame.error) {
-          throw new AIError(frame.error, frame.message ?? 'inline-ask failed');
-        }
-        if (frame.delta) yield frame.delta;
-      }
-    }
-  } catch (err) {
-    if (err instanceof AIError) throw err;
-    if ((err as { name?: string })?.name === 'AbortError') {
-      throw new AIError('aborted', 'Request aborted', err);
-    }
-    throw new AIError('network', err instanceof Error ? err.message : String(err), err);
+  for await (const chunk of client.stream({
+    model,
+    system,
+    messages,
+    temperature: 0.7,
+    // Discussion benefits from reasoning — force thinking on for this call,
+    // regardless of the provider's default (DeepSeek honors this).
+    thinking: true,
+    signal,
+    metadata: { feature: 'inline-ask' },
+  })) {
+    if (chunk.delta) yield chunk.delta;
   }
 }

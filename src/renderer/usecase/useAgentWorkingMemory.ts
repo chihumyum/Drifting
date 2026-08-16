@@ -9,7 +9,7 @@ import {
 import { compactAgentWorkingMemoryMarkdown } from '../lib/agent/runtime/working-memory-document';
 import { createAgentWorkingMemoryRepository } from '../sqlite-repo/agent-working-memory-repo';
 import type { DbClient, DbExecutor } from '../lib/db';
-import { withAtomicSyncTransaction, type AtomicSyncWriter } from './sync-helpers';
+import { runDerivedTransaction } from '../sync/journal';
 
 export const AGENT_WORKING_MEMORY_CHANGED_EVENT = 'drifting:agent-working-memory-changed';
 
@@ -18,20 +18,6 @@ function notifyWorkingMemoryChanged(projectId: string): void {
   window.dispatchEvent(
     new CustomEvent(AGENT_WORKING_MEMORY_CHANGED_EVENT, { detail: { projectId } }),
   );
-}
-
-function syncPayload(row: AgentWorkingMemory): Record<string, unknown> {
-  return {
-    projectId: row.projectId,
-    contentMd: row.contentMd,
-    revision: row.revision,
-    approxTokens: row.approxTokens,
-    updatedBy: row.updatedBy,
-    lastCompactedAt: row.lastCompactedAt,
-    deletedAt: row.deletedAt,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
 }
 
 function toSnapshot(projectId: string, row: AgentWorkingMemory | null): AgentWorkingMemorySnapshot {
@@ -73,7 +59,6 @@ async function persistAgentWorkingMemory(
   projectId: string,
   input: SaveAgentWorkingMemoryInput,
   tx: DbExecutor,
-  sync: AtomicSyncWriter,
 ): Promise<{ row: AgentWorkingMemory; compacted: boolean; retiredEntries: number }> {
   const compacted = compactAgentWorkingMemoryMarkdown(input.contentMd);
   const now = new Date().toISOString();
@@ -110,13 +95,6 @@ async function persistAgentWorkingMemory(
     const actual = (await repo.find())?.revision ?? 0;
     throw new AgentWorkingMemoryConflictError(input.expectedRevision, actual);
   }
-  await sync(
-    'agentWorkingMemory',
-    current ? 'update' : 'create',
-    projectId,
-    projectId,
-    syncPayload(saved),
-  );
   return {
     row: saved,
     compacted: compacted.compacted,
@@ -128,8 +106,8 @@ export async function saveAgentWorkingMemory(
   projectId: string,
   input: SaveAgentWorkingMemoryInput,
 ): Promise<SaveAgentWorkingMemoryResult> {
-  const result = await withAtomicSyncTransaction(projectId, (tx, sync) =>
-    persistAgentWorkingMemory(projectId, input, tx, sync),
+  const result = await runDerivedTransaction('agent.working-memory', (tx) =>
+    persistAgentWorkingMemory(projectId, input, tx),
   );
   notifyWorkingMemoryChanged(projectId);
   return {
@@ -146,7 +124,7 @@ export async function saveAgentWorkingMemoryInDatabase(
   database: DbClient,
 ): Promise<SaveAgentWorkingMemoryResult> {
   const result = await database.transaction((tx) =>
-    persistAgentWorkingMemory(projectId, input, tx, async () => {}),
+    persistAgentWorkingMemory(projectId, input, tx),
   );
   return {
     snapshot: toSnapshot(projectId, result.row),
@@ -161,7 +139,7 @@ export async function clearAgentWorkingMemory(
   updatedBy: AgentWorkingMemoryUpdatedBy = 'author',
 ): Promise<AgentWorkingMemorySnapshot> {
   const now = new Date().toISOString();
-  const row = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+  const row = await runDerivedTransaction('agent.working-memory-clear', async (tx) => {
     const repo = createAgentWorkingMemoryRepository(projectId, tx);
     const current = await repo.find();
     const currentRevision = current?.revision ?? 0;
@@ -182,7 +160,6 @@ export async function clearAgentWorkingMemory(
       const actual = (await repo.find())?.revision ?? 0;
       throw new AgentWorkingMemoryConflictError(expectedRevision, actual);
     }
-    await sync('agentWorkingMemory', 'update', projectId, projectId, syncPayload(cleared));
     return cleared;
   });
   notifyWorkingMemoryChanged(projectId);

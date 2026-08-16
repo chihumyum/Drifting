@@ -115,21 +115,30 @@ describe('P3 file-backed write path acceptance', () => {
       summary: 'Agent summary',
     });
 
-    const checkpointContext = [
+    const checkpointHistory = [
       {
         role: 'user' as const,
         content: `Authorized writes: agent-write:${rename.idempotencyKey}, agent-write:${summary.idempotencyKey}`,
       },
     ];
+    const checkpointContext = {
+      schemaVersion: 4 as const,
+      format: 'drifting.agent-runtime-checkpoint-digest-with-summaries' as const,
+      canonicalMessageCount: checkpointHistory.length,
+      canonicalHistoryHash: `sha256:${createHash('sha256')
+        .update(JSON.stringify(checkpointHistory))
+        .digest('hex')}`,
+      durableSummaries: [],
+    };
     await subject.runtimeRepository.createCheckpoint({
       id: 'p3-review-feedback-checkpoint',
       sessionId: SESSION_ID,
       throughTurnOrdinal: 0,
-      messageCount: checkpointContext.length,
+      messageCount: checkpointHistory.length,
       context: checkpointContext,
-      contextHash: createHash('sha256')
+      contextHash: `sha256:${createHash('sha256')
         .update(JSON.stringify(checkpointContext))
-        .digest('hex'),
+        .digest('hex')}`,
       createdAt: iso(50_000),
     });
     const recovery =

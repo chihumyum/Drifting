@@ -54,15 +54,12 @@ describe('retired Shadow, Element Arc, and Goal Evolve product boundary', () => 
     expect(packageJson.dependencies).not.toHaveProperty('zod');
   });
 
-  it('migrates legacy state without deleting authored prose or comments', () => {
-    const migration = read('drizzle/0080_retire_shadow_arc_evolve.sql');
-    expect(migration).toContain("SET `writing_status` = 'draft'");
-    expect(migration).toContain("SET `source` = 'api'");
-    expect(migration).toContain('DROP TABLE IF EXISTS `element_arc`');
-    expect(migration).toContain('DROP TABLE IF EXISTS `shadow_job`');
-    expect(migration).toContain('DROP TABLE IF EXISTS `project_rule`');
-    expect(migration).toContain('DROP TABLE IF EXISTS `ai_usage`');
-    expect(migration).not.toContain('DELETE FROM `comment`');
-    expect(migration).not.toContain('DELETE FROM `book_node`');
+  it('keeps retired product objects out of the current local-first baseline', () => {
+    const baseline = read('drizzle/0000_local_first_baseline.sql');
+    expect(baseline).toContain('CREATE TABLE `book_node`');
+    expect(baseline).toContain('CREATE TABLE `comment`');
+    expect(baseline).not.toMatch(
+      /CREATE TABLE [`"]?(?:element_arc|shadow_job|project_rule|ai_usage)[`"]?/,
+    );
   });
 });

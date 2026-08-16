@@ -3,7 +3,7 @@
  *
  * `maybeCaptureSnapshotHistory(docId, stateBlob, reason)` is called wherever
  * the Yjs layer already materializes a full-state snapshot (useYjsDoc's
- * periodic/unload snapshot, the agent's closed-doc writes, the sync pull).
+ * periodic/unload snapshot and the agent's closed-doc writes).
  * It turns those moments into a durable, versioned trail:
  *
  *   - at most one capture per entity per 15 min ('periodic'; 'close' and
@@ -13,8 +13,8 @@
  *     of the entity's restorable metadata fields at capture time
  *   - rows are thinned Time-Machine style (≤24h: one per hour; older: one per
  *     day) and dropped after 30 days
- *   - synced paid users also push the capture to the server's entity_snapshot
- *     table (fire-and-forget; the local row is the source of truth for the UI)
+ *   - snapshot history is device-local and intentionally excluded from the
+ *     SyncEngine manifest
  *
  * Failures NEVER propagate — this rides the editor's write path.
  */
@@ -28,20 +28,6 @@ import {
   type EntitySnapshotRepository,
 } from '../sqlite-repo/entity-snapshot-repo';
 import { useDataStore } from '../store/data-store';
-import { isSyncEnabled } from '../lib/config';
-import { canUseFeature } from '../lib/feature-access';
-import { apiClient } from '../lib/axios-config';
-
-// Local copy of yjs-sync.service's uint8ToBase64 — importing it would create a
-// service-level cycle (yjs-sync's pull path calls back into this service).
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
 
 const log = loglevel.getLogger('snapshot-history');
 log.setLevel(loglevel.levels.WARN);
@@ -169,31 +155,6 @@ export function computeThinningVictims(
   return victims;
 }
 
-/** Fire-and-forget cloud copy (synced + paid only — server enforces too). */
-function pushToCloud(row: {
-  id: string;
-  projectId: string;
-  entityKind: ProseEntityType;
-  entityId: string;
-  stateBlob: Uint8Array;
-  contentJson: string | null;
-  metaJson: string | null;
-}): void {
-  if (!isSyncEnabled() || !canUseFeature('snapshot')) return;
-  void apiClient
-    .post('/api/snapshots', {
-      id: row.id,
-      projectId: row.projectId,
-      entityKind: row.entityKind,
-      entityId: row.entityId,
-      stateBlobBase64: uint8ToBase64(row.stateBlob),
-      contentJson: row.contentJson,
-      metaJson: row.metaJson,
-    })
-    .catch((err) =>
-      log.warn(`snapshot cloud push failed for ${row.entityKind}:${row.entityId}`, err),
-    );
-}
 
 // One in-flight capture chain per process — captures are rare (15-min gated)
 // and serializing them keeps the dedup read-modify-write race-free.
@@ -274,7 +235,6 @@ async function captureOnce(
   await repo.insert(row);
   log.info(`captured snapshot ${entityKind}:${entityId} (${reason}, ${stateBlob.byteLength}B)`);
 
-  pushToCloud(row);
   await cleanup(repo, entityKind, entityId);
 }
 

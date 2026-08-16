@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  legacyRelationType,
-  legacyRelationTypeId,
+  genericAssociationRelationType,
+  genericAssociationRelationTypeId,
+  GENERIC_ASSOCIATION_SYSTEM_KEY,
   normalizeRelationTypeDefinition,
   validateRelationTypeDefinitionAgainstRelation,
   validateRelationAgainstType,
@@ -21,6 +22,8 @@ function relationType(
     normalizedName: 'foreshadows',
     description: '',
     orientation: 'directed',
+    systemKey: null,
+    locked: false,
     sourceRole: 'setup',
     targetRole: 'payoff',
     sourceKinds: ['node'],
@@ -132,29 +135,43 @@ describe('entity relation type semantics', () => {
         toId: 'z',
       },
     });
+
+    // UTF-8 byte order is locale-independent: ASCII z sorts before UTF-8 é.
+    expect(
+      validateRelationAgainstType(symmetric, {
+        fromKind: 'node',
+        fromId: 'é',
+        toKind: 'node',
+        toId: 'z',
+      }),
+    ).toEqual({
+      ok: true,
+      relation: {
+        fromKind: 'node',
+        fromId: 'z',
+        toKind: 'node',
+        toId: 'é',
+      },
+    });
   });
 
-  it('keeps migrated labels deterministic and blocks new writes until configured', () => {
-    const legacy = legacyRelationType('项目-A', '  认识  ', AT, AT);
-    expect(legacy.id).toBe(legacyRelationTypeId('项目-A', '认识'));
-    expect(legacyRelationTypeId('project-1', 'ÉCHO')).toBe(
-      legacyRelationTypeId('project-1', 'Écho'),
-    );
-    expect(legacyRelationTypeId('project-1', 'ÉCHO')).not.toBe(
-      legacyRelationTypeId('project-1', 'écho'),
-    );
-    expect(legacy.orientation).toBe('unconfigured');
+  it('builds one locale-independent locked generic association type per project', () => {
+    const builtIn = genericAssociationRelationType('项目-A', AT);
+    expect(builtIn).toMatchObject({
+      id: genericAssociationRelationTypeId('项目-A'),
+      name: 'Generic association',
+      systemKey: GENERIC_ASSOCIATION_SYSTEM_KEY,
+      locked: true,
+      orientation: 'directed',
+      sourceKinds: ['comment', 'library_item'],
+    });
     expect(
-      validateRelationAgainstType(legacy, {
-        fromKind: 'element',
-        fromId: 'element-1',
+      validateRelationAgainstType(builtIn, {
+        fromKind: 'comment',
+        fromId: 'comment-1',
         toKind: 'node',
         toId: 'node-1',
       }),
-    ).toMatchObject({
-      ok: false,
-      code: 'RELATION_TYPE_UNCONFIGURED',
-      suggestedSwap: false,
-    });
+    ).toMatchObject({ ok: true });
   });
 });

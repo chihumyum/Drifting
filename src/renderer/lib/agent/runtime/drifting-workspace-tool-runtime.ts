@@ -1823,11 +1823,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
         toKind: relation.toKind,
         to: entityDisplayName(state, relation.toKind, relation.toId),
         toAliases: entityAliases(state, relation.toKind, relation.toId),
-        // The author-facing relation is already rendered as “关联” when its
-        // stored optional label is empty. Put that same semantic value in the
-        // editable projection so revising “关联” updates the field instead of
-        // failing against an invisible null.
-        relationType: relation.kind?.trim() || '未配置',
+        relationType: relationTypeName(state, relation.relationTypeId),
       });
     }
     if (target.kind === 'memory_collection') {
@@ -2538,7 +2534,7 @@ export class DriftingWorkspaceToolRuntime implements AgentToolRuntime {
       return {
         expectedRevision,
         command: {
-          name: 'update_relation_kind',
+          name: 'assign_relation_type',
           arguments: relationArguments,
         },
       };
@@ -3667,7 +3663,7 @@ function buildWorkspaceEntries(projectId: string): WorkspaceEntry[] {
     entries.push({
       path: `/materials/${pathSegment(title)}${duplicateSuffix}.${item.kind === 'text' ? 'md' : 'json'}`,
       writable: false,
-      description: `${item.kind} material from ${item.source}`,
+      description: `${item.kind} material`,
       target: { kind: 'material', materialId: item.id, materialTitle: title },
     });
   }
@@ -5450,7 +5446,16 @@ function describeRelationForAuthor(
 ): string {
   const from = entityAuthoredDisplayName(state, relation.fromKind, relation.fromId);
   const to = entityAuthoredDisplayName(state, relation.toKind, relation.toId);
-  return `${from} —${relation.kind?.trim() || '关联'}→ ${to}`;
+  return `${from} —${relationTypeName(state, relation.relationTypeId)}→ ${to}`;
+}
+
+function relationTypeName(
+  state: ReturnType<typeof useDataStore.getState>,
+  relationTypeId: string,
+): string {
+  const relationType = state.entityRelationTypes.find((type) => type.id === relationTypeId);
+  if (!relationType) throw new Error(`Relation type "${relationTypeId}" is missing`);
+  return relationType.name;
 }
 
 function initialStructuredSummary(markdown: string): string | null {

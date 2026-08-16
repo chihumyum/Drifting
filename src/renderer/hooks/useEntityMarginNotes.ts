@@ -36,7 +36,7 @@ function readInitial(kind: CommentTargetKind, id: string | null | undefined): bo
  * Per-entity margin-notes toggle. State lives in localStorage keyed by
  * `(kind, entityId)` so each storyline / category / element / node remembers
  * its own value independently and across page reloads. Device-local on
- * purpose; not synced via preferences-sync.
+ * purpose and excluded from the authored SyncEngine domain.
  */
 export function useEntityMarginNotes(
   kind: CommentTargetKind,

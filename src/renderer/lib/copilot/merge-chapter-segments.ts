@@ -16,7 +16,7 @@
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import loglevel from 'loglevel';
-import { runStructured } from '../ai/remote/run-structured';
+import { runStructured } from '../ai/run-structured';
 import { segmentMergePrompt } from '../ai/prompts/templates/segment-merge';
 import { isBlockType } from '../extensions/block-id';
 import { computeBlockHashes } from './block-signature';

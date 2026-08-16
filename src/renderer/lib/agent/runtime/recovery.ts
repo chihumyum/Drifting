@@ -770,16 +770,7 @@ async function parseCheckpointContext(
 ): Promise<{
   context: AgentModelMessage[];
   hashPayload: unknown;
-  version: 1 | 2 | 3 | 4;
 }> {
-  if (Array.isArray(checkpoint.context)) {
-    const context = parseCheckpointMessages(
-      checkpoint.context,
-      checkpoint.id,
-      `checkpoint[${checkpoint.id}].context`,
-    );
-    return { context, hashPayload: context, version: 1 };
-  }
   if (!isRecord(checkpoint.context)) {
     corruption(
       'INVALID_CHECKPOINT',
@@ -798,7 +789,6 @@ async function parseCheckpointContext(
     return {
       context: parsed.context,
       hashPayload: parsed.payload,
-      version: 4,
     };
   }
   if (
@@ -809,14 +799,12 @@ async function parseCheckpointContext(
     return {
       context: parsed.context,
       hashPayload: parsed.payload,
-      version: 3,
     };
   }
   const parsed = await parseCheckpointContextV2(checkpoint.context, checkpoint.id);
   return {
     context: parsed.context,
     hashPayload: parsed.payload,
-    version: 2,
   };
 }
 

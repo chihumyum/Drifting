@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useProject, type ProjectSummary } from '../usecase/useProject';
 import { useAuthStore } from '../store/auth';
-import { SyncStatusHUD } from '../components/sync/SyncStatusHUD';
+import { hostedAccountSettingsEnabled } from '../features/settings/hosted-settings-policy';
 import { UserAvatar, UserMenu } from '../components/topBars/UserMenu';
 import { FilterChip } from '../components/ui/FilterChip';
 import { parseKv } from '../domain/kv';
@@ -13,6 +13,7 @@ import { DEFAULT_PROJECT_TARGET, useWritingStatsStore } from '../store/writing-s
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
 import { MobileProjectShelfContent } from '../shells/mobile/standalone/MobileProjectShelfContent';
+import { events } from '../lib/events';
 
 function WindowDragStrip() {
   if (!getPlatformRuntime().desktopWindowControls) return null;
@@ -158,7 +159,7 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
   const [busy, setBusy] = useState(false);
 
   const fetchProjects = useCallback(async () => {
-    const data = await loadProjectSummaries({ pullRemote: true });
+    const data = await loadProjectSummaries();
     log.debug('Loaded project summaries:', data);
     setProjects(data);
   }, [loadProjectSummaries]);
@@ -179,6 +180,25 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
       active = false;
     };
   }, [user?.id, fetchProjects]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (refreshTimer !== null) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        void fetchProjects().catch((error) => {
+          log.warn('Remote project summary refresh failed:', error);
+        });
+      }, 50);
+    };
+    events.on('sync:project-changed', refresh);
+    return () => {
+      if (refreshTimer !== null) clearTimeout(refreshTimer);
+      events.off('sync:project-changed', refresh);
+    };
+  }, [fetchProjects, user?.id]);
 
   const decorated = useMemo(
     () =>
@@ -340,7 +360,6 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
           />
         )}
 
-        <SyncStatusHUD />
       </div>
     );
   }
@@ -352,7 +371,6 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
         <div className="pp__inner">
           <div className="pp-empty">{t('projectPicker.loading')}</div>
         </div>
-        <SyncStatusHUD />
       </div>
     );
   }
@@ -385,7 +403,9 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
                 initial={userInitial}
                 size={36}
                 fontSize={16}
-                title={t('userMenu.accountMenu')}
+                title={t(
+                  hostedAccountSettingsEnabled() ? 'userMenu.accountMenu' : 'userMenu.localMenu',
+                )}
                 onClick={() => setMenuOpen((v) => !v)}
                 expanded={menuOpen}
               />
@@ -536,7 +556,11 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
 
         <footer className="pp-foot">
           <span>{t('projectPicker.footer.brand')}</span>
-          <span>{user?.email || t('projectPicker.footer.local')}</span>
+          <span>
+            {hostedAccountSettingsEnabled() && user?.email
+              ? user.email
+              : t('projectPicker.footer.local')}
+          </span>
         </footer>
       </div>
 
@@ -566,7 +590,6 @@ export function ProjectPickerView({ presentation = 'desktop' }: ProjectPickerVie
         />
       )}
 
-      <SyncStatusHUD />
     </div>
   );
 }
@@ -595,10 +618,7 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
   const { t } = useTranslation();
   const { project, meta, status, colorToken, glyph, lastEditedRel, wordProgress } = row;
   const stats = project.stats;
-  const sourceLabel =
-    project.source === 'server'
-      ? t('projectPicker.source.cloud')
-      : t('projectPicker.source.localDraft');
+  const sourceLabel = t('projectPicker.source.localDraft');
   const categoryLabel = meta.genre || sourceLabel;
 
   return (
@@ -687,11 +707,7 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
   const { t } = useTranslation();
   const { project, meta, status, colorToken, glyph, lastEditedRel } = row;
   const stats = project.stats;
-  const subline =
-    meta.genre ||
-    (project.source === 'server'
-      ? t('projectPicker.source.cloud')
-      : t('projectPicker.source.localDraft'));
+  const subline = meta.genre || t('projectPicker.source.localDraft');
 
   return (
     <div

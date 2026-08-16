@@ -1,196 +1,106 @@
-# Drifting 本地开发指南
+# Drifting 开发指南
 
-## 快速开始
+Drifting 是 Tauri 2 + Rust + React + Vite 客户端。仓库默认构建为
+local-only：不需要账号或 Drifting 托管服务，项目保存在本地 SQLite/Yjs，
+AI 使用作者自行配置的 BYOK provider。
 
-### 安装依赖
+完整的工具链版本、平台前置条件与架构入口见 [README.md](README.md) 和
+[文档索引](docs/README.md)。
+
+## 启动桌面开发环境
+
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
-### 启动开发模式
+`pnpm dev` 等同于本地模式的 `pnpm tauri:dev`。开发数据库写入
+`.local-data/databases/`，不会要求先启动服务器。
+
+在 macOS 上，`pnpm dev` 会通过 Cargo runner 在每次原生重编译后、启动应用前，
+使用本机第一个未撤销的 `Apple Development` identity 签名 debug 二进制，并固定
+code identifier 为 `cc.drifting.client.dev`。这避免 ad-hoc 签名的 cdhash 变化导致
+Keychain 每次重新授权。若机器上有多个有效 identity，可在本机 shell 中设置
+`DRIFTING_MACOS_DEV_SIGNING_IDENTITY` 明确选择；不要把证书或私钥提交到仓库。
+首次把旧 ad-hoc Keychain 条目授权给稳定签名时，macOS 仍可能要求一次确认。
+没有开发证书的贡献者仍可启动应用，但会退回 Cargo 默认签名并显示警告。
+
 ```bash
-pnpm start
+pnpm macos:dev-signing:check
 ```
 
-应用将自动启动 Electron 窗口，并开启热重载功能。
+常用检查：
 
-## 本地优先模式
-
-应用当前配置为**本地优先模式**（类似 Obsidian），提供更好的离线开发和使用体验。
-
-### 特性
-
-✅ **完全离线工作** - 无需网络连接
-✅ **无需登录** - 直接进入应用
-✅ **本地数据库** - 所有数据存储在 SQLite
-✅ **快速启动** - 无需等待服务器同步
-✅ **专注创作** - 简化的界面，移除干扰
-
-### 数据存储位置
-
-- **macOS**: `~/Library/Application Support/Drifting/databases/`
-- **Windows**: `%APPDATA%/Drifting/databases/`
-- **Linux**: `~/.config/Drifting/databases/`
-
-数据库文件名：`default-project.db`
-
-## 配置文件
-
-### 修改应用模式
-
-编辑 [src/renderer/lib/config.ts](src/renderer/lib/config.ts)：
-
-```typescript
-export const APP_CONFIG = {
-  // 本地优先模式开关
-  LOCAL_ONLY_MODE: true,  // false = 启用网络功能
-  
-  // 同步配置
-  ENABLE_SYNC: false,     // true = 启用服务器同步
-  
-  // 认证配置
-  REQUIRE_AUTH: false,    // true = 需要登录
-  
-  // API 地址（仅在非本地模式下使用）
-  API_BASE_URL: 'http://localhost:3000',
-}
-```
-
-### 切换到在线模式
-
-如果要启用服务器同步功能：
-
-1. 将 `LOCAL_ONLY_MODE` 设置为 `false`
-2. 将 `ENABLE_SYNC` 设置为 `true`
-3. 将 `REQUIRE_AUTH` 设置为 `true`
-4. 配置 `API_BASE_URL` 为你的后端地址
-5. 重启应用
-
-## 开发工具
-
-### 调试面板
-
-在应用中打开 Settings → Advanced → 数据调试工具，可以查看：
-- 本地数据库内容
-- 网络请求日志（如果启用）
-- 应用状态
-
-### Chrome DevTools
-
-应用在开发模式下会自动打开 DevTools。可以：
-- 查看 Console 日志
-- 调试 React 组件
-- 检查网络请求
-- 分析性能
-
-### 热重载
-
-修改 `src/renderer` 中的代码会自动热重载。
-修改 `src/main` 中的代码需要在终端输入 `rs` 重启主进程。
-
-## 项目结构
-
-```
-core/
-├── src/
-│   ├── main/                 # Electron 主进程
-│   │   ├── main.ts           # 应用入口
-│   │   ├── preload.ts        # Preload 脚本
-│   │   └── database.ts       # 数据库 IPC 处理
-│   └── renderer/             # React 应用（渲染进程）
-│       ├── main.tsx          # React 入口
-│       ├── App.tsx           # 主应用组件
-│       ├── lib/              
-│       │   ├── config.ts     # ⚙️ 配置文件
-│       │   ├── db.ts         # 数据库接口
-│       │   └── sync/         # 同步管理（本地模式下禁用）
-│       ├── components/       # React 组件
-│       ├── views/            # 页面视图
-│       ├── store/            # 状态管理
-│       └── ...
-```
-
-## 常见问题
-
-### Q: 如何清空数据重新开始？
-
-A: 删除数据库文件：
 ```bash
-# macOS
-rm ~/Library/Application\ Support/Drifting/databases/*.db*
-
-# Windows
-del %APPDATA%\Drifting\databases\*.db*
-
-# Linux
-rm ~/.config/Drifting/databases/*.db*
+pnpm public:check
+pnpm lint
+pnpm typecheck
+pnpm test
+cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-### Q: 如何查看数据库内容？
+## 桌面与移动端构建
 
-A: 使用 SQLite 工具：
 ```bash
-# 安装 sqlite3（如果没有）
-brew install sqlite3  # macOS
-apt install sqlite3   # Linux
-
-# 打开数据库
-sqlite3 ~/Library/Application\ Support/Drifting/databases/default-project.db
-
-# 查看表
-.tables
-
-# 查看数据
-SELECT * FROM nodes;
+pnpm tauri:build
+pnpm mobile:ios:dev
+pnpm tauri:ios:build
+pnpm mobile:android:dev
+pnpm tauri:android:build
 ```
 
-### Q: 为什么修改代码后没有生效？
+iOS/Android 的设备选择、服务覆盖与手工验收边界见
+[mobile-device-acceptance.md](docs/mobile-device-acceptance.md)。构建或测试通过不等于
+物理设备上的触摸、输入法、后台恢复和保存面板已经验收。
 
-A: 检查：
-1. 是否保存了文件
-2. 终端是否有错误信息
-3. 尝试完全重启应用（Ctrl+C 然后 `pnpm start`）
-4. 清空缓存：删除 `.vite` 目录后重启
+## 本地数据
 
-### Q: 如何连接后端服务器？
+默认本地书库数据库名为 `drifting-library.db`。桌面生产数据目录通常为：
 
-A: 
-1. 确保后端服务正在运行（通常在 `backend/` 目录）
-2. 修改 `config.ts` 中的配置
-3. 重启 Electron 应用
+- macOS：`~/Library/Application Support/cc.drifting.client/databases/`
+- Windows：`%LOCALAPPDATA%/cc.drifting.client/databases/`
+- Linux：`${XDG_DATA_HOME:-~/.local/share}/cc.drifting.client/databases/`
 
-## 打包发布
+iOS 与 Android 使用各自的应用容器。不要提交 `.local-data/`、数据库、素材、
+Keychain/Keystore 凭据或真实稿件。关系型 Markdown 导出的能力与限制见
+[local-data-export.md](docs/local-data-export.md)，本地图片/PDF 所有权边界见
+[local-assets.md](docs/local-assets.md)。
 
-### 打包当前平台
-```bash
-pnpm package
+当前尚未发布数据兼容契约；migration journal 只描述唯一的当前 pre-release schema。
+旧开发构建产生的数据库应备份后重置，不要为其添加 fallback read、双写或搬运器。
+这项规则以 [AGENTS.md](AGENTS.md) 的 `Pre-release compatibility policy` 为准。
+
+## 网络与兼容服务
+
+默认值由 `src/renderer/lib/config.ts` 定义，标准桌面/移动构建脚本也会显式设置：
+
+```text
+VITE_LOCAL_ONLY_MODE=true
+VITE_REQUIRE_AUTH=false
+VITE_AI_TRANSPORT=direct
 ```
 
-### 创建安装包
-```bash
-pnpm make
-```
+`LOCAL_ONLY_MODE` 只关闭 Drifting-compatible hosted service。网络按
+`hosted-service`、`personal-cloud`、`byok-provider`、`external-content` 与
+`agent-extension` 分类；用户明确选择的 BYOK provider、URL 元数据/预览及已配置的远程
+Agent extension 仅在设备在线时可用。Personal-cloud 同步只使用独立 capability
+和 SyncEngine authority，不存在 hosted sync 开关。公开仓库不包含兼容服务实现；需要自建服务的 operator 应先阅读
+[official-service.md](docs/official-service.md)，并自行配置 API origin、CSP、隐私政策与
+凭据。
 
-生成的安装包在 `out/` 目录。
+可选 Google Drive 同步以 Google 登录作为跨设备访问 authority：新设备登录同一
+Google 账号后自动发现 Project。同步对象通过 HTTPS 写入该账号的
+`appDataFolder`，并受到 Google 自身的存储保护，但 Drifting 不对 Google 做端到端
+加密；Google 可以处理稿件、元数据和素材内容。该流程没有恢复码、二维码或应用管理的
+Project 内容密钥。当前源码/模拟器/构建检查也不等于真实账号与物理设备验收，完整边界见
+[trusted-cloud Google Drive contract](docs/sync-engine/trusted-cloud-google-drive.md)。
 
-## 技术栈
+BYOK Key 只能通过应用内“设置 → 模型与 API”写入系统安全存储，不要放进
+`VITE_*` 构建变量或源码。
 
-- **Electron** - 跨平台桌面应用框架
-- **React 19** - UI 框架
-- **TypeScript** - 类型安全
-- **Vite** - 快速构建工具
-- **Better-SQLite3** - 高性能 SQLite 数据库
-- **Zustand** - 轻量级状态管理
-- **Tiptap** - 富文本编辑器
+## 更多入口
 
-## 贡献指南
-
-1. Fork 项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 打开 Pull Request
-
-## License
-
-MIT
+- [贡献与提交检查](CONTRIBUTING.md)
+- [当前 Agent 能力](docs/agent-runtime/acceptance/CURRENT_STATUS.md)
+- [SyncEngine 架构与验收索引](docs/sync-engine/README.md)
+- [原生平台已知限制](src-tauri/UNSUPPORTED.md)

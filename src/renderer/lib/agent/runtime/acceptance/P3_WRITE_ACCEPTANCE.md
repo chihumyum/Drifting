@@ -65,8 +65,9 @@ It requires:
 
 `p3-crash-consistency.acceptance.mjs` adds real process death. Every case uses a
 separate file-backed SQLite WAL database with `synchronous=FULL`, product
-`0060`/`0061` receipt schemas, and a real `Y.Doc`. The parent waits until the
-worker reaches one of these exact boundaries and then sends `SIGKILL`:
+receipt tables from the current local-first baseline, and a real `Y.Doc`. The
+parent waits until the worker reaches one of these exact boundaries and then
+sends `SIGKILL`:
 
 1. before the mutation transaction;
 2. after the in-memory Yjs update but before projection persistence;

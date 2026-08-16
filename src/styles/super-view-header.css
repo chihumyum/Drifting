@@ -378,6 +378,51 @@
   cursor: pointer;
 }
 
+.relation-kind-menu__type-group + .relation-kind-menu__type-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid hsl(var(--rule) / 0.72);
+}
+
+.relation-kind-menu__group-label {
+  padding: 2px 4px 3px;
+  color: hsl(var(--ink-4));
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.relation-kind-menu__other-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: hsl(var(--ink-1) / 0.035);
+  color: hsl(var(--ink-3));
+  font-family: var(--font-ui);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.relation-kind-menu__other-toggle:hover,
+.relation-kind-menu__other-toggle[aria-expanded='true'] {
+  background: var(--menu-item-hover-bg);
+  color: hsl(var(--ink-1));
+}
+
+.relation-kind-menu__other-toggle > :last-child {
+  min-width: 18px;
+  color: hsl(var(--ink-4));
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-align: right;
+}
+
 .relation-kind-menu__row--type .relation-kind-menu__name {
   display: flex;
   flex-direction: column;
@@ -565,14 +610,8 @@
   transition: background 100ms;
 }
 
-.relation-kind-menu__row:not(.is-locked):hover {
+.relation-kind-menu__row:hover {
   background: var(--menu-item-hover-bg);
-}
-
-.relation-kind-menu__row.is-locked {
-  margin-top: 2px;
-  padding-top: 8px;
-  border-top: 1px solid hsl(var(--rule));
 }
 
 .relation-kind-menu__swatch {
@@ -583,14 +622,6 @@
   border: 0;
   border-radius: 2px;
   cursor: pointer;
-}
-
-.relation-kind-menu__swatch.is-dashed {
-  height: 0;
-  border-top: 1.5px dashed hsl(var(--ink-3));
-  border-radius: 0;
-  background: transparent;
-  cursor: default;
 }
 
 .relation-kind-menu__name {
@@ -657,14 +688,6 @@ button.relation-kind-menu__name:hover {
 .relation-kind-menu__delete:hover {
   background: var(--menu-item-danger-hover-bg);
   color: var(--menu-item-danger);
-}
-
-.relation-kind-menu__hint {
-  flex-shrink: 0;
-  color: hsl(var(--ink-4));
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .relation-kind-menu__empty {

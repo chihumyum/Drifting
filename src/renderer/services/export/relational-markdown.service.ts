@@ -1,20 +1,18 @@
 import JSZip from 'jszip';
-import { yDocToProsemirrorJSON } from 'y-prosemirror';
-import * as Y from 'yjs';
 
 import { extractTextFromCommentBody } from '../../domain/comment';
 import type { EntityKind } from '../../domain/entity-kinds';
-import { apiClient } from '../../lib/axios-config';
+import { GENERIC_ASSOCIATION_SYSTEM_KEY } from '../../domain/entity-relation-type';
 import { proseDocId, type ProseEntityType } from '../../lib/yjs-doc-id';
+import { platform } from '../../platform';
+import { hydrateProseJson } from '../../lib/agent/prose-hydrate-client';
+import { flushAllOpenYjsDocuments } from '../yjs-local-durability.service';
 import {
-  forceFlush as forceFlushEntitySync,
-  getPendingCount,
-  type ProjectGraphPayload,
-} from '../entity-sync.service';
-import {
-  base64ToUint8,
-  forceSyncAllDocuments,
-} from '../yjs-sync.service';
+  readLocalRelationalMarkdownSource,
+  type LocalExportBook,
+  type LocalExportLibraryItem,
+  type LocalRelationalMarkdownSource,
+} from './relational-markdown.local-source';
 
 type ExportKind = EntityKind | 'project';
 
@@ -33,96 +31,7 @@ interface Relation {
   label: string;
 }
 
-interface RemoteProject {
-  id: string;
-  name: string;
-  summary: string;
-  updatedAt: string;
-}
-
-interface GraphNode {
-  id: string;
-  title: string;
-  summary: string;
-  kind: 'chapter' | 'drift';
-  writingStatus: string;
-  updatedAt: string;
-  deletedAt?: string | null;
-}
-
-interface GraphElement {
-  id: string;
-  categoryId: string | null;
-  name: string;
-  summary: string;
-  contentJson: string;
-  aliasesJson: string;
-  groupName: string | null;
-  updatedAt: string;
-  deletedAt?: string | null;
-}
-
-interface GraphCategory {
-  id: string;
-  name: string;
-  contentJson: string;
-  updatedAt: string;
-  deletedAt?: string | null;
-}
-
-interface GraphStoryline {
-  id: string;
-  name: string;
-  summary: string;
-  contentJson: string;
-  updatedAt: string;
-  deletedAt?: string | null;
-}
-
-interface GraphComment {
-  id: string;
-  kind: string;
-  targetKind: EntityKind | null;
-  targetId: string | null;
-  bodyJson: string;
-  status: string;
-  source: string;
-  updatedAt: string;
-}
-
-interface GraphLibraryItem {
-  id: string;
-  title: string;
-  kind: string;
-  source: string;
-  uri: string;
-  bodyJson: string | null;
-  notesJson: string | null;
-  updatedAt: string;
-  deletedAt?: string | null;
-}
-
-interface GraphRelation {
-  fromKind: EntityKind;
-  fromId: string;
-  toKind: EntityKind;
-  toId: string;
-  kind: string | null;
-}
-
-interface GraphStorylineLink {
-  nodeId: string;
-  storylineId: string;
-}
-
-interface GraphNodeContent {
-  nodeId: string;
-  contentJson: string | null;
-}
-
-interface ExportBook {
-  project: RemoteProject;
-  graph: ProjectGraphPayload;
+interface ExportBook extends LocalExportBook {
   prefix: string;
 }
 
@@ -131,6 +40,7 @@ function safeSegment(value: string): string {
     .normalize('NFKC')
     .replace(/[\\/:*?"<>|#\]]/g, '-')
     .replaceAll('[', '-')
+    .replace(/\.\.+/g, '-')
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/[. ]+$/g, '');
@@ -240,45 +150,23 @@ function decodeAliases(value: string | null | undefined): string[] {
     : [];
 }
 
-async function fetchRemoteProseJson(
+async function readLocalProseJson(
   entityType: ProseEntityType,
   entityId: string,
   fallbackContentJson: string,
+  source: LocalRelationalMarkdownSource,
 ): Promise<string> {
   const docId = proseDocId(entityType, entityId);
-  const ydoc = new Y.Doc();
-  let sinceSeq = 0;
-  let applied = 0;
-
-  try {
-    for (let page = 0; page < 10_000; page += 1) {
-      const response = await apiClient.get<{
-        updates?: Array<{ serverSeq: number; data: string }>;
-        hasMore?: boolean;
-      }>('/api/sync/pull', {
-        params: { docId, sinceSeq, limit: 2000 },
-      });
-      const updates = response.data.updates ?? [];
-      if (updates.length === 0) break;
-
-      const previousSeq = sinceSeq;
-      for (const update of updates) {
-        Y.applyUpdate(ydoc, base64ToUint8(update.data), 'export');
-        sinceSeq = Math.max(sinceSeq, update.serverSeq);
-        applied += 1;
-      }
-      if (sinceSeq <= previousSeq) {
-        throw new Error(`Export pull made no cursor progress for ${docId}`);
-      }
-      if (response.data.hasMore !== true) break;
-      if (page === 9_999) throw new Error(`Export pull exceeded page limit for ${docId}`);
-    }
-
-    if (applied === 0) return fallbackContentJson || '{}';
-    return JSON.stringify(yDocToProsemirrorJSON(ydoc, 'default'));
-  } finally {
-    ydoc.destroy();
+  const state = source.proseByDocId.get(docId);
+  if (!state || (!state.snapshot && state.updates.length === 0)) {
+    // A document that has never been opened has no Yjs state yet. Its
+    // contentJson projection is still the editor's canonical seed.
+    return fallbackContentJson || '{}';
   }
+  // Once any Yjs state exists, it is authoritative even when it represents an
+  // intentionally empty document. Corruption rejects the export instead of
+  // silently falling back to a stale contentJson projection.
+  return hydrateProseJson(state.snapshot, state.updates);
 }
 
 async function mapWithConcurrency<T>(
@@ -347,58 +235,67 @@ function renderDocument(
     .replace(/\n{4,}/g, '\n\n\n');
 }
 
-export async function exportAllProjectsAsRelationalMarkdown(): Promise<{
+export interface RelationalMarkdownArchive {
   filename: string;
   documentCount: number;
-}> {
-  // Make the server graph and Yjs log authoritative for the account export.
-  // If either flush fails, abort rather than silently producing a stale archive.
-  await Promise.all([forceFlushEntitySync(), forceSyncAllDocuments()]);
-  const pendingMutations = getPendingCount();
-  if (pendingMutations > 0) {
-    throw new Error(`Cannot export while ${pendingMutations} local change(s) are still pending`);
-  }
+  bytes: Uint8Array;
+}
 
-  const projectResponse = await apiClient.get<RemoteProject[]>('/api/projects');
-  const projects = projectResponse.data;
-  const books: ExportBook[] = [];
-  await mapWithConcurrency(projects, 4, async (project) => {
-    const response = await apiClient.get<ProjectGraphPayload>(`/api/projects/${project.id}/graph`);
-    books.push({
-      project,
-      graph: response.data,
-      prefix: `books/${safeSegment(project.name)}-${project.id.slice(0, 8)}`,
-    });
-  });
-  books.sort((a, b) => a.project.name.localeCompare(b.project.name));
+export interface RelationalMarkdownExportDependencies {
+  flushOpenYjsDocuments: () => Promise<void>;
+  readLocalSource: () => Promise<LocalRelationalMarkdownSource>;
+  saveArchive: (
+    filename: string,
+    bytes: Uint8Array,
+  ) => Promise<
+    | { ok: true }
+    | { ok: false; canceled: true }
+    | { ok: false; canceled: false; error: string }
+  >;
+  now: () => Date;
+}
+
+const defaultExportDependencies: RelationalMarkdownExportDependencies = {
+  flushOpenYjsDocuments: flushAllOpenYjsDocuments,
+  readLocalSource: readLocalRelationalMarkdownSource,
+  saveArchive: (filename, bytes) => platform.archive.save(filename, bytes),
+  now: () => new Date(),
+};
+
+/** Build the portable Markdown ZIP from an already-consistent local capture. */
+export async function buildRelationalMarkdownArchive(
+  source: LocalRelationalMarkdownSource,
+  now = new Date(),
+): Promise<RelationalMarkdownArchive> {
+  const books: ExportBook[] = source.books
+    .map((book) => ({
+      ...book,
+      // Keep the full stable ID in archive paths. Human titles are not unique,
+      // and truncating IDs can make JSZip silently replace an earlier entry.
+      prefix: `books/${safeSegment(book.project.name)}-${safeSegment(book.project.id)}`,
+    }))
+    .sort(
+      (left, right) =>
+        left.project.name.localeCompare(right.project.name) ||
+        left.project.id.localeCompare(right.project.id),
+    );
 
   const documents = new Map<string, ExportDocument>();
   const add = (document: ExportDocument) => documents.set(document.key, document);
-  const idSuffix = (id: string) => id.slice(0, 8);
+  const idSuffix = (id: string) => safeSegment(id);
   const proseFallbacks = new Map<string, string>();
-  const libraryItems = new Map<string, GraphLibraryItem>();
+  const libraryItems = new Map<string, LocalExportLibraryItem>();
 
   for (const book of books) {
     const { project, graph, prefix } = book;
-    const nodes = (graph.nodes as unknown as GraphNode[]).filter((item) => !item.deletedAt);
-    const elements = (graph.elements as unknown as GraphElement[]).filter(
-      (item) => !item.deletedAt,
-    );
-    const categories = (graph.elementCategories as unknown as GraphCategory[]).filter(
-      (item) => !item.deletedAt,
-    );
-    const storylines = (graph.storylines as unknown as GraphStoryline[]).filter(
-      (item) => !item.deletedAt,
-    );
-    const comments = graph.comments as unknown as GraphComment[];
-    const library = (graph.libraryItems as unknown as GraphLibraryItem[]).filter(
-      (item) => !item.deletedAt,
-    );
+    const nodes = graph.nodes.filter((item) => !item.deletedAt);
+    const elements = graph.elements.filter((item) => !item.deletedAt);
+    const categories = graph.elementCategories.filter((item) => !item.deletedAt);
+    const storylines = graph.storylines.filter((item) => !item.deletedAt);
+    const comments = graph.comments;
+    const library = graph.libraryItems;
     const nodeContentById = new Map(
-      (graph.nodeContents as unknown as GraphNodeContent[]).map((item) => [
-        item.nodeId,
-        item.contentJson ?? '{}',
-      ]),
+      graph.nodeContents.map((item) => [item.nodeId, item.contentJson ?? '{}']),
     );
 
     add({
@@ -472,7 +369,7 @@ export async function exportAllProjectsAsRelationalMarkdown(): Promise<{
         key: key('comment', comment.id),
         kind: 'comment',
         id: comment.id,
-        title: `Note ${comment.id.slice(0, 8)}`,
+        title: `Note ${idSuffix(comment.id)}`,
         path: `${prefix}/notes/comments/note-${idSuffix(comment.id)}.md`,
         metadata: {
           note_kind: comment.kind,
@@ -492,8 +389,9 @@ export async function exportAllProjectsAsRelationalMarkdown(): Promise<{
         path: `${prefix}/notes/library/${safeSegment(item.title)}-${idSuffix(item.id)}.md`,
         metadata: {
           item_kind: item.kind,
-          source: item.source,
-          uri: item.uri,
+          asset_id:
+            item.kind === 'image' || item.kind === 'pdf' ? (item.assetId ?? undefined) : undefined,
+          external_url: item.kind === 'url' ? (item.externalUrl ?? undefined) : undefined,
           updated_at: item.updatedAt,
         },
         body: '',
@@ -502,56 +400,63 @@ export async function exportAllProjectsAsRelationalMarkdown(): Promise<{
     }
   }
 
-  // Resolve every current server-side Yjs document after paths are known, so
-  // inline entityLink marks can become portable Obsidian-style wiki links.
+  // Paths must exist before prose is rendered so entityLink marks can become
+  // portable Obsidian-style wiki links.
   const proseDocuments = [...documents.values()].filter((document) =>
     ['node', 'element', 'category', 'storyline'].includes(document.kind),
   );
   await mapWithConcurrency(proseDocuments, 6, async (document) => {
     const entityType = document.kind as ProseEntityType;
-    const contentJson = await fetchRemoteProseJson(
+    const contentJson = await readLocalProseJson(
       entityType,
       document.id,
       proseFallbacks.get(document.key) ?? '{}',
+      source,
     );
     const markdown = proseToMarkdown(contentJson, documents);
     document.body = [document.body, markdown].filter(Boolean).join('\n\n');
   });
 
   for (const document of documents.values()) {
-    if (document.kind === 'library_item') {
-      const item = libraryItems.get(document.key);
-      if (item) {
-        document.body = [
-          noteToMarkdown(item.bodyJson, documents),
-          noteToMarkdown(item.notesJson, documents),
-        ]
-          .filter(Boolean)
-          .join('\n\n');
-      }
-    }
+    if (document.kind !== 'library_item') continue;
+    const item = libraryItems.get(document.key);
+    if (!item) continue;
+    document.body = [
+      noteToMarkdown(item.bodyJson, documents),
+      noteToMarkdown(item.notesJson, documents),
+    ]
+      .filter(Boolean)
+      .join('\n\n');
   }
 
   const relations = new Map<string, Relation[]>();
   for (const book of books) {
-    const graphRelations = book.graph.entityRelations as unknown as GraphRelation[];
-    const comments = book.graph.comments as unknown as GraphComment[];
-    const storylineLinks = book.graph.nodeStorylineLinks as unknown as GraphStorylineLink[];
-    const elements = (book.graph.elements as unknown as GraphElement[]).filter(
-      (item) => !item.deletedAt,
+    const graphRelations = book.graph.entityRelations;
+    const relationTypesById = new Map(
+      book.graph.entityRelationTypes.map((relationType) => [relationType.id, relationType]),
     );
+    const comments = book.graph.comments;
+    const storylineLinks = book.graph.nodeStorylineLinks;
+    const elements = book.graph.elements.filter((item) => !item.deletedAt);
 
     for (const relation of graphRelations) {
-      const from = key(relation.fromKind, relation.fromId);
-      const to = key(relation.toKind, relation.toId);
-      const label = relation.kind || '关联';
+      const from = key(relation.fromKind as ExportKind, relation.fromId);
+      const to = key(relation.toKind as ExportKind, relation.toId);
+      const relationType = relationTypesById.get(relation.relationTypeId);
+      if (!relationType) {
+        throw new Error(`关系「${relation.id}」引用了不存在的关系类型`);
+      }
+      const label =
+        relationType.systemKey === GENERIC_ASSOCIATION_SYSTEM_KEY
+          ? '关联'
+          : relationType.name;
       addRelation(relations, from, to, label);
       addRelation(relations, to, from, `反向：${label}`);
     }
     for (const comment of comments) {
       if (!comment.targetKind || !comment.targetId) continue;
       const from = key('comment', comment.id);
-      const to = key(comment.targetKind, comment.targetId);
+      const to = key(comment.targetKind as ExportKind, comment.targetId);
       addRelation(relations, from, to, '注释对象');
       addRelation(relations, to, from, '被此注释引用');
     }
@@ -584,7 +489,7 @@ export async function exportAllProjectsAsRelationalMarkdown(): Promise<{
   }
   zip.file(
     'README.md',
-    '# Drifting Markdown 导出\n\n这是账户下所有书的关系型 Markdown 导出，面向阅读与迁移，不是可无损恢复应用状态的完整备份。`[[路径|标题]]` 表示实体链接；每个文件末尾的“关系”同时包含正向与反向引用。\n',
+    '# Drifting Markdown 导出\n\n这是本机书库所有项目的关系型 Markdown 导出，面向阅读与迁移。图片和 PDF 二进制文件不包含在内；这不是可无损恢复应用状态的完整备份。`[[路径|标题]]` 表示实体链接；每个文件末尾的“关系”同时包含正向与反向引用。\n',
   );
   zip.file(
     'index.md',
@@ -599,13 +504,37 @@ export async function exportAllProjectsAsRelationalMarkdown(): Promise<{
     ].join('\n'),
   );
 
-  const blob = await zip.generateAsync({ type: 'blob' });
-  const filename = `drifting-all-books-markdown-${new Date().toISOString().slice(0, 10)}.zip`;
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-  return { filename, documentCount: documents.size };
+  const bytes = await zip.generateAsync({
+    type: 'uint8array',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+  return {
+    bytes,
+    filename: `drifting-all-books-markdown-${now.toISOString().slice(0, 10)}.zip`,
+    documentCount: documents.size,
+  };
+}
+
+/** Flush open editors, capture local SQLite/Yjs state, then ask the OS where to save. */
+export async function exportAllProjectsAsRelationalMarkdown(
+  overrides: Partial<RelationalMarkdownExportDependencies> = {},
+): Promise<{
+  filename: string;
+  documentCount: number;
+  canceled: boolean;
+}> {
+  const dependencies = { ...defaultExportDependencies, ...overrides };
+  // Open editor Y.Docs can be newer than their SQLite snapshot. Flush only
+  // local durability; export must never trigger hosted entity or Yjs traffic.
+  await dependencies.flushOpenYjsDocuments();
+  const source = await dependencies.readLocalSource();
+  const archive = await buildRelationalMarkdownArchive(source, dependencies.now());
+  const saved = await dependencies.saveArchive(archive.filename, archive.bytes);
+  if (!saved.ok && !saved.canceled) throw new Error(saved.error);
+  return {
+    filename: archive.filename,
+    documentCount: archive.documentCount,
+    canceled: !saved.ok,
+  };
 }

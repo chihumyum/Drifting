@@ -138,7 +138,7 @@ export function ChapterEditor({
     kind: 'node-content',
     entityId: nodeId,
     projectId,
-    legacyContent: content,
+    seedContentJson: content,
   });
 
   // Development-only escape hatch for CRDT inspection. Never retain a live

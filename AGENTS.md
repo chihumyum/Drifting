@@ -23,6 +23,23 @@ Guidance for coding agents working in this standalone Drifting client repository
 - Keep service integration behind versioned network contracts. Do not import or
   mirror private service source.
 
+## Pre-release compatibility policy
+
+- Drifting has not shipped a public data-compatibility contract. Until this
+  section is explicitly revised, architectural clarity takes priority over
+  preserving historical development data or retired private-service behavior.
+- Do not add migrators, fallback reads, dual writes, legacy enum values, dormant
+  jobs, recovery UI, or adapter layers solely for old R2, hosted-service,
+  absolute-path, or other pre-release formats. Delete obsolete representations
+  and update the current schema, fixtures, documentation, and acceptance checks
+  together. Local development databases may be reset.
+- A future compatibility layer requires an explicit product decision recorded
+  here and in the relevant architecture document, including the released source
+  version, supported data population, migration guarantees, and removal policy.
+- This policy does not relax current durability guarantees: once a current-format
+  local write commits, its SQLite/Yjs state and app-owned asset bytes must still
+  obey the documented transaction, deletion, and recovery boundaries.
+
 ## Data and editing invariants
 
 - Live Yjs CRDT state is prose truth; `contentJson` is only a seed or cache.

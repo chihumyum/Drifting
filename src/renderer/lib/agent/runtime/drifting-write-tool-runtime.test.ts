@@ -453,59 +453,6 @@ describe('DriftingWriteToolRuntime', () => {
     });
   });
 
-  it('backfills ordered blocks for a pending pre-0071 prose review', async () => {
-    const repository = memoryRepository();
-    let exposeBlocks = false;
-    const projectReview = vi.fn(async () => undefined);
-    const strategy: DriftingWriteStrategy = {
-      prepare: async (writeRequest) => {
-        const effectId = `agent-write:${writeRequest.idempotencyKey}`;
-        const payload = {
-          kind: 'yjs_prose' as const,
-          reviewSnapshot: {
-            effectId,
-            reviewId: `agent-review:${effectId}`,
-            mode: 'approve' as const,
-          },
-        };
-        return {
-          observedRevision: null,
-          preimage: { stateHash: 'before' },
-          forward: payload,
-          inverse: payload,
-          reversibility: 'exact',
-        };
-      },
-      applyForward: async () => ({ ok: true, revision: 'yjs:1' }),
-      captureEffect: async (_request, _context, result) => ({
-        kind: 'yjs_prose',
-        handlerResult: result,
-      }),
-      reviewBlocks: async () =>
-        exposeBlocks ? [{ blockId: 'legacy-paragraph', ordinal: 0 }] : [],
-      applyReviewBlockInverse: async () => ({ restored: true }),
-      projectReview,
-      applyInverse: async () => ({ ok: true }),
-    };
-    const runtime = createRuntime(repository, {}, undefined, () => strategy);
-    const input = await authorizedRequest('revise_chapter', {
-      chapter: 'Chapter One',
-      changes: [{ currentText: 'Before', revisedText: 'Changed' }],
-    });
-    const reviewId = `agent-review:agent-write:${input.idempotencyKey}`;
-    await runtime.execute(input);
-    expect(repository.reviewBlocks(reviewId)).toEqual([]);
-
-    exposeBlocks = true;
-    await expect(runtime.reconcileProjectReviews('project-1')).resolves.toEqual({
-      projected: 1,
-      unresolved: 0,
-    });
-    expect(repository.reviewBlocks(reviewId)).toMatchObject([
-      { blockId: 'legacy-paragraph', ordinal: 0, status: 'pending' },
-    ]);
-  });
-
   it('fails closed on an unavailable write before claiming an effect', async () => {
     const repository = memoryRepository();
     const runtime = createRuntime(repository, {});
@@ -886,33 +833,6 @@ function memoryRepository() {
     async createReview(input: CreateAgentRuntimeWriteReview) {
       const existing = reviews.get(input.id);
       if (existing) {
-        const existingBlocks = [...reviewBlocks.values()].filter(
-          (block) => block.reviewId === input.id,
-        );
-        if (
-          existing.status === 'pending' &&
-          existingBlocks.length === 0 &&
-          (input.blocks?.length ?? 0) > 0
-        ) {
-          for (const block of input.blocks ?? []) {
-            reviewBlocks.set(`${input.id}\u0000${block.blockId}`, {
-              reviewId: input.id,
-              effectId: input.effectId,
-              blockId: block.blockId,
-              ordinal: block.ordinal,
-              status: 'pending',
-              decisionNote: null,
-              revertEffect: null,
-              errorCode: null,
-              errorMessage: null,
-              createdAt: existing.createdAt,
-              revertStartedAt: null,
-              settledAt: null,
-              updatedAt: existing.createdAt,
-            });
-          }
-          return { outcome: 'updated' as const, review: existing };
-        }
         return { outcome: 'duplicate' as const, review: existing };
       }
       const review: PersistedAgentRuntimeWriteReview = {

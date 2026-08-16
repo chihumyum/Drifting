@@ -905,6 +905,7 @@
     ],
     "unavailableNames": [
       "add_relation",
+      "assign_relation_type",
       "create_category",
       "create_node",
       "forget",
@@ -917,8 +918,7 @@
       "set_primary_storyline",
       "set_summary",
       "unlink_chapter_from_storyline",
-      "update_category",
-      "update_relation_kind"
+      "update_category"
     ]
   },
   "domainToolSurface": {
@@ -1013,7 +1013,7 @@
       "update_comment",
       "delete_comment",
       "add_relation",
-      "update_relation_kind",
+      "assign_relation_type",
       "remove_relation",
       "create_relation_type",
       "update_relation_type",
@@ -1530,7 +1530,7 @@
               "update_relation"
             ],
             "hiddenCommands": [
-              "update_relation_kind"
+              "assign_relation_type"
             ],
             "approval": "automatic",
             "authority": "sqlite"
@@ -1551,7 +1551,7 @@
             "providerTools": [],
             "hiddenCommands": [
               "add_relation",
-              "update_relation_kind",
+              "assign_relation_type",
               "remove_relation"
             ],
             "approval": "not_applicable",
@@ -1760,7 +1760,7 @@
     "lifecycle": "turn-start-read-and-pre-final-importance-checkpoint",
     "compaction": "soft-6000-hard-8000-oldest-first-retirement",
     "concurrency": "sqlite-revision-cas",
-    "sync": "atomic-local-row-plus-outbox"
+    "sync": "device-local-excluded-from-sync"
   },
   "contextEngineering": {
     "providerProfile": {

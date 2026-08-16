@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-phase1-main-prose-authority",
+  "recordedAt": "2026-08-15",
+  "status": "implemented",
+  "authority": {
+    "families": ["node", "element", "storyline", "element-category"],
+    "wireAuthority": "yjs.update",
+    "contentJson": "local-derived-projection-or-checkpoint-seed-only-body",
+    "contentJsonFieldSetAllowed": false,
+    "contentJsonLifecycleSeedAllowed": false,
+    "commentLibraryAndPatchWholeJsonLwwUnchanged": true
+  },
+  "createAndRestore": {
+    "deterministicFullState": true,
+    "sameSqliteTransactionAsOwner": true,
+    "sameChangeSetAsLifecycle": true,
+    "revisionAndProvenanceAtomic": true,
+    "exactlyOneStateUpdateRequired": true,
+    "seedOnlyCheckpointSupported": true,
+    "seedOnlyFirstWritePromotesToYjs": true
+  },
+  "writers": {
+    "ordinaryUiCreates": true,
+    "markdownImportUsesCreateSeed": true,
+    "agentStructuralCreates": true,
+    "closedDocumentAgentWrites": true,
+    "projectionOnlyUsesDerivedTransaction": true,
+    "mixedUpdateStripsContentJson": true
+  },
+  "remoteReducer": {
+    "scalarContentJsonFailsClosed": true,
+    "missingLifecycleYjsFailsClosed": true,
+    "invalidLifecycleBundlePartiallyMaterializes": false,
+    "remoteProvenance": true,
+    "contentJsonProjectionRebuiltInApplyTransaction": true
+  },
+  "machineAcceptance": {
+    "command": "pnpm exec vitest run src/renderer/sync/journal/domain-mutation.test.ts src/renderer/sync/journal/yjs-update.integration.test.ts src/renderer/sync/journal/main-prose-authority.acceptance.test.ts src/renderer/usecase/sync-lifecycle-restore.integration.test.ts src/renderer/sync/reducer/production-domain-kernel.integration.test.ts src/renderer/lib/agent/runtime/drifting-domain-crud-write-strategy.integration.test.ts src/renderer/sync/checkpoint/checkpoint.integration.test.ts src/renderer/services/node-prose-metrics.service.test.ts src/renderer/services/yjs-document-session.test.ts src/renderer/sync/app-authority-repository.integration.test.ts",
+    "testFilesPassed": 10,
+    "testsPassed": 76,
+    "failed": 0,
+    "scopedEslint": "passed",
+    "typecheck": "passed"
+  },
+  "openGates": [
+    "real Google Drive account convergence",
+    "physical desktop iOS Android acceptance"
+  ]
+}

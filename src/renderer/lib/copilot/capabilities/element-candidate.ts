@@ -23,7 +23,7 @@
  *     `element:element-created` and open editors link their own docs.
  */
 import loglevel from 'loglevel';
-import { runStructured } from '../../ai/remote/run-structured';
+import { runStructured } from '../../ai/run-structured';
 
 const log = loglevel.getLogger('copilot:element-candidate');
 import { buildElementCandidateContext } from '../../ai/context/element-candidate-context-builder';
@@ -82,9 +82,8 @@ export const elementCandidateCapability: CopilotCapability = {
 
     const priorSectionSummaries = ctx.baseContext.priorSections.map((s) => s.summary);
 
-    // Phase 2: the prompt is built + run server-side. We send only (promptId,
-    // version, input); no LLM client is constructed in the renderer for this
-    // capability, and the prompt text/output descriptions never ship here.
+    // Prompt construction and inference are renderer-local; only the selected
+    // BYOK provider receives this request.
     const { candidates } = await runStructured(
       elementCandidatePrompt,
       {
@@ -95,7 +94,7 @@ export const elementCandidateCapability: CopilotCapability = {
         userInstruction: ctx.userInstruction,
         priorSectionSummaries,
       },
-      { signal: ctx.signal, projectId: ctx.projectId },
+      { signal: ctx.signal, projectId: ctx.projectId, runtime: ctx.runtime },
     );
 
     if (ctx.signal.aborted) return [];

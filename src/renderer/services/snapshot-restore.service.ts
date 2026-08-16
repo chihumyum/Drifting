@@ -33,7 +33,11 @@ import { useAgentEditStore } from '../store/agent-edit-store';
 import { useAgentActivityStore } from '../store/agent-activity-store';
 import { materializeCanonicalNodeProse } from './node-prose-metrics.service';
 import type { WritingStatus } from '../domain/book-node';
-import { compactUpdatesAfterSnapshot } from './yjs-sync.service';
+import {
+  compactUpdatesAfterSnapshot,
+  flushOpenYjsDocument,
+} from './yjs-local-durability.service';
+import { appendYjsUpdateMutation, runAuthoredTransaction } from '../sync/journal';
 import {
   captureSnapshotHistory,
   maybeCaptureSnapshotHistory,
@@ -45,7 +49,7 @@ log.setLevel(loglevel.levels.WARN);
 
 // Treated as a LOCAL edit by useYjsDoc's update handler (unlike the reserved
 // 'restore' origin, which marks server-known state): the replacement ops are
-// brand-new and must persist + push like a user edit.
+// brand-new and must persist + journal like a user edit.
 const RESTORE_ORIGIN = 'history-restore';
 
 /** Replace the target fragment's children with deep clones of the source's. */
@@ -57,7 +61,11 @@ function replaceFragmentContent(target: Y.XmlFragment, source: Y.XmlFragment): v
   if (clones.length > 0) target.insert(0, clones);
 }
 
-async function applyProseState(docId: string, stateBlob: Uint8Array): Promise<string> {
+async function applyProseState(
+  projectId: string,
+  docId: string,
+  stateBlob: Uint8Array,
+): Promise<string> {
   const source = new Y.Doc();
   try {
     Y.applyUpdate(source, stateBlob, 'load');
@@ -66,6 +74,7 @@ async function applyProseState(docId: string, stateBlob: Uint8Array): Promise<st
     const live = getLiveYDoc(docId);
     if (live) {
       live.transact(() => replaceFragmentContent(live.getXmlFragment('default'), sourceFrag), RESTORE_ORIGIN);
+      await flushOpenYjsDocument(docId);
       return JSON.stringify(yDocToProsemirrorJSON(live, 'default'));
     }
 
@@ -88,16 +97,27 @@ async function applyProseState(docId: string, stateBlob: Uint8Array): Promise<st
         );
         doc.off('update', onUpdate);
 
-        for (const u of diff) {
-          await yrepo.appendUpdate(docId, u, { kind: 'user' });
-        }
-        const coveredId = await yrepo.maxUpdateId(docId);
         const fullState = Y.encodeStateAsUpdate(doc);
-        await yrepo.upsertSnapshot(docId, fullState, {
-          source: { kind: 'user' },
-        });
-        maybeCaptureSnapshotHistory(docId, fullState, 'restore');
-        await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
+        if (diff.length > 0) {
+          const coveredId = await runAuthoredTransaction(
+            projectId,
+            'history.restore-prose',
+            async ({ tx, changes }) => {
+              const txRepo = createYjsRepository(tx);
+              let lastUpdateId = 0;
+              for (const update of diff) {
+                lastUpdateId = await txRepo.appendUpdate(docId, update, { kind: 'user' });
+                appendYjsUpdateMutation(changes, docId, update);
+              }
+              await txRepo.upsertSnapshot(docId, fullState, {
+                source: { kind: 'user' },
+              });
+              return lastUpdateId;
+            },
+          );
+          maybeCaptureSnapshotHistory(docId, fullState, 'restore');
+          await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
+        }
         return JSON.stringify(yDocToProsemirrorJSON(doc, 'default'));
       } finally {
         doc.destroy();
@@ -215,7 +235,7 @@ async function restoreEntitySnapshotPayload(row: EntitySnapshotRow): Promise<voi
   // Safety net first: the pre-restore state becomes its own history row.
   await captureCurrentState(docId);
 
-  const contentJson = await applyProseState(docId, row.stateBlob);
+  const contentJson = await applyProseState(row.projectId, docId, row.stateBlob);
   await restoreMetadata(ctx, row, contentJson);
 
   // Pending agent-review markers referenced the replaced content — clear them

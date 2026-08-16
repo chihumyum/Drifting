@@ -46,7 +46,7 @@ const LINT_FILES = [
   ...TEST_FILES,
 ];
 const HASHED_SOURCE_FILES = [
-  'drizzle/0071_agent_runtime_review_blocks.sql',
+  'drizzle/0000_local_first_baseline.sql',
   'drizzle/meta/_journal.json',
   'docs/agent-runtime/durable-commit-review-protocol.md',
   'src/renderer/domain/agent-runtime-write-effect.ts',
@@ -63,11 +63,9 @@ const REQUIRED_ASSERTIONS = {
   lostSqliteCommitAcknowledgement:
     'adopts one exact history when SQLite committed but the first commit acknowledgement was lost',
   orderedBlockLedger:
-    'persists ordered block decisions, atomically settles mixed/all-reverted reviews, and upgrades pending legacy rows',
+    'persists ordered block decisions and atomically settles mixed/all-reverted reviews',
   runtimeBlockRecovery:
     'settles prose review blocks durably and retries an entered block inverse during project hydration',
-  legacyReviewUpgrade:
-    'backfills ordered blocks for a pending pre-0071 prose review',
   localProjectionLoss:
     'rebuilds a lost inline review from file SQLite and settles mixed blocks against Yjs',
   postYjsSettlementFault:
@@ -265,7 +263,8 @@ export async function runMilestoneCAcceptance(options = parseOptions([])) {
       gitHead: await gitHead(),
       sourceSetSha256: await hashSourceSet(HASHED_SOURCE_FILES),
       storageReplay: {
-        sqlite: 'real file-backed SQLite with product migrations and injected transaction faults',
+        sqlite:
+          'real file-backed SQLite from the current local-first baseline with injected transaction faults',
         prose: 'real Yjs snapshots/updates and guarded block inverses',
         localProjection: 'Zustand/localStorage state deliberately cleared and rebuilt',
         networkRequired: false,

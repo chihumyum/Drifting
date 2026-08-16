@@ -15,8 +15,8 @@
  *     updates instantly and the editor's own handlers persist + sync it.
  *   - chapter closed, has Yjs    → rehydrate a transient Y.Doc from SQLite,
  *     apply, persist the diff + a snapshot so the next open shows it.
- *   - never opened (no Yjs yet)   → write contentJson; the editor seeds Yjs from
- *     it on first open (with its own pull-first protection).
+ *   - seed-only recovery body     → deterministically promote the projection
+ *     to one full Yjs state update before acknowledging the edit.
  * In every case the contentJson cache + wordCount are refreshed so read_node
  * / search_prose / the dashboard stay consistent.
  *
@@ -34,10 +34,7 @@ import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { effectiveAgentEditMode } from './agent-edit-mode';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
-import {
-  compactUpdatesAfterSnapshot,
-  flushOpenYjsDocument,
-} from '../../services/yjs-sync.service';
+import { flushOpenYjsDocument } from '../../services/yjs-local-durability.service';
 import { maybeCaptureSnapshotHistory } from '../../services/snapshot-history.service';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { hydrateProseJson } from './prose-hydrate-client';
@@ -45,11 +42,12 @@ import { materializeCanonicalNodeProse } from '../../services/node-prose-metrics
 import { computeBlockChanges, type AgentBlockChange } from './block-diff';
 import { detectEntityLinkSpans } from '../extensions/entity-link';
 import type { AgentToolContext } from './tool-handlers';
-import { withAtomicSyncTransaction } from '../../usecase/sync-helpers';
+import { runDerivedTransaction } from '../../sync/journal';
+import { appendAuthoredYjsUpdate } from '../../sync/journal/yjs-update';
+import { createYjsProseSeedState } from './runtime/yjs-prose-command';
 
-// Update origin: anything other than 'load'/'remote'/'seed'/'restore' is treated
-// as a local edit by useYjsDoc (→ appended to yjs_updates) and useYjsSync (→
-// pushed to the server), so live-doc edits persist + sync without extra work.
+// The shared document session recognizes this as a local authored edit and
+// commits its Yjs row, revision/provenance, and sync journal atomically.
 const AGENT_ORIGIN = 'agent';
 
 // ---- in-place Y.XmlFragment mutators ---------------------------------------
@@ -128,37 +126,6 @@ function stripEntityLinkMarksInFrag(frag: Y.XmlFragment, targetId: string): bool
     else if (top instanceof Y.XmlElement) visitEl(top);
   }
   return changed;
-}
-
-/** Same strip on a contentJson string (the no-Yjs seed path). Drops entityLink
- *  marks for `targetId` from every text node, keeping the text. Returns the new
- *  json, or the original unchanged when nothing matched. */
-function stripEntityLinkMarksInJson(json: string, targetId: string): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    return json;
-  }
-  let changed = false;
-  const walk = (node: unknown): void => {
-    if (!node || typeof node !== 'object') return;
-    const rec = node as { marks?: unknown; content?: unknown };
-    if (Array.isArray(rec.marks)) {
-      const kept = rec.marks.filter((m) => {
-        const mm = m as { type?: unknown; attrs?: { targetId?: unknown } };
-        if (mm?.type === 'entityLink' && mm.attrs?.targetId === targetId) {
-          changed = true;
-          return false;
-        }
-        return true;
-      });
-      rec.marks = kept;
-    }
-    if (Array.isArray(rec.content)) for (const c of rec.content) walk(c);
-  };
-  walk(parsed);
-  return changed ? JSON.stringify(parsed) : json;
 }
 
 function newParagraph(text: string): Y.XmlElement {
@@ -332,24 +299,24 @@ async function readProseContentJson(
 }
 
 /**
- * Apply a body edit through the Yjs document when one exists, returning the
- * resulting contentJson. `yMutate` expresses the edit on the Y.XmlFragment;
- * `jsonMutate` is the equivalent on a contentJson string, used only when the
- * entity has no Yjs state yet (the editor seeds Yjs from contentJson on first
- * open). Does NOT touch the projection cache — callers refresh it.
+ * Apply a body edit through the Yjs document, returning the resulting
+ * contentJson. Seed-only checkpoint bodies are deterministically promoted to
+ * a full authored Yjs state before the edit is acknowledged. Does NOT touch
+ * the projection cache — callers refresh it.
  */
 async function writeProseDoc(
+  projectId: string,
   docId: string,
   yMutate: (frag: Y.XmlFragment) => string[],
-  jsonMutate: (currentJson: string) => string,
+  _jsonMutate: (currentJson: string) => string,
   readFallbackJson: () => Promise<string>,
 ): Promise<{ contentJson: string; blockIds: string[]; changes: AgentBlockChange[] }> {
   const toJson = (doc: Y.Doc) => JSON.stringify(yDocToProsemirrorJSON(doc, 'default'));
 
   const live = getLiveYDoc(docId);
   if (live) {
-    // Mutate the open editor's doc — it updates the page live and the editor's
-    // own update/sync handlers persist + push it. Snapshot before/after so the
+    // Mutate the open editor's doc — it updates the page live and the shared
+    // session persists + journals it. Snapshot before/after so the
     // change indicators (#4) can diff exactly which blocks moved.
     const beforeJson = toJson(live);
     let blockIds: string[] = [];
@@ -371,7 +338,10 @@ async function writeProseDoc(
     try {
       const snap = await yrepo.getSnapshot(docId);
       if (snap) Y.applyUpdate(doc, snap.stateBlob, 'load');
-      for (const u of await yrepo.listUpdates(docId)) Y.applyUpdate(doc, u.updateBlob, 'load');
+      const replayedUpdates = await yrepo.listUpdates(docId);
+      for (const update of replayedUpdates) {
+        Y.applyUpdate(doc, update.updateBlob, 'load');
+      }
       const beforeJson = toJson(doc);
 
       // Collect the diff this edit produces so we can append it for sync.
@@ -389,17 +359,23 @@ async function writeProseDoc(
       doc.off('update', onUpdate);
 
       for (const u of diff) {
-        await yrepo.appendUpdate(docId, u, { kind: 'agent' });
+        await appendAuthoredYjsUpdate(
+          projectId,
+          docId,
+          u,
+          { kind: 'agent' },
+        );
       }
-      const coveredId = await yrepo.maxUpdateId(docId);
       const fullState = Y.encodeStateAsUpdate(doc);
       await yrepo.upsertSnapshot(docId, fullState, {
-        source: { kind: 'agent' },
+        advanceRevision: false,
       });
       // Time-machine trail for closed-doc agent writes (live-doc writes are
       // captured by useYjsDoc's own snapshot path).
       maybeCaptureSnapshotHistory(docId, fullState);
-      await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
+      // A transient closed-doc writer is not the process-wide persistence
+      // owner. Keep its journaled update rows; the shared session/checkpoint
+      // path may compact only after it has replayed a complete serial view.
       const contentJson = toJson(doc);
       return { contentJson, blockIds, changes: computeBlockChanges(beforeJson, contentJson) };
     } finally {
@@ -407,16 +383,37 @@ async function writeProseDoc(
     }
   }
 
-  // No Yjs state yet — edit the contentJson the editor will seed Yjs from. The
-  // JSON path can't surface stable block uuids from Yjs, but serialize.ts keeps
-  // them, so block changes are still diffable.
+  // A checkpoint may carry a seed-only body. Promote it once to an authored
+  // full Yjs state; never let the projection become an alternate write authority.
   const beforeJson = await readFallbackJson();
-  const contentJson = jsonMutate(beforeJson);
-  return { contentJson, blockIds: [], changes: computeBlockChanges(beforeJson, contentJson) };
+  const seed = await createYjsProseSeedState(beforeJson);
+  const document = new Y.Doc();
+  try {
+    Y.applyUpdate(document, seed, 'seed-only-promotion');
+    const canonicalBeforeJson = toJson(document);
+    let blockIds: string[] = [];
+    document.transact(() => {
+      const fragment = document.getXmlFragment('default');
+      blockIds = yMutate(fragment);
+      relinkBlockMentions(fragment, blockIds);
+    }, AGENT_ORIGIN);
+    const fullState = Y.encodeStateAsUpdate(document);
+    await appendAuthoredYjsUpdate(projectId, docId, fullState, { kind: 'agent' });
+    await yrepo.upsertSnapshot(docId, fullState, { advanceRevision: false });
+    maybeCaptureSnapshotHistory(docId, fullState);
+    const contentJson = toJson(document);
+    return {
+      contentJson,
+      blockIds,
+      changes: computeBlockChanges(canonicalBeforeJson, contentJson),
+    };
+  } finally {
+    document.destroy();
+  }
 }
 
-/** The per-entity contentJson projection cache (the seed the editor reads on an
- *  empty doc). The node body lives in a SQLite row; element/storyline/category
+/** The per-entity contentJson projection cache (or checkpoint seed-only body).
+ *  The node body lives in a SQLite row; element/storyline/category
  *  bodies are on the in-memory data store. Returns null when absent. */
 async function readBodyFromStore(entityType: ProseEntityType, id: string): Promise<string | null> {
   switch (entityType) {
@@ -433,9 +430,9 @@ async function readBodyFromStore(entityType: ProseEntityType, id: string): Promi
 
 /**
  * Any prose entity's CURRENT body as contentJson, read from the Yjs truth so the
- * agent sees exactly what the editor shows. Falls back to the supplied
- * `fallbackContentJson` (when the caller already has it) and then the projection
- * cache, when the entity has no Yjs state yet.
+ * agent sees exactly what the editor shows. A supplied fallback or projection
+ * cache is read only for a checkpoint's seed-only recovery body; the first
+ * subsequent write promotes it to Yjs authority.
  */
 export async function getEntityContentJson(
   entityType: ProseEntityType,
@@ -499,6 +496,7 @@ export async function writeEntityProse(
   jsonMutate: (currentJson: string) => string,
 ): Promise<{ contentJson: string; blockIds: string[]; changes: AgentBlockChange[] }> {
   const { contentJson, blockIds, changes } = await writeProseDoc(
+    ctx.projectId,
     proseDocId(entityType, id),
     yMutate,
     jsonMutate,
@@ -507,7 +505,7 @@ export async function writeEntityProse(
 
   await persistBody(ctx, entityType, id, contentJson);
 
-  // Only legacy/manual callers use post-write visual staging. The General
+  // Only non-runtime/manual callers use post-write visual staging. The General
   // Agent's durable provenance proves it crossed the pre-execution gate.
   if (!ctx.provenance && changes.length) {
     useAgentEditStore
@@ -537,25 +535,24 @@ export async function getElementContentJson(elementId: string): Promise<string> 
 }
 
 async function persistNodeContentProjection(
-  projectId: string,
   nodeId: string,
   contentJson: string,
 ): Promise<void> {
-  await withAtomicSyncTransaction(projectId, async (tx, sync) => {
+  await runDerivedTransaction('prose.node-content-projection', async (tx) => {
     const updated = await createBookContentRepository(tx).updateByNodeId(nodeId, {
       contentJson,
     });
     if (!updated) {
       throw new Error(`Node content for ${nodeId} not found`);
     }
-    await sync('nodeContent', 'update', nodeId, projectId, { contentJson });
   });
 }
 
 /**
  * Strip every entityLink mark pointing at `targetId` from ONE chapter's prose,
  * across whichever representation is live: the open editor's Y.Doc, a rehydrated
- * Y.Doc (closed chapter with Yjs state), or the contentJson seed (never opened).
+ * Y.Doc (closed chapter with Yjs state), or a checkpoint seed-only body that is
+ * promoted to Yjs before the unlink is acknowledged.
  * Keeps the text; refreshes the contentJson cache so readers stay consistent.
  * Mirrors {@link writeProseDoc}'s three-path persistence but does NOT record an
  * agent edit (mark removal leaves text untouched, so it's not a reviewable change).
@@ -569,8 +566,8 @@ export async function unlinkEntityFromChapterProse(
   const docId = proseDocId('node', nodeId);
   const contentRepo = createBookContentRepository();
 
-  // Live doc (open editor): mutate in place — the editor's own update/sync handlers
-  // persist + push it, and re-project inline mentions (now without this target).
+  // Live doc (open editor): mutate in place — the shared session persists and
+  // journals it, then the domain path re-projects inline mentions without this target.
   const live = getLiveYDoc(docId);
   if (live) {
     let changed = false;
@@ -579,7 +576,6 @@ export async function unlinkEntityFromChapterProse(
     }, AGENT_ORIGIN);
     if (changed) {
       await persistNodeContentProjection(
-        projectId,
         nodeId,
         JSON.stringify(yDocToProsemirrorJSON(live, 'default')),
       );
@@ -594,7 +590,10 @@ export async function unlinkEntityFromChapterProse(
     try {
       const snap = await yrepo.getSnapshot(docId);
       if (snap) Y.applyUpdate(doc, snap.stateBlob, 'load');
-      for (const u of await yrepo.listUpdates(docId)) Y.applyUpdate(doc, u.updateBlob, 'load');
+      const replayedUpdates = await yrepo.listUpdates(docId);
+      for (const update of replayedUpdates) {
+        Y.applyUpdate(doc, update.updateBlob, 'load');
+      }
       const diff: Uint8Array[] = [];
       const onUpdate = (u: Uint8Array, origin: unknown) => {
         if (origin === AGENT_ORIGIN) diff.push(new Uint8Array(u));
@@ -607,15 +606,19 @@ export async function unlinkEntityFromChapterProse(
       doc.off('update', onUpdate);
       if (changed) {
         for (const u of diff) {
-          await yrepo.appendUpdate(docId, u, { kind: 'agent' });
+          await appendAuthoredYjsUpdate(
+            projectId,
+            docId,
+            u,
+            { kind: 'agent' },
+          );
         }
-        const coveredId = await yrepo.maxUpdateId(docId);
         await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc), {
-          source: { kind: 'agent' },
+          advanceRevision: false,
         });
-        await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
+        // Do not compact from a transient rehydration; a concurrent writer may
+        // have committed a row absent from this captured full state.
         await persistNodeContentProjection(
-          projectId,
           nodeId,
           JSON.stringify(yDocToProsemirrorJSON(doc, 'default')),
         );
@@ -626,13 +629,26 @@ export async function unlinkEntityFromChapterProse(
     return;
   }
 
-  // Never opened — strip from the contentJson seed the editor will hydrate from.
+  // Seed-only checkpoint recovery: promote the projection to Yjs authority,
+  // then strip the mark on that authoritative document.
   const existing = await contentRepo.findByNodeId(nodeId);
-  if (existing?.contentJson) {
-    const stripped = stripEntityLinkMarksInJson(existing.contentJson, targetId);
-    if (stripped !== existing.contentJson) {
-      await persistNodeContentProjection(projectId, nodeId, stripped);
-    }
+  if (!existing?.contentJson) return;
+  const seed = await createYjsProseSeedState(existing.contentJson);
+  const document = new Y.Doc();
+  try {
+    Y.applyUpdate(document, seed, 'seed-only-promotion');
+    document.transact(() => {
+      stripEntityLinkMarksInFrag(document.getXmlFragment('default'), targetId);
+    }, AGENT_ORIGIN);
+    const fullState = Y.encodeStateAsUpdate(document);
+    await appendAuthoredYjsUpdate(projectId, docId, fullState, { kind: 'agent' });
+    await yrepo.upsertSnapshot(docId, fullState, { advanceRevision: false });
+    await persistNodeContentProjection(
+      nodeId,
+      JSON.stringify(yDocToProsemirrorJSON(document, 'default')),
+    );
+  } finally {
+    document.destroy();
   }
 }
 
@@ -654,7 +670,7 @@ export async function writeElementProse(
 /**
  * Undo a single agent block change on any prose entity (approve-mode "reject").
  * Applies the inverse edit through the Yjs doc with a NON-agent origin, so it
- * persists + syncs like an ordinary user edit and does NOT re-record into the
+ * persists + journals like an ordinary user edit and does NOT re-record into the
  * edit store:
  *   - changed → restore the block's old text
  *   - new     → remove the block
@@ -729,6 +745,7 @@ export async function revertEntityBlock(
   id: string,
   change: AgentBlockChange,
   context?: AgentToolContext,
+  projectIdOverride?: string,
 ): Promise<void> {
   const docId = proseDocId(entityType, id);
   const persistProjection = async (doc: Y.Doc): Promise<void> => {
@@ -743,7 +760,7 @@ export async function revertEntityBlock(
 
   const live = getLiveYDoc(docId);
   if (live) {
-    // The live editor's own update/sync handlers persist + push it. Do not
+    // The live editor's shared session persists + journals it. Do not
     // settle the durable block review until that asynchronous local queue has
     // acknowledged the inverse, otherwise a reload can retain text whose badge
     // already disappeared.
@@ -761,11 +778,18 @@ export async function revertEntityBlock(
 
   const yrepo = createYjsRepository();
   if (await yrepo.hasDocState(docId)) {
+    const projectId = context?.projectId ?? projectIdOverride;
+    if (!projectId) {
+      throw new Error(`Closed prose revert for ${docId} requires projectId`);
+    }
     const doc = new Y.Doc();
     try {
       const snap = await yrepo.getSnapshot(docId);
       if (snap) Y.applyUpdate(doc, snap.stateBlob, 'load');
-      for (const u of await yrepo.listUpdates(docId)) Y.applyUpdate(doc, u.updateBlob, 'load');
+      const replayedUpdates = await yrepo.listUpdates(docId);
+      for (const update of replayedUpdates) {
+        Y.applyUpdate(doc, update.updateBlob, 'load');
+      }
       const diff: Uint8Array[] = [];
       const onUpdate = (u: Uint8Array, origin: unknown) => {
         if (origin === REVERT_ORIGIN) diff.push(new Uint8Array(u));
@@ -777,15 +801,19 @@ export async function revertEntityBlock(
       );
       doc.off('update', onUpdate);
       for (const u of diff) {
-        await yrepo.appendUpdate(docId, u, { kind: 'agent' });
+        await appendAuthoredYjsUpdate(
+          projectId,
+          docId,
+          u,
+          { kind: 'agent' },
+        );
       }
       if (diff.length > 0) {
-        const coveredId = await yrepo.maxUpdateId(docId);
         const fullState = Y.encodeStateAsUpdate(doc);
         await yrepo.upsertSnapshot(docId, fullState, {
-          source: { kind: 'agent' },
+          advanceRevision: false,
         });
-        await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
+        // Leave update-log compaction to the shared document owner.
       }
       await persistProjection(doc);
     } finally {

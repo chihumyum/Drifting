@@ -52,7 +52,7 @@ function ElementPopoverBodyEditor({
     kind: 'element',
     entityId: element.id,
     projectId,
-    legacyContent: element.contentJson ?? null,
+    seedContentJson: element.contentJson ?? null,
   });
 
   const handlePersist = useCallback(

@@ -8,7 +8,7 @@
  * so it can be invoked from the inline popover without a hook.
  */
 import loglevel from 'loglevel';
-import { runStructured } from '../ai/remote/run-structured';
+import { runStructured } from '../ai/run-structured';
 import { chapterSummaryPrompt } from '../ai/prompts/templates/chapter-summary';
 import { buildAdaptiveChapterContext } from './adaptive-chapter-context';
 import { useDataStore } from '../../store/data-store';

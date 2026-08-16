@@ -1,10 +1,10 @@
 /**
  * CredentialsProvider — abstraction over "where does my API key come from".
  *
- * Phase 0 ships only BYOK (the OS keychain via byok-keychain.ts).
- * Phase 4 will add a Hosted implementation that exchanges a better-auth
- * session for a short-lived proxy token. Upstream callers never know which
- * mode is active; they just ask for a key.
+ * Public local-only builds use BYOK from native secure storage via
+ * byok-keychain.ts. A separately operated compatible service may implement a
+ * hosted credential contract, but renderer-local Copilot never silently falls
+ * back to it.
  */
 import type { BYOKProvider } from '../../byok-keychain';
 

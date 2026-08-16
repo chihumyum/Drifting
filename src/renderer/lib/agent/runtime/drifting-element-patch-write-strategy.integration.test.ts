@@ -11,7 +11,6 @@ import type {
   CreateAgentRuntimeReadObservation,
 } from '../../../domain/agent-runtime-freshness';
 import type { DbExecutor } from '../../../lib/db';
-import { LocalSyncMutationTable } from '../../../schema/drizzle';
 import { createAgentRuntimeElementPatchReceiptRepository } from '../../../sqlite-repo/agent-runtime-element-patch-receipt-repo';
 import { createAgentRuntimeFreshnessRepository } from '../../../sqlite-repo/agent-runtime-freshness-repo';
 import { canonicalAgentRuntimeJson } from '../../../sqlite-repo/agent-runtime-persistence-repo';
@@ -20,6 +19,10 @@ import {
   type AgentRuntimeWriteEffectRepository,
 } from '../../../sqlite-repo/agent-runtime-write-effect-repo';
 import { createElementPatchRepository } from '../../../sqlite-repo/element-patch-repo';
+import {
+  createElementPatchWithSync,
+  type ElementPatchAtomicTransactionRunner,
+} from '../../../usecase/synced-entity-commands';
 import { useAgentEditStore } from '../../../store/agent-edit-store';
 import { useDataStore } from '../../../store/data-store';
 import type { AgentToolContext } from '../tool-handlers';
@@ -35,6 +38,7 @@ import type {
   AgentToolRuntime,
 } from './types';
 import { P3FileBackedSqliteGateway } from './acceptance/p3-file-backed-sqlite';
+import { createTestAgentAuthoredJournal } from './agent-authored-journal.test-support';
 
 const PROJECT_ID = 'patch-project';
 const OTHER_PROJECT_ID = 'patch-project-other';
@@ -59,7 +63,7 @@ describe('certified element patch runtime', () => {
     await fixture.close();
   });
 
-  it('reconciles a receipt-proven create after restart without a second patch or outbox row', async () => {
+  it('reconciles a receipt-proven create after restart without a second patch or change-set', async () => {
     const token = await fixture.persistPatchRead(
       'read-create',
       'element-1',
@@ -105,7 +109,9 @@ describe('certified element patch runtime', () => {
         'SELECT count(*) FROM agent_runtime_element_patch_receipt',
       ),
     ).toBe(1);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_apply_receipt')).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_order_register')).toBe(1);
 
     const recovered = await fixture.runtime(base).execute(request);
     expect(recovered).toMatchObject({
@@ -117,7 +123,7 @@ describe('certified element patch runtime', () => {
       },
     });
     expect(fixture.scalar('SELECT count(*) FROM element_patch')).toBe(1);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
     expect(
       fixture.scalar(
         'SELECT count(*) FROM agent_runtime_element_patch_receipt',
@@ -152,7 +158,7 @@ describe('certified element patch runtime', () => {
       },
     });
     expect((await fixture.patch(patch.id))?.title).toBe('新标题');
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(2);
     expect(
       fixture.scalar(
         "SELECT count(*) FROM agent_runtime_element_patch_receipt WHERE direction = 'inverse'",
@@ -160,11 +166,11 @@ describe('certified element patch runtime', () => {
     ).toBe(0);
     expect(fixture.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(0);
     expect(await fixture.runtime().execute(request)).toEqual(written);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(2);
 
   });
 
-  it('hard-deletes an approved patch with an immutable null-postimage receipt', async () => {
+  it('projects an approved delete locally and restores the patch at incarnation one', async () => {
     const patch = await fixture.insertPatch('patch-delete', '待删除', '正文');
     const token = await fixture.persistPatchRead(
       'read-delete',
@@ -205,17 +211,24 @@ describe('certified element patch runtime', () => {
     ]);
     expect(
       fixture.rows(
-        "SELECT entity_type, mutation_type, entity_id FROM local_sync_mutation",
+        "SELECT target_kind, action, target_id, incarnation FROM sync_mutation " +
+          `WHERE target_id = '${patch.id}' AND action IN ('entity.trash', 'entity.purge')`,
       ),
     ).toEqual([
       {
-        entity_type: 'elementPatch',
-        mutation_type: 'delete',
-        entity_id: patch.id,
+        target_kind: 'element-patch',
+        action: 'entity.trash',
+        target_id: patch.id,
+        incarnation: 0,
       },
     ]);
+    expect(
+      fixture.rows(
+        `SELECT state, incarnation FROM sync_entity_lifecycle WHERE entity_kind = 'element-patch' AND entity_id = '${patch.id}'`,
+      ),
+    ).toEqual([{ state: 'trashed', incarnation: 0 }]);
     expect(await fixture.runtime().execute(request)).toEqual(written);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(2);
 
     const effect = await createAgentRuntimeWriteEffectRepository(
       fixture.client,
@@ -227,7 +240,7 @@ describe('certified element patch runtime', () => {
       elementPatchReceipts: createAgentRuntimeElementPatchReceiptRepository(
         fixture.client,
       ),
-      elementPatchNotifySyncCommitted: () => {},
+      authoredJournal: fixture.journal,
     });
     if (!strategy) throw new Error('Missing certified delete strategy');
     await expect(
@@ -251,6 +264,20 @@ describe('certified element patch runtime', () => {
         "SELECT count(*) FROM agent_runtime_element_patch_receipt WHERE direction = 'inverse'",
       ),
     ).toBe(1);
+    expect(
+      fixture.rows(
+        `SELECT action, target_kind, incarnation FROM sync_mutation WHERE target_id = '${patch.id}' AND incarnation = 1 AND action IN ('entity.restore', 'order.move') ORDER BY action`,
+      ),
+    ).toEqual([
+      { action: 'entity.restore', target_kind: 'element-patch', incarnation: 1 },
+      { action: 'order.move', target_kind: 'element-patch', incarnation: 1 },
+    ]);
+    expect(
+      fixture.rows(
+        `SELECT state, incarnation FROM sync_entity_lifecycle WHERE entity_kind = 'element-patch' AND entity_id = '${patch.id}'`,
+      ),
+    ).toEqual([{ state: 'live', incarnation: 1 }]);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(3);
   });
 
   it('fails closed for stale patch content and cross-project receipts', async () => {
@@ -423,17 +450,14 @@ describe('certified element patch runtime', () => {
       },
     );
     fixture.seedToolCall(request);
-    let notifications = 0;
-    const runtime = fixture.runtime(undefined, () => {
-      notifications += 1;
-    });
+    const runtime = fixture.runtime();
     const written = await runtime.execute(request);
     if (!written.ok) throw new Error(written.error);
     expect(written).toMatchObject({
       data: { authorization: { kind: 'automatic' } },
     });
     expect((await fixture.patch(patch.id))?.title).toBe('Agent 标题');
-    expect(notifications).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(2);
     expect(
       fixture.scalar(
         "SELECT count(*) FROM agent_runtime_element_patch_receipt WHERE direction = 'inverse'",
@@ -446,6 +470,7 @@ describe('certified element patch runtime', () => {
 class ElementPatchFixture {
   readonly client: DbExecutor;
   readonly freshness;
+  readonly journal = createTestAgentAuthoredJournal('element-patch');
   private tick = 0;
 
   private constructor(
@@ -463,67 +488,6 @@ class ElementPatchFixture {
     const gateway = new P3FileBackedSqliteGateway(
       path.join(directory, 'runtime.sqlite'),
     );
-    gateway.database.exec(`
-      CREATE TABLE element (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL,
-        category_id TEXT,
-        name TEXT NOT NULL,
-        summary TEXT DEFAULT '' NOT NULL,
-        content_json TEXT DEFAULT '{}' NOT NULL,
-        kv_json TEXT DEFAULT '[]' NOT NULL,
-        aliases_json TEXT DEFAULT '[]' NOT NULL,
-        group_name TEXT,
-        portrait_asset_id TEXT,
-        deleted_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE element_patch (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL,
-        element_id TEXT NOT NULL,
-        source_node_id TEXT,
-        source_block_id TEXT,
-        source_block_text TEXT,
-        text_anchor_json TEXT,
-        invalidated_at TEXT,
-        title TEXT,
-        content_json TEXT DEFAULT '{}' NOT NULL,
-        order_key INTEGER DEFAULT 0 NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE comment (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL,
-        target_kind TEXT,
-        target_id TEXT
-      );
-      CREATE TABLE entity_relation (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL,
-        from_kind TEXT NOT NULL,
-        from_id TEXT NOT NULL,
-        to_kind TEXT NOT NULL,
-        to_id TEXT NOT NULL
-      );
-      CREATE TABLE local_sync_mutation (
-        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-        entity_type TEXT NOT NULL,
-        mutation_type TEXT NOT NULL,
-        entity_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        parent_id TEXT,
-        payload_json TEXT,
-        mutation_ts INTEGER NOT NULL,
-        status TEXT DEFAULT 'pending' NOT NULL,
-        retry_count INTEGER DEFAULT 0 NOT NULL,
-        last_error TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-    `);
     const fixture = new ElementPatchFixture(directory, gateway);
     fixture.seed();
     return fixture;
@@ -574,7 +538,6 @@ class ElementPatchFixture {
   runtime(
     repository: AgentRuntimeWriteEffectRepository =
       createAgentRuntimeWriteEffectRepository(this.client),
-    notifySyncCommitted: () => void = () => {},
   ): DriftingWriteToolRuntime {
     const context: AgentToolContext = {
       projectId: PROJECT_ID,
@@ -592,48 +555,72 @@ class ElementPatchFixture {
       elementPatchDb: this.client,
       elementPatchReceipts:
         createAgentRuntimeElementPatchReceiptRepository(this.client),
-      elementPatchPersistSyncMutation: async (tx, mutation) => {
-        const at = this.now();
-        await tx.insert(LocalSyncMutationTable).values({
-          entityType: mutation.entityType,
-          mutationType: mutation.mutationType,
-          entityId: mutation.entityId,
-          projectId: mutation.projectId,
-          parentId: mutation.parentId ?? null,
-          payloadJson:
-            mutation.payload === undefined
-              ? null
-              : canonicalAgentRuntimeJson(mutation.payload),
-          mutationTs: mutation.timestamp,
-          status: 'pending',
-          retryCount: 0,
-          lastError: null,
-          createdAt: at,
-          updatedAt: at,
-        });
-        return true;
-      },
-      elementPatchNotifySyncCommitted: notifySyncCommitted,
+      authoredJournal: this.journal,
       now: () => this.now(),
     });
   }
 
   async insertPatch(id: string, title: string, body: string) {
-    return createElementPatchRepository(this.client).create({
-      id,
-      projectId: PROJECT_ID,
-      elementId: 'element-1',
-      title,
-      contentJson: JSON.stringify({
-        type: 'doc',
-        content: [
+    return this.client.transaction(
+      async (tx) => {
+        const changes = this.journal.createChangeSet();
+        const runner: ElementPatchAtomicTransactionRunner = async (
+          projectId,
+          work,
+        ) =>
+          work(
+            tx,
+            async (
+              entityType,
+              mutationType,
+              entityId,
+              mutationProjectId,
+              payload,
+              parentId,
+            ) => {
+              if (mutationProjectId !== projectId) {
+                throw new Error(
+                  `Element patch fixture for ${projectId} cannot sync ${mutationProjectId}`,
+                );
+              }
+              this.journal.appendDomainMutation(changes, {
+                entityType,
+                mutationType,
+                entityId,
+                projectId,
+                payload,
+                parentId,
+              });
+            },
+            changes,
+          );
+        const created = await createElementPatchWithSync(
           {
-            type: 'paragraph',
-            content: [{ type: 'text', text: body }],
+            id,
+            projectId: PROJECT_ID,
+            elementId: 'element-1',
+            title,
+            contentJson: JSON.stringify({
+              type: 'doc',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: body }],
+                },
+              ],
+            }),
           },
-        ],
-      }),
-    });
+          runner,
+        );
+        await this.journal.record(tx, {
+          projectId: PROJECT_ID,
+          changes,
+          committedAt: this.now(),
+        });
+        return created;
+      },
+      { behavior: 'immediate' },
+    );
   }
 
   patch(id: string) {

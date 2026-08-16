@@ -8,7 +8,6 @@ import {
   createYjsProseSeedState,
   deserializePreparedYjsProseCommand,
   hashYjsProseState,
-  ensureYjsProseBlockIds,
   prepareYjsProseCommand,
   replaceYjsProseBlocks,
   serializePreparedYjsProseCommand,
@@ -216,31 +215,6 @@ function sourceFor(kind: 'live' | 'closed' | 'seed', doc: Y.Doc, revision: numbe
 }
 
 describe('Yjs prose command', () => {
-  it('assigns deterministic ids to legacy top-level blocks without changing text', async () => {
-    const doc = new Y.Doc({ gc: false });
-    const paragraph = new Y.XmlElement('paragraph');
-    const text = new Y.XmlText();
-    text.insert(0, 'legacy prose');
-    paragraph.insert(0, [text]);
-    doc.getXmlFragment('default').insert(0, [paragraph]);
-
-    const first = await ensureYjsProseBlockIds(doc);
-    expect(first.changed).toBe(true);
-    expect(first.update.byteLength).toBeGreaterThan(0);
-    expect(snapshotYjsProseBlocks(doc)).toEqual([
-      expect.objectContaining({
-        id: expect.stringMatching(/^[0-9a-f-]{36}$/u),
-        type: 'paragraph',
-        content: [{ kind: 'text', text: 'legacy prose' }],
-      }),
-    ]);
-    await expect(ensureYjsProseBlockIds(doc)).resolves.toEqual({
-      changed: false,
-      update: new Uint8Array(),
-    });
-    doc.destroy();
-  });
-
   it('prepares deterministic forward/inverse updates and preserves rich block structure exactly', async () => {
     const source = createDoc(baseBlocks(1));
     const sourceHash = await hashYjsProseState(source);

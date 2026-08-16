@@ -51,7 +51,7 @@ const TEST_GROUPS = {
   productFreshnessCas: [
     'src/renderer/lib/agent/runtime/drifting-freshness-product.integration.test.ts',
   ],
-  checkpointV2: [
+  checkpointRecovery: [
     'src/renderer/lib/agent/runtime/recovery.test.ts',
     'src/renderer/lib/agent/runtime/repository-transport-persistence-v2.integration.test.ts',
   ],
@@ -428,7 +428,7 @@ export async function runP4Acceptance(options = parseOptions([])) {
             exactInverseGuardsThePostWriteRevision: true,
           },
         },
-        checkpointV2: {
+        checkpointRecovery: {
           adapter: 'file-backed node:sqlite restart',
           machineAsserted: {
             finalAssistantCommittedAtomically: true,
@@ -436,8 +436,8 @@ export async function runP4Acceptance(options = parseOptions([])) {
             outerHashTamperRejected: true,
             nestedTamperCases: 5,
             nestedTamperRejected: true,
-            legacyV1CheckpointStillRecoverable: true,
-            legacyV1IsStorageCompatibilityNotProviderFallback: true,
+            legacyV1CheckpointRejected: true,
+            fallbackWithoutV2WitnessUsesV4Digest: true,
           },
         },
         redTeamP1Blockers: {

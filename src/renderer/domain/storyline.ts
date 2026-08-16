@@ -8,9 +8,8 @@ export interface Storyline {
   color: string;
   summary: string;
   orderKey: number;
-  // The TipTap body editor's serialized JSON. Renamed from descriptionJson
-  // (which was a misnomer — the column holds the editor body, not a short
-  // description). See migration 0029.
+  // The TipTap body editor's serialized JSON. This is the full editor body,
+  // distinct from the short summary above.
   contentJson: string;
   // Storyline's own KV facts. Seeded at creation from the parent project's
   // storylineTemplateKvJson and owned thereafter. JSON-stringified

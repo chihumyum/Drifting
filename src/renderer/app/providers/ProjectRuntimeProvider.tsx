@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import loglevel from 'loglevel';
 import { initDatabase } from '../../lib/db';
 import { events } from '../../lib/events';
@@ -23,12 +24,9 @@ import { loadBookActs } from '../../usecase/useBookAct';
 import { loadDriftGroups } from '../../usecase/useDriftGroup';
 import { loadTimelineMarkers } from '../../hooks/useTimelineMarkers';
 import { useProject } from '../../usecase/useProject';
-import { startPreferencesSync } from '../../services/preferences-sync.service';
-import { startSyncObserver } from '../../services/sync-observer.service';
-import { pullAndHydrateProjectGraph } from '../../services/entity-sync.service';
 import { rebuildProjectInlineReferenceIndex } from '../../services/reference-index.service';
-import { resumeProjectAssetUploads } from '../../services/durable-asset-upload.service';
 import { reconcileProjectProseMetrics } from '../../services/node-prose-metrics.service';
+import { flushPendingAtomicSyncTransactions } from '../../services/atomic-sync-transaction-tracker';
 import { FullScreenStatus } from '../components/FullScreenStatus';
 
 const log = loglevel.getLogger('ProjectRuntimeProvider');
@@ -51,6 +49,7 @@ export function ProjectRuntimeProvider({
   children,
 }: ProjectRuntimeProviderProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const bootKey = `${userId}:${projectId}`;
   const [bootAttempt, setBootAttempt] = useState(0);
   const [bootState, setBootState] = useState<ProjectBootState>({
@@ -101,7 +100,6 @@ export function ProjectRuntimeProvider({
     setNodeStorylines: storylineUsecases.setNodeStorylines,
     addRelation: relationUsecases.addRelation,
     removeRelation: relationUsecases.removeRelation,
-    updateRelationKind: relationUsecases.updateRelationKind,
     updateRelationType: relationUsecases.updateRelationType,
     createRelationType: relationTypeUsecases.createRelationType,
     updateRelationTypeDefinition: relationTypeUsecases.updateRelationType,
@@ -156,18 +154,69 @@ export function ProjectRuntimeProvider({
   }, [projectId]);
 
   useEffect(() => {
-    startSyncObserver();
-  }, []);
+    if (bootState.key !== bootKey || bootState.status !== 'ready') return undefined;
+    let disposed = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let refreshTail = Promise.resolve();
 
-  useEffect(() => {
-    const resumeUploads = () => {
-      void resumeProjectAssetUploads(projectId).catch((error) => {
-        log.warn('Durable asset upload resume failed:', error);
-      });
+    const hydrateCommittedReplica = async () => {
+      await flushPendingAtomicSyncTransactions();
+      const project = await projectUsecases.loadProject(projectId);
+      if (!project) {
+        if (!disposed) navigate('/', { replace: true });
+        return;
+      }
+      await Promise.all([
+        nodeUsecases.loadNodes(),
+        storylineUsecases.loadStorylines(),
+        elementUsecases.loadInitial(),
+        categoryUsecases.loadCategories(),
+        projectAssetUsecases.loadInitial(),
+        libraryItemUsecases.loadInitial(),
+        relationUsecases.loadInitial(),
+        commentUsecases.loadInitial(),
+        loadBookActs(projectId),
+        loadDriftGroups(projectId),
+        loadTimelineMarkers(projectId),
+      ]);
+      await storylineUsecases.loadNodeStorylineMapping();
+      await rebuildProjectInlineReferenceIndex(projectId);
+      await reconcileProjectProseMetrics(projectId);
     };
-    window.addEventListener('online', resumeUploads);
-    return () => window.removeEventListener('online', resumeUploads);
-  }, [projectId]);
+
+    const scheduleRefresh = (event: { projectId: string }) => {
+      if (event.projectId !== projectId || disposed) return;
+      if (refreshTimer !== null) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        refreshTail = refreshTail
+          .catch(() => undefined)
+          .then(hydrateCommittedReplica)
+          .catch((error) => log.warn('Remote project refresh failed:', error));
+      }, 50);
+    };
+
+    events.on('sync:project-changed', scheduleRefresh);
+    return () => {
+      disposed = true;
+      if (refreshTimer !== null) clearTimeout(refreshTimer);
+      events.off('sync:project-changed', scheduleRefresh);
+    };
+  }, [
+    bootKey,
+    bootState,
+    categoryUsecases,
+    commentUsecases,
+    elementUsecases,
+    libraryItemUsecases,
+    navigate,
+    nodeUsecases,
+    projectAssetUsecases,
+    projectId,
+    projectUsecases,
+    relationUsecases,
+    storylineUsecases,
+  ]);
 
   useEffect(() => {
     let active = true;
@@ -199,21 +248,11 @@ export function ProjectRuntimeProvider({
         if (!active) return;
         events.emit('db:ready');
         setBootState({ key: bootKey, status: 'ready' });
-        void (async () => {
-          await pullAndHydrateProjectGraph(projectId).catch((error) => {
-            log.warn('Project graph hydrate failed:', error);
-          });
-          if (!active) return;
-          await reconcileProjectProseMetrics(projectId).catch((error) => {
-            log.warn('Canonical prose metric reconciliation failed:', error);
-          });
-          if (!active) return;
-          await resumeProjectAssetUploads(projectId).catch((error) => {
-            log.warn('Durable asset upload resume failed:', error);
-          });
-        })();
-        void startPreferencesSync().catch((error) => {
-          log.warn('Preferences sync init failed:', error);
+        // The project is already fully hydrated from its local SQLite replica.
+        // Remote objects are ingested by SyncEngine and never overwrite the
+        // local graph from a network response.
+        void reconcileProjectProseMetrics(projectId).catch((error) => {
+          log.warn('Canonical prose metric reconciliation failed:', error);
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

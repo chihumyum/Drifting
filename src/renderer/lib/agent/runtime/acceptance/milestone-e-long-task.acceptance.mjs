@@ -51,7 +51,7 @@ const LINT_FILES = [
 ];
 const HASHED_SOURCE_FILES = [
   'docs/agent-runtime/long-task-execution-protocol.md',
-  'drizzle/0073_agent_runtime_task_step_retired.sql',
+  'drizzle/0000_local_first_baseline.sql',
   'drizzle/meta/_journal.json',
   'src/renderer/lib/agent/runtime/acceptance/milestone-e-long-task.acceptance.mjs',
   ...LINT_FILES,
@@ -81,7 +81,7 @@ const REQUIRED_ASSERTIONS = {
   invisibleContinuation:
     'keeps runtime continuation prompts in model history but out of the visible transcript',
   productMigrationReopen:
-    'follows the checked-in journal and reopens idempotently',
+    'creates the exact current baseline and reopens idempotently',
   executableCapabilityTruth:
     'keeps the long-task execution contract tied to executable runtime defaults',
 };
@@ -245,7 +245,7 @@ export async function runMilestoneEAcceptance(options = parseOptions([])) {
       },
       storageReplay: {
         sqlite:
-          'real file-backed product SQLite with migration 0073, CAS command receipts, injected receipt rollback, manifest reconciliation, close and reopen',
+          'real file-backed product SQLite from the current baseline, with CAS command receipts, injected receipt rollback, manifest reconciliation, close and reopen',
         prose:
           'product composition exercises live Yjs prose coordination while long-task state stays pinned in the same runtime context planner',
         transcript:

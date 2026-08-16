@@ -74,6 +74,9 @@ importers:
       buffer:
         specifier: ^6.0.3
         version: 6.0.3
+      cborg:
+        specifier: 6.1.1
+        version: 6.1.1
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -89,6 +92,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.1
         version: 0.45.2(kysely@0.29.5)
+      fractional-indexing:
+        specifier: 4.0.0
+        version: 4.0.0
       framer-motion:
         specifier: ^12.29.0
         version: 12.43.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -1652,6 +1658,10 @@ packages:
   caniuse-lite@1.0.30001809:
     resolution: {integrity: sha512-xxWVywk6a6Arlk+hymeycyn/VgqEfLDxupvhH/xiY5SJ/18kmi9o6MiO320DCUzypORHLtvh0I4i04tUhCNHNQ==}
 
+  cborg@6.1.1:
+    resolution: {integrity: sha512-Ci8+V1OMFtqea8EXicsATqV+3kEqCGXCicM+5MEzpKTxqy58WMzhJUjtUqAjfWpKPZ0wpG8F+u5mC8Xy/0Zevg==}
+    hasBin: true
+
   chai@6.2.2:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
@@ -2123,6 +2133,10 @@ packages:
 
   fraction.js@5.3.4:
     resolution: {integrity: sha512-1X1NTtiJphryn/uLQz3whtY6jK3fTqoE3ohKs0tT+Ujr1W59oopxmoEh7Lu5p6vBaPbgoM0bzveAW4Qi5RyWDQ==}
+
+  fractional-indexing@4.0.0:
+    resolution: {integrity: sha512-Nr2P1Yyaj2sy1Qdt/wI3GcByxrUdbSKg5+cGvw8f18hT2SkQt6V72iOjBpk7IO3UkzBsdlGRs2a4z6dLrJprgw==}
+    engines: {node: ^14.13.1 || >=16.0.0}
 
   framer-motion@12.43.0:
     resolution: {integrity: sha512-1eaL3RvR/kAlbG7UYcpMptEyzPoENO0c6w7ZnB3/hh2vSAz/6uGAFn6fdoqTBguNstf3MsFhJHsD/0DHiclG+g==}
@@ -4671,6 +4685,8 @@ snapshots:
 
   caniuse-lite@1.0.30001809: {}
 
+  cborg@6.1.1: {}
+
   chai@6.2.2: {}
 
   chalk@4.1.2:
@@ -5151,6 +5167,8 @@ snapshots:
       fetch-blob: 3.2.0
 
   fraction.js@5.3.4: {}
+
+  fractional-indexing@4.0.0: {}
 
   framer-motion@12.43.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
     dependencies:

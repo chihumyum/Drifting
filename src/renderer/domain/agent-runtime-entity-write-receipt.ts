@@ -24,7 +24,7 @@ export type AgentRuntimeEntityWriteTool =
   | 'update_category'
   | 'delete_category'
   | 'add_relation'
-  | 'update_relation_kind'
+  | 'assign_relation_type'
   | 'remove_relation'
   | 'create_relation_type'
   | 'update_relation_type'
@@ -76,8 +76,7 @@ export interface AgentRuntimeEntityRelationSnapshotValue {
   fromId: string;
   toKind: string;
   toId: string;
-  kind: string | null;
-  relationTypeId: string | null;
+  relationTypeId: string;
   createdAt: string;
   updatedAt: string;
 }

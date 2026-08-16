@@ -6,7 +6,7 @@
  * semantic-hash expectations, then commits:
  *
  *   update log + monotonic revision + full snapshot
- *   + materialized projection + caller-owned outbox
+ *   + materialized projection + one atomic SyncEngine change-set
  *   + idempotency/reconciliation receipt
  *
  * in one SQLite transaction. Only after that transaction commits is the update
@@ -26,7 +26,7 @@ import {
 import {
   YjsProseCommandReceiptTable,
 } from '../../../schema/drizzle';
-import { flushOpenYjsDocument } from '../../../services/yjs-sync.service';
+import { flushOpenYjsDocument } from '../../../services/yjs-local-durability.service';
 import {
   createYjsRepository,
   YjsDocumentRevisionConflictError,
@@ -35,7 +35,6 @@ import {
 import {
   applyPreparedYjsProseInverseRebased,
   applyPreparedYjsProseUpdate,
-  ensureYjsProseBlockIds,
   hashYjsProseState,
   prepareYjsProseCommand,
   snapshotYjsProseBlocks,
@@ -47,6 +46,14 @@ import {
   type YjsProseSourceKind,
   type YjsProseUpdateDirection,
 } from './yjs-prose-command';
+import {
+  agentAuthoredJournal,
+  type AgentAuthoredJournal,
+} from './agent-authored-journal';
+import {
+  appendYjsUpdateMutation,
+  type SyncChangeBuilder,
+} from '../../../sync/journal';
 
 export interface YjsProsePersistenceBase {
   docId: string;
@@ -94,11 +101,11 @@ export interface YjsProseCommitHooks {
     tx: DbExecutor,
     projection: YjsProseProjectionPayload,
   ): Promise<void>;
-  /** Persist the local sync/outbox mutation in the exact same transaction. */
-  persistOutbox(
-    tx: DbExecutor,
+  /** Append non-prose authored fields, such as an atomic node summary update. */
+  appendAuthoredMutations?(
+    changes: SyncChangeBuilder,
     projection: YjsProseProjectionPayload,
-  ): Promise<void>;
+  ): Promise<void> | void;
   /**
    * Runs synchronously after the SQLite transaction commits but immediately
    * before its update enters an open live Y.Doc. The optional returned cleanup
@@ -121,6 +128,7 @@ export interface PreparePersistedYjsProseCommandInput {
 
 export interface CommitPreparedYjsProseCommandInput
   extends YjsProseCommitHooks {
+  projectId: string;
   command: PreparedYjsProsePersistenceCommand;
   direction: YjsProseUpdateDirection;
   expectedRevision: number;
@@ -144,6 +152,7 @@ export interface YjsProsePersistenceCoordinatorOptions {
   getLiveDocument?: (docId: string) => Y.Doc | undefined;
   flushLiveDocument?: (docId: string) => Promise<void>;
   now?: () => string;
+  journal?: AgentAuthoredJournal;
 }
 
 export class YjsProsePersistenceError extends Error {
@@ -323,6 +332,7 @@ export class YjsProsePersistenceCoordinator {
   private readonly getLiveDocument: (docId: string) => Y.Doc | undefined;
   private readonly flushLiveDocument: (docId: string) => Promise<void>;
   private readonly now: () => string;
+  private readonly journal: AgentAuthoredJournal;
 
   constructor(options: YjsProsePersistenceCoordinatorOptions = {}) {
     this.databaseOverride = options.database;
@@ -330,6 +340,7 @@ export class YjsProsePersistenceCoordinator {
     this.flushLiveDocument =
       options.flushLiveDocument ?? flushOpenYjsDocument;
     this.now = options.now ?? (() => new Date().toISOString());
+    this.journal = options.journal ?? agentAuthoredJournal;
   }
 
   async readBase(
@@ -465,7 +476,7 @@ export class YjsProsePersistenceCoordinator {
       const repo = createYjsRepository(tx);
       const { doc, hasState } = await loadPersistedDoc(repo, docId);
       try {
-        let revision = await repo.getRevision(docId);
+        const revision = await repo.getRevision(docId);
         if (!hasState) {
           if (revision !== 0) {
             throw new YjsProsePersistenceError(
@@ -480,19 +491,6 @@ export class YjsProsePersistenceCoordinator {
             );
           }
           Y.applyUpdate(doc, seedStateUpdate, 'seed');
-        }
-        const blockIdMigration = await ensureYjsProseBlockIds(doc);
-        if (hasState && blockIdMigration.changed) {
-          const appended = await repo.appendUpdateCas(
-            docId,
-            blockIdMigration.update,
-            revision,
-            { kind: 'system' },
-          );
-          revision = appended.revision;
-          await repo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc), {
-            advanceRevision: false,
-          });
         }
         const sourceKind: YjsProseSourceKind = hasState ? 'closed' : 'seed';
         const stateUpdate = Y.encodeStateAsUpdate(doc);
@@ -520,32 +518,35 @@ export class YjsProsePersistenceCoordinator {
   ): Promise<CapturedDocument> {
     for (let attempt = 0; attempt < MAX_LIVE_CAPTURE_ATTEMPTS; attempt += 1) {
       await this.flushLiveDocument(docId);
-      const blockIdMigration = await ensureYjsProseBlockIds(live);
-      if (blockIdMigration.changed) await this.flushLiveDocument(docId);
       const repository = createYjsRepository(this.database());
       const revisionBefore = await repository.getRevision(docId);
       const stateUpdate = Y.encodeStateAsUpdate(live);
       const stateVector = Y.encodeStateVector(live);
       const clone = new Y.Doc({ gc: false });
-      Y.applyUpdate(clone, stateUpdate, 'capture');
-      const stateHash = await hashYjsProseState(clone);
-      await this.flushLiveDocument(docId);
-      const revisionAfter = await repository.getRevision(docId);
-      if (
-        revisionBefore === revisionAfter &&
-        bytesEqual(stateVector, Y.encodeStateVector(live))
-      ) {
-        return {
-          doc: clone,
-          base: {
-            docId,
-            sourceKind: 'live',
-            revision: revisionAfter,
-            stateVector,
-            stateHash,
-            stateUpdate,
-          },
-        };
+      try {
+        Y.applyUpdate(clone, stateUpdate, 'capture');
+        const stateHash = await hashYjsProseState(clone);
+        await this.flushLiveDocument(docId);
+        const revisionAfter = await repository.getRevision(docId);
+        if (
+          revisionBefore === revisionAfter &&
+          bytesEqual(stateVector, Y.encodeStateVector(live))
+        ) {
+          return {
+            doc: clone,
+            base: {
+              docId,
+              sourceKind: 'live',
+              revision: revisionAfter,
+              stateVector,
+              stateHash,
+              stateUpdate,
+            },
+          };
+        }
+      } catch (error) {
+        clone.destroy();
+        throw error;
       }
       clone.destroy();
     }
@@ -584,6 +585,7 @@ export class YjsProsePersistenceCoordinator {
     tx: DbExecutor,
     input: CommitPreparedYjsProseCommandInput,
   ): Promise<TransactionCommit> {
+    if (!input.projectId.trim()) throw new Error('projectId must be non-empty');
     const existing = await this.getReceiptFrom(
       tx,
       input.command.prepared.commandId,
@@ -599,6 +601,7 @@ export class YjsProsePersistenceCoordinator {
     }
 
     const repo = createYjsRepository(tx);
+    const changes = this.journal.createChangeSet();
     const revision = await repo.getRevision(input.command.base.docId);
     const rebasedInverse =
       input.direction === 'inverse' && revision > input.expectedRevision;
@@ -686,7 +689,8 @@ export class YjsProsePersistenceCoordinator {
         resultHash,
       );
       await input.persistProjection(tx, projection);
-      await input.persistOutbox(tx, projection);
+      appendYjsUpdateMutation(changes, input.command.base.docId, update);
+      await input.appendAuthoredMutations?.(changes, projection);
 
       const preparedResult = resultSemanticState(
         input.command.prepared,
@@ -716,6 +720,11 @@ export class YjsProsePersistenceCoordinator {
         ...receipt,
         baseStateVector: copyBytes(receipt.baseStateVector),
         resultStateVector: copyBytes(receipt.resultStateVector),
+      });
+      await this.journal.record(tx, {
+        projectId: input.projectId,
+        changes,
+        committedAt: receipt.createdAt,
       });
       return { outcome: 'committed', receipt, projection };
     } finally {

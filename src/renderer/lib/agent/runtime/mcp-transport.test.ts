@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { McpHttpPlatformApi, McpStdioPlatformApi } from '../../../platform';
 import {
@@ -18,6 +18,10 @@ function responseFor(request: RequestInit | undefined, result: unknown): Respons
 }
 
 describe('MCP JSON-RPC transports', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('owns one stdio process, validates the exact response id, and stops it', async () => {
     const platform: McpStdioPlatformApi = {
       start: vi.fn(async (input) => ({ processId: input.processId, pid: 42 })),
@@ -165,5 +169,25 @@ describe('MCP JSON-RPC transports', () => {
 
     expect(platform.request).toHaveBeenCalledTimes(2);
     expect(platform.cancel).toHaveBeenCalledWith(expect.stringMatching(/^mcp-http:/u));
+  });
+
+  it('classifies remote extensions and fails closed before native HTTP while offline', async () => {
+    vi.stubGlobal('navigator', { onLine: false });
+    const platform: McpHttpPlatformApi = {
+      request: vi.fn(),
+      cancel: vi.fn(async () => true),
+    };
+    const transport = createHttpAgentMcpTransport({
+      url: 'https://example.test/mcp',
+      platform,
+    });
+
+    await expect(
+      transport.request({ method: 'initialize', signal: signal() }),
+    ).rejects.toMatchObject({
+      kind: 'transport',
+      message: expect.stringContaining('while offline'),
+    });
+    expect(platform.request).not.toHaveBeenCalled();
   });
 });

@@ -14,6 +14,12 @@ import {
   deleteEntityRelationsInTransaction,
   withoutRelationsForEntity,
 } from './entity-relation-cleanup';
+import { replaceEntityKvEntriesInTransaction } from './normalized-kv-alias-authority';
+import {
+  appendAuthoredProseSeedInTransaction,
+  runDerivedTransaction,
+} from '../sync/journal';
+import { createEntitySeedUpdate } from '../hooks/useEntityYjsDoc';
 
 const log = loglevel.getLogger('useElementCategory');
 log.setLevel(loglevel.levels.WARN);
@@ -91,26 +97,39 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         createdAt: now,
         updatedAt: now,
       };
+      const proseSeedState = await createEntitySeedUpdate(newCategory.contentJson);
 
       const prevCategories = getCategoriesState().slice();
       return withOptimisticUpdate({
         apply: () => addCategoryState(newCategory),
         rollback: () => setCategoriesState(prevCategories),
         effect: () =>
-          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
-            const created = await createElementCategoryRepository(activeProjectId, tx).create(
-              newCategory,
-            );
+          withAtomicSyncTransaction(activeProjectId, async (tx, sync, changes) => {
+            const categoryRepo = createElementCategoryRepository(activeProjectId, tx);
+            await categoryRepo.create({ ...newCategory, elementTemplateKvJson: '[]' });
+            await replaceEntityKvEntriesInTransaction(tx, changes, {
+              projectId: activeProjectId,
+              ownerKind: 'element-category',
+              ownerId: newCategory.id,
+              namespace: 'element-template',
+              nextJson: newCategory.elementTemplateKvJson,
+            });
+            const created = (await categoryRepo.findAll()).find(
+              (category) => category.id === newCategory.id,
+            )!;
             await sync('elementCategory', 'create', created.id, activeProjectId, {
               id: created.id,
               name: created.name,
-              contentJson: created.contentJson,
               elementTemplateJson: created.elementTemplateJson,
-              elementTemplateKvJson: created.elementTemplateKvJson,
               color: created.color,
               layoutMode: created.layoutMode,
               gridX: created.gridX,
               gridY: created.gridY,
+            });
+            await appendAuthoredProseSeedInTransaction(tx, changes, {
+              entityType: 'category',
+              entityId: created.id,
+              stateUpdate: proseSeedState,
             });
             return created;
           }),
@@ -173,14 +192,31 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         apply: () => updateCategoryState(categoryId, updated),
         rollback: () => setCategoriesState(prevCategories),
         effect: async () => {
-          return withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
-            const persisted = await createElementCategoryRepository(activeProjectId, tx).update(
+          const projectionOnly = Object.keys(updates).every(
+            (field) => field === 'contentJson',
+          );
+          if (projectionOnly) {
+            return runDerivedTransaction('prose.category-projection', async (tx) => {
+              const categoryRepo = createElementCategoryRepository(activeProjectId, tx);
+              await categoryRepo.update(categoryId, {
+                contentJson: updated.contentJson,
+                updatedAt: updated.updatedAt,
+              });
+              const persisted = (await categoryRepo.findAll()).find(
+                (category) => category.id === categoryId,
+              );
+              if (!persisted) throw new Error(`Category ${categoryId} not found`);
+              return persisted;
+            });
+          }
+          return withAtomicSyncTransaction(activeProjectId, async (tx, sync, changes) => {
+            const categoryRepo = createElementCategoryRepository(activeProjectId, tx);
+            await categoryRepo.update(
               categoryId,
               {
                 name: updated.name,
                 contentJson: updated.contentJson,
                 elementTemplateJson: updated.elementTemplateJson,
-                elementTemplateKvJson: updated.elementTemplateKvJson,
                 color: updated.color,
                 layoutMode: updated.layoutMode,
                 gridX: updated.gridX,
@@ -188,17 +224,31 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
                 updatedAt: updated.updatedAt,
               },
             );
+            if (updates.elementTemplateKvJson !== undefined) {
+              await replaceEntityKvEntriesInTransaction(tx, changes, {
+                projectId: activeProjectId,
+                ownerKind: 'element-category',
+                ownerId: categoryId,
+                namespace: 'element-template',
+                nextJson: updates.elementTemplateKvJson,
+              });
+            }
+            const persisted = (await categoryRepo.findAll()).find(
+              (category) => category.id === categoryId,
+            );
             if (!persisted) throw new Error(`Category ${categoryId} not found`);
-            await sync('elementCategory', 'update', categoryId, activeProjectId, {
-              name: persisted.name,
-              contentJson: persisted.contentJson,
-              elementTemplateJson: persisted.elementTemplateJson,
-              elementTemplateKvJson: persisted.elementTemplateKvJson,
-              color: persisted.color,
-              layoutMode: persisted.layoutMode,
-              gridX: persisted.gridX,
-              gridY: persisted.gridY,
-            });
+            const scalarPayload: Record<string, unknown> = {};
+            if (updates.name !== undefined) scalarPayload.name = persisted.name;
+            if (updates.elementTemplateJson !== undefined) {
+              scalarPayload.elementTemplateJson = persisted.elementTemplateJson;
+            }
+            if (updates.color !== undefined) scalarPayload.color = persisted.color;
+            if (updates.layoutMode !== undefined) scalarPayload.layoutMode = persisted.layoutMode;
+            if (updates.gridX !== undefined) scalarPayload.gridX = persisted.gridX;
+            if (updates.gridY !== undefined) scalarPayload.gridY = persisted.gridY;
+            if (Object.keys(scalarPayload).length > 0) {
+              await sync('elementCategory', 'update', categoryId, activeProjectId, scalarPayload);
+            }
             return persisted;
           });
         },
@@ -282,7 +332,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
           dataStore.setEntityRelations(previousRelations);
         },
         effect: () =>
-          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+          withAtomicSyncTransaction(activeProjectId, async (tx, sync, changes) => {
             await deleteEntityRelationsInTransaction(
               tx,
               sync,
@@ -290,6 +340,13 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
               'category',
               categoryId,
             );
+            await replaceEntityKvEntriesInTransaction(tx, changes, {
+              projectId: activeProjectId,
+              ownerKind: 'element-category',
+              ownerId: categoryId,
+              namespace: 'element-template',
+              nextJson: '[]',
+            });
             await createElementCategoryRepository(activeProjectId, tx).delete(categoryId);
             await sync('elementCategory', 'delete', categoryId, activeProjectId);
           }),
@@ -318,7 +375,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
   const purgeCategory = useCallback(
     async (categoryId: string): Promise<void> => {
       await ensureDb();
-      await withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
+      await withAtomicSyncTransaction(activeProjectId, async (tx, sync, changes) => {
         await deleteEntityRelationsInTransaction(
           tx,
           sync,
@@ -326,6 +383,13 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
           'category',
           categoryId,
         );
+        await replaceEntityKvEntriesInTransaction(tx, changes, {
+          projectId: activeProjectId,
+          ownerKind: 'element-category',
+          ownerId: categoryId,
+          namespace: 'element-template',
+          nextJson: '[]',
+        });
         await createElementCategoryRepository(activeProjectId, tx).delete(categoryId);
         await sync('elementCategory', 'delete', categoryId, activeProjectId);
       });

@@ -11,8 +11,6 @@
 - `90b3de75 feat(native): add secure storage and system image codecs`
 - `6262b1d3 fix(auth): keep OAuth verifier out of request logs`
 - `81b3b2ee feat(assets): enable native HEIC and AVIF imports`
-- `b8239fc6 fix(assets): resume interrupted native uploads`
-- `d29841bf fix(assets): support signed R2 uploads behind TUN DNS`
 - `19a4e2dc fix(agent): harden tool calls and stream responses`
 
 相关资料：
@@ -58,7 +56,7 @@ OS / API level：
 
 - 只用可丢弃的测试账号、测试项目和测试 BYOK canary；不要破坏唯一一份真实作品。
 - 截图、录屏和 Issue 中不得粘贴 OAuth code、PKCE verifier、Bearer token 或完整 BYOK。
-- 做卸载、清数据、密文破坏和 Electron 升级测试前，先备份测试数据。
+- 做卸载、清数据和密文破坏测试前，先备份测试数据。
 - 模拟器可以补 API 边界，但不能替代真实 Keystore、厂商 codec、相册 provider 和 deep link。
 
 ## 2. 自动化已经覆盖什么
@@ -68,7 +66,7 @@ OS / API level：
 | Android secure storage | Rust key 校验；Kotlin 格式、损坏、上限测试；instrumented test 源码                                   | 真 Keystore、跨进程/重启、覆盖升级、卸载、真实密文检查、厂商差异      |
 | OAuth Server           | state、PKCE、HMAC binding、redirect allowlist、过期、一次性兑换、敏感 payload 解析                   | 真实 Google、浏览器 cookie、真实 PostgreSQL 竞争、deep link、生产日志 |
 | OAuth renderer         | warm/queued callback、state 不匹配、过期、exchange 失败                                              | 冷启动 callback、浏览器取消、断网、系统切换、session 持久化           |
-| 图片 pipeline          | 普通图片、方向、格式嗅探、尺寸/内存上限；macOS ImageIO HEIC/AVIF                                     | iOS 真机、Android 系统 codec、照片选择器、R2、两个真实 UI 入口        |
+| 图片 pipeline          | 普通图片、方向、格式嗅探、尺寸/内存上限；macOS ImageIO HEIC/AVIF                                     | iOS 真机、Android 系统 codec、照片选择器、两个真实 UI 入口            |
 | General Agent          | 生成能力清单、功能 checklist、SQLite/Yjs 故障与恢复、领域写入、长任务、compaction、provider/MCP 合同 | 付费 provider 抽检、桌面/iOS/Android UI、后台恢复、触摸与软键盘       |
 | 构建                   | macOS 测试、iOS/Android Rust 交叉编译、Android APK/Kotlin 编译                                       | 安装、权限、后台生命周期、低内存、不同厂商设备                        |
 
@@ -95,7 +93,7 @@ pnpm tauri:android:build
 
 OAuth staging 必须满足：
 
-- Server 已应用 `0049_native_oauth_handoff.sql`。
+- 兼容服务实现当前版本化 native OAuth handoff contract。
 - `API_BASE_URL`、`BETTER_AUTH_URL` 是同一个公开 HTTPS origin。
 - 已设置稳定的 `BETTER_AUTH_SECRET`、`GOOGLE_CLIENT_ID` 和 `GOOGLE_CLIENT_SECRET`。
 - Google Console callback 是 `https://api.drifting.cc/api/auth/callback/google`，或 staging 的等价地址。
@@ -108,7 +106,7 @@ OAuth staging 必须满足：
 | ------ | ------------------------- | ------------------------------------------------------ |
 | 必须   | Android 12+ 当前系统真机  | Keystore、HEIC/AVIF、picker、OAuth deep link           |
 | 必须   | 当前 iPhone 真机          | Keychain、ImageIO、HEIC/AVIF、OAuth warm/cold callback |
-| 必须   | 当前 macOS                | Electron→Tauri 升级、OAuth、图片/PDF                   |
+| 必须   | 当前 macOS                | SQLite 数据路径、OAuth、图片/PDF                       |
 | 推荐   | Android 7 / API 24        | 最低版本；secure storage 成功，HEIC/AVIF 明确不可用    |
 | 推荐   | Android 8–9 / API 26–28   | HEIC/HEIF BitmapFactory 路径；AVIF 明确不可用          |
 | 推荐   | Android 10–11 / API 29–30 | ImageDecoder runtime capability；AVIF 明确不可用       |
@@ -251,50 +249,51 @@ curl -i https://api.drifting.cc/api/auth/native-exchange \
 - [ ] `IMG-05` `P1` Android 8+ 的 HEIC/HEIF 按设备 runtime codec 能力成功；不支持时返回明确错误。
 - [ ] `IMG-06` `P0` Android 12+ 的 AVIF 按设备 runtime codec 能力成功；不支持时返回明确错误。
 - [ ] `IMG-07` `P0` PDF 原文件可打开，缩略图为第一页，不生成错误的 display variant。
-- [ ] `IMG-08` `P0` 素材卡片、预览、元素头像和重启后的 cache 加载均正确。
-- [ ] `IMG-09` `P0` 第二设备能下载 source/display/thumbnail 并正确显示。
+- [ ] `IMG-08` `P0` 素材卡片、预览、元素头像和重启后的 app-owned asset 加载均正确。
+- [ ] `IMG-09` `P0` 导入期间断网与 `online` 事件均不触发 hosted asset API。
 - [ ] `IMG-10` `P1` 原 source hash 不变；source MIME/扩展保持 heic/heif/avif，派生图为 jpg。
 - [ ] `IMG-11` `P0` 替换头像时，新图 ready 后才切换；失败时旧头像仍在。
-- [ ] `IMG-12` `P1` 删除头像后重启与第二设备都不再显示。
+- [ ] `IMG-12` `P1` 删除头像后重启不再显示，SQLite owner binding、asset row 与 app-owned 文件均已清理。
 - [ ] `IMG-13` `P1` 重复导入同一文件不会互相覆盖。
 
 ### 8.2 失败与恢复
 
 - [ ] `IMG-F01` `P1` Android 7 HEIC/HEIF、Android 11 AVIF、Windows/Linux HEIC/AVIF 返回 `IMAGE_CODEC_UNAVAILABLE`，不崩溃。
-- [ ] `IMG-F02` `P1` codec 不支持时，素材库 local item 和 app-owned original 仍存在并可通过系统打开；头像不应覆盖旧值。
+- [ ] `IMG-F02` `P1` codec 不支持时保留 picker import 供当前 compose 重试；不创建素材/ready asset，头像不覆盖旧值。
 - [ ] `IMG-F03` `P1` 损坏图片返回 `IMAGE_INVALID`，没有 ready 的半成品 asset。
 - [ ] `IMG-F04` `P0` 大于 64 MiB 的图片/PDF在 copy 完成前拒绝，临时文件被清理。
 - [ ] `IMG-F05` `P1` 超过 16,384 像素或 256 MiB 解码 guard 时明确失败，App 不 OOM。
-- [ ] `IMG-F06` `P1` 上传时断网、切后台、杀进程；素材 local item 与持久化上传任务仍存在并标记失败，元素旧头像保持。
-- [ ] `IMG-F07` `P2` incomplete server asset 与 local cache 最终被 best-effort cleanup。
-- [ ] `IMG-F08` `P1` 恢复网络后点击 Retry；复用原持久化任务继续上传，不要求重新选择或重新导入文件。
+- [ ] `IMG-F06` `P1` 本地导入时断网、切后台；不得发出 hosted asset/API 请求，已提交的 source asset 重启后可读。
+- [ ] `IMG-F07` `P2` SQLite 提交失败时未绑定的 app-owned asset 目录被 best-effort cleanup，picker import 仍可重试。
+- [ ] `IMG-F08` `P1` 强杀发生在 SQLite commit 与文件 cleanup 之间时，重启后的 current-format inventory/GC 能报告并安全清理孤儿目录。
 
-失败素材现在有一等 Retry 操作，任务状态保存在 `asset_upload_job`。重启 App 后任务与 app-owned original 必须仍在；恢复网络后应从原任务继续，不能 silent success、重复创建素材，或要求用户重新选择文件。
+当前导入没有 hosted upload 状态或 Retry 状态机。`project_asset` metadata 与 app-owned source 是本地真相；`display`/`thumbnail` 是派生文件。`IMG-F08` 对应的 current-format restart GC 尚未实现，因此在实现前应记录为 `BLOCKED`，不能宣称删除 crash window 已闭合。
 
-当前 picker/Rust pipeline 能解码 BMP、TIFF、ICO，但 Server source MIME allowlist 尚未接受这三类，因此完整云端上传不是预期成功路径。真正闭环的 source 格式是 JPEG、PNG、WebP、GIF、HEIC、HEIF、AVIF；BMP/TIFF/ICO 先记录为已知兼容缺口。
+当前 picker/Rust pipeline 能解码 BMP、TIFF、ICO；是否让未来 SyncProvider 发布这些 source MIME，应由 provider conformance 测试决定，不能重新耦合到官方 Server allowlist。
 
 ## 9. SQLite、Yjs、同步与生命周期
 
 - [ ] `DATA-01` `P0` 新安装后创建项目、章节、元素、关系、素材，重启后全部存在。
 - [ ] `DATA-02` `P0` 离线输入唯一正文 canary，等待本地落盘后强杀；离线重开内容逐字一致。
-- [ ] `DATA-03` `P0` 离线新增/修改多类实体，恢复联网后第二设备收敛且无重复记录。
+- [ ] `DATA-03` `P0` 离线新增/修改多类实体和素材，重启本机后无重复记录且 app-owned source 仍可读。
 - [ ] `DATA-04` `P1` 编辑时切后台、锁屏、旋转、接电话，再回前台；正文与选择状态不损坏。
-- [ ] `DATA-05` `P1` 上传素材时切后台或杀进程；重开后数据库无 ready 的空 asset，原文件不丢失。
+- [ ] `DATA-05` `P1` 导入素材时切后台或杀进程；重开后数据库无 ready 的空 asset，已提交 source 不丢失。
 - [ ] `DATA-06` `P1` 登出 A、登录 B；本地数据库、项目和 session 不串账号。
 - [ ] `DATA-07` `P1` 同一账号从第二设备编辑同一章节，最终 Yjs 内容收敛且可继续编辑。
 - [ ] `DATA-08` `P2` 异常退出后重开，SQLite 无损坏提示，关键表和 Yjs snapshot/update 可读。
 
-## 10. 升级、迁移与重装
+## 10. 覆盖升级与重装
 
-- [ ] `UP-01` `P1` macOS 从最后一个 Electron 版本升级到 Tauri；项目 DB、Yjs、素材、session/BYOK 可用。
-- [ ] `UP-02` `P1` Electron source 数据目录保持不动，Tauri 数据通过 integrity check 后启用。
-- [ ] `UP-03` `P1` 同签名 Tauri→Tauri 覆盖升级；SQLite、asset cache、session、BYOK 保留。
-- [ ] `UP-04` `P1` Server 首次启动自动应用 `0049`，已有用户/session 不受影响。
-- [ ] `UP-05` `P1` Android 清数据或卸载重装后，本地数据与 secret 清空；重新登录后云端项目恢复。
-- [ ] `UP-06` `P2` 记录 iOS 卸载重装后的真实 Keychain 行为，不预设 secret 一定清除。
-- [ ] `UP-07` `P2` 记录桌面卸载重装后的 OS credential store 行为。
+Drifting 尚未发布数据兼容契约。候选构建只验证当前 schema 的 fresh install 与同 schema 覆盖升级；旧开发数据库应先备份后重置，不进入产品迁移路径。
 
-Chromium Local Storage 偏好不自动迁移是已知边界；主题、panel 状态、快捷键、写作统计和 Agent UI 元数据可能重置，不作为当前迁移 blocker。若存在同名 Tauri 数据库冲突，自动迁移会保留 Tauri 副本而不是覆盖或合并，测试前先备份并决定权威副本。
+- [ ] `UP-01` `P1` macOS fresh install 不扫描或复制其他客户端的数据目录。
+- [ ] `UP-02` `P1` 同签名、同 schema Tauri→Tauri 覆盖升级；SQLite、`assets/`、session/BYOK 保留。
+- [ ] `UP-03` `P1` 重置旧开发数据库后，fresh schema 可创建、编辑、导出、删除项目。
+- [ ] `UP-04` `P1` Android 清数据或卸载重装后，本地数据与 secret 清空；没有独立备份时不得暗示可以从云端恢复。
+- [ ] `UP-05` `P2` 记录 iOS 卸载重装后的真实 Keychain 行为，不预设 secret 一定清除。
+- [ ] `UP-06` `P2` 记录桌面卸载重装后的 OS credential store 行为。
+
+主题、panel 状态、快捷键、写作统计和 Agent UI 元数据属于设备本地状态。重置开发数据库或清除应用数据前必须自行备份需要保留的测试内容。
 
 ## 11. 发布阻断条件
 
@@ -307,7 +306,7 @@ Chromium Local Storage 偏好不自动迁移是已知边界；主题、panel 状
 - codec、网络或后台失败导致 app-owned original 丢失。
 - JPEG、PNG、PDF 任一主平台回归失败。
 - 图片方向错误、App OOM、数据库损坏或正文丢失。
-- 失败操作在数据库/云端留下被标记为 ready 的半成品。
+- 失败操作留下已提交 owner row 却缺失 canonical source，或在 cleanup 后由迟到写入重新制造孤儿目录。
 
 ## 12. 结果表
 
@@ -318,7 +317,6 @@ Chromium Local Storage 偏好不自动迁移是已知边界；主题、panel 状
 ## 13. 不属于这份回归的已知边界
 
 - General Agent 可用，但仅限当前已认证的 local-runtime 能力；完整 Claude Code parity 和三端真机 UI 验收尚未完成。
-- 旧 Chromium WebView preferences 尚未迁移。
 - `drifting://` 尚未替换为 Universal Links / Android App Links。
 - 完整移动端信息架构、触摸交互和软键盘适配尚未完成。
 - 复杂 story graph、split editor、plot grid 的移动 UX 不以“能显示”视为通过。

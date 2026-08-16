@@ -1,36 +1,41 @@
 import { useCallback, useMemo } from 'react';
+import { and, eq } from 'drizzle-orm';
 import { v7 as uuidv7 } from 'uuid';
-import { useDataStore, type EntityRelationLink } from '../store/data-store';
-import { createEntityRelationRepository } from '../sqlite-repo/entity-relation-repo';
-import { initDatabase } from '../lib/db';
-import { withOptimisticUpdate } from './optimistic';
-import { withAtomicSyncTransaction } from './sync-helpers';
-import { EntityRelationTable } from '../schema/drizzle';
-import { eq } from 'drizzle-orm';
+
+import {
+  genericAssociationRelationType,
+  genericAssociationRelationTypeId,
+  GENERIC_ASSOCIATION_SYSTEM_KEY,
+  validateRelationAgainstType,
+  type EntityRelationType,
+} from '../domain/entity-relation-type';
 import {
   isStructuralEntityKind,
   type EntityRefSourceKind,
   type EntityRefTargetKind,
   type StructuralEntityKind,
 } from '../domain/entity-kinds';
-import {
-  legacyRelationType,
-  normalizeRelationTypeName,
-  validateRelationAgainstType,
-} from '../domain/entity-relation-type';
-import type { EntityRelationType } from '../domain/entity-relation-type';
+import { getDb, initDatabase } from '../lib/db';
+import { EntityRelationTable } from '../schema/drizzle';
+import { createEntityRelationRepository } from '../sqlite-repo/entity-relation-repo';
 import { createEntityRelationTypeRepository } from '../sqlite-repo/entity-relation-type-repo';
+import { useDataStore, type EntityRelationLink } from '../store/data-store';
+import { withOptimisticUpdate } from './optimistic';
+import { withAtomicSyncTransaction } from './sync-helpers';
 
 export interface UseEntityRelationsContext {
   projectId: string;
   userId: string;
 }
 
+type GenericAssociationSourceKind = Extract<
+  EntityRefSourceKind,
+  'comment' | 'library_item'
+>;
+
 /**
- * Manage user-curated cross-entity relations (memo → node, material → element …).
- *
- * Inline mentions are NOT in scope here — they're a derived index handled by
- * `reference-index.service` + the editor's projection pass.
+ * Manage user-curated cross-entity relations. Every relation is owned by one
+ * first-class relation type; inline mentions remain a separate derived index.
  */
 export function useEntityRelations({ projectId, userId }: UseEntityRelationsContext) {
   if (!projectId) throw new Error('useEntityRelations requires a projectId');
@@ -42,9 +47,6 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
 
   const loadInitial = useCallback(async () => {
     await ensureDb();
-    const { getDb } = await import('../lib/db');
-    const { EntityRelationTable } = await import('../schema/drizzle');
-    const { eq } = await import('drizzle-orm');
     const rows = await getDb()
       .select()
       .from(EntityRelationTable)
@@ -57,8 +59,7 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
       fromId: row.fromId,
       toKind: row.toKind as StructuralEntityKind,
       toId: row.toId,
-      kind: row.kind ?? null,
-      relationTypeId: row.relationTypeId ?? null,
+      relationTypeId: row.relationTypeId,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }));
@@ -66,63 +67,44 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
     useDataStore.getState().setEntityRelationTypes(relationTypes);
   }, [ensureDb, projectId]);
 
-  const addRelation = useCallback(
+  const addTypedRelation = useCallback(
     async (
       fromKind: EntityRefSourceKind,
       fromId: string,
       toKind: EntityRefTargetKind,
       toId: string,
-      options?: { kind?: string | null; relationTypeId?: string | null; allowUnconfigured?: boolean },
+      relationType: EntityRelationType,
+      createRelationType: boolean,
     ) => {
-      await ensureDb();
       if (!isStructuralEntityKind(toKind)) {
         throw new Error(
           `Cannot create entity relation: toKind '${toKind}' is not a structural kind ` +
             `(memo / material can only appear as fromKind).`,
         );
       }
-      let kind = options?.kind?.trim() || null;
-      let relationTypeId = options?.relationTypeId ?? null;
+      if (relationType.projectId !== projectId) {
+        throw new Error('关系类型不存在或不属于当前项目');
+      }
+      const checked = validateRelationAgainstType(relationType, {
+        fromKind,
+        fromId,
+        toKind,
+        toId,
+      });
+      if (!checked.ok) throw new Error(checked.message);
+      ({ fromKind, fromId, toKind, toId } = checked.relation);
+
       const state = useDataStore.getState();
-      const typeRepo = createEntityRelationTypeRepository(projectId);
-      let relationType = relationTypeId
-        ? state.entityRelationTypes.find((type) => type.id === relationTypeId) ??
-          (await typeRepo.findById(relationTypeId))
-        : kind
-          ? state.entityRelationTypes.find(
-              (type) => type.normalizedName === normalizeRelationTypeName(kind!),
-            ) ?? (await typeRepo.findByNormalizedName(normalizeRelationTypeName(kind)))
-          : null;
-      let createdRelationType: EntityRelationType | null = null;
-      if (!relationType && kind) {
-        relationType = legacyRelationType(projectId, kind, new Date().toISOString(), new Date().toISOString());
-        createdRelationType = relationType;
-      }
-      if (relationType) {
-        const checked = validateRelationAgainstType(
-          relationType,
-          { fromKind, fromId, toKind, toId },
-          { allowUnconfigured: options?.allowUnconfigured ?? true },
-        );
-        if (!checked.ok) throw new Error(checked.message);
-        ({ fromKind, fromId, toKind, toId } = checked.relation);
-        relationTypeId = relationType.id;
-        kind = relationType.name;
-      }
-      const deferSyncForPendingLibraryItem =
-        fromKind === 'library_item' && !!state.libraryItemUploadStates[fromId];
-      // Don't double-add the same pair with the same kind. Different kinds
-      // between the same pair are allowed.
-      const dup = state.entityRelations.find(
-        (r) =>
-          r.fromKind === fromKind &&
-          r.fromId === fromId &&
-          r.toKind === toKind &&
-          r.toId === toId &&
-          (r.relationTypeId ?? null) === relationTypeId &&
-          (relationTypeId !== null || (r.kind ?? null) === kind),
+      const duplicate = state.entityRelations.find(
+        (relation) =>
+          relation.projectId === projectId &&
+          relation.fromKind === fromKind &&
+          relation.fromId === fromId &&
+          relation.toKind === toKind &&
+          relation.toId === toId &&
+          relation.relationTypeId === relationType.id,
       );
-      if (dup) return dup;
+      if (duplicate) return duplicate;
 
       const now = new Date().toISOString();
       const newRow: EntityRelationLink = {
@@ -132,150 +114,122 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
         fromId,
         toKind,
         toId,
-        relationTypeId,
-        kind,
+        relationTypeId: relationType.id,
         createdAt: now,
         updatedAt: now,
       };
+      const previousRelations = state.entityRelations.slice();
+      const previousTypes = state.entityRelationTypes.slice();
+      const nextTypes = previousTypes.some((type) => type.id === relationType.id)
+        ? previousTypes
+        : [...previousTypes, relationType];
 
-      const prev = state.entityRelations.slice();
-      const prevTypes = state.entityRelationTypes.slice();
       return withOptimisticUpdate({
         apply: () => {
-          useDataStore.getState().setEntityRelations([...prev, newRow]);
-          if (createdRelationType) {
-            useDataStore.getState().setEntityRelationTypes([...prevTypes, createdRelationType]);
-          }
+          useDataStore.getState().setEntityRelations([...previousRelations, newRow]);
+          useDataStore.getState().setEntityRelationTypes(nextTypes);
         },
         rollback: () => {
-          useDataStore.getState().setEntityRelations(prev);
-          useDataStore.getState().setEntityRelationTypes(prevTypes);
+          useDataStore.getState().setEntityRelations(previousRelations);
+          useDataStore.getState().setEntityRelationTypes(previousTypes);
         },
-        // Insert directly so the optimistic row id matches the persisted id
-        // (otherwise rollback / sync would diverge).
-        effect: async () => {
-          return withAtomicSyncTransaction(projectId, async (tx, sync) => {
-            if (createdRelationType) {
-              await createEntityRelationTypeRepository(projectId, tx).create(createdRelationType);
-              await sync('entityRelationType', 'create', createdRelationType.id, projectId, {
-                ...createdRelationType,
-              });
+        effect: () =>
+          withAtomicSyncTransaction(projectId, async (tx, sync) => {
+            if (createRelationType) {
+              await createEntityRelationTypeRepository(projectId, tx).create(relationType);
+              await sync(
+                'entityRelationType',
+                'create',
+                relationType.id,
+                projectId,
+                { ...relationType },
+              );
             }
             await tx.insert(EntityRelationTable).values(newRow);
-            if (!deferSyncForPendingLibraryItem) {
-              await sync('entityRelation', 'create', newRow.id, projectId, {
-                id: newRow.id,
-                fromKind: newRow.fromKind,
-                fromId: newRow.fromId,
-                toKind: newRow.toKind,
-                toId: newRow.toId,
-                relationTypeId: newRow.relationTypeId,
-                kind: newRow.kind,
-              });
-            }
+            await sync('entityRelation', 'create', newRow.id, projectId, {
+              id: newRow.id,
+              fromKind: newRow.fromKind,
+              fromId: newRow.fromId,
+              toKind: newRow.toKind,
+              toId: newRow.toId,
+              relationTypeId: newRow.relationTypeId,
+            });
             return newRow;
-          });
-        },
+          }),
       });
     },
-    [ensureDb, projectId],
+    [projectId],
+  );
+
+  const addRelation = useCallback(
+    async (
+      fromKind: EntityRefSourceKind,
+      fromId: string,
+      toKind: EntityRefTargetKind,
+      toId: string,
+      options: { relationTypeId: string },
+    ) => {
+      await ensureDb();
+      if (!options.relationTypeId?.trim()) {
+        throw new Error('创建关系必须指定 relationTypeId');
+      }
+      const state = useDataStore.getState();
+      const relationType =
+        state.entityRelationTypes.find(
+          (candidate) =>
+            candidate.id === options.relationTypeId && candidate.projectId === projectId,
+        ) ??
+        (await createEntityRelationTypeRepository(projectId).findById(
+          options.relationTypeId,
+        ));
+      if (!relationType) throw new Error('关系类型不存在或不属于当前项目');
+      return addTypedRelation(fromKind, fromId, toKind, toId, relationType, false);
+    },
+    [addTypedRelation, ensureDb, projectId],
+  );
+
+  const addGenericAssociation = useCallback(
+    async (
+      fromKind: GenericAssociationSourceKind,
+      fromId: string,
+      toKind: EntityRefTargetKind,
+      toId: string,
+    ) => {
+      await ensureDb();
+      const typeRepo = createEntityRelationTypeRepository(projectId);
+      const existing = await typeRepo.findBySystemKey(GENERIC_ASSOCIATION_SYSTEM_KEY);
+      const expectedId = genericAssociationRelationTypeId(projectId);
+      if (existing && (existing.id !== expectedId || !existing.locked)) {
+        throw new Error('内建通用关联类型的系统身份无效');
+      }
+      const relationType =
+        existing ?? genericAssociationRelationType(projectId, new Date().toISOString());
+      return addTypedRelation(fromKind, fromId, toKind, toId, relationType, !existing);
+    },
+    [addTypedRelation, ensureDb, projectId],
   );
 
   const removeRelation = useCallback(
     async (id: string) => {
       await ensureDb();
       const state = useDataStore.getState();
-      const existing = state.entityRelations.find((r) => r.id === id);
+      const existing = state.entityRelations.find(
+        (relation) => relation.id === id && relation.projectId === projectId,
+      );
       if (!existing) return;
-      const prev = state.entityRelations.slice();
-      const filtered = prev.filter((r) => r.id !== id);
+      const previous = state.entityRelations.slice();
       return withOptimisticUpdate({
-        apply: () => useDataStore.getState().setEntityRelations(filtered),
-        rollback: () => useDataStore.getState().setEntityRelations(prev),
-        effect: async () => {
-          return withAtomicSyncTransaction(projectId, async (tx, sync) => {
+        apply: () =>
+          useDataStore
+            .getState()
+            .setEntityRelations(previous.filter((relation) => relation.id !== id)),
+        rollback: () => useDataStore.getState().setEntityRelations(previous),
+        effect: () =>
+          withAtomicSyncTransaction(projectId, async (tx, sync) => {
             await createEntityRelationRepository(tx).removeRelation(id);
             await sync('entityRelation', 'delete', id, projectId);
             return true;
-          });
-        },
-      });
-    },
-    [ensureDb, projectId],
-  );
-
-  // Rolling-upgrade compatibility for legacy callers that still update a
-  // display label. First-class desktop and Agent flows use updateRelationType.
-  const updateRelationKind = useCallback(
-    async (id: string, kind: string | null) => {
-      await ensureDb();
-      const state = useDataStore.getState();
-      const existing = state.entityRelations.find((r) => r.id === id);
-      if (!existing) return;
-      const trimmed = typeof kind === 'string' ? kind.trim() || null : null;
-      const typeRepo = createEntityRelationTypeRepository(projectId);
-      let relationType = trimmed
-        ? state.entityRelationTypes.find(
-            (type) => type.normalizedName === normalizeRelationTypeName(trimmed),
-          ) ?? (await typeRepo.findByNormalizedName(normalizeRelationTypeName(trimmed)))
-        : null;
-      let createdRelationType: EntityRelationType | null = null;
-      if (!relationType && trimmed) {
-        relationType = legacyRelationType(
-          projectId,
-          trimmed,
-          new Date().toISOString(),
-          new Date().toISOString(),
-        );
-        createdRelationType = relationType;
-      }
-      const prev = state.entityRelations.slice();
-      const prevTypes = state.entityRelationTypes.slice();
-      const now = new Date().toISOString();
-      const next = prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              kind: relationType?.name ?? trimmed,
-              relationTypeId: relationType?.id ?? null,
-              updatedAt: now,
-            }
-          : r,
-      );
-      return withOptimisticUpdate({
-        apply: () => {
-          useDataStore.getState().setEntityRelations(next);
-          if (createdRelationType) {
-            useDataStore.getState().setEntityRelationTypes([...prevTypes, createdRelationType]);
-          }
-        },
-        rollback: () => {
-          useDataStore.getState().setEntityRelations(prev);
-          useDataStore.getState().setEntityRelationTypes(prevTypes);
-        },
-        effect: async () => {
-          return withAtomicSyncTransaction(projectId, async (tx, sync) => {
-            if (createdRelationType) {
-              await createEntityRelationTypeRepository(projectId, tx).create(createdRelationType);
-              await sync('entityRelationType', 'create', createdRelationType.id, projectId, {
-                ...createdRelationType,
-              });
-            }
-            await tx
-              .update(EntityRelationTable)
-              .set({
-                kind: relationType?.name ?? trimmed,
-                relationTypeId: relationType?.id ?? null,
-                updatedAt: now,
-              })
-              .where(eq(EntityRelationTable.id, id));
-            await sync('entityRelation', 'update', id, projectId, {
-              kind: relationType?.name ?? trimmed,
-              relationTypeId: relationType?.id ?? null,
-            });
-            return true;
-          });
-        },
+          }),
       });
     },
     [ensureDb, projectId],
@@ -284,20 +238,22 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
   const updateRelationType = useCallback(
     async (
       id: string,
-      relationTypeId: string | null,
-      options: { swapEndpoints?: boolean; allowUnconfigured?: boolean } = {},
+      relationTypeId: string,
+      options: { swapEndpoints?: boolean } = {},
     ) => {
       await ensureDb();
+      if (!relationTypeId?.trim()) throw new Error('关系必须指定 relationTypeId');
       const state = useDataStore.getState();
-      const existing = state.entityRelations.find((relation) => relation.id === id);
+      const existing = state.entityRelations.find(
+        (relation) => relation.id === id && relation.projectId === projectId,
+      );
       if (!existing) return;
-      const relationType = relationTypeId
-        ? state.entityRelationTypes.find(
-            (candidate) =>
-              candidate.id === relationTypeId && candidate.projectId === projectId,
-          ) ?? (await createEntityRelationTypeRepository(projectId).findById(relationTypeId))
-        : null;
-      if (relationTypeId && !relationType) throw new Error('关系类型不存在或不属于当前项目');
+      const relationType =
+        state.entityRelationTypes.find(
+          (candidate) => candidate.id === relationTypeId && candidate.projectId === projectId,
+        ) ?? (await createEntityRelationTypeRepository(projectId).findById(relationTypeId));
+      if (!relationType) throw new Error('关系类型不存在或不属于当前项目');
+
       const candidate = options.swapEndpoints
         ? {
             fromKind: existing.toKind,
@@ -314,28 +270,39 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
       if (!isStructuralEntityKind(candidate.toKind)) {
         throw new Error('交换后目标端不是结构实体，无法保存该方向');
       }
-      const checked = relationType
-        ? validateRelationAgainstType(
-            relationType,
-            { ...candidate, toKind: candidate.toKind },
-            { allowUnconfigured: options.allowUnconfigured ?? true },
-          )
-        : { ok: true as const, relation: { ...candidate, toKind: candidate.toKind } };
+      const checked = validateRelationAgainstType(relationType, {
+        ...candidate,
+        toKind: candidate.toKind,
+      });
       if (!checked.ok) throw new Error(checked.message);
+
       const now = new Date().toISOString();
       const nextRow: EntityRelationLink = {
         ...existing,
         ...checked.relation,
-        relationTypeId: relationType?.id ?? null,
-        kind: relationType?.name ?? null,
+        relationTypeId,
         updatedAt: now,
       };
+      const duplicate = state.entityRelations.find(
+        (relation) =>
+          relation.id !== id &&
+          relation.projectId === projectId &&
+          relation.fromKind === nextRow.fromKind &&
+          relation.fromId === nextRow.fromId &&
+          relation.toKind === nextRow.toKind &&
+          relation.toId === nextRow.toId &&
+          relation.relationTypeId === relationTypeId,
+      );
+      if (duplicate) throw new Error('相同类型的关系已存在');
+
       const previous = state.entityRelations.slice();
       return withOptimisticUpdate({
         apply: () =>
           useDataStore
             .getState()
-            .setEntityRelations(previous.map((row) => (row.id === id ? nextRow : row))),
+            .setEntityRelations(
+              previous.map((relation) => (relation.id === id ? nextRow : relation)),
+            ),
         rollback: () => useDataStore.getState().setEntityRelations(previous),
         effect: () =>
           withAtomicSyncTransaction(projectId, async (tx, sync) => {
@@ -346,18 +313,21 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
                 fromId: nextRow.fromId,
                 toKind: nextRow.toKind,
                 toId: nextRow.toId,
-                relationTypeId: nextRow.relationTypeId,
-                kind: nextRow.kind,
+                relationTypeId,
                 updatedAt: now,
               })
-              .where(eq(EntityRelationTable.id, id));
+              .where(
+                and(
+                  eq(EntityRelationTable.id, id),
+                  eq(EntityRelationTable.projectId, projectId),
+                ),
+              );
             await sync('entityRelation', 'update', id, projectId, {
               fromKind: nextRow.fromKind,
               fromId: nextRow.fromId,
               toKind: nextRow.toKind,
               toId: nextRow.toId,
-              relationTypeId: nextRow.relationTypeId,
-              kind: nextRow.kind,
+              relationTypeId,
             });
             return nextRow;
           }),
@@ -370,10 +340,10 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
     () => ({
       loadInitial,
       addRelation,
+      addGenericAssociation,
       removeRelation,
-      updateRelationKind,
       updateRelationType,
     }),
-    [loadInitial, addRelation, removeRelation, updateRelationKind, updateRelationType],
+    [loadInitial, addRelation, addGenericAssociation, removeRelation, updateRelationType],
   );
 }

@@ -8,11 +8,8 @@
  *
  * Schema layer: TypeBox. A TypeBox schema **is** a JSON Schema object at
  * runtime, so the same declaration powers (a) TS type inference via
- * `Static<...>`, (b) runtime validation via `Value.Check`, and (c) Gemini
- * function-calling parameters — no schema-to-schema conversion needed.
- *
- * We share TypeBox with the Elysia server, so a Drifting engineer only has
- * to learn one schema dialect across the stack.
+ * `Static<...>`, (b) runtime validation via `Value.Check`, and (c) the
+ * provider-neutral function-calling parameters — no schema conversion needed.
  */
 import type { Static, TSchema } from '@sinclair/typebox';
 import type { GoogleModel } from '../types';
@@ -36,8 +33,8 @@ export interface PromptDef<TInputSchema extends TSchema, TOutputSchema extends T
 
   /**
    * Function-call tool name. If omitted, derived as `return_<id_with_underscores>`.
-   * Gemini ANY-mode forces a call to this tool, which is how we coerce
-   * schema-conformant JSON output.
+   * Provider adapters force a call to this tool, which is how we coerce
+   * schema-conformant structured output.
    */
   toolName?: string;
 }

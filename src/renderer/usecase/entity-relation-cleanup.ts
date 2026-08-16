@@ -1,5 +1,5 @@
 import { and, eq, or } from 'drizzle-orm';
-import type { StructuralEntityKind } from '../domain/entity-kinds';
+import type { EntityKind } from '../domain/entity-kinds';
 import type { DbTransaction } from '../lib/db';
 import { EntityRelationTable } from '../schema/drizzle';
 import type { AtomicSyncWriter } from './sync-helpers';
@@ -15,7 +15,7 @@ interface RelationEndpoints {
 function relationBelongsToEntity(
   relation: RelationEndpoints,
   projectId: string,
-  kind: StructuralEntityKind,
+  kind: EntityKind,
   id: string,
 ): boolean {
   return (
@@ -28,7 +28,7 @@ function relationBelongsToEntity(
 export function withoutRelationsForEntity<T extends RelationEndpoints>(
   relations: T[],
   projectId: string,
-  kind: StructuralEntityKind,
+  kind: EntityKind,
   id: string,
 ): T[] {
   return relations.filter((relation) => !relationBelongsToEntity(relation, projectId, kind, id));
@@ -44,7 +44,7 @@ export async function deleteEntityRelationsInTransaction(
   tx: DbTransaction,
   sync: AtomicSyncWriter,
   projectId: string,
-  kind: StructuralEntityKind,
+  kind: EntityKind,
   id: string,
 ): Promise<string[]> {
   const condition = and(

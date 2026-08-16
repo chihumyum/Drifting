@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type {
   AgentRuntimeRecoverySnapshot,
+  PersistedAgentRuntimeCheckpoint,
   PersistedAgentRuntimeEvent,
 } from '../../../domain/agent-runtime-persistence';
 import {
@@ -613,7 +614,7 @@ describe('Agent runtime canonical recovery', () => {
     expect(snapshot).toEqual(before);
   });
 
-  it('uses an exact verified checkpoint without duplicating its messages', async () => {
+  it('rejects a pre-release V1 array checkpoint even when its hash matches', async () => {
     const snapshot = completeSnapshot();
     const context = completeMessages().map((row) => ({
       role: row.role,
@@ -625,15 +626,15 @@ describe('Agent runtime canonical recovery', () => {
         sessionId: SESSION_ID,
         throughTurnOrdinal: 0,
         messageCount: context.length,
-        context,
+        context: context as unknown as PersistedAgentRuntimeCheckpoint['context'],
         contextHash: await hashAgentRuntimeCheckpointContext(context),
         createdAt: NOW,
       },
     ];
 
-    const result = await recoverAgentRuntimeSnapshot(snapshot);
-    expect(result.checkpointId).toBe('checkpoint-1');
-    expect(result.providerHistory).toEqual(context);
+    await expect(recoverAgentRuntimeSnapshot(snapshot)).rejects.toSatisfy(
+      (error: unknown) => failureCode(error) === 'INVALID_CHECKPOINT',
+    );
   });
 
   it('recovers canonical history from a verified V2 provider envelope', async () => {
@@ -793,27 +794,6 @@ describe('Agent runtime canonical recovery', () => {
     });
   });
 
-  it('parses canonical denied provenance in a legacy P2 checkpoint', async () => {
-    const history = deniedHistory();
-    const snapshot = snapshotWithHistory(history);
-    snapshot.checkpoints = [
-      {
-        id: 'checkpoint-p2-denied',
-        sessionId: SESSION_ID,
-        throughTurnOrdinal: 0,
-        messageCount: history.length,
-        context: history,
-        contextHash: await hashAgentRuntimeCheckpointContext(history),
-        createdAt: NOW,
-      },
-    ];
-
-    await expect(recoverAgentRuntimeSnapshot(snapshot)).resolves.toMatchObject({
-      checkpointId: 'checkpoint-p2-denied',
-      providerHistory: history,
-    });
-  });
-
   it.each([
     {
       label: 'canonical history',
@@ -887,14 +867,18 @@ describe('Agent runtime canonical recovery', () => {
       role: row.role,
       content: row.content,
     })) as AgentModelMessage[];
+    const durableContext = await createAgentRuntimeCheckpointContextV4({
+      canonicalHistory: context,
+      durableSummaries: [],
+    });
     snapshot.checkpoints = [
       {
         id: 'checkpoint-through-turn-1',
         sessionId: SESSION_ID,
         throughTurnOrdinal: 0,
         messageCount: context.length,
-        context,
-        contextHash: await hashAgentRuntimeCheckpointContext(context),
+        context: durableContext,
+        contextHash: await hashAgentRuntimeCheckpointPayload(durableContext),
         createdAt: NOW,
       },
     ];
@@ -1174,13 +1158,17 @@ describe('Agent runtime canonical recovery', () => {
       role: row.role,
       content: row.content,
     })) as AgentModelMessage[];
+    const durableContext = await createAgentRuntimeCheckpointContextV4({
+      canonicalHistory: context,
+      durableSummaries: [],
+    });
     snapshot.checkpoints = [
       {
         id: 'checkpoint-corrupt',
         sessionId: SESSION_ID,
         throughTurnOrdinal: 0,
         messageCount: context.length,
-        context,
+        context: durableContext,
         contextHash: 'sha256:bad',
         createdAt: NOW,
       },

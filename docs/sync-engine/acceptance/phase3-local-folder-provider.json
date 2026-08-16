@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "milestone": "sync-engine-phase3-local-folder-provider",
+  "recordedAt": "2026-08-15",
+  "status": "reference-provider-complete",
+  "productAvailability": "not-connected",
+  "scope": {
+    "provider": "local-folder",
+    "nativeRustObjectStore": "not-modified",
+    "googleDrive": "not-implemented-by-this-milestone"
+  },
+  "boundary": {
+    "rendererReceivesPaths": false,
+    "rendererReceivesObjectBytes": false,
+    "localObjectRefOnly": true,
+    "rootSecretRefOnly": true,
+    "domainImports": false,
+    "drizzleImports": false,
+    "yjsImports": false,
+    "tauriImports": false
+  },
+  "durability": {
+    "layout": "one-atomic-event-directory-per-revision",
+    "fileFsync": true,
+    "stagingDirectoryFsync": true,
+    "atomicRename": true,
+    "parentDirectoryFsync": true,
+    "sigkillBoundaries": [
+      "stage-durable",
+      "commit-renamed",
+      "commit-directory-durable"
+    ],
+    "hardwarePowerLossSimulated": false
+  },
+  "conformance": {
+    "sharedWith": ["memory", "local-folder"],
+    "casesPerProvider": 6,
+    "semantics": [
+      "cutoff-stable-pagination",
+      "duplicate-and-reordered-delivery",
+      "response-loss-and-concurrent-idempotence",
+      "immutable-identity-after-removal",
+      "verify-before-destination-write",
+      "sync-generation-handle-isolation"
+    ]
+  },
+  "commands": [
+    "pnpm exec vitest run src/renderer/sync/providers/memory-provider.test.ts src/renderer/sync/providers/memory-provider.conformance.test.ts src/renderer/sync/providers/local-folder/architecture.test.ts src/renderer/sync/providers/local-folder/provider.test.ts src/renderer/sync/providers/local-folder/provider.conformance.test.ts src/renderer/sync/providers/local-folder/durability.test.ts --reporter=verbose",
+    "pnpm exec eslint src/renderer/sync/providers/local-folder src/renderer/sync/providers/object-log-provider.conformance.ts src/renderer/sync/providers/memory-provider.conformance.test.ts"
+  ],
+  "lastObserved": {
+    "testFilesPassed": 6,
+    "testFilesSkipped": 0,
+    "testsPassed": 25,
+    "testsSkipped": 0,
+    "eslint": "passed",
+    "typecheck": "passed"
+  }
+}

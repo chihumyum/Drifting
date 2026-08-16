@@ -1,12 +1,12 @@
 {
   "suite": "milestone-d-domain-crud-and-structural-transactions",
   "schemaVersion": 1,
-  "nodeVersion": "v22.23.1",
+  "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "ead756466a2c6daf58162268c2778dc06de1912d",
-  "sourceSetSha256": "sha256:06d26402ef08e654c58fc96a219fd55ffa606d2aa5ba4ee7982bf4c5b4684603",
+  "gitHead": "94e9bbca72fba3a23922da389e7ba121436d7f3b",
+  "sourceSetSha256": "sha256:7362ff818772cf009d65bfe69c64f42f6c49ea4c5326c831f668010877a3ee37",
   "storageReplay": {
-    "sqlite": "real file-backed SQLite with every product migration, CAS guards, receipts, outbox rows, and injected transaction faults",
+    "sqlite": "real file-backed SQLite from the current product baseline, with CAS guards, receipts, outbox rows, and injected transaction faults",
     "prose": "real product Yjs coordination for prose-owning workspace resources",
     "rendererProjection": "product Zustand projections refreshed only after committed domain state",
     "restart": "database close/reopen plus lost outer acknowledgement reconciliation",
@@ -24,25 +24,14 @@
       "discovered": 9
     },
     "tests": {
-      "total": 70,
-      "passed": 70,
+      "total": 83,
+      "passed": 83,
       "failed": 0,
       "pending": 0,
       "todo": 0
     },
     "groups": {
       "realSqliteDomainLifecycle": {
-        "requiredFiles": 2,
-        "discoveredFiles": 2,
-        "tests": {
-          "total": 18,
-          "passed": 18,
-          "failed": 0,
-          "pending": 0
-        },
-        "passed": true
-      },
-      "naturalWorkspaceAndReads": {
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
@@ -53,12 +42,23 @@
         },
         "passed": true
       },
+      "naturalWorkspaceAndReads": {
+        "requiredFiles": 2,
+        "discoveredFiles": 2,
+        "tests": {
+          "total": 18,
+          "passed": 18,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
       "productYjsAndMigration": {
         "requiredFiles": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 12,
-          "passed": 12,
+          "total": 22,
+          "passed": 22,
           "failed": 0,
           "pending": 0
         },
@@ -68,8 +68,8 @@
         "requiredFiles": 3,
         "discoveredFiles": 3,
         "tests": {
-          "total": 18,
-          "passed": 18,
+          "total": 21,
+          "passed": 21,
           "failed": 0,
           "pending": 0
         },
@@ -98,7 +98,7 @@
         "passed": true
       },
       "approvedMemoryTrust": {
-        "requiredName": "keeps approved guidance read-only and evolves it through a pending superseding proposal",
+        "requiredName": "keeps approved guidance read-only and allows a separate pending proposal",
         "matches": 1,
         "passed": true
       },
@@ -128,7 +128,7 @@
         "passed": true
       },
       "naturalWorkspace": {
-        "requiredName": "projects canonical entities as natural virtual files and renders prose without handles",
+        "requiredName": "reads a chapter by plain chapter name and hides transport vocabulary from model data",
         "matches": 1,
         "passed": true
       },
@@ -138,12 +138,12 @@
         "passed": true
       },
       "authoritativeYjsWorkspace": {
-        "requiredName": "edits a virtual prose file with semantic model output and an automatic reveal",
+        "requiredName": "edits authored prose with semantic model output and an automatic reveal",
         "matches": 1,
         "passed": true
       },
       "migrationReopen": {
-        "requiredName": "follows the checked-in journal and reopens idempotently",
+        "requiredName": "creates the exact current baseline and reopens idempotently",
         "matches": 1,
         "passed": true
       },
@@ -153,7 +153,7 @@
         "passed": true
       },
       "graphPermission": {
-        "requiredName": "asks before a workspace facade changes relations or storyline membership",
+        "requiredName": "allows non-destructive relation changes but guards full membership replacement",
         "matches": 1,
         "passed": true
       },

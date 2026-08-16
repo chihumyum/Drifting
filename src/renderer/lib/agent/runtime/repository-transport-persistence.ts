@@ -19,7 +19,6 @@ import type { AgentContextSummaryCandidate } from './context-planner';
 import {
   createAgentRuntimeCheckpointContextV2,
   createAgentRuntimeCheckpointContextV4,
-  hashAgentRuntimeCheckpointContext,
   hashAgentRuntimeCheckpointPayload,
   recoverAgentRuntimeSnapshot,
 } from './recovery';
@@ -43,9 +42,6 @@ export interface AgentRuntimeRecoveryCodec {
     providerHistory: AgentModelMessage[];
     pendingControls?: AgentPendingControl[];
   }>;
-  hashCheckpointContext(
-    context: readonly AgentModelMessage[],
-  ): Promise<string>;
 }
 
 /**
@@ -526,12 +522,11 @@ export function createRepositoryAgentTransportPersistence(
             });
           } catch (cause) {
             // V2 is a redundant planner/projection witness, not the source of
-            // truth. The exact canonical history below is independently hashed
-            // and fully recoverable, so a stale/mismatched V2 projection must
-            // not strand an otherwise completed turn after its tools committed.
-            // Keep the diagnostic local; recovery will re-plan V1 next turn.
+            // truth. Exact canonical history remains in normalized rows, so a
+            // stale projection falls back to a V4 row digest without stranding
+            // an otherwise completed turn after its tools committed.
             console.warn(
-              '[agent] checkpoint V2 verification failed; retaining exact normalized history',
+              '[agent] checkpoint V2 verification failed; storing a verified V4 row digest',
               cause,
             );
           }
@@ -556,15 +551,12 @@ export function createRepositoryAgentTransportPersistence(
                   : [],
             )
           : [];
-        const compactV4 =
-          !useV2 &&
-          (Boolean(input.contextCheckpointV2) ||
-            serializedByteLength(context) > MAX_INLINE_AGENT_RUNTIME_V2_CHECKPOINT_BYTES)
-            ? await createBoundedDigestCheckpoint(context, durableSummaries)
-            : null;
+        const compactV4 = !useV2
+          ? await createBoundedDigestCheckpoint(context, durableSummaries)
+          : null;
         const durableContext = useV2
           ? verifiedV2!
-          : compactV4 ?? context.map(clonePortableData);
+          : compactV4!;
         throwIfAborted(signal);
         checkpoint = {
           id: runtimeCheckpointId(input.sessionId, turn.ordinal),
@@ -572,9 +564,7 @@ export function createRepositoryAgentTransportPersistence(
           throughTurnOrdinal: turn.ordinal,
           messageCount: context.length,
           context: durableContext,
-          contextHash: useV2 || compactV4
-            ? await hashAgentRuntimeCheckpointPayload(durableContext)
-            : await recovery.hashCheckpointContext(context),
+          contextHash: await hashAgentRuntimeCheckpointPayload(durableContext),
           createdAt: input.endedAt,
         };
         throwIfAborted(signal);
@@ -704,7 +694,6 @@ export function createRepositoryAgentTransportPersistence(
 
 const defaultRecoveryCodec: AgentRuntimeRecoveryCodec = {
   recoverSnapshot: recoverAgentRuntimeSnapshot,
-  hashCheckpointContext: hashAgentRuntimeCheckpointContext,
 };
 
 /**

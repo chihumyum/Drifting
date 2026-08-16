@@ -19,16 +19,26 @@
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
+			<key>CFBundleURLName</key>
+			<string>drifting</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>drifting</string>
 			</array>
+		</dict>
+		<dict>
 			<key>CFBundleURLName</key>
-			<string>drifting</string>
+			<string>google-oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(DRIFTING_GOOGLE_IOS_REVERSED_CLIENT_ID)</string>
+			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>0.1.0</string>
+	<key>GIDClientID</key>
+	<string>$(DRIFTING_GOOGLE_IOS_CLIENT_ID)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

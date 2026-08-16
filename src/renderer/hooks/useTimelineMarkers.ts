@@ -1,13 +1,8 @@
 /**
- * Timeline markers — narrative-axis time pins, now a synced table (formerly
- * localStorage; see domain/timeline-marker.ts for the model + the drift-
- * binding contract).
- *
- * The store-of-truth is the `timeline_marker` SQLite table mirrored into
- * useDataStore.timelineMarkers. Mutations here are optimistic: the store
- * updates synchronously (so `addMarker` can still return the created marker
- * to its caller), persistence + sync ride behind as fire-and-forget — the
- * same pattern the marker UI relied on when this was localStorage.
+ * Timeline markers are narrative-axis time pins. The `timeline_marker` SQLite
+ * table is authoritative and is mirrored into useDataStore.timelineMarkers.
+ * Mutations are optimistic: the store updates synchronously so `addMarker`
+ * can return the created marker while persistence and sync complete behind it.
  */
 import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
@@ -26,82 +21,9 @@ import loglevel from 'loglevel';
 const log = loglevel.getLogger('useTimelineMarkers');
 log.setLevel(loglevel.levels.WARN);
 
-// ---- Legacy localStorage import (pre-2026-06 storage) ----
-
-const LEGACY_STORAGE_PREFIX = 'drifting:timeline-markers';
-const LEGACY_STORAGE_VERSION = 2;
-
-interface LegacyStoredPayload {
-  v: number;
-  markers: Array<{ id: string; narrativeOrder: number; label: string; createdAt: string }>;
-}
-
-function readLegacyMarkers(projectId: string): LegacyStoredPayload['markers'] {
-  if (typeof localStorage === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(`${LEGACY_STORAGE_PREFIX}:${projectId}`);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as LegacyStoredPayload;
-    if (!parsed || parsed.v !== LEGACY_STORAGE_VERSION || !Array.isArray(parsed.markers)) {
-      return [];
-    }
-    return parsed.markers;
-  } catch {
-    return [];
-  }
-}
-
-/**
- * App bootstrap: load the project's markers into the data store. Runs the
- * one-time legacy import first — localStorage markers are inserted as real
- * rows (ids preserved), pushed through sync, and the legacy key removed so
- * the import can't double-run.
- */
+/** Load the project's current SQLite markers into the data store. */
 export async function loadTimelineMarkers(projectId: string): Promise<void> {
-  const repo = createTimelineMarkerRepository(projectId);
-  let markers = await repo.findAll();
-  let canRemoveLegacyKey = markers.length > 0;
-
-  if (markers.length === 0) {
-    const legacy = readLegacyMarkers(projectId);
-    if (legacy.length > 0) {
-      const rows: TimelineMarker[] = legacy.map((m) => ({
-        id: m.id,
-        projectId,
-        narrativeOrder: m.narrativeOrder,
-        label: m.label,
-        driftNodeId: null,
-        createdAt: m.createdAt,
-        updatedAt: m.createdAt,
-      }));
-      try {
-        await withAtomicSyncTransaction(projectId, async (tx, sync) => {
-          const repoTx = createTimelineMarkerRepository(projectId, tx);
-          for (const row of rows) {
-            await repoTx.create(row);
-            await sync('timelineMarker', 'create', row.id, projectId, markerPayload(row));
-          }
-        });
-        canRemoveLegacyKey = true;
-      } catch (error) {
-        log.warn('legacy marker import failed:', error);
-      }
-      markers = await repo.findAll();
-    } else {
-      canRemoveLegacyKey = true;
-    }
-  }
-  // Remove the legacy key even when the table already had rows — the table
-  // is authoritative from now on either way. If an import failed, preserve
-  // the only durable copy so the next launch can retry it.
-  if (canRemoveLegacyKey) {
-    try {
-      localStorage.removeItem(`${LEGACY_STORAGE_PREFIX}:${projectId}`);
-    } catch {
-      /* ignore */
-    }
-  }
-
+  const markers = await createTimelineMarkerRepository(projectId).findAll();
   useDataStore.getState().setTimelineMarkers(markers);
 }
 

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "milestone": "phase5-sync-generation-provisioning",
+  "recordedAt": "2026-08-16",
+  "currentContract": true,
+  "status": "implemented-foundation-real-account-gated",
+  "entryPoint": "src/renderer/sync/provision/sync-generation-provisioner.ts#PendingSyncGenerationProvisioner",
+  "claims": {
+    "localEditingWaitsForNetwork": false,
+    "stableCloudProjectCreatesDurablePendingBinding": true,
+    "postConnectProjectCreatesSyncGeneration": true,
+    "pendingBindingMappedToRuntime": false,
+    "nonReadyBindingMappedToRuntime": false,
+    "provisioningSingleFlight": true,
+    "providerResponseLossReconciled": true,
+    "readyRequiresPublishedGenesisCommit": true,
+    "applicationManagedProjectContentKey": false,
+    "separateRecoveryObject": false,
+    "authorityChangedEmittedAfterReady": true,
+    "settingsManualRetryApi": true,
+    "settingsStatusAndRetryConnected": true,
+    "realGoogleAccountAcceptance": false
+  },
+  "tests": [
+    {
+      "command": "pnpm exec vitest run src/renderer/sync/provision/supervisor.test.ts src/renderer/sync/checkpoint/provider-publisher.integration.test.ts src/renderer/sync/app-authority-repository.integration.test.ts src/renderer/sync/production-runtime.test.ts --reporter=verbose"
+    },
+    {
+      "command": "pnpm exec eslint src/renderer/sync/provision src/renderer/sync/app-authority-repository.ts src/renderer/sync/app-authority-repository.integration.test.ts src/renderer/sync/journal/sync-generation-repository.ts src/renderer/sync/restore/google-drive-product-connect.ts src/renderer/sync/restore/google-drive-restore.ts src/renderer/app/effects/AppEffects.tsx"
+    },
+    {
+      "command": "pnpm typecheck"
+    }
+  ],
+  "openGates": [
+    "real Google account restart and response-loss acceptance",
+    "physical desktop iOS Android acceptance"
+  ]
+}

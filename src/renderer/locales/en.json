@@ -10,11 +10,11 @@
   },
   "preAlphaGuide": {
     "title": "Welcome to Drifting Pre-Alpha",
-    "intro": "This is an early build for a small group of testers. Core writing, cloud sync, and relational data work, but APIs, data formats, and UX may still change.",
-    "trial": "This is a 30-day trial account; the server deletes the account and cloud data after expiry.",
-    "sync": "Manuscripts are stored in readable form on Drifting's server; end-to-end encryption is not provided.",
+    "intro": "This public preview is local-first. Core writing and relational data work entirely on this device, while APIs, data formats, and UX may still change.",
+    "localData": "No Drifting account is required. Projects, prose, relationships, Trash, and history are stored in the app's local data directory.",
+    "sync": "Drifting hosted sync is not enabled in this build. Third-party cloud-provider sync is not available yet.",
     "byok": "There is no hosted AI service. Every AI feature references the BYOK credentials managed in Settings → Models & API. Copilot uses its selected provider and model; General Agent chooses them in the chat panel.",
-    "backup": "Regularly use Relational Markdown Export to keep a readable copy.",
+    "backup": "Regularly use local Relational Markdown Export to keep a readable copy outside the application database.",
     "settingsHint": "After opening a book, connect provider credentials once in Settings → Models & API. API keys persist only in system secure storage; General Agent does not currently require a remote runner or sidecar.",
     "continue": "I understand — continue"
   },
@@ -28,6 +28,7 @@
     "local_user": "Local user",
     "groups": {
       "account": "Account",
+      "localData": "Local data",
       "preferences": "Preferences",
       "intelligence": "Intelligence",
       "control": "Control",
@@ -117,7 +118,7 @@
       "sign_out_button": "Sign out",
       "danger_zone": "Danger zone",
       "export_all": "Export relational Markdown",
-      "export_all_desc": "Export every book in the account, including chapters, drifts, elements, comments, and library notes, with bidirectional wiki links. This is not a restorable full-state backup.",
+      "export_all_desc": "Export every project in this local library, including chapters, drifts, elements, comments, and library notes, with bidirectional wiki links. Image and PDF files are not included; this is a readable migration archive, not a restorable full-state backup.",
       "export_all_btn": "Export Markdown ZIP",
       "exporting": "Exporting…",
       "export_done": "Exported {{count}} Markdown documents.",
@@ -186,16 +187,20 @@
     "trash": {
       "kicker": "TRASH",
       "title": "Soft-deleted content.",
-      "sub": "Automatically purged after 30 days. Pro/Studio only — Free accounts delete permanently."
+      "sub": "Kept on this device until you restore or permanently delete it."
     },
     "appearance": {
       "kicker": "APPEARANCE",
       "title": "You decide the light at your desk.",
-      "sub": "Pick the brightness that feels best for the writing surface.",
+      "sub": "Pick the brightness and accent that feel best for the writing surface.",
       "theme": "Theme",
       "light": "Light",
       "dark": "Dark",
       "system": "Follow system",
+      "accent": "Accent color",
+      "accent_color": "Interface accent",
+      "accent_color_desc": "Used for buttons, focus, and active states without changing the editor caret.",
+      "accent_reset": "Restore default",
       "density": "Density",
       "animations": "Animations & transitions",
       "animations_desc": "Interface transitions and activity feedback."
@@ -214,7 +219,7 @@
       "typesetting": "Typesetting",
       "reset_style": "Restore recommended style",
       "font_source": "Content font",
-      "font_scope_desc": "Applies to chapter prose, entity titles and summaries, entity long-form text, field values, patches and reference content, plus the typesetting preview. UI, sidebars, dialogs, and node cards always use the unified sans-serif face. Font choices stay on this device and are not cloud-synced.",
+      "font_scope_desc": "Applies to chapter prose, entity titles and summaries, entity long-form text, field values, patches and reference content, plus the typesetting preview. UI, sidebars, dialogs, and node cards always use the unified sans-serif face. Font choices are device-local and excluded from the authored SyncEngine domain.",
       "font_system_serif": "System serif",
       "font_system_serif_desc": "Uses this system's serif face",
       "font_system_sans": "System sans-serif",
@@ -274,9 +279,9 @@
       "typewriter_position": "Typing line position",
       "typewriter_position_desc": "Percentage from the top of the editor: 25% high, 50% centered, 75% low.",
       "caret_color": "Caret color",
-      "caret_color_desc": "Choose the prose insertion caret color. This preference syncs across devices.",
+      "caret_color_desc": "Choose the prose insertion caret color. It is saved locally and joins preference sync only when a compatible service is configured.",
       "entity_link_style": "Entity Link highlight",
-      "entity_link_style_desc": "Use owner colors, one custom color per entity type, reveal owner colors only on hover, or prose color with a gray underline. This preference syncs across devices.",
+      "entity_link_style_desc": "Use owner colors, one custom color per entity type, reveal owner colors only on hover, or prose color with a gray underline. It is saved locally and joins preference sync only when a compatible service is configured.",
       "entity_link_style_contextual": "By owner",
       "entity_link_style_kind": "By type",
       "entity_link_style_hover": "Hover only",
@@ -323,42 +328,82 @@
       }
     },
     "sync": {
-      "kicker": "SYNC",
-      "title": "Where your work lives, and where it's backed up.",
-      "sub": "Drifting syncs local project data to the cloud so you can continue across devices.",
-      "cloud": "Drifting Cloud",
-      "lastSuccess": "Last success",
-      "successRate": "success rate",
-      "no_activity": "No sync activity in this session yet.",
-      "inflight": " · in progress {{count}}",
-      "online": "Online",
-      "syncing": "Syncing",
-      "idle": "Idle",
-      "needs_attention": "Needs attention",
-      "back_to_sync": "Back to sync",
-      "activity_kicker": "Sync activity",
-      "activity_title": "What just synced.",
-      "activity_sub": "The latest 200 sync events. Failure reasons expand at the end of each row.",
-      "cloud_sync": "Cloud sync",
-      "vault_path": "Local vault",
-      "local_data_managed": "Stored in Drifting's managed application data directory.",
-      "show_in_finder": "Show in Finder",
-      "debug_toast": "Debug mode · Toast",
-      "debug_toast_desc": "When on, push / pull event toasts appear in the lower right of the home screen for sync debugging.",
+      "local_kicker": "LOCAL DATA",
+      "local_title": "Your work stays on this device.",
+      "local_sub": "No Drifting account or hosted cloud is used. Export a readable copy whenever you want.",
+      "cloud_kicker": "PERSONAL CLOUD",
+      "cloud_title": "Your projects sync with Google Drive.",
+      "cloud_sub": "SQLite remains the working copy on every device. Sync data and assets are stored in Drive. Your Google account and Google Drive are part of the trust boundary; this is not end-to-end encryption against Google.",
+      "google_drive": "Google Drive",
+      "cloud_status": "Sync status",
+      "cloud_status_desc": "{{ready}} of {{active}} projects are ready.",
+      "cloud_states": {
+        "loading": "Loading",
+        "local": "On-device only",
+        "transitioning": "Connecting",
+        "cloud-ready": "Ready",
+        "cloud-provisioning": "Preparing projects",
+        "cloud-paused": "Paused",
+        "cloud-attention": "Needs attention",
+        "unavailable": "Unavailable"
+      },
+      "connect_google_drive": "Google Drive sync",
+      "connect_google_drive_desc": "Sign in with Google in your system browser. Drifting automatically discovers and restores projects already stored for that Google account, then publishes projects found only on this device.",
+      "google_drive_unavailable_target": "This build does not have complete Google Drive sign-in configuration.",
+      "connect": "Sign in with Google",
+      "connecting": "Signing in…",
+      "retry_google_sign_in": "Sign in with Google again",
+      "connect_done": "Google sign-in is complete. Remote project discovery, restore, and publication of local-only projects continue automatically.",
+      "cancel_pending_cloud": "Cancel pending cloud setup",
+      "cancel_pending_cloud_desc": "Clears the pending Google sign-in setup, revokes the owned Google authorization, and returns to local-only mode. Data already written to Drive may remain; local SQLite, Yjs, assets, and projects are preserved.",
+      "cancel_pending_cloud_action": "Cancel setup…",
+      "confirm_cancel_pending_cloud": "Confirm cancel setup",
+      "cancelling": "Cancelling…",
+      "cancel_pending_cloud_done": "Cloud setup was cancelled. Every local project remains available.",
+      "finish_provisioning": "Finish preparing projects",
+      "finish_provisioning_desc": "{{count}} project(s) still need an initial Drive sync state.",
+      "retry": "Retry",
+      "retry_requested": "A project preparation retry was scheduled.",
+      "runtime_unavailable": "The foreground sync runtime is not mounted yet.",
+      "reauthorize_google_drive": "Reauthorize Google Drive",
+      "reauthorize_google_drive_desc": "Sign in again in the system browser. Drifting accepts the authorization only when Google confirms the same account, then resumes automatic project discovery.",
+      "reauthorize": "Reauthorize",
+      "reauthorizing": "Reauthorizing…",
+      "reauthorize_done": "Google Drive authorization was renewed and affected projects are ready to resume.",
+      "sync_now": "Sync now",
+      "sync_now_desc": "Run one foreground pull, apply, and publish cycle.",
+      "sync_requested": "A foreground sync cycle was scheduled.",
+      "pause_sync": "Pause cloud sync",
+      "resume_sync": "Resume cloud sync",
+      "pause_sync_desc": "Local editing remains available while provider network work is paused.",
+      "pause": "Pause",
+      "resume": "Resume",
+      "pause_done": "Google Drive sync is paused for every project.",
+      "resume_done": "Google Drive sync resumed for every project.",
+      "disconnect_google_drive": "Disconnect Google Drive",
+      "disconnect_google_drive_desc": "Ready projects run a final convergence check before Drifting revokes its Google grant and returns every project to local-only mode. A stalled or not-yet-published project still keeps its complete local SQLite, Yjs, and assets, but Drive may be behind. Remote Drive data is not deleted. Other devices may need to sign in again.",
+      "disconnect": "Disconnect…",
+      "retry_disconnect": "Retry disconnect…",
+      "confirm_disconnect": "Confirm disconnect",
+      "disconnecting": "Disconnecting…",
+      "disconnect_done": "Google Drive was disconnected. Every local project remains available on this device.",
+      "attention_reason": "Attention reason",
+      "attention_reason_desc": "The durable reason code for the current cloud-sync authority state. Reauthorization, upgrade, or corruption states appear here; quarantined objects are never applied.",
+      "last_sync_error": "Last sync error",
+      "last_sync_error_desc": "The most recent sync cycle did not finish. Local content is safe and pending data remains intact. Retry after the problem is resolved.",
+      "last_sync_error_publish_invalid_desc": "An internal publish request failed. Local content is safe and the pending journal remains intact. Retry after updating the app.",
+      "diagnostics": "Pending work",
+      "diagnostics_desc": "Local journal and verified inbox counters; content and credentials are never shown here.",
+      "diagnostics_value": "changes {{changeSets}} · segments {{segments}} · transfers {{transfers}} · gaps {{gaps}} · conflicts {{conflicts}} · quarantine {{quarantined}}",
+      "operation_failed": "Sync operation failed: {{error}}",
+      "local_data": "Local data",
       "history": "Version history",
       "auto_snapshot": "Auto snapshot",
       "auto_snapshot_desc": "Captured about every 15 minutes after prose or entity changes; kept locally for 30 days with automatic thinning.",
       "auto_snapshot_active": "Active",
-      "export": "Export / Import",
-      "export_all": "Export relational Markdown",
-      "export_all_desc": "Pre-Alpha only supports a relational Markdown ZIP. Full data export will return after the export refactor.",
-      "configure_export": "Export Markdown…",
       "import_files": "Import",
       "import_files_desc": "From Scrivener / Word / Markdown / plain text.",
-      "select_file": "Choose file…",
-      "activity": "Sync activity",
-      "activity_desc": "Latest 200 push / pull events, including failure reasons.",
-      "activity_open": "Open full log"
+      "select_file": "Choose file…"
     },
     "keys": {
       "kicker": "KEYBOARD",
@@ -387,7 +432,7 @@
         },
         "saveCurrentEditor": {
           "label": "Save current editor",
-          "desc": "Save the current editor and immediately push updates for every open document"
+          "desc": "Save the current editor and flush every open document to local storage"
         },
         "goBack": {
           "label": "Go back",
@@ -415,7 +460,7 @@
       "kicker": "PRIVACY",
       "title": "Where your manuscript stops.",
       "sub": "A plain view of what Drifting uses, what it does not use, and when data leaves your machine.",
-      "noteA": "Public source builds default to local-only mode. If you enable sync, manuscript data is sent to the configured service without end-to-end encryption.",
+      "noteA": "Public source builds do not contact a Drifting hosted service by default. Author-selected model providers, personal cloud, remote Agent extensions, and web metadata or preview images for pasted URLs may use the network; this does not upload manuscripts or local assets to Drifting.",
       "noteBPrefix": "AI requests follow the",
       "noteBStrong": "selected provider's",
       "noteBSuffix": "current data and training terms.",
@@ -439,7 +484,6 @@
       "channelDev": "Development",
       "channelPreAlpha": "Pre-Alpha",
       "engine": "Engine",
-      "checkUpdates": "Check for updates",
       "credits": "Credits and licenses",
       "fonts": "Fonts",
       "fontsDesc": "Inter Tight · System fonts · User-imported fonts",
@@ -493,7 +537,7 @@
       "currentByok": "✓ Current BYOK",
       "setCurrent": "Set current",
       "invalidKey": "Invalid key",
-      "requestFailed": "Request failed (server not running or network issue)"
+      "requestFailed": "Request failed (provider unavailable or network issue)"
     },
     "agentAuth": {
       "statusTitle": "Status",
@@ -564,7 +608,7 @@
       "byokWarningStrong": "AI calls will fail",
       "byokWarningSuffix": ". Add that provider's key under Models & API.",
       "byokModel": "Pinned model",
-      "byokModelDesc": "Model to use under the current provider. Blank means the server picks that provider's default; choose Custom to enter an id outside the list.",
+      "byokModelDesc": "Model to use under the current provider. Blank uses Drifting's local default for that provider; choose Custom to enter an id outside the list.",
       "switchesTitle": "Switches",
       "autoTrigger": "Auto trigger",
       "autoTriggerDesc": "Run tasks in the background after edit debounce. When off, tasks run only when manually triggered.",
@@ -832,11 +876,15 @@
     "storylineWords": "Storyline {{formatted}} words",
     "projectWords": "Book {{formatted}} words",
     "todayWords": "Today {{formatted}} words",
-    "syncLocal": "Local only",
-    "syncing": "Syncing…",
-    "syncError": "Sync failed",
-    "syncedAt": "Synced {{time}}",
-    "syncReady": "Sync ready"
+    "storageLocal": "On-device",
+    "storage": {
+      "local": "On-device",
+      "syncing": "Syncing with Google Drive",
+      "synced": "Google Drive up to date",
+      "paused": "Google Drive sync paused",
+      "offline": "Google Drive paused offline",
+      "attention": "Google Drive needs attention"
+    }
   },
   "nodeHoverPreview": {
     "noSummary": "No summary"
@@ -930,7 +978,7 @@
     "proTitle": "Trash · Pro",
     "proDesc": "Soft delete and Trash are Pro / Studio features. This account is on the free plan, so deletes remain permanent.",
     "title": "Trash",
-    "retention": "Permanently deleted after 30 days",
+    "retention": "Kept locally until you delete it",
     "clear": "Empty trash",
     "empty": "Trash is empty.",
     "confirmPurge": "Permanently delete \"{{label}}\"? This cannot be undone.",
@@ -1036,6 +1084,8 @@
   },
   "userMenu": {
     "accountMenu": "Account menu",
+    "localMenu": "Local library menu",
+    "localStatus": "LOCAL · ON DEVICE",
     "theme": "Theme",
     "themeLight": "Light",
     "themeLightShort": "Light",
@@ -1048,7 +1098,6 @@
     "keyboardShortcuts": "Keyboard shortcuts",
     "import": "Import",
     "bookshelf": "Bookshelf · Switch project",
-    "helpFeedback": "Help · Feedback",
     "signingOut": "Signing out…",
     "signOut": "Sign out"
   },
@@ -1282,11 +1331,7 @@
       "openFile": "Could not open file: {{error}}",
       "createFailed": "Could not create material: {{error}}",
       "pickFailed": "Could not import file: {{error}}",
-      "fileTooLarge": "This file is larger than the {{maxSizeMiB}} MiB material limit. Large-file streaming is not supported yet."
-    },
-    "upload": {
-      "uploading": "Uploading...",
-      "failed": "Upload failed"
+      "fileTooLarge": "This file is larger than the {{maxSizeMiB}} MiB material limit, so Drifting cannot copy it into the local material library."
     },
     "empty": {
       "noRelated": "No materials are linked to the current item.",
@@ -1442,7 +1487,7 @@
       "featureStorylineTitleB": " narrative",
       "featureStorylineSub": "timeline · narrative arcs · cross-line references",
       "brandVersion": "Drifting Writing Studio · v{{version}}",
-      "footer": "Local-first · cloud sync"
+      "footer": "Local-first · on-device"
     },
     "signin": {
       "kicker": "WELCOME BACK · KEEP WRITING",
@@ -1452,7 +1497,7 @@
       "kicker": "NEW HERE · START WRITING",
       "titleEm": "Create",
       "titleRest": " account",
-      "sub": "Create an account and start your first book. Review the configured service and model provider terms before syncing private writing."
+      "sub": "Create an account and start your first book. Review the configured service and model provider terms before using either with private writing."
     },
     "fields": {
       "penName": "Pen name",
@@ -1482,7 +1527,7 @@
       "termsUnavailable": "The service operator has not configured Terms of Service.",
       "and": "and",
       "privacy": "Privacy Policy",
-      "footer": "Local-first · optional cloud sync · provider terms apply"
+      "footer": "Local-first · provider terms apply"
     },
     "forgot": {
       "kicker": "RESET · PASSWORD RECOVERY",
@@ -1686,10 +1731,7 @@
       "noDailyGoal": "No daily goal set"
     },
     "footer": {
-      "localReady": "Local data ready",
-      "syncing": "Syncing…",
-      "syncedAt": "Last sync {{time}}",
-      "syncNeedsAttention": "Sync needs attention"
+      "localReady": "Local data ready"
     }
   },
   "importDialog": {
@@ -2342,24 +2384,20 @@
     "summary": "{{kinds}} types · {{relations}} relations",
     "visibleSummary": "{{visible}}/{{total}} shown",
     "filterLabel": "Canvas filters",
+    "noCanvasRelations": "No filterable relations on this canvas yet",
     "manageLabel": "Manage types",
     "relationCountTitle": "{{count}} relations use \"{{label}}\"",
-    "empty": "No custom relation types yet",
-    "confirmDeleteKind": "Delete all \"{{label}}\" relations in this view? This cannot be undone.",
+    "empty": "No relations in this view yet",
     "changeColor": "Change color",
     "changeColorLabel": "Change color for {{label}}",
-    "resetColor": "Restore default color derived from the name",
-    "nameUncategorizedPlaceholder": "Name uncategorized edges…",
-    "nameUncategorizedTitle": "Name \"Uncategorized\" edges and classify all uncategorized edges",
-    "renameTitle": "Rename",
-    "deleteKindTitle": "Delete all \"{{label}}\" relations in this view",
-    "deleteKindLabel": "Delete {{label}}",
-    "storylineTransit": "Storyline transit",
-    "storylineTransitTitle": "Auto-generated transit path between multi-storyline nodes",
-    "lockedHint": "Auto · locked"
+    "resetColor": "Restore default color"
   },
   "relationTypes": {
     "title": "Relation type definitions",
+    "usedOnCanvas": "Used on this canvas",
+    "availableOnCanvas": "Available here · no instances",
+    "otherTypes": "Types for other canvases",
+    "usageSummary": "{{canvas}} on this canvas · {{project}} in project",
     "create": "New",
     "createInline": "Create relation type",
     "chooseExisting": "Choose existing type",
@@ -2378,17 +2416,25 @@
     "allowedTargets": "Allowed target entities",
     "cancel": "Cancel",
     "save": "Save",
-    "pending": "Needs configuration",
     "symmetricSummary": "Symmetric · {{role}}",
     "emptySelector": "Create a relation type from All relation types first",
     "inUse": "Relations still use this type",
     "delete": "Delete relation type",
+    "builtIn": "Built-in",
+    "builtInLocked": "Built-in relation types cannot be edited or deleted",
+    "missing": "Missing relation type",
     "confirmDelete": "Delete relation type \"{{name}}\"?",
     "swap": "Swap relation endpoints",
     "pendingIncoming": "This entity ← target",
     "pendingOutgoing": "This entity → target",
-    "selectConfigured": "Choose a configured relation type",
+    "selectConfigured": "Choose a relation type",
     "ariaLabel": "Relation type",
+    "genericAssociation": {
+      "name": "Association",
+      "description": "One-click object association for TODOs and materials.",
+      "sourceRole": "Associated item",
+      "targetRole": "Object"
+    },
     "entityKinds": {
       "node": "Chapter or inspiration",
       "element": "Element",
@@ -2597,13 +2643,13 @@
     "sketch": "Sketch",
     "sketchWithCategory": "{{category}} · sketch",
     "portrait": {
-      "upload": "Upload",
+      "import": "Import",
       "replace": "Replace",
       "view": "View large image",
       "loading": "Image loading",
       "remove": "Remove image",
-      "uploading": "Uploading",
-      "uploadFailed": "Image upload failed. Please try again.",
+      "importing": "Importing",
+      "importFailed": "Image import failed. Please try again.",
       "removeFailed": "Failed to remove image. Please try again.",
       "loadFailed": "Image failed to load."
     },
@@ -2707,63 +2753,5 @@
       "deleteCategory": "Delete category",
       "deleteStoryline": "Delete storyline"
     }
-  },
-  "syncHud": {
-    "dismiss": "Dismiss sync status",
-    "title": {
-      "started": "{{action}} syncing",
-      "failed": "{{action}} failed",
-      "complete": "{{action}} complete"
-    },
-    "summary": {
-      "resources": "{{count}} resources fetched",
-      "crud": "{{entity}} {{operation}}",
-      "push": "{{local}} local updates, {{accepted}} accepted",
-      "pull": "{{remote}} remote, {{applied}} applied, {{skipped}} own skipped"
-    },
-    "entity": {
-      "project": "Project",
-      "chapter": "Chapter",
-      "storyline": "Storyline",
-      "storylineLink": "Storyline link",
-      "element": "Element",
-      "elementCategory": "Element category",
-      "libraryItem": "Library item",
-      "relation": "Relation",
-      "comment": "Comment",
-      "commentAction": "Comment action",
-      "entity": "Entity"
-    },
-    "labels": {
-      "file": "File",
-      "entity": "Entity",
-      "operation": "Operation",
-      "updates": "Updates",
-      "device": "Device",
-      "error": "Error"
-    }
-  },
-  "syncActivity": {
-    "state": {
-      "started": "In progress",
-      "succeeded": "Success",
-      "failed": "Failed"
-    },
-    "summary": {
-      "push": "Pushed {{local}} · accepted {{accepted}}",
-      "pull": "Pulled {{remote}} · applied {{applied}} · skipped {{skipped}}"
-    },
-    "stats": {
-      "successRate": "Success rate",
-      "total": "Total",
-      "failed": "{{count}} failed",
-      "inflight": "In progress",
-      "lastSuccess": "Last success"
-    },
-    "filters": {
-      "all": "All"
-    },
-    "clear": "Clear",
-    "empty": "No matching records."
   }
 }

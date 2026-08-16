@@ -7,15 +7,20 @@ export type CreateBookContentInput = {
   nodeId: string;
   contentJson?: string;
   outlineJson?: string;
-  plotGridJson?: string;
 };
+
+export type BookContentUpdateData = Partial<Omit<NodeContent, 'plotGridJson'>>;
 
 export interface BookContentRepository {
   findById(id: string): Promise<NodeContent | null>;
   findByNodeId(nodeId: string): Promise<NodeContent | null>;
   create(input: CreateBookContentInput): Promise<NodeContent>;
-  update(id: string, data: Partial<NodeContent>): Promise<NodeContent | null>;
-  updateByNodeId(nodeId: string, data: Partial<NodeContent>): Promise<NodeContent | null>;
+  update(id: string, data: BookContentUpdateData): Promise<NodeContent | null>;
+  updateByNodeId(nodeId: string, data: BookContentUpdateData): Promise<NodeContent | null>;
+  materializePlotGridProjection(
+    nodeId: string,
+    plotGridJson: string,
+  ): Promise<NodeContent | null>;
   deleteById(id: string): Promise<boolean>;
   deleteByNodeId(nodeId: string): Promise<boolean>;
 }
@@ -53,7 +58,7 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
       nodeId: input.nodeId,
       contentJson: input.contentJson ?? '{}',
       outlineJson: input.outlineJson ?? '[]',
-      plotGridJson: input.plotGridJson ?? '{}',
+      plotGridJson: '{}',
       createdAt: now,
       updatedAt: now,
     };
@@ -62,7 +67,7 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
     return toNodeContent(newContent as typeof NodeContentTable.$inferSelect);
   };
 
-  const update = async (id: string, data: Partial<NodeContent>): Promise<NodeContent | null> => {
+  const update = async (id: string, data: BookContentUpdateData): Promise<NodeContent | null> => {
     const now = new Date().toISOString();
     const updateValues: Partial<typeof NodeContentTable.$inferInsert> = {
       updatedAt: now,
@@ -71,7 +76,6 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
     if (data.nodeId) updateValues.nodeId = data.nodeId;
     if (data.contentJson !== undefined) updateValues.contentJson = data.contentJson;
     if (data.outlineJson !== undefined) updateValues.outlineJson = data.outlineJson;
-    if (data.plotGridJson !== undefined) updateValues.plotGridJson = data.plotGridJson;
 
     await dbProvider()
       .update(NodeContentTable)
@@ -83,11 +87,22 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
 
   const updateByNodeId = async (
     nodeId: string,
-    data: Partial<NodeContent>,
+    data: BookContentUpdateData,
   ): Promise<NodeContent | null> => {
     const existing = await findByNodeId(nodeId);
     if (!existing) return null;
     return update(nodeId, data);
+  };
+
+  const materializePlotGridProjection = async (
+    nodeId: string,
+    plotGridJson: string,
+  ): Promise<NodeContent | null> => {
+    await dbProvider()
+      .update(NodeContentTable)
+      .set({ plotGridJson, updatedAt: new Date().toISOString() })
+      .where(eq(NodeContentTable.nodeId, nodeId));
+    return findByNodeId(nodeId);
   };
 
   const deleteById = async (id: string): Promise<boolean> => {
@@ -110,6 +125,7 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
     create,
     update,
     updateByNodeId,
+    materializePlotGridProjection,
     deleteById,
     deleteByNodeId,
   };

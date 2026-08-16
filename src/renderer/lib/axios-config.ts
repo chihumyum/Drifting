@@ -12,6 +12,7 @@ import { getActiveTraceId } from './trace';
 import { getDeviceId } from './device-id';
 import { getSessionToken } from './session-token';
 import { runtimeViteEnv } from './vite-runtime-env';
+import { canUseHostedService } from './config';
 
 const BASE_URL =
   (runtimeViteEnv.VITE_API_BASE_URL as string | undefined) ||
@@ -34,6 +35,14 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    if (!canUseHostedService()) {
+      const error = new Error(
+        'HOSTED_SERVICE_DISABLED: this build has no configured Drifting hosted service.',
+      ) as Error & { code: string };
+      error.code = 'HOSTED_SERVICE_DISABLED';
+      return Promise.reject(error);
+    }
+
     const token = getSessionToken();
     if (token && config.headers) {
       config.headers['Authorization'] = `Bearer ${token}`;

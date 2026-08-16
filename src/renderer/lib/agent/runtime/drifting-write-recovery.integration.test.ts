@@ -30,6 +30,7 @@ import {
   YjsProsePersistenceCoordinator,
 } from './yjs-prose-persistence-coordinator';
 import type { AgentToolExecutionRequest } from './types';
+import { createTestAgentAuthoredJournal } from './agent-authored-journal.test-support';
 
 const PROJECT_ID = 'restart-project';
 const CONVERSATION_ID = 'restart-conversation';
@@ -75,11 +76,13 @@ describe('interrupted Agent write product recovery', () => {
         createAgentRuntimeFreshnessRepository(firstDb);
       const firstEffects =
         createAgentRuntimeWriteEffectRepository(firstDb);
+      const authoredJournal = createTestAgentAuthoredJournal('write-recovery');
       const firstCoordinator = new YjsProsePersistenceCoordinator({
         database: firstDb,
         getLiveDocument: () => undefined,
         flushLiveDocument: async () => undefined,
         now: () => AT,
+        journal: authoredJournal,
       });
       const seed = await createYjsProseSeedState(CONTENT_JSON);
       const base = await firstCoordinator.readBase(
@@ -199,11 +202,11 @@ describe('interrupted Agent write product recovery', () => {
         }
       ).command;
       await firstCoordinator.commit({
+        projectId: PROJECT_ID,
         command,
         direction: 'forward',
         expectedRevision: base.revision,
         persistProjection: async () => undefined,
-        persistOutbox: async () => undefined,
       });
       await firstEffects.transitionEffect({
         effectId,
@@ -228,6 +231,7 @@ describe('interrupted Agent write product recovery', () => {
         getLiveDocument: () => undefined,
         flushLiveDocument: async () => undefined,
         now: () => AT,
+        journal: authoredJournal,
       });
       const restartedRuntime = new DriftingWriteToolRuntime({
         repository: restartedEffects,
@@ -235,6 +239,7 @@ describe('interrupted Agent write product recovery', () => {
         getContext: toolContext,
         now: () => AT,
         proseCoordinator: restartedCoordinator,
+        authoredJournal,
         readNodeContent: async () => CONTENT_JSON,
       });
       let recoveryResult:
@@ -309,6 +314,21 @@ function seedProductRows(gateway: P3FileBackedSqliteGateway): void {
     INSERT INTO project (id, name, user_id, created_at, updated_at)
     VALUES (?, 'Restart', 'user-1', ?, ?)
   `).run(PROJECT_ID, AT, AT);
+  db.prepare(`
+    INSERT INTO book_node (
+      id, title, summary, book_order, narrative_order, project_id,
+      word_count, writing_status, kind, drift_group_id, deleted_at,
+      created_at, updated_at, position_x, position_y
+    ) VALUES (
+      'node-1', 'Restart chapter', '', 1, NULL, ?,
+      0, 'draft', 'chapter', NULL, NULL, ?, ?, 0, 0
+    )
+  `).run(PROJECT_ID, AT, AT);
+  db.prepare(`
+    INSERT INTO node_content (
+      node_id, content_json, outline_json, plot_grid_json, created_at, updated_at
+    ) VALUES ('node-1', ?, '[]', '{}', ?, ?)
+  `).run(CONTENT_JSON, AT, AT);
   db.prepare(`
     INSERT INTO agent_conversation (
       id, project_id, title, created_at, updated_at

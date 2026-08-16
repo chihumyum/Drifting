@@ -1,30 +1,22 @@
 export type ProjectAssetKind = 'image' | 'pdf';
-export type ProjectAssetRole = 'element_portrait' | 'library_material';
-export type ProjectAssetOwnerKind = 'element' | 'library_item';
-export type ProjectAssetStatus = 'pending' | 'ready' | 'failed';
+export type ProjectAssetVariant = 'source' | 'display' | 'thumbnail';
 
+/**
+ * Immutable metadata for one app-owned binary source.
+ *
+ * Owner bindings live on `element.portraitAssetId` and
+ * `library_item.assetId`. Cloud object ids, revisions, delivery state, and
+ * rebuildable derivative metadata belong to their respective local-store or
+ * SyncEngine layers, not this authored row.
+ */
 export interface ProjectAsset {
   id: string;
   projectId: string;
   kind: ProjectAssetKind;
-  role: ProjectAssetRole;
-  ownerKind: ProjectAssetOwnerKind;
-  ownerId: string;
-  status: ProjectAssetStatus;
-  sourceObjectKey: string | null;
-  displayObjectKey: string | null;
-  thumbnailObjectKey: string | null;
-  sourceMime: string | null;
-  displayMime: string | null;
-  thumbnailMime: string | null;
-  sourceSizeBytes: number | null;
-  displaySizeBytes: number | null;
-  thumbnailSizeBytes: number | null;
-  sourceSha256: string | null;
+  sourceMime: string;
+  sourceSizeBytes: number;
+  sourceSha256: string;
   width: number | null;
   height: number | null;
-  completedAt: string | null;
-  deletedAt: string | null;
   createdAt: string;
-  updatedAt: string;
 }

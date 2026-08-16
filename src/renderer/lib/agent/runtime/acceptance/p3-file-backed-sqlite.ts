@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 
 import { createDatabaseClient, type DbClient } from '../../../db';
@@ -14,35 +14,21 @@ import type {
 } from '../../../../platform/database';
 
 const DRIZZLE_DIRECTORY = new URL('../../../../../../drizzle/', import.meta.url);
+const CURRENT_BASELINE = new URL(
+  '0000_local_first_baseline.sql',
+  DRIZZLE_DIRECTORY,
+);
 
 /**
- * Apply the product migrations that own Agent runtime/write receipts plus any
- * later Yjs/runtime migrations. The scan deliberately has no upper bound: a
- * new Agent-owned table must enter the file-backed acceptance fixture in the
- * same milestone instead of silently testing an older schema.
+ * Runtime acceptance uses the same complete schema as a fresh product
+ * database. Keeping a smaller hand-maintained Agent fixture would allow its
+ * constraints and foreign keys to drift away from the product baseline.
  */
-function runtimeMigrationSql(): string {
-  return readdirSync(DRIZZLE_DIRECTORY)
-    .filter((name) => {
-      const sequence = Number(name.slice(0, 4));
-      return (
-        Number.isInteger(sequence) &&
-        sequence >= 60 &&
-        (
-          name.includes('agent_runtime') ||
-          name.includes('agent_extension') ||
-          name.includes('yjs')
-        )
-      );
-    })
-    .sort()
-    .map((name) =>
-      readFileSync(new URL(name, DRIZZLE_DIRECTORY), 'utf8').replaceAll(
-        '--> statement-breakpoint',
-        '',
-      ),
-    )
-    .join('\n');
+function currentBaselineSql(): string {
+  return readFileSync(CURRENT_BASELINE, 'utf8').replaceAll(
+    '--> statement-breakpoint',
+    '',
+  );
 }
 
 interface ProductMigrationJournalEntry {
@@ -66,12 +52,11 @@ function readProductMigrationJournal(): ProductMigrationJournal {
     throw new Error('Product migration journal is invalid.');
   }
 
-  let previousIndex = -1;
   let previousWhen = -1;
-  journal.entries.forEach((entry) => {
-    if (!Number.isSafeInteger(entry.idx) || entry.idx <= previousIndex) {
+  journal.entries.forEach((entry, expectedIndex) => {
+    if (!Number.isSafeInteger(entry.idx) || entry.idx !== expectedIndex) {
       throw new Error(
-        `Product migration journal indices are not strictly increasing at ${entry.tag}.`,
+        `Product migration journal index mismatch at ${entry.tag}: expected ${expectedIndex}, found ${entry.idx}.`,
       );
     }
     if (!/^[A-Za-z0-9_-]+$/u.test(entry.tag)) {
@@ -85,10 +70,15 @@ function readProductMigrationJournal(): ProductMigrationJournal {
         `Product migration timestamps are not strictly increasing at ${entry.tag}.`,
       );
     }
-    previousIndex = entry.idx;
     previousWhen = entry.when;
   });
   return journal;
+}
+
+function resetRequired(detail: string): Error {
+  return new Error(
+    `Local database schema history does not match this Drifting build (${detail}); reset this pre-release local database before reopening it.`,
+  );
 }
 
 /**
@@ -107,33 +97,75 @@ function applyProductMigrations(database: DatabaseSync): number {
         created_at numeric
       )
     `);
-    const lastRow = database
+    const applicationTables = database
+      .prepare(`
+        SELECT count(*) AS count
+        FROM sqlite_schema
+        WHERE type = 'table'
+          AND name NOT LIKE 'sqlite_%'
+          AND name <> '__drizzle_migrations'
+      `)
+      .get() as { count: number };
+    const appliedMigrations = database
       .prepare(
-        'SELECT created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1',
+        'SELECT hash, created_at FROM __drizzle_migrations ORDER BY created_at ASC',
       )
-      .get() as { created_at?: unknown } | undefined;
-    const lastWhen =
-      lastRow?.created_at === undefined || lastRow.created_at === null
-        ? null
-        : Number(lastRow.created_at);
-    const latestEmbedded =
-      journal.entries[journal.entries.length - 1]?.when;
-    if (
-      lastWhen !== null &&
-      latestEmbedded !== undefined &&
-      lastWhen > latestEmbedded
-    ) {
-      throw new Error(
-        `Product database schema is newer than this checkout (${lastWhen} > ${latestEmbedded}).`,
+      .all() as Array<{ hash: string; created_at: number }>;
+
+    if (appliedMigrations.length === 0 && applicationTables.count > 0) {
+      throw resetRequired(
+        'application tables exist without the current migration baseline',
       );
+    }
+    for (let index = 1; index < appliedMigrations.length; index += 1) {
+      if (
+        Number(appliedMigrations[index - 1]!.created_at) >=
+        Number(appliedMigrations[index]!.created_at)
+      ) {
+        throw resetRequired('migration timestamps are duplicated or out of order');
+      }
+    }
+
+    const knownPrefixLength = Math.min(
+      appliedMigrations.length,
+      journal.entries.length,
+    );
+    for (let index = 0; index < knownPrefixLength; index += 1) {
+      const applied = appliedMigrations[index]!;
+      const expected = journal.entries[index]!;
+      const bytes = readFileSync(
+        new URL(`${expected.tag}.sql`, DRIZZLE_DIRECTORY),
+      );
+      const expectedHash = createHash('sha256').update(bytes).digest('hex');
+      if (
+        Number(applied.created_at) !== expected.when ||
+        applied.hash !== expectedHash
+      ) {
+        throw resetRequired(
+          `migration ${expected.tag} is not the expected journal prefix`,
+        );
+      }
+    }
+
+    if (appliedMigrations.length > journal.entries.length) {
+      const lastWhen = Number(
+        appliedMigrations[appliedMigrations.length - 1]!.created_at,
+      );
+      const latestEmbedded =
+        journal.entries[journal.entries.length - 1]?.when ?? 0;
+      if (lastWhen > latestEmbedded) {
+        throw new Error(
+          `Product database schema is newer than this checkout (${lastWhen} > ${latestEmbedded}).`,
+        );
+      }
+      throw resetRequired('migration history contains a non-prefix entry');
     }
 
     const record = database.prepare(
       'INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)',
     );
     let applied = 0;
-    for (const entry of journal.entries) {
-      if (lastWhen !== null && lastWhen >= entry.when) continue;
+    for (const entry of journal.entries.slice(appliedMigrations.length)) {
       const bytes = readFileSync(
         new URL(`${entry.tag}.sql`, DRIZZLE_DIRECTORY),
       );
@@ -214,46 +246,13 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
       return;
     }
     this.database.exec(`
-      PRAGMA foreign_keys = ON;
+      PRAGMA foreign_keys = OFF;
       PRAGMA journal_mode = WAL;
       PRAGMA synchronous = FULL;
       PRAGMA busy_timeout = 5000;
-
-      CREATE TABLE project (
-        id TEXT PRIMARY KEY NOT NULL,
-        name TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE agent_conversation (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-        title TEXT NOT NULL DEFAULT '',
-        sdk_session_id TEXT,
-        mode TEXT NOT NULL DEFAULT 'byok',
-        messages_json TEXT NOT NULL DEFAULT '[]',
-        deleted_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE yjs_updates (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        document_id TEXT NOT NULL,
-        update_blob BLOB NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE INDEX idx_yjs_updates_doc
-        ON yjs_updates(document_id);
-      CREATE TABLE yjs_snapshots (
-        document_id TEXT PRIMARY KEY NOT NULL,
-        state_blob BLOB NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE INDEX idx_yjs_snapshot_doc
-        ON yjs_snapshots(document_id);
     `);
-    this.database.exec(runtimeMigrationSql());
+    this.database.exec(currentBaselineSql());
+    this.database.exec('PRAGMA foreign_keys = ON');
     this.database.exec(`
       CREATE TABLE acceptance_node_projection (
         id TEXT PRIMARY KEY NOT NULL,
@@ -284,11 +283,7 @@ export class P3FileBackedSqliteGateway implements DatabasePlatformApi {
       path: this.databasePath,
       journalMode: 'wal',
       migrationsApplied:
-        this.profile === 'product'
-          ? this.migrationsApplied
-          : runtimeMigrationSql().length > 0
-            ? 1
-            : 0,
+        this.profile === 'product' ? this.migrationsApplied : 1,
     };
   }
 

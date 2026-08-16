@@ -90,7 +90,7 @@ interface BookNodeBase {
   /** Missing/null means a legacy scalar that must not be presented as exact. */
   wordCountBasisKind?: WordCountBasisKind | null;
   wordCountBasisHash?: string | null;
-  /** Local monotonic Yjs revision; null for seed or a Server-owned projection. */
+  /** Local monotonic Yjs revision; null for a seed-only or other derived projection. */
   wordCountBasisRevision?: number | null;
   /** Server update-log watermark; null for a purely local projection. */
   wordCountBasisServerSeq?: number | null;

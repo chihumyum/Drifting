@@ -18,6 +18,7 @@ import { ChapterEditor, type ChapterEditorRef } from '../components/editor/Chapt
 import { DesktopCommentRail as CommentRail } from '../features/comments/desktop/DesktopCommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { PlotPlannerDock } from '../components/editor/PlotPlannerDock';
+import type { PlotGridMutation } from '../domain/plot-grid';
 import { EditorOutlineRail } from '../components/editor/EditorOutlineRail';
 import { nestHeadings } from '../components/editor/outline-rail-model';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
@@ -196,9 +197,8 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   // save path. Bound to the dock's nodeId (not activeNodeIdRef) so a flush
   // during a node switch writes to the correct row.
   const handlePlotGridPersist = useCallback(
-    (targetNodeId: string, serialized: string) => {
-      void updatePlotGridByNodeId(targetNodeId, serialized);
-    },
+    (targetNodeId: string, mutations: readonly PlotGridMutation[]) =>
+      updatePlotGridByNodeId(targetNodeId, mutations),
     [updatePlotGridByNodeId],
   );
   // Element usecase — used by the drift→element conversion path (createElement
@@ -659,8 +659,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             editorType="node"
             onMenuAction={handleContextAction}
             // mainStorylineId is the source of truth for "is this a drift
-            // node" — writingStatus is just the per-axis state and can be
-            // stale (e.g. pre-migration drift rows still carrying 'draft').
+            // node" — writingStatus is just the per-axis state.
             nodeWritingStatus={curNode.writingStatus}
             nodeStatusKind={curNode.kind}
             referenceLinkToggle={{

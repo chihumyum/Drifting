@@ -13,6 +13,7 @@ import {
   type AgentProviderId,
 } from '../lib/agent/runtime/agent-provider-contract';
 import { APP_CONFIG } from '../lib/config';
+import { normalizeAccentColor } from '../lib/theme';
 import {
   DEFAULT_ENTITY_LINK_KIND_COLORS,
   normalizeEntityLinkColorMode,
@@ -79,10 +80,9 @@ export const EDITOR_STYLE_DEFAULTS = {
 export type ModelTier = 'lite' | 'standard' | 'pro';
 export type CopilotMode = 'local' | 'cloud';
 /**
- * Where copilot LLM calls get their credential (Phase 4).
- *  - 'hosted': the Drifting server uses its own provider key (metered/billed).
- *  - 'byok':   the user's own key (from the OS keychain) is sent per-request so
- *              the server calls the provider with it. Never persisted server-side.
+ * Legacy Copilot credential-mode token retained for persisted compatibility.
+ * Public local-only builds coerce this to `byok`; renderer-local Copilot reads
+ * the author-selected provider key only when making a direct provider call.
  */
 export type AiMode = 'hosted' | 'byok';
 /**
@@ -237,6 +237,9 @@ interface SettingsState {
   // 外观
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
+  /** Null keeps the stylesheet-owned light/dark accent palette. */
+  accentColor: string | null;
+  setAccentColor: (color: string | null) => void;
 
   // 编辑器
   /** Device-local because installed/imported font availability is not portable. */
@@ -295,17 +298,17 @@ interface SettingsState {
   // live in the OS keychain via `byok-keychain.ts`. Storing them in this
   // persisted store would put them in plaintext localStorage. Only non-secret
   // config belongs here.
-  // Hosted tier: a coarse capability档 (the server maps it to a concrete model).
+  // Legacy hosted tier retained for persisted compatibility.
   copilotTier: ModelTier;
   setCopilotTier: (t: ModelTier) => void;
-  // 'hosted' (server key, metered) vs 'byok' (user's own key, sent per-request).
+  // Public local-only builds always coerce this legacy route token to 'byok'.
   copilotAiMode: AiMode;
   setCopilotAiMode: (m: AiMode) => void;
   // Which provider the BYOK path uses (the key for it must be in the keychain).
   copilotByokProvider: BYOKProvider;
   setCopilotByokProvider: (p: BYOKProvider) => void;
-  // The concrete model id within the BYOK provider ('' = let the server pick the
-  // provider default). Only meaningful when copilotAiMode === 'byok'.
+  // The concrete model id within the BYOK provider ('' = use the renderer-local
+  // default for that provider). Only meaningful when copilotAiMode === 'byok'.
   copilotByokModel: string;
   setCopilotByokModel: (m: string) => void;
 
@@ -404,13 +407,11 @@ interface SettingsState {
    * Per-project output language for Copilot generation,
    * keyed by projectId. 'auto'/unset follows manuscriptLocale. Keeps the
    * 副手 from drifting into the wrong language (e.g. English in a Chinese
-   * novel). Synced to the server (so the server resolves output language for
-   * copilot calls) via the preferences whitelist.
+   * novel). This is an on-device presentation/runtime preference and is not
+   * part of the authored SyncEngine domain.
    */
   copilotOutputLangByProject: Record<string, CopilotOutputLang>;
   setCopilotOutputLang: (projectId: string, lang: CopilotOutputLang) => void;
-  /** Replace the whole per-project map — used by cross-device preferences sync. */
-  setCopilotOutputLangByProject: (map: Record<string, CopilotOutputLang>) => void;
 
   /**
    * Last-active Agent conversation id per project. Persisted so the Agent panel
@@ -421,12 +422,11 @@ interface SettingsState {
   lastAgentConvByProject: Record<string, string>;
   setLastAgentConv: (projectId: string, convId: string) => void;
   clearLastAgentConv: (projectId: string) => void;
+  clearProjectSettings: (projectId: string) => void;
 
-  // 同步
+  // Device-local snapshot history
   autoSnapshot: boolean;
   setAutoSnapshot: (on: boolean) => void;
-  syncDebugToasts: boolean;
-  setSyncDebugToasts: (on: boolean) => void;
 
   // 隐私
   improveModelsWithManuscripts: boolean;
@@ -462,6 +462,8 @@ export const useSettingsStore = create<SettingsState>()(
 
       themeMode: 'light',
       setThemeMode: (mode) => set({ themeMode: mode }),
+      accentColor: null,
+      setAccentColor: (color) => set({ accentColor: normalizeAccentColor(color) }),
 
       editorFontSource: EDITOR_STYLE_DEFAULTS.editorFontSource,
       setEditorFontSource: (source) => set({ editorFontSource: source }),
@@ -528,7 +530,12 @@ export const useSettingsStore = create<SettingsState>()(
       copilotAiMode: 'byok',
       setCopilotAiMode: () => set({ copilotAiMode: 'byok' }),
       copilotByokProvider: 'deepseek',
-      setCopilotByokProvider: (p) => set({ copilotByokProvider: p }),
+      setCopilotByokProvider: (p) =>
+        set((state) =>
+          state.copilotByokProvider === p
+            ? { copilotByokProvider: p }
+            : { copilotByokProvider: p, copilotByokModel: '' },
+        ),
       copilotByokModel: '',
       setCopilotByokModel: (m) => set({ copilotByokModel: m }),
       agentAuth: 'apikey',
@@ -634,8 +641,6 @@ export const useSettingsStore = create<SettingsState>()(
             [projectId]: lang,
           },
         })),
-      setCopilotOutputLangByProject: (map) => set({ copilotOutputLangByProject: map }),
-
       lastAgentConvByProject: {},
       setLastAgentConv: (projectId, convId) =>
         set((state) => ({
@@ -648,11 +653,17 @@ export const useSettingsStore = create<SettingsState>()(
           delete next[projectId];
           return { lastAgentConvByProject: next };
         }),
+      clearProjectSettings: (projectId) =>
+        set((state) => {
+          const copilotOutputLangByProject = { ...state.copilotOutputLangByProject };
+          const lastAgentConvByProject = { ...state.lastAgentConvByProject };
+          delete copilotOutputLangByProject[projectId];
+          delete lastAgentConvByProject[projectId];
+          return { copilotOutputLangByProject, lastAgentConvByProject };
+        }),
 
       autoSnapshot: true,
       setAutoSnapshot: (on) => set({ autoSnapshot: on }),
-      syncDebugToasts: false,
-      setSyncDebugToasts: (on) => set({ syncDebugToasts: on }),
 
       improveModelsWithManuscripts: false,
       setImproveModelsWithManuscripts: (on) => set({ improveModelsWithManuscripts: on }),
@@ -664,7 +675,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 28,
+      version: 29,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           appearanceSkin?: 'classic' | 'modern';
@@ -954,6 +965,12 @@ export const useSettingsStore = create<SettingsState>()(
         if (version < 28) {
           next.agentAllowDangerousOperations = false;
         }
+        if (version < 29) {
+          // The former accentHue picker wrote directly to localStorage and did
+          // not have a trustworthy settings value to migrate. Existing users
+          // keep the current light/dark palette until they choose a new accent.
+          next.accentColor = null;
+        }
         return next;
       },
       // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
@@ -980,6 +997,7 @@ export const useSettingsStore = create<SettingsState>()(
         merged.agentToolSearch = normalizeAgentToolSearch(persistedSettings?.agentToolSearch);
         merged.agentAllowDangerousOperations =
           persistedSettings?.agentAllowDangerousOperations === true;
+        merged.accentColor = normalizeAccentColor(merged.accentColor);
         if (APP_CONFIG.BYOK_ONLY) {
           if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';
           if (merged.agentAuth === 'hosted') merged.agentAuth = 'apikey';

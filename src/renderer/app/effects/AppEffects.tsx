@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import loglevel from 'loglevel';
-import { initAccentColor } from '../../lib/theme';
+import { applyAccentColor, initAccentColor } from '../../lib/theme';
 import { useUiStore } from '../../store/ui-store';
 import { useSettingsStore } from '../../store/settings-store';
 import { setI18nLocale } from '../../lib/i18n';
@@ -10,17 +10,25 @@ import { saveActiveEditor } from '../../lib/active-editor';
 import { platform } from '../../platform';
 import { getPlatformRuntime } from '../../platform/runtime';
 import { flushApplicationPersistenceForLifecycle } from '../../lib/persistence-lifecycle';
+import { installProductionSyncRuntime } from '../../sync/production-runtime';
+import { installGoogleDriveSyncGenerationProvisioningRuntime } from '../../sync/provision';
+import { installProductSyncAuthorityMonitor } from '../../sync/product-authority-store';
 
 const log = loglevel.getLogger('AppEffects');
 log.setLevel(import.meta.env.DEV ? loglevel.levels.TRACE : loglevel.levels.WARN);
 
 function AppearanceEffects() {
   const themeMode = useSettingsStore((state) => state.themeMode);
+  const accentColor = useSettingsStore((state) => state.accentColor);
   const setUiTheme = useUiStore((state) => state.setTheme);
 
   useEffect(() => {
     initAccentColor();
   }, []);
+
+  useEffect(() => {
+    applyAccentColor(accentColor);
+  }, [accentColor]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -126,7 +134,7 @@ function LocaleEffects() {
 function PersistenceLifecycleEffects() {
   useEffect(() => {
     const unsubscribe = platform.lifecycle.onFlushBeforeQuit((request) => {
-      void flushApplicationPersistenceForLifecycle()
+      void flushApplicationPersistenceForLifecycle(request.reason)
         .then(() => {
           if (!request.confirmationRequired || request.requestId == null) return;
           void platform.lifecycle
@@ -150,6 +158,20 @@ function PersistenceLifecycleEffects() {
   return null;
 }
 
+function SyncEngineEffects() {
+  useEffect(() => {
+    const stopAuthorityMonitor = installProductSyncAuthorityMonitor();
+    const stopProvisioning = installGoogleDriveSyncGenerationProvisioningRuntime();
+    const stopSync = installProductionSyncRuntime();
+    return () => {
+      stopSync();
+      stopProvisioning();
+      stopAuthorityMonitor();
+    };
+  }, []);
+  return null;
+}
+
 export function AppEffects() {
   return (
     <>
@@ -157,6 +179,7 @@ export function AppEffects() {
       <AppearanceEffects />
       <EditorPreferenceEffects />
       <PersistenceLifecycleEffects />
+      <SyncEngineEffects />
     </>
   );
 }

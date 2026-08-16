@@ -7,13 +7,13 @@ node src/renderer/lib/agent/runtime/acceptance/p2-crash-recovery.acceptance.mjs
 ```
 
 The suite creates a fresh temporary SQLite database from the product
-`0060_agent_runtime_persistence.sql` migration for each case. For every one of
+`0000_local_first_baseline.sql` schema for each case. For every one of
 the 10 lifecycle markers and 20 deterministic seeds, it starts a writer
 process, waits until the committed marker is reported, sends that process
 `SIGKILL`, then starts a separate recovery process. A cleanly closed reference
 database is recovered independently and its canonical state hash must match the
 killed database. The repository itself is exercised separately against the
-same migration in
+same baseline in
 `agent-runtime-persistence-repo.integration.test.ts`.
 
 The assertions cover:

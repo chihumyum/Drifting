@@ -5,7 +5,9 @@ import { useAuthStore } from '../../store/auth';
 import { Button } from '../ui/Button';
 import { ModalActions, ModalBody, ModalCard, ModalHeader, ModalRoot } from '../ui/Modal';
 
-const GUIDE_VERSION = 'v1';
+// v2 replaces the former hosted trial/account copy with the public local-first
+// contract. Bump the key so existing preview users see the corrected boundary.
+const GUIDE_VERSION = 'v2';
 
 export function PreAlphaOnboardingDialog() {
   const { t } = useTranslation();
@@ -50,7 +52,7 @@ export function PreAlphaOnboardingDialog() {
             }}
           >
             <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
-              <li>{t('preAlphaGuide.trial')}</li>
+              <li>{t('preAlphaGuide.localData')}</li>
               <li>{t('preAlphaGuide.sync')}</li>
               <li>{t('preAlphaGuide.byok')}</li>
               <li>{t('preAlphaGuide.backup')}</li>

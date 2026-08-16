@@ -23,6 +23,9 @@ import { createAgentMemoryRepository } from '../../../sqlite-repo/agent-memory-r
 import { createBookContentRepository } from '../../../sqlite-repo/content-repo';
 import { createBookNodeSqliteRepository } from '../../../sqlite-repo/node-repo';
 import { createYjsRepository } from '../../../sqlite-repo/yjs-repo';
+import { replaceEntityKvEntriesInTransaction } from '../../../usecase/normalized-kv-alias-authority';
+import { withAtomicSyncTransaction } from '../../../usecase/sync-helpers';
+import { invalidateSqliteReducerStateCache } from '../../../sync/reducer/sqlite-materializer';
 import { useAgentEditStore } from '../../../store/agent-edit-store';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectStore } from '../../../store/project-store';
@@ -31,6 +34,7 @@ import { proseDocId } from '../../yjs-doc-id';
 import { setAgentEditModeOverride } from '../agent-edit-mode';
 import type { AgentToolContext } from '../tool-handlers';
 import { ProductFileBackedSqliteGateway } from './acceptance/p3-file-backed-sqlite';
+import { createTestAgentAuthoredJournal } from './agent-authored-journal.test-support';
 import {
   createDriftingAgentProductComposition,
   type DriftingAgentProductComposition,
@@ -49,6 +53,7 @@ import type {
 } from './types';
 
 const databaseSlot = vi.hoisted(() => ({ current: null as unknown }));
+const secureStorage = vi.hoisted(() => new Map<string, string>());
 
 vi.mock('../../../lib/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../lib/db')>();
@@ -61,8 +66,27 @@ vi.mock('../../../lib/db', async (importOriginal) => {
   };
 });
 
-// This suite verifies atomic domain writes together with their durable sync
-// outbox. Explicitly opt into sync because public builds default to local-only.
+vi.mock('../../../platform', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../platform')>();
+  return {
+    ...actual,
+    platform: {
+      ...actual.platform,
+      keychain: {
+        get: async (key: string) => secureStorage.get(key) ?? null,
+        has: async (key: string) => secureStorage.has(key),
+        set: async (key: string, value: string) => {
+          secureStorage.set(key, value);
+          return true;
+        },
+        delete: async (key: string) => secureStorage.delete(key),
+      },
+    },
+  };
+});
+
+// This suite verifies atomic domain writes together with their durable
+// SyncEngine change-sets. Network use remains disabled throughout.
 vi.mock('../../../lib/config', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../lib/config')>();
   return {
@@ -70,10 +94,8 @@ vi.mock('../../../lib/config', async (importOriginal) => {
     APP_CONFIG: {
       ...actual.APP_CONFIG,
       LOCAL_ONLY_MODE: false,
-      ENABLE_SYNC: true,
     },
     canUseNetwork: () => false,
-    isSyncEnabled: () => false,
   };
 });
 
@@ -104,6 +126,7 @@ describe('workspace domain CRUD transactions', () => {
   let fixture: DomainCrudFixture;
 
   beforeEach(async () => {
+    secureStorage.clear();
     setAgentEditModeOverride(null);
     useSettingsStore.getState().setAgentEditMode(initialAgentEditMode);
     useAgentEditStore.getState().clearAll();
@@ -157,16 +180,10 @@ describe('workspace domain CRUD transactions', () => {
       ),
     ).toMatch(/^sha256:[0-9a-f]{64}$/u);
     expect(
-      JSON.parse(
-        fixture.text(
-          "SELECT payload_json FROM local_sync_mutation WHERE entity_type = 'node' AND mutation_type = 'create' AND entity_id = (SELECT id FROM book_node WHERE title = '灰港' AND deleted_at IS NULL)",
-        ),
+      fixture.scalar(
+        "SELECT count(*) FROM sync_mutation WHERE target_kind = 'node' AND action = 'entity.create' AND target_id = (SELECT id FROM book_node WHERE title = '灰港' AND deleted_at IS NULL)",
       ),
-    ).toMatchObject({
-      title: '灰港',
-      kind: 'drift',
-      mainStorylineId: null,
-    });
+    ).toBe(1);
   });
 
   it('rejects a second Agent create with an existing node title instead of suffixing it', async () => {
@@ -287,13 +304,15 @@ describe('workspace domain CRUD transactions', () => {
 
     const rejectedChange = reviewBatch.changes.find((change) => change.newText === '第二段。');
     if (!rejectedChange) throw new Error('The rejectable created block is missing');
-    await expect(
-      fixture.composition.tools.rejectReviewBlock(
-        reviewId,
-        rejectedChange.blockId,
-        'Reject one block from newly created prose',
-      ),
-    ).resolves.toMatchObject({
+    const rejectedBlock = await fixture.composition.tools.rejectReviewBlock(
+      reviewId,
+      rejectedChange.blockId,
+      'Reject one block from newly created prose',
+    );
+    if (rejectedBlock.block.status === 'revert_failed') {
+      throw new Error(rejectedBlock.block.errorMessage ?? 'unknown block revert failure');
+    }
+    expect(rejectedBlock).toMatchObject({
       review: { status: 'pending' },
       block: { status: 'reverted' },
     });
@@ -321,7 +340,17 @@ describe('workspace domain CRUD transactions', () => {
 
     const creations = [
       ['formatted-category-create', 'create_element_category', { name: '信件', body }],
-      ['formatted-element-create', 'create_element', { category: '信件', name: '远方来函', body }],
+      [
+        'formatted-element-create',
+        'create_element',
+        {
+          category: '信件',
+          name: '远方来函',
+          body,
+          facts: [{ key: '来源', value: '北境' }],
+          aliases: ['北境来函'],
+        },
+      ],
       ['formatted-storyline-create', 'create_storyline', { name: '格式故事线', body }],
       ['formatted-drift-create', 'create_inspiration', { title: '格式灵感', body }],
       ['formatted-chapter-create', 'create_chapter', { title: '格式章节', body }],
@@ -389,6 +418,61 @@ describe('workspace domain CRUD transactions', () => {
         ],
       });
     }
+    const createdDocs = `
+      SELECT 'category:' || id AS doc_id, 'element-category' AS owner_kind, id AS owner_id
+      FROM element_category WHERE name = '信件' AND deleted_at IS NULL
+      UNION ALL
+      SELECT 'element:' || id, 'element', id
+      FROM element WHERE name = '远方来函' AND deleted_at IS NULL
+      UNION ALL
+      SELECT 'storyline:' || id, 'storyline', id
+      FROM storylines WHERE name = '格式故事线' AND deleted_at IS NULL
+      UNION ALL
+      SELECT 'node-content:' || id, 'node', id
+      FROM book_node WHERE title IN ('格式灵感', '格式章节') AND deleted_at IS NULL
+    `;
+    expect(
+      fixture.scalar(`
+        WITH created_docs AS (${createdDocs})
+        SELECT count(*)
+        FROM created_docs d
+        JOIN yjs_updates u ON u.document_id = d.doc_id
+        JOIN yjs_document_revision r ON r.document_id = d.doc_id AND r.revision = 1
+        JOIN yjs_document_revision_provenance p
+          ON p.document_id = d.doc_id AND p.revision = 1 AND p.source_kind = 'agent'
+      `),
+    ).toBe(5);
+    expect(
+      fixture.scalar(`
+        WITH created_docs AS (${createdDocs})
+        SELECT count(*)
+        FROM created_docs d
+        JOIN sync_mutation y
+          ON y.target_kind = 'prose-document'
+          AND y.target_id = d.doc_id
+          AND y.action = 'yjs.update'
+        JOIN sync_mutation owner
+          ON owner.change_set_id = y.change_set_id
+          AND owner.target_kind = d.owner_kind
+          AND owner.target_id = d.owner_id
+          AND owner.action = 'entity.create'
+      `),
+    ).toBe(5);
+    expect(
+      fixture.text(
+        "SELECT aliases_json FROM element WHERE name = '远方来函' AND deleted_at IS NULL",
+      ),
+    ).toBe('["北境来函"]');
+    expect(
+      fixture.scalar(
+        "SELECT count(*) FROM sync_set_tag WHERE set_key = 'aliases' AND value_key = '北境来函' AND removed_by_change_set_id IS NULL",
+      ),
+    ).toBe(1);
+    expect(
+      fixture.scalar(
+        "SELECT count(*) FROM entity_kv_entry kv JOIN element e ON e.id = kv.owner_id WHERE e.name = '远方来函' AND kv.owner_kind = 'element' AND kv.namespace = 'facts' AND kv.key = '来源' AND kv.value = '北境'",
+      ),
+    ).toBe(1);
   });
 
   it('keeps entity receipts owned by the public domain tool', async () => {
@@ -405,6 +489,82 @@ describe('workspace domain CRUD transactions', () => {
         "SELECT count(*) FROM agent_runtime_entity_write_receipt WHERE tool_name = 'update_project_facts'",
       ),
     ).toBe(1);
+  });
+
+  it('clones template authority with fresh IDs for Agent element and storyline creates', async () => {
+    await expect(
+      fixture.write('template-category-create', 'create_element_category', {
+        name: 'Template People',
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      fixture.write('template-category-update', 'update_element_category', {
+        category: 'Template People',
+        templateFacts: [{ key: 'Role', value: 'Unknown' }],
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      fixture.write('template-element-create', 'create_element', {
+        category: 'Template People',
+        name: 'Template Ada',
+      }),
+    ).resolves.toMatchObject({ ok: true });
+
+    const categoryTemplateEntryId = fixture.text(
+      "SELECT kv.id FROM entity_kv_entry kv JOIN element_category c ON c.id = kv.owner_id WHERE c.name = 'Template People' AND kv.owner_kind = 'element-category' AND kv.namespace = 'element-template' AND kv.key = 'Role' AND kv.value = 'Unknown'",
+    );
+    const clonedElementEntryId = fixture.text(
+      "SELECT kv.id FROM entity_kv_entry kv JOIN element e ON e.id = kv.owner_id WHERE e.name = 'Template Ada' AND kv.owner_kind = 'element' AND kv.namespace = 'facts' AND kv.key = 'Role' AND kv.value = 'Unknown'",
+    );
+    expect(categoryTemplateEntryId).toBeTruthy();
+    expect(clonedElementEntryId).toBeTruthy();
+    expect(clonedElementEntryId).not.toBe(categoryTemplateEntryId);
+    expect(
+      fixture.text("SELECT kv_json FROM element WHERE name = 'Template Ada'"),
+    ).toBe('[{"key":"Role","value":"Unknown"}]');
+    await fixture.revert('template-category-update');
+    expect(
+      fixture.text("SELECT element_template_kv_json FROM element_category WHERE name = 'Template People'"),
+    ).toBe('[]');
+    expect(
+      fixture.scalar(
+        "SELECT count(*) FROM entity_kv_entry kv JOIN element_category c ON c.id = kv.owner_id WHERE c.name = 'Template People' AND kv.owner_kind = 'element-category' AND kv.namespace = 'element-template'",
+      ),
+    ).toBe(0);
+    expect(
+      fixture.text("SELECT kv_json FROM element WHERE name = 'Template Ada'"),
+    ).toBe('[{"key":"Role","value":"Unknown"}]');
+
+    await fixture.database.transaction(async (tx) => {
+      const changes = fixture.authoredJournal.createChangeSet();
+      await replaceEntityKvEntriesInTransaction(tx, changes, {
+        projectId: PROJECT_ID,
+        ownerKind: 'project',
+        ownerId: PROJECT_ID,
+        namespace: 'storyline-template',
+        nextJson: '[{"key":"Tense","value":"Past"}]',
+      });
+      await fixture.authoredJournal.record(tx, {
+        projectId: PROJECT_ID,
+        changes,
+        committedAt: AT,
+      });
+    });
+    await fixture.write('template-storyline-create', 'create_storyline', {
+      name: 'Template Arc',
+    });
+    const projectTemplateEntryId = fixture.text(
+      "SELECT id FROM entity_kv_entry WHERE owner_kind = 'project' AND owner_id = 'domain-crud-project' AND namespace = 'storyline-template' AND key = 'Tense' AND value = 'Past'",
+    );
+    const clonedStorylineEntryId = fixture.text(
+      "SELECT kv.id FROM entity_kv_entry kv JOIN storylines s ON s.id = kv.owner_id WHERE s.name = 'Template Arc' AND kv.owner_kind = 'storyline' AND kv.namespace = 'facts' AND kv.key = 'Tense' AND kv.value = 'Past'",
+    );
+    expect(projectTemplateEntryId).toBeTruthy();
+    expect(clonedStorylineEntryId).toBeTruthy();
+    expect(clonedStorylineEntryId).not.toBe(projectTemplateEntryId);
+    expect(
+      fixture.text("SELECT kv_json FROM storylines WHERE name = 'Template Arc'"),
+    ).toBe('[{"key":"Tense","value":"Past"}]');
   });
 
   it('places a newly created numbered chapter into an available reading-order gap', async () => {
@@ -441,7 +601,7 @@ describe('workspace domain CRUD transactions', () => {
 
     expect(
       fixture.scalar("SELECT book_order FROM book_node WHERE title = '02' AND deleted_at IS NULL"),
-    ).toBe(8);
+    ).toBe(5);
     expect(
       fixture.text("SELECT summary FROM book_node WHERE title = '02' AND deleted_at IS NULL"),
     ).toBe('奥伦与凯尔在茶镇遭遇异变。');
@@ -535,12 +695,22 @@ describe('workspace domain CRUD transactions', () => {
     ).toBe(1);
     expect(
       fixture.scalar(
-        "SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'nodeStorylineLink'",
+        "SELECT count(DISTINCT change_set_id) FROM sync_mutation WHERE target_kind IN ('membership', 'node-storyline-primary')",
       ),
     ).toBe(2);
+    expect(
+      fixture.scalar(
+        "SELECT count(*) FROM sync_mutation WHERE target_kind = 'membership' AND action IN ('set.add', 'set.remove')",
+      ),
+    ).toBeGreaterThan(0);
+    expect(
+      fixture.scalar(
+        "SELECT count(*) FROM sync_mutation WHERE target_kind = 'node-storyline-primary' AND action = 'field.set'",
+      ),
+    ).toBeGreaterThan(0);
   });
 
-  it('rolls back every graph row and outbox mutation when a transaction write fails', async () => {
+  it('rolls back every graph row and journal mutation when a transaction write fails', async () => {
     fixture.gateway.failNextExecute(
       (sql) => sql.includes('insert into "node_storyline_link"'),
       'injected membership insert failure',
@@ -562,7 +732,7 @@ describe('workspace domain CRUD transactions', () => {
       { node_id: CHAPTER_ONE_ID, storyline_id: MAIN_STORYLINE_ID, is_primary: 1 },
       { node_id: CHAPTER_TWO_ID, storyline_id: SECONDARY_STORYLINE_ID, is_primary: 1 },
     ]);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(0);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(0);
     expect(fixture.scalar('SELECT count(*) FROM agent_runtime_entity_write_receipt')).toBe(0);
   });
 
@@ -638,17 +808,40 @@ describe('workspace domain CRUD transactions', () => {
       .result.canonicalPath;
     const disposableId = disposablePath.slice('/memory/'.length, -'.json'.length);
     await fixture.revert('memory-create-disposable');
-    expect(await fixture.memory(disposableId)).toBeNull();
+    expect(await fixture.memory(disposableId)).toMatchObject({
+      id: disposableId,
+      deletedAt: expect.any(String),
+    });
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'agent-memory' AND target_id = '${disposableId}' AND action = 'entity.trash' AND incarnation = 0`,
+      ),
+    ).toBe(1);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'agent-memory' AND target_id = '${disposableId}' AND action = 'entity.purge'`,
+      ),
+    ).toBe(0);
+    expect(
+      fixture.text(
+        `SELECT state FROM sync_entity_lifecycle WHERE entity_kind = 'agent-memory' AND entity_id = '${disposableId}'`,
+      ),
+    ).toBe('trashed');
+    expect(
+      fixture.scalar(
+        `SELECT incarnation FROM sync_entity_lifecycle WHERE entity_kind = 'agent-memory' AND entity_id = '${disposableId}'`,
+      ),
+    ).toBe(0);
     expect(
       fixture.scalar(
         "SELECT count(*) FROM agent_runtime_entity_write_receipt WHERE entity_kind = 'memory'",
       ),
     ).toBe(7);
-    // The sync service intentionally coalesces repeated mutations for the same
-    // entity while the local immutable Agent receipt ledger keeps every step.
     expect(
-      fixture.scalar("SELECT count(*) FROM local_sync_mutation WHERE entity_type = 'agentMemory'"),
-    ).toBe(1);
+      fixture.scalar(
+        "SELECT count(DISTINCT change_set_id) FROM sync_mutation WHERE target_kind = 'agent-memory'",
+      ),
+    ).toBe(7);
   });
 
   it('reconciles a lost outer acknowledgement once and survives a file reopen', async () => {
@@ -757,6 +950,8 @@ describe('workspace domain CRUD transactions', () => {
         category: 'Disposable',
         name: 'Temporary Person',
         body: 'Disposable element body.',
+        facts: [{ key: 'Role', value: 'Decoy' }],
+        aliases: ['Temporary Alias'],
       }),
     ).resolves.toMatchObject({ ok: true });
     await expect(
@@ -784,6 +979,9 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().bookNodes).toEqual(
       expect.arrayContaining([expect.objectContaining({ title: 'Disposable Idea' })]),
     );
+    const disposableElementId = fixture.text(
+      "SELECT id FROM element WHERE name = 'Temporary Person'",
+    );
 
     await fixture.revert('create-element-disposable');
     await fixture.revert('create-category-disposable');
@@ -801,6 +999,31 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().bookNodes).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ title: 'Disposable Idea' })]),
     );
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM entity_kv_entry WHERE owner_kind = 'element' AND owner_id = '${disposableElementId}'`,
+      ),
+    ).toBe(1);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_set_tag WHERE owner_kind = 'alias' AND owner_id = '${disposableElementId}' AND removed_by_change_set_id IS NULL`,
+      ),
+    ).toBe(1);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM element WHERE id = '${disposableElementId}' AND deleted_at IS NOT NULL`,
+      ),
+    ).toBe(1);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_entity_lifecycle WHERE entity_kind = 'element' AND entity_id = '${disposableElementId}' AND incarnation = 0 AND state = 'trashed'`,
+      ),
+    ).toBe(1);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'element' AND target_id = '${disposableElementId}' AND action = 'entity.purge'`,
+      ),
+    ).toBe(0);
     expect(
       fixture.scalar(
         "SELECT count(*) FROM agent_runtime_entity_write_receipt WHERE direction = 'forward'",
@@ -887,6 +1110,17 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().bookElements).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: 'Ada' })]),
     );
+    const restoredElementId = fixture.text("SELECT id FROM element WHERE name = 'Ada'");
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'element' AND target_id = '${restoredElementId}' AND action = 'entity.restore' AND incarnation = 1`,
+      ),
+    ).toBe(1);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'element' AND target_id = '${restoredElementId}' AND action = 'entity.purge'`,
+      ),
+    ).toBe(0);
 
     await fixture.write(
       'delete-node-lifecycle',
@@ -898,6 +1132,17 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().bookNodes).toEqual(
       expect.arrayContaining([expect.objectContaining({ title: 'Idea' })]),
     );
+    const restoredNodeId = fixture.text("SELECT id FROM book_node WHERE title = 'Idea'");
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'node' AND target_id = '${restoredNodeId}' AND action = 'entity.restore' AND incarnation = 1`,
+      ),
+    ).toBe(1);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'prose-document' AND target_id = 'node-content:${restoredNodeId}' AND action = 'yjs.update' AND incarnation = 1`,
+      ),
+    ).toBe(1);
 
     await fixture.write(
       'delete-storyline-lifecycle',
@@ -909,6 +1154,14 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().storylines).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: 'Side Arc' })]),
     );
+    const restoredStorylineId = fixture.text(
+      "SELECT id FROM storylines WHERE name = 'Side Arc'",
+    );
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'storyline' AND target_id = '${restoredStorylineId}' AND action = 'entity.restore' AND incarnation = 1`,
+      ),
+    ).toBe(1);
 
     await fixture.write(
       'delete-element-before-category',
@@ -926,6 +1179,14 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().bookElementCategories).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: 'People' })]),
     );
+    const restoredCategoryId = fixture.text(
+      "SELECT id FROM element_category WHERE name = 'People'",
+    );
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'element-category' AND target_id = '${restoredCategoryId}' AND action = 'entity.restore' AND incarnation = 1`,
+      ),
+    ).toBe(1);
   });
 
   it('provides natural JSON CRUD and guarded inverses for TODOs and relations', async () => {
@@ -1010,7 +1271,10 @@ describe('workspace domain CRUD transactions', () => {
       updatedAt: AT,
       appliedAt: AT,
     };
-    await fixture.database.insert(CommentActionTable).values(action);
+    await withAtomicSyncTransaction(PROJECT_ID, async (tx, sync) => {
+      await tx.insert(CommentActionTable).values(action);
+      await sync('commentAction', 'create', action.id, PROJECT_ID, { ...action });
+    });
     useDataStore.getState().addCommentAction(action);
     await fixture.write(
       'comment-delete-lifecycle',
@@ -1025,6 +1289,21 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().comments).toHaveLength(1);
     expect(useDataStore.getState().commentActions).toEqual([action]);
     expect(fixture.scalar('SELECT count(*) FROM comment_action')).toBe(1);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'comment' AND target_id = '${commentId}' AND action = 'entity.trash' AND incarnation = 0`,
+      ),
+    ).toBe(1);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'comment' AND target_id = '${commentId}' AND action = 'entity.restore' AND incarnation = 1`,
+      ),
+    ).toBe(1);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'comment-action' AND target_id = '${action.id}' AND action = 'entity.restore' AND incarnation = 1`,
+      ),
+    ).toBe(1);
 
     for (const name of ['foreshadows', 'contrasts']) {
       const createdType = await fixture.write(
@@ -1042,6 +1321,14 @@ describe('workspace domain CRUD transactions', () => {
       );
       expect(createdType, JSON.stringify(createdType)).toMatchObject({ ok: true });
     }
+    const foreshadowsTypeId = useDataStore
+      .getState()
+      .entityRelationTypes.find((type) => type.name === 'foreshadows')?.id;
+    const contrastsTypeId = useDataStore
+      .getState()
+      .entityRelationTypes.find((type) => type.name === 'contrasts')?.id;
+    expect(foreshadowsTypeId).toBeTruthy();
+    expect(contrastsTypeId).toBeTruthy();
 
     const relationPayload = {
       fromType: 'chapter',
@@ -1084,7 +1371,7 @@ describe('workspace domain CRUD transactions', () => {
         expect.objectContaining({
           fromId: CHAPTER_ONE_ID,
           toId: MAIN_STORYLINE_ID,
-          kind: 'contrasts',
+          relationTypeId: contrastsTypeId,
         }),
       ]),
     );
@@ -1094,7 +1381,7 @@ describe('workspace domain CRUD transactions', () => {
         expect.objectContaining({
           fromId: CHAPTER_ONE_ID,
           toId: MAIN_STORYLINE_ID,
-          kind: 'foreshadows',
+          relationTypeId: foreshadowsTypeId,
         }),
       ]),
     );
@@ -1107,6 +1394,12 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().entityRelations).toHaveLength(0);
     await fixture.revert('relation-delete-lifecycle');
     expect(useDataStore.getState().entityRelations).toHaveLength(1);
+    const restoredRelationId = relationPath.slice('/relations/'.length, -'.json'.length);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'entity-relation' AND target_id = '${restoredRelationId}' AND action = 'entity.restore' AND incarnation = 1`,
+      ),
+    ).toBe(1);
 
     const typeUpdate = await fixture.write(
       'relation-type-update-lifecycle',
@@ -1127,11 +1420,15 @@ describe('workspace domain CRUD transactions', () => {
       expect.arrayContaining([expect.objectContaining({ name: 'sets-up' })]),
     );
     expect(useDataStore.getState().entityRelations).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: 'sets-up' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ relationTypeId: foreshadowsTypeId }),
+      ]),
     );
     await fixture.revert('relation-type-update-lifecycle');
     expect(useDataStore.getState().entityRelations).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: 'foreshadows' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ relationTypeId: foreshadowsTypeId }),
+      ]),
     );
 
     await expect(
@@ -1159,6 +1456,16 @@ describe('workspace domain CRUD transactions', () => {
     expect(useDataStore.getState().entityRelationTypes).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: 'contrasts' })]),
     );
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'entity-relation-type' AND target_id = '${contrastsTypeId}' AND action = 'entity.restore' AND incarnation = 1`,
+      ),
+    ).toBe(1);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE action = 'entity.purge' AND target_id IN ('${commentId}', '${action.id}', '${restoredRelationId}', '${contrastsTypeId}')`,
+      ),
+    ).toBe(0);
   });
 
   it('names every blocking workspace resource when an entity delete is unsafe', async () => {
@@ -1248,6 +1555,7 @@ describe('workspace domain CRUD transactions', () => {
 class DomainCrudFixture {
   readonly composition: DriftingAgentProductComposition;
   readonly context: AgentToolContext;
+  readonly authoredJournal = createTestAgentAuthoredJournal('domain-crud');
   private tick = 0;
   private closed = false;
 
@@ -1264,10 +1572,12 @@ class DomainCrudFixture {
       driver: unusedDriver,
       database,
       getContext: () => this.context,
+      authoredJournal: this.authoredJournal,
     });
   }
 
   static async create(): Promise<DomainCrudFixture> {
+    invalidateSqliteReducerStateCache();
     const directory = await mkdtemp(path.join(tmpdir(), 'drifting-domain-crud-'));
     const gateway = new ProductFileBackedSqliteGateway(path.join(directory, 'drifting.db'));
     const database = createDatabaseClient(gateway);
@@ -1356,7 +1666,7 @@ class DomainCrudFixture {
     const strategy = getDriftingWriteStrategy(effect.toolName, {
       freshness: this.composition.repositories.freshness,
       elementPatchDb: this.database,
-      elementPatchNotifySyncCommitted: () => {},
+      authoredJournal: this.authoredJournal,
     });
     if (!strategy) throw new Error(`Missing strategy for ${effect.toolName}`);
     await strategy.applyInverse(effect, this.context, new AbortController().signal);

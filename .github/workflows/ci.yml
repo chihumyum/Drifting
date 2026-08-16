@@ -14,7 +14,6 @@ jobs:
     timeout-minutes: 30
     env:
       VITE_LOCAL_ONLY_MODE: 'true'
-      VITE_ENABLE_SYNC: 'false'
       VITE_REQUIRE_AUTH: 'false'
       VITE_AI_TRANSPORT: direct
       VITE_API_BASE_URL: http://localhost:3000
@@ -49,3 +48,4 @@ jobs:
           workspaces: src-tauri
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo check --manifest-path src-tauri/Cargo.toml --locked --all-targets
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib

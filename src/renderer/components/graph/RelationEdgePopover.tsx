@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { EntityRelationType } from '../../domain/entity-relation-type';
 import type { EntityRelationLink } from '../../store/data-store';
+import { useRelationTypePresentation } from '../../hooks/useRelationTypePresentation';
 import { Button } from '../ui/Button';
 import { computeAnchoredPopoverPosition } from '../ui/anchored-popover-position';
 import '../../../styles/relation-edge-popover.css';
@@ -15,7 +16,7 @@ export interface RelationEdgePopoverAnchor {
 interface RelationEdgePopoverProps {
   anchor: RelationEdgePopoverAnchor;
   relation: EntityRelationLink;
-  relationType: EntityRelationType | null;
+  relationType: EntityRelationType;
   sourceLabel: string;
   targetLabel: string;
   color: string;
@@ -32,6 +33,7 @@ export function RelationEdgePopover({
   onDelete,
 }: RelationEdgePopoverProps) {
   const { t } = useTranslation();
+  const presentRelationType = useRelationTypePresentation();
   const popoverRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
 
@@ -59,11 +61,9 @@ export function RelationEdgePopover({
 
   if (typeof document === 'undefined') return null;
 
-  const orientation = relationType?.orientation ?? 'unconfigured';
-  const typeName = relationType?.name || relation.kind || t('storyGraph.edge.uncategorized');
-  const sourceRole = relationType?.sourceRole || t('relationTypes.defaultSourceRole');
-  const targetRole = relationType?.targetRole || t('relationTypes.defaultTargetRole');
-  const flowGlyph = orientation === 'symmetric' ? '↔' : orientation === 'directed' ? '→' : '—';
+  const orientation = relationType.orientation;
+  const presentation = presentRelationType(relationType);
+  const flowGlyph = orientation === 'symmetric' ? '↔' : '→';
 
   return createPortal(
     <div
@@ -82,28 +82,28 @@ export function RelationEdgePopover({
     >
       <div className="relation-edge-popover__header">
         <span className="relation-edge-popover__dot" style={{ background: color }} />
-        <strong>{typeName}</strong>
+        <strong>{presentation.name}</strong>
         <span className="relation-edge-popover__orientation">
-          {t(`relationTypes.${orientation === 'unconfigured' ? 'pending' : orientation}`)}
+          {t(`relationTypes.${orientation}`)}
         </span>
       </div>
 
       <div className="relation-edge-popover__flow">
         <div>
-          <span>{sourceRole}</span>
+          <span>{presentation.sourceRole}</span>
           <strong>{sourceLabel}</strong>
           <small>{t(`relationTypes.entityKinds.${relation.fromKind}`)}</small>
         </div>
         <b aria-hidden>{flowGlyph}</b>
         <div>
-          <span>{targetRole}</span>
+          <span>{presentation.targetRole}</span>
           <strong>{targetLabel}</strong>
           <small>{t(`relationTypes.entityKinds.${relation.toKind}`)}</small>
         </div>
       </div>
 
-      {relationType?.description && (
-        <p className="relation-edge-popover__description">{relationType.description}</p>
+      {presentation.description && (
+        <p className="relation-edge-popover__description">{presentation.description}</p>
       )}
 
       <div className="relation-edge-popover__actions">

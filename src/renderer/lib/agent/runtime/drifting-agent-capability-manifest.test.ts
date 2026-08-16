@@ -94,6 +94,12 @@ describe('Drifting Agent capability manifest', () => {
     expect(writes.unavailableNames).toHaveLength(writes.unavailable);
   });
 
+  it('uses an unambiguous relation assignment command with no legacy alias', () => {
+    const commandNames = DRIFTING_WORKSPACE_COMMAND_NAMES as readonly string[];
+    expect(commandNames).toContain('assign_relation_type');
+    expect(commandNames).not.toContain('update_relation_kind');
+  });
+
   it('keeps the long-task execution contract tied to executable runtime defaults', () => {
     const contract = buildDriftingAgentCapabilityManifest().longTaskExecution;
     expect(contract).toMatchObject({
@@ -174,7 +180,7 @@ describe('Drifting Agent capability manifest', () => {
       lifecycle: 'turn-start-read-and-pre-final-importance-checkpoint',
       compaction: 'soft-6000-hard-8000-oldest-first-retirement',
       concurrency: 'sqlite-revision-cas',
-      sync: 'atomic-local-row-plus-outbox',
+      sync: 'device-local-excluded-from-sync',
     });
   });
 

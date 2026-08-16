@@ -2,18 +2,19 @@
  * ServerProxyProvider — L1 adapter that forwards to the Drifting server's AI
  * proxy instead of calling a model SDK directly.
  *
- * Phase 1 of the backend-invocation migration. When VITE_AI_TRANSPORT=proxy,
- * buildDefaultLLMClient swaps this in for the Google/DeepSeek providers, so
+ * This is an explicit compatibility seam for hosted-enabled operator builds.
+ * When VITE_AI_TRANSPORT=proxy and hosted service access is enabled,
+ * buildDefaultLLMClient swaps this in for direct providers, so
  * every LLM call leaves the renderer as a POST to `/api/ai/complete` (carrying
  * the better-auth session cookie via the shared axios apiClient) and the actual
  * provider call — and the API key — lives only on the server. This kills the
- * critical key-theft / network-interception leak.
+ * provider credential stays on that compatible service.
  *
- * Note for this phase: the prompt is still BUILT in the renderer (callStructured
- * runs here), so prompt TEXT still ships in the bundle until Phase 2 moves the
- * prompt registry server-side. This provider only relocates the key + network.
+ * Prompts remain renderer-owned by contract. This adapter relocates only the
+ * provider credential and model network call. Local-only Copilot never selects
+ * this adapter.
  *
- * Streaming is intentionally NOT implemented here yet (Phase 5). Without a
+ * Streaming is intentionally not implemented here. Without a
  * stream(), LLMClient.stream() falls back to wrapping complete() as a single
  * chunk — so inline-ask still works under the proxy flag, just non-incrementally
  * until the streaming route lands.

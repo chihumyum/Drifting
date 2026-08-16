@@ -4,8 +4,8 @@ The developer CLI is a local engineering and acceptance surface for fast,
 scriptable CRUD, Agent workflows, and server API checks. It is not an end-user
 shell and it does not introduce a second business layer: authored workspace
 commands reuse the production General Agent domain runtime, SQLite
-transactions, freshness guards, Yjs prose coordinator, sync outbox, write
-receipts, and exact inverse/review machinery.
+transactions, freshness guards, Yjs prose coordinator, one provider-neutral
+authored change-set, write receipts, and exact inverse/review machinery.
 
 Run it from the repository root:
 
@@ -80,27 +80,21 @@ pnpm drifting workspace call replace_chapter_body \
   --offline-userdata --yes
 ```
 
-Thin scalar models use `workspace resource <operation> <model>`. The supported
-full-lifecycle resources are `project`, `book_act`, `drift_group`,
-`timeline_marker`, and `library_item`. These commands remain project-scoped,
-write sync outbox evidence, reject unknown columns, validate drift bindings,
-protect the unique act opener/boundaries, reject cyclic or over-deep drift
-groups, promote the next act when deleting an opener, reparent group children
-and member inspirations on deletion, and strip device-local library paths from
-sync payloads.
+`workspace resource list|get <model>` provides project-scoped inspection for
+thin scalar tables. Generic `create`, `update`, and `delete` fail closed during
+Phase 1: their former direct-SQL path could not create one authored change-set
+with the domain transaction, and the retired hosted outbox is not retained as a
+compatibility writer. Authored mutations use a supported `workspace call`
+command; scalar workflows without such a command remain unavailable until a
+journal-backed domain adapter exists.
 
 ```bash
-pnpm drifting workspace resource create book_act \
-  --project <project-id> --db <database.db> \
-  --name '第一幕' --start-order null \
-  --offline-userdata --yes
-
 pnpm drifting workspace resource list timeline_marker \
   --project <project-id> --db <database.db>
 ```
 
-Runtime journals, Yjs updates/snapshots/revisions, Agent receipts, outbox rows,
-upload jobs, derived mentions/sections, secure credentials, and migration
+SyncEngine journals, Yjs updates/snapshots/revisions, Agent receipts,
+asset import workflows, derived mentions/sections, secure credentials, and migration
 journals intentionally have no generic create/update/delete surface. They are
 workflow, inspect/reconcile, rebuild, or excluded models. The generated
 [capability inventory](acceptance/cli-capabilities.md) accounts for every
@@ -161,9 +155,10 @@ orchestration boundary.
 
 ## Scenarios and acceptance
 
-A scenario is a versioned JSON sequence of `workspace.call` and
-`workspace.resource` steps. A mutating scenario receives one pre-run database
-backup and then stops at the first failed assertion.
+A scenario is a versioned JSON sequence of `workspace.call` and read-only
+`workspace.resource` steps. A scenario containing a mutating domain call
+receives one pre-run database backup and then stops at the first failed
+assertion.
 
 ```bash
 pnpm drifting scenario run \

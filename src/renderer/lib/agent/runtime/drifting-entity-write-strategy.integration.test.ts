@@ -10,7 +10,6 @@ import type {
   AgentRuntimeReadResult,
 } from '../../../domain/agent-runtime-freshness';
 import type { DbExecutor } from '../../../lib/db';
-import { LocalSyncMutationTable } from '../../../schema/drizzle';
 import { createAgentRuntimeFreshnessRepository } from '../../../sqlite-repo/agent-runtime-freshness-repo';
 import { canonicalAgentRuntimeJson } from '../../../sqlite-repo/agent-runtime-persistence-repo';
 import {
@@ -28,6 +27,8 @@ import type { AgentToolContext } from '../tool-handlers';
 import { P3FileBackedSqliteGateway } from './acceptance/p3-file-backed-sqlite';
 import { DriftingReadToolRuntime } from './drifting-read-tool-runtime';
 import { DriftingWriteToolRuntime } from './drifting-write-tool-runtime';
+import { createTestAgentAuthoredJournal } from './agent-authored-journal.test-support';
+import { getDriftingWriteStrategy } from './drifting-write-strategies';
 import type {
   AgentRuntimeContext,
   AgentToolExecutionRequest,
@@ -62,7 +63,7 @@ describe('certified entity write runtime', () => {
     await fixture.close();
   });
 
-  it('commits all four domain writes with one outbox and typed receipt each without post-write reviews', async () => {
+  it('commits all four domain writes with one change-set and typed receipt each without post-write reviews', async () => {
     const elementToken = await fixture.persistRead(
       'read-element',
       'read_element',
@@ -174,9 +175,20 @@ describe('certified entity write runtime', () => {
         'SELECT count(*) FROM agent_runtime_entity_write_receipt',
       ),
     ).toBe(4);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(
-      4,
-    );
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(4);
+    expect(fixture.scalar('SELECT count(*) FROM sync_apply_receipt')).toBe(4);
+    expect(fixture.scalar('SELECT count(*) FROM entity_kv_entry')).toBe(3);
+    expect(
+      fixture.scalar("SELECT count(*) FROM sync_mutation WHERE target_kind = 'kv-entry'"),
+    ).toBeGreaterThanOrEqual(6);
+    expect(
+      fixture.scalar("SELECT count(*) FROM sync_order_register WHERE list_kind = 'kv-entry'"),
+    ).toBe(3);
+    expect(
+      fixture.scalar(
+        'SELECT count(*) FROM sync_change_set WHERE mutation_count < 1 OR apply_state != \'applied\'',
+      ),
+    ).toBe(0);
 
     expect(
       fixture.scalar(
@@ -186,7 +198,7 @@ describe('certified entity write runtime', () => {
     expect(fixture.scalar('SELECT count(*) FROM agent_runtime_write_review')).toBe(0);
   });
 
-  it('reconciles a post-commit process death from the immutable receipt without duplicating a comment or outbox row', async () => {
+  it('reconciles a post-commit process death from the immutable receipt without duplicating a comment or change-set', async () => {
     const project = await fixture.project();
     const token = await fixture.persistRead(
       'read-crash',
@@ -229,9 +241,7 @@ describe('certified entity write runtime', () => {
       'uncertain',
     );
     expect((await fixture.comments())).toHaveLength(1);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(
-      1,
-    );
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
 
     const recovered = await fixture.runtime(base).execute(request);
     expect(recovered).toMatchObject({
@@ -243,12 +253,77 @@ describe('certified entity write runtime', () => {
       },
     });
     expect((await fixture.comments())).toHaveLength(1);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(
-      1,
-    );
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(1);
     expect(
       fixture.scalar(
         'SELECT count(*) FROM agent_runtime_entity_write_receipt',
+      ),
+    ).toBe(1);
+  });
+
+  it('rejects an Agent-created comment as trash without publishing a terminal purge', async () => {
+    const project = await fixture.project();
+    const token = await fixture.persistRead(
+      'read-comment-reject',
+      'get_project_brief',
+      'project',
+      PROJECT_ID,
+      project.updatedAt,
+    );
+    const request = fixture.writeRequest(
+      'write-comment-reject',
+      'create_comment',
+      {
+        body: '这条批注将被作者拒绝。',
+        expectedRevision: token,
+      },
+    );
+    fixture.seedToolCall(request);
+    await expect(fixture.runtime().execute(request)).resolves.toMatchObject({
+      ok: true,
+      data: { authorization: { kind: 'automatic' } },
+    });
+    const [comment] = await fixture.comments();
+    if (!comment) throw new Error('Missing Agent-created comment');
+
+    const effect = await createAgentRuntimeWriteEffectRepository(
+      fixture.client,
+    ).getEffect(`agent-write:${request.idempotencyKey}`);
+    if (!effect) throw new Error('Missing certified comment effect');
+    const strategy = getDriftingWriteStrategy('create_comment', {
+      freshness: fixture.freshness,
+      elementPatchDb: fixture.client,
+      authoredJournal: fixture.journal,
+    });
+    if (!strategy) throw new Error('Missing certified comment strategy');
+    await expect(
+      strategy.applyInverse(
+        effect,
+        { projectId: PROJECT_ID, write: {} as AgentToolContext['write'] },
+        request.signal,
+      ),
+    ).resolves.toMatchObject({ kind: 'entity_write_revert' });
+
+    expect(await fixture.comments()).toHaveLength(0);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'comment' AND target_id = '${comment.id}' AND action = 'entity.trash' AND incarnation = 0`,
+      ),
+    ).toBe(1);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_mutation WHERE target_kind = 'comment' AND target_id = '${comment.id}' AND action = 'entity.purge'`,
+      ),
+    ).toBe(0);
+    expect(
+      fixture.scalar(
+        `SELECT count(*) FROM sync_entity_lifecycle WHERE entity_kind = 'comment' AND entity_id = '${comment.id}' AND state = 'trashed' AND incarnation = 0`,
+      ),
+    ).toBe(1);
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(2);
+    expect(
+      fixture.scalar(
+        "SELECT count(*) FROM agent_runtime_entity_write_receipt WHERE direction = 'inverse'",
       ),
     ).toBe(1);
   });
@@ -354,9 +429,7 @@ describe('certified entity write runtime', () => {
         'SELECT count(*) FROM agent_runtime_entity_write_receipt',
       ),
     ).toBe(0);
-    expect(fixture.scalar('SELECT count(*) FROM local_sync_mutation')).toBe(
-      0,
-    );
+    expect(fixture.scalar('SELECT count(*) FROM sync_change_set')).toBe(0);
   });
 
   it('keeps hard-authorized writes final and revalidates comment targets inside the mutation transaction', async () => {
@@ -418,6 +491,7 @@ describe('certified entity write runtime', () => {
 class EntityWriteFixture {
   readonly client: DbExecutor;
   readonly freshness;
+  readonly journal = createTestAgentAuthoredJournal('entity-write');
   private tick = 0;
 
   private constructor(
@@ -435,89 +509,6 @@ class EntityWriteFixture {
     const gateway = new P3FileBackedSqliteGateway(
       path.join(directory, 'runtime.sqlite'),
     );
-    gateway.database.exec(`
-      ALTER TABLE project ADD COLUMN summary TEXT DEFAULT '' NOT NULL;
-      ALTER TABLE project ADD COLUMN kv_json TEXT DEFAULT '[]' NOT NULL;
-      ALTER TABLE project ADD COLUMN storyline_template_kv_json TEXT DEFAULT '[]' NOT NULL;
-      CREATE TABLE element_category (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        content_json TEXT DEFAULT '{}' NOT NULL,
-        element_template_json TEXT DEFAULT '{}' NOT NULL,
-        element_template_kv_json TEXT DEFAULT '[]' NOT NULL,
-        layout_mode TEXT DEFAULT 'auto' NOT NULL,
-        order_key INTEGER DEFAULT 0 NOT NULL,
-        deleted_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE element (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL,
-        category_id TEXT,
-        name TEXT NOT NULL,
-        summary TEXT DEFAULT '' NOT NULL,
-        content_json TEXT DEFAULT '{}' NOT NULL,
-        kv_json TEXT DEFAULT '[]' NOT NULL,
-        aliases_json TEXT DEFAULT '[]' NOT NULL,
-        group_name TEXT,
-        portrait_asset_id TEXT,
-        deleted_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE storylines (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        color TEXT DEFAULT '#888888' NOT NULL,
-        summary TEXT DEFAULT '' NOT NULL,
-        order_key REAL DEFAULT 0 NOT NULL,
-        content_json TEXT DEFAULT '{}' NOT NULL,
-        kv_json TEXT DEFAULT '[]' NOT NULL,
-        node_content_template_json TEXT DEFAULT '{}' NOT NULL,
-        deleted_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE comment (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        target_kind TEXT,
-        target_id TEXT,
-        target_block_id TEXT,
-        anchor_json TEXT DEFAULT '{}' NOT NULL,
-        author_kind TEXT NOT NULL,
-        author_id TEXT,
-        author_name TEXT,
-        body_json TEXT NOT NULL,
-        status TEXT NOT NULL,
-        priority TEXT,
-        source TEXT NOT NULL,
-        metadata_json TEXT,
-        target_block_ids_json TEXT DEFAULT '[]' NOT NULL,
-        resolved_at TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE local_sync_mutation (
-        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-        entity_type TEXT NOT NULL,
-        mutation_type TEXT NOT NULL,
-        entity_id TEXT NOT NULL,
-        project_id TEXT NOT NULL,
-        parent_id TEXT,
-        payload_json TEXT,
-        mutation_ts INTEGER NOT NULL,
-        status TEXT DEFAULT 'pending' NOT NULL,
-        retry_count INTEGER DEFAULT 0 NOT NULL,
-        last_error TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-    `);
     const fixture = new EntityWriteFixture(directory, gateway);
     fixture.seed();
     return fixture;
@@ -549,8 +540,8 @@ class EntityWriteFixture {
     `).run(PROJECT_ID, AT, AT);
     db.prepare(`
       INSERT INTO storylines (
-        id, project_id, name, summary, created_at, updated_at
-      ) VALUES ('storyline-1', ?, '主线', '旧梗概', ?, ?)
+        id, project_id, name, color, summary, order_key, created_at, updated_at
+      ) VALUES ('storyline-1', ?, '主线', '#888888', '旧梗概', 0, ?, ?)
     `).run(PROJECT_ID, AT, AT);
     const project = {
       id: PROJECT_ID,
@@ -623,28 +614,7 @@ class EntityWriteFixture {
       readRuntime: emptyReads,
       getContext: () => context,
       elementPatchDb: this.client,
-      elementPatchPersistSyncMutation: async (tx, mutation) => {
-        const at = this.now();
-        await tx.insert(LocalSyncMutationTable).values({
-          entityType: mutation.entityType,
-          mutationType: mutation.mutationType,
-          entityId: mutation.entityId,
-          projectId: mutation.projectId,
-          parentId: mutation.parentId ?? null,
-          payloadJson:
-            mutation.payload === undefined
-              ? null
-              : canonicalAgentRuntimeJson(mutation.payload),
-          mutationTs: mutation.timestamp,
-          status: 'pending',
-          retryCount: 0,
-          lastError: null,
-          createdAt: at,
-          updatedAt: at,
-        });
-        return true;
-      },
-      elementPatchNotifySyncCommitted: () => {},
+      authoredJournal: this.journal,
       now: () => this.now(),
     });
   }

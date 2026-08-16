@@ -3,52 +3,31 @@
   "schemaVersion": 1,
   "nodeVersion": "v24.4.0",
   "platform": "darwin",
-  "gitHead": "c2fe2bfdc53e71d12d336e2a230e12f17f902b00",
+  "gitHead": "94e9bbca72fba3a23922da389e7ba121436d7f3b",
   "provider": "not applicable",
   "model": "not applicable",
-  "sourceSetSha256": "sha256:746bcce9b7b4991a76c21f6bc4c56833387b013092dae0055203c0a44d747728",
+  "sourceSetSha256": "sha256:86b2ec7f0f7abb5cce33ccd3399e8dda3b30c173539604a88cb88732fbad4209",
   "migration": {
-    "count": 78,
-    "latestIndex": 77,
-    "latestTag": "0077_remove_agent_user_checkpoint",
-    "requiredCount": 68,
-    "requiredThroughIndex": 67,
-    "requiredThroughTag": "0067_agent_runtime_long_task",
+    "count": 1,
+    "latestIndex": 0,
+    "latestTag": "0000_local_first_baseline",
+    "requiredCount": 1,
+    "requiredThroughIndex": 0,
+    "requiredThroughTag": "0000_local_first_baseline",
     "indexesCanonical": true,
     "tagsUnique": true,
     "rustEmbedsDrizzleDirectory": true,
     "files": [
       {
-        "index": 64,
-        "tag": "0064_agent_runtime_result_artifact",
-        "file": "drizzle/0064_agent_runtime_result_artifact.sql",
+        "index": 0,
+        "tag": "0000_local_first_baseline",
+        "file": "drizzle/0000_local_first_baseline.sql",
         "exists": true,
         "journalMatches": true,
-        "requiredSqlPresent": true
-      },
-      {
-        "index": 65,
-        "tag": "0065_agent_runtime_element_patch_receipt",
-        "file": "drizzle/0065_agent_runtime_element_patch_receipt.sql",
-        "exists": true,
-        "journalMatches": true,
-        "requiredSqlPresent": true
-      },
-      {
-        "index": 66,
-        "tag": "0066_agent_runtime_entity_write_receipt",
-        "file": "drizzle/0066_agent_runtime_entity_write_receipt.sql",
-        "exists": true,
-        "journalMatches": true,
-        "requiredSqlPresent": true
-      },
-      {
-        "index": 67,
-        "tag": "0067_agent_runtime_long_task",
-        "file": "drizzle/0067_agent_runtime_long_task.sql",
-        "exists": true,
-        "journalMatches": true,
-        "requiredSqlPresent": true
+        "structureSqlPresent": true,
+        "triggerSqlPresent": true,
+        "checkSqlPresent": true,
+        "retiredSqlAbsent": true
       }
     ],
     "passed": true
@@ -59,8 +38,8 @@
       "discovered": 38
     },
     "tests": {
-      "total": 382,
-      "passed": 382,
+      "total": 460,
+      "passed": 460,
       "failed": 0,
       "pending": 0,
       "todo": 0
@@ -70,8 +49,8 @@
         "files": 5,
         "discoveredFiles": 5,
         "tests": {
-          "total": 65,
-          "passed": 65,
+          "total": 69,
+          "passed": 69,
           "failed": 0,
           "pending": 0
         },
@@ -81,8 +60,8 @@
         "files": 5,
         "discoveredFiles": 5,
         "tests": {
-          "total": 47,
-          "passed": 47,
+          "total": 51,
+          "passed": 51,
           "failed": 0,
           "pending": 0
         },
@@ -92,8 +71,8 @@
         "files": 8,
         "discoveredFiles": 8,
         "tests": {
-          "total": 80,
-          "passed": 80,
+          "total": 111,
+          "passed": 111,
           "failed": 0,
           "pending": 0
         },
@@ -103,25 +82,14 @@
         "files": 7,
         "discoveredFiles": 7,
         "tests": {
-          "total": 54,
-          "passed": 54,
+          "total": 66,
+          "passed": 66,
           "failed": 0,
           "pending": 0
         },
         "passed": true
       },
       "elementPatchAndCertification": {
-        "files": 3,
-        "discoveredFiles": 3,
-        "tests": {
-          "total": 17,
-          "passed": 17,
-          "failed": 0,
-          "pending": 0
-        },
-        "passed": true
-      },
-      "productCompositionAndEntityWrites": {
         "files": 3,
         "discoveredFiles": 3,
         "tests": {
@@ -132,12 +100,23 @@
         },
         "passed": true
       },
+      "productCompositionAndEntityWrites": {
+        "files": 3,
+        "discoveredFiles": 3,
+        "tests": {
+          "total": 27,
+          "passed": 27,
+          "failed": 0,
+          "pending": 0
+        },
+        "passed": true
+      },
       "longTaskAndContinuation": {
         "files": 2,
         "discoveredFiles": 2,
         "tests": {
-          "total": 19,
-          "passed": 19,
+          "total": 28,
+          "passed": 28,
           "failed": 0,
           "pending": 0
         },
@@ -147,8 +126,8 @@
         "files": 5,
         "discoveredFiles": 5,
         "tests": {
-          "total": 84,
-          "passed": 84,
+          "total": 92,
+          "passed": 92,
           "failed": 0,
           "pending": 0
         },
@@ -260,7 +239,7 @@
     },
     "productCompositionAndEntityWrites": {
       "machineAsserted": {
-        "productDatabaseRunsAllMigrations": true,
+        "productDatabaseUsesCurrentBaseline": true,
         "rendererUseCasesAndYjsAreCanonicalWritePath": true,
         "entityMutationOutboxAndReceiptShareTransaction": true,
         "createCommentUsesDeterministicIdentity": true,

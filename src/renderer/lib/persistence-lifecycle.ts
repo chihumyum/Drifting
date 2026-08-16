@@ -3,30 +3,43 @@ import { checkpointDatabase } from './db';
 import { saveActiveEditor } from './active-editor';
 import { flushSessionTokenStorage } from './session-token';
 import {
-  flushPendingEntityPersistence,
-  forceFlush as forceFlushEntitySync,
-} from '../services/entity-sync.service';
-import {
   flushAllOpenYjsDocuments,
-  forceSyncAllDocuments,
   waitForYjsDocumentTeardown,
-} from '../services/yjs-sync.service';
-import { flushPreferencesSync } from '../services/preferences-sync.service';
+} from '../services/yjs-local-durability.service';
 import { flushSnapshotHistoryPersistence } from '../services/snapshot-history.service';
+import { flushPendingAtomicSyncTransactions } from '../services/atomic-sync-transaction-tracker';
+import { flushPendingAssetPersistence } from '../services/asset-store.service';
 
 const log = loglevel.getLogger('persistence-lifecycle');
 
 let localFlushTail: Promise<void> = Promise.resolve();
-let remoteFlushInFlight: Promise<void> | null = null;
+export type SyncEngineLifecycleReason = 'shutdown' | 'suspended' | 'database-switch';
+export type SyncEngineLifecycleHook = (reason: SyncEngineLifecycleReason) => Promise<void>;
+let syncEngineLifecycleHook: SyncEngineLifecycleHook | null = null;
+
+/** Install the single global SyncEngine lifecycle trigger. */
+export function installSyncEngineLifecycleHook(hook: SyncEngineLifecycleHook): () => void {
+  if (syncEngineLifecycleHook && syncEngineLifecycleHook !== hook) {
+    throw new Error('A SyncEngine lifecycle hook is already installed');
+  }
+  syncEngineLifecycleHook = hook;
+  return () => {
+    if (syncEngineLifecycleHook === hook) syncEngineLifecycleHook = null;
+  };
+}
 
 async function performLocalFlush(): Promise<void> {
-  // Ordering is intentional. Saving the editor can start Yjs and atomic entity
-  // persistence, so drain both before checkpointing the database.
+  // Ordering is intentional. Saving the editor can start Yjs persistence;
+  // asset imports may begin before their authored SQLite transaction, while
+  // deletes may start file cleanup after it. Drain both sides before the DB
+  // checkpoint so the lifecycle barrier covers every local durability lane.
   const steps: Array<() => Promise<unknown>> = [
     () => saveActiveEditor(),
     () => flushAllOpenYjsDocuments(),
     () => flushSnapshotHistoryPersistence(),
-    () => flushPendingEntityPersistence(),
+    () => flushPendingAssetPersistence(),
+    () => flushPendingAtomicSyncTransactions(),
+    () => flushPendingAssetPersistence(),
     () => checkpointDatabase(),
     () => flushSessionTokenStorage(),
   ];
@@ -53,38 +66,42 @@ export function flushLocalApplicationPersistence(): Promise<void> {
   return operation;
 }
 
-/** Start one coalesced best-effort remote flush. Local outboxes are already durable. */
-export function flushRemoteApplicationPersistence(): Promise<void> {
-  if (remoteFlushInFlight) return remoteFlushInFlight;
+/**
+ * Deliver one best-effort SyncEngine lifecycle signal.
+ *
+ * Until the engine installs its global hook this is an intentional no-op.
+ * No legacy hosted entity/Yjs/preferences transport is reachable from the
+ * lifecycle path.
+ */
+export function flushRemoteApplicationPersistence(
+  reason: SyncEngineLifecycleReason = 'database-switch',
+): Promise<void> {
+  const hook = syncEngineLifecycleHook;
+  if (!hook) return Promise.resolve();
 
-  const operation = Promise.allSettled([
-    forceFlushEntitySync(),
-    forceSyncAllDocuments(),
-    flushPreferencesSync(),
-  ]).then((results) => {
-    const failures = results.filter((result) => result.status === 'rejected');
-    if (failures.length > 0) {
+  return Promise.resolve()
+    .then(() => hook(reason))
+    .catch((error) => {
       log.warn(
-        `[persistence] ${failures.length} remote flush operation(s) failed; durable local outboxes remain for retry`,
+        '[persistence] SyncEngine lifecycle cycle failed; local journal remains durable',
+        error,
       );
-    }
-  });
-  const inFlight = operation.finally(() => {
-    if (remoteFlushInFlight === inFlight) remoteFlushInFlight = null;
-  });
-  remoteFlushInFlight = inFlight;
-  return inFlight;
+    });
 }
 
 /**
  * Native close/suspend barrier. Resolve after local SQLite/keychain durability,
  * then let remote sync continue without holding the native shutdown deadline.
  */
-export async function flushApplicationPersistenceForLifecycle(): Promise<void> {
+export async function flushApplicationPersistenceForLifecycle(
+  reason: Extract<SyncEngineLifecycleReason, 'shutdown' | 'suspended'> = 'shutdown',
+): Promise<void> {
   try {
     await flushLocalApplicationPersistence();
   } finally {
-    void flushRemoteApplicationPersistence();
+    // Lifecycle hooks never wait for provider I/O. They synchronously freeze
+    // the scheduler so a suspend/shutdown cannot start a background request.
+    await flushRemoteApplicationPersistence(reason);
   }
 }
 
@@ -98,7 +115,9 @@ export async function quiesceApplicationForDatabaseSwitch(
   options: { flushRemote?: boolean } = {},
 ): Promise<void> {
   await flushLocalApplicationPersistence();
-  if (options.flushRemote !== false) await flushRemoteApplicationPersistence();
+  if (options.flushRemote !== false) {
+    await flushRemoteApplicationPersistence('database-switch');
+  }
   unmountActiveViews();
   await waitForYjsDocumentTeardown();
   await flushLocalApplicationPersistence();

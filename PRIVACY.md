@@ -1,6 +1,6 @@
 # Drifting client privacy boundary
 
-Last updated: 2026-08-14
+Last updated: 2026-08-16
 
 This document describes the public-source client. It is not a privacy policy
 for every fork or independently operated service. A fork operator is
@@ -17,14 +17,38 @@ off; this repository currently contains no production analytics uploader.
 User-imported fonts remain device-local. You are responsible for having the
 right to use any imported manuscript, image, PDF, or font.
 
-## When network features are enabled
+## Google Drive sync
+
+Google Drive sync is optional. Connecting uses Google OAuth and the Drive
+`appDataFolder` belonging to the selected Google account. Google OAuth and
+Google Drive are inside the cloud trust boundary. Drifting does not
+end-to-end encrypt synced project objects against Google; HTTPS and Google's
+own storage encryption do not change that boundary.
+
+The client may transmit the Google account subject, project metadata, Yjs
+checkpoints and updates containing full manuscript content, snapshots,
+comments, synced Agent memory, and imported project assets such as images or
+PDFs. Google can process those objects under the terms and policies applicable
+to the selected Google account.
+
+Google sign-in is the cross-device access authority. Connect and new-device
+restore use the same flow: sign-in followed by automatic account-scoped
+discovery. Drifting does not require an account of its
+own and does not create a recovery phrase, recovery QR, or separate restore
+secret. It also does not create an application-managed Project content key.
+Disconnect stops the client from using the provider and follows the
+native OAuth revocation path; it does not imply that every already-uploaded
+object has been deleted from Google's systems.
+
+## Other configured network services
 
 An operator can configure a compatible service and explicitly enable account
 and synchronization features. The client may then transmit account and device
 identifiers, project metadata, Yjs checkpoints and updates containing full
-manuscript content, snapshots, comments, Agent working memory, and uploaded
-project assets such as images or PDFs. Synced manuscript content is not
-currently end-to-end encrypted.
+manuscript content, snapshots, comments, synced Agent memory, and uploaded
+project assets such as images or PDFs. Unless that service publishes and proves
+a separate encryption contract, synced manuscript content must be treated as
+readable within that service's trust boundary.
 
 The service may necessarily process network metadata such as IP address,
 user-agent, request timing, and authentication/session identifiers. Retention,
@@ -52,8 +76,11 @@ Local-only mode disables account and synchronization traffic. A BYOK AI request
 still sends the prompt and selected context directly to the provider you choose;
 do not invoke it when you want a fully offline session. You can export local
 projects, remove local databases and imported assets through your operating
-system, delete provider keys from Settings, and contact the operator of any
-configured service for server-side access or deletion requests.
+system, disconnect Google Drive from Settings, and contact Google or the
+operator of another configured service for remote access or deletion requests.
+
+The current Google Drive trust and restore contract is documented in
+[docs/sync-engine/trusted-cloud-google-drive.md](docs/sync-engine/trusted-cloud-google-drive.md).
 
 For a security issue, follow [SECURITY.md](SECURITY.md). For the distinction
 between this client and the official hosted service, see
