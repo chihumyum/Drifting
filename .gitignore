@@ -32,6 +32,7 @@ out
 
 # Generated JavaScript artifacts
 *.js.map
+*.tsbuildinfo
 
 # Environment variables
 .env
