@@ -101,7 +101,6 @@ const markdown = `${[
   'pnpm exec tsx scripts/generate-sync-domain-manifest.ts --check',
   'pnpm exec vitest run src/renderer/sync/protocol/domain-manifest.test.ts',
   '```',
-  '',
 ].join('\n')}\n`;
 
 function checkFile(filePath: string, expected: string): boolean {

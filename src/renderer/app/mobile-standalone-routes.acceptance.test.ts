@@ -30,6 +30,8 @@ describe('mobile standalone routes', () => {
     expect(mobileWorkspace).toContain("openPaper({ entityType: 'dashboard', id: 'self' })");
     expect(mobileWorkspace).not.toContain('firstChapter');
     expect(mobileWorkspace).toContain('freezeLiveMobilePaperContent(active)');
+    expect(mobileWorkspace).toContain('<MobileProjectTrashView');
+    expect(mobileWorkspace).toContain('onOpenTrash={() =>');
     expect(mobileWorkspace).not.toContain('DesktopAppShell');
     expect(mobileWorkspace).not.toContain('store/ui-store');
   });
@@ -38,6 +40,7 @@ describe('mobile standalone routes', () => {
     const paperDeck = rendererSource('shells/mobile/workspace/MobilePaperDeck.tsx');
     const panels = rendererSource('shells/mobile/workspace/MobileWorkspacePanels.tsx');
     const overview = rendererSource('shells/mobile/workspace/MobileTabOverview.tsx');
+    const projectTrash = rendererSource('shells/mobile/workspace/MobileProjectTrashView.tsx');
     const plotGrid = rendererSource('components/editor/PlotGrid.tsx');
     const session = rendererSource('shells/mobile/workspace/mobile-workspace-session.ts');
     const pinch = rendererSource('shells/mobile/workspace/usePaperPinch.ts');
@@ -93,6 +96,10 @@ describe('mobile standalone routes', () => {
     expect(previewSheet).toContain('event.target === event.currentTarget');
     expect(overview).toContain('className="m-tab-card__close"');
     expect(overview).toContain('className="m-tab-card__drag"');
+    expect(overview).toContain('onClick={onOpenTrash}');
+    expect(projectTrash).toContain('<TrashRailPanel registerRef={REGISTER_NOOP} />');
+    expect(projectTrash).toContain('className="m-project-trash"');
+    expect(css).toContain('.m-project-trash__content');
     expect(overview).not.toContain('ArrowUp');
     expect(overview).not.toContain('ArrowDown');
     expect(panels).toContain('<PlotGridEditor');
@@ -234,11 +241,16 @@ describe('mobile standalone routes', () => {
     expect(css).toContain("html[data-platform-target='mobile'] .pp-modal");
   });
 
-  it('routes mobile settings outside the project runtime and keeps project settings deferred', () => {
+  it('routes mobile settings outside project runtime and gates hosted account sections', () => {
     const routes = rendererSource('app/AppRoutes.tsx');
-    expect(routes).toContain('isMobile ? <MobileSettingsView /> : <Navigate to="/" replace />');
+    expect(routes).toContain(
+      'isMobile ? <MobileSettingsView /> : <DesktopStandaloneSettingsView />',
+    );
     const settings = rendererSource('shells/mobile/standalone/MobileSettingsView.tsx');
-    expect(settings).toContain('<AccountPanel registerRef={REGISTER_NOOP} />');
+    expect(settings).toContain('withoutHostedAccountSettings(group.items, accountSettingsEnabled)');
+    expect(settings).toContain(
+      'accountSettingsEnabled ? <AccountPanel registerRef={REGISTER_NOOP} /> : null',
+    );
     expect(settings).toContain('<ModelsPanel credentialsActive registerRef={REGISTER_NOOP} />');
     expect(settings).not.toContain('TrashRailPanel');
     expect(settings).not.toContain('AgentPanel');
