@@ -6,7 +6,12 @@ import { createBookContentRepository } from '../sqlite-repo/content-repo.ts';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo.ts';
 import type { BookNode } from '../domain/book-node.ts';
 import type { AgentRuntimeNodeWriteGuard } from '../domain/agent-runtime-freshness';
-import { compareBookOrder, isChapter, isDrift, makeUniqueNodeTitle } from '../domain/book-node.ts';
+import {
+  compareBookOrder,
+  isChapter,
+  isDrift,
+  makeUniqueNodeTitle,
+} from '../domain/book-node.ts';
 import { unbindMarkersForDrift } from '../hooks/useTimelineMarkers';
 import { unbindActsForDrift } from './useBookAct';
 import { initDatabase } from '../lib/db';
@@ -21,15 +26,16 @@ import {
 } from './entity-relation-cleanup';
 import { persistBookNodeUpdateWithSync } from './book-node-write';
 import { deriveProseMetricFromJson } from '@drifting/prose-metrics';
-import { appendPlannedAuthoredOrderInTransaction } from '../sync/journal';
-import {
-  appendAuthoredOrderRebalance,
-  authoredOrderRebalanceEntries,
-  entityIdsByNumericPlacement,
-} from '../sync/journal/order-authority';
 import { appendAuthoredNodeStorylineProjectionInTransaction } from '../sync/journal/storyline-membership';
 import { appendAuthoredProseSeedInTransaction } from '../sync/journal/yjs-update';
 import { createEntitySeedUpdate } from '../hooks/useEntityYjsDoc';
+import {
+  persistChapterTimelineMove,
+  resolveChapterTimelineMembership,
+  type MoveChapterOnTimelineInput,
+} from './chapter-timeline-move';
+
+export type { MoveChapterOnTimelineInput } from './chapter-timeline-move';
 
 const log = loglevel.getLogger('UseBookNode');
 log.setLevel(loglevel.levels.ERROR);
@@ -185,6 +191,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         id: newNode.id,
         title: newNode.title,
         summary: newNode.summary,
+        bookOrder: newNode.bookOrder,
         narrativeOrder: newNode.narrativeOrder,
         kind: newNode.kind,
         driftGroupId: newNode.driftGroupId,
@@ -227,19 +234,6 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
               await appendAuthoredNodeStorylineProjectionInTransaction(tx, changes, {
                 projectId: activeProjectId,
                 nodeId: created.id,
-              });
-            }
-            if (created.kind === 'chapter') {
-              const desiredEntityIds = entityIdsByNumericPlacement(
-                nextNodes
-                  .filter(isChapter)
-                  .map((node) => ({ entityId: node.id, projection: node.bookOrder })),
-              );
-              await appendPlannedAuthoredOrderInTransaction(tx, changes, {
-                projectId: activeProjectId,
-                listKind: 'chapter',
-                scope: activeProjectId,
-                desiredEntityIds,
               });
             }
             return created;
@@ -334,7 +328,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         apply: () => setNodesState(nextNodes),
         rollback: () => setNodesState(prev),
         effect: () =>
-          withAtomicSyncTransaction(activeProjectId, async (tx, _sync, changes) => {
+          withAtomicSyncTransaction(activeProjectId, async (tx, sync) => {
             await createBookNodeSqliteRepository(activeProjectId, tx).swapOrder(
               {
                 id: current.id,
@@ -345,15 +339,11 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
                 bookOrder: currentOrder,
               },
             );
-            appendAuthoredOrderRebalance(changes, {
-              listKind: 'chapter',
-              scope: activeProjectId,
-              entries: authoredOrderRebalanceEntries(
-                nextNodes
-                  .filter(isChapter)
-                  .sort(compareBookOrder)
-                  .map(({ id: entityId }) => entityId),
-              ),
+            await sync('node', 'update', current.id, activeProjectId, {
+              bookOrder: targetOrder,
+            });
+            await sync('node', 'update', target.id, activeProjectId, {
+              bookOrder: currentOrder,
             });
           }),
       });
@@ -441,7 +431,6 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       }
       const nodeUpdates = requestedNodeUpdates;
       const serverUpdates: Record<string, unknown> = { ...nodeUpdates };
-      delete serverUpdates.bookOrder;
       if (nodeUpdates.position) {
         serverUpdates.positionX = nodeUpdates.position.x;
         serverUpdates.positionY = nodeUpdates.position.y;
@@ -451,6 +440,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       const currentPrimary =
         useDataStore.getState().primaryStorylineByNode[id] ?? null;
       const mainChanged = newPrimary !== undefined && newPrimary !== currentPrimary;
+      if (!mainChanged && Object.keys(nodeUpdates).length === 0) return existing;
       const previousStorylineMapping = Object.fromEntries(
         Object.entries(useDataStore.getState().storylineNodeMapping).map(([storylineId, nodeIds]) => [
           storylineId,
@@ -506,19 +496,6 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
               });
             }
 
-            if (typeof nodeUpdates.bookOrder === 'number') {
-              const desiredEntityIds = entityIdsByNumericPlacement(
-                (await nodeRepoTx.findAll())
-                  .filter(isChapter)
-                  .map((node) => ({ entityId: node.id, projection: node.bookOrder })),
-              );
-              await appendPlannedAuthoredOrderInTransaction(tx, changes, {
-                projectId: activeProjectId,
-                listKind: 'chapter',
-                scope: activeProjectId,
-                desiredEntityIds,
-              });
-            }
             if (Object.keys(serverUpdates).length > 0) {
               await sync('node', 'update', id, activeProjectId, serverUpdates);
             }
@@ -535,6 +512,84 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       addNodeToStorylineMappingState,
       activeProjectId,
     ],
+  );
+
+  const moveChapterOnTimeline = useCallback(
+    async (id: string, input: MoveChapterOnTimelineInput) => {
+      await ensureDb();
+      if (!Number.isFinite(input.order)) {
+        throw new TypeError('chapter timeline position must be finite');
+      }
+
+      const store = useDataStore.getState();
+      const prevNodes = store.bookNodes.slice();
+      const existing = prevNodes.find((node) => node.id === id);
+      if (!existing) throw new Error(`Book node ${id} not found`);
+      if (!isChapter(existing)) {
+        throw new Error('Only chapters may be moved on the chapter timeline.');
+      }
+
+      const currentPrimary = store.primaryStorylineByNode[id] ?? null;
+      const currentMembershipIds = store.nodeStorylineMapping[id] ?? [];
+      const nextMembership = resolveChapterTimelineMembership(
+        {
+          membershipIds: currentMembershipIds,
+          primaryStorylineId: currentPrimary,
+        },
+        input.targetStorylineId,
+      );
+      const nextPrimary = nextMembership.primaryStorylineId;
+      const nextMembershipIds = nextMembership.membershipIds;
+      const sameMemberships =
+        nextMembershipIds.length === currentMembershipIds.length &&
+        nextMembershipIds.every((storylineId) => currentMembershipIds.includes(storylineId));
+      const membershipChanged = !sameMemberships || nextPrimary !== currentPrimary;
+      const previousStorylineMapping = Object.fromEntries(
+        Object.entries(store.storylineNodeMapping).map(([storylineId, nodeIds]) => [
+          storylineId,
+          [...nodeIds],
+        ]),
+      );
+      const previousPrimaryStorylineByNode = { ...store.primaryStorylineByNode };
+      const updatedAt = nextNodeUpdatedAt(existing.updatedAt);
+      const nodePatch = { [input.orderField]: input.order, updatedAt } as Partial<BookNode>;
+
+      return withOptimisticUpdate({
+        apply: () => {
+          useDataStore.getState().updateBookNode(id, nodePatch);
+          if (membershipChanged) {
+            useDataStore.getState().setNodeStorylinesMapping(id, nextMembershipIds);
+            useDataStore.getState().setNodePrimaryStoryline(id, nextPrimary);
+          }
+        },
+        rollback: () => {
+          setNodesState(prevNodes);
+          if (membershipChanged) {
+            useDataStore
+              .getState()
+              .setNodeStorylineState(
+                previousStorylineMapping,
+                previousPrimaryStorylineByNode,
+              );
+          }
+        },
+        effect: () =>
+          persistChapterTimelineMove({
+            projectId: activeProjectId,
+            nodeId: id,
+            ...input,
+            updatedAt,
+          }),
+        onSuccess: ({ node, membership }) => {
+          useDataStore.getState().updateBookNode(id, node);
+          useDataStore.getState().setNodeStorylinesMapping(id, membership.membershipIds);
+          useDataStore
+            .getState()
+            .setNodePrimaryStoryline(id, membership.primaryStorylineId);
+        },
+      });
+    },
+    [activeProjectId, ensureDb, setNodesState],
   );
 
   const deleteNode = useCallback(
@@ -694,6 +749,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       updateNodePosition,
       updateNodeSummary,
       updateNode,
+      moveChapterOnTimeline,
       deleteNode,
       restoreNode,
       purgeNode,
@@ -707,6 +763,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       updateNodePosition,
       updateNodeSummary,
       updateNode,
+      moveChapterOnTimeline,
       deleteNode,
       restoreNode,
       purgeNode,

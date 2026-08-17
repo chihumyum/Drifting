@@ -6,7 +6,7 @@
 - Drizzle schema SHA-256: `ce696ed43754afa6ee04dc8744a80432a64513a0c715df3c0442ae956d206fdf`
 - Tables: 84 (26 included, 58 excluded)
 - Fields: 923
-- Classes: authored=166, crdt=10, derived=85, device-local=354, secret=5, transport=303
+- Classes: authored=168, crdt=10, derived=83, device-local=354, secret=5, transport=303
 
 | Table | Scope | Sync | Fields | Decision |
 | --- | --- | --- | ---: | --- |
@@ -37,7 +37,7 @@
 | `agent_runtime_write_review_block` | `project-via-reference` | `exclude` | 13 | Agent execution, review, receipt, session, or diagnostic state is intentionally device-local in sync v1. |
 | `agent_working_memory` | `project-direct` | `exclude` | 9 | Working memory is ephemeral Agent execution context and is explicitly excluded from sync v1. |
 | `block_section` | `project-direct` | `exclude` | 9 | Block sections and summaries are rebuildable analysis projections over prose. |
-| `book_act` | `project-direct` | `include` | 8 | Act identity, opener boundary, display properties, and drift binding are authored state. |
+| `book_act` | `project-direct` | `include` | 8 | Act identity, optional book-head or finite boundary, display properties, and drift binding are authored state. |
 | `book_node` | `project-direct` | `include` | 19 | Chapter and drift identity, structure, ordering, placement, and lifecycle are authored state. |
 | `comment` | `project-direct` | `include` | 19 | Manual, Copilot, and Agent comments share one authored anchor and resolution model. |
 | `comment_action` | `project-direct` | `include` | 13 | Typed comment accept/reject actions and their settled result are authored decisions. |

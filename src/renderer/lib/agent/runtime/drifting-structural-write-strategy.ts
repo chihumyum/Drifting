@@ -1078,18 +1078,6 @@ async function applyForwardInTransaction(
           stateUpdate: await createYjsProseSeedState(contentJson),
           source: { kind: 'agent' },
         });
-        if (value.kind === 'chapter') {
-          await appendPlannedAuthoredOrderInTransaction(tx, changes, {
-            projectId: payload.projectId,
-            listKind: 'chapter',
-            scope: payload.projectId,
-            desiredEntityIds: entityIdsByNumericPlacement(
-              (await nodeRepository.findAll())
-                .filter((entry) => entry.kind === 'chapter')
-                .map((entry) => ({ entityId: entry.id, projection: entry.bookOrder! })),
-            ),
-          });
-        }
       });
       postimage = snapshotAgentRuntimeEntity(value, 'node');
       break;
@@ -1933,6 +1921,7 @@ function nodePayload(value: BookNode): Record<string, unknown> {
     id: value.id,
     title: value.title,
     summary: value.summary,
+    bookOrder: value.bookOrder,
     narrativeOrder: value.narrativeOrder,
     kind: value.kind,
     driftGroupId: value.driftGroupId,

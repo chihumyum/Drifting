@@ -461,6 +461,7 @@ async function authorDependentNodeCreate(
         summary: '',
         writingStatus: 'draft',
         kind: 'chapter',
+        bookOrder: 3.75,
         positionX: 0,
         positionY: 0,
       },

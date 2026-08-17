@@ -96,9 +96,9 @@ describe('fractional authored order authority', () => {
     const changes = new SyncChangeBuilder();
     const positionKey = fractionalPositionKeyBetween(null, null);
     appendAuthoredOrderMove(changes, {
-      listKind: 'chapter',
+      listKind: 'storyline',
       scope: 'project-1',
-      entityId: 'chapter-1',
+      entityId: 'storyline-1',
       positionKey,
     });
     const finalized = await changes.finalize();

@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ProductFileBackedSqliteGateway } from './p3-file-backed-sqlite';
 
 const DRIZZLE_DIRECTORY = new URL('../../../../../../drizzle/', import.meta.url);
+const IMMUTABLE_BASELINE_SHA256 =
+  '2ee852a7490b3dfb8fb9095a29d90d8c54c0b2bbfc0d00e0c7567be15f38c1e2';
 
 const APPLICATION_TABLES = [
   'agent_conversation',
@@ -202,6 +204,9 @@ describe('product file-backed migration acceptance', () => {
     const baselineBytes = readFileSync(
       new URL('0000_local_first_baseline.sql', DRIZZLE_DIRECTORY),
     );
+    expect(createHash('sha256').update(baselineBytes).digest('hex')).toBe(
+      IMMUTABLE_BASELINE_SHA256,
+    );
 
     const first = new ProductFileBackedSqliteGateway(target);
     expect((await first.open('drifting.db')).migrationsApplied).toBe(1);
@@ -256,6 +261,77 @@ describe('product file-backed migration acceptance', () => {
       APPLICATION_TABLES,
     );
     await reopened.close();
+  });
+
+  it('preserves continuous chapter coordinates in integer-affinity baseline columns', async () => {
+    const target = await createDatabasePath('drifting-product-continuous-order-');
+    const gateway = new ProductFileBackedSqliteGateway(target);
+    const database = gateway.database;
+    database
+      .prepare(
+        `INSERT INTO project
+          (id, name, user_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run('project-1', 'Project', 'local', '2026-08-18', '2026-08-18');
+
+    const insertChapter = database.prepare(
+      `INSERT INTO book_node
+        (id, title, book_order, narrative_order, project_id, kind,
+         created_at, updated_at, position_x, position_y)
+       VALUES (?, ?, ?, ?, ?, 'chapter', ?, ?, 0, 0)`,
+    );
+    insertChapter.run(
+      'chapter-a',
+      'Chapter A',
+      12.375,
+      -4.125,
+      'project-1',
+      '2026-08-18',
+      '2026-08-18',
+    );
+    insertChapter.run(
+      'chapter-b',
+      'Chapter B',
+      12.5,
+      -4.25,
+      'project-1',
+      '2026-08-18',
+      '2026-08-18',
+    );
+
+    expect(
+      database
+        .prepare(
+          `SELECT id, book_order, narrative_order,
+                  typeof(book_order) AS book_storage,
+                  typeof(narrative_order) AS narrative_storage
+           FROM book_node
+           ORDER BY book_order, id`,
+        )
+        .all(),
+    ).toEqual([
+      {
+        id: 'chapter-a',
+        book_order: 12.375,
+        narrative_order: -4.125,
+        book_storage: 'real',
+        narrative_storage: 'real',
+      },
+      {
+        id: 'chapter-b',
+        book_order: 12.5,
+        narrative_order: -4.25,
+        book_storage: 'real',
+        narrative_storage: 'real',
+      },
+    ]);
+    expect(
+      database
+        .prepare('SELECT id FROM book_node ORDER BY narrative_order, id')
+        .all(),
+    ).toEqual([{ id: 'chapter-b' }, { id: 'chapter-a' }]);
+    await gateway.close();
   });
 
   it('enforces immutable, single-owner assets while preserving project cascade', async () => {

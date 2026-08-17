@@ -40,7 +40,7 @@ export async function readAuthoredOrderEntriesInTransaction(
         eq(SyncOrderRegisterTable.ownerId, input.scope),
       ),
     );
-  const lifecycleKind = input.listKind === 'chapter' ? 'node' : input.listKind;
+  const lifecycleKind = input.listKind;
   const lifecycles = await tx
     .select({
       entityId: SyncEntityLifecycleTable.entityId,

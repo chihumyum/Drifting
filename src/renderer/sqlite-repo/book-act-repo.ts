@@ -1,8 +1,8 @@
 /**
  * Local SQLite repo for acts (幕) — boundary-based segments of the global
  * reading axis. Thin CRUD; all derivation (membership, segment spans,
- * spread repair) lives in domain/book-act.ts, and orchestration (opener
- * promotion on delete, auto-naming) in usecase/useBookAct.ts.
+ * spread repair) lives in domain/book-act.ts, and orchestration (coordinate
+ * creation and auto-naming) in usecase/useBookAct.ts.
  */
 import { and, asc, eq } from 'drizzle-orm';
 import { getDb, type DbExecutor } from '../lib/db';
@@ -15,7 +15,7 @@ export type BookActUpdateData = Partial<Omit<BookAct, 'id' | 'projectId' | 'crea
 
 export interface BookActRepository {
   findById(id: string): Promise<BookAct | null>;
-  /** All acts for the project; callers sort via domain sortActs (null first). */
+  /** All acts for the project; callers sort via domain sortActs. */
   findAll(): Promise<BookAct[]>;
   create(input: BookAct): Promise<BookAct>;
   update(id: string, data: BookActUpdateData): Promise<BookAct | null>;

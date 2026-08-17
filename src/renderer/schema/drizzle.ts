@@ -206,10 +206,11 @@ export const BookNodeTable = sqliteTable(
     id: text('id').primaryKey(),
     title: text('title').notNull(),
     summary: text('summary').notNull().default(''),
-    // Pure sortable integer for book/reading order. Nullable: drift nodes
-    // have no place on the reading order axis and store NULL here. Chapters
-    // always carry a value (even when their primary storyline link has been
-    // removed — the "未归属" state preserves the order).
+    // Continuous authored coordinate for book/reading order. SQLite INTEGER
+    // affinity accepts and preserves REAL values; keeping the original schema
+    // declaration avoids rewriting the immutable pre-release baseline.
+    // Nullable: drift nodes have no place on this axis. Chapters always carry
+    // a value, including the "未归属" state.
     bookOrder: integer('book_order'),
     // Author-defined position on the narrative timeline (separate axis from
     // book order — allows flashbacks / non-linear chronology). Nullable: a
@@ -1914,9 +1915,9 @@ export const AgentWorkingMemoryTable = sqliteTable(
 // Act (幕) — boundary-based segment of the GLOBAL reading axis (bookOrder).
 // Stores only where the act STARTS (`start_order`, REAL for fractional
 // midpoint boundaries); membership derives as bookOrder >= startOrder and
-// < the next act's startOrder. Exactly one act per project may carry
-// start_order = NULL — the opener, covering from the book head. Empty acts
-// (a planned 幕 with no chapters yet) are legal by construction. See
+// < the next act's startOrder. A nullable start_order is an optional book-head
+// anchor, not a required first act: when every boundary is finite, chapters
+// before the first boundary belong to no act. Empty acts are legal. See
 // domain/book-act.ts for derivation + the 打散 boundary-repair contract.
 export const BookActTable = sqliteTable(
   'book_act',
@@ -1927,7 +1928,7 @@ export const BookActTable = sqliteTable(
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     color: text('color'),
-    startOrder: real('start_order'), // null = book head (the opener act)
+    startOrder: real('start_order'), // null = optional book-head anchor
     // Optional bound drift node — the act's free-form notes / 大纲. SET NULL
     // is declarative only (PRAGMA foreign_keys off); unbind on drift delete /
     // drift→chapter conversion happens in useBookAct.unbindActsForDrift.

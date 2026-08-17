@@ -10,9 +10,9 @@
     "includedTableCount": 26,
     "excludedTableCount": 58,
     "classCounts": {
-      "authored": 166,
+      "authored": 168,
       "crdt": 10,
-      "derived": 85,
+      "derived": 83,
       "device-local": 354,
       "secret": 5,
       "transport": 303
@@ -2381,7 +2381,7 @@
       "table": "book_act",
       "scope": "project-direct",
       "disposition": "include",
-      "reason": "Act identity, opener boundary, display properties, and drift binding are authored state.",
+      "reason": "Act identity, optional book-head or finite boundary, display properties, and drift binding are authored state.",
       "fields": [
         {
           "field": "color",
@@ -2421,9 +2421,9 @@
         },
         {
           "field": "start_order",
-          "classification": "derived",
-          "disposition": "exclude",
-          "reason": "The first fractional act key projects to the single null opener; later keys project to deterministic ranks and never create wire keys."
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "Stable identity or authored domain state required to reconstruct the project."
         },
         {
           "field": "updated_at",
@@ -2441,9 +2441,9 @@
       "fields": [
         {
           "field": "book_order",
-          "classification": "derived",
-          "disposition": "exclude",
-          "reason": "Numeric order is a query/UI rank rebuilt from the protocol v1 Rocicorp fractional position key plus the entity-ID UTF-8 bytewise tie-break; it never creates a wire key."
+          "classification": "authored",
+          "disposition": "include",
+          "reason": "Stable identity or authored domain state required to reconstruct the project."
         },
         {
           "field": "created_at",

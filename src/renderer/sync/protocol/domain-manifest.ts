@@ -243,6 +243,7 @@ const tables: SyncDomainTablePolicy[] = [
         'id',
         'title',
         'summary',
+        'book_order',
         'narrative_order',
         'project_id',
         'writing_status',
@@ -260,11 +261,6 @@ const tables: SyncDomainTablePolicy[] = [
         'word_count_basis_hash',
         'word_count_basis_revision',
         'word_count_basis_server_seq',
-      ),
-      group(
-        'derived',
-        fractionalRankProjection,
-        'book_order',
       ),
       group('derived', derivedClock, 'created_at', 'updated_at'),
     ],
@@ -675,7 +671,7 @@ const tables: SyncDomainTablePolicy[] = [
     table: 'book_act',
     scope: 'project-direct',
     disposition: 'include',
-    reason: 'Act identity, opener boundary, display properties, and drift binding are authored state.',
+    reason: 'Act identity, optional book-head or finite boundary, display properties, and drift binding are authored state.',
     groups: [
       group(
         'authored',
@@ -684,12 +680,8 @@ const tables: SyncDomainTablePolicy[] = [
         'project_id',
         'name',
         'color',
-        'drift_node_id',
-      ),
-      group(
-        'derived',
-        'The first fractional act key projects to the single null opener; later keys project to deterministic ranks and never create wire keys.',
         'start_order',
+        'drift_node_id',
       ),
       group('derived', derivedClock, 'created_at', 'updated_at'),
     ],

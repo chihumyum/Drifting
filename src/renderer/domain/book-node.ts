@@ -50,10 +50,10 @@ export function isDriftStatus(value: WritingStatus): value is DriftStatus {
   return value === 'drifting' || value === 'resting';
 }
 
-// Reading-axis stride between two adjacent chapters in bookOrder units.
-// Tile width is 4 grid units (shared by BottomTimeline and StoryGraphView);
-// the +1 leaves a one-unit breathing gap between the current tail and a
-// freshly-created chapter so they don't end up flush against each other.
+// Default spacing policy for freshly-created chapters and the explicit
+// "spread" command. It is not a drag grid: authored bookOrder and
+// narrativeOrder coordinates remain continuous real values.
+// Tile width is 4 axis units; +1 leaves one unit of breathing room.
 export const CHAPTER_ORDER_STRIDE = 5;
 
 export interface StoryGraphViewNodePosition {
@@ -202,10 +202,21 @@ export function makeUniqueNodeTitle(
 // have no order) fall to the tail. Most call sites should `.filter(isChapter)`
 // first and use a plain subtraction — reach for this helper only when an
 // array genuinely contains both kinds and the drift sort position is unused.
+const bookNodeIdEncoder = new TextEncoder();
+
 export function compareBookOrder(a: BookNode, b: BookNode): number {
   const av = isChapter(a) ? a.bookOrder : Number.POSITIVE_INFINITY;
   const bv = isChapter(b) ? b.bookOrder : Number.POSITIVE_INFINITY;
-  return av - bv;
+  if (av < bv) return -1;
+  if (av > bv) return 1;
+  const left = bookNodeIdEncoder.encode(a.id);
+  const right = bookNodeIdEncoder.encode(b.id);
+  const length = Math.min(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    const byteDifference = left[index]! - right[index]!;
+    if (byteDifference !== 0) return byteDifference;
+  }
+  return left.length - right.length;
 }
 
 // Normalize a loose, record-like node shape (post-merge or wire payload) into

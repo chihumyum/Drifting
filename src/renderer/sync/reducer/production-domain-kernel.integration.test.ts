@@ -31,7 +31,11 @@ import {
   YjsDocumentRevisionProvenanceTable,
   yjsUpdates,
 } from '../../schema/drizzle';
-import type { SyncWriterIdentitySource } from '../journal';
+import {
+  recordAuthoredChangeSetInTransaction,
+  SyncChangeBuilder,
+  type SyncWriterIdentitySource,
+} from '../journal';
 import {
   captureReducerStateV1,
   materializeReducerStateV1,
@@ -46,6 +50,7 @@ import {
 import {
   applyVerifiedRemoteChangeSetInTransaction,
   invalidateSqliteReducerStateCache,
+  observeLocalAuthoredReducerInTransaction,
   SQLITE_REDUCER_V1_TARGET_KINDS,
 } from './sqlite-materializer';
 import { canonicalReducerSnapshot } from './reducer';
@@ -191,6 +196,7 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
       ...PRODUCTION_DOMAIN_KERNEL_COVERAGE.entityKinds,
       ...PRODUCTION_DOMAIN_KERNEL_COVERAGE.setKinds,
       ...PRODUCTION_DOMAIN_KERNEL_COVERAGE.orderKinds,
+      ...PRODUCTION_DOMAIN_KERNEL_COVERAGE.failClosedKinds,
       'prose-document',
       'project-asset',
       'sync-generation',
@@ -199,6 +205,93 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
     expect(PRODUCTION_DOMAIN_KERNEL_COVERAGE.externalActions).toEqual([
       'yjs.update', 'asset.bind', 'asset.unbind', 'sync-generation.purge',
     ]);
+  });
+
+  it('lets a narrative drop update an older chapter lifecycle without revalidating untouched book order', async () => {
+    const db = await createDatabase();
+    await db
+      .update(BookNodeTable)
+      .set({ bookOrder: 4.25, narrativeOrder: null })
+      .where(eq(BookNodeTable.id, NODE_ID));
+
+    const legacyChapter = await changeSet(1, [
+      {
+        action: 'entity.create',
+        kind: 'node',
+        id: NODE_ID,
+        payload: {
+          seed: {
+            title: 'Before',
+            summary: '',
+            kind: 'chapter',
+            narrativeOrder: null,
+            writingStatus: 'draft',
+            driftGroupId: null,
+          },
+        },
+      },
+      {
+        action: 'order.move',
+        kind: 'chapter',
+        id: NODE_ID,
+        payload: { positionKey: 'm0' },
+      },
+    ]);
+    await db.transaction((tx) => applyVerifiedRemoteChangeSetInTransaction(tx, {
+      changeSet: legacyChapter,
+      identity: identity(),
+      clock: { nowMs: 1_700_000_000_100, nowIso: NOW },
+      kernel: {
+        async validate() { return []; },
+        async materialize() {},
+      },
+    }));
+
+    const changes = new SyncChangeBuilder();
+    changes.add({
+      action: 'field.set',
+      target: { family: 'entity', kind: 'node', id: NODE_ID, incarnation: 0 },
+      payload: { field: 'narrativeOrder', value: 8.375 },
+    });
+    await db.transaction(async (tx) => {
+      await tx
+        .update(BookNodeTable)
+        .set({ narrativeOrder: 8.375 })
+        .where(eq(BookNodeTable.id, NODE_ID));
+      const recorded = await recordAuthoredChangeSetInTransaction(tx, {
+        projectId: PROJECT_ID,
+        projectSyncId: PROJECT_SYNC_ID,
+        syncGenerationId: SYNC_GENERATION_ID,
+        identity: identity(),
+        clock: { nowMs: 1_700_000_000_200, nowIso: NOW },
+      }, changes);
+      await observeLocalAuthoredReducerInTransaction(tx, {
+        changeSet: recorded.changeSet,
+        clock: { nowMs: 1_700_000_000_200, nowIso: NOW },
+        validator: productionSyncDomainMaterializationKernel,
+      });
+    });
+
+    expect(
+      await db
+        .select({ bookOrder: BookNodeTable.bookOrder, narrativeOrder: BookNodeTable.narrativeOrder })
+        .from(BookNodeTable)
+        .where(eq(BookNodeTable.id, NODE_ID)),
+    ).toEqual([{ bookOrder: 4.25, narrativeOrder: 8.375 }]);
+  });
+
+  it('rejects a newly authored chapter fractional-order register', async () => {
+    const db = await createDatabase();
+    const result = await apply(db, await changeSet(1, [{
+      action: 'order.move',
+      kind: 'chapter',
+      id: NODE_ID,
+      payload: { positionKey: 'm0' },
+    }]));
+
+    expect(result.conflicts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'domain.unsupported-order' }),
+    ]));
   });
 
   it('replays a locked built-in relation type before applying the next chapter creation bundle', async () => {
@@ -235,6 +328,7 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
             kind: 'chapter',
             title: 'New Chapter',
             summary: '',
+            bookOrder: 4.25,
             driftGroupId: null,
             writingStatus: 'draft',
             narrativeOrder: null,
@@ -252,12 +346,6 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
         kind: 'node-storyline-primary',
         id: chapterId,
         payload: { field: 'storylineId', value: null },
-      },
-      {
-        action: 'order.move',
-        kind: 'chapter',
-        id: chapterId,
-        payload: { scope: PROJECT_ID, positionKey: 'a0' },
       },
     ]);
 
@@ -284,15 +372,26 @@ describe('production SyncDomainMaterializationKernel on file-backed SQLite', () 
 
   it('materializes a classified field and records no authored echo', async () => {
     const db = await createDatabase();
-    const remote = await changeSet(1, [{
-      action: 'field.set',
-      kind: 'node',
-      id: NODE_ID,
-      payload: { field: 'title', value: 'Remote title' },
-    }]);
+    const remote = await changeSet(1, [
+      {
+        action: 'field.set',
+        kind: 'node',
+        id: NODE_ID,
+        payload: { field: 'title', value: 'Remote title' },
+      },
+      {
+        action: 'field.set',
+        kind: 'node',
+        id: NODE_ID,
+        payload: { field: 'bookOrder', value: 7.375 },
+      },
+    ]);
     await apply(db, remote);
     expect(await db.select({ title: BookNodeTable.title }).from(BookNodeTable)).toEqual([
       { title: 'Remote title' },
+    ]);
+    expect(await db.select({ bookOrder: BookNodeTable.bookOrder }).from(BookNodeTable)).toEqual([
+      { bookOrder: 7.375 },
     ]);
     expect(await db.select().from(SyncApplyReceiptTable)).toHaveLength(1);
     expect((await db.select().from(SyncChangeSetTable)).filter(({ origin }) => origin === 'local')).toEqual([]);

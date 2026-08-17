@@ -33,7 +33,6 @@ import {
   entityKvOrderScope,
   type EntityKvOwner,
 } from '../../domain/entity-kv-entry';
-import { CHAPTER_ORDER_STRIDE } from '../../domain/book-node';
 import { createPlotGridRepository } from '../../sqlite-repo/plot-grid-repo';
 import {
   materializeElementAliasesProjectionInTransaction,
@@ -383,7 +382,7 @@ async function restoredOrders(
       compareUtf8Bytewise(left.entityId, right.entityId) ||
       left.incarnation - right.incarnation,
   )) {
-    const lifecycleKind = row.listKind === 'chapter' ? 'node' : row.listKind;
+    const lifecycleKind = row.listKind;
     const currentIncarnation = lifecycleByEntity.get(
       JSON.stringify([lifecycleKind, row.entityId]),
     );
@@ -420,16 +419,14 @@ export async function assertNormalizedAuthoredAuthorityV1(
   tx: DbExecutor,
   input: { readonly projectId: string; readonly syncGenerationId: string },
 ): Promise<void> {
-  const [orders, kvEntries, storylines, nodes, groups, patches, libraryItems, acts, plotRows, plotColumns] =
+  const [orders, kvEntries, storylines, groups, patches, libraryItems, plotRows, plotColumns] =
     await Promise.all([
       restoredOrders(tx, input.syncGenerationId),
       tx.select().from(EntityKvEntryTable).where(eq(EntityKvEntryTable.projectId, input.projectId)),
       tx.select().from(StorylineTable).where(eq(StorylineTable.projectId, input.projectId)),
-      tx.select().from(BookNodeTable).where(eq(BookNodeTable.projectId, input.projectId)),
       tx.select().from(DriftGroupTable).where(eq(DriftGroupTable.projectId, input.projectId)),
       tx.select().from(ElementPatchTable).where(eq(ElementPatchTable.projectId, input.projectId)),
       tx.select().from(LibraryItemTable).where(eq(LibraryItemTable.projectId, input.projectId)),
-      tx.select().from(BookActTable).where(eq(BookActTable.projectId, input.projectId)),
       tx
         .select({
           id: PlotGridRowTable.id,
@@ -466,12 +463,6 @@ export async function assertNormalizedAuthoredAuthorityV1(
       requireRestoredOrder(orders, 'storyline', storyline.id, input.projectId).positionKey,
     );
   }
-  for (const node of nodes) {
-    if (node.kind !== 'chapter') continue;
-    assertFractionalPositionKey(
-      requireRestoredOrder(orders, 'chapter', node.id, input.projectId).positionKey,
-    );
-  }
   for (const group of groups) {
     const scope = driftGroupOrderScope(input.projectId, group.parentGroupId);
     assertFractionalPositionKey(
@@ -486,11 +477,6 @@ export async function assertNormalizedAuthoredAuthorityV1(
   for (const item of libraryItems) {
     assertFractionalPositionKey(
       requireRestoredOrder(orders, 'library-item', item.id, input.projectId).positionKey,
-    );
-  }
-  for (const act of acts) {
-    assertFractionalPositionKey(
-      requireRestoredOrder(orders, 'book-act', act.id, input.projectId).positionKey,
     );
   }
   for (const row of plotRows) {
@@ -551,7 +537,7 @@ export async function materializeNormalizedAuthoredProjectionsV1(
         .map((order, index) => [order.entityId, index] as const),
     );
 
-  const [projects, categories, storylines, groups, nodes, elements, patches, libraryItems, acts] =
+  const [projects, categories, storylines, groups, nodes, elements, patches, libraryItems] =
     await Promise.all([
       tx.select().from(ProjectTable).where(eq(ProjectTable.id, input.projectId)),
       tx.select().from(ElementCategoryTable).where(eq(ElementCategoryTable.projectId, input.projectId)),
@@ -561,7 +547,6 @@ export async function materializeNormalizedAuthoredProjectionsV1(
       tx.select().from(BookElementTable).where(eq(BookElementTable.projectId, input.projectId)),
       tx.select().from(ElementPatchTable).where(eq(ElementPatchTable.projectId, input.projectId)),
       tx.select().from(LibraryItemTable).where(eq(LibraryItemTable.projectId, input.projectId)),
-      tx.select().from(BookActTable).where(eq(BookActTable.projectId, input.projectId)),
     ]);
 
   const kvOwners: EntityKvOwner[] = [
@@ -631,29 +616,6 @@ export async function materializeNormalizedAuthoredProjectionsV1(
       })
       .where(eq(StorylineTable.id, storyline.id));
   }
-  const liveChapterIds = new Set(
-    nodes
-      .filter(({ kind, deletedAt }) => kind === 'chapter' && deletedAt === null)
-      .map(({ id }) => id),
-  );
-  const chapterRanks = orderRanks('chapter', input.projectId, liveChapterIds);
-  const allChapterRanks = orderRanks(
-    'chapter',
-    input.projectId,
-    new Set(nodes.filter(({ kind }) => kind === 'chapter').map(({ id }) => id)),
-  );
-  for (const node of nodes) {
-    if (node.kind !== 'chapter') continue;
-    requireOrder('chapter', node.id, input.projectId);
-    await tx
-      .update(BookNodeTable)
-      .set({
-        bookOrder:
-          (node.deletedAt === null ? chapterRanks : allChapterRanks).get(node.id)! *
-          CHAPTER_ORDER_STRIDE,
-      })
-      .where(eq(BookNodeTable.id, node.id));
-  }
   const groupIdsByScope = new Map<string, Set<string>>();
   for (const group of groups) {
     const scope = driftGroupOrderScope(input.projectId, group.parentGroupId);
@@ -706,20 +668,6 @@ export async function materializeNormalizedAuthoredProjectionsV1(
       .set({ orderKey: libraryRanks.get(item.id)! })
       .where(eq(LibraryItemTable.id, item.id));
   }
-  const actRanks = orderRanks(
-    'book-act',
-    input.projectId,
-    new Set(acts.map(({ id }) => id)),
-  );
-  for (const act of acts) {
-    requireOrder('book-act', act.id, input.projectId);
-    const rank = actRanks.get(act.id)!;
-    await tx
-      .update(BookActTable)
-      .set({ startOrder: rank === 0 ? null : rank * CHAPTER_ORDER_STRIDE })
-      .where(eq(BookActTable.id, act.id));
-  }
-
   const plotNodeIds = nodes.map((node) => node.id);
   const plotDocuments = plotNodeIds.length === 0
     ? []

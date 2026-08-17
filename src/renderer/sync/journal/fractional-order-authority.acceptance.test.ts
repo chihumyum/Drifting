@@ -39,12 +39,9 @@ describe('fractional discrete-order architecture', () => {
 
   it('keeps every authored family on adjacent authority or explicit rebalance paths', () => {
     const adjacentWriters = [
-      'src/renderer/usecase/book-node-write.ts',
-      'src/renderer/usecase/useBookNode.ts',
       'src/renderer/usecase/useStoryline.ts',
       'src/renderer/usecase/useLibraryItem.ts',
       'src/renderer/usecase/useDriftGroup.ts',
-      'src/renderer/usecase/useBookAct.ts',
       'src/renderer/usecase/synced-entity-commands.ts',
       'src/renderer/usecase/sync-lifecycle-restore.ts',
       'src/renderer/lib/agent/runtime/drifting-structural-write-strategy.ts',
@@ -59,9 +56,18 @@ describe('fractional discrete-order architecture', () => {
     expect(source('src/renderer/sqlite-repo/plot-grid-repo.ts')).toContain(
       'fractionalPositionKeyBetween',
     );
-    expect(source('src/renderer/usecase/useBookNode.ts')).toContain(
+    expect(source('src/renderer/usecase/useDriftGroup.ts')).toContain(
       'appendAuthoredOrderRebalance',
     );
+    for (const continuousCoordinateWriter of [
+      'src/renderer/usecase/book-node-write.ts',
+      'src/renderer/usecase/useBookNode.ts',
+      'src/renderer/usecase/useBookAct.ts',
+    ]) {
+      expect(source(continuousCoordinateWriter), continuousCoordinateWriter).not.toContain(
+        'appendPlannedAuthoredOrderInTransaction',
+      );
+    }
   });
 
   it('uses UTF-8 tie-breaks and deterministic rank materialization', () => {
@@ -76,11 +82,8 @@ describe('fractional discrete-order architecture', () => {
     for (const file of authorityFiles) {
       expect(source(file), file).not.toContain('localeCompare');
     }
-    expect(source('src/renderer/sync/reducer/production-domain-kernel.ts')).toContain(
-      'rank * CHAPTER_ORDER_STRIDE',
-    );
     const checkpointCatalog = source('src/renderer/sync/checkpoint/domain-catalog.ts');
-    expect(checkpointCatalog).toContain('const actRanks = orderRanks(');
-    expect(checkpointCatalog).toContain("'book-act'");
+    expect(checkpointCatalog).not.toContain('const actRanks = orderRanks(');
+    expect(checkpointCatalog).not.toContain("orderRanks(restoredOrders, 'chapter'");
   });
 });

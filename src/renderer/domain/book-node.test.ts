@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { BookNode } from './book-node';
 import {
   canonicalWordCount,
+  compareBookOrder,
   hasCanonicalWordCount,
   sumCanonicalChapterWordCounts,
 } from './book-node';
@@ -82,5 +83,21 @@ describe('canonical BookNode word metrics', () => {
       count: 12,
       ready: true,
     });
+  });
+});
+
+describe('continuous book order', () => {
+  it('sorts real coordinates and uses stable IDs when coordinates tie', () => {
+    const chapters = [
+      node('chapter-b', 'chapter', { bookOrder: 2.25 }),
+      node('chapter-c', 'chapter', { bookOrder: 1.125 }),
+      node('chapter-a', 'chapter', { bookOrder: 2.25 }),
+    ];
+
+    expect(chapters.sort(compareBookOrder).map(({ id }) => id)).toEqual([
+      'chapter-c',
+      'chapter-a',
+      'chapter-b',
+    ]);
   });
 });

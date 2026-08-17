@@ -71,6 +71,7 @@ const AUTHORED_FIELDS: Readonly<Record<AuthoredDomainEntityKind, ReadonlySet<str
   node: new Set([
     'title',
     'summary',
+    'bookOrder',
     'narrativeOrder',
     'writingStatus',
     'kind',
@@ -177,7 +178,7 @@ const AUTHORED_FIELDS: Readonly<Record<AuthoredDomainEntityKind, ReadonlySet<str
     'supersedesId',
     'deletedAt',
   ]),
-  bookAct: new Set(['name', 'color', 'driftNodeId']),
+  bookAct: new Set(['name', 'color', 'startOrder', 'driftNodeId']),
   driftGroup: new Set(['name', 'parentGroupId', 'color']),
   timelineMarker: new Set(['narrativeOrder', 'label', 'driftNodeId']),
 };
@@ -202,10 +203,8 @@ const NON_WIRE_PROJECTION_FIELDS = new Set([
   'wordCountBasisServerSeq',
   'positionX',
   'positionY',
-  'bookOrder',
   'orderKey',
   'sortOrder',
-  'startOrder',
   'mainStorylineId',
   'storylineIds',
   'portraitAssetId',

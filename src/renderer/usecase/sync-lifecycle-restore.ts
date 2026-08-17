@@ -114,6 +114,7 @@ async function appendNodeRestore(
     payload: {
       title: node.title,
       summary: node.summary,
+      bookOrder: node.bookOrder,
       narrativeOrder: node.narrativeOrder,
       writingStatus: node.writingStatus,
       kind: node.kind,
@@ -132,21 +133,6 @@ async function appendNodeRestore(
     if (node.bookOrder === null) {
       throw new Error(`Restored chapter ${node.id} is missing book order authority`);
     }
-    await appendPlannedAuthoredOrderInTransaction(tx, changes, {
-      projectId,
-      listKind: 'chapter',
-      scope: projectId,
-      desiredEntityIds: entityIdsByNumericPlacement(
-        (
-          await tx
-            .select({ id: BookNodeTable.id, bookOrder: BookNodeTable.bookOrder })
-            .from(BookNodeTable)
-            .where(and(eq(BookNodeTable.projectId, projectId), eq(BookNodeTable.kind, 'chapter'), isNull(BookNodeTable.deletedAt)))
-        )
-          .filter((entry): entry is { id: string; bookOrder: number } => entry.bookOrder !== null)
-          .map((entry) => ({ entityId: entry.id, projection: entry.bookOrder })),
-      ),
-    });
     await appendAuthoredNodeStorylineProjectionInTransaction(tx, changes, {
       projectId,
       nodeId: node.id,

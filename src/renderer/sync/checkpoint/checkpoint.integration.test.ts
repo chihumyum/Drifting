@@ -395,18 +395,6 @@ async function seedSource(db: DbClient): Promise<void> {
       positionKey: firstKey!,
     });
     appendAuthoredOrderMove(changes, {
-      listKind: 'chapter',
-      scope: PROJECT_ID,
-      entityId: 'chapter-a',
-      positionKey: secondKey!,
-    });
-    appendAuthoredOrderMove(changes, {
-      listKind: 'chapter',
-      scope: PROJECT_ID,
-      entityId: 'chapter-b',
-      positionKey: firstKey!,
-    });
-    appendAuthoredOrderMove(changes, {
       listKind: 'drift-group',
       scope: driftGroupOrderScope(PROJECT_ID, null),
       entityId: 'group-root',
@@ -429,18 +417,6 @@ async function seedSource(db: DbClient): Promise<void> {
       scope: PROJECT_ID,
       entityId: 'library-b',
       positionKey: firstKey!,
-    });
-    appendAuthoredOrderMove(changes, {
-      listKind: 'book-act',
-      scope: PROJECT_ID,
-      entityId: 'act-opener',
-      positionKey: firstKey!,
-    });
-    appendAuthoredOrderMove(changes, {
-      listKind: 'book-act',
-      scope: PROJECT_ID,
-      entityId: 'act-second',
-      positionKey: secondKey!,
     });
     const clock = { nowMs: SOURCE_HLC_WALL_MS, nowIso: NOW };
     const recorded = await recordAuthoredChangeSetInTransaction(
@@ -803,10 +779,6 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
         .set({ plotGridJson: '{}' })
         .where(eq(NodeContentTable.nodeId, 'node-snapshot'));
       await tx
-        .update(BookNodeTable)
-        .set({ bookOrder: 999 })
-        .where(eq(BookNodeTable.projectId, PROJECT_ID));
-      await tx
         .update(DriftGroupTable)
         .set({ sortOrder: 999 })
         .where(eq(DriftGroupTable.projectId, PROJECT_ID));
@@ -818,10 +790,6 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
         .update(LibraryItemTable)
         .set({ orderKey: 999 })
         .where(eq(LibraryItemTable.projectId, PROJECT_ID));
-      await tx
-        .update(BookActTable)
-        .set({ startOrder: 999 })
-        .where(eq(BookActTable.projectId, PROJECT_ID));
     });
     const captured = await capture(source);
     const target = await database('normalized-projection-target');
@@ -860,8 +828,8 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
     expect(await target.select().from(PlotGridColumnTable)).toHaveLength(2);
     expect(await target.select().from(PlotGridCellTable)).toHaveLength(2);
     expect(await target.select().from(BookNodeTable)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 'chapter-a', bookOrder: 5 }),
-      expect.objectContaining({ id: 'chapter-b', bookOrder: 0 }),
+      expect.objectContaining({ id: 'chapter-a', bookOrder: 20 }),
+      expect.objectContaining({ id: 'chapter-b', bookOrder: -5 }),
     ]));
     expect((await target.select().from(DriftGroupTable))[0]?.sortOrder).toBe(0);
     expect((await target.select().from(ElementPatchTable))[0]?.orderKey).toBe(0);
@@ -871,20 +839,20 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
     ]));
     expect(await target.select().from(BookActTable)).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'act-opener', startOrder: null }),
-      expect.objectContaining({ id: 'act-second', startOrder: 5 }),
+      expect.objectContaining({ id: 'act-second', startOrder: 12 }),
     ]));
     expect(await target.select().from(SyncSetTagTable)).toMatchObject([
       { ownerKind: 'alias', ownerId: 'element-update', setKey: 'aliases', valueKey: 'willow' },
     ]);
     const orderRegisters = await target.select().from(SyncOrderRegisterTable);
-    expect(orderRegisters).toHaveLength(18);
+    expect(orderRegisters).toHaveLength(14);
     expect(orderRegisters).toContainEqual(expect.objectContaining({
       listKind: 'kv-entry',
       ownerId: PROJECT_KV_SCOPE,
     }));
   });
 
-  it('fails capture before publishing a checkpoint with missing normalized order authority', async () => {
+  it('fails capture before publishing a checkpoint with missing fractional list authority', async () => {
     const source = await database('missing-normalized-authority');
     await seedSource(source);
     await source
@@ -892,12 +860,12 @@ describe('provider-neutral checkpoint capture and isolated restore', () => {
       .where(
         and(
           eq(SyncOrderRegisterTable.syncGenerationId, SYNC_GENERATION_ID),
-          eq(SyncOrderRegisterTable.listKind, 'chapter'),
-          eq(SyncOrderRegisterTable.entityId, 'chapter-a'),
+          eq(SyncOrderRegisterTable.listKind, 'storyline'),
+          eq(SyncOrderRegisterTable.entityId, 'storyline-combined'),
         ),
       );
     await expect(capture(source)).rejects.toThrow(
-      /Normalized order authority is missing for chapter:chapter-a/u,
+      /Normalized order authority is missing for storyline:storyline-combined/u,
     );
   });
 

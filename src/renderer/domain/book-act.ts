@@ -8,12 +8,12 @@
 // act can exist EMPTY (planned but unwritten), which a chapter-anchored
 // model can't express.
 //
-// `startOrder` is REAL, not integer: chapter bookOrders can end up on
-// adjacent integers after drags, so boundaries need fractional room
-// (midpoint snapping writes x.5 values).
+// `startOrder` is REAL, not integer: chapter bookOrders are continuous
+// authored coordinates, so boundaries must preserve fractional positions.
 //
-// Exactly one act per project may have startOrder = null — the opener,
-// covering everything from the book head up to the next boundary.
+// `startOrder = null` is an optional book-head anchor, not a required opener.
+// A head-anchored act may be dragged to a finite coordinate. When every act
+// has a finite boundary, chapters before the first boundary belong to no act.
 //
 // The ONE operation that invalidates raw order boundaries is 打散 (spread),
 // which rewrites every chapter's bookOrder. It is also deterministically
@@ -25,7 +25,7 @@ export interface BookAct {
   projectId: string;
   name: string;
   color: string | null;
-  /** Boundary on the bookOrder axis; null = book head (first act only). */
+  /** Boundary on the bookOrder axis; null = optional book-head anchor. */
   startOrder: number | null;
   /**
    * Optional bound drift node serving as this act's free-form notes / 大纲
@@ -60,7 +60,7 @@ export function actBoundDriftIds(acts: BookAct[]): Set<string> {
   return ids;
 }
 
-/** Sorted for rendering/derivation: the null-start opener first, then ascending. */
+/** Sorted for rendering/derivation: an optional head anchor first, then ascending. */
 export function sortActs(acts: BookAct[]): BookAct[] {
   return acts.slice().sort((a, b) => {
     const av = a.startOrder ?? Number.NEGATIVE_INFINITY;
@@ -79,7 +79,7 @@ export interface ActChapterRef {
 
 export interface ActSegment<T extends ActChapterRef = ActChapterRef> {
   act: BookAct;
-  /** Effective numeric start (the opener's null resolves to -Infinity). */
+  /** Effective numeric start (an optional head anchor resolves to -Infinity). */
   startOrder: number;
   /** Exclusive end = next act's startOrder; null/+Infinity for the last act. */
   endOrder: number | null;
@@ -89,10 +89,9 @@ export interface ActSegment<T extends ActChapterRef = ActChapterRef> {
 
 /**
  * Partition chapters into act segments. Membership: bookOrder >= startOrder
- * and < next act's startOrder. Chapters before the first boundary belong to
- * the opener (whose startOrder is null); nodes without a bookOrder (drift)
- * are skipped. Returns [] when no acts exist — callers treat that as "acts
- * feature unused".
+ * and < next act's startOrder. Chapters before the first finite boundary are
+ * unassigned unless a head-anchored (`startOrder = null`) act exists. Nodes
+ * without a bookOrder (drift) are skipped. Returns [] when no acts exist.
  */
 export function deriveActSegments<T extends ActChapterRef>(
   acts: BookAct[],
@@ -111,10 +110,10 @@ export function deriveActSegments<T extends ActChapterRef>(
     chapters: [],
   }));
 
-  // Chapters sitting BEFORE the first segment's start (possible when the
-  // opener was deleted and a positive boundary leads) fall into segment 0
-  // anyway — better a slightly-greedy first act than invisible chapters.
-  let si = 0;
+  // Start outside every segment. Advancing into segment 0 only when its
+  // effective boundary is reached preserves the explicit no-act interval
+  // before a finite first boundary.
+  let si = -1;
   for (const chapter of sortedChapters) {
     while (
       si + 1 < segments.length &&
@@ -122,7 +121,7 @@ export function deriveActSegments<T extends ActChapterRef>(
     ) {
       si += 1;
     }
-    segments[si].chapters.push(chapter);
+    if (si >= 0) segments[si]!.chapters.push(chapter);
   }
   return segments;
 }
@@ -131,7 +130,7 @@ export function deriveActSegments<T extends ActChapterRef>(
 export function actForOrder(acts: BookAct[], order: number): BookAct | null {
   if (acts.length === 0) return null;
   const sorted = sortActs(acts);
-  let match = sorted[0];
+  let match: BookAct | null = null;
   for (const act of sorted) {
     if ((act.startOrder ?? Number.NEGATIVE_INFINITY) <= order) match = act;
     else break;

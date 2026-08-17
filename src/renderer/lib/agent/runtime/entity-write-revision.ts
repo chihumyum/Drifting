@@ -12,11 +12,6 @@ function authoredSemanticHashValue(value: unknown): unknown {
   if (!snapshot.value || typeof snapshot.value !== 'object' || Array.isArray(snapshot.value)) {
     return value;
   }
-  if (snapshot.kind === 'node') {
-    const authored = { ...(snapshot.value as Record<string, unknown>) };
-    delete authored.bookOrder;
-    return { ...snapshot, value: authored };
-  }
   if (snapshot.kind === 'storyline') {
     const authored = { ...(snapshot.value as Record<string, unknown>) };
     delete authored.orderKey;

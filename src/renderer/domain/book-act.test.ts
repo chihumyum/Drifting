@@ -26,7 +26,7 @@ function ch(id: string, bookOrder: number | null) {
 }
 
 describe('sortActs', () => {
-  it('puts the null-start opener first, then ascending startOrder', () => {
+  it('puts an optional book-head anchor first, then ascending startOrder', () => {
     const sorted = sortActs([act('b', 40), act('a', null), act('c', 10)]);
     expect(sorted.map((a) => a.id)).toEqual(['a', 'c', 'b']);
   });
@@ -59,9 +59,14 @@ describe('deriveActSegments', () => {
     expect(segs.flatMap((s) => s.chapters.map((c) => c.id))).not.toContain('d1');
   });
 
-  it('puts chapters before a leading positive boundary into segment 0 when no opener exists', () => {
+  it('leaves chapters before a leading finite boundary outside every act', () => {
     const segs = deriveActSegments([act('a2', 20), act('a3', 47.5)], chapters);
-    expect(segs[0].chapters.map((c) => c.id)).toEqual(['c1', 'c2', 'c3', 'c4']);
+    expect(segs.map((seg) => seg.chapters.map((c) => c.id))).toEqual([
+      ['c3', 'c4'],
+      ['c5'],
+    ]);
+    expect(segs.flatMap((seg) => seg.chapters).map((c) => c.id)).not.toContain('c1');
+    expect(segs.flatMap((seg) => seg.chapters).map((c) => c.id)).not.toContain('c2');
   });
 });
 
@@ -72,6 +77,12 @@ describe('actForOrder', () => {
     expect(actForOrder(acts, 20)?.id).toBe('a2');
     expect(actForOrder(acts, 999)?.id).toBe('a2');
     expect(actForOrder([], 5)).toBeNull();
+  });
+
+  it('returns null before a finite first boundary', () => {
+    const finiteActs = [act('a1', 20), act('a2', 40)];
+    expect(actForOrder(finiteActs, 19.999)).toBeNull();
+    expect(actForOrder(finiteActs, 20)?.id).toBe('a1');
   });
 });
 
@@ -106,7 +117,7 @@ describe('remapActBoundariesForSpread', () => {
     ]);
   });
 
-  it('keeps the opener (null) untouched and skips unchanged boundaries', () => {
+  it('keeps an optional book-head anchor untouched and skips unchanged boundaries', () => {
     const patches = remapActBoundariesForSpread(
       [act('a1', null)],
       oldOrders,

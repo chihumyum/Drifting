@@ -5,11 +5,9 @@
  * with a `startOrder` boundary; everything else (membership, spans, empty
  * acts) derives. The orchestration this hook owns:
  *
- * - First split creates TWO acts (the null-start opener + the new boundary)
- *   so the rail is never a single unnamed band.
- * - Deleting the opener promotes the next act to null-start (merge into
- *   next); deleting any other act merges it into the PREVIOUS one (its
- *   boundary just disappears).
+ * - The first split creates one named act at the authored cursor coordinate.
+ * - Deleting any act removes only that boundary. Chapters in a newly
+ *   uncovered interval intentionally belong to no act.
  * - 打散 (spread) repair: remapAfterSpread applies the deterministic
  *   boundary remap from domain/remapActBoundariesForSpread — call it from
  *   every spread site with the old→new order maps.
@@ -28,12 +26,6 @@ import {
 import { CHAPTER_ORDER_STRIDE } from '../domain/book-node';
 import { withAtomicSyncTransaction } from './sync-helpers';
 import loglevel from 'loglevel';
-import { appendPlannedAuthoredOrderInTransaction } from '../sync/journal';
-import {
-  appendAuthoredOrderRebalance,
-  authoredOrderRebalanceEntries,
-} from '../sync/journal/order-authority';
-import { compareUtf8Bytewise } from '../sync/protocol';
 
 const log = loglevel.getLogger('useBookAct');
 log.setLevel(loglevel.levels.WARN);
@@ -84,11 +76,11 @@ export async function unbindActsForDrift(
 }
 
 export function useBookAct({ projectId }: UseBookActContext) {
-  // Insert a boundary at `startOrder`. When the project has no acts yet this
-  // creates the opener too, so a single gesture yields a complete partition.
+  // Insert one boundary at the authored coordinate. There is no implicit
+  // book-head act: chapters left of the first boundary remain unacted.
   const splitAtOrder = useCallback(
     async (startOrder: number): Promise<BookAct | null> => {
-      if (!projectId) return null;
+      if (!projectId || !Number.isFinite(startOrder)) return null;
       const store = useDataStore.getState();
       const existing = store.bookActs;
       if (existing.some((act) => act.startOrder === startOrder)) {
@@ -97,27 +89,11 @@ export function useBookAct({ projectId }: UseBookActContext) {
       }
       const now = new Date().toISOString();
 
-      const createdActs: BookAct[] = [];
-      if (existing.length === 0) {
-        const opener: BookAct = {
-          id: uuidv7(),
-          projectId,
-          name: defaultActName(1),
-          color: null,
-          startOrder: null,
-          driftNodeId: null,
-          createdAt: now,
-          updatedAt: now,
-        };
-        createdActs.push(opener);
-      }
-
       // Name by final position on the axis, not by creation order: splitting
       // the middle of a 3-act book yields 第三幕 inserted as the new #3, and
       // the user renames if they care. Count = acts whose start precedes ours.
-      const after = [...existing, ...createdActs];
       const position =
-        sortActs(after).filter(
+        sortActs(existing).filter(
           (act) => (act.startOrder ?? Number.NEGATIVE_INFINITY) < startOrder,
         ).length + 1;
       const act: BookAct = {
@@ -130,35 +106,20 @@ export function useBookAct({ projectId }: UseBookActContext) {
         createdAt: now,
         updatedAt: now,
       };
-      createdActs.push(act);
-      await withAtomicSyncTransaction(projectId, async (tx, sync, changes) => {
+      await withAtomicSyncTransaction(projectId, async (tx, sync) => {
         const repoTx = createBookActRepository(projectId, tx);
-        for (const created of createdActs) {
-          await repoTx.create(created);
-          await sync('bookAct', 'create', created.id, projectId, {
-            id: created.id,
-            name: created.name,
-            color: created.color,
-            driftNodeId: created.driftNodeId,
-            createdAt: created.createdAt,
-            updatedAt: created.updatedAt,
-          });
-        }
-        const desiredIds = [...existing, ...createdActs]
-          .sort((left, right) =>
-            (left.startOrder ?? Number.NEGATIVE_INFINITY) -
-              (right.startOrder ?? Number.NEGATIVE_INFINITY) ||
-            compareUtf8Bytewise(left.id, right.id),
-          )
-          .map(({ id }) => id);
-        await appendPlannedAuthoredOrderInTransaction(tx, changes, {
-          projectId,
-          listKind: 'book-act',
-          scope: projectId,
-          desiredEntityIds: desiredIds,
+        await repoTx.create(act);
+        await sync('bookAct', 'create', act.id, projectId, {
+          id: act.id,
+          name: act.name,
+          color: act.color,
+          startOrder: act.startOrder,
+          driftNodeId: act.driftNodeId,
+          createdAt: act.createdAt,
+          updatedAt: act.updatedAt,
         });
       });
-      for (const created of createdActs) useDataStore.getState().addBookAct(created);
+      useDataStore.getState().addBookAct(act);
       return act;
     },
     [projectId],
@@ -168,34 +129,16 @@ export function useBookAct({ projectId }: UseBookActContext) {
     async (id: string, input: UpdateBookActInput): Promise<BookAct | null> => {
       const normalizedInput = input;
       const updatedAt = new Date().toISOString();
-      const updated = await withAtomicSyncTransaction(projectId, async (tx, sync, changes) => {
+      const updated = await withAtomicSyncTransaction(projectId, async (tx, sync) => {
         const result = await createBookActRepository(projectId, tx).update(id, {
           ...normalizedInput,
           updatedAt,
         });
         if (result) {
-          const syncPayload: Record<string, unknown> = { ...normalizedInput, updatedAt };
-          delete syncPayload.startOrder;
-          if (Object.keys(syncPayload).length > 1) {
-            await sync('bookAct', 'update', id, projectId, syncPayload);
-          }
-          if (input.startOrder !== undefined) {
-            const desiredIds = useDataStore
-              .getState()
-              .bookActs.map((entry) =>
-                entry.id === id ? { ...entry, startOrder: input.startOrder! } : entry,
-              )
-              .sort((left, right) =>
-                (left.startOrder ?? Number.NEGATIVE_INFINITY) -
-                  (right.startOrder ?? Number.NEGATIVE_INFINITY) ||
-                compareUtf8Bytewise(left.id, right.id),
-              )
-              .map((entry) => entry.id);
-            await appendPlannedAuthoredOrderInTransaction(tx, changes, {
-              projectId,
-              listKind: 'book-act',
-              scope: projectId,
-              desiredEntityIds: desiredIds,
+          if (Object.keys(normalizedInput).length > 0) {
+            await sync('bookAct', 'update', id, projectId, {
+              ...normalizedInput,
+              updatedAt,
             });
           }
         }
@@ -233,25 +176,11 @@ export function useBookAct({ projectId }: UseBookActContext) {
       const target = acts.find((act) => act.id === id);
       if (!target) return;
 
-      const remaining = acts.filter((act) => act.id !== id);
-      // Deleting the opener: promote the next act to null-start so the
-      // partition still covers the book head. With one act left after the
-      // delete, demote it to "no acts" entirely? No — keep it as the lone
-      // opener; the rail hides itself only when zero acts exist, and a
-      // single named act is still meaningful structure.
-      const heir = target.startOrder === null && remaining.length > 0 ? remaining[0] : null;
-      const updatedAt = new Date().toISOString();
       await withAtomicSyncTransaction(projectId, async (tx, sync) => {
         const repoTx = createBookActRepository(projectId, tx);
-        if (heir) {
-          await repoTx.update(heir.id, { startOrder: null, updatedAt });
-        }
         await repoTx.delete(id);
         await sync('bookAct', 'delete', id, projectId);
       });
-      if (heir) {
-        useDataStore.getState().updateBookAct(heir.id, { startOrder: null, updatedAt });
-      }
       useDataStore.getState().removeBookAct(id);
     },
     [projectId],
@@ -276,31 +205,18 @@ export function useBookAct({ projectId }: UseBookActContext) {
       );
       if (patches.length === 0) return;
       const updatedAt = new Date().toISOString();
-      await withAtomicSyncTransaction(projectId, async (tx, _sync, changes) => {
+      await withAtomicSyncTransaction(projectId, async (tx, sync) => {
         const repoTx = createBookActRepository(projectId, tx);
         for (const patch of patches) {
           await repoTx.update(patch.id, {
             startOrder: patch.startOrder,
             updatedAt,
           });
+          await sync('bookAct', 'update', patch.id, projectId, {
+            startOrder: patch.startOrder,
+            updatedAt,
+          });
         }
-        const patchById = new Map(patches.map((patch) => [patch.id, patch.startOrder] as const));
-        const desiredIds = acts
-          .map((entry) => ({
-            ...entry,
-            startOrder: patchById.get(entry.id) ?? entry.startOrder,
-          }))
-          .sort((left, right) =>
-            (left.startOrder ?? Number.NEGATIVE_INFINITY) -
-              (right.startOrder ?? Number.NEGATIVE_INFINITY) ||
-            compareUtf8Bytewise(left.id, right.id),
-          )
-          .map((entry) => entry.id);
-        appendAuthoredOrderRebalance(changes, {
-          listKind: 'book-act',
-          scope: projectId,
-          entries: authoredOrderRebalanceEntries(desiredIds),
-        });
       });
       for (const patch of patches) {
         useDataStore.getState().updateBookAct(patch.id, {

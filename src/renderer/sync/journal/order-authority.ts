@@ -7,12 +7,10 @@ import { compareUtf8Bytewise } from '../protocol';
 import type { SyncChangeBuilder } from './change-builder';
 
 export const AUTHORED_ORDER_LIST_KINDS = [
-  'chapter',
   'storyline',
   'drift-group',
   'element-patch',
   'library-item',
-  'book-act',
 ] as const;
 
 export type AuthoredOrderListKind = (typeof AUTHORED_ORDER_LIST_KINDS)[number];

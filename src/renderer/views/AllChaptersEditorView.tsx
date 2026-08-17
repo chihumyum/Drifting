@@ -231,7 +231,15 @@ export function AllChaptersEditorView() {
       return orderedNodes.map((node, idx) => ({ kind: 'chapter' as const, node, idx }));
     }
     const rows: ReadRow[] = [];
-    let idx = 0;
+    const assignedIds = new Set(segments.flatMap((segment) => segment.chapters.map((node) => node.id)));
+    const chapterIndexById = new Map(orderedNodes.map((node, idx) => [node.id, idx]));
+    // A finite first act boundary intentionally leaves a book-head interval
+    // without an act. Those chapters remain in the whole-book reader.
+    for (const node of orderedNodes) {
+      if (!assignedIds.has(node.id)) {
+        rows.push({ kind: 'chapter', node, idx: chapterIndexById.get(node.id) ?? 0 });
+      }
+    }
     segments.forEach((seg, segIdx) => {
       rows.push({
         kind: 'act',
@@ -243,8 +251,7 @@ export function AllChaptersEditorView() {
           : null,
       });
       for (const node of seg.chapters) {
-        rows.push({ kind: 'chapter', node, idx });
-        idx += 1;
+        rows.push({ kind: 'chapter', node, idx: chapterIndexById.get(node.id) ?? 0 });
       }
     });
     return rows;
@@ -695,6 +702,10 @@ export function AllChaptersEditorView() {
       return orderedNodes.map(buildChapter);
     }
     const rows: OutlineEntry[] = [];
+    const assignedIds = new Set(segments.flatMap((segment) => segment.chapters.map((node) => node.id)));
+    for (const node of orderedNodes) {
+      if (!assignedIds.has(node.id)) rows.push(buildChapter(node));
+    }
     for (const seg of segments) {
       rows.push({ id: actTocId(seg.act.id), level: 1, kind: 'act', text: seg.act.name });
       for (const n of seg.chapters) rows.push(buildChapter(n));

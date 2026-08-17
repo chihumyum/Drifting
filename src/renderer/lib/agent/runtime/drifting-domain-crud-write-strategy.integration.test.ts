@@ -567,7 +567,7 @@ describe('workspace domain CRUD transactions', () => {
     ).toBe('[{"key":"Tense","value":"Past"}]');
   });
 
-  it('places a newly created numbered chapter into an available reading-order gap', async () => {
+  it('places a newly created numbered chapter at the midpoint of an available reading-order gap', async () => {
     fixture.gateway.database.exec(`
       UPDATE book_node
       SET book_order = CASE title
@@ -601,7 +601,7 @@ describe('workspace domain CRUD transactions', () => {
 
     expect(
       fixture.scalar("SELECT book_order FROM book_node WHERE title = '02' AND deleted_at IS NULL"),
-    ).toBe(5);
+    ).toBe(8);
     expect(
       fixture.text("SELECT summary FROM book_node WHERE title = '02' AND deleted_at IS NULL"),
     ).toBe('奥伦与凯尔在茶镇遭遇异变。');

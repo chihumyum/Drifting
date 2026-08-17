@@ -28,14 +28,64 @@ observed live add tags, and `aliases_json` is a deterministic projection of the
 live member set. Generic project/storyline/category/element mutations no
 longer carry the complete KV or alias JSON values.
 
-Chapter, storyline, drift-group, element-patch, library-item, act, KV-entry and
-Plot Grid axis ordering use `sync_order_register`. The register stores an ASCII
-Rocicorp fractional-indexing `positionKey`; numeric columns are deterministic
-query/UI ranks rebuilt by sorting `(positionKey UTF-8 bytes, entityId UTF-8
-bytes)`. Numeric projections are never encoded back into the wire key. Moving a
-group between parent scopes replaces its single order register rather than
-leaving a second stale scope entry. Manual and Agent create/update/restore paths
-derive new keys from the adjacent current authority registers.
+Storyline, drift-group, element-patch, library-item, KV-entry and Plot Grid axis
+ordering use `sync_order_register`. The register stores an ASCII Rocicorp
+fractional-indexing `positionKey`; numeric columns for those discrete lists are
+deterministic query/UI ranks rebuilt by sorting `(positionKey UTF-8 bytes,
+entityId UTF-8 bytes)`. Numeric projections are never encoded back into the
+wire key. Moving a group between parent scopes replaces its single order
+register rather than leaving a second stale scope entry. Manual and Agent
+create/update/restore paths derive new keys from adjacent current authority
+registers.
+
+Bottom Timeline positions are continuous authored coordinates, not discrete
+list ranks. `book_node.book_order`, `book_node.narrative_order`, and
+`book_act.start_order` are finite real LWW fields. Their exact numeric value is
+preserved through mutation, checkpoint, and restore. Chapter sequence,
+narrative-time sequence, and act segmentation sort by `(coordinate, entity ID
+UTF-8 bytes)`, so the coordinate is both visual placement and semantic order
+without a second fractional authority that can snap it to a rank.
+`book_order` and `narrative_order` retain the immutable baseline's SQLite
+`INTEGER` affinity: SQLite stores non-integral values in those columns as REAL,
+and Drizzle's ordinary numeric integer mapping does not round them. This keeps
+existing migration hashes stable without sacrificing continuous placement.
+
+The Bottom Timeline owns a usable default coordinate interval even when it has
+no placed chapters. Creating a narrative marker or an act boundary therefore
+does not depend on chapter existence. Chapter tiles, narrative markers and act
+boundaries all use the host axis's affine pixel-to-coordinate inverse; grid
+lines are presentation only and never become an insertion-slot or rounding
+policy.
+
+Empty marker and act tracks retain the same right-click creation menus as
+populated tracks. The act-rail head `+` creates exactly one first act at the
+book-axis head; a bare-track context-menu action creates it at the clicked
+coordinate. A book-head anchored act (`startOrder = null`) is optional and
+movable, not a permanent opener. Moving it writes a finite coordinate, after
+which chapters to its left intentionally belong to no act. New first acts are
+created with a finite coordinate, and deleting an act never promotes another
+boundary to the book head.
+
+A chapter drop is one `chapter-timeline-move` authored transaction. It always
+writes the selected `bookOrder` or `narrativeOrder` LWW register and, when the
+target lane changes, updates the storyline membership OR-set and primary
+storyline LWW register in that same SQLite transaction. Default-lane drops keep
+membership, unaffiliated-lane drops clear it, and real Storyline drops replace
+the old primary while preserving secondary memberships. This means independent
+coordinate and membership edits merge by their named authorities, while a
+single field edited concurrently resolves by the existing deterministic
+HLC/writer LWW rule.
+
+The shared chapter pointer controller preserves the exact source-relative grab
+offset for both full-size track cards and narrow unplaced chips. The compositor
+ghost is the only placement preview; there is no separate chapter-center drop
+indicator whose geometry could disagree with the grabbed point or card shape.
+
+Pre-release chapter fractional-order effects are retired history. They are not
+captured into new checkpoints and are not revalidated as part of a later scalar
+timeline write. A newly authored chapter `order.move` still fails closed with
+`domain.unsupported-order`, preventing the retired representation from
+re-entering current state.
 
 ## Normalized authority inventory
 
@@ -48,12 +98,13 @@ derive new keys from the adjacent current authority registers.
 | `element.kv_json` | Stable ordered KV-entry rows under `(element, facts)` | **Closed in the KV/alias writer slice:** manual, Agent and history-restore writes converge through the normalized writer. |
 | `element.aliases_json` | Normalized-value OR-set in `sync_set_tag` (`setKey=aliases`), with UI projection rebuilt from live tags | **Closed in the KV/alias writer slice:** manual, Agent and history-restore writes emit observed-tag `set.add`/`set.remove` operations and rebuild the deterministic projection. |
 | `node_content.plot_grid_json` | `plot_grid_document` size tuple; stable `plot_grid_row` and `plot_grid_column` identities with ordered-set position keys; stable `plot_grid_cell` identity/value; row/column labels as LWW fields | **Closed in the Plot Grid vertical slice below:** generic content writers exclude `plotGridJson`; desktop/mobile planners emit named mutations and rebuild the sparse projection transactionally. |
-| `book_node.book_order` | `sync_order_register` position key in the project chapter list; tie break by node ID | **Closed:** manual and Agent chapter create/reorder paths emit `order.move`; generic node payloads omit `bookOrder`. |
+| `book_node.book_order` | Authored finite real LWW field; query/UI order sorts `(bookOrder, node ID)` | **Closed:** manual, Agent, restore and checkpoint paths preserve the exact coordinate; no chapter `sync_order_register` is written or materialized. |
+| `book_node.narrative_order` | Authored nullable finite real LWW field; query/UI order sorts placed chapters by `(narrativeOrder, node ID)` | **Closed:** Bottom Timeline writes the continuous pointer-derived coordinate directly, while `null` remains the explicit unplaced state. |
 | `storylines.order_key` | `sync_order_register` position key in the project storyline list | **Closed:** manual and Agent storyline writers emit `order.move`; generic payloads omit `orderKey`. |
 | `drift_group.sort_order` | `sync_order_register` position key scoped by project + parent group | **Closed:** every group has finite local projection plus one register; reparenting changes that register's scope. |
 | `element_patch.order_key` | `sync_order_register` position key scoped to the owning element | **Closed:** typed patch create/update paths emit `order.move`; generic payloads omit `orderKey`. |
 | `library_item.order_key` | `sync_order_register` position key in the project library list | **Closed:** create/update ordering is journaled and the numeric column is projection only. |
-| `book_act.start_order` | `sync_order_register` position key in the project act-boundary list; opener is the first key, not a special missing authority | **Closed:** opener and numeric boundaries both have explicit versioned position keys across create/move/delete/dissolve flows. |
+| `book_act.start_order` | Authored nullable finite real LWW field on the book axis | **Closed:** `null` is an optional movable book-head anchor, while finite boundaries may leave a leading no-act interval; exact coordinates survive create/move/delete/spread/checkpoint flows without act-list rank projection. |
 
 The shared KV model must be a first-class domain table, not a generic metadata
 blob. A suitable baseline shape is one `entity_kv_entry` table with stable
@@ -64,8 +115,9 @@ identity and merge behavior.
 
 ## Closure and acceptance
 
-1. Every writer above mutates normalized rows/tags/registers inside the same
-   `runAuthoredTransaction` as its legacy UI projection.
+1. Every discrete-list writer above mutates normalized rows/tags/registers
+   inside the same `runAuthoredTransaction` as its legacy UI projection;
+   continuous timeline writers atomically update their scalar row and LWW field.
 2. KV entry create/update/remove and ordering use stable IDs; aliases use
    `set.add/set.remove`; list insertion/move uses `generateKeyBetween`; an
    explicit multi-entity reorder uses one `order.rebalance` change-set whose
@@ -76,23 +128,30 @@ identity and merge behavior.
 4. Checkpoint capture includes the new authored tables through the generated
    manifest and the reducer metadata already present in `reducerState`.
 5. Restore materializes normalized rows and deterministically rebuilds
-   `kv_json`, aliases, `plot_grid_json`, and numeric ordering projections before
-   SyncGeneration activation.
+   `kv_json`, aliases, `plot_grid_json`, and discrete numeric ordering
+   projections before SyncGeneration activation, while preserving authored
+   timeline coordinates exactly.
 6. Tests cover non-empty KV/template/alias/grid data and multiple reordered
    entities, then compare canonical semantic state before and after restore.
 7. The old lossy-projection capture guard has been removed only after the
    normalized capture/restore test passed.
+8. Empty chapter axes still expose marker/act context menus and accept
+   coordinate-specific creation. The act-head `+` creates one first act at the
+   left edge, and that first act remains movable so a no-act prefix is legal.
+9. Bottom Timeline and
+   Storyline Graph share one compositor-backed pointer drag for placed and
+   unplaced chapters, and each drop calls one atomic timeline move.
 
-Capture first checks that every normalized KV, authored list, and Plot Grid
-axis has its required order authority, so an incomplete checkpoint cannot be
-published. Restore validation checks normalized KV ownership and Plot Grid
+Capture first checks that every normalized KV, authored discrete list, and Plot
+Grid axis has its required order authority, so an incomplete checkpoint cannot
+be published. Restore validation checks normalized KV ownership and Plot Grid
 document/axis/cell reachability. Restore loads authored tables and reducer
-metadata, rebuilds all excluded projections using the staged `syncGenerationId`, and
-sets the SyncGeneration to `active` only at the end of the same activation transaction.
-The end-to-end fixture deliberately corrupts every excluded projection before
-capture and verifies canonical semantic reconstruction from fractional
-authority after restore. The exact pre-capture numeric values are intentionally
-not preserved: they are non-authoritative ranks.
+metadata, rebuilds excluded projections using the staged `syncGenerationId`,
+and sets the SyncGeneration to `active` only at the end of the same activation
+transaction. The end-to-end fixture deliberately corrupts excluded discrete
+projections before capture and verifies canonical reconstruction from
+fractional authority. It separately verifies that chapter and act coordinates
+retain their exact pre-capture real values because those values are authored.
 
 The following excluded fields are not blockers: `created_at/updated_at` are HLC
 projections, `outline_json` and word-count basis are rebuilt from Yjs, and
@@ -137,5 +196,8 @@ pnpm exec vitest run \
 pnpm exec tsx scripts/generate-sync-domain-manifest.ts --check
 ```
 
-The checked-in machine-readable result for the fractional-order closure is
-[`acceptance/phase1-fractional-order-authority.json`](acceptance/phase1-fractional-order-authority.json).
+The checked-in machine-readable results are
+[`acceptance/phase1-fractional-order-authority.json`](acceptance/phase1-fractional-order-authority.json)
+for discrete lists and
+[`acceptance/phase1-continuous-timeline-authority.json`](acceptance/phase1-continuous-timeline-authority.json)
+for the continuous chapter/marker/act axis.

@@ -174,7 +174,14 @@ export class SyncReducerRejectedError extends Error {
 
 export class LocalAuthoredSemanticConflictError extends Error {
   constructor(readonly conflicts: readonly ReducerConflict[]) {
-    super('local authored transaction failed its post-write domain validation');
+    const summary = conflicts
+      .map((conflict) => `${conflict.code}@${conflict.target?.kind ?? 'unknown'}:${conflict.target?.id ?? 'unknown'}`)
+      .join(', ');
+    super(
+      summary.length > 0
+        ? `local authored transaction failed its post-write domain validation: ${summary}`
+        : 'local authored transaction failed its post-write domain validation',
+    );
     this.name = 'LocalAuthoredSemanticConflictError';
   }
 }

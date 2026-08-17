@@ -53,6 +53,43 @@ describe('authored domain mutation wire classification', () => {
     });
   });
 
+  it('keeps continuous timeline coordinates in scalar LWW mutations', async () => {
+    const changes = new SyncChangeBuilder();
+    appendAuthoredDomainMutation(changes, {
+      entityType: 'node',
+      mutationType: 'update',
+      entityId: 'chapter-1',
+      projectId: 'project-1',
+      payload: { bookOrder: 7.375, narrativeOrder: 2.625 },
+    });
+    appendAuthoredDomainMutation(changes, {
+      entityType: 'bookAct',
+      mutationType: 'update',
+      entityId: 'act-1',
+      projectId: 'project-1',
+      payload: { startOrder: 4.125 },
+    });
+
+    const finalized = await changes.finalize();
+    expect(finalized.mutations.map(({ mutation }) => mutation)).toEqual([
+      expect.objectContaining({
+        action: 'field.set',
+        target: expect.objectContaining({ kind: 'node', id: 'chapter-1' }),
+        payload: { field: 'bookOrder', value: 7.375 },
+      }),
+      expect.objectContaining({
+        action: 'field.set',
+        target: expect.objectContaining({ kind: 'node', id: 'chapter-1' }),
+        payload: { field: 'narrativeOrder', value: 2.625 },
+      }),
+      expect.objectContaining({
+        action: 'field.set',
+        target: expect.objectContaining({ kind: 'book-act', id: 'act-1' }),
+        payload: { field: 'startOrder', value: 4.125 },
+      }),
+    ]);
+  });
+
   it('keeps main prose contentJson out of entity seeds and incremental field registers', async () => {
     const changes = new SyncChangeBuilder();
     appendAuthoredDomainMutation(changes, {

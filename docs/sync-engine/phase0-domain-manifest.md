@@ -20,13 +20,14 @@ expanded checked-in inventory is
 - `content_json` on Yjs-backed entity editors is classified as CRDT seed/cache,
   never as a second prose merge authority. Ordinary comment, library, and patch
   TipTap JSON remains authored whole-field state in protocol v1.
-- Legacy `kv_json`, `aliases_json`, `plot_grid_json`, `book_order`,
-  `start_order`, and integer `order_key` fields are classified as projections.
-  Phase 1 now supplies stable KV-entry, alias OR-set, and normalized Plot Grid
-  writer authority, fractional ordering, and checkpoint projection rebuild.
-  This manifest does not
-  silently promote any old whole-JSON or integer representation into v1 wire
-  authority.
+- Legacy `kv_json`, `aliases_json`, `plot_grid_json`, and discrete-list integer
+  `order_key` fields are classified as projections. Phase 1 now supplies stable
+  KV-entry, alias OR-set, normalized Plot Grid writer authority, fractional
+  ordering, and checkpoint projection rebuild. Bottom Timeline coordinates are
+  intentionally different: `book_order`, `narrative_order`, and act
+  `start_order` are authored finite real values because exact placement itself
+  carries product meaning. The manifest does not silently promote old
+  whole-JSON or unrelated integer representations into v1 wire authority.
 - Provider credentials, bearer tokens, and resumable session URIs are never
   domain fields. SQLite may store only opaque credential/session references,
   and those fields must still receive an explicit `secret` classification.

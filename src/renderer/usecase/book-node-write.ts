@@ -5,11 +5,7 @@ import type {
 } from '../sqlite-repo/node-repo';
 import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
 import type { DbTransaction } from '../lib/db';
-import {
-  appendPlannedAuthoredOrderInTransaction,
-  type SyncChangeBuilder,
-} from '../sync/journal';
-import { entityIdsByNumericPlacement } from '../sync/journal/order-authority';
+import type { SyncChangeBuilder } from '../sync/journal';
 import {
   withAtomicSyncTransaction,
   type AtomicSyncWriter,
@@ -44,9 +40,8 @@ export function persistBookNodeUpdateWithSync(
   const options: BookNodeUpdateOptions | undefined = input.guard
     ? { expectedRevision: input.guard.expectedRevision }
     : undefined;
-  return runAtomic(input.projectId, async (tx, sync, changes) => {
+  return runAtomic(input.projectId, async (tx, sync) => {
     const syncPayload = { ...input.syncPayload };
-    delete syncPayload.bookOrder;
     const repository = createBookNodeSqliteRepository(
       input.projectId,
       tx,
@@ -60,22 +55,6 @@ export function persistBookNodeUpdateWithSync(
       throw new Error(
         `Book node ${input.nodeId} no longer exists in project ${input.projectId}.`,
       );
-    }
-    if (input.updates.bookOrder !== undefined) {
-      if (result.kind !== 'chapter' || typeof result.bookOrder !== 'number') {
-        throw new Error('Only chapters may receive authored book-order positions.');
-      }
-      const desiredEntityIds = entityIdsByNumericPlacement(
-        (await repository.findAll())
-          .filter((node) => node.kind === 'chapter')
-          .map((node) => ({ entityId: node.id, projection: node.bookOrder! })),
-      );
-      await appendPlannedAuthoredOrderInTransaction(tx, changes, {
-        projectId: input.projectId,
-        listKind: 'chapter',
-        scope: input.projectId,
-        desiredEntityIds,
-      });
     }
     if (Object.keys(syncPayload).length > 0) {
       await sync(

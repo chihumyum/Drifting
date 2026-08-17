@@ -25,7 +25,6 @@ import {
 } from '../schema/drizzle';
 import {
   appendProjectAssetBindMutation,
-  readAuthoredOrderEntriesInTransaction,
   recordAuthoredChangeSetInTransaction,
   SyncChangeBuilder,
   type SyncWriterIdentitySource,
@@ -359,10 +358,6 @@ describe('authored lifecycle restore', () => {
         target: expect.objectContaining({ kind: 'node', incarnation: 1 }),
       }),
       expect.objectContaining({
-        action: 'order.move',
-        target: expect.objectContaining({ kind: 'chapter', incarnation: 1 }),
-      }),
-      expect.objectContaining({
         action: 'set.remove',
         target: expect.objectContaining({ kind: 'membership', incarnation: 0 }),
       }),
@@ -375,6 +370,8 @@ describe('authored lifecycle restore', () => {
         target: expect.objectContaining({ kind: 'node-storyline-primary', incarnation: 1 }),
       }),
     ]));
+    expect(node.mutations.find((mutation) => mutation.action === 'entity.restore')?.payload)
+      .toMatchObject({ seed: { bookOrder: 4 } });
     expect(storyline.mutations).toEqual(expect.arrayContaining([
       expect.objectContaining({
         action: 'order.move',
@@ -420,12 +417,7 @@ describe('authored lifecycle restore', () => {
     ));
     expect(membershipTags).toHaveLength(2);
     expect(membershipTags.filter((tag) => tag.removedByChangeSetId === null)).toHaveLength(1);
-    expect(
-      await readAuthoredOrderEntriesInTransaction(db, {
-        projectId: PROJECT_ID,
-        listKind: 'chapter',
-        scope: PROJECT_ID,
-      }),
-    ).toMatchObject([{ entityId: NODE_ID }]);
+    expect((await db.select().from(BookNodeTable).where(eq(BookNodeTable.id, NODE_ID)))[0])
+      .toMatchObject({ bookOrder: 4 });
   });
 });

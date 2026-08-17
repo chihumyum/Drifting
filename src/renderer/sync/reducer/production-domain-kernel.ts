@@ -13,9 +13,6 @@ import {
   type EntityRelationType,
 } from '../../domain/entity-relation-type';
 import {
-  CHAPTER_ORDER_STRIDE,
-} from '../../domain/book-node';
-import {
   MAX_CELL_H,
   MAX_CELL_W,
   MIN_CELL_H,
@@ -125,20 +122,19 @@ export const PRODUCTION_DOMAIN_KERNEL_COVERAGE = Object.freeze({
   ]),
   setKinds: Object.freeze(['alias', 'membership']),
   orderKinds: Object.freeze([
-    'chapter',
     'storyline',
     'drift-group',
     'element-patch',
     'library-item',
-    'book-act',
     'kv-entry',
     'plot-grid-row',
     'plot-grid-column',
   ]),
   tupleKinds: Object.freeze(['node:graph.position', 'node-content:plot-grid-size']),
   externalActions: Object.freeze([...EXTERNAL_ACTIONS]),
+  failClosedKinds: Object.freeze(['chapter']),
   failClosed: Object.freeze([
-    'chapter entity lifecycle (chapter is an order-list alias, not a domain row)',
+    'chapter target kind (chapters are node entities with an authored bookOrder field)',
     'retired node-storyline-link lifecycle/whole-array payloads',
     'unknown kind, field, tuple, set, order, payload, or future external action',
   ]),
@@ -185,6 +181,7 @@ const FIELD_POLICY: Readonly<Record<string, Readonly<Record<string, FieldValidat
   node: {
     title: NON_EMPTY_STRING,
     summary: STRING,
+    bookOrder: NULLABLE_FINITE_NUMBER,
     narrativeOrder: NULLABLE_FINITE_NUMBER,
     writingStatus: oneOf('draft', 'revising', 'done', 'drifting', 'sorted'),
     kind: oneOf('chapter', 'drift'),
@@ -295,7 +292,12 @@ const FIELD_POLICY: Readonly<Record<string, Readonly<Record<string, FieldValidat
     supersedesId: NULLABLE_STRING,
     deletedAt: NULLABLE_STRING,
   },
-  'book-act': { name: NON_EMPTY_STRING, color: NULLABLE_STRING, driftNodeId: NULLABLE_STRING },
+  'book-act': {
+    name: NON_EMPTY_STRING,
+    color: NULLABLE_STRING,
+    startOrder: NULLABLE_FINITE_NUMBER,
+    driftNodeId: NULLABLE_STRING,
+  },
   'drift-group': { name: NON_EMPTY_STRING, parentGroupId: NULLABLE_STRING, color: NULLABLE_STRING },
   'timeline-marker': { narrativeOrder: FINITE_NUMBER, label: STRING, driftNodeId: NULLABLE_STRING },
   'kv-entry': {
@@ -450,7 +452,7 @@ function validateFieldEffect(effect: FieldEffect): SemanticConflictDraft | null 
 
 function validateLifecycleEffect(effect: LifecycleEffect): readonly SemanticConflictDraft[] {
   if (effect.target.kind === 'chapter') {
-    return [conflict(effect, 'domain.kind-is-order-alias', 'chapter is an order list alias, not an entity lifecycle')];
+    return [conflict(effect, 'domain.unsupported-kind', 'chapter is not a sync target; chapters are node entities')];
   }
   if (effect.target.kind === NODE_PRIMARY_STORYLINE_REGISTER_KIND) {
     return [conflict(effect, 'membership.register-has-no-lifecycle', 'Primary storyline authority is a field register, not an entity lifecycle')];
@@ -819,6 +821,10 @@ async function upsertLifecycleLive(
         id: effect.target.id,
         title: seed.title as string,
         summary: (seed.summary as string | undefined) ?? '',
+        bookOrder:
+          seed.kind === 'chapter'
+            ? ((seed.bookOrder as number | null | undefined) ?? 0)
+            : null,
         narrativeOrder: (seed.narrativeOrder as number | null | undefined) ?? null,
         projectId: context.changeSet.projectId,
         writingStatus: (seed.writingStatus as string | undefined) ?? ((seed.kind === 'drift') ? 'drifting' : 'draft'),
@@ -835,6 +841,7 @@ async function upsertLifecycleLive(
         set: {
           title: values.title,
           summary: values.summary,
+          bookOrder: values.bookOrder,
           narrativeOrder: values.narrativeOrder,
           projectId: values.projectId,
           writingStatus: values.writingStatus,
@@ -890,7 +897,7 @@ async function upsertLifecycleLive(
       await context.tx.insert(AgentMemoryTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, kind: seed.kind as string, body: seed.body as string, targetKind: (seed.targetKind as string | null | undefined) ?? null, targetId: (seed.targetId as string | null | undefined) ?? null, targetBlockId: (seed.targetBlockId as string | null | undefined) ?? null, source: (seed.source as string | undefined) ?? 'agent', originRef: (seed.originRef as string | null | undefined) ?? null, status: (seed.status as string | undefined) ?? 'pending', supersedesId: (seed.supersedesId as string | null | undefined) ?? null, deletedAt: (seed.deletedAt as string | null | undefined) ?? null, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
       return;
     case 'book-act':
-      await context.tx.insert(BookActTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, name: seed.name as string, color: (seed.color as string | null | undefined) ?? null, startOrder: null, driftNodeId: (seed.driftNodeId as string | null | undefined) ?? null, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
+      await context.tx.insert(BookActTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, name: seed.name as string, color: (seed.color as string | null | undefined) ?? null, startOrder: (seed.startOrder as number | null | undefined) ?? null, driftNodeId: (seed.driftNodeId as string | null | undefined) ?? null, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
       return;
     case 'drift-group':
       await context.tx.insert(DriftGroupTable).values({ id: effect.target.id, projectId: context.changeSet.projectId, name: seed.name as string, parentGroupId: (seed.parentGroupId as string | null | undefined) ?? null, color: (seed.color as string | null | undefined) ?? null, createdAt: seed.createdAt as string, updatedAt: seed.updatedAt as string }).onConflictDoNothing();
@@ -1161,12 +1168,10 @@ async function materializeOrder(context: SyncDomainMaterializationContext, effec
       ? { updatedAt: winningIso(effect) }
       : {};
   switch (effect.target.kind) {
-    case 'chapter': await context.tx.update(BookNodeTable).set({ bookOrder: rank * CHAPTER_ORDER_STRIDE, ...remoteAuthoredTimestamp }).where(and(eq(BookNodeTable.id, effect.entityId), eq(BookNodeTable.projectId, context.changeSet.projectId))); return;
     case 'storyline': await context.tx.update(StorylineTable).set({ orderKey: rank, ...remoteAuthoredTimestamp }).where(and(eq(StorylineTable.id, effect.entityId), eq(StorylineTable.projectId, context.changeSet.projectId))); return;
     case 'drift-group': await context.tx.update(DriftGroupTable).set({ sortOrder: rank, ...remoteAuthoredTimestamp }).where(and(eq(DriftGroupTable.id, effect.entityId), eq(DriftGroupTable.projectId, context.changeSet.projectId))); return;
     case 'element-patch': await context.tx.update(ElementPatchTable).set({ orderKey: rank, ...remoteAuthoredTimestamp }).where(and(eq(ElementPatchTable.id, effect.entityId), eq(ElementPatchTable.projectId, context.changeSet.projectId))); return;
     case 'library-item': await context.tx.update(LibraryItemTable).set({ orderKey: rank, ...remoteAuthoredTimestamp }).where(and(eq(LibraryItemTable.id, effect.entityId), eq(LibraryItemTable.projectId, context.changeSet.projectId))); return;
-    case 'book-act': await context.tx.update(BookActTable).set({ startOrder: rank === 0 ? null : rank * CHAPTER_ORDER_STRIDE, ...remoteAuthoredTimestamp }).where(and(eq(BookActTable.id, effect.entityId), eq(BookActTable.projectId, context.changeSet.projectId))); return;
     case 'plot-grid-row': await context.tx.update(PlotGridRowTable).set({ positionKey: effect.positionKey }).where(eq(PlotGridRowTable.id, effect.entityId)); return;
     case 'plot-grid-column': await context.tx.update(PlotGridColumnTable).set({ positionKey: effect.positionKey }).where(eq(PlotGridColumnTable.id, effect.entityId)); return;
     case 'kv-entry': return; // SyncOrderRegister is the direct authority consumed by the KV projection writer.
@@ -1322,8 +1327,15 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
       const issue = validateTupleEffect(effect);
       if (issue) issues.push(issue);
     } else if (effect.type === 'order.position') {
-      const issue = validateOrderEffect(effect);
-      if (issue) issues.push(issue);
+      // Retired pre-release chapter order registers can remain in an older
+      // reducer history until the next checkpoint. They are inert history,
+      // not part of the transaction currently being admitted. Validate only
+      // a newly authored order effect so new chapter fractional-order writes
+      // still fail closed without poisoning unrelated current field writes.
+      if (effect.source?.changeSetId === context.changeSet.changeSetId) {
+        const issue = validateOrderEffect(effect);
+        if (issue) issues.push(issue);
+      }
     } else if (effect.type === 'set.member') {
       const issue = validateSetEffect(effect);
       if (issue) issues.push(issue);
@@ -1391,6 +1403,24 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
     if (effect.type !== 'entity.lifecycle' || effect.status !== 'live' || !effect.seed) continue;
     const candidate = candidateRecord(context.effects, effect.target.kind, effect.target.id);
     if (!candidate) continue;
+    const currentEntityEffects = effectsForEntity(
+      context.effects,
+      effect.target.kind,
+      effect.target.id,
+    ).filter((candidateEffect) =>
+      'source' in candidateEffect &&
+      candidateEffect.source?.changeSetId === context.changeSet.changeSetId,
+    );
+    const currentLifecycleChanged = currentEntityEffects.some(
+      (candidateEffect) => candidateEffect.type === 'entity.lifecycle',
+    );
+    const currentFields = new Set(
+      currentEntityEffects
+        .filter((candidateEffect): candidateEffect is FieldEffect =>
+          candidateEffect.type === 'field.set',
+        )
+        .map((candidateEffect) => candidateEffect.field),
+    );
     if (effect.target.kind === 'entity-relation-type') {
       try {
         const normalized = normalizeRelationTypeDefinition({
@@ -1499,10 +1529,38 @@ async function validateNamedInvariants(context: SyncDomainMaterializationContext
       }
     }
     if (effect.target.kind === 'node') {
-      if (candidate.kind === 'chapter' && candidate.driftGroupId !== null && candidate.driftGroupId !== undefined) {
+      const validatesBookOrder =
+        currentLifecycleChanged ||
+        currentFields.has('kind') ||
+        currentFields.has('bookOrder');
+      const validatesDriftGroup =
+        currentLifecycleChanged ||
+        currentFields.has('kind') ||
+        currentFields.has('driftGroupId');
+      if (
+        validatesBookOrder &&
+        candidate.kind === 'chapter' &&
+        !FINITE_NUMBER(candidate.bookOrder)
+      ) {
+        issues.push(entityConflict(context.effects, effect, 'node.chapter-missing-book-order', 'Chapter nodes require a finite authored bookOrder'));
+      }
+      if (
+        validatesBookOrder &&
+        candidate.kind === 'drift' &&
+        candidate.bookOrder !== null &&
+        candidate.bookOrder !== undefined
+      ) {
+        issues.push(entityConflict(context.effects, effect, 'node.drift-has-book-order', 'Drift nodes cannot have a bookOrder'));
+      }
+      if (
+        validatesDriftGroup &&
+        candidate.kind === 'chapter' &&
+        candidate.driftGroupId !== null &&
+        candidate.driftGroupId !== undefined
+      ) {
         issues.push(entityConflict(context.effects, effect, 'node.chapter-has-drift-group', 'Chapter nodes cannot belong to drift groups'));
       }
-      if (typeof candidate.driftGroupId === 'string') {
+      if (validatesDriftGroup && typeof candidate.driftGroupId === 'string') {
         const groupExists = Boolean(candidateRecord(context.effects, 'drift-group', candidate.driftGroupId)) ||
           (await context.tx.select({ id: DriftGroupTable.id }).from(DriftGroupTable).where(and(eq(DriftGroupTable.id, candidate.driftGroupId), eq(DriftGroupTable.projectId, context.changeSet.projectId))).limit(1)).length === 1;
         if (!groupExists) issues.push(entityConflict(context.effects, effect, 'node.missing-drift-group', 'Drift group does not exist in this project'));
@@ -1577,7 +1635,7 @@ export function createProductionSyncDomainMaterializationKernel(): SyncDomainMat
             lifecycle.type !== 'entity.lifecycle' ||
             lifecycle.source?.changeSetId !== context.changeSet.changeSetId
           ) return false;
-          const orderKind = lifecycle.target.kind === 'node' ? 'chapter' : lifecycle.target.kind;
+          const orderKind = lifecycle.target.kind;
           return orderEffects.some(
             (effect) =>
               effect.target.kind === orderKind &&
